@@ -1,6 +1,6 @@
 # Architettura `wonder-image/gestionale` + `wonder-image/ecommerce`
 
-- **Stato:** spec definitiva, in attesa di approvazione
+- **Stato:** approvata il 2026-09-16
 - **Brainstorming:** dal 2026-09-11 al 2026-09-16, decisioni D1–D59
 - **Avanzamento:** [TODO.md](../../../TODO.md)
 - **Storia:** il registro cronologico delle decisioni è nel commit `4fa9852`

@@ -91,7 +91,7 @@ Regola: dopo ogni decisione approvata aggiorna la spec e spunta la voce qui.
 
 - [x] Trasformare la bozza in spec definitiva, riorganizzata per capitoli
 - [x] Autorevisione: segnaposto, contraddizioni, ambiguità, perimetro (correzioni nell'appendice E)
-- [ ] Approvazione finale della spec
+- [x] Approvazione finale della spec (2026-09-16)
 - [x] Repository git locale `packages/gestionale` e commit della spec
 
 ## Fase 3 — Sotto-progetti
