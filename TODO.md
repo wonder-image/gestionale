@@ -89,10 +89,10 @@ Regola: dopo ogni decisione approvata aggiorna la spec e spunta la voce qui.
 
 ## Fase 2 — Spec di architettura
 
-- [ ] Trasformare la bozza in spec definitiva
-- [ ] Autorevisione: segnaposto, contraddizioni, ambiguità, perimetro
+- [x] Trasformare la bozza in spec definitiva, riorganizzata per capitoli
+- [x] Autorevisione: segnaposto, contraddizioni, ambiguità, perimetro (correzioni nell'appendice E)
 - [ ] Approvazione finale della spec
-- [ ] Repository git e commit della spec
+- [x] Repository git locale `packages/gestionale` e commit della spec
 
 ## Fase 3 — Sotto-progetti
 
