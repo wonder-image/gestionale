@@ -1676,13 +1676,15 @@ I formati delle etichette si precaricano con il sotto-progetto delle etichette
 - Nasce all'installazione come "Sede principale" (`is_default`, con giacenza).
 - Alla creazione riprende una sola volta i dati già presenti nella società, così un
   sito esistente non li perde.
-- Da lì in poi è la fonte dei dati: a ogni salvataggio indirizzo, telefono, email e
-  orari si copiano in `society_address` e `society_timetable` del core. Si modifica
-  in locale e arriva in produzione con `php forge export`, insieme alle tabelle della
+- Da lì in poi è la fonte dei dati: a ogni salvataggio indirizzo e orari si copiano
+  in `society_address` e `society_timetable` del core, con il servizio
+  `CorporateData` del core. Telefono ed email restano nei dati della società
+  (`society`), perché possono essere diversi da quelli della sede. Si modifica in
+  locale e arriva in produzione con `php forge export`, insieme alle tabelle della
   società già sincronizzate dal core.
-- Con il gestionale abilitato le pagine "Indirizzo" e "Orari" della società del core
-  sono in sola lettura, con un link alla sede principale (opzione del core che
-  permette a un modulo di bloccare una Resource del core).
+- Con il gestionale abilitato le sezioni "Indirizzo" e "Orari" della pagina "Dati
+  aziendali" del core sono in sola lettura, con avviso e link alla sede principale
+  (`CorporateData::lock()`, bloccate anche nel salvataggio).
 
 *Scartato:* sede principale che copia o legge i dati dalla società.
 
@@ -1944,13 +1946,15 @@ disponibili.
 | Prima del gestionale | sync con `id` stabili | 8.2 |
 | Prima del gestionale | `Defaults` dei moduli in `forge update` locale | 8.2 |
 | Prima del gestionale | pagine delle tabelle sincronizzate in sola lettura in produzione | 8.2 |
-| Prima del gestionale | sola lettura di una Resource del core da un modulo | 8.4 |
+| Prima del gestionale | blocco delle sezioni della pagina "Dati aziendali" da un modulo (`CorporateData::lock()`) | 8.4 |
 | Prima del gestionale | helper `transaction(fn)` | 9.2 |
 | Prima del gestionale | opzione `docs()` nel `PageSchema` | 9.5 |
 | Prima del gestionale | classe delle aliquote IVA italiane | 4.5 |
 | Con E2 | credenziali PayPal e Nexi in `Credentials::api()`, tabella `security` e pagina backend; alias e chiave MAC nella classe `Nexi` | 2.4, 6.3 |
 | Dopo il primo rilascio | `AuthFederated` (accesso con Google e Apple) | 10.4 |
 | Con le etichette | EAN-13 ed EAN-8 in `createBarcode()` | 10.5 |
+
+Design dei lavori "prima del gestionale": `packages/app/docs/superpowers/specs/2026-09-16-prerequisiti-moduli-gestionale-design.md`.
 
 ### 10.3 Nucleo del primo rilascio (D59)
 
@@ -2459,3 +2463,8 @@ incoerenze, corrette così:
 12. **Riferimenti superati eliminati:** "ancora da decidere" di D28, rimandi di D31,
     "se ci sarà il checkout da ospite" e "limiti nella 4.6" di D35, riferimenti a
     "sezione N" e "parte 4.x".
+13. **Sede principale (2026-09-16, design dei prerequisiti del core):** copia solo
+    indirizzo e orari, perché `society_address` non ha telefono ed email, che restano
+    nei dati della società; indirizzo e orari non sono Resource ma sezioni della
+    pagina "Dati aziendali", bloccate con `CorporateData::lock()` invece di una
+    Resource del core in sola lettura.
