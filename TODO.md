@@ -103,8 +103,9 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 - [ ] Lavori preparatori nel core, prima del gestionale (D58)
   - Spec: `packages/app/docs/superpowers/specs/2026-09-16-prerequisiti-moduli-gestionale-design.md`
   - [x] Parte 1 del design: `APP_ENV`, sync con `id` stabili, `localOnly()`, righe precaricate dei moduli (2026-09-16)
-  - [ ] Parte 2 del design: dati aziendali, transazioni, pulsante "Guida", classi fiscali
-  - [ ] Spec approvata e commit su un ramo di `wonder-image/app`
+  - [x] Parte 2 del design: dati aziendali (`CorporateData::lock()`), transazioni e lock, pulsante "Guida", classi fiscali (2026-09-16)
+  - [x] Spec scritta e committata sul ramo `feature/prerequisiti-moduli-gestionale` di `wonder-image/app` (b06e4f5f)
+  - [ ] Revisione della spec scritta
   - [ ] Piano di implementazione
   - [ ] Implementazione, test e documentazione in `docs/app/`
   - [ ] `APP_ENV` negli `.env.example` dei boilerplate (`new-site`, `immobili-site`, `rsvp-site`)
