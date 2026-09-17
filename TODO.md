@@ -114,7 +114,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Piano 2 di 3: transazioni, lock nominali, pulsante "Guida", classi fiscali (parti F–H), implementato con test e documentazione (2026-09-17): `packages/app/docs/superpowers/plans/2026-09-17-transazioni-guida-classi-fiscali.md`
   - [x] Piano 2, verifiche con database su `new-site`: `sqlInsert()` e `Model::create()` annullati insieme, letture `ForUpdate` dentro e fuori transazione, `NamedLock` con due processi, pulsante "Guida" nei dati del form (2026-09-17)
   - [x] Piano 3 di 3: sedi della società in "Dati aziendali" (parte E), implementato con test, documentazione e verifica con database su `new-site` (migrazione reale, più sedi, eredità, form resi) (2026-09-17): `packages/app/docs/superpowers/plans/2026-09-17-sedi-della-societa.md`
-  - [ ] Controllo visivo nel backend di `new-site`: elenco "Dati aziendali", scheda sede con suggerimenti e pulsante "Orari e chiusure", salvataggio di orari e chiusure, menu da `administrator`, pulsante "Guida" in elenco e scheda, pagine in sola lettura
+  - [x] Revisione dopo il controllo visivo (2026-09-17): pagina "Sedi" (percorso `app/config/locations`, solo `admin`) con orari e chiusure nella scheda, slug generato alla creazione e non modificabile, nome dell'attività unico nella sede predefinita (`$SOCIETY->name`) distinto dal nome della sede (`$SOCIETY->location->name`); verificata su `new-site` da riga di comando e nel browser (elenco, scheda, nuova sede)
+  - [ ] Prova di salvataggio dal browser su `new-site`: nuova sede con orari e chiusure, orari non validi, cambio della sede predefinita
   - [ ] Chiusura del ramo `feature/prerequisiti-moduli-gestionale` (merge o PR) e rilascio minore di `wonder-image/app`
 - [ ] G1 Fondamenta
 - [ ] G2 Catalogo, magazzino base, anagrafiche
