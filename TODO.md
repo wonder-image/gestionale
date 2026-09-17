@@ -107,9 +107,12 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Parte E rivista: più sedi della società in "Dati aziendali", orari e chiusure sul modello di Google, migrazione dei dati esistenti (2026-09-17)
   - [x] Spec scritta e committata sul ramo `feature/prerequisiti-moduli-gestionale` di `wonder-image/app` (b06e4f5f)
   - [x] Revisione della spec scritta (2026-09-17)
-  - [ ] Piano di implementazione
-  - [ ] Implementazione, test e documentazione in `docs/app/`
-  - [ ] `APP_ENV` negli `.env.example` dei boilerplate (`new-site`, `immobili-site`, `rsvp-site`)
+  - [x] Piano 1 di 3 (ambiente e sincronizzazione, parti A–D): `packages/app/docs/superpowers/plans/2026-09-17-ambiente-e-sincronizzazione.md`
+  - [x] Piano 1 implementato con test e documentazione in `docs/app/` (task 1–11, 2026-09-17)
+  - [ ] Piano 1, task 12: verifica con database da un sito di prova (serve un database MySQL locale utilizzabile)
+  - [x] `APP_ENV` negli `.env.example` dei boilerplate (`new-site`, `immobili-site`, `rsvp-site`), rami `feature/app-env`
+  - [ ] Piano 2 di 3: transazioni, pulsante "Guida", classi fiscali (parti F–H)
+  - [ ] Piano 3 di 3: sedi della società in "Dati aziendali" (parte E)
 - [ ] G1 Fondamenta
 - [ ] G2 Catalogo, magazzino base, anagrafiche
 - [ ] G3 Magazzino avanzato
