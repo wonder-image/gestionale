@@ -565,7 +565,7 @@ in `wonder-image/app`.
 |---|---|
 | `locations` | code `loc_`, society_location_id (unico, sede del core), has_stock, is_pickup_point, is_pos, active |
 
-- **Le sedi sono quelle del core** ("Dati aziendali", `society_locations`): nome,
+- **Le sedi sono quelle del core** ("Sedi", `society_locations`): nome,
   indirizzo, contatti, dati legali, Place ID, orari e chiusure stanno lì (8.4). Il
   gestionale aggiunge solo ciò che serve al magazzino e alla vendita.
 - La sede principale è la sede predefinita del core. Con `multi_location` bloccata è
@@ -575,8 +575,8 @@ in `wonder-image/app`.
 - Orari e chiusure effettivi dal core (`SocietyLocations::hoursFor()` e `isOpen()`):
   durante una chiusura il ritiro non si può scegliere.
 - Sedi del core e `locations` sono configurazione di `admin`, sincronizzata tra
-  ambienti; orari e chiusure del core si modificano in produzione da `admin` e
-  `administrator` (8.2).
+  ambienti; orari e chiusure del core si modificano nella scheda della sede, da `admin`,
+  anche in produzione (8.2, 8.4).
 
 **Giacenze, prenotazioni e movimenti.**
 
@@ -1676,14 +1676,17 @@ I formati delle etichette si precaricano con il sotto-progetto delle etichette
 
 ### 8.4 Sede principale (D53, D54)
 
-- **Sedi del core:** "Dati aziendali" di `wonder-image/app` gestisce più sedi della
+- **Sedi del core:** "Sedi" di `wonder-image/app` gestisce più sedi della
   società, una predefinita, con dati propri o ereditati dalla predefinita, Place ID,
   orari e chiusure sul modello di Google (spec dei prerequisiti del core, parte E).
 - **Sede principale** = sede predefinita del core. All'installazione i `Defaults` del
   gestionale creano la riga di `locations` collegata, con giacenza.
-- **Modifica solo in locale:** il gestionale sostituisce la Resource "Dati aziendali"
-  del core con la propria (priorità dei moduli nel `ResourceRegistry`), in sola
-  lettura fuori dal locale; "Orari e chiusure" resta modificabile in produzione.
+- **Modifica solo in locale:** il gestionale sostituisce la Resource "Sedi" del core con
+  la propria (priorità dei moduli nel `ResourceRegistry`), in sola lettura fuori dal
+  locale; orari e chiusure devono restare modificabili in produzione.
+- **Da rivedere in G1 (2026-09-17):** nel core orari e chiusure sono ora nella scheda
+  della sede, e la sola lettura di `Resource::isReadonly()` vale per tutta la pagina.
+  Serve un modo per lasciare modificabili solo orari e chiusure fuori dal locale.
 - Nessuna copia di dati tra gestionale e core.
 
 *Scartati:* sede principale che copia o legge i dati dalla società; sedi del
@@ -1948,7 +1951,7 @@ disponibili.
 | Prima del gestionale | sync con `id` stabili | 8.2 |
 | Prima del gestionale | `Defaults` dei moduli in `forge update` locale | 8.2 |
 | Prima del gestionale | pagine delle tabelle sincronizzate in sola lettura in produzione | 8.2 |
-| Prima del gestionale | sedi della società in "Dati aziendali", con orari e chiusure sul modello di Google e migrazione dei dati esistenti | 8.4 |
+| Prima del gestionale | sedi della società nella pagina "Sedi", con orari e chiusure sul modello di Google e migrazione dei dati esistenti | 8.4 |
 | Prima del gestionale | helper `transaction(fn)` | 9.2 |
 | Prima del gestionale | opzione `docs()` nel `PageSchema` | 9.5 |
 | Prima del gestionale | classe delle aliquote IVA italiane | 4.5 |
