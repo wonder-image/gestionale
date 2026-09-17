@@ -111,7 +111,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Piano 1 implementato con test e documentazione in `docs/app/` (task 1–11, 2026-09-17)
   - [ ] Piano 1, task 12: verifica con database da un sito di prova (serve un database MySQL locale utilizzabile)
   - [x] `APP_ENV` negli `.env.example` dei boilerplate (`new-site`, `immobili-site`, `rsvp-site`), rami `feature/app-env`
-  - [ ] Piano 2 di 3: transazioni, pulsante "Guida", classi fiscali (parti F–H)
+  - [x] Piano 2 di 3: transazioni, lock nominali, pulsante "Guida", classi fiscali (parti F–H), implementato con test e documentazione (2026-09-17): `packages/app/docs/superpowers/plans/2026-09-17-transazioni-guida-classi-fiscali.md`
+  - [ ] Piano 2, verifiche con database: `sqlInsert()` e `Model::create()` annullati insieme in `Transaction::run()`, `findForUpdate()` dentro e fuori transazione, `NamedLock` con due processi, pulsante "Guida" visibile in elenco, form e scheda
   - [ ] Piano 3 di 3: sedi della società in "Dati aziendali" (parte E)
 - [ ] G1 Fondamenta
 - [ ] G2 Catalogo, magazzino base, anagrafiche
