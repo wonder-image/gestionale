@@ -103,9 +103,10 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 - [ ] Lavori preparatori nel core, prima del gestionale (D58)
   - Spec: `packages/app/docs/superpowers/specs/2026-09-16-prerequisiti-moduli-gestionale-design.md`
   - [x] Parte 1 del design: `APP_ENV`, sync con `id` stabili, `localOnly()`, righe precaricate dei moduli (2026-09-16)
-  - [x] Parte 2 del design: dati aziendali (`CorporateData::lock()`), transazioni e lock, pulsante "Guida", classi fiscali (2026-09-16)
+  - [x] Parte 2 del design: transazioni e lock, pulsante "Guida", classi fiscali (2026-09-16)
+  - [x] Parte E rivista: più sedi della società in "Dati aziendali", orari e chiusure sul modello di Google, migrazione dei dati esistenti (2026-09-17)
   - [x] Spec scritta e committata sul ramo `feature/prerequisiti-moduli-gestionale` di `wonder-image/app` (b06e4f5f)
-  - [ ] Revisione della spec scritta
+  - [x] Revisione della spec scritta (2026-09-17)
   - [ ] Piano di implementazione
   - [ ] Implementazione, test e documentazione in `docs/app/`
   - [ ] `APP_ENV` negli `.env.example` dei boilerplate (`new-site`, `immobili-site`, `rsvp-site`)
@@ -178,6 +179,7 @@ Fuori dal primo rilascio; progettate a grandi linee o solo annotate.
 - [ ] Magazzino: ordini a fornitore, inventario con conteggio guidato, soglia di scorta minima per sede (D27, D29)
 - [ ] Anagrafiche: più utenti della stessa azienda sul portale B2B, referenti aziendali, gruppi di clienti (D31)
 - [ ] Marketplace e feed, compreso Google Merchant (D7, D23)
+- [ ] Dati aziendali da Google (core): cron che verifica orari e chiusure dalla scheda Google tramite Place ID, Place ID dall'autocomplete, embed automatico della mappa
 - [ ] Spedizioni: zone per CAP, orari di ritiro prenotabili (D41)
 - [ ] Spedizioni: tariffe in tempo reale dal corriere, prenotazione del ritiro del corriere, tracking per singolo collo (D42)
 - [ ] Corrieri collegati: prima un aggregatore scelto con 2-3 commercianti reali, poi corrieri diretti come BRT (D51)

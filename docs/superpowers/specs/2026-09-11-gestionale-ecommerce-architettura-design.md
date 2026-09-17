@@ -251,7 +251,7 @@ prefisso.
 | Personalizzazione | customization | `customization_fields`, `customization_field_options` |
 | Formato etichetta | label format | `label_formats` |
 | Anagrafica, cliente, fornitore | contact, customer, supplier | `contacts`, `contact_addresses` |
-| Sede | location | `locations`, `location_opening_hours`, `location_closures` |
+| Sede | location | `locations` (estende `society_locations` del core; orari e chiusure nel core) |
 | Documento di magazzino | stock document | `stock_documents`, `stock_document_items` |
 | Fornitore del prodotto | product supplier | `product_suppliers` |
 | Giacenza, movimento, prenotazione | stock, stock movement, stock reservation | `stock`, `stock_movements`, `stock_reservations` |
@@ -563,18 +563,20 @@ in `wonder-image/app`.
 
 | Tabella | Colonne principali |
 |---|---|
-| `locations` | code `loc_`, name, is_default (sede principale), has_stock, is_pickup_point, is_pos, indirizzo (`AddressExtension`), phone, email, position, active |
-| `location_opening_hours` | location_id, day (`Mon`…`Sun`), from_time, to_time, position (più fasce per giorno; stesse colonne di `society_timetable` del core) |
-| `location_closures` | location_id, starts_at, ends_at, note |
+| `locations` | code `loc_`, society_location_id (unico, sede del core), has_stock, is_pickup_point, is_pos, active |
 
-- Esiste sempre una sede principale; nasce all'installazione e comanda indirizzo e
-  orari della società del core (8.4). Con `multi_location` bloccata è l'unica e la
-  scelta della sede non compare da nessuna parte (D20).
+- **Le sedi sono quelle del core** ("Dati aziendali", `society_locations`): nome,
+  indirizzo, contatti, dati legali, Place ID, orari e chiusure stanno lì (8.4). Il
+  gestionale aggiunge solo ciò che serve al magazzino e alla vendita.
+- La sede principale è la sede predefinita del core. Con `multi_location` bloccata è
+  l'unica sede del gestionale e la scelta della sede non compare da nessuna parte
+  (D20).
 - "Punto di ritiro" compare solo con `shipping`, "Banco" solo con `pos`.
-- Ogni sede ha i propri orari e le proprie chiusure; durante una chiusura
-  programmata il ritiro non si può scegliere.
-- Sedi e orari sono configurazione di `admin`, sincronizzata tra ambienti; le
-  chiusure le gestisce il commerciante in produzione (D54).
+- Orari e chiusure effettivi dal core (`SocietyLocations::hoursFor()` e `isOpen()`):
+  durante una chiusura il ritiro non si può scegliere.
+- Sedi del core e `locations` sono configurazione di `admin`, sincronizzata tra
+  ambienti; orari e chiusure del core si modificano in produzione da `admin` e
+  `administrator` (8.2).
 
 **Giacenze, prenotazioni e movimenti.**
 
@@ -1114,7 +1116,8 @@ risposta del corriere:
 | `pickup` | `pending`, `ready_for_pickup`, `picked_up`, `cancelled` |
 
 - **Ritiro in sede** come spedizione di tipo `pickup`: sedi con `is_pickup_point`,
-  gratuito, non selezionabile durante le chiusure; evasione, log ed email in un solo
+  gratuito, non selezionabile fuori orario o durante le chiusure della sede (4.3);
+  evasione, log ed email in un solo
   punto ("pronto per il ritiro" con `ready_for_pickup` sull'ordine, conferma di
   ritiro).
 - **Righe evase:** in un DDT emesso, in una spedizione partita o in un ritiro
@@ -1616,7 +1619,7 @@ produzione.
 | `features`, `feature_logs` | catalogo, anagrafiche, listini, campagne, coupon, piani |
 | `taxes`, `tax_categories`, `tax_rules` | ordini, magazzino, pagamenti, fatture, DDT, resi, spedizioni, abbonamenti |
 | `payment_methods`, `payment_accounts`, `payment_terms`, `payment_term_installments` | log degli stati, `provider_events`, `error_reports` |
-| `locations`, `location_opening_hours` | `location_closures`: le chiusure le gestisce il commerciante |
+| `locations`; sedi del core (`society_locations`, con `keepIds()`) | orari e chiusure del core (`society_location_hours`, `society_location_special_hours`) |
 | metodi, zone e tariffe di spedizione; `carriers` | impostazioni del commerciante |
 | `label_formats`; impostazioni tecniche e fiscali | **mai sincronizzate:** `document_sequences` (contatori) ed `external_references` (ID di produzione) |
 
@@ -1673,20 +1676,19 @@ I formati delle etichette si precaricano con il sotto-progetto delle etichette
 
 ### 8.4 Sede principale (D53, D54)
 
-- Nasce all'installazione come "Sede principale" (`is_default`, con giacenza).
-- Alla creazione riprende una sola volta i dati già presenti nella società, così un
-  sito esistente non li perde.
-- Da lì in poi è la fonte dei dati: a ogni salvataggio indirizzo e orari si copiano
-  in `society_address` e `society_timetable` del core, con il servizio
-  `CorporateData` del core. Telefono ed email restano nei dati della società
-  (`society`), perché possono essere diversi da quelli della sede. Si modifica in
-  locale e arriva in produzione con `php forge export`, insieme alle tabelle della
-  società già sincronizzate dal core.
-- Con il gestionale abilitato le sezioni "Indirizzo" e "Orari" della pagina "Dati
-  aziendali" del core sono in sola lettura, con avviso e link alla sede principale
-  (`CorporateData::lock()`, bloccate anche nel salvataggio).
+- **Sedi del core:** "Dati aziendali" di `wonder-image/app` gestisce più sedi della
+  società, una predefinita, con dati propri o ereditati dalla predefinita, Place ID,
+  orari e chiusure sul modello di Google (spec dei prerequisiti del core, parte E).
+- **Sede principale** = sede predefinita del core. All'installazione i `Defaults` del
+  gestionale creano la riga di `locations` collegata, con giacenza.
+- **Modifica solo in locale:** il gestionale sostituisce la Resource "Dati aziendali"
+  del core con la propria (priorità dei moduli nel `ResourceRegistry`), in sola
+  lettura fuori dal locale; "Orari e chiusure" resta modificabile in produzione.
+- Nessuna copia di dati tra gestionale e core.
 
-*Scartato:* sede principale che copia o legge i dati dalla società.
+*Scartati:* sede principale che copia o legge i dati dalla società; sedi del
+gestionale con indirizzo e orari propri copiati nel core con un blocco delle sezioni
+(`CorporateData::lock()`).
 
 ### 8.5 Ecommerce: impostazioni e condizioni di vendita (D55)
 
@@ -1946,7 +1948,7 @@ disponibili.
 | Prima del gestionale | sync con `id` stabili | 8.2 |
 | Prima del gestionale | `Defaults` dei moduli in `forge update` locale | 8.2 |
 | Prima del gestionale | pagine delle tabelle sincronizzate in sola lettura in produzione | 8.2 |
-| Prima del gestionale | blocco delle sezioni della pagina "Dati aziendali" da un modulo (`CorporateData::lock()`) | 8.4 |
+| Prima del gestionale | sedi della società in "Dati aziendali", con orari e chiusure sul modello di Google e migrazione dei dati esistenti | 8.4 |
 | Prima del gestionale | helper `transaction(fn)` | 9.2 |
 | Prima del gestionale | opzione `docs()` nel `PageSchema` | 9.5 |
 | Prima del gestionale | classe delle aliquote IVA italiane | 4.5 |
@@ -2069,6 +2071,9 @@ quando si realizza.
   dal corriere, prenotazione del ritiro del corriere, tracking per singolo collo
   (D41, D42).
 - **Marketplace e feed**, compreso Google Merchant (D7, D23).
+- **Dati aziendali da Google** (nel core): cron che verifica orari e chiusure sulla
+  scheda Google tramite il Place ID, Place ID dall'autocomplete dell'indirizzo, embed
+  automatico della mappa (spec dei prerequisiti del core, E7).
 
 ### 10.6 Verifiche esterne
 
@@ -2463,8 +2468,9 @@ incoerenze, corrette così:
 12. **Riferimenti superati eliminati:** "ancora da decidere" di D28, rimandi di D31,
     "se ci sarà il checkout da ospite" e "limiti nella 4.6" di D35, riferimenti a
     "sezione N" e "parte 4.x".
-13. **Sede principale (2026-09-16, design dei prerequisiti del core):** copia solo
-    indirizzo e orari, perché `society_address` non ha telefono ed email, che restano
-    nei dati della società; indirizzo e orari non sono Resource ma sezioni della
-    pagina "Dati aziendali", bloccate con `CorporateData::lock()` invece di una
-    Resource del core in sola lettura.
+13. **Sedi (2026-09-17, design dei prerequisiti del core):** "Dati aziendali" del core
+    gestisce più sedi con orari e chiusure sul modello di Google; `locations` del
+    gestionale le estende (magazzino, ritiro, banco) senza copiare dati;
+    `location_opening_hours` e `location_closures` eliminate; chiusure gestite dal
+    core. Sostituisce la correzione del 2026-09-16 (copia di indirizzo e orari con
+    `CorporateData::lock()`).
