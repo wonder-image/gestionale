@@ -122,7 +122,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [ ] `wonder-image/lib`: rilasciare il ramo `fix/backend-error-messages` e aggiornare `wonder-image` nei boilerplate (serve anche il rilascio di `app` con 223adf4b)
   - [x] Verificato in `wonder-image/immobili` il repeater delle immagini (2026-09-17): con il core installato in `immobili-site` salvare un immobile manuale **cancellava davvero** tutte le sue immagini (`softDelete(false)`); con la correzione del core (c030ce0f) restano, anche riordinate. Prova in transazione annullata. Su `immobili-site` nessun danno: tutti i 31 immobili arrivano dal feed. Il bug è in `app` da 77b878b8 (v2.1.0, v.2.1.1, v.2.1.2)
   - [ ] `clients/agliati/projects/agliati-com` usa `wonder-image/immobili`: controllare in produzione se ci sono immobili manuali salvati con immagini sparite (i file restano in `assets/upload/immobili`) e aggiornare `wonder-image/app` appena rilasciato
-  - [ ] Chiusura del ramo `feature/prerequisiti-moduli-gestionale` (merge o PR) e rilascio minore di `wonder-image/app`
+  - [x] Ramo `feature/prerequisiti-moduli-gestionale` unito in `main` in locale (avanzamento diretto fino a 223adf4b, 72 file di test verdi) e cancellato in locale (2026-09-17)
+  - [ ] Push di `main` di `wonder-image/app`, rilascio minore e cancellazione del ramo remoto `feature/prerequisiti-moduli-gestionale` (a cura dell'utente)
 - [ ] G1 Fondamenta
 - [ ] G2 Catalogo, magazzino base, anagrafiche
 - [ ] G3 Magazzino avanzato
