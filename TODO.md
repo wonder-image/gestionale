@@ -109,11 +109,13 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Revisione della spec scritta (2026-09-17)
   - [x] Piano 1 di 3 (ambiente e sincronizzazione, parti A–D): `packages/app/docs/superpowers/plans/2026-09-17-ambiente-e-sincronizzazione.md`
   - [x] Piano 1 implementato con test e documentazione in `docs/app/` (task 1–11, 2026-09-17)
-  - [ ] Piano 1, task 12: verifica con database da un sito di prova (serve un database MySQL locale utilizzabile)
+  - [x] Piano 1, task 12: verifica con database su `boilerplates/new-site` (righe precaricate, export e import con `id` stabili, sola lettura in produzione) (2026-09-17)
   - [x] `APP_ENV` negli `.env.example` dei boilerplate (`new-site`, `immobili-site`, `rsvp-site`), rami `feature/app-env`
   - [x] Piano 2 di 3: transazioni, lock nominali, pulsante "Guida", classi fiscali (parti F–H), implementato con test e documentazione (2026-09-17): `packages/app/docs/superpowers/plans/2026-09-17-transazioni-guida-classi-fiscali.md`
-  - [ ] Piano 2, verifiche con database: `sqlInsert()` e `Model::create()` annullati insieme in `Transaction::run()`, `findForUpdate()` dentro e fuori transazione, `NamedLock` con due processi, pulsante "Guida" visibile in elenco, form e scheda
-  - [ ] Piano 3 di 3: sedi della società in "Dati aziendali" (parte E)
+  - [x] Piano 2, verifiche con database su `new-site`: `sqlInsert()` e `Model::create()` annullati insieme, letture `ForUpdate` dentro e fuori transazione, `NamedLock` con due processi, pulsante "Guida" nei dati del form (2026-09-17)
+  - [x] Piano 3 di 3: sedi della società in "Dati aziendali" (parte E), implementato con test, documentazione e verifica con database su `new-site` (migrazione reale, più sedi, eredità, form resi) (2026-09-17): `packages/app/docs/superpowers/plans/2026-09-17-sedi-della-societa.md`
+  - [ ] Controllo visivo nel backend di `new-site`: elenco "Dati aziendali", scheda sede con suggerimenti e pulsante "Orari e chiusure", salvataggio di orari e chiusure, menu da `administrator`, pulsante "Guida" in elenco e scheda, pagine in sola lettura
+  - [ ] Chiusura del ramo `feature/prerequisiti-moduli-gestionale` (merge o PR) e rilascio minore di `wonder-image/app`
 - [ ] G1 Fondamenta
 - [ ] G2 Catalogo, magazzino base, anagrafiche
 - [ ] G3 Magazzino avanzato
