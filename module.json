@@ -31,7 +31,8 @@
         "definitions": "config/permissions.php"
     },
     "database": {
-        "models": "src/Models"
+        "models": "src/Models",
+        "defaults": "Wonder\\Plugin\\Gestionale\\Seeding\\Defaults"
     },
     "console": {
         "commands": []
