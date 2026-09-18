@@ -68,7 +68,12 @@ check('ogni Model del modulo usa il prefisso gst_', function () {
         $classe = 'Wonder\\Plugin\\Gestionale\\Models\\'
             .basename(dirname($file)).'\\'.basename($file, '.php');
 
-        if (class_exists($classe) && !str_starts_with($classe::$table, 'gst_')) {
+        // Le classi astratte (es. StatusLog) non hanno una tabella propria.
+        if (!class_exists($classe) || (new ReflectionClass($classe))->isAbstract()) {
+            continue;
+        }
+
+        if (!str_starts_with($classe::$table, 'gst_')) {
             $fuori[] = $classe::$table;
         }
     }
@@ -85,7 +90,7 @@ check('le tabelle sincronizzate del modulo usano id stabili', function () {
         $classe = 'Wonder\\Plugin\\Gestionale\\Models\\'
             .basename(dirname($file)).'\\'.basename($file, '.php');
 
-        if (!class_exists($classe)) {
+        if (!class_exists($classe) || (new ReflectionClass($classe))->isAbstract()) {
             continue;
         }
 
