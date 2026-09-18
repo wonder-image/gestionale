@@ -11,7 +11,8 @@ versionamento semantico.
 - Test del modulo con harness proprio e `php tests/run.php`.
 - Funzionalità sbloccabili: catalogo nel codice, stato su database sincronizzato
   con `id` stabili, pannello "Funzionalità" con un interruttore per funzionalità
-  (`formSchema` e `formLayoutSchema`, campo `toggle` del core `2.2.3`), righe
+  (`formSchema` e `formLayoutSchema` su una pagina-form del core `2.2.4`, con il
+  campo `toggle`), righe
   precaricate create da `forge update`, pagine che spariscono quando la
   funzionalità è bloccata.
 - Documentazione: `gitbook-docs.yaml` con gli spazi GitBook "Sviluppatori"

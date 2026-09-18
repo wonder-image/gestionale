@@ -10,7 +10,7 @@ abilita dalla configurazione del sito.
 ## Requisiti
 
 - PHP 8.2
-- `wonder-image/app` `^2.2.2`
+- `wonder-image/app` `^2.2.4`
 - un database MySQL, quello del sito
 
 ## In sviluppo
