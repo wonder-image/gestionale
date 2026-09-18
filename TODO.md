@@ -138,7 +138,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - [x] Task 7: `ecommerce-site` con il modulo abilitato e valido, `forge update` riuscito (a3e8ed2)
     - [ ] `wonder-image/app`: `class/Console/Forge.php` cita `Wonder\Console\Commands\ScheduleRun`, che non è committato: chi installa il core da git trova `forge` rotto (a cura dell'utente, lavoro sui cron in corso)
     - [x] Database dei test: si usa quello del sito, `ecommerce_site`, con le modifiche annullate dalle transazioni (G1.11, 2026-09-18)
-  - [ ] Piano 2: funzionalità, pannello, righe precaricate, sincronizzazione
+  - [ ] Piano 2 scritto (2026-09-18): `docs/superpowers/plans/2026-09-18-funzionalita-e-sincronizzazione.md` — 7 task: catalogo, stato effettivo, tabelle, righe precaricate, pagine legate alla funzionalità, pannello, sincronizzazione. Da eseguire dopo il merge e il rilascio `2.2.2` del core
   - [ ] Piano 3: codici, numerazioni, log degli stati, riferimenti esterni, IVA, impostazioni, sede principale
   - [ ] Piano 4: errori, riquadri della home, hook, dati di prova, GitHub Actions, guida sviluppatori e guida commercianti
 - [ ] G2 Catalogo, magazzino base, anagrafiche
