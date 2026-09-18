@@ -15,14 +15,16 @@ check('percorsi del modulo', fn () =>
 );
 
 check('configurazione predefinita', fn () =>
-    Gestionale::config('docs.merchant_url') === ''
+    Gestionale::config('docs.merchant_url') === 'https://wonder-image.gitbook.io/wonder-image-gestionale/user'
     && Gestionale::config('extensions') === []
     && Gestionale::config('features.unlock') === []
     && Gestionale::config('chiave.inesistente', 'ripiego') === 'ripiego'
 );
 
-check('senza indirizzo della guida non si compone nessun link', fn () =>
-    Gestionale::docsUrl('funzionalita') === ''
+check('indirizzo della guida commercianti', fn () =>
+    Gestionale::docsUrl('primi-passi/funzionalita')
+        === 'https://wonder-image.gitbook.io/wonder-image-gestionale/user/primi-passi/funzionalita'
+    && Gestionale::docsUrl('') === ''
 );
 
 check('indirizzo della guida composto dalla configurazione del sito', function () {

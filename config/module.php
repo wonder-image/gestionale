@@ -6,7 +6,7 @@ return [
     // commercianti" del sito mappato in gitbook-docs.yaml, path `guida`.
     // Vuoto: il pulsante "Guida" non compare.
     'docs' => [
-        'merchant_url' => '',
+        'merchant_url' => 'https://wonder-image.gitbook.io/wonder-image-gestionale/user',
     ],
     // Riquadri della home del backend (Wonder\Backend\Contracts\HomeWidget).
     'backend' => [

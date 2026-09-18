@@ -95,10 +95,10 @@ final class FeatureResource extends NavigationOnlyResource
             $cards[] = (new Card)->components($components)->columns(12)->columnSpan(1);
         }
 
-        // Una card sotto l'altra: le aree hanno altezze diverse e affiancarle
-        // lascerebbe buchi.
+        // Due colonne che si riempiono dall'alto in basso: le aree hanno
+        // altezze diverse e la griglia a righe lascerebbe buchi.
         return (new Form)->components([
-            (new Container)->components($cards)->columns(1)->columnSpan(12),
+            (new Container)->components($cards)->masonry(2)->columnSpan(12),
         ])->columns(12);
         
     }
@@ -110,7 +110,7 @@ final class FeatureResource extends NavigationOnlyResource
             ->only([])
             ->titles(['form' => 'Funzionalità'])
             ->subtitles(['form' => 'Il gestionale è predisposto al massimo: qui si sblocca solo ciò che serve. Bloccare non cancella mai i dati.'])
-            ->docs(Gestionale::docsUrl('funzionalita'), 'form');
+            ->docs(Gestionale::docsUrl('primi-passi/funzionalita'), 'form');
     }
 
     public static function navigationSchema(): NavigationSchema

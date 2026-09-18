@@ -12,7 +12,7 @@ versionamento semantico.
 - Funzionalità sbloccabili: catalogo nel codice, stato su database sincronizzato
   con `id` stabili, pannello "Funzionalità" con un interruttore per funzionalità
   (`formSchema` e `formLayoutSchema` su una pagina-form del core `2.2.4`, con il
-  campo `toggle`), righe
+  campo `toggle` e il contenitore `masonry`), righe
   precaricate create da `forge update`, pagine che spariscono quando la
   funzionalità è bloccata.
 - Documentazione: `gitbook-docs.yaml` con gli spazi GitBook "Sviluppatori"
