@@ -1,6 +1,6 @@
 # G1 Fondamenta di `wonder-image/gestionale`
 
-- **Stato:** da rivedere (2026-09-18)
+- **Stato:** rivista dall'utente il 2026-09-18 (prefisso `gst_`, versioni del core, vendita senza giacenza)
 - **Sotto-progetto:** G1 della [spec di architettura](2026-09-11-gestionale-ecommerce-architettura-design.md) (10.3), capitoli 3, 4.1, 4.5, 4.14, 7, 8, 9
 - **Repository:** `wonder-image/gestionale` (privato), `packages/gestionale`
 - **Avanzamento:** [TODO.md](../../../TODO.md)
@@ -17,9 +17,10 @@
   (`ModuleDefaults`, `DefaultRows`, `ModuleDependencySorter`), transazioni
   (`Transaction::run()`, `SelectForUpdate`, `NamedLock`), pulsante "Guida"
   (`PageSchema::docs()`), classi fiscali (`AliquoteIva`, `Natura::valide()`,
-  `EsigibilitaIva`) e le sedi della società con orari e chiusure. Diventeranno la
-  `2.3.0`, ancora da rilasciare; le aggiunte del piano 1 di G1 saranno la `2.4.0`,
-  che il modulo richiede.
+  `EsigibilitaIva`) e le sedi della società con orari e chiusure. Usciranno come
+  `2.2.1`; le aggiunte del piano 1 di G1 (2) come `2.2.2`, che il modulo richiede. La
+  `2.3.0` arriverà dopo, con la gestione dei cron in corso di sviluppo nel core, che i
+  sotto-progetti con code e processi automatici (G8, E1) useranno.
 - **Moduli esistenti.** `immobili` e `rsvp` danno le convenzioni: `module.json`,
   `composer.json` con repository `path`, entrypoint, `config/module.php`,
   impostazioni a riga unica, test come script PHP, GitBook in `docs/`.
@@ -53,14 +54,14 @@ arrivano da G2 in poi.
 ### 1. Pacchetto e scheletro
 
 **Composer** (`composer.json`): nome `wonder-image/gestionale`, tipo `library`,
-licenza MIT, `require` `php: ^8.2` e `wonder-image/app: ^2.4 || dev-main`,
+licenza MIT, `require` `php: ^8.2` e `wonder-image/app: ^2.2.2 || dev-main`,
 repository `path` verso `../app` con symlink in sviluppo, autoload PSR-4
 `Wonder\Plugin\Gestionale\` su `src/` più `src/helpers.php`,
 `extra.wonder.module: true`.
 
 **Manifest** (`module.json`): nome "Wonder Gestionale", slug `gestionale`, versione
 `0.1.0`, namespace `Wonder\Plugin\Gestionale\`, entrypoint
-`Wonder\Plugin\Gestionale\Gestionale`, compatibilità `wonder-app: ^2.4` e
+`Wonder\Plugin\Gestionale\Gestionale`, compatibilità `wonder-app: ^2.2.2` e
 `php: ^8.2`, nessuna dipendenza da altri moduli, `paths` (src, http, view, assets,
 lang, tests), `routes.backend`, `permissions.definitions`,
 `database.models: "src/Models"`, `database.defaults:
@@ -115,7 +116,7 @@ del commerciante: in G1 solo "Impostazioni".
 
 ### 2. Aggiunte a `wonder-image/app`
 
-Tre aggiunte al core, rilasciate insieme in una versione minore prima del resto di G1.
+Tre aggiunte al core, rilasciate insieme come `2.2.2`, prima del resto di G1.
 
 **2.1 Campi modificabili in una pagina in sola lettura (G1.2).**
 
@@ -151,7 +152,7 @@ Tre aggiunte al core, rilasciate insieme in una versione minore prima del resto 
 ### 3. Funzionalità (3.1, 3.2)
 
 **Catalogo nel codice.** `config/features.php` del pacchetto elenca le funzionalità
-di 3.4: chiave, nome, descrizione, area, dipendenze, modulo richiesto, cosa succede
+di 3.4, compresa la vendita senza giacenza (`backorders`, D60): chiave, nome, descrizione, area, dipendenze, modulo richiesto, cosa succede
 ai dati quando si blocca. Il sito aggiunge le proprie voci dalla configurazione (8).
 
 **Stato su database.**
@@ -395,9 +396,11 @@ la tabella "Funzionalità incluse e da attivare" della guida commercianti da
 
 ### 10. Sito di prova e ambienti (10.1)
 
-- `boilerplates/ecommerce-site` nasce da `new-site`, con `wonder-image/gestionale`
-  collegato da repository `path` e `APP_ENV=local` nel `.env`.
-- Due database, creati dall'utente: quello di sviluppo del sito e quello dei test,
+- `boilerplates/ecommerce-site` esiste dal 2026-09-18: nasce da `new-site`, risponde su
+  `https://ecommerce.test` con il database `ecommerce_site`. Il piano 1 vi collega
+  `wonder-image/gestionale` da repository `path` e aggiunge `APP_ENV=local` al `.env`.
+- Due database, creati dall'utente: `ecommerce_site` per lo sviluppo, già pronto, e
+  quello dei test,
   scelto con le variabili `DB_*` di un file dedicato, mai quello di sviluppo (9.4). Il
   database dei test fa anche da "produzione" nelle prove di sincronizzazione e di sola
   lettura, con `APP_ENV=production`.
@@ -447,7 +450,7 @@ Gli spazi GitBook li collega l'utente al repository, uno per cartella (9.5).
 
 ## Tabelle di G1
 
-Tutte con il prefisso `gestionale_`; qui sono scritte senza, come nella spec di
+Tutte con il prefisso `gst_` (D60); qui sono scritte senza, come nella spec di
 architettura.
 
 | Tabella | A cosa serve | Sync |
@@ -489,8 +492,9 @@ architettura.
 ## Piani
 
 1. **Core e scheletro:** le tre aggiunte a `wonder-image/app` con i loro test e il
-   rilascio minore; pacchetto, manifest, entrypoint, Resource base, menu; sito di prova
-   `boilerplates/ecommerce-site` con il modulo collegato.
+   rilascio `2.2.2`; pacchetto, manifest, entrypoint, Resource base, menu; sito di prova
+   `boilerplates/ecommerce-site` con il modulo collegato, `APP_ENV=local` nel `.env` e il
+   database dei test.
 2. **Funzionalità:** catalogo nel codice, tabelle, stato effettivo, pannello, righe
    precaricate e sincronizzazione.
 3. **Documenti, IVA e sedi:** codici, numerazioni, log degli stati, riferimenti esterni,
@@ -523,3 +527,4 @@ architettura.
 | G1.7 | Le classi pure dell'IVA (risoluzione dell'aliquota e riepiloghi) nascono in G1, non in G4 |
 | G1.8 | Il repository `wonder-image/gestionale` è privato, a differenza di `app` e `immobili` |
 | G1.9 | Nomi di colonna che evitano le parole riservate di MySQL: `features.feature_key`; `taxes.rate` invece di `value` |
+| G1.10 | Prefisso delle tabelle `gst_` invece di `gestionale_`, e versioni del core `2.2.1` (prerequisiti) e `2.2.2` (aggiunte di G1); la `2.3.0` arriverà con la gestione dei cron |

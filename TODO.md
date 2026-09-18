@@ -124,13 +124,15 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [ ] `clients/agliati/projects/agliati-com` usa `wonder-image/immobili`: controllare in produzione se ci sono immobili manuali salvati con immagini sparite (i file restano in `assets/upload/immobili`) e aggiornare `wonder-image/app` appena rilasciato
   - [x] Ramo `feature/prerequisiti-moduli-gestionale` unito in `main` in locale (avanzamento diretto fino a 223adf4b, 72 file di test verdi) e cancellato in locale (2026-09-17)
   - [ ] Push di `main` di `wonder-image/app`, rilascio minore e cancellazione del ramo remoto `feature/prerequisiti-moduli-gestionale` (a cura dell'utente)
+- [ ] D60 (2026-09-18): vendita senza giacenza per prodotto con giacenza sotto zero (funzionalità `backorders`, G4) e prefisso delle tabelle `gst_`; spec di architettura aggiornata (1316556)
 - [ ] G1 Fondamenta
   - Spec: `docs/superpowers/specs/2026-09-18-fondamenta-gestionale-design.md`
   - [x] Repository `wonder-image/gestionale` creato su GitHub (privato) e primo push (2026-09-18)
   - [x] Spec di G1 scritta (2026-09-18): decisioni G1.1–G1.9, quattro piani
-  - [ ] Revisione della spec da parte dell'utente
-  - [ ] Database del sito di prova `boilerplates/ecommerce-site`: sviluppo e test, creati dall'utente
-  - [ ] Piano 1: aggiunte al core (campi modificabili in sola lettura, riquadri della home, comandi forge dei moduli), rilascio `2.4.0`, scheletro del modulo, sito di prova
+  - [x] Revisione della spec da parte dell'utente (2026-09-18): prefisso delle tabelle `gst_`, rilasci del core `2.2.1` e `2.2.2` prima della `2.3.0` (che porterà la gestione dei cron), nuovo requisito della vendita senza giacenza
+  - [x] Sito di prova `boilerplates/ecommerce-site` creato dall'utente (2026-09-18): `https://ecommerce.test`, database `ecommerce_site`
+  - [ ] Database dei test del sito di prova, creato dall'utente
+  - [ ] Piano 1: aggiunte al core (campi modificabili in sola lettura, riquadri della home, comandi forge dei moduli), rilascio `2.2.2`, scheletro del modulo, collegamento del sito di prova
   - [ ] Piano 2: funzionalità, pannello, righe precaricate, sincronizzazione
   - [ ] Piano 3: codici, numerazioni, log degli stati, riferimenti esterni, IVA, impostazioni, sede principale
   - [ ] Piano 4: errori, riquadri della home, hook, dati di prova, GitHub Actions, guida sviluppatori e guida commercianti
