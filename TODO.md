@@ -138,7 +138,10 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - [x] Task 7: `ecommerce-site` con il modulo abilitato e valido, `forge update` riuscito (a3e8ed2)
     - [ ] `wonder-image/app`: `class/Console/Forge.php` cita `Wonder\Console\Commands\ScheduleRun`, che non è committato: chi installa il core da git trova `forge` rotto (a cura dell'utente, lavoro sui cron in corso)
     - [x] Database dei test: si usa quello del sito, `ecommerce_site`, con le modifiche annullate dalle transazioni (G1.11, 2026-09-18)
-  - [ ] Piano 2 scritto (2026-09-18): `docs/superpowers/plans/2026-09-18-funzionalita-e-sincronizzazione.md` — 7 task: catalogo, stato effettivo, tabelle, righe precaricate, pagine legate alla funzionalità, pannello, sincronizzazione. Da eseguire dopo il merge e il rilascio `2.2.2` del core
+  - [x] Piano 2 scritto ed eseguito (2026-09-18): `docs/superpowers/plans/2026-09-18-funzionalita-e-sincronizzazione.md` — catalogo, stato effettivo, tabelle, righe precaricate, pagine legate alla funzionalità, pannello, sincronizzazione. Unito in `main` e pubblicato (10c8528); 21 funzionalità precaricate, pannello provato nel browser (sblocco e blocco a catena, sola lettura in produzione), giro completo del sync verificato
+  - [ ] `wonder-image/app`: due file dello scheduler non committati (`class/App/Scheduler/ConfiguredTask.php`, `Presentation.php`) usati da codice committato; il tag `v.2.2.2` non li contiene e il runner va in errore al primo tick dovuto (a cura dell'utente)
+  - [ ] `wonder-image/app`: ramo `fix/app-env-load-order` da unire e rilasciare — `Environment::current()` decideva prima del caricamento del `.env`, quindi in una richiesta web le pagine locali risultavano in sola lettura; contiene anche il badge delle sedi secondarie
+  - [ ] `ecommerce-site`: `vendor/wonder-image/app` è collegato a `packages/app` (copia del pacchetto in `.app-pacchetto`); si torna al pacchetto dopo quel rilascio
   - [ ] Piano 3: codici, numerazioni, log degli stati, riferimenti esterni, IVA, impostazioni, sede principale
   - [ ] Piano 4: errori, riquadri della home, hook, dati di prova, GitHub Actions, guida sviluppatori e guida commercianti
 - [ ] G2 Catalogo, magazzino base, anagrafiche
