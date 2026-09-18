@@ -1,7 +1,7 @@
 # Architettura `wonder-image/gestionale` + `wonder-image/ecommerce`
 
-- **Stato:** approvata il 2026-09-16
-- **Brainstorming:** dal 2026-09-11 al 2026-09-16, decisioni D1–D59
+- **Stato:** approvata il 2026-09-16; D60 (vendita senza giacenza) e prefisso `gst_` aggiunti il 2026-09-18
+- **Brainstorming:** dal 2026-09-11 al 2026-09-16, decisioni D1–D59; D60 dal 2026-09-18
 - **Avanzamento:** [TODO.md](../../../TODO.md)
 - **Storia:** il registro cronologico delle decisioni è nel commit `4fa9852`
 
@@ -108,6 +108,7 @@ Assenti, o presenti solo in forma base, nei progetti analizzati:
 | 11 | Codici EAN e MPN sui prodotti, oltre allo SKU | 4.2 (D23) |
 | 12 | Etichette con codice a barre dei prodotti | funzionalità futura (D30, D59) |
 | 13 | Guide per sviluppatori e per commercianti, con rimandi dal backend e indicazione "inclusa" o "da attivare" | 9.5 (D32) |
+| 14 | Vendita senza giacenza: prodotti che si vendono anche quando il magazzino è a zero | 4.2, 4.3 (D60) |
 
 ### 1.6 Fuori perimetro (D16)
 
@@ -214,8 +215,8 @@ non servirebbe agli altri moduli.
 
 **Invariati:** pacchetto `wonder-image/gestionale`, slug `gestionale`, namespace
 `Wonder\Plugin\Gestionale\` (identità del modulo, come immobili). Prefisso delle
-tabelle `gestionale_`; in questo documento i nomi delle tabelle sono scritti senza
-prefisso.
+tabelle `gst_` (D60, 2026-09-18: più corto di `gestionale_` nelle query e negli
+indici); in questo documento i nomi delle tabelle sono scritti senza prefisso.
 
 **Convenzioni:**
 
@@ -372,6 +373,7 @@ che li richiedono.
 | Magazzino | Acquisti | `purchasing` | costi d'acquisto per fornitore, documenti di carico, valore del magazzino | — | G3 |
 | Magazzino | Lotti e scadenze | `batch_tracking` | lotto e data di scadenza su carichi e scarichi | — | G3 |
 | Magazzino | Avvisi di scorta minima | `low_stock_alerts` | email e riquadro della dashboard per i prodotti sotto la propria scorta minima | — | G2 |
+| Magazzino | Vendita senza giacenza | `backorders` | prodotti vendibili a magazzino vuoto, con la giacenza che va sotto zero e l'indicazione "su ordinazione" (D60) | Ordini | G4 |
 | Listini | Listini cliente | `customer_price_lists` | prezzi personalizzati per cliente, con scaglioni | Ordini | G6 |
 | Promozioni | Sconto massivo | `discount_campaigns` | campagne per categoria, tag, brand o modello, con data e ora, in € o %, attivabili e disattivabili | Ordini | G6 |
 | Promozioni | Coupon | `coupons` | importo, percentuale, buono a scalare, spedizione gratuita, con limiti | Ordini | G6 |
@@ -501,7 +503,7 @@ Contenuti in una sola lingua (D4).
 | `product_models` | brand_id, type (`simple`, `bundle`), tax_category_id, code, sku, unit (predefinita `pz`), name, slug, short_description, description, peso e misure predefiniti, seo_title, seo_description, returnable (4.10), requires_shipping (4.11), visible, visible_online |
 | `product_model_categories`, `product_model_tags` | tabelle ponte; per le categorie anche `is_main` e `position` |
 | `product_variants` | product_model_id, name, slug, position, visible |
-| `products` | product_model_id, product_variant_id, sku, ean, mpn, price, sale_price, min_stock_quantity (4.3), peso e misure (se vuoti valgono quelli del modello), position, active |
+| `products` | product_model_id, product_variant_id, sku, ean, mpn, price, sale_price, min_stock_quantity (4.3), allow_backorder e backorder_lead_days (4.3, D60), peso e misure (se vuoti valgono quelli del modello), position, active |
 | `product_images` | product_model_id, product_variant_id (vuoto = immagine del modello), file, alt, position |
 | `attributes` | key, name, type, level (`model`, `variant`, `product`), unit, is_filterable, is_visible, group, position |
 | `attribute_values` | attribute_id, label, color, image, position |
@@ -595,6 +597,24 @@ in `wonder-image/app`.
 - **Multiprodotto:** i movimenti riguardano i componenti.
 - **Contemporaneità:** le righe di `stock` si leggono con `FOR UPDATE` dentro la
   transazione, così due ordini non prendono l'ultimo pezzo (9.2).
+
+**Vendita senza giacenza (D60).** Funzionalità `backorders`. Con la funzionalità
+bloccata la giacenza blocca sempre la vendita e nessun campo compare (D20).
+
+- Interruttore `allow_backorder` sul prodotto, con il valore predefinito nelle
+  impostazioni del commerciante; `backorder_lead_days` sono i giorni di attesa da
+  mostrare.
+- Il prodotto si vende anche a disponibilità zero o negativa: alla conferma il
+  movimento `sale` porta la giacenza sotto zero, e quel numero è ciò che il
+  commerciante deve procurarsi.
+- In vetrina, nel carrello e sui documenti compare "su ordinazione", con i giorni di
+  attesa se indicati.
+- Il multiprodotto si vende se ogni componente è disponibile oppure vendibile senza
+  giacenza.
+- Con `batch_tracking` il pezzo venduto senza giacenza resta senza lotto: lo assegna il
+  carico successivo (dettaglio in G3).
+- Le giacenze negative compaiono negli avvisi di scorta minima e nel riquadro "Da
+  controllare".
 
 **Scarico alla conferma dell'ordine (D39).** La merce venduta online può essere
 ancora fisicamente in magazzino: scaricandola subito, l'operatore sa che non è più
@@ -1628,7 +1648,7 @@ produzione.
 | Riga | Dove si modifica | Contenuto |
 |---|---|---|
 | Tecniche | in locale da `admin`, sincronizzata | impostazioni fiscali (6.2); impostazioni del negozio (8.5); giorni di reso e da quando contarli (4.10); giorni di attesa del pagamento e minuti di prenotazione (5.2); giorni prima di `unpaid` (5.5); valori predefiniti del DDT (4.9); email per gli errori da risolvere nel codice (9.1) |
-| Del commerciante | in produzione da `administrator` | destinatari delle email al commerciante (5.2) e degli avvisi di scorta minima (4.3); email per gli errori da risolvere dal commerciante (9.1); giorni dei lotti in scadenza (4.3) |
+| Del commerciante | in produzione da `administrator` | destinatari delle email al commerciante (5.2) e degli avvisi di scorta minima (4.3); email per gli errori da risolvere dal commerciante (9.1); giorni dei lotti in scadenza (4.3); vendita senza giacenza predefinita e giorni di attesa (4.3, D60) |
 
 **Pagine delle tabelle sincronizzate:** in produzione in sola lettura, con l'avviso
 "Si modifica in locale e si pubblica con il deploy" (opzione del core); in locale
@@ -2173,6 +2193,7 @@ Il testo originale di ogni decisione è nel commit `4fa9852`.
 | D57 | Struttura delle guide ed errori ripetuti | | 9.1, 9.5 |
 | D58 | Roadmap: lavori nel core, priorità all'online, sito di prova | D59 | 10.1, 10.2 |
 | D59 | Sequenza dei sotto-progetti | | 10.3, 10.4 |
+| D60 | Vendita senza giacenza e prefisso `gst_` delle tabelle | | 1.5, 2.5, 3.4, 4.2, 4.3 |
 
 ## Appendice B — Vincoli del framework (verificati il 2026-09-11 e il 2026-09-16)
 
