@@ -12,6 +12,7 @@ require __DIR__ . '/../harness.php';
 
 use Wonder\App\Support\DefaultRows;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
+use Wonder\Plugin\Gestionale\Models\System\FeatureLog;
 use Wonder\Plugin\Gestionale\Seeding\Defaults;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureCatalog;
 use Wonder\Sql\Transaction;
@@ -27,11 +28,16 @@ $prima = count($righe());
 
 try {
     Transaction::run(static function () use ($righe, $prima): void {
+        // Si semina sul vuoto: con le righe già presenti il seed non tocca
+        // niente e lo stato sarebbe quello lasciato dal pannello.
+        sqlDelete(FeatureLog::$table);
+        sqlDelete(Feature::$table);
+
         Defaults::seed(new DefaultRows());
         $dopo = $righe();
 
         check('una riga per ogni funzionalità del catalogo', fn () =>
-            count($dopo) === max($prima, count(FeatureCatalog::all()))
+            count($dopo) === count(FeatureCatalog::all())
         );
 
         $stato = array_column($dopo, 'enabled', 'feature_key');
