@@ -399,11 +399,11 @@ la tabella "Funzionalità incluse e da attivare" della guida commercianti da
 - `boilerplates/ecommerce-site` esiste dal 2026-09-18: nasce da `new-site`, risponde su
   `https://ecommerce.test` con il database `ecommerce_site`. Il piano 1 vi collega
   `wonder-image/gestionale` da repository `path` e aggiunge `APP_ENV=local` al `.env`.
-- Due database, creati dall'utente: `ecommerce_site` per lo sviluppo, già pronto, e
-  quello dei test,
-  scelto con le variabili `DB_*` di un file dedicato, mai quello di sviluppo (9.4). Il
-  database dei test fa anche da "produzione" nelle prove di sincronizzazione e di sola
-  lettura, con `APP_ENV=production`.
+- **Un solo database, `ecommerce_site` (G1.11).** I test d'integrazione girano lì
+  dentro transazioni annullate: le tabelle le crea `forge update`, i dati scritti da un
+  test spariscono alla fine. Ogni test apre la propria transazione e la annulla anche
+  quando fallisce. Lo stesso database fa da "produzione" nelle prove di
+  sincronizzazione e di sola lettura, con `APP_ENV=production`.
 - Il sito ospita i test d'integrazione, le prove nel browser e gli screenshot della
   guida commercianti; dopo il primo rilascio diventa la base dello starter (2.3).
 
@@ -416,7 +416,7 @@ la tabella "Funzionalità incluse e da attivare" della guida commercianti da
 |---|---|---|
 | Unitari | prefissi dei codici, formato e progressivo dei numeri, stato delle funzionalità con dipendenze e moduli, risoluzione dell'aliquota, riepiloghi IVA con prezzi inclusi ed esclusi, impronta degli errori, controlli dei Primi passi | no |
 | Convenzioni | ogni Resource dichiara la sua funzionalità, le tabelle sincronizzate usano `keepIds()`, ogni chiave usata nei `lang/` esiste in `lang/it`, i prefissi dei codici sono unici | no |
-| Integrazione | righe precaricate che non si duplicano a due esecuzioni, numerazione con due processi in parallelo, log degli stati su un'entità di prova, export e import del sync senza perdere gli `id`, sola lettura fuori dal locale con orari e chiusure ancora modificabili | database di test |
+| Integrazione | righe precaricate che non si duplicano a due esecuzioni, numerazione con due processi in parallelo, log degli stati su un'entità di prova, export e import del sync senza perdere gli `id`, sola lettura fuori dal locale con orari e chiusure ancora modificabili | `ecommerce_site`, con le modifiche annullate |
 
 I livelli "provider" ed "end-to-end" di 9.4 non hanno nulla da coprire in G1: non ci
 sono ancora provider né vetrina. Nascono con G8 ed E1.
@@ -528,3 +528,4 @@ architettura.
 | G1.8 | Il repository `wonder-image/gestionale` è privato, a differenza di `app` e `immobili` |
 | G1.9 | Nomi di colonna che evitano le parole riservate di MySQL: `features.feature_key`; `taxes.rate` invece di `value` |
 | G1.10 | Prefisso delle tabelle `gst_` invece di `gestionale_`, e versioni del core `2.2.1` (prerequisiti) e `2.2.2` (aggiunte di G1); la `2.3.0` arriverà con la gestione dei cron |
+| G1.11 | I test d'integrazione usano il database del sito di prova (`ecommerce_site`) dentro transazioni annullate, senza un database dedicato |

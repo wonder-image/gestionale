@@ -137,7 +137,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - [x] Task 6: scheletro del modulo unito in `main` e pubblicato (ace56ea)
     - [x] Task 7: `ecommerce-site` con il modulo abilitato e valido, `forge update` riuscito (a3e8ed2)
     - [ ] `wonder-image/app`: `class/Console/Forge.php` cita `Wonder\Console\Commands\ScheduleRun`, che non è committato: chi installa il core da git trova `forge` rotto (a cura dell'utente, lavoro sui cron in corso)
-    - [ ] Nome del database dei test di `ecommerce-site`, da annotare quando l'utente lo comunica
+    - [x] Database dei test: si usa quello del sito, `ecommerce_site`, con le modifiche annullate dalle transazioni (G1.11, 2026-09-18)
   - [ ] Piano 2: funzionalità, pannello, righe precaricate, sincronizzazione
   - [ ] Piano 3: codici, numerazioni, log degli stati, riferimenti esterni, IVA, impostazioni, sede principale
   - [ ] Piano 4: errori, riquadri della home, hook, dati di prova, GitHub Actions, guida sviluppatori e guida commercianti
