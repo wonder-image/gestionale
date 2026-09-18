@@ -2,11 +2,14 @@
 
 /**
  * Pagina "Funzionalità": un solo form con un interruttore per funzionalità.
- * In produzione è in sola lettura, perché la tabella arriva dal deploy.
+ * Form e layout stanno nella Resource; qui restano il salvataggio e il
+ * rendering. In produzione la pagina è in sola lettura, perché la tabella
+ * arriva dal deploy.
  */
 
 use Wonder\App\Environment;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Resources\System\FeatureResource;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureCatalog;
 use Wonder\Plugin\Gestionale\Support\Features\FeaturePanel;
 
@@ -23,8 +26,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $requested = [];
 
     foreach (array_keys(FeatureCatalog::all()) as $key) {
-        // Una casella non spuntata non viene inviata: qui vale "bloccata".
-        $requested[$key] = isset($_POST['features'][$key]);
+        // L'interruttore staccato manda comunque il valore "false" (campo nascosto).
+        $requested[$key] = ($_POST[$key] ?? 'false') === 'true';
     }
 
     $user = $USER ?? null;
@@ -40,9 +43,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 }
 
 \Wonder\View\View::make(Gestionale::viewPath('backend/features.php'), [
-    'TITLE' => 'Funzionalità',
-    'AREAS' => FeaturePanel::byArea(),
+    'TITLE' => FeatureResource::titleLabel(),
+    'SUBTITLE' => 'Il gestionale è predisposto al massimo: qui si sblocca solo ciò che serve. Bloccare non cancella mai i dati.',
+    // Lo schema si rilegge dopo il salvataggio, così gli interruttori mostrano lo stato nuovo.
+    'FORM_LAYOUT' => FeatureResource::formLayoutSchema(),
+    'DOCS_URL' => FeatureResource::pageSchema()->docsUrl('list'),
     'READONLY' => $readonly,
+    'READONLY_NOTICE' => FeatureResource::readonlyNotice(),
     'MESSAGE' => $message,
-    'DOCS_URL' => Gestionale::docsUrl('funzionalita'),
 ])->render();

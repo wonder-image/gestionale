@@ -436,8 +436,7 @@ richiedono il database del sito di prova.
 
 Due guide, entrambe aggiornate dentro G1: un sotto-progetto non è finito se ne manca una.
 
-**Guida sviluppatori** (`docs/`, GitBook "Wonder Gestionale", `.gitbook.yaml` con
-`root: ./docs/`). Pagine di G1: installazione del modulo; struttura del modulo;
+**Guida sviluppatori** (`docs/`, spazio "Sviluppatori"). Pagine di G1: installazione del modulo; struttura del modulo;
 funzionalità e ruoli; sincronizzazione tra ambienti; codici, numerazioni e log degli
 stati; prezzi, IVA e totali; impostazioni e regola su dove aggiungere le colonne; errori
 e log; hook; comandi; sviluppo, test e sito di prova.
@@ -451,8 +450,14 @@ il riquadro iniziale ("Inclusa", "Da attivare su richiesta", "Configurata da Won
 Image"), a cosa serve, il passo passo con gli screenshot presi dal sito di prova e i
 casi particolari.
 
-Gli spazi GitBook li collega l'utente al repository, uno per cartella (9.5).
-`docs/superpowers/` resta fuori dai sommari.
+**Configurazione GitBook (G1.13).** `gitbook-docs.yaml` nella radice mappa il
+sito e i suoi spazi alle cartelle: `gestionale-sviluppatori` → `./docs`,
+`gestionale-commercianti` → `./guide`. Dentro ogni cartella un `.gitbook.yaml`
+dichiara `README.md` e `SUMMARY.md`. Le chiavi degli spazi non si cambiano più,
+perché GitBook riconosce gli spazi da quelle. `docs/superpowers/` resta fuori dai
+sommari. L'indirizzo della guida commercianti (`docs.merchant_url` nella
+configurazione del modulo) si compila quando il sito GitBook è pubblicato: da
+vuoto il pulsante "Guida" non compare.
 
 ## Tabelle di G1
 
@@ -535,4 +540,5 @@ architettura.
 | G1.9 | Nomi di colonna che evitano le parole riservate di MySQL: `features.feature_key`; `taxes.rate` invece di `value` |
 | G1.10 | Prefisso delle tabelle `gst_` invece di `gestionale_`, e versioni del core `2.2.1` (prerequisiti) e `2.2.2` (aggiunte di G1); la `2.3.0` arriverà con la gestione dei cron |
 | G1.11 | I test d'integrazione usano il database del sito di prova (`ecommerce_site`) dentro transazioni annullate, senza un database dedicato |
+| G1.13 | La documentazione usa `gitbook-docs.yaml` nella radice per mappare gli spazi (`./docs` e `./guide`), con un `.gitbook.yaml` per cartella |
 | G1.12 | Il pannello delle funzionalità è una pagina sola con gli interruttori (non un elenco con una scheda per funzionalità): voce di menu `NavigationOnlyResource`, handler e vista del modulo, regole delle dipendenze applicate al salvataggio |

@@ -15,17 +15,35 @@ check('percorsi del modulo', fn () =>
 );
 
 check('configurazione predefinita', fn () =>
-    Gestionale::config('docs.merchant_url') === 'https://guide.wonderimage.it/gestionale'
+    Gestionale::config('docs.merchant_url') === ''
     && Gestionale::config('extensions') === []
     && Gestionale::config('features.unlock') === []
     && Gestionale::config('chiave.inesistente', 'ripiego') === 'ripiego'
 );
 
-check('indirizzo della guida', fn () =>
-    Gestionale::docsUrl('primi-passi') === 'https://guide.wonderimage.it/gestionale/primi-passi'
-    && Gestionale::docsUrl('/sedi/') === 'https://guide.wonderimage.it/gestionale/sedi'
-    && Gestionale::docsUrl('') === ''
+check('senza indirizzo della guida non si compone nessun link', fn () =>
+    Gestionale::docsUrl('funzionalita') === ''
 );
+
+check('indirizzo della guida composto dalla configurazione del sito', function () {
+    $proprieta = new ReflectionProperty(Gestionale::class, 'config');
+    $proprieta->setAccessible(true);
+    $proprieta->setValue(null, ['docs' => ['merchant_url' => 'https://guida.esempio.it/guida']]);
+
+    $composto = [
+        Gestionale::docsUrl('funzionalita'),
+        Gestionale::docsUrl('/sedi/'),
+        Gestionale::docsUrl(''),
+    ];
+
+    Gestionale::reset();
+
+    return $composto === [
+        'https://guida.esempio.it/guida/funzionalita',
+        'https://guida.esempio.it/guida/sedi',
+        '',
+    ];
+});
 
 check('Resource base senza funzionalità né guida dichiarate', fn () =>
     GestionaleResource::$feature === '' && GestionaleResource::$docsPage === ''

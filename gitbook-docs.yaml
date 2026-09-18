@@ -1,0 +1,24 @@
+# Mappa degli spazi GitBook di questo repository (Git Sync).
+# Ogni spazio legge una cartella; dentro la cartella c'è il suo .gitbook.yaml.
+# Le chiavi (key) non si cambiano più: identificano lo spazio tra una
+# sincronizzazione e l'altra.
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+
+site:
+  title: Wonder Gestionale
+  structure:
+    - type: space
+      key: gestionale-sviluppatori
+      title: Sviluppatori
+      path: sviluppatori
+      default: true
+      content:
+        directory: ./docs
+        language: it
+    - type: space
+      key: gestionale-commercianti
+      title: Guida commercianti
+      path: guida
+      content:
+        directory: ./guide
+        language: it

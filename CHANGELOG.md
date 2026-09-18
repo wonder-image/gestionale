@@ -10,5 +10,9 @@ versionamento semantico.
 - Scheletro del modulo: manifest, entrypoint, configurazione, Resource base.
 - Test del modulo con harness proprio e `php tests/run.php`.
 - Funzionalità sbloccabili: catalogo nel codice, stato su database sincronizzato
-  con `id` stabili, pannello "Funzionalità", righe precaricate create da
-  `forge update`, pagine che spariscono quando la funzionalità è bloccata.
+  con `id` stabili, pannello "Funzionalità" con un interruttore per funzionalità
+  (`formSchema` e `formLayoutSchema`, campo `toggle` del core `2.2.3`), righe
+  precaricate create da `forge update`, pagine che spariscono quando la
+  funzionalità è bloccata.
+- Documentazione: `gitbook-docs.yaml` con gli spazi GitBook "Sviluppatori"
+  (`docs/`) e "Guida commercianti" (`guide/`), con le prime pagine.
