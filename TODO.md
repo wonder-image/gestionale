@@ -132,7 +132,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Revisione della spec da parte dell'utente (2026-09-18): prefisso delle tabelle `gst_`, rilasci del core `2.2.1` e `2.2.2` prima della `2.3.0` (che porterà la gestione dei cron), nuovo requisito della vendita senza giacenza
   - [x] Sito di prova `boilerplates/ecommerce-site` creato dall'utente (2026-09-18): `https://ecommerce.test`, database `ecommerce_site`
   - [ ] Database dei test del sito di prova, creato dall'utente
-  - [ ] Piano 1: aggiunte al core (campi modificabili in sola lettura, riquadri della home, comandi forge dei moduli), rilascio `2.2.2`, scheletro del modulo, collegamento del sito di prova
+  - [ ] Piano 1 scritto (2026-09-18): `docs/superpowers/plans/2026-09-18-core-e-scheletro-del-modulo.md` — 7 task: campi modificabili in sola lettura, riquadri della home, comandi forge dei moduli, documentazione e versione `2.2.2`, scheletro del modulo, collegamento del sito di prova
   - [ ] Piano 2: funzionalità, pannello, righe precaricate, sincronizzazione
   - [ ] Piano 3: codici, numerazioni, log degli stati, riferimenti esterni, IVA, impostazioni, sede principale
   - [ ] Piano 4: errori, riquadri della home, hook, dati di prova, GitHub Actions, guida sviluppatori e guida commercianti
