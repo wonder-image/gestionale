@@ -1,0 +1,39 @@
+{
+    "name": "Wonder Gestionale",
+    "slug": "gestionale",
+    "version": "0.1.0",
+    "description": "Gestionale per wonder-image/app: funzionalità sbloccabili, IVA e impostazioni, sedi, errori.",
+    "namespace": "Wonder\\Plugin\\Gestionale\\",
+    "entrypoint": "Wonder\\Plugin\\Gestionale\\Gestionale",
+    "author": {
+        "name": "Wonder Image",
+        "email": "info@wonderimage.it"
+    },
+    "frameworkCompatibility": {
+        "wonder-app": "^2.2.2",
+        "php": "^8.2"
+    },
+    "dependencies": {
+        "modules": []
+    },
+    "paths": {
+        "src": "src",
+        "handlers": "http",
+        "views": "view",
+        "assets": "resources/assets",
+        "lang": "lang",
+        "tests": "tests"
+    },
+    "routes": {
+        "backend": "config/routes/route.backend.php"
+    },
+    "permissions": {
+        "definitions": "config/permissions.php"
+    },
+    "database": {
+        "models": "src/Models"
+    },
+    "console": {
+        "commands": []
+    }
+}
