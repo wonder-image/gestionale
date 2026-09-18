@@ -13,6 +13,7 @@ final class Gestionale implements ModuleInterface
     public const SLUG = 'gestionale';
 
     private static ?array $config = null;
+    private static ?array $features = null;
 
     public static function root(): string
     {
@@ -74,6 +75,39 @@ final class Gestionale implements ModuleInterface
         return $current;
     }
 
+    /** Stato effettivo di tutte le funzionalità, calcolato una volta per richiesta. */
+    public static function features(): array
+    {
+        if (self::$features !== null) {
+            return self::$features;
+        }
+
+        $unlocked = [];
+
+        foreach (Models\System\Feature::find(['deleted' => 'false']) ?: [] as $row) {
+            if (is_array($row)) {
+                $unlocked[(string) ($row['feature_key'] ?? '')] = ($row['enabled'] ?? 'false') === 'true';
+            }
+        }
+
+        $modules = array_map(
+            static fn ($manifest): string => $manifest->slug(),
+            \Wonder\App\Module\Registry::enabled()
+        );
+
+        return self::$features = Support\Features\FeatureState::resolve(
+            Support\Features\FeatureCatalog::all(),
+            $unlocked,
+            array_values($modules)
+        );
+    }
+
+    /** Stato di una funzionalità; una chiave sconosciuta è sempre bloccata. */
+    public static function feature(string $key): bool
+    {
+        return self::features()[$key] ?? false;
+    }
+
     /** Indirizzo di una pagina della guida commercianti; vuoto se non configurato. */
     public static function docsUrl(string $page): string
     {
@@ -90,5 +124,6 @@ final class Gestionale implements ModuleInterface
     public static function reset(): void
     {
         self::$config = null;
+        self::$features = null;
     }
 }
