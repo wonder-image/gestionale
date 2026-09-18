@@ -132,7 +132,12 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Revisione della spec da parte dell'utente (2026-09-18): prefisso delle tabelle `gst_`, rilasci del core `2.2.1` e `2.2.2` prima della `2.3.0` (che porterà la gestione dei cron), nuovo requisito della vendita senza giacenza
   - [x] Sito di prova `boilerplates/ecommerce-site` creato dall'utente (2026-09-18): `https://ecommerce.test`, database `ecommerce_site`
   - [ ] Database dei test del sito di prova, creato dall'utente
-  - [ ] Piano 1 scritto (2026-09-18): `docs/superpowers/plans/2026-09-18-core-e-scheletro-del-modulo.md` — 7 task: campi modificabili in sola lettura, riquadri della home, comandi forge dei moduli, documentazione e versione `2.2.2`, scheletro del modulo, collegamento del sito di prova
+  - [x] Piano 1 scritto ed eseguito (2026-09-18): `docs/superpowers/plans/2026-09-18-core-e-scheletro-del-modulo.md` — 7 task: campi modificabili in sola lettura, riquadri della home, comandi forge dei moduli, documentazione e versione `2.2.2`, scheletro del modulo, collegamento del sito di prova
+    - [x] Task 1–5 nel core, sul ramo `feature/gestionale-core-additions` di `wonder-image/app` (e269df20 → 246fb94e), test verdi; merge in `main` da concordare perché l'utente sta lavorando nella stessa cartella
+    - [x] Task 6: scheletro del modulo unito in `main` e pubblicato (ace56ea)
+    - [x] Task 7: `ecommerce-site` con il modulo abilitato e valido, `forge update` riuscito (a3e8ed2)
+    - [ ] `wonder-image/app`: `class/Console/Forge.php` cita `Wonder\Console\Commands\ScheduleRun`, che non è committato: chi installa il core da git trova `forge` rotto (a cura dell'utente, lavoro sui cron in corso)
+    - [ ] Nome del database dei test di `ecommerce-site`, da annotare quando l'utente lo comunica
   - [ ] Piano 2: funzionalità, pannello, righe precaricate, sincronizzazione
   - [ ] Piano 3: codici, numerazioni, log degli stati, riferimenti esterni, IVA, impostazioni, sede principale
   - [ ] Piano 4: errori, riquadri della home, hook, dati di prova, GitHub Actions, guida sviluppatori e guida commercianti
