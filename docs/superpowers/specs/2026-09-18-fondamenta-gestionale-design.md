@@ -174,9 +174,10 @@ test, non in produzione.
 
 **Pannello "Funzionalità"** (Set Up, `admin`): **una sola pagina con un
 interruttore per funzionalità** (**G1.12**), raggruppate per area, con nome,
-descrizione e dipendenze sotto ogni voce; un unico "Salva". Non è un elenco CRUD:
-la voce di menu è una `NavigationOnlyResource` e la pagina ha handler e vista
-proprie nel modulo. Salvando, le regole sistemano la catena: spuntare una
+descrizione e dipendenze sotto ogni voce; un unico "Salva". Non è un elenco CRUD: è una
+**pagina-form** del core (`Resource::isFormPage()`, aggiunta con la `2.2.4`), che
+registra pagina e salvataggio sul percorso della Resource e disegna
+`formSchema()` e `formLayoutSchema()`; il modulo non ha né handler né vista. Salvando, le regole sistemano la catena: spuntare una
 funzionalità sblocca le dipendenze che mancano, toglierla blocca quelle che
 dipendono da lei, e il messaggio dice cosa è cambiato. Una funzionalità il cui
 modulo non è abilitato ha l'interruttore disattivato. In produzione tutti gli
@@ -540,5 +541,6 @@ architettura.
 | G1.9 | Nomi di colonna che evitano le parole riservate di MySQL: `features.feature_key`; `taxes.rate` invece di `value` |
 | G1.10 | Prefisso delle tabelle `gst_` invece di `gestionale_`, e versioni del core `2.2.1` (prerequisiti) e `2.2.2` (aggiunte di G1); la `2.3.0` arriverà con la gestione dei cron |
 | G1.11 | I test d'integrazione usano il database del sito di prova (`ecommerce_site`) dentro transazioni annullate, senza un database dedicato |
+| G1.14 | Due aggiunte al core pubblicate durante G1: campo `toggle` (`2.2.3`) e pagine-form `isFormPage()` (`2.2.4`) |
 | G1.13 | La documentazione usa `gitbook-docs.yaml` nella radice per mappare gli spazi (`./docs` e `./guide`), con un `.gitbook.yaml` per cartella |
-| G1.12 | Il pannello delle funzionalità è una pagina sola con gli interruttori (non un elenco con una scheda per funzionalità): voce di menu `NavigationOnlyResource`, handler e vista del modulo, regole delle dipendenze applicate al salvataggio |
+| G1.12 | Il pannello delle funzionalità è una pagina sola con gli interruttori (non un elenco con una scheda per funzionalità), dichiarata con `formSchema()` e `formLayoutSchema()` su una pagina-form del core; regole delle dipendenze applicate al salvataggio |
