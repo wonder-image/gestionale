@@ -172,12 +172,16 @@ calcolo sta in una classe pura `Support\Features\FeatureState`, che riceve catal
 righe e non legge il database: dipendenze circolari o mancanti danno errore in fase di
 test, non in produzione.
 
-**Pannello "Funzionalità"** (Set Up, `admin`): elenco con nome, area, dipendenze,
-stato e ultimo cambio, e scheda della singola funzionalità dove si sblocca o si
-blocca (**G1.12**: il core non ha un endpoint che possa applicare le regole delle
-dipendenze da un interruttore nell'elenco). Salvando, lo sblocco sblocca anche le
-dipendenze mancanti e il blocco blocca anche le funzionalità che dipendono da
-quella, dicendolo nel messaggio. Ogni cambio scrive `feature_logs` e richiama `TableSync::autoExport()`. In
+**Pannello "Funzionalità"** (Set Up, `admin`): **una sola pagina con un
+interruttore per funzionalità** (**G1.12**), raggruppate per area, con nome,
+descrizione e dipendenze sotto ogni voce; un unico "Salva". Non è un elenco CRUD:
+la voce di menu è una `NavigationOnlyResource` e la pagina ha handler e vista
+proprie nel modulo. Salvando, le regole sistemano la catena: spuntare una
+funzionalità sblocca le dipendenze che mancano, toglierla blocca quelle che
+dipendono da lei, e il messaggio dice cosa è cambiato. Una funzionalità il cui
+modulo non è abilitato ha l'interruttore disattivato. In produzione tutti gli
+interruttori sono disabilitati, il pulsante sparisce e un salvataggio forzato
+riceve 403. Ogni cambio scrive `feature_logs` e richiama `TableSync::autoExport()`. In
 produzione è in sola lettura, come tutte le pagine sincronizzate.
 
 **Contro le dimenticanze.** Un test di convenzione verifica che ogni Resource dei
@@ -531,4 +535,4 @@ architettura.
 | G1.9 | Nomi di colonna che evitano le parole riservate di MySQL: `features.feature_key`; `taxes.rate` invece di `value` |
 | G1.10 | Prefisso delle tabelle `gst_` invece di `gestionale_`, e versioni del core `2.2.1` (prerequisiti) e `2.2.2` (aggiunte di G1); la `2.3.0` arriverà con la gestione dei cron |
 | G1.11 | I test d'integrazione usano il database del sito di prova (`ecommerce_site`) dentro transazioni annullate, senza un database dedicato |
-| G1.12 | Il pannello delle funzionalità è elenco più scheda della singola funzionalità, non interruttori nell'elenco: le regole sulle dipendenze girano nel salvataggio della Resource |
+| G1.12 | Il pannello delle funzionalità è una pagina sola con gli interruttori (non un elenco con una scheda per funzionalità): voce di menu `NavigationOnlyResource`, handler e vista del modulo, regole delle dipendenze applicate al salvataggio |
