@@ -125,6 +125,15 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Ramo `feature/prerequisiti-moduli-gestionale` unito in `main` in locale (avanzamento diretto fino a 223adf4b, 72 file di test verdi) e cancellato in locale (2026-09-17)
   - [ ] Push di `main` di `wonder-image/app`, rilascio minore e cancellazione del ramo remoto `feature/prerequisiti-moduli-gestionale` (a cura dell'utente)
 - [ ] G1 Fondamenta
+  - Spec: `docs/superpowers/specs/2026-09-18-fondamenta-gestionale-design.md`
+  - [x] Repository `wonder-image/gestionale` creato su GitHub (privato) e primo push (2026-09-18)
+  - [x] Spec di G1 scritta (2026-09-18): decisioni G1.1–G1.9, quattro piani
+  - [ ] Revisione della spec da parte dell'utente
+  - [ ] Database del sito di prova `boilerplates/ecommerce-site`: sviluppo e test, creati dall'utente
+  - [ ] Piano 1: aggiunte al core (campi modificabili in sola lettura, riquadri della home, comandi forge dei moduli), rilascio `2.4.0`, scheletro del modulo, sito di prova
+  - [ ] Piano 2: funzionalità, pannello, righe precaricate, sincronizzazione
+  - [ ] Piano 3: codici, numerazioni, log degli stati, riferimenti esterni, IVA, impostazioni, sede principale
+  - [ ] Piano 4: errori, riquadri della home, hook, dati di prova, GitHub Actions, guida sviluppatori e guida commercianti
 - [ ] G2 Catalogo, magazzino base, anagrafiche
 - [ ] G3 Magazzino avanzato
 - [ ] G4 Ordini e pagamenti
