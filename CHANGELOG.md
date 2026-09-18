@@ -9,3 +9,6 @@ versionamento semantico.
 
 - Scheletro del modulo: manifest, entrypoint, configurazione, Resource base.
 - Test del modulo con harness proprio e `php tests/run.php`.
+- Funzionalità sbloccabili: catalogo nel codice, stato su database sincronizzato
+  con `id` stabili, pannello "Funzionalità", righe precaricate create da
+  `forge update`, pagine che spariscono quando la funzionalità è bloccata.
