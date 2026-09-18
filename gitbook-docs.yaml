@@ -13,12 +13,12 @@ site:
       path: sviluppatori
       default: true
       content:
-        directory: ./docs
+        directory: ./docs/dev
         language: it
     - type: space
       key: gestionale-commercianti
       title: Guida commercianti
-      path: guida
+      path: user
       content:
-        directory: ./guide
+        directory: ./docs/user
         language: it
