@@ -87,4 +87,59 @@ check('un ciclo viene rifiutato con parole comprensibili', function () {
     return false;
 });
 
+check('la posizione non si scrive a mano', function () {
+    foreach ([BrandResource::class, CategoryResource::class] as $resource) {
+        foreach ($resource::formSchema() as $field) {
+            if ((string) $field->name === 'position') {
+                return false;
+            }
+        }
+    }
+
+    $creazione = BrandResource::mutateRequestValues(['name' => 'Nike'], 'store');
+    $modifica = BrandResource::mutateRequestValues(['name' => 'Nike', 'position' => 9], 'update');
+
+    return (int) ($creazione['position'] ?? 0) >= 1 && !isset($modifica['position']);
+});
+
+check('la categoria padre si sceglie dall\'albero', function () {
+    foreach (CategoryResource::formSchema() as $field) {
+        if ((string) $field->name !== 'parent_id') {
+            continue;
+        }
+
+        return $field instanceof Wonder\App\ResourceSchema\Inputs\InputCheckTree
+            && ($field->get('context')['input_type'] ?? '') === 'radio';
+    }
+
+    return false;
+});
+
+check('l\'albero del padre è annidato e senza i discendenti', function () {
+    $righe = [
+        ['id' => 1, 'parent_id' => 0, 'name' => 'Abbigliamento', 'position' => 1],
+        ['id' => 2, 'parent_id' => 1, 'name' => 'Magliette', 'position' => 1],
+        ['id' => 3, 'parent_id' => 0, 'name' => 'Accessori', 'position' => 2],
+    ];
+
+    $albero = CategoryResource::parentTree($righe, 1);
+    $radici = $albero['0']['child'] ?? [];
+
+    // PHP riporta a intero le chiavi numeriche di un array.
+    return isset($albero['0'])
+        && array_keys($radici) === [3]
+        && ($radici[3]['child'] ?? null) === [];
+});
+
+check('l\'albero annida i figli sotto il padre', function () {
+    $righe = [
+        ['id' => 1, 'parent_id' => 0, 'name' => 'Abbigliamento', 'position' => 1],
+        ['id' => 2, 'parent_id' => 1, 'name' => 'Magliette', 'position' => 1],
+    ];
+
+    $figli = CategoryResource::parentTree($righe, null)['0']['child'] ?? [];
+
+    return array_keys($figli) === [1] && array_keys($figli[1]['child'] ?? []) === [2];
+});
+
 summary();

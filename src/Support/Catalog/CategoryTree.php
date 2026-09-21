@@ -100,6 +100,46 @@ final class CategoryTree
         return $options;
     }
 
+    /**
+     * Le stesse voci di `options()`, ma annidate per il `checkTree()` del
+     * core: `['id' => ['name' => '…', 'child' => [...]]]`.
+     *
+     * La prima voce è `0`, "categoria principale": l'albero ha bisogno di
+     * qualcosa da spuntare anche quando la categoria sta in cima.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, array<string, mixed>>
+     */
+    public static function treeOptions(array $rows, ?int $exclude = null): array
+    {
+        $forbidden = $exclude === null ? [] : array_merge([$exclude], self::descendants($rows, $exclude));
+        $allowed = [];
+        $ids = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row) || !isset($row['id']) || in_array((int) $row['id'], $forbidden, true)) {
+                continue;
+            }
+
+            $allowed[] = $row;
+            $ids[(int) $row['id']] = true;
+        }
+
+        $children = [];
+
+        // `sorted()` mette le righe in ordine di albero e tratta come radice
+        // chi ha perso il padre: qui si raggruppano con la stessa regola.
+        foreach (self::sorted($allowed) as $row) {
+            $parent = (int) ($row['parent_id'] ?? 0);
+            $children[isset($ids[$parent]) ? $parent : 0][] = $row;
+        }
+
+        return ['0' => [
+            'name' => 'Nessuna (categoria principale)',
+            'child' => self::optionsBranch($children, 0),
+        ]];
+    }
+
     /** Vero se mettere `$id` sotto `$parentId` chiuderebbe un anello. */
     public static function wouldLoop(array $rows, int $id, int $parentId): bool
     {
@@ -108,6 +148,27 @@ final class CategoryTree
         }
 
         return $id === $parentId || in_array($parentId, self::descendants($rows, $id), true);
+    }
+
+    /**
+     * Un livello dell'albero delle opzioni, con i suoi figli dentro.
+     *
+     * @param array<int, list<array<string, mixed>>> $children
+     * @return array<string, array<string, mixed>>
+     */
+    private static function optionsBranch(array $children, int $parent): array
+    {
+        $options = [];
+
+        foreach ($children[$parent] ?? [] as $row) {
+            $id = (int) $row['id'];
+            $options[(string) $id] = [
+                'name' => (string) ($row['name'] ?? ''),
+                'child' => self::optionsBranch($children, $id),
+            ];
+        }
+
+        return $options;
     }
 
     /**

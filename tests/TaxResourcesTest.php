@@ -80,4 +80,49 @@ check('la natura ha i codici validi del core', function () {
     return false;
 });
 
+check('la posizione del tipo fiscale non si scrive a mano', function () {
+    foreach (TaxCategoryResource::formSchema() as $field) {
+        if ((string) $field->name === 'position') {
+            return false;
+        }
+    }
+
+    $creazione = TaxCategoryResource::mutateRequestValues(['name' => 'Alimentari'], 'store');
+    $modifica = TaxCategoryResource::mutateRequestValues(['name' => 'Alimentari', 'position' => 9], 'update');
+
+    return (int) ($creazione['position'] ?? 0) >= 1 && !isset($modifica['position']);
+});
+
+check('il codice della regola non si scrive a mano', function () {
+    foreach (TaxRuleResource::formSchema() as $field) {
+        if ((string) $field->name === 'code') {
+            return false;
+        }
+    }
+
+    return true;
+});
+
+check('il codice della regola racconta la scelta', function () {
+    $valori = TaxRuleResource::mutateRequestValues([
+        'country' => 'IT',
+        'customer_type' => 'private',
+        'tax_category_id' => 7,
+    ], 'store');
+
+    // Senza database il tipo fiscale resta l'id: il formato è quello.
+    return ($valori['code'] ?? '') === 'it-private-7';
+});
+
+check('il codice non cambia più dopo la creazione', function () {
+    $valori = TaxRuleResource::mutateRequestValues([
+        'code' => 'a-mano',
+        'country' => 'DE',
+        'customer_type' => 'business',
+        'tax_category_id' => 7,
+    ], 'update');
+
+    return !isset($valori['code']);
+});
+
 summary();

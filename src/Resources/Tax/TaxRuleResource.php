@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Tax;
 
+use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -72,7 +73,6 @@ final class TaxRuleResource extends GestionaleResource
     public static function formSchema(): array
     {
         return [
-            FormField::key('code')->text()->label('Codice')->required(),
             FormField::key('country')->country()->value('IT')->label('Paese')->required(),
             FormField::key('customer_type')
                 ->select(['private' => 'Privato', 'business' => 'Azienda'])
@@ -96,11 +96,10 @@ final class TaxRuleResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Regola')
-                        ->tooltip('Una sola regola per paese, tipo di cliente e tipo fiscale.')
+                        ->tooltip('Una sola regola per paese, tipo di cliente e tipo fiscale. Il codice lo compone il gestionale con quello che scegli qui.')
                         ->columnSpan(12),
-                    static::getInput('code')->columnSpan(4),
-                    static::getInput('country')->columnSpan(4),
-                    static::getInput('customer_type')->columnSpan(4),
+                    static::getInput('country')->columnSpan(6),
+                    static::getInput('customer_type')->columnSpan(6),
                     static::getInput('tax_category_id')->columnSpan(6),
                     static::getInput('tax_id')->columnSpan(6),
                 ])->columns(12)->columnSpan(12),
@@ -151,6 +150,52 @@ final class TaxRuleResource extends GestionaleResource
             ->authority(['admin']);
     }
 
+    /**
+     * Il codice racconta la regola: `it-private-ordinaria`. Lo compone il
+     * gestionale da quello che è stato scelto, così due regole non possono
+     * chiamarsi allo stesso modo e nessuno deve inventarsi una sigla.
+     */
+    public static function mutateRequestValues(
+        array $values,
+        string $action,
+        string $context = 'backend',
+        ?array $oldValues = null
+    ): array {
+        if ($action === 'store') {
+            $values['code'] = static::codeFor(
+                (string) ($values['country'] ?? ''),
+                (string) ($values['customer_type'] ?? ''),
+                (int) ($values['tax_category_id'] ?? 0)
+            );
+        } else {
+            // Il codice è immutabile: cambiarlo romperebbe i riferimenti.
+            unset($values['code']);
+        }
+
+        return $values;
+    }
+
+    /** `{paese}-{tipo cliente}-{tipo fiscale}`, tutto minuscolo. */
+    public static function codeFor(string $country, string $customerType, int $taxCategoryId): string
+    {
+        try {
+            $category = TaxCategory::find(['id' => $taxCategoryId, 'deleted' => 'false'], 1);
+        } catch (Throwable) {
+            // Senza database resta l'id: meglio un codice che un errore.
+            $category = null;
+        }
+
+        $categoryCode = is_array($category) ? (string) ($category['code'] ?? '') : '';
+
+        $parts = [
+            strtolower(trim($country)),
+            strtolower(trim($customerType)),
+            $categoryCode !== '' ? $categoryCode : (string) $taxCategoryId,
+        ];
+
+        return implode('-', array_filter($parts, static fn (string $part): bool => $part !== ''));
+    }
+
     /** @return array<string, string> */
     private static function taxCategories(): array
     {
@@ -166,7 +211,13 @@ final class TaxRuleResource extends GestionaleResource
     /** @return array<string, string> */
     private static function options(string $model, callable $label): array
     {
-        $rows = $model::find(['deleted' => 'false'], null, 'id', 'ASC');
+        try {
+            $rows = $model::find(['deleted' => 'false'], null, 'id', 'ASC');
+        } catch (Throwable) {
+            // Senza database (test degli schemi) il select resta vuoto invece
+            // di far saltare il form.
+            return [];
+        }
 
         if (!is_array($rows) || $rows === []) {
             return [];

@@ -18,6 +18,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Positions;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
 /**
@@ -67,11 +68,10 @@ final class CategoryResource extends GestionaleResource
     {
         return [
             'name' => 'Nome',
-            'slug' => 'Indirizzo',
+            'slug' => 'Url pubblico',
             'parent_id' => 'Categoria padre',
             'image' => 'Immagine',
             'description' => 'Descrizione',
-            'position' => 'Posizione',
             'visible' => 'Stato',
         ];
     }
@@ -80,8 +80,10 @@ final class CategoryResource extends GestionaleResource
     {
         return [
             FormField::key('name')->text()->label('Nome')->required(),
-            FormField::key('parent_id')->select(static::parentOptions())->label('Categoria padre'),
-            FormField::key('position')->number()->decimal(0)->label('Posizione')->value('1'),
+            FormField::key('parent_id')
+                ->checkTree(static::parentTree(), true, 'radio')
+                ->value('0')
+                ->label('Categoria padre'),
             FormField::key('visible')
                 ->select(['true' => 'Visibile', 'false' => 'Nascosta'])
                 ->value('true')
@@ -98,13 +100,12 @@ final class CategoryResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Categoria')
-                        ->tooltip('Lasciando vuoto il padre la categoria è principale. L\'indirizzo nasce dal nome alla creazione e non cambia più.')
+                        ->tooltip('Senza padre la categoria è principale. L\'url pubblico nasce dal nome alla creazione e non cambia più.')
                         ->columnSpan(12),
-                    static::getInput('name')->columnSpan(6),
-                    static::getInput('parent_id')->columnSpan(6),
-                    static::getInput('position')->columnSpan(3),
-                    static::getInput('visible')->columnSpan(3),
+                    static::getInput('name')->columnSpan(8),
+                    static::getInput('visible')->columnSpan(4),
                     static::getInput('description')->columnSpan(12),
+                    static::getInput('parent_id')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
 
                 (new Card)->components([
@@ -133,7 +134,6 @@ final class CategoryResource extends GestionaleResource
                     );
                 }),
             TableColumn::key('slug')->text(),
-            TableColumn::key('position')->text()->size('little'),
             TableColumn::key('visible')->visibleBadge()->size('little'),
             TableColumn::key('actions')->button()->actions(['edit', 'delete']),
         ];
@@ -178,8 +178,11 @@ final class CategoryResource extends GestionaleResource
     ): array {
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) ($values['name'] ?? ''), Category::$table);
+            // La posizione la mette il backend, in fondo ai fratelli: non è
+            // un numero che il commerciante debba inventarsi.
+            $values['position'] = Positions::next(Category::$table, ['parent_id' => (int) ($values['parent_id'] ?? 0)]);
         } else {
-            unset($values['slug']);
+            unset($values['slug'], $values['position']);
         }
 
         $id = (int) ($oldValues['id'] ?? 0);
@@ -196,6 +199,12 @@ final class CategoryResource extends GestionaleResource
     public static function parentOptions(?array $rows = null, ?int $exclude = null): array
     {
         return CategoryTree::options($rows ?? static::rows(), $exclude ?? static::currentId());
+    }
+
+    /** Le stesse voci, annidate per l'albero da spuntare. */
+    public static function parentTree(?array $rows = null, ?int $exclude = null): array
+    {
+        return CategoryTree::treeOptions($rows ?? static::rows(), $exclude ?? static::currentId());
     }
 
     /** Un anello nell'albero si ferma qui, con parole da leggere. */

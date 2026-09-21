@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\System;
 
+use Throwable;
+
 use Wonder\App\Resources\Support\SingletonResource;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
@@ -170,7 +172,11 @@ final class SettingResource extends SingletonResource
     /** @return array<string, string> */
     private static function taxes(): array
     {
-        $rows = Tax::find(['deleted' => 'false'], null, 'rate', 'DESC');
+        try {
+            $rows = Tax::find(['deleted' => 'false'], null, 'rate', 'DESC');
+        } catch (Throwable) {
+            return [];
+        }
 
         if (!is_array($rows) || $rows === []) {
             return [];

@@ -119,14 +119,15 @@ final class Defaults implements ModuleDefaults
 
         $rows->ensure(TaxRule::class, 'code', [
             [
-                'code' => 'italia-privato-ordinaria',
+                // Stesso formato che compone la pagina: {paese}-{cliente}-{tipo}.
+                'code' => 'it-private-'.self::ORDINARY_CATEGORY,
                 'country' => 'IT',
                 'customer_type' => 'private',
                 'tax_category_id' => $categoryId,
                 'tax_id' => $taxId,
             ],
             [
-                'code' => 'italia-azienda-ordinaria',
+                'code' => 'it-business-'.self::ORDINARY_CATEGORY,
                 'country' => 'IT',
                 'customer_type' => 'business',
                 'tax_category_id' => $categoryId,

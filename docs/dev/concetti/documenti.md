@@ -87,3 +87,18 @@ $riferimento = ExternalReferences::find('invoice', $id, 'fatture-in-cloud', 'inv
 `save()` e `fail()` sono separati apposta: quando una sincronizzazione va male,
 l'id già ottenuto non si tocca, altrimenti al tentativo dopo si creerebbe un
 doppione dall'altra parte. Il primo `save()` riuscito cancella l'errore.
+
+## Posizione delle righe
+
+La colonna `position` tiene l'ordine di un elenco, ma **non si chiede a chi
+compila il form**: il backend la mette da sé alla creazione, in fondo al
+gruppo, e non la mostra da nessuna parte.
+
+```php
+$values['position'] = Positions::next(Brand::$table);
+$values['position'] = Positions::next(Category::$table, ['parent_id' => $parentId]);
+```
+
+Dove serve che il commerciante dica "questo viene prima", non si torna a un
+campo numerico: si aggiunge una colonna `importance` con un **select** (poche
+voci con un nome), che è una scelta e non un numero da indovinare.

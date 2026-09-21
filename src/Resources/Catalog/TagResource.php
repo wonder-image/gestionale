@@ -63,7 +63,7 @@ final class TagResource extends GestionaleResource
     {
         return [
             'name' => 'Nome',
-            'slug' => 'Indirizzo',
+            'slug' => 'Url pubblico',
             'image' => 'Immagine',
             'visible' => 'Stato',
         ];
@@ -88,7 +88,7 @@ final class TagResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Tag')
-                        ->tooltip('L\'indirizzo della pagina nasce dal nome alla creazione e non cambia più.')
+                        ->tooltip('L\'url pubblico nasce dal nome alla creazione e non cambia più.')
                         ->columnSpan(12),
                     static::getInput('name')->columnSpan(8),
                     static::getInput('visible')->columnSpan(4),

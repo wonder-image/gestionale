@@ -12,6 +12,19 @@ icon: percent
 | `gst_tax_categories` | il tipo fiscale del prodotto (ordinario, alimentare, libri, servizi) |
 | `gst_tax_rules` | paese × tipo di cliente × tipo fiscale → aliquota |
 
+**A cosa serve il tipo fiscale.** L'aliquota non è una proprietà del prodotto:
+lo stesso libro è al 4% in Italia e a un'altra aliquota per un privato di un
+altro paese. Quello che il prodotto ha davvero è *come va tassato* — beni
+ordinari, alimentari, libri, servizi — e questo è il tipo fiscale. La regola
+mette insieme tipo fiscale, paese e tipo di cliente e ne tira fuori l'aliquota.
+
+Finché il tipo fiscale è uno solo la scheda prodotto non lo mostra nemmeno: si
+comincia a vederlo quando il negozio vende cose tassate in modo diverso.
+
+Il codice della regola lo compone la pagina da sé, nel formato
+`{paese}-{tipo cliente}-{tipo fiscale}` (`it-private-ordinaria`): due regole
+non possono chiamarsi allo stesso modo e nessuno deve inventarsi una sigla.
+
 Si modificano solo in locale e arrivano in produzione con il deploy, con gli
 `id` stabili. Le aliquote **non si eliminano**: si nascondono, perché i
 documenti già emessi puntano alla loro.

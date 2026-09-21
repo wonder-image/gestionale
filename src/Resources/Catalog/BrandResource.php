@@ -16,6 +16,7 @@ use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Positions;
 
 /**
  * "Marchi": il produttore di un articolo.
@@ -63,10 +64,9 @@ final class BrandResource extends GestionaleResource
     {
         return [
             'name' => 'Nome',
-            'slug' => 'Indirizzo',
+            'slug' => 'Url pubblico',
             'logo' => 'Logo',
             'description' => 'Descrizione',
-            'position' => 'Posizione',
             'visible' => 'Stato',
         ];
     }
@@ -75,7 +75,6 @@ final class BrandResource extends GestionaleResource
     {
         return [
             FormField::key('name')->text()->label('Nome')->required(),
-            FormField::key('position')->number()->decimal(0)->label('Posizione')->value('1'),
             FormField::key('visible')
                 ->select(['true' => 'Visibile', 'false' => 'Nascosto'])
                 ->value('true')
@@ -92,11 +91,10 @@ final class BrandResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Marchio')
-                        ->tooltip('L\'indirizzo della pagina nasce dal nome alla creazione e non cambia più.')
+                        ->tooltip('L\'url pubblico nasce dal nome alla creazione e non cambia più.')
                         ->columnSpan(12),
-                    static::getInput('name')->columnSpan(6),
-                    static::getInput('position')->columnSpan(3),
-                    static::getInput('visible')->columnSpan(3),
+                    static::getInput('name')->columnSpan(8),
+                    static::getInput('visible')->columnSpan(4),
                     static::getInput('description')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
 
@@ -113,7 +111,6 @@ final class BrandResource extends GestionaleResource
         return [
             TableColumn::key('name')->text()->link('edit'),
             TableColumn::key('slug')->text(),
-            TableColumn::key('position')->text()->size('little'),
             TableColumn::key('visible')->visibleBadge()->size('little'),
             TableColumn::key('actions')->button()->actions(['edit', 'delete']),
         ];
@@ -159,8 +156,9 @@ final class BrandResource extends GestionaleResource
     ): array {
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) ($values['name'] ?? ''), Brand::$table);
+            $values['position'] = Positions::next(Brand::$table);
         } else {
-            unset($values['slug']);
+            unset($values['slug'], $values['position']);
         }
 
         return $values;

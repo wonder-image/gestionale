@@ -16,6 +16,7 @@ use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Positions;
 
 /**
  * "Tipi fiscali": come si tassa un prodotto (ordinario, alimentare, libri,
@@ -64,7 +65,6 @@ final class TaxCategoryResource extends GestionaleResource
             'code' => 'Codice',
             'name' => 'Nome',
             'description' => 'Descrizione',
-            'position' => 'Posizione',
             'visible' => 'Stato',
         ];
     }
@@ -74,7 +74,6 @@ final class TaxCategoryResource extends GestionaleResource
         return [
             FormField::key('code')->text()->label('Codice')->required(),
             FormField::key('name')->text()->label('Nome')->required(),
-            FormField::key('position')->number()->decimals(0)->label('Posizione')->value('1'),
             FormField::key('visible')
                 ->select(['true' => 'Visibile', 'false' => 'Nascosto'])
                 ->value('true')
@@ -93,9 +92,8 @@ final class TaxCategoryResource extends GestionaleResource
                         ->tooltip('Con un tipo fiscale solo, la scheda prodotto non lo mostra nemmeno.')
                         ->columnSpan(12),
                     static::getInput('code')->columnSpan(3),
-                    static::getInput('name')->columnSpan(5),
-                    static::getInput('position')->columnSpan(2),
-                    static::getInput('visible')->columnSpan(2),
+                    static::getInput('name')->columnSpan(6),
+                    static::getInput('visible')->columnSpan(3),
                     static::getInput('description')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
@@ -107,7 +105,6 @@ final class TaxCategoryResource extends GestionaleResource
         return [
             TableColumn::key('code')->text()->link('edit'),
             TableColumn::key('name')->text(),
-            TableColumn::key('position')->text()->size('little'),
             TableColumn::key('visible')->visibleBadge()->size('little'),
             TableColumn::key('actions')->button()->actions(['edit', 'delete']),
         ];
@@ -142,6 +139,22 @@ final class TaxCategoryResource extends GestionaleResource
             ->title('Tipi fiscali')
             ->order(61)
             ->authority(['admin']);
+    }
+
+    /** La posizione la mette il backend, in fondo all'elenco. */
+    public static function mutateRequestValues(
+        array $values,
+        string $action,
+        string $context = 'backend',
+        ?array $oldValues = null
+    ): array {
+        if ($action === 'store') {
+            $values['position'] = Positions::next(TaxCategory::$table);
+        } else {
+            unset($values['position']);
+        }
+
+        return $values;
     }
 
     /** Senza il tipo fiscale le sue regole non saprebbero più che aliquota usare. */

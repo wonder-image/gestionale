@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Setup;
 
+use Throwable;
+
 /**
  * Controlli dei "Primi passi": cosa manca perché il gestionale sia pronto.
  *
@@ -26,8 +28,8 @@ final class SetupChecks
             $pending[] = [
                 'key' => 'society',
                 'title' => 'Completa i dati della società',
-                'description' => 'Servono ragione sociale, partita IVA o codice fiscale ed email: finiscono su ordini e fatture.',
-                'url' => '/backend/app/config/society/',
+                'description' => 'Servono ragione sociale, partita IVA o codice fiscale ed email: stanno nella sede predefinita e finiscono su ordini e fatture.',
+                'url' => self::locationUrl($location),
             ];
         }
 
@@ -36,7 +38,7 @@ final class SetupChecks
                 'key' => 'location',
                 'title' => 'Completa l\'indirizzo della sede',
                 'description' => 'Via, numero, CAP e città della sede principale: senza, spedizioni e documenti restano a metà.',
-                'url' => '/backend/app/config/locations/',
+                'url' => self::locationUrl($location),
             ];
         }
 
@@ -45,11 +47,54 @@ final class SetupChecks
                 'key' => 'fiscal',
                 'title' => 'Conferma le impostazioni fiscali',
                 'description' => 'Regime, IVA di ripiego e prezzi del catalogo sono precaricati: vanno guardati una volta e salvati.',
-                'url' => '/backend/app/gestionale/impostazioni/',
+                // La pagina è a riga unica: l'elenco porta dritto alla scheda.
+                'url' => self::route('backend.resource.app-gestionale-impostazioni.list', [], '/backend/app/gestionale/impostazioni/'),
             ];
         }
 
         return $pending;
+    }
+
+    /**
+     * La scheda della sede predefinita: dati della società e indirizzo stanno
+     * lì dentro, non su una pagina "Società" che non esiste più.
+     *
+     * @param array<string, mixed> $location
+     */
+    private static function locationUrl(array $location): string
+    {
+        $id = (int) ($location['id'] ?? 0);
+
+        if ($id <= 0) {
+            return self::route('backend.resource.app-config-locations.list', [], '/backend/app/config/locations/');
+        }
+
+        return self::route(
+            'backend.resource.app-config-locations.edit',
+            ['id' => $id],
+            '/backend/app/config/locations/'.$id.'/edit/'
+        );
+    }
+
+    /**
+     * L'indirizzo dalla rotta del core, con un ripiego per i test, che girano
+     * senza il framework acceso.
+     *
+     * @param array<string, mixed> $parameters
+     */
+    private static function route(string $name, array $parameters, string $fallback): string
+    {
+        if (!function_exists('__r')) {
+            return $fallback;
+        }
+
+        try {
+            $url = (string) __r($name, $parameters);
+        } catch (Throwable) {
+            return $fallback;
+        }
+
+        return trim($url) !== '' ? $url : $fallback;
     }
 
     private static function societyReady(array $society): bool
