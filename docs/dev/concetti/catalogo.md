@@ -119,6 +119,69 @@ che non deve toccare (aliquote, tipi fiscali, regole). `DocsPagesTest` controlla
 che ogni pagina dichiarata esista: un link rotto si vede nei test, non quando
 qualcuno ci clicca.
 
+## Modelli, varianti e prodotti
+
+Tre livelli, cinque tabelle:
+
+| Tabella | Cos'è |
+|---|---|
+| `gst_product_models` | la scheda che legge il cliente |
+| `gst_product_model_categories` / `gst_product_model_tags` | dove sta nel negozio |
+| `gst_product_variants` | quello che cambia l'aspetto |
+| `gst_products` | quello che si vende e sta a magazzino |
+
+**La variante c'è sempre** (G2a.2). `Support\Catalog\Skeleton::forModel()` la
+crea insieme al primo prodotto quando nasce un modello, e la scheda si adatta:
+
+| Quando | Cosa si vede |
+|---|---|
+| una variante sola | il riquadro "Varianti" non c'è |
+| un prodotto solo | SKU, EAN e prezzo stanno nel riquadro "Prodotto" |
+| più di uno | i due repeater |
+
+Quei riquadri non sono estetica: **un campo che non viene stampato non viene
+postato**, e `syncRepeaterRelations()` del core cancella le righe che non
+ritrova. Per questo `formSchema()` dichiara i repeater solo quando servono.
+
+### Codici degli articoli
+
+- `Support\Catalog\Sku::propose($skuDelModello, ['Blu', 'M'])` → `TSH-1-BLU-M`.
+  Senza SKU del modello non propone niente: un codice a caso è peggio di un
+  campo vuoto.
+- `Support\Catalog\Ean::isValid()` guarda **la forma** (8 o 13 cifre), non la
+  cifra di controllo: i negozi stampano codici interni, e rifiutare un codice
+  che il fornitore usa davvero sarebbe peggio.
+- SKU ed EAN **non hanno un indice UNIQUE**: il framework scrive stringhe vuote
+  e non NULL, quindi due articoli senza codice si scontrerebbero. L'unicità la
+  controllano `Sku::isFree()` ed `Ean::isFree()`, che possono spiegarsi.
+
+### Le combinazioni
+
+Nella scheda si spuntano i valori (Blu, Rosso / S, M, L) e si salva:
+`Support\Catalog\Combinations::plan()` — pura — dice quali varianti e quali
+prodotti mancano, e la Resource li crea. Rifarlo non duplica niente. Un modello
+che ha ancora solo lo scheletro lo riusa per la prima combinazione, invece di
+lasciare in giro una variante vuota.
+
+### Attributi appesi alle righe
+
+`Support\Catalog\ProductAttributes` scrive e legge i collegamenti dei tre
+livelli: `save($level, $parentId, $attributi, $input)`, `read()`, `describe()`.
+Il livello sceglie la tabella; il tipo sceglie la colonna.
+
+## I numeri scritti da una persona
+
+`Support\Numbers::fromForm()` porta `19,90` e `1.234,50` nella forma che MySQL
+accetta. Serve **quando si scrive con `Model::update()`**, che non passa dal
+`prepare()` dei form.
+
+{% hint style="warning" %}
+Fino a `wonder-image/app` 2.2.15 compreso il `prepare()` dei form arrotondava i
+decimali (`24,50` diventava `25,00`, `19,90` diventava `1990,00`). La correzione
+è in `app/function/sql.php` e vale dal rilascio successivo: un sito con una
+versione più vecchia continua a perdere i decimali.
+{% endhint %}
+
 ## Rifiutare un salvataggio
 
 `UserError` estende `InvalidArgumentException` apposta: è il tipo che

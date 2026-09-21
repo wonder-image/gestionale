@@ -38,6 +38,7 @@ check('ogni Resource con dati dichiara la sua funzionalità', function () use ($
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\AttributeResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\BrandResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\ProductModelResource',
+        'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\ProductResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\CategoryResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\TagResource',
     ];
