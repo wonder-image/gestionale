@@ -12,11 +12,18 @@ namespace Wonder\Plugin\Gestionale\Support\Catalog;
  */
 final class Attributes
 {
-    /** Dove vive un attributo. */
+    /**
+     * A cosa serve un attributo, detto come lo capisce chi vende.
+     *
+     * Le chiavi sono quelle di sempre — il database non cambia — ma nessuno
+     * deve più indovinare cosa sia un "livello". La scelta si fa una volta per
+     * negozio: dentro un sito la stessa opzione si comporta sempre allo stesso
+     * modo, e la scheda del prodotto non la nomina mai.
+     */
     public const LEVELS = [
-        'model' => 'Modello',
-        'variant' => 'Variante',
-        'product' => 'Prodotto',
+        'model' => 'Descrive l\'articolo',
+        'variant' => 'Crea versioni con pagina e foto proprie',
+        'product' => 'Crea versioni da scegliere nel carrello',
     ];
 
     /** Come si scrive il suo valore. */
@@ -46,6 +53,12 @@ final class Attributes
     public static function usesValues(string $type): bool
     {
         return $type === 'select' || $type === 'color';
+    }
+
+    /** Gli attributi che fanno nascere righe da vendere. */
+    public static function createsVersions(string $level): bool
+    {
+        return $level === 'variant' || $level === 'product';
     }
 
     /**

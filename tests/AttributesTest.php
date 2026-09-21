@@ -19,9 +19,25 @@ check('solo elenco e colore hanno dei valori', fn () =>
     && !Attributes::usesValues('number')
 );
 
-check('i livelli e i tipi hanno un nome da leggere', fn () =>
-    Attributes::levels()['variant'] === 'Variante'
-    && Attributes::types()['select'] === 'Elenco'
+check('i livelli si chiamano come li capisce un negoziante', fn () =>
+    Attributes::levels()['model'] === 'Descrive l\'articolo'
+    && Attributes::levels()['variant'] === 'Crea versioni con pagina e foto proprie'
+    && Attributes::levels()['product'] === 'Crea versioni da scegliere nel carrello'
+);
+
+check('le chiavi salvate non cambiano', fn () =>
+    array_keys(Attributes::levels()) === ['model', 'variant', 'product']
+);
+
+check('due livelli su tre creano versioni', fn () =>
+    Attributes::createsVersions('variant') === true
+    && Attributes::createsVersions('product') === true
+    && Attributes::createsVersions('model') === false
+    && Attributes::createsVersions('') === false
+);
+
+check('i tipi hanno un nome da leggere', fn () =>
+    Attributes::types()['select'] === 'Elenco'
 );
 
 check('ogni livello vede solo i suoi attributi', function () use ($colore, $taglia, $peso, $materiale) {

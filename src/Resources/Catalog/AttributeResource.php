@@ -78,7 +78,7 @@ class AttributeResource extends GestionaleResource
         return [
             'name' => 'Nome',
             'slug' => 'Nome macchina',
-            'level' => 'Livello',
+            'level' => 'Come si usa',
             'type' => 'Tipo',
             'group_name' => 'Gruppo',
             'unit' => 'Unità di misura',
@@ -94,7 +94,7 @@ class AttributeResource extends GestionaleResource
             FormField::key('level')
                 ->select(Attributes::levels())
                 ->value('product')
-                ->label('Livello')
+                ->label('Come si usa')
                 ->required(),
             FormField::key('type')
                 ->select(Attributes::types())
@@ -144,7 +144,7 @@ class AttributeResource extends GestionaleResource
         $cards = [
             (new Card)->components([
                 SectionTitle::make('Attributo')
-                    ->tooltip('Il livello dice dove vive l\'attributo: il modello descrive l\'articolo, la variante ne cambia l\'aspetto, il prodotto è quello che si vende e sta a magazzino. L\'unità di misura serve ai tipi "Numero".')
+                    ->tooltip('«Descrive l\'articolo» finisce nella scheda tecnica: Materiale, Composizione. «Crea versioni con pagina e foto proprie» è il Colore, nei negozi dove ogni colore è un articolo a sé. «Crea versioni da scegliere nel carrello» è la Taglia. L\'unità di misura serve ai tipi "Numero".')
                     ->columnSpan(12),
                 static::getInput('name')->columnSpan(6),
                 static::getInput('group_name')->columnSpan(6),
