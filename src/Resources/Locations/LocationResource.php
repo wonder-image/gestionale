@@ -3,6 +3,8 @@
 namespace Wonder\Plugin\Gestionale\Resources\Locations;
 
 use RuntimeException;
+use Wonder\App\Environment;
+use Wonder\App\LegacyGlobals;
 use Wonder\App\Resources\Config\SocietyLocationResource;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\PageSchema;
@@ -151,6 +153,32 @@ final class LocationResource extends SocietyLocationResource
     public static function editableWhenReadonly(): array
     {
         return ['hours', 'special_hours'];
+    }
+
+    /**
+     * La sede del core si modificherebbe ovunque, ma i dati del magazzino
+     * viaggiano con il deploy: fuori dal locale la scheda è in sola lettura.
+     * Per il commerciante lo è sempre, anche in locale — la sede la prepara
+     * chi installa — tranne orari e chiusure.
+     */
+    public static function isReadonly(): bool
+    {
+        if (self::isMerchant()) {
+            return true;
+        }
+
+        return Location::syncSchema()?->localOnly === true && !Environment::isLocal();
+    }
+
+    /** Vero per `administrator` senza `admin`: il commerciante, non chi installa. */
+    private static function isMerchant(): bool
+    {
+        $user = LegacyGlobals::get('USER');
+        $authority = is_object($user) && isset($user->authority) && is_array($user->authority)
+            ? $user->authority
+            : [];
+
+        return in_array('administrator', $authority, true) && !in_array('admin', $authority, true);
     }
 
     /** I campi del magazzino non sono colonne della sede: li scrive `afterUpdate`. */

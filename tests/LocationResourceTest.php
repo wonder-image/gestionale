@@ -23,6 +23,20 @@ check('in produzione restano modificabili solo orari e chiusure', fn () =>
     LocationResource::editableWhenReadonly() === ['hours', 'special_hours']
 );
 
+check('per il commerciante la scheda è sempre in sola lettura', function () {
+    $GLOBALS['USER'] = (object) ['authority' => ['administrator']];
+    $commerciante = LocationResource::isReadonly();
+
+    $GLOBALS['USER'] = (object) ['authority' => ['admin', 'administrator']];
+    $installatore = LocationResource::isReadonly();
+
+    unset($GLOBALS['USER']);
+
+    // Chi installa modifica tutto in locale; fuori dal locale nemmeno lui,
+    // perché i dati del magazzino viaggiano con il deploy.
+    return $commerciante === true && $installatore === !Wonder\App\Environment::isLocal();
+});
+
 check('la sede del gestionale ha la sua tabella, sincronizzata con id stabili', function () {
     $schema = Location::syncSchema();
 
