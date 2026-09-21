@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
+use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
@@ -203,10 +204,14 @@ final class CatalogDemo
             $prima = self::countOf(ProductVariant::class, $modelId) + self::countOf(Product::class, $modelId);
 
             ProductModelResource::forgetCatalogCache();
-            ProductModelResource::generateCombinations($modelId, [
-                'variant_values' => array_map(static fn (array $v): string => (string) $v['id'], $variantValues),
-                'product_values' => array_map(static fn (array $v): string => (string) $v['id'], $productValues),
-            ]);
+            // Un asse solo per lato: i dati di prova non devono provare i casi
+            // limite, devono somigliare a un catalogo vero.
+            Generator::run(
+                $modelId,
+                $variantValues,
+                $productValues === [] ? [] : [$productValues],
+                $sku
+            );
 
             $dopo = self::countOf(ProductVariant::class, $modelId) + self::countOf(Product::class, $modelId);
             $created += max(0, $dopo - $prima);

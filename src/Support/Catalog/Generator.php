@@ -1,0 +1,258 @@
+<?php
+
+namespace Wonder\Plugin\Gestionale\Support\Catalog;
+
+use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
+use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
+use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
+use Wonder\Plugin\Gestionale\Support\Codes;
+
+/**
+ * Crea le varianti e i prodotti che mancano, dati gli assi spuntati.
+ *
+ * Sta fuori dalla scheda perché la scheda ha già il suo lavoro — campi,
+ * layout, lettura di quello che arriva dal form — e questo è un lavoro
+ * diverso: guardare cosa c'è, chiedere a `Combinations` cosa manca, scrivere le
+ * righe con il loro nome e i loro collegamenti.
+ *
+ * Quando il modello ha ancora solo lo scheletro — una variante e un prodotto
+ * senza attributi — la prima combinazione lo riusa, invece di lasciare in giro
+ * una variante vuota.
+ */
+final class Generator
+{
+    /**
+     * @param list<array{id: int, label: string}> $variantValues l'asse con pagina propria
+     * @param list<list<array{id: int, label: string}>> $axes gli altri assi
+     */
+    public static function run(int $modelId, array $variantValues, array $axes, string $modelSku = ''): void
+    {
+        if ($modelId <= 0 || ($variantValues === [] && $axes === [])) {
+            return;
+        }
+
+        $plan = Combinations::plan($variantValues, $axes, self::existing($modelId));
+
+        if ($plan['variants'] === [] && $plan['products'] === []) {
+            return;
+        }
+
+        if ($modelSku === '') {
+            $model = ProductModel::find(['id' => $modelId], 1);
+            $modelSku = is_array($model) ? (string) ($model['sku'] ?? '') : '';
+        }
+
+        $attributeOf = self::attributeOfValues();
+        $reuse = self::skeletonToReuse($modelId);
+        $variantIds = self::existing($modelId)['variants'];
+        $position = count(self::variants($modelId));
+
+        foreach ($plan['variants'] as $variant) {
+            $valueId = (int) $variant['value_id'];
+
+            if ($reuse !== null && $reuse['variant_id'] > 0) {
+                $variantId = $reuse['variant_id'];
+                ProductVariant::update(['name' => $variant['label']], $variantId);
+                $reuse['variant_id'] = 0;
+            } else {
+                $created = ProductVariant::create([
+                    'code' => Code::make(ProductVariant::class, Codes::VARIANT),
+                    'product_model_id' => $modelId,
+                    'name' => $variant['label'],
+                    'slug' => Slug::make($variant['label'].'-'.$modelId.'-'.$valueId),
+                    'position' => ++$position,
+                    'visible' => 'true',
+                ]);
+                $variantId = (int) ($created->insert_id ?? 0);
+            }
+
+            if ($variantId === 0) {
+                continue;
+            }
+
+            $variantIds[$valueId] = $variantId;
+            $attribute = $attributeOf[$valueId] ?? null;
+
+            if ($attribute !== null) {
+                ProductAttributes::save('variant', $variantId, [$attribute], [
+                    (int) $attribute['id'] => (string) $valueId,
+                ]);
+            }
+        }
+
+        $firstVariantId = (int) (self::variants($modelId)[0]['id'] ?? 0);
+        $productPosition = count(self::products($modelId));
+
+        foreach ($plan['products'] as $product) {
+            $valueId = (int) $product['variant_value_id'];
+            $variantId = $valueId > 0 ? ($variantIds[$valueId] ?? 0) : $firstVariantId;
+
+            if ($variantId === 0) {
+                continue;
+            }
+
+            $sku = Sku::propose($modelSku, $product['labels']);
+            $name = VersionName::from($product['labels'], $sku);
+
+            if ($reuse !== null && $reuse['product_id'] > 0) {
+                $productId = $reuse['product_id'];
+                Product::update([
+                    'product_variant_id' => $variantId,
+                    'sku' => $sku,
+                    'name' => $name,
+                ], $productId);
+                $reuse['product_id'] = 0;
+            } else {
+                $created = Product::create([
+                    'code' => Code::make(Product::class, Codes::PRODUCT),
+                    'product_model_id' => $modelId,
+                    'product_variant_id' => $variantId,
+                    'sku' => $sku,
+                    'name' => $name,
+                    'position' => ++$productPosition,
+                    'active' => 'true',
+                ]);
+                $productId = (int) ($created->insert_id ?? 0);
+            }
+
+            if ($productId === 0) {
+                continue;
+            }
+
+            // Un collegamento per asse: con tre opzioni spuntate il prodotto ne
+            // ha tre, non uno.
+            foreach ($product['value_ids'] as $productValueId) {
+                $attribute = $attributeOf[(int) $productValueId] ?? null;
+
+                if ($attribute === null) {
+                    continue;
+                }
+
+                ProductAttributes::save('product', $productId, [$attribute], [
+                    (int) $attribute['id'] => (string) $productValueId,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Varianti e prodotti già presenti, nella forma che `Combinations` legge.
+     *
+     * @return array{variants: array<int, int>, products: array<string, bool>}
+     */
+    public static function existing(int $modelId): array
+    {
+        $variants = [];
+        $variantValueOf = [];
+
+        foreach (self::variants($modelId) as $variant) {
+            $variantId = (int) $variant['id'];
+
+            foreach (ProductAttributes::read('variant', $variantId) as $link) {
+                $valueId = (int) ($link['attribute_value_id'] ?? 0);
+
+                if ($valueId > 0) {
+                    $variants[$valueId] = $variantId;
+                    $variantValueOf[$variantId] = $valueId;
+                }
+            }
+        }
+
+        $products = [];
+
+        foreach (self::products($modelId) as $product) {
+            $variantValue = $variantValueOf[(int) ($product['product_variant_id'] ?? 0)] ?? 0;
+            $valueIds = [];
+
+            foreach (ProductAttributes::read('product', (int) $product['id']) as $link) {
+                $valueId = (int) ($link['attribute_value_id'] ?? 0);
+
+                if ($valueId > 0) {
+                    $valueIds[] = $valueId;
+                }
+            }
+
+            $products[Combinations::key($variantValue, $valueIds)] = true;
+        }
+
+        return ['variants' => $variants, 'products' => $products];
+    }
+
+    /**
+     * Lo scheletro da riusare: una variante e un prodotto, senza attributi e
+     * senza niente scritto sopra.
+     *
+     * @return array{variant_id: int, product_id: int}|null
+     */
+    private static function skeletonToReuse(int $modelId): ?array
+    {
+        $variants = self::variants($modelId);
+        $products = self::products($modelId);
+
+        if (count($variants) !== 1 || count($products) !== 1) {
+            return null;
+        }
+
+        if (ProductAttributes::read('variant', (int) $variants[0]['id']) !== []
+            || ProductAttributes::read('product', (int) $products[0]['id']) !== []) {
+            return null;
+        }
+
+        return ['variant_id' => (int) $variants[0]['id'], 'product_id' => (int) $products[0]['id']];
+    }
+
+    /**
+     * L'attributo di ogni valore, per id del valore.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private static function attributeOfValues(): array
+    {
+        $attributes = [];
+
+        foreach (self::rows(Attribute::class) as $attribute) {
+            $attributes[(int) $attribute['id']] = $attribute;
+        }
+
+        $byValue = [];
+
+        foreach (self::rows(AttributeValue::class) as $value) {
+            $attributeId = (int) ($value['attribute_id'] ?? 0);
+
+            if (isset($attributes[$attributeId])) {
+                $byValue[(int) $value['id']] = $attributes[$attributeId];
+            }
+        }
+
+        return $byValue;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function variants(int $modelId): array
+    {
+        return self::rows(ProductVariant::class, ['product_model_id' => $modelId]);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function products(int $modelId): array
+    {
+        return self::rows(Product::class, ['product_model_id' => $modelId]);
+    }
+
+    /**
+     * @param array<string, mixed> $where
+     * @return list<array<string, mixed>>
+     */
+    private static function rows(string $modelClass, array $where = []): array
+    {
+        $rows = $modelClass::find(array_merge(['deleted' => 'false'], $where), null, 'position', 'ASC');
+
+        if (!is_array($rows) || $rows === []) {
+            return [];
+        }
+
+        return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
+    }
+}

@@ -17,9 +17,11 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -86,15 +88,18 @@ try {
         $modelId = (int) ($modello->insert_id ?? 0);
         Skeleton::forModel($modelId, 'Prova combinazioni', 'CMB-1');
 
-        $post = [
-            'variant_values' => array_map('strval', $colore['values']),
-            'product_values' => array_map('strval', $taglia['values']),
-        ];
+        // Un elenco solo: chi compila spunta i valori e basta, il livello lo
+        // ritrova `chosenAxes()` leggendo l'attributo.
+        $spunte = array_map('strval', array_merge($colore['values'], $taglia['values']));
 
         // Il catalogo si legge una volta per richiesta, e la lettura è già
         // avvenuta all'avvio del sito: qui gli attributi nascono dopo.
         ProductModelResource::forgetCatalogCache();
-        ProductModelResource::generateCombinations($modelId, $post);
+        $genera = static function (array $spunte) use ($modelId): void {
+            $scelte = ProductModelResource::chosenAxes($spunte);
+            Generator::run($modelId, $scelte['variant'], $scelte['axes'], 'CMB-1');
+        };
+        $genera($spunte);
 
         check('due colori e tre taglie fanno due varianti', fn () =>
             ProductModelResource::variantCount($modelId) === 2
@@ -123,14 +128,24 @@ try {
             ];
         });
 
-        check('rifarlo non crea niente', function () use ($modelId, $post) {
-            ProductModelResource::generateCombinations($modelId, $post);
+        check('ogni prodotto ha il nome della sua combinazione', function () use ($modelId) {
+            $nomi = array_column(ProductModelResource::products($modelId), 'name');
+            sort($nomi);
+
+            return $nomi === [
+                'Blu / L', 'Blu / M', 'Blu / S',
+                'Rosso / L', 'Rosso / M', 'Rosso / S',
+            ];
+        });
+
+        check('rifarlo non crea niente', function () use ($modelId, $spunte, $genera) {
+            $genera($spunte);
 
             return ProductModelResource::variantCount($modelId) === 2
                 && ProductModelResource::productCount($modelId) === 6;
         });
 
-        check('una taglia in più fa solo i due prodotti che mancano', function () use ($modelId, $post, $taglia) {
+        check('una taglia in più fa solo i due prodotti che mancano', function () use ($modelId, $spunte, $taglia, $genera) {
             $nuovo = AttributeValue::create([
                 'attribute_id' => $taglia['id'],
                 'label' => 'XL',
@@ -138,13 +153,29 @@ try {
                 'position' => 4,
             ]);
 
-            $post['product_values'][] = (string) ($nuovo->insert_id ?? 0);
+            $spunte[] = (string) ($nuovo->insert_id ?? 0);
             // La cache degli attributi vale per richiesta: qui si rilegge.
             ProductModelResource::forgetCatalogCache();
-            ProductModelResource::generateCombinations($modelId, $post);
+            $genera($spunte);
 
             return ProductModelResource::variantCount($modelId) === 2
                 && ProductModelResource::productCount($modelId) === 8;
+        });
+
+        check('due opzioni con pagina propria vengono rifiutate', function () use ($attributo, $colore) {
+            $gusto = $attributo('Prova gusto', 'variant', 'select', ['Fragola']);
+            ProductModelResource::forgetCatalogCache();
+
+            try {
+                ProductModelResource::chosenAxes([
+                    (string) $colore['values'][0],
+                    (string) $gusto['values'][0],
+                ]);
+            } catch (UserError $errore) {
+                return $errore->key() === 'product.one_page_option';
+            }
+
+            return false;
         });
 
         throw new Annulla();

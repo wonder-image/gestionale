@@ -210,4 +210,46 @@ check('le foto non si ridimensionano al salvataggio', function () {
     return false;
 });
 
+check('le spunte delle versioni stanno in un campo solo', function () use ($campi) {
+    return !isset($campi()['variant_values'], $campi()['product_values']);
+});
+
+check('un articolo non può restare senza versioni', function () {
+    $scheda = new class extends ProductModelResource {
+        public static function productCount(int $modelId): int
+        {
+            return 6;
+        }
+    };
+
+    $_POST['products'] = [];
+
+    try {
+        $scheda::assertSomeVersionLeft(1);
+    } catch (UserError $errore) {
+        unset($_POST['products']);
+
+        return $errore->key() === 'product.no_versions';
+    }
+
+    unset($_POST['products']);
+
+    return false;
+});
+
+check('finché una riga resta, si salva', function () {
+    $scheda = new class extends ProductModelResource {
+        public static function productCount(int $modelId): int
+        {
+            return 6;
+        }
+    };
+
+    $_POST['products'] = [['id' => '3', 'sku' => 'TSH-1-M']];
+    $scheda::assertSomeVersionLeft(1);
+    unset($_POST['products']);
+
+    return true;
+});
+
 summary();

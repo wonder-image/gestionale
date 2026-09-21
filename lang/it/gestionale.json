@@ -16,7 +16,9 @@
             "product": {
                 "sku_taken": "Questo SKU è già di un altro articolo: cambialo.",
                 "ean_invalid": "L'EAN deve avere 8 o 13 cifre.",
-                "ean_taken": "Questo EAN è già di un altro prodotto."
+                "ean_taken": "Questo EAN è già di un altro prodotto.",
+                "one_page_option": "Un articolo può avere una sola opzione con pagina e foto proprie: togli le spunte di una delle due.",
+                "no_versions": "Un articolo deve avere almeno una versione in vendita."
             }
         }
     }
