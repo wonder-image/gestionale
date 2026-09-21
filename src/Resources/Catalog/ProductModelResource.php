@@ -196,50 +196,95 @@ class ProductModelResource extends GestionaleResource
         return $fields;
     }
 
+    /**
+     * Sette riquadri, e due in fondo.
+     *
+     * Erano dieci, tutti aperti e tutti con lo stesso peso: un cappello di lana
+     * ne usava tre e doveva scorrere gli altri sette. L'ordine adesso segue la
+     * compilazione — chi è, com'è fatto in vendita, come si vede, cosa si
+     * legge, dove sta — e quello che si tocca una volta l'anno sta in coda.
+     */
     public static function formLayoutSchema(): ?Form
     {
         $modelId = static::currentId();
-        $cards = [
-            (new Card)->components([
-                SectionTitle::make('Articolo')
-                    ->tooltip('Lo SKU del modello è il codice di famiglia: da lì il pannello propone quello dei singoli prodotti. L\'url pubblico nasce dal nome alla creazione e non cambia più.')
-                    ->columnSpan(12),
-                static::getInput('name')->columnSpan(6),
-                static::getInput('sku')->columnSpan(3),
-                static::getInput('unit')->columnSpan(3),
-                static::getInput('brand_id')->columnSpan(4),
-                static::getInput('tax_category_id')->columnSpan(4),
-                static::getInput('visible')->columnSpan(2),
-                static::getInput('visible_online')->columnSpan(2),
-            ])->columns(12)->columnSpan(12),
+        $unaVersione = $modelId === null || static::productCount($modelId) <= 1;
+
+        $prodotto = [
+            SectionTitle::make('Prodotto')
+                ->tooltip('Lo SKU è il codice di famiglia: da lì il pannello propone quello delle singole versioni. L\'url pubblico nasce dal nome alla creazione e non cambia più.')
+                ->columnSpan(12),
+            static::getInput('name')->columnSpan(6),
+            static::getInput('sku')->columnSpan(3),
+            static::getInput('visible')->columnSpan(3),
         ];
 
-        if ($modelId === null || static::productCount($modelId) <= 1) {
-            $cards[] = (new Card)->components([
-                SectionTitle::make('Prodotto')
-                    ->tooltip('Finché l\'articolo è uno solo, il suo codice e il suo prezzo si scrivono qui. Quando nascono varianti e taglie, si spostano nella loro tabella.')
+        // Con una versione sola prezzo e codici stanno qui: aprire una tabella
+        // di una riga per scrivere un prezzo è una scortesia.
+        if ($unaVersione) {
+            $prodotto[] = static::getInput('product_price')->columnSpan(3);
+            $prodotto[] = static::getInput('product_sale_price')->columnSpan(3);
+            $prodotto[] = static::getInput('product_sku')->columnSpan(3);
+            $prodotto[] = static::getInput('product_ean')->columnSpan(3);
+        }
+
+        $cards = [(new Card)->components($prodotto)->columns(12)->columnSpan(12)];
+
+        // Finché la versione è una sola il riquadro non serve a nessuno: va in
+        // fondo, e chi ne ha bisogno lo trova là.
+        if (!$unaVersione) {
+            $versioni = [
+                SectionTitle::make('Versioni in vendita')
+                    ->tooltip('Spunta i valori e salva: nascono le righe che mancano, con il nome e lo SKU proposti. Togliere una spunta non cancella niente; per eliminare una versione si elimina la sua riga.')
                     ->columnSpan(12),
-                static::getInput('product_sku')->columnSpan(3),
-                static::getInput('product_ean')->columnSpan(3),
-                static::getInput('product_price')->columnSpan(3),
-                static::getInput('product_sale_price')->columnSpan(3),
+            ];
+
+            if (static::optionTree() !== []) {
+                $versioni[] = static::getInput('option_values')->columnSpan(12);
+            }
+
+            $versioni[] = static::getInput('products')->columnSpan(12);
+
+            if (static::variantCount((int) $modelId) > 1) {
+                $versioni[] = static::getInput('variants')->columnSpan(12);
+            }
+
+            $cards[] = (new Card)->components($versioni)->columns(12)->columnSpan(12);
+        }
+
+        if ($modelId !== null) {
+            $cards[] = (new Card)->components([
+                SectionTitle::make('Foto')
+                    ->tooltip('Carica e salva: le foto si vedono subito, le misure per il sito arrivano poco dopo. Una foto senza versione vale per tutto l\'articolo; con la versione vale solo per quella.')
+                    ->columnSpan(12),
+                static::getInput('images')->columnSpan(12),
             ])->columns(12)->columnSpan(12);
         }
 
         $cards[] = (new Card)->components([
-            SectionTitle::make('Descrizioni')->columnSpan(12),
+            SectionTitle::make('Descrizione')->columnSpan(12),
             static::getInput('short_description')->columnSpan(12),
             static::getInput('description')->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
         $cards[] = (new Card)->components([
-            SectionTitle::make('Categorie e tag')
+            SectionTitle::make('Dove si trova')
                 ->tooltip('La categoria principale è quella che la vetrina userà per l\'indirizzo della pagina: se la scegli e non l\'hai spuntata, viene aggiunta da sé.')
                 ->columnSpan(12),
-            static::getInput('main_category')->columnSpan(6),
-            static::getInput('tags')->columnSpan(6),
+            static::getInput('brand_id')->columnSpan(4),
+            static::getInput('main_category')->columnSpan(4),
+            static::getInput('tags')->columnSpan(4),
             static::getInput('categories')->columnSpan(12),
         ])->columns(12)->columnSpan(12);
+
+        // In fondo, quello che si tocca di rado. Prima però le versioni, se
+        // l'articolo non ne ha ancora: è lì che si va a cercarle.
+        if ($unaVersione && static::optionTree() !== []) {
+            $cards[] = static::foldable(
+                'Si vende in più versioni? (colori, taglie…)',
+                [static::getInput('option_values')->columnSpan(12)],
+                'Spunta i colori e le taglie in cui vendi questo articolo e salva: le righe nascono da sole, con il nome e lo SKU proposti.'
+            );
+        }
 
         $attributeInputs = [];
 
@@ -248,58 +293,24 @@ class ProductModelResource extends GestionaleResource
         }
 
         if ($attributeInputs !== []) {
-            $cards[] = (new Card)->components([
-                SectionTitle::make('Attributi')
-                    ->tooltip('Gli attributi di livello "Modello": quelli che descrivono l\'articolo intero.')
-                    ->columnSpan(12),
-                ...$attributeInputs,
-            ])->columns(12)->columnSpan(12);
+            $cards[] = static::foldable(
+                'Scheda tecnica',
+                $attributeInputs,
+                'Quello che descrive l\'articolo e non fa nascere versioni: materiale, composizione, paese.'
+            );
         }
 
-        $cards[] = static::foldable('Spedizione', [
+        $cards[] = static::foldable('Spedizione e fisco', [
+            static::getInput('unit')->columnSpan(3),
+            static::getInput('tax_category_id')->columnSpan(3),
+            static::getInput('visible_online')->columnSpan(3),
             static::getInput('weight')->columnSpan(3),
             static::getInput('length')->columnSpan(3),
             static::getInput('width')->columnSpan(3),
             static::getInput('height')->columnSpan(3),
             static::getInput('returnable')->columnSpan(6),
             static::getInput('requires_shipping')->columnSpan(6),
-        ], 'Peso e misure dell\'articolo. Un prodotto che ha misure sue le usa al posto di queste.');
-
-        if (static::optionTree() !== []) {
-            $cards[] = (new Card)->components([
-                SectionTitle::make('Versioni in vendita')
-                    ->tooltip('Spunta i valori e salva: nascono le righe che mancano, con il nome e lo SKU proposti. Togliere una spunta non cancella niente; per eliminare una versione si elimina la sua riga.')
-                    ->columnSpan(12),
-                static::getInput('option_values')->columnSpan(12),
-            ])->columns(12)->columnSpan(12);
-        }
-
-        if ($modelId !== null && static::variantCount($modelId) > 1) {
-            $cards[] = (new Card)->components([
-                SectionTitle::make('Varianti')
-                    ->tooltip('Le varianti sono quello che cambia l\'aspetto: il nome è quello che legge il cliente.')
-                    ->columnSpan(12),
-                static::getInput('variants')->columnSpan(12),
-            ])->columns(12)->columnSpan(12);
-        }
-
-        if ($modelId !== null) {
-            $cards[] = (new Card)->components([
-                SectionTitle::make('Immagini')
-                    ->tooltip('Carica e salva: le foto si vedono subito, le misure per il sito arrivano poco dopo. Una foto senza variante vale per tutto l\'articolo; con la variante vale solo per quella.')
-                    ->columnSpan(12),
-                static::getInput('images')->columnSpan(12),
-            ])->columns(12)->columnSpan(12);
-        }
-
-        if ($modelId !== null && static::productCount($modelId) > 1) {
-            $cards[] = (new Card)->components([
-                SectionTitle::make('Prodotti')
-                    ->tooltip('I prodotti sono quello che si vende e che sta a magazzino. Per misure e attributi di un prodotto si apre la sua scheda da "Prodotti".')
-                    ->columnSpan(12),
-                static::getInput('products')->columnSpan(12),
-            ])->columns(12)->columnSpan(12);
-        }
+        ], 'Peso e misure dell\'articolo, unità di vendita e tipo fiscale. Una versione con misure sue le usa al posto di queste.');
 
         return (new Form)->components([
             (new Container)->components($cards)->columns(12)->columnSpan(12),
@@ -713,7 +724,7 @@ class ProductModelResource extends GestionaleResource
                 RepeaterColumn::key('alt')->text()->label('Descrizione')->columnSpan(4),
                 RepeaterColumn::key('product_variant_id')
                     ->select(static::variantOptions($modelId))
-                    ->label('Variante')
+                    ->label('Vale per')
                     ->columnSpan(2),
                 // Lo stato si può rimettere a "In attesa": è il modo di dire
                 // «riprova» a una foto che non è riuscita.
@@ -746,7 +757,7 @@ class ProductModelResource extends GestionaleResource
     /** Le varianti di un modello, più la voce che vale per tutte. */
     public static function variantOptions(int $modelId): array
     {
-        $options = ['' => 'Tutte le varianti'];
+        $options = ['' => 'Tutto l\'articolo'];
 
         foreach (static::variants($modelId) as $variant) {
             $options[(string) $variant['id']] = (string) ($variant['name'] ?? '');
@@ -893,6 +904,23 @@ class ProductModelResource extends GestionaleResource
         return $options;
     }
 
+    /**
+     * Come si chiama, in questo negozio, l'opzione con pagina propria.
+     *
+     * "Colore" per chi vende magliette, "Gusto" per una gelateria. Serve a non
+     * far mai leggere a nessuno la parola "variante".
+     */
+    public static function pageOptionName(): string
+    {
+        foreach (static::attributes() as $attribute) {
+            if (($attribute['level'] ?? '') === 'variant') {
+                return (string) ($attribute['name'] ?? '');
+            }
+        }
+
+        return 'Versioni con pagina propria';
+    }
+
     protected static function variantsField(): Input
     {
         return FormField::key('variants')
@@ -911,13 +939,16 @@ class ProductModelResource extends GestionaleResource
             )
             ->nested()
             ->repeaterSortable()
-            ->repeaterAddLabel('Aggiungi variante')
-            ->repeaterDeleteTitle('Elimina variante')
-            ->repeaterDeleteText('I prodotti di questa variante restano senza: confermi?')
+            ->repeaterAddLabel('Aggiungi '.mb_strtolower(static::pageOptionName()))
+            ->repeaterDeleteTitle('Elimina')
+            ->repeaterDeleteText('Le versioni che stanno qui sotto restano senza: confermi?')
             ->repeaterDeleteCancelLabel('Annulla')
             ->repeaterDeleteConfirmLabel('Elimina')
             ->repeaterDeleteConfirmClass('btn btn-danger')
-            ->label('Varianti');
+            // Il nome dell'opzione che le genera: in un negozio di magliette si
+            // legge "Colore", in una gelateria "Gusto". La parola "variante"
+            // non la deve incontrare nessuno.
+            ->label(static::pageOptionName());
     }
 
     protected static function productsField(): Input
@@ -943,13 +974,13 @@ class ProductModelResource extends GestionaleResource
             )
             ->nested()
             ->repeaterSortable()
-            ->repeaterAddLabel('Aggiungi prodotto')
-            ->repeaterDeleteTitle('Elimina prodotto')
-            ->repeaterDeleteText('Confermi l\'eliminazione di questo prodotto?')
+            ->repeaterAddLabel('Aggiungi versione')
+            ->repeaterDeleteTitle('Elimina versione')
+            ->repeaterDeleteText('Confermi l\'eliminazione di questa versione?')
             ->repeaterDeleteCancelLabel('Annulla')
             ->repeaterDeleteConfirmLabel('Elimina')
             ->repeaterDeleteConfirmClass('btn btn-danger')
-            ->label('Prodotti');
+            ->label('Quello che si vende');
     }
 
     /** @return list<Input> */

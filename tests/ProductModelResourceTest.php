@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
@@ -181,7 +182,7 @@ check('una foto nuova nasce in attesa delle sue misure', function () {
     return ($riga['status'] ?? '') === 'pending' && (int) ($riga['attempts'] ?? -1) === 0;
 });
 
-check('la variante di una foto si sceglie, e "tutte" è una scelta', function () {
+check('una foto sceglie a chi appartiene, e "tutto" è una scelta', function () {
     $resource = new class extends ProductModelResource {
         public static function variants(int $modelId): array
         {
@@ -191,7 +192,7 @@ check('la variante di una foto si sceglie, e "tutte" è una scelta', function ()
 
     $voci = $resource::variantOptions(1);
 
-    return ($voci[''] ?? '') === 'Tutte le varianti'
+    return ($voci[''] ?? '') === 'Tutto l\'articolo'
         && ($voci['3'] ?? '') === 'Blu'
         && count($voci) === 3;
 });
@@ -250,6 +251,34 @@ check('finché una riga resta, si salva', function () {
     unset($_POST['products']);
 
     return true;
+});
+
+/** I titoli dei riquadri, nell'ordine in cui la scheda li mette. */
+$riquadri = static function (): array {
+    $form = ProductModelResource::formLayoutSchema();
+    $contenitore = $form->components[0] ?? null;
+    $titoli = [];
+
+    foreach ($contenitore->components ?? [] as $riquadro) {
+        foreach ($riquadro->components ?? [] as $dentro) {
+            if ($dentro instanceof SectionTitle) {
+                $titoli[] = $dentro->getText();
+                break;
+            }
+        }
+    }
+
+    return $titoli;
+};
+
+check('la scheda di un articolo semplice ha pochi riquadri, in ordine', function () use ($riquadri) {
+    return $riquadri() === ['Prodotto', 'Descrizione', 'Dove si trova', 'Spedizione e fisco'];
+});
+
+check('le parole interne non compaiono più nei titoli', function () use ($riquadri) {
+    $vecchie = ['Articolo', 'Varianti', 'Genera varianti e prodotti', 'Categorie e tag', 'Attributi', 'Immagini'];
+
+    return array_intersect($riquadri(), $vecchie) === [];
 });
 
 summary();
