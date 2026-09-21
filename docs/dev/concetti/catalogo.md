@@ -16,6 +16,20 @@ Un articolo senza varianti è **un modello con una variante e un prodotto**: la
 variante esiste lo stesso, ma il pannello non la nomina finché resta una sola.
 È la regola "semplice per chi è piccolo, completo per chi cresce".
 
+**Nel pannello queste tre parole non compaiono.** Le tabelle restano tre, ma chi
+compila legge una parola sola — *prodotto* — e le righe da vendere si chiamano
+*versioni*. La pagina dei modelli è `app/gestionale/prodotti`; quella della
+singola riga è `app/gestionale/versioni`, fuori dal menu e raggiunta da un
+pulsante nella scheda. Quando rinomini quella pagina ricordati di
+`ProductImages::DIR`: il repeater scrive i file nella cartella del Model e li
+rilegge in quella della Resource, e se le due non coincidono le anteprime
+spariscono.
+
+Il nome di una riga da vendere sta nella colonna `name` di `gst_products`
+("Blu / M"): lo scrive il generatore e lo può correggere chi vende. È una
+fotografia, non un calcolo — rinominare un valore non riscrive i nomi già
+generati.
+
 ## Il catalogo non si sincronizza
 
 Aliquote, tipi fiscali e impostazioni sono configurazione: si scrivono in locale
@@ -157,11 +171,20 @@ ritrova. Per questo `formSchema()` dichiara i repeater solo quando servono.
 
 ### Le combinazioni
 
-Nella scheda si spuntano i valori (Blu, Rosso / S, M, L) e si salva:
-`Support\Catalog\Combinations::plan()` — pura — dice quali varianti e quali
-prodotti mancano, e la Resource li crea. Rifarlo non duplica niente. Un modello
-che ha ancora solo lo scheletro lo riusa per la prima combinazione, invece di
-lasciare in giro una variante vuota.
+Nella scheda si spuntano i valori in **un elenco solo** (`option_values`, tutte
+le opzioni insieme). `ProductModelResource::chosenAxes()` li smista leggendo il
+livello dell'attributo: l'asse con pagina propria da una parte, gli altri in un
+elenco di assi. Se le spunte toccano **due** attributi con pagina propria è un
+rifiuto (`product.one_page_option`): non si saprebbe quale valore è la pagina.
+
+`Support\Catalog\Combinations::plan($variantValues, $axes, $existing)` — pura —
+moltiplica quanti assi vuoi e dice quali varianti e quali prodotti mancano;
+`Support\Catalog\Generator::run()` li crea, con il nome
+(`Support\Catalog\VersionName::from()`) e **un collegamento di attributo per
+asse**. Rifarlo non duplica niente: la chiave di una combinazione
+(`Combinations::key()`) ordina gli id, così l'ordine delle spunte non conta. Un
+modello che ha ancora solo lo scheletro lo riusa per la prima combinazione,
+invece di lasciare in giro una variante vuota.
 
 ### Attributi appesi alle righe
 
@@ -208,6 +231,16 @@ Tre cose imparate facendola:
 3. **Quando è il sito a non poter lavorare** — una costante che esiste solo
    durante una richiesta web — la coda si ferma e lo dice (`blocked`), invece di
    bruciare i tentativi delle righe una per una.
+
+## Il riquadro che non si chiude
+
+`Elements\Components\Accordion` esiste nel core e funziona, ma **non dentro un
+form**: il suo corpo lo disegna il tema Bootstrap, che si aspetta `col-span-6`
+sui figli, mentre i campi del form portano il `col-6` del tema Wonder. I due non
+si parlano e i campi finiscono ammassati. Per questo
+`GestionaleResource::foldable()` torna una `Card` normale e la mette in fondo
+alla pagina. Il giorno in cui il rendering del core saprà attraversare un
+accordion, basta cambiare quel metodo.
 
 ## I numeri scritti da una persona
 

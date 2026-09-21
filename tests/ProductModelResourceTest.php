@@ -69,11 +69,11 @@ check('i campi che non sono colonne non finiscono nella query', function () {
         'main_category' => '1',
         'tags' => ['3'],
         'attribute_7' => 'Cotone',
-        'product_sku' => 'TSH-1',
+        'product_ean' => '',
         'product_price' => '19,90',
     ], 'store');
 
-    foreach (['categories', 'main_category', 'tags', 'attribute_7', 'product_sku', 'product_price'] as $chiave) {
+    foreach (['categories', 'main_category', 'tags', 'attribute_7', 'product_ean', 'product_price'] as $chiave) {
         if (isset($valori[$chiave])) {
             return false;
         }
@@ -118,13 +118,16 @@ check('uno SKU già preso si ferma con una frase', function () {
     }
 });
 
-check('il prodotto unico si legge nel riquadro principale', function () use ($campi) {
-    // Senza id nell'indirizzo (creazione) la scheda mostra i campi del
-    // prodotto unico e non i due repeater: è la regola G2a.2.
+check('con una versione sola prezzo ed EAN stanno nel riquadro principale', function () use ($campi) {
+    // Senza id nell'indirizzo (creazione) la scheda mostra i campi della
+    // versione unica e non i due repeater: è la regola G2a.2.
     $chiavi = array_keys($campi());
 
-    return in_array('product_sku', $chiavi, true)
-        && in_array('product_price', $chiavi, true)
+    return in_array('product_price', $chiavi, true)
+        && in_array('product_ean', $chiavi, true)
+        // Lo SKU è quello dell'articolo: due caselle "SKU" nella stessa
+        // scheda sono solo un modo per sbagliare.
+        && !in_array('product_sku', $chiavi, true)
         && !in_array('variants', $chiavi, true)
         && !in_array('products', $chiavi, true);
 });

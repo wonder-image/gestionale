@@ -163,7 +163,11 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
       - Cartella delle foto: è quella della pagina dei modelli, perché il repeater scrive i file nella cartella del Model e li rilegge in quella della Resource.
   - [ ] **G2a-bis La scheda prodotto semplice** — spec: `docs/superpowers/specs/2026-09-21-scheda-prodotto-semplice-design.md` (decisioni S1–S12)
     - Perché: la scheda di G2a ha dieci riquadri tutti uguali, le righe dei prodotti non dicono chi sono, e "livello dell'attributo" e "valori delle varianti" chiedono di conoscere il modello dati. Prima che magazzino, ordini e vetrina ci si appoggino sopra.
-    - [ ] Piano scritto (2026-09-21): `docs/superpowers/plans/2026-09-21-scheda-prodotto-semplice.md` — dieci task, dal riquadro che si chiude alle guide riscritte. Da eseguire.
+    - [x] Piano scritto ed eseguito (2026-09-21): `docs/superpowers/plans/2026-09-21-scheda-prodotto-semplice.md` — vocabolario (Modelli → Prodotti su `app/gestionale/prodotti`, elenco piatto fuori dal menu su `app/gestionale/versioni` filtrato per articolo), creazione a quattro campi, scheda da dieci riquadri a sei, `Combinations::plan()` a N assi + `Generator` fuori dalla Resource, colonna `name` su `gst_products` prima nella griglia, "Come si usa" al posto del "Livello", elenco con miniatura/prezzo/versioni. **G2a-bis chiuso.**
+      - L'`Accordion` **non** funziona dentro un form: il suo corpo lo disegna il tema Bootstrap (`col-span-6`) mentre i campi del form portano il `col-6` del tema Wonder, e finiscono ammassati. `GestionaleResource::foldable()` torna una `Card` normale e la mette in fondo. Da rivedere se un giorno si tocca il rendering del core.
+      - `wonder-image/app`: aggiunto `redirectUrl($action, $id)` con il caso `edit` (commit `cb1716bf`, **da rilasciare** insieme a `7d6df162` e `81e1323f`). Finché il sito resta indietro, dopo la creazione si torna all'elenco invece che sulla scheda.
+      - Rinominare la pagina vuol dire rinominare `ProductImages::DIR`: il repeater scrive i file nella cartella del Model e li rilegge in quella della Resource.
+      - Corretto anche `tests/integrazione/CatalogDemoTest.php`: cancellava le foto dal disco e la transazione non le riportava indietro, lasciando il sito con righe che puntavano a file inesistenti.
     - `wonder-image/app`: servirà `redirectUrl($action, $id)` con il caso `edit`, per atterrare sulla scheda appena creata. Da rilasciare con `7d6df162` e `81e1323f`.
   - [ ] G2b Magazzino base e anagrafiche
 - [ ] G3 Magazzino avanzato

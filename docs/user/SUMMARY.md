@@ -12,7 +12,7 @@
 
 * [Marchi, categorie e tag](catalogo-tassonomie.md)
 * [Attributi](catalogo-attributi.md)
-* [Modelli, varianti e prodotti](catalogo-modelli.md)
+* [I prodotti](catalogo-prodotti.md)
 * [Le foto degli articoli](catalogo-immagini.md)
 
 ## Ogni giorno

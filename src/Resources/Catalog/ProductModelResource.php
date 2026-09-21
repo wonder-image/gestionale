@@ -64,7 +64,7 @@ class ProductModelResource extends GestionaleResource
     public static string $model = ProductModel::class;
     public static string $orderColumn = 'name';
     public static string $orderDirection = 'ASC';
-    public static string $docsPage = 'catalogo/catalogo-modelli';
+    public static string $docsPage = 'catalogo/catalogo-prodotti';
 
     /** @var list<array<string, mixed>>|null attributi letti una volta per richiesta */
     private static ?array $catalogAttributes = null;
@@ -261,10 +261,12 @@ class ProductModelResource extends GestionaleResource
         // Con una versione sola prezzo e codici stanno qui: aprire una tabella
         // di una riga per scrivere un prezzo è una scortesia.
         if ($unaVersione) {
-            $prodotto[] = static::getInput('product_price')->columnSpan(3);
-            $prodotto[] = static::getInput('product_sale_price')->columnSpan(3);
-            $prodotto[] = static::getInput('product_sku')->columnSpan(3);
-            $prodotto[] = static::getInput('product_ean')->columnSpan(3);
+            // Niente casella per lo SKU della versione: finché la versione è
+            // una sola, lo SKU dell'articolo è il suo, e due caselle chiamate
+            // "SKU" nella stessa scheda sono un modo per sbagliare.
+            $prodotto[] = static::getInput('product_price')->columnSpan(4);
+            $prodotto[] = static::getInput('product_sale_price')->columnSpan(4);
+            $prodotto[] = static::getInput('product_ean')->columnSpan(4);
         }
 
         $cards = [(new Card)->components($prodotto)->columns(12)->columnSpan(12)];
@@ -540,11 +542,17 @@ class ProductModelResource extends GestionaleResource
         }
     }
 
-    /** SKU ed EAN del prodotto unico, quando la scheda li mostra. */
+    /**
+     * EAN e SKU della versione unica, quando la scheda li mostra.
+     *
+     * Lo SKU è quello dell'articolo: con una versione sola è la stessa cosa, e
+     * finisce scritto anche sulla riga da vendere — quindi dev'essere libero
+     * anche fra quelle.
+     */
     public static function assertSoleProduct(int $modelId, array $values): void
     {
         $ean = trim((string) ($values['product_ean'] ?? ''));
-        $sku = trim((string) ($values['product_sku'] ?? ''));
+        $sku = trim((string) ($values['sku'] ?? ''));
         $product = $modelId > 0 ? static::soleProduct($modelId) : null;
         $productId = $product === null ? null : (int) $product['id'];
 
@@ -630,7 +638,6 @@ class ProductModelResource extends GestionaleResource
         $product = static::soleProduct($modelId);
 
         if ($product !== null) {
-            $values['product_sku'] = (string) ($product['sku'] ?? '');
             $values['product_ean'] = (string) ($product['ean'] ?? '');
             $values['product_price'] = (string) ($product['price'] ?? '');
             $values['product_sale_price'] = (string) ($product['sale_price'] ?? '');
@@ -1111,7 +1118,6 @@ class ProductModelResource extends GestionaleResource
     protected static function soleProductFields(): array
     {
         return [
-            FormField::key('product_sku')->text()->label('SKU'),
             FormField::key('product_ean')->text()->label('EAN'),
             FormField::key('product_price')->number()->decimal(2)->label('Prezzo'),
             FormField::key('product_sale_price')->number()->decimal(2)->label('Prezzo scontato'),
@@ -1125,7 +1131,6 @@ class ProductModelResource extends GestionaleResource
             $values['categories'],
             $values['main_category'],
             $values['tags'],
-            $values['product_sku'],
             $values['product_ean'],
             $values['product_price'],
             $values['product_sale_price'],
@@ -1234,10 +1239,13 @@ class ProductModelResource extends GestionaleResource
             return;
         }
 
-        $sku = trim((string) ($post['product_sku'] ?? ''));
+        // La scheda non chiede lo SKU della versione quando è una sola: lo
+        // prende da quello dell'articolo, che è la stessa cosa. Se l'articolo
+        // non ne ha, resta quello che la versione aveva già.
+        $sku = trim((string) ($post['sku'] ?? '')) ?: $fallbackSku;
 
         Product::update([
-            'sku' => $sku !== '' ? $sku : $fallbackSku,
+            'sku' => $sku !== '' ? $sku : (string) ($product['sku'] ?? ''),
             'ean' => trim((string) ($post['product_ean'] ?? '')),
             // I decimali arrivano con la virgola: MySQL non li accetta.
             'price' => Numbers::fromForm($post['product_price'] ?? null),

@@ -12,20 +12,28 @@ Un attributo è **quello che distingue un articolo da un altro**: il colore, la
 taglia, il materiale, il peso. Si scrivono una volta sola e poi si scelgono nelle
 schede dei prodotti, invece di riscriverli ogni volta.
 
-## Il livello: la scelta importante
+## "Come si usa": la scelta importante
 
-Quando crei un attributo devi dire **a che livello vive**. È la cosa che conta
-di più, perché decide dove lo sceglierai dopo.
+Quando crei un attributo, il gestionale chiede **a cosa serve**. È la domanda
+che conta di più, perché decide dove lo incontrerai dopo. Tre risposte:
 
-| Livello | Quando usarlo | Esempio |
+| Risposta | Cosa fa | Esempio |
 |---|---|---|
-| **Modello** | descrive l'articolo intero | Materiale: cotone |
-| **Variante** | cambia l'aspetto | Colore: blu |
-| **Prodotto** | distingue quello che vendi e che sta a magazzino | Taglia: M |
+| **Descrive l'articolo** | finisce nella scheda tecnica e non crea niente da vendere | Materiale: cotone |
+| **Crea versioni con pagina e foto proprie** | in vetrina ogni valore è un articolo a sé | Colore, in un negozio dove ogni colore ha le sue foto |
+| **Crea versioni da scegliere nel carrello** | una pagina sola, il cliente sceglie lì dentro | Taglia: M |
 
-Il modo semplice di ricordarlo: se due articoli si differenziano **solo per
-quella cosa e li fotografi diversi**, è un attributo di variante. Se invece
-cambia solo quello che prendi dallo scaffale, è di prodotto.
+Il modo semplice di decidere fra le ultime due: **le fotografi diverse?** Se
+sì, è quella con pagina propria. Se cambia solo quello che prendi dallo
+scaffale, è quella del carrello.
+
+Questa scelta si fa **una volta per negozio**: se nel tuo il colore ha pagine
+sue, le ha per tutti gli articoli. Chi compila la scheda di un prodotto non
+deve più pensarci: spunta i valori e basta.
+
+Puoi usare quante opzioni vuoi su uno stesso articolo, con un limite: **una
+sola può avere pagina e foto proprie**. Se ne spunti due, il pannello te lo
+dice.
 
 ## Il tipo: come si scrive il valore
 
@@ -40,7 +48,7 @@ cambia solo quello che prendi dallo scaffale, è di prodotto.
 
 1. **Catalogo → Attributi → Aggiungi attributo**.
 2. Scrivi il **nome** ("Colore", "Taglia", "Materiale").
-3. Scegli **livello** e **tipo**.
+3. Rispondi a **"Come si usa"** e scegli il **tipo**.
 4. **Gruppo** (facoltativo): raccoglie più attributi sotto un titolo nella
    scheda, per esempio "Misure". Lasciandolo vuoto finiscono in "Generale".
 5. **Unità di misura**: solo per il tipo "Numero".
@@ -65,7 +73,7 @@ sparisce dalle schede nuove, ma i prodotti che l'avevano tengono il loro valore.
 
 ## Dove si usano
 
-Nella scheda del modello: gli attributi di modello nel riquadro Attributi,
-quelli di variante su ogni variante, quelli di prodotto su ogni prodotto. Il
-gestionale propone il nome della variante e lo SKU a partire dai valori scelti,
-e li lascia correggere.
+Nella scheda del prodotto. Quelli che **descrivono** stanno nel riquadro
+*Scheda tecnica*, in fondo. Quelli che **creano versioni** stanno tutti insieme
+in *Versioni in vendita*: spunti i valori e salvi, e le righe nascono con il
+loro nome ("Blu / M") e il loro codice proposto, che puoi correggere.
