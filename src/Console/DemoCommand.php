@@ -8,6 +8,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Wonder\App\Environment;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
+use Wonder\Plugin\Gestionale\Seeding\Demo;
 
 /**
  * `php forge gestionale:demo` — riempie il gestionale di dati per provarlo.
@@ -34,6 +35,7 @@ final class DemoCommand extends Command
             return Command::FAILURE;
         }
 
+        Demo::registerAll();
         $registry = DemoData::all();
 
         if ($registry === []) {

@@ -8,6 +8,10 @@
 * [Primi passi](primi-passi.md)
 * [Funzionalità incluse e da attivare](funzionalita.md)
 
+## Catalogo
+
+* [Marchi, categorie e tag](catalogo-tassonomie.md)
+
 ## Ogni giorno
 
 * [Il riquadro "Da controllare"](da-controllare.md)

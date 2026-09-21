@@ -6,6 +6,7 @@ use Wonder\App\Model;
 use Wonder\App\Models\Config\SocietyLocation;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Sql\TableSchema as Column;
 
@@ -60,7 +61,7 @@ final class Location extends Model
      */
     public static function newCode(): string
     {
-        return create_unique_code(static::$table, Codes::LOCATION, 7, 'code');
+        return Code::make(static::class, Codes::LOCATION);
     }
 
     public static function create(array $values): object
