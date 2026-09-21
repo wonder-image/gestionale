@@ -4,11 +4,14 @@ namespace Wonder\Plugin\Gestionale;
 
 use Wonder\App\Module\ConfigRepository;
 use Wonder\App\Module\Contracts\ModuleInterface;
+use Wonder\App\Module\Contracts\ModuleTasks;
+use Wonder\Plugin\Gestionale\Scheduler\ImagesTask;
 
 /**
- * Entrypoint del modulo: percorsi, configurazione e indirizzi della guida.
+ * Entrypoint del modulo: percorsi, configurazione, guida e attività
+ * pianificate.
  */
-final class Gestionale implements ModuleInterface
+final class Gestionale implements ModuleInterface, ModuleTasks
 {
     public const SLUG = 'gestionale';
 
@@ -42,6 +45,18 @@ final class Gestionale implements ModuleInterface
     public static function langPath(): string
     {
         return self::root().'/lang';
+    }
+
+    /**
+     * Le attività che il modulo mette a disposizione dello scheduler del core.
+     *
+     * Nascono spente: le accende chi le vuole, dalla pagina delle attività.
+     *
+     * @return iterable<\Wonder\App\Scheduler\Contracts\TaskInterface>
+     */
+    public static function tasks(): iterable
+    {
+        return [new ImagesTask()];
     }
 
     public static function assetPath(string $path = ''): string

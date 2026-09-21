@@ -34,9 +34,10 @@ check('richiede il core 2.2.12 e PHP 8.2', fn () =>
     && ($manifest->frameworkCompatibility()['php'] ?? '') === '^8.2'
 );
 
-check('il modulo dichiara i suoi due comandi e nessuna dipendenza', fn () =>
+check('il modulo dichiara i suoi comandi e nessuna dipendenza', fn () =>
     $manifest->consoleCommands() === [
         'Wonder\\Plugin\\Gestionale\\Console\\DemoCommand',
+        'Wonder\\Plugin\\Gestionale\\Console\\ImagesCommand',
         'Wonder\\Plugin\\Gestionale\\Console\\FeaturesDocCommand',
     ]
     && (array) $manifest->get('dependencies.modules', []) === []

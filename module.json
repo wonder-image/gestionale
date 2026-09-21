@@ -37,6 +37,7 @@
     "console": {
         "commands": [
             "Wonder\\Plugin\\Gestionale\\Console\\DemoCommand",
+            "Wonder\\Plugin\\Gestionale\\Console\\ImagesCommand",
             "Wonder\\Plugin\\Gestionale\\Console\\FeaturesDocCommand"
         ]
     }

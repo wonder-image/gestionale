@@ -11,10 +11,12 @@ use Symfony\Component\Console\Output\BufferedOutput;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Console\DemoCommand;
 use Wonder\Plugin\Gestionale\Console\FeaturesDocCommand;
+use Wonder\Plugin\Gestionale\Console\ImagesCommand;
 
 check('i comandi del modulo sono comandi di forge', fn () =>
     is_subclass_of(DemoCommand::class, Command::class)
     && is_subclass_of(FeaturesDocCommand::class, Command::class)
+    && is_subclass_of(ImagesCommand::class, Command::class)
 );
 
 check('i nomi sono quelli dichiarati nel manifest', function () {
@@ -23,8 +25,16 @@ check('i nomi sono quelli dichiarati nel manifest', function () {
 
     return in_array(DemoCommand::class, $dichiarati, true)
         && in_array(FeaturesDocCommand::class, $dichiarati, true)
+        && in_array(ImagesCommand::class, $dichiarati, true)
         && (new DemoCommand)->getName() === 'gestionale:demo'
-        && (new FeaturesDocCommand)->getName() === 'gestionale:features-doc';
+        && (new FeaturesDocCommand)->getName() === 'gestionale:features-doc'
+        && (new ImagesCommand)->getName() === 'gestionale:images';
+});
+
+check('la coda delle immagini si può chiamare a blocchi', function () {
+    $opzione = (new ImagesCommand)->getDefinition()->getOption('limit');
+
+    return $opzione->isValueRequired() && (int) $opzione->getDefault() === 20;
 });
 
 check('in G1 non ci sono ancora dati di prova da creare', fn () => DemoData::all() === []);
