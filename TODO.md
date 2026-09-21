@@ -161,6 +161,10 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
       - `wonder-image/app`: aggiunto `Image::deferResize()` (commit `81e1323f`, **da rilasciare** insieme a `7d6df162`): senza, un campo immagine prende da sé le misure responsive e il salvataggio ridimensiona tutto, che è esattamente quello che G2a.8 vuole evitare. Nel modulo c'è il ripiego (`method_exists`) per non rompere un sito con il core vecchio.
       - `wonder-image/app`: `ResponsiveImage` non pretende più `APP_URL`/`ROOT` per ridimensionare (stesso commit): servivano solo a comporre un indirizzo pubblico che chi ridimensiona non usa. Finché il sito di prova resta sulla 2.2.12, `php forge gestionale:images` si ferma e lo dice invece di bruciare i tentativi.
       - Cartella delle foto: è quella della pagina dei modelli, perché il repeater scrive i file nella cartella del Model e li rilegge in quella della Resource.
+  - [ ] **G2a-bis La scheda prodotto semplice** — spec: `docs/superpowers/specs/2026-09-21-scheda-prodotto-semplice-design.md` (decisioni S1–S12)
+    - Perché: la scheda di G2a ha dieci riquadri tutti uguali, le righe dei prodotti non dicono chi sono, e "livello dell'attributo" e "valori delle varianti" chiedono di conoscere il modello dati. Prima che magazzino, ordini e vetrina ci si appoggino sopra.
+    - [ ] Piano da scrivere
+    - `wonder-image/app`: servirà `redirectUrl($action, $id)` con il caso `edit`, per atterrare sulla scheda appena creata. Da rilasciare con `7d6df162` e `81e1323f`.
   - [ ] G2b Magazzino base e anagrafiche
 - [ ] G3 Magazzino avanzato
 - [ ] G4 Ordini e pagamenti
