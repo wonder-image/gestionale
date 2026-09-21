@@ -1,0 +1,84 @@
+<?php
+
+namespace Wonder\Plugin\Gestionale\Models\Catalog;
+
+use Wonder\App\Model;
+use Wonder\App\Support\SyncSchema;
+use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
+use Wonder\Sql\TableSchema as Column;
+
+/**
+ * Le foto di un articolo.
+ *
+ * Senza variante l'immagine vale per tutto il modello; con la variante vale
+ * solo per quella, e chi ne ha prende le sue invece di quelle del modello. La
+ * regola sta in `Support\Catalog\ProductImages::for()`, pura, perché la devono
+ * applicare allo stesso modo il pannello e la vetrina.
+ *
+ * **Il campo non dichiara `responsive()`** (G2a.8): `uploadFiles()` del core
+ * ridimensiona durante il salvataggio, e venti foto da telefono vogliono dire
+ * minuti di attesa con il pannello che sembra bloccato. Qui si salva solo
+ * l'originale, la riga nasce `pending` e le misure le genera la coda
+ * (`Support\Catalog\ImageQueue`). Fino ad allora si mostra l'originale.
+ *
+ * `attempts` serve alla regola dei tre tentativi: una foto che non si lascia
+ * ridimensionare tre volte resta `failed` e non riprova da sola.
+ */
+final class ProductImage extends Model
+{
+    public static string $table = 'gst_product_images';
+    public static string $folder = 'gestionale/models';
+    public static string $icon = 'bi bi-image';
+
+    public static function syncSchema(): ?SyncSchema
+    {
+        return null;
+    }
+
+    public static function tableSchema(): array
+    {
+        return [
+            Column::key('product_model_id')->int()->null(false)->foreign(ProductModel::$table),
+            Column::key('product_variant_id')->int()->foreign(ProductVariant::$table),
+            Column::key('file')->json(),
+            Column::key('alt'),
+            Column::key('position')->int(),
+            Column::key('status')->enum(['pending', 'ready', 'failed'])->default('pending'),
+            Column::key('attempts')->int(),
+            Column::key('processed_at')->datetime(),
+            Column::key('error')->type('TEXT'),
+        ];
+    }
+
+    public static function tablePseudos(): array
+    {
+        return [
+            'ind_model' => ['index' => 'product_model_id'],
+            'ind_variant' => ['index' => 'product_variant_id'],
+            'ind_status' => ['index' => 'status'],
+        ];
+    }
+
+    public static function dataSchema(): array
+    {
+        return [
+            Field::key('product_model_id')->number()->decimals(0),
+            Field::key('product_variant_id')->number()->decimals(0),
+            // Niente `responsive()`: il ridimensionamento è in differita.
+            Field::key('file')
+                ->image()
+                ->extensions(['png', 'jpg', 'jpeg', 'webp'])
+                ->maxSize(8)
+                ->maxFile(1)
+                ->dir(ProductImages::DIR)
+                ->name('{rand}'),
+            Field::key('alt')->text()->sanitizeFirst(),
+            Field::key('position')->number()->decimals(0),
+            Field::key('status')->text()->sanitize(false),
+            Field::key('attempts')->number()->decimals(0),
+            Field::key('processed_at')->text()->sanitize(false),
+            Field::key('error')->text(),
+        ];
+    }
+}

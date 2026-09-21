@@ -76,7 +76,7 @@ lavoro del commerciante, si scrive dove si lavora e non viaggia con il deploy.
 | `product_model_tags` | `product_model_id`, `tag_id` | |
 | `product_variants` | `code` (`var_`), `product_model_id`, `name`, `slug`, `position`, `visible` | |
 | `products` | `code` (`pro_`), `product_model_id`, `product_variant_id`, `sku`, `ean`, `mpn`, `price`, `sale_price`, `min_stock_quantity`, `allow_backorder`, `backorder_lead_days`, `weight`, `length`, `width`, `height`, `position`, `active` | peso e misure vuoti valgono quelli del modello |
-| `product_images` | `product_model_id`, `product_variant_id`, `file`, `alt`, `position`, `status` (`pending`/`ready`/`failed`), `processed_at`, `error` | variante vuota = immagine del modello; lo stato serve al resize in differita |
+| `product_images` | `product_model_id`, `product_variant_id`, `file`, `alt`, `position`, `status` (`pending`/`ready`/`failed`), `attempts`, `processed_at`, `error` | variante vuota = immagine del modello; lo stato serve al resize in differita, `attempts` alla regola dei tre tentativi |
 | `attributes` | `code` (`att_`), `slug`, `name`, `type` (`select`/`color`/`text`/`number`), `level` (`model`/`variant`/`product`), `unit`, `is_filterable`, `is_visible`, `group_name`, `position` | |
 | `attribute_values` | `attribute_id`, `label`, `color`, `image`, `position` | solo per `type = select` o `color` |
 | `product_model_attributes` | `product_model_id`, `attribute_id`, `attribute_value_id`, `value_text`, `value_number` | |
