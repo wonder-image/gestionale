@@ -169,7 +169,13 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
       - Rinominare la pagina vuol dire rinominare `ProductImages::DIR`: il repeater scrive i file nella cartella del Model e li rilegge in quella della Resource.
       - Corretto anche `tests/integrazione/CatalogDemoTest.php`: cancellava le foto dal disco e la transazione non le riportava indietro, lasciando il sito con righe che puntavano a file inesistenti.
     - `wonder-image/app`: servirà `redirectUrl($action, $id)` con il caso `edit`, per atterrare sulla scheda appena creata. Da rilasciare con `7d6df162` e `81e1323f`.
-  - [ ] G2b Magazzino base e anagrafiche
+  - [ ] **G2b Magazzino base e anagrafiche** — spec: `docs/superpowers/specs/2026-09-21-magazzino-e-anagrafiche-design.md` (decisioni G2b.1–G2b.12)
+    - [x] Spec scritta (2026-09-21): giacenze, movimenti, prenotazioni (solo tabella e disponibile), avvisi di scorta, clienti e fornitori; quattro piani
+    - [ ] Revisione della spec da parte dell'utente
+    - [ ] Piano 1: fondamenta del magazzino (tabelle, `Stock::apply()`, classi pure, elenco Movimenti)
+    - [ ] Piano 2: giacenze e rettifiche (pagina-form con filtri e paginazione, pagina Rettifica, innesti nel catalogo)
+    - [ ] Piano 3: anagrafiche (clienti, fornitori, indirizzi, riquadro della home, dati di prova, guide)
+    - [ ] Piano 4: avvisi di scorta minima (campo, avvisi, attività ed email raggruppata, riquadro, guide)
 - [ ] G3 Magazzino avanzato
 - [ ] G4 Ordini e pagamenti
 - [ ] G5 Multiprodotto e personalizzazione
