@@ -169,6 +169,46 @@ lasciare in giro una variante vuota.
 livelli: `save($level, $parentId, $attributi, $input)`, `read()`, `describe()`.
 Il livello sceglie la tabella; il tipo sceglie la colonna.
 
+## Immagini, con il resize in differita
+
+`gst_product_images`: `product_model_id`, `product_variant_id` (vuoto = vale per
+tutto l'articolo), `file`, `alt`, `position`, `status`, `attempts`,
+`processed_at`, `error`.
+
+**Il salvataggio non ridimensiona niente** (G2a.8). Un campo immagine, se non
+dice niente, prende da sé le misure responsive del sito: venti foto vogliono
+dire centinaia di file generati mentre qualcuno aspetta. Il campo dichiara
+`deferResize()` del core, l'upload scrive solo l'originale e la riga nasce
+`pending`.
+
+```php
+ProductImages::for($immagini, $varianteId);  // puro: le sue, se ne ha; altrimenti quelle del modello
+ProductImages::path($immagine);              // dove sta il file
+ImageQueue::work(20);                        // ['done' => …, 'failed' => …, 'left' => …, 'blocked' => '']
+```
+
+Chi fa girare la coda:
+
+| Come | Quando |
+|---|---|
+| `php forge gestionale:images` | a mano, o da un cron ogni minuto (`--limit`) |
+| attività `gestionale.images` | dallo scheduler del core, ogni cinque minuti, da accendere |
+
+Tre cose imparate facendola:
+
+1. **La cartella deve essere una sola.** Il repeater **scrive** i file nella
+   cartella del Model e li **rilegge** in quella della Resource che ospita il
+   form: finché le due non coincidono, l'anteprima di una foto caricata non si
+   vede. Per questo `ProductImage::$folder` è il percorso della pagina dei
+   modelli e il campo non aggiunge nessun `dir()`.
+2. **I comandi non hanno le funzioni globali** del framework: la coda chiama la
+   classe `ResponsiveImage` del core invece di `imageResize()`, e una chiamata
+   senza `\` dentro un namespace cercherebbe comunque
+   `Wonder\Plugin\…\imageResize()`.
+3. **Quando è il sito a non poter lavorare** — una costante che esiste solo
+   durante una richiesta web — la coda si ferma e lo dice (`blocked`), invece di
+   bruciare i tentativi delle righe una per una.
+
 ## I numeri scritti da una persona
 
 `Support\Numbers::fromForm()` porta `19,90` e `1.234,50` nella forma che MySQL
@@ -213,7 +253,9 @@ vuoti o scritti male.
 ## Dati di prova
 
 `php forge gestionale:demo` crea un marchio, tre categorie (una annidata), due
-tag e due attributi con i loro valori — "Colore" sulla variante e "Taglia" sul
-prodotto — per un totale di 15 righe, tutte con il nome che inizia per `Prova `.
-`--fresh` toglie quelle di prima e le rifà. Le classi stanno in `src/Seeding/`,
+tag, due attributi con i loro valori — "Colore" sulla variante e "Taglia" sul
+prodotto — e **tre articoli**: uno semplice, uno con due colori e tre taglie,
+uno con molti prodotti, ciascuno con la sua foto finta (un rettangolo colorato
+scritto sul disco, che nasce `pending` come una foto vera). Tutte le righe hanno
+il nome che inizia per `Prova `. `--fresh` toglie quelle di prima e le rifà. Le classi stanno in `src/Seeding/`,
 registrate in `Seeding\Demo`.

@@ -44,7 +44,7 @@ class ProductResource extends ProductModelResource
     public static string $model = Product::class;
     public static string $orderColumn = 'sku';
     public static string $orderDirection = 'ASC';
-    public static string $docsPage = '';
+    public static string $docsPage = 'catalogo/catalogo-modelli';
 
     public static function path(): string
     {

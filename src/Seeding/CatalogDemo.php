@@ -6,17 +6,28 @@ use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
+use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
+use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
+use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
+use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 
 /**
  * Dati di prova del catalogo: un marchio, un piccolo albero di categorie, due
- * tag e due attributi con i loro valori.
+ * tag, due attributi con i loro valori e **tre articoli** — uno semplice, uno
+ * con due colori e tre taglie, uno con molti prodotti — ciascuno con la sua
+ * foto.
  *
  * Servono a provare le pagine su un sito vuoto e, più avanti, a dare un posto
  * ai prodotti finti. Tutte le righe portano il prefisso `Prova` nel nome, così
@@ -34,7 +45,7 @@ final class CatalogDemo
     {
         DemoData::register(
             self::KEY,
-            'Catalogo: marchi, categorie, tag e attributi',
+            'Catalogo: tassonomie, attributi e tre articoli',
             static fn (): int => self::create(),
             static fn (): int => self::clear()
         );
@@ -88,7 +99,202 @@ final class CatalogDemo
             ['label' => 'XL'],
         ]);
 
+        $created += self::models();
+
         return $created;
+    }
+
+    /**
+     * I tre articoli di prova: uno semplice, uno con varianti, uno con molti
+     * prodotti. Sono i tre casi che servono a provare magazzino e ordini nei
+     * sotto-progetti dopo.
+     *
+     * @return int righe create, articoli con tutto quello che ci sta sotto
+     */
+    private static function models(): int
+    {
+        $created = 0;
+        $colore = self::valuesOf(self::PREFIX.'Colore');
+        $taglia = self::valuesOf(self::PREFIX.'Taglia');
+        $categoria = self::idOf(Category::class, self::PREFIX.'Magliette');
+
+        // Semplice: nessuna variante, un prodotto solo, con il suo prezzo.
+        $created += self::model('Cappello di lana', 'CAP-1', $categoria, [], [], '24.90');
+
+        // Con varianti: due colori e tre taglie fanno sei prodotti.
+        $created += self::model(
+            'Maglietta girocollo',
+            'TSH-1',
+            $categoria,
+            array_slice($colore, 0, 2),
+            array_slice($taglia, 0, 3),
+            '19.90'
+        );
+
+        // Molti prodotti: tre colori e quattro taglie.
+        $created += self::model(
+            'Felpa con cappuccio',
+            'FEL-1',
+            $categoria,
+            $colore,
+            $taglia,
+            '49.90'
+        );
+
+        return $created;
+    }
+
+    /**
+     * Un articolo di prova, con la sua variante, i suoi prodotti e la sua foto.
+     *
+     * @param list<array{id: int, label: string}> $variantValues
+     * @param list<array{id: int, label: string}> $productValues
+     */
+    private static function model(
+        string $name,
+        string $sku,
+        int $categoryId,
+        array $variantValues,
+        array $productValues,
+        string $price
+    ): int {
+        $name = self::PREFIX.$name;
+
+        if (self::idOf(ProductModel::class, $name) > 0) {
+            return 0;
+        }
+
+        $result = ProductModel::create([
+            'code' => Code::make(ProductModel::class, Codes::MODEL),
+            'name' => $name,
+            'slug' => Slug::make($name.'-'.uniqid()),
+            'sku' => $sku,
+            'unit' => 'pz',
+            'type' => 'simple',
+            'short_description' => 'Articolo di prova del gestionale.',
+            'returnable' => 'true',
+            'requires_shipping' => 'true',
+            'visible' => 'true',
+            'visible_online' => 'true',
+            'position' => 1,
+        ]);
+
+        if (empty($result->success)) {
+            return 0;
+        }
+
+        $modelId = (int) ($result->insert_id ?? 0);
+        $created = 1;
+
+        Skeleton::forModel($modelId, $name, $sku);
+        $created += 2;
+
+        if ($categoryId > 0) {
+            ProductModelCategory::create([
+                'product_model_id' => $modelId,
+                'category_id' => $categoryId,
+                'is_main' => 'true',
+                'position' => 1,
+            ]);
+            $created++;
+        }
+
+        if ($variantValues !== [] || $productValues !== []) {
+            $prima = self::countOf(ProductVariant::class, $modelId) + self::countOf(Product::class, $modelId);
+
+            ProductModelResource::forgetCatalogCache();
+            ProductModelResource::generateCombinations($modelId, [
+                'variant_values' => array_map(static fn (array $v): string => (string) $v['id'], $variantValues),
+                'product_values' => array_map(static fn (array $v): string => (string) $v['id'], $productValues),
+            ]);
+
+            $dopo = self::countOf(ProductVariant::class, $modelId) + self::countOf(Product::class, $modelId);
+            $created += max(0, $dopo - $prima);
+        }
+
+        // Il prezzo va su tutti i prodotti: senza, la scheda sembra a metà.
+        foreach (self::rowsOfModel(Product::class, $modelId) as $product) {
+            Product::update(['price' => $price], (int) $product['id']);
+        }
+
+        $created += self::image($modelId, $name);
+
+        return $created;
+    }
+
+    /**
+     * Una foto finta: un rettangolo colorato scritto sul disco.
+     *
+     * Niente file esterni da portarsi dietro, e nasce `pending` come una foto
+     * vera: così si può provare anche la coda delle misure.
+     */
+    private static function image(int $modelId, string $name): int
+    {
+        if (!function_exists('imagecreatetruecolor')) {
+            return 0;
+        }
+
+        $dir = rtrim((string) ($GLOBALS['ROOT'] ?? ''), '/').'/assets/upload'.ProductImages::folder();
+
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return 0;
+        }
+
+        $file = 'prova-'.Sku::part($name).'-'.uniqid().'.jpg';
+        $image = imagecreatetruecolor(1200, 900);
+        $colors = [[31, 78, 216], [193, 18, 31], [26, 127, 75]];
+        $color = $colors[strlen($name) % count($colors)];
+        imagefill($image, 0, 0, imagecolorallocate($image, ...$color));
+        imagejpeg($image, $dir.$file, 82);
+
+        $result = ProductImage::create([
+            'product_model_id' => $modelId,
+            'file' => json_encode([$file]),
+            'alt' => $name,
+            'position' => 1,
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        return !empty($result->success) ? 1 : 0;
+    }
+
+    /** I valori di un attributo di prova. @return list<array{id: int, label: string}> */
+    private static function valuesOf(string $attributeName): array
+    {
+        $attributeId = self::idOf(Attribute::class, $attributeName);
+
+        if ($attributeId === 0) {
+            return [];
+        }
+
+        $values = [];
+
+        foreach (self::rows(AttributeValue::class) as $row) {
+            if ((int) ($row['attribute_id'] ?? 0) === $attributeId) {
+                $values[] = ['id' => (int) $row['id'], 'label' => (string) ($row['label'] ?? '')];
+            }
+        }
+
+        return $values;
+    }
+
+    /** Quante righe di quel Model appartengono al modello. */
+    private static function countOf(string $model, int $modelId): int
+    {
+        return count(self::rowsOfModel($model, $modelId));
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function rowsOfModel(string $model, int $modelId): array
+    {
+        $rows = $model::find(['product_model_id' => $modelId, 'deleted' => 'false']);
+
+        if (!is_array($rows) || $rows === []) {
+            return [];
+        }
+
+        return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
     }
 
     /**
@@ -139,6 +345,25 @@ final class CatalogDemo
     public static function clear(): int
     {
         $removed = 0;
+
+        // Prima gli articoli: portano via prodotti, varianti, collegamenti e
+        // foto, e sono loro a tenere occupati attributi e categorie.
+        foreach (self::rows(ProductModel::class) as $row) {
+            if (!str_starts_with((string) ($row['name'] ?? ''), self::PREFIX)) {
+                continue;
+            }
+
+            $modelId = (int) $row['id'];
+            // Quello che se ne va con l'articolo si conta prima: dopo non c'è
+            // più niente da contare, e «tolte 19, create 49» non si spiega.
+            $sotto = self::countOf(ProductVariant::class, $modelId)
+                + self::countOf(Product::class, $modelId)
+                + self::countOf(ProductImage::class, $modelId)
+                + self::countOf(ProductModelCategory::class, $modelId);
+
+            $result = ProductModelResource::deleteRecord($modelId);
+            $removed += !empty($result->success) ? 1 + $sotto : 0;
+        }
 
         foreach (self::rows(Attribute::class) as $row) {
             if (!str_starts_with((string) ($row['name'] ?? ''), self::PREFIX)) {

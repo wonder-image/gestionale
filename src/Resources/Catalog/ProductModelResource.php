@@ -34,6 +34,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Combinations;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Ean;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
+use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
@@ -63,9 +64,7 @@ class ProductModelResource extends GestionaleResource
     public static string $model = ProductModel::class;
     public static string $orderColumn = 'name';
     public static string $orderDirection = 'ASC';
-    // La guida del commerciante arriva con il piano 4, quando la scheda avrà
-    // anche le immagini: finché la pagina non esiste il pulsante non compare.
-    public static string $docsPage = '';
+    public static string $docsPage = 'catalogo/catalogo-modelli';
 
     /** @var list<array<string, mixed>>|null attributi letti una volta per richiesta */
     private static ?array $catalogAttributes = null;
@@ -568,6 +567,16 @@ class ProductModelResource extends GestionaleResource
                 ProductAttributes::modelClass('model')::delete((int) $link['id']);
             }
 
+            // Le foto se ne vanno con l'articolo, file compresi: lasciarle sul
+            // disco vuol dire ritrovarsele fra un anno senza sapere di chi sono.
+            foreach (static::rowsOf(ProductImage::class, ['product_model_id' => $modelId]) as $row) {
+                foreach (glob(static::imageFiles($row)) ?: [] as $file) {
+                    @unlink($file);
+                }
+
+                ProductImage::delete((int) $row['id']);
+            }
+
             foreach (static::rowsOf(ProductModelCategory::class, ['product_model_id' => $modelId]) as $row) {
                 ProductModelCategory::delete((int) $row['id']);
             }
@@ -902,6 +911,20 @@ class ProductModelResource extends GestionaleResource
         }
 
         return $options;
+    }
+
+    /** Il file di una foto e tutte le misure che ne sono nate. */
+    public static function imageFiles(array $image): string
+    {
+        $path = ProductImages::path($image);
+
+        if ($path === '') {
+            return '';
+        }
+
+        // L'originale e tutte le misure nate da lui: `foto.jpg`, `foto.webp`,
+        // `foto-480.jpg` e compagnia.
+        return dirname($path).'/'.pathinfo($path, PATHINFO_FILENAME).'*';
     }
 
     /** Quante varianti ha quel modello. */

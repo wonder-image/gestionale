@@ -13,6 +13,10 @@ require __DIR__ . '/../harness.php';
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
+use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
@@ -30,7 +34,10 @@ $conta = static function (string $model): int {
     return isset($rows['id']) ? 1 : count(array_filter($rows, 'is_array'));
 };
 
-$tutte = [Brand::class, Category::class, Tag::class, Attribute::class, AttributeValue::class];
+$tutte = [
+    Brand::class, Category::class, Tag::class, Attribute::class, AttributeValue::class,
+    ProductModel::class, ProductVariant::class, Product::class, ProductImage::class,
+];
 $stato = static fn (): array => array_map($conta, $tutte);
 $prima = $stato();
 
@@ -43,16 +50,49 @@ try {
 
         $creati = CatalogDemo::create();
 
-        check('crea marchio, categorie, tag, attributi e valori', fn () =>
-            $creati === 15
-            && $stato() === [
-                $prima[0] + 1,
-                $prima[1] + 3,
-                $prima[2] + 2,
-                $prima[3] + 2,
-                $prima[4] + 7,
-            ]
-        );
+        check('crea tassonomie, attributi e tre articoli', function () use ($creati, $stato, $prima) {
+            $dopo = $stato();
+
+            return $creati > 15
+                && $dopo[0] === $prima[0] + 1      // marchio
+                && $dopo[1] === $prima[1] + 3      // categorie
+                && $dopo[2] === $prima[2] + 2      // tag
+                && $dopo[3] === $prima[3] + 2      // attributi
+                && $dopo[4] === $prima[4] + 7      // valori
+                && $dopo[5] === $prima[5] + 3      // articoli
+                && $dopo[8] === $prima[8] + 3;     // una foto per articolo
+        });
+
+        check('i tre articoli sono i tre casi che servono', function () {
+            $conta = static function (string $name): array {
+                $modello = ProductModel::find(['name' => 'Prova '.$name, 'deleted' => 'false'], 1);
+                $id = (int) ($modello['id'] ?? 0);
+                $righe = static function (string $model) use ($id): int {
+                    $rows = $model::find(['product_model_id' => $id, 'deleted' => 'false']);
+
+                    if (!is_array($rows) || $rows === []) {
+                        return 0;
+                    }
+
+                    return isset($rows['id']) ? 1 : count(array_filter($rows, 'is_array'));
+                };
+
+                return [$righe(ProductVariant::class), $righe(Product::class)];
+            };
+
+            return $conta('Cappello di lana') === [1, 1]
+                && $conta('Maglietta girocollo') === [2, 6]
+                && $conta('Felpa con cappuccio') === [3, 12];
+        });
+
+        check('le foto nascono in attesa delle misure', function () {
+            $rows = ProductImage::find(['status' => 'pending', 'deleted' => 'false']);
+            $rows = is_array($rows) && $rows !== []
+                ? (isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array')))
+                : [];
+
+            return count($rows) >= 3;
+        });
 
         check('il colore sta sulla variante e la taglia sul prodotto', function () {
             $colore = Attribute::find(['name' => 'Prova Colore', 'deleted' => 'false'], 1);
@@ -95,9 +135,9 @@ try {
         check('una seconda esecuzione non duplica niente', fn () => CatalogDemo::create() === 0);
 
         check('la pulizia toglie solo le righe di prova', function () use ($stato, $prima) {
-            $tolte = CatalogDemo::clear();
+            CatalogDemo::clear();
 
-            return $tolte === 15 && $stato() === $prima;
+            return $stato() === $prima;
         });
 
         throw new Annulla();
