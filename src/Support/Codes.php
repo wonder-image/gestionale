@@ -30,6 +30,7 @@ final class Codes
     public const BRAND = 'bra_';
     public const CATEGORY = 'cat_';
     public const TAG = 'tag_';
+    public const ATTRIBUTE = 'att_';
 
     // Anagrafiche e sedi
     public const CONTACT = 'con_';
