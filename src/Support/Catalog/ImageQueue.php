@@ -2,7 +2,9 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Catalog;
 
+use RuntimeException;
 use Throwable;
+use Wonder\Plugin\Custom\Image\ResponsiveImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 
@@ -18,6 +20,10 @@ use Wonder\Plugin\Gestionale\Support\Errors\Errors;
  * in `$ALERT`. Per questo qui si guarda quella variabile invece di fidarsi del
  * ritorno.
  *
+ * Quando è il sito a non poter lavorare — una costante che manca fuori da una
+ * richiesta web — la coda si ferma e lo dice, invece di bruciare i tentativi
+ * delle righe una dopo l'altra.
+ *
  * Tre tentativi e poi basta: una foto storta non deve tenere occupata la coda
  * per sempre. Alla terza la riga resta `failed`, con il suo errore da leggere
  * nella scheda, e una segnalazione in `error_reports`.
@@ -29,6 +35,9 @@ final class ImageQueue
 
     /** Dopo quanti tentativi una riga si arrende. */
     public const MAX_ATTEMPTS = 3;
+
+    /** Le misure del core, per quando nessuno le ha dichiarate. */
+    private const DEFAULT_SIZES = [240, 480, 620, 960, 1200, 1440, 1920, 2400];
 
     /**
      * Le righe ancora da lavorare, le più vecchie per prime.
@@ -60,12 +69,26 @@ final class ImageQueue
     {
         $done = 0;
         $failed = 0;
+        $blocked = '';
 
         foreach (self::pending($limit) as $image) {
-            self::process($image) ? $done++ : $failed++;
+            try {
+                self::process($image) ? $done++ : $failed++;
+            } catch (Unavailable $stop) {
+                // Non è colpa dell'immagine: qui non si può proprio lavorare.
+                // Fermarsi lascia le righe in attesa invece di bruciarne i
+                // tentativi una dopo l'altra.
+                $blocked = $stop->getMessage();
+                break;
+            }
         }
 
-        return ['done' => $done, 'failed' => $failed, 'left' => self::count()];
+        return [
+            'done' => $done,
+            'failed' => $failed,
+            'left' => self::count(),
+            'blocked' => $blocked,
+        ];
     }
 
     /** Quante righe restano in attesa. */
@@ -101,7 +124,18 @@ final class ImageQueue
         $ALERT = '';
 
         try {
-            imageResize($path);
+            self::resize($path);
+        } catch (\Error $fatal) {
+            $ALERT = $previous;
+
+            // Una costante che manca, una classe che non c'è: è il sito a non
+            // essere in grado, non la foto.
+            throw new Unavailable(
+                'Questo sito non riesce a ridimensionare le immagini da riga di comando ('
+                .$fatal->getMessage().'). Serve un core aggiornato.',
+                0,
+                $fatal
+            );
         } catch (Throwable $error) {
             $ALERT = $previous;
 
@@ -122,6 +156,44 @@ final class ImageQueue
         ], $id);
 
         return true;
+    }
+
+    /**
+     * Genera le misure di un file.
+     *
+     * Si passa dalla classe del core invece che da `imageResize()`: i comandi
+     * di `forge` girano senza le funzioni globali del framework, e una
+     * chiamata senza barra dentro un namespace cercherebbe comunque
+     * `Wonder\Plugin\...\imageResize()`. La funzione resta come ripiego per
+     * chi ha un core più vecchio.
+     */
+    private static function resize(string $path): void
+    {
+        // Le misure del sito sono due costanti che nascono durante una
+        // richiesta web: in un comando non c'è nessuno a dichiararle, e la
+        // classe del core le legge appena la si costruisce. Qui si mettono
+        // quelle del framework, le stesse che userebbe il sito.
+        if (!defined('RESPONSIVE_IMAGE_SIZES')) {
+            define('RESPONSIVE_IMAGE_SIZES', self::DEFAULT_SIZES);
+        }
+
+        if (!defined('RESPONSIVE_IMAGE_WEBP')) {
+            define('RESPONSIVE_IMAGE_WEBP', true);
+        }
+
+        if (class_exists(ResponsiveImage::class)) {
+            ResponsiveImage::path($path)->generate();
+
+            return;
+        }
+
+        if (function_exists('imageResize')) {
+            \imageResize($path);
+
+            return;
+        }
+
+        throw new RuntimeException('Questo sito non sa ridimensionare le immagini.');
     }
 
     /** Lo stato di una riga dopo un tentativo andato male. */

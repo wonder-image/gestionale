@@ -47,6 +47,13 @@ final class ImagesCommand extends Command
 
         $result = ImageQueue::work($limit);
 
+        if (($result['blocked'] ?? '') !== '') {
+            $output->writeln('<error>'.$result['blocked'].'</error>');
+            $output->writeln('Le immagini restano in attesa: nessun tentativo è andato perso.');
+
+            return Command::FAILURE;
+        }
+
         $output->writeln("Pronte: {$result['done']}.");
 
         if ($result['failed'] > 0) {

@@ -20,6 +20,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
@@ -181,6 +182,10 @@ class ProductModelResource extends GestionaleResource
                 ->label('Valori dei prodotti');
         }
 
+        if ($modelId !== null) {
+            $fields[] = static::imagesField($modelId);
+        }
+
         // I due repeater esistono solo quando c'è più di una riga da mostrare.
         // Non è solo estetica: un campo che non viene stampato non viene
         // nemmeno postato, e il sync dei repeater cancella le righe che non
@@ -294,6 +299,15 @@ class ProductModelResource extends GestionaleResource
                     ->tooltip('Le varianti sono quello che cambia l\'aspetto: il nome è quello che legge il cliente.')
                     ->columnSpan(12),
                 static::getInput('variants')->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        if ($modelId !== null) {
+            $cards[] = (new Card)->components([
+                SectionTitle::make('Immagini')
+                    ->tooltip('Carica e salva: le foto si vedono subito, le misure per il sito arrivano poco dopo. Una foto senza variante vale per tutto l\'articolo; con la variante vale solo per quella.')
+                    ->columnSpan(12),
+                static::getInput('images')->columnSpan(12),
             ])->columns(12)->columnSpan(12);
         }
 
@@ -492,6 +506,15 @@ class ProductModelResource extends GestionaleResource
         string $context = 'backend'
     ): array {
         if ($existingRow !== null) {
+            // Rimettere una foto "in lavorazione" vuol dire riprovarci: i
+            // tentativi ripartono da zero, altrimenti si arrenderebbe subito.
+            if ($inputName === 'images'
+                && ($payload['status'] ?? '') === 'pending'
+                && ($existingRow['status'] ?? '') === 'failed') {
+                $payload['attempts'] = 0;
+                $payload['error'] = '';
+            }
+
             return $payload;
         }
 
@@ -499,6 +522,12 @@ class ProductModelResource extends GestionaleResource
             $name = (string) ($payload['name'] ?? '');
             $payload['code'] = Code::make(ProductVariant::class, Codes::VARIANT);
             $payload['slug'] = Slug::make($name.'-'.uniqid());
+        }
+
+        if ($inputName === 'images') {
+            // La riga nasce in attesa: le misure le farà la coda.
+            $payload['status'] = 'pending';
+            $payload['attempts'] = 0;
         }
 
         if ($inputName === 'products') {
@@ -815,6 +844,64 @@ class ProductModelResource extends GestionaleResource
         }
 
         return null;
+    }
+
+    /**
+     * La galleria: una riga per foto, con la variante a cui appartiene.
+     *
+     * Un repeater dentro un repeater non esiste, e le varianti stanno già in
+     * un repeater: la variante si sceglie da un select, e l'ereditarietà la
+     * applica `ProductImages::for()` quando qualcuno legge.
+     */
+    protected static function imagesField(int $modelId): Input
+    {
+        return FormField::key('images')
+            ->repeater([
+                RepeaterColumn::key('id')->hidden(),
+                RepeaterColumn::key('file')->fileDragDrop('image')->label('Foto')->columnSpan(4),
+                RepeaterColumn::key('alt')->text()->label('Descrizione')->columnSpan(4),
+                RepeaterColumn::key('product_variant_id')
+                    ->select(static::variantOptions($modelId))
+                    ->label('Variante')
+                    ->columnSpan(2),
+                // Lo stato si può rimettere a "In attesa": è il modo di dire
+                // «riprova» a una foto che non è riuscita.
+                RepeaterColumn::key('status')
+                    ->select([
+                        'pending' => 'In lavorazione',
+                        'ready' => 'Pronta',
+                        'failed' => 'Non riuscita',
+                    ])
+                    ->value('pending')
+                    ->label('Stato')
+                    ->columnSpan(2),
+            ])
+            ->relation(
+                RepeaterRelation::make(ProductImage::$table, 'product_model_id')
+                    ->model(ProductImage::class)
+                    ->positionKey('position')
+            )
+            ->nested()
+            ->repeaterSortable()
+            ->repeaterAddLabel('Aggiungi foto')
+            ->repeaterDeleteTitle('Elimina foto')
+            ->repeaterDeleteText('Confermi l\'eliminazione di questa foto?')
+            ->repeaterDeleteCancelLabel('Annulla')
+            ->repeaterDeleteConfirmLabel('Elimina')
+            ->repeaterDeleteConfirmClass('btn btn-danger')
+            ->label('Immagini');
+    }
+
+    /** Le varianti di un modello, più la voce che vale per tutte. */
+    public static function variantOptions(int $modelId): array
+    {
+        $options = ['' => 'Tutte le varianti'];
+
+        foreach (static::variants($modelId) as $variant) {
+            $options[(string) $variant['id']] = (string) ($variant['name'] ?? '');
+        }
+
+        return $options;
     }
 
     /** Quante varianti ha quel modello. */

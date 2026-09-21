@@ -12,8 +12,22 @@ namespace Wonder\Plugin\Gestionale\Support\Catalog;
  */
 final class ProductImages
 {
-    /** Cartella sotto `assets/upload`. */
-    public const DIR = '/catalogo/prodotti/';
+    /**
+     * La cartella delle foto, sotto `assets/upload`.
+     *
+     * È il percorso della pagina dei modelli, e non è un vezzo: il repeater
+     * **scrive** i file nella cartella del Model e li **rilegge** in quella
+     * della Resource che ospita il form. Finché le due non coincidono
+     * l'anteprima di una foto già caricata non si vede. Per questo il Model
+     * dichiara questa stessa cartella e il campo non ne aggiunge un'altra.
+     */
+    public const DIR = '/app/gestionale/modelli/';
+
+    /** La cartella vera sotto `assets/upload`. */
+    public static function folder(): string
+    {
+        return self::DIR;
+    }
 
     /**
      * Le immagini da mostrare per una variante, in ordine di posizione.
@@ -82,7 +96,7 @@ final class ProductImages
 
         $root = rtrim($root ?? (string) ($GLOBALS['ROOT'] ?? ''), '/');
 
-        return $root.'/assets/upload'.self::DIR.$name;
+        return $root.'/assets/upload'.self::folder().$name;
     }
 
     /** L'indirizzo pubblico, vuoto quando il file non c'è. */
@@ -90,7 +104,7 @@ final class ProductImages
     {
         $name = self::fileName($image);
 
-        return $name === '' ? '' : '/assets/upload'.self::DIR.$name;
+        return $name === '' ? '' : '/assets/upload'.self::folder().$name;
     }
 
     /** Vero quando le misure sono state generate. */

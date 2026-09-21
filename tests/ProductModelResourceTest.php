@@ -6,6 +6,7 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
@@ -169,5 +170,44 @@ check('varianti e prodotti si contano dalle loro tabelle', function () {
 check('i Model del catalogo restano quelli giusti', fn () =>
     ProductVariant::$table === 'gst_product_variants' && Product::$table === 'gst_products'
 );
+
+check('una foto nuova nasce in attesa delle sue misure', function () {
+    $riga = ProductModelResource::prepareRepeaterRelationRow(
+        'images',
+        ['product_model_id' => 1, 'file' => '["foto.jpg"]'],
+        ['file' => '["foto.jpg"]']
+    );
+
+    return ($riga['status'] ?? '') === 'pending' && (int) ($riga['attempts'] ?? -1) === 0;
+});
+
+check('la variante di una foto si sceglie, e "tutte" è una scelta', function () {
+    $resource = new class extends ProductModelResource {
+        public static function variants(int $modelId): array
+        {
+            return [['id' => 3, 'name' => 'Blu'], ['id' => 4, 'name' => 'Rosso']];
+        }
+    };
+
+    $voci = $resource::variantOptions(1);
+
+    return ($voci[''] ?? '') === 'Tutte le varianti'
+        && ($voci['3'] ?? '') === 'Blu'
+        && count($voci) === 3;
+});
+
+check('le foto non si ridimensionano al salvataggio', function () {
+    // G2a.8: il campo del Model non dichiara nessuna misura, quindi
+    // `uploadFiles()` salta il ridimensionamento e la scheda si salva subito.
+    foreach (ProductImage::dataSchema() as $field) {
+        if ((string) $field->key !== 'file') {
+            continue;
+        }
+
+        return empty($field->getSchema('resize')) && empty($field->getSchema('webp'));
+    }
+
+    return false;
+});
 
 summary();

@@ -73,10 +73,13 @@ check('il nome del file si legge dal JSON dell\'upload', fn () =>
     && ProductImages::fileName([]) === ''
 );
 
-check('il percorso mette insieme radice, cartella e nome', function () {
+check('il percorso mette insieme radice, cartelle e nome', function () {
     $percorso = ProductImages::path(['file' => '["foto.jpg"]'], '/tmp/sito');
 
-    return $percorso === '/tmp/sito/assets/upload'.ProductImages::DIR.'foto.jpg';
+    // Scrittura e lettura devono usare la stessa cartella, altrimenti
+    // l'anteprima di una foto già caricata non si vede.
+    return $percorso === '/tmp/sito/assets/upload/app/gestionale/modelli/foto.jpg'
+        && ProductImages::folder() === ProductImage::$folder;
 });
 
 check('senza file non c\'è nessun percorso', fn () =>
@@ -84,7 +87,20 @@ check('senza file non c\'è nessun percorso', fn () =>
 );
 
 check('l\'indirizzo pubblico è quello della cartella degli upload', fn () =>
-    ProductImages::url(['file' => '["foto.jpg"]']) === '/assets/upload'.ProductImages::DIR.'foto.jpg'
+    ProductImages::url(['file' => '["foto.jpg"]'])
+        === '/assets/upload/app/gestionale/modelli/foto.jpg'
 );
+
+check('le foto non si fanno ridimensionare al salvataggio', function () {
+    // Con il core che conosce `deferResize()` il campo non chiede misure.
+    foreach (ProductImage::dataSchema() as $field) {
+        if ((string) $field->key === 'file') {
+            return !method_exists($field, 'deferResize')
+                || ($field->getSchema('resize_deferred') ?? false) === true;
+        }
+    }
+
+    return false;
+});
 
 summary();

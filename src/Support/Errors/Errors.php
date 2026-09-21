@@ -45,13 +45,24 @@ final class Errors
         Logger::log($error, 'gestionale', $action, 'ERROR', 'gestionale', $context, false);
     }
 
-    /** Segnala al core dicendogli a chi scrivere. */
+    /**
+     * Segnala al core dicendogli a chi scrivere.
+     *
+     * Il registro degli errori del core scrive con le funzioni globali
+     * (`sqlInsert`), che in un comando `forge` non ci sono: lì la segnalazione
+     * si salta invece di far morire il comando. Chi guarda trova comunque il
+     * motivo dove il guasto è successo — per un'immagine, nella sua riga.
+     */
     public static function report(
         string $service,
         string $action,
         Throwable|string $error,
         array $context = []
     ): bool {
+        if (!function_exists('sqlInsert')) {
+            return false;
+        }
+
         ErrorReporter::recipientsUsing(static fn (): array => self::recipients());
 
         try {

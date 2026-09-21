@@ -28,7 +28,8 @@ use Wonder\Sql\TableSchema as Column;
 final class ProductImage extends Model
 {
     public static string $table = 'gst_product_images';
-    public static string $folder = 'gestionale/models';
+    // La stessa cartella che usa la pagina dei modelli per rileggere i file.
+    public static string $folder = ProductImages::DIR;
     public static string $icon = 'bi bi-image';
 
     public static function syncSchema(): ?SyncSchema
@@ -60,19 +61,37 @@ final class ProductImage extends Model
         ];
     }
 
+    /**
+     * Il campo della foto, che **non** si fa ridimensionare al salvataggio.
+     *
+     * Un campo immagine, se non dice niente, prende da sé le misure responsive
+     * del sito: `deferResize()` del core gli dice di scrivere solo l'originale.
+     * Su un core che non lo conosce ancora il campo resta quello di prima — le
+     * foto si ridimensionano subito e il salvataggio è più lento — invece di
+     * far esplodere il sito.
+     */
+    private static function deferredImage(): \Wonder\Data\Fields\Image
+    {
+        $field = Field::key('file')
+            ->image()
+            ->extensions(['png', 'jpg', 'jpeg', 'webp'])
+            ->maxSize(8)
+            ->maxFile(1)
+            ->name('{rand}');
+
+        if (method_exists($field, 'deferResize')) {
+            $field->deferResize();
+        }
+
+        return $field;
+    }
+
     public static function dataSchema(): array
     {
         return [
             Field::key('product_model_id')->number()->decimals(0),
             Field::key('product_variant_id')->number()->decimals(0),
-            // Niente `responsive()`: il ridimensionamento è in differita.
-            Field::key('file')
-                ->image()
-                ->extensions(['png', 'jpg', 'jpeg', 'webp'])
-                ->maxSize(8)
-                ->maxFile(1)
-                ->dir(ProductImages::DIR)
-                ->name('{rand}'),
+            self::deferredImage(),
             Field::key('alt')->text()->sanitizeFirst(),
             Field::key('position')->number()->decimals(0),
             Field::key('status')->text()->sanitize(false),

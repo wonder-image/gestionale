@@ -25,7 +25,7 @@ $prima = ImageQueue::count();
 
 /** Un'immagine vera, piccola, scritta sul disco del sito. */
 $scriviFile = static function (string $name): string {
-    $dir = SITE.'/assets/upload'.ProductImages::DIR;
+    $dir = SITE.'/assets/upload'.ProductImages::folder();
 
     if (!is_dir($dir)) {
         mkdir($dir, 0775, true);
