@@ -136,18 +136,23 @@ class ProductModelResource extends GestionaleResource
         $fields = [
             FormField::key('name')->text()->label('Nome')->required(),
             FormField::key('brand_id')->select(static::brandOptions())->label('Marchio'),
-            FormField::key('tax_category_id')->select(static::taxCategoryOptions())->label('Tipo fiscale'),
+            FormField::key('tax_category_id')
+                ->select(static::taxCategoryOptions())
+                ->label('Tipo fiscale')
+                ->required(),
             FormField::key('sku')->text()->label('SKU'),
             FormField::key('unit')->select(self::UNITS)->value('pz')->label('Unità di misura')->required(),
+            // Due domande diverse, e devono suonare diverse: la prima dice se
+            // l'articolo è finito, la seconda se si vende anche online.
             FormField::key('visible')
-                ->select(['true' => 'Visibile', 'false' => 'Nascosto'])
+                ->select(['true' => 'Pubblicato', 'false' => 'Bozza'])
                 ->value('true')
                 ->label('Stato')
                 ->required(),
             FormField::key('visible_online')
-                ->select(['true' => 'In vetrina', 'false' => 'Solo in ufficio'])
+                ->select(['true' => 'Sì', 'false' => 'No'])
                 ->value('true')
-                ->label('Vetrina')
+                ->label('Si vende online')
                 ->required(),
             FormField::key('short_description')->textarea()->label('Descrizione breve'),
             FormField::key('description')->textarea()->label('Descrizione'),
@@ -172,11 +177,7 @@ class ProductModelResource extends GestionaleResource
             $fields[] = static::attributeField($attribute);
         }
 
-        if (static::optionTree() !== []) {
-            $fields[] = FormField::key('option_values')
-                ->checkTree(static::optionTree(), true)
-                ->label('In quali versioni si vende');
-        }
+        array_push($fields, ...static::optionFields());
 
         if ($modelId !== null) {
             $fields[] = static::imagesField($modelId);
@@ -192,9 +193,9 @@ class ProductModelResource extends GestionaleResource
 
         if ($modelId !== null && static::productCount($modelId) > 1) {
             $fields[] = static::productsField();
-        } else {
-            array_push($fields, ...static::soleProductFields());
         }
+
+        array_push($fields, ...static::priceFields($modelId));
 
         return $fields;
     }
@@ -208,7 +209,7 @@ class ProductModelResource extends GestionaleResource
      */
     public static function createFields(): array
     {
-        return ['name', 'main_category', 'product_price', 'sku'];
+        return ['name', 'tax_category_id', 'product_price', 'main_category', 'sku'];
     }
 
     /** La schermata di creazione: quattro campi e via. */
@@ -232,12 +233,13 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
-     * Sette riquadri, e due in fondo.
+     * Due colonne: a sinistra quello che si compone, a destra quello che si
+     * decide.
      *
-     * Erano dieci, tutti aperti e tutti con lo stesso peso: un cappello di lana
-     * ne usava tre e doveva scorrere gli altri sette. L'ordine adesso segue la
-     * compilazione — chi è, com'è fatto in vendita, come si vede, cosa si
-     * legge, dove sta — e quello che si tocca una volta l'anno sta in coda.
+     * A sinistra il lavoro lungo — nome e prezzo, le versioni, le foto, le
+     * descrizioni. A destra, stretta, le caselle corte che si guardano in un
+     * colpo d'occhio: stato, codici, dove sta nel sito, peso e misure. Erano
+     * dieci riquadri a piena larghezza, uno sotto l'altro.
      */
     public static function formLayoutSchema(): ?Form
     {
@@ -247,60 +249,66 @@ class ProductModelResource extends GestionaleResource
             return static::createLayout();
         }
 
+        // `columns(12)` sul Form, non solo sui contenitori: il renderer calcola
+        // la larghezza di un figlio sulle colonne del **padre**, e un Form senza
+        // colonne ne ha una sola — qualunque span diventerebbe piena larghezza.
+        return (new Form)->components([
+            (new Container)->components(static::mainColumn($modelId))->columns(12)->columnSpan(8),
+            (new Container)->components(static::sideColumn($modelId))->columns(12)->columnSpan(4),
+        ])->columns(12);
+    }
+
+    /**
+     * La colonna larga: quello che si compone.
+     *
+     * @return list<object>
+     */
+    protected static function mainColumn(int $modelId): array
+    {
         $unaVersione = static::productCount($modelId) <= 1;
 
-        $prodotto = [
-            SectionTitle::make('Prodotto')
-                ->tooltip('Lo SKU è il codice di famiglia: da lì il pannello propone quello delle singole versioni. L\'url pubblico nasce dal nome alla creazione e non cambia più.')
-                ->columnSpan(12),
-            static::getInput('name')->columnSpan(6),
-            static::getInput('sku')->columnSpan(3),
-            static::getInput('visible')->columnSpan(3),
+        $cards = [
+            (new Card)->components([
+                SectionTitle::make('Prodotto')
+                    ->tooltip($unaVersione
+                        ? 'Il prezzo di questo articolo. Il tipo fiscale decide l\'IVA che gli si applica.'
+                        : 'Il prezzo scritto qui va su **tutte** le versioni quando salvi. Per differenziarne una, la si scrive nella sua riga qui sotto.')
+                    ->columnSpan(12),
+                static::getInput('name')->columnSpan(12),
+                static::getInput('product_price')->columnSpan(4),
+                static::getInput('product_sale_price')->columnSpan(4),
+                static::getInput('tax_category_id')->columnSpan(4),
+            ])->columns(12)->columnSpan(12),
         ];
 
-        // Con una versione sola prezzo e codici stanno qui: aprire una tabella
-        // di una riga per scrivere un prezzo è una scortesia.
-        if ($unaVersione) {
-            // Niente casella per lo SKU della versione: finché la versione è
-            // una sola, lo SKU dell'articolo è il suo, e due caselle chiamate
-            // "SKU" nella stessa scheda sono un modo per sbagliare.
-            $prodotto[] = static::getInput('product_price')->columnSpan(4);
-            $prodotto[] = static::getInput('product_sale_price')->columnSpan(4);
-            $prodotto[] = static::getInput('product_ean')->columnSpan(4);
+        $opzioni = [];
+
+        foreach (static::optionFields() as $field) {
+            $opzioni[] = static::getInput((string) $field->name)->columnSpan(6);
         }
 
-        $cards = [(new Card)->components($prodotto)->columns(12)->columnSpan(12)];
-
-        // Finché la versione è una sola il riquadro non serve a nessuno: va in
-        // fondo, e chi ne ha bisogno lo trova là.
         if (!$unaVersione) {
             $versioni = [
                 SectionTitle::make('Versioni in vendita')
                     ->tooltip('Spunta i valori e salva: nascono le righe che mancano, con il nome e lo SKU proposti. Togliere una spunta non cancella niente; per eliminare una versione si elimina la sua riga.')
                     ->columnSpan(12),
+                ...$opzioni,
+                static::getInput('products')->columnSpan(12),
             ];
 
-            if (static::optionTree() !== []) {
-                $versioni[] = static::getInput('option_values')->columnSpan(12);
-            }
-
-            $versioni[] = static::getInput('products')->columnSpan(12);
-
-            if (static::variantCount((int) $modelId) > 1) {
+            if (static::variantCount($modelId) > 1) {
                 $versioni[] = static::getInput('variants')->columnSpan(12);
             }
 
             $cards[] = (new Card)->components($versioni)->columns(12)->columnSpan(12);
         }
 
-        if ($modelId !== null) {
-            $cards[] = (new Card)->components([
-                SectionTitle::make('Foto')
-                    ->tooltip('Carica e salva: le foto si vedono subito, le misure per il sito arrivano poco dopo. Una foto senza versione vale per tutto l\'articolo; con la versione vale solo per quella.')
-                    ->columnSpan(12),
-                static::getInput('images')->columnSpan(12),
-            ])->columns(12)->columnSpan(12);
-        }
+        $cards[] = (new Card)->components([
+            SectionTitle::make('Foto')
+                ->tooltip('Carica e salva: le foto si vedono subito, le misure per il sito arrivano poco dopo. Una foto senza versione vale per tutto l\'articolo; con la versione vale solo per quella.')
+                ->columnSpan(12),
+            static::getInput('images')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
 
         $cards[] = (new Card)->components([
             SectionTitle::make('Descrizione')->columnSpan(12),
@@ -308,63 +316,87 @@ class ProductModelResource extends GestionaleResource
             static::getInput('description')->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
-        $cards[] = (new Card)->components([
-            SectionTitle::make('Dove si trova')
-                ->tooltip('La categoria principale è quella che la vetrina userà per l\'indirizzo della pagina: se la scegli e non l\'hai spuntata, viene aggiunta da sé.')
-                ->columnSpan(12),
-            static::getInput('brand_id')->columnSpan(4),
-            static::getInput('main_category')->columnSpan(4),
-            static::getInput('tags')->columnSpan(4),
-            static::getInput('categories')->columnSpan(12),
-        ])->columns(12)->columnSpan(12);
-
-        // In fondo, quello che si tocca di rado. Prima però le versioni, se
-        // l'articolo non ne ha ancora: è lì che si va a cercarle.
-        if ($unaVersione && static::optionTree() !== []) {
+        // Finché la versione è una sola le opzioni stanno in coda: chi vende un
+        // cappello non deve incontrarle, chi ne ha bisogno le trova.
+        if ($unaVersione && $opzioni !== []) {
             $cards[] = static::foldable(
                 'Si vende in più versioni? (colori, taglie…)',
-                [static::getInput('option_values')->columnSpan(12)],
+                $opzioni,
                 'Spunta i colori e le taglie in cui vendi questo articolo e salva: le righe nascono da sole, con il nome e lo SKU proposti.'
             );
         }
 
-        $attributeInputs = [];
+        $attributi = [];
 
         foreach (Attributes::byLevel(static::attributes(), 'model') as $attribute) {
-            $attributeInputs[] = static::getInput('attribute_'.(int) $attribute['id'])->columnSpan(4);
+            $attributi[] = static::getInput('attribute_'.(int) $attribute['id'])->columnSpan(6);
         }
 
-        if ($attributeInputs !== []) {
+        if ($attributi !== []) {
             $cards[] = static::foldable(
                 'Scheda tecnica',
-                $attributeInputs,
+                $attributi,
                 'Quello che descrive l\'articolo e non fa nascere versioni: materiale, composizione, paese.'
             );
         }
 
-        $cards[] = static::foldable('Spedizione e fisco', [
-            static::getInput('unit')->columnSpan(3),
-            static::getInput('tax_category_id')->columnSpan(3),
-            static::getInput('visible_online')->columnSpan(3),
-            static::getInput('weight')->columnSpan(3),
-            static::getInput('length')->columnSpan(3),
-            static::getInput('width')->columnSpan(3),
-            static::getInput('height')->columnSpan(3),
-            static::getInput('returnable')->columnSpan(6),
-            static::getInput('requires_shipping')->columnSpan(6),
-        ], 'Peso e misure dell\'articolo, unità di vendita e tipo fiscale. Una versione con misure sue le usa al posto di queste.');
-
-        return (new Form)->components([
-            (new Container)->components($cards)->columns(12)->columnSpan(12),
-        ]);
+        return $cards;
     }
 
     /**
-     * L'elenco deve rispondere da solo a "quale dei due maglioni blu è questo".
+     * La colonna stretta: quello che si decide.
      *
-     * Per questo la miniatura e il prezzo: con nome, SKU e marchio due articoli
-     * simili si distinguono solo aprendoli.
+     * @return list<object>
      */
+    protected static function sideColumn(int $modelId): array
+    {
+        $codici = [
+            SectionTitle::make('Codici')
+                ->tooltip('Lo SKU è il codice di famiglia: da lì il pannello propone quello delle singole versioni.')
+                ->columnSpan(12),
+            static::getInput('sku')->columnSpan(12),
+        ];
+
+        if (static::productCount($modelId) <= 1) {
+            $codici[] = static::getInput('product_ean')->columnSpan(12);
+        }
+
+        return [
+            (new Card)->components([
+                SectionTitle::make('Pubblicazione')
+                    ->tooltip('Una bozza non si vede da nessuna parte. Un articolo pubblicato che non si vende online resta in catalogo per il negozio e per i documenti.')
+                    ->columnSpan(12),
+                static::getInput('visible')->columnSpan(12),
+                static::getInput('visible_online')->columnSpan(12),
+                static::getInput('returnable')->columnSpan(6),
+                static::getInput('requires_shipping')->columnSpan(6),
+            ])->columns(12)->columnSpan(12),
+
+            (new Card)->components($codici)->columns(12)->columnSpan(12),
+
+            (new Card)->components([
+                SectionTitle::make('Dove si trova')
+                    ->tooltip('La categoria principale è quella che la vetrina userà per l\'indirizzo della pagina: se la scegli e non l\'hai spuntata, viene aggiunta da sé.')
+                    ->columnSpan(12),
+                static::getInput('brand_id')->columnSpan(12),
+                static::getInput('main_category')->columnSpan(12),
+                static::getInput('tags')->columnSpan(12),
+                static::getInput('categories')->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+
+            (new Card)->components([
+                SectionTitle::make('Peso e misure')
+                    ->tooltip('Servono alla spedizione. Una versione con misure sue le usa al posto di queste.')
+                    ->columnSpan(12),
+                static::getInput('unit')->columnSpan(12),
+                static::getInput('weight')->columnSpan(6),
+                static::getInput('length')->columnSpan(6),
+                static::getInput('width')->columnSpan(6),
+                static::getInput('height')->columnSpan(6),
+            ])->columns(12)->columnSpan(12),
+        ];
+    }
+
     public static function tableSchema(): array
     {
         return [
@@ -518,7 +550,7 @@ class ProductModelResource extends GestionaleResource
         }
 
         static::assertSoleProduct($id, $values);
-        static::chosenAxes($_POST['option_values'] ?? []);
+        static::chosenAxes((array) $_POST);
         static::assertSomeVersionLeft($id);
 
         return static::withoutExtras($values);
@@ -606,9 +638,9 @@ class ProductModelResource extends GestionaleResource
             static::saveCategories($modelId, $post);
             static::saveTags($modelId, $post);
             static::saveModelAttributes($modelId, $post);
-            $chosen = static::chosenAxes($post['option_values'] ?? []);
+            $chosen = static::chosenAxes($post);
             Generator::run($modelId, $chosen['variant'], $chosen['axes'], $fallbackSku);
-            static::saveSoleProduct($modelId, $post, $fallbackSku);
+            static::savePrices($modelId, $post, $fallbackSku);
         });
     }
 
@@ -639,8 +671,16 @@ class ProductModelResource extends GestionaleResource
 
         if ($product !== null) {
             $values['product_ean'] = (string) ($product['ean'] ?? '');
-            $values['product_price'] = (string) ($product['price'] ?? '');
-            $values['product_sale_price'] = (string) ($product['sale_price'] ?? '');
+        }
+
+        // La casella mostra il prezzo solo quando è uno solo per tutte: se le
+        // versioni costano diverso non c'è un prezzo da scrivere lì, e la
+        // casella resta vuota (vuota vuol dire "non toccare niente").
+        $values['product_price'] = static::commonValue($modelId, 'price');
+        $values['product_sale_price'] = static::commonValue($modelId, 'sale_price');
+
+        foreach (static::usedOptionValues($modelId) as $key => $ids) {
+            $values[$key] = $ids;
         }
 
         return $values;
@@ -741,17 +781,13 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
-     * L'albero delle opzioni da spuntare: un nodo per opzione, i valori sotto.
+     * Le opzioni che fanno nascere versioni, con i loro valori.
      *
-     * Uno solo, non due: chi compila non deve sapere quali opzioni abbiano
-     * pagina propria e quali no. Lo smistamento lo fa `chosenAxes()` al
-     * salvataggio, leggendo il livello dell'attributo.
-     *
-     * @return array<string, array<string, mixed>>
+     * @return list<array<string, mixed>>
      */
-    public static function optionTree(): array
+    public static function optionAttributes(): array
     {
-        $tree = [];
+        $options = [];
 
         foreach (static::attributes() as $attribute) {
             if (!Attributes::createsVersions((string) ($attribute['level'] ?? ''))) {
@@ -762,29 +798,51 @@ class ProductModelResource extends GestionaleResource
                 continue;
             }
 
-            $id = (int) $attribute['id'];
-            $children = [];
-
-            foreach (static::attributeValues() as $value) {
-                if ((int) ($value['attribute_id'] ?? 0) === $id) {
-                    $children[(string) $value['id']] = [
-                        'name' => (string) ($value['label'] ?? ''),
-                        'child' => [],
-                    ];
-                }
-            }
-
-            if ($children !== []) {
-                // La chiave dell'opzione non è un valore: chi legge le spunte
-                // tiene solo gli id che sono davvero dei valori.
-                $tree['attr_'.$id] = [
-                    'name' => (string) ($attribute['name'] ?? ''),
-                    'child' => $children,
-                ];
+            if (static::valuesOf((int) $attribute['id']) !== []) {
+                $options[] = $attribute;
             }
         }
 
-        return $tree;
+        return $options;
+    }
+
+    /** I valori di un'opzione: etichetta per id. @return array<string, string> */
+    public static function valuesOf(int $attributeId): array
+    {
+        $values = [];
+
+        foreach (static::attributeValues() as $value) {
+            if ((int) ($value['attribute_id'] ?? 0) === $attributeId) {
+                $values[(string) $value['id']] = (string) ($value['label'] ?? '');
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * Un gruppo di caselle per ogni opzione: "Colore" con i suoi colori.
+     *
+     * Era un albero solo, con le opzioni come cartelle. Due problemi: le
+     * opzioni non sono una gerarchia — sono elenchi piatti, uno per opzione — e
+     * la lib nasconde i quadratini dell'albero (`.jstree-checkbox` sta a
+     * `display:none`), quindi si spuntava cliccando righe che non sembravano
+     * cliccabili.
+     *
+     * @return list<Input>
+     */
+    public static function optionFields(): array
+    {
+        $fields = [];
+
+        foreach (static::optionAttributes() as $attribute) {
+            $fields[] = FormField::key('option_'.(int) $attribute['id'])
+                ->checkbox()
+                ->options(static::valuesOf((int) $attribute['id']))
+                ->label((string) ($attribute['name'] ?? ''));
+        }
+
+        return $fields;
     }
 
     /**
@@ -794,49 +852,46 @@ class ProductModelResource extends GestionaleResource
      * saprebbe quale valore sia la pagina. Gli altri finiscono in `axes`, un
      * elemento per opzione, e si moltiplicano fra loro.
      *
+     * @param array<string, mixed> $post quello che arriva dal form
      * @return array{variant: list<array{id: int, label: string}>, axes: list<list<array{id: int, label: string}>>}
      */
-    public static function chosenAxes(mixed $chosen): array
+    public static function chosenAxes(array $post): array
     {
-        $ids = array_filter(array_map('intval', (array) $chosen), static fn (int $id): bool => $id > 0);
-
-        if ($ids === []) {
-            return ['variant' => [], 'axes' => []];
-        }
-
-        $levels = [];
-
-        foreach (static::attributes() as $attribute) {
-            $levels[(int) $attribute['id']] = (string) ($attribute['level'] ?? '');
-        }
-
         $variant = [];
         $variantAttributes = [];
-        $byAttribute = [];
+        $axes = [];
 
-        foreach (static::attributeValues() as $value) {
-            $id = (int) ($value['id'] ?? 0);
+        foreach (static::optionAttributes() as $attribute) {
+            $id = (int) $attribute['id'];
+            $valori = static::valuesOf($id);
+            $scelti = [];
 
-            if (!in_array($id, $ids, true)) {
+            foreach ((array) ($post['option_'.$id] ?? []) as $valueId) {
+                $valueId = (string) $valueId;
+
+                if (isset($valori[$valueId])) {
+                    $scelti[] = ['id' => (int) $valueId, 'label' => $valori[$valueId]];
+                }
+            }
+
+            if ($scelti === []) {
                 continue;
             }
 
-            $attributeId = (int) ($value['attribute_id'] ?? 0);
-            $entry = ['id' => $id, 'label' => (string) ($value['label'] ?? '')];
-
-            if (($levels[$attributeId] ?? '') === 'variant') {
-                $variantAttributes[$attributeId] = true;
-                $variant[] = $entry;
-            } elseif (($levels[$attributeId] ?? '') === 'product') {
-                $byAttribute[$attributeId][] = $entry;
+            if (($attribute['level'] ?? '') === 'variant') {
+                $variantAttributes[$id] = true;
+                $variant = array_merge($variant, $scelti);
+                continue;
             }
+
+            $axes[] = $scelti;
         }
 
         if (count($variantAttributes) > 1) {
             throw UserError::make('product.one_page_option');
         }
 
-        return ['variant' => $variant, 'axes' => array_values($byAttribute)];
+        return ['variant' => $variant, 'axes' => $axes];
     }
 
     /**
@@ -1114,14 +1169,32 @@ class ProductModelResource extends GestionaleResource
             ->label('Quello che si vende');
     }
 
-    /** @return list<Input> */
-    protected static function soleProductFields(): array
+    /**
+     * Prezzo e codice a barre.
+     *
+     * Il prezzo si scrive qui **sempre**, anche con dodici versioni: scriverlo
+     * riga per riga è lungo, e quasi sempre costano tutte uguale. Quello che si
+     * scrive qui va su tutte le righe; chi vuole differenziarne una la corregge
+     * nella griglia, e da lì in poi la casella resta vuota perché non c'è più
+     * un prezzo solo da mostrare.
+     *
+     * L'EAN invece è di una versione sola per definizione: con più versioni
+     * sparisce, e si scrive nella sua riga.
+     *
+     * @return list<Input>
+     */
+    protected static function priceFields(?int $modelId): array
     {
-        return [
-            FormField::key('product_ean')->text()->label('EAN'),
+        $fields = [
             FormField::key('product_price')->number()->decimal(2)->label('Prezzo'),
             FormField::key('product_sale_price')->number()->decimal(2)->label('Prezzo scontato'),
         ];
+
+        if ($modelId === null || static::productCount($modelId) <= 1) {
+            $fields[] = FormField::key('product_ean')->text()->label('EAN');
+        }
+
+        return $fields;
     }
 
     /** Toglie dai valori tutto ciò che non è una colonna del modello. */
@@ -1134,11 +1207,12 @@ class ProductModelResource extends GestionaleResource
             $values['product_ean'],
             $values['product_price'],
             $values['product_sale_price'],
-            $values['option_values'],
         );
 
         foreach (array_keys($values) as $key) {
-            if (str_starts_with((string) $key, 'attribute_')) {
+            $key = (string) $key;
+
+            if (str_starts_with($key, 'attribute_') || str_starts_with($key, 'option_')) {
                 unset($values[$key]);
             }
         }
@@ -1226,31 +1300,110 @@ class ProductModelResource extends GestionaleResource
         ProductAttributes::save('model', $modelId, $attributes, $input);
     }
 
-    /** SKU, EAN e prezzi del prodotto unico, scritti sul prodotto. */
-    protected static function saveSoleProduct(int $modelId, array $post, string $fallbackSku = ''): void
+    /**
+     * Prezzi, codice e codice a barre scritti dal riquadro in alto.
+     *
+     * Il prezzo vale per **tutte** le versioni: con dodici righe scriverlo
+     * dodici volte è una scortesia, e quasi sempre costano uguale. La casella
+     * vuota non tocca niente — è l'unico modo di avere prezzi diversi senza che
+     * un salvataggio distratto li riallinei tutti.
+     *
+     * SKU ed EAN invece riguardano solo la versione unica: quando sono più di
+     * una, ognuna ha i suoi nella griglia.
+     */
+    protected static function savePrices(int $modelId, array $post, string $fallbackSku = ''): void
     {
-        if (static::productCount($modelId) > 1) {
+        $prezzo = Numbers::fromForm($post['product_price'] ?? null);
+        $scontato = Numbers::fromForm($post['product_sale_price'] ?? null);
+        $prodotti = static::products($modelId);
+
+        if ($prodotti === []) {
             return;
         }
 
-        $product = static::soleProduct($modelId);
+        if (count($prodotti) === 1) {
+            $product = $prodotti[0];
+            // La scheda non chiede lo SKU della versione quando è una sola: lo
+            // prende da quello dell'articolo, che è la stessa cosa. Se
+            // l'articolo non ne ha, resta quello che la versione aveva già.
+            $sku = trim((string) ($post['sku'] ?? '')) ?: $fallbackSku;
 
-        if ($product === null) {
+            Product::update([
+                'sku' => $sku !== '' ? $sku : (string) ($product['sku'] ?? ''),
+                'ean' => trim((string) ($post['product_ean'] ?? '')),
+                // I decimali arrivano con la virgola: MySQL non li accetta.
+                'price' => $prezzo,
+                'sale_price' => $scontato,
+            ], (int) $product['id']);
+
             return;
         }
 
-        // La scheda non chiede lo SKU della versione quando è una sola: lo
-        // prende da quello dell'articolo, che è la stessa cosa. Se l'articolo
-        // non ne ha, resta quello che la versione aveva già.
-        $sku = trim((string) ($post['sku'] ?? '')) ?: $fallbackSku;
+        $values = [];
 
-        Product::update([
-            'sku' => $sku !== '' ? $sku : (string) ($product['sku'] ?? ''),
-            'ean' => trim((string) ($post['product_ean'] ?? '')),
-            // I decimali arrivano con la virgola: MySQL non li accetta.
-            'price' => Numbers::fromForm($post['product_price'] ?? null),
-            'sale_price' => Numbers::fromForm($post['product_sale_price'] ?? null),
-        ], (int) $product['id']);
+        if ($prezzo !== null) {
+            $values['price'] = $prezzo;
+        }
+
+        if ($scontato !== null) {
+            $values['sale_price'] = $scontato;
+        }
+
+        if ($values === []) {
+            return;
+        }
+
+        foreach ($prodotti as $product) {
+            Product::update($values, (int) $product['id']);
+        }
+    }
+
+    /**
+     * I valori già in uso da questo articolo, per campo del form.
+     *
+     * Senza, chi apre la scheda di una maglietta blu e rossa trova le caselle
+     * dei colori tutte vuote: sembra che non abbia colori, e invece ne ha due.
+     *
+     * Gli id tornano **numeri**, non stringhe: il gruppo di caselle confronta
+     * con `in_array(..., true)` e le chiavi numeriche di un array PHP sono
+     * numeri, quindi una stringa non spunterebbe niente.
+     *
+     * @return array<string, list<int>>
+     */
+    public static function usedOptionValues(int $modelId): array
+    {
+        $perAttributo = [];
+
+        foreach (['variant' => static::variants($modelId), 'product' => static::products($modelId)] as $level => $rows) {
+            foreach ($rows as $row) {
+                foreach (ProductAttributes::read($level, (int) $row['id']) as $attributeId => $link) {
+                    $valueId = (int) ($link['attribute_value_id'] ?? 0);
+
+                    if ($valueId > 0) {
+                        $perAttributo['option_'.(int) $attributeId][$valueId] = $valueId;
+                    }
+                }
+            }
+        }
+
+        return array_map('array_values', $perAttributo);
+    }
+
+    /**
+     * Il valore di una colonna quando è lo stesso su tutte le versioni.
+     *
+     * Vuoto quando le versioni sono diverse fra loro: non c'è un valore solo
+     * da mostrare, e mostrarne uno a caso sarebbe peggio di niente.
+     */
+    protected static function commonValue(int $modelId, string $column): string
+    {
+        $valori = [];
+
+        foreach (static::products($modelId) as $product) {
+            $valori[(string) ($product[$column] ?? '')] = true;
+        }
+
+        return count($valori) === 1 ? (string) array_key_first($valori) : '';
     }
 
     /** @return list<int> */
@@ -1295,9 +1448,14 @@ class ProductModelResource extends GestionaleResource
     }
 
     /** @return array<string, string> */
+    /**
+     * I tipi fiscali. Niente "Predefinito": l'IVA si sceglie.
+     *
+     * Lasciarla indovinare al sistema vuol dire accorgersene in fattura.
+     */
     protected static function taxCategoryOptions(): array
     {
-        $options = ['' => 'Predefinito'];
+        $options = ['' => 'Scegli…'];
 
         foreach (static::rowsOf(TaxCategory::class, [], 'position') as $row) {
             $options[(string) $row['id']] = (string) ($row['name'] ?? '');

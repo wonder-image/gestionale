@@ -257,10 +257,13 @@ check('finché una riga resta, si salva', function () {
     return true;
 });
 
-check('la creazione chiede quattro cose e poi porta sulla scheda', function () {
+check('la creazione chiede l\'indispensabile e poi porta sulla scheda', function () {
     $schema = ProductModelResource::pageSchema();
 
-    return ProductModelResource::createFields() === ['name', 'main_category', 'product_price', 'sku']
+    // Il tipo fiscale è obbligatorio, quindi dev'essere qui: un campo
+    // obbligatorio fuori dalla creazione è un salvataggio che non parte.
+    return ProductModelResource::createFields()
+            === ['name', 'tax_category_id', 'product_price', 'main_category', 'sku']
         && ($schema->get('redirects')['store'] ?? '') === 'edit';
 });
 
@@ -343,9 +346,9 @@ $schedaAperta = new class extends ProductModelResource {
     }
 };
 
-$riquadri = static function () use ($schedaAperta): array {
+$riquadri = static function (int $colonna = 0) use ($schedaAperta): array {
     $form = $schedaAperta::formLayoutSchema();
-    $contenitore = $form->components[0] ?? null;
+    $contenitore = $form->components[$colonna] ?? null;
     $titoli = [];
 
     foreach ($contenitore->components ?? [] as $riquadro) {
@@ -360,8 +363,12 @@ $riquadri = static function () use ($schedaAperta): array {
     return $titoli;
 };
 
-check('la scheda di un articolo semplice ha pochi riquadri, in ordine', function () use ($riquadri) {
-    return $riquadri() === ['Prodotto', 'Foto', 'Descrizione', 'Dove si trova', 'Spedizione e fisco'];
+check('la colonna larga tiene quello che si compone', function () use ($riquadri) {
+    return $riquadri(0) === ['Prodotto', 'Foto', 'Descrizione'];
+});
+
+check('la colonna stretta tiene quello che si decide', function () use ($riquadri) {
+    return $riquadri(1) === ['Pubblicazione', 'Codici', 'Dove si trova', 'Peso e misure'];
 });
 
 check('le parole interne non compaiono più nei titoli', function () use ($riquadri) {

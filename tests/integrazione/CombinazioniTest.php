@@ -90,7 +90,10 @@ try {
 
         // Un elenco solo: chi compila spunta i valori e basta, il livello lo
         // ritrova `chosenAxes()` leggendo l'attributo.
-        $spunte = array_map('strval', array_merge($colore['values'], $taglia['values']));
+        $spunte = [
+            'option_'.$colore['id'] => array_map('strval', $colore['values']),
+            'option_'.$taglia['id'] => array_map('strval', $taglia['values']),
+        ];
 
         // Il catalogo si legge una volta per richiesta, e la lettura è già
         // avvenuta all'avvio del sito: qui gli attributi nascono dopo.
@@ -153,7 +156,7 @@ try {
                 'position' => 4,
             ]);
 
-            $spunte[] = (string) ($nuovo->insert_id ?? 0);
+            $spunte['option_'.$taglia['id']][] = (string) ($nuovo->insert_id ?? 0);
             // La cache degli attributi vale per richiesta: qui si rilegge.
             ProductModelResource::forgetCatalogCache();
             $genera($spunte);
@@ -168,8 +171,8 @@ try {
 
             try {
                 ProductModelResource::chosenAxes([
-                    (string) $colore['values'][0],
-                    (string) $gusto['values'][0],
+                    'option_'.$colore['id'] => [(string) $colore['values'][0]],
+                    'option_'.$gusto['id'] => [(string) $gusto['values'][0]],
                 ]);
             } catch (UserError $errore) {
                 return $errore->key() === 'product.one_page_option';

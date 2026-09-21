@@ -36,23 +36,37 @@ $scheda = new class extends ProductModelResource {
     }
 };
 
-check('l\'albero mostra solo le opzioni, non le caratteristiche', function () use ($scheda) {
-    $albero = $scheda::optionTree();
+check('c\'è un gruppo di caselle per ogni opzione, non per le caratteristiche', function () use ($scheda) {
+    $campi = [];
 
-    return isset($albero['attr_1'], $albero['attr_2'], $albero['attr_3'], $albero['attr_5'])
-        && !isset($albero['attr_4'])
-        && $albero['attr_1']['name'] === 'Colore'
-        // PHP riporta a numero le chiavi numeriche di un array.
-        && array_keys($albero['attr_1']['child']) === [10, 11];
+    foreach ($scheda::optionFields() as $campo) {
+        $campi[(string) $campo->name] = $campo;
+    }
+
+    return array_keys($campi) === ['option_1', 'option_2', 'option_3', 'option_5']
+        && $campi['option_1']->get('label') === 'Colore'
+        && $campi['option_1']->get('options') === ['10' => 'Blu', '11' => 'Rosso'];
+});
+
+check('ogni gruppo elenca i valori della sua opzione', function () use ($scheda) {
+    $opzioni = $scheda::valuesOf(1);
+
+    return $opzioni === ['10' => 'Blu', '11' => 'Rosso'];
 });
 
 check('un\'opzione senza valori non compare', function () use ($scheda) {
     // "Peso" crea versioni ma è un numero: non ha niente da spuntare.
-    return !isset($scheda::optionTree()['attr_6']);
+    $chiavi = array_map(static fn ($c): string => (string) $c->name, $scheda::optionFields());
+
+    return !in_array('option_6', $chiavi, true);
 });
 
 check('le spunte si dividono fra pagina propria e resto', function () use ($scheda) {
-    $scelte = $scheda::chosenAxes(['attr_1', '10', '11', '20', '21', '30']);
+    $scelte = $scheda::chosenAxes([
+        'option_1' => ['10', '11'],
+        'option_2' => ['20', '21'],
+        'option_3' => ['30'],
+    ]);
 
     return count($scelte['variant']) === 2
         && $scelte['variant'][0] === ['id' => 10, 'label' => 'Blu']
@@ -60,22 +74,22 @@ check('le spunte si dividono fra pagina propria e resto', function () use ($sche
 });
 
 check('ogni opzione è un asse a sé', function () use ($scheda) {
-    $scelte = $scheda::chosenAxes(['20', '21', '30']);
+    $scelte = $scheda::chosenAxes(['option_2' => ['20', '21'], 'option_3' => ['30']]);
     $misure = array_map('count', $scelte['axes']);
     sort($misure);
 
     return $scelte['variant'] === [] && $misure === [1, 2];
 });
 
-check('le caratteristiche spuntate per sbaglio non contano', function () use ($scheda) {
-    $scelte = $scheda::chosenAxes(['40', '20']);
+check('quello che non è un valore di quell\'opzione non conta', function () use ($scheda) {
+    $scelte = $scheda::chosenAxes(['option_2' => ['20', '40', 'niente']]);
 
     return $scelte['variant'] === [] && count($scelte['axes']) === 1;
 });
 
 check('due opzioni con pagina propria sono un rifiuto', function () use ($scheda) {
     try {
-        $scheda::chosenAxes(['10', '50']);
+        $scheda::chosenAxes(['option_1' => ['10'], 'option_5' => ['50']]);
     } catch (UserError $errore) {
         return $errore->key() === 'product.one_page_option';
     }
@@ -84,7 +98,7 @@ check('due opzioni con pagina propria sono un rifiuto', function () use ($scheda
 });
 
 check('due valori della stessa opzione con pagina propria vanno bene', function () use ($scheda) {
-    $scelte = $scheda::chosenAxes(['10', '11']);
+    $scelte = $scheda::chosenAxes(['option_1' => ['10', '11']]);
 
     return count($scelte['variant']) === 2 && $scelte['axes'] === [];
 });

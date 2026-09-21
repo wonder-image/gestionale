@@ -42,9 +42,21 @@ $tutte = [
 $stato = static fn (): array => array_map($conta, $tutte);
 $prima = $stato();
 
-// Il sito aveva già i dati di prova? Serve in fondo: `clear()` toglie le foto
-// dal disco e la transazione non le rimette.
+// `clear()` toglie le foto dal disco, e la transazione rimette indietro le
+// righe ma non i file. Se ne tiene una copia e alla fine si rimettono: così il
+// sito resta esattamente com'era, id compresi.
 $aveva = is_array(Brand::find(['name' => 'Prova Marchio', 'deleted' => 'false'], 1));
+$cartella = rtrim((string) ($GLOBALS['ROOT'] ?? ''), '/').'/assets/upload'.ProductImages::folder();
+$copia = sys_get_temp_dir().'/gestionale-foto-'.getmypid();
+$fileDiPrima = glob($cartella.'*') ?: [];
+
+if ($fileDiPrima !== [] && !is_dir($copia)) {
+    mkdir($copia, 0777, true);
+
+    foreach ($fileDiPrima as $file) {
+        copy($file, $copia.'/'.basename($file));
+    }
+}
 
 try {
     Transaction::run(static function () use ($conta, $stato): void {
@@ -152,13 +164,17 @@ try {
 
 check('dopo l\'annullamento il catalogo è come prima', fn () => $stato() === $prima);
 
-// La transazione riporta indietro le righe, non i file: `clear()` ha tolto le
-// foto dal disco e quelle non tornano da sole. Se il sito aveva i dati di
-// prova, glieli si rifà, altrimenti resterebbe con tre righe che puntano a
-// file che non ci sono più.
-if ($aveva) {
-    CatalogDemo::clear();
-    CatalogDemo::create();
+// Le righe sono tornate con l'annullamento; i file li rimettiamo noi.
+foreach (glob($copia.'/*') ?: [] as $file) {
+    if (!is_file($cartella.basename($file))) {
+        copy($file, $cartella.basename($file));
+    }
+
+    unlink($file);
+}
+
+if (is_dir($copia)) {
+    rmdir($copia);
 }
 
 check('il sito resta con foto vere sul disco', function () use ($aveva) {

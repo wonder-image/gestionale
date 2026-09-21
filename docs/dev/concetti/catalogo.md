@@ -171,9 +171,13 @@ ritrova. Per questo `formSchema()` dichiara i repeater solo quando servono.
 
 ### Le combinazioni
 
-Nella scheda si spuntano i valori in **un elenco solo** (`option_values`, tutte
-le opzioni insieme). `ProductModelResource::chosenAxes()` li smista leggendo il
-livello dell'attributo: l'asse con pagina propria da una parte, gli altri in un
+Nella scheda c'è **un gruppo di caselle per opzione** (`option_<attributeId>`,
+uno per attributo che crea versioni: li costruisce `optionFields()`). Era un
+albero solo, ma le opzioni non sono una gerarchia e la lib nasconde i quadratini
+di jsTree (`.jstree-checkbox` sta a `display:none`), quindi si spuntava
+cliccando righe che non sembravano cliccabili.
+`ProductModelResource::chosenAxes($post)` li smista leggendo il livello
+dell'attributo: l'asse con pagina propria da una parte, gli altri in un
 elenco di assi. Se le spunte toccano **due** attributi con pagina propria è un
 rifiuto (`product.one_page_option`): non si saprebbe quale valore è la pagina.
 
@@ -231,6 +235,26 @@ Tre cose imparate facendola:
 3. **Quando è il sito a non poter lavorare** — una costante che esiste solo
    durante una richiesta web — la coda si ferma e lo dice (`blocked`), invece di
    bruciare i tentativi delle righe una per una.
+
+## La scheda su due colonne
+
+`formLayoutSchema()` torna due `Container`, `columnSpan(8)` e `columnSpan(4)`.
+Perché funzioni serve `columns(12)` **sul Form**: il renderer calcola la
+larghezza di un figlio sulle colonne del padre, e un Form senza colonne ne ha
+una sola, quindi qualunque span diventa piena larghezza.
+
+## Prezzi: uno per tutte le versioni
+
+Il prezzo del riquadro in alto vale per ogni riga: `savePrices()` lo scrive su
+tutte. La casella **vuota non tocca niente**, ed è l'unico modo di tenere prezzi
+diversi senza che un salvataggio distratto li riallinei;
+`commonValue()` la riempie solo quando le versioni costano uguale.
+
+**Attenzione:** finché il core installato non ha il commit `7d6df162`, i prezzi
+scritti nella **griglia** passano dal `prepare()` del core e vengono arrotondati
+(21,50 diventa 22,00). Dal riquadro in alto no, perché lì scrive
+`Product::update()` con `Support\Numbers::fromForm()`. Non c'è rimedio lato
+modulo: l'hook `prepareRepeaterRelationRow()` gira **prima** di `preparePayload()`.
 
 ## Il riquadro che non si chiude
 
