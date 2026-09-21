@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Catalog;
 
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
+use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
@@ -28,6 +29,7 @@ use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
+use Wonder\Plugin\Gestionale\Support\Catalog\Combinations;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Ean;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
@@ -63,6 +65,12 @@ class ProductModelResource extends GestionaleResource
     // La guida del commerciante arriva con il piano 4, quando la scheda avrà
     // anche le immagini: finché la pagina non esiste il pulsante non compare.
     public static string $docsPage = '';
+
+    /** @var list<array<string, mixed>>|null attributi letti una volta per richiesta */
+    private static ?array $catalogAttributes = null;
+
+    /** @var array<int, array<string, mixed>>|null valori letti una volta per richiesta */
+    private static ?array $catalogValues = null;
 
     /** Unità di misura: quelle che un negozio usa davvero. */
     private const UNITS = [
@@ -161,6 +169,18 @@ class ProductModelResource extends GestionaleResource
             $fields[] = static::attributeField($attribute);
         }
 
+        if (static::valueTree('variant') !== []) {
+            $fields[] = FormField::key('variant_values')
+                ->checkTree(static::valueTree('variant'), true)
+                ->label('Valori delle varianti');
+        }
+
+        if (static::valueTree('product') !== []) {
+            $fields[] = FormField::key('product_values')
+                ->checkTree(static::valueTree('product'), true)
+                ->label('Valori dei prodotti');
+        }
+
         // I due repeater esistono solo quando c'è più di una riga da mostrare.
         // Non è solo estetica: un campo che non viene stampato non viene
         // nemmeno postato, e il sync dei repeater cancella le righe che non
@@ -249,6 +269,24 @@ class ProductModelResource extends GestionaleResource
             static::getInput('returnable')->columnSpan(6),
             static::getInput('requires_shipping')->columnSpan(6),
         ])->columns(12)->columnSpan(12);
+
+        if (static::valueTree('variant') !== [] || static::valueTree('product') !== []) {
+            $componenti = [
+                SectionTitle::make('Genera varianti e prodotti')
+                    ->tooltip('Spunta i valori e salva: nascono le varianti e i prodotti che mancano, con lo SKU proposto. Rifarlo non duplica niente.')
+                    ->columnSpan(12),
+            ];
+
+            if (static::valueTree('variant') !== []) {
+                $componenti[] = static::getInput('variant_values')->columnSpan(6);
+            }
+
+            if (static::valueTree('product') !== []) {
+                $componenti[] = static::getInput('product_values')->columnSpan(6);
+            }
+
+            $cards[] = (new Card)->components($componenti)->columns(12)->columnSpan(12);
+        }
 
         if ($modelId !== null && static::variantCount($modelId) > 1) {
             $cards[] = (new Card)->components([
@@ -404,6 +442,7 @@ class ProductModelResource extends GestionaleResource
             static::saveCategories($modelId, $post);
             static::saveTags($modelId, $post);
             static::saveModelAttributes($modelId, $post);
+            static::generateCombinations($modelId, $post);
             static::saveSoleProduct($modelId, $post, $fallbackSku);
         });
     }
@@ -512,6 +551,272 @@ class ProductModelResource extends GestionaleResource
         return parent::deleteRecord($id);
     }
 
+    /**
+     * L'albero da spuntare per un livello: attributo, e sotto i suoi valori.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function valueTree(string $level): array
+    {
+        $tree = [];
+
+        foreach (Attributes::byLevel(static::attributes(), $level) as $attribute) {
+            if (!Attributes::usesValues((string) ($attribute['type'] ?? ''))) {
+                continue;
+            }
+
+            $id = (int) $attribute['id'];
+            $children = [];
+
+            foreach (static::attributeValues() as $value) {
+                if ((int) ($value['attribute_id'] ?? 0) === $id) {
+                    $children[(string) $value['id']] = [
+                        'name' => (string) ($value['label'] ?? ''),
+                        'child' => [],
+                    ];
+                }
+            }
+
+            if ($children !== []) {
+                // La chiave dell'attributo non è un valore: chi legge le spunte
+                // tiene solo gli id che sono davvero dei valori.
+                $tree['attr_'.$id] = [
+                    'name' => (string) ($attribute['name'] ?? ''),
+                    'child' => $children,
+                ];
+            }
+        }
+
+        return $tree;
+    }
+
+    /**
+     * Le varianti e i prodotti che mancano, creati con lo SKU proposto.
+     *
+     * Rifarlo con le stesse spunte non crea niente: `Combinations::plan()`
+     * confronta con quello che c'è. Quando il modello ha ancora solo lo
+     * scheletro — una variante e un prodotto senza attributi — la prima
+     * combinazione lo riusa, invece di lasciare in giro una variante vuota.
+     */
+    public static function generateCombinations(int $modelId, array $post): void
+    {
+        $variantValues = static::chosenValues($post['variant_values'] ?? [], 'variant');
+        $productValues = static::chosenValues($post['product_values'] ?? [], 'product');
+
+        if ($variantValues === [] && $productValues === []) {
+            return;
+        }
+
+        $plan = Combinations::plan($variantValues, $productValues, static::existingCombinations($modelId));
+
+        if ($plan['variants'] === [] && $plan['products'] === []) {
+            return;
+        }
+
+        $model = ProductModel::find(['id' => $modelId], 1);
+        $modelSku = is_array($model) ? (string) ($model['sku'] ?? '') : '';
+        $reuse = static::skeletonToReuse($modelId);
+        $variantAttribute = static::attributeOfValues($variantValues);
+        $productAttribute = static::attributeOfValues($productValues);
+        $variantIds = static::existingCombinations($modelId)['variants'];
+        $position = static::variantCount($modelId);
+
+        foreach ($plan['variants'] as $variant) {
+            $valueId = (int) $variant['value_id'];
+
+            if ($reuse !== null && $reuse['variant_id'] > 0) {
+                $variantId = $reuse['variant_id'];
+                ProductVariant::update(['name' => $variant['label']], $variantId);
+                $reuse['variant_id'] = 0;
+            } else {
+                $created = ProductVariant::create([
+                    'code' => Code::make(ProductVariant::class, Codes::VARIANT),
+                    'product_model_id' => $modelId,
+                    'name' => $variant['label'],
+                    'slug' => Slug::make($variant['label'].'-'.$modelId.'-'.$valueId),
+                    'position' => ++$position,
+                    'visible' => 'true',
+                ]);
+                $variantId = (int) ($created->insert_id ?? 0);
+            }
+
+            if ($variantId === 0) {
+                continue;
+            }
+
+            $variantIds[$valueId] = $variantId;
+
+            if ($variantAttribute !== null) {
+                ProductAttributes::save('variant', $variantId, [$variantAttribute], [
+                    (int) $variantAttribute['id'] => (string) $valueId,
+                ]);
+            }
+        }
+
+        $productPosition = static::productCount($modelId);
+
+        foreach ($plan['products'] as $product) {
+            $valueId = (int) $product['variant_value_id'];
+            $variantId = $valueId > 0
+                ? ($variantIds[$valueId] ?? 0)
+                : static::firstVariantId($modelId);
+
+            if ($variantId === 0) {
+                continue;
+            }
+
+            $sku = Sku::propose($modelSku, $product['labels']);
+
+            if ($reuse !== null && $reuse['product_id'] > 0) {
+                $productId = $reuse['product_id'];
+                Product::update([
+                    'product_variant_id' => $variantId,
+                    'sku' => $sku,
+                ], $productId);
+                $reuse['product_id'] = 0;
+            } else {
+                $created = Product::create([
+                    'code' => Code::make(Product::class, Codes::PRODUCT),
+                    'product_model_id' => $modelId,
+                    'product_variant_id' => $variantId,
+                    'sku' => $sku,
+                    'position' => ++$productPosition,
+                    'active' => 'true',
+                ]);
+                $productId = (int) ($created->insert_id ?? 0);
+            }
+
+            if ($productId === 0 || $productAttribute === null) {
+                continue;
+            }
+
+            $productValueId = (int) $product['product_value_id'];
+
+            if ($productValueId > 0) {
+                ProductAttributes::save('product', $productId, [$productAttribute], [
+                    (int) $productAttribute['id'] => (string) $productValueId,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Gli id spuntati che sono davvero valori di quel livello, con l'etichetta.
+     *
+     * @return list<array{id: int, label: string}>
+     */
+    public static function chosenValues(mixed $chosen, string $level): array
+    {
+        $ids = array_filter(array_map('intval', (array) $chosen), static fn (int $id): bool => $id > 0);
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $allowed = [];
+
+        foreach (Attributes::byLevel(static::attributes(), $level) as $attribute) {
+            $allowed[(int) $attribute['id']] = true;
+        }
+
+        $values = [];
+
+        foreach (static::attributeValues() as $value) {
+            if (!in_array((int) $value['id'], $ids, true)) {
+                continue;
+            }
+
+            if (!isset($allowed[(int) ($value['attribute_id'] ?? 0)])) {
+                continue;
+            }
+
+            $values[] = ['id' => (int) $value['id'], 'label' => (string) ($value['label'] ?? '')];
+        }
+
+        return $values;
+    }
+
+    /**
+     * Varianti e prodotti già presenti, nella forma che `Combinations` legge.
+     *
+     * @return array{variants: array<int, int>, products: array<string, bool>}
+     */
+    public static function existingCombinations(int $modelId): array
+    {
+        $variants = [];
+        $variantValueOf = [];
+
+        foreach (static::variants($modelId) as $variant) {
+            $variantId = (int) $variant['id'];
+
+            foreach (ProductAttributes::read('variant', $variantId) as $link) {
+                $valueId = (int) ($link['attribute_value_id'] ?? 0);
+
+                if ($valueId > 0) {
+                    $variants[$valueId] = $variantId;
+                    $variantValueOf[$variantId] = $valueId;
+                }
+            }
+        }
+
+        $products = [];
+
+        foreach (static::products($modelId) as $product) {
+            $variantValue = $variantValueOf[(int) ($product['product_variant_id'] ?? 0)] ?? 0;
+            $productValue = 0;
+
+            foreach (ProductAttributes::read('product', (int) $product['id']) as $link) {
+                $productValue = (int) ($link['attribute_value_id'] ?? 0) ?: $productValue;
+            }
+
+            $products[$variantValue.'-'.$productValue] = true;
+        }
+
+        return ['variants' => $variants, 'products' => $products];
+    }
+
+    /**
+     * Lo scheletro da riusare: una variante e un prodotto, senza attributi e
+     * senza niente scritto sopra.
+     *
+     * @return array{variant_id: int, product_id: int}|null
+     */
+    protected static function skeletonToReuse(int $modelId): ?array
+    {
+        if (static::variantCount($modelId) !== 1 || static::productCount($modelId) !== 1) {
+            return null;
+        }
+
+        $variant = static::variants($modelId)[0];
+        $product = static::products($modelId)[0];
+
+        if (ProductAttributes::read('variant', (int) $variant['id']) !== []
+            || ProductAttributes::read('product', (int) $product['id']) !== []) {
+            return null;
+        }
+
+        return ['variant_id' => (int) $variant['id'], 'product_id' => (int) $product['id']];
+    }
+
+    /**
+     * L'attributo a cui appartengono i valori spuntati.
+     *
+     * @param list<array{id: int, label: string}> $values
+     */
+    protected static function attributeOfValues(array $values): ?array
+    {
+        $first = $values[0]['id'] ?? 0;
+        $attributeId = (int) (static::attributeValues()[$first]['attribute_id'] ?? 0);
+
+        foreach (static::attributes() as $attribute) {
+            if ((int) $attribute['id'] === $attributeId) {
+                return $attribute;
+            }
+        }
+
+        return null;
+    }
+
     /** Quante varianti ha quel modello. */
     public static function variantCount(int $modelId): int
     {
@@ -547,25 +852,34 @@ class ProductModelResource extends GestionaleResource
     /** Gli attributi visibili, letti una volta per richiesta. */
     public static function attributes(): array
     {
-        static $attributes = null;
+        return static::$catalogAttributes ??= static::rowsOf(Attribute::class, ['is_visible' => 'true'], 'position');
+    }
 
-        return $attributes ??= static::rowsOf(Attribute::class, ['is_visible' => 'true'], 'position');
+    /**
+     * Butta via la lettura di attributi e valori.
+     *
+     * In una richiesta il catalogo non cambia sotto i piedi, e leggerlo una
+     * volta basta. Nei test, dove si creano attributi e poi si genera, serve
+     * dirlo.
+     */
+    public static function forgetCatalogCache(): void
+    {
+        static::$catalogAttributes = null;
+        static::$catalogValues = null;
     }
 
     /** I valori degli attributi a elenco, per id. @return array<int, array<string, mixed>> */
     public static function attributeValues(): array
     {
-        static $values = null;
-
-        if ($values === null) {
-            $values = [];
+        if (static::$catalogValues === null) {
+            static::$catalogValues = [];
 
             foreach (static::rowsOf(AttributeValue::class, [], 'position') as $row) {
-                $values[(int) $row['id']] = $row;
+                static::$catalogValues[(int) $row['id']] = $row;
             }
         }
 
-        return $values;
+        return static::$catalogValues;
     }
 
     protected static function firstVariantId(int $modelId): int
@@ -576,7 +890,7 @@ class ProductModelResource extends GestionaleResource
     }
 
     /** Il campo di un attributo di modello, secondo il suo tipo. */
-    protected static function attributeField(array $attribute): FormField
+    protected static function attributeField(array $attribute): Input
     {
         $id = (int) $attribute['id'];
         $name = (string) ($attribute['name'] ?? '');
@@ -627,7 +941,7 @@ class ProductModelResource extends GestionaleResource
         return $options;
     }
 
-    protected static function variantsField(): FormField
+    protected static function variantsField(): Input
     {
         return FormField::key('variants')
             ->repeater([
@@ -654,7 +968,7 @@ class ProductModelResource extends GestionaleResource
             ->label('Varianti');
     }
 
-    protected static function productsField(): FormField
+    protected static function productsField(): Input
     {
         return FormField::key('products')
             ->repeater([
@@ -684,7 +998,7 @@ class ProductModelResource extends GestionaleResource
             ->label('Prodotti');
     }
 
-    /** @return list<FormField> */
+    /** @return list<Input> */
     protected static function soleProductFields(): array
     {
         return [
@@ -706,6 +1020,8 @@ class ProductModelResource extends GestionaleResource
             $values['product_ean'],
             $values['product_price'],
             $values['product_sale_price'],
+            $values['variant_values'],
+            $values['product_values'],
         );
 
         foreach (array_keys($values) as $key) {

@@ -47,7 +47,9 @@ final class AttributeValue extends Model
     {
         return [
             Field::key('attribute_id')->number()->decimals(0),
-            Field::key('label')->text()->sanitizeFirst(),
+            // Niente `sanitizeFirst()`: un'etichetta è spesso una sigla, e
+            // "XL" non deve diventare "Xl".
+            Field::key('label')->text(),
             Field::key('color')->text(),
             Field::key('image')
                 ->image()
