@@ -163,7 +163,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
       - Cartella delle foto: è quella della pagina dei modelli, perché il repeater scrive i file nella cartella del Model e li rilegge in quella della Resource.
   - [ ] **G2a-bis La scheda prodotto semplice** — spec: `docs/superpowers/specs/2026-09-21-scheda-prodotto-semplice-design.md` (decisioni S1–S12)
     - Perché: la scheda di G2a ha dieci riquadri tutti uguali, le righe dei prodotti non dicono chi sono, e "livello dell'attributo" e "valori delle varianti" chiedono di conoscere il modello dati. Prima che magazzino, ordini e vetrina ci si appoggino sopra.
-    - [ ] Piano da scrivere
+    - [ ] Piano scritto (2026-09-21): `docs/superpowers/plans/2026-09-21-scheda-prodotto-semplice.md` — dieci task, dal riquadro che si chiude alle guide riscritte. Da eseguire.
     - `wonder-image/app`: servirà `redirectUrl($action, $id)` con il caso `edit`, per atterrare sulla scheda appena creata. Da rilasciare con `7d6df162` e `81e1323f`.
   - [ ] G2b Magazzino base e anagrafiche
 - [ ] G3 Magazzino avanzato

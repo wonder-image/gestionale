@@ -228,9 +228,11 @@ la creazione riporta alla lista: fastidioso, non bloccante.
 
 ### 10. Dati esistenti
 
-- `gst_products.name`: colonna nuova via `syncSchema`. Le righe già presenti le
-  riempie un passaggio in `forge update`, componendo il nome dagli attributi
-  della riga; dove non c'è niente da comporre resta lo SKU.
+- `gst_products.name`: colonna nuova. La riempie il generatore quando crea la
+  riga. Per le righe nate prima non c'è nessun passaggio di migrazione: il
+  gancio dei moduli (`ModuleDefaults::seed()`) sa solo inserire righe mancanti,
+  e un comando apposta non si giustifica per zero installazioni in produzione.
+  Dove il nome è vuoto la griglia mostra lo SKU, e salvando lo fissa.
 - Il livello dell'attributo non cambia nel database: cambiano le etichette.
 - Cambiano due indirizzi (`modelli` → `prodotti`, la versione a `versioni`). Non
   ci sono installazioni in produzione: nessun redirect di compatibilità.
