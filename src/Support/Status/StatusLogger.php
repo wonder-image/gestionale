@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Status;
 
 use RuntimeException;
+use Wonder\Plugin\Gestionale\Extensions\Extensions;
 use Wonder\Plugin\Gestionale\Models\System\StatusLog;
 
 /**
@@ -43,7 +44,21 @@ final class StatusLogger
             'response' => $response === null ? '' : (string) json_encode($response, JSON_UNESCAPED_UNICODE),
         ]);
 
-        return !empty($result->success);
+        if (empty($result->success)) {
+            return false;
+        }
+
+        // Il sito può reagire al cambio di stato: un suo errore non ferma noi.
+        Extensions::run(
+            'onStatusChanged',
+            $logClass::entityTable(),
+            $entityId,
+            $field,
+            $from,
+            $to
+        );
+
+        return true;
     }
 
     /** Un'origine che non conosciamo non è colpa di chi legge il log: diventa `system`. */

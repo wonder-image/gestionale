@@ -10,6 +10,8 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 
+use Wonder\Plugin\Gestionale\Extensions\Extensions;
+use Wonder\Plugin\Gestionale\Extensions\GestionaleExtension;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Models\System\StatusLog;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
@@ -17,6 +19,17 @@ use Wonder\Sql\Connection;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
+
+/** Estensione finta: prova che l'hook del sito viene chiamato. */
+final class EstensioneDiProva extends GestionaleExtension
+{
+    public static array $cambi = [];
+
+    public function onStatusChanged(string $entity, int $entityId, string $field, string $from, string $to): void
+    {
+        self::$cambi[] = [$entity, $entityId, $field, $from, $to];
+    }
+}
 
 /** Log finto: le tabelle vere nascono con i loro sotto-progetti. */
 final class ProvaStatusLog extends StatusLog
@@ -73,6 +86,17 @@ try {
             $risposta = json_decode((string) ($riga['response'] ?? ''), true);
 
             return is_array($risposta) && ($risposta['esito'] ?? '') === 'ok';
+        });
+
+        check('il sito viene avvisato del cambio di stato', function () use ($featureId) {
+            Extensions::use([EstensioneDiProva::class]);
+            EstensioneDiProva::$cambi = [];
+
+            StatusLogger::record(ProvaStatusLog::class, $featureId, 'status', 'a', 'b');
+
+            Extensions::use(null);
+
+            return EstensioneDiProva::$cambi === [[Feature::$table, $featureId, 'status', 'a', 'b']];
         });
 
         check('un\'origine sconosciuta finisce come system', function () use ($featureId) {
