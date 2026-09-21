@@ -26,8 +26,13 @@ check('le Resource del modulo sono autoloadabili', function () use ($classi) {
 });
 
 check('ogni Resource con dati dichiara la sua funzionalità', function () use ($classi) {
-    // Le pagine sempre attive (3.4 della spec) sono elencate qui.
-    $sempreAttive = [];
+    // Le pagine sempre attive (3.4 della spec) sono elencate qui: le tabelle
+    // fiscali servono a qualsiasi documento, non si sbloccano.
+    $sempreAttive = [
+        'Wonder\\Plugin\\Gestionale\\Resources\\Tax\\TaxResource',
+        'Wonder\\Plugin\\Gestionale\\Resources\\Tax\\TaxCategoryResource',
+        'Wonder\\Plugin\\Gestionale\\Resources\\Tax\\TaxRuleResource',
+    ];
     $mancanti = [];
 
     foreach ($classi as $classe) {
