@@ -541,6 +541,7 @@ architettura.
 | G1.9 | Nomi di colonna che evitano le parole riservate di MySQL: `features.feature_key`; `taxes.rate` invece di `value` |
 | G1.10 | Prefisso delle tabelle `gst_` invece di `gestionale_`, e versioni del core `2.2.1` (prerequisiti) e `2.2.2` (aggiunte di G1); la `2.3.0` arriverà con la gestione dei cron |
 | G1.11 | I test d'integrazione usano il database del sito di prova (`ecommerce_site`) dentro transazioni annullate, senza un database dedicato |
-| G1.14 | Aggiunte al core pubblicate durante G1: campo `toggle` (`2.2.3`), pagine-form `isFormPage()` (`2.2.4`), contenitore `masonry()` (`2.2.5`, corretto nella `2.2.6`), `FlashAlert` per le notifiche di salvataggio (`2.2.7`) |
+| G1.15 | `error_reports` sta in `wonder-image/app`, non nel modulo: raccogliere gli errori ripetuti serve a qualsiasi sito. I destinatari li passa chi segnala (`recipientsUsing()`), perché il core non sa cosa sia un "commerciante" |
+| G1.14 | Aggiunte al core pubblicate durante G1: campo `toggle` (`2.2.3`), pagine-form `isFormPage()` (`2.2.4`), contenitore `masonry()` (`2.2.5`, corretto nella `2.2.6`), `FlashAlert` per le notifiche di salvataggio (`2.2.7`/`2.2.8`), pulsante "Guida" `btn-info btn-sm` (`2.2.9`), `SocietyLocationResource` estendibile (`2.2.10`), `error_reports` e `ErrorReporter` (`2.2.11`) |
 | G1.13 | La documentazione usa `gitbook-docs.yaml` nella radice per mappare gli spazi (`./docs` e `./guide`), con un `.gitbook.yaml` per cartella |
 | G1.12 | Il pannello delle funzionalità è una pagina sola con gli interruttori (non un elenco con una scheda per funzionalità), dichiarata con `formSchema()` e `formLayoutSchema()` su una pagina-form del core; regole delle dipendenze applicate al salvataggio |
