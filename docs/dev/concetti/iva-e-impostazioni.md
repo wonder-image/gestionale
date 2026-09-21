@@ -12,19 +12,6 @@ icon: percent
 | `gst_tax_categories` | il tipo fiscale del prodotto (ordinario, alimentare, libri, servizi) |
 | `gst_tax_rules` | paese × tipo di cliente × tipo fiscale → aliquota |
 
-**A cosa serve il tipo fiscale.** L'aliquota non è una proprietà del prodotto:
-lo stesso libro è al 4% in Italia e a un'altra aliquota per un privato di un
-altro paese. Quello che il prodotto ha davvero è *come va tassato* — beni
-ordinari, alimentari, libri, servizi — e questo è il tipo fiscale. La regola
-mette insieme tipo fiscale, paese e tipo di cliente e ne tira fuori l'aliquota.
-
-Finché il tipo fiscale è uno solo la scheda prodotto non lo mostra nemmeno: si
-comincia a vederlo quando il negozio vende cose tassate in modo diverso.
-
-Il codice della regola lo compone la pagina da sé, nel formato
-`{paese}-{tipo cliente}-{tipo fiscale}` (`it-private-ordinaria`): due regole
-non possono chiamarsi allo stesso modo e nessuno deve inventarsi una sigla.
-
 Si modificano solo in locale e arrivano in produzione con il deploy, con gli
 `id` stabili. Le aliquote **non si eliminano**: si nascondono, perché i
 documenti già emessi puntano alla loro.
@@ -32,6 +19,70 @@ documenti già emessi puntano alla loro.
 Le righe precaricate sono le quattro aliquote italiane visibili (22, 10, 5, 4) e
 una riga nascosta per ogni natura valida, il tipo fiscale "Aliquota ordinaria" e
 le due regole italiane, privato e azienda, al 22%.
+
+## A cosa serve il tipo fiscale
+
+L'aliquota **non è una proprietà del prodotto**. Lo stesso libro è al 4% per un
+cliente italiano e può essere tassato diversamente per un privato di un altro
+paese: se scrivessimo "4%" nella scheda del libro, quella cifra sarebbe giusta
+solo per metà dei clienti.
+
+Quello che il prodotto ha davvero è **come va tassato**: è un libro, è un
+alimento, è un bene ordinario, è un servizio. Questo è il tipo fiscale — una
+famiglia di prodotti che le regole trattano allo stesso modo. L'aliquota esce
+dall'incrocio di tre cose:
+
+```
+tipo fiscale del prodotto  ×  paese del cliente  ×  tipo di cliente  →  aliquota
+```
+
+### Un esempio
+
+Una libreria che vende anche cancelleria e caffè in grani. I tipi fiscali sono
+tre, e si scrivono una volta sola:
+
+| Tipo fiscale | Cosa ci finisce dentro |
+|---|---|
+| `libri` | romanzi, saggi, manuali |
+| `alimentari` | caffè, tisane, biscotti |
+| `ordinaria` | quaderni, penne, borse |
+
+Le regole, sempre una volta sola:
+
+| Paese | Cliente | Tipo fiscale | Aliquota |
+|---|---|---|---|
+| IT | Privato | `libri` | 4% |
+| IT | Privato | `alimentari` | 10% |
+| IT | Privato | `ordinaria` | 22% |
+| IT | Azienda | `ordinaria` | 22% |
+
+Poi, nel catalogo, ogni prodotto dice solo di che famiglia è: il romanzo è
+`libri`, la penna è `ordinaria`. Quando arriva un ordine, ogni riga risolve la
+sua aliquota da sé.
+
+**Cosa succede quando qualcosa cambia.** Se l'aliquota dei libri passasse dal 4%
+al 5%, si cambia **una riga di regola**: i tremila libri in catalogo non si
+toccano. Se domani la libreria vende in Germania, si aggiungono le regole per
+quel paese e i prodotti restano come sono.
+
+**Cosa succede se la combinazione non c'è.** Il documento usa l'aliquota di
+ripiego delle impostazioni fiscali: meglio un'aliquota prudente che un ordine
+che si rifiuta di chiudere. Se capita spesso, vuol dire che manca una regola.
+
+### Quando serve più di un tipo fiscale
+
+Mai, finché il negozio vende cose tassate tutte allo stesso modo: il gestionale
+nasce con il solo "Aliquota ordinaria" e la scheda prodotto non mostra nemmeno
+il campo. Serve un secondo tipo fiscale il giorno in cui entra in catalogo
+qualcosa con un'aliquota diversa — alimentari, libri, servizi, dispositivi
+medici.
+
+### Il codice delle regole
+
+Lo compone la pagina da sé, nel formato `{paese}-{tipo cliente}-{tipo fiscale}`
+(`it-private-ordinaria`): due regole non possono chiamarsi allo stesso modo e
+nessuno deve inventarsi una sigla. Nell'elenco si leggono i nomi, non gli id.
+
 
 ## Scegliere l'aliquota e fare i totali
 

@@ -22,10 +22,13 @@ Un prodotto ha un marchio solo, una o più categorie e quanti tag vuoi.
 
 1. **Catalogo → Categorie → Aggiungi categoria**.
 2. Scrivi il **nome**.
-3. **Categoria padre:** lascia "Nessuna" se è una categoria principale, oppure
-   scegli sotto quale sta.
-4. **Posizione** decide l'ordine tra le sorelle: 1 viene prima di 2.
-5. Salva.
+3. **Categoria padre:** l'albero si apre già aperto. Lascia spuntato "Nessuna
+   (categoria principale)" se sta in cima, oppure spunta la categoria sotto cui
+   va. Si sceglie una sola categoria; con tante voci c'è la barra di ricerca.
+4. Salva.
+
+L'ordine non lo devi decidere tu: una categoria nuova si mette in fondo alle
+sue sorelle.
 
 Nell'elenco vedi il percorso completo, così capisci a colpo d'occhio dove sta
 ognuna.
@@ -33,11 +36,11 @@ ognuna.
 ## Cose che il pannello non ti lascia fare
 
 - **Mettere una categoria sotto sé stessa** o sotto una sua sottocategoria: non
-  compare nemmeno nell'elenco dei padri, e se ci provi te lo dice.
+  compare nemmeno nell'albero dei padri, e se ci provi te lo dice.
 - **Eliminare una categoria che ha sottocategorie:** spostale o eliminale prima,
   altrimenti resterebbero senza posto.
-- **Cambiare l'indirizzo** (lo "slug"): nasce dal nome quando crei la riga e poi
-  resta. È il link della pagina: cambiarlo romperebbe quelli già in giro.
+- **Cambiare l'url pubblico** (lo "slug"): nasce dal nome quando crei la riga e
+  poi resta. È il link della pagina: cambiarlo romperebbe quelli già in giro.
 
 ## Nascondere invece di eliminare
 
