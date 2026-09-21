@@ -47,9 +47,10 @@ cambia solo quello che prendi dallo scaffale, è di prodotto.
 6. **Filtro**: se in vetrina il cliente potrà cercare per questo attributo.
 7. Salva.
 
-Se il tipo è "Elenco" o "Colore", appena salvi compare il riquadro **Valori**.
-Aggiungi una riga per valore, trascinale per metterle nell'ordine in cui vuoi
-che il cliente le veda, e salva di nuovo.
+Il riquadro **Valori** è lì sotto fin da subito: aggiungi una riga per valore,
+mettile nell'ordine in cui vuoi che il cliente le veda con le frecce, e salva.
+Se scegli il tipo "Testo" o "Numero" i valori non servono — un valore lo scrivi
+tu prodotto per prodotto — e riaprendo la scheda il riquadro non c'è più.
 
 ## Cose da sapere
 

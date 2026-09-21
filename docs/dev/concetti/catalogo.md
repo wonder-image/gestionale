@@ -101,13 +101,23 @@ core mette le virgolette ai nomi solo in `INSERT`, `UPDATE` e `WHERE`: un
 ### Il riquadro dei valori
 
 `AttributeResource` dichiara i valori come repeater collegato a
-`gst_attribute_values`, ma il riquadro compare solo quando il tipo li usa: in
-creazione il tipo non è ancora scelto, e un attributo "Testo" non ha niente da
-elencare. Il layout legge la riga aperta con `currentId()` di
-`GestionaleResource`.
+`gst_attribute_values`. Il riquadro c'è quando il tipo li usa: in creazione vale
+il tipo predefinito (`AttributeResource::DEFAULT_TYPE`, cioè `select`), così chi
+crea un attributo scrive subito i suoi valori; modificando un attributo "Testo"
+il riquadro non compare, perché non ha niente da elencare. Il layout legge la
+riga aperta con `currentId()` di `GestionaleResource`.
 
 Il tipo non si può cambiare mentre ci sono dei valori: `mutateRequestValues()`
 si ferma, perché il salvataggio li cancellerebbe in silenzio.
+
+### Il pulsante "Guida"
+
+`$docsPage` è il percorso della pagina come lo pubblica GitBook —
+`gruppo/nome-del-file`, dove il gruppo è il titolo `##` del SUMMARY a trattini —
+e `$docsSpace` sceglie la guida: `user` per il commerciante, `dev` per le pagine
+che non deve toccare (aliquote, tipi fiscali, regole). `DocsPagesTest` controlla
+che ogni pagina dichiarata esista: un link rotto si vede nei test, non quando
+qualcuno ci clicca.
 
 ## Rifiutare un salvataggio
 
