@@ -85,7 +85,7 @@ class ProductModelResource extends GestionaleResource
 
     public static function path(): string
     {
-        return 'app/gestionale/modelli';
+        return 'app/gestionale/prodotti';
     }
 
     public static function icon(): string
@@ -95,14 +95,14 @@ class ProductModelResource extends GestionaleResource
 
     public static function titleLabel(): string
     {
-        return 'Modelli';
+        return 'Prodotti';
     }
 
     public static function textSchema(): array
     {
         return [
-            'label' => 'modello',
-            'plural_label' => 'modelli',
+            'label' => 'prodotto',
+            'plural_label' => 'prodotti',
             'last' => 'ultimi',
             'all' => 'tutti',
             'article' => 'i',
@@ -335,13 +335,32 @@ class ProductModelResource extends GestionaleResource
 
     public static function pageSchema(): PageSchema
     {
-        return parent::pageSchema()
+        $schema = parent::pageSchema()
             ->disable(['view'])
             ->titles([
-                'list' => 'Modelli',
-                'create' => 'Nuovo modello',
-                'edit' => 'Modifica modello',
+                'list' => 'Prodotti',
+                'create' => 'Nuovo prodotto',
+                'edit' => 'Modifica prodotto',
             ]);
+
+        // I campi rari di una singola versione — codice del produttore, misure
+        // proprie, ordinabile su richiesta — non stanno in una riga di griglia.
+        // Il pulsante c'è solo quando le versioni sono più di una: con una
+        // sola, quei campi non li cerca nessuno.
+        return $schema->actions('edit', static function (array $item): array {
+            $modelId = (int) ($item['id'] ?? 0);
+
+            if ($modelId === 0 || static::productCount($modelId) <= 1) {
+                return [];
+            }
+
+            return [[
+                'label' => 'Dettagli delle versioni',
+                'href' => ProductResource::listUrlFor($modelId),
+                'class' => 'btn-outline-primary',
+                'icon' => 'bi-upc-scan',
+            ]];
+        });
     }
 
     public static function permissionSchema(): PermissionSchema
@@ -358,7 +377,7 @@ class ProductModelResource extends GestionaleResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('catalogo')
-            ->title('Modelli')
+            ->title('Prodotti')
             ->order(38)
             ->authority(['admin', 'administrator']);
     }
@@ -751,7 +770,7 @@ class ProductModelResource extends GestionaleResource
             ->repeaterDeleteCancelLabel('Annulla')
             ->repeaterDeleteConfirmLabel('Elimina')
             ->repeaterDeleteConfirmClass('btn btn-danger')
-            ->label('Immagini');
+            ->label('Una riga per foto');
     }
 
     /** Le varianti di un modello, più la voce che vale per tutte. */

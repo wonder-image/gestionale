@@ -78,7 +78,7 @@ check('il percorso mette insieme radice, cartelle e nome', function () {
 
     // Scrittura e lettura devono usare la stessa cartella, altrimenti
     // l'anteprima di una foto già caricata non si vede.
-    return $percorso === '/tmp/sito/assets/upload/app/gestionale/modelli/foto.jpg'
+    return $percorso === '/tmp/sito/assets/upload/app/gestionale/prodotti/foto.jpg'
         && ProductImages::folder() === ProductImage::$folder;
 });
 
@@ -88,7 +88,7 @@ check('senza file non c\'è nessun percorso', fn () =>
 
 check('l\'indirizzo pubblico è quello della cartella degli upload', fn () =>
     ProductImages::url(['file' => '["foto.jpg"]'])
-        === '/assets/upload/app/gestionale/modelli/foto.jpg'
+        === '/assets/upload/app/gestionale/prodotti/foto.jpg'
 );
 
 check('le foto non si fanno ridimensionare al salvataggio', function () {

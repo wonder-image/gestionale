@@ -15,13 +15,14 @@ final class ProductImages
     /**
      * La cartella delle foto, sotto `assets/upload`.
      *
-     * È il percorso della pagina dei modelli, e non è un vezzo: il repeater
+     * È il percorso della pagina dei prodotti, e non è un vezzo: il repeater
      * **scrive** i file nella cartella del Model e li **rilegge** in quella
      * della Resource che ospita il form. Finché le due non coincidono
      * l'anteprima di una foto già caricata non si vede. Per questo il Model
-     * dichiara questa stessa cartella e il campo non ne aggiunge un'altra.
+     * dichiara questa stessa cartella e il campo non ne aggiunge un'altra —
+     * e per questo rinominare la pagina vuol dire rinominare anche questa.
      */
-    public const DIR = '/app/gestionale/modelli/';
+    public const DIR = '/app/gestionale/prodotti/';
 
     /** La cartella vera sotto `assets/upload`. */
     public static function folder(): string

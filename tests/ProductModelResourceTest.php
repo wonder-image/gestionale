@@ -23,9 +23,10 @@ $campi = static function (): array {
     return $campi;
 };
 
-check('la pagina dei modelli sta nel catalogo', fn () =>
+check('la pagina dei prodotti sta nel catalogo', fn () =>
     ProductModelResource::$model === ProductModel::class
-    && ProductModelResource::path() === 'app/gestionale/modelli'
+    && ProductModelResource::path() === 'app/gestionale/prodotti'
+    && ProductModelResource::titleLabel() === 'Prodotti'
     && (ProductModelResource::navigationSchema()->toArray()['section_key'] ?? '') === 'catalogo'
 );
 

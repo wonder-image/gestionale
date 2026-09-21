@@ -48,7 +48,7 @@ class ProductResource extends ProductModelResource
 
     public static function path(): string
     {
-        return 'app/gestionale/prodotti';
+        return 'app/gestionale/versioni';
     }
 
     public static function icon(): string
@@ -58,14 +58,14 @@ class ProductResource extends ProductModelResource
 
     public static function titleLabel(): string
     {
-        return 'Prodotti';
+        return 'Versioni in vendita';
     }
 
     public static function textSchema(): array
     {
         return [
-            'label' => 'prodotto',
-            'plural_label' => 'prodotti',
+            'label' => 'versione',
+            'plural_label' => 'versioni',
             'last' => 'ultimi',
             'all' => 'tutti',
             'article' => 'i',
@@ -84,8 +84,8 @@ class ProductResource extends ProductModelResource
             'price' => 'Prezzo',
             'sale_price' => 'Prezzo scontato',
             'active' => 'Stato',
-            'product_model_id' => 'Modello',
-            'product_variant_id' => 'Variante',
+            'name' => 'Versione',
+            'product_model_id' => 'Prodotto',
         ];
     }
 
@@ -164,18 +164,22 @@ class ProductResource extends ProductModelResource
     public static function tableSchema(): array
     {
         return [
-            TableColumn::key('sku')->text()->link('edit'),
+            TableColumn::key('name')
+                ->text()
+                ->link('edit')
+                // Le righe nate prima che il nome esistesse mostrano lo SKU:
+                // meglio un codice di una casella vuota.
+                ->formatter(static fn (array $row): string => static::escape(
+                    trim((string) ($row['name'] ?? '')) !== ''
+                        ? (string) $row['name']
+                        : (string) ($row['sku'] ?? '')
+                )),
             TableColumn::key('product_model_id')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(
                     static::modelNames()[(int) ($row['product_model_id'] ?? 0)] ?? '—'
                 )),
-            TableColumn::key('product_variant_id')
-                ->text()
-                ->size('little')
-                ->formatter(static fn (array $row): string => static::escape(
-                    static::variantNames()[(int) ($row['product_variant_id'] ?? 0)] ?? '—'
-                )),
+            TableColumn::key('sku')->text()->size('little'),
             TableColumn::key('ean')->text()->size('little'),
             TableColumn::key('price')->text()->size('little'),
             // "Attivo" e "Fermo": qui non si parla di vetrina ma di magazzino.
@@ -194,8 +198,8 @@ class ProductResource extends ProductModelResource
         return parent::pageSchema()
             ->only(['list', 'edit', 'update'])
             ->titles([
-                'list' => 'Prodotti',
-                'edit' => 'Modifica prodotto',
+                'list' => 'Versioni in vendita',
+                'edit' => 'Modifica versione',
             ]);
     }
 
@@ -209,13 +213,65 @@ class ProductResource extends ProductModelResource
         return ApiSchema::for(static::class)->enabled(false);
     }
 
+    /**
+     * Fuori dal menu: una versione si apre dalla scheda del suo prodotto.
+     *
+     * Un elenco piatto di articoli in vendita avrà senso con le giacenze, e
+     * allora sarà quello del magazzino, con le sue colonne.
+     */
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
             ->inSection('catalogo')
-            ->title('Prodotti')
+            ->title('Versioni in vendita')
             ->order(39)
-            ->authority(['admin', 'administrator']);
+            ->authority(['admin', 'administrator'])
+            ->enabled(false);
+    }
+
+    /**
+     * L'indirizzo dell'elenco filtrato su un articolo.
+     *
+     * Lo usa il pulsante nella scheda del prodotto. Gli indirizzi delle
+     * Resource nascono da rotte con un nome, non da percorsi scritti a mano:
+     * `__r()` è la strada giusta, il percorso è solo il ripiego per quando il
+     * framework non è avviato (test, comandi).
+     */
+    public static function listUrlFor(int $modelId): string
+    {
+        $base = '/backend/'.static::path();
+
+        if (function_exists('__r')) {
+            try {
+                $named = (string) __r('backend.resource.'.static::slug().'.list');
+                $base = $named !== '' ? $named : $base;
+            } catch (\Throwable) {
+                // Rotta non registrata: resta il percorso.
+            }
+        }
+
+        return $base.'?prodotto='.$modelId;
+    }
+
+    /**
+     * L'elenco, filtrato sull'articolo quando l'indirizzo lo dice.
+     *
+     * Il core rivaluta `querySchema()` a ogni richiesta, quindi leggere la
+     * query string qui è sicuro: è la stessa strada di `currentId()`.
+     */
+    public static function querySchema(): array
+    {
+        $schema = parent::querySchema();
+        $modelId = (int) ($_GET['prodotto'] ?? 0);
+
+        if ($modelId > 0) {
+            $schema['condition'] = array_merge(
+                (array) ($schema['condition'] ?? []),
+                ['product_model_id' => $modelId]
+            );
+        }
+
+        return $schema;
     }
 
     /** SKU ed EAN unici, e i numeri nella forma che il database accetta. */
