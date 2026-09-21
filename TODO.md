@@ -146,6 +146,16 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Piano 4 scritto ed eseguito (2026-09-21): `docs/superpowers/plans/2026-09-21-errori-hook-e-contorno.md` — `error_reports` **nel core** (scelta dell'utente: serve a qualsiasi sito) con `ErrorReporter` (impronta, contatore, riapertura, destinatari passati da chi segnala) e pagina "Errori" in Set Up, core `2.2.11`; nel modulo i tre tipi di errore (`UserError`, `ProviderError`, `Errors`), `gst_provider_events` con `ProviderEvents::receive()` che dice se l'evento è nuovo, hook del sito (`GestionaleExtension` + `Extensions::run()`/`filter()`, agganciati a `StatusLogger`), riquadri della home "Primi passi" (con `SetupChecks` puro) e "Da controllare", comandi `gestionale:demo` e `gestionale:features-doc`, GitHub Actions verde (unitari e convenzioni, con `config.platform.php` a 8.2), guida sviluppatori (errori, hook, sviluppo e test) e guida commercianti (accedere, primi passi, da controllare, sedi, impostazioni).
   - [ ] Piano 4: errori, riquadri della home, hook, dati di prova, GitHub Actions, guida sviluppatori e guida commercianti
 - [ ] G2 Catalogo, magazzino base, anagrafiche
+  - **G2a Catalogo** — spec: `docs/superpowers/specs/2026-09-21-catalogo-design.md` (decisioni G2a.1–G2a.9)
+    - [x] Piano 1 scritto ed eseguito (2026-09-21): `docs/superpowers/plans/2026-09-21-tassonomie-del-catalogo.md` — marchi, categorie ad albero e tag, `CategoryTree` puro (ordine, percorso, discendenti, cicli), le tre pagine nella nuova sezione "Catalogo", dati di prova. Verificato nel browser; unito in `main` (aa93112), CI verde.
+    - [x] Piano 2 scritto ed eseguito (2026-09-21): `docs/superpowers/plans/2026-09-21-attributi-del-catalogo.md` — `gst_attributes` e `gst_attribute_values`, `Support\Catalog\Attributes` puro (livelli, tipi, `assignment()`, `format()`), pagina "Attributi" con i valori come repeater che compare solo per i tipi a elenco, tipo bloccato finché ci sono valori, due attributi nei dati di prova, guida sviluppatori e guida commerciante. Verificato nel browser.
+      - Colonne `slug` e `group_name` invece di `key` e `group` della spec: sono parole riservate di MySQL e il core mette le virgolette ai nomi solo in INSERT, UPDATE e WHERE (spec aggiornata).
+      - `UserError` ora estende `InvalidArgumentException`: è il tipo che il controller del backend trasforma in `$ALERT`. Prima un rifiuto di `mutateRequestValues()` (anello nelle categorie, tipo bloccato) usciva come pagina 500.
+      - Aggiunto il controllo che la categoria padre esista ancora: prima un `parent_id` vecchio arrivava al database e tornava come 500.
+      - `forge update` non prova più a reinserire le regole IVA già presenti con il codice nel formato vecchio.
+    - [ ] Piano 3: modelli, varianti e prodotti
+    - [ ] Piano 4: immagini in differita e dati di prova
+  - [ ] G2b Magazzino base e anagrafiche
 - [ ] G3 Magazzino avanzato
 - [ ] G4 Ordini e pagamenti
 - [ ] G5 Multiprodotto e personalizzazione
