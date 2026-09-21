@@ -254,6 +254,30 @@ check('finché una riga resta, si salva', function () {
     return true;
 });
 
+check('la creazione chiede quattro cose e poi porta sulla scheda', function () {
+    $schema = ProductModelResource::pageSchema();
+
+    return ProductModelResource::createFields() === ['name', 'main_category', 'product_price', 'sku']
+        && ($schema->get('redirects')['store'] ?? '') === 'edit';
+});
+
+check('la schermata di creazione ha un riquadro solo', function () {
+    $form = ProductModelResource::formLayoutSchema();
+    $contenitore = $form->components[0] ?? null;
+    $riquadri = $contenitore->components ?? [];
+    $titolo = null;
+
+    foreach ($riquadri[0]->components ?? [] as $dentro) {
+        if ($dentro instanceof SectionTitle) {
+            $titolo = $dentro->getText();
+            break;
+        }
+    }
+
+    // `currentId()` è nullo fuori da una richiesta: è la creazione.
+    return count($riquadri) === 1 && $titolo === 'Nuovo prodotto';
+});
+
 check('l\'elenco dice foto, prezzo e quante versioni', function () {
     $colonne = [];
 
@@ -288,9 +312,36 @@ check('il prezzo si legge come intervallo solo quando serve', function () {
     return $uguali === '19,90' && $diversi === 'da 19,90' && $nessuno === '';
 });
 
-/** I titoli dei riquadri, nell'ordine in cui la scheda li mette. */
-$riquadri = static function (): array {
-    $form = ProductModelResource::formLayoutSchema();
+/**
+ * I titoli dei riquadri di una scheda aperta, nell'ordine in cui stanno.
+ *
+ * Fuori da una richiesta `currentId()` è nullo e la scheda mostra la
+ * creazione: qui si finge un articolo già salvato, con una versione sola.
+ */
+$schedaAperta = new class extends ProductModelResource {
+    protected static function currentId(): ?int
+    {
+        return 1;
+    }
+
+    public static function productCount(int $modelId): int
+    {
+        return 1;
+    }
+
+    public static function variantCount(int $modelId): int
+    {
+        return 1;
+    }
+
+    public static function products(int $modelId): array
+    {
+        return [['id' => 2, 'sku' => 'CAP-1', 'price' => '24.90']];
+    }
+};
+
+$riquadri = static function () use ($schedaAperta): array {
+    $form = $schedaAperta::formLayoutSchema();
     $contenitore = $form->components[0] ?? null;
     $titoli = [];
 
@@ -307,7 +358,7 @@ $riquadri = static function (): array {
 };
 
 check('la scheda di un articolo semplice ha pochi riquadri, in ordine', function () use ($riquadri) {
-    return $riquadri() === ['Prodotto', 'Descrizione', 'Dove si trova', 'Spedizione e fisco'];
+    return $riquadri() === ['Prodotto', 'Foto', 'Descrizione', 'Dove si trova', 'Spedizione e fisco'];
 });
 
 check('le parole interne non compaiono più nei titoli', function () use ($riquadri) {

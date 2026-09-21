@@ -137,7 +137,7 @@ class ProductModelResource extends GestionaleResource
             FormField::key('name')->text()->label('Nome')->required(),
             FormField::key('brand_id')->select(static::brandOptions())->label('Marchio'),
             FormField::key('tax_category_id')->select(static::taxCategoryOptions())->label('Tipo fiscale'),
-            FormField::key('sku')->text()->label('SKU del modello'),
+            FormField::key('sku')->text()->label('SKU'),
             FormField::key('unit')->select(self::UNITS)->value('pz')->label('Unità di misura')->required(),
             FormField::key('visible')
                 ->select(['true' => 'Visibile', 'false' => 'Nascosto'])
@@ -200,6 +200,38 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
+     * I quattro campi della creazione: il resto si compila nella scheda.
+     *
+     * Nessun riquadro vuoto da scorrere prima di aver deciso cos'è l'articolo.
+     *
+     * @return list<string>
+     */
+    public static function createFields(): array
+    {
+        return ['name', 'main_category', 'product_price', 'sku'];
+    }
+
+    /** La schermata di creazione: quattro campi e via. */
+    protected static function createLayout(): Form
+    {
+        $campi = [
+            SectionTitle::make('Nuovo prodotto')
+                ->tooltip('Bastano queste quattro cose. Foto, descrizioni, colori e taglie si aggiungono subito dopo, nella scheda.')
+                ->columnSpan(12),
+        ];
+
+        foreach (static::createFields() as $chiave) {
+            $campi[] = static::getInput($chiave)->columnSpan(6);
+        }
+
+        return (new Form)->components([
+            (new Container)->components([
+                (new Card)->components($campi)->columns(12)->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+        ]);
+    }
+
+    /**
      * Sette riquadri, e due in fondo.
      *
      * Erano dieci, tutti aperti e tutti con lo stesso peso: un cappello di lana
@@ -210,7 +242,12 @@ class ProductModelResource extends GestionaleResource
     public static function formLayoutSchema(): ?Form
     {
         $modelId = static::currentId();
-        $unaVersione = $modelId === null || static::productCount($modelId) <= 1;
+
+        if ($modelId === null) {
+            return static::createLayout();
+        }
+
+        $unaVersione = static::productCount($modelId) <= 1;
 
         $prodotto = [
             SectionTitle::make('Prodotto')
@@ -405,7 +442,11 @@ class ProductModelResource extends GestionaleResource
                 'list' => 'Prodotti',
                 'create' => 'Nuovo prodotto',
                 'edit' => 'Modifica prodotto',
-            ]);
+            ])
+            // Appena creato si atterra sulla sua scheda: la creazione chiede
+            // quattro cose e il resto si scrive lì, non ritrovando la riga in
+            // un elenco. Serve `wonder-image/app` con redirectUrl($action,$id).
+            ->redirect('store', 'edit');
 
         // I campi rari di una singola versione — codice del produttore, misure
         // proprie, ordinabile su richiesta — non stanno in una riga di griglia.
