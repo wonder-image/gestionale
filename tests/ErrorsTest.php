@@ -19,7 +19,14 @@ check('l\'errore dell\'utente parla la sua lingua', function () {
 check('una chiave senza traduzione non fa esplodere niente', function () {
     $errore = UserError::make('chiave.che.non.esiste');
 
-    return $errore->getMessage() !== '' && $errore instanceof RuntimeException;
+    return $errore->getMessage() !== '' && $errore instanceof Throwable;
+});
+
+check('l\'errore dell\'utente è quello che il backend sa fermare', function () {
+    // Il controller del backend intercetta InvalidArgumentException e la
+    // trasforma in `$ALERT`: il salvataggio non parte e il messaggio torna sul
+    // form. Con un'altra eccezione l'utente vedrebbe una pagina 500.
+    return UserError::make('category.loop') instanceof InvalidArgumentException;
 });
 
 check('l\'errore del provider porta con sé provider, azione e contesto', function () {

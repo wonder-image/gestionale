@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources;
 
+use Throwable;
 use Wonder\App\Resource;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -54,5 +55,65 @@ abstract class GestionaleResource extends Resource
         $url = Gestionale::docsUrl(static::$docsPage);
 
         return $url === '' ? $schema : $schema->docs($url);
+    }
+
+    /**
+     * L'id della riga aperta, quando la pagina ne ha una.
+     *
+     * Il form si dichiara con metodi statici, che non ricevono la riga: per
+     * sapere cosa si sta modificando resta l'indirizzo. L'ultimo pezzo del
+     * percorso della Resource identifica la rotta
+     * (`.../gestionale/attributi/12/edit/`).
+     */
+    protected static function currentId(): ?int
+    {
+        $id = (int) ($_GET['id'] ?? 0);
+
+        if ($id > 0) {
+            return $id;
+        }
+
+        $segment = basename(static::path());
+        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+
+        if (preg_match('#/'.preg_quote($segment, '#').'/(\d+)/#', $uri, $matches) === 1) {
+            return (int) $matches[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Le righe vive di un Model, sempre come lista.
+     *
+     * Senza database (test degli schemi, convenzioni) torna vuoto invece di far
+     * esplodere il form: lì servono le voci di un select, non i dati.
+     *
+     * @param class-string<\Wonder\App\Model> $modelClass
+     * @param array<string, mixed> $where
+     * @return list<array<string, mixed>>
+     */
+    protected static function rowsOf(
+        string $modelClass,
+        array $where = [],
+        ?string $order = null,
+        string $direction = 'ASC'
+    ): array {
+        try {
+            $rows = $modelClass::find(
+                array_merge(['deleted' => 'false'], $where),
+                null,
+                $order,
+                $order === null ? null : $direction
+            );
+        } catch (Throwable) {
+            return [];
+        }
+
+        if (!is_array($rows) || $rows === []) {
+            return [];
+        }
+
+        return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
     }
 }

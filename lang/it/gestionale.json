@@ -7,7 +7,11 @@
             },
             "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
             "category": {
-                "loop": "Una categoria non può stare sotto sé stessa o sotto una sua sottocategoria."
+                "loop": "Una categoria non può stare sotto sé stessa o sotto una sua sottocategoria.",
+                "parent_missing": "La categoria padre scelta non esiste più: ricarica la pagina e riprova."
+            },
+            "attribute": {
+                "type_locked": "Questo attributo ha dei valori: eliminali prima di cambiargli tipo."
             }
         }
     }

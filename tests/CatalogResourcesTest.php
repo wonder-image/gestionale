@@ -5,9 +5,12 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
+use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
+use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CategoryResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\TagResource;
@@ -140,6 +143,98 @@ check('l\'albero annida i figli sotto il padre', function () {
     $figli = CategoryResource::parentTree($righe, null)['0']['child'] ?? [];
 
     return array_keys($figli) === [1] && array_keys($figli[1]['child'] ?? []) === [2];
+});
+
+check('la pagina degli attributi sta nel catalogo', fn () =>
+    AttributeResource::$model === Attribute::class
+    && AttributeResource::path() === 'app/gestionale/attributi'
+    && (AttributeResource::navigationSchema()->toArray()['section_key'] ?? '') === 'catalogo'
+);
+
+check('il riquadro dei valori c\'è solo per elenco e colore', fn () =>
+    AttributeResource::usesValues(['type' => 'select'])
+    && AttributeResource::usesValues(['type' => 'color'])
+    && !AttributeResource::usesValues(['type' => 'text'])
+    && !AttributeResource::usesValues(null)
+);
+
+check('i valori si salvano nella loro tabella', function () {
+    $relazione = AttributeResource::repeaterRelations()['values']['relation'] ?? null;
+
+    return $relazione !== null
+        && $relazione->table === AttributeValue::$table
+        && $relazione->parentKey === 'attribute_id'
+        && $relazione->positionKey === 'position';
+});
+
+check('il nome macchina dell\'attributo nasce dal nome e non si tocca più', function () {
+    $nuovo = AttributeResource::mutateRequestValues(['name' => 'Colore'], 'store');
+    $modifica = AttributeResource::mutateRequestValues(
+        ['name' => 'Colore', 'slug' => 'altro'],
+        'update',
+        'backend',
+        ['id' => 1]
+    );
+
+    return ($nuovo['slug'] ?? '') !== '' && !isset($modifica['slug']);
+});
+
+check('il tipo non cambia mentre ci sono dei valori', function () {
+    // `valueCount()` è sovrascritto qui: conta la regola, non il database.
+    $resource = new class extends AttributeResource {
+        public static function valueCount(int $id): int { return 3; }
+    };
+
+    try {
+        $resource::mutateRequestValues(
+            ['name' => 'Colore', 'type' => 'text'],
+            'update',
+            'backend',
+            ['id' => 1, 'type' => 'select']
+        );
+    } catch (UserError $errore) {
+        return str_contains($errore->getMessage(), 'valori');
+    }
+
+    return false;
+});
+
+check('senza valori il tipo si cambia', function () {
+    $resource = new class extends AttributeResource {
+        public static function valueCount(int $id): int { return 0; }
+    };
+
+    $valori = $resource::mutateRequestValues(
+        ['name' => 'Colore', 'type' => 'text'],
+        'update',
+        'backend',
+        ['id' => 1, 'type' => 'select']
+    );
+
+    return ($valori['type'] ?? '') === 'text';
+});
+
+check('un padre che non esiste più si ferma con una frase', function () {
+    $righe = [
+        ['id' => 1, 'parent_id' => 0, 'name' => 'Abbigliamento', 'position' => 1],
+        ['id' => 3, 'parent_id' => 1, 'name' => 'Scarpe', 'position' => 1],
+    ];
+
+    try {
+        CategoryResource::assertParentExists($righe, 2);
+    } catch (UserError $errore) {
+        return str_contains($errore->getMessage(), 'non esiste');
+    }
+
+    return false;
+});
+
+check('un padre che c\'è passa', function () {
+    $righe = [['id' => 1, 'parent_id' => 0, 'name' => 'Abbigliamento', 'position' => 1]];
+
+    CategoryResource::assertParentExists($righe, 1);
+
+    return true;
 });
 
 summary();

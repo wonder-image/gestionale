@@ -2,7 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Errors;
 
-use RuntimeException;
+use InvalidArgumentException;
 use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
 
@@ -13,8 +13,14 @@ use Wonder\Plugin\Gestionale\Gestionale;
  * Non finisce in nessun log: non è un guasto, è una risposta. Il testo sta nei
  * file di lingua del modulo sotto `errors`, così si traduce e si riscrive
  * senza toccare il codice.
+ *
+ * Estende `InvalidArgumentException` apposta: è il tipo che il controller del
+ * backend intercetta quando una Resource rifiuta un salvataggio in
+ * `mutateRequestValues()`. Lì diventa `$ALERT`, il salvataggio non parte e il
+ * messaggio torna sul form. Con un `RuntimeException` qualunque, invece,
+ * l'utente vedrebbe una pagina di errore 500.
  */
-final class UserError extends RuntimeException
+final class UserError extends InvalidArgumentException
 {
     private string $key = '';
 

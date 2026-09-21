@@ -3,7 +3,6 @@
 namespace Wonder\Plugin\Gestionale\Resources\Catalog;
 
 use RuntimeException;
-use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -188,11 +187,34 @@ final class CategoryResource extends GestionaleResource
         $id = (int) ($oldValues['id'] ?? 0);
         $parent = (int) ($values['parent_id'] ?? 0);
 
-        if ($id > 0 && $parent > 0) {
-            static::assertNoLoop(static::rows(), $id, $parent);
+        if ($parent > 0) {
+            $rows = static::rows();
+            static::assertParentExists($rows, $parent);
+
+            if ($id > 0) {
+                static::assertNoLoop($rows, $id, $parent);
+            }
         }
 
         return $values;
+    }
+
+    /**
+     * Il padre scelto deve esistere ancora.
+     *
+     * Capita con una pagina tenuta aperta mentre qualcuno elimina quella
+     * categoria: senza questo controllo il salvataggio arriva al database e
+     * torna indietro come errore 500, invece che come una frase.
+     */
+    public static function assertParentExists(array $rows, int $parentId): void
+    {
+        foreach ($rows as $row) {
+            if ((int) ($row['id'] ?? 0) === $parentId) {
+                return;
+            }
+        }
+
+        throw UserError::make('category.parent_missing');
     }
 
     /** Voci del select del padre, senza la categoria stessa e i suoi figli. */
@@ -228,41 +250,10 @@ final class CategoryResource extends GestionaleResource
     /**
      * Le categorie, per l'albero.
      *
-     * Senza database (test degli schemi, convenzioni) torna vuoto invece di
-     * far esplodere il form: qui servono le voci di un select, non i dati.
-     *
      * @return list<array<string, mixed>>
      */
     private static function rows(): array
     {
-        try {
-            $rows = Category::find(['deleted' => 'false'], null, 'position', 'ASC');
-        } catch (Throwable) {
-            return [];
-        }
-
-
-        if (!is_array($rows) || $rows === []) {
-            return [];
-        }
-
-        return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
-    }
-
-    /** L'id della categoria aperta, quando c'è. */
-    private static function currentId(): ?int
-    {
-        $id = (int) ($_GET['id'] ?? 0);
-
-        if ($id > 0) {
-            return $id;
-        }
-
-        // Rotta `/categorie/{id}/edit/`: l'id sta nel percorso.
-        if (preg_match('#/categorie/(\d+)/#', (string) ($_SERVER['REQUEST_URI'] ?? ''), $matches) === 1) {
-            return (int) $matches[1];
-        }
-
-        return null;
+        return static::rowsOf(Category::class, [], 'position');
     }
 }
