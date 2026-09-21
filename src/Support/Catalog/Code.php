@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Catalog;
 
+use Throwable;
+
 /**
  * Codice tecnico di una riga, con il prefisso dell'entità.
  *
@@ -45,10 +47,19 @@ final class Code
         return $code;
     }
 
-    /** Il Model sa parlare col database anche fuori dal sito avviato. */
+    /**
+     * Il Model sa parlare col database anche fuori dal sito avviato.
+     *
+     * Dove il database non c'è affatto (test degli schemi) il codice è per
+     * forza libero: sette caratteri a caso non si scontrano con niente.
+     */
     private static function exists(string $modelClass, string $column, string $candidate): bool
     {
-        $row = $modelClass::find([$column => $candidate], 1);
+        try {
+            $row = $modelClass::find([$column => $candidate], 1);
+        } catch (Throwable) {
+            return false;
+        }
 
         return is_array($row) && $row !== [];
     }

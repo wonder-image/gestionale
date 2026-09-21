@@ -37,6 +37,7 @@ check('ogni Resource con dati dichiara la sua funzionalità', function () use ($
         // Il catalogo è sempre attivo (3.4 della spec di architettura).
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\AttributeResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\BrandResource',
+        'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\ProductModelResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\CategoryResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\TagResource',
     ];

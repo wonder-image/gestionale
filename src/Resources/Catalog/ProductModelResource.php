@@ -1,0 +1,916 @@
+<?php
+
+namespace Wonder\Plugin\Gestionale\Resources\Catalog;
+
+use Wonder\App\ResourceSchema\ApiSchema;
+use Wonder\App\ResourceSchema\FormField;
+use Wonder\App\ResourceSchema\NavigationSchema;
+use Wonder\App\ResourceSchema\PageSchema;
+use Wonder\App\ResourceSchema\PermissionSchema;
+use Wonder\App\ResourceSchema\RepeaterColumn;
+use Wonder\App\ResourceSchema\RepeaterRelation;
+use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\Elements\Components\Card;
+use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\SectionTitle;
+use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
+use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
+use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
+use Wonder\Plugin\Gestionale\Models\Catalog\Category;
+use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
+use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
+use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
+use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
+use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\Ean;
+use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
+use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
+use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
+use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Numbers;
+use Wonder\Plugin\Gestionale\Support\Positions;
+use Wonder\Sql\Transaction;
+
+/**
+ * "Modelli": la scheda dell'articolo, e l'unico posto dove si lavora.
+ *
+ * Varianti e prodotti stanno qui dentro, come righe: è l'unico modo per
+ * vederli insieme. L'elenco "Prodotti" serve a trovare uno SKU, non a
+ * modificare in massa.
+ *
+ * La scheda si adatta a chi la usa (G2a.2): finché la variante è una sola non
+ * viene nemmeno nominata, e finché il prodotto è uno solo il suo SKU, il suo
+ * EAN e il suo prezzo si scrivono nel riquadro principale invece che in una
+ * tabella di una riga.
+ *
+ * Non è `final`: i test la estendono con una classe anonima per provare le
+ * regole senza database.
+ */
+class ProductModelResource extends GestionaleResource
+{
+    public static string $model = ProductModel::class;
+    public static string $orderColumn = 'name';
+    public static string $orderDirection = 'ASC';
+    // La guida del commerciante arriva con il piano 4, quando la scheda avrà
+    // anche le immagini: finché la pagina non esiste il pulsante non compare.
+    public static string $docsPage = '';
+
+    /** Unità di misura: quelle che un negozio usa davvero. */
+    private const UNITS = [
+        'pz' => 'Pezzi',
+        'conf' => 'Confezioni',
+        'kg' => 'Chilogrammi',
+        'g' => 'Grammi',
+        'l' => 'Litri',
+        'ml' => 'Millilitri',
+        'm' => 'Metri',
+    ];
+
+    public static function path(): string
+    {
+        return 'app/gestionale/modelli';
+    }
+
+    public static function icon(): string
+    {
+        return 'bi-box';
+    }
+
+    public static function titleLabel(): string
+    {
+        return 'Modelli';
+    }
+
+    public static function textSchema(): array
+    {
+        return [
+            'label' => 'modello',
+            'plural_label' => 'modelli',
+            'last' => 'ultimi',
+            'all' => 'tutti',
+            'article' => 'i',
+            'full' => 'visibile',
+            'empty' => 'nascosto',
+            'this' => 'questo',
+        ];
+    }
+
+    public static function labelSchema(): array
+    {
+        return [
+            'name' => 'Nome',
+            'slug' => 'Url pubblico',
+            'brand_id' => 'Marchio',
+            'tax_category_id' => 'Tipo fiscale',
+            'sku' => 'SKU',
+            'unit' => 'Unità di misura',
+            'visible' => 'Stato',
+            'visible_online' => 'In vetrina',
+        ];
+    }
+
+    public static function formSchema(): array
+    {
+        $modelId = static::currentId();
+
+        $fields = [
+            FormField::key('name')->text()->label('Nome')->required(),
+            FormField::key('brand_id')->select(static::brandOptions())->label('Marchio'),
+            FormField::key('tax_category_id')->select(static::taxCategoryOptions())->label('Tipo fiscale'),
+            FormField::key('sku')->text()->label('SKU del modello'),
+            FormField::key('unit')->select(self::UNITS)->value('pz')->label('Unità di misura')->required(),
+            FormField::key('visible')
+                ->select(['true' => 'Visibile', 'false' => 'Nascosto'])
+                ->value('true')
+                ->label('Stato')
+                ->required(),
+            FormField::key('visible_online')
+                ->select(['true' => 'In vetrina', 'false' => 'Solo in ufficio'])
+                ->value('true')
+                ->label('Vetrina')
+                ->required(),
+            FormField::key('short_description')->textarea()->label('Descrizione breve'),
+            FormField::key('description')->textarea()->label('Descrizione'),
+            FormField::key('categories')->checkTree(static::categoryTree(), true)->label('Categorie'),
+            FormField::key('main_category')->select(static::categoryOptions())->label('Categoria principale'),
+            FormField::key('tags')->selectSearch(static::tagOptions(), true)->label('Tag'),
+            FormField::key('weight')->number()->decimal(3)->label('Peso (kg)'),
+            FormField::key('length')->number()->decimal(2)->label('Lunghezza (cm)'),
+            FormField::key('width')->number()->decimal(2)->label('Larghezza (cm)'),
+            FormField::key('height')->number()->decimal(2)->label('Altezza (cm)'),
+            FormField::key('returnable')
+                ->select(['true' => 'Sì', 'false' => 'No'])
+                ->value('true')
+                ->label('Si può rendere'),
+            FormField::key('requires_shipping')
+                ->select(['true' => 'Sì', 'false' => 'No'])
+                ->value('true')
+                ->label('Si spedisce'),
+        ];
+
+        foreach (Attributes::byLevel(static::attributes(), 'model') as $attribute) {
+            $fields[] = static::attributeField($attribute);
+        }
+
+        // I due repeater esistono solo quando c'è più di una riga da mostrare.
+        // Non è solo estetica: un campo che non viene stampato non viene
+        // nemmeno postato, e il sync dei repeater cancella le righe che non
+        // ritrova.
+        if ($modelId !== null && static::variantCount($modelId) > 1) {
+            $fields[] = static::variantsField();
+        }
+
+        if ($modelId !== null && static::productCount($modelId) > 1) {
+            $fields[] = static::productsField();
+        } else {
+            array_push($fields, ...static::soleProductFields());
+        }
+
+        return $fields;
+    }
+
+    public static function formLayoutSchema(): ?Form
+    {
+        $modelId = static::currentId();
+        $cards = [
+            (new Card)->components([
+                SectionTitle::make('Articolo')
+                    ->tooltip('Lo SKU del modello è il codice di famiglia: da lì il pannello propone quello dei singoli prodotti. L\'url pubblico nasce dal nome alla creazione e non cambia più.')
+                    ->columnSpan(12),
+                static::getInput('name')->columnSpan(6),
+                static::getInput('sku')->columnSpan(3),
+                static::getInput('unit')->columnSpan(3),
+                static::getInput('brand_id')->columnSpan(4),
+                static::getInput('tax_category_id')->columnSpan(4),
+                static::getInput('visible')->columnSpan(2),
+                static::getInput('visible_online')->columnSpan(2),
+            ])->columns(12)->columnSpan(12),
+        ];
+
+        if ($modelId === null || static::productCount($modelId) <= 1) {
+            $cards[] = (new Card)->components([
+                SectionTitle::make('Prodotto')
+                    ->tooltip('Finché l\'articolo è uno solo, il suo codice e il suo prezzo si scrivono qui. Quando nascono varianti e taglie, si spostano nella loro tabella.')
+                    ->columnSpan(12),
+                static::getInput('product_sku')->columnSpan(3),
+                static::getInput('product_ean')->columnSpan(3),
+                static::getInput('product_price')->columnSpan(3),
+                static::getInput('product_sale_price')->columnSpan(3),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        $cards[] = (new Card)->components([
+            SectionTitle::make('Descrizioni')->columnSpan(12),
+            static::getInput('short_description')->columnSpan(12),
+            static::getInput('description')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+
+        $cards[] = (new Card)->components([
+            SectionTitle::make('Categorie e tag')
+                ->tooltip('La categoria principale è quella che la vetrina userà per l\'indirizzo della pagina: se la scegli e non l\'hai spuntata, viene aggiunta da sé.')
+                ->columnSpan(12),
+            static::getInput('main_category')->columnSpan(6),
+            static::getInput('tags')->columnSpan(6),
+            static::getInput('categories')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+
+        $attributeInputs = [];
+
+        foreach (Attributes::byLevel(static::attributes(), 'model') as $attribute) {
+            $attributeInputs[] = static::getInput('attribute_'.(int) $attribute['id'])->columnSpan(4);
+        }
+
+        if ($attributeInputs !== []) {
+            $cards[] = (new Card)->components([
+                SectionTitle::make('Attributi')
+                    ->tooltip('Gli attributi di livello "Modello": quelli che descrivono l\'articolo intero.')
+                    ->columnSpan(12),
+                ...$attributeInputs,
+            ])->columns(12)->columnSpan(12);
+        }
+
+        $cards[] = (new Card)->components([
+            SectionTitle::make('Spedizione')
+                ->tooltip('Peso e misure dell\'articolo. Un prodotto che ha misure sue le usa al posto di queste.')
+                ->columnSpan(12),
+            static::getInput('weight')->columnSpan(3),
+            static::getInput('length')->columnSpan(3),
+            static::getInput('width')->columnSpan(3),
+            static::getInput('height')->columnSpan(3),
+            static::getInput('returnable')->columnSpan(6),
+            static::getInput('requires_shipping')->columnSpan(6),
+        ])->columns(12)->columnSpan(12);
+
+        if ($modelId !== null && static::variantCount($modelId) > 1) {
+            $cards[] = (new Card)->components([
+                SectionTitle::make('Varianti')
+                    ->tooltip('Le varianti sono quello che cambia l\'aspetto: il nome è quello che legge il cliente.')
+                    ->columnSpan(12),
+                static::getInput('variants')->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        if ($modelId !== null && static::productCount($modelId) > 1) {
+            $cards[] = (new Card)->components([
+                SectionTitle::make('Prodotti')
+                    ->tooltip('I prodotti sono quello che si vende e che sta a magazzino. Per misure e attributi di un prodotto si apre la sua scheda da "Prodotti".')
+                    ->columnSpan(12),
+                static::getInput('products')->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        return (new Form)->components([
+            (new Container)->components($cards)->columns(12)->columnSpan(12),
+        ]);
+    }
+
+    public static function tableSchema(): array
+    {
+        return [
+            TableColumn::key('name')->text()->link('edit'),
+            TableColumn::key('sku')->text()->size('little'),
+            TableColumn::key('brand_id')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::escape(
+                    static::brandOptions()[(string) ($row['brand_id'] ?? '')] ?? ''
+                )),
+            TableColumn::key('visible')->visibleBadge()->size('little'),
+            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+        ];
+    }
+
+    public static function pageSchema(): PageSchema
+    {
+        return parent::pageSchema()
+            ->disable(['view'])
+            ->titles([
+                'list' => 'Modelli',
+                'create' => 'Nuovo modello',
+                'edit' => 'Modifica modello',
+            ]);
+    }
+
+    public static function permissionSchema(): PermissionSchema
+    {
+        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+    }
+
+    public static function apiSchema(): ApiSchema
+    {
+        return ApiSchema::for(static::class)->enabled(false);
+    }
+
+    public static function navigationSchema(): NavigationSchema
+    {
+        return NavigationSchema::for(static::class)
+            ->inSection('catalogo')
+            ->title('Modelli')
+            ->order(38)
+            ->authority(['admin', 'administrator']);
+    }
+
+    /** Slug e posizione alla creazione; SKU ed EAN controllati sempre. */
+    public static function mutateRequestValues(
+        array $values,
+        string $action,
+        string $context = 'backend',
+        ?array $oldValues = null
+    ): array {
+        $id = (int) ($oldValues['id'] ?? 0);
+
+        if ($action === 'store') {
+            $values['slug'] = Slug::make((string) ($values['name'] ?? ''), ProductModel::$table);
+            $values['position'] = Positions::next(ProductModel::$table);
+        } else {
+            unset($values['slug'], $values['position']);
+        }
+
+        $sku = trim((string) ($values['sku'] ?? ''));
+
+        if ($sku !== '' && !Sku::isFree(ProductModel::class, $sku, $id > 0 ? $id : null)) {
+            throw UserError::make('product.sku_taken');
+        }
+
+        static::assertSoleProduct($id, $values);
+
+        return static::withoutExtras($values);
+    }
+
+    /** SKU ed EAN del prodotto unico, quando la scheda li mostra. */
+    public static function assertSoleProduct(int $modelId, array $values): void
+    {
+        $ean = trim((string) ($values['product_ean'] ?? ''));
+        $sku = trim((string) ($values['product_sku'] ?? ''));
+        $product = $modelId > 0 ? static::soleProduct($modelId) : null;
+        $productId = $product === null ? null : (int) $product['id'];
+
+        if (!Ean::isValid($ean)) {
+            throw UserError::make('product.ean_invalid');
+        }
+
+        if (!Ean::isFree($ean, $productId)) {
+            throw UserError::make('product.ean_taken');
+        }
+
+        if ($sku !== '' && !Sku::isFree(Product::class, $sku, $productId)) {
+            throw UserError::make('product.sku_taken');
+        }
+    }
+
+    /** Un modello nuovo nasce con la sua variante e il suo prodotto (G2a.2). */
+    public static function afterStore(object $result, array $values = []): void
+    {
+        $id = (int) ($result->insert_id ?? 0);
+
+        if ($id === 0) {
+            return;
+        }
+
+        $sku = (string) ($values['sku'] ?? '');
+
+        Skeleton::forModel($id, (string) ($values['name'] ?? ''), $sku);
+        static::saveExtras($id, (array) $_POST, $sku);
+    }
+
+    public static function afterUpdate(int|string $id, object $result, array $values = []): void
+    {
+        static::saveExtras((int) $id, (array) $_POST);
+    }
+
+    /**
+     * Righe legate al modello: categorie, tag, attributi e prodotto unico.
+     *
+     * `$fallbackSku` è lo SKU del modello appena creato: se la casella del
+     * prodotto è vuota, il prodotto tiene quello, invece di perdere il codice
+     * che il modello gli ha appena dato.
+     */
+    public static function saveExtras(int $modelId, array $post, string $fallbackSku = ''): void
+    {
+        if ($modelId <= 0) {
+            return;
+        }
+
+        Transaction::run(static function () use ($modelId, $post, $fallbackSku): void {
+            static::saveCategories($modelId, $post);
+            static::saveTags($modelId, $post);
+            static::saveModelAttributes($modelId, $post);
+            static::saveSoleProduct($modelId, $post, $fallbackSku);
+        });
+    }
+
+    /** Riempie il form con ciò che non sta nella tabella del modello. */
+    public static function mutateFormValues(
+        array $values,
+        string $mode,
+        string $context = 'backend'
+    ): array {
+        $modelId = (int) ($values['id'] ?? 0);
+
+        if ($mode !== 'edit' || $modelId === 0) {
+            return $values;
+        }
+
+        $values['categories'] = array_map('strval', static::categoryIds($modelId));
+        $values['main_category'] = (string) (static::mainCategoryId($modelId) ?: '');
+        $values['tags'] = array_map('strval', static::tagIds($modelId));
+
+        $links = ProductAttributes::read('model', $modelId);
+
+        foreach (Attributes::byLevel(static::attributes(), 'model') as $attribute) {
+            $id = (int) $attribute['id'];
+            $values['attribute_'.$id] = static::attributeValue($attribute, $links[$id] ?? null);
+        }
+
+        $product = static::soleProduct($modelId);
+
+        if ($product !== null) {
+            $values['product_sku'] = (string) ($product['sku'] ?? '');
+            $values['product_ean'] = (string) ($product['ean'] ?? '');
+            $values['product_price'] = (string) ($product['price'] ?? '');
+            $values['product_sale_price'] = (string) ($product['sale_price'] ?? '');
+        }
+
+        return $values;
+    }
+
+    /** Una riga nuova del repeater deve avere codice e indirizzo. */
+    public static function prepareRepeaterRelationRow(
+        string $inputName,
+        array $payload,
+        array $row,
+        ?array $existingRow = null,
+        string $action = 'store',
+        string $context = 'backend'
+    ): array {
+        if ($existingRow !== null) {
+            return $payload;
+        }
+
+        if ($inputName === 'variants') {
+            $name = (string) ($payload['name'] ?? '');
+            $payload['code'] = Code::make(ProductVariant::class, Codes::VARIANT);
+            $payload['slug'] = Slug::make($name.'-'.uniqid());
+        }
+
+        if ($inputName === 'products') {
+            $modelId = (int) ($payload['product_model_id'] ?? 0);
+            $payload['code'] = Code::make(Product::class, Codes::PRODUCT);
+            // Un prodotto senza variante non esiste: una riga aggiunta a mano
+            // finisce sulla prima variante del modello.
+            $payload['product_variant_id'] = (int) ($payload['product_variant_id'] ?? 0)
+                ?: static::firstVariantId($modelId);
+        }
+
+        return $payload;
+    }
+
+    /** Eliminare un modello porta via le sue righe: da solo il database rifiuta. */
+    public static function deleteRecord(int|string $id): object
+    {
+        $modelId = (int) $id;
+
+        Transaction::run(static function () use ($modelId): void {
+            foreach (static::products($modelId) as $product) {
+                foreach (ProductAttributes::read('product', (int) $product['id']) as $link) {
+                    ProductAttributes::modelClass('product')::delete((int) $link['id']);
+                }
+
+                Product::delete((int) $product['id']);
+            }
+
+            foreach (static::variants($modelId) as $variant) {
+                foreach (ProductAttributes::read('variant', (int) $variant['id']) as $link) {
+                    ProductAttributes::modelClass('variant')::delete((int) $link['id']);
+                }
+
+                ProductVariant::delete((int) $variant['id']);
+            }
+
+            foreach (ProductAttributes::read('model', $modelId) as $link) {
+                ProductAttributes::modelClass('model')::delete((int) $link['id']);
+            }
+
+            foreach (static::rowsOf(ProductModelCategory::class, ['product_model_id' => $modelId]) as $row) {
+                ProductModelCategory::delete((int) $row['id']);
+            }
+
+            foreach (static::rowsOf(ProductModelTag::class, ['product_model_id' => $modelId]) as $row) {
+                ProductModelTag::delete((int) $row['id']);
+            }
+        });
+
+        return parent::deleteRecord($id);
+    }
+
+    /** Quante varianti ha quel modello. */
+    public static function variantCount(int $modelId): int
+    {
+        return count(static::variants($modelId));
+    }
+
+    /** Quanti prodotti ha quel modello. */
+    public static function productCount(int $modelId): int
+    {
+        return count(static::products($modelId));
+    }
+
+    /** Il prodotto, quando è uno solo: è lì che finiscono SKU, EAN e prezzo. */
+    public static function soleProduct(int $modelId): ?array
+    {
+        $products = static::products($modelId);
+
+        return count($products) === 1 ? $products[0] : null;
+    }
+
+    /** @return list<array<string, mixed>> */
+    public static function variants(int $modelId): array
+    {
+        return static::rowsOf(ProductVariant::class, ['product_model_id' => $modelId], 'position');
+    }
+
+    /** @return list<array<string, mixed>> */
+    public static function products(int $modelId): array
+    {
+        return static::rowsOf(Product::class, ['product_model_id' => $modelId], 'position');
+    }
+
+    /** Gli attributi visibili, letti una volta per richiesta. */
+    public static function attributes(): array
+    {
+        static $attributes = null;
+
+        return $attributes ??= static::rowsOf(Attribute::class, ['is_visible' => 'true'], 'position');
+    }
+
+    /** I valori degli attributi a elenco, per id. @return array<int, array<string, mixed>> */
+    public static function attributeValues(): array
+    {
+        static $values = null;
+
+        if ($values === null) {
+            $values = [];
+
+            foreach (static::rowsOf(AttributeValue::class, [], 'position') as $row) {
+                $values[(int) $row['id']] = $row;
+            }
+        }
+
+        return $values;
+    }
+
+    protected static function firstVariantId(int $modelId): int
+    {
+        $variants = static::variants($modelId);
+
+        return (int) ($variants[0]['id'] ?? 0);
+    }
+
+    /** Il campo di un attributo di modello, secondo il suo tipo. */
+    protected static function attributeField(array $attribute): FormField
+    {
+        $id = (int) $attribute['id'];
+        $name = (string) ($attribute['name'] ?? '');
+        $unit = trim((string) ($attribute['unit'] ?? ''));
+        $label = $unit === '' ? $name : $name.' ('.$unit.')';
+        $field = FormField::key('attribute_'.$id);
+
+        if (Attributes::usesValues((string) ($attribute['type'] ?? ''))) {
+            return $field->select(static::valueOptions($id))->label($label);
+        }
+
+        if (($attribute['type'] ?? '') === 'number') {
+            return $field->number()->decimal(3)->label($label);
+        }
+
+        return $field->text()->label($label);
+    }
+
+    /** Il valore scritto nel form per quell'attributo. */
+    protected static function attributeValue(array $attribute, ?array $link): string
+    {
+        if ($link === null) {
+            return '';
+        }
+
+        if (Attributes::usesValues((string) ($attribute['type'] ?? ''))) {
+            return (string) ($link['attribute_value_id'] ?? '');
+        }
+
+        if (($attribute['type'] ?? '') === 'number') {
+            return (string) ($link['value_number'] ?? '');
+        }
+
+        return (string) ($link['value_text'] ?? '');
+    }
+
+    /** Voci di un attributo a elenco. @return array<string, string> */
+    protected static function valueOptions(int $attributeId): array
+    {
+        $options = ['' => '—'];
+
+        foreach (static::attributeValues() as $value) {
+            if ((int) ($value['attribute_id'] ?? 0) === $attributeId) {
+                $options[(string) $value['id']] = (string) ($value['label'] ?? '');
+            }
+        }
+
+        return $options;
+    }
+
+    protected static function variantsField(): FormField
+    {
+        return FormField::key('variants')
+            ->repeater([
+                RepeaterColumn::key('id')->hidden(),
+                RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(8),
+                RepeaterColumn::key('visible')
+                    ->select(['true' => 'Visibile', 'false' => 'Nascosta'])
+                    ->label('Stato')
+                    ->columnSpan(3),
+            ])
+            ->relation(
+                RepeaterRelation::make(ProductVariant::$table, 'product_model_id')
+                    ->model(ProductVariant::class)
+                    ->positionKey('position')
+            )
+            ->nested()
+            ->repeaterSortable()
+            ->repeaterAddLabel('Aggiungi variante')
+            ->repeaterDeleteTitle('Elimina variante')
+            ->repeaterDeleteText('I prodotti di questa variante restano senza: confermi?')
+            ->repeaterDeleteCancelLabel('Annulla')
+            ->repeaterDeleteConfirmLabel('Elimina')
+            ->repeaterDeleteConfirmClass('btn btn-danger')
+            ->label('Varianti');
+    }
+
+    protected static function productsField(): FormField
+    {
+        return FormField::key('products')
+            ->repeater([
+                RepeaterColumn::key('id')->hidden(),
+                RepeaterColumn::key('sku')->text()->label('SKU')->columnSpan(3),
+                RepeaterColumn::key('ean')->text()->label('EAN')->columnSpan(2),
+                RepeaterColumn::key('price')->number()->decimal(2)->label('Prezzo')->columnSpan(2),
+                RepeaterColumn::key('sale_price')->number()->decimal(2)->label('Scontato')->columnSpan(2),
+                RepeaterColumn::key('active')
+                    ->select(['true' => 'Attivo', 'false' => 'Fermo'])
+                    ->label('Stato')
+                    ->columnSpan(2),
+            ])
+            ->relation(
+                RepeaterRelation::make(Product::$table, 'product_model_id')
+                    ->model(Product::class)
+                    ->positionKey('position')
+            )
+            ->nested()
+            ->repeaterSortable()
+            ->repeaterAddLabel('Aggiungi prodotto')
+            ->repeaterDeleteTitle('Elimina prodotto')
+            ->repeaterDeleteText('Confermi l\'eliminazione di questo prodotto?')
+            ->repeaterDeleteCancelLabel('Annulla')
+            ->repeaterDeleteConfirmLabel('Elimina')
+            ->repeaterDeleteConfirmClass('btn btn-danger')
+            ->label('Prodotti');
+    }
+
+    /** @return list<FormField> */
+    protected static function soleProductFields(): array
+    {
+        return [
+            FormField::key('product_sku')->text()->label('SKU'),
+            FormField::key('product_ean')->text()->label('EAN'),
+            FormField::key('product_price')->number()->decimal(2)->label('Prezzo'),
+            FormField::key('product_sale_price')->number()->decimal(2)->label('Prezzo scontato'),
+        ];
+    }
+
+    /** Toglie dai valori tutto ciò che non è una colonna del modello. */
+    protected static function withoutExtras(array $values): array
+    {
+        unset(
+            $values['categories'],
+            $values['main_category'],
+            $values['tags'],
+            $values['product_sku'],
+            $values['product_ean'],
+            $values['product_price'],
+            $values['product_sale_price'],
+        );
+
+        foreach (array_keys($values) as $key) {
+            if (str_starts_with((string) $key, 'attribute_')) {
+                unset($values[$key]);
+            }
+        }
+
+        return $values;
+    }
+
+    protected static function saveCategories(int $modelId, array $post): void
+    {
+        $chosen = array_values(array_unique(array_filter(
+            array_map('intval', (array) ($post['categories'] ?? [])),
+            static fn (int $id): bool => $id > 0
+        )));
+        $main = (int) ($post['main_category'] ?? 0);
+
+        // Scegliere la principale senza spuntarla è una svista, non un errore:
+        // la si aggiunge invece di chiedere due volte la stessa cosa.
+        if ($main > 0 && !in_array($main, $chosen, true)) {
+            $chosen[] = $main;
+        }
+
+        $existing = [];
+
+        foreach (static::rowsOf(ProductModelCategory::class, ['product_model_id' => $modelId]) as $row) {
+            $existing[(int) $row['category_id']] = $row;
+        }
+
+        foreach ($existing as $categoryId => $row) {
+            if (!in_array($categoryId, $chosen, true)) {
+                ProductModelCategory::delete((int) $row['id']);
+            }
+        }
+
+        $position = 1;
+
+        foreach ($chosen as $categoryId) {
+            $values = [
+                'product_model_id' => $modelId,
+                'category_id' => $categoryId,
+                'is_main' => $categoryId === $main ? 'true' : 'false',
+                'position' => $position++,
+            ];
+
+            isset($existing[$categoryId])
+                ? ProductModelCategory::update($values, (int) $existing[$categoryId]['id'])
+                : ProductModelCategory::create($values);
+        }
+    }
+
+    protected static function saveTags(int $modelId, array $post): void
+    {
+        $chosen = array_values(array_unique(array_filter(
+            array_map('intval', (array) ($post['tags'] ?? [])),
+            static fn (int $id): bool => $id > 0
+        )));
+        $existing = [];
+
+        foreach (static::rowsOf(ProductModelTag::class, ['product_model_id' => $modelId]) as $row) {
+            $existing[(int) $row['tag_id']] = $row;
+        }
+
+        foreach ($existing as $tagId => $row) {
+            if (!in_array($tagId, $chosen, true)) {
+                ProductModelTag::delete((int) $row['id']);
+            }
+        }
+
+        foreach ($chosen as $tagId) {
+            if (!isset($existing[$tagId])) {
+                ProductModelTag::create(['product_model_id' => $modelId, 'tag_id' => $tagId]);
+            }
+        }
+    }
+
+    protected static function saveModelAttributes(int $modelId, array $post): void
+    {
+        $attributes = Attributes::byLevel(static::attributes(), 'model');
+        $input = [];
+
+        foreach ($attributes as $attribute) {
+            $id = (int) $attribute['id'];
+            $input[$id] = $post['attribute_'.$id] ?? null;
+        }
+
+        ProductAttributes::save('model', $modelId, $attributes, $input);
+    }
+
+    /** SKU, EAN e prezzi del prodotto unico, scritti sul prodotto. */
+    protected static function saveSoleProduct(int $modelId, array $post, string $fallbackSku = ''): void
+    {
+        if (static::productCount($modelId) > 1) {
+            return;
+        }
+
+        $product = static::soleProduct($modelId);
+
+        if ($product === null) {
+            return;
+        }
+
+        $sku = trim((string) ($post['product_sku'] ?? ''));
+
+        Product::update([
+            'sku' => $sku !== '' ? $sku : $fallbackSku,
+            'ean' => trim((string) ($post['product_ean'] ?? '')),
+            // I decimali arrivano con la virgola: MySQL non li accetta.
+            'price' => Numbers::fromForm($post['product_price'] ?? null),
+            'sale_price' => Numbers::fromForm($post['product_sale_price'] ?? null),
+        ], (int) $product['id']);
+    }
+
+    /** @return list<int> */
+    protected static function categoryIds(int $modelId): array
+    {
+        return array_map(
+            static fn (array $row): int => (int) $row['category_id'],
+            static::rowsOf(ProductModelCategory::class, ['product_model_id' => $modelId], 'position')
+        );
+    }
+
+    protected static function mainCategoryId(int $modelId): int
+    {
+        foreach (static::rowsOf(ProductModelCategory::class, ['product_model_id' => $modelId]) as $row) {
+            if (($row['is_main'] ?? 'false') === 'true') {
+                return (int) $row['category_id'];
+            }
+        }
+
+        return 0;
+    }
+
+    /** @return list<int> */
+    protected static function tagIds(int $modelId): array
+    {
+        return array_map(
+            static fn (array $row): int => (int) $row['tag_id'],
+            static::rowsOf(ProductModelTag::class, ['product_model_id' => $modelId])
+        );
+    }
+
+    /** @return array<string, string> */
+    protected static function brandOptions(): array
+    {
+        $options = ['' => 'Nessuno'];
+
+        foreach (static::rowsOf(Brand::class, [], 'name') as $row) {
+            $options[(string) $row['id']] = (string) ($row['name'] ?? '');
+        }
+
+        return $options;
+    }
+
+    /** @return array<string, string> */
+    protected static function taxCategoryOptions(): array
+    {
+        $options = ['' => 'Predefinito'];
+
+        foreach (static::rowsOf(TaxCategory::class, [], 'position') as $row) {
+            $options[(string) $row['id']] = (string) ($row['name'] ?? '');
+        }
+
+        return $options;
+    }
+
+    /** @return array<string, string> */
+    protected static function tagOptions(): array
+    {
+        $options = [];
+
+        foreach (static::rowsOf(Tag::class, [], 'name') as $row) {
+            $options[(string) $row['id']] = (string) ($row['name'] ?? '');
+        }
+
+        return $options;
+    }
+
+    /** @return array<string, string> */
+    protected static function categoryOptions(): array
+    {
+        $options = CategoryTree::options(static::categories());
+        $options[''] = 'Nessuna';
+
+        return $options;
+    }
+
+    protected static function categoryTree(): array
+    {
+        $tree = CategoryTree::treeOptions(static::categories());
+
+        // Qui non si sceglie un padre: la voce "Nessuna" non ha senso.
+        return $tree['0']['child'] ?? [];
+    }
+
+    /** @return list<array<string, mixed>> */
+    protected static function categories(): array
+    {
+        return static::rowsOf(Category::class, [], 'position');
+    }
+
+    protected static function escape(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    }
+}
