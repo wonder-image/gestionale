@@ -1,5 +1,11 @@
 {
     "gestionale": {
-        "name": "Gestionale"
+        "name": "Gestionale",
+        "errors": {
+            "stock": {
+                "insufficient": "Non c'è abbastanza giacenza di {{product}}."
+            },
+            "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue."
+        }
     }
 }
