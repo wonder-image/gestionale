@@ -125,4 +125,43 @@ check('il codice non cambia più dopo la creazione', function () {
     return !isset($valori['code']);
 });
 
+check('l\'elenco delle regole mostra nomi, non id', function () {
+    $colonne = [];
+
+    foreach (TaxRuleResource::tableSchema() as $column) {
+        $colonne[(string) $column->name] = $column->toArray()['formatter'] ?? null;
+    }
+
+    // Senza database i nomi non ci sono: conta che la colonna passi da un
+    // formatter invece di stampare il numero che ha in riga.
+    return $colonne['customer_type'] instanceof Closure
+        && $colonne['tax_category_id'] instanceof Closure
+        && $colonne['tax_id'] instanceof Closure;
+});
+
+check('il tipo di cliente si legge in italiano', function () {
+    $formatter = null;
+
+    foreach (TaxRuleResource::tableSchema() as $column) {
+        if ((string) $column->name === 'customer_type') {
+            $formatter = $column->toArray()['formatter'] ?? null;
+        }
+    }
+
+    return $formatter(['customer_type' => 'business']) === 'Azienda'
+        && $formatter(['customer_type' => 'private']) === 'Privato';
+});
+
+check('un riferimento che non c\'è più si vede', function () {
+    $formatter = null;
+
+    foreach (TaxRuleResource::tableSchema() as $column) {
+        if ((string) $column->name === 'tax_id') {
+            $formatter = $column->toArray()['formatter'] ?? null;
+        }
+    }
+
+    return $formatter(['tax_id' => 999]) === '—';
+});
+
 summary();

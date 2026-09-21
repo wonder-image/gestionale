@@ -32,6 +32,12 @@ final class TaxRuleResource extends GestionaleResource
     public static string $orderDirection = 'ASC';
     public static string $docsPage = 'impostazioni/iva';
 
+    /** @var array<string, string>|null nomi dei tipi fiscali, letti una volta */
+    private static ?array $categoryNames = null;
+
+    /** @var array<string, string>|null nomi delle aliquote, letti una volta */
+    private static ?array $taxNames = null;
+
     public static function path(): string
     {
         return 'app/gestionale/regole-iva';
@@ -75,7 +81,7 @@ final class TaxRuleResource extends GestionaleResource
         return [
             FormField::key('country')->country()->value('IT')->label('Paese')->required(),
             FormField::key('customer_type')
-                ->select(['private' => 'Privato', 'business' => 'Azienda'])
+                ->select(static::customerTypes())
                 ->value('private')
                 ->label('Tipo di cliente')
                 ->required(),
@@ -109,12 +115,27 @@ final class TaxRuleResource extends GestionaleResource
 
     public static function tableSchema(): array
     {
+        // Nell'elenco vanno i nomi: un id non dice a nessuno di che regola
+        // si tratta. Le due mappe si leggono una volta sola per pagina.
         return [
             TableColumn::key('code')->text()->link('edit'),
             TableColumn::key('country')->text()->size('little'),
-            TableColumn::key('customer_type')->text()->size('little'),
-            TableColumn::key('tax_category_id')->text(),
-            TableColumn::key('tax_id')->text(),
+            TableColumn::key('customer_type')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::escape(
+                    static::customerTypes()[(string) ($row['customer_type'] ?? '')] ?? (string) ($row['customer_type'] ?? '')
+                )),
+            TableColumn::key('tax_category_id')
+                ->text()
+                ->formatter(static fn (array $row): string => static::escape(
+                    static::taxCategories()[(string) ($row['tax_category_id'] ?? '')] ?? '—'
+                )),
+            TableColumn::key('tax_id')
+                ->text()
+                ->formatter(static fn (array $row): string => static::escape(
+                    static::taxes()[(string) ($row['tax_id'] ?? '')] ?? '—'
+                )),
             TableColumn::key('actions')->button()->actions(['edit', 'delete']),
         ];
     }
@@ -196,16 +217,33 @@ final class TaxRuleResource extends GestionaleResource
         return implode('-', array_filter($parts, static fn (string $part): bool => $part !== ''));
     }
 
-    /** @return array<string, string> */
-    private static function taxCategories(): array
+    /** Nomi dei tipi di cliente, gli stessi del form. @return array<string, string> */
+    public static function customerTypes(): array
     {
-        return static::options(TaxCategory::class, static fn (array $row): string => (string) ($row['name'] ?? ''));
+        return ['private' => 'Privato', 'business' => 'Azienda'];
     }
 
     /** @return array<string, string> */
-    private static function taxes(): array
+    public static function taxCategories(): array
     {
-        return static::options(Tax::class, static fn (array $row): string => (string) ($row['name'] ?? ''));
+        return static::$categoryNames ??= static::options(
+            TaxCategory::class,
+            static fn (array $row): string => (string) ($row['name'] ?? '')
+        );
+    }
+
+    /** @return array<string, string> */
+    public static function taxes(): array
+    {
+        return static::$taxNames ??= static::options(
+            Tax::class,
+            static fn (array $row): string => (string) ($row['name'] ?? '')
+        );
+    }
+
+    private static function escape(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
     }
 
     /** @return array<string, string> */
