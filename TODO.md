@@ -153,7 +153,10 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
       - `UserError` ora estende `InvalidArgumentException`: è il tipo che il controller del backend trasforma in `$ALERT`. Prima un rifiuto di `mutateRequestValues()` (anello nelle categorie, tipo bloccato) usciva come pagina 500.
       - Aggiunto il controllo che la categoria padre esista ancora: prima un `parent_id` vecchio arrivava al database e tornava come 500.
       - `forge update` non prova più a reinserire le regole IVA già presenti con il codice nel formato vecchio.
-    - [ ] Piano 3: modelli, varianti e prodotti
+    - [x] Piano 3 scritto ed eseguito (2026-09-21): `docs/superpowers/plans/2026-09-21-modelli-varianti-prodotti.md` — `gst_product_models` con categorie e tag, `gst_product_variants`, `gst_products`, le tre tabelle dei collegamenti degli attributi, `ProductAttributes`/`Sku`/`Ean`/`Skeleton`/`Combinations`, scheda del modello che si adatta (G2a.2), generatore delle combinazioni dalle spunte, elenco piatto "Prodotti" con la scheda del singolo. Verificato nel browser.
+      - `wonder-image/app`: corretto in locale (commit `7d6df162`, **da rilasciare**) il `prepare()` dei form che arrotondava i decimali — `24,50` diventava `25,00` e `19,90` diventava `1990,00`, su qualsiasi campo numerico del backend (anche le aliquote IVA). Finché il sito di prova resta sulla 2.2.12 il prezzo scritto dalla scheda del prodotto continua ad arrotondarsi.
+      - Nel modulo `Support\Numbers::fromForm()` per i numeri scritti con `Model::update()`, che non passa dal `prepare()` dei form.
+      - Un'etichetta di valore non passa più da `sanitizeFirst()`: "XL" non deve diventare "Xl".
     - [ ] Piano 4: immagini in differita e dati di prova
   - [ ] G2b Magazzino base e anagrafiche
 - [ ] G3 Magazzino avanzato
