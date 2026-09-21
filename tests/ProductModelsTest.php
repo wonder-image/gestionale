@@ -6,9 +6,11 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
+use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Support\Codes;
 
@@ -102,6 +104,56 @@ check('i collegamenti puntano dove devono', function () use ($colonne) {
 
 check('una sola categoria principale per modello si riconosce', function () use ($colonne) {
     return $colonne(ProductModelCategory::class)['is_main']->getSchema('enum') === ['true', 'false'];
+});
+
+check('varianti e prodotti hanno il prefisso del gestionale', fn () =>
+    ProductVariant::$table === 'gst_product_variants'
+    && Product::$table === 'gst_products'
+);
+
+check('varianti e prodotti non viaggiano con il deploy', fn () =>
+    ProductVariant::syncSchema() === null && Product::syncSchema() === null
+);
+
+check('variante e prodotto hanno i loro prefissi nel codice', function () use ($campo) {
+    return ($campo(ProductVariant::class, 'code')?->getSchema('unique_code')['prefix'] ?? null) === Codes::VARIANT
+        && ($campo(Product::class, 'code')?->getSchema('unique_code')['prefix'] ?? null) === Codes::PRODUCT;
+});
+
+check('un prodotto senza variante non esiste', function () use ($colonne) {
+    // G2a.2: la variante c'è sempre, anche quando è una sola.
+    $prodotto = $colonne(Product::class);
+
+    return $prodotto['product_model_id']->getSchema('foreign_table') === ProductModel::$table
+        && $prodotto['product_variant_id']->getSchema('foreign_table') === ProductVariant::$table
+        && $prodotto['product_variant_id']->getSchema('null') === false;
+});
+
+check('la variante appartiene a un modello', function () use ($colonne) {
+    return $colonne(ProductVariant::class)['product_model_id']->getSchema('foreign_table') === ProductModel::$table;
+});
+
+check('prezzi, peso e misure del prodotto tengono i decimali', function () use ($colonne) {
+    foreach (['price', 'sale_price', 'weight', 'length', 'width', 'height'] as $key) {
+        if ($colonne(Product::class)[$key]->getSchema('type') !== 'DECIMAL') {
+            return false;
+        }
+    }
+
+    return true;
+});
+
+check('le colonne del magazzino nascono qui, anche se non si vedono', function () use ($colonne) {
+    // G2a.6: arrivano con G2b e G4, ma stanno sul prodotto e aggiungerle dopo
+    // significherebbe rifare la scheda.
+    $prodotto = $colonne(Product::class);
+
+    return isset($prodotto['min_stock_quantity'], $prodotto['allow_backorder'], $prodotto['backorder_lead_days']);
+});
+
+check('lo SKU del prodotto non ha un indice unico', function () use ($colonne) {
+    return empty($colonne(Product::class)['sku']->getSchema('unique'))
+        && empty($colonne(Product::class)['ean']->getSchema('unique'));
 });
 
 summary();
