@@ -69,14 +69,14 @@ lavoro del commerciante, si scrive dove si lavora e non viaggia con il deploy.
 | Tabella | Colonne | Note |
 |---|---|---|
 | `brands` | `code` (`bra_`), `name`, `slug`, `logo`, `description`, `position`, `visible` | |
-| `categories` | `code` (`cat_`), `parent_id`, `name`, `slug`, `image`, `description`, `seo_title`, `seo_description`, `position`, `visible` | albero a profondità libera, con vincolo anti-ciclo |
+| `categories` | `code` (`cat_`), `parent_id`, `name`, `slug`, `image`, `description`, `position`, `visible` | albero a profondità libera, con vincolo anti-ciclo |
 | `tags` | `code` (`tag_`), `name`, `slug`, `image`, `visible` | |
-| `product_models` | `code` (`mod_`), `brand_id`, `type` (`simple`/`bundle`), `tax_category_id`, `sku`, `unit` (default `pz`), `name`, `slug`, `short_description`, `description`, `weight`, `length`, `width`, `height`, `seo_title`, `seo_description`, `returnable`, `requires_shipping`, `visible`, `visible_online` | `type` c'è già ma in G2a vale solo `simple` |
+| `product_models` | `code` (`mod_`), `brand_id`, `type` (`simple`/`bundle`), `tax_category_id`, `sku`, `unit` (default `pz`), `name`, `slug`, `short_description`, `description`, `weight`, `length`, `width`, `height`, `returnable`, `requires_shipping`, `visible`, `visible_online` | `type` c'è già ma in G2a vale solo `simple` |
 | `product_model_categories` | `product_model_id`, `category_id`, `is_main`, `position` | una sola principale per modello |
 | `product_model_tags` | `product_model_id`, `tag_id` | |
 | `product_variants` | `code` (`var_`), `product_model_id`, `name`, `slug`, `position`, `visible` | |
 | `products` | `code` (`pro_`), `product_model_id`, `product_variant_id`, `sku`, `ean`, `mpn`, `price`, `sale_price`, `min_stock_quantity`, `allow_backorder`, `backorder_lead_days`, `weight`, `length`, `width`, `height`, `position`, `active` | peso e misure vuoti valgono quelli del modello |
-| `product_images` | `product_model_id`, `product_variant_id`, `file`, `alt`, `position` | variante vuota = immagine del modello |
+| `product_images` | `product_model_id`, `product_variant_id`, `file`, `alt`, `position`, `status` (`pending`/`ready`/`failed`), `processed_at`, `error` | variante vuota = immagine del modello; lo stato serve al resize in differita |
 | `attributes` | `code`, `key`, `name`, `type` (`select`/`text`/`number`/`color`), `level` (`model`/`variant`/`product`), `unit`, `is_filterable`, `is_visible`, `group`, `position` | |
 | `attribute_values` | `attribute_id`, `label`, `color`, `image`, `position` | solo per `type = select` o `color` |
 | `product_model_attributes` | `product_model_id`, `attribute_id`, `attribute_value_id`, `value_text`, `value_number` | |
@@ -121,13 +121,39 @@ scritto a mano (è quello che legge il cliente); gli attributi di variante sono
 il dato strutturato. Il pannello propone il nome dai valori scelti, come per lo
 SKU.
 
-### 5. Immagini
+### 5. Immagini, con il resize in differita
 
-Il sistema immagini del core (`Field::key('images')->image()->responsive()`),
-con la galleria sul modello e, per chi ha varianti con aspetti diversi, la
-galleria sulla variante. Se la variante non ha immagini valgono quelle del
-modello: la regola sta in una classe pura (`Catalog\ProductImages::for()`), così
-vetrina e backend rispondono uguale.
+Galleria sul modello e, per chi ha varianti con aspetti diversi, galleria sulla
+variante. Se la variante non ha immagini valgono quelle del modello: la regola
+sta in una classe pura (`Catalog\ProductImages::for()`), così vetrina e backend
+rispondono uguale.
+
+**Il commerciante non aspetta il resize.** Caricare venti foto da telefono
+significa generare centinaia di file: il salvataggio ci mette minuti e il
+pannello sembra bloccato. Qui il salvataggio scrive solo l'originale, e le
+misure arrivano dopo.
+
+- Il campo si dichiara **senza** `responsive()`: `uploadFiles()` salta il
+  ridimensionamento e la scheda si salva subito.
+- La riga di `product_images` nasce `pending`.
+- Un lavoro in coda prende le righe `pending`, chiama `imageResize()` del core
+  con le misure del sito, e segna `ready` (o `failed` con l'errore, che finisce
+  anche in `error_reports`).
+- **Finché una riga non è `ready` si mostra l'originale**: la scheda e la
+  vetrina non aspettano, si vede solo un'immagine più pesante per qualche
+  minuto.
+
+Chi fa girare la coda:
+
+| Come | Quando |
+|---|---|
+| `php forge gestionale:images` | sempre disponibile, anche a mano |
+| Task dichiarato con `ModuleTasks` | quando arriva la gestione dei cron del core (`2.3.0`) |
+
+Il comando lavora **a blocchi** (predefinito 20 immagini) e si può richiamare
+finché la coda è vuota, così un cron ogni minuto non si accavalla con sé stesso.
+Un'immagine che fallisce tre volte resta `failed` e non riprova da sola: la
+riga si vede nella scheda con il suo messaggio.
 
 ### 6. Pagine del backend
 
@@ -137,7 +163,7 @@ Tutte sempre attive (3.4), nella sezione **Catalogo** del menu, per `admin` e
 | Pagina | Cosa fa |
 |---|---|
 | Modelli | l'elenco principale: ricerca per nome, SKU ed EAN, filtri per brand, categoria, tag e stato |
-| Scheda del modello | riquadri: Dati, Descrizioni, Categorie e tag, Attributi, Immagini, Varianti, Prodotti, SEO |
+| Scheda del modello | riquadri: Dati, Descrizioni, Categorie e tag, Attributi, Immagini, Varianti, Prodotti |
 | Prodotti | elenco piatto di tutti i prodotti, per cercare uno SKU o un EAN senza passare dal modello |
 | Marchi, Categorie, Tag, Attributi | elenchi CRUD normali; le categorie con l'albero |
 
@@ -146,12 +172,19 @@ lì che si lavora, ed è l'unico modo per vedere insieme le righe di un articolo
 L'elenco "Prodotti" serve a trovare, non a modificare in massa. La scheda di un
 prodotto singolo (attributi, misure, backorder) si apre dalla riga.
 
-### 7. SEO e vetrina
+### 7. Indirizzi e visibilità
 
-`slug`, `seo_title` e `seo_description` stanno su modelli e categorie; li
-useranno la vetrina (E1) e la sitemap. `visible` è la visibilità nel gestionale,
-`visible_online` quella nel negozio: un prodotto può esistere per l'ufficio e non
-per il sito.
+`slug` sta su modelli, varianti, categorie, marchi e tag: è l'indirizzo della
+pagina, e lo useranno vetrina e sitemap (E1).
+
+**Niente colonne SEO nel catalogo.** Titolo e descrizione per i motori di
+ricerca li compone l'ecommerce da come è organizzato il sito, non il
+commerciante prodotto per prodotto: sarebbero centinaia di campi lasciati vuoti
+o scritti male. Se un giorno servirà l'eccezione per il singolo modello, si
+aggiunge allora.
+
+`visible` è la visibilità nel gestionale, `visible_online` quella nel negozio:
+un prodotto può esistere per l'ufficio e non per il sito.
 
 ### 8. Dati di prova
 
@@ -169,8 +202,11 @@ provare magazzino e ordini nei sotto-progetti dopo.
 4. Nel browser: si crea un modello con due colori e tre taglie, e i sei prodotti
    nascono con SKU proposti e modificabili.
 5. Un EAN duplicato viene rifiutato con un messaggio chiaro; uno di 12 cifre pure.
-6. Una categoria non può diventare figlia di sé stessa né di una sua discendente.
-7. `gestionale:demo` riempie il catalogo su un sito vuoto.
+6. Caricando dieci immagini la scheda si salva in un attimo, le righe nascono
+   `pending` e `php forge gestionale:images` le porta a `ready`; nel frattempo
+   la scheda mostra gli originali.
+7. Una categoria non può diventare figlia di sé stessa né di una sua discendente.
+8. `gestionale:demo` riempie il catalogo su un sito vuoto.
 
 ## Decisioni di questa spec
 
@@ -183,10 +219,12 @@ provare magazzino e ordini nei sotto-progetti dopo.
 | G2a.5 | Nome della variante e SKU restano scritti a mano, con una proposta automatica |
 | G2a.6 | Le colonne del magazzino (`min_stock_quantity`, `allow_backorder`) nascono qui ma restano nascoste fino a G2b/G4 |
 | G2a.7 | Marchi, categorie, tag e attributi non si eliminano quando sono usati: si nascondono |
+| G2a.8 | Le immagini si ridimensionano **in differita**: il salvataggio scrive l'originale, la coda genera le misure, e fino ad allora si mostra l'originale |
+| G2a.9 | Niente colonne SEO nel catalogo: titolo e descrizione li compone l'ecommerce |
 
 ## Piani
 
 1. **Tassonomie:** marchi, categorie (con albero e anti-ciclo), tag, con le loro pagine.
 2. **Attributi:** attributi, valori, i tre livelli e le pagine.
 3. **Modelli, varianti e prodotti:** tabelle, codici, SKU, EAN, la scheda con i repeater e l'elenco dei prodotti.
-4. **Immagini, SEO e dati di prova:** gallerie di modello e variante, regola dell'ereditarietà, SEO, `gestionale:demo`, guide.
+4. **Immagini in differita e dati di prova:** gallerie di modello e variante, regola dell'ereditarietà, coda del resize con comando e task, `gestionale:demo`, guide.
