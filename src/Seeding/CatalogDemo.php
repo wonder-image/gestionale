@@ -8,7 +8,9 @@ use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
+use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
 
@@ -143,7 +145,19 @@ final class CatalogDemo
                 continue;
             }
 
-            // Prima i valori: la chiave esterna non lascia andare l'attributo.
+            // Prima chi lo usa: un prodotto che punta a questo attributo
+            // impedirebbe di toglierlo, e la pulizia morirebbe a metà.
+            foreach (Attributes::LEVELS as $level => $ignored) {
+                $model = ProductAttributes::modelClass($level);
+
+                foreach (self::rows($model) as $link) {
+                    if ((int) ($link['attribute_id'] ?? 0) === (int) $row['id']) {
+                        $model::delete((int) $link['id']);
+                    }
+                }
+            }
+
+            // Poi i valori: la chiave esterna non lascia andare l'attributo.
             foreach (self::rows(AttributeValue::class) as $value) {
                 if ((int) ($value['attribute_id'] ?? 0) !== (int) $row['id']) {
                     continue;
