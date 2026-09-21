@@ -254,6 +254,40 @@ check('finché una riga resta, si salva', function () {
     return true;
 });
 
+check('l\'elenco dice foto, prezzo e quante versioni', function () {
+    $colonne = [];
+
+    foreach (ProductModelResource::tableSchema() as $colonna) {
+        $colonne[] = (string) $colonna->name;
+    }
+
+    return in_array('photo', $colonne, true)
+        && in_array('price', $colonne, true)
+        && in_array('versions', $colonne, true);
+});
+
+check('il prezzo si legge come intervallo solo quando serve', function () {
+    $scheda = new class extends ProductModelResource {
+        public static array $finti = [];
+
+        public static function products(int $modelId): array
+        {
+            return static::$finti;
+        }
+    };
+
+    $scheda::$finti = [['price' => '19.90'], ['price' => '19.90']];
+    $uguali = $scheda::priceRange(1);
+
+    $scheda::$finti = [['price' => '24.50'], ['price' => '19.90']];
+    $diversi = $scheda::priceRange(1);
+
+    $scheda::$finti = [];
+    $nessuno = $scheda::priceRange(1);
+
+    return $uguali === '19,90' && $diversi === 'da 19,90' && $nessuno === '';
+});
+
 /** I titoli dei riquadri, nell'ordine in cui la scheda li mette. */
 $riquadri = static function (): array {
     $form = ProductModelResource::formLayoutSchema();

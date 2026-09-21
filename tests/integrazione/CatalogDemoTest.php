@@ -20,6 +20,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
+use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -40,6 +41,10 @@ $tutte = [
 ];
 $stato = static fn (): array => array_map($conta, $tutte);
 $prima = $stato();
+
+// Il sito aveva già i dati di prova? Serve in fondo: `clear()` toglie le foto
+// dal disco e la transazione non le rimette.
+$aveva = is_array(Brand::find(['name' => 'Prova Marchio', 'deleted' => 'false'], 1));
 
 try {
     Transaction::run(static function () use ($conta, $stato): void {
@@ -146,5 +151,34 @@ try {
 }
 
 check('dopo l\'annullamento il catalogo è come prima', fn () => $stato() === $prima);
+
+// La transazione riporta indietro le righe, non i file: `clear()` ha tolto le
+// foto dal disco e quelle non tornano da sole. Se il sito aveva i dati di
+// prova, glieli si rifà, altrimenti resterebbe con tre righe che puntano a
+// file che non ci sono più.
+if ($aveva) {
+    CatalogDemo::clear();
+    CatalogDemo::create();
+}
+
+check('il sito resta con foto vere sul disco', function () use ($aveva) {
+    if (!$aveva) {
+        return true;
+    }
+
+    foreach (ProductImage::find(['deleted' => 'false']) ?: [] as $riga) {
+        if (!is_array($riga)) {
+            continue;
+        }
+
+        $percorso = ProductImages::path($riga);
+
+        if ($percorso !== '' && !is_file($percorso)) {
+            return false;
+        }
+    }
+
+    return true;
+});
 
 summary();

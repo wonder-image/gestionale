@@ -119,7 +119,10 @@ class ProductModelResource extends GestionaleResource
             'slug' => 'Url pubblico',
             'brand_id' => 'Marchio',
             'tax_category_id' => 'Tipo fiscale',
+            'photo' => 'Foto',
             'sku' => 'SKU',
+            'price' => 'Prezzo',
+            'versions' => 'Versioni',
             'unit' => 'Unità di misura',
             'visible' => 'Stato',
             'visible_online' => 'In vetrina',
@@ -317,11 +320,31 @@ class ProductModelResource extends GestionaleResource
         ]);
     }
 
+    /**
+     * L'elenco deve rispondere da solo a "quale dei due maglioni blu è questo".
+     *
+     * Per questo la miniatura e il prezzo: con nome, SKU e marchio due articoli
+     * simili si distinguono solo aprendoli.
+     */
     public static function tableSchema(): array
     {
         return [
+            TableColumn::key('photo')
+                ->image()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::firstImage((int) ($row['id'] ?? 0))),
             TableColumn::key('name')->text()->link('edit'),
             TableColumn::key('sku')->text()->size('little'),
+            TableColumn::key('price')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::escape(
+                    static::priceRange((int) ($row['id'] ?? 0))
+                )),
+            TableColumn::key('versions')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => (string) static::productCount((int) ($row['id'] ?? 0))),
             TableColumn::key('brand_id')
                 ->text()
                 ->size('little')
@@ -331,6 +354,47 @@ class ProductModelResource extends GestionaleResource
             TableColumn::key('visible')->visibleBadge()->size('little'),
             TableColumn::key('actions')->button()->actions(['edit', 'delete']),
         ];
+    }
+
+    /**
+     * Il prezzo dell'articolo, come lo legge chi scorre l'elenco.
+     *
+     * Un prezzo solo quando le versioni costano uguale, "da 19,90" quando no:
+     * scrivere il minimo e basta farebbe credere che costino tutte così.
+     */
+    public static function priceRange(int $modelId): string
+    {
+        $prices = [];
+
+        foreach (static::products($modelId) as $product) {
+            $price = (float) ($product['price'] ?? 0);
+
+            if ($price > 0) {
+                $prices[] = $price;
+            }
+        }
+
+        if ($prices === []) {
+            return '';
+        }
+
+        $minimo = number_format(min($prices), 2, ',', '.');
+
+        return min($prices) === max($prices) ? $minimo : 'da '.$minimo;
+    }
+
+    /** La prima foto dell'articolo, per la miniatura dell'elenco. */
+    public static function firstImage(int $modelId): string
+    {
+        foreach (static::rowsOf(ProductImage::class, ['product_model_id' => $modelId], 'position') as $row) {
+            $url = ProductImages::url($row);
+
+            if ($url !== '') {
+                return $url;
+            }
+        }
+
+        return '';
     }
 
     public static function pageSchema(): PageSchema
