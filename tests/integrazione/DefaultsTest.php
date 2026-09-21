@@ -10,9 +10,18 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 
+use Wonder\App\Models\Config\SocietyLocation;
 use Wonder\App\Support\DefaultRows;
+use Wonder\Plugin\Custom\Fattura\Valori\AliquoteIva;
+use Wonder\Plugin\Custom\Fattura\Valori\Natura;
+use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Models\System\FeatureLog;
+use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
+use Wonder\Plugin\Gestionale\Models\Tax\Tax;
+use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
+use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
 use Wonder\Plugin\Gestionale\Seeding\Defaults;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureCatalog;
 use Wonder\Sql\Transaction;
@@ -32,6 +41,12 @@ try {
         // niente e lo stato sarebbe quello lasciato dal pannello.
         sqlDelete(FeatureLog::$table);
         sqlDelete(Feature::$table);
+        sqlDelete(Location::$table);
+        sqlDelete(TaxRule::$table);
+        sqlDelete(Setting::$table);
+        sqlDelete(TaxCategory::$table);
+        sqlDelete(Tax::$table);
+        sqlDelete(MerchantSetting::$table);
 
         Defaults::seed(new DefaultRows());
         $dopo = $righe();
@@ -46,9 +61,86 @@ try {
             ($stato['orders'] ?? null) === 'false' && ($stato['backorders'] ?? null) === 'false'
         );
 
+        $aliquote = array_values(array_filter((array) sqlSelect(Tax::$table, null)->row, 'is_array'));
+
+        check('le aliquote italiane nascono visibili', function () use ($aliquote) {
+            $visibili = array_column(
+                array_values(array_filter($aliquote, static fn (array $r): bool => ($r['visible'] ?? '') === 'true')),
+                'rate',
+                'code'
+            );
+
+            return count($visibili) === count(AliquoteIva::Valori)
+                && isset($visibili['22'], $visibili['10'], $visibili['5'], $visibili['4']);
+        });
+
+        check('le operazioni a zero ci sono tutte, nascoste', function () use ($aliquote) {
+            $nascoste = array_values(array_filter(
+                $aliquote,
+                static fn (array $r): bool => ($r['visible'] ?? '') === 'false'
+            ));
+
+            return count($nascoste) === count(Natura::valide());
+        });
+
+        check('c\'è un solo tipo fiscale, quello ordinario', function () {
+            $tipi = array_values(array_filter((array) sqlSelect(TaxCategory::$table, null)->row, 'is_array'));
+
+            return count($tipi) === 1 && ($tipi[0]['code'] ?? '') === 'ordinaria';
+        });
+
+        check('le due regole italiane puntano al 22%', function () {
+            $regole = array_values(array_filter((array) sqlSelect(TaxRule::$table, null)->row, 'is_array'));
+            $ventidue = Tax::find(['code' => '22', 'deleted' => 'false'], 1);
+
+            if (count($regole) !== 2 || !is_array($ventidue)) {
+                return false;
+            }
+
+            foreach ($regole as $regola) {
+                if ((int) ($regola['tax_id'] ?? 0) !== (int) $ventidue['id']) {
+                    return false;
+                }
+
+                if (($regola['country'] ?? '') !== 'IT') {
+                    return false;
+                }
+            }
+
+            return array_column($regole, 'customer_type') === ['private', 'business'];
+        });
+
+        check('le impostazioni tecniche nascono confermabili e col ripiego giusto', function () {
+            $impostazioni = Setting::current();
+            $ventidue = Tax::find(['code' => '22', 'deleted' => 'false'], 1);
+
+            return ($impostazioni['tax_regime'] ?? '') === 'RF01'
+                && ($impostazioni['vat_collectability'] ?? '') === 'I'
+                && ($impostazioni['catalog_prices_include_tax'] ?? '') === 'true'
+                && ($impostazioni['invoice_numeration'] ?? '') === 'WEB'
+                // Vuoto e NULL sono la stessa cosa: nessun provider, nessuna conferma.
+                && trim((string) ($impostazioni['invoice_provider'] ?? '')) === ''
+                && trim((string) ($impostazioni['fiscal_confirmed_at'] ?? '')) === ''
+                && (int) ($impostazioni['fallback_tax_id'] ?? 0) === (int) ($ventidue['id'] ?? -1)
+                && (int) ($impostazioni['shipping_tax_id'] ?? 0) === (int) ($ventidue['id'] ?? -1);
+        });
+
+        check('il commerciante ha la sua riga', fn () => MerchantSetting::current() !== []);
+
+        check('la sede predefinita ha la riga del magazzino', function () {
+            $sede = SocietyLocation::find(['is_default' => 'true', 'deleted' => 'false'], 1);
+            $riga = Location::forSocietyLocation((int) ($sede['id'] ?? 0));
+
+            return $riga !== [] && ($riga['has_stock'] ?? '') === 'true'
+                && str_starts_with((string) ($riga['code'] ?? ''), 'loc_');
+        });
+
         Defaults::seed(new DefaultRows());
 
-        check('una seconda esecuzione non duplica niente', fn () => count($righe()) === count($dopo));
+        check('una seconda esecuzione non duplica niente', fn () =>
+            count($righe()) === count($dopo)
+            && count(array_filter((array) sqlSelect(Tax::$table, null)->row, 'is_array')) === count($aliquote)
+        );
 
         throw new Annulla();
     });

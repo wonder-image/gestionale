@@ -51,6 +51,27 @@ final class Location extends Model
         ];
     }
 
+    /**
+     * Codice nuovo per una sede.
+     *
+     * `Model::prepare()` formatta i valori ma non genera i codici unici: li
+     * fa il flusso dei form. Chi inserisce una riga da codice (le righe
+     * precaricate, il salvataggio della scheda) chiede il codice qui.
+     */
+    public static function newCode(): string
+    {
+        return create_unique_code(static::$table, Codes::LOCATION, 7, 'code');
+    }
+
+    public static function create(array $values): object
+    {
+        if (trim((string) ($values['code'] ?? '')) === '') {
+            $values['code'] = static::newCode();
+        }
+
+        return parent::create($values);
+    }
+
     /** La riga del gestionale legata a una sede del core, `[]` se non c'è. */
     public static function forSocietyLocation(int $societyLocationId): array
     {

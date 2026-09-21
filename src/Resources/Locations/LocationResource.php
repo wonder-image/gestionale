@@ -117,11 +117,18 @@ final class LocationResource extends SocietyLocationResource
         $columns = parent::tableSchema();
         $actions = array_pop($columns);
 
+        // Il valore sta in `gst_locations`, non nella riga della sede: lo
+        // legge il formatter, una riga per sede e le sedi sono poche.
         $columns[] = TableColumn::key('has_stock')
-            ->booleanBadge()
-            ->badgeOn('Giacenza', 'bi bi-box-seam', 'primary')
-            ->badgeOff('Senza giacenza', 'bi bi-box', 'secondary')
-            ->size('little');
+            ->text()
+            ->size('little')
+            ->formatter(static function (array $row): string {
+                $warehouse = Location::forSocietyLocation((int) ($row['id'] ?? 0));
+
+                return ($warehouse['has_stock'] ?? 'false') === 'true'
+                    ? '<span class="badge text-bg-primary"><i class="bi bi-box-seam"></i> Giacenza</span>'
+                    : '<span class="badge text-bg-secondary"><i class="bi bi-box"></i> Senza giacenza</span>';
+            });
 
         $columns[] = $actions;
 
