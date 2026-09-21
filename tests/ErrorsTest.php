@@ -43,8 +43,8 @@ check('i destinatari si leggono dalle impostazioni, uno per virgola', fn () =>
     && Errors::parseRecipients('') === []
 );
 
-check('i gruppi di destinatari sono due', fn () =>
-    Errors::AUDIENCES === ['developer', 'merchant']
+check('gli avvisi tecnici hanno un destinatario solo', fn () =>
+    (new ReflectionMethod(Errors::class, 'recipients'))->getNumberOfParameters() === 0
 );
 
 summary();

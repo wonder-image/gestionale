@@ -26,9 +26,10 @@ accanto dice quante.
 
 ## Cosa fare
 
-- **Problemi tuoi da risolvere** (per esempio dati di fatturazione incompleti):
+- **Cose tue da sistemare** (per esempio dati di fatturazione incompleti):
   correggi il dato e aspetta il tentativo successivo.
-- **Problemi tecnici**: ci arriva un'email in automatico, ce ne occupiamo noi.
+- **Guasti tecnici**: non li vedi nemmeno, arrivano a chi ti segue con
+  un'email automatica.
 
-Chi ti segue può segnare il problema come risolto. Se dopo si ripresenta, torna
-nel riquadro con un nuovo avviso: nessun problema resta nascosto.
+Se un problema si ripresenta dopo essere stato sistemato, torna nel riquadro con
+un nuovo avviso: niente resta nascosto.

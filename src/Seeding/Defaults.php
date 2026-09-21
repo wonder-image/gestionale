@@ -161,7 +161,7 @@ final class Defaults implements ModuleDefaults
         }
 
         $rows->ensureSingleton(MerchantSetting::class, [
-            'merchant_error_emails' => self::societyEmail(),
+            'merchant_notification_emails' => self::societyEmail(),
         ]);
     }
 

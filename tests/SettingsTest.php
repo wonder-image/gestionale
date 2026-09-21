@@ -42,8 +42,8 @@ check('le colonne fiscali e dei documenti di G1 ci sono tutte', function () use 
     return array_diff($attese, $colonne(Setting::class)) === [];
 });
 
-check('il commerciante ha i suoi destinatari degli errori', fn () =>
-    in_array('merchant_error_emails', $colonne(MerchantSetting::class), true)
+check('il commerciante ha i suoi destinatari delle notifiche', fn () =>
+    in_array('merchant_notification_emails', $colonne(MerchantSetting::class), true)
 );
 
 check('le due pagine hanno padrone diverso', function () {

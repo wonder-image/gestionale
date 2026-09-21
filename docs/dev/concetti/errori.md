@@ -35,8 +35,7 @@ Errors::provider(ProviderError::make(
 ```
 
 Finisce in `storage/logs/error/fatture-in-cloud.log` e diventa una riga di
-`error_reports` del core. Il secondo argomento di `Errors::provider()` dice chi
-avvisare: `developer` (default) o `merchant`.
+`error_reports` del core.
 
 ## Errore interno
 
@@ -49,14 +48,18 @@ comandi il log non interrompe mai l'esecuzione.
 
 ## Chi riceve le email
 
-Gli indirizzi stanno nelle impostazioni, separati da virgola:
-`developer_error_emails` in **Set Up → Impostazioni**, `merchant_error_emails`
-nelle impostazioni del negozio. Il core non li conosce: glieli passa il modulo
-al momento della segnalazione.
+`developer_error_emails` in **Set Up → Impostazioni**, più indirizzi separati da
+virgola. Il core non li conosce: glieli passa il modulo al momento della
+segnalazione.
+
+**Gli errori sono roba di chi sviluppa.** Quello che deve sapere il commerciante
+— un ordine fermo, una spedizione senza tracking — non è un errore ma una
+**notifica**: ha parole sue, un altro posto dove comparire e i suoi destinatari
+(`merchant_notification_emails`). La portano i sotto-progetti che la generano.
 
 Il primo errore manda l'email, i successivi alzano solo il contatore. Segnando
 l'errore risolto la riga si chiude; se il problema torna, la riga riapre e
 l'email riparte — è così che ci si accorge che la correzione non ha tenuto.
 
 La pagina è **Set Up → Errori** (`admin`); il riquadro "Da controllare" della
-home mostra gli stessi errori, filtrati per chi guarda.
+home mostra gli stessi errori a chi installa.

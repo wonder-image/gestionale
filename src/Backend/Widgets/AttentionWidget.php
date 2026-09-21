@@ -9,8 +9,10 @@ use Wonder\Backend\Contracts\HomeWidget;
 /**
  * "Da controllare": gli errori ancora aperti.
  *
- * Il commerciante vede solo quelli scritti per lui; chi installa li vede
- * tutti. Da G4 si aggiungono i documenti rimasti in errore.
+ * Chi installa vede i guasti tecnici di `error_reports`. Il commerciante no:
+ * per lui sono notifiche, non errori, e arriveranno dal sotto-progetto che le
+ * genera (un ordine fermo, una spedizione senza tracking). Finché non ci sono,
+ * legge che non c'è niente da controllare — che è la verità.
  */
 final class AttentionWidget implements HomeWidget
 {
@@ -31,7 +33,9 @@ final class AttentionWidget implements HomeWidget
 
     public function render(): string
     {
-        return self::markup(ErrorReporter::open(self::audience()));
+        // Gli errori tecnici li guarda chi sviluppa. Al commerciante arriveranno
+        // qui le notifiche del negozio, dal sotto-progetto che le genera.
+        return self::markup(self::isDeveloper() ? ErrorReporter::open() : []);
     }
 
     /** @param list<array<string, mixed>> $errors */
@@ -76,14 +80,14 @@ HTML;
 HTML;
     }
 
-    /** Il commerciante vede i suoi, chi installa tutti. */
-    private static function audience(): ?string
+    /** Vero per chi installa e assiste il sito. */
+    private static function isDeveloper(): bool
     {
         $user = LegacyGlobals::get('USER');
         $authority = is_object($user) && isset($user->authority) && is_array($user->authority)
             ? $user->authority
             : [];
 
-        return in_array('admin', $authority, true) ? null : 'merchant';
+        return in_array('admin', $authority, true);
     }
 }

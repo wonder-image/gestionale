@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "51875944910fe60feb6f4b27526536ab",
+    "content-hash": "fa03904ee527d7416c81a109063e092e",
     "packages": [
         {
             "name": "chillerlan/php-qrcode",
@@ -3269,11 +3269,11 @@
         },
         {
             "name": "wonder-image/app",
-            "version": "2.2.11",
+            "version": "2.2.12",
             "dist": {
                 "type": "path",
                 "url": "../app",
-                "reference": "926e0d65db9d7c901ac1c45680b88c577effe77d"
+                "reference": "0b968fc5bfc9ecf2aa6f4efcfd8c1c40ff858575"
             },
             "require": {
                 "chillerlan/php-qrcode": "^5.0",

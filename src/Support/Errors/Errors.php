@@ -5,26 +5,25 @@ namespace Wonder\Plugin\Gestionale\Support\Errors;
 use Throwable;
 use Wonder\App\Logger;
 use Wonder\App\Support\Errors\ErrorReporter;
-use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 
 /**
  * Dove finiscono gli errori del gestionale.
  *
- * Tre strade diverse, come dice la spec: quelli dell'utente si leggono e
- * basta, quelli di un servizio esterno vanno nel log e diventano una riga di
- * `error_reports` del core, quelli interni restano nel log con il contesto.
+ * Tre strade diverse: quelli dell'utente si leggono e basta, quelli di un
+ * servizio esterno vanno nel log e diventano una riga di `error_reports` del
+ * core, quelli interni restano nel log con il contesto.
  *
- * I destinatari li sa solo il gestionale — stanno nelle due righe di
- * impostazioni — quindi li passa al core prima di segnalare.
+ * Sono tutti guasti tecnici, e li guarda chi sviluppa: gli indirizzi stanno in
+ * `developer_error_emails` delle impostazioni e si passano al core prima di
+ * segnalare. Quello che deve sapere il commerciante è una notifica, non un
+ * errore: la porterà il sotto-progetto che la genera (un ordine fermo, una
+ * spedizione senza tracking), con parole sue.
  */
 final class Errors
 {
-    /** Chi può ricevere un avviso. */
-    public const AUDIENCES = ['developer', 'merchant'];
-
     /** Errore di un servizio esterno: log del provider e segnalazione. */
-    public static function provider(ProviderError $error, string $audience = 'developer'): void
+    public static function provider(ProviderError $error): void
     {
         Logger::log(
             $error,
@@ -37,7 +36,7 @@ final class Errors
             false
         );
 
-        self::report($audience, $error->provider(), $error->action(), $error, $error->context());
+        self::report($error->provider(), $error->action(), $error, $error->context());
     }
 
     /** Errore nostro: resta nel log, senza svegliare nessuno. */
@@ -48,29 +47,24 @@ final class Errors
 
     /** Segnala al core dicendogli a chi scrivere. */
     public static function report(
-        string $audience,
         string $service,
         string $action,
         Throwable|string $error,
         array $context = []
     ): bool {
-        ErrorReporter::recipientsUsing(static fn (string $group): array => self::recipients($group));
+        ErrorReporter::recipientsUsing(static fn (): array => self::recipients());
 
         try {
-            return ErrorReporter::report($audience, $service, $action, $error, $context);
+            return ErrorReporter::report($service, $action, $error, $context);
         } finally {
             // Il risolutore vale per questa segnalazione, non per tutto il sito.
             ErrorReporter::recipientsUsing(null);
         }
     }
 
-    /** Destinatari di un gruppo, dalle impostazioni. @return list<string> */
-    public static function recipients(string $audience): array
+    /** Chi riceve gli avvisi tecnici, dalle impostazioni. @return list<string> */
+    public static function recipients(): array
     {
-        if ($audience === 'merchant') {
-            return self::parseRecipients((string) (MerchantSetting::current()['merchant_error_emails'] ?? ''));
-        }
-
         return self::parseRecipients((string) (Setting::current()['developer_error_emails'] ?? ''));
     }
 

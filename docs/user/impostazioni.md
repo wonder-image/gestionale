@@ -17,12 +17,14 @@ toccarle da soli.
 
 ## Cosa contiene oggi
 
-**Email di chi riceve gli avvisi.** Gli indirizzi a cui arrivano gli avvisi che
-riguardano il negozio, per esempio una spedizione che non si aggiorna. Più
+**Email di chi riceve le notifiche.** Gli indirizzi a cui arrivano le notifiche
+che riguardano il negozio, per esempio una spedizione che non si aggiorna. Più
 indirizzi si separano con una virgola.
 
-Se lasci il campo vuoto, gli avvisi restano solo nel riquadro **Da controllare**
-della home.
+Se lasci il campo vuoto, le notifiche restano solo nel riquadro **Da
+controllare** della home.
+
+I guasti tecnici non passano di qui: arrivano a chi ti segue, senza disturbarti.
 
 ## Come si salva
 

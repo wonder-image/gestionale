@@ -44,7 +44,6 @@ try {
 
             return $row !== null
                 && (int) $row['occurrences'] === 1
-                && ($row['audience'] ?? '') === 'developer'
                 && str_contains((string) $row['context'], 'invoice');
         });
 
@@ -83,15 +82,15 @@ try {
             return count($aperti) === 2;
         });
 
-        check('il gruppo del commerciante si segnala a parte', function () use ($servizio) {
-            Errors::provider(ProviderError::make($servizio, 'shipment.track', 'Tracking assente'), 'merchant');
+        check('gli aperti si leggono tutti insieme', function () use ($servizio) {
+            Errors::provider(ProviderError::make($servizio, 'shipment.track', 'Tracking assente'));
 
-            $suoi = array_values(array_filter(
-                ErrorReporter::open('merchant'),
+            $aperti = array_values(array_filter(
+                ErrorReporter::open(),
                 static fn (array $row): bool => ($row['service'] ?? '') === $servizio
             ));
 
-            return count($suoi) === 1;
+            return count($aperti) === 3;
         });
 
         throw new Annulla();

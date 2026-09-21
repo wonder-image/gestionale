@@ -12,6 +12,10 @@ use Wonder\Sql\TableSchema as Column;
  *
  * Non si sincronizza: sono scelte di chi usa il gestionale ogni giorno, e un
  * deploy non deve riportarle indietro.
+ *
+ * `merchant_notification_emails` sono gli indirizzi delle **notifiche** del
+ * negozio — un ordine da controllare, una spedizione ferma — non degli errori
+ * tecnici, che vanno a chi sviluppa.
  */
 final class MerchantSetting extends Model
 {
@@ -27,14 +31,14 @@ final class MerchantSetting extends Model
     public static function tableSchema(): array
     {
         return [
-            Column::key('merchant_error_emails')->type('TEXT'),
+            Column::key('merchant_notification_emails')->type('TEXT'),
         ];
     }
 
     public static function dataSchema(): array
     {
         return [
-            Field::key('merchant_error_emails')->text(),
+            Field::key('merchant_notification_emails')->text(),
         ];
     }
 

@@ -21,7 +21,7 @@ use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
  *
  * Qui stanno le scelte di chi usa il gestionale tutti i giorni, e restano
  * nell'ambiente dove si lavora: un deploy non le riporta indietro. In G1 c'è
- * solo dove arrivano le email degli errori; ogni sotto-progetto aggiunge le
+ * solo dove arrivano le notifiche del negozio; ogni sotto-progetto aggiunge le
  * sue.
  */
 final class MerchantSettingResource extends SingletonResource
@@ -46,14 +46,14 @@ final class MerchantSettingResource extends SingletonResource
     public static function labelSchema(): array
     {
         return [
-            'merchant_error_emails' => 'Email di chi riceve gli avvisi',
+            'merchant_notification_emails' => 'Email di chi riceve le notifiche',
         ];
     }
 
     public static function formSchema(): array
     {
         return [
-            FormField::key('merchant_error_emails')->text()->label('Email di chi riceve gli avvisi'),
+            FormField::key('merchant_notification_emails')->text()->label('Email di chi riceve le notifiche'),
         ];
     }
 
@@ -62,10 +62,10 @@ final class MerchantSettingResource extends SingletonResource
         return (new Form)->components([
             (new Container)->components([
                 (new Card)->components([
-                    SectionTitle::make('Avvisi')
-                        ->tooltip('Più indirizzi separati da virgola. Arrivano gli avvisi che riguardano il negozio, non gli errori tecnici.')
+                    SectionTitle::make('Notifiche')
+                        ->tooltip('Più indirizzi separati da virgola. Arrivano le notifiche che riguardano il negozio; i guasti tecnici vanno a chi ti segue.')
                         ->columnSpan(12),
-                    static::getInput('merchant_error_emails')->columnSpan(12),
+                    static::getInput('merchant_notification_emails')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ]);
