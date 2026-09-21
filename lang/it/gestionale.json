@@ -5,7 +5,10 @@
             "stock": {
                 "insufficient": "Non c'è abbastanza giacenza di {{product}}."
             },
-            "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue."
+            "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
+            "category": {
+                "loop": "Una categoria non può stare sotto sé stessa o sotto una sua sottocategoria."
+            }
         }
     }
 }
