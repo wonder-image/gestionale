@@ -262,17 +262,14 @@ class ProductModelResource extends GestionaleResource
             ])->columns(12)->columnSpan(12);
         }
 
-        $cards[] = (new Card)->components([
-            SectionTitle::make('Spedizione')
-                ->tooltip('Peso e misure dell\'articolo. Un prodotto che ha misure sue le usa al posto di queste.')
-                ->columnSpan(12),
+        $cards[] = static::foldable('Spedizione', [
             static::getInput('weight')->columnSpan(3),
             static::getInput('length')->columnSpan(3),
             static::getInput('width')->columnSpan(3),
             static::getInput('height')->columnSpan(3),
             static::getInput('returnable')->columnSpan(6),
             static::getInput('requires_shipping')->columnSpan(6),
-        ])->columns(12)->columnSpan(12);
+        ], 'Peso e misure dell\'articolo. Un prodotto che ha misure sue le usa al posto di queste.');
 
         if (static::valueTree('variant') !== [] || static::valueTree('product') !== []) {
             $componenti = [

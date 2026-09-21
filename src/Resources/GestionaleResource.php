@@ -7,6 +7,8 @@ use Wonder\App\Resource;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
+use Wonder\Elements\Components\Card;
+use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Gestionale;
 
 /**
@@ -50,6 +52,30 @@ abstract class GestionaleResource extends Resource
     protected static function withFeature(PageSchema $schema): PageSchema
     {
         return static::featureActive() ? $schema : $schema->only([]);
+    }
+
+    /**
+     * Il riquadro di quello che si tocca di rado: in fondo alla pagina.
+     *
+     * Doveva chiudersi a fisarmonica. `Accordion` esiste nel core, si apre e si
+     * chiude, ma dentro un form non regge la griglia: i campi del form prendono
+     * le classi del tema Wonder (`col-6`), mentre l'accordion è disegnato dal
+     * tema Bootstrap, che si aspetta `col-span-6`. I due non si parlano, e i
+     * campi finiscono ammassati in una striscia.
+     *
+     * Farli parlare vuol dire mettere le mani nel rendering del core, che è un
+     * lavoro suo e non di questa scheda. Finché non si fa, un riquadro normale:
+     * sta in fondo, dove non disturba.
+     */
+    protected static function foldable(string $title, array $components, string $tooltip = ''): object
+    {
+        $title = SectionTitle::make($title)->columnSpan(12);
+
+        if ($tooltip !== '') {
+            $title->tooltip($tooltip);
+        }
+
+        return (new Card)->components([$title, ...$components])->columns(12)->columnSpan(12);
     }
 
     /** Aggiunge il pulsante "Guida" se la Resource dichiara una pagina. */
