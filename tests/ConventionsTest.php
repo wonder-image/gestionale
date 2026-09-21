@@ -6,6 +6,7 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\App\Resources\Support\NavigationOnlyResource;
+use Wonder\App\Resources\Config\SocietyLocationResource;
 use Wonder\App\Resources\Support\SingletonResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 
@@ -56,8 +57,14 @@ check('ogni Resource con dati dichiara la sua funzionalità', function () use ($
 check('ogni Resource parte da una base del modulo o del core', function () use ($classi) {
     // GestionaleResource per le pagine legate a una funzionalità,
     // NavigationOnlyResource per quelle senza dati, SingletonResource per le
-    // righe uniche (impostazioni).
-    $basi = [GestionaleResource::class, NavigationOnlyResource::class, SingletonResource::class];
+    // righe uniche (impostazioni) e SocietyLocationResource per la pagina del
+    // core che il gestionale sostituisce.
+    $basi = [
+        GestionaleResource::class,
+        NavigationOnlyResource::class,
+        SingletonResource::class,
+        SocietyLocationResource::class,
+    ];
 
     foreach ($classi as $classe) {
         if (!class_exists($classe)) {
