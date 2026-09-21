@@ -1080,14 +1080,16 @@ class ProductModelResource extends GestionaleResource
         return FormField::key('products')
             ->repeater([
                 RepeaterColumn::key('id')->hidden(),
-                RepeaterColumn::key('sku')->text()->label('SKU')->columnSpan(3),
+                // Per prima: è l'unica colonna che dice di quale riga si tratti.
+                RepeaterColumn::key('name')->text()->label('Versione')->columnSpan(3),
+                RepeaterColumn::key('sku')->text()->label('SKU')->columnSpan(2),
                 RepeaterColumn::key('ean')->text()->label('EAN')->columnSpan(2),
                 RepeaterColumn::key('price')->number()->decimal(2)->label('Prezzo')->columnSpan(2),
                 RepeaterColumn::key('sale_price')->number()->decimal(2)->label('Scontato')->columnSpan(2),
                 RepeaterColumn::key('active')
                     ->select(['true' => 'Attivo', 'false' => 'Fermo'])
                     ->label('Stato')
-                    ->columnSpan(2),
+                    ->columnSpan(1),
             ])
             ->relation(
                 RepeaterRelation::make(Product::$table, 'product_model_id')

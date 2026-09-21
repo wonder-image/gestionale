@@ -14,6 +14,11 @@ use Wonder\Sql\TableSchema as Column;
  * Punta sempre sia al modello sia alla variante, anche quando la variante è
  * una sola (G2a.2): senza variante un prodotto non esiste.
  *
+ * `name` è l'etichetta della combinazione ("Blu / M"): la scrive il generatore
+ * e la può correggere chi vende. Serve alla griglia della scheda, al selettore
+ * della vetrina, alla riga dell'ordine e all'elenco delle giacenze, che
+ * altrimenti dovrebbero ricomporla ogni volta dagli attributi.
+ *
  * Peso e misure vuoti valgono quelli del modello: la regola sta nella scheda,
  * non qui, perché è una scelta di lettura e non un dato.
  *
@@ -46,6 +51,7 @@ final class Product extends Model
             ]),
             Column::key('product_model_id')->int()->null(false)->foreign(ProductModel::$table),
             Column::key('product_variant_id')->int()->null(false)->foreign(ProductVariant::$table),
+            Column::key('name'),
             Column::key('sku')->length(100),
             Column::key('ean')->length(13),
             Column::key('mpn')->length(100),
@@ -71,6 +77,8 @@ final class Product extends Model
             Field::key('code')->text()->uniqueCode(Codes::PRODUCT),
             Field::key('product_model_id')->number()->decimals(0),
             Field::key('product_variant_id')->number()->decimals(0),
+            // Niente `sanitizeFirst()`: "XL" deve restare "XL".
+            Field::key('name')->text(),
             Field::key('sku')->text(),
             Field::key('ean')->text(),
             Field::key('mpn')->text(),

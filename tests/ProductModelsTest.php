@@ -151,6 +151,11 @@ check('le colonne del magazzino nascono qui, anche se non si vedono', function (
     return isset($prodotto['min_stock_quantity'], $prodotto['allow_backorder'], $prodotto['backorder_lead_days']);
 });
 
+check('il prodotto ha il nome della sua combinazione', function () use ($colonne) {
+    // "Blu / M": senza, la griglia della scheda mostra dodici righe identiche.
+    return isset($colonne(Product::class)['name']);
+});
+
 check('lo SKU del prodotto non ha un indice unico', function () use ($colonne) {
     return empty($colonne(Product::class)['sku']->getSchema('unique'))
         && empty($colonne(Product::class)['ean']->getSchema('unique'));
