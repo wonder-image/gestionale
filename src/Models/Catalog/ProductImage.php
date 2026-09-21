@@ -65,25 +65,18 @@ final class ProductImage extends Model
      * Il campo della foto, che **non** si fa ridimensionare al salvataggio.
      *
      * Un campo immagine, se non dice niente, prende da sé le misure responsive
-     * del sito: `deferResize()` del core gli dice di scrivere solo l'originale.
-     * Su un core che non lo conosce ancora il campo resta quello di prima — le
-     * foto si ridimensionano subito e il salvataggio è più lento — invece di
-     * far esplodere il sito.
+     * del sito: `deferResize()` gli dice di scrivere solo l'originale e di
+     * lasciare le misure alla coda. C'è dalla 2.2.15, che il modulo pretende.
      */
     private static function deferredImage(): \Wonder\Data\Fields\Image
     {
-        $field = Field::key('file')
+        return Field::key('file')
             ->image()
             ->extensions(['png', 'jpg', 'jpeg', 'webp'])
             ->maxSize(8)
             ->maxFile(1)
-            ->name('{rand}');
-
-        if (method_exists($field, 'deferResize')) {
-            $field->deferResize();
-        }
-
-        return $field;
+            ->name('{rand}')
+            ->deferResize();
     }
 
     public static function dataSchema(): array

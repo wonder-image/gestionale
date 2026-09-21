@@ -22,6 +22,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 
 /**
@@ -170,6 +171,9 @@ final class CatalogDemo
             'name' => $name,
             'slug' => Slug::make($name.'-'.uniqid()),
             'sku' => $sku,
+            // Il tipo fiscale è obbligatorio nella scheda: un articolo di prova
+            // senza non si potrebbe nemmeno risalvare.
+            'tax_category_id' => self::ordinaryTaxCategoryId(),
             'unit' => 'pz',
             'type' => 'simple',
             'short_description' => 'Articolo di prova del gestionale.',
@@ -225,6 +229,20 @@ final class CatalogDemo
         $created += self::image($modelId, $name);
 
         return $created;
+    }
+
+    /** Il tipo fiscale ordinario, quello che `Defaults` precarica. */
+    private static function ordinaryTaxCategoryId(): int
+    {
+        $row = TaxCategory::find(['code' => 'ordinaria', 'deleted' => 'false'], 1);
+
+        if (is_array($row) && isset($row['id'])) {
+            return (int) $row['id'];
+        }
+
+        $rows = TaxCategory::find(['deleted' => 'false'], 1);
+
+        return is_array($rows) ? (int) ($rows['id'] ?? 0) : 0;
     }
 
     /**

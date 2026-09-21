@@ -272,7 +272,7 @@ class ProductModelResource extends GestionaleResource
                 SectionTitle::make('Prodotto')
                     ->tooltip($unaVersione
                         ? 'Il prezzo di questo articolo. Il tipo fiscale decide l\'IVA che gli si applica.'
-                        : 'Il prezzo scritto qui va su **tutte** le versioni quando salvi. Per differenziarne una, la si scrive nella sua riga qui sotto.')
+                        : 'Questa casella è un comando, non un riepilogo: scrivici un prezzo e al salvataggio va su tutte le versioni. Lasciala vuota e i prezzi delle righe restano come sono.')
                     ->columnSpan(12),
                 static::getInput('name')->columnSpan(12),
                 static::getInput('product_price')->columnSpan(4),
@@ -673,11 +673,17 @@ class ProductModelResource extends GestionaleResource
             $values['product_ean'] = (string) ($product['ean'] ?? '');
         }
 
-        // La casella mostra il prezzo solo quando è uno solo per tutte: se le
-        // versioni costano diverso non c'è un prezzo da scrivere lì, e la
-        // casella resta vuota (vuota vuol dire "non toccare niente").
-        $values['product_price'] = static::commonValue($modelId, 'price');
-        $values['product_sale_price'] = static::commonValue($modelId, 'sale_price');
+        // Con una versione sola la casella è il prezzo di quella versione, e
+        // si comporta come ci si aspetta. Con più versioni **resta vuota**:
+        // non è uno specchio, è un comando — "metti questo prezzo su tutte".
+        //
+        // Precompilarla sarebbe un disastro silenzioso: il riquadro in alto si
+        // salva dopo la griglia, quindi un prezzo rimasto lì dentro
+        // riscriverebbe la riga che hai appena corretto.
+        $unaVersione = $product !== null;
+
+        $values['product_price'] = $unaVersione ? (string) ($product['price'] ?? '') : '';
+        $values['product_sale_price'] = $unaVersione ? (string) ($product['sale_price'] ?? '') : '';
 
         foreach (static::usedOptionValues($modelId) as $key => $ids) {
             $values[$key] = $ids;
@@ -1387,23 +1393,6 @@ class ProductModelResource extends GestionaleResource
         }
 
         return array_map('array_values', $perAttributo);
-    }
-
-    /**
-     * Il valore di una colonna quando è lo stesso su tutte le versioni.
-     *
-     * Vuoto quando le versioni sono diverse fra loro: non c'è un valore solo
-     * da mostrare, e mostrarne uno a caso sarebbe peggio di niente.
-     */
-    protected static function commonValue(int $modelId, string $column): string
-    {
-        $valori = [];
-
-        foreach (static::products($modelId) as $product) {
-            $valori[(string) ($product[$column] ?? '')] = true;
-        }
-
-        return count($valori) === 1 ? (string) array_key_first($valori) : '';
     }
 
     /** @return list<int> */

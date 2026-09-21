@@ -250,11 +250,15 @@ tutte. La casella **vuota non tocca niente**, ed è l'unico modo di tenere prezz
 diversi senza che un salvataggio distratto li riallinei;
 `commonValue()` la riempie solo quando le versioni costano uguale.
 
-**Attenzione:** finché il core installato non ha il commit `7d6df162`, i prezzi
-scritti nella **griglia** passano dal `prepare()` del core e vengono arrotondati
-(21,50 diventa 22,00). Dal riquadro in alto no, perché lì scrive
-`Product::update()` con `Support\Numbers::fromForm()`. Non c'è rimedio lato
-modulo: l'hook `prepareRepeaterRelationRow()` gira **prima** di `preparePayload()`.
+Con una versione sola la casella mostra il prezzo di quella versione. Con più
+versioni **resta vuota**, e non è una dimenticanza: il riquadro in alto si salva
+**dopo** la griglia, quindi un prezzo rimasto lì dentro riscriverebbe la riga
+appena corretta. Vuota, il salvataggio non tocca i prezzi.
+
+I decimali della griglia arrivano interi fino al database dalla **2.2.15** del
+core: prima il suo `prepare()` li arrotondava (21,50 diventava 22,00). Non
+c'era rimedio lato modulo, perché l'hook `prepareRepeaterRelationRow()` gira
+**prima** di `preparePayload()`.
 
 ## Il riquadro che non si chiude
 

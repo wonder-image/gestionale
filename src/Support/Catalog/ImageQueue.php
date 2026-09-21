@@ -132,7 +132,7 @@ final class ImageQueue
             // essere in grado, non la foto.
             throw new Unavailable(
                 'Questo sito non riesce a ridimensionare le immagini da riga di comando ('
-                .$fatal->getMessage().'). Serve un core aggiornato.',
+                .$fatal->getMessage().'). Controlla che PHP abbia la libreria GD.',
                 0,
                 $fatal
             );
