@@ -12,6 +12,11 @@
             },
             "attribute": {
                 "type_locked": "Questo attributo ha dei valori: eliminali prima di cambiargli tipo."
+            },
+            "product": {
+                "sku_taken": "Questo SKU è già di un altro articolo: cambialo.",
+                "ean_invalid": "L'EAN deve avere 8 o 13 cifre.",
+                "ean_taken": "Questo EAN è già di un altro prodotto."
             }
         }
     }
