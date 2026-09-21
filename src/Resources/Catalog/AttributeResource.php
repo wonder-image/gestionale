@@ -39,7 +39,10 @@ class AttributeResource extends GestionaleResource
     public static string $model = Attribute::class;
     public static string $orderColumn = 'position';
     public static string $orderDirection = 'ASC';
-    public static string $docsPage = 'catalogo/attributi';
+    public static string $docsPage = 'catalogo/catalogo-attributi';
+
+    /** Tipo di un attributo nuovo: quello che serve quasi sempre. */
+    public const DEFAULT_TYPE = 'select';
 
     public static function path(): string
     {
@@ -81,7 +84,6 @@ class AttributeResource extends GestionaleResource
             'unit' => 'Unità di misura',
             'is_filterable' => 'Filtro',
             'is_visible' => 'Stato',
-            'values' => 'Valori',
         ];
     }
 
@@ -96,7 +98,7 @@ class AttributeResource extends GestionaleResource
                 ->required(),
             FormField::key('type')
                 ->select(Attributes::types())
-                ->value('select')
+                ->value(static::DEFAULT_TYPE)
                 ->label('Tipo')
                 ->required(),
             FormField::key('group_name')->text()->label('Gruppo'),
@@ -131,7 +133,9 @@ class AttributeResource extends GestionaleResource
                 ->repeaterDeleteCancelLabel('Annulla')
                 ->repeaterDeleteConfirmLabel('Elimina')
                 ->repeaterDeleteConfirmClass('btn btn-danger')
-                ->label('Valori'),
+                // Niente etichetta: il titolo del riquadro dice già "Valori", e
+                // due titoli uguali di fila si leggono male.
+                ->label(''),
         ];
     }
 
@@ -152,9 +156,11 @@ class AttributeResource extends GestionaleResource
             ])->columns(12)->columnSpan(12),
         ];
 
-        // Il riquadro dei valori solo dove serve: in creazione il tipo non è
-        // ancora scelto, e un attributo "Testo" non ha niente da elencare.
-        if (static::usesValues(static::currentRow())) {
+        // Il riquadro dei valori dove serve: in creazione vale il tipo
+        // predefinito (Elenco), così chi crea un attributo scrive subito i suoi
+        // valori; modificando un "Testo" il riquadro non c'è, perché non ha
+        // niente da elencare.
+        if (static::usesValues(static::currentRow() ?? ['type' => static::DEFAULT_TYPE])) {
             $cards[] = (new Card)->components([
                 SectionTitle::make('Valori')
                     ->tooltip('L\'ordine è quello che vedrà il cliente. Il colore serve al pallino in vetrina, la fantasia quando un colore non basta.')

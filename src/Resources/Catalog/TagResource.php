@@ -28,7 +28,7 @@ final class TagResource extends GestionaleResource
     public static string $model = Tag::class;
     public static string $orderColumn = 'name';
     public static string $orderDirection = 'ASC';
-    public static string $docsPage = 'catalogo/marchi-categorie-tag';
+    public static string $docsPage = 'catalogo/catalogo-tassonomie';
 
     public static function path(): string
     {

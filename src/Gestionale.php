@@ -109,9 +109,22 @@ final class Gestionale implements ModuleInterface
     }
 
     /** Indirizzo di una pagina della guida commercianti; vuoto se non configurato. */
-    public static function docsUrl(string $page): string
+    /**
+     * Indirizzo di una pagina della guida.
+     *
+     * `$space` sceglie la guida: `user` è quella del commerciante, `dev` quella
+     * dello sviluppatore, per le pagine che un commerciante non deve toccare
+     * (aliquote, tipi fiscali, regole).
+     *
+     * Il percorso della pagina è `gruppo/nome-del-file`, come lo pubblica
+     * GitBook: il gruppo è il titolo `##` del SUMMARY in minuscolo con i
+     * trattini, il nome è quello del file senza `.md`. `DocsPagesTest` controlla
+     * che ogni pagina dichiarata esista davvero.
+     */
+    public static function docsUrl(string $page, string $space = 'user'): string
     {
-        $base = trim((string) self::config('docs.merchant_url', ''));
+        $key = $space === 'dev' ? 'docs.developer_url' : 'docs.merchant_url';
+        $base = trim((string) self::config($key, ''));
         $page = trim($page, '/ ');
 
         if ($base === '' || $page === '') {

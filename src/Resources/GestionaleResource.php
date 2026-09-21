@@ -20,6 +20,9 @@ abstract class GestionaleResource extends Resource
     public static string $feature = '';
     public static string $docsPage = '';
 
+    /** Quale guida apre il pulsante: `user` (commerciante) o `dev` (sviluppatore). */
+    public static string $docsSpace = 'user';
+
     /** Vero se la pagina non dipende da nessuna funzionalità o se quella dichiarata è attiva. */
     public static function featureActive(): bool
     {
@@ -52,7 +55,7 @@ abstract class GestionaleResource extends Resource
     /** Aggiunge il pulsante "Guida" se la Resource dichiara una pagina. */
     protected static function withDocs(PageSchema $schema): PageSchema
     {
-        $url = Gestionale::docsUrl(static::$docsPage);
+        $url = Gestionale::docsUrl(static::$docsPage, static::$docsSpace);
 
         return $url === '' ? $schema : $schema->docs($url);
     }

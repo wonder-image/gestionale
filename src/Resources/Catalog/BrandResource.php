@@ -29,7 +29,7 @@ final class BrandResource extends GestionaleResource
     public static string $model = Brand::class;
     public static string $orderColumn = 'position';
     public static string $orderDirection = 'ASC';
-    public static string $docsPage = 'catalogo/marchi-categorie-tag';
+    public static string $docsPage = 'catalogo/catalogo-tassonomie';
 
     public static function path(): string
     {

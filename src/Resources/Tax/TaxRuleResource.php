@@ -30,7 +30,10 @@ final class TaxRuleResource extends GestionaleResource
     public static string $model = TaxRule::class;
     public static string $orderColumn = 'country';
     public static string $orderDirection = 'ASC';
-    public static string $docsPage = 'impostazioni/iva';
+    // Aliquote, tipi fiscali e regole le cura chi segue il negozio: la guida
+    // è quella dello sviluppatore, non quella del commerciante.
+    public static string $docsPage = 'concetti/iva-e-impostazioni';
+    public static string $docsSpace = 'dev';
 
     /** @var array<string, string>|null nomi dei tipi fiscali, letti una volta */
     private static ?array $categoryNames = null;

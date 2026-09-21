@@ -29,7 +29,10 @@ final class TaxResource extends GestionaleResource
     public static string $model = Tax::class;
     public static string $orderColumn = 'rate';
     public static string $orderDirection = 'DESC';
-    public static string $docsPage = 'impostazioni/iva';
+    // Aliquote, tipi fiscali e regole le cura chi segue il negozio: la guida
+    // è quella dello sviluppatore, non quella del commerciante.
+    public static string $docsPage = 'concetti/iva-e-impostazioni';
+    public static string $docsSpace = 'dev';
 
     public static function path(): string
     {
