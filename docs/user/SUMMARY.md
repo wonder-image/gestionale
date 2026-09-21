@@ -11,6 +11,7 @@
 ## Catalogo
 
 * [Marchi, categorie e tag](catalogo-tassonomie.md)
+* [Attributi](catalogo-attributi.md)
 
 ## Ogni giorno
 
