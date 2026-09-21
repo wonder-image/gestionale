@@ -117,7 +117,7 @@ final class Defaults implements ModuleDefaults
             return;
         }
 
-        $rows->ensure(TaxRule::class, 'code', [
+        $candidates = [
             [
                 // Stesso formato che compone la pagina: {paese}-{cliente}-{tipo}.
                 'code' => 'it-private-'.self::ORDINARY_CATEGORY,
@@ -133,7 +133,48 @@ final class Defaults implements ModuleDefaults
                 'tax_category_id' => $categoryId,
                 'tax_id' => $taxId,
             ],
-        ]);
+        ];
+
+        $rows->ensure(TaxRule::class, 'code', self::withoutExistingRules($candidates));
+    }
+
+    /**
+     * Le regole che il sito non ha già, guardando paese, tipo di cliente e
+     * tipo fiscale.
+     *
+     * Il codice della regola è composto da quelle tre cose, ma il formato è
+     * cambiato: un sito aggiornato ha le stesse regole con il codice vecchio, e
+     * `ensure()` — che guarda solo il codice — proverebbe a reinserirle
+     * sbattendo contro l'indice unico. Qui si controlla la chiave vera.
+     *
+     * @param list<array<string, mixed>> $candidates
+     * @return list<array<string, mixed>>
+     */
+    private static function withoutExistingRules(array $candidates): array
+    {
+        $existing = TaxRule::find(['deleted' => 'false']);
+        $existing = is_array($existing) && $existing !== []
+            ? (isset($existing['id']) ? [$existing] : array_values(array_filter($existing, 'is_array')))
+            : [];
+
+        $known = [];
+
+        foreach ($existing as $row) {
+            $known[self::ruleKey($row)] = true;
+        }
+
+        return array_values(array_filter(
+            $candidates,
+            static fn (array $row): bool => !isset($known[self::ruleKey($row)])
+        ));
+    }
+
+    /** Paese, tipo di cliente e tipo fiscale: ciò che rende unica una regola. */
+    private static function ruleKey(array $row): string
+    {
+        return strtolower((string) ($row['country'] ?? ''))
+            .'|'.strtolower((string) ($row['customer_type'] ?? ''))
+            .'|'.(int) ($row['tax_category_id'] ?? 0);
     }
 
     /**
