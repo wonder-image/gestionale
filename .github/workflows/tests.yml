@@ -1,0 +1,44 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unitari:
+    name: Unitari e convenzioni
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del modulo
+        uses: actions/checkout@v4
+        with:
+          path: gestionale
+
+      # Il modulo vive accanto al core: il repository è pubblico.
+      - name: Checkout di wonder-image/app
+        uses: actions/checkout@v4
+        with:
+          repository: wonder-image/app
+          path: app
+
+      - name: PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Composer
+        working-directory: gestionale
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      # I test d'integrazione restano fuori: vogliono il database del sito di prova.
+      - name: Test
+        working-directory: gestionale
+        run: |
+          esito=0
+          for file in tests/*Test.php; do
+            echo "== $file"
+            php "$file" || esito=1
+          done
+          exit $esito
