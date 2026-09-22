@@ -22,6 +22,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 
@@ -383,6 +384,14 @@ final class CatalogDemo
                 + self::countOf(Product::class, $modelId)
                 + self::countOf(ProductImage::class, $modelId)
                 + self::countOf(ProductModelCategory::class, $modelId);
+
+            // La storia di magazzino di un articolo di prova se ne va con
+            // lui: senza, la chiave esterna dei movimenti bloccherebbe la
+            // pulizia. Fuori dai dati di prova il magazzino non si dimentica.
+            StockHistory::purge(array_map(
+                static fn (array $product): int => (int) ($product['id'] ?? 0),
+                self::rowsOfModel(Product::class, $modelId)
+            ));
 
             $result = ProductModelResource::deleteRecord($modelId);
             $removed += !empty($result->success) ? 1 + $sotto : 0;

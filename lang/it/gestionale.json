@@ -3,7 +3,11 @@
         "name": "Gestionale",
         "errors": {
             "stock": {
-                "insufficient": "Non c'è abbastanza giacenza di {{product}}."
+                "insufficient": "Non c'è abbastanza giacenza di {{product}}.",
+                "zero_quantity": "Questa rettifica non cambia niente: scrivi una quantità diversa da quella di adesso.",
+                "unknown_reason": "Scegli una causale per questo movimento.",
+                "product_missing": "Questo articolo non esiste più: ricarica la pagina e riprova.",
+                "no_location": "Manca la sede del magazzino: apri Set Up → Sedi e salva la sede principale."
             },
             "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
             "category": {
@@ -18,7 +22,8 @@
                 "ean_invalid": "L'EAN deve avere 8 o 13 cifre.",
                 "ean_taken": "Questo EAN è già di un altro prodotto.",
                 "one_page_option": "Un articolo può avere una sola opzione con pagina e foto proprie: togli le spunte di una delle due.",
-                "no_versions": "Un articolo deve avere almeno una versione in vendita."
+                "no_versions": "Un articolo deve avere almeno una versione in vendita.",
+                "has_movements": "Questo articolo ha movimenti di magazzino e non si elimina: mettilo su «Nascosto» se non lo vendi più."
             }
         }
     }

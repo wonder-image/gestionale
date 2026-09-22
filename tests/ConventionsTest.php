@@ -41,6 +41,9 @@ check('ogni Resource con dati dichiara la sua funzionalità', function () use ($
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\ProductResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\CategoryResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\TagResource',
+        // Il magazzino base è sempre attivo: le funzionalità sbloccano le sedi
+        // in più, gli acquisti e i lotti, non la giacenza.
+        'Wonder\\Plugin\\Gestionale\\Resources\\Stock\\StockMovementResource',
     ];
     $mancanti = [];
 

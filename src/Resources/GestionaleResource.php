@@ -112,6 +112,12 @@ abstract class GestionaleResource extends Resource
         return null;
     }
 
+    /** Testo che finisce dentro l'HTML di una cella o di un'etichetta. */
+    protected static function escape(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    }
+
     /**
      * Le righe vive di un Model, sempre come lista.
      *

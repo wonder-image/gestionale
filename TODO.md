@@ -171,8 +171,13 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - `wonder-image/app`: servirà `redirectUrl($action, $id)` con il caso `edit`, per atterrare sulla scheda appena creata. Da rilasciare con `7d6df162` e `81e1323f`.
   - [ ] **G2b Magazzino base e anagrafiche** — spec: `docs/superpowers/specs/2026-09-21-magazzino-e-anagrafiche-design.md` (decisioni G2b.1–G2b.12)
     - [x] Spec scritta (2026-09-21): giacenze, movimenti, prenotazioni (solo tabella e disponibile), avvisi di scorta, clienti e fornitori; quattro piani
-    - [ ] Revisione della spec da parte dell'utente
-    - [ ] Piano 1: fondamenta del magazzino (tabelle, `Stock::apply()`, classi pure, elenco Movimenti)
+    - [x] Revisione della spec da parte dell'utente (2026-09-22)
+    - [x] Piano 1 scritto ed eseguito (2026-09-22): `docs/superpowers/plans/2026-09-22-fondamenta-del-magazzino.md` — le quattro tabelle del magazzino, `Stock::apply()` come unica porta di scrittura (transazione, `FOR UPDATE`, avviso di scorta), quattro classi pure (`Reasons`, `Availability`, `Adjustment`, `LowStock`) e quattro di servizio (`Locations`, `Levels`, `Alerts`, `StockHistory`), elenco *Movimenti* in sola lettura con filtri per tipo, causale, versione e periodo, guida sviluppatore e guida commerciante. Verificato nel browser sul sito di prova.
+      - **Il core genera `DECIMAL(10,2)` per qualsiasi campo numerico** e ignora `decimals()`, che vale solo per i form (`Data\Fields\Number::sqlSchema()` ha `'length' => '10,2'` fisso): le quantità perdevano il terzo decimale. Le colonne del magazzino le dichiara `Support\Columns::decimal()`. **Da correggere nel core**: `gst_products.weight` e le altre colonne del catalogo nate da `sqlColumnsFromDataSchema()` hanno lo stesso difetto.
+      - Confrontare un `DATETIME` con la stringa vuota fa fallire la query in MySQL strict mode: l'avviso aperto si cerca con `resolved_at IS NULL`.
+      - Un articolo con movimenti **non si elimina più**: lo impedirebbe comunque la chiave esterna, ma con una pagina di errore. Il rifiuto usa `UserError::refusal()` (una `RuntimeException`) perché `api/backend/delete` del core intercetta quella, mentre il controller del form intercetta `InvalidArgumentException`. Il sito mostra ancora «Errore 802» al posto del messaggio: serve il rilascio del ramo `fix/backend-error-messages` di `wonder-image/lib` (già in elenco qui sopra). La risposta del server è corretta, 422 con il testo giusto.
+      - `gestionale:demo --fresh` cancella la storia di magazzino dei suoi articoli prima di eliminarli (`StockHistory::purge()`).
+      - `escape()` è salito in `GestionaleResource`: era copiato in due Resource e mancava nella terza, che caricava l'elenco con un 500.
     - [ ] Piano 2: giacenze e rettifiche (pagina-form con filtri e paginazione, pagina Rettifica, innesti nel catalogo)
     - [ ] Piano 3: anagrafiche (clienti, fornitori, indirizzi, riquadro della home, dati di prova, guide)
     - [ ] Piano 4: avvisi di scorta minima (campo, avvisi, attività ed email raggruppata, riquadro, guide)

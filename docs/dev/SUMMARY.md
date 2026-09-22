@@ -11,6 +11,7 @@
 
 * [Funzionalità e ruoli](concetti/funzionalita.md)
 * [Catalogo](concetti/catalogo.md)
+* [Magazzino](concetti/magazzino.md)
 * [Codici, numerazione e log degli stati](concetti/documenti.md)
 * [IVA, impostazioni e sedi](concetti/iva-e-impostazioni.md)
 * [Errori e log](concetti/errori.md)
