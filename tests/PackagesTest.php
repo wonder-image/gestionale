@@ -102,6 +102,11 @@ check('la frase dice da dove viene il numero', fn () =>
     Packages::describe(1.2, ['weight' => '0.2']) === '1,4 kg — 1,2 di prodotto e 0,2 di scatola'
 );
 
+check('senza il peso del prodotto la frase dice cosa manca', fn () =>
+    Packages::describe(0.0, ['weight' => '0.05']) === 'Manca il peso del prodotto'
+    && Packages::describe(0.0, null) === 'Manca il peso del prodotto'
+);
+
 check('senza scatola la frase non la nomina', fn () =>
     Packages::describe(1.2, null) === '1,2 kg — senza imballaggio scelto'
 );

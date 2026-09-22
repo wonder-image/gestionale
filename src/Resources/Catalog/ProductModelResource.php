@@ -35,6 +35,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Ean;
 use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
+use Wonder\Plugin\Gestionale\Support\Catalog\Packages;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
@@ -163,7 +164,14 @@ class ProductModelResource extends GestionaleResource
             FormField::key('categories')->checkTree(static::categoryTree(), true)->label('Categorie'),
             FormField::key('main_category')->select(static::categoryOptions())->label('Categoria principale'),
             FormField::key('tags')->selectSearch(static::tagOptions(), true)->label('Tag'),
-            FormField::key('weight')->number()->decimal(3)->label('Peso (kg)'),
+            FormField::key('package_id')
+                ->select(Packages::options())
+                ->label('Imballaggio'),
+            // Una frase da leggere, non un dato da scrivere: la somma la fa il
+            // pannello, e vederla qui è il modo di accorgersi che la tara
+            // manca.
+            FormField::key('shipping_weight')->text()->label('Spedito')->readonly(),
+            FormField::key('weight')->number()->decimal(3)->label('Peso del prodotto (kg)'),
             FormField::key('length')->number()->decimal(2)->label('Lunghezza (cm)'),
             FormField::key('width')->number()->decimal(2)->label('Larghezza (cm)'),
             FormField::key('height')->number()->decimal(2)->label('Altezza (cm)'),
@@ -359,6 +367,25 @@ class ProductModelResource extends GestionaleResource
      *
      * @return list<object>
      */
+    /**
+     * Se l'articolo si spedisce.
+     *
+     * Alla creazione non c'è ancora niente da leggere e la risposta è sì: il
+     * campo nasce con `true`, e un riquadro che compare solo al secondo
+     * salvataggio confonderebbe.
+     */
+    protected static function shipsFrom(int $modelId): bool
+    {
+        if ($modelId <= 0) {
+            return true;
+        }
+
+        $rows = static::rowsOf(ProductModel::class, ['id' => $modelId]);
+        $row = $rows[0] ?? null;
+
+        return !is_array($row) || ($row['requires_shipping'] ?? 'true') !== 'false';
+    }
+
     protected static function sideColumn(int $modelId): array
     {
         $codici = [
@@ -372,7 +399,7 @@ class ProductModelResource extends GestionaleResource
             $codici[] = static::getInput('product_ean')->columnSpan(12);
         }
 
-        return [
+        $cards = [
             (new Card)->components([
                 SectionTitle::make('Pubblicazione')
                     ->tooltip('Una bozza non si vede da nessuna parte. Un articolo pubblicato che non si vende online resta in catalogo per il negozio e per i documenti.')
@@ -394,18 +421,25 @@ class ProductModelResource extends GestionaleResource
                 static::getInput('tags')->columnSpan(12),
                 static::getInput('categories')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
-
-            (new Card)->components([
-                SectionTitle::make('Peso e misure')
-                    ->tooltip('Servono alla spedizione. Una versione con misure sue le usa al posto di queste.')
-                    ->columnSpan(12),
-                static::getInput('unit')->columnSpan(12),
-                static::getInput('weight')->columnSpan(6),
-                static::getInput('length')->columnSpan(6),
-                static::getInput('width')->columnSpan(6),
-                static::getInput('height')->columnSpan(6),
-            ])->columns(12)->columnSpan(12),
         ];
+
+        // Un articolo che non si spedisce non ha niente da dire qui.
+        if (static::shipsFrom($modelId)) {
+            $cards[] = (new Card)->components([
+                SectionTitle::make('Spedizione')
+                    ->tooltip('Quello che parte è prodotto più scatola. Le misure del prodotto servono ai fuori misura, quelli che nella scatola scelta non ci stanno; una versione con misure sue le usa al posto di queste.')
+                    ->columnSpan(12),
+                static::getInput('package_id')->columnSpan(12),
+                static::getInput('weight')->columnSpan(6),
+                static::getInput('shipping_weight')->columnSpan(6),
+                static::getInput('unit')->columnSpan(12),
+                static::getInput('length')->columnSpan(4),
+                static::getInput('width')->columnSpan(4),
+                static::getInput('height')->columnSpan(4),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        return $cards;
     }
 
     public static function tableSchema(): array
@@ -727,6 +761,11 @@ class ProductModelResource extends GestionaleResource
         foreach (static::usedOptionValues($modelId) as $key => $ids) {
             $values[$key] = $ids;
         }
+
+        $values['shipping_weight'] = Packages::describe(
+            (float) ($values['weight'] ?? 0),
+            Packages::forModel((int) ($values['package_id'] ?? 0))
+        );
 
         return $values;
     }
@@ -1279,6 +1318,7 @@ class ProductModelResource extends GestionaleResource
     protected static function withoutExtras(array $values): array
     {
         unset(
+            $values['shipping_weight'],
             $values['categories'],
             $values['main_category'],
             $values['tags'],

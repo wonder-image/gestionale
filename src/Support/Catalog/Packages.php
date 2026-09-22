@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Catalog;
 
+use Throwable;
 use Wonder\Plugin\Gestionale\Models\Catalog\Package;
 
 /**
@@ -34,6 +35,13 @@ final class Packages
      */
     public static function describe(float $product, ?array $package): string
     {
+        // Senza il peso del prodotto la somma non dice niente: "0 di prodotto
+        // e 0,05 di scatola" è un numero che nessuno userebbe. Meglio dire
+        // cosa manca.
+        if ($product <= 0.0) {
+            return 'Manca il peso del prodotto';
+        }
+
         $total = self::kg(self::shippingWeight($product, $package));
 
         if ($package === null) {
@@ -98,10 +106,22 @@ final class Packages
         return $default;
     }
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * Le scatole, o niente.
+     *
+     * Il `formSchema()` di una Resource viene valutato anche dove un database
+     * non c'è — i test degli schemi, i comandi di `forge` — e un elenco vuoto
+     * è una risposta migliore di un errore di connessione.
+     *
+     * @return list<array<string, mixed>>
+     */
     private static function rows(): array
     {
-        $rows = Package::find(['deleted' => 'false', 'active' => 'true'], null, 'position', 'ASC');
+        try {
+            $rows = Package::find(['deleted' => 'false', 'active' => 'true'], null, 'position', 'ASC');
+        } catch (Throwable) {
+            return [];
+        }
 
         if (!is_array($rows) || $rows === []) {
             return [];

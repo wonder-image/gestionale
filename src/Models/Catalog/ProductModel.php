@@ -45,6 +45,9 @@ final class ProductModel extends Model
             Column::key('type')->enum(['simple', 'bundle'])->default('simple'),
             Column::key('sku')->length(100),
             Column::key('unit')->length(10)->default('pz'),
+            // Senza chiave esterna: vuoto vale zero, e vuol dire "la scatola
+            // predefinita del negozio".
+            Column::key('package_id')->int(),
             Column::key('name'),
             Column::key('slug')->length(150)->unique(),
             Column::key('short_description')->type('TEXT'),
@@ -73,6 +76,7 @@ final class ProductModel extends Model
             Field::key('type')->text()->sanitize(false),
             Field::key('sku')->text(),
             Field::key('unit')->text(),
+            Field::key('package_id')->number()->decimals(0),
             Field::key('name')->text()->sanitizeFirst(),
             Field::key('slug')->text()->slug()->readonlyOnUpdate()->immutableOnUpdate(),
             Field::key('short_description')->text(),
