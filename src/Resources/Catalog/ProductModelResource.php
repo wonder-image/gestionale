@@ -206,57 +206,25 @@ class ProductModelResource extends GestionaleResource
 
         array_push($fields, ...static::optionFields());
 
-        if ($modelId !== null) {
-            array_push($fields, ...static::imageFields($modelId));
-        }
+        // Anche in creazione: il core sincronizza i repeater con l'id appena
+        // inserito, quindi una foto trascinata qui nasce insieme al prodotto.
+        array_push($fields, ...static::imageFields($modelId ?? 0));
 
         // I due repeater esistono solo quando c'è più di una riga da mostrare.
         // Non è solo estetica: un campo che non viene stampato non viene
         // nemmeno postato, e il sync dei repeater cancella le righe che non
         // ritrova.
-        if ($modelId !== null && static::variantCount($modelId) > 1) {
+        if (static::variantCount($modelId ?? 0) > 1) {
             $fields[] = static::variantsField();
         }
 
-        if ($modelId !== null && static::productCount($modelId) > 1) {
-            $fields[] = static::productsField();
+        if (static::productCount($modelId ?? 0) > 1) {
+            $fields[] = static::productsField($modelId ?? 0);
         }
 
         array_push($fields, ...static::priceFields($modelId));
 
         return $fields;
-    }
-
-    /**
-     * I quattro campi della creazione: il resto si compila nella scheda.
-     *
-     * Nessun riquadro vuoto da scorrere prima di aver deciso cos'è l'articolo.
-     *
-     * @return list<string>
-     */
-    public static function createFields(): array
-    {
-        return ['name', 'tax_category_id', 'product_price', 'main_category', 'sku'];
-    }
-
-    /** La schermata di creazione: quattro campi e via. */
-    protected static function createLayout(): Form
-    {
-        $campi = [
-            SectionTitle::make('Nuovo prodotto')
-                ->tooltip('Bastano queste quattro cose. Foto, descrizioni, colori e taglie si aggiungono subito dopo, nella scheda.')
-                ->columnSpan(12),
-        ];
-
-        foreach (static::createFields() as $chiave) {
-            $campi[] = static::getInput($chiave)->columnSpan(6);
-        }
-
-        return (new Form)->components([
-            (new Container)->components([
-                (new Card)->components($campi)->columns(12)->columnSpan(12),
-            ])->columns(12)->columnSpan(12),
-        ]);
     }
 
     /**
@@ -268,13 +236,22 @@ class ProductModelResource extends GestionaleResource
      * colpo d'occhio: stato, codici, dove sta nel sito, peso e misure. Erano
      * dieci riquadri a piena larghezza, uno sotto l'altro.
      */
+    /**
+     * La stessa scheda in creazione e in modifica.
+     *
+     * Prima la creazione era una schermata a sé, con cinque campi: si
+     * compilava, si salvava, si riapriva la scheda e si salvava ancora. Chi
+     * carica un prodotto vuole vedere in una volta tutto quello che gli sarà
+     * chiesto — e il core sincronizza i repeater con l'id appena inserito,
+     * quindi foto e collegamenti nascono nello stesso salvataggio.
+     *
+     * Quello che non può esistere prima del primo salvataggio semplicemente
+     * non compare: le versioni da prezzare, le foto dei singoli colori, la
+     * giacenza.
+     */
     public static function formLayoutSchema(): ?Form
     {
-        $modelId = static::currentId();
-
-        if ($modelId === null) {
-            return static::createLayout();
-        }
+        $modelId = static::currentId() ?? 0;
 
         // `columns(12)` sul Form, non solo sui contenitori: il renderer calcola
         // la larghezza di un figlio sulle colonne del **padre**, e un Form senza
@@ -308,7 +285,9 @@ class ProductModelResource extends GestionaleResource
                 // Con una versione sola la giacenza sta qui, accanto al
                 // prezzo: è la scheda di quell'unico articolo, e la parola
                 // "versione" non compare da nessuna parte.
-                ...($unaVersione ? [
+                // In creazione non c'è ancora niente da rettificare: la
+                // giacenza compare dal primo salvataggio in poi.
+                ...($unaVersione && $modelId > 0 ? [
                     static::getInput('product_stock')->columnSpan(3),
                     RichText::make(static::adjustLink($modelId))->columnSpan(12),
                 ] : []),
@@ -1392,7 +1371,7 @@ class ProductModelResource extends GestionaleResource
             FormField::key('product_sale_price')->number()->decimal(2)->label('Prezzo scontato'),
         ];
 
-        if ($modelId !== null && static::productCount($modelId) <= 1) {
+        if ($modelId !== null && $modelId > 0 && static::productCount($modelId) <= 1) {
             $fields[] = FormField::key('product_stock')
                 ->text()
                 ->readonly()

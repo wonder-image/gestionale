@@ -259,31 +259,49 @@ check('finché una riga resta, si salva', function () {
     return true;
 });
 
-check('la creazione chiede l\'indispensabile e poi porta sulla scheda', function () {
+check('dopo il salvataggio si atterra sulla scheda', function () {
     $schema = ProductModelResource::pageSchema();
 
-    // Il tipo fiscale è obbligatorio, quindi dev'essere qui: un campo
-    // obbligatorio fuori dalla creazione è un salvataggio che non parte.
-    return ProductModelResource::createFields()
-            === ['name', 'tax_category_id', 'product_price', 'main_category', 'sku']
-        && ($schema->get('redirects')['store'] ?? '') === 'edit';
+    return ($schema->get('redirects')['store'] ?? '') === 'edit';
 });
 
-check('la schermata di creazione ha un riquadro solo', function () {
-    $form = ProductModelResource::formLayoutSchema();
-    $contenitore = $form->components[0] ?? null;
-    $riquadri = $contenitore->components ?? [];
-    $titolo = null;
-
-    foreach ($riquadri[0]->components ?? [] as $dentro) {
-        if ($dentro instanceof SectionTitle) {
-            $titolo = $dentro->getText();
-            break;
-        }
-    }
-
+check('la creazione mostra la scheda intera, due colonne comprese', function () {
     // `currentId()` è nullo fuori da una richiesta: è la creazione.
-    return count($riquadri) === 1 && $titolo === 'Nuovo prodotto';
+    $form = ProductModelResource::formLayoutSchema();
+    $colonne = $form->components ?? [];
+
+    $titoli = static function ($contenitore): array {
+        $titoli = [];
+
+        foreach ($contenitore->components ?? [] as $riquadro) {
+            foreach ($riquadro->components ?? [] as $dentro) {
+                if ($dentro instanceof SectionTitle) {
+                    $titoli[] = $dentro->getText();
+                    break;
+                }
+            }
+        }
+
+        return $titoli;
+    };
+
+    return count($colonne) === 2
+        && $titoli($colonne[0]) === ['Prodotto', 'Foto e video', 'Descrizione']
+        && $titoli($colonne[1]) === ['Pubblicazione', 'Codici', 'Dove si trova', 'Spedizione'];
+});
+
+check('in creazione non si chiede quello che non esiste ancora', function () {
+    $chiavi = array_map(
+        static fn ($campo) => (string) $campo->name,
+        ProductModelResource::formSchema()
+    );
+
+    // Niente giacenza da rettificare, niente griglia delle versioni, niente
+    // foto dei singoli colori: sono cose che nascono dal primo salvataggio.
+    return !in_array('product_stock', $chiavi, true)
+        && !in_array('products', $chiavi, true)
+        && !in_array('variants', $chiavi, true)
+        && in_array('images_0', $chiavi, true);
 });
 
 check('l\'elenco dice foto, prezzo e quante versioni', function () {
