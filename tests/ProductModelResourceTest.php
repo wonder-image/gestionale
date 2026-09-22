@@ -615,7 +615,7 @@ check('la griglia si spegne quando non c\'è niente da vedere, e si raggruppa qu
     $html = $schedaAperta::vediGriglia();
 
     return str_contains($html, 'quante <= 1 && spuntate === 0')
-        && str_contains($html, "wiRepeaterGroupApply(righe.id, templateId, conColore ? 'variant' : '')");
+        && str_contains($html, "wiRepeaterGroupApply(righe.id, box.id + '-group-template', conColore ? 'variant' : '')");
 });
 
 check('la griglia chiede codice, prezzo, giacenza e foto, e il nome non si scrive', function () use ($schedaAperta) {

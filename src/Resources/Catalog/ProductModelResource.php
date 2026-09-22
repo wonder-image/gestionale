@@ -1027,9 +1027,7 @@ class ProductModelResource extends GestionaleResource
                 );
                 // Il colore raggruppa; quello che resta del nome si legge.
                 $values['products'][$index]['variant'] = $nomi[$productId]['variant'] ?? '';
-                $values['products'][$index]['option'] = $nomi[$productId]['rest'] !== ''
-                    ? $nomi[$productId]['rest']
-                    : ($nomi[$productId]['variant'] ?? '');
+                $values['products'][$index]['option'] = $nomi[$productId]['label'] ?? '';
                 $values['products'][$index]['photo'] = $foto[$productId] ?? '';
             }
         }
@@ -2105,7 +2103,7 @@ HTML);
      * Nessuno dei due si scrive a mano: nascono dai collegamenti agli
      * attributi, che sono l'unica sorgente vera.
      *
-     * @return array<int, array{variant: string, rest: string, full: string}>
+     * @return array<int, array{variant: string, rest: string, full: string, label: string}>
      */
     public static function optionLabels(int $modelId): array
     {
@@ -2146,13 +2144,19 @@ HTML);
                 }
             }
 
+            $etichette = array_values(array_filter(
+                array_merge([$colore], $resto),
+                static fn (string $l): bool => $l !== ''
+            ));
+
             $nomi[$id] = [
                 'variant' => $colore,
                 'rest' => implode(' / ', $resto),
-                'full' => VersionName::from(
-                    array_values(array_filter(array_merge([$colore], $resto), static fn (string $l): bool => $l !== '')),
-                    (string) ($product['sku'] ?? '')
-                ),
+                // Senza nessun attributo non c'è niente da calcolare: è
+                // l'articolo venduto così com'è, e il suo nome resta quello
+                // che gli ha dato chi l'ha creato.
+                'full' => $etichette === [] ? '' : VersionName::from($etichette),
+                'label' => $etichette === [] ? (string) ($product['name'] ?? '') : implode(' / ', $resto ?: [$colore]),
             ];
         }
 
