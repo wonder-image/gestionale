@@ -41,12 +41,14 @@ giacenza e rinfresca l'avviso di scorta.
   core: non si dichiarano.
 - Le quantità sono `DECIMAL(10,3)` e si scrivono sempre come stringa canonica
   (`number_format($v, 3, '.', '')`).
-- **Difetto noto del core installato (2.2.12):** `prepare()` arrotonda i
-  decimali di qualsiasi campo numerico. La correzione è già in `packages/app`
-  (`7d6df162`) ma **non rilasciata**: finché il sito di prova resta sulla
-  2.2.12, una quantità come `2,5` si salva come `3`. Le verifiche nel browser
-  di questo piano si fanno con **quantità intere**; il piano non aggiunge
-  ripieghi.
+- **Difetto noto del core installato (2.2.12):** il `prepare()` dei **form**
+  arrotonda i decimali dei campi numerici del backend (`2,5` diventa `3`). La
+  correzione è già in `packages/app` (`7d6df162`) ma **non rilasciata**.
+  Riguarda i valori battuti in una casella, quindi la pagina *Giacenze* del
+  piano 2, non questo piano: `Stock::apply()` scrive numeri canonici
+  (`number_format($v, 3, '.', '')`) che `Model::prepare()` lascia passare
+  intatti — verificato sul sito di prova. Le verifiche nel browser di questo
+  piano si fanno comunque con **quantità intere**.
 - Ogni task finisce con un commit sul ramo `feature/fondamenta-del-magazzino`
   di `packages/gestionale`.
 - Test: `php tests/run.php` deve restare verde. I test d'integrazione girano
@@ -1370,7 +1372,7 @@ Expected: crea `gst_stock`, `gst_stock_movements`, `gst_stock_reservations`,
 - [ ] **Step 6: Esegui il test e verifica che passi**
 
 Run: `php tests/integrazione/StockLevelsTest.php`
-Expected: `9 test, 0 falliti`
+Expected: `8 test, 0 falliti`
 
 - [ ] **Step 7: Commit**
 
