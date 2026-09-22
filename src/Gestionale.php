@@ -98,17 +98,26 @@ final class Gestionale implements ModuleInterface, ModuleTasks
         }
 
         $unlocked = [];
+        $modules = [];
 
-        foreach (Models\System\Feature::find(['deleted' => 'false']) ?: [] as $row) {
-            if (is_array($row)) {
-                $unlocked[(string) ($row['feature_key'] ?? '')] = ($row['enabled'] ?? 'false') === 'true';
+        try {
+            foreach (Models\System\Feature::find(['deleted' => 'false']) ?: [] as $row) {
+                if (is_array($row)) {
+                    $unlocked[(string) ($row['feature_key'] ?? '')] = ($row['enabled'] ?? 'false') === 'true';
+                }
             }
-        }
 
-        $modules = array_map(
-            static fn ($manifest): string => $manifest->slug(),
-            \Wonder\App\Module\Registry::enabled()
-        );
+            $modules = array_map(
+                static fn ($manifest): string => $manifest->slug(),
+                \Wonder\App\Module\Registry::enabled()
+            );
+        } catch (\Throwable) {
+            // Senza database (test degli schemi, comandi fuori dal sito) non
+            // si sa cosa sia sbloccato: **tutto bloccato** è la risposta
+            // giusta, perché è quella che non mostra niente per sbaglio.
+            $unlocked = [];
+            $modules = [];
+        }
 
         return self::$features = Support\Features\FeatureState::resolve(
             Support\Features\FeatureCatalog::all(),
