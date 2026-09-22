@@ -132,9 +132,17 @@ final class BrandResource extends GestionaleResource
         return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
     }
 
+    /**
+     * Solo `store`, e solo per il "+ Aggiungi" della scheda prodotto.
+     *
+     * La chiamata parte lato server come `@system`: non serve dare il permesso
+     * a nessun ruolo, il controllo sta sul bottone e nel proxy.
+     */
     public static function apiSchema(): ApiSchema
     {
-        return ApiSchema::for(static::class)->enabled(false);
+        return ApiSchema::for(static::class)
+            ->only(['store'])
+            ->fields('store', ['name']);
     }
 
     public static function navigationSchema(): NavigationSchema

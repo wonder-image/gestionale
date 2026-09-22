@@ -14,6 +14,7 @@ use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
+use Wonder\Elements\Components\Link;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
@@ -28,6 +29,12 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
+use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\CategoryResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\PackageResource;
+use Wonder\Plugin\Gestionale\Resources\Tax\TaxCategoryResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
@@ -140,11 +147,15 @@ class ProductModelResource extends GestionaleResource
 
         $fields = [
             FormField::key('name')->text()->label('Nome')->required(),
-            FormField::key('brand_id')->select(static::brandOptions())->label('Marchio'),
+            FormField::key('brand_id')
+                ->select(static::brandOptions())
+                ->label('Marchio')
+                ->quickCreate(BrandResource::class),
             FormField::key('tax_category_id')
                 ->select(static::taxCategoryOptions())
                 ->label('Tipo fiscale')
-                ->required(),
+                ->required()
+                ->quickCreate(TaxCategoryResource::class),
             FormField::key('sku')->text()->label('SKU'),
             FormField::key('unit')->select(self::UNITS)->value('pz')->label('Unità di misura')->required(),
             // Due domande diverse, e devono suonare diverse: la prima dice se
@@ -162,11 +173,15 @@ class ProductModelResource extends GestionaleResource
             FormField::key('short_description')->textarea()->label('Descrizione breve'),
             FormField::key('description')->textarea()->label('Descrizione'),
             FormField::key('categories')->checkTree(static::categoryTree(), true)->label('Categorie'),
-            FormField::key('main_category')->select(static::categoryOptions())->label('Categoria principale'),
+            FormField::key('main_category')
+                ->select(static::categoryOptions())
+                ->label('Categoria principale')
+                ->quickCreate(CategoryResource::class),
             FormField::key('tags')->selectSearch(static::tagOptions(), true)->label('Tag'),
             FormField::key('package_id')
                 ->select(Packages::options())
-                ->label('Imballaggio'),
+                ->label('Imballaggio')
+                ->quickCreate(PackageResource::class),
             // Una frase da leggere, non un dato da scrivere: la somma la fa il
             // pannello, e vederla qui è il modo di accorgersi che la tara
             // manca.
@@ -300,11 +315,7 @@ class ProductModelResource extends GestionaleResource
             ])->columns(12)->columnSpan(12),
         ];
 
-        $opzioni = [];
-
-        foreach (static::optionFields() as $field) {
-            $opzioni[] = static::getInput((string) $field->name)->columnSpan(6);
-        }
+        $opzioni = static::optionBlocks();
 
         if (!$unaVersione) {
             $versioni = [
@@ -942,13 +953,60 @@ class ProductModelResource extends GestionaleResource
         $fields = [];
 
         foreach (static::optionAttributes() as $attribute) {
-            $fields[] = FormField::key('option_'.(int) $attribute['id'])
+            $id = (int) $attribute['id'];
+            $nome = mb_strtolower((string) ($attribute['name'] ?? ''));
+
+            $fields[] = FormField::key('option_'.$id)
                 ->checkbox()
-                ->options(static::valuesOf((int) $attribute['id']))
-                ->label((string) ($attribute['name'] ?? ''));
+                ->options(static::valuesOf($id))
+                ->label((string) ($attribute['name'] ?? ''))
+                // Il valore nuovo entra nell'elenco del negozio, non in questo
+                // articolo: per questo il bottone dice "aggiungi colore" e non
+                // "aggiungi colore a questo prodotto".
+                ->quickCreate(
+                    AttributeValueResource::class,
+                    label: 'label',
+                    layout: static fn (): Form => (new Form)->components([
+                        (new Container)->components([
+                            FormField::key('attribute_id')->hidden()->value((string) $id),
+                            AttributeValueResource::getInput('label')->label('Nuovo '.$nome),
+                        ])->columns(12)->columnSpan(12),
+                    ])->columns(12),
+                );
         }
 
         return $fields;
+    }
+
+    /**
+     * Un'opzione per blocco: le spunte e, sotto, il collegamento che porta a
+     * modificarla.
+     *
+     * La matita apre la scheda dell'attributo — dove si rinominano i valori,
+     * si riordinano e si scelgono i colori. Non un modal: la creazione rapida
+     * del core sa creare, non modificare.
+     *
+     * @return list<object>
+     */
+    protected static function optionBlocks(): array
+    {
+        $blocks = [];
+
+        foreach (static::optionAttributes() as $attribute) {
+            $id = (int) $attribute['id'];
+            $nome = (string) ($attribute['name'] ?? '');
+
+            $blocks[] = (new Container)->components([
+                static::getInput('option_'.$id)->columnSpan(12),
+                // `Link` non ha `columnSpan()`: nel layout dei form finisce
+                // senza wrapper e prende la riga, che qui è quello che serve.
+                Link::to(AttributeResource::editUrlFor($id), 'Modifica '.mb_strtolower($nome))
+                    ->icon('bi-pencil')
+                    ->muted(),
+            ])->columns(12)->columnSpan(6);
+        }
+
+        return $blocks;
     }
 
     /**

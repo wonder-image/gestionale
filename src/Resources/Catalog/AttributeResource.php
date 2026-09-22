@@ -87,6 +87,28 @@ class AttributeResource extends GestionaleResource
         ];
     }
 
+    /**
+     * L'indirizzo della scheda di un attributo.
+     *
+     * Lo usa la matita accanto ai gruppi di spunte della scheda prodotto: si
+     * modifica l'opzione da dove la si sta usando.
+     */
+    public static function editUrlFor(int $attributeId): string
+    {
+        $base = '/backend/'.static::path();
+
+        if (function_exists('__r')) {
+            try {
+                $named = (string) __r('backend.resource.'.static::slug().'.list');
+                $base = $named !== '' ? $named : $base;
+            } catch (\Throwable) {
+                // Rotta non registrata: resta il percorso.
+            }
+        }
+
+        return rtrim($base, '/').'/'.$attributeId.'/edit/';
+    }
+
     public static function formSchema(): array
     {
         return [
