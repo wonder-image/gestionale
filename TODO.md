@@ -184,7 +184,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
       - `backUrlFrom()` accetta anche gli indirizzi assoluti di questo sito, perché è quello che tornano le rotte del core; rifiuta tutto il resto (redirect aperto).
       - Chiavi dello schema da ricordare per i test: le voci di un select stanno in `options`, le colonne di un repeater in `context.columns`, `readonly()` finisce dentro `attribute`, la larghezza in `columnSpan['default']`, la sezione del menu in `section_key`.
       - I campi numerici del backend mostrano il punto come separatore decimale e nessun separatore di migliaia (`20.000` sono venti pezzi): è la configurazione AutoNumeric del sito, uguale per i prezzi.
-    - [ ] Piano 3: anagrafiche (clienti, fornitori, indirizzi, riquadro della home, dati di prova, guide)
+    - [ ] Piano 3 scritto (2026-09-22): `docs/superpowers/plans/2026-09-22-anagrafiche.md` — 5 task: le due tabelle, le regole della rubrica, clienti e fornitori con una scheda sola, riquadro e dati di prova, verifica
     - [ ] Piano 4: avvisi di scorta minima (campo, avvisi, attività ed email raggruppata, riquadro, guide)
 - [ ] G3 Magazzino avanzato
 - [ ] G4 Ordini e pagamenti
