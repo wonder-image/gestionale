@@ -17,11 +17,13 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\Combinations;
 use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -163,6 +165,55 @@ try {
 
             return ProductModelResource::variantCount($modelId) === 2
                 && ProductModelResource::productCount($modelId) === 8;
+        });
+
+        check('una versione nasce con quello che si è scritto nella griglia', function () use ($colore, $taglia) {
+            $modello = ProductModel::create([
+                'code' => Code::make(ProductModel::class, Codes::MODEL),
+                'name' => 'Prova griglia',
+                'slug' => Slug::make('prova-griglia-'.uniqid()),
+                'sku' => 'CMB-2',
+                'unit' => 'pz',
+                'type' => 'simple',
+                'visible' => 'true',
+                'visible_online' => 'true',
+                'position' => 1,
+            ]);
+            $nuovo = (int) ($modello->insert_id ?? 0);
+            Skeleton::forModel($nuovo, 'Prova griglia', 'CMB-2');
+
+            // La chiave è quella che calcola il browser: tutti gli id dei
+            // valori spuntati, in ordine, uniti da un trattino.
+            $chiave = Combinations::clientKey($colore['values'][0], [$taglia['values'][0]]);
+
+            ProductModelResource::forgetCatalogCache();
+            ProductModelResource::saveExtras($nuovo, [
+                'option_'.$colore['id'] => [(string) $colore['values'][0]],
+                'option_'.$taglia['id'] => [(string) $taglia['values'][0]],
+                // Il riquadro in alto dice 9,90: non deve toccare la riga che
+                // si è appena prezzata da sé.
+                'product_price' => '9,90',
+                'new_versions' => [
+                    $chiave => [
+                        'name' => 'Maglia leggera blu S',
+                        'sku' => 'MIO-1',
+                        'ean' => '4006381333931',
+                        'price' => '31,50',
+                        'stock' => '5',
+                        'cost' => '12,00',
+                    ],
+                ],
+            ], 'CMB-2');
+
+            $prodotti = ProductModelResource::products($nuovo);
+            $riga = $prodotti[0] ?? [];
+
+            return count($prodotti) === 1
+                && (string) ($riga['name'] ?? '') === 'Maglia leggera blu S'
+                && (string) ($riga['sku'] ?? '') === 'MIO-1'
+                && (string) ($riga['ean'] ?? '') === '4006381333931'
+                && (float) ($riga['price'] ?? 0) === 31.5
+                && Levels::of((int) ($riga['id'] ?? 0))['quantity'] === 5.0;
         });
 
         check('due opzioni con pagina propria vengono rifiutate', function () use ($attributo, $colore) {

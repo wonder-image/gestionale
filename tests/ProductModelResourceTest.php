@@ -393,6 +393,11 @@ $schedaAperta = new class extends ProductModelResource {
         return (string) static::optionsPicker()->getText();
     }
 
+    public static function vediGriglia(): string
+    {
+        return (string) static::newVersionsBlock(0)->getText();
+    }
+
     public static function productCount(int $modelId): int
     {
         return 1;
@@ -556,6 +561,25 @@ check('la matita che apriva l\'anagrafica non c\'è più', function () use ($sch
     }
 
     return $dentro !== [];
+});
+
+check('la griglia chiede nome, prezzo, giacenza e foto; il resto dietro un bottone', function () use ($schedaAperta) {
+    $html = $schedaAperta::vediGriglia();
+
+    return str_contains($html, 'wi-new-version-name')
+        && str_contains($html, 'wi-new-version-price')
+        && str_contains($html, 'wi-new-version-stock')
+        && str_contains($html, 'wi-new-version-photo')
+        && str_contains($html, 'Compila tutto')
+        // Codice, EAN e costo ci sono, ma chiusi.
+        && str_contains($html, 'wi-new-version-extra d-none')
+        && str_contains($html, 'wi-new-version-sku')
+        && str_contains($html, 'wi-new-version-ean')
+        && str_contains($html, 'wi-new-version-cost');
+});
+
+check('la foto della griglia accetta anche un video', function () use ($schedaAperta) {
+    return str_contains($schedaAperta::vediGriglia(), 'video/mp4');
 });
 
 summary();

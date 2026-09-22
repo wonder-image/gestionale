@@ -49,7 +49,9 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\App\Support\Repeater;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Positions;
@@ -303,7 +305,7 @@ class ProductModelResource extends GestionaleResource
         if (!$unaVersione) {
             $versioni = [
                 SectionTitle::make('Versioni in vendita')
-                    ->tooltip('Spunta i valori e salva: nascono le righe che mancano, con il nome e lo SKU proposti. Togliere una spunta non cancella niente; per eliminare una versione si elimina la sua riga.')
+                    ->tooltip('Scegli un\'opzione, spunta i valori e compila le righe che compaiono: nascono con nome, prezzo, giacenza e foto in un salvataggio solo. Togliere una spunta non cancella niente; per eliminare una versione si elimina la sua riga.')
                     ->columnSpan(12),
                 ...$opzioni,
                 static::getInput('products')->columnSpan(12),
@@ -340,7 +342,7 @@ class ProductModelResource extends GestionaleResource
             $cards[] = static::foldable(
                 'Si vende in più versioni? (colori, taglie…)',
                 $opzioni,
-                'Spunta i colori e le taglie in cui vendi questo articolo e salva: le righe nascono da sole, con il nome e lo SKU proposti.'
+                'Scegli un\'opzione — colore, taglia, gusto — e compila le righe che compaiono: le versioni nascono al primo salvataggio, con prezzo, giacenza e foto.'
             );
         }
 
@@ -657,12 +659,12 @@ class ProductModelResource extends GestionaleResource
         $sku = (string) ($values['sku'] ?? '');
 
         Skeleton::forModel($id, (string) ($values['name'] ?? ''), $sku);
-        static::saveExtras($id, (array) $_POST, $sku);
+        static::saveExtras($id, (array) $_POST, $sku, (array) $_FILES);
     }
 
     public static function afterUpdate(int|string $id, object $result, array $values = []): void
     {
-        static::saveExtras((int) $id, (array) $_POST);
+        static::saveExtras((int) $id, (array) $_POST, '', (array) $_FILES);
     }
 
     /**
@@ -672,21 +674,117 @@ class ProductModelResource extends GestionaleResource
      * prodotto è vuota, il prodotto tiene quello, invece di perdere il codice
      * che il modello gli ha appena dato.
      */
-    public static function saveExtras(int $modelId, array $post, string $fallbackSku = ''): void
-    {
+    public static function saveExtras(
+        int $modelId,
+        array $post,
+        string $fallbackSku = '',
+        array $files = []
+    ): void {
         if ($modelId <= 0) {
             return;
         }
 
-        Transaction::run(static function () use ($modelId, $post, $fallbackSku): void {
+        Transaction::run(static function () use ($modelId, $post, $fallbackSku, $files): void {
             static::saveCategories($modelId, $post);
             static::saveTags($modelId, $post);
             static::saveModelAttributes($modelId, $post);
             $chosen = static::chosenAxes($post);
             $scritte = is_array($post['new_versions'] ?? null) ? $post['new_versions'] : [];
-            $conPrezzo = Generator::run($modelId, $chosen['variant'], $chosen['axes'], $fallbackSku, $scritte);
-            static::savePrices($modelId, $post, $fallbackSku, $conPrezzo);
+            $nate = Generator::run($modelId, $chosen['variant'], $chosen['axes'], $fallbackSku, $scritte);
+
+            // Quello che è stato scritto nella griglia, per riga appena nata:
+            // il riquadro in alto non deve riscriverlo.
+            $appena = [];
+
+            foreach ($nate as $chiave => $riga) {
+                $appena[$riga['product_id']] = is_array($scritte[$chiave] ?? null) ? $scritte[$chiave] : [];
+            }
+
+            static::savePrices($modelId, $post, $fallbackSku, $appena);
+            static::saveNewVersions($modelId, $nate, $scritte, $files);
         });
+    }
+
+    /**
+     * Quello che una versione appena nata si porta dietro: la giacenza di
+     * partenza e la sua foto.
+     *
+     * Prezzo, nome e codici li scrive il generatore mentre crea la riga; qui
+     * restano le due cose che vivono altrove — un movimento di magazzino e un
+     * file su disco — e che senza una riga a cui agganciarsi non si potevano
+     * scrivere prima.
+     *
+     * @param array<string, array{product_id: int, variant_id: int, priced: bool}> $nate
+     * @param array<string, mixed> $scritte
+     * @param array<string, mixed> $files
+     */
+    protected static function saveNewVersions(
+        int $modelId,
+        array $nate,
+        array $scritte,
+        array $files
+    ): void {
+        if ($nate === []) {
+            return;
+        }
+
+        $caricate = Repeater::filesFromRequest('new_versions', $files);
+
+        foreach ($nate as $chiave => $riga) {
+            $scritto = is_array($scritte[$chiave] ?? null) ? $scritte[$chiave] : [];
+            $quantita = (float) (Numbers::fromForm($scritto['stock'] ?? null) ?? 0);
+
+            if ($quantita > 0) {
+                // La giacenza non si scrive: si carica. Il movimento resta, con
+                // la sua causale, come per ogni altro pezzo che entra.
+                Stock::apply([
+                    'product_id' => $riga['product_id'],
+                    'quantity' => $quantita,
+                    'reason' => 'initial_stock',
+                    'unit_cost' => (float) (Numbers::fromForm($scritto['cost'] ?? null) ?? 0),
+                    'note' => 'Giacenza iniziale, dalla scheda dell\'articolo',
+                ]);
+            }
+
+            static::saveNewVersionImage(
+                $modelId,
+                $riga['variant_id'],
+                $caricate[$chiave]['photo'] ?? null
+            );
+        }
+    }
+
+    /**
+     * La foto di una versione appena nata.
+     *
+     * Una foto appartiene a un colore, non a una taglia: `gst_product_images`
+     * si lega al modello e alla variante, e questa finisce sulla variante
+     * della versione — quella che la scheda chiama "Foto blu".
+     */
+    protected static function saveNewVersionImage(int $modelId, int $variantId, mixed $file): void
+    {
+        if (!is_array($file) || !isset($file['name'])) {
+            return;
+        }
+
+        $nomi = (array) $file['name'];
+        $errori = (array) ($file['error'] ?? []);
+
+        // `UPLOAD_ERR_NO_FILE`: la casella è rimasta vuota, e va benissimo.
+        if (trim((string) ($nomi[0] ?? '')) === '' || (int) ($errori[0] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            return;
+        }
+
+        ProductImage::create([
+            'product_model_id' => $modelId,
+            'product_variant_id' => $variantId > 0 ? $variantId : null,
+            'file' => $file,
+            'alt' => '',
+            'position' => count(static::rowsOf(ProductImage::class, ['product_model_id' => $modelId])) + 1,
+            // Le misure per il sito le farà la coda, come per ogni altra foto.
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
     }
 
     /** Riempie il form con ciò che non sta nella tabella del modello. */
@@ -1153,8 +1251,13 @@ HTML);
      *
      * Spuntare Blu e M non dice ancora niente al database: la riga esiste solo
      * dopo il salvataggio, e fino a ieri il prezzo si poteva scrivere solo al
-     * giro dopo. Qui le combinazioni compaiono mentre si spunta, con lo SKU
-     * proposto e la casella del prezzo, e nascono già giuste.
+     * giro dopo. Qui le combinazioni compaiono mentre si spunta e nascono già
+     * complete.
+     *
+     * In chiaro ci sono le quattro cose che si compilano sempre — nome,
+     * prezzo, giacenza, foto — e il resto sta dietro «Compila tutto»: codice,
+     * EAN e costo servono a chi li usa, e a chi non li usa toglievano solo la
+     * voglia di arrivare in fondo.
      *
      * Il browser propone, il server dispone: `Generator::run()` ricalcola il
      * piano e prende da qui solo i valori delle combinazioni che tornano.
@@ -1173,16 +1276,49 @@ HTML);
 
         return RichText::make(<<<HTML
 <div class="wi-new-versions w-100" data-wi-existing="{$esistenti}">
-    <h6 class="mb-1">Versioni che stanno per nascere</h6>
-    <p class="small text-body-secondary wi-new-versions-empty">Spunta i valori qui sopra: le versioni compaiono qui, con il loro codice e il prezzo che vuoi dargli.</p>
+    <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+        <h6 class="mb-0">Versioni che stanno per nascere</h6>
+        <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 wi-new-versions-more d-none">Compila tutto</button>
+    </div>
+    <p class="small text-body-secondary wi-new-versions-empty">Spunta i valori qui sopra: le versioni compaiono qui, già pronte da compilare.</p>
+    <p class="small text-body-secondary wi-new-versions-note d-none">La foto vale per tutte le versioni dello stesso colore: è lì che il negozio la mostra.</p>
     <div class="wi-new-versions-rows row g-2"></div>
     <template class="wi-new-versions-template">
         <div class="col-12 wi-new-version">
             <div class="card border-0 bg-light-subtle"><div class="card-body py-2">
-                <div class="row g-2 align-items-center">
-                    <div class="col-4"><strong class="wi-new-version-name small"></strong></div>
-                    <div class="col-4"><input type="text" class="form-control form-control-sm wi-new-version-sku" placeholder="Codice"></div>
-                    <div class="col-4"><input type="text" class="form-control form-control-sm wi-new-version-price" placeholder="Prezzo"></div>
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small mb-1">Nome</label>
+                        <input type="text" class="form-control form-control-sm wi-new-version-name">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1">Prezzo</label>
+                        <input type="text" inputmode="decimal" class="form-control form-control-sm wi-new-version-price">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1">Giacenza</label>
+                        <input type="text" inputmode="decimal" class="form-control form-control-sm wi-new-version-stock">
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small mb-1">Foto o video</label>
+                        <input type="file" accept="image/png, image/jpeg, image/webp, video/mp4" class="form-control form-control-sm wi-new-version-photo">
+                    </div>
+                    <div class="col-12 wi-new-version-extra d-none">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small mb-1">Codice (SKU)</label>
+                                <input type="text" class="form-control form-control-sm wi-new-version-sku">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small mb-1">EAN</label>
+                                <input type="text" class="form-control form-control-sm wi-new-version-ean">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small mb-1">Costo</label>
+                                <input type="text" inputmode="decimal" class="form-control form-control-sm wi-new-version-cost">
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div></div>
         </div>
@@ -1190,6 +1326,10 @@ HTML);
 </div>
 <script>
     window.wiNewVersions = window.wiNewVersions || (function () {
+        // Aperto o chiuso vale per tutte le righe insieme: chi preme "Compila
+        // tutto" lo preme una volta, non dodici.
+        var extra = false;
+
         function parte(label) {
             var pulito = String(label || '').trim()
                 .replace(/[àÀ]/g, 'a').replace(/[èéÈÉ]/g, 'e')
@@ -1206,6 +1346,10 @@ HTML);
             combo.forEach(function (v) { var p = parte(v.label); if (p !== '') pezzi.push(p); });
 
             return pezzi.join('-');
+        }
+
+        function nomeProposto(combo) {
+            return combo.map(function (v) { return v.label; }).join(' / ');
         }
 
         function assiSpuntati() {
@@ -1241,6 +1385,32 @@ HTML);
                 .join('-');
         }
 
+        function campo(riga, classe, nome, chiaveRiga) {
+            var elemento = riga.querySelector('.wi-new-version-' + classe);
+            elemento.name = 'new_versions[' + chiaveRiga + '][' + nome + ']';
+
+            return elemento;
+        }
+
+        // Quello che l'utente scrive non lo riscrive più nessuno: la proposta
+        // segue lo SKU dell'articolo finché la casella non viene toccata.
+        function proposta(elemento, valore) {
+            if (elemento.dataset.wiTouched !== 'true') elemento.value = valore;
+        }
+
+        function ricorda(elemento) {
+            elemento.addEventListener('input', function () { elemento.dataset.wiTouched = 'true'; });
+        }
+
+        function apri(root) {
+            root.querySelectorAll('.wi-new-version-extra').forEach(function (blocco) {
+                blocco.classList.toggle('d-none', !extra);
+            });
+
+            var bottone = root.querySelector('.wi-new-versions-more');
+            bottone.textContent = extra ? 'Bastano i campi principali' : 'Compila tutto';
+        }
+
         function aggiorna(root) {
             var esistenti = [];
             try { esistenti = JSON.parse(root.getAttribute('data-wi-existing') || '[]'); } catch (e) {}
@@ -1267,29 +1437,36 @@ HTML);
                 var gia = righe.querySelector('[data-wi-key="' + k + '"]');
 
                 if (gia) {
-                    // Lo SKU segue quello dell'articolo finché nessuno lo tocca.
-                    var campo = gia.querySelector('.wi-new-version-sku');
-                    if (campo && !campo.dataset.wiTouched) campo.value = skuProposto(base, combo);
+                    proposta(gia.querySelector('.wi-new-version-sku'), skuProposto(base, combo));
                     return;
                 }
 
                 var frammento = modello.content.cloneNode(true);
                 var riga = frammento.querySelector('.wi-new-version');
                 riga.setAttribute('data-wi-key', k);
-                riga.querySelector('.wi-new-version-name').textContent = combo.map(function (v) { return v.label; }).join(' / ');
 
-                var sku = riga.querySelector('.wi-new-version-sku');
-                sku.name = 'new_versions[' + k + '][sku]';
+                var nome = campo(riga, 'name', 'name', k);
+                nome.value = nomeProposto(combo);
+                ricorda(nome);
+
+                var sku = campo(riga, 'sku', 'sku', k);
                 sku.value = skuProposto(base, combo);
-                sku.addEventListener('input', function () { sku.dataset.wiTouched = 'true'; });
+                ricorda(sku);
 
-                var prezzo = riga.querySelector('.wi-new-version-price');
-                prezzo.name = 'new_versions[' + k + '][price]';
+                campo(riga, 'price', 'price', k);
+                campo(riga, 'stock', 'stock', k);
+                campo(riga, 'ean', 'ean', k);
+                campo(riga, 'cost', 'cost', k);
+                campo(riga, 'photo', 'photo', k);
 
                 righe.appendChild(frammento);
             });
 
-            vuoto.classList.toggle('d-none', righe.children.length > 0);
+            var quante = righe.children.length;
+            vuoto.classList.toggle('d-none', quante > 0);
+            root.querySelector('.wi-new-versions-note').classList.toggle('d-none', quante === 0);
+            root.querySelector('.wi-new-versions-more').classList.toggle('d-none', quante === 0);
+            apri(root);
         }
 
         function tutte() {
@@ -1303,6 +1480,14 @@ HTML);
 
         document.addEventListener('input', function (ev) {
             if (ev.target && ev.target.name === 'sku') tutte();
+        });
+
+        document.addEventListener('click', function (ev) {
+            var bottone = ev.target && ev.target.closest ? ev.target.closest('.wi-new-versions-more') : null;
+            if (!bottone) return;
+
+            extra = !extra;
+            document.querySelectorAll('.wi-new-versions').forEach(apri);
         });
 
         if (document.readyState === 'loading') {
@@ -1840,7 +2025,7 @@ HTML);
      * @param list<int> $skip versioni appena nate con un prezzo scritto a
      *        mano: la casella in alto non le tocca
      */
-    protected static function savePrices(int $modelId, array $post, string $fallbackSku = '', array $skip = []): void
+    protected static function savePrices(int $modelId, array $post, string $fallbackSku = '', array $appena = []): void
     {
         $prezzo = Numbers::fromForm($post['product_price'] ?? null);
         $scontato = Numbers::fromForm($post['product_sale_price'] ?? null);
@@ -1850,18 +2035,29 @@ HTML);
             return;
         }
 
+        /** Quello che la griglia ha scritto per questa riga, se è nata adesso. */
+        $scritto = static function (array $product) use ($appena): array {
+            $riga = $appena[(int) ($product['id'] ?? 0)] ?? null;
+
+            return is_array($riga) ? $riga : [];
+        };
+
         if (count($prodotti) === 1) {
             $product = $prodotti[0];
+            $riga = $scritto($product);
             // La scheda non chiede lo SKU della versione quando è una sola: lo
             // prende da quello dell'articolo, che è la stessa cosa. Se
             // l'articolo non ne ha, resta quello che la versione aveva già.
-            $sku = trim((string) ($post['sku'] ?? '')) ?: $fallbackSku;
+            // Ma se la riga è nata adesso con i suoi codici, quelli vincono:
+            // sono stati scritti più in basso nella stessa schermata.
+            $sku = trim((string) ($riga['sku'] ?? '')) ?: (trim((string) ($post['sku'] ?? '')) ?: $fallbackSku);
+            $ean = trim((string) ($riga['ean'] ?? '')) ?: trim((string) ($post['product_ean'] ?? ''));
 
             Product::update([
                 'sku' => $sku !== '' ? $sku : (string) ($product['sku'] ?? ''),
-                'ean' => trim((string) ($post['product_ean'] ?? '')),
+                'ean' => $ean,
                 // I decimali arrivano con la virgola: MySQL non li accetta.
-                'price' => $prezzo,
+                'price' => Numbers::fromForm($riga['price'] ?? null) ?? $prezzo,
                 'sale_price' => $scontato,
             ], (int) $product['id']);
 
@@ -1883,15 +2079,13 @@ HTML);
         }
 
         foreach ($prodotti as $product) {
-            $id = (int) $product['id'];
-
             // Una versione appena nata con il suo prezzo non si tocca: la
             // casella in alto è un comando per le altre, non per quella.
-            if (in_array($id, $skip, true)) {
+            if (Numbers::fromForm($scritto($product)['price'] ?? null) !== null) {
                 continue;
             }
 
-            Product::update($values, $id);
+            Product::update($values, (int) $product['id']);
         }
     }
 

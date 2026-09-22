@@ -29,10 +29,12 @@ final class Generator
      * @param list<list<array{id: int, label: string}>> $axes gli altri assi
      */
     /**
-     * @param array<string, array{sku?: string, price?: string}> $typed quello
-     *        che è stato scritto nella griglia delle versioni nuove, per
-     *        chiave di `Combinations::clientKey()`
-     * @return list<int> gli id delle versioni nate con un prezzo suo
+     * @param array<string, array<string, mixed>> $typed quello che è stato
+     *        scritto nella griglia delle versioni nuove, per chiave di
+     *        `Combinations::clientKey()`: nome, codice, EAN, prezzo
+     * @return array<string, array{product_id: int, variant_id: int, priced: bool}>
+     *         le versioni appena nate, per la stessa chiave: da lì la scheda
+     *         ritrova la riga a cui agganciare giacenza e foto
      */
     public static function run(
         int $modelId,
@@ -96,7 +98,7 @@ final class Generator
 
         $firstVariantId = (int) (self::variants($modelId)[0]['id'] ?? 0);
         $productPosition = count(self::products($modelId));
-        $priced = [];
+        $nate = [];
 
         foreach ($plan['products'] as $product) {
             $valueId = (int) $product['variant_value_id'];
@@ -106,20 +108,30 @@ final class Generator
                 continue;
             }
 
-            $scritto = $typed[Combinations::clientKey($valueId, $product['value_ids'])] ?? [];
+            $chiave = Combinations::clientKey($valueId, $product['value_ids']);
+            $scritto = is_array($typed[$chiave] ?? null) ? $typed[$chiave] : [];
             $sku = trim((string) ($scritto['sku'] ?? '')) ?: Sku::propose($modelSku, $product['labels']);
-            $name = VersionName::from($product['labels'], $sku);
+            // Il nome scritto a mano vince su quello proposto: "Blu / M" è una
+            // proposta, "Maglia leggera blu" è una decisione.
+            $name = trim((string) ($scritto['name'] ?? '')) ?: VersionName::from($product['labels'], $sku);
+            $ean = trim((string) ($scritto['ean'] ?? ''));
             $prezzo = Numbers::fromForm($scritto['price'] ?? null);
 
             $reused = $reuse !== null && $reuse['product_id'] > 0;
 
             if ($reused) {
                 $productId = $reuse['product_id'];
-                Product::update([
+                $ripresa = [
                     'product_variant_id' => $variantId,
                     'sku' => $sku,
                     'name' => $name,
-                ], $productId);
+                ];
+
+                if ($ean !== '') {
+                    $ripresa['ean'] = $ean;
+                }
+
+                Product::update($ripresa, $productId);
                 $reuse['product_id'] = 0;
             } else {
                 $riga = [
@@ -136,6 +148,10 @@ final class Generator
                     $riga['price'] = $prezzo;
                 }
 
+                if ($ean !== '') {
+                    $riga['ean'] = $ean;
+                }
+
                 $created = Product::create($riga);
                 $productId = (int) ($created->insert_id ?? 0);
             }
@@ -144,14 +160,16 @@ final class Generator
                 continue;
             }
 
-            if ($prezzo !== null) {
-                // Un prezzo scritto a mano non lo tocca più nessuno: chi
-                // salva dopo di noi deve saltare queste righe.
-                $priced[] = $productId;
+            // Un prezzo scritto a mano non lo tocca più nessuno: chi salva
+            // dopo di noi deve saltare queste righe.
+            $nate[$chiave] = [
+                'product_id' => $productId,
+                'variant_id' => $variantId,
+                'priced' => $prezzo !== null,
+            ];
 
-                if ($reused) {
-                    Product::update(['price' => $prezzo], $productId);
-                }
+            if ($prezzo !== null && $reused) {
+                Product::update(['price' => $prezzo], $productId);
             }
 
             // Un collegamento per asse: con tre opzioni spuntate il prodotto ne
@@ -169,7 +187,7 @@ final class Generator
             }
         }
 
-        return $priced;
+        return $nate;
     }
 
     /**
