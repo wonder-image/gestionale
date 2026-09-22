@@ -13,6 +13,7 @@ use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
@@ -40,6 +41,8 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Positions;
@@ -276,9 +279,16 @@ class ProductModelResource extends GestionaleResource
                         : 'Questa casella è un comando, non un riepilogo: scrivici un prezzo e al salvataggio va su tutte le versioni. Lasciala vuota e i prezzi delle righe restano come sono.')
                     ->columnSpan(12),
                 static::getInput('name')->columnSpan(12),
-                static::getInput('product_price')->columnSpan(4),
-                static::getInput('product_sale_price')->columnSpan(4),
-                static::getInput('tax_category_id')->columnSpan(4),
+                static::getInput('product_price')->columnSpan($unaVersione ? 3 : 4),
+                static::getInput('product_sale_price')->columnSpan($unaVersione ? 3 : 4),
+                static::getInput('tax_category_id')->columnSpan($unaVersione ? 3 : 4),
+                // Con una versione sola la giacenza sta qui, accanto al
+                // prezzo: è la scheda di quell'unico articolo, e la parola
+                // "versione" non compare da nessuna parte.
+                ...($unaVersione ? [
+                    static::getInput('product_stock')->columnSpan(3),
+                    RichText::make(static::adjustLink($modelId))->columnSpan(12),
+                ] : []),
             ])->columns(12)->columnSpan(12),
         ];
 
@@ -685,6 +695,34 @@ class ProductModelResource extends GestionaleResource
 
         $values['product_price'] = $unaVersione ? (string) ($product['price'] ?? '') : '';
         $values['product_sale_price'] = $unaVersione ? (string) ($product['sale_price'] ?? '') : '';
+
+        // Le righe del repeater le ha già caricate il core
+        // (`hydrateRepeaterFormValues()` gira prima di qui): la colonna
+        // calcolata si aggiunge sopra. Al salvataggio `Model::prepare()` butta
+        // via la chiave, che non è una colonna di `gst_products`.
+        if (is_array($values['products'] ?? null)) {
+            $levels = Levels::forProducts(array_map(
+                static fn ($row): int => (int) (is_array($row) ? ($row['id'] ?? 0) : 0),
+                $values['products']
+            ));
+
+            foreach ($values['products'] as $index => $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $level = $levels[(int) ($row['id'] ?? 0)] ?? null;
+                $values['products'][$index]['stock'] = static::plainNumber(
+                    $level === null ? 0.0 : $level['quantity']
+                );
+            }
+        }
+
+        if ($unaVersione) {
+            $values['product_stock'] = static::plainNumber(
+                Levels::of((int) $product['id'])['quantity']
+            );
+        }
 
         foreach (static::usedOptionValues($modelId) as $key => $ids) {
             $values[$key] = $ids;
@@ -1176,7 +1214,11 @@ class ProductModelResource extends GestionaleResource
                 RepeaterColumn::key('sku')->text()->label('SKU')->columnSpan(2),
                 RepeaterColumn::key('ean')->text()->label('EAN')->columnSpan(2),
                 RepeaterColumn::key('price')->number()->decimal(2)->label('Prezzo')->columnSpan(2),
-                RepeaterColumn::key('sale_price')->number()->decimal(2)->label('Scontato')->columnSpan(2),
+                RepeaterColumn::key('sale_price')->number()->decimal(2)->label('Scontato')->columnSpan(1),
+                // Sola lettura: la giacenza si cambia dalla rettifica, che
+                // chiede la causale e lascia un movimento. Qui è un numero da
+                // leggere mentre si sistemano prezzi e codici.
+                RepeaterColumn::key('stock')->text()->readonly()->label('Giacenza')->columnSpan(1),
                 RepeaterColumn::key('active')
                     ->select(['true' => 'Attivo', 'false' => 'Fermo'])
                     ->label('Stato')
@@ -1219,6 +1261,13 @@ class ProductModelResource extends GestionaleResource
             FormField::key('product_sale_price')->number()->decimal(2)->label('Prezzo scontato'),
         ];
 
+        if ($modelId !== null && static::productCount($modelId) <= 1) {
+            $fields[] = FormField::key('product_stock')
+                ->text()
+                ->readonly()
+                ->label('Giacenza');
+        }
+
         if ($modelId === null || static::productCount($modelId) <= 1) {
             $fields[] = FormField::key('product_ean')->text()->label('EAN');
         }
@@ -1236,6 +1285,7 @@ class ProductModelResource extends GestionaleResource
             $values['product_ean'],
             $values['product_price'],
             $values['product_sale_price'],
+            $values['product_stock'],
         );
 
         foreach (array_keys($values) as $key) {
@@ -1511,4 +1561,26 @@ class ProductModelResource extends GestionaleResource
         return static::rowsOf(Category::class, [], 'position');
     }
 
+
+    /** I pezzi interi si scrivono interi: "3", non "3,000". */
+    protected static function plainNumber(float $value): string
+    {
+        $decimals = round($value, 3) === round($value, 0) ? 0 : 3;
+
+        return number_format($value, $decimals, ',', '');
+    }
+
+    /** Il link alla rettifica della versione unica; vuoto se le versioni sono tante. */
+    protected static function adjustLink(int $modelId): string
+    {
+        $product = static::soleProduct($modelId);
+
+        if ($product === null) {
+            return '';
+        }
+
+        return '<a href="'.static::escape(
+            StockAdjustmentResource::urlFor((int) $product['id'])
+        ).'">Rettifica la giacenza</a>';
+    }
 }

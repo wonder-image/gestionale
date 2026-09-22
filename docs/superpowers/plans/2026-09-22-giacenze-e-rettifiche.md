@@ -1581,7 +1581,7 @@ $colonne = static function (): array {
         if ((string) $field->name === 'products') {
             $keys = [];
 
-            foreach ((array) $field->get('repeater') as $column) {
+            foreach ((array) ((array) $field->get('context'))['columns'] as $column) {
                 $keys[] = (string) ($column->name ?? '');
             }
 
@@ -1622,7 +1622,7 @@ check('le colonne della griglia stanno in dodici', function () use ($colonne) {
         }
 
         foreach ((array) $field->get('repeater') as $column) {
-            $totale += (int) ($column->get('column_span') ?? 0);
+            $totale += (int) (((array) ($column->columnSpan ?? []))['default'] ?? 0);
         }
     }
 
