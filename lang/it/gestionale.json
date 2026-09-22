@@ -25,6 +25,13 @@
                 "one_page_option": "Un articolo può avere una sola opzione con pagina e foto proprie: togli le spunte di una delle due.",
                 "no_versions": "Un articolo deve avere almeno una versione in vendita.",
                 "has_movements": "Questo articolo ha movimenti di magazzino e non si elimina: mettilo su «Nascosto» se non lo vendi più."
+            },
+            "contact": {
+                "vat_taken": "Questa partita IVA è già di {{contact}}: apri quella scheda invece di crearne un'altra.",
+                "tax_code_taken": "Questo codice fiscale è già di {{contact}}.",
+                "email_taken": "Questa email è già di {{contact}}.",
+                "no_role": "Di' se è un cliente, un fornitore o tutti e due.",
+                "has_account": "Questa scheda ha un account sul sito e non si elimina: mettila su «Non attiva» se non lavori più con lei."
             }
         }
     }
