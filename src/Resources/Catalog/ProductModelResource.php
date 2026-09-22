@@ -38,6 +38,7 @@ use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\Combinations;
 use Wonder\Plugin\Gestionale\Support\Catalog\Ean;
 use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
@@ -1029,6 +1030,7 @@ class ProductModelResource extends GestionaleResource
                 $values['products'][$index]['variant'] = $nomi[$productId]['variant'] ?? '';
                 $values['products'][$index]['option'] = $nomi[$productId]['label'] ?? '';
                 $values['products'][$index]['photo'] = $foto[$productId] ?? '';
+                $values['products'][$index]['combination'] = $nomi[$productId]['key'] ?? '';
             }
         }
 
@@ -1626,6 +1628,52 @@ HTML);
             window.wiRepeaterGroupApply(righe.id, box.id + '-group-template', conColore ? 'variant' : '');
         }
 
+        // Togliere una riga vuol dire «questa non la vendo»: le spunte che la
+        // tenevano in piedi, e che non servono a nessun'altra riga, si
+        // spengono. Senza, la spunta rimasta la farebbe rinascere al
+        // salvataggio successivo.
+        function dopoCancellazione(righe) {
+            var usati = {};
+
+            righe.querySelectorAll('.wi-repeater-row').forEach(function (riga) {
+                var chiave = riga.querySelector('[name\$="[combination]"]');
+                var valore = chiave && chiave.value !== ''
+                    ? chiave.value
+                    : (riga.getAttribute('data-wi-row-key') || '');
+
+                String(valore).split('-').forEach(function (id) {
+                    if (id !== '') usati[id] = true;
+                });
+            });
+
+            document.querySelectorAll('input[type="checkbox"][name^="option_"]:checked').forEach(function (casella) {
+                if (!usati[String(casella.value)]) casella.checked = false;
+            });
+        }
+
+        function guardaLeRighe() {
+            var box = griglia();
+            if (!box) return;
+
+            var righe = document.getElementById(box.id + '-rows');
+            if (!righe || righe.getAttribute('data-wi-osservato') === 'true') return;
+
+            righe.setAttribute('data-wi-osservato', 'true');
+
+            new MutationObserver(function (mutazioni) {
+                var tolte = mutazioni.some(function (m) {
+                    return Array.prototype.slice.call(m.removedNodes).some(function (nodo) {
+                        return nodo.classList && nodo.classList.contains('wi-repeater-row');
+                    });
+                });
+
+                if (!tolte) return;
+
+                dopoCancellazione(righe);
+                aggiorna();
+            }).observe(righe, { childList: true });
+        }
+
         document.addEventListener('change', function (ev) {
             var nome = ev.target && ev.target.name ? ev.target.name : '';
             if (nome.indexOf('option_') === 0 || nome === 'sku') aggiorna();
@@ -1635,13 +1683,18 @@ HTML);
             if (ev.target && ev.target.name === 'sku') aggiorna();
         });
 
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', aggiorna);
-        } else {
+        function avvia() {
+            guardaLeRighe();
             aggiorna();
         }
 
-        return aggiorna;
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', avvia);
+        } else {
+            avvia();
+        }
+
+        return avvia;
     })();
 </script>
 HTML);
@@ -1969,6 +2022,9 @@ HTML);
                 // in chiaro lo dice la testata del gruppo, una volta sola
                 // invece che su ogni riga.
                 RepeaterColumn::key('variant')->hidden()->label(static::pageOptionName()),
+                // Le spunte che tengono in piedi questa riga: togliendo la
+                // riga, il browser sa quali valori non servono più.
+                RepeaterColumn::key('combination')->hidden(),
                 // Quello che resta del nome una volta detto il colore: "S",
                 // oppure "S / Gomma" con un terzo attributo. Non è la colonna
                 // `name` del database — quella la scrive il sistema — perché
@@ -2078,21 +2134,39 @@ HTML);
         $valori = static::valueLabels();
         $etichette = [];
 
+        foreach (static::variantValues($modelId) as $variantId => $valueId) {
+            $etichette[$variantId] = $valueId > 0 ? ($valori[$valueId] ?? '') : '';
+        }
+
+        return $etichette;
+    }
+
+    /**
+     * Il valore d'attributo di ogni variante, per id: `[variantId => valueId]`.
+     *
+     * Zero per la variante scheletro, che non rappresenta nessun colore.
+     *
+     * @return array<int, int>
+     */
+    public static function variantValues(int $modelId): array
+    {
+        $valori = [];
+
         foreach (static::variants($modelId) as $variant) {
             $id = (int) $variant['id'];
-            $etichette[$id] = '';
+            $valori[$id] = 0;
 
             foreach (ProductAttributes::read('variant', $id) as $link) {
                 $valueId = (int) ($link['attribute_value_id'] ?? 0);
 
                 if ($valueId > 0) {
-                    $etichette[$id] = $valori[$valueId] ?? '';
+                    $valori[$id] = $valueId;
                     break;
                 }
             }
         }
 
-        return $etichette;
+        return $valori;
     }
 
     /**
@@ -2103,12 +2177,13 @@ HTML);
      * Nessuno dei due si scrive a mano: nascono dai collegamenti agli
      * attributi, che sono l'unica sorgente vera.
      *
-     * @return array<int, array{variant: string, rest: string, full: string, label: string}>
+     * @return array<int, array{variant: string, rest: string, full: string, label: string, key: string}>
      */
     public static function optionLabels(int $modelId): array
     {
-        $valori = static::valueLabels();
+        $etichetteValori = static::valueLabels();
         $varianti = static::variantLabels($modelId);
+        $valoriVariante = static::variantValues($modelId);
         $asseVariante = static::variantAttributeId();
         $posizione = [];
 
@@ -2120,7 +2195,8 @@ HTML);
 
         foreach (static::products($modelId) as $product) {
             $id = (int) $product['id'];
-            $colore = $varianti[(int) ($product['product_variant_id'] ?? 0)] ?? '';
+            $variantId = (int) ($product['product_variant_id'] ?? 0);
+            $colore = $varianti[$variantId] ?? '';
             $links = ProductAttributes::read('product', $id);
 
             // L'ordine è quello degli attributi nell'anagrafica: "S / Gomma"
@@ -2137,7 +2213,7 @@ HTML);
                     continue;
                 }
 
-                $label = $valori[(int) ($link['attribute_value_id'] ?? 0)] ?? '';
+                $label = $etichetteValori[(int) ($link['attribute_value_id'] ?? 0)] ?? '';
 
                 if ($label !== '') {
                     $resto[] = $label;
@@ -2149,9 +2225,29 @@ HTML);
                 static fn (string $l): bool => $l !== ''
             ));
 
+            // Il colore sta sulla variante, non sul prodotto: la chiave li
+            // mette insieme, come fa il browser con le spunte.
+            $valori = [];
+            $valoreColore = $valoriVariante[$variantId] ?? 0;
+
+            if ($valoreColore > 0) {
+                $valori[] = $valoreColore;
+            }
+
+            foreach ($links as $link) {
+                $valueId = (int) ($link['attribute_value_id'] ?? 0);
+
+                if ($valueId > 0) {
+                    $valori[] = $valueId;
+                }
+            }
+
             $nomi[$id] = [
                 'variant' => $colore,
                 'rest' => implode(' / ', $resto),
+                // La stessa chiave che calcola il browser: da lì sa quali
+                // spunte tiene in piedi questa riga.
+                'key' => Combinations::clientKey(0, $valori),
                 // Senza nessun attributo non c'è niente da calcolare: è
                 // l'articolo venduto così com'è, e il suo nome resta quello
                 // che gli ha dato chi l'ha creato.
