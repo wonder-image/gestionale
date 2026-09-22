@@ -41,6 +41,12 @@ check('ogni Resource con dati dichiara la sua funzionalità', function () use ($
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\ProductResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\CategoryResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\TagResource',
+        // I valori delle opzioni non sono una pagina: esistono per lo store
+        // API del "+ Aggiungi colore" della scheda prodotto.
+        'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\AttributeValueResource',
+        // Gli imballaggi servono alla scheda prodotto, che è sempre attiva:
+        // il peso spedito è prodotto più scatola anche senza spedizioni.
+        'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\PackageResource',
         // Il magazzino base è sempre attivo: le funzionalità sbloccano le sedi
         // in più, gli acquisti e i lotti, non la giacenza.
         'Wonder\\Plugin\\Gestionale\\Resources\\Stock\\StockMovementResource',
