@@ -93,6 +93,14 @@ class ProductModelResource extends GestionaleResource
     private static ?array $catalogValues = null;
 
     /** Unità di misura: quelle che un negozio usa davvero. */
+    /**
+     * Quante foto o video per area.
+     *
+     * È quanto usano le schede prodotto degli store veri: oltre, la galleria
+     * diventa una striscia che nessuno guarda fino in fondo.
+     */
+    public const MAX_IMAGES = 10;
+
     private const UNITS = [
         'pz' => 'Pezzi',
         'conf' => 'Confezioni',
@@ -175,7 +183,11 @@ class ProductModelResource extends GestionaleResource
                 ->label('Tipo fiscale')
                 ->required()
                 ->quickCreate(TaxCategoryResource::class),
-            FormField::key('sku')->text()->label('SKU'),
+            // Il codice di famiglia: da lì nascono quelli delle opzioni.
+            // Con le varianti accese non si scrive qui, ma il valore resta
+            // nel modulo — nascosto, non tolto — e continua a proporre i
+            // codici delle righe.
+            FormField::key('sku')->text()->label('SKU')->hiddenWhen('has_variants', 'true'),
             FormField::key('unit')->select(self::UNITS)->value('pz')->label('Unità di misura')->required(),
             // Due domande diverse, e devono suonare diverse: la prima dice se
             // l'articolo è finito, la seconda se si vende anche online.
@@ -191,7 +203,12 @@ class ProductModelResource extends GestionaleResource
                 ->required(),
             FormField::key('short_description')->textarea()->label('Descrizione breve'),
             FormField::key('description')->textarea()->label('Descrizione'),
-            FormField::key('categories')->checkTree(static::categoryTree(), true)->label('Categorie'),
+            // Dichiara di elencare le categorie: una creata dal «+ Aggiungi»
+            // del campo qui sotto compare anche qui, senza ricaricare.
+            FormField::key('categories')
+                ->checkTree(static::categoryTree(), true)
+                ->label('Categorie')
+                ->listsResource(CategoryResource::class),
             FormField::key('main_category')
                 ->select(static::categoryOptions())
                 ->label('Categoria principale')
@@ -201,14 +218,11 @@ class ProductModelResource extends GestionaleResource
                 ->select(Packages::options())
                 ->label('Imballaggio')
                 ->quickCreate(PackageResource::class),
-            // Una frase da leggere, non un dato da scrivere: la somma la fa il
-            // pannello, e vederla qui è il modo di accorgersi che la tara
-            // manca.
-            FormField::key('shipping_weight')->text()->label('Spedito')->readonly(),
-            FormField::key('weight')->number()->decimal(3)->label('Peso del prodotto (kg)'),
+            FormField::key('weight')->number()->decimal(3)->label('Peso (kg)'),
             FormField::key('length')->number()->decimal(2)->label('Lunghezza (cm)'),
             FormField::key('width')->number()->decimal(2)->label('Larghezza (cm)'),
             FormField::key('height')->number()->decimal(2)->label('Altezza (cm)'),
+            FormField::key('circumference')->number()->decimal(2)->label('Circonferenza (cm)'),
             FormField::key('returnable')
                 ->select(['true' => 'Sì', 'false' => 'No'])
                 ->value('true')
@@ -324,9 +338,11 @@ class ProductModelResource extends GestionaleResource
                 // compare da nessuna parte.
                 // In creazione non c'è ancora niente da rettificare: la
                 // giacenza compare dal primo salvataggio in poi.
-                ...(!$conVarianti && $modelId > 0 ? [
+                ...($modelId > 0 ? [
                     static::getInput('product_stock')->columnSpan(2),
-                    RichText::make(static::adjustLink($modelId))->columnSpan(12),
+                    RichText::make(static::adjustLink($modelId))
+                        ->columnSpan(12)
+                        ->hiddenWhen('has_variants', 'true'),
                 ] : []),
             ])->columns(12)->columnSpan(12),
         ];
@@ -347,6 +363,21 @@ class ProductModelResource extends GestionaleResource
             SectionTitle::make('Descrizione')->columnSpan(12),
             static::getInput('short_description')->columnSpan(12),
             static::getInput('description')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+
+        // Le misure sono del prodotto, non della spedizione: stavano in
+        // «Spedizione» e sparivano con l'articolo che non si spedisce,
+        // portandosi via anche l'unità di misura, che è obbligatoria.
+        $cards[] = (new Card)->components([
+            SectionTitle::make('Misure')
+                ->tooltip('Le dimensioni vere del prodotto, quelle che servono a sapere se sta in una scatola. Un\'opzione con misure sue le usa al posto di queste.')
+                ->columnSpan(12),
+            static::getInput('unit')->columnSpan(6),
+            static::getInput('weight')->columnSpan(6),
+            static::getInput('length')->columnSpan(3),
+            static::getInput('width')->columnSpan(3),
+            static::getInput('height')->columnSpan(3),
+            static::getInput('circumference')->columnSpan(3),
         ])->columns(12)->columnSpan(12);
 
         $attributi = [];
@@ -437,9 +468,7 @@ class ProductModelResource extends GestionaleResource
             static::getInput('sku')->columnSpan(12),
         ];
 
-        if (static::productCount($modelId) <= 1) {
-            $codici[] = static::getInput('product_ean')->columnSpan(12);
-        }
+        $codici[] = static::getInput('product_ean')->columnSpan(12);
 
         $cards = [
             (new Card)->components([
@@ -452,7 +481,10 @@ class ProductModelResource extends GestionaleResource
                 static::getInput('requires_shipping')->columnSpan(6),
             ])->columns(12)->columnSpan(12),
 
-            (new Card)->components($codici)->columns(12)->columnSpan(12),
+            // Con le varianti dentro non resta niente: un riquadro con il
+            // solo titolo è peggio di nessun riquadro.
+            (new Card)->components($codici)->columns(12)->columnSpan(12)
+                ->hiddenWhen('has_variants', 'true'),
 
             (new Card)->components([
                 SectionTitle::make('Dove si trova')
@@ -469,15 +501,9 @@ class ProductModelResource extends GestionaleResource
         if (static::shipsFrom($modelId)) {
             $cards[] = (new Card)->components([
                 SectionTitle::make('Spedizione')
-                    ->tooltip('Quello che parte è prodotto più scatola. Le misure del prodotto servono ai fuori misura, quelli che nella scatola scelta non ci stanno; un\'opzione con misure sue le usa al posto di queste.')
+                    ->tooltip('La scatola in cui parte. Le misure del prodotto stanno nel loro riquadro: servono a sapere se ci sta.')
                     ->columnSpan(12),
                 static::getInput('package_id')->columnSpan(12),
-                static::getInput('weight')->columnSpan(6),
-                static::getInput('shipping_weight')->columnSpan(6),
-                static::getInput('unit')->columnSpan(12),
-                static::getInput('length')->columnSpan(4),
-                static::getInput('width')->columnSpan(4),
-                static::getInput('height')->columnSpan(4),
             ])->columns(12)->columnSpan(12);
         }
 
@@ -884,6 +910,7 @@ class ProductModelResource extends GestionaleResource
             static::saveNewVersions($modelId, $nate, $scritte, $files);
             static::saveRowExtras($modelId, $righe, $files, $conVarianti);
             static::saveSingleStock($modelId, $post, $conVarianti);
+            static::saveImages($modelId, $post, $files);
             // Il nome non lo scrive chi compila: nasce dagli attributi, e si
             // rimette in riga a ogni salvataggio.
             static::realignNames($modelId);
@@ -1090,22 +1117,174 @@ class ProductModelResource extends GestionaleResource
         $prodotto = static::rowsOf(Product::class, ['id' => $productId])[0] ?? null;
         $variantId = (int) (is_array($prodotto) ? ($prodotto['product_variant_id'] ?? 0) : 0);
 
+        static::createImageRow(
+            $modelId,
+            $variantId,
+            $productId,
+            $file,
+            count(static::rowsOf(ProductImage::class, ['product_model_id' => $modelId])) + 1
+        );
+    }
+
+    /**
+     * Le foto di ogni area, dal campo unico che le tiene tutte.
+     *
+     * Il campo manda un manifesto: l'elenco dei file nell'ordine voluto, dove
+     * una stringa è un file che c'era già e un numero è la posizione di un
+     * file appena caricato. Da lì nascono, si riordinano e spariscono le
+     * righe di `gst_product_images` — una per foto, perché è una riga per
+     * foto che la coda delle misure sa lavorare.
+     */
+    protected static function saveImages(int $modelId, array $post, array $files): void
+    {
+        foreach (array_keys(static::imageTargets($modelId)) as $variantId) {
+            $campo = 'images_'.(int) $variantId;
+
+            // Il campo non era in pagina: non è un'area svuotata, è un'area
+            // che nessuno ha mostrato. Toccarla cancellerebbe tutto.
+            if (!array_key_exists($campo.'__wi_files', $post)) {
+                continue;
+            }
+
+            $manifesto = json_decode((string) $post[$campo.'__wi_files'], true);
+
+            if (!is_array($manifesto)) {
+                continue;
+            }
+
+            static::syncAreaImages($modelId, (int) $variantId, $manifesto, $files[$campo] ?? null);
+        }
+    }
+
+    /**
+     * @param list<mixed> $manifesto
+     * @param array<string, mixed>|null $caricati La busta di `$_FILES` del campo.
+     */
+    protected static function syncAreaImages(
+        int $modelId,
+        int $variantId,
+        array $manifesto,
+        mixed $caricati
+    ): void {
+        $esistenti = [];
+
+        foreach (static::areaImages($modelId, $variantId) as $riga) {
+            $nome = ProductImages::fileName($riga);
+
+            if ($nome !== '') {
+                $esistenti[$nome] = $riga;
+            }
+        }
+
+        $tenute = [];
+        $posizione = 0;
+
+        foreach ($manifesto as $voce) {
+            $posizione++;
+
+            if (is_string($voce)) {
+                $riga = $esistenti[$voce] ?? null;
+
+                if (!is_array($riga)) {
+                    continue;
+                }
+
+                $tenute[$voce] = true;
+
+                if ((int) ($riga['position'] ?? 0) !== $posizione) {
+                    ProductImage::update(['position' => $posizione], (int) $riga['id']);
+                }
+
+                continue;
+            }
+
+            $busta = static::uploadedFile($caricati, (int) $voce);
+
+            if ($busta === null) {
+                continue;
+            }
+
+            static::createImageRow($modelId, $variantId, null, $busta, $posizione);
+        }
+
+        // Quello che il manifesto non nomina non si vende più: la riga se ne
+        // va. Il file resta sul disco — cancellarlo qui vorrebbe dire
+        // fidarsi che nessun'altra riga lo usi.
+        foreach ($esistenti as $nome => $riga) {
+            if (!isset($tenute[$nome])) {
+                ProductImage::delete((int) $riga['id']);
+            }
+        }
+    }
+
+    /**
+     * Una busta di `$_FILES` a un solo file, presa da quella a più file del
+     * campo.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected static function uploadedFile(mixed $caricati, int $indice): ?array
+    {
+        if (!is_array($caricati) || !isset($caricati['name'])) {
+            return null;
+        }
+
+        $nomi = (array) $caricati['name'];
+
+        if (!array_key_exists($indice, $nomi)) {
+            return null;
+        }
+
+        $errori = (array) ($caricati['error'] ?? []);
+        $errore = (int) ($errori[$indice] ?? UPLOAD_ERR_NO_FILE);
+
+        if (trim((string) $nomi[$indice]) === '' || $errore !== UPLOAD_ERR_OK) {
+            return null;
+        }
+
+        // La stessa forma che il core si aspetta da un campo a un file solo:
+        // ogni chiave è una lista di uno.
+        $busta = [];
+
+        foreach (['name', 'type', 'tmp_name', 'error', 'size', 'full_path'] as $chiave) {
+            if (!isset($caricati[$chiave])) {
+                continue;
+            }
+
+            $valori = (array) $caricati[$chiave];
+            $busta[$chiave] = [$valori[$indice] ?? null];
+        }
+
+        return $busta;
+    }
+
+    /**
+     * Una riga di `gst_product_images` con il suo file su disco.
+     *
+     * `Model::create()` non sa caricare niente: scriverebbe nel database la
+     * busta di `$_FILES` invece del file. Chi sposta il file è la
+     * preparazione del core — la stessa che usano i repeater — e vuole sapere
+     * in quale cartella scrivere, che è quella del Model.
+     */
+    protected static function createImageRow(
+        int $modelId,
+        int $variantId,
+        ?int $productId,
+        array $file,
+        int $posizione
+    ): void {
         $riga = [
             'product_model_id' => $modelId,
             'product_variant_id' => $variantId > 0 ? $variantId : null,
             'product_id' => $productId,
             'file' => $file,
             'alt' => '',
-            'position' => count(static::rowsOf(ProductImage::class, ['product_model_id' => $modelId])) + 1,
+            'position' => $posizione,
             // Le misure per il sito le farà la coda, come per ogni altra foto.
             'status' => 'pending',
             'attempts' => 0,
         ];
 
-        // `Model::create()` non sa caricare niente: scriverebbe nel database la
-        // busta di `$_FILES` invece del file. Chi sposta il file su disco è la
-        // preparazione del core — la stessa che usano i repeater — e vuole
-        // sapere in quale cartella scrivere, che è quella del Model.
         $precedente = LegacyGlobals::get('NAME');
 
         LegacyGlobals::set('NAME', (object) [
@@ -1206,14 +1385,13 @@ class ProductModelResource extends GestionaleResource
         // la colonna dice altro: è nato prima che la domanda esistesse.
         $values['has_variants'] = static::hasVariants($modelId) ? 'true' : 'false';
 
+        foreach (array_keys(static::imageTargets($modelId)) as $variantId) {
+            $values['images_'.$variantId] = static::imageNames($modelId, (int) $variantId);
+        }
+
         foreach (static::usedOptionValues($modelId) as $key => $ids) {
             $values[$key] = $ids;
         }
-
-        $values['shipping_weight'] = Packages::describe(
-            (float) ($values['weight'] ?? 0),
-            Packages::forModel((int) ($values['package_id'] ?? 0))
-        );
 
         return $values;
     }
@@ -1574,22 +1752,24 @@ class ProductModelResource extends GestionaleResource
             });
         }
 
-        // La barra delle frecce, una per blocco, in cima alle spunte.
+        // Le frecce stanno accanto alla maniglia: servono a chi non
+        // trascina, e su una riga sola non rubano spazio ai valori.
         function bottoniOrdine(nodo) {
-            if (nodo.querySelector('.wi-option-move')) return;
+            var maniglia = nodo.querySelector('.wi-option-grip-box');
+            if (!maniglia || maniglia.querySelector('.wi-option-move')) return;
 
             var id = nodo.getAttribute('data-wi-option');
-            var barra = document.createElement('div');
-            barra.className = 'col-12 d-flex align-items-center gap-1 wi-option-move d-none';
+            var barra = document.createElement('span');
+            barra.className = 'd-flex flex-column wi-option-move d-none';
 
             [['up', 'bi-chevron-up', 'Sposta prima'], ['down', 'bi-chevron-down', 'Sposta dopo']]
                 .forEach(function (voce) {
                     var bottone = document.createElement('button');
                     bottone.type = 'button';
-                    bottone.className = 'btn btn-sm btn-outline-secondary py-0 px-1 wi-option-' + voce[0];
+                    bottone.className = 'btn btn-link p-0 lh-1 text-body-secondary wi-option-' + voce[0];
                     bottone.title = voce[2];
                     bottone.setAttribute('aria-label', voce[2] + ' ' + nome(nodo));
-                    bottone.innerHTML = '<i class="bi ' + voce[1] + '"></i>';
+                    bottone.innerHTML = '<i class="bi ' + voce[1] + ' small"></i>';
                     bottone.addEventListener('click', function () {
                         sposta(id, voce[0] === 'up' ? -1 : 1);
                     });
@@ -1597,7 +1777,54 @@ class ProductModelResource extends GestionaleResource
                     barra.appendChild(bottone);
                 });
 
-            nodo.insertBefore(barra, nodo.firstChild);
+            maniglia.appendChild(barra);
+        }
+
+        // Il trascinamento della riga: la maniglia porta il blocco, e chi la
+        // riceve dice dove va a finire.
+        var trascinato = null;
+
+        function trascinamento(nodo) {
+            var riga = blocco(nodo);
+            var grip = nodo.querySelector('.wi-option-grip');
+            if (!grip || riga.getAttribute('data-wi-drag') === 'true') return;
+
+            riga.setAttribute('data-wi-drag', 'true');
+            grip.setAttribute('draggable', 'true');
+
+            grip.addEventListener('dragstart', function (ev) {
+                trascinato = nodo.getAttribute('data-wi-option');
+                riga.classList.add('opacity-50');
+                if (ev.dataTransfer) {
+                    ev.dataTransfer.effectAllowed = 'move';
+                    try { ev.dataTransfer.setData('text/plain', trascinato); } catch (e) {}
+                }
+            });
+
+            grip.addEventListener('dragend', function () {
+                riga.classList.remove('opacity-50');
+                trascinato = null;
+            });
+
+            riga.addEventListener('dragover', function (ev) {
+                if (trascinato !== null) ev.preventDefault();
+            });
+
+            riga.addEventListener('drop', function (ev) {
+                if (trascinato === null) return;
+                ev.preventDefault();
+
+                var lista = ordine();
+                var da = lista.indexOf(trascinato);
+                var a = lista.indexOf(nodo.getAttribute('data-wi-option'));
+
+                if (da === -1 || a === -1 || da === a) return;
+
+                lista.splice(a, 0, lista.splice(da, 1)[0]);
+                scriviOrdine(lista);
+
+                if (typeof window.wiOptionsGrid === 'function') window.wiOptionsGrid();
+            });
         }
 
         function aggiornaSelettore() {
@@ -1634,13 +1861,15 @@ class ProductModelResource extends GestionaleResource
         function bottoneTogli(nodo) {
             if (nodo.querySelector('.wi-option-remove')) return;
 
-            var riga = document.createElement('div');
-            riga.className = 'col-12';
+            var pillole = nodo.querySelector('.wi-check-pills .d-flex');
+            if (!pillole) return;
 
             var bottone = document.createElement('button');
             bottone.type = 'button';
-            bottone.className = 'btn btn-sm btn-link text-body-secondary p-0 wi-option-remove';
-            bottone.textContent = 'Togli ' + nome(nodo);
+            bottone.className = 'btn btn-sm btn-link text-body-secondary wi-option-remove';
+            bottone.title = 'Togli ' + nome(nodo);
+            bottone.setAttribute('aria-label', 'Togli ' + nome(nodo));
+            bottone.innerHTML = '<i class="bi bi-x-lg"></i>';
             bottone.addEventListener('click', function () {
                 caselle(nodo).forEach(function (casella) { casella.checked = false; });
                 mostra(nodo, false);
@@ -1649,8 +1878,7 @@ class ProductModelResource extends GestionaleResource
                 if (typeof window.wiOptionsGrid === 'function') window.wiOptionsGrid();
             });
 
-            riga.appendChild(bottone);
-            nodo.appendChild(riga);
+            pillole.appendChild(bottone);
         }
 
         function avvia() {
@@ -1669,7 +1897,11 @@ class ProductModelResource extends GestionaleResource
                 var acceso = inUso(nodo);
                 mostra(nodo, acceso);
                 bottoniOrdine(nodo);
+                trascinamento(nodo);
 
+                // «Togli» solo sulle opzioni che l'articolo non sta usando:
+                // nascondere un colore che ha già le sue righe direbbe una
+                // bugia.
                 if (!acceso) bottoneTogli(nodo);
             });
 
@@ -1726,12 +1958,21 @@ HTML);
             $id = (int) $attribute['id'];
 
             $blocks[] = (new Container)->components([
-                static::getInput('option_'.$id)->columnSpan(12),
+                // La maniglia e le frecce stanno in un dodicesimo a sinistra:
+                // il resto della riga sono i valori, in linea. Prima erano
+                // due riquadri affiancati alti quanto mezza pagina.
+                RichText::make(
+                    '<div class="wi-option-grip-box d-flex align-items-center gap-1 h-100 pt-3">'
+                    .'<span class="wi-option-grip text-body-secondary" title="Trascina per cambiare ordine" style="cursor:grab">'
+                    .'<i class="bi bi-grip-vertical"></i></span>'
+                    .'</div>'
+                )->columnSpan(1),
+                static::getInput('option_'.$id)->pills()->columnSpan(11),
             ])
                 ->attr('data-wi-option', (string) $id)
                 ->attr('data-wi-option-name', (string) ($attribute['name'] ?? ''))
                 ->columns(12)
-                ->columnSpan(6);
+                ->columnSpan(12);
         }
 
         return $blocks;
@@ -1819,10 +2060,9 @@ HTML);
 
                 if (!gruppi.has(asse)) gruppi.set(asse, []);
 
-                var etichetta = casella.closest('label') || casella.parentElement;
                 gruppi.get(asse).push({
                     id: String(casella.value),
-                    label: etichetta ? etichetta.textContent.trim() : '',
+                    label: etichettaDi(casella),
                     attribute: asse
                 });
             });
@@ -1839,6 +2079,20 @@ HTML);
             return assi;
         }
 
+        // Come si chiama un valore. Con le pillole la casella non sta
+        // dentro la sua etichetta — le sta accanto — e chiedere al genitore
+        // tornava tutte le etichette dell'attributo appiccicate insieme.
+        function etichettaDi(casella) {
+            var etichetta = casella.id
+                ? document.querySelector('label[for="' + casella.id + '"]')
+                : null;
+
+            if (!etichetta) etichetta = casella.closest('label');
+            if (!etichetta) etichetta = casella.parentElement;
+
+            return etichetta ? etichetta.textContent.trim() : '';
+        }
+
         // Ogni valore spuntabile della pagina: da quale attributo viene e
         // come si chiama. È la stessa tabella che il server ha nel database.
         function valori() {
@@ -1846,11 +2100,9 @@ HTML);
 
             document.querySelectorAll('input[type="checkbox"][name^="option_"]').forEach(function (casella) {
                 var nome = casella.getAttribute('name');
-                var etichetta = casella.closest('label') || casella.parentElement;
-
                 mappa[String(casella.value)] = {
                     attribute: (nome.match(/option_(\d+)/) || [])[1] || '',
-                    label: etichetta ? etichetta.textContent.trim() : ''
+                    label: etichettaDi(casella)
                 };
             });
 
@@ -1948,7 +2200,7 @@ HTML);
 
             // Le righe che il browser aveva proposto e che ora non servono più:
             // quelle che esistono davvero non si toccano.
-            Array.prototype.slice.call(righe.querySelectorAll('.wi-repeater-row[data-wi-new="true"]')).forEach(function (riga) {
+            Array.prototype.slice.call(righe.querySelectorAll('.wi-repeater-row[data-wi-new="true"]:not(.wi-repeater-row-deleted)')).forEach(function (riga) {
                 if (!Object.prototype.hasOwnProperty.call(volute, riga.getAttribute('data-wi-row-key'))) {
                     riga.remove();
                 }
@@ -1991,7 +2243,7 @@ HTML);
         // nessuna spunta, il prezzo e la giacenza stanno in alto e una griglia
         // che dice la stessa cosa confonderebbe.
         function mostra(box, righe) {
-            var quante = righe.querySelectorAll('.wi-repeater-row').length;
+            var quante = righe.querySelectorAll('.wi-repeater-row:not(.wi-repeater-row-deleted)').length;
             var spuntate = document.querySelectorAll('input[type="checkbox"][name^="option_"]:checked').length;
             var colonna = box.closest('[class*="col-"]') || box;
 
@@ -2026,10 +2278,13 @@ HTML);
         // tenevano in piedi, e che non servono a nessun'altra riga, si
         // spengono. Senza, la spunta rimasta la farebbe rinascere al
         // salvataggio successivo.
+        // Le spunte che tengono in piedi le righe rimaste. Una riga
+        // annullata non conta: le sue spunte si spengono, o al salvataggio il
+        // generatore la rifarebbe nascere.
         function dopoCancellazione(righe) {
             var usati = {};
 
-            righe.querySelectorAll('.wi-repeater-row').forEach(function (riga) {
+            righe.querySelectorAll('.wi-repeater-row:not(.wi-repeater-row-deleted)').forEach(function (riga) {
                 var chiave = riga.querySelector('[name\$="[combination]"]');
                 var valore = chiave && chiave.value !== ''
                     ? chiave.value
@@ -2045,6 +2300,25 @@ HTML);
             });
         }
 
+        // Rimettere una riga vuol dire riaccendere le spunte che la
+        // descrivono: senza, resterebbe a schermo e sparirebbe al
+        // salvataggio successivo.
+        function dopoRipristino(riga, righe) {
+            var chiave = riga.querySelector('[name\$="[combination]"]');
+            var valore = chiave && chiave.value !== ''
+                ? chiave.value
+                : (riga.getAttribute('data-wi-row-key') || '');
+
+            String(valore).split('-').forEach(function (id) {
+                if (id === '') return;
+
+                var casella = document.querySelector('input[type="checkbox"][value="' + id + '"][name^="option_"]');
+                if (casella) casella.checked = true;
+            });
+
+            if (typeof window.wiOptionPicker === 'function') window.wiOptionPicker();
+        }
+
         function guardaLeRighe() {
             var box = griglia();
             if (!box) return;
@@ -2054,18 +2328,22 @@ HTML);
 
             righe.setAttribute('data-wi-osservato', 'true');
 
-            new MutationObserver(function (mutazioni) {
-                var tolte = mutazioni.some(function (m) {
-                    return Array.prototype.slice.call(m.removedNodes).some(function (nodo) {
-                        return nodo.classList && nodo.classList.contains('wi-repeater-row');
-                    });
-                });
-
-                if (!tolte) return;
-
+            // Le righe non spariscono più dal DOM: il repeater dice quando
+            // una viene spenta e quando torna.
+            righe.addEventListener('wi-repeater-row-delete', function () {
                 dopoCancellazione(righe);
                 aggiorna();
-            }).observe(righe, { childList: true });
+            });
+
+            righe.addEventListener('wi-repeater-row-restore', function (ev) {
+                var riga = ev.target && ev.target.closest
+                    ? ev.target.closest('.wi-repeater-row')
+                    : null;
+
+                if (riga) dopoRipristino(riga, righe);
+
+                aggiorna();
+            });
         }
 
         document.addEventListener('change', function (ev) {
@@ -2187,44 +2465,56 @@ HTML);
 
         foreach (static::imageTargets($modelId) as $variantId => $titolo) {
             $fields[] = FormField::key('images_'.$variantId)
-                ->repeater([
-                    RepeaterColumn::key('id')->hidden(),
-                    RepeaterColumn::key('file')->fileDragDrop('gallery')->label('File')->columnSpan(5),
-                    RepeaterColumn::key('alt')->text()->label('Descrizione')->columnSpan(4),
-                    // Lo stato non è una scelta: è quello che è successo alla
-                    // foto. Si legge e basta.
-                    RepeaterColumn::key('status')->text()->readonly()->label('Stato')->columnSpan(2),
-                ])
-                ->relation(
-                    RepeaterRelation::make(ProductImage::$table, 'product_model_id')
-                        ->model(ProductImage::class)
-                        ->positionKey('position')
-                        // "Vale per tutto l'articolo" è `NULL`, non zero: la
-                        // colonna ha una chiave esterna, e nessuna variante ha
-                        // id zero.
-                        //
-                        // `product_id` nullo non è un dettaglio: la condizione
-                        // di un repeater guida **anche la cancellazione**, e
-                        // senza questa riga il primo salvataggio porterebbe via
-                        // le foto delle singole opzioni, che quest'area non
-                        // mostra e quindi non ripostà.
-                        ->condition([
-                            'product_variant_id' => $variantId > 0 ? $variantId : null,
-                            'product_id' => null,
-                        ])
-                )
-                ->nested()
-                ->repeaterSortable()
-                ->repeaterAddLabel('Aggiungi')
-                ->repeaterDeleteTitle('Elimina')
-                ->repeaterDeleteText('Confermi l\'eliminazione di questo file?')
-                ->repeaterDeleteCancelLabel('Annulla')
-                ->repeaterDeleteConfirmLabel('Elimina')
-                ->repeaterDeleteConfirmClass('btn btn-danger')
+                ->fileDragDrop('gallery')
+                ->maxFile(static::MAX_IMAGES)
                 ->label($titolo);
         }
 
         return $fields;
+    }
+
+    /**
+     * I nomi dei file di un'area, nell'ordine in cui si vedono.
+     *
+     * @return list<string>
+     */
+    public static function imageNames(int $modelId, int $variantId): array
+    {
+        $nomi = [];
+
+        foreach (static::areaImages($modelId, $variantId) as $riga) {
+            $nome = ProductImages::fileName($riga);
+
+            if ($nome !== '') {
+                $nomi[] = $nome;
+            }
+        }
+
+        return $nomi;
+    }
+
+    /**
+     * Le righe di un'area: l'articolo intero, oppure un colore.
+     *
+     * Le foto della singola opzione non sono di nessuna area — hanno il loro
+     * `product_id` — e vanno escluse, o il salvataggio dell'area se le
+     * porterebbe via.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected static function areaImages(int $modelId, int $variantId): array
+    {
+        $righe = static::rowsOf(
+            ProductImage::class,
+            [
+                'product_model_id' => $modelId,
+                'product_variant_id' => $variantId > 0 ? $variantId : null,
+                'product_id' => null,
+            ],
+            'position'
+        );
+
+        return $righe;
     }
 
     /** Le varianti di un modello, più la voce che vale per tutte. */
@@ -2465,6 +2755,10 @@ HTML);
             ->repeaterStartEmpty()
             ->repeaterAdvanced('sku', 'ean', 'active', 'photo')
             ->repeaterAdvancedLabel('Compila le informazioni avanzate')
+            // Eliminare un'opzione è una decisione che si rimpiange: la riga
+            // resta sbiadita, con il bottone per rimetterla.
+            ->repeaterUndoDelete()
+            ->repeaterUndoLabel('Annulla', 'Questa opzione verrà eliminata al salvataggio.')
             ->repeaterDeleteTitle('Elimina opzione')
             ->repeaterDeleteText('Confermi l\'eliminazione di questa opzione in vendita?')
             ->repeaterDeleteCancelLabel('Annulla')
@@ -2857,12 +3151,25 @@ HTML);
      */
     protected static function priceFields(?int $modelId): array
     {
+        // Prezzo, scontato, giacenza ed EAN sono dell'articolo solo finché
+        // non ha varianti: con le varianti vivono nelle righe. Restano
+        // dichiarati sempre — e nascosti dall'interruttore — perché la
+        // risposta si cambia senza ricaricare, e un campo che non esiste non
+        // può comparire.
         $fields = [
-            FormField::key('product_price')->number()->decimal(2)->label('Prezzo'),
-            FormField::key('product_sale_price')->number()->decimal(2)->label('Prezzo scontato'),
+            FormField::key('product_price')
+                ->number()
+                ->decimal(2)
+                ->label('Prezzo')
+                ->hiddenWhen('has_variants', 'true'),
+            FormField::key('product_sale_price')
+                ->number()
+                ->decimal(2)
+                ->label('Prezzo scontato')
+                ->hiddenWhen('has_variants', 'true'),
         ];
 
-        if ($modelId !== null && $modelId > 0 && !static::hasVariants($modelId)) {
+        if ($modelId !== null && $modelId > 0) {
             // Si scrive quanti pezzi ci sono: il movimento della differenza
             // lo fa il pannello. Con più sedi il numero sarebbe ambiguo, e la
             // casella si legge e basta.
@@ -2870,12 +3177,14 @@ HTML);
                 ->number()
                 ->decimal(3)
                 ->readonly(!static::stockIsWritable())
-                ->label('Giacenza');
+                ->label('Giacenza')
+                ->hiddenWhen('has_variants', 'true');
         }
 
-        if ($modelId === null || !static::hasVariants($modelId)) {
-            $fields[] = FormField::key('product_ean')->text()->label('EAN');
-        }
+        $fields[] = FormField::key('product_ean')
+            ->text()
+            ->label('EAN')
+            ->hiddenWhen('has_variants', 'true');
 
         return $fields;
     }
@@ -2884,7 +3193,6 @@ HTML);
     protected static function withoutExtras(array $values): array
     {
         unset(
-            $values['shipping_weight'],
             $values['categories'],
             $values['main_category'],
             $values['tags'],
@@ -2897,7 +3205,11 @@ HTML);
         foreach (array_keys($values) as $key) {
             $key = (string) $key;
 
-            if (str_starts_with($key, 'attribute_') || str_starts_with($key, 'option_')) {
+            if (
+                str_starts_with($key, 'attribute_')
+                || str_starts_with($key, 'option_')
+                || str_starts_with($key, 'images_')
+            ) {
                 unset($values[$key]);
             }
         }

@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
+use Wonder\Plugin\Gestionale\Support\Catalog\Units;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Positions;
@@ -81,7 +82,6 @@ class AttributeResource extends GestionaleResource
             'slug' => 'Nome macchina',
             'level' => 'Come si usa',
             'type' => 'Tipo',
-            'group_name' => 'Gruppo',
             'unit' => 'Unità di misura',
             'is_filterable' => 'Filtro',
             'is_visible' => 'Stato',
@@ -124,8 +124,13 @@ class AttributeResource extends GestionaleResource
                 ->value(static::DEFAULT_TYPE)
                 ->label('Tipo')
                 ->required(),
-            FormField::key('group_name')->text()->label('Gruppo'),
-            FormField::key('unit')->text()->label('Unità di misura'),
+            // L'unità è un elenco, non testo libero: due schede scrivevano
+            // "g" e "grammi" per la stessa cosa. Si vede solo dove vuol dire
+            // qualcosa — un numero o un testo — e non su un colore.
+            FormField::key('unit')
+                ->select(Units::all())
+                ->label('Unità di misura')
+                ->visibleWhen('type', ['number', 'text']),
             FormField::key('is_filterable')
                 ->select(['true' => 'Sì', 'false' => 'No'])
                 ->value('true')
@@ -139,9 +144,13 @@ class AttributeResource extends GestionaleResource
             FormField::key('values')
                 ->repeater([
                     RepeaterColumn::key('id')->hidden(),
-                    RepeaterColumn::key('label')->text()->label('Valore')->columnSpan(5),
+                    // Nove dodicesimi, non undici: il riordino a mano prende
+                    // tre colonne per le frecce e il cestino, e con undici la
+                    // riga andava a capo.
+                    RepeaterColumn::key('image')->fileDragDrop('image')->label('Fantasia')->columnSpan(2),
+                    RepeaterColumn::key('label')->text()->label('Valore')->columnSpan(4),
                     RepeaterColumn::key('color')->color()->label('Colore')->columnSpan(3),
-                    RepeaterColumn::key('image')->fileDragDrop('image')->label('Fantasia')->columnSpan(3),
+                    RepeaterColumn::key('description')->text()->label('Descrizione')->columnSpan(12),
                 ])
                 ->relation(
                     RepeaterRelation::make(AttributeValue::$table, 'attribute_id')
@@ -150,6 +159,11 @@ class AttributeResource extends GestionaleResource
                 )
                 ->nested()
                 ->repeaterSortable()
+                // La descrizione non entra nella riga: in un ottavo di
+                // larghezza non ci si scrive niente, e a tutta riga
+                // spingerebbe i bottoni su una riga loro.
+                ->repeaterAdvanced('description')
+                ->repeaterAdvancedLabel('Aggiungi una descrizione')
                 ->repeaterAddLabel('Aggiungi valore')
                 ->repeaterDeleteTitle('Elimina valore')
                 ->repeaterDeleteText('Confermi l\'eliminazione di questo valore?')
@@ -167,10 +181,9 @@ class AttributeResource extends GestionaleResource
         $cards = [
             (new Card)->components([
                 SectionTitle::make('Attributo')
-                    ->tooltip('«Descrive l\'articolo» finisce nella scheda tecnica: Materiale, Composizione. «Crea opzioni con pagina e foto proprie» è il Colore, nei negozi dove ogni colore ha la sua pagina e le sue foto. «Crea opzioni da scegliere nel carrello» è la Taglia. L\'unità di misura serve ai tipi "Numero".')
+                    ->tooltip('«Descrive l\'articolo» finisce nella scheda tecnica: Materiale, Composizione. «Crea opzioni con pagina e foto proprie» è il Colore, nei negozi dove ogni colore ha la sua pagina e le sue foto. «Crea opzioni da scegliere nel carrello» è la Taglia. L\'unità di misura compare solo sui tipi Numero e Testo, ed è quella con cui si misura il valore: grammi, centimetri.')
                     ->columnSpan(12),
-                static::getInput('name')->columnSpan(6),
-                static::getInput('group_name')->columnSpan(6),
+                static::getInput('name')->columnSpan(12),
                 static::getInput('level')->columnSpan(4),
                 static::getInput('type')->columnSpan(4),
                 static::getInput('unit')->columnSpan(4),
@@ -186,7 +199,7 @@ class AttributeResource extends GestionaleResource
         if (static::usesValues(static::currentRow() ?? ['type' => static::DEFAULT_TYPE])) {
             $cards[] = (new Card)->components([
                 SectionTitle::make('Valori')
-                    ->tooltip('L\'ordine è quello che vedrà il cliente. Il colore serve al pallino in vetrina, la fantasia quando un colore non basta. Il nome di un valore è anche quello che si legge nelle opzioni in vendita: si rinomina qui.')
+                    ->tooltip('L\'ordine è quello che vedrà il cliente. La fantasia è l\'immagine di quel valore, il colore il pallino in vetrina. Il nome di un valore è anche quello che si legge nelle opzioni in vendita: si rinomina qui. La descrizione si apre dalla riga e serve a spiegarlo a chi compra.')
                     ->columnSpan(12),
                 static::getInput('values')->columnSpan(12),
             ])->columns(12)->columnSpan(12);
@@ -217,7 +230,6 @@ class AttributeResource extends GestionaleResource
                     ENT_QUOTES,
                     'UTF-8'
                 )),
-            TableColumn::key('group_name')->text()->size('little'),
             TableColumn::key('is_visible')->visibleBadge()->size('little'),
             TableColumn::key('actions')->button()->actions(['edit', 'delete']),
         ];

@@ -314,7 +314,7 @@ check('la creazione mostra la scheda intera, due colonne comprese', function () 
     // la griglia ha sette caselle per riga e in due terzi di schermo vanno a
     // capo.
     return count($colonne) === 3
-        && $titoli($colonne[0]) === ['Prodotto', 'Foto e video', 'Descrizione']
+        && $titoli($colonne[0]) === ['Prodotto', 'Foto e video', 'Descrizione', 'Misure']
         && $titoli($colonne[1]) === ['Pubblicazione', 'Codici', 'Dove si trova', 'Spedizione']
         && ($colonne[2]->components[0] ?? null) instanceof SectionTitle
         && $colonne[2]->components[0]->getText() === 'Opzioni in vendita';
@@ -448,7 +448,7 @@ $riquadri = static function (int $colonna = 0) use ($schedaAperta): array {
 check('la colonna larga tiene quello che si compone', function () use ($riquadri) {
     // Le opzioni in vendita non stanno più qui: hanno il loro riquadro a
     // piena larghezza, in fondo.
-    return $riquadri(0) === ['Prodotto', 'Foto e video', 'Descrizione'];
+    return $riquadri(0) === ['Prodotto', 'Foto e video', 'Descrizione', 'Misure'];
 });
 
 check('il riquadro delle opzioni sta in fondo, a piena larghezza', function () use ($schedaAperta) {
@@ -469,24 +469,14 @@ check('le parole interne non compaiono più nei titoli', function () use ($riqua
     return array_intersect($riquadri(), $vecchie) === [];
 });
 
-check('la scheda chiede l\'imballaggio e dice quanto parte', function () use ($campi) {
+check('la scheda chiede l\'imballaggio, e le misure sono del prodotto', function () use ($campi) {
     $chiavi = array_keys($campi());
 
+    // «Spedito» non c'è più: era una frase calcolata che diceva prodotto +
+    // tara, e le misure non parlano di spedizione.
     return in_array('package_id', $chiavi, true)
-        && in_array('shipping_weight', $chiavi, true);
-});
-
-check('il peso spedito è una frase da leggere, non una colonna', function () {
-    $scheda = new class extends ProductModelResource {
-        public static function senzaExtra(array $values): array
-        {
-            return static::withoutExtras($values);
-        }
-    };
-
-    $ripulito = $scheda::senzaExtra(['name' => 'Maglietta', 'shipping_weight' => '1,4 kg', 'weight' => '1.2']);
-
-    return !isset($ripulito['shipping_weight']) && ($ripulito['weight'] ?? '') === '1.2';
+        && in_array('circumference', $chiavi, true)
+        && !in_array('shipping_weight', $chiavi, true);
 });
 
 check('le foto si caricano dove appartengono', function () use ($schedaAperta) {
@@ -500,19 +490,17 @@ check('le foto si caricano dove appartengono', function () use ($schedaAperta) {
         && !in_array('images', $chiavi, true);
 });
 
-check('ogni area di foto guarda solo la sua fetta', function () use ($schedaAperta) {
+check('l\'area delle foto è un campo solo, con il suo tetto', function () use ($schedaAperta) {
     foreach ($schedaAperta::formSchema() as $campo) {
         if ((string) $campo->name !== 'images_0') {
             continue;
         }
 
-        $relazione = ($campo->get('context')['relation'] ?? null);
-
-        // `product_id` nullo tiene fuori le foto delle singole opzioni: senza,
-        // salvando quest'area il core le cancellerebbe, non trovandole fra le
-        // righe postate.
-        return $relazione !== null
-            && $relazione->condition === ['product_variant_id' => null, 'product_id' => null];
+        // Una riga per file con descrizione e stato era una tabella dentro
+        // una scheda: ora è un rettangolo su cui si trascina.
+        return $campo->get('helper') === 'inputFileDragDrop'
+            && (int) (((array) $campo->get('prepare'))['max_file'] ?? 0) === 10
+            && ((array) $campo->get('context')) === [];
     }
 
     return false;

@@ -52,9 +52,9 @@ resto.
 - **No** — prezzo, prezzo scontato, giacenza, SKU ed EAN sono dell'articolo, si
   scrivono una volta e il riquadro delle opzioni non compare. È la maglietta
   che si vende in un modo solo.
-- **Sì** — compaiono gli attributi e la griglia, e quelle stesse cose si
-  scrivono opzione per opzione. Il prezzo in alto diventa un comando che le
-  scrive tutte.
+- **Sì** — quelle caselle spariscono, perché con le varianti non hanno un
+  valore solo, e al loro posto compaiono gli attributi e la griglia: prezzo e
+  codici si scrivono opzione per opzione.
 
 Un articolo che ha già più opzioni non torna indietro con l'interruttore:
 quelle righe hanno movimenti, foto e magari ordini. Si eliminano dalla griglia,
@@ -72,10 +72,14 @@ una per una, dove la cancellazione lo dice.
 4. Riempi quello che sai — prezzo, giacenza, foto — e salva. Le righe nascono
    con quello che hai scritto, non con valori da correggere dopo.
 
+Ogni attributo scelto è **una riga**: la maniglia a sinistra per trascinarlo,
+e i suoi valori come pillole da accendere. La **×** in fondo ai valori toglie
+l'attributo, finché l'articolo non lo sta usando.
+
 ### L'ordine degli attributi
 
-Le frecce **↑ ↓** in cima a ogni attributo scelto decidono l'ordine, e sotto il
-menu una frase dice cosa succederà: *«Le opzioni si raggruppano per Colore, poi
+Si trascina la riga per la maniglia, oppure si usano le frecce **↑ ↓** che le
+stanno accanto. Sotto il menu una frase dice cosa succederà: *«Le opzioni si raggruppano per Colore, poi
 Taglia»*. Il primo attributo fa le testate dei gruppi, gli altri compongono il
 nome della riga.
 
@@ -116,7 +120,11 @@ Nella riga si vedono le tre cose che si compilano sempre:
 
 Il resto sta dietro **«Compila le informazioni avanzate»**, un bottone per
 riga: **SKU**, **EAN**, **Stato** (*Attivo* o *Fermo*) e **Foto o video**, il
-file di questa riga sola, su cui si trascina. Sono le cose che quasi nessuno ha
+file di questa riga sola, su cui si trascina.
+
+Eliminando una riga non sparisce: resta lì sbiadita, con scritto che verrà
+eliminata al salvataggio e un **Annulla** per rimetterla. Finché non salvi,
+niente è perduto. Sono le cose che quasi nessuno ha
 in mano nel momento in cui crea l'articolo; il blocco parte chiuso anche
 quando dentro c'è già qualcosa — il codice te lo propone il gestionale — e
 niente di quello che c'è si perde.

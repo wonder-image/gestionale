@@ -30,6 +30,7 @@ final class AttributeValue extends Model
         return [
             Column::key('attribute_id')->int()->null(false)->foreign(Attribute::$table),
             Column::key('label'),
+            Column::key('description')->type('TEXT'),
             Column::key('color')->length(20),
             Column::key('image')->json(),
             Column::key('position')->int(),
@@ -50,6 +51,7 @@ final class AttributeValue extends Model
             // Niente `sanitizeFirst()`: un'etichetta è spesso una sigla, e
             // "XL" non deve diventare "Xl".
             Field::key('label')->text(),
+            Field::key('description')->text(),
             Field::key('color')->text(),
             Field::key('image')
                 ->image()

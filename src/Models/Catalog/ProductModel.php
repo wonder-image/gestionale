@@ -39,7 +39,7 @@ final class ProductModel extends Model
     public static function tableSchema(): array
     {
         return [
-            ...static::sqlColumnsFromDataSchema(['code', 'weight', 'length', 'width', 'height']),
+            ...static::sqlColumnsFromDataSchema(['code', 'weight', 'length', 'width', 'height', 'circumference']),
             Column::key('brand_id')->int()->foreign(Brand::$table),
             Column::key('tax_category_id')->int()->foreign(TaxCategory::$table),
             Column::key('type')->enum(['simple', 'bundle'])->default('simple'),
@@ -92,6 +92,7 @@ final class ProductModel extends Model
             Field::key('length')->number()->decimals(2),
             Field::key('width')->number()->decimals(2),
             Field::key('height')->number()->decimals(2),
+            Field::key('circumference')->number()->decimals(2),
             Field::key('returnable')->text()->sanitize(false),
             Field::key('requires_shipping')->text()->sanitize(false),
             Field::key('visible')->text()->sanitize(false),

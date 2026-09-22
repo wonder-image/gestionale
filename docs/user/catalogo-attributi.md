@@ -55,17 +55,18 @@ elenco, e un elenco deve esistere.
 1. **Catalogo → Attributi → Aggiungi attributo**.
 2. Scrivi il **nome** ("Colore", "Taglia", "Materiale").
 3. Rispondi a **"Come si usa"** e scegli il **tipo**.
-4. **Gruppo** (facoltativo): raccoglie più attributi sotto un titolo nella
-   scheda, per esempio "Misure". Lasciandolo vuoto finiscono in "Generale".
-5. **Unità di misura**: solo per il tipo "Numero".
-6. **Filtro**: se in vetrina il cliente potrà cercare per questo attributo.
-7. Salva.
+4. **Unità di misura**: compare solo sui tipi *Numero* e *Testo*, ed è quella
+   con cui si misura il valore — grammi, centimetri. Si sceglie da un elenco,
+   così due schede non scrivono "g" e "grammi" per la stessa cosa.
+5. **Filtro**: se in vetrina il cliente potrà cercare per questo attributo.
+6. Salva.
 
 Il riquadro **Valori** è lì sotto fin da subito: *Aggiungi valore* per ogni
-voce, e per ognuna puoi mettere il **colore** (il pallino che il cliente vede in
-vetrina) e una **fantasia**, cioè un'immagine, per quando un colore solo non
-basta a far capire com'è. L'ordine è quello che vedrà il cliente e si cambia
-trascinando le righe.
+voce. La riga si legge da sinistra: la **fantasia**, cioè un'immagine per
+quando un colore solo non basta a far capire com'è; il **valore**, che è il
+nome; il **colore**, il pallino che il cliente vede in vetrina. Dietro
+*Aggiungi una descrizione* c'è una frase per spiegarlo a chi compra. L'ordine è
+quello che vedrà il cliente e si cambia con le frecce.
 
 Se scegli il tipo "Testo" o "Numero" i valori non servono — quello lo scrivi tu
 prodotto per prodotto — e riaprendo la scheda il riquadro non c'è più.

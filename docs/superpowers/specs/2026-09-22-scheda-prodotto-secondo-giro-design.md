@@ -478,6 +478,75 @@ griglia, una per una, dove la cancellazione lo dice.
 | P39 | «Ha varianti» è una colonna, non un calcolo | Un articolo nuovo ha già un figlio: il calcolo direbbe sempre "no" |
 | P40 | «No» è bloccato su un articolo con più opzioni | Le opzioni hanno movimenti e foto: si cancellano dove la cancellazione lo dice |
 
+## 14. Quinto giro: quello che si vede
+
+Il giro precedente aveva messo le cose al posto giusto; questo toglie quello
+che non serve e rende reversibile quello che si rimpiange.
+
+**L'interruttore governa davvero.** «Questo articolo ha varianti» accendeva la
+griglia ma lasciava in pagina prezzo, prezzo scontato, SKU ed EAN
+dell'articolo, che con le varianti non vogliono dire niente. Ora spariscono —
+e il riquadro «Codici», rimasto senza campi, sparisce con loro. Sono nascosti,
+non tolti: il valore continua a viaggiare, e lo SKU di famiglia continua a
+proporre i codici delle righe anche mentre non si vede.
+
+**Le foto sono un campo solo.** Una riga per file, con descrizione e stato, era
+una tabella dentro una scheda. Ora ogni area è un rettangolo su cui si
+trascina, fino a dieci file, che si riordinano trascinandoli. La descrizione e
+lo stato per singola foto se ne vanno: la prima non la scriveva nessuno, il
+secondo lo decide la coda delle misure. Il campo manda un manifesto — l'elenco
+dei file nell'ordine voluto, dove una stringa è un file che c'era già e un
+numero è la posizione di uno appena caricato — e il pannello lo traduce in
+righe di `gst_product_images`, una per foto, perché è una riga per foto che la
+coda sa lavorare.
+
+**Le misure non sono spedizione.** Lunghezza, larghezza, altezza e la nuova
+circonferenza descrivono il prodotto, non il pacco: stavano in «Spedizione» e
+sparivano con l'articolo che non si spedisce, portandosi via anche l'unità di
+misura, che è obbligatoria. Ora hanno il loro riquadro. «Spedito» — la frase
+che sommava prodotto e tara — se ne va: era un calcolo che nessuno aveva
+chiesto, e il conto resta a disposizione per quando ci saranno le spese di
+spedizione vere.
+
+**Una riga eliminata si può rimettere.** Cancellare un'opzione non la toglie
+più dalla pagina: la sbiadisce, le spegne i campi e le mette accanto un
+«Annulla». Per il server non cambia niente — i campi di un `fieldset`
+disabilitato non vengono postati, e una riga che non arriva è una riga
+cancellata, come prima — ma chi ha sbagliato se ne accorge prima di salvare.
+
+**Il selettore degli attributi sta in una riga.** Due riquadri affiancati alti
+mezza pagina sono diventati una riga per attributo: maniglia per trascinare,
+nome, e i valori come pillole in linea. Le spunte incolonnate in un riquadro
+che scorre dicono «qui c'è un elenco lungo»; cinque taglie non sono un elenco
+lungo.
+
+**L'anagrafica degli attributi.** «Gruppo» era un campo che non leggeva
+nessuno: serviva a raggruppare i filtri di una vetrina che non c'è ancora, e
+intanto chiedeva di compilare qualcosa che non produceva niente. Esce dalla
+scheda; la colonna resta, così quando i filtri arriveranno torna senza perdere
+dati. L'unità di misura diventa un elenco — due schede scrivevano «g» e
+«grammi» per la stessa cosa — e si vede solo dove vuol dire qualcosa, cioè sui
+tipi Numero e Testo. Ogni valore può avere una descrizione, dietro lo stesso
+bottone delle informazioni avanzate della griglia. La riga si legge
+Fantasia → Valore → Colore, e sta su nove dodicesimi, perché il riordino a
+mano tiene per sé le altre tre.
+
+**Una riga creata da un campo appartiene alla risorsa.** Una categoria creata
+con il «+ Aggiungi» del select finiva solo in quel select, e l'albero delle
+spunte della stessa pagina — che elenca le stesse righe — non se ne accorgeva.
+Ora l'evento porta anche la risorsa, e ogni campo che dichiara di elencarla si
+aggiorna.
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P41 | Con le varianti spariscono prezzo, scontato, SKU ed EAN dell'articolo | Con le varianti quei numeri non hanno un solo valore; restano nel modulo, nascosti, perché lo SKU continua a proporre i codici |
+| P42 | Le foto sono un campo solo, dieci per area | Una riga per file con descrizione e stato era una tabella dentro una scheda |
+| P43 | Le misure hanno il loro riquadro, con la circonferenza | Descrivono il prodotto, non il pacco, e in «Spedizione» sparivano con l'articolo che non si spedisce |
+| P44 | Via «Spedito» | Un calcolo che nessuno aveva chiesto; il conto resta per le spese di spedizione vere |
+| P45 | Le righe eliminate restano annullabili | Cancellare un'opzione è una decisione che si rimpiange, e ricostruirla a mano costa più di un bottone |
+| P46 | Gli attributi si scelgono in una riga, con i valori a pillole | Un riquadro che scorre dice «elenco lungo»; cinque taglie non lo sono |
+| P47 | Via «Gruppo» dall'anagrafica; l'unità è un elenco; il valore ha una descrizione | Un campo che non legge nessuno chiede lavoro e non dà niente; il testo libero fa scrivere «g» e «grammi» per la stessa cosa |
+
 ## Piani
 
 Da scrivere dopo l'approvazione.

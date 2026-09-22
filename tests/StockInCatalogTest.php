@@ -181,9 +181,14 @@ check('la domanda sulle varianti c\'è, e nasce spenta', function () use ($campi
     return $campo !== null && $campo->get('helper') === 'toggle';
 });
 
-check('con più versioni la casella singola non c\'è', function () use ($campiDi, $schedaPiena) {
-    // Sarebbe un comando ambiguo: "quale giacenza?".
-    return !isset($campiDi($schedaPiena)['product_stock']);
+check('con le varianti la casella singola si nasconde', function () use ($campiDi, $schedaPiena) {
+    // Sarebbe un comando ambiguo: "quale giacenza?". Il campo resta
+    // dichiarato — la risposta si cambia senza ricaricare — ma lo spegne
+    // l'interruttore.
+    $campo = $campiDi($schedaPiena)['product_stock'] ?? null;
+
+    return $campo !== null
+        && str_contains((string) $campo->get('attribute'), 'data-hidden-when="has_variants"');
 });
 
 check('la giacenza non è una colonna: non arriva mai al salvataggio', function () use ($schedaSemplice) {

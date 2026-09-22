@@ -47,7 +47,7 @@ final class Product extends Model
         return [
             ...static::sqlColumnsFromDataSchema([
                 'code', 'price', 'sale_price', 'min_stock_quantity',
-                'weight', 'length', 'width', 'height',
+                'weight', 'length', 'width', 'height', 'circumference',
             ]),
             Column::key('product_model_id')->int()->null(false)->foreign(ProductModel::$table),
             Column::key('product_variant_id')->int()->null(false)->foreign(ProductVariant::$table),
@@ -91,6 +91,7 @@ final class Product extends Model
             Field::key('length')->number()->decimals(2),
             Field::key('width')->number()->decimals(2),
             Field::key('height')->number()->decimals(2),
+            Field::key('circumference')->number()->decimals(2),
             Field::key('position')->number()->decimals(0),
             Field::key('active')->text()->sanitize(false),
         ];
