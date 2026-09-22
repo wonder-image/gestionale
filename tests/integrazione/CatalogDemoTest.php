@@ -60,20 +60,11 @@ $stato = static fn (): array => array_map($conta, $tutte);
 $prima = $stato();
 
 // `clear()` toglie le foto dal disco, e la transazione rimette indietro le
-// righe ma non i file. Se ne tiene una copia e alla fine si rimettono: così il
-// sito resta esattamente com'era, id compresi.
-$aveva = is_array(Brand::find(['name' => 'Prova Marchio', 'deleted' => 'false'], 1));
+// righe ma non i file: senza una fotografia della cartella, il sito resta con
+// righe che puntano a file spariti. L'istantanea si rimette da sé anche se
+// questo test muore a metà (vedi `Istantanea` in tests/harness.php).
 $cartella = rtrim((string) ($GLOBALS['ROOT'] ?? ''), '/').'/assets/upload'.ProductImages::folder();
-$copia = sys_get_temp_dir().'/gestionale-foto-'.getmypid();
-$fileDiPrima = glob($cartella.'*') ?: [];
-
-if ($fileDiPrima !== [] && !is_dir($copia)) {
-    mkdir($copia, 0777, true);
-
-    foreach ($fileDiPrima as $file) {
-        copy($file, $copia.'/'.basename($file));
-    }
-}
+$foto = Istantanea::di($cartella);
 
 try {
     Transaction::run(static function () use ($conta, $stato, $righe, $idDi): void {
@@ -261,23 +252,12 @@ try {
 
 check('dopo l\'annullamento il catalogo è come prima', fn () => $stato() === $prima);
 
-// Le righe sono tornate con l'annullamento; i file li rimettiamo noi.
-foreach (glob($copia.'/*') ?: [] as $file) {
-    if (!is_file($cartella.basename($file))) {
-        copy($file, $cartella.basename($file));
-    }
+// Le righe sono tornate con l'annullamento; i file li rimette l'istantanea.
+// Qui e non alla fine del processo, perché il check qui sotto guarda il disco.
+$foto->ripristina();
 
-    unlink($file);
-}
-
-if (is_dir($copia)) {
-    rmdir($copia);
-}
-
-check('il sito resta con foto vere sul disco', function () use ($aveva) {
-    if (!$aveva) {
-        return true;
-    }
+check('il sito resta con foto vere sul disco', function () {
+    $rotte = [];
 
     foreach (ProductImage::find(['deleted' => 'false']) ?: [] as $riga) {
         if (!is_array($riga)) {
@@ -287,11 +267,17 @@ check('il sito resta con foto vere sul disco', function () use ($aveva) {
         $percorso = ProductImages::path($riga);
 
         if ($percorso !== '' && !is_file($percorso)) {
-            return false;
+            $rotte[] = '#'.($riga['id'] ?? '?').' → '.basename($percorso);
         }
     }
 
-    return true;
+    if ($rotte !== []) {
+        // Dire quali: una riga che punta a un file sparito non si trova a
+        // occhio fra cinquanta.
+        echo '    righe senza file: '.implode(', ', $rotte)."\n";
+    }
+
+    return $rotte === [];
 });
 
 summary();

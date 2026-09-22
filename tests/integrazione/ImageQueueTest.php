@@ -23,6 +23,11 @@ final class Annulla extends RuntimeException {}
 
 $prima = ImageQueue::count();
 
+// Questo test scrive immagini vere e la coda ne genera le misure: la
+// transazione annulla le righe, non i file. L'istantanea rimette la cartella
+// com'era anche se il test muore a metà (vedi `Istantanea` in harness.php).
+Istantanea::di(SITE.'/assets/upload'.ProductImages::folder());
+
 /** Un'immagine vera, piccola, scritta sul disco del sito. */
 $scriviFile = static function (string $name): string {
     $dir = SITE.'/assets/upload'.ProductImages::folder();
@@ -126,11 +131,8 @@ try {
             return $esito['done'] === 0 && $esito['failed'] === 0;
         });
 
-        // I file generati restano fuori dalla transazione: si tolgono a mano.
-        foreach (glob(dirname($percorso).'/'.pathinfo($percorso, PATHINFO_FILENAME).'*') ?: [] as $generato) {
-            @unlink($generato);
-        }
-
+        // I file generati restano fuori dalla transazione: li toglie
+        // l'istantanea, alla fine del processo, insieme a tutto il resto.
         throw new Annulla();
     });
 } catch (Annulla) {
