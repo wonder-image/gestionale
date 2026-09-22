@@ -1600,7 +1600,7 @@ HTML);
             });
 
             mostra(box, righe);
-            raggruppa(box, righe, templateId);
+            raggruppa(box, righe);
         }
 
         // La griglia compare quando c'è qualcosa da vedere: con una riga sola e
@@ -1616,14 +1616,16 @@ HTML);
 
         // Un articolo senza colore non ha niente su cui raggruppare: la griglia
         // resta piatta invece di mostrare una testata «Senza scelta».
-        function raggruppa(box, righe, templateId) {
+        function raggruppa(box, righe) {
             if (typeof window.wiRepeaterGroupApply !== 'function') return;
             if (righe.getAttribute('data-wi-group-fixed') !== 'true') return;
 
             var conColore = Array.prototype.slice.call(righe.querySelectorAll('[name\$="[variant]"]'))
                 .some(function (campo) { return String(campo.value || '').trim() !== ''; });
 
-            window.wiRepeaterGroupApply(righe.id, templateId, conColore ? 'variant' : '');
+            // Il modello delle testate, non quello delle righe: sono due
+            // template diversi, e sbagliarli vuol dire nessun gruppo.
+            window.wiRepeaterGroupApply(righe.id, box.id + '-group-template', conColore ? 'variant' : '');
         }
 
         document.addEventListener('change', function (ev) {
