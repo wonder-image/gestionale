@@ -1,7 +1,8 @@
 # G2c — La scheda prodotto, secondo giro
 
 - **Sotto-progetto:** seguito di G2a-bis, prima di G2b
-- **Stato:** da approvare
+- **Stato:** rivista il 2026-09-22 dopo la prova della creazione (§3, §4, §7,
+  §8, §9 nuove o riscritte; decisioni P14-P21)
 - **Documento di riferimento:** [G2a-bis — La scheda prodotto semplice](2026-09-21-scheda-prodotto-semplice-design.md),
   [G2a — Catalogo](2026-09-21-catalogo-design.md)
 - **Dipende da:** C1 — repeater raggruppato (spec in `wonder-image/app`:
@@ -102,25 +103,53 @@ Precondizione per tutti: la Resource di destinazione deve esporre lo store API.
 la chiamata parte lato server come `@system`, e il "+" compare solo a chi può
 creare quella risorsa.
 
-### 3. La creazione: cinque campi e un blocco chiuso
+### 3. La creazione: una schermata sola
 
-Sotto i cinque campi di oggi (nome, tipo fiscale, prezzo, categoria
-principale, SKU) compare un blocco **chiuso**: *"Si vende in più versioni?
-(colori, taglie…)"*, con dentro i gruppi di spunte e i loro "+".
+*Sezione riscritta il 2026-09-22, dopo aver usato la creazione a cinque campi.*
 
-Chi vende un cappello non lo apre e salva come adesso. Chi spunta Blu, Rosso e
-S/M/L atterra sulla scheda con **sei versioni già fatte**, con nome e SKU
-proposti: è lo stesso `Generator`, chiamato dallo stesso `afterStore`, e cambia
-solo che i valori arrivano dalla creazione invece che dal salvataggio
-successivo.
+Compilare un pezzo, salvare, aprire la scheda, compilare il resto e salvare
+ancora è troppo lungo: chi carica un prodotto vuole vedere tutto quello che
+gli sarà chiesto, una volta sola, e salvare quando ha finito.
 
-Il blocco è un **Accordion vero**, non la Card travestita di oggi: C1 corregge
-il corpo dell'Accordion, e `GestionaleResource::foldable()` smette di essere un
-ripiego e torna a usarlo. Gli altri due blocchi richiudibili della scheda —
-*Si vende in più versioni?* e *Scheda tecnica* — si chiudono davvero anche
-loro, senza altre modifiche.
+**"Aggiungi prodotto" mostra la scheda intera**: gli stessi riquadri della
+modifica, nello stesso ordine, con i blocchi lunghi richiudibili — *Si vende
+in più versioni?*, *Scheda tecnica*, *Spedizione*. Chi vende un cappello
+compila nome, prezzo e categoria e salva; chi vende magliette apre i blocchi
+che gli servono e salva una volta sola.
 
-### 4. La griglia delle versioni
+Si può fare senza trucchi perché il core **sincronizza già i repeater alla
+creazione**: `ResourcePageController` chiama `syncRepeaterRelations($insertId,
+$_POST, $_FILES, 'store')` subito dopo l'insert. Foto, versioni e
+collegamenti nascono quindi nello stesso salvataggio del prodotto.
+
+Le uniche differenze rispetto alla scheda di un prodotto che esiste già:
+
+- niente colonna della giacenza finché le versioni non esistono (§10);
+- niente pulsante "Dettagli delle versioni", che porta a una pagina di righe
+  che non ci sono ancora.
+
+### 4. Le versioni nascono sotto gli occhi
+
+*Sezione riscritta insieme alla §3.*
+
+Oggi si spuntano i colori, si salva, e **solo allora** compaiono le righe da
+prezzare. Due salvataggi per una cosa sola.
+
+Spuntando i valori, la griglia delle versioni si costruisce **subito nel
+browser**: una riga per combinazione, con il nome ("Blu / M") e lo SKU
+proposti e le caselle di prezzo, EAN e giacenza già scrivibili. Al salvataggio
+il generatore crea le righe che mancano **con i valori scritti**, invece di
+inventarli e farli correggere dopo.
+
+Il calcolo delle combinazioni è lo stesso di `Combinations::plan()`, rifatto in
+JS sui valori spuntati: gli id e le etichette sono già nel DOM delle caselle.
+Il server non si fida di quello che arriva — ricalcola il piano e accetta solo
+le combinazioni che tornano.
+
+Sulla scheda di un prodotto che esiste già la griglia resta quella che è, con
+il raggruppamento per colore e il prezzo di gruppo (§5).
+
+### 5. La griglia delle versioni
 
 Una colonna nuova, **in testa**: il nome dell'opzione con pagina propria
 (`pageOptionName()`: "Colore" in un negozio di magliette, "Gusto" in
@@ -165,7 +194,7 @@ però ne esiste una più precisa sulla testata del gruppo, che agisce sotto gli
 occhi invece che al salvataggio; se all'uso la casella in alto risulta di
 troppo, si toglie in un secondo momento.
 
-### 5. Spedizione e imballaggi
+### 6. Spedizione e imballaggi
 
 **Tabella `gst_packages`**: `code` (`pkg_`, costante nuova in `Codes`), `name`,
 `length`, `width`, `height` (cm, misure interne), `weight` (la **tara**: quanto
@@ -194,7 +223,49 @@ accanto a "Si accettano resi".
 e una XL nella stessa scatola sono il caso normale, e la colonna in più oggi
 non la userebbe nessuno.
 
-### 6. Dati di prova
+### 7. Le foto, e i video
+
+*Sezione nuova.*
+
+La riga-per-foto con il menù "Vale per" e il select "Stato" chiede di capire
+un modello dati per caricare un'immagine. Al suo posto, **aree di
+caricamento**: una *Foto dell'articolo* e una per ogni colore — *Foto Blu*,
+*Foto Rosso* — ognuna un `fileDragDrop` multi-file con un massimo dichiarato.
+Si trascinano le foto dove appartengono, e non si sceglie niente da un menù.
+
+- **Lo stato non è un campo.** Una foto pronta non ha niente da dire; una che
+  non è riuscita lo scrive accanto a sé, con il modo di farla riprovare.
+- **La descrizione resta**: è quella che leggono i motori di ricerca e chi non
+  vede le immagini, ed è una riga sola sotto la miniatura.
+- **I video stanno con le foto.** Serve un tipo nuovo nel core, `gallery`
+  (png, jpeg, webp, mp4): oggi un campo accetta immagini **oppure** video, mai
+  tutti e due. `ProductImage` accetta l'mp4, e la coda delle miniature salta i
+  video invece di fallire su di loro.
+
+### 8. Modificare un'opzione da dove la si usa
+
+*Sezione nuova.*
+
+Accanto al nome di ogni gruppo di spunte — "Colore", "Taglia" — una matita
+apre la scheda di quell'attributo, dove si rinominano i valori, si riordinano
+e si scelgono i colori. Non un modal: la creazione rapida del core sa creare,
+non modificare, e inventare qui una modifica rapida vorrebbe dire scrivere un
+secondo sottosistema.
+
+### 9. La giacenza si corregge dove si modifica il prodotto
+
+*Sezione nuova, da coordinare con G2b.*
+
+Una colonna **Giacenza scrivibile** nella griglia delle versioni, e una
+casella nel riquadro *Prodotto* quando la versione è una sola. Si scrive la
+quantità nuova; al salvataggio parte un movimento di rettifica con la
+differenza e la causale "correzione da scheda prodotto", senza chiedere altro
+a chi sta correggendo un numero.
+
+La pagina *Rettifica* resta per i carichi lunghi — centinaia di righe con una
+causale sola — ma non è più la strada normale.
+
+### 10. Dati di prova
 
 `php forge gestionale:demo` aggiunge **due imballaggi** — una busta imbottita e
 una scatola media, la scatola predefinita — e li assegna ai tre articoli. Uno
@@ -243,6 +314,14 @@ raggruppata si vede senza doverla costruire a mano.
 | P11 | "Si spedisce" resta in Pubblicazione | È stata una scelta esplicita del giro precedente, non un caso |
 | P12 | Via il riordino dalla griglia delle versioni | L'ordine lo decide il generatore; e serviva spazio per la colonna del colore |
 | P13 | Lo scontato esce dalla griglia, l'EAN resta | I codici a barre si scrivono in griglia uno dopo l'altro; uno sconto su una taglia sola è raro |
+| P14 | La creazione mostra la scheda intera | Compilare, salvare, riaprire e salvare ancora è la cosa che rende l'inserimento lungo |
+| P15 | Le versioni si costruiscono nel browser | Prezzarle richiedeva un secondo salvataggio: le righe devono esserci mentre le spunti |
+| P16 | Il server ricalcola il piano delle combinazioni | Quello che arriva dal browser è una proposta, non una verità |
+| P17 | Un'area di caricamento per colore | Trascinare la foto dove appartiene non chiede di capire cos'è una variante |
+| P18 | Lo stato della foto non è un campo | Una foto pronta non ha niente da dire; una fallita lo scrive da sé |
+| P19 | Tipo `gallery` nel core: foto e video insieme | Oggi un campo accetta immagini oppure video, e un catalogo ha bisogno di tutti e due |
+| P20 | La giacenza si corregge dalla scheda, con causale automatica | Si rettifica dove si guarda il prodotto; chiedere una causale per correggere un numero è un attrito |
+| P21 | L'opzione si modifica con un collegamento, non in un modal | La creazione rapida del core sa creare, non modificare |
 
 ## Piani
 
