@@ -20,6 +20,10 @@
 * [Giacenze e rettifiche](magazzino-giacenze.md)
 * [Movimenti](magazzino-movimenti.md)
 
+## Anagrafiche
+
+* [Clienti e fornitori](anagrafiche.md)
+
 ## Ogni giorno
 
 * [Il riquadro "Da controllare"](da-controllare.md)

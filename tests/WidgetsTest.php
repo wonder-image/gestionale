@@ -7,6 +7,7 @@ require __DIR__ . '/harness.php';
 
 use Wonder\Backend\Contracts\HomeWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\AttentionWidget;
+use Wonder\Plugin\Gestionale\Backend\Widgets\ContactsWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\SetupWidget;
 
 check('i due riquadri sono riquadri della home', fn () =>
@@ -78,5 +79,34 @@ check('i testi degli errori non possono iniettare markup', function () {
 
     return !str_contains($html, '<script>');
 });
+
+check('il riquadro delle anagrafiche è un riquadro della home', fn () =>
+    is_subclass_of(ContactsWidget::class, HomeWidget::class)
+    && (new ContactsWidget)->title() === 'Anagrafiche'
+    && (new ContactsWidget)->authorities() === ['admin', 'administrator']
+);
+
+check('le anagrafiche vengono dopo le cose da controllare', fn () =>
+    (new ContactsWidget)->order() > (new AttentionWidget)->order()
+);
+
+check('con gli acquisti bloccati la parola fornitore non compare', function () {
+    $markup = ContactsWidget::markup(3, null);
+
+    return str_contains($markup, 'Clienti')
+        && !str_contains(strtolower($markup), 'fornitor');
+});
+
+check('con gli acquisti sbloccati ci sono tutti e due i numeri', function () {
+    $markup = ContactsWidget::markup(3, 2);
+
+    return str_contains($markup, '3 clienti')
+        && str_contains($markup, '2 fornitori');
+});
+
+check('una rubrica vuota lo dice, e il singolare è singolare', fn () =>
+    str_contains(ContactsWidget::markup(0, null), 'Nessuno ancora')
+    && str_contains(ContactsWidget::markup(1, null), '1 cliente')
+);
 
 summary();

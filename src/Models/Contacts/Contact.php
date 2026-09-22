@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Models\Contacts;
 
+use Throwable;
 use Wonder\App\Model;
 use Wonder\App\Schema\Extensions\AddressExtension;
 use Wonder\App\Support\SyncSchema;
@@ -97,7 +98,14 @@ final class Contact extends Model
     /** L'indirizzo già composto, come lo mostra il core. */
     public static function decorate(array $row): array
     {
-        return static::billing()->decorate($row);
+        try {
+            return static::billing()->decorate($row);
+        } catch (Throwable) {
+            // L'indirizzo "bello" lo compone il core con le sue funzioni
+            // globali, che nei comandi di `forge` non esistono: lì la riga
+            // torna com'è invece di far esplodere chi la legge.
+            return $row;
+        }
     }
 
     /**

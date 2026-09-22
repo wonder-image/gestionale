@@ -1322,7 +1322,8 @@ try {
         $creato = Contact::create([
             'type' => 'business',
             'business_name' => 'Prova Rossi Srl',
-            'pi' => 'IT01234567897',
+            'country' => 'IT',
+            'pi' => '98765432103',
             'email' => 'prova-rossi@example.com',
             'is_customer' => 'true',
             'active' => 'true',
