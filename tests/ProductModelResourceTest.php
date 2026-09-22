@@ -120,8 +120,6 @@ check('uno SKU già preso si ferma con una frase', function () {
 });
 
 check('con una versione sola prezzo ed EAN stanno nel riquadro principale', function () use ($campi) {
-    // Senza id nell'indirizzo (creazione) la scheda mostra i campi della
-    // versione unica e non i due repeater: è la regola G2a.2.
     $chiavi = array_keys($campi());
 
     return in_array('product_price', $chiavi, true)
@@ -129,26 +127,35 @@ check('con una versione sola prezzo ed EAN stanno nel riquadro principale', func
         // Lo SKU è quello dell'articolo: due caselle "SKU" nella stessa
         // scheda sono solo un modo per sbagliare.
         && !in_array('product_sku', $chiavi, true)
+        // L'elenco dei colori non esiste più: un colore si chiama come il suo
+        // valore nell'anagrafica, e lì si rinomina.
         && !in_array('variants', $chiavi, true)
-        && !in_array('products', $chiavi, true);
+        // La griglia invece c'è sempre: aggiungere e modificare sono la
+        // stessa schermata.
+        && in_array('products', $chiavi, true);
 });
 
 check('una riga nuova del repeater nasce con il suo codice', function () {
-    $variante = ProductModelResource::prepareRepeaterRelationRow(
-        'variants',
-        ['name' => 'Blu', 'product_model_id' => 1],
-        ['name' => 'Blu']
-    );
     $prodotto = ProductModelResource::prepareRepeaterRelationRow(
         'products',
         ['sku' => 'TSH-1-BLU', 'product_model_id' => 1],
         ['sku' => 'TSH-1-BLU']
     );
 
-    return str_starts_with((string) ($variante['code'] ?? ''), 'var_')
-        && ($variante['slug'] ?? '') !== ''
-        && str_starts_with((string) ($prodotto['code'] ?? ''), 'pro_')
+    return str_starts_with((string) ($prodotto['code'] ?? ''), 'pro_')
         && array_key_exists('product_variant_id', $prodotto);
+});
+
+check('al sync del core arrivano solo le righe che esistono già', function () {
+    // Una riga nata da una spunta non ha ancora il suo colore: passarla al
+    // sync vorrebbe dire scriverla con una variante che non c'è.
+    $righe = ProductModelResource::prepareRepeaterRows('products', [
+        ['id' => '12', 'sku' => 'TSH-1-BLU-S'],
+        ['id' => '', 'sku' => 'TSH-1-BLU-M'],
+        ['sku' => 'TSH-1-ROSSO-S'],
+    ]);
+
+    return count($righe) === 1 && ($righe[0]['id'] ?? '') === '12';
 });
 
 check('una riga che c\'è già non si tocca', function () {
@@ -303,9 +310,14 @@ check('la creazione mostra la scheda intera, due colonne comprese', function () 
         return $titoli;
     };
 
-    return count($colonne) === 2
-        && $titoli($colonne[0]) === ['Prodotto', 'Foto e video', 'Descrizione', 'Si vende in più versioni? (colori, taglie…)']
-        && $titoli($colonne[1]) === ['Pubblicazione', 'Codici', 'Dove si trova', 'Spedizione'];
+    // Due colonne più il riquadro delle opzioni, che prende la pagina intera:
+    // la griglia ha sette caselle per riga e in due terzi di schermo vanno a
+    // capo.
+    return count($colonne) === 3
+        && $titoli($colonne[0]) === ['Prodotto', 'Foto e video', 'Descrizione']
+        && $titoli($colonne[1]) === ['Pubblicazione', 'Codici', 'Dove si trova', 'Spedizione']
+        && ($colonne[2]->components[0] ?? null) instanceof SectionTitle
+        && $colonne[2]->components[0]->getText() === 'Opzioni in vendita';
 });
 
 check('in creazione non si chiede quello che non esiste ancora', function () {
@@ -314,11 +326,13 @@ check('in creazione non si chiede quello che non esiste ancora', function () {
         ProductModelResource::formSchema()
     );
 
-    // Niente giacenza da rettificare, niente griglia delle versioni, niente
-    // foto dei singoli colori: sono cose che nascono dal primo salvataggio.
+    // Niente giacenza da rettificare e niente foto dei singoli colori: sono
+    // cose che nascono dal primo salvataggio. La griglia invece c'è, vuota:
+    // le righe le aggiungono le spunte, e aggiungere e modificare devono
+    // essere la stessa schermata.
     return !in_array('product_stock', $chiavi, true)
-        && !in_array('products', $chiavi, true)
         && !in_array('variants', $chiavi, true)
+        && in_array('products', $chiavi, true)
         && in_array('images_0', $chiavi, true);
 });
 
@@ -395,7 +409,7 @@ $schedaAperta = new class extends ProductModelResource {
 
     public static function vediGriglia(): string
     {
-        return (string) static::newVersionsBlock(0)->getText();
+        return (string) static::optionsGridScript(0)->getText();
     }
 
     public static function productCount(int $modelId): int
@@ -432,9 +446,17 @@ $riquadri = static function (int $colonna = 0) use ($schedaAperta): array {
 };
 
 check('la colonna larga tiene quello che si compone', function () use ($riquadri) {
-    // Con una versione sola le opzioni stanno in coda, in un blocco che si
-    // apre solo se servono.
-    return $riquadri(0) === ['Prodotto', 'Foto e video', 'Descrizione', 'Si vende in più versioni? (colori, taglie…)'];
+    // Le opzioni in vendita non stanno più qui: hanno il loro riquadro a
+    // piena larghezza, in fondo.
+    return $riquadri(0) === ['Prodotto', 'Foto e video', 'Descrizione'];
+});
+
+check('il riquadro delle opzioni sta in fondo, a piena larghezza', function () use ($schedaAperta) {
+    $form = $schedaAperta::formLayoutSchema();
+    $riquadro = ($form->components ?? [])[2] ?? null;
+
+    return $riquadro !== null
+        && (((array) ($riquadro->columnSpan ?? []))['default'] ?? null) === 12;
 });
 
 check('la colonna stretta tiene quello che si decide', function () use ($riquadri) {
@@ -516,7 +538,13 @@ check('le versioni si raggruppano, e il gruppo ha il suo prezzo', function () {
 
         public static function variantCount(int $modelId): int
         {
-            return 1;
+            return 2;
+        }
+
+        /** Due colori veri: è quello che fa nascere il raggruppamento. */
+        public static function variantLabels(int $modelId): array
+        {
+            return [1 => 'Blu', 2 => 'Rosso'];
         }
     };
 
@@ -531,20 +559,28 @@ check('le versioni si raggruppano, e il gruppo ha il suo prezzo', function () {
             $contesto['columns'] ?? []
         );
 
+        // Il raggruppamento non si sceglie: è il colore, e basta.
         return in_array('variant', $colonne, true)
-            && ($contesto['group_by'] ?? []) === ['variant', 'active']
-            && ($contesto['group_command']['column'] ?? '') === 'price';
+            && ($contesto['group_fixed'] ?? '') === 'variant'
+            && ($contesto['group_by'] ?? []) === ['variant']
+            && ($contesto['group_command']['column'] ?? '') === 'price'
+            // Le righe nascono dalle spunte: niente bottone, e niente riga
+            // vuota di cortesia che al salvataggio diventerebbe un record.
+            && ($contesto['add_button'] ?? null) === false
+            && ($contesto['start_empty'] ?? null) === true;
     }
 
     return false;
 });
 
-check('il selettore chiede prima quale opzione, i valori vengono dopo', function () use ($schedaAperta) {
+check('il selettore chiede prima quale attributo, i valori vengono dopo', function () use ($schedaAperta) {
     $html = $schedaAperta::vediSelettore();
 
     return str_contains($html, 'wi-option-picker')
-        && str_contains($html, "Aggiungi un'opzione")
-        && str_contains($html, '>Colore</option>');
+        && str_contains($html, 'Aggiungi un attributo')
+        && str_contains($html, '>Colore</option>')
+        // Tre sono il massimo: il quarto non si aggiunge.
+        && str_contains($html, 'var MASSIMO = 3;');
 });
 
 check('ogni blocco di opzione porta la maniglia che lo accende', function () use ($schedaAperta) {
@@ -567,23 +603,40 @@ check('la matita che apriva l\'anagrafica non c\'è più', function () use ($sch
     return $dentro !== [];
 });
 
-check('la griglia chiede nome, prezzo, giacenza e foto; il resto dietro un bottone', function () use ($schedaAperta) {
+check('le spunte aggiungono righe alla griglia, con la chiave della combinazione', function () use ($schedaAperta) {
     $html = $schedaAperta::vediGriglia();
 
-    return str_contains($html, 'wi-new-version-name')
-        && str_contains($html, 'wi-new-version-price')
-        && str_contains($html, 'wi-new-version-stock')
-        && str_contains($html, 'wi-new-version-photo')
-        && str_contains($html, 'Compila tutto')
-        // Codice, EAN e costo ci sono, ma chiusi.
-        && str_contains($html, 'wi-new-version-extra d-none')
-        && str_contains($html, 'wi-new-version-sku')
-        && str_contains($html, 'wi-new-version-ean')
-        && str_contains($html, 'wi-new-version-cost');
+    return str_contains($html, 'wi-options-grid')
+        && str_contains($html, "data-wi-repeater=\"products\"")
+        && str_contains($html, 'window.wiRepeaterAddRow(righe.id, templateId, k)');
 });
 
-check('la foto della griglia accetta anche un video', function () use ($schedaAperta) {
-    return str_contains($schedaAperta::vediGriglia(), 'video/mp4');
+check('la griglia si spegne quando non c\'è niente da vedere, e si raggruppa quando c\'è un colore', function () use ($schedaAperta) {
+    $html = $schedaAperta::vediGriglia();
+
+    return str_contains($html, 'quante <= 1 && spuntate === 0')
+        && str_contains($html, "wiRepeaterGroupApply(righe.id, templateId, conColore ? 'variant' : '')");
+});
+
+check('la griglia chiede codice, prezzo, giacenza e foto, e il nome non si scrive', function () use ($schedaAperta) {
+    $colonne = [];
+
+    foreach ($schedaAperta::formSchema() as $campo) {
+        if ((string) $campo->name !== 'products') {
+            continue;
+        }
+
+        foreach ($campo->get('context')['columns'] ?? [] as $colonna) {
+            $colonne[(string) $colonna->name] = $colonna;
+        }
+    }
+
+    return isset($colonne['sku'], $colonne['ean'], $colonne['price'], $colonne['stock'], $colonne['photo'])
+        // Il nome lo scrive il sistema: nella griglia non c'è nemmeno la
+        // casella, o una di sola lettura lo accorcerebbe salvando.
+        && !isset($colonne['name'])
+        && str_contains((string) $colonne['option']->get('attribute'), 'readonly')
+        && $colonne['photo']->get('helper') === 'inputFileDragDrop';
 });
 
 summary();

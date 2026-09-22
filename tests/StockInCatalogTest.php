@@ -90,21 +90,22 @@ check('la griglia delle versioni dice anche quante ne hai', function () use ($co
     return false;
 });
 
-check('la giacenza nella griglia non si scrive lì', function () use ($colonneVersioni) {
+check('la giacenza nella griglia si scrive lì', function () use ($colonneVersioni) {
     foreach ($colonneVersioni() as $colonna) {
         if ((string) ($colonna->name ?? '') === 'stock') {
-            // Si cambia dalla rettifica, che chiede la causale.
-            // `readonly()` del core finisce dentro `attribute`.
-            return str_contains((string) $colonna->get('attribute'), 'readonly');
+            // Si scrive quanti pezzi ci sono, e il pannello registra il
+            // movimento della differenza: niente più pagina a parte.
+            return !str_contains((string) $colonna->get('attribute'), 'readonly');
         }
     }
 
     return false;
 });
 
-check('le colonne visibili della griglia stanno in dodici', function () use ($colonneVersioni) {
-    // Tredici manderebbero l'ultima colonna a capo. La colonna nascosta
-    // dell'id non occupa spazio.
+check('le colonne visibili della griglia stanno in undici', function () use ($colonneVersioni) {
+    // La dodicesima è la colonna dei bottoni, che il repeater aggiunge da sé:
+    // quello che sfora va a capo, ed è il disallineamento che si vedeva.
+    // La colonna nascosta dell'id non occupa spazio.
     $totale = 0;
 
     foreach ($colonneVersioni() as $colonna) {
@@ -116,7 +117,7 @@ check('le colonne visibili della griglia stanno in dodici', function () use ($co
         $totale += (int) (((array) ($colonna->columnSpan ?? []))['default'] ?? 0);
     }
 
-    return $totale === 12;
+    return $totale === 11;
 });
 
 check('l\'articolo a versione unica ha la sua casella di giacenza', function () use ($campiDi, $schedaSemplice) {

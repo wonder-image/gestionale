@@ -193,9 +193,10 @@ try {
                 // Il riquadro in alto dice 9,90: non deve toccare la riga che
                 // si è appena prezzata da sé.
                 'product_price' => '9,90',
-                'new_versions' => [
+                'products' => [
                     $chiave => [
-                        'name' => 'Maglia leggera blu S',
+                        // Il nome lo scrive il sistema: quello che si scrive
+                        // qui non arriva nemmeno, perché la casella non c'è.
                         'sku' => 'MIO-1',
                         'ean' => '4006381333931',
                         'price' => '31,50',
@@ -209,7 +210,8 @@ try {
             $riga = $prodotti[0] ?? [];
 
             return count($prodotti) === 1
-                && (string) ($riga['name'] ?? '') === 'Maglia leggera blu S'
+                // Il nome viene dagli attributi, sempre: "Blu / S".
+                && (string) ($riga['name'] ?? '') === 'Blu / S'
                 && (string) ($riga['sku'] ?? '') === 'MIO-1'
                 && (string) ($riga['ean'] ?? '') === '4006381333931'
                 && (float) ($riga['price'] ?? 0) === 31.5
