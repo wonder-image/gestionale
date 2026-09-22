@@ -49,7 +49,9 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\App\LegacyGlobals;
 use Wonder\App\Support\Repeater;
+use Wonder\App\Table;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
@@ -298,8 +300,11 @@ class ProductModelResource extends GestionaleResource
         $opzioni = static::optionBlocks();
 
         if ($opzioni !== []) {
-            array_unshift($opzioni, static::optionsPicker());
-            $opzioni[] = static::newVersionsBlock($modelId);
+            // Riga intera: il selettore e la griglia non sono colonne accanto
+            // ai blocchi delle opzioni, sono quello che viene prima e quello
+            // che viene dopo.
+            array_unshift($opzioni, static::optionsPicker()->columnSpan(12));
+            $opzioni[] = static::newVersionsBlock($modelId)->columnSpan(12);
         }
 
         if (!$unaVersione) {
@@ -775,7 +780,7 @@ class ProductModelResource extends GestionaleResource
             return;
         }
 
-        ProductImage::create([
+        $riga = [
             'product_model_id' => $modelId,
             'product_variant_id' => $variantId > 0 ? $variantId : null,
             'file' => $file,
@@ -784,7 +789,27 @@ class ProductModelResource extends GestionaleResource
             // Le misure per il sito le farà la coda, come per ogni altra foto.
             'status' => 'pending',
             'attempts' => 0,
+        ];
+
+        // `Model::create()` non sa caricare niente: scriverebbe nel database la
+        // busta di `$_FILES` invece del file. Chi sposta il file su disco è la
+        // preparazione del core — la stessa che usano i repeater — e vuole
+        // sapere in quale cartella scrivere, che è quella del Model.
+        $precedente = LegacyGlobals::get('NAME');
+
+        LegacyGlobals::set('NAME', (object) [
+            'table' => ProductImage::$table,
+            'folder' => trim((string) ProductImage::$folder, '/'),
+            'schema' => ProductImage::$table,
         ]);
+
+        try {
+            $pronta = Table::key(ProductImage::$table)->prepare($riga);
+        } finally {
+            LegacyGlobals::set('NAME', $precedente);
+        }
+
+        sqlInsert(ProductImage::$table, $pronta);
     }
 
     /** Riempie il form con ciò che non sta nella tabella del modello. */
