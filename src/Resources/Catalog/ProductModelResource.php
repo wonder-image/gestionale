@@ -15,7 +15,6 @@ use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
-use Wonder\Elements\Components\Link;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
@@ -30,7 +29,6 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
-use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CategoryResource;
@@ -296,7 +294,11 @@ class ProductModelResource extends GestionaleResource
         ];
 
         $opzioni = static::optionBlocks();
-        $opzioni[] = static::newVersionsBlock($modelId);
+
+        if ($opzioni !== []) {
+            array_unshift($opzioni, static::optionsPicker());
+            $opzioni[] = static::newVersionsBlock($modelId);
+        }
 
         if (!$unaVersione) {
             $versioni = [
@@ -733,6 +735,14 @@ class ProductModelResource extends GestionaleResource
         // calcolata si aggiunge sopra. Al salvataggio `Model::prepare()` butta
         // via la chiave, che non è una colonna di `gst_products`.
         if (is_array($values['products'] ?? null)) {
+            $varianti = [];
+
+            foreach (static::variants($modelId) as $variant) {
+                $varianti[(int) $variant['id']] = (string) ($variant['name'] ?? '');
+            }
+
+            $nomeVariante = static fn (int $id): string => $varianti[$id] ?? '';
+
             $levels = Levels::forProducts(array_map(
                 static fn ($row): int => (int) (is_array($row) ? ($row['id'] ?? 0) : 0),
                 $values['products']
@@ -746,6 +756,9 @@ class ProductModelResource extends GestionaleResource
                 $level = $levels[(int) ($row['id'] ?? 0)] ?? null;
                 $values['products'][$index]['stock'] = static::plainNumber(
                     $level === null ? 0.0 : $level['quantity']
+                );
+                $values['products'][$index]['variant'] = $nomeVariante(
+                    (int) ($row['product_variant_id'] ?? 0)
                 );
             }
         }
@@ -966,12 +979,153 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
-     * Un'opzione per blocco: le spunte e, sotto, il collegamento che porta a
-     * modificarla.
+     * Il selettore delle opzioni: prima si sceglie quale, poi compaiono i
+     * valori.
      *
-     * La matita apre la scheda dell'attributo — dove si rinominano i valori,
-     * si riordinano e si scelgono i colori. Non un modal: la creazione rapida
-     * del core sa creare, non modificare.
+     * Prima stavano tutte aperte, una accanto all'altra: chi vende cappelli si
+     * trovava davanti colori, taglie e gusti senza averne chiesto nessuno, e
+     * la pagina diventava lunga il doppio. Ora la pagina ne mostra zero e
+     * chiede quale serve — come fa Shopify.
+     *
+     * Le opzioni che questo articolo usa già partono aperte: nasconderle
+     * direbbe che non ci sono, e invece ci sono.
+     */
+    protected static function optionsPicker(): object
+    {
+        $voci = '';
+
+        foreach (static::optionAttributes() as $attribute) {
+            $voci .= '<option value="'.(int) $attribute['id'].'">'
+                .static::escape((string) ($attribute['name'] ?? '')).'</option>';
+        }
+
+        return RichText::make(<<<HTML
+<div class="wi-option-picker w-100">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <select class="form-select form-select-sm w-auto wi-option-choose" aria-label="Aggiungi un'opzione">
+            <option value="">Aggiungi un'opzione…</option>
+            {$voci}
+        </select>
+        <span class="small text-body-secondary wi-option-hint">Colore, taglia, gusto: scegline una e i suoi valori compaiono qui sotto.</span>
+        <span class="small text-body-secondary wi-option-none d-none">Le opzioni sono tutte qui sotto.</span>
+    </div>
+</div>
+<script>
+    window.wiOptionPicker = window.wiOptionPicker || (function () {
+        // Gli attributi stanno sul nodo interno del contenitore: il blocco da
+        // mostrare o nascondere — quello con la sua larghezza — è il genitore.
+        function blocco(nodo) {
+            return nodo.parentElement || nodo;
+        }
+
+        function caselle(nodo) {
+            return Array.prototype.slice.call(nodo.querySelectorAll('input[type="checkbox"]'));
+        }
+
+        function inUso(nodo) {
+            return caselle(nodo).some(function (casella) { return casella.checked; });
+        }
+
+        function mostra(nodo, acceso) {
+            blocco(nodo).classList.toggle('d-none', !acceso);
+            nodo.setAttribute('data-wi-option-on', acceso ? 'true' : 'false');
+        }
+
+        function nome(nodo) {
+            return (nodo.getAttribute('data-wi-option-name') || 'opzione').toLowerCase();
+        }
+
+        function aggiornaSelettore() {
+            var picker = document.querySelector('.wi-option-picker');
+            if (!picker) return;
+
+            var scelta = picker.querySelector('.wi-option-choose');
+            var restano = false;
+
+            Array.prototype.slice.call(scelta.options).forEach(function (voce) {
+                if (voce.value === '') return;
+
+                var nodo = document.querySelector('[data-wi-option="' + voce.value + '"]');
+                var acceso = !!nodo && nodo.getAttribute('data-wi-option-on') === 'true';
+
+                voce.hidden = acceso;
+                voce.disabled = acceso;
+
+                if (!acceso) restano = true;
+            });
+
+            scelta.value = '';
+            scelta.classList.toggle('d-none', !restano);
+            picker.querySelector('.wi-option-hint').classList.toggle('d-none', !restano);
+            picker.querySelector('.wi-option-none').classList.toggle('d-none', restano);
+        }
+
+        // «Togli» solo sulle opzioni che l'articolo non sta usando: nascondere
+        // un colore che ha già le sue versioni direbbe una bugia.
+        function bottoneTogli(nodo) {
+            if (nodo.querySelector('.wi-option-remove')) return;
+
+            var riga = document.createElement('div');
+            riga.className = 'col-12';
+
+            var bottone = document.createElement('button');
+            bottone.type = 'button';
+            bottone.className = 'btn btn-sm btn-link text-body-secondary p-0 wi-option-remove';
+            bottone.textContent = 'Togli ' + nome(nodo);
+            bottone.addEventListener('click', function () {
+                caselle(nodo).forEach(function (casella) { casella.checked = false; });
+                mostra(nodo, false);
+                aggiornaSelettore();
+                if (typeof window.wiNewVersions === 'function') window.wiNewVersions();
+            });
+
+            riga.appendChild(bottone);
+            nodo.appendChild(riga);
+        }
+
+        function avvia() {
+            var picker = document.querySelector('.wi-option-picker');
+            if (!picker || picker.getAttribute('data-wi-ready') === 'true') return;
+            picker.setAttribute('data-wi-ready', 'true');
+
+            document.querySelectorAll('[data-wi-option]').forEach(function (nodo) {
+                var acceso = inUso(nodo);
+                mostra(nodo, acceso);
+
+                if (!acceso) bottoneTogli(nodo);
+            });
+
+            picker.querySelector('.wi-option-choose').addEventListener('change', function () {
+                var nodo = this.value === ''
+                    ? null
+                    : document.querySelector('[data-wi-option="' + this.value + '"]');
+
+                if (nodo) mostra(nodo, true);
+
+                aggiornaSelettore();
+            });
+
+            aggiornaSelettore();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', avvia);
+        } else {
+            avvia();
+        }
+
+        return avvia;
+    })();
+</script>
+HTML);
+    }
+
+    /**
+     * Un'opzione per blocco: solo le spunte.
+     *
+     * `data-wi-option` è la maniglia del selettore qui sotto, che mostra un
+     * blocco solo quando l'opzione viene scelta. Gli attributi finiscono sul
+     * nodo interno del contenitore: il blocco da nascondere è il suo genitore.
      *
      * @return list<object>
      */
@@ -981,16 +1135,14 @@ class ProductModelResource extends GestionaleResource
 
         foreach (static::optionAttributes() as $attribute) {
             $id = (int) $attribute['id'];
-            $nome = (string) ($attribute['name'] ?? '');
 
             $blocks[] = (new Container)->components([
                 static::getInput('option_'.$id)->columnSpan(12),
-                // `Link` non ha `columnSpan()`: nel layout dei form finisce
-                // senza wrapper e prende la riga, che qui è quello che serve.
-                Link::to(AttributeResource::editUrlFor($id), 'Modifica '.mb_strtolower($nome))
-                    ->icon('bi-pencil')
-                    ->muted(),
-            ])->columns(12)->columnSpan(6);
+            ])
+                ->attr('data-wi-option', (string) $id)
+                ->attr('data-wi-option-name', (string) ($attribute['name'] ?? ''))
+                ->columns(12)
+                ->columnSpan(6);
         }
 
         return $blocks;
@@ -1491,6 +1643,11 @@ HTML);
         return FormField::key('products')
             ->repeater([
                 RepeaterColumn::key('id')->hidden(),
+                // Non si vede e non si salva: è il colore (o il gusto) della
+                // riga, e serve al bottone «Raggruppa per». In chiaro lo
+                // scrive la testata del gruppo, dove si legge una volta sola
+                // invece che su ogni riga.
+                RepeaterColumn::key('variant')->hidden()->label(static::pageOptionName()),
                 // Per prima: è l'unica colonna che dice di quale riga si tratti.
                 RepeaterColumn::key('name')->text()->label('Versione')->columnSpan(3),
                 RepeaterColumn::key('sku')->text()->label('SKU')->columnSpan(2),
@@ -1519,6 +1676,12 @@ HTML);
             ->repeaterDeleteCancelLabel('Annulla')
             ->repeaterDeleteConfirmLabel('Elimina')
             ->repeaterDeleteConfirmClass('btn btn-danger')
+            // Dodici versioni sono dodici righe uguali: raggruppate per colore
+            // diventano tre gruppi da quattro, e il prezzo di un colore si
+            // scrive una volta sola sulla testata.
+            ->repeaterGroupBy('variant', 'active')
+            ->repeaterGroupCommand('price', 'Prezzo del gruppo')
+            ->repeaterGroupCountLabel('versione', 'versioni')
             ->label('Quello che si vende');
     }
 

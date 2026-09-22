@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Elements\Components\Link;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
@@ -267,7 +268,24 @@ check('dopo il salvataggio si atterra sulla scheda', function () {
 
 check('la creazione mostra la scheda intera, due colonne comprese', function () {
     // `currentId()` è nullo fuori da una richiesta: è la creazione.
-    $form = ProductModelResource::formLayoutSchema();
+    $scheda = new class extends ProductModelResource {
+    /**
+     * Un'opzione finta: senza database non ce ne sarebbe nessuna, e la scheda
+     * non mostrerebbe né il selettore né il blocco delle versioni.
+     */
+    public static function optionAttributes(): array
+    {
+        return [['id' => 7, 'name' => 'Colore', 'level' => 'variant', 'type' => 'select']];
+    }
+
+    public static function valuesOf(int $attributeId): array
+    {
+        return $attributeId === 7 ? ['11' => 'Blu', '12' => 'Rosso'] : [];
+    }
+
+    };
+
+    $form = $scheda::formLayoutSchema();
     $colonne = $form->components ?? [];
 
     $titoli = static function ($contenitore): array {
@@ -348,6 +366,31 @@ $schedaAperta = new class extends ProductModelResource {
     protected static function currentId(): ?int
     {
         return 1;
+    }
+
+    /**
+     * Un'opzione finta: senza database non ce ne sarebbe nessuna, e la scheda
+     * non mostrerebbe né il selettore né il blocco delle versioni.
+     */
+    public static function optionAttributes(): array
+    {
+        return [['id' => 7, 'name' => 'Colore', 'level' => 'variant', 'type' => 'select']];
+    }
+
+    public static function valuesOf(int $attributeId): array
+    {
+        return $attributeId === 7 ? ['11' => 'Blu', '12' => 'Rosso'] : [];
+    }
+
+    /** @return list<object> */
+    public static function vediBlocchi(): array
+    {
+        return static::optionBlocks();
+    }
+
+    public static function vediSelettore(): string
+    {
+        return (string) static::optionsPicker()->getText();
     }
 
     public static function productCount(int $modelId): int
@@ -442,6 +485,77 @@ check('ogni area di foto guarda solo la sua fetta', function () use ($schedaAper
     }
 
     return false;
+});
+
+check('le versioni si raggruppano, e il gruppo ha il suo prezzo', function () {
+    // La griglia esiste solo con più di una versione: qui se ne fingono due.
+    $scheda = new class extends ProductModelResource {
+        protected static function currentId(): ?int
+        {
+            return 1;
+        }
+
+        public static function optionAttributes(): array
+        {
+            return [];
+        }
+
+        public static function productCount(int $modelId): int
+        {
+            return 2;
+        }
+
+        public static function variantCount(int $modelId): int
+        {
+            return 1;
+        }
+    };
+
+    foreach ($scheda::formSchema() as $campo) {
+        if ((string) $campo->name !== 'products') {
+            continue;
+        }
+
+        $contesto = $campo->get('context');
+        $colonne = array_map(
+            static fn ($colonna) => (string) $colonna->name,
+            $contesto['columns'] ?? []
+        );
+
+        return in_array('variant', $colonne, true)
+            && ($contesto['group_by'] ?? []) === ['variant', 'active']
+            && ($contesto['group_command']['column'] ?? '') === 'price';
+    }
+
+    return false;
+});
+
+check('il selettore chiede prima quale opzione, i valori vengono dopo', function () use ($schedaAperta) {
+    $html = $schedaAperta::vediSelettore();
+
+    return str_contains($html, 'wi-option-picker')
+        && str_contains($html, "Aggiungi un'opzione")
+        && str_contains($html, '>Colore</option>');
+});
+
+check('ogni blocco di opzione porta la maniglia che lo accende', function () use ($schedaAperta) {
+    $blocchi = $schedaAperta::vediBlocchi();
+
+    return count($blocchi) === 1
+        && $blocchi[0]->getAttr('data-wi-option') === '7'
+        && $blocchi[0]->getAttr('data-wi-option-name') === 'Colore';
+});
+
+check('la matita che apriva l\'anagrafica non c\'è più', function () use ($schedaAperta) {
+    $dentro = $schedaAperta::vediBlocchi()[0]->components ?? [];
+
+    foreach ($dentro as $pezzo) {
+        if ($pezzo instanceof Link) {
+            return false;
+        }
+    }
+
+    return $dentro !== [];
 });
 
 summary();
