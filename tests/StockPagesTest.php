@@ -49,7 +49,7 @@ check('le causali sono quelle vere, con l\'inventario già scelto', function () 
     return false;
 });
 
-check('il link porta la versione e la strada del ritorno', function () {
+check('il link porta l\'opzione e la strada del ritorno', function () {
     $url = StockAdjustmentResource::urlFor(7, '/backend/app/gestionale/giacenze/?p=2');
 
     return str_contains($url, 'versione=7')
@@ -116,7 +116,7 @@ check('una pagina fuori scala torna alla prima', fn () =>
     && StockLevelResource::pageNumber('3') === 3
 );
 
-check('la rettifica porta con sé la versione e il ritorno', function () {
+check('la rettifica porta con sé l\'opzione e il ritorno', function () {
     $_GET['versione'] = '9';
     $_GET['torna'] = '/backend/app/gestionale/giacenze/?p=2';
     $_SERVER['HTTP_HOST'] = 'ecommerce.test';
@@ -130,8 +130,8 @@ check('la rettifica porta con sé la versione e il ritorno', function () {
     unset($_GET['versione'], $_GET['torna']);
 
     // La rotta del salvataggio non ha query string: senza questi due campi
-    // nascosti, al salvataggio non si saprebbe più di quale versione si
-    // stava parlando.
+    // nascosti, al salvataggio non si saprebbe più di quale opzione si
+    // stava parlando. `versione=` resta come chiave di query.
     return ($campi['product_id'] ?? null)?->get('value') === '9'
         && ($campi['back'] ?? null)?->get('value') === '/backend/app/gestionale/giacenze/?p=2';
 });

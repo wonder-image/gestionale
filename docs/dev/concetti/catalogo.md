@@ -17,18 +17,29 @@ variante esiste lo stesso, ma il pannello non la nomina finché resta una sola.
 È la regola "semplice per chi è piccolo, completo per chi cresce".
 
 **Nel pannello queste tre parole non compaiono.** Le tabelle restano tre, ma chi
-compila legge una parola sola — *prodotto* — e le righe da vendere si chiamano
-*versioni*. La pagina dei modelli è `app/gestionale/prodotti`; quella della
-singola riga è `app/gestionale/versioni`, fuori dal menu e raggiunta da un
-pulsante nella scheda. Quando rinomini quella pagina ricordati di
-`ProductImages::DIR`: il repeater scrive i file nella cartella del Model e li
-rilegge in quella della Resource, e se le due non coincidono le anteprime
-spariscono.
+compila legge una parola sola — *prodotto* — e ne incontra due nuove:
+
+| Parola del pannello | Cos'è davvero |
+|---|---|
+| **attributo** | una riga di `gst_attributes` che crea righe da vendere: Colore, Taglia, Gusto. Al massimo **tre** per articolo, e uno solo di livello `variant` |
+| **opzione in vendita** | una riga di `gst_products`: SKU, prezzo, giacenza, foto |
+
+*Versione* non si legge più da nessuna parte del pannello, e *variante* nemmeno:
+il colore si chiama con il nome del suo attributo (`pageOptionName()`).
+
+La pagina dei modelli è `app/gestionale/prodotti`; quella della singola riga è
+`app/gestionale/versioni`, fuori dal menu e raggiunta da un pulsante nella
+scheda. Quando rinomini quella pagina ricordati di `ProductImages::DIR`: il
+repeater scrive i file nella cartella del Model e li rilegge in quella della
+Resource, e se le due non coincidono le anteprime spariscono.
 
 Il nome di una riga da vendere sta nella colonna `name` di `gst_products`
-("Blu / M"): lo scrive il generatore e lo può correggere chi vende. È una
-fotografia, non un calcolo — rinominare un valore non riscrive i nomi già
-generati.
+("Blu / M"), **e non lo scrive chi compila**: nasce dai collegamenti agli
+attributi e `realignNames()` lo riscrive a ogni salvataggio, insieme al nome
+della variante, che prende l'etichetta del suo valore. Rinominare "Blu" in
+anagrafica rinomina il colore e i prodotti ovunque: è l'unico modo perché
+quello che si legge nella griglia e quello che legge il cliente siano la stessa
+cosa.
 
 ## Il catalogo non si sincronizza
 
@@ -76,14 +87,21 @@ Due tabelle, nessuna sincronizzazione come il resto del catalogo:
 | `gst_attributes` | `code` (`att_`), `slug`, `name`, `type`, `level`, `unit`, `group_name`, `is_filterable`, `is_visible`, `position` |
 | `gst_attribute_values` | `attribute_id`, `label`, `color`, `image`, `position` |
 
-**Il livello decide tutto.** Un attributo dichiara dove vive, e il piano 3 userà
-quel livello per scegliere la tabella di collegamento:
+**Il livello decide tutto.** Un attributo dichiara dove vive, e da quel livello
+`ProductAttributes` sceglie la tabella di collegamento:
 
 | `level` | A cosa serve | Esempio |
 |---|---|---|
-| `model` | descrive l'articolo | Materiale: cotone |
-| `variant` | distingue le varianti | Colore: blu |
-| `product` | distingue i prodotti dentro una variante | Taglia: M |
+| `model` | descrive l'articolo: finisce nella *Scheda tecnica* | Materiale: cotone |
+| `variant` | è il colore, quello con pagina e foto proprie | Colore: blu |
+| `product` | distingue le opzioni dentro un colore | Taglia: M |
+
+`Attributes::createsVersions()` tiene insieme gli ultimi due: sono quelli che la
+scheda offre da spuntare, e solo se il tipo pesca da `gst_attribute_values` e
+qualche valore c'è (`optionAttributes()`). **Uno solo di livello `variant` per
+articolo** — due sarebbero due pagine diverse per la stessa riga, e il rifiuto è
+`product.one_page_option` — e **tre attributi in tutto**, un muro del selettore,
+non del salvataggio.
 
 **Il tipo decide dove finisce il valore.** `select` e `color` pescano da
 `gst_attribute_values`; `text` e `number` scrivono direttamente sul
@@ -145,17 +163,52 @@ Tre livelli, cinque tabelle:
 | `gst_products` | quello che si vende e sta a magazzino |
 
 **La variante c'è sempre** (G2a.2). `Support\Catalog\Skeleton::forModel()` la
-crea insieme al primo prodotto quando nasce un modello, e la scheda si adatta:
+crea insieme al primo prodotto quando nasce un modello.
+
+### Una griglia sola
+
+Il repeater delle varianti **non esiste più**: la scheda ha una griglia sola,
+`products`, dichiarata da `productsField()` e messa da `optionsCard()` a piena
+larghezza **sotto** le due colonne — sette caselle per riga dentro due terzi di
+schermo vanno a capo, ed era il disallineamento che si vedeva.
 
 | Quando | Cosa si vede |
 |---|---|
-| una variante sola | il riquadro "Varianti" non c'è |
-| un prodotto solo | SKU, EAN e prezzo stanno nel riquadro "Prodotto" |
-| più di uno | i due repeater |
+| sempre, se il negozio ha un attributo con dei valori | il riquadro "Opzioni in vendita": selettore, spunte e griglia — identico in `create` e in `edit` |
+| un prodotto solo | l'EAN passa nei riquadri in alto, e con il modello già salvato ci compare anche la giacenza, `readonly()`, con il link alla rettifica. Prezzo e prezzo scontato stanno lì sempre |
+| nessun attributo con valori | `optionsCard()` torna `[]` e il riquadro non c'è |
 
-Quei riquadri non sono estetica: **un campo che non viene stampato non viene
-postato**, e `syncRepeaterRelations()` del core cancella le righe che non
-ritrova. Per questo `formSchema()` dichiara i repeater solo quando servono.
+Colonne della griglia: `option` (finta, `readonly`), `sku`, `ean`, `price`,
+`stock`, `photo`, `active`, più `id` e `variant` nascoste. Stanno **dentro
+undici**: la dodicesima è la colonna dei bottoni, e quello che sfora va a capo.
+
+- `option` non è la colonna `name`: una casella di sola lettura viene postata lo
+  stesso, e avrebbe scritto "S" al posto di "Blu / S". La riempie
+  `optionLabels()` con quello che resta del nome tolto il colore.
+- `variant` è **calcolata e nascosta**, non `product_variant_id`: una select
+  scrivibile sposterebbe un prodotto da un colore all'altro senza spostarne i
+  collegamenti agli attributi. In chiaro il colore lo dice la testata del
+  gruppo.
+- Niente `repeaterAddButton`: le righe nascono dalle spunte, e un bottone
+  "Aggiungi" darebbe una riga senza nessuna combinazione dietro. Niente
+  riordino: l'ordine lo decide il generatore.
+
+**Il raggruppamento non si sceglie.** `repeaterGroupFixed('variant')` più
+`repeaterGroupCommand('price', 'Prezzo del gruppo')`: nessuna tendina "Raggruppa
+per". `groupsByVariant()` lo accende quando il negozio ha un attributo `variant`
+(in creazione) o quando qualche riga porta davvero un colore (in modifica): un
+articolo venduto solo per taglia resta piatto.
+
+**Le righe senza id non arrivano al sync del core.** Le tiene fuori
+`prepareRepeaterRows()`, perché il colore a cui appartengono lo crea
+`Generator::run()` in `afterStore`/`afterUpdate`, e `syncRepeaterRelations()`
+gira prima: arriverebbero al database con una variante che non c'è. Per lo
+stesso motivo serve `repeaterStartEmpty()` del core — il repeater stampa una
+riga vuota di cortesia quando non ne ha, e quella riga, con la sua select di
+stato che posta sempre un valore, sarebbe diventata un prodotto senza colore.
+
+Vale sempre la regola di fondo: **un campo che non viene stampato non viene
+postato**, e `syncRepeaterRelations()` cancella le righe che non ritrova.
 
 ### Codici degli articoli
 
@@ -190,6 +243,23 @@ asse**. Rifarlo non duplica niente: la chiave di una combinazione
 modello che ha ancora solo lo scheletro lo riusa per la prima combinazione,
 invece di lasciare in giro una variante vuota.
 
+**Prima l'attributo, poi i valori.** I blocchi stavano tutti aperti: chi vende
+cappelli si trovava davanti colori, taglie e gusti senza averne chiesto nessuno.
+`optionsPicker()` ne mostra zero e chiede quale serve; `optionBlocks()` marca
+ogni blocco con `data-wi-option`, e il JS lo mostra quando lo si sceglie. Il
+muro dei **tre attributi** è nel selettore, non nel salvataggio: un articolo che
+ne ha di più resta salvabile, o non gli si potrebbe più correggere nemmeno il
+prezzo.
+
+**La griglia si costruisce nel browser.** `optionsGridScript()` rifà in JS il
+prodotto cartesiano delle spunte e aggiunge le righe che mancano con
+`wiRepeaterAddRow()` del core, usando **la stessa chiave** del server
+(`Combinations::key()`), e salta quelle già esistenti
+(`Generator::existingClientKeys()`). Il browser propone, il server dispone:
+`Generator::run()` ricalcola il piano e accetta solo le combinazioni che
+tornano, prendendo da `newRows()` quello che era stato scritto in quelle righe —
+prezzo, codice, giacenza, foto — invece di inventarlo e farlo correggere dopo.
+
 ### Attributi appesi alle righe
 
 `Support\Catalog\ProductAttributes` scrive e legge i collegamenti dei tre
@@ -198,9 +268,44 @@ Il livello sceglie la tabella; il tipo sceglie la colonna.
 
 ## Immagini, con il resize in differita
 
-`gst_product_images`: `product_model_id`, `product_variant_id` (vuoto = vale per
-tutto l'articolo), `file`, `alt`, `position`, `status`, `attempts`,
-`processed_at`, `error`.
+`gst_product_images`: `product_model_id`, `product_variant_id`, `product_id`,
+`file`, `alt`, `position`, `status`, `attempts`, `processed_at`, `error`.
+
+**Tre livelli, e si legge dal più preciso.** Le due colonne di collegamento sono
+nullable, e quale delle due è piena dice a chi appartiene la foto:
+
+| `product_id` | `product_variant_id` | Di chi è |
+|---|---|---|
+| pieno | (copia quello del prodotto) | di quella singola opzione in vendita |
+| vuoto | pieno | di quel colore |
+| vuoto | vuoto | di tutto l'articolo |
+
+`ProductImages::for()` applica la regola, e **il primo livello che ha qualcosa
+vince intero**: non si mescolano, o una maglietta blu mostrerebbe in mezzo la
+foto di quella rossa. Chi passa due soli argomenti continua a vedere quello di
+prima — le foto del colore, senza quelle delle singole opzioni — ed è la
+risposta giusta per chi sta guardando un colore, non una taglia.
+
+**Niente colonna "Vale per".** Al suo posto un'area di caricamento per posto
+(`imageFields()`, una per `imageTargets()`: l'articolo e, quando le varianti
+sono più di una, ogni colore). Ogni area è un repeater sulla **stessa** tabella
+ristretto alla sua fetta con `condition()`, e quella condizione guida **anche la
+cancellazione**: senza `'product_id' => null` dentro, il primo salvataggio
+porterebbe via le foto delle singole opzioni, che l'area non mostra e quindi non
+riposta. "Vale per tutto l'articolo" è `NULL` e non zero, perché la colonna ha
+una chiave esterna.
+
+**La foto della riga la scrive il modulo, non il repeater.** La colonna `photo`
+della griglia non è una colonna di `gst_products`: `saveOptionImage()` legge il
+file da `Repeater::filesFromRequest('products', $files)` e inserisce la riga a
+mano. `Model::create()` non sa caricare niente — scriverebbe nel database la
+busta di `$_FILES` — quindi si passa da `Table::prepare()` del core con
+`LegacyGlobals::set('NAME', …)` puntato alla cartella del Model, e si rimette a
+posto in un `finally`.
+
+**Foto e video insieme:** il campo è `fileDragDrop('gallery')` e `ProductImage`
+accetta `png, jpg, jpeg, webp, mp4`, 8 MB, un file per riga. `ImageQueue` non
+prova a ridimensionare un video (`isVideo()`): lo segna `ready` e va avanti.
 
 **Il salvataggio non ridimensiona niente** (G2a.8). Un campo immagine, se non
 dice niente, prende da sé le misure responsive del sito: venti foto vogliono
@@ -209,9 +314,10 @@ dire centinaia di file generati mentre qualcuno aspetta. Il campo dichiara
 `pending`.
 
 ```php
-ProductImages::for($immagini, $varianteId);  // puro: le sue, se ne ha; altrimenti quelle del modello
-ProductImages::path($immagine);              // dove sta il file
-ImageQueue::work(20);                        // ['done' => …, 'failed' => …, 'left' => …, 'blocked' => '']
+ProductImages::for($immagini, $varianteId);              // le sue, se ne ha; altrimenti quelle del modello
+ProductImages::for($immagini, $varianteId, $productId);  // e prima ancora quelle di quella riga
+ProductImages::path($immagine);                          // dove sta il file
+ImageQueue::work(20);                                    // ['done' => …, 'failed' => …, 'left' => …, 'blocked' => '']
 ```
 
 Chi fa girare la coda:
@@ -236,24 +342,56 @@ Tre cose imparate facendola:
    durante una richiesta web — la coda si ferma e lo dice (`blocked`), invece di
    bruciare i tentativi delle righe una per una.
 
-## La scheda su due colonne
+## La scheda: due colonne, più la griglia sotto
 
-`formLayoutSchema()` torna due `Container`, `columnSpan(8)` e `columnSpan(4)`.
-Perché funzioni serve `columns(12)` **sul Form**: il renderer calcola la
-larghezza di un figlio sulle colonne del padre, e un Form senza colonne ne ha
-una sola, quindi qualunque span diventa piena larghezza.
+`formLayoutSchema()` torna due `Container` — `columnSpan(8)` e `columnSpan(4)` —
+e sotto, allo stesso livello, la `Card` delle opzioni in vendita a
+`columnSpan(12)`. Perché funzioni serve `columns(12)` **sul Form**: il renderer
+calcola la larghezza di un figlio sulle colonne del padre, e un Form senza
+colonne ne ha una sola, quindi qualunque span diventa piena larghezza.
 
-## Prezzi: uno per tutte le versioni
+**La stessa in `create` e in `edit`.** La creazione era una schermata a sé con
+cinque campi: si compilava, si salvava, si riapriva la scheda e si salvava
+ancora. Ora no, e si può perché il core sincronizza i repeater con l'id appena
+inserito (`syncRepeaterRelations($insertId, …)` subito dopo l'insert): foto,
+righe e collegamenti nascono nello stesso salvataggio. Quello che non può
+esistere prima del primo salvataggio semplicemente non compare — la giacenza
+del riquadro in alto, le aree foto dei singoli colori, il pulsante "Dettagli
+delle opzioni".
+
+## Prezzi: uno per tutte le opzioni
 
 Il prezzo del riquadro in alto vale per ogni riga: `savePrices()` lo scrive su
 tutte. La casella **vuota non tocca niente**, ed è l'unico modo di tenere prezzi
-diversi senza che un salvataggio distratto li riallinei;
-`commonValue()` la riempie solo quando le versioni costano uguale.
+diversi senza che un salvataggio distratto li riallinei.
 
-Con una versione sola la casella mostra il prezzo di quella versione. Con più
-versioni **resta vuota**, e non è una dimenticanza: il riquadro in alto si salva
-**dopo** la griglia, quindi un prezzo rimasto lì dentro riscriverebbe la riga
-appena corretta. Vuota, il salvataggio non tocca i prezzi.
+Con un prodotto solo la casella mostra il prezzo di quello. Con più di uno
+`mutateFormValues()` la lascia **vuota**, e non è una dimenticanza: il riquadro
+in alto si salva **dopo** la griglia, quindi un prezzo rimasto lì dentro
+riscriverebbe la riga appena corretta. Vuota, il salvataggio non tocca i prezzi.
+
+Una riga **nata adesso con il suo prezzo** `savePrices()` la salta: la casella
+in alto è un comando per le altre, non per quella che è stata appena scritta
+dieci centimetri più in basso nella stessa schermata.
+
+## La giacenza si scrive dalla scheda
+
+La colonna `stock` non è una colonna di `gst_products`: il salvataggio la butta
+via, e `saveRowExtras()` la ripesca da quello che è stato postato. Si scrive
+**quanti pezzi ci sono**, non di quanto cambiarli: `Stocktake::quantity()` legge
+il numero all'italiana, `Stocktake::changes()` lo confronta con
+`Levels::forProducts()` e solo le differenze diventano `Stock::apply()` con
+causale `Reasons::DEFAULT` (*Inventario*). Una casella riscritta uguale non
+muove niente.
+
+Per una riga appena nata la quantità è invece un carico: `saveNewVersions()` la
+registra con causale `initial_stock`. Il magazzino ha una porta sola, e resta
+quella.
+
+Il rifiuto di un numero negativo sta in `assertStockWritable()`, chiamato da
+`mutateRequestValues()`: **dopo l'insert non c'è nessuna rete** — il sync e
+`afterUpdate` girano fuori da qualunque `try` — e l'errore diventerebbe una
+pagina di guasto su un articolo già scritto a metà.
 
 I decimali della griglia arrivano interi fino al database dalla **2.2.15** del
 core: prima il suo `prepare()` li arrotondava (21,50 diventava 22,00). Non
@@ -314,9 +452,20 @@ vuoti o scritti male.
 ## Dati di prova
 
 `php forge gestionale:demo` crea un marchio, tre categorie (una annidata), due
-tag, due attributi con i loro valori — "Colore" sulla variante e "Taglia" sul
-prodotto — e **tre articoli**: uno semplice, uno con due colori e tre taglie,
-uno con molti prodotti, ciascuno con la sua foto finta (un rettangolo colorato
-scritto sul disco, che nasce `pending` come una foto vera). Tutte le righe hanno
-il nome che inizia per `Prova `. `--fresh` toglie quelle di prima e le rifà. Le classi stanno in `src/Seeding/`,
-registrate in `Seeding\Demo`.
+tag, due imballaggi, tre attributi con i loro valori — "Colore" sulla variante,
+"Taglia" e "Materiale" sul prodotto — e **quattro articoli**, che sono i quattro
+casi che la griglia deve reggere:
+
+| Articolo | Perché c'è |
+|---|---|
+| Cappello di lana | nessun attributo: una riga sola, prezzo ed EAN nei riquadri in alto |
+| Maglietta girocollo | tutti e tre gli attributi: dodici righe, e una riga si legge "S / Gomma" |
+| Felpa con cappuccio | tre colori per quattro taglie: la griglia raggruppata, senza costruirla a mano |
+| Calzini a costine | nessun colore: la griglia resta piatta, senza testate |
+
+Ognuno ha la sua foto finta (un rettangolo colorato scritto sul disco, che nasce
+`pending` come una foto vera). Sulla maglietta ci sono anche una foto di colore
+e una di singola opzione, così l'eredità a tre livelli si legge tutta in una
+scheda. Tutte le righe hanno il nome che inizia per `Prova `. `--fresh` toglie
+quelle di prima e le rifà. Le classi stanno in `src/Seeding/`, registrate in
+`Seeding\Demo`.

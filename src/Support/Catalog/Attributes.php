@@ -17,13 +17,13 @@ final class Attributes
      *
      * Le chiavi sono quelle di sempre — il database non cambia — ma nessuno
      * deve più indovinare cosa sia un "livello". La scelta si fa una volta per
-     * negozio: dentro un sito la stessa opzione si comporta sempre allo stesso
-     * modo, e la scheda del prodotto non la nomina mai.
+     * negozio: dentro un sito lo stesso attributo si comporta sempre allo
+     * stesso modo, e la scheda del prodotto non lo nomina mai.
      */
     public const LEVELS = [
         'model' => 'Descrive l\'articolo',
-        'variant' => 'Crea versioni con pagina e foto proprie',
-        'product' => 'Crea versioni da scegliere nel carrello',
+        'variant' => 'Crea opzioni con pagina e foto proprie',
+        'product' => 'Crea opzioni da scegliere nel carrello',
     ];
 
     /** Come si scrive il suo valore. */
@@ -55,7 +55,7 @@ final class Attributes
         return $type === 'select' || $type === 'color';
     }
 
-    /** Gli attributi che fanno nascere righe da vendere. */
+    /** Gli attributi che fanno nascere opzioni in vendita. */
     public static function createsVersions(string $level): bool
     {
         return $level === 'variant' || $level === 'product';

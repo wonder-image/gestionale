@@ -11,7 +11,7 @@ use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Positions;
 
 /**
- * I valori di un'opzione, come risorsa a sé.
+ * I valori di un attributo, come risorsa a sé.
  *
  * Non è una pagina da visitare: i valori si riordinano, si correggono e si
  * cancellano dove stanno da sempre, nel repeater dentro la scheda
@@ -40,7 +40,7 @@ final class AttributeValueResource extends GestionaleResource
 
     public static function titleLabel(): string
     {
-        return 'Valori delle opzioni';
+        return 'Valori degli attributi';
     }
 
     public static function formSchema(): array
@@ -76,7 +76,7 @@ final class AttributeValueResource extends GestionaleResource
 
     /**
      * Il valore nuovo va in fondo all'elenco **del suo attributo**, non del
-     * catalogo: le posizioni contano dentro l'opzione che le usa.
+     * catalogo: le posizioni contano dentro l'attributo che le usa.
      */
     public static function mutateRequestValues(
         array $values,

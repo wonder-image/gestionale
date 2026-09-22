@@ -21,15 +21,23 @@ check('solo elenco e colore hanno dei valori', fn () =>
 
 check('i livelli si chiamano come li capisce un negoziante', fn () =>
     Attributes::levels()['model'] === 'Descrive l\'articolo'
-    && Attributes::levels()['variant'] === 'Crea versioni con pagina e foto proprie'
-    && Attributes::levels()['product'] === 'Crea versioni da scegliere nel carrello'
+    && Attributes::levels()['variant'] === 'Crea opzioni con pagina e foto proprie'
+    && Attributes::levels()['product'] === 'Crea opzioni da scegliere nel carrello'
+);
+
+check('la parola "versione" non si legge da nessuna parte', fn () =>
+    array_filter(
+        Attributes::levels(),
+        static fn (string $label): bool => stripos($label, 'versio') !== false
+            || stripos($label, 'variant') !== false
+    ) === []
 );
 
 check('le chiavi salvate non cambiano', fn () =>
     array_keys(Attributes::levels()) === ['model', 'variant', 'product']
 );
 
-check('due livelli su tre creano versioni', fn () =>
+check('due livelli su tre creano opzioni in vendita', fn () =>
     Attributes::createsVersions('variant') === true
     && Attributes::createsVersions('product') === true
     && Attributes::createsVersions('model') === false

@@ -19,14 +19,25 @@ $campi = static function (): array {
     return $campi;
 };
 
-check('la singola versione non sta nel menu', fn () =>
+check('la singola opzione non sta nel menu', fn () =>
     ProductResource::$model === Product::class
+    // L'indirizzo resta quello di sempre: cambiarlo romperebbe i link già
+    // salvati e la rotta dello store API del "+ Aggiungi".
     && ProductResource::path() === 'app/gestionale/versioni'
-    && ProductResource::titleLabel() === 'Versioni in vendita'
+    && ProductResource::titleLabel() === 'Opzioni in vendita'
     // Ci si arriva dalla scheda del prodotto, non dal menu: un elenco piatto
-    // di articoli in vendita avrà senso con le giacenze.
+    // di quello che si vende avrà senso con le giacenze.
     && (ProductResource::navigationSchema()->toArray()['enabled'] ?? true) === false
 );
+
+check('la pagina parla di opzioni, non di versioni', function () {
+    $titoli = (array) (ProductResource::pageSchema()->toArray()['titles'] ?? []);
+
+    return ($titoli['list'] ?? '') === 'Opzioni in vendita'
+        && ($titoli['edit'] ?? '') === 'Modifica opzione'
+        && (ProductResource::textSchema()['plural_label'] ?? '') === 'opzioni'
+        && (ProductResource::labelSchema()['name'] ?? '') === 'Opzione';
+});
 
 check('l\'elenco si filtra sull\'articolo', function () {
     $_GET['prodotto'] = '7';
@@ -62,7 +73,7 @@ check('il magazzino non si vede ancora', function () use ($campi) {
     return true;
 });
 
-check('modello e variante nell\'elenco si leggono, non sono numeri', function () {
+check('prodotto e opzione nell\'elenco si leggono, non sono numeri', function () {
     $colonne = [];
 
     foreach (ProductResource::tableSchema() as $column) {

@@ -27,7 +27,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\Stocktake;
 use Wonder\Sql\Transaction;
 
 /**
- * "Giacenze": quante ne hai di ogni versione in vendita, e la casella per
+ * "Giacenze": quante ne hai di ogni opzione in vendita, e la casella per
  * scriverlo.
  *
  * Non è un elenco CRUD ma una **pagina-form**: è l'unico modo per scrivere
@@ -107,7 +107,7 @@ final class StockLevelResource extends NavigationOnlyResource
 
         if ($rows === []) {
             $components[] = RichText::make(
-                '<p class="mb-0">Nessuna versione in vendita con questi filtri.</p>'
+                '<p class="mb-0">Nessuna opzione in vendita con questi filtri.</p>'
             )->columnSpan(12);
         }
 
@@ -131,7 +131,7 @@ final class StockLevelResource extends NavigationOnlyResource
         return parent::pageSchema()
             ->only([])
             ->titles(['form' => 'Giacenze'])
-            ->subtitles(['form' => 'Quante ne hai di ogni versione in vendita. Scrivi le quantità che hai contato e salva: nascono i movimenti, con la causale scelta qui sopra.'])
+            ->subtitles(['form' => 'Quante ne hai di ogni opzione in vendita. Scrivi le quantità che hai contato e salva: nascono i movimenti, con la causale scelta qui sopra.'])
             ->docs(Gestionale::docsUrl('magazzino/magazzino-giacenze'), 'form');
     }
 
@@ -252,7 +252,7 @@ final class StockLevelResource extends NavigationOnlyResource
     }
 
     /**
-     * Le righe della pagina: le versioni in vendita con la loro giacenza.
+     * Le righe della pagina: le opzioni in vendita con la loro giacenza.
      *
      * @return list<array<string, mixed>>
      */
@@ -277,7 +277,7 @@ final class StockLevelResource extends NavigationOnlyResource
             $rows[] = [
                 'id' => $id,
                 'article' => $names[(int) ($product['product_model_id'] ?? 0)] ?? '—',
-                'version' => trim((string) ($product['name'] ?? '')),
+                'option' => trim((string) ($product['name'] ?? '')),
                 'sku' => (string) ($product['sku'] ?? ''),
                 'threshold' => round((float) ($product['min_stock_quantity'] ?? 0), 3),
                 'quantity' => $level['quantity'],
@@ -313,7 +313,7 @@ final class StockLevelResource extends NavigationOnlyResource
     }
 
     /**
-     * Le versioni in vendita di questa pagina, già filtrate.
+     * Le opzioni in vendita di questa pagina, già filtrate.
      *
      * @return list<array<string, mixed>>
      */
@@ -434,8 +434,8 @@ final class StockLevelResource extends NavigationOnlyResource
     {
         $label = '<b>'.static::escape((string) $row['article']).'</b>';
 
-        if ($row['version'] !== '') {
-            $label .= ' — '.static::escape((string) $row['version']);
+        if ($row['option'] !== '') {
+            $label .= ' — '.static::escape((string) $row['option']);
         }
 
         if ($row['sku'] !== '') {
@@ -479,7 +479,7 @@ final class StockLevelResource extends NavigationOnlyResource
             .' value="'.static::escape($search).'">';
         $html .= '<a class="btn btn-sm btn-secondary" href="'
             .static::escape(static::pageUrl(['sotto' => $sotto ? null : '1', 'p' => null])).'">'
-            .($sotto ? 'Tutte le versioni' : 'Solo sotto scorta').'</a>';
+            .($sotto ? 'Tutte le opzioni' : 'Solo sotto scorta').'</a>';
         $html .= '<a class="btn btn-sm btn-light" href="'.static::escape($base).'">Azzera i filtri</a>';
         $html .= '</div>';
 

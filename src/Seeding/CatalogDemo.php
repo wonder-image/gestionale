@@ -31,9 +31,9 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 
 /**
  * Dati di prova del catalogo: un marchio, un piccolo albero di categorie, due
- * tag, due attributi con i loro valori e **tre articoli** — uno semplice, uno
- * con due colori e tre taglie, uno con molti prodotti — ciascuno con la sua
- * foto.
+ * tag, tre attributi con i loro valori e **quattro articoli** — uno senza
+ * attributi, uno che li usa tutti e tre, uno con molte opzioni in vendita e
+ * uno venduto solo a taglia, senza colore — ciascuno con la sua foto.
  *
  * Servono a provare le pagine su un sito vuoto e, più avanti, a dare un posto
  * ai prodotti finti. Tutte le righe portano il prefisso `Prova` nel nome, così
@@ -51,7 +51,7 @@ final class CatalogDemo
     {
         DemoData::register(
             self::KEY,
-            'Catalogo: tassonomie, attributi e tre articoli',
+            'Catalogo: tassonomie, attributi e quattro articoli',
             static fn (): int => self::create(),
             static fn (): int => self::clear()
         );
@@ -78,8 +78,10 @@ final class CatalogDemo
             $created += self::ensure(Tag::class, self::PREFIX.$tag, ['visible' => 'true']);
         }
 
-        // Il colore cambia l'aspetto della variante, la taglia distingue i
-        // prodotti dentro una variante: i due casi che servono al piano 3.
+        // Il colore ha pagina e foto proprie: è lui a raggruppare la griglia
+        // delle opzioni in vendita. Taglia e materiale si scelgono invece nel
+        // carrello. Insieme sono tre attributi su un articolo solo, il
+        // massimo che la scheda accetta.
         $created += self::attribute('Colore', [
             'slug' => 'prova-colore',
             'type' => 'color',
@@ -103,6 +105,19 @@ final class CatalogDemo
             ['label' => 'M'],
             ['label' => 'L'],
             ['label' => 'XL'],
+        ]);
+
+        // Il terzo attributo: serve a vedere una riga che si legge "S / Gomma"
+        // e a toccare il limite di tre attributi per articolo.
+        $created += self::attribute('Materiale', [
+            'slug' => 'prova-materiale',
+            'type' => 'select',
+            'level' => 'product',
+            'group_name' => 'Materiali',
+            'position' => 3,
+        ], [
+            ['label' => 'Cotone'],
+            ['label' => 'Gomma'],
         ]);
 
         $created += self::packages();
@@ -144,9 +159,9 @@ final class CatalogDemo
     }
 
     /**
-     * I tre articoli di prova: uno semplice, uno con varianti, uno con molti
-     * prodotti. Sono i tre casi che servono a provare magazzino e ordini nei
-     * sotto-progetti dopo.
+     * I quattro articoli di prova, che sono i quattro casi che la griglia
+     * delle opzioni in vendita deve reggere: nessun attributo, tutti e tre,
+     * molte opzioni, e nessun colore.
      *
      * @return int righe create, articoli con tutto quello che ci sta sotto
      */
@@ -155,46 +170,74 @@ final class CatalogDemo
         $created = 0;
         $colore = self::valuesOf(self::PREFIX.'Colore');
         $taglia = self::valuesOf(self::PREFIX.'Taglia');
-        $categoria = self::idOf(Category::class, self::PREFIX.'Magliette');
+        $materiale = self::valuesOf(self::PREFIX.'Materiale');
+        $magliette = self::idOf(Category::class, self::PREFIX.'Magliette');
+        $accessori = self::idOf(Category::class, self::PREFIX.'Accessori');
 
-        // Semplice: nessuna variante, un prodotto solo, con il suo prezzo.
-        $created += self::model('Cappello di lana', 'CAP-1', $categoria, [], [], '24.90');
+        // Senza attributi: una sola opzione in vendita, con il suo prezzo.
+        $created += self::model('Cappello di lana', 'CAP-1', $magliette, [], [], '24.90');
 
-        // Con varianti: due colori e tre taglie fanno sei prodotti.
-        $created += self::model(
+        // Tutti e tre gli attributi: due colori, tre taglie e due materiali
+        // fanno dodici opzioni in vendita. È l'articolo dove una riga della
+        // griglia si legge "S / Gomma", perché il colore lo dice la testata.
+        $maglietta = self::model(
             'Maglietta girocollo',
             'TSH-1',
-            $categoria,
+            $magliette,
             array_slice($colore, 0, 2),
-            array_slice($taglia, 0, 3),
+            [array_slice($taglia, 0, 3), $materiale],
             '19.90'
         );
+        $created += $maglietta;
 
-        // Molti prodotti: tre colori e quattro taglie.
+        // Le foto del colore e della singola opzione stanno su questo
+        // articolo, e solo se è appena nato: rifare i dati di prova non deve
+        // aggiungerne altre due.
+        if ($maglietta > 0) {
+            $created += self::optionImages(self::PREFIX.'Maglietta girocollo');
+        }
+
+        // Molte opzioni in vendita: tre colori e quattro taglie.
         $created += self::model(
             'Felpa con cappuccio',
             'FEL-1',
-            $categoria,
+            $magliette,
             $colore,
-            $taglia,
+            [$taglia],
             '49.90'
+        );
+
+        // Senza colore: si vende solo a taglia. Nessun attributo con pagina
+        // propria fra quelli spuntati, e la griglia resta piatta, senza
+        // testate di gruppo.
+        $created += self::model(
+            'Calzini a costine',
+            'CAL-1',
+            $accessori,
+            [],
+            [$taglia],
+            '9.90'
         );
 
         return $created;
     }
 
     /**
-     * Un articolo di prova, con la sua variante, i suoi prodotti e la sua foto.
+     * Un articolo di prova, con i suoi colori, le sue opzioni in vendita e la
+     * sua foto.
      *
-     * @param list<array{id: int, label: string}> $variantValues
-     * @param list<array{id: int, label: string}> $productValues
+     * @param list<array{id: int, label: string}> $variantValues i valori del
+     *        colore, l'attributo con pagina propria; vuoto quando l'articolo
+     *        non ne usa e la griglia resta piatta
+     * @param list<list<array{id: int, label: string}>> $productAxes gli altri
+     *        attributi spuntati, uno per elenco: si moltiplicano fra loro
      */
     private static function model(
         string $name,
         string $sku,
         int $categoryId,
         array $variantValues,
-        array $productValues,
+        array $productAxes,
         string $price
     ): int {
         $name = self::PREFIX.$name;
@@ -245,16 +288,17 @@ final class CatalogDemo
             $created++;
         }
 
-        if ($variantValues !== [] || $productValues !== []) {
+        if ($variantValues !== [] || $productAxes !== []) {
             $prima = self::countOf(ProductVariant::class, $modelId) + self::countOf(Product::class, $modelId);
 
             ProductModelResource::forgetCatalogCache();
-            // Un asse solo per lato: i dati di prova non devono provare i casi
-            // limite, devono somigliare a un catalogo vero.
+            // Gli assi arrivano già divisi: il colore da una parte, gli altri
+            // attributi dall'altra, uno per elenco. Il generatore li moltiplica
+            // fra loro, e con tre attributi nasce "Blu / S / Gomma".
             Generator::run(
                 $modelId,
                 $variantValues,
-                $productValues === [] ? [] : [$productValues],
+                $productAxes,
                 $sku
             );
 
@@ -262,7 +306,8 @@ final class CatalogDemo
             $created += max(0, $dopo - $prima);
         }
 
-        // Il prezzo va su tutti i prodotti: senza, la scheda sembra a metà.
+        // Il prezzo va su tutte le opzioni in vendita: senza, la scheda sembra
+        // a metà.
         foreach (self::rowsOfModel(Product::class, $modelId) as $product) {
             Product::update(['price' => $price], (int) $product['id']);
         }
@@ -277,7 +322,8 @@ final class CatalogDemo
      * La giacenza iniziale di un articolo di prova.
      *
      * Serve a vedere il magazzino pieno appena installato, e a far comparire
-     * un avviso di scorta: l'ultima versione nasce **sotto** la sua soglia.
+     * un avviso di scorta: l'ultima opzione in vendita nasce **sotto** la sua
+     * soglia.
      */
     private static function seedStock(int $modelId): int
     {
@@ -293,7 +339,7 @@ final class CatalogDemo
             }
 
             if ($index === $last) {
-                // Una versione sotto scorta: è il caso che si vuole provare.
+                // Un'opzione sotto scorta: è il caso che si vuole provare.
                 Product::update(['min_stock_quantity' => '5'], $productId);
             }
 
@@ -304,8 +350,8 @@ final class CatalogDemo
                 'source' => 'import',
             ]);
 
-            // Una riga di giacenza e un movimento, più l'avviso quando la
-            // versione nasce sotto scorta: sono le righe che `--fresh` poi
+            // Una riga di giacenza e un movimento, più l'avviso quando
+            // l'opzione nasce sotto scorta: sono le righe che `--fresh` poi
             // toglierà, e i due conteggi devono tornare.
             $created += 2;
 
@@ -336,8 +382,12 @@ final class CatalogDemo
      *
      * Niente file esterni da portarsi dietro, e nasce `pending` come una foto
      * vera: così si può provare anche la coda delle misure.
+     *
+     * Senza altro la foto vale per tutto l'articolo; con il colore vale per
+     * quel colore; con anche l'opzione in vendita vale per quella riga sola.
+     * Sono i tre livelli che legge `ProductImages::for()`.
      */
-    private static function image(int $modelId, string $name): int
+    private static function image(int $modelId, string $alt, int $variantId = 0, int $productId = 0): int
     {
         if (!function_exists('imagecreatetruecolor')) {
             return 0;
@@ -349,23 +399,83 @@ final class CatalogDemo
             return 0;
         }
 
-        $file = 'prova-'.Sku::part($name).'-'.uniqid().'.jpg';
+        $file = 'prova-'.Sku::part($alt).'-'.uniqid().'.jpg';
         $image = imagecreatetruecolor(1200, 900);
         $colors = [[31, 78, 216], [193, 18, 31], [26, 127, 75]];
-        $color = $colors[strlen($name) % count($colors)];
+        $color = $colors[strlen($alt) % count($colors)];
         imagefill($image, 0, 0, imagecolorallocate($image, ...$color));
         imagejpeg($image, $dir.$file, 82);
 
-        $result = ProductImage::create([
+        $riga = [
             'product_model_id' => $modelId,
             'file' => json_encode([$file]),
-            'alt' => $name,
-            'position' => 1,
+            'alt' => $alt,
+            // Le foto di un articolo stanno in fila: quella dell'articolo,
+            // poi quella del colore, poi quella dell'opzione.
+            'position' => self::countOf(ProductImage::class, $modelId) + 1,
             'status' => 'pending',
             'attempts' => 0,
-        ]);
+        ];
+
+        // Le due colonne si scrivono solo quando servono: una foto che vale
+        // per tutto l'articolo non deve nemmeno nominarle.
+        if ($variantId > 0) {
+            $riga['product_variant_id'] = $variantId;
+        }
+
+        if ($productId > 0) {
+            $riga['product_id'] = $productId;
+        }
+
+        $result = ProductImage::create($riga);
 
         return !empty($result->success) ? 1 : 0;
+    }
+
+    /**
+     * Le due foto che fanno vedere l'eredità a tre livelli.
+     *
+     * L'articolo ha già la sua; qui si aggiunge quella di un colore e quella
+     * di una singola opzione in vendita dentro quel colore. Nella stessa
+     * scheda si legge allora tutta la regola: quella riga mostra la propria
+     * foto, le altre righe dello stesso colore mostrano la foto del colore, le
+     * righe degli altri colori mostrano la foto dell'articolo.
+     *
+     * @return int righe create
+     */
+    private static function optionImages(string $name): int
+    {
+        $modelId = self::idOf(ProductModel::class, $name);
+
+        if ($modelId <= 0) {
+            return 0;
+        }
+
+        $variant = self::rowsOfModel(ProductVariant::class, $modelId)[0] ?? [];
+        $variantId = (int) ($variant['id'] ?? 0);
+
+        if ($variantId <= 0) {
+            return 0;
+        }
+
+        $created = self::image($modelId, trim((string) ($variant['name'] ?? '')) ?: $name, $variantId);
+
+        foreach (self::rowsOfModel(Product::class, $modelId) as $product) {
+            if ((int) ($product['product_variant_id'] ?? 0) !== $variantId) {
+                continue;
+            }
+
+            // Basta la prima opzione di quel colore: le altre devono restare
+            // senza foto propria, o il livello di mezzo non si vedrebbe.
+            return $created + self::image(
+                $modelId,
+                trim((string) ($product['name'] ?? '')) ?: $name,
+                $variantId,
+                (int) ($product['id'] ?? 0)
+            );
+        }
+
+        return $created;
     }
 
     /** I valori di un attributo di prova. @return list<array{id: int, label: string}> */

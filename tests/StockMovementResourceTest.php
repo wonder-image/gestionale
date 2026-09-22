@@ -89,7 +89,7 @@ check('il filtro per tipo offre i tipi veri', fn () =>
     $filtri('type') === StockMovement::TYPES
 );
 
-check('l\'elenco si filtra su una versione dall\'indirizzo', function () {
+check('l\'elenco si filtra su un\'opzione dall\'indirizzo', function () {
     $_GET['versione'] = '42';
     $schema = StockMovementResource::querySchema();
     unset($_GET['versione']);

@@ -24,12 +24,13 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Positions;
 
 /**
- * "Attributi": cosa distingue un articolo, una variante o un prodotto.
+ * "Attributi": Colore, Taglia, Materiale — quello che distingue un articolo
+ * dall'altro e quello che fa nascere le sue opzioni in vendita.
  *
- * Il livello si sceglie qui e dirà, nel piano 3, dove finisce il valore. I
- * valori di un attributo a elenco si scrivono nella scheda, come righe: il
- * riquadro compare solo quando il tipo li usa, perché un attributo "Testo" non
- * ha niente da elencare.
+ * Come si usa si sceglie qui, e dice dove finisce il valore. I valori di un
+ * attributo a elenco si scrivono nella scheda, come righe: il riquadro compare
+ * solo quando il tipo li usa, perché un attributo "Testo" non ha niente da
+ * elencare.
  *
  * Non è `final`: i test la estendono con una classe anonima per provare la
  * regola sul cambio di tipo senza database.
@@ -91,7 +92,7 @@ class AttributeResource extends GestionaleResource
      * L'indirizzo della scheda di un attributo.
      *
      * Lo usa la matita accanto ai gruppi di spunte della scheda prodotto: si
-     * modifica l'opzione da dove la si sta usando.
+     * modifica l'attributo da dove lo si sta usando.
      */
     public static function editUrlFor(int $attributeId): string
     {
@@ -166,7 +167,7 @@ class AttributeResource extends GestionaleResource
         $cards = [
             (new Card)->components([
                 SectionTitle::make('Attributo')
-                    ->tooltip('«Descrive l\'articolo» finisce nella scheda tecnica: Materiale, Composizione. «Crea versioni con pagina e foto proprie» è il Colore, nei negozi dove ogni colore è un articolo a sé. «Crea versioni da scegliere nel carrello» è la Taglia. L\'unità di misura serve ai tipi "Numero".')
+                    ->tooltip('«Descrive l\'articolo» finisce nella scheda tecnica: Materiale, Composizione. «Crea opzioni con pagina e foto proprie» è il Colore, nei negozi dove ogni colore ha la sua pagina e le sue foto. «Crea opzioni da scegliere nel carrello» è la Taglia. L\'unità di misura serve ai tipi "Numero".')
                     ->columnSpan(12),
                 static::getInput('name')->columnSpan(6),
                 static::getInput('group_name')->columnSpan(6),
@@ -185,7 +186,7 @@ class AttributeResource extends GestionaleResource
         if (static::usesValues(static::currentRow() ?? ['type' => static::DEFAULT_TYPE])) {
             $cards[] = (new Card)->components([
                 SectionTitle::make('Valori')
-                    ->tooltip('L\'ordine è quello che vedrà il cliente. Il colore serve al pallino in vetrina, la fantasia quando un colore non basta.')
+                    ->tooltip('L\'ordine è quello che vedrà il cliente. Il colore serve al pallino in vetrina, la fantasia quando un colore non basta. Il nome di un valore è anche quello che si legge nelle opzioni in vendita: si rinomina qui.')
                     ->columnSpan(12),
                 static::getInput('values')->columnSpan(12),
             ])->columns(12)->columnSpan(12);

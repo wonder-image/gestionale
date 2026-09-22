@@ -1163,7 +1163,7 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
-     * Le opzioni che fanno nascere versioni, con i loro valori.
+     * Gli attributi che fanno nascere opzioni in vendita, con i loro valori.
      *
      * @return list<array<string, mixed>>
      */
@@ -1188,7 +1188,7 @@ class ProductModelResource extends GestionaleResource
         return $options;
     }
 
-    /** I valori di un'opzione: etichetta per id. @return array<string, string> */
+    /** I valori di un attributo: etichetta per id. @return array<string, string> */
     public static function valuesOf(int $attributeId): array
     {
         $values = [];
@@ -1244,7 +1244,7 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
-     * Il selettore delle opzioni: prima si sceglie quale, poi compaiono i
+     * Il selettore degli attributi: prima si sceglie quale, poi compaiono i
      * valori.
      *
      * Prima stavano tutte aperte, una accanto all'altra: chi vende cappelli si
@@ -1400,10 +1400,10 @@ HTML);
     }
 
     /**
-     * Un'opzione per blocco: solo le spunte.
+     * Un attributo per blocco: solo le spunte.
      *
      * `data-wi-option` è la maniglia del selettore qui sotto, che mostra un
-     * blocco solo quando l'opzione viene scelta. Gli attributi finiscono sul
+     * blocco solo quando l'attributo viene scelto. Gli attributi finiscono sul
      * nodo interno del contenitore: il blocco da nascondere è il suo genitore.
      *
      * @return list<object>

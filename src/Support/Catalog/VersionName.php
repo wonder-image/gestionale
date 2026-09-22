@@ -5,10 +5,14 @@ namespace Wonder\Plugin\Gestionale\Support\Catalog;
 /**
  * Il nome di una versione in vendita: "Blu / M".
  *
- * Lo scrive il generatore quando crea la riga, e chi vende lo può correggere:
- * è una fotografia, non un calcolo. Rinominare un valore ("Blu" → "Blu notte")
- * non riscrive i nomi già generati, di proposito — quello che il cliente ha
- * letto ieri non deve cambiare da sé.
+ * Non si scrive a mano: lo calcola il pannello dai valori d'attributo, e
+ * `ProductModelResource::realignNames()` lo rimette in riga a ogni
+ * salvataggio. Rinominare un valore ("Blu" → "Blu notte") nell'anagrafica
+ * rinomina quindi anche le opzioni già nate, che è il motivo per cui quel
+ * nome si cambia in un posto solo.
+ *
+ * Un articolo senza nessun attributo non passa di qui: il suo nome è quello
+ * che gli ha dato chi l'ha creato.
  *
  * Classe pura: la usano il generatore, i dati di prova e i test.
  */

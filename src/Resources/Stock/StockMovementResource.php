@@ -21,8 +21,8 @@ use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
  * serve nessun pulsante: un movimento non si modifica e non si cancella, si
  * corregge con un'altra rettifica. Per questo la pagina ha il solo elenco.
  *
- * I filtri per tipo e causale sono quelli del core; il periodo e la versione
- * arrivano dall'indirizzo, perché la scheda della versione linka qui già
+ * I filtri per tipo e causale sono quelli del core; il periodo e l'opzione
+ * arrivano dall'indirizzo, perché la scheda dell'opzione linka qui già
  * filtrata.
  */
 final class StockMovementResource extends GestionaleResource
@@ -66,7 +66,7 @@ final class StockMovementResource extends GestionaleResource
     {
         return [
             'creation' => 'Quando',
-            'product_id' => 'Articolo',
+            'product_id' => 'Opzione',
             'type' => 'Tipo',
             'reason' => 'Causale',
             'quantity' => 'Pezzi',
@@ -156,7 +156,7 @@ final class StockMovementResource extends GestionaleResource
     }
 
     /**
-     * L'elenco filtrato su una versione e su un periodo.
+     * L'elenco filtrato su un'opzione e su un periodo.
      *
      * Il core rivaluta `querySchema()` a ogni richiesta, quindi leggere la
      * query string qui è sicuro. Le date si controllano con una regex prima di
@@ -190,7 +190,7 @@ final class StockMovementResource extends GestionaleResource
         return $schema;
     }
 
-    /** L'indirizzo dell'elenco filtrato su una versione in vendita. */
+    /** L'indirizzo dell'elenco filtrato su un'opzione in vendita. */
     public static function listUrlFor(int $productId): string
     {
         $base = '/backend/'.static::path();

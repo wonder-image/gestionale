@@ -25,15 +25,17 @@ use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Plugin\Gestionale\Support\Stock\Stocktake;
 
 /**
- * "Rettifica": cambiare la giacenza di **una** versione, lasciando scritto il
- * perché.
+ * "Rettifica": cambiare la giacenza di **una sola** opzione in vendita,
+ * lasciando scritto il perché.
  *
  * È la porta del caso singolo — il pezzo rotto, il regalo, l'errore di conta —
- * e l'unica che chiede una nota. L'elenco *Giacenze* serve invece a sistemare
- * molte righe insieme, e lì la causale è una sola per tutta la schermata.
+ * e l'unica che chiede una nota. La griglia della scheda prodotto e l'elenco
+ * *Giacenze* servono invece a sistemare molte righe insieme, e lì la causale è
+ * una sola per tutta la schermata.
  *
  * Non è un elenco CRUD: non c'è niente da elencare, la riga da cambiare arriva
- * dall'indirizzo (`?versione=`). Per questo è una pagina-form.
+ * dall'indirizzo (`?versione=`, una chiave di query rimasta com'era). Per
+ * questo è una pagina-form.
  */
 final class StockAdjustmentResource extends NavigationOnlyResource
 {
@@ -57,7 +59,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
         return true;
     }
 
-    /** Il link che apre la pagina su una versione, con la strada del ritorno. */
+    /** Il link che apre la pagina su un'opzione, con la strada del ritorno. */
     public static function urlFor(int $productId, string $back = ''): string
     {
         $url = static::pageUrl().'?versione='.$productId;
@@ -121,7 +123,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
                 ->required(),
             FormField::key('note')->textarea()->label('Nota'),
             // La rotta del salvataggio non ha query string: senza questi due
-            // campi, al salvataggio non si saprebbe più di quale versione si
+            // campi, al salvataggio non si saprebbe più di quale opzione si
             // stava parlando.
             FormField::key('product_id')->hidden()->value((string) static::productId()),
             FormField::key('back')->hidden()->value(static::backUrlFrom($_GET['torna'] ?? '')),
@@ -159,7 +161,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
 
     public static function navigationSchema(): NavigationSchema
     {
-        // Fuori dal menu: ci si arriva dalla riga di una versione.
+        // Fuori dal menu: ci si arriva dalla riga di un'opzione.
         return NavigationSchema::for(static::class)
             ->inSection('magazzino')
             ->title('Rettifica')
@@ -167,7 +169,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
             ->enabled(false);
     }
 
-    /** La versione su cui si sta lavorando, `0` se l'indirizzo non la dice. */
+    /** L'opzione su cui si sta lavorando, `0` se l'indirizzo non la dice. */
     public static function productId(): int
     {
         return (int) ($_GET['versione'] ?? 0);
@@ -300,7 +302,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
         $productId = static::productId();
 
         if ($productId <= 0) {
-            return '<span class="text-danger">Apri questa pagina dalla riga di una versione.</span>';
+            return '<span class="text-danger">Apri questa pagina dalla riga di un\'opzione in vendita.</span>';
         }
 
         $levels = Levels::of($productId);
@@ -319,13 +321,13 @@ final class StockAdjustmentResource extends NavigationOnlyResource
     {
         $model = ProductModel::findById((int) ($product['product_model_id'] ?? 0));
         $article = is_array($model) ? trim((string) ($model['name'] ?? '')) : '';
-        $version = trim((string) ($product['name'] ?? ''));
+        $option = trim((string) ($product['name'] ?? ''));
 
         if ($article === '') {
             $article = trim((string) ($product['sku'] ?? ''));
         }
 
-        return $version === '' ? $article : $article.' — '.$version;
+        return $option === '' ? $article : $article.' — '.$option;
     }
 
     /** I pezzi interi si scrivono interi: "3", non "3,000". */

@@ -32,18 +32,19 @@ use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
 
 /**
- * "Prodotti": l'elenco piatto di quello che si vende.
+ * "Opzioni in vendita": l'elenco piatto di quello che si vende davvero.
  *
  * Serve a **trovare** — uno SKU, un EAN, un prezzo da correggere — non a
- * creare: un prodotto nasce dentro il suo modello, dove si vede insieme ai
- * fratelli. Per questo la pagina non ha il pulsante "Aggiungi".
+ * creare: un'opzione nasce nella griglia della scheda del prodotto, dove si
+ * vede insieme alle sorelle. Per questo la pagina non ha il pulsante
+ * "Aggiungi".
  *
- * La scheda del singolo prodotto tiene quello che nel modello non entrerebbe:
- * MPN, misure proprie e gli attributi di livello `product`.
+ * La scheda della singola opzione tiene quello che nella griglia non
+ * entrerebbe: MPN, misure proprie e gli attributi di livello `product`.
  *
- * Estende la Resource dei modelli per riusarne le letture del catalogo —
+ * Estende la Resource dei prodotti per riusarne le letture del catalogo —
  * attributi, valori, campi degli attributi — e ne riscrive tutto il resto:
- * qui non nasce nessuno scheletro e non si elimina nessun modello.
+ * qui non nasce nessuno scheletro e non si elimina nessun prodotto.
  *
  * Non è `final`: i test la estendono con una classe anonima.
  */
@@ -66,20 +67,20 @@ class ProductResource extends ProductModelResource
 
     public static function titleLabel(): string
     {
-        return 'Versioni in vendita';
+        return 'Opzioni in vendita';
     }
 
     public static function textSchema(): array
     {
         return [
-            'label' => 'versione',
-            'plural_label' => 'versioni',
-            'last' => 'ultimi',
-            'all' => 'tutti',
-            'article' => 'i',
-            'full' => 'attivo',
-            'empty' => 'fermo',
-            'this' => 'questo',
+            'label' => 'opzione',
+            'plural_label' => 'opzioni',
+            'last' => 'ultime',
+            'all' => 'tutte',
+            'article' => 'le',
+            'full' => 'attiva',
+            'empty' => 'ferma',
+            'this' => 'questa',
         ];
     }
 
@@ -92,7 +93,7 @@ class ProductResource extends ProductModelResource
             'price' => 'Prezzo',
             'sale_price' => 'Prezzo scontato',
             'active' => 'Stato',
-            'name' => 'Versione',
+            'name' => 'Opzione',
             'product_model_id' => 'Prodotto',
         ];
     }
@@ -106,7 +107,7 @@ class ProductResource extends ProductModelResource
             FormField::key('price')->number()->decimal(2)->label('Prezzo'),
             FormField::key('sale_price')->number()->decimal(2)->label('Prezzo scontato'),
             FormField::key('active')
-                ->select(['true' => 'Attivo', 'false' => 'Fermo'])
+                ->select(['true' => 'Attiva', 'false' => 'Ferma'])
                 ->value('true')
                 ->label('Stato')
                 ->required(),
@@ -128,7 +129,7 @@ class ProductResource extends ProductModelResource
         $cards = [
             (new Card)->components([
                 SectionTitle::make(static::currentTitle())
-                    ->tooltip('Questo prodotto nasce dal suo modello: nome, descrizioni e categorie si cambiano di là. Qui c\'è quello che vale per il singolo articolo a magazzino.')
+                    ->tooltip('Questa opzione nasce nella scheda del prodotto: nome, descrizioni e categorie si cambiano di là, e il nome della riga segue gli attributi che la compongono. Qui c\'è quello che vale solo per lei.')
                     ->columnSpan(12),
                 static::getInput('sku')->columnSpan(4),
                 static::getInput('ean')->columnSpan(4),
@@ -148,7 +149,7 @@ class ProductResource extends ProductModelResource
         if ($attributeInputs !== []) {
             $cards[] = (new Card)->components([
                 SectionTitle::make('Attributi')
-                    ->tooltip('Gli attributi di livello "Prodotto": quelli che distinguono questo articolo dagli altri della stessa variante.')
+                    ->tooltip('Gli attributi che cambiano da un\'opzione all\'altra — taglia, misura, gusto — e non quelli che descrivono tutto l\'articolo.')
                     ->columnSpan(12),
                 ...$attributeInputs,
             ])->columns(12)->columnSpan(12);
@@ -156,7 +157,7 @@ class ProductResource extends ProductModelResource
 
         $cards[] = (new Card)->components([
             SectionTitle::make('Misure')
-                ->tooltip('Lasciando vuoto valgono peso e misure del modello.')
+                ->tooltip('Lasciando vuoto valgono peso e misure dell\'articolo.')
                 ->columnSpan(12),
             static::getInput('weight')->columnSpan(3),
             static::getInput('length')->columnSpan(3),
@@ -166,7 +167,7 @@ class ProductResource extends ProductModelResource
 
         $cards[] = (new Card)->components([
             SectionTitle::make(static::stockCardTitle())
-                ->tooltip('La giacenza si cambia solo con una rettifica: così resta scritto il perché.')
+                ->tooltip('Qui la giacenza si legge. Si scrive nella riga della griglia delle opzioni in vendita, oppure con una rettifica quando serve lasciare una causale e una nota.')
                 ->columnSpan(12),
             RichText::make(static::stockSummary())->columnSpan(12),
             RichText::make(static::stockHistoryTable())->columnSpan(12),
@@ -204,14 +205,14 @@ class ProductResource extends ProductModelResource
         return implode(' · ', $parts);
     }
 
-    /** Gli ultimi dieci movimenti di questa versione. */
+    /** Gli ultimi dieci movimenti di questa opzione. */
     protected static function stockHistoryTable(): string
     {
         $productId = static::currentId() ?? 0;
         $rows = $productId > 0 ? StockHistory::latest($productId, 10) : [];
 
         if ($rows === []) {
-            return '<p class="text-muted mb-0">Nessun movimento: la giacenza di questa versione non è mai cambiata.</p>';
+            return '<p class="text-muted mb-0">Nessun movimento: la giacenza di questa opzione non è mai cambiata.</p>';
         }
 
         $html = '<table class="table table-sm mb-2"><thead><tr>'
@@ -258,11 +259,11 @@ class ProductResource extends ProductModelResource
             TableColumn::key('sku')->text()->size('little'),
             TableColumn::key('ean')->text()->size('little'),
             TableColumn::key('price')->text()->size('little'),
-            // "Attivo" e "Fermo": qui non si parla di vetrina ma di magazzino.
+            // "Attiva" e "Ferma": qui non si parla di vetrina ma di magazzino.
             TableColumn::key('active')
                 ->booleanBadge()
-                ->badgeOn('Attivo', 'bi-check-circle', 'success')
-                ->badgeOff('Fermo', 'bi-pause-circle', 'secondary')
+                ->badgeOn('Attiva', 'bi-check-circle', 'success')
+                ->badgeOff('Ferma', 'bi-pause-circle', 'secondary')
                 ->size('little'),
             TableColumn::key('actions')->button()->actions(['edit']),
         ];
@@ -270,12 +271,12 @@ class ProductResource extends ProductModelResource
 
     public static function pageSchema(): PageSchema
     {
-        // Niente creazione: un prodotto nasce dentro il suo modello.
+        // Niente creazione: un'opzione nasce nella scheda del suo prodotto.
         return parent::pageSchema()
             ->only(['list', 'edit', 'update'])
             ->titles([
-                'list' => 'Versioni in vendita',
-                'edit' => 'Modifica versione',
+                'list' => 'Opzioni in vendita',
+                'edit' => 'Modifica opzione',
             ]);
     }
 
@@ -290,16 +291,16 @@ class ProductResource extends ProductModelResource
     }
 
     /**
-     * Fuori dal menu: una versione si apre dalla scheda del suo prodotto.
+     * Fuori dal menu: un'opzione si apre dalla scheda del suo prodotto.
      *
-     * Un elenco piatto di articoli in vendita avrà senso con le giacenze, e
+     * Un elenco piatto di quello che si vende avrà senso con le giacenze, e
      * allora sarà quello del magazzino, con le sue colonne.
      */
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
             ->inSection('catalogo')
-            ->title('Versioni in vendita')
+            ->title('Opzioni in vendita')
             ->order(39)
             ->authority(['admin', 'administrator'])
             ->enabled(false);
@@ -401,7 +402,7 @@ class ProductResource extends ProductModelResource
         ProductAttributes::save('product', (int) $id, $attributes, $input);
     }
 
-    /** Riempie il form con gli attributi del prodotto. */
+    /** Riempie il form con gli attributi dell'opzione. */
     public static function mutateFormValues(
         array $values,
         string $mode,
@@ -423,7 +424,7 @@ class ProductResource extends ProductModelResource
         return $values;
     }
 
-    /** Eliminare un prodotto porta via i suoi attributi. */
+    /** Eliminare un'opzione porta via i suoi attributi. */
     public static function deleteRecord(int|string $id): object
     {
         foreach (ProductAttributes::read('product', (int) $id) as $link) {
@@ -433,7 +434,7 @@ class ProductResource extends ProductModelResource
         return Product::delete($id);
     }
 
-    /** Il titolo della scheda dice di che articolo si tratta. */
+    /** Il titolo della scheda dice di che articolo e di che colore si tratta. */
     public static function currentTitle(): string
     {
         $id = static::currentId();
@@ -486,7 +487,7 @@ class ProductResource extends ProductModelResource
         return $names;
     }
 
-    /** Un prodotto non si crea da qui: non c'è niente da preparare. */
+    /** Un'opzione non si crea da qui: non c'è niente da preparare. */
     public static function afterStore(object $result, array $values = []): void
     {
     }
