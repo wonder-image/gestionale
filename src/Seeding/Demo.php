@@ -13,6 +13,7 @@ final class Demo
     /** @var list<class-string> */
     private const PROVIDERS = [
         CatalogDemo::class,
+        ContactsDemo::class,
     ];
 
     public static function registerAll(): void

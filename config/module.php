@@ -17,6 +17,7 @@ return [
         'home_widgets' => [
             \Wonder\Plugin\Gestionale\Backend\Widgets\SetupWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\AttentionWidget::class,
+            \Wonder\Plugin\Gestionale\Backend\Widgets\ContactsWidget::class,
         ],
     ],
     // Classi del sito che estendono Extensions\GestionaleExtension (piano 4).

@@ -184,7 +184,12 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
       - `backUrlFrom()` accetta anche gli indirizzi assoluti di questo sito, perché è quello che tornano le rotte del core; rifiuta tutto il resto (redirect aperto).
       - Chiavi dello schema da ricordare per i test: le voci di un select stanno in `options`, le colonne di un repeater in `context.columns`, `readonly()` finisce dentro `attribute`, la larghezza in `columnSpan['default']`, la sezione del menu in `section_key`.
       - I campi numerici del backend mostrano il punto come separatore decimale e nessun separatore di migliaia (`20.000` sono venti pezzi): è la configurazione AutoNumeric del sito, uguale per i prezzi.
-    - [ ] Piano 3: anagrafiche (clienti, fornitori, indirizzi, riquadro della home, dati di prova, guide)
+    - [x] Piano 3 scritto ed eseguito (2026-09-22): `docs/superpowers/plans/2026-09-22-anagrafiche.md` — `gst_contacts` e `gst_contact_addresses` con i dati di fatturazione di `AddressExtension::billing()` del core, `Support\Contacts\Contacts` (nome da mostrare, ruoli, duplicati), due elenchi *Clienti* e *Fornitori* sulla **stessa scheda** (`SupplierResource extends CustomerResource`), unicità di partita IVA/codice fiscale/email con il nome di chi li ha già, indirizzi di consegna come repeater, riquadro *Anagrafiche* nella home, quattro schede di prova. Verificato nel browser.
+      - **La partita IVA si valida con il paese:** senza `country` nello stesso salvataggio il campo del core rifiuta tutto ("devi impostare countryField()"). Nel form il paese ha il valore predefinito `IT`, da codice va passato.
+      - **Il campo email del core controlla anche il dominio:** `@qualcosa.example.com` inventato viene rifiutato, `@example.com` no. I dati di prova usano solo quello.
+      - **`decorate()` non può girare nei comandi di `forge`:** compone l'indirizzo con le funzioni globali del sito, che lì non esistono. Ora torna la riga com'è invece di far esplodere `gestionale:demo`.
+      - `Gestionale::features()` non esplode più senza database: fuori dal sito tutto risulta bloccato, che è la risposta che non mostra niente per sbaglio. Serviva perché le pagine che leggono una funzionalità sono le prime a girare nei test degli schemi.
+      - Ordine dei controlli in `mutateRequestValues()`: il ruolo della lista si accende **dopo** aver tolto `is_supplier` bloccato, altrimenti su *Fornitori* si spegneva da solo.
     - [ ] Piano 4: avvisi di scorta minima (campo, avvisi, attività ed email raggruppata, riquadro, guide)
 - [ ] G3 Magazzino avanzato
 - [ ] G4 Ordini e pagamenti

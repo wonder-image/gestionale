@@ -368,13 +368,33 @@ check('la colonna larga tiene quello che si compone', function () use ($riquadri
 });
 
 check('la colonna stretta tiene quello che si decide', function () use ($riquadri) {
-    return $riquadri(1) === ['Pubblicazione', 'Codici', 'Dove si trova', 'Peso e misure'];
+    return $riquadri(1) === ['Pubblicazione', 'Codici', 'Dove si trova', 'Spedizione'];
 });
 
 check('le parole interne non compaiono più nei titoli', function () use ($riquadri) {
     $vecchie = ['Articolo', 'Varianti', 'Genera varianti e prodotti', 'Categorie e tag', 'Attributi', 'Immagini'];
 
     return array_intersect($riquadri(), $vecchie) === [];
+});
+
+check('la scheda chiede l\'imballaggio e dice quanto parte', function () use ($campi) {
+    $chiavi = array_keys($campi());
+
+    return in_array('package_id', $chiavi, true)
+        && in_array('shipping_weight', $chiavi, true);
+});
+
+check('il peso spedito è una frase da leggere, non una colonna', function () {
+    $scheda = new class extends ProductModelResource {
+        public static function senzaExtra(array $values): array
+        {
+            return static::withoutExtras($values);
+        }
+    };
+
+    $ripulito = $scheda::senzaExtra(['name' => 'Maglietta', 'shipping_weight' => '1,4 kg', 'weight' => '1.2']);
+
+    return !isset($ripulito['shipping_weight']) && ($ripulito['weight'] ?? '') === '1.2';
 });
 
 summary();

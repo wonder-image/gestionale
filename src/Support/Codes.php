@@ -31,6 +31,7 @@ final class Codes
     public const CATEGORY = 'cat_';
     public const TAG = 'tag_';
     public const ATTRIBUTE = 'att_';
+    public const PACKAGE = 'pkg_';
 
     // Anagrafiche e sedi
     public const CONTACT = 'con_';
