@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Models\Catalog;
 use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
 
@@ -50,7 +51,7 @@ final class Package extends Model
     public static function dataSchema(): array
     {
         return [
-            Field::key('code')->text()->slug()->readonlyOnUpdate()->immutableOnUpdate(),
+            Field::key('code')->text()->uniqueCode(Codes::PACKAGE),
             // Niente `sanitizeFirst()`: "Scatola media" non deve diventare
             // "Scatola Media", e "Busta imbottita" nemmeno.
             Field::key('name')->text(),

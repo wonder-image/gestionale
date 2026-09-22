@@ -48,7 +48,16 @@ check('la tara tiene i grammi', function () use ($colonne) {
         && ($peso->schema['length'] ?? '') === '10,3';
 });
 
-check('il codice ha il suo prefisso', fn () => Codes::PACKAGE === 'pkg_');
+check('il codice ha il suo prefisso, e lo genera il core', function () {
+    foreach (Package::dataSchema() as $field) {
+        if ((string) $field->key === 'code') {
+            return Codes::PACKAGE === 'pkg_'
+                && ($field->getSchema('unique_code')['prefix'] ?? '') === 'pkg_';
+        }
+    }
+
+    return false;
+});
 
 check('la pagina sta in Set up, sotto i tipi fiscali', function () {
     $navigazione = PackageResource::navigationSchema()->toArray();
@@ -65,17 +74,16 @@ check('lo store API è aperto al "+" della scheda prodotto', function () {
         && ($schema['fields']['store'] ?? []) === ['name', 'weight'];
 });
 
-check('alla creazione arrivano codice e posizione', function () {
+check('alla creazione arriva la posizione', function () {
     $valori = PackageResource::mutateRequestValues(['name' => 'Scatola media'], 'store');
 
-    return str_starts_with((string) ($valori['code'] ?? ''), 'pkg_')
-        && ($valori['position'] ?? 0) >= 1;
+    return ($valori['position'] ?? 0) >= 1;
 });
 
-check('in aggiornamento codice e posizione non si toccano', function () {
+check('in aggiornamento la posizione non si tocca', function () {
     $valori = PackageResource::mutateRequestValues(['name' => 'Scatola media', 'position' => 4], 'update');
 
-    return !isset($valori['position']) && !isset($valori['code']);
+    return !isset($valori['position']);
 });
 
 check('il peso spedito è prodotto più tara', fn () =>

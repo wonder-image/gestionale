@@ -14,9 +14,7 @@ use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Models\Catalog\Package;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
-use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Packages;
-use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Positions;
 
 /**
@@ -193,17 +191,16 @@ final class PackageResource extends GestionaleResource
             ->authority(['admin']);
     }
 
-    /** Codice e posizione li mette il pannello, come negli altri elenchi. */
+    /** La posizione la mette il pannello; il codice lo genera il core. */
     public static function mutateRequestValues(
         array $values,
         string $action,
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
-        unset($values['position'], $values['code']);
+        unset($values['position']);
 
         if ($action === 'store') {
-            $values['code'] = Code::make(Package::class, Codes::PACKAGE);
             $values['position'] = Positions::next(Package::$table);
         }
 

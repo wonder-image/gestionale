@@ -6,6 +6,7 @@ use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
+use Wonder\Plugin\Gestionale\Models\Catalog\Package;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
@@ -104,7 +105,40 @@ final class CatalogDemo
             ['label' => 'XL'],
         ]);
 
+        $created += self::packages();
         $created += self::models();
+
+        return $created;
+    }
+
+    /**
+     * Due scatole: quella che basta quasi sempre e una busta per le cose
+     * piatte. La scatola è la predefinita, così un articolo che non sceglie
+     * niente ha comunque una tara.
+     *
+     * @return int righe create
+     */
+    private static function packages(): int
+    {
+        $created = self::ensure(Package::class, self::PREFIX.'Busta imbottita', [
+            'weight' => '0.050',
+            'length' => '35.00',
+            'width' => '25.00',
+            'height' => '3.00',
+            'is_default' => 'false',
+            'position' => 1,
+            'active' => 'true',
+        ]);
+
+        $created += self::ensure(Package::class, self::PREFIX.'Scatola media', [
+            'weight' => '0.200',
+            'length' => '40.00',
+            'width' => '30.00',
+            'height' => '20.00',
+            'is_default' => 'true',
+            'position' => 2,
+            'active' => 'true',
+        ]);
 
         return $created;
     }
@@ -177,6 +211,10 @@ final class CatalogDemo
             // Il tipo fiscale è obbligatorio nella scheda: un articolo di prova
             // senza non si potrebbe nemmeno risalvare.
             'tax_category_id' => self::ordinaryTaxCategoryId(),
+            // Con una scatola e un peso, il riquadro Spedizione della scheda
+            // dice davvero quanto parte invece di lamentare un dato mancante.
+            'package_id' => self::idOf(Package::class, self::PREFIX.'Scatola media'),
+            'weight' => '0.250',
             'unit' => 'pz',
             'type' => 'simple',
             'short_description' => 'Articolo di prova del gestionale.',
@@ -444,6 +482,15 @@ final class CatalogDemo
             $removed += !empty($result->success) ? 1 + $sotto : 0;
         }
 
+        foreach (self::rows(Package::class) as $row) {
+            if (!str_starts_with((string) ($row['name'] ?? ''), self::PREFIX)) {
+                continue;
+            }
+
+            $result = Package::delete((int) $row['id']);
+            $removed += !empty($result->success) ? 1 : 0;
+        }
+
         foreach (self::rows(Attribute::class) as $row) {
             if (!str_starts_with((string) ($row['name'] ?? ''), self::PREFIX)) {
                 continue;
@@ -497,11 +544,21 @@ final class CatalogDemo
             return 0;
         }
 
-        $result = $model::create(array_merge($values, [
+        $riga = array_merge($values, [
             'code' => Code::make($model, self::prefixOf($model)),
             'name' => $name,
-            'slug' => Slug::make($name, $model::$table),
-        ]));
+        ]);
+
+        // Non tutte le tabelle hanno uno slug: gli imballaggi non hanno una
+        // pagina pubblica, e scriverlo lo farebbe finire nella query.
+        foreach ($model::tableSchema() as $column) {
+            if ((string) $column->name === 'slug') {
+                $riga['slug'] = Slug::make($name, $model::$table);
+                break;
+            }
+        }
+
+        $result = $model::create($riga);
 
         return !empty($result->success) ? 1 : 0;
     }
