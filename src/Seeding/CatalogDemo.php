@@ -509,11 +509,10 @@ final class CatalogDemo
             }
 
             // Poi i valori: la chiave esterna non lascia andare l'attributo.
-            foreach (self::rows(AttributeValue::class) as $value) {
-                if ((int) ($value['attribute_id'] ?? 0) !== (int) $row['id']) {
-                    continue;
-                }
-
+            // **Anche quelli cancellati**: il repeater li segna `deleted` e
+            // basta, la riga resta e il vincolo la vede. Un valore aggiunto a
+            // mano e poi tolto bloccava tutta la pulizia.
+            foreach (self::valuesOfAttribute((int) $row['id']) as $value) {
                 $removed += !empty(AttributeValue::delete((int) $value['id'])->success) ? 1 : 0;
             }
 
@@ -568,6 +567,27 @@ final class CatalogDemo
         $row = $model::find(['name' => $name, 'deleted' => 'false'], 1);
 
         return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+    }
+
+    /**
+     * I valori di un attributo, compresi quelli segnati come cancellati.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function valuesOfAttribute(int $attributeId): array
+    {
+        // La condizione nomina `deleted` di proposito: `find()` aggiunge da sé
+        // `deleted = 'false'` a chi non ne parla, e qui servono anche le righe
+        // segnate come cancellate — la chiave esterna le vede lo stesso.
+        $rows = AttributeValue::find(
+            "attribute_id = ".$attributeId." AND (deleted = 'true' OR deleted = 'false')"
+        );
+
+        if (!is_array($rows) || $rows === []) {
+            return [];
+        }
+
+        return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
     }
 
     /** @return list<array<string, mixed>> */
