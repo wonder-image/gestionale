@@ -30,7 +30,7 @@ check('slug, namespace e versione', fn () =>
 );
 
 check('richiede il core 2.2.12 e PHP 8.2', fn () =>
-    ($manifest->frameworkCompatibility()['wonder-app'] ?? '') === '^2.2.12'
+    ($manifest->frameworkCompatibility()['wonder-app'] ?? '') === '^2.3.0'
     && ($manifest->frameworkCompatibility()['php'] ?? '') === '^8.2'
 );
 

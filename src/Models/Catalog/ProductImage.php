@@ -75,7 +75,7 @@ final class ProductImage extends Model
      *
      * Un campo immagine, se non dice niente, prende da sé le misure responsive
      * del sito: `deferResize()` gli dice di scrivere solo l'originale e di
-     * lasciare le misure alla coda. C'è dalla 2.2.15, che il modulo pretende.
+     * lasciare le misure alla coda. C'è dalla 2.2.15; il modulo ne pretende almeno 2.3.0.
      */
     private static function deferredImage(): \Wonder\Data\Fields\Image
     {

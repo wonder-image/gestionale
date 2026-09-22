@@ -10,7 +10,7 @@
         "email": "info@wonderimage.it"
     },
     "frameworkCompatibility": {
-        "wonder-app": "^2.2.12",
+        "wonder-app": "^2.3.0",
         "php": "^8.2"
     },
     "dependencies": {
