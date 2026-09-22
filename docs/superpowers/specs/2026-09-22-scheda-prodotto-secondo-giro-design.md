@@ -1,8 +1,8 @@
 # G2c — La scheda prodotto, secondo giro
 
 - **Sotto-progetto:** seguito di G2a-bis, prima di G2b
-- **Stato:** rivista il 2026-09-22 dopo la seconda prova in pannello (§4, §5,
-  §8 e §11 nuove o riscritte; decisioni P22-P25)
+- **Stato:** rivista il 2026-09-22 dopo la terza prova in pannello (§4, §5,
+  §12 riscritte; decisioni P26-P32)
 - **Documento di riferimento:** [G2a-bis — La scheda prodotto semplice](2026-09-21-scheda-prodotto-semplice-design.md),
   [G2a — Catalogo](2026-09-21-catalogo-design.md)
 - **Dipende da:** C1 — repeater raggruppato (spec in `wonder-image/app`:
@@ -325,6 +325,50 @@ raggruppata si vede senza doverla costruire a mano.
   `gst_packages`, il raggruppamento della griglia; e via la nota sul
   `foldable()` che era una Card, sostituita da quella sul pavimento `^2.3.0`.
 
+### 12. Una griglia sola, e il vocabolario
+
+*Sezione nuova, terzo giro.*
+
+Erano due cose diverse: in creazione una griglia scritta a mano in HTML, in
+modifica il repeater vero, con campi diversi. Adesso è **una**: il repeater
+«Quello che si vende» sta in tutte e due le pagine, a piena larghezza in fondo
+— sette caselle per riga dentro due terzi di schermo vanno a capo, ed era il
+disallineamento — e le spunte degli attributi ci aggiungono le righe che stanno
+per nascere, con la chiave della loro combinazione.
+
+Le righe senza id **non arrivano al sync del core**: le tiene fuori
+`prepareRepeaterRows()`, perché il colore a cui appartengono lo crea
+`Generator::run()` in `afterStore`/`afterUpdate`, e il sync gira prima. Con la
+griglia sempre stampata questo non è un dettaglio: il repeater stampa una riga
+vuota di cortesia quando non ne ha, e quella riga — con la sua `select` di
+stato che posta sempre un valore — sarebbe arrivata al database come un
+prodotto senza colore. Per questo il core ha preso `repeaterStartEmpty()`.
+
+**Le parole.** Attributo (Colore, Taglia, Materiale — al massimo **tre** per
+prodotto) e opzione in vendita (la riga con SKU, prezzo, giacenza e foto).
+"Versione" sparisce dall'interfaccia.
+
+**Il nome non si scrive.** Nasce dagli attributi — "Blu / S" — e si riallinea a
+ogni salvataggio, sui prodotti e sui colori: rinominare "Blu" nell'anagrafica
+rinomina il colore ovunque. Nella griglia si legge solo quello che resta ("S",
+o "S / Gomma"), in una colonna finta: una colonna `name` di sola lettura viene
+postata lo stesso, e avrebbe scritto "S" al posto di "Blu / S".
+
+**Il raggruppamento non si sceglie**: è il colore, sempre, anche con una riga
+sola — serve anche alla vetrina. Un articolo venduto solo per taglia non ha un
+colore su cui raggruppare, e la griglia resta piatta.
+
+**La giacenza si scrive nella riga**: si scrive quanti pezzi ci sono, il
+pannello registra il movimento della differenza con causale «Inventario», e una
+casella lasciata com'era non muove niente (`Stocktake::changes()`). Il rifiuto
+di un numero negativo si calcola in `mutateRequestValues()`: dopo l'insert non
+c'è nessuna rete, e un errore diventerebbe una pagina di guasto su un articolo
+già scritto a metà.
+
+**La foto sta nella riga**, è un `fileDragDrop`, e appartiene a quella singola
+opzione: `gst_product_images` prende `product_id`, nullable, così eliminando
+l'opzione la foto torna a valere per il colore invece di sparire.
+
 ## Decisioni di questa spec
 
 | # | Decisione | Perché |
@@ -354,6 +398,13 @@ raggruppata si vede senza doverla costruire a mano.
 | P23 | La griglia chiede quattro cose; codice, EAN e costo dietro "Compila tutto" | Nome, prezzo, giacenza e foto si compilano sempre; il resto solo da chi lo usa |
 | P24 | La giacenza di una versione nuova è un movimento, non un numero | Il magazzino ha una porta sola: si carica con causale "giacenza iniziale" e il suo costo |
 | P25 | Via la matita accanto all'opzione | L'anagrafica si apre dal menù; in scheda serviva solo il "+" per un valore nuovo |
+| P26 | Una griglia sola, la stessa in aggiunta e in modifica | Due schermate con campi diversi per la stessa cosa sono due cose da imparare |
+| P27 | Le righe nuove non passano dal sync del core | Il colore a cui appartengono non esiste ancora quando il sync gira |
+| P28 | Il raggruppamento per colore è obbligatorio | È parte del significato, non una comodità di chi guarda: serve anche alla vetrina |
+| P29 | Il nome lo scrive il sistema, sempre | Due sorgenti per lo stesso nome divergono al primo rename; e la griglia mostra il residuo, in una colonna finta |
+| P30 | La giacenza si scrive nella riga, con causale automatica | Si corregge dove si guarda; il movimento nasce dalla differenza, e le caselle non toccate non muovono niente |
+| P31 | La foto appartiene alla singola opzione | «Blu / S» può avere la sua; l'eredità opzione → colore → articolo la fa la lettura |
+| P32 | Tre attributi al massimo, ma solo nel selettore | Nel server bloccherebbe per sempre un articolo che ne ha già di più, anche solo per correggergli il prezzo |
 
 ## Piani
 
