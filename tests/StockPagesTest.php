@@ -6,6 +6,7 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockLevelResource;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 
 $campi = static function (string $resource): array {
@@ -61,6 +62,52 @@ check('la strada del ritorno accetta solo indirizzi di questo backend', fn () =>
     && StockAdjustmentResource::backUrlFrom('/backend/app/gestionale/giacenze/?p=2')
         === '/backend/app/gestionale/giacenze/?p=2'
     && StockAdjustmentResource::backUrlFrom('//altrove.example') === ''
+);
+
+check('le giacenze hanno il loro indirizzo e sono una pagina-form', fn () =>
+    StockLevelResource::path() === 'app/gestionale/giacenze'
+    && StockLevelResource::isFormPage() === true
+);
+
+check('le giacenze stanno nel menu Magazzino, prima dei movimenti', function () {
+    $nav = StockLevelResource::navigationSchema()->toArray();
+
+    return ($nav['enabled'] ?? true) !== false
+        && ($nav['section_key'] ?? '') === 'magazzino'
+        && (int) ($nav['order'] ?? 0) < 20;
+});
+
+check('si lavora cinquanta righe per volta', fn () =>
+    StockLevelResource::PER_PAGE === 50
+);
+
+check('la causale della schermata parte dall\'inventario', function () {
+    foreach (StockLevelResource::formSchema() as $field) {
+        if ((string) $field->name === 'reason') {
+            return $field->get('value') === Reasons::DEFAULT;
+        }
+    }
+
+    return false;
+});
+
+check('dalla ricerca non passano virgolette né punti e virgola', function () {
+    // Il testo arriva dall'indirizzo e finisce dentro una LIKE: quello che
+    // chiuderebbe la stringa non deve sopravvivere. I trattini sì: stanno
+    // negli SKU.
+    $pulito = StockLevelResource::searchTerm("Rosso'; DROP TABLE gst_stock; --");
+
+    return !str_contains($pulito, "'")
+        && !str_contains($pulito, ';')
+        && !str_contains($pulito, '\\')
+        && StockLevelResource::searchTerm('TSH-1_B') === 'TSH-1_B';
+});
+
+check('una pagina fuori scala torna alla prima', fn () =>
+    StockLevelResource::pageNumber('0') === 1
+    && StockLevelResource::pageNumber('-4') === 1
+    && StockLevelResource::pageNumber('abc') === 1
+    && StockLevelResource::pageNumber('3') === 3
 );
 
 summary();

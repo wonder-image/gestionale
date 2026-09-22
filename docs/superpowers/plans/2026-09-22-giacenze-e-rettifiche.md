@@ -770,7 +770,7 @@ check('le giacenze stanno nel menu Magazzino, prima dei movimenti', function () 
     $nav = StockLevelResource::navigationSchema()->toArray();
 
     return ($nav['enabled'] ?? true) !== false
-        && ($nav['section']['key'] ?? '') === 'magazzino'
+        && ($nav['section_key'] ?? '') === 'magazzino'
         && (int) ($nav['order'] ?? 0) < 20;
 });
 
@@ -1453,7 +1453,10 @@ try {
         check('la ricerca trova la versione di prova', function () use ($productId) {
             foreach (StockLevelResource::rows() as $row) {
                 if ((int) $row['id'] === $productId) {
-                    return $row['quantity'] === 0.0 && $row['article'] === 'Prova giacenze';
+                    // Il nome dell'articolo lo scrive il framework con le
+                    // iniziali maiuscole: "Prova Giacenze".
+                    return $row['quantity'] === 0.0
+                        && strtolower((string) $row['article']) === 'prova giacenze';
                 }
             }
 
