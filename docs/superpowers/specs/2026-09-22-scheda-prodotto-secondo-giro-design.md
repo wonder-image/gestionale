@@ -1,8 +1,8 @@
 # G2c — La scheda prodotto, secondo giro
 
 - **Sotto-progetto:** seguito di G2a-bis, prima di G2b
-- **Stato:** rivista il 2026-09-22 dopo la prova della creazione (§3, §4, §7,
-  §8, §9 nuove o riscritte; decisioni P14-P21)
+- **Stato:** rivista il 2026-09-22 dopo la seconda prova in pannello (§4, §5,
+  §8 e §11 nuove o riscritte; decisioni P22-P25)
 - **Documento di riferimento:** [G2a-bis — La scheda prodotto semplice](2026-09-21-scheda-prodotto-semplice-design.md),
   [G2a — Catalogo](2026-09-21-catalogo-design.md)
 - **Dipende da:** C1 — repeater raggruppato (spec in `wonder-image/app`:
@@ -137,9 +137,17 @@ prezzare. Due salvataggi per una cosa sola.
 
 Spuntando i valori, la griglia delle versioni si costruisce **subito nel
 browser**: una riga per combinazione, con il nome ("Blu / M") e lo SKU
-proposti e le caselle di prezzo, EAN e giacenza già scrivibili. Al salvataggio
-il generatore crea le righe che mancano **con i valori scritti**, invece di
-inventarli e farli correggere dopo.
+proposti. In chiaro si compilano le quattro cose che si compilano sempre —
+**nome, prezzo, giacenza, foto** — e il resto sta dietro il bottone **Compila
+tutto**, che apre codice, EAN e costo su tutte le righe insieme (P23).
+
+Al salvataggio il generatore crea le righe che mancano **con i valori
+scritti**, invece di inventarli e farli correggere dopo. La giacenza non
+diventa un numero in una colonna: diventa un movimento di magazzino con
+causale "giacenza iniziale" e il costo scritto (P24), perché il magazzino ha
+una porta sola. La foto si attacca al **colore** della versione — la tabella
+delle immagini si lega al modello e alla variante, non al singolo prodotto — e
+la coda ne fa le misure come per ogni altra.
 
 Il calcolo delle combinazioni è lo stesso di `Combinations::plan()`, rifatto in
 JS sui valori spuntati: gli id e le etichette sono già nel DOM delle caselle.
@@ -176,10 +184,16 @@ rendere veloce.
 Su quella colonna si raggruppa:
 
 ```php
-->repeaterGroupBy('product_variant_id')
+->repeaterGroupBy('variant', 'active')
 ->repeaterGroupCommand('price', 'Prezzo del gruppo')
 ->repeaterGroupCountLabel('versione', 'versioni')
 ```
+
+`variant` è una colonna **calcolata e nascosta** — il nome del colore, scritto
+da `mutateFormValues()` accanto alla giacenza — non `product_variant_id`: una
+select scrivibile sposterebbe una versione da un colore all'altro senza
+spostarne i collegamenti agli attributi. In chiaro il colore lo scrive la
+testata del gruppo, che è dove si legge una volta sola invece che su ogni riga.
 
 Il selettore e le testate compaiono solo quando le varianti sono più di una:
 con un colore solo non c'è niente da raggruppare.
@@ -244,13 +258,12 @@ Si trascinano le foto dove appartengono, e non si sceglie niente da un menù.
 
 ### 8. Modificare un'opzione da dove la si usa
 
-*Sezione nuova.*
+*Sezione riscritta: la matita è stata tolta.*
 
-Accanto al nome di ogni gruppo di spunte — "Colore", "Taglia" — una matita
-apre la scheda di quell'attributo, dove si rinominano i valori, si riordinano
-e si scelgono i colori. Non un modal: la creazione rapida del core sa creare,
-non modificare, e inventare qui una modifica rapida vorrebbe dire scrivere un
-secondo sottosistema.
+C'era un collegamento "Modifica colore" sotto ogni gruppo di spunte. Alla
+prova diceva poco e occupava una riga in ogni blocco: chi vuole rinominare i
+valori di un'opzione va nella sua anagrafica, che sta nel menù. Il "+" per
+aggiungere un valore resta dov'è, perché quello serve mentre si compila.
 
 ### 9. La giacenza si corregge dove si modifica il prodotto
 
@@ -264,6 +277,21 @@ a chi sta correggendo un numero.
 
 La pagina *Rettifica* resta per i carichi lunghi — centinaia di righe con una
 causale sola — ma non è più la strada normale.
+
+### 11. Prima l'opzione, poi i valori
+
+*Sezione nuova.*
+
+I blocchi delle opzioni stavano tutti aperti: chi vende cappelli si trovava
+davanti colori, taglie e gusti senza averne chiesto nessuno, e la scheda
+diventava lunga il doppio. Come su Shopify, la scheda ne mostra **zero** e
+chiede quale serve: un menù "Aggiungi un'opzione…" con le opzioni del negozio,
+e solo quella scelta apre il suo elenco di valori da spuntare.
+
+Un'opzione aggiunta per sbaglio si toglie con "Togli colore", che spunta via i
+valori e richiude il blocco. Le opzioni che l'articolo **usa già** partono
+aperte e senza il bottone: nasconderle direbbe che non ci sono, e invece ci
+sono.
 
 ### 10. Dati di prova
 
@@ -321,7 +349,11 @@ raggruppata si vede senza doverla costruire a mano.
 | P18 | Lo stato della foto non è un campo | Una foto pronta non ha niente da dire; una fallita lo scrive da sé |
 | P19 | Tipo `gallery` nel core: foto e video insieme | Oggi un campo accetta immagini oppure video, e un catalogo ha bisogno di tutti e due |
 | P20 | La giacenza si corregge dalla scheda, con causale automatica | Si rettifica dove si guarda il prodotto; chiedere una causale per correggere un numero è un attrito |
-| P21 | L'opzione si modifica con un collegamento, non in un modal | La creazione rapida del core sa creare, non modificare |
+| P21 | ~~L'opzione si modifica con un collegamento~~ — annullata da P25 | Alla prova il collegamento diceva poco e occupava una riga per blocco |
+| P22 | Prima si sceglie l'opzione, poi compaiono i valori | Mostrare tutte le opzioni sempre raddoppia la scheda a chi non ne usa nessuna |
+| P23 | La griglia chiede quattro cose; codice, EAN e costo dietro "Compila tutto" | Nome, prezzo, giacenza e foto si compilano sempre; il resto solo da chi lo usa |
+| P24 | La giacenza di una versione nuova è un movimento, non un numero | Il magazzino ha una porta sola: si carica con causale "giacenza iniziale" e il suo costo |
+| P25 | Via la matita accanto all'opzione | L'anagrafica si apre dal menù; in scheda serviva solo il "+" per un valore nuovo |
 
 ## Piani
 
