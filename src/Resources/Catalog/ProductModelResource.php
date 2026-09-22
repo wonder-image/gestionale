@@ -28,6 +28,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
+use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
@@ -154,6 +155,17 @@ class ProductModelResource extends GestionaleResource
 
         $fields = [
             FormField::key('name')->text()->label('Nome')->required(),
+            // La domanda che governa tutto quello che le sta sotto. È una
+            // risposta dell'articolo, non un conteggio delle sue righe: un
+            // articolo appena creato ha già un figlio, e il conteggio direbbe
+            // «no» proprio a chi le varianti le sta per aggiungere.
+            FormField::key('has_variants')
+                ->toggle()
+                ->label('Questo articolo ha varianti')
+                ->description('Colori, taglie, gusti: se ne ha, prezzo e codici si scrivono opzione per opzione.'),
+            // L'ordine degli attributi scelti, scritto dal selettore qui
+            // sotto: il primo raggruppa, gli altri compongono il nome.
+            FormField::key('axes_order')->hidden(),
             FormField::key('brand_id')
                 ->select(static::brandOptions())
                 ->label('Marchio')
@@ -275,26 +287,45 @@ class ProductModelResource extends GestionaleResource
      */
     protected static function mainColumn(int $modelId): array
     {
-        $unaVersione = static::productCount($modelId) <= 1;
+        $conVarianti = static::hasVariants($modelId);
+        // Un articolo che ha già più opzioni non torna indietro da un
+        // interruttore: quelle righe hanno movimenti, prenotazioni e foto. Si
+        // cancellano dalla griglia, una per una, dove la cancellazione lo
+        // dice.
+        $bloccato = static::productCount($modelId) > 1;
+
+        $domanda = static::getInput('has_variants')->columnSpan(12);
+
+        if ($bloccato) {
+            $domanda = $domanda->readonly()->disabled();
+        }
 
         $cards = [
             (new Card)->components([
                 SectionTitle::make('Prodotto')
-                    ->tooltip($unaVersione
-                        ? 'Il prezzo di questo articolo. Il tipo fiscale decide l\'IVA che gli si applica.'
-                        : 'Questa casella è un comando, non un riepilogo: scrivici un prezzo e al salvataggio va su tutte le opzioni in vendita. Lasciala vuota e i prezzi delle righe restano come sono.')
+                    ->tooltip($conVarianti
+                        ? 'Questa casella è un comando, non un riepilogo: scrivici un prezzo e al salvataggio va su tutte le opzioni in vendita. Lasciala vuota e i prezzi delle righe restano come sono.'
+                        : 'Il prezzo di questo articolo. Il tipo fiscale decide l\'IVA che gli si applica.')
                     ->columnSpan(12),
                 static::getInput('name')->columnSpan(12),
-                static::getInput('product_price')->columnSpan($unaVersione ? 3 : 4),
-                static::getInput('product_sale_price')->columnSpan($unaVersione ? 3 : 4),
-                static::getInput('tax_category_id')->columnSpan($unaVersione ? 3 : 4),
-                // Con una versione sola la giacenza sta qui, accanto al
-                // prezzo: è la scheda di quell'unico articolo, e la parola
-                // "versione" non compare da nessuna parte.
+                $domanda,
+                static::getInput('axes_order'),
+                ...($bloccato ? [
+                    RichText::make('<p class="small text-body-secondary mb-0">Questo articolo ha più opzioni in vendita: per tornare a un articolo singolo eliminale dalla griglia qui sotto.</p>')
+                        ->columnSpan(12),
+                ] : []),
+                static::getInput('product_price')->columnSpan($conVarianti ? 4 : 3),
+                static::getInput('product_sale_price')->columnSpan($conVarianti ? 4 : 3),
+                // Il tipo fiscale porta il «+ Aggiungi» accanto alla tendina:
+                // in tre dodicesimi il nome dell'aliquota si taglia.
+                static::getInput('tax_category_id')->columnSpan(4),
+                // Senza varianti la giacenza sta qui, accanto al prezzo: è la
+                // scheda di quell'unico articolo, e la parola "opzione" non
+                // compare da nessuna parte.
                 // In creazione non c'è ancora niente da rettificare: la
                 // giacenza compare dal primo salvataggio in poi.
-                ...($unaVersione && $modelId > 0 ? [
-                    static::getInput('product_stock')->columnSpan(3),
+                ...(!$conVarianti && $modelId > 0 ? [
+                    static::getInput('product_stock')->columnSpan(2),
                     RichText::make(static::adjustLink($modelId))->columnSpan(12),
                 ] : []),
             ])->columns(12)->columnSpan(12),
@@ -359,11 +390,17 @@ class ProductModelResource extends GestionaleResource
                 SectionTitle::make('Opzioni in vendita')
                     ->tooltip('Scegli un attributo — colore, taglia, gusto — e spunta i valori: le righe compaiono qui sotto e nascono al salvataggio, con codice, prezzo, giacenza e foto. Togliere una spunta non cancella niente che esista già.')
                     ->columnSpan(12),
-                static::optionsPicker()->columnSpan(12),
-                ...$blocchi,
+                static::optionsPicker($modelId)->columnSpan(12),
+                // I blocchi stanno in un contenitore loro: il riordino li
+                // sposta con `order`, e dentro un riquadro condiviso
+                // scavalcherebbero la griglia e il selettore.
+                (new Container)->components($blocchi)->columns(12)->columnSpan(12),
                 static::getInput('products')->columnSpan(12),
                 static::optionsGridScript($modelId)->columnSpan(12),
-            ])->columns(12)->columnSpan(12),
+            ])->columns(12)->columnSpan(12)
+                // Il riquadro intero risponde alla domanda in cima alla
+                // scheda: con «no» non c'è niente da scegliere.
+                ->visibleWhen('has_variants', 'true'),
         ];
     }
 
@@ -599,8 +636,24 @@ class ProductModelResource extends GestionaleResource
             throw UserError::make('product.sku_taken');
         }
 
+        // Un articolo che ha già più opzioni resta con varianti, qualunque
+        // cosa arrivi: l'interruttore è spento e il campo nascosto manderebbe
+        // «no» per conto suo.
+        if (static::productCount($id) > 1) {
+            $values['has_variants'] = 'true';
+        }
+
+        $values['has_variants'] = ($values['has_variants'] ?? 'false') === 'true' ? 'true' : 'false';
+        $values['axes_order'] = static::axesFromPost((array) $_POST);
+
         static::assertSoleProduct($id, $values);
-        static::chosenAxes((array) $_POST);
+
+        // Le caselle nascoste vengono postate lo stesso: se l'articolo dice
+        // di non avere varianti, le spunte non si guardano nemmeno.
+        if ($values['has_variants'] === 'true') {
+            static::chosenAxes((array) $_POST);
+        }
+
         static::assertSomeVersionLeft($id);
         static::assertStockWritable();
 
@@ -617,12 +670,101 @@ class ProductModelResource extends GestionaleResource
      */
     public static function assertStockWritable(): void
     {
+        if (!static::stockIsWritable()) {
+            return;
+        }
+
         foreach (static::postedRows((array) $_POST) as $riga) {
             $quantita = Stocktake::quantity($riga['stock'] ?? null);
 
             if ($quantita !== null && $quantita < 0) {
                 throw UserError::make('product.stock_negative');
             }
+        }
+    }
+
+    /**
+     * L'ordine degli assi che arriva dal selettore, ripulito.
+     *
+     * Vale solo quello che è davvero spuntato: un attributo tolto dalla
+     * scheda esce anche dall'ordine, e uno spuntato che l'ordine non nomina
+     * va in coda invece di sparire.
+     */
+    protected static function axesFromPost(array $post): string
+    {
+        $preferito = [];
+
+        foreach (explode('-', (string) ($post['axes_order'] ?? '')) as $pezzo) {
+            $id = (int) trim($pezzo);
+
+            if ($id > 0 && !in_array($id, $preferito, true)) {
+                $preferito[] = $id;
+            }
+        }
+
+        $spuntati = [];
+
+        foreach (static::optionAttributes() as $attribute) {
+            $id = (int) $attribute['id'];
+            $valori = array_filter(
+                (array) ($post['option_'.$id] ?? []),
+                static fn ($valore): bool => trim((string) $valore) !== ''
+            );
+
+            if ($valori !== []) {
+                $spuntati[] = $id;
+            }
+        }
+
+        $ordinati = array_values(array_filter(
+            $preferito,
+            static fn (int $id): bool => in_array($id, $spuntati, true)
+        ));
+
+        foreach ($spuntati as $id) {
+            if (!in_array($id, $ordinati, true)) {
+                $ordinati[] = $id;
+            }
+        }
+
+        return implode('-', $ordinati);
+    }
+
+    /**
+     * La giacenza dell'articolo senza varianti.
+     *
+     * È lo stesso gesto della riga — si scrive quanti pezzi ci sono e il
+     * pannello fa il movimento della differenza — ma la casella sta in alto,
+     * accanto al prezzo, perché lì non c'è nessuna griglia da guardare.
+     */
+    protected static function saveSingleStock(int $modelId, array $post, bool $conVarianti): void
+    {
+        if ($conVarianti || !static::stockIsWritable()) {
+            return;
+        }
+
+        $product = static::soleProduct($modelId);
+
+        if (!is_array($product)) {
+            return;
+        }
+
+        $quantita = Stocktake::quantity($post['product_stock'] ?? null);
+
+        if ($quantita === null) {
+            return;
+        }
+
+        $productId = (int) $product['id'];
+        $attuale = (float) (Levels::of($productId)['quantity'] ?? 0);
+
+        foreach (Stocktake::changes([$productId => $attuale], [$productId => $quantita]) as $id => $cambio) {
+            Stock::apply([
+                'product_id' => $id,
+                'quantity' => $cambio['delta'],
+                'reason' => Reasons::DEFAULT,
+                'note' => 'Rettifica dalla scheda dell\'articolo',
+            ]);
         }
     }
 
@@ -712,24 +854,36 @@ class ProductModelResource extends GestionaleResource
             static::saveCategories($modelId, $post);
             static::saveTags($modelId, $post);
             static::saveModelAttributes($modelId, $post);
-            $chosen = static::chosenAxes($post);
-            $righe = static::postedRows($post);
-            // Le righe senza id sono le combinazioni spuntate che ancora non
-            // esistono: la loro chiave è quella della combinazione.
-            $scritte = static::newRows($righe);
-            $nate = Generator::run($modelId, $chosen['variant'], $chosen['axes'], $fallbackSku, $scritte);
 
-            // Quello che è stato scritto nella griglia, per riga appena nata:
-            // il riquadro in alto non deve riscriverlo.
+            // Il riquadro delle opzioni è nascosto, non tolto: le sue caselle
+            // arrivano comunque. Chi ha detto di non avere varianti non deve
+            // ritrovarsi delle combinazioni generate da spunte che non vede.
+            $conVarianti = ($post['has_variants'] ?? 'false') === 'true'
+                || static::productCount($modelId) > 1;
+
+            $righe = static::postedRows($post);
+            $nate = [];
+            $scritte = [];
             $appena = [];
 
-            foreach ($nate as $chiave => $riga) {
-                $appena[$riga['product_id']] = is_array($scritte[$chiave] ?? null) ? $scritte[$chiave] : [];
+            if ($conVarianti) {
+                $chosen = static::chosenAxes($post);
+                // Le righe senza id sono le combinazioni spuntate che ancora
+                // non esistono: la loro chiave è quella della combinazione.
+                $scritte = static::newRows($righe);
+                $nate = Generator::run($modelId, $chosen['variant'], $chosen['axes'], $fallbackSku, $scritte);
+
+                // Quello che è stato scritto nella griglia, per riga appena
+                // nata: il riquadro in alto non deve riscriverlo.
+                foreach ($nate as $chiave => $riga) {
+                    $appena[$riga['product_id']] = is_array($scritte[$chiave] ?? null) ? $scritte[$chiave] : [];
+                }
             }
 
             static::savePrices($modelId, $post, $fallbackSku, $appena);
             static::saveNewVersions($modelId, $nate, $scritte, $files);
-            static::saveRowExtras($modelId, $righe, $files);
+            static::saveRowExtras($modelId, $righe, $files, $conVarianti);
+            static::saveSingleStock($modelId, $post, $conVarianti);
             // Il nome non lo scrive chi compila: nasce dagli attributi, e si
             // rimette in riga a ogni salvataggio.
             static::realignNames($modelId);
@@ -809,9 +963,17 @@ class ProductModelResource extends GestionaleResource
      * @param array<string, array<string, mixed>> $righe
      * @param array<string, mixed> $files
      */
-    protected static function saveRowExtras(int $modelId, array $righe, array $files): void
-    {
+    protected static function saveRowExtras(
+        int $modelId,
+        array $righe,
+        array $files,
+        bool $conVarianti = true
+    ): void {
         $caricate = Repeater::filesFromRequest('products', $files);
+        // La giacenza della griglia si guarda solo quando la griglia si vede
+        // e la casella si scrive: altrove il numero arriva com'era, e un
+        // movimento da zero non è un movimento.
+        $leggiGiacenza = $conVarianti && static::stockIsWritable();
         $scritte = [];
         $foto = [];
 
@@ -822,7 +984,7 @@ class ProductModelResource extends GestionaleResource
                 continue;
             }
 
-            $quantita = Stocktake::quantity($riga['stock'] ?? null);
+            $quantita = $leggiGiacenza ? Stocktake::quantity($riga['stock'] ?? null) : null;
 
             if ($quantita !== null) {
                 $scritte[$productId] = $quantita;
@@ -1026,8 +1188,8 @@ class ProductModelResource extends GestionaleResource
                 $values['products'][$index]['stock'] = static::plainNumber(
                     $level === null ? 0.0 : $level['quantity']
                 );
-                // Il colore raggruppa; quello che resta del nome si legge.
-                $values['products'][$index]['variant'] = $nomi[$productId]['variant'] ?? '';
+                // Il primo asse raggruppa; quello che resta del nome si legge.
+                $values['products'][$index]['group'] = $nomi[$productId]['group'] ?? '';
                 $values['products'][$index]['option'] = $nomi[$productId]['label'] ?? '';
                 $values['products'][$index]['photo'] = $foto[$productId] ?? '';
                 $values['products'][$index]['combination'] = $nomi[$productId]['key'] ?? '';
@@ -1039,6 +1201,10 @@ class ProductModelResource extends GestionaleResource
                 Levels::of((int) $product['id'])['quantity']
             );
         }
+
+        // Un articolo che ha già più opzioni risponde «sì» comunque, anche se
+        // la colonna dice altro: è nato prima che la domanda esistesse.
+        $values['has_variants'] = static::hasVariants($modelId) ? 'true' : 'false';
 
         foreach (static::usedOptionValues($modelId) as $key => $ids) {
             $values[$key] = $ids;
@@ -1255,8 +1421,9 @@ class ProductModelResource extends GestionaleResource
      * Le opzioni che questo articolo usa già partono aperte: nasconderle
      * direbbe che non ci sono, e invece ci sono.
      */
-    protected static function optionsPicker(): object
+    protected static function optionsPicker(int $modelId = 0): object
     {
+        $ordine = static::escape(implode('-', static::axesOrder($modelId)));
         $voci = '';
 
         foreach (static::optionAttributes() as $attribute) {
@@ -1274,6 +1441,7 @@ class ProductModelResource extends GestionaleResource
         <span class="small text-body-secondary wi-option-hint">Colore, taglia, gusto: scegline uno e i suoi valori compaiono qui sotto.</span>
         <span class="small text-body-secondary wi-option-none d-none">Le opzioni sono tutte qui sotto.</span>
     </div>
+    <p class="small text-body-secondary mb-0 mt-2 wi-option-order d-none" data-wi-option-order="{$ordine}"></p>
 </div>
 <script>
     window.wiOptionPicker = window.wiOptionPicker || (function () {
@@ -1308,6 +1476,128 @@ class ProductModelResource extends GestionaleResource
 
         function nome(nodo) {
             return (nodo.getAttribute('data-wi-option-name') || 'attributo').toLowerCase();
+        }
+
+        function titolo(nodo) {
+            return nodo.getAttribute('data-wi-option-name') || 'Attributo';
+        }
+
+        // L'ordine vive in un campo nascosto: è quello che il server salva e
+        // quello che la griglia rilegge per comporre i nomi.
+        function campoOrdine() {
+            return document.querySelector('[name="axes_order"]');
+        }
+
+        function ordine() {
+            var campo = campoOrdine();
+            var scritto = campo ? String(campo.value || '') : '';
+            var lista = scritto.split('-').filter(function (id) { return id !== ''; });
+            // Acceso vuol dire «scelto nel selettore» oppure «ha già un
+            // valore spuntato»: le due cose devono dire la stessa cosa, o
+            // l'ordine e la griglia raccontano due storie diverse.
+            var accesi = Array.prototype.slice.call(document.querySelectorAll('[data-wi-option]'))
+                .filter(function (nodo) {
+                    return nodo.getAttribute('data-wi-option-on') === 'true' || inUso(nodo);
+                })
+                .map(function (nodo) { return nodo.getAttribute('data-wi-option'); });
+
+            // Solo quello che è davvero acceso, e quello che l'ordine non
+            // nomina in coda: un attributo appena scelto non deve sparire.
+            var finale = lista.filter(function (id) { return accesi.indexOf(id) !== -1; });
+
+            accesi.forEach(function (id) { if (finale.indexOf(id) === -1) finale.push(id); });
+
+            return finale;
+        }
+
+        function scriviOrdine(lista) {
+            var campo = campoOrdine();
+            if (campo) campo.value = lista.join('-');
+
+            lista.forEach(function (id, indice) {
+                var nodo = document.querySelector('[data-wi-option="' + id + '"]');
+                if (nodo) blocco(nodo).style.order = String(indice + 1);
+            });
+
+            riepilogo(lista);
+            frecce(lista);
+        }
+
+        // Una frase che dice cosa succederà: «Le opzioni si raggruppano per
+        // Colore, poi Taglia». Con un attributo solo non c'è niente da
+        // raggruppare, e lo dice.
+        function riepilogo(lista) {
+            var riga = document.querySelector('.wi-option-order');
+            if (!riga) return;
+
+            var nomi = lista.map(function (id) {
+                var nodo = document.querySelector('[data-wi-option="' + id + '"]');
+
+                return nodo ? titolo(nodo) : '';
+            }).filter(function (n) { return n !== ''; });
+
+            riga.classList.toggle('d-none', nomi.length === 0);
+
+            if (nomi.length === 0) return;
+
+            riga.textContent = nomi.length === 1
+                ? 'Le opzioni prendono il nome da ' + nomi[0] + '.'
+                : 'Le opzioni si raggruppano per ' + nomi[0] + ', poi ' + nomi.slice(1).join(', poi ') + '.';
+        }
+
+        function sposta(id, passo) {
+            var lista = ordine();
+            var da = lista.indexOf(id);
+            var a = da + passo;
+
+            if (da === -1 || a < 0 || a >= lista.length) return;
+
+            lista.splice(a, 0, lista.splice(da, 1)[0]);
+            scriviOrdine(lista);
+
+            if (typeof window.wiOptionsGrid === 'function') window.wiOptionsGrid();
+        }
+
+        // Le frecce servono da due attributi in su: con uno solo non c'è
+        // nessun ordine da cambiare.
+        function frecce(lista) {
+            lista.forEach(function (id, indice) {
+                var nodo = document.querySelector('[data-wi-option="' + id + '"]');
+                if (!nodo) return;
+
+                var barra = nodo.querySelector('.wi-option-move');
+                if (!barra) return;
+
+                barra.classList.toggle('d-none', lista.length < 2);
+                barra.querySelector('.wi-option-up').disabled = indice === 0;
+                barra.querySelector('.wi-option-down').disabled = indice === lista.length - 1;
+            });
+        }
+
+        // La barra delle frecce, una per blocco, in cima alle spunte.
+        function bottoniOrdine(nodo) {
+            if (nodo.querySelector('.wi-option-move')) return;
+
+            var id = nodo.getAttribute('data-wi-option');
+            var barra = document.createElement('div');
+            barra.className = 'col-12 d-flex align-items-center gap-1 wi-option-move d-none';
+
+            [['up', 'bi-chevron-up', 'Sposta prima'], ['down', 'bi-chevron-down', 'Sposta dopo']]
+                .forEach(function (voce) {
+                    var bottone = document.createElement('button');
+                    bottone.type = 'button';
+                    bottone.className = 'btn btn-sm btn-outline-secondary py-0 px-1 wi-option-' + voce[0];
+                    bottone.title = voce[2];
+                    bottone.setAttribute('aria-label', voce[2] + ' ' + nome(nodo));
+                    bottone.innerHTML = '<i class="bi ' + voce[1] + '"></i>';
+                    bottone.addEventListener('click', function () {
+                        sposta(id, voce[0] === 'up' ? -1 : 1);
+                    });
+
+                    barra.appendChild(bottone);
+                });
+
+            nodo.insertBefore(barra, nodo.firstChild);
         }
 
         function aggiornaSelettore() {
@@ -1354,8 +1644,9 @@ class ProductModelResource extends GestionaleResource
             bottone.addEventListener('click', function () {
                 caselle(nodo).forEach(function (casella) { casella.checked = false; });
                 mostra(nodo, false);
+                scriviOrdine(ordine());
                 aggiornaSelettore();
-                if (typeof window.wiNewVersions === 'function') window.wiNewVersions();
+                if (typeof window.wiOptionsGrid === 'function') window.wiOptionsGrid();
             });
 
             riga.appendChild(bottone);
@@ -1367,12 +1658,22 @@ class ProductModelResource extends GestionaleResource
             if (!picker || picker.getAttribute('data-wi-ready') === 'true') return;
             picker.setAttribute('data-wi-ready', 'true');
 
+            var riga = picker.querySelector('.wi-option-order');
+            var campo = campoOrdine();
+
+            if (campo && String(campo.value || '') === '' && riga) {
+                campo.value = riga.getAttribute('data-wi-option-order') || '';
+            }
+
             document.querySelectorAll('[data-wi-option]').forEach(function (nodo) {
                 var acceso = inUso(nodo);
                 mostra(nodo, acceso);
+                bottoniOrdine(nodo);
 
                 if (!acceso) bottoneTogli(nodo);
             });
+
+            scriviOrdine(ordine());
 
             picker.querySelector('.wi-option-choose').addEventListener('change', function () {
                 var nodo = this.value === ''
@@ -1381,7 +1682,16 @@ class ProductModelResource extends GestionaleResource
 
                 if (nodo && accesi() < MASSIMO) mostra(nodo, true);
 
+                scriviOrdine(ordine());
                 aggiornaSelettore();
+            });
+
+            // Spuntare o togliere un valore può accendere o spegnere un
+            // attributo: l'ordine si rifà da sé.
+            document.addEventListener('change', function (ev) {
+                if (ev.target && /^option_\d+(\[\])?$/.test(String(ev.target.name || ''))) {
+                    scriviOrdine(ordine());
+                }
             });
 
             aggiornaSelettore();
@@ -1453,10 +1763,9 @@ HTML);
         }
 
         $esistenti = static::escape(json_encode($chiavi, JSON_THROW_ON_ERROR));
-        $asseVariante = static::variantAttributeId();
 
         return RichText::make(<<<HTML
-<div class="wi-options-grid" data-wi-existing="{$esistenti}" data-wi-variant-attribute="{$asseVariante}"></div>
+<div class="wi-options-grid" data-wi-existing="{$esistenti}"></div>
 <script>
     window.wiOptionsGrid = window.wiOptionsGrid || (function () {
         function radice() {
@@ -1485,25 +1794,106 @@ HTML);
             return pezzi.join('-');
         }
 
-        // Un asse per attributo spuntato, nell'ordine in cui stanno in pagina.
+        // L'ordine scelto nel selettore: il primo asse raggruppa, gli altri
+        // compongono il nome.
+        function ordineAssi() {
+            var campo = document.querySelector('[name="axes_order"]');
+            var valore = campo ? String(campo.value || '') : '';
+
+            return valore.split('-').filter(function (id) { return id !== ''; });
+        }
+
+        // Un asse per attributo spuntato, nell'ordine che l'articolo ha
+        // scelto; quello che l'ordine non nomina va in coda.
         function assiSpuntati() {
             var gruppi = new Map();
 
             document.querySelectorAll('input[type="checkbox"][name^="option_"]').forEach(function (casella) {
                 if (!casella.checked) return;
 
-                var nome = casella.getAttribute('name');
-                if (!gruppi.has(nome)) gruppi.set(nome, []);
+                // La chiave è l'id dell'attributo, non il nome della casella:
+                // il nome porta le parentesi dell'array, e l'ordine parla di
+                // attributi.
+                var asse = (String(casella.getAttribute('name')).match(/option_(\d+)/) || [])[1] || '';
+                if (asse === '') return;
+
+                if (!gruppi.has(asse)) gruppi.set(asse, []);
 
                 var etichetta = casella.closest('label') || casella.parentElement;
-                gruppi.get(nome).push({
+                gruppi.get(asse).push({
                     id: String(casella.value),
                     label: etichetta ? etichetta.textContent.trim() : '',
-                    attribute: (nome.match(/option_(\d+)/) || [])[1] || ''
+                    attribute: asse
                 });
             });
 
-            return Array.from(gruppi.values());
+            var ordine = ordineAssi();
+            var assi = [];
+
+            ordine.forEach(function (id) {
+                if (gruppi.has(id)) { assi.push(gruppi.get(id)); gruppi.delete(id); }
+            });
+
+            gruppi.forEach(function (asse) { assi.push(asse); });
+
+            return assi;
+        }
+
+        // Ogni valore spuntabile della pagina: da quale attributo viene e
+        // come si chiama. È la stessa tabella che il server ha nel database.
+        function valori() {
+            var mappa = {};
+
+            document.querySelectorAll('input[type="checkbox"][name^="option_"]').forEach(function (casella) {
+                var nome = casella.getAttribute('name');
+                var etichetta = casella.closest('label') || casella.parentElement;
+
+                mappa[String(casella.value)] = {
+                    attribute: (nome.match(/option_(\d+)/) || [])[1] || '',
+                    label: etichetta ? etichetta.textContent.trim() : ''
+                };
+            });
+
+            return mappa;
+        }
+
+        // Le righe che esistono già portano il nome calcolato con l'ordine
+        // di prima: cambiandolo, il server le riscriverà al salvataggio. Qui
+        // si riscrivono subito, perché è la cosa che si guarda.
+        function riallinea(righe) {
+            var mappa = valori();
+            var assi = ordineAssi();
+
+            righe.querySelectorAll('.wi-repeater-row').forEach(function (riga) {
+                // Una riga che esiste porta la sua combinazione; una appena
+                // proposta ce l'ha solo nella chiave della riga.
+                var chiave = campo(riga, 'combination');
+                var valore = chiave && String(chiave.value || '') !== ''
+                    ? String(chiave.value)
+                    : String(riga.getAttribute('data-wi-row-key') || '');
+                if (valore === '') return;
+
+                var pezzi = valore.split('-').map(function (id) { return mappa[id]; })
+                    .filter(function (p) { return !!p; });
+                if (!pezzi.length) return;
+
+                var messi = [];
+
+                assi.forEach(function (asse) {
+                    pezzi.forEach(function (p) {
+                        if (p.attribute === asse && messi.indexOf(p) === -1) messi.push(p);
+                    });
+                });
+
+                pezzi.forEach(function (p) { if (messi.indexOf(p) === -1) messi.push(p); });
+
+                var etichette = messi.map(function (p) { return p.label; })
+                    .filter(function (l) { return l !== ''; });
+                if (!etichette.length) return;
+
+                scrivi(riga, 'group', etichette[0]);
+                scrivi(riga, 'option', etichette.slice(1).join(' / ') || etichette[0]);
+            });
         }
 
         function cartesiano(assi) {
@@ -1544,7 +1934,6 @@ HTML);
             var esistenti = [];
             try { esistenti = JSON.parse(root.getAttribute('data-wi-existing') || '[]'); } catch (e) {}
 
-            var asseVariante = String(root.getAttribute('data-wi-variant-attribute') || '');
             var righe = document.getElementById(box.id + '-rows');
             var templateId = box.id + '-template';
             var campoSku = document.querySelector('#resource-layout-form [name="sku"]');
@@ -1580,25 +1969,20 @@ HTML);
 
                 riga.setAttribute('data-wi-new', 'true');
 
-                var colore = '';
-                var resto = [];
+                // La combinazione arriva già nell'ordine scelto: il primo
+                // valore è la testata del gruppo, gli altri sono il nome.
+                var gruppo = combo.length ? combo[0].label : '';
+                var resto = combo.slice(1).map(function (v) { return v.label; });
 
-                combo.forEach(function (v) {
-                    if (asseVariante !== '' && v.attribute === asseVariante) {
-                        colore = v.label;
-                    } else {
-                        resto.push(v.label);
-                    }
-                });
-
-                scrivi(riga, 'variant', colore);
-                scrivi(riga, 'option', resto.join(' / ') || colore);
+                scrivi(riga, 'group', gruppo);
+                scrivi(riga, 'option', resto.join(' / ') || gruppo);
                 scrivi(riga, 'sku', skuProposto(base, combo));
 
                 var sku = campo(riga, 'sku');
                 if (sku) sku.addEventListener('input', function () { sku.dataset.wiTouched = 'true'; });
             });
 
+            riallinea(righe);
             mostra(box, righe);
             raggruppa(box, righe);
         }
@@ -1614,18 +1998,28 @@ HTML);
             colonna.classList.toggle('d-none', quante <= 1 && spuntate === 0);
         }
 
-        // Un articolo senza colore non ha niente su cui raggruppare: la griglia
-        // resta piatta invece di mostrare una testata «Senza scelta».
+        // Con un attributo solo ogni gruppo conterrebbe una riga e la testata
+        // ripeterebbe il nome della riga: i gruppi cominciano da due
+        // attributi in su, e senza niente su cui raggruppare la griglia resta
+        // piatta invece di mostrare una testata «Senza scelta».
         function raggruppa(box, righe) {
             if (typeof window.wiRepeaterGroupApply !== 'function') return;
             if (righe.getAttribute('data-wi-group-fixed') !== 'true') return;
 
-            var conColore = Array.prototype.slice.call(righe.querySelectorAll('[name\$="[variant]"]'))
+            var assi = assiSpuntati().length;
+            var conGruppo = Array.prototype.slice.call(righe.querySelectorAll('[name\$="[group]"]'))
                 .some(function (campo) { return String(campo.value || '').trim() !== ''; });
 
+            // Sulla scheda di un articolo che esiste le spunte ci sono già:
+            // se le righe portano un gruppo e gli assi sono più d'uno, si
+            // raggruppa.
             // Il modello delle testate, non quello delle righe: sono due
             // template diversi, e sbagliarli vuol dire nessun gruppo.
-            window.wiRepeaterGroupApply(righe.id, box.id + '-group-template', conColore ? 'variant' : '');
+            window.wiRepeaterGroupApply(
+                righe.id,
+                box.id + '-group-template',
+                conGruppo && assi >= 2 ? 'group' : ''
+            );
         }
 
         // Togliere una riga vuol dire «questa non la vendo»: le spunte che la
@@ -2018,10 +2412,10 @@ HTML);
         $campo = FormField::key('products')
             ->repeater([
                 RepeaterColumn::key('id')->hidden(),
-                // Il colore della riga. Non si scrive: serve a raggruppare, e
-                // in chiaro lo dice la testata del gruppo, una volta sola
-                // invece che su ogni riga.
-                RepeaterColumn::key('variant')->hidden()->label(static::pageOptionName()),
+                // Il valore del primo attributo scelto. Non si scrive: serve
+                // a raggruppare, e in chiaro lo dice la testata del gruppo,
+                // una volta sola invece che su ogni riga.
+                RepeaterColumn::key('group')->hidden()->label(static::pageOptionName()),
                 // Le spunte che tengono in piedi questa riga: togliendo la
                 // riga, il browser sa quali valori non servono più.
                 RepeaterColumn::key('combination')->hidden(),
@@ -2030,19 +2424,34 @@ HTML);
                 // `name` del database — quella la scrive il sistema — perché
                 // una casella di sola lettura viene postata lo stesso, e
                 // scriverebbe "S" al posto di "Blu / S".
-                RepeaterColumn::key('option')->text()->readonly()->label('Opzione')->columnSpan(2),
-                RepeaterColumn::key('sku')->text()->label('SKU')->columnSpan(2),
-                RepeaterColumn::key('ean')->text()->label('EAN')->columnSpan(2),
-                RepeaterColumn::key('price')->number()->decimal(2)->label('Prezzo')->columnSpan(1),
-                // Scrivibile: si scrive quanti pezzi ci sono, e il pannello fa
-                // il movimento della differenza. Una casella lasciata com'era
-                // non muove niente.
-                RepeaterColumn::key('stock')->number()->decimal(3)->label('Giacenza')->columnSpan(1),
-                RepeaterColumn::key('photo')->fileDragDrop('gallery')->label('Foto o video')->columnSpan(2),
+                // Quello che si compila sempre: come si chiama, quanto
+                // costa, quanti ce ne sono. Undici dodicesimi, perché il
+                // dodicesimo è del cestino.
+                RepeaterColumn::key('option')->text()->readonly()->label('Opzione')->columnSpan(7),
+                RepeaterColumn::key('price')->number()->decimal(2)->label('Prezzo')->columnSpan(2),
+                // Scrivibile finché il magazzino ha una sede sola: si scrive
+                // quanti pezzi ci sono, e il pannello fa il movimento della
+                // differenza. Una casella lasciata com'era non muove niente.
+                // Con due sedi il numero sarebbe ambiguo — mostra il totale e
+                // scriverebbe sulla principale — e la casella si legge e
+                // basta.
+                RepeaterColumn::key('stock')
+                    ->number()
+                    ->decimal(3)
+                    ->label('Giacenza')
+                    ->readonly(!static::stockIsWritable())
+                    ->columnSpan(2),
+                // Dietro «Compila le informazioni avanzate»: chi carica un
+                // articolo nuovo quasi mai ha già il codice a barre in mano.
+                RepeaterColumn::key('sku')->text()->label('SKU')->columnSpan(4),
+                RepeaterColumn::key('ean')->text()->label('EAN')->columnSpan(4),
                 RepeaterColumn::key('active')
                     ->select(['true' => 'Attivo', 'false' => 'Fermo'])
                     ->label('Stato')
-                    ->columnSpan(1),
+                    ->columnSpan(4),
+                // Un rettangolo su cui si trascina un file non si legge
+                // stretto: prende la riga intera del blocco.
+                RepeaterColumn::key('photo')->fileDragDrop('gallery')->label('Foto o video')->columnSpan(12),
             ])
             ->relation(
                 RepeaterRelation::make(Product::$table, 'product_model_id')
@@ -2054,6 +2463,8 @@ HTML);
             // «Aggiungi» darebbe una riga senza nessuna combinazione dietro.
             ->repeaterAddButton(false)
             ->repeaterStartEmpty()
+            ->repeaterAdvanced('sku', 'ean', 'active', 'photo')
+            ->repeaterAdvancedLabel('Compila le informazioni avanzate')
             ->repeaterDeleteTitle('Elimina opzione')
             ->repeaterDeleteText('Confermi l\'eliminazione di questa opzione in vendita?')
             ->repeaterDeleteCancelLabel('Annulla')
@@ -2063,9 +2474,9 @@ HTML);
             // leggono male.
             ->label('');
 
-        if (static::groupsByVariant($modelId)) {
+        if (static::groupsByAxis($modelId)) {
             $campo = $campo
-                ->repeaterGroupFixed('variant')
+                ->repeaterGroupFixed('group')
                 ->repeaterGroupCommand('price', 'Prezzo del gruppo')
                 ->repeaterGroupCountLabel('opzione', 'opzioni');
         }
@@ -2076,25 +2487,136 @@ HTML);
     /**
      * Se la griglia nasce raggruppata.
      *
-     * In creazione non c'è ancora niente da guardare: si raggruppa se il
-     * negozio ha un attributo con pagina propria, e il browser spegne i gruppi
-     * finché nessuna riga ne porta uno. Su un articolo che esiste decide
-     * quello che c'è: un articolo venduto solo per taglia non ha un colore su
-     * cui raggruppare, e la griglia resta piatta.
+     * Con un attributo solo ogni gruppo conterrebbe una riga e la testata
+     * ripeterebbe il nome della riga: i gruppi cominciano da due attributi in
+     * su. In creazione non c'è ancora niente da guardare, quindi la testata si
+     * prepara se il negozio ha almeno due attributi da spuntare, e il browser
+     * spegne i gruppi finché le righe non ne hanno bisogno.
      */
-    protected static function groupsByVariant(int $modelId): bool
+    protected static function groupsByAxis(int $modelId): bool
     {
         if ($modelId <= 0) {
-            return static::variantAttributeId() > 0;
+            return count(static::optionAttributes()) >= 2;
         }
 
-        foreach (static::variantLabels($modelId) as $label) {
-            if ($label !== '') {
-                return true;
+        return count(static::axesInUse($modelId)) >= 2;
+    }
+
+    /**
+     * Gli attributi che questo articolo sta davvero usando.
+     *
+     * @return list<int>
+     */
+    public static function axesInUse(int $modelId): array
+    {
+        $assi = [];
+        $asseVariante = static::variantAttributeId();
+
+        foreach (static::variantValues($modelId) as $valueId) {
+            if ($valueId > 0 && $asseVariante > 0) {
+                $assi[$asseVariante] = true;
             }
         }
 
-        return false;
+        try {
+            foreach (static::products($modelId) as $product) {
+                foreach (ProductAttributes::read('product', (int) $product['id']) as $attributeId => $link) {
+                    if ((int) ($link['attribute_value_id'] ?? 0) > 0) {
+                        $assi[(int) $attributeId] = true;
+                    }
+                }
+            }
+        } catch (Throwable) {
+            // Senza database (i test degli schemi) restano gli assi che si
+            // leggono dalle varianti: la griglia si raggrupperà lo stesso.
+        }
+
+        return array_map('intval', array_keys($assi));
+    }
+
+    /**
+     * L'ordine degli assi di questo articolo: il primo raggruppa, gli altri
+     * compongono il nome.
+     *
+     * Un articolo che non ha ancora scelto tiene l'ordine dell'anagrafica, con
+     * l'attributo che ha pagina propria davanti: è quello che faceva la
+     * scheda prima che l'ordine si potesse scegliere.
+     *
+     * @return list<int>
+     */
+    public static function axesOrder(int $modelId): array
+    {
+        $ordine = [];
+
+        if ($modelId > 0) {
+            $rows = static::rowsOf(ProductModel::class, ['id' => $modelId]);
+            $row = $rows[0] ?? null;
+
+            foreach (explode('-', (string) (is_array($row) ? ($row['axes_order'] ?? '') : '')) as $pezzo) {
+                $id = (int) trim($pezzo);
+
+                if ($id > 0 && !in_array($id, $ordine, true)) {
+                    $ordine[] = $id;
+                }
+            }
+        }
+
+        if ($ordine !== []) {
+            return $ordine;
+        }
+
+        $asseVariante = static::variantAttributeId();
+
+        if ($asseVariante > 0) {
+            $ordine[] = $asseVariante;
+        }
+
+        foreach (static::optionAttributes() as $attribute) {
+            $id = (int) $attribute['id'];
+
+            if ($id > 0 && !in_array($id, $ordine, true)) {
+                $ordine[] = $id;
+            }
+        }
+
+        return $ordine;
+    }
+
+    /**
+     * Se questo articolo si vende in più opzioni.
+     *
+     * È una colonna, non un conteggio: un articolo appena creato ha già il suo
+     * prodotto figlio, e contare direbbe «no» anche a chi le opzioni le sta
+     * per aggiungere. Su un articolo che ne ha già più di una la risposta è sì
+     * comunque, qualunque cosa dica la colonna.
+     */
+    public static function hasVariants(int $modelId): bool
+    {
+        if ($modelId <= 0) {
+            return false;
+        }
+
+        if (static::productCount($modelId) > 1) {
+            return true;
+        }
+
+        $rows = static::rowsOf(ProductModel::class, ['id' => $modelId]);
+        $row = $rows[0] ?? null;
+
+        return is_array($row) && ($row['has_variants'] ?? 'false') === 'true';
+    }
+
+    /**
+     * Se la giacenza si può scrivere dalla scheda.
+     *
+     * La casella mostra il totale di tutte le sedi e scriverebbe sulla
+     * principale: con una sede sola le due cose coincidono, con due no, e
+     * riscrivere il numero sposterebbe la merce da una sede all'altra senza
+     * dirlo. Dalla seconda in poi si legge e si rettifica dal magazzino.
+     */
+    public static function stockIsWritable(): bool
+    {
+        return count(static::rowsOf(Location::class, ['has_stock' => 'true'])) <= 1;
     }
 
     /** L'attributo con pagina propria, se il negozio ne ha uno. */
@@ -2185,65 +2707,75 @@ HTML);
         $varianti = static::variantLabels($modelId);
         $valoriVariante = static::variantValues($modelId);
         $asseVariante = static::variantAttributeId();
-        $posizione = [];
-
-        foreach (static::attributes() as $attribute) {
-            $posizione[(int) $attribute['id']] = (int) ($attribute['position'] ?? 0);
-        }
+        // L'ordine è quello che l'articolo ha scelto: il primo asse
+        // raggruppa, gli altri compongono il nome, su tutte le righe uguale.
+        $ordine = static::axesOrder($modelId);
 
         $nomi = [];
 
         foreach (static::products($modelId) as $product) {
             $id = (int) $product['id'];
             $variantId = (int) ($product['product_variant_id'] ?? 0);
-            $colore = $varianti[$variantId] ?? '';
             $links = ProductAttributes::read('product', $id);
 
-            // L'ordine è quello degli attributi nell'anagrafica: "S / Gomma"
-            // e non "Gomma / S", su tutte le righe uguale.
-            uksort(
-                $links,
-                static fn ($a, $b): int => ($posizione[(int) $a] ?? 0) <=> ($posizione[(int) $b] ?? 0)
-            );
-
-            $resto = [];
-
-            foreach ($links as $attributeId => $link) {
-                if ((int) $attributeId === $asseVariante) {
-                    continue;
-                }
-
-                $label = $etichetteValori[(int) ($link['attribute_value_id'] ?? 0)] ?? '';
-
-                if ($label !== '') {
-                    $resto[] = $label;
-                }
-            }
-
-            $etichette = array_values(array_filter(
-                array_merge([$colore], $resto),
-                static fn (string $l): bool => $l !== ''
-            ));
-
-            // Il colore sta sulla variante, non sul prodotto: la chiave li
-            // mette insieme, come fa il browser con le spunte.
+            // Un'etichetta per asse, da dovunque venga: il valore con pagina
+            // propria sta sulla variante, gli altri sul prodotto.
+            $perAsse = [];
             $valori = [];
+
+            $colore = $varianti[$variantId] ?? '';
             $valoreColore = $valoriVariante[$variantId] ?? 0;
+
+            if ($asseVariante > 0 && $colore !== '') {
+                $perAsse[$asseVariante] = $colore;
+            }
 
             if ($valoreColore > 0) {
                 $valori[] = $valoreColore;
             }
 
-            foreach ($links as $link) {
+            foreach ($links as $attributeId => $link) {
+                $attributeId = (int) $attributeId;
                 $valueId = (int) ($link['attribute_value_id'] ?? 0);
 
                 if ($valueId > 0) {
                     $valori[] = $valueId;
                 }
+
+                if ($attributeId === $asseVariante) {
+                    continue;
+                }
+
+                $label = $etichetteValori[$valueId] ?? '';
+
+                if ($label !== '') {
+                    $perAsse[$attributeId] = $label;
+                }
             }
 
+            $etichette = [];
+
+            foreach ($ordine as $asse) {
+                if (($perAsse[$asse] ?? '') !== '') {
+                    $etichette[] = $perAsse[$asse];
+                    unset($perAsse[$asse]);
+                }
+            }
+
+            // Un asse che l'ordine non nomina — un attributo aggiunto dopo —
+            // va in coda: sparire dal nome sarebbe peggio che stare fuori
+            // posto.
+            foreach ($perAsse as $label) {
+                if ($label !== '') {
+                    $etichette[] = $label;
+                }
+            }
+
+            $gruppo = $etichette[0] ?? '';
+            $resto = array_slice($etichette, 1);
+
             $nomi[$id] = [
-                'variant' => $colore,
+                'group' => $gruppo,
                 'rest' => implode(' / ', $resto),
                 // La stessa chiave che calcola il browser: da lì sa quali
                 // spunte tiene in piedi questa riga.
@@ -2252,7 +2784,9 @@ HTML);
                 // l'articolo venduto così com'è, e il suo nome resta quello
                 // che gli ha dato chi l'ha creato.
                 'full' => $etichette === [] ? '' : VersionName::from($etichette),
-                'label' => $etichette === [] ? (string) ($product['name'] ?? '') : implode(' / ', $resto ?: [$colore]),
+                'label' => $etichette === []
+                    ? (string) ($product['name'] ?? '')
+                    : ($resto === [] ? $gruppo : implode(' / ', $resto)),
             ];
         }
 
@@ -2328,14 +2862,18 @@ HTML);
             FormField::key('product_sale_price')->number()->decimal(2)->label('Prezzo scontato'),
         ];
 
-        if ($modelId !== null && $modelId > 0 && static::productCount($modelId) <= 1) {
+        if ($modelId !== null && $modelId > 0 && !static::hasVariants($modelId)) {
+            // Si scrive quanti pezzi ci sono: il movimento della differenza
+            // lo fa il pannello. Con più sedi il numero sarebbe ambiguo, e la
+            // casella si legge e basta.
             $fields[] = FormField::key('product_stock')
-                ->text()
-                ->readonly()
+                ->number()
+                ->decimal(3)
+                ->readonly(!static::stockIsWritable())
                 ->label('Giacenza');
         }
 
-        if ($modelId === null || static::productCount($modelId) <= 1) {
+        if ($modelId === null || !static::hasVariants($modelId)) {
             $fields[] = FormField::key('product_ean')->text()->label('EAN');
         }
 

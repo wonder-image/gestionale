@@ -41,7 +41,24 @@ domani correggi il nome: i link che qualcuno ha salvato continuano a funzionare.
 - **A destra**, stretta, quello che si decide: pubblicazione, codici, dove sta
   nel sito, spedizione.
 - **In fondo, a tutta larghezza, «Opzioni in vendita»**: gli attributi da
-  spuntare e la griglia di quello che vendi.
+  spuntare e la griglia di quello che vendi. Compare solo se hai risposto sì
+  alla domanda qui sotto.
+
+## «Questo articolo ha varianti?»
+
+È la prima domanda della scheda, subito sotto il nome, e decide tutto il
+resto.
+
+- **No** — prezzo, prezzo scontato, giacenza, SKU ed EAN sono dell'articolo, si
+  scrivono una volta e il riquadro delle opzioni non compare. È la maglietta
+  che si vende in un modo solo.
+- **Sì** — compaiono gli attributi e la griglia, e quelle stesse cose si
+  scrivono opzione per opzione. Il prezzo in alto diventa un comando che le
+  scrive tutte.
+
+Un articolo che ha già più opzioni non torna indietro con l'interruttore:
+quelle righe hanno movimenti, foto e magari ordini. Si eliminano dalla griglia,
+una per una, dove la cancellazione lo dice.
 
 ## «Opzioni in vendita»
 
@@ -54,6 +71,18 @@ domani correggi il nome: i link che qualcuno ha salvato continuano a funzionare.
    (`TSH-1-BLU-M`). Sono già lì, prima di salvare.
 4. Riempi quello che sai — prezzo, giacenza, foto — e salva. Le righe nascono
    con quello che hai scritto, non con valori da correggere dopo.
+
+### L'ordine degli attributi
+
+Le frecce **↑ ↓** in cima a ogni attributo scelto decidono l'ordine, e sotto il
+menu una frase dice cosa succederà: *«Le opzioni si raggruppano per Colore, poi
+Taglia»*. Il primo attributo fa le testate dei gruppi, gli altri compongono il
+nome della riga.
+
+Mettendo *Taglia* davanti, gli stessi sei prodotti si leggono al contrario: i
+gruppi diventano **S**, **M**, **L** e dentro ci stanno **Blu** e **Rosso**. La
+griglia si riscrive mentre guardi, prima ancora di salvare, e l'ordine resta
+quello che hai lasciato quando riapri la scheda.
 
 Il pulsante **+** accanto ai valori serve quando il colore che ti serve non c'è
 ancora: lo scrivi lì, senza uscire dalla scheda, e resta spuntato. Sappi che
@@ -77,30 +106,36 @@ ha già le sue righe direbbe una bugia.
 Le opzioni che esistono e quelle che stanno per nascere stanno **nella stessa
 griglia**, con le stesse caselle:
 
+Nella riga si vedono le tre cose che si compilano sempre:
+
 | Colonna | Cosa ci scrivi |
 |---|---|
-| **Opzione** | niente: è quello che resta del nome una volta detto il colore — "S", oppure "S / Gomma" se gli attributi sono tre |
-| **SKU** | il codice. Il gestionale lo propone, tu lo correggi |
-| **EAN** | il codice a barre, se ce l'ha |
+| **Opzione** | niente: è quello che resta del nome una volta detta la testata — "S", oppure "S / Gomma" se gli attributi sono tre |
 | **Prezzo** | quanto costa questa riga |
 | **Giacenza** | quanti pezzi ci sono |
-| **Foto o video** | il file di questa riga sola: si trascina dentro |
-| **Stato** | *Attivo* o *Fermo* |
 
-Quando l'articolo ha dei colori la griglia è **raggruppata per colore**: non c'è
-niente da scegliere, è così e basta. Nella testata di ogni gruppo c'è **Prezzo
-del gruppo**: lo scrivi lì e va su tutte le righe di quel colore, sotto i tuoi
-occhi. Un articolo venduto solo per taglia non ha un colore su cui raggruppare,
-e la griglia resta piatta.
+Il resto sta dietro **«Compila le informazioni avanzate»**, un bottone per
+riga: **SKU**, **EAN**, **Stato** (*Attivo* o *Fermo*) e **Foto o video**, il
+file di questa riga sola, su cui si trascina. Sono le cose che quasi nessuno ha
+in mano nel momento in cui crea l'articolo; il blocco parte chiuso anche
+quando dentro c'è già qualcosa — il codice te lo propone il gestionale — e
+niente di quello che c'è si perde.
+
+La griglia è **raggruppata**, e il raggruppamento è per il primo attributo che
+hai scelto. Nella testata di ogni gruppo c'è **Prezzo del gruppo**: lo scrivi lì
+e va su tutte le righe di quel gruppo, sotto i tuoi occhi. Con un attributo solo
+non c'è niente da raggruppare — ogni testata ripeterebbe la riga — e la griglia
+resta piatta.
 
 Le righe non si trascinano: l'ordine lo decide il gestionale, ed è sempre lo
 stesso.
 
 ## Il nome non si scrive
 
-Il nome di un'opzione nasce da sé dai valori spuntati — "Blu / S" — ed è quello
-che il cliente leggerà quando sceglie. **Non si corregge a mano**, e si rimette
-in riga a ogni salvataggio.
+Il nome di un'opzione nasce da sé dai valori spuntati, nell'ordine che hai
+scelto — "Blu / S" — ed è quello che il cliente leggerà quando sceglie. **Non si
+corregge a mano**, e si rimette in riga a ogni salvataggio. Cambiando l'ordine
+degli attributi cambiano anche i nomi: "Blu / S" diventa "S / Blu".
 
 Vuoi che si legga "Blu notte"? Rinomina il valore in **Catalogo → Attributi**:
 da lì cambia in tutti gli articoli che lo usano, e il colore si rinomina
@@ -117,8 +152,8 @@ casella in alto **resta vuota**, perché non c'è più un prezzo solo da mostrar
 e lasciarla vuota è anche il modo di salvare senza toccare i prezzi che hai
 sistemato a mano.
 
-Quando l'articolo si vende in un'unica opzione, la casella in alto è il prezzo
-di quella e si comporta come ti aspetti.
+Quando l'articolo non ha varianti, la casella in alto è il suo prezzo e si
+comporta come ti aspetti.
 
 ## La giacenza
 
@@ -132,8 +167,13 @@ causale *Inventario*.
 - Un **numero negativo** viene rifiutato: qui si scrive quanti pezzi hai, non di
   quanto cambiarli.
 
-Nel riquadro in alto, quando l'articolo si vende in un'unica opzione, la
-giacenza si **legge** soltanto, con accanto il link alla rettifica.
+Quando l'articolo non ha varianti la casella sta in alto, accanto al prezzo, e
+si scrive allo stesso modo: accanto c'è il link alla rettifica, per quando serve
+una causale diversa.
+
+Se un domani il magazzino avrà **più sedi**, la casella della scheda diventerà
+un totale da leggere: un numero solo non potrebbe dire in quale sede sta la
+merce.
 
 Per i carichi lunghi — centinaia di righe con una causale sola — restano
 **Magazzino → Giacenze** e il pulsante **Rettifica**: li trovi in

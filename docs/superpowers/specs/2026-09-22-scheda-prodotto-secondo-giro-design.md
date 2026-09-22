@@ -406,6 +406,78 @@ l'opzione la foto torna a valere per il colore invece di sparire.
 | P31 | La foto appartiene alla singola opzione | «Blu / S» può avere la sua; l'eredità opzione → colore → articolo la fa la lettura |
 | P32 | Tre attributi al massimo, ma solo nel selettore | Nel server bloccherebbe per sempre un articolo che ne ha già di più, anche solo per correggergli il prezzo |
 
+## 13. Quarto giro: l'ordine lo decide chi vende
+
+Alla prova a schermo la riga dell'opzione era sfasata: prezzo, giacenza e stato
+larghi quanto la riga, uno sotto l'altro, e il campo delle foto schiacciato in
+un sesto di larghezza. Non era un problema di stile: `resolvedColumnWidth()`
+nel framework scambiava `columnSpan(1)` per "non dichiarato" e lo portava a
+undici dodicesimi. Le tre caselle strette della griglia erano le uniche
+dichiarate a uno, e quindi le uniche rotte. Lo stesso difetto sfasava già il
+repeater degli indirizzi del cliente.
+
+Da lì il giro tocca quattro cose.
+
+**L'ordine degli attributi lo sceglie chi vende.** Fino a qui il
+raggruppamento era cablato sul colore, cioè sull'unico attributo che il
+negozio dichiara `variant`. Ora l'articolo porta il suo ordine: gli attributi
+accesi nel selettore stanno in una lista riordinabile, il primo raggruppa e
+gli altri compongono il nome nell'ordine in cui stanno. «Colore, poi Taglia»
+dà i gruppi «Blu» e «Rosso» con dentro «S», «M», «L»; «Taglia, poi Colore» dà
+i gruppi «S», «M», «L» con dentro «Blu» e «Rosso». L'ordine si salva
+sull'articolo, perché la scheda deve riaprirsi come la si è lasciata e perché
+la vetrina mostrerà i selettori nello stesso ordine.
+
+Il raggruppamento resta a un livello solo. Tre testate annidate — «Blu» dentro
+cui «Gomma» dentro cui «S» — richiederebbero di riscrivere il raggruppamento
+del framework per guadagnare poco: raggruppo per il primo, e gli altri li
+leggo nel nome della riga.
+
+**Il raggruppamento sparisce quando non dice niente.** Con un attributo solo
+ogni gruppo conterrebbe una riga e la testata ripeterebbe il nome della riga.
+I gruppi compaiono da due attributi in su.
+
+**La riga chiede quattro cose.** Opzione, prezzo, giacenza e stato stanno
+nella riga; SKU, EAN e il campo delle foto stanno dietro «Compila le
+informazioni avanzate», che nel framework diventa un modificatore del
+repeater e non un pezzo di HTML del modulo. Dentro quel blocco le foto vanno
+a tutta larghezza: un rettangolo su cui si trascina un file non può stare in
+un sesto di riga. Il blocco nasce chiuso anche su una riga che ha già i suoi
+codici: lo SKU lo propone il pannello, e aprirlo «perché c'è qualcosa dentro»
+riportava la griglia a essere lunga come prima.
+
+La giacenza resta nella riga, ma solo finché il magazzino ha una sede sola.
+Oggi la casella mostra il totale di tutte le sedi e scrive sulla principale:
+con due sedi, riscrivere il numero sposterebbe la merce da una all'altra
+senza dirlo. Finché la sede è una l'asimmetria non esiste; dalla seconda in
+poi la casella diventa il totale in sola lettura e manda alla rettifica.
+
+**«Questo articolo ha varianti?»** La domanda sta in cima al riquadro del
+prodotto, sotto il nome, e governa quello che le sta sotto: con «No» prezzo,
+prezzo scontato, giacenza, SKU ed EAN sono dell'articolo e il riquadro delle
+opzioni non compare; con «Sì» compaiono selettore e griglia, e il prezzo
+dell'articolo torna a essere il comando che li scrive tutti. È una colonna
+dell'articolo, non un calcolo: un articolo appena creato ha già un figlio, e
+"non ho ancora scelto" non è "no". Il server non si fida della domanda
+nascosta: le caselle nascoste vengono postate lo stesso, e un «No» salta la
+generazione delle combinazioni comunque.
+
+Un articolo che ha già più di un'opzione non può tornare indietro con un
+interruttore: le opzioni hanno movimenti, prenotazioni e foto, e farle sparire
+da una preferenza è una perdita di dati travestita. Si cancellano dalla
+griglia, una per una, dove la cancellazione lo dice.
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P33 | `columnSpan(1)` vale un dodicesimo; il "non dichiarato" si riconosce dal flag | Il valore di partenza del framework è già `1`: leggerlo come "niente" rompeva ogni casella stretta |
+| P34 | Le colonne avanzate sono un modificatore del repeater | Un blocco a scomparsa dentro una riga serve a chiunque abbia una griglia, non solo al catalogo |
+| P35 | La giacenza resta scrivibile nella riga finché la sede è una | È quello che si compila con la merce davanti; con due sedi il numero diventerebbe ambiguo |
+| P36 | L'ordine degli assi si salva sull'articolo, in `axes_order` | La scheda deve riaprirsi come la si è lasciata, e la vetrina leggerà lo stesso ordine. Non `option_axes`: il prefisso `option_` è delle spunte, e il salvataggio lo butterebbe via |
+| P37 | Il raggruppamento resta a un livello | Le testate annidate costano un giro di framework e leggono poco meglio |
+| P38 | I gruppi compaiono da due attributi in su | Con un attributo solo la testata ripete la riga |
+| P39 | «Ha varianti» è una colonna, non un calcolo | Un articolo nuovo ha già un figlio: il calcolo direbbe sempre "no" |
+| P40 | «No» è bloccato su un articolo con più opzioni | Le opzioni hanno movimenti e foto: si cancellano dove la cancellazione lo dice |
+
 ## Piani
 
 Da scrivere dopo l'approvazione.

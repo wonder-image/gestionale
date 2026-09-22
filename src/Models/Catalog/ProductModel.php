@@ -56,6 +56,13 @@ final class ProductModel extends Model
             Column::key('requires_shipping')->enum(['true', 'false'])->default('true'),
             Column::key('visible')->enum(['true', 'false'])->default('true'),
             Column::key('visible_online')->enum(['true', 'false'])->default('true'),
+            // Se l'articolo si vende in più opzioni. È una risposta, non un
+            // conteggio: un articolo appena creato ha già un figlio, e il
+            // conteggio direbbe "no" a chi le varianti le sta per aggiungere.
+            Column::key('has_variants')->enum(['true', 'false'])->default('false'),
+            // Gli attributi che generano le opzioni, nell'ordine scelto:
+            // "7-3-12". Il primo raggruppa, gli altri compongono il nome.
+            Column::key('axes_order')->length(100),
             Column::key('position')->int(),
         ];
     }
@@ -89,6 +96,8 @@ final class ProductModel extends Model
             Field::key('requires_shipping')->text()->sanitize(false),
             Field::key('visible')->text()->sanitize(false),
             Field::key('visible_online')->text()->sanitize(false),
+            Field::key('has_variants')->text()->sanitize(false),
+            Field::key('axes_order')->text(),
             Field::key('position')->number()->decimals(0),
         ];
     }

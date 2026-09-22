@@ -188,6 +188,10 @@ try {
 
             ProductModelResource::forgetCatalogCache();
             ProductModelResource::saveExtras($nuovo, [
+                // La domanda in cima alla scheda: senza un sì le spunte non
+                // si guardano nemmeno.
+                'has_variants' => 'true',
+                'axes_order' => $colore['id'].'-'.$taglia['id'],
                 'option_'.$colore['id'] => [(string) $colore['values'][0]],
                 'option_'.$taglia['id'] => [(string) $taglia['values'][0]],
                 // Il riquadro in alto dice 9,90: non deve toccare la riga che

@@ -70,6 +70,26 @@ $colonneVersioni = static function () use ($schedaPiena): array {
     return [];
 };
 
+$avanzate = static function () use ($schedaPiena): array {
+    foreach ($schedaPiena::formSchema() as $field) {
+        if ((string) $field->name === 'products') {
+            return (array) ((array) $field->get('context'))['advanced'];
+        }
+    }
+
+    return [];
+};
+
+$etichettaAvanzate = static function () use ($schedaPiena): string {
+    foreach ($schedaPiena::formSchema() as $field) {
+        if ((string) $field->name === 'products') {
+            return (string) ((array) $field->get('context'))['advanced_label'];
+        }
+    }
+
+    return '';
+};
+
 $campiDi = static function (object $scheda): array {
     $campi = [];
 
@@ -102,14 +122,16 @@ check('la giacenza nella griglia si scrive lì', function () use ($colonneVersio
     return false;
 });
 
-check('le colonne visibili della griglia stanno in undici', function () use ($colonneVersioni) {
+check('le colonne della riga stanno in undici', function () use ($colonneVersioni, $avanzate) {
     // La dodicesima è la colonna dei bottoni, che il repeater aggiunge da sé:
     // quello che sfora va a capo, ed è il disallineamento che si vedeva.
-    // La colonna nascosta dell'id non occupa spazio.
+    // Le colonne nascoste e quelle avanzate non stanno nella riga.
     $totale = 0;
 
     foreach ($colonneVersioni() as $colonna) {
-        if ($colonna->get('helper') === 'hidden') {
+        $nome = (string) ($colonna->name ?? '');
+
+        if ($colonna->get('helper') === 'hidden' || in_array($nome, $avanzate(), true)) {
             continue;
         }
 
@@ -120,10 +142,43 @@ check('le colonne visibili della griglia stanno in undici', function () use ($co
     return $totale === 11;
 });
 
-check('l\'articolo a versione unica ha la sua casella di giacenza', function () use ($campiDi, $schedaSemplice) {
+check('i codici, lo stato e le foto stanno dietro «compila le informazioni avanzate»', function () use ($avanzate, $etichettaAvanzate) {
+    return $avanzate() === ['sku', 'ean', 'active', 'photo']
+        && str_contains($etichettaAvanzate(), 'avanzate');
+});
+
+check('nel blocco avanzato ogni casella sta in dodici, e le foto le prendono tutte', function () use ($colonneVersioni, $avanzate) {
+    $larghezze = [];
+
+    foreach ($colonneVersioni() as $colonna) {
+        $nome = (string) ($colonna->name ?? '');
+
+        if (!in_array($nome, $avanzate(), true)) {
+            continue;
+        }
+
+        $larghezze[$nome] = (int) (((array) ($colonna->columnSpan ?? []))['default'] ?? 0);
+    }
+
+    // Il blocco è a tutta larghezza: non c'è nessuna colonna di bottoni da
+    // cui difendersi, quindi si conta fino a dodici.
+    return $larghezze === ['sku' => 4, 'ean' => 4, 'active' => 4, 'photo' => 12];
+});
+
+check('l\'articolo senza varianti ha la sua casella di giacenza, e si scrive', function () use ($campiDi, $schedaSemplice) {
     $campo = $campiDi($schedaSemplice)['product_stock'] ?? null;
 
-    return $campo !== null && str_contains((string) $campo->get('attribute'), 'readonly');
+    // Con una sede sola il numero non è ambiguo: si scrive quanti pezzi ci
+    // sono e il pannello fa il movimento della differenza.
+    return $campo !== null
+        && $campo->get('helper') === 'number'
+        && !str_contains((string) $campo->get('attribute'), 'readonly');
+});
+
+check('la domanda sulle varianti c\'è, e nasce spenta', function () use ($campiDi, $schedaSemplice) {
+    $campo = $campiDi($schedaSemplice)['has_variants'] ?? null;
+
+    return $campo !== null && $campo->get('helper') === 'toggle';
 });
 
 check('con più versioni la casella singola non c\'è', function () use ($campiDi, $schedaPiena) {

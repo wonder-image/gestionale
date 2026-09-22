@@ -174,30 +174,60 @@ schermo vanno a capo, ed era il disallineamento che si vedeva.
 
 | Quando | Cosa si vede |
 |---|---|
-| sempre, se il negozio ha un attributo con dei valori | il riquadro "Opzioni in vendita": selettore, spunte e griglia — identico in `create` e in `edit` |
-| un prodotto solo | l'EAN passa nei riquadri in alto, e con il modello già salvato ci compare anche la giacenza, `readonly()`, con il link alla rettifica. Prezzo e prezzo scontato stanno lì sempre |
+| `has_variants` a `true` | il riquadro "Opzioni in vendita": selettore, spunte e griglia — identico in `create` e in `edit` |
+| `has_variants` a `false` | l'EAN passa nei riquadri in alto, e con il modello già salvato ci compare anche la giacenza, scrivibile, con il link alla rettifica. Prezzo e prezzo scontato stanno lì sempre |
 | nessun attributo con valori | `optionsCard()` torna `[]` e il riquadro non c'è |
 
-Colonne della griglia: `option` (finta, `readonly`), `sku`, `ean`, `price`,
-`stock`, `photo`, `active`, più `id` e `variant` nascoste. Stanno **dentro
-undici**: la dodicesima è la colonna dei bottoni, e quello che sfora va a capo.
+`has_variants` è una **colonna di `gst_product_models`**, non un conteggio: un
+articolo appena creato ha già il suo prodotto figlio, e contare direbbe «no»
+anche a chi le opzioni le sta per aggiungere. Il riquadro si nasconde da sé con
+`visibleWhen('has_variants', 'true')` sulla Card, ma **le caselle nascoste
+vengono postate lo stesso**: `mutateRequestValues()` e `saveExtras()` rileggono
+la risposta dal POST e con un «no» non guardano nemmeno le spunte. Su un
+articolo con più di un prodotto la risposta è forzata a `true` e l'interruttore
+è disabilitato: far sparire dieci righe da una preferenza è una perdita di dati
+travestita.
+
+Colonne della griglia: `option` (finta, `readonly`), `price`, `stock` nella
+riga; `sku`, `ean`, `active`, `photo` dietro `repeaterAdvanced()`; `id`,
+`group` e `combination` nascoste. Quelle della riga stanno **dentro undici**: la
+dodicesima è la colonna dei bottoni, e quello che sfora va a capo. Quelle del
+blocco avanzato si contano su dodici, perché lì bottoni non ce ne sono.
 
 - `option` non è la colonna `name`: una casella di sola lettura viene postata lo
   stesso, e avrebbe scritto "S" al posto di "Blu / S". La riempie
-  `optionLabels()` con quello che resta del nome tolto il colore.
-- `variant` è **calcolata e nascosta**, non `product_variant_id`: una select
+  `optionLabels()` con quello che resta del nome tolta la testata.
+- `group` è **calcolata e nascosta**, non `product_variant_id`: una select
   scrivibile sposterebbe un prodotto da un colore all'altro senza spostarne i
-  collegamenti agli attributi. In chiaro il colore lo dice la testata del
+  collegamenti agli attributi. In chiaro il valore lo dice la testata del
   gruppo.
+- `stock` è scrivibile finché il magazzino ha **una sede sola**
+  (`stockIsWritable()`): la casella mostra il totale di tutte le sedi e
+  scriverebbe sulla principale, e con due sedi riscrivere il numero sposterebbe
+  la merce senza dirlo.
 - Niente `repeaterAddButton`: le righe nascono dalle spunte, e un bottone
   "Aggiungi" darebbe una riga senza nessuna combinazione dietro. Niente
   riordino: l'ordine lo decide il generatore.
 
-**Il raggruppamento non si sceglie.** `repeaterGroupFixed('variant')` più
-`repeaterGroupCommand('price', 'Prezzo del gruppo')`: nessuna tendina "Raggruppa
-per". `groupsByVariant()` lo accende quando il negozio ha un attributo `variant`
-(in creazione) o quando qualche riga porta davvero un colore (in modifica): un
-articolo venduto solo per taglia resta piatto.
+**Il raggruppamento non si sceglie, l'ordine sì.** `repeaterGroupFixed('group')`
+più `repeaterGroupCommand('price', 'Prezzo del gruppo')`: nessuna tendina
+"Raggruppa per". Quale attributo faccia la testata lo dice `axes_order`, una
+colonna di `gst_product_models` con gli id degli attributi scelti nell'ordine
+voluto (`"509-508"`): il primo raggruppa, gli altri compongono il nome. Lo
+scrive il selettore, con le frecce su ogni blocco acceso, e lo ripulisce
+`axesFromPost()` tenendo solo quello che è davvero spuntato.
+
+`groupsByAxis()` accende i gruppi da **due assi in su** — con uno solo ogni
+testata ripeterebbe la riga — e il browser fa lo stesso conto lato suo
+(`assi >= 2` in `raggruppa()`). Cambiando l'ordine, il browser riscrive subito
+`group` e `option` di ogni riga da `combination` (`riallinea()`), e al
+salvataggio `realignNames()` riscrive i nomi veri: "Blu / S" diventa "S / Blu".
+`Combinations::clientKey()` ordina gli id, quindi l'identità delle righe non
+cambia e non nascono doppioni.
+
+Attenzione al prefisso: `withoutExtras()` scarta ogni chiave che comincia per
+`option_` — sono le spunte degli attributi — e per questo la colonna si chiama
+`axes_order` e non `option_axes`, che sarebbe stata buttata via in silenzio.
 
 **Le righe senza id non arrivano al sync del core.** Le tiene fuori
 `prepareRepeaterRows()`, perché il colore a cui appartengono lo crea

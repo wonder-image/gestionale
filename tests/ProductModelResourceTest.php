@@ -518,7 +518,7 @@ check('ogni area di foto guarda solo la sua fetta', function () use ($schedaAper
     return false;
 });
 
-check('le versioni si raggruppano, e il gruppo ha il suo prezzo', function () {
+check('le opzioni si raggruppano per il primo attributo, e il gruppo ha il suo prezzo', function () {
     // La griglia esiste solo con più di una versione: qui se ne fingono due.
     $scheda = new class extends ProductModelResource {
         protected static function currentId(): ?int
@@ -546,6 +546,12 @@ check('le versioni si raggruppano, e il gruppo ha il suo prezzo', function () {
         {
             return [1 => 'Blu', 2 => 'Rosso'];
         }
+
+        /** Due assi: sotto i due non c'è niente da raggruppare. */
+        public static function axesInUse(int $modelId): array
+        {
+            return [7, 9];
+        }
     };
 
     foreach ($scheda::formSchema() as $campo) {
@@ -559,10 +565,10 @@ check('le versioni si raggruppano, e il gruppo ha il suo prezzo', function () {
             $contesto['columns'] ?? []
         );
 
-        // Il raggruppamento non si sceglie: è il colore, e basta.
-        return in_array('variant', $colonne, true)
-            && ($contesto['group_fixed'] ?? '') === 'variant'
-            && ($contesto['group_by'] ?? []) === ['variant']
+        // Il raggruppamento non si sceglie qui: è il primo asse, e basta.
+        return in_array('group', $colonne, true)
+            && ($contesto['group_fixed'] ?? '') === 'group'
+            && ($contesto['group_by'] ?? []) === ['group']
             && ($contesto['group_command']['column'] ?? '') === 'price'
             // Le righe nascono dalle spunte: niente bottone, e niente riga
             // vuota di cortesia che al salvataggio diventerebbe un record.
@@ -611,11 +617,14 @@ check('le spunte aggiungono righe alla griglia, con la chiave della combinazione
         && str_contains($html, 'window.wiRepeaterAddRow(righe.id, templateId, k)');
 });
 
-check('la griglia si spegne quando non c\'è niente da vedere, e si raggruppa quando c\'è un colore', function () use ($schedaAperta) {
+check('la griglia si spegne quando non c\'è niente da vedere, e si raggruppa da due attributi in su', function () use ($schedaAperta) {
     $html = $schedaAperta::vediGriglia();
 
     return str_contains($html, 'quante <= 1 && spuntate === 0')
-        && str_contains($html, "wiRepeaterGroupApply(righe.id, box.id + '-group-template', conColore ? 'variant' : '')");
+        && str_contains($html, "conGruppo && assi >= 2 ? 'group' : ''")
+        // L'ordine degli assi lo legge dal campo nascosto, non dall'ordine
+        // in cui le caselle stanno in pagina.
+        && str_contains($html, 'function ordineAssi()');
 });
 
 check('la griglia chiede codice, prezzo, giacenza e foto, e il nome non si scrive', function () use ($schedaAperta) {
