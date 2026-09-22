@@ -1635,7 +1635,16 @@ HTML);
                         // "Vale per tutto l'articolo" è `NULL`, non zero: la
                         // colonna ha una chiave esterna, e nessuna variante ha
                         // id zero.
-                        ->condition(['product_variant_id' => $variantId > 0 ? $variantId : null])
+                        //
+                        // `product_id` nullo non è un dettaglio: la condizione
+                        // di un repeater guida **anche la cancellazione**, e
+                        // senza questa riga il primo salvataggio porterebbe via
+                        // le foto delle singole opzioni, che quest'area non
+                        // mostra e quindi non ripostà.
+                        ->condition([
+                            'product_variant_id' => $variantId > 0 ? $variantId : null,
+                            'product_id' => null,
+                        ])
                 )
                 ->nested()
                 ->repeaterSortable()

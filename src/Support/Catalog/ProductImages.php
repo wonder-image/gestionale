@@ -31,27 +31,53 @@ final class ProductImages
     }
 
     /**
-     * Le immagini da mostrare per una variante, in ordine di posizione.
+     * Le immagini da mostrare, in ordine di posizione.
+     *
+     * Tre livelli, dal più preciso al più generale: le foto di quella singola
+     * opzione in vendita, se ne ha; altrimenti quelle del suo colore;
+     * altrimenti quelle dell'articolo. Il primo livello che ha qualcosa vince
+     * **intero**: non si mescolano, o una maglietta blu mostrerebbe in mezzo
+     * la foto di quella rossa.
+     *
+     * Chi passa due soli argomenti continua a vedere quello di prima — le
+     * foto del colore — e **non** vede quelle delle singole opzioni: è la
+     * risposta giusta per chi sta guardando un colore, non una taglia.
      *
      * @param list<array<string, mixed>> $images tutte le immagini del modello
      * @return list<array<string, mixed>>
      */
-    public static function for(array $images, ?int $variantId): array
+    public static function for(array $images, ?int $variantId, ?int $productId = null): array
     {
         $ofModel = [];
         $ofVariant = [];
+        $ofProduct = [];
 
         foreach ($images as $image) {
-            $id = (int) ($image['product_variant_id'] ?? 0);
+            $product = (int) ($image['product_id'] ?? 0);
+            $variant = (int) ($image['product_variant_id'] ?? 0);
 
-            if ($id === 0) {
+            if ($product > 0) {
+                if ($productId !== null && $product === $productId) {
+                    $ofProduct[] = $image;
+                }
+
+                // La foto di un'altra opzione non vale né per il colore né per
+                // l'articolo: è di quella riga e basta.
+                continue;
+            }
+
+            if ($variant === 0) {
                 $ofModel[] = $image;
                 continue;
             }
 
-            if ($variantId !== null && $id === $variantId) {
+            if ($variantId !== null && $variant === $variantId) {
                 $ofVariant[] = $image;
             }
+        }
+
+        if ($ofProduct !== []) {
+            return self::sorted($ofProduct);
         }
 
         return self::sorted($ofVariant !== [] ? $ofVariant : $ofModel);

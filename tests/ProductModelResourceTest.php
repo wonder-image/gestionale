@@ -486,7 +486,11 @@ check('ogni area di foto guarda solo la sua fetta', function () use ($schedaAper
 
         $relazione = ($campo->get('context')['relation'] ?? null);
 
-        return $relazione !== null && $relazione->condition === ['product_variant_id' => null];
+        // `product_id` nullo tiene fuori le foto delle singole opzioni: senza,
+        // salvando quest'area il core le cancellerebbe, non trovandole fra le
+        // righe postate.
+        return $relazione !== null
+            && $relazione->condition === ['product_variant_id' => null, 'product_id' => null];
     }
 
     return false;

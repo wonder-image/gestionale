@@ -42,6 +42,14 @@ final class ProductImage extends Model
         return [
             Column::key('product_model_id')->int()->null(false)->foreign(ProductModel::$table),
             Column::key('product_variant_id')->int()->foreign(ProductVariant::$table),
+            // La foto di una sola opzione in vendita: «Blu / S» può avere la
+            // sua, diversa da «Blu / M». Vuota vuol dire che la foto vale per
+            // tutto il colore, e se il colore manca per tutto l'articolo.
+            //
+            // Nullable non per comodità: eliminando l'opzione il database
+            // azzera questa colonna, e la foto torna a valere per il colore
+            // invece di sparire con lei.
+            Column::key('product_id')->int()->foreign(Product::$table),
             Column::key('file')->json(),
             Column::key('alt'),
             Column::key('position')->int(),
@@ -57,6 +65,7 @@ final class ProductImage extends Model
         return [
             'ind_model' => ['index' => 'product_model_id'],
             'ind_variant' => ['index' => 'product_variant_id'],
+            'ind_product' => ['index' => 'product_id'],
             'ind_status' => ['index' => 'status'],
         ];
     }
@@ -84,6 +93,7 @@ final class ProductImage extends Model
         return [
             Field::key('product_model_id')->number()->decimals(0),
             Field::key('product_variant_id')->number()->decimals(0),
+            Field::key('product_id')->number()->decimals(0),
             self::deferredImage(),
             Field::key('alt')->text()->sanitizeFirst(),
             Field::key('position')->number()->decimals(0),

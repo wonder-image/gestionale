@@ -103,4 +103,34 @@ check('le foto non si fanno ridimensionare al salvataggio', function () {
     return false;
 });
 
+check('la foto di un\'opzione vince su quella del suo colore', function () {
+    $images = [
+        ['id' => 1, 'product_variant_id' => 0, 'product_id' => 0, 'position' => 1],
+        ['id' => 2, 'product_variant_id' => 7, 'product_id' => 0, 'position' => 1],
+        ['id' => 3, 'product_variant_id' => 7, 'product_id' => 42, 'position' => 1],
+    ];
+
+    return array_column(ProductImages::for($images, 7, 42), 'id') === [3];
+});
+
+check('senza foto sue, l\'opzione mostra quelle del colore', function () {
+    $images = [
+        ['id' => 1, 'product_variant_id' => 0, 'product_id' => 0, 'position' => 1],
+        ['id' => 2, 'product_variant_id' => 7, 'product_id' => 0, 'position' => 1],
+        ['id' => 3, 'product_variant_id' => 7, 'product_id' => 99, 'position' => 1],
+    ];
+
+    return array_column(ProductImages::for($images, 7, 42), 'id') === [2];
+});
+
+check('la foto di un\'opzione non vale per il colore né per l\'articolo', function () {
+    $images = [
+        ['id' => 1, 'product_variant_id' => 0, 'product_id' => 0, 'position' => 1],
+        ['id' => 3, 'product_variant_id' => 7, 'product_id' => 42, 'position' => 1],
+    ];
+
+    return array_column(ProductImages::for($images, 7), 'id') === [1]
+        && array_column(ProductImages::for($images, null), 'id') === [1];
+});
+
 summary();
