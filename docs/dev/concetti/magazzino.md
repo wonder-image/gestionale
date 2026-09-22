@@ -78,6 +78,24 @@ logica che G3 e G4 rileggeranno.
 G4. `Availability` la legge già, così "disponibile" vuol dire la stessa cosa in
 backend e in vetrina fin da ora.
 
+## Chi ha una storia non si elimina
+
+Giacenze e movimenti puntano al prodotto con una chiave esterna
+`ON DELETE RESTRICT`: un articolo che si è mosso non si cancella, e senza un
+controllo il database risponderebbe con una pagina di errore.
+`ProductModelResource::assertDeletable()` lo chiede prima a
+`StockHistory::hasMovements()` e rifiuta con un messaggio: chi non vende più un
+articolo lo mette su "Nascosto".
+
+Il rifiuto usa `UserError::refusal()`, non `UserError::make()`, perché il core
+ha **due porte con due gusti diversi**: il controller del form intercetta
+`InvalidArgumentException`, mentre `api/backend/delete` intercetta
+`RuntimeException` e risponde 422. Il testo resta uno solo, nei file di lingua.
+
+`StockHistory::purge()` cancella davvero la storia di certi prodotti: la usa
+**solo** la pulizia dei dati di prova (`gestionale:demo --fresh`), che
+cancella anche i prodotti.
+
 ## Due trappole del framework
 
 **I decimali delle colonne.** `Field::key('quantity')->number()->decimals(3)`

@@ -12,6 +12,7 @@ require __DIR__ . '/../harness.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
@@ -191,6 +192,40 @@ try {
             // L'ultimo movimento è ancora quello dei decimali: il rifiuto
             // non ne ha scritto uno suo.
             return (float) ($ultimo['quantity'] ?? 0) === 0.125;
+        });
+
+        check('un articolo con movimenti non si elimina', function () use ($modello, $productId) {
+            try {
+                ProductModelResource::deleteRecord((int) $modello->insert_id);
+            } catch (RuntimeException $e) {
+                // `RuntimeException` e non `UserError`: è il tipo che
+                // l'endpoint di cancellazione del core sa trasformare in
+                // messaggio (422) invece che in pagina 500.
+                return str_contains($e->getMessage(), 'movimenti di magazzino')
+                    && !($e instanceof UserError)
+                    && Product::findById($productId) !== null;
+            }
+
+            return false;
+        });
+
+        check('senza movimenti invece si elimina', function () {
+            $vuoto = ProductModel::create([
+                'code' => Code::make(ProductModel::class, Codes::MODEL),
+                'name' => 'Prova senza storia',
+                'slug' => Slug::make('prova-senza-storia-'.uniqid()),
+                'sku' => 'TST-NIL',
+                'unit' => 'pz',
+                'type' => 'simple',
+                'visible' => 'true',
+                'position' => 1,
+            ]);
+            $id = (int) ($vuoto->insert_id ?? 0);
+            Skeleton::forModel($id, 'Prova senza storia', 'TST-NIL');
+
+            $esito = ProductModelResource::deleteRecord($id);
+
+            return !empty($esito->success);
         });
 
         throw new Annulla();

@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Errors;
 
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
 
@@ -31,6 +32,24 @@ final class UserError extends InvalidArgumentException
         $error->key = $key;
 
         return $error;
+    }
+
+    /**
+     * Lo stesso rifiuto, ma per l'endpoint che cancella una riga.
+     *
+     * Il core ha **due porte** con due gusti diversi: il controller del form
+     * intercetta `InvalidArgumentException` e la trasforma in avviso rosso;
+     * `api/backend/delete` intercetta invece `RuntimeException` e risponde
+     * 422 con il messaggio. Un `UserError` lì dentro non verrebbe visto e
+     * diventerebbe una pagina 500.
+     *
+     * Il testo resta uno solo, nei file di lingua.
+     *
+     * @param array<string, string|int|float> $replacements
+     */
+    public static function refusal(string $key, array $replacements = []): RuntimeException
+    {
+        return new RuntimeException(self::translate($key, $replacements));
     }
 
     /** La chiave di lingua, utile a chi deve reagire a un errore preciso. */

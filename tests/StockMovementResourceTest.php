@@ -52,6 +52,30 @@ check('la riga racconta tutto quello che serve', function () use ($colonne) {
     return true;
 });
 
+check('le celle si disegnano davvero, con il segno e le etichette', function () {
+    // Le colonne con `formatter()` non girano finché qualcuno non le chiama:
+    // un metodo che non esiste si scoprirebbe solo aprendo la pagina.
+    $riga = [
+        'product_id' => 0,
+        'type' => 'adjustment',
+        'reason' => 'damaged',
+        'quantity' => '-3.000',
+        'quantity_after' => '7.000',
+    ];
+    $celle = [];
+
+    foreach (StockMovementResource::tableSchema() as $colonna) {
+        $formatter = $colonna->getSchema('formatter');
+        $celle[(string) $colonna->name] = is_callable($formatter) ? $formatter($riga) : null;
+    }
+
+    return $celle['type'] === 'Rettifica'
+        && $celle['reason'] === 'Danneggiato'
+        && $celle['quantity'] === '-3'
+        && $celle['quantity_after'] === '7'
+        && $celle['product_id'] === '—';
+});
+
 check('l\'ultimo movimento sta in cima', fn () =>
     StockMovementResource::$orderColumn === 'id'
     && StockMovementResource::$orderDirection === 'DESC'

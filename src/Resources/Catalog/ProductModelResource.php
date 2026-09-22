@@ -40,6 +40,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Positions;
 use Wonder\Sql\Transaction;
@@ -739,9 +740,31 @@ class ProductModelResource extends GestionaleResource
     }
 
     /** Eliminare un modello porta via le sue righe: da solo il database rifiuta. */
+    /**
+     * Un articolo che ha una storia di magazzino non si elimina.
+     *
+     * I movimenti sono la storia del magazzino e restano; cancellare
+     * l'articolo li renderebbe righe che parlano di qualcosa che non esiste
+     * più — e il database lo impedisce comunque, con una pagina di errore al
+     * posto di una spiegazione. Chi non vende più un articolo lo mette su
+     * "Nascosto": l'elenco resta pulito e la storia pure.
+     */
+    public static function assertDeletable(int|string $id): void
+    {
+        foreach (static::products((int) $id) as $product) {
+            if (StockHistory::hasMovements((int) $product['id'])) {
+                // `refusal()` e non `make()`: chi cancella dall'elenco
+                // intercetta `RuntimeException` (vedi `UserError`).
+                throw UserError::refusal('product.has_movements');
+            }
+        }
+    }
+
     public static function deleteRecord(int|string $id): object
     {
         $modelId = (int) $id;
+
+        static::assertDeletable($modelId);
 
         Transaction::run(static function () use ($modelId): void {
             foreach (static::products($modelId) as $product) {
@@ -1488,8 +1511,4 @@ class ProductModelResource extends GestionaleResource
         return static::rowsOf(Category::class, [], 'position');
     }
 
-    protected static function escape(string $value): string
-    {
-        return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
-    }
 }
