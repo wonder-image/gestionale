@@ -29,6 +29,30 @@ prendere lo stesso ultimo pezzo. Le transazioni si annidano: chiamare `apply()`
 dentro una transazione propria (l'elenco delle giacenze che salva venti righe)
 apre un savepoint, non una seconda transazione.
 
+## Le due pagine
+
+| Pagina | Classe | Cosa fa |
+|---|---|---|
+| Giacenze | `StockLevelResource` | pagina-form: una casella per riga, salvataggio in blocco dentro una transazione |
+| Rettifica | `StockAdjustmentResource` | pagina-form su `?versione=`, con causale e nota |
+
+Nessuna delle due scrive sul database: compongono un movimento e chiamano
+`Stock::apply()`. La differenza fra quello che c'era e quello che è stato
+scritto la calcola `Stocktake`, che è pura — una casella vuota non è uno zero,
+uno zero scritto sì.
+
+Tre cose da sapere se le si tocca:
+
+1. **La rotta del salvataggio non ha query string.** Filtri, pagina e versione
+   viaggiano in campi nascosti (`back`, `product_id`); chi li rileggesse da
+   `$_GET` salverebbe la prima pagina invece di quella aperta.
+2. **Il controller delle pagine-form non intercetta niente.** Un `UserError`
+   che vola via da `submitFormPage()` diventa una pagina 500: i rifiuti si
+   catturano lì dentro e diventano un `FlashAlert` più un redirect.
+3. **Gli indirizzi del ritorno si controllano.** `backUrlFrom()` accetta solo
+   percorsi o indirizzi assoluti di questo sito: un `torna=` che arriva dalla
+   query string è testo di chiunque.
+
 ## I parametri
 
 | Chiave | Obbligatoria | Note |

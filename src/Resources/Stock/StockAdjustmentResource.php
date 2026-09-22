@@ -76,11 +76,26 @@ final class StockAdjustmentResource extends NavigationOnlyResource
     {
         $url = trim((string) ($value ?? ''));
 
-        if ($url === '' || !str_starts_with($url, '/') || str_starts_with($url, '//')) {
+        if ($url === '' || str_starts_with($url, '//')) {
             return '';
         }
 
-        return $url;
+        // Le rotte del core tornano indirizzi assoluti
+        // (`https://sito/backend/...`): vanno bene finché sono di questo sito.
+        if (preg_match('#^https?://#i', $url) === 1) {
+            $host = (string) (parse_url($url, PHP_URL_HOST) ?? '');
+
+            if ($host === '' || strcasecmp($host, (string) ($_SERVER['HTTP_HOST'] ?? '')) !== 0) {
+                return '';
+            }
+
+            $path = (string) (parse_url($url, PHP_URL_PATH) ?? '/');
+            $query = (string) (parse_url($url, PHP_URL_QUERY) ?? '');
+
+            return $query === '' ? $path : $path.'?'.$query;
+        }
+
+        return str_starts_with($url, '/') ? $url : '';
     }
 
     public static function formSchema(): array
@@ -105,6 +120,11 @@ final class StockAdjustmentResource extends NavigationOnlyResource
                 ->label('Causale')
                 ->required(),
             FormField::key('note')->textarea()->label('Nota'),
+            // La rotta del salvataggio non ha query string: senza questi due
+            // campi, al salvataggio non si saprebbe più di quale versione si
+            // stava parlando.
+            FormField::key('product_id')->hidden()->value((string) static::productId()),
+            FormField::key('back')->hidden()->value(static::backUrlFrom($_GET['torna'] ?? '')),
         ];
     }
 
@@ -121,6 +141,8 @@ final class StockAdjustmentResource extends NavigationOnlyResource
                     static::getInput('quantity')->columnSpan(4),
                     static::getInput('reason')->columnSpan(4),
                     static::getInput('note')->columnSpan(12),
+                    static::getInput('product_id')->columnSpan(12),
+                    static::getInput('back')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ])->columns(12);
@@ -151,9 +173,32 @@ final class StockAdjustmentResource extends NavigationOnlyResource
         return (int) ($_GET['versione'] ?? 0);
     }
 
+    /**
+     * Salva la rettifica.
+     *
+     * I rifiuti si trattano **qui dentro**: il controller delle pagine-form
+     * non intercetta niente, e un `UserError` che vola via diventa una pagina
+     * 500 invece di una frase.
+     */
     public static function submitFormPage(array $values): string
     {
-        $productId = static::productId();
+        $productId = (int) ($values['product_id'] ?? 0) ?: static::productId();
+        $back = static::backUrlFrom($values['back'] ?? '');
+
+        try {
+            return static::adjust($productId, $values, $back);
+        } catch (UserError $error) {
+            static::refuse($error->getMessage(), $productId, $back);
+
+            return $error->getMessage();
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     */
+    private static function adjust(int $productId, array $values, string $back): string
+    {
         $product = $productId > 0 ? Product::findById($productId) : null;
 
         if (!is_array($product) || $product === []) {
@@ -188,9 +233,21 @@ final class StockAdjustmentResource extends NavigationOnlyResource
         $message = 'Giacenza di '.static::productName($product).': da '
             .static::number($change['before']).' a '.static::number($change['after']).'.';
 
-        static::goBack($message);
+        static::goBack($back, $message);
 
         return $message;
+    }
+
+    /** Il rifiuto torna sulla rettifica, con la frase in evidenza. */
+    private static function refuse(string $message, int $productId, string $back): void
+    {
+        if (headers_sent()) {
+            return;
+        }
+
+        FlashAlert::custom('Attenzione', $message, 'warning');
+        header('Location: '.static::urlFor($productId, $back));
+        exit();
     }
 
     /**
@@ -200,10 +257,8 @@ final class StockAdjustmentResource extends NavigationOnlyResource
      * vorrebbe dire restare su una rettifica già fatta. Con `torna=` si torna
      * invece all'elenco o alla scheda, nel punto in cui si era.
      */
-    private static function goBack(string $message): void
+    private static function goBack(string $back, string $message): void
     {
-        $back = static::backUrlFrom($_GET['torna'] ?? '');
-
         if ($back === '' || headers_sent()) {
             return;
         }

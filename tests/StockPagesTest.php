@@ -56,13 +56,19 @@ check('il link porta la versione e la strada del ritorno', function () {
         && str_contains($url, 'torna=');
 });
 
-check('la strada del ritorno accetta solo indirizzi di questo backend', fn () =>
-    // Un `torna=https://altrove.example` sarebbe un redirect aperto.
-    StockAdjustmentResource::backUrlFrom('https://altrove.example/x') === ''
-    && StockAdjustmentResource::backUrlFrom('/backend/app/gestionale/giacenze/?p=2')
-        === '/backend/app/gestionale/giacenze/?p=2'
-    && StockAdjustmentResource::backUrlFrom('//altrove.example') === ''
-);
+check('la strada del ritorno accetta solo indirizzi di questo sito', function () {
+    // Un `torna=https://altrove.example` sarebbe un redirect aperto. Le rotte
+    // del core però tornano indirizzi assoluti di **questo** sito, e quelli
+    // devono passare.
+    $_SERVER['HTTP_HOST'] = 'ecommerce.test';
+
+    return StockAdjustmentResource::backUrlFrom('https://altrove.example/x') === ''
+        && StockAdjustmentResource::backUrlFrom('//altrove.example') === ''
+        && StockAdjustmentResource::backUrlFrom('/backend/app/gestionale/giacenze/?p=2')
+            === '/backend/app/gestionale/giacenze/?p=2'
+        && StockAdjustmentResource::backUrlFrom('https://ecommerce.test/backend/app/gestionale/giacenze/?cerca=TSH')
+            === '/backend/app/gestionale/giacenze/?cerca=TSH';
+});
 
 check('le giacenze hanno il loro indirizzo e sono una pagina-form', fn () =>
     StockLevelResource::path() === 'app/gestionale/giacenze'
@@ -109,5 +115,36 @@ check('una pagina fuori scala torna alla prima', fn () =>
     && StockLevelResource::pageNumber('abc') === 1
     && StockLevelResource::pageNumber('3') === 3
 );
+
+check('la rettifica porta con sé la versione e il ritorno', function () {
+    $_GET['versione'] = '9';
+    $_GET['torna'] = '/backend/app/gestionale/giacenze/?p=2';
+    $_SERVER['HTTP_HOST'] = 'ecommerce.test';
+
+    $campi = [];
+
+    foreach (StockAdjustmentResource::formSchema() as $field) {
+        $campi[(string) $field->name] = $field;
+    }
+
+    unset($_GET['versione'], $_GET['torna']);
+
+    // La rotta del salvataggio non ha query string: senza questi due campi
+    // nascosti, al salvataggio non si saprebbe più di quale versione si
+    // stava parlando.
+    return ($campi['product_id'] ?? null)?->get('value') === '9'
+        && ($campi['back'] ?? null)?->get('value') === '/backend/app/gestionale/giacenze/?p=2';
+});
+
+check('un rifiuto della rettifica non diventa una pagina 500', function () {
+    // Il controller delle pagine-form non intercetta niente: il messaggio
+    // deve tornare come stringa, non come eccezione.
+    $messaggio = StockAdjustmentResource::submitFormPage([
+        'product_id' => '0',
+        'quantity' => '3',
+    ]);
+
+    return str_contains($messaggio, 'non esiste più');
+});
 
 summary();

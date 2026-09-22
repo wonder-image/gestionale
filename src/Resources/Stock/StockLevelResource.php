@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
@@ -189,26 +190,48 @@ final class StockLevelResource extends NavigationOnlyResource
         $reason = (string) ($values['reason'] ?? Reasons::DEFAULT);
         $user = LegacyGlobals::get('USER');
         $userId = is_object($user) ? (int) ($user->id ?? 0) : 0;
+        $back = StockAdjustmentResource::backUrlFrom($values['back'] ?? '');
 
-        Transaction::run(static function () use ($changes, $reason, $userId): void {
-            foreach ($changes as $productId => $change) {
-                Stock::apply([
-                    'product_id' => $productId,
-                    'quantity' => $change['delta'],
-                    'reason' => $reason,
-                    'user_id' => $userId,
-                ]);
-            }
-        });
+        try {
+            Transaction::run(static function () use ($changes, $reason, $userId): void {
+                foreach ($changes as $productId => $change) {
+                    Stock::apply([
+                        'product_id' => $productId,
+                        'quantity' => $change['delta'],
+                        'reason' => $reason,
+                        'user_id' => $userId,
+                    ]);
+                }
+            });
+        } catch (UserError $error) {
+            // Il controller delle pagine-form non intercetta niente: un
+            // rifiuto che vola via diventa una pagina 500 invece di una frase.
+            // La transazione ha già riportato indietro tutte le righe.
+            static::refuse($error->getMessage(), $back);
+
+            return $error->getMessage();
+        }
 
         $count = count($changes);
         $message = $count === 1
             ? 'Una giacenza aggiornata.'
             : $count.' giacenze aggiornate.';
 
-        static::goBack($values['back'] ?? '', $message);
+        static::goBack($back, $message);
 
         return $message;
+    }
+
+    /** Il rifiuto torna sull'elenco com'era, con la frase in evidenza. */
+    private static function refuse(string $message, string $back): void
+    {
+        if (headers_sent()) {
+            return;
+        }
+
+        FlashAlert::custom('Attenzione', $message, 'warning');
+        header('Location: '.($back !== '' ? $back : static::pageUrl([])));
+        exit();
     }
 
     /**
@@ -217,16 +240,14 @@ final class StockLevelResource extends NavigationOnlyResource
      * Il core, dopo una pagina-form, rimanda alla pagina nuda. Chi stava
      * sistemando la pagina tre si ritroverebbe sulla uno, senza filtri.
      */
-    private static function goBack(mixed $back, string $message): void
+    private static function goBack(string $back, string $message): void
     {
-        $url = StockAdjustmentResource::backUrlFrom($back);
-
-        if ($url === '' || headers_sent()) {
+        if ($back === '' || headers_sent()) {
             return;
         }
 
         FlashAlert::saved($message);
-        header('Location: '.$url);
+        header('Location: '.$back);
         exit();
     }
 

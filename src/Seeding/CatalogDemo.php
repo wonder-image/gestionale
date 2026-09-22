@@ -22,6 +22,8 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Stock\LowStock;
+use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
@@ -228,6 +230,51 @@ final class CatalogDemo
         }
 
         $created += self::image($modelId, $name);
+        $created += self::seedStock($modelId);
+
+        return $created;
+    }
+
+    /**
+     * La giacenza iniziale di un articolo di prova.
+     *
+     * Serve a vedere il magazzino pieno appena installato, e a far comparire
+     * un avviso di scorta: l'ultima versione nasce **sotto** la sua soglia.
+     */
+    private static function seedStock(int $modelId): int
+    {
+        $products = array_values(self::rowsOfModel(Product::class, $modelId));
+        $last = count($products) - 1;
+        $created = 0;
+
+        foreach ($products as $index => $product) {
+            $productId = (int) ($product['id'] ?? 0);
+
+            if ($productId <= 0) {
+                continue;
+            }
+
+            if ($index === $last) {
+                // Una versione sotto scorta: è il caso che si vuole provare.
+                Product::update(['min_stock_quantity' => '5'], $productId);
+            }
+
+            $esito = Stock::apply([
+                'product_id' => $productId,
+                'quantity' => $index === $last ? 2 : 20,
+                'reason' => 'initial_stock',
+                'source' => 'import',
+            ]);
+
+            // Una riga di giacenza e un movimento, più l'avviso quando la
+            // versione nasce sotto scorta: sono le righe che `--fresh` poi
+            // toglierà, e i due conteggi devono tornare.
+            $created += 2;
+
+            if (($esito['alert'] ?? '') === LowStock::OPEN) {
+                $created++;
+            }
+        }
 
         return $created;
     }
@@ -388,7 +435,7 @@ final class CatalogDemo
             // La storia di magazzino di un articolo di prova se ne va con
             // lui: senza, la chiave esterna dei movimenti bloccherebbe la
             // pulizia. Fuori dai dati di prova il magazzino non si dimentica.
-            StockHistory::purge(array_map(
+            $sotto += StockHistory::purge(array_map(
                 static fn (array $product): int => (int) ($product['id'] ?? 0),
                 self::rowsOfModel(Product::class, $modelId)
             ));

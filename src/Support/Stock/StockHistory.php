@@ -74,23 +74,33 @@ final class StockHistory
      * sbagliata si corregge con una rettifica.
      *
      * @param list<int> $productIds
+     * @return int quante righe se ne sono andate
      */
-    public static function purge(array $productIds): void
+    public static function purge(array $productIds): int
     {
         $ids = array_values(array_filter(array_map('intval', $productIds), static fn (int $id): bool => $id > 0));
 
         if ($ids === []) {
-            return;
+            return 0;
         }
 
         $condition = 'product_id IN ('.implode(',', $ids).')';
+        $removed = 0;
 
         foreach ([StockAlert::class, StockReservation::class, StockMovement::class, StockRow::class] as $model) {
             try {
+                // Contate prima: dopo non c'è più niente da contare, e il
+                // comando dei dati di prova dice quante righe ha tolto.
+                $rows = $model::find($condition);
+                $rows = isset($rows['id']) ? [$rows] : (array) $rows;
+                $removed += count(array_filter($rows, 'is_array'));
+
                 $model::query()->Delete($model::$table, $condition);
             } catch (Throwable) {
                 // Tabella non ancora creata: non c'è niente da dimenticare.
             }
         }
+
+        return $removed;
     }
 }

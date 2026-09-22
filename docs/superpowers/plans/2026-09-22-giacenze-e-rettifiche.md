@@ -373,13 +373,19 @@ check('il link porta la versione e la strada del ritorno', function () {
         && str_contains($url, 'torna=');
 });
 
-check('la strada del ritorno accetta solo indirizzi di questo backend', fn () =>
-    // Un `torna=https://altrove.example` sarebbe un redirect aperto.
-    StockAdjustmentResource::backUrlFrom('https://altrove.example/x') === ''
-    && StockAdjustmentResource::backUrlFrom('/backend/app/gestionale/giacenze/?p=2')
-        === '/backend/app/gestionale/giacenze/?p=2'
-    && StockAdjustmentResource::backUrlFrom('//altrove.example') === ''
-);
+check('la strada del ritorno accetta solo indirizzi di questo sito', function () {
+    // Un `torna=https://altrove.example` sarebbe un redirect aperto. Le rotte
+    // del core però tornano indirizzi assoluti di **questo** sito, e quelli
+    // devono passare.
+    $_SERVER['HTTP_HOST'] = 'ecommerce.test';
+
+    return StockAdjustmentResource::backUrlFrom('https://altrove.example/x') === ''
+        && StockAdjustmentResource::backUrlFrom('//altrove.example') === ''
+        && StockAdjustmentResource::backUrlFrom('/backend/app/gestionale/giacenze/?p=2')
+            === '/backend/app/gestionale/giacenze/?p=2'
+        && StockAdjustmentResource::backUrlFrom('https://ecommerce.test/backend/app/gestionale/giacenze/?cerca=TSH')
+            === '/backend/app/gestionale/giacenze/?cerca=TSH';
+});
 
 summary();
 ```
