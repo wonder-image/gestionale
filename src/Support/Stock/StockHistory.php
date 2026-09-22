@@ -35,6 +35,38 @@ final class StockHistory
     }
 
     /**
+     * Gli ultimi movimenti di una versione, dal più recente.
+     *
+     * Li mostra la scheda: è lì che si risponde a "perché qui c'è scritto 3?"
+     * senza andare in Movimenti.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function latest(int $productId, int $limit = 10): array
+    {
+        if ($productId <= 0) {
+            return [];
+        }
+
+        try {
+            $rows = StockMovement::find(
+                ['product_id' => $productId, 'deleted' => 'false'],
+                max(1, $limit),
+                'id',
+                'DESC'
+            );
+        } catch (Throwable) {
+            return [];
+        }
+
+        if (!is_array($rows) || $rows === []) {
+            return [];
+        }
+
+        return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
+    }
+
+    /**
      * Cancella giacenze, movimenti, prenotazioni e avvisi di certi prodotti.
      *
      * La usa **solo chi cancella quei prodotti davvero**: i dati di prova con
@@ -42,23 +74,33 @@ final class StockHistory
      * sbagliata si corregge con una rettifica.
      *
      * @param list<int> $productIds
+     * @return int quante righe se ne sono andate
      */
-    public static function purge(array $productIds): void
+    public static function purge(array $productIds): int
     {
         $ids = array_values(array_filter(array_map('intval', $productIds), static fn (int $id): bool => $id > 0));
 
         if ($ids === []) {
-            return;
+            return 0;
         }
 
         $condition = 'product_id IN ('.implode(',', $ids).')';
+        $removed = 0;
 
         foreach ([StockAlert::class, StockReservation::class, StockMovement::class, StockRow::class] as $model) {
             try {
+                // Contate prima: dopo non c'è più niente da contare, e il
+                // comando dei dati di prova dice quante righe ha tolto.
+                $rows = $model::find($condition);
+                $rows = isset($rows['id']) ? [$rows] : (array) $rows;
+                $removed += count(array_filter($rows, 'is_array'));
+
                 $model::query()->Delete($model::$table, $condition);
             } catch (Throwable) {
                 // Tabella non ancora creata: non c'è niente da dimenticare.
             }
         }
+
+        return $removed;
     }
 }

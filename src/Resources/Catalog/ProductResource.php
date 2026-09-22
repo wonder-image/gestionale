@@ -11,17 +11,25 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
+use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockMovementResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Ean;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
+use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
+use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
 
 /**
  * "Prodotti": l'elenco piatto di quello che si vende.
@@ -156,9 +164,77 @@ class ProductResource extends ProductModelResource
             static::getInput('height')->columnSpan(3),
         ])->columns(12)->columnSpan(12);
 
+        $cards[] = (new Card)->components([
+            SectionTitle::make(static::stockCardTitle())
+                ->tooltip('La giacenza si cambia solo con una rettifica: così resta scritto il perché.')
+                ->columnSpan(12),
+            RichText::make(static::stockSummary())->columnSpan(12),
+            RichText::make(static::stockHistoryTable())->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+
         return (new Form)->components([
             (new Container)->components($cards)->columns(12)->columnSpan(12),
         ]);
+    }
+
+    public static function stockCardTitle(): string
+    {
+        return 'Magazzino';
+    }
+
+    /** Quanti pezzi, con il link alla rettifica. */
+    protected static function stockSummary(): string
+    {
+        $productId = static::currentId() ?? 0;
+
+        if ($productId <= 0) {
+            return '';
+        }
+
+        $levels = Levels::of($productId);
+        $parts = ['<b>Giacenza:</b> '.static::escape(static::plainNumber($levels['quantity'])).' pezzi'];
+
+        if (Gestionale::feature('orders')) {
+            $parts[] = 'impegnati '.static::escape(static::plainNumber($levels['reserved']));
+            $parts[] = 'disponibili '.static::escape(static::plainNumber($levels['available']));
+        }
+
+        $parts[] = '<a href="'.static::escape(StockAdjustmentResource::urlFor($productId)).'">Rettifica</a>';
+
+        return implode(' · ', $parts);
+    }
+
+    /** Gli ultimi dieci movimenti di questa versione. */
+    protected static function stockHistoryTable(): string
+    {
+        $productId = static::currentId() ?? 0;
+        $rows = $productId > 0 ? StockHistory::latest($productId, 10) : [];
+
+        if ($rows === []) {
+            return '<p class="text-muted mb-0">Nessun movimento: la giacenza di questa versione non è mai cambiata.</p>';
+        }
+
+        $html = '<table class="table table-sm mb-2"><thead><tr>'
+            .'<th>Quando</th><th>Tipo</th><th>Causale</th><th>Pezzi</th><th>Dopo</th><th>Nota</th>'
+            .'</tr></thead><tbody>';
+
+        foreach ($rows as $row) {
+            $quantity = (float) ($row['quantity'] ?? 0);
+            $html .= '<tr>'
+                .'<td>'.static::escape((string) ($row['creation'] ?? '')).'</td>'
+                .'<td>'.static::escape(StockMovement::typeLabels()[(string) ($row['type'] ?? '')] ?? '').'</td>'
+                .'<td>'.static::escape(Reasons::label((string) ($row['reason'] ?? ''))).'</td>'
+                .'<td>'.static::escape(($quantity > 0 ? '+' : '').static::plainNumber($quantity)).'</td>'
+                .'<td>'.static::escape(static::plainNumber((float) ($row['quantity_after'] ?? 0))).'</td>'
+                .'<td>'.static::escape((string) ($row['note'] ?? '')).'</td>'
+                .'</tr>';
+        }
+
+        $html .= '</tbody></table><a href="'
+            .static::escape(StockMovementResource::listUrlFor($productId))
+            .'">Vedi tutti i movimenti</a>';
+
+        return $html;
     }
 
     public static function tableSchema(): array
