@@ -124,6 +124,29 @@ check('le quantità hanno tre decimali', function () use ($campo) {
     return true;
 });
 
+check('le colonne dei numeri tengono i decimali che servono', function () use ($colonne) {
+    // Il core genera DECIMAL(10,2) per qualsiasi campo numerico: le colonne
+    // del magazzino le dichiara il modulo, altrimenti mezzo etto sparisce.
+    foreach ([
+        [Stock::class, 'quantity', '10,3'],
+        [StockMovement::class, 'quantity', '10,3'],
+        [StockMovement::class, 'quantity_before', '10,3'],
+        [StockMovement::class, 'quantity_after', '10,3'],
+        [StockMovement::class, 'unit_cost', '10,4'],
+        [StockReservation::class, 'quantity', '10,3'],
+        [StockAlert::class, 'threshold', '10,3'],
+    ] as [$modello, $nome, $lunghezza]) {
+        $colonna = $colonne($modello)[$nome] ?? null;
+
+        if ($colonna?->getSchema('type') !== 'DECIMAL'
+            || $colonna?->getSchema('length') !== $lunghezza) {
+            return false;
+        }
+    }
+
+    return true;
+});
+
 check('nessuna colonna usa una parola riservata di MySQL', function () use ($modelli, $colonne) {
     $riservate = ['key', 'group', 'order', 'index', 'default'];
 

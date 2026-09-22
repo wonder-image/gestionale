@@ -7,6 +7,7 @@ use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
+use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -36,7 +37,7 @@ final class StockReservation extends Model
         return [
             Column::key('product_id')->int()->null(false)->foreign(Product::$table),
             Column::key('location_id')->int()->null(false)->foreign(Location::$table),
-            ...static::sqlColumnsFromDataSchema(['quantity']),
+            Columns::decimal('quantity'),
             Column::key('order_id')->int(),
             Column::key('order_item_id')->int(),
             Column::key('expires_at')->datetime(),

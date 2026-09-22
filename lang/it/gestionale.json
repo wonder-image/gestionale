@@ -3,7 +3,11 @@
         "name": "Gestionale",
         "errors": {
             "stock": {
-                "insufficient": "Non c'è abbastanza giacenza di {{product}}."
+                "insufficient": "Non c'è abbastanza giacenza di {{product}}.",
+                "zero_quantity": "Questa rettifica non cambia niente: scrivi una quantità diversa da quella di adesso.",
+                "unknown_reason": "Scegli una causale per questo movimento.",
+                "product_missing": "Questo articolo non esiste più: ricarica la pagina e riprova.",
+                "no_location": "Manca la sede del magazzino: apri Set Up → Sedi e salva la sede principale."
             },
             "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
             "category": {

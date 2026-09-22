@@ -7,6 +7,7 @@ use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
+use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -41,7 +42,9 @@ final class Stock extends Model
             // fornitore", e MySQL non accetta uno zero che punta a niente.
             Column::key('batch_id')->int()->default(0),
             Column::key('supplier_id')->int()->default(0),
-            ...static::sqlColumnsFromDataSchema(['quantity']),
+            // Tre decimali dichiarati a mano: il core ne darebbe due (vedi
+            // `Support\Columns`), e i pezzi si contano anche a etti.
+            Columns::decimal('quantity'),
         ];
     }
 

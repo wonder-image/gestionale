@@ -6,6 +6,7 @@ use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -34,7 +35,8 @@ final class StockAlert extends Model
         return [
             Column::key('product_id')->int()->null(false)->foreign(Product::$table),
             Column::key('location_id')->int()->default(0),
-            ...static::sqlColumnsFromDataSchema(['threshold', 'quantity_at_alert']),
+            Columns::decimal('threshold'),
+            Columns::decimal('quantity_at_alert'),
             Column::key('notified_at')->datetime(),
             Column::key('resolved_at')->datetime(),
         ];

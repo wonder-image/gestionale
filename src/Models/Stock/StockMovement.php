@@ -8,6 +8,7 @@ use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -58,9 +59,13 @@ final class StockMovement extends Model
     public static function tableSchema(): array
     {
         return [
-            ...static::sqlColumnsFromDataSchema([
-                'code', 'quantity', 'quantity_before', 'quantity_after', 'unit_cost',
-            ]),
+            ...static::sqlColumnsFromDataSchema(['code']),
+            // Decimali dichiarati a mano: il core ne darebbe due a tutti (vedi
+            // `Support\Columns`).
+            Columns::decimal('quantity'),
+            Columns::decimal('quantity_before'),
+            Columns::decimal('quantity_after'),
+            Columns::decimal('unit_cost', '10,4'),
             Column::key('product_id')->int()->null(false)->foreign(Product::$table),
             Column::key('location_id')->int()->null(false)->foreign(Location::$table),
             Column::key('batch_id')->int()->default(0),
