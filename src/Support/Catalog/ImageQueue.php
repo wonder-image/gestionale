@@ -120,6 +120,17 @@ final class ImageQueue
             return self::fail($image, 'Il file non c\'è più: '.($path === '' ? 'nessun nome' : $path));
         }
 
+        // Un video non ha misure da generare: è già pronto appena caricato.
+        if (self::isVideo($path)) {
+            ProductImage::update([
+                'status' => 'ready',
+                'processed_at' => date('Y-m-d H:i:s'),
+                'error' => '',
+            ], $id);
+
+            return true;
+        }
+
         $previous = $ALERT ?? '';
         $ALERT = '';
 
@@ -156,6 +167,12 @@ final class ImageQueue
         ], $id);
 
         return true;
+    }
+
+    /** Vero per i file che non sono immagini da ridimensionare. */
+    public static function isVideo(string $path): bool
+    {
+        return in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['mp4', 'webm', 'mov'], true);
     }
 
     /**

@@ -177,8 +177,10 @@ check('i Model del catalogo restano quelli giusti', fn () =>
 );
 
 check('una foto nuova nasce in attesa delle sue misure', function () {
+    // Il nome del campo porta la fetta: `images_0` è l'articolo, `images_12`
+    // il colore con quell'id.
     $riga = ProductModelResource::prepareRepeaterRelationRow(
-        'images',
+        'images_0',
         ['product_model_id' => 1, 'file' => '["foto.jpg"]'],
         ['file' => '["foto.jpg"]']
     );
@@ -364,7 +366,7 @@ $riquadri = static function (int $colonna = 0) use ($schedaAperta): array {
 };
 
 check('la colonna larga tiene quello che si compone', function () use ($riquadri) {
-    return $riquadri(0) === ['Prodotto', 'Foto', 'Descrizione'];
+    return $riquadri(0) === ['Prodotto', 'Foto e video', 'Descrizione'];
 });
 
 check('la colonna stretta tiene quello che si decide', function () use ($riquadri) {
@@ -395,6 +397,31 @@ check('il peso spedito è una frase da leggere, non una colonna', function () {
     $ripulito = $scheda::senzaExtra(['name' => 'Maglietta', 'shipping_weight' => '1,4 kg', 'weight' => '1.2']);
 
     return !isset($ripulito['shipping_weight']) && ($ripulito['weight'] ?? '') === '1.2';
+});
+
+check('le foto si caricano dove appartengono', function () use ($schedaAperta) {
+    // Un'area per l'articolo, e una per ogni colore quando ce n'è più d'uno.
+    $chiavi = array_map(
+        static fn ($campo) => (string) $campo->name,
+        $schedaAperta::formSchema()
+    );
+
+    return in_array('images_0', $chiavi, true)
+        && !in_array('images', $chiavi, true);
+});
+
+check('ogni area di foto guarda solo la sua fetta', function () use ($schedaAperta) {
+    foreach ($schedaAperta::formSchema() as $campo) {
+        if ((string) $campo->name !== 'images_0') {
+            continue;
+        }
+
+        $relazione = ($campo->get('context')['relation'] ?? null);
+
+        return $relazione !== null && $relazione->condition === ['product_variant_id' => null];
+    }
+
+    return false;
 });
 
 summary();

@@ -207,7 +207,7 @@ class ProductModelResource extends GestionaleResource
         array_push($fields, ...static::optionFields());
 
         if ($modelId !== null) {
-            $fields[] = static::imagesField($modelId);
+            array_push($fields, ...static::imageFields($modelId));
         }
 
         // I due repeater esistono solo quando c'è più di una riga da mostrare.
@@ -333,12 +333,17 @@ class ProductModelResource extends GestionaleResource
             $cards[] = (new Card)->components($versioni)->columns(12)->columnSpan(12);
         }
 
-        $cards[] = (new Card)->components([
-            SectionTitle::make('Foto')
-                ->tooltip('Carica e salva: le foto si vedono subito, le misure per il sito arrivano poco dopo. Una foto senza versione vale per tutto l\'articolo; con la versione vale solo per quella.')
+        $foto = [
+            SectionTitle::make('Foto e video')
+                ->tooltip('Si caricano dove appartengono: quelle dell\'articolo valgono per tutto, quelle di un colore solo per lui. Le misure per il sito arrivano poco dopo il salvataggio; i video si salvano come sono.')
                 ->columnSpan(12),
-            static::getInput('images')->columnSpan(12),
-        ])->columns(12)->columnSpan(12);
+        ];
+
+        foreach (array_keys(static::imageTargets($modelId)) as $variantId) {
+            $foto[] = static::getInput('images_'.$variantId)->columnSpan(12);
+        }
+
+        $cards[] = (new Card)->components($foto)->columns(12)->columnSpan(12);
 
         $cards[] = (new Card)->components([
             SectionTitle::make('Descrizione')->columnSpan(12),
@@ -793,7 +798,7 @@ class ProductModelResource extends GestionaleResource
         if ($existingRow !== null) {
             // Rimettere una foto "in lavorazione" vuol dire riprovarci: i
             // tentativi ripartono da zero, altrimenti si arrenderebbe subito.
-            if ($inputName === 'images'
+            if (str_starts_with($inputName, 'images_')
                 && ($payload['status'] ?? '') === 'pending'
                 && ($existingRow['status'] ?? '') === 'failed') {
                 $payload['attempts'] = 0;
@@ -809,7 +814,7 @@ class ProductModelResource extends GestionaleResource
             $payload['slug'] = Slug::make($name.'-'.uniqid());
         }
 
-        if ($inputName === 'images') {
+        if (str_starts_with($inputName, 'images_')) {
             // La riga nasce in attesa: le misure le farà la coda.
             $payload['status'] = 'pending';
             $payload['attempts'] = 0;
@@ -1065,43 +1070,72 @@ class ProductModelResource extends GestionaleResource
      * un repeater: la variante si sceglie da un select, e l'ereditarietà la
      * applica `ProductImages::for()` quando qualcuno legge.
      */
-    protected static function imagesField(int $modelId): Input
+    /**
+     * Dove può stare una foto: l'articolo, o uno dei suoi colori.
+     *
+     * @return array<int, string> id della variante (0 = tutto l'articolo) => titolo
+     */
+    protected static function imageTargets(int $modelId): array
     {
-        return FormField::key('images')
-            ->repeater([
-                RepeaterColumn::key('id')->hidden(),
-                RepeaterColumn::key('file')->fileDragDrop('image')->label('Foto')->columnSpan(4),
-                RepeaterColumn::key('alt')->text()->label('Descrizione')->columnSpan(4),
-                RepeaterColumn::key('product_variant_id')
-                    ->select(static::variantOptions($modelId))
-                    ->label('Vale per')
-                    ->columnSpan(2),
-                // Lo stato si può rimettere a "In attesa": è il modo di dire
-                // «riprova» a una foto che non è riuscita.
-                RepeaterColumn::key('status')
-                    ->select([
-                        'pending' => 'In lavorazione',
-                        'ready' => 'Pronta',
-                        'failed' => 'Non riuscita',
-                    ])
-                    ->value('pending')
-                    ->label('Stato')
-                    ->columnSpan(2),
-            ])
-            ->relation(
-                RepeaterRelation::make(ProductImage::$table, 'product_model_id')
-                    ->model(ProductImage::class)
-                    ->positionKey('position')
-            )
-            ->nested()
-            ->repeaterSortable()
-            ->repeaterAddLabel('Aggiungi foto')
-            ->repeaterDeleteTitle('Elimina foto')
-            ->repeaterDeleteText('Confermi l\'eliminazione di questa foto?')
-            ->repeaterDeleteCancelLabel('Annulla')
-            ->repeaterDeleteConfirmLabel('Elimina')
-            ->repeaterDeleteConfirmClass('btn btn-danger')
-            ->label('Una riga per foto');
+        $targets = [0 => 'Foto dell\'articolo'];
+
+        if (static::variantCount($modelId) > 1) {
+            foreach (static::variants($modelId) as $variant) {
+                $targets[(int) $variant['id']] = 'Foto '.mb_strtolower((string) ($variant['name'] ?? ''));
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * Un'area di caricamento per ogni posto in cui una foto può stare.
+     *
+     * Era una riga per foto con il menù "Vale per": per caricare un'immagine
+     * bisognava sapere cos'è una variante. Ora si carica dove appartiene, e il
+     * colore non si sceglie da nessuna parte.
+     *
+     * Ogni area è un repeater sulla stessa tabella, ristretto alla sua fetta
+     * con `condition()`: senza, salvando una fetta il core cancellerebbe le
+     * foto delle altre, che non trova fra quelle postate.
+     *
+     * @return list<Input>
+     */
+    protected static function imageFields(int $modelId): array
+    {
+        $fields = [];
+
+        foreach (static::imageTargets($modelId) as $variantId => $titolo) {
+            $fields[] = FormField::key('images_'.$variantId)
+                ->repeater([
+                    RepeaterColumn::key('id')->hidden(),
+                    RepeaterColumn::key('file')->fileDragDrop('gallery')->label('File')->columnSpan(5),
+                    RepeaterColumn::key('alt')->text()->label('Descrizione')->columnSpan(4),
+                    // Lo stato non è una scelta: è quello che è successo alla
+                    // foto. Si legge e basta.
+                    RepeaterColumn::key('status')->text()->readonly()->label('Stato')->columnSpan(2),
+                ])
+                ->relation(
+                    RepeaterRelation::make(ProductImage::$table, 'product_model_id')
+                        ->model(ProductImage::class)
+                        ->positionKey('position')
+                        // "Vale per tutto l'articolo" è `NULL`, non zero: la
+                        // colonna ha una chiave esterna, e nessuna variante ha
+                        // id zero.
+                        ->condition(['product_variant_id' => $variantId > 0 ? $variantId : null])
+                )
+                ->nested()
+                ->repeaterSortable()
+                ->repeaterAddLabel('Aggiungi')
+                ->repeaterDeleteTitle('Elimina')
+                ->repeaterDeleteText('Confermi l\'eliminazione di questo file?')
+                ->repeaterDeleteCancelLabel('Annulla')
+                ->repeaterDeleteConfirmLabel('Elimina')
+                ->repeaterDeleteConfirmClass('btn btn-danger')
+                ->label($titolo);
+        }
+
+        return $fields;
     }
 
     /** Le varianti di un modello, più la voce che vale per tutte. */
