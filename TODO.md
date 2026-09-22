@@ -171,8 +171,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - `wonder-image/app`: servirà `redirectUrl($action, $id)` con il caso `edit`, per atterrare sulla scheda appena creata. Da rilasciare con `7d6df162` e `81e1323f`.
   - [ ] **G2b Magazzino base e anagrafiche** — spec: `docs/superpowers/specs/2026-09-21-magazzino-e-anagrafiche-design.md` (decisioni G2b.1–G2b.12)
     - [x] Spec scritta (2026-09-21): giacenze, movimenti, prenotazioni (solo tabella e disponibile), avvisi di scorta, clienti e fornitori; quattro piani
-    - [ ] Revisione della spec da parte dell'utente
-    - [ ] Piano 1: fondamenta del magazzino (tabelle, `Stock::apply()`, classi pure, elenco Movimenti)
+    - [x] Revisione della spec da parte dell'utente (2026-09-22)
+    - [ ] Piano 1 scritto (2026-09-22): `docs/superpowers/plans/2026-09-22-fondamenta-del-magazzino.md` — 7 task: le quattro tabelle, causali e disponibile, rettifica e scorta minima, sede e livelli, `Stock::apply()`, elenco Movimenti, verifica sul sito
     - [ ] Piano 2: giacenze e rettifiche (pagina-form con filtri e paginazione, pagina Rettifica, innesti nel catalogo)
     - [ ] Piano 3: anagrafiche (clienti, fornitori, indirizzi, riquadro della home, dati di prova, guide)
     - [ ] Piano 4: avvisi di scorta minima (campo, avvisi, attività ed email raggruppata, riquadro, guide)
