@@ -22,6 +22,14 @@ repeater, Accordion corretto, quick-create FK), harness di test del modulo
 
 **Spec:** [2026-09-22-scheda-prodotto-secondo-giro-design.md](../specs/2026-09-22-scheda-prodotto-secondo-giro-design.md)
 
+> **Stato al 2026-09-22.** I task 1-6 sono stati eseguiti, ma non alla lettera:
+> dopo ogni prova in pannello sono arrivate correzioni che hanno cambiato il
+> disegno, e la spec è stata riscritta di conseguenza (decisioni P14-P25). Quello
+> che è stato fatto davvero, e perché, si legge lì e nei commit; le caselle qui
+> sotto restano come traccia di partenza. Ancora aperti: la giacenza
+> rettificabile dalla scheda di un prodotto che esiste già (§9, da coordinare
+> con G2b) e il caricamento di più foto in un colpo solo.
+
 ## Global Constraints
 
 - **Dipende da C1 rilasciato.** Il piano parte dopo il tag `v.2.3.0` di
