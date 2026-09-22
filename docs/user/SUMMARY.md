@@ -15,6 +15,10 @@
 * [I prodotti](catalogo-prodotti.md)
 * [Le foto degli articoli](catalogo-immagini.md)
 
+## Magazzino
+
+* [Movimenti](magazzino-movimenti.md)
+
 ## Ogni giorno
 
 * [Il riquadro "Da controllare"](da-controllare.md)
