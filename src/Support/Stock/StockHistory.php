@@ -35,6 +35,38 @@ final class StockHistory
     }
 
     /**
+     * Gli ultimi movimenti di una versione, dal più recente.
+     *
+     * Li mostra la scheda: è lì che si risponde a "perché qui c'è scritto 3?"
+     * senza andare in Movimenti.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function latest(int $productId, int $limit = 10): array
+    {
+        if ($productId <= 0) {
+            return [];
+        }
+
+        try {
+            $rows = StockMovement::find(
+                ['product_id' => $productId, 'deleted' => 'false'],
+                max(1, $limit),
+                'id',
+                'DESC'
+            );
+        } catch (Throwable) {
+            return [];
+        }
+
+        if (!is_array($rows) || $rows === []) {
+            return [];
+        }
+
+        return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
+    }
+
+    /**
      * Cancella giacenze, movimenti, prenotazioni e avvisi di certi prodotti.
      *
      * La usa **solo chi cancella quei prodotti davvero**: i dati di prova con
