@@ -357,7 +357,8 @@ check('chiede quantità, causale e nota, e come leggerla', function () use ($cam
 check('le causali sono quelle vere, con l\'inventario già scelto', function () {
     foreach (StockAdjustmentResource::formSchema() as $field) {
         if ((string) $field->name === 'reason') {
-            return array_keys((array) $field->get('array')) === array_keys(Reasons::all())
+            // Un select tiene le voci sotto `options`.
+            return array_keys((array) $field->get('options')) === array_keys(Reasons::all())
                 && $field->get('value') === Reasons::DEFAULT;
         }
     }

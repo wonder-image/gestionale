@@ -17,6 +17,7 @@
 
 ## Magazzino
 
+* [Giacenze e rettifiche](magazzino-giacenze.md)
 * [Movimenti](magazzino-movimenti.md)
 
 ## Ogni giorno
