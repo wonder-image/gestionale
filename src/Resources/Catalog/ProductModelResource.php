@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Catalog;
 
+use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\Input;
@@ -295,6 +296,7 @@ class ProductModelResource extends GestionaleResource
         ];
 
         $opzioni = static::optionBlocks();
+        $opzioni[] = static::newVersionsBlock($modelId);
 
         if (!$unaVersione) {
             $versioni = [
@@ -679,8 +681,9 @@ class ProductModelResource extends GestionaleResource
             static::saveTags($modelId, $post);
             static::saveModelAttributes($modelId, $post);
             $chosen = static::chosenAxes($post);
-            Generator::run($modelId, $chosen['variant'], $chosen['axes'], $fallbackSku);
-            static::savePrices($modelId, $post, $fallbackSku);
+            $scritte = is_array($post['new_versions'] ?? null) ? $post['new_versions'] : [];
+            $conPrezzo = Generator::run($modelId, $chosen['variant'], $chosen['axes'], $fallbackSku, $scritte);
+            static::savePrices($modelId, $post, $fallbackSku, $conPrezzo);
         });
     }
 
@@ -991,6 +994,175 @@ class ProductModelResource extends GestionaleResource
         }
 
         return $blocks;
+    }
+
+    /**
+     * La griglia delle versioni che stanno per nascere.
+     *
+     * Spuntare Blu e M non dice ancora niente al database: la riga esiste solo
+     * dopo il salvataggio, e fino a ieri il prezzo si poteva scrivere solo al
+     * giro dopo. Qui le combinazioni compaiono mentre si spunta, con lo SKU
+     * proposto e la casella del prezzo, e nascono già giuste.
+     *
+     * Il browser propone, il server dispone: `Generator::run()` ricalcola il
+     * piano e prende da qui solo i valori delle combinazioni che tornano.
+     */
+    protected static function newVersionsBlock(int $modelId): object
+    {
+        try {
+            $chiavi = Generator::existingClientKeys($modelId);
+        } catch (Throwable) {
+            // Senza database (i test degli schemi) non c'è niente di esistente
+            // da saltare: la griglia le proporrà tutte.
+            $chiavi = [];
+        }
+
+        $esistenti = static::escape(json_encode($chiavi, JSON_THROW_ON_ERROR));
+
+        return RichText::make(<<<HTML
+<div class="wi-new-versions w-100" data-wi-existing="{$esistenti}">
+    <h6 class="mb-1">Versioni che stanno per nascere</h6>
+    <p class="small text-body-secondary wi-new-versions-empty">Spunta i valori qui sopra: le versioni compaiono qui, con il loro codice e il prezzo che vuoi dargli.</p>
+    <div class="wi-new-versions-rows row g-2"></div>
+    <template class="wi-new-versions-template">
+        <div class="col-12 wi-new-version">
+            <div class="card border-0 bg-light-subtle"><div class="card-body py-2">
+                <div class="row g-2 align-items-center">
+                    <div class="col-4"><strong class="wi-new-version-name small"></strong></div>
+                    <div class="col-4"><input type="text" class="form-control form-control-sm wi-new-version-sku" placeholder="Codice"></div>
+                    <div class="col-4"><input type="text" class="form-control form-control-sm wi-new-version-price" placeholder="Prezzo"></div>
+                </div>
+            </div></div>
+        </div>
+    </template>
+</div>
+<script>
+    window.wiNewVersions = window.wiNewVersions || (function () {
+        function parte(label) {
+            var pulito = String(label || '').trim()
+                .replace(/[àÀ]/g, 'a').replace(/[èéÈÉ]/g, 'e')
+                .replace(/[ìÌ]/g, 'i').replace(/[òÒ]/g, 'o').replace(/[ùÙ]/g, 'u');
+
+            return pulito.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        }
+
+        function skuProposto(base, combo) {
+            base = String(base || '').trim();
+            if (base === '') return '';
+
+            var pezzi = [base];
+            combo.forEach(function (v) { var p = parte(v.label); if (p !== '') pezzi.push(p); });
+
+            return pezzi.join('-');
+        }
+
+        function assiSpuntati() {
+            var gruppi = new Map();
+
+            document.querySelectorAll('input[type="checkbox"][name^="option_"]').forEach(function (casella) {
+                if (!casella.checked) return;
+                var nome = casella.getAttribute('name');
+                if (!gruppi.has(nome)) gruppi.set(nome, []);
+                var etichetta = casella.closest('label') || casella.parentElement;
+                gruppi.get(nome).push({ id: String(casella.value), label: etichetta ? etichetta.textContent.trim() : '' });
+            });
+
+            return Array.from(gruppi.values());
+        }
+
+        function cartesiano(assi) {
+            if (!assi.length) return [];
+            var righe = [[]];
+
+            assi.forEach(function (asse) {
+                var prossime = [];
+                righe.forEach(function (riga) { asse.forEach(function (v) { prossime.push(riga.concat([v])); }); });
+                righe = prossime;
+            });
+
+            return righe;
+        }
+
+        function chiave(combo) {
+            return combo.map(function (v) { return parseInt(v.id, 10); })
+                .sort(function (a, b) { return a - b; })
+                .join('-');
+        }
+
+        function aggiorna(root) {
+            var esistenti = [];
+            try { esistenti = JSON.parse(root.getAttribute('data-wi-existing') || '[]'); } catch (e) {}
+
+            var righe = root.querySelector('.wi-new-versions-rows');
+            var modello = root.querySelector('.wi-new-versions-template');
+            var vuoto = root.querySelector('.wi-new-versions-empty');
+            var campoSku = document.querySelector('#resource-layout-form [name="sku"]');
+            var base = campoSku ? campoSku.value : '';
+            var attuali = {};
+
+            cartesiano(assiSpuntati()).forEach(function (combo) {
+                var k = chiave(combo);
+                if (k === '' || esistenti.indexOf(k) !== -1) return;
+                attuali[k] = combo;
+            });
+
+            Array.prototype.slice.call(righe.children).forEach(function (riga) {
+                if (!Object.prototype.hasOwnProperty.call(attuali, riga.getAttribute('data-wi-key'))) riga.remove();
+            });
+
+            Object.keys(attuali).forEach(function (k) {
+                var combo = attuali[k];
+                var gia = righe.querySelector('[data-wi-key="' + k + '"]');
+
+                if (gia) {
+                    // Lo SKU segue quello dell'articolo finché nessuno lo tocca.
+                    var campo = gia.querySelector('.wi-new-version-sku');
+                    if (campo && !campo.dataset.wiTouched) campo.value = skuProposto(base, combo);
+                    return;
+                }
+
+                var frammento = modello.content.cloneNode(true);
+                var riga = frammento.querySelector('.wi-new-version');
+                riga.setAttribute('data-wi-key', k);
+                riga.querySelector('.wi-new-version-name').textContent = combo.map(function (v) { return v.label; }).join(' / ');
+
+                var sku = riga.querySelector('.wi-new-version-sku');
+                sku.name = 'new_versions[' + k + '][sku]';
+                sku.value = skuProposto(base, combo);
+                sku.addEventListener('input', function () { sku.dataset.wiTouched = 'true'; });
+
+                var prezzo = riga.querySelector('.wi-new-version-price');
+                prezzo.name = 'new_versions[' + k + '][price]';
+
+                righe.appendChild(frammento);
+            });
+
+            vuoto.classList.toggle('d-none', righe.children.length > 0);
+        }
+
+        function tutte() {
+            document.querySelectorAll('.wi-new-versions').forEach(aggiorna);
+        }
+
+        document.addEventListener('change', function (ev) {
+            var nome = ev.target && ev.target.name ? ev.target.name : '';
+            if (nome.indexOf('option_') === 0 || nome === 'sku') tutte();
+        });
+
+        document.addEventListener('input', function (ev) {
+            if (ev.target && ev.target.name === 'sku') tutte();
+        });
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', tutte);
+        } else {
+            tutte();
+        }
+
+        return tutte;
+    })();
+</script>
+HTML);
     }
 
     /**
@@ -1501,7 +1673,11 @@ class ProductModelResource extends GestionaleResource
      * SKU ed EAN invece riguardano solo la versione unica: quando sono più di
      * una, ognuna ha i suoi nella griglia.
      */
-    protected static function savePrices(int $modelId, array $post, string $fallbackSku = ''): void
+    /**
+     * @param list<int> $skip versioni appena nate con un prezzo scritto a
+     *        mano: la casella in alto non le tocca
+     */
+    protected static function savePrices(int $modelId, array $post, string $fallbackSku = '', array $skip = []): void
     {
         $prezzo = Numbers::fromForm($post['product_price'] ?? null);
         $scontato = Numbers::fromForm($post['product_sale_price'] ?? null);
@@ -1544,7 +1720,15 @@ class ProductModelResource extends GestionaleResource
         }
 
         foreach ($prodotti as $product) {
-            Product::update($values, (int) $product['id']);
+            $id = (int) $product['id'];
+
+            // Una versione appena nata con il suo prezzo non si tocca: la
+            // casella in alto è un comando per le altre, non per quella.
+            if (in_array($id, $skip, true)) {
+                continue;
+            }
+
+            Product::update($values, $id);
         }
     }
 

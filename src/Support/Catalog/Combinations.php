@@ -115,6 +115,27 @@ final class Combinations
     }
 
     /**
+     * La chiave con cui il browser chiama una combinazione.
+     *
+     * Diversa da `key()`: quella distingue l'asse con pagina propria, questa
+     * no — perché chi la compone nel browser vede solo delle spunte, e non sa
+     * quale opzione diventerà una variante. Tutti gli id insieme, ordinati.
+     *
+     * @param list<int> $valueIds
+     */
+    public static function clientKey(int $variantValueId, array $valueIds): string
+    {
+        $ids = array_values(array_filter(
+            array_map('intval', [...$valueIds, $variantValueId]),
+            static fn (int $id): bool => $id > 0
+        ));
+
+        sort($ids);
+
+        return implode('-', $ids);
+    }
+
+    /**
      * Il prodotto cartesiano degli assi.
      *
      * Senza assi torna **una** combinazione vuota, non zero: vuol dire "un

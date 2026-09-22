@@ -8,6 +8,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Numbers;
 
 /**
  * Crea le varianti e i prodotti che mancano, dati gli assi spuntati.
@@ -27,16 +28,27 @@ final class Generator
      * @param list<array{id: int, label: string}> $variantValues l'asse con pagina propria
      * @param list<list<array{id: int, label: string}>> $axes gli altri assi
      */
-    public static function run(int $modelId, array $variantValues, array $axes, string $modelSku = ''): void
-    {
+    /**
+     * @param array<string, array{sku?: string, price?: string}> $typed quello
+     *        che è stato scritto nella griglia delle versioni nuove, per
+     *        chiave di `Combinations::clientKey()`
+     * @return list<int> gli id delle versioni nate con un prezzo suo
+     */
+    public static function run(
+        int $modelId,
+        array $variantValues,
+        array $axes,
+        string $modelSku = '',
+        array $typed = []
+    ): array {
         if ($modelId <= 0 || ($variantValues === [] && $axes === [])) {
-            return;
+            return [];
         }
 
         $plan = Combinations::plan($variantValues, $axes, self::existing($modelId));
 
         if ($plan['variants'] === [] && $plan['products'] === []) {
-            return;
+            return [];
         }
 
         if ($modelSku === '') {
@@ -84,6 +96,7 @@ final class Generator
 
         $firstVariantId = (int) (self::variants($modelId)[0]['id'] ?? 0);
         $productPosition = count(self::products($modelId));
+        $priced = [];
 
         foreach ($plan['products'] as $product) {
             $valueId = (int) $product['variant_value_id'];
@@ -93,10 +106,14 @@ final class Generator
                 continue;
             }
 
-            $sku = Sku::propose($modelSku, $product['labels']);
+            $scritto = $typed[Combinations::clientKey($valueId, $product['value_ids'])] ?? [];
+            $sku = trim((string) ($scritto['sku'] ?? '')) ?: Sku::propose($modelSku, $product['labels']);
             $name = VersionName::from($product['labels'], $sku);
+            $prezzo = Numbers::fromForm($scritto['price'] ?? null);
 
-            if ($reuse !== null && $reuse['product_id'] > 0) {
+            $reused = $reuse !== null && $reuse['product_id'] > 0;
+
+            if ($reused) {
                 $productId = $reuse['product_id'];
                 Product::update([
                     'product_variant_id' => $variantId,
@@ -105,7 +122,7 @@ final class Generator
                 ], $productId);
                 $reuse['product_id'] = 0;
             } else {
-                $created = Product::create([
+                $riga = [
                     'code' => Code::make(Product::class, Codes::PRODUCT),
                     'product_model_id' => $modelId,
                     'product_variant_id' => $variantId,
@@ -113,12 +130,28 @@ final class Generator
                     'name' => $name,
                     'position' => ++$productPosition,
                     'active' => 'true',
-                ]);
+                ];
+
+                if ($prezzo !== null) {
+                    $riga['price'] = $prezzo;
+                }
+
+                $created = Product::create($riga);
                 $productId = (int) ($created->insert_id ?? 0);
             }
 
             if ($productId === 0) {
                 continue;
+            }
+
+            if ($prezzo !== null) {
+                // Un prezzo scritto a mano non lo tocca più nessuno: chi
+                // salva dopo di noi deve saltare queste righe.
+                $priced[] = $productId;
+
+                if ($reused) {
+                    Product::update(['price' => $prezzo], $productId);
+                }
             }
 
             // Un collegamento per asse: con tre opzioni spuntate il prodotto ne
@@ -135,6 +168,8 @@ final class Generator
                 ]);
             }
         }
+
+        return $priced;
     }
 
     /**
@@ -178,6 +213,54 @@ final class Generator
         }
 
         return ['variants' => $variants, 'products' => $products];
+    }
+
+    /**
+     * Le combinazioni che esistono già, nella forma che usa il browser.
+     *
+     * Serve alla griglia delle versioni nuove: quello che c'è non si
+     * ripropone.
+     *
+     * @return list<string>
+     */
+    public static function existingClientKeys(int $modelId): array
+    {
+        if ($modelId <= 0) {
+            return [];
+        }
+
+        $variantValueOf = [];
+
+        foreach (self::variants($modelId) as $variant) {
+            foreach (ProductAttributes::read('variant', (int) $variant['id']) as $link) {
+                $valueId = (int) ($link['attribute_value_id'] ?? 0);
+
+                if ($valueId > 0) {
+                    $variantValueOf[(int) $variant['id']] = $valueId;
+                }
+            }
+        }
+
+        $keys = [];
+
+        foreach (self::products($modelId) as $product) {
+            $valueIds = [];
+
+            foreach (ProductAttributes::read('product', (int) $product['id']) as $link) {
+                $valueId = (int) ($link['attribute_value_id'] ?? 0);
+
+                if ($valueId > 0) {
+                    $valueIds[] = $valueId;
+                }
+            }
+
+            $keys[] = Combinations::clientKey(
+                $variantValueOf[(int) ($product['product_variant_id'] ?? 0)] ?? 0,
+                $valueIds
+            );
+        }
+
+        return array_values(array_unique(array_filter($keys, static fn (string $k): bool => $k !== '')));
     }
 
     /**

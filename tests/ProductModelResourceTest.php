@@ -286,7 +286,7 @@ check('la creazione mostra la scheda intera, due colonne comprese', function () 
     };
 
     return count($colonne) === 2
-        && $titoli($colonne[0]) === ['Prodotto', 'Foto e video', 'Descrizione']
+        && $titoli($colonne[0]) === ['Prodotto', 'Foto e video', 'Descrizione', 'Si vende in più versioni? (colori, taglie…)']
         && $titoli($colonne[1]) === ['Pubblicazione', 'Codici', 'Dove si trova', 'Spedizione'];
 });
 
@@ -384,7 +384,9 @@ $riquadri = static function (int $colonna = 0) use ($schedaAperta): array {
 };
 
 check('la colonna larga tiene quello che si compone', function () use ($riquadri) {
-    return $riquadri(0) === ['Prodotto', 'Foto e video', 'Descrizione'];
+    // Con una versione sola le opzioni stanno in coda, in un blocco che si
+    // apre solo se servono.
+    return $riquadri(0) === ['Prodotto', 'Foto e video', 'Descrizione', 'Si vende in più versioni? (colori, taglie…)'];
 });
 
 check('la colonna stretta tiene quello che si decide', function () use ($riquadri) {
