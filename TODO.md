@@ -178,7 +178,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
       - Un articolo con movimenti **non si elimina più**: lo impedirebbe comunque la chiave esterna, ma con una pagina di errore. Il rifiuto usa `UserError::refusal()` (una `RuntimeException`) perché `api/backend/delete` del core intercetta quella, mentre il controller del form intercetta `InvalidArgumentException`. Il sito mostra ancora «Errore 802» al posto del messaggio: serve il rilascio del ramo `fix/backend-error-messages` di `wonder-image/lib` (già in elenco qui sopra). La risposta del server è corretta, 422 con il testo giusto.
       - `gestionale:demo --fresh` cancella la storia di magazzino dei suoi articoli prima di eliminarli (`StockHistory::purge()`).
       - `escape()` è salito in `GestionaleResource`: era copiato in due Resource e mancava nella terza, che caricava l'elenco con un 500.
-    - [ ] Piano 2: giacenze e rettifiche (pagina-form con filtri e paginazione, pagina Rettifica, innesti nel catalogo)
+    - [ ] Piano 2 scritto (2026-09-22): `docs/superpowers/plans/2026-09-22-giacenze-e-rettifiche.md` — 5 task: `Stocktake` puro, pagina Rettifica, pagina Giacenze con filtri e paginazione, giacenza dentro la scheda, dati di prova e guida
     - [ ] Piano 3: anagrafiche (clienti, fornitori, indirizzi, riquadro della home, dati di prova, guide)
     - [ ] Piano 4: avvisi di scorta minima (campo, avvisi, attività ed email raggruppata, riquadro, guide)
 - [ ] G3 Magazzino avanzato
