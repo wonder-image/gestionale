@@ -62,6 +62,22 @@ check('gli avvisi di prodotti spariti o tolti dalla griglia sono da chiudere', f
     LowStockReport::orphans($avvisi, $prodotti) === [13, 14]
 );
 
+check('senza database i prodotti non si fingono spariti: l\'errore sale', function () use ($avvisi) {
+    // I test girano senza database. Gli avvisi tornano vuoti (tabelle non
+    // ancora create); i prodotti no: con `[]` ogni avviso sembrerebbe orfano.
+    if (LowStockReport::open() !== [] || LowStockReport::pending() !== []) {
+        return false;
+    }
+
+    try {
+        LowStockReport::products($avvisi);
+    } catch (Throwable) {
+        return true;
+    }
+
+    return false;
+});
+
 check('l\'oggetto conta i prodotti', fn () =>
     LowStockEmail::subject(1) === '1 prodotto sotto scorta'
     && LowStockEmail::subject(3) === '3 prodotti sotto scorta'

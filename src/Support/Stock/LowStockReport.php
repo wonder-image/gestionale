@@ -34,6 +34,10 @@ final class LowStockReport
      * `deleted`: un prodotto tolto dalla griglia qui non c'è, e per
      * `orphans()` è sparito. Va bene così: il suo avviso si chiude.
      *
+     * Un errore di lettura sale a chi chiama (l'attività segna il giro fallito,
+     * il riquadro della home lo cattura): altrimenti ogni avviso aperto
+     * sembrerebbe orfano.
+     *
      * @param list<array<string, mixed>> $alerts
      * @return array<int, array<string, mixed>>
      */
@@ -47,7 +51,7 @@ final class LowStockReport
 
         $products = [];
 
-        foreach (self::rows(Product::class, 'id IN ('.implode(',', $ids).')') as $row) {
+        foreach (self::read(Product::class, 'id IN ('.implode(',', $ids).')') as $row) {
             $products[(int) $row['id']] = $row;
         }
 
@@ -161,11 +165,23 @@ final class LowStockReport
     private static function rows(string $modelClass, string $condition): array
     {
         try {
-            $rows = $modelClass::find($condition);
+            return self::read($modelClass, $condition);
         } catch (Throwable) {
             // Tabelle non ancora create: niente da segnalare.
             return [];
         }
+    }
+
+    /**
+     * Le righe in lista, anche quando il core ne dà una sola: qui un errore di
+     * lettura sale a chi chiama.
+     *
+     * @param class-string<\Wonder\App\Model> $modelClass
+     * @return list<array<string, mixed>>
+     */
+    private static function read(string $modelClass, string $condition): array
+    {
+        $rows = $modelClass::find($condition);
 
         if (!is_array($rows) || $rows === []) {
             return [];
