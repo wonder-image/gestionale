@@ -17,6 +17,7 @@ use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
@@ -54,6 +55,7 @@ use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\App\LegacyGlobals;
 use Wonder\App\Support\Repeater;
 use Wonder\App\Table;
+use Wonder\Plugin\Gestionale\Support\Stock\Alerts;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\Stocktake;
@@ -323,6 +325,11 @@ class ProductModelResource extends GestionaleResource
             $domanda = FormField::key('has_variants')->hidden()->value('false');
         }
 
+        // Con la scorta minima la riga del prezzo ha quattro caselle invece
+        // di tre.
+        $soglia = Gestionale::feature('low_stock_alerts');
+        $larghezza = $soglia ? 3 : 4;
+
         $cards = [
             (new Card)->components([
                 SectionTitle::make('Prodotto')
@@ -330,6 +337,7 @@ class ProductModelResource extends GestionaleResource
                         ? 'Questa casella è un comando, non un riepilogo: scrivici un prezzo e al salvataggio va su tutte le opzioni in vendita. Lasciala vuota e i prezzi delle righe restano come sono.'
                         : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il tipo fiscale, nel riquadro «Vendita».'
                             .($modelId > 0 ? '' : ' La giacenza scritta alla creazione entra come giacenza iniziale, nella sede principale.')
+                            .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso: vale sul disponibile di tutte le sedi, e con zero non arriva niente.' : '')
                             .($senzaOpzioni ? ' Per vendere colori o taglie serve un attributo con uso «Opzione da scegliere» o «Opzione con foto proprie», e dei valori: si crea in Catalogo → Attributi.' : ''))
                     ->columnSpan(12),
                 static::getInput('name')->columnSpan(12),
@@ -340,13 +348,14 @@ class ProductModelResource extends GestionaleResource
                         ->tag('div')
                         ->columnSpan(12),
                 ] : []),
-                static::getInput('product_price')->columnSpan(4),
-                static::getInput('product_sale_price')->columnSpan(4),
+                static::getInput('product_price')->columnSpan($larghezza),
+                static::getInput('product_sale_price')->columnSpan($larghezza),
                 // Senza varianti la giacenza sta qui, accanto al prezzo: è la
                 // scheda di quell'unico articolo, e la parola "opzione" non
                 // compare da nessuna parte. In creazione c'è già: chi crea
                 // l'articolo ha la merce davanti.
-                static::getInput('product_stock')->columnSpan(4),
+                static::getInput('product_stock')->columnSpan($larghezza),
+                ...($soglia ? [static::getInput('product_min_stock')->columnSpan(3)] : []),
                 // In creazione non c'è ancora niente da rettificare.
                 ...($modelId > 0 ? [
                     RichText::make(static::adjustLink($modelId))
@@ -701,6 +710,16 @@ class ProductModelResource extends GestionaleResource
         static::assertSomeVersionLeft($id);
         static::assertStockWritable($id, $values['has_variants'] === 'true');
 
+        // La scorta minima si controlla adesso, come la giacenza: dopo
+        // l'insert un rifiuto lascerebbe l'articolo scritto a metà.
+        if (
+            Gestionale::feature('low_stock_alerts')
+            && $values['has_variants'] !== 'true'
+            && array_key_exists('product_min_stock', $_POST)
+        ) {
+            static::minStockValue($_POST['product_min_stock']);
+        }
+
         return static::withoutExtras($values);
     }
 
@@ -737,6 +756,32 @@ class ProductModelResource extends GestionaleResource
                 throw UserError::make('product.stock_negative');
             }
         }
+    }
+
+    /**
+     * La scorta minima scritta nella scheda, pronta per la colonna.
+     *
+     * Vuota vale zero, che vuol dire "non avvisarmi". Il numero si legge come
+     * la giacenza (`Stocktake::quantity()`): `2,5` e `2.5` sono la stessa
+     * cosa, e `20.000` sono venti pezzi, come li mostra il campo del backend.
+     */
+    public static function minStockValue(mixed $raw): string
+    {
+        if (is_array($raw)) {
+            throw UserError::make('product.min_stock_invalid');
+        }
+
+        if (trim((string) ($raw ?? '')) === '') {
+            return '0.000';
+        }
+
+        $quantity = Stocktake::quantity($raw);
+
+        if ($quantity === null || $quantity < 0) {
+            throw UserError::make('product.min_stock_invalid');
+        }
+
+        return number_format($quantity, 3, '.', '');
     }
 
     /** Un numero sotto zero diverso da quello che il prodotto ha già. */
@@ -847,6 +892,40 @@ class ProductModelResource extends GestionaleResource
                 'note' => 'Rettifica dalla scheda dell\'articolo',
             ]);
         }
+    }
+
+    /**
+     * La scorta minima dell'articolo senza varianti.
+     *
+     * Si scrive dopo la giacenza: alla creazione il carico iniziale ha già
+     * rinfrescato l'avviso con la soglia a zero, e qui lo si rinfresca con
+     * quella vera. Il rinfresco c'è anche quando nessun pezzo si è mosso:
+     * alzare la soglia sopra il disponibile è già una notizia.
+     */
+    protected static function saveSingleMinStock(int $modelId, array $post, bool $conVarianti): void
+    {
+        if (
+            $conVarianti
+            || !Gestionale::feature('low_stock_alerts')
+            || !array_key_exists('product_min_stock', $post)
+        ) {
+            return;
+        }
+
+        $product = static::soleProduct($modelId);
+
+        if (!is_array($product)) {
+            return;
+        }
+
+        $productId = (int) $product['id'];
+        $soglia = static::minStockValue($post['product_min_stock']);
+
+        if (abs((float) $soglia - (float) ($product['min_stock_quantity'] ?? 0)) > 0.0005) {
+            Product::update(['min_stock_quantity' => $soglia], $productId);
+        }
+
+        Alerts::refresh($productId);
     }
 
     /**
@@ -967,6 +1046,7 @@ class ProductModelResource extends GestionaleResource
             static::saveNewVersions($modelId, $nate, $scritte, $files);
             static::saveRowExtras($modelId, $righe, $files, $conVarianti);
             static::saveSingleStock($modelId, $post, $conVarianti, $appenaNato);
+            static::saveSingleMinStock($modelId, $post, $conVarianti);
             // Dopo il generatore: le foto di un colore appena spuntato hanno
             // bisogno della sua variante.
             $colori = static::saveGroupImages($modelId, $post, $files);
@@ -1506,6 +1586,14 @@ class ProductModelResource extends GestionaleResource
         if ($unaVersione) {
             $values['product_stock'] = static::plainNumber(
                 Levels::of((int) $product['id'])['quantity']
+            );
+            // Col punto, come la colonna: il campo del backend mostra il
+            // punto come separatore dei decimali.
+            $values['product_min_stock'] = number_format(
+                (float) ($product['min_stock_quantity'] ?? 0),
+                3,
+                '.',
+                ''
             );
         }
 
@@ -3428,6 +3516,16 @@ HTML)->tag('div');
             ->label('Giacenza')
             ->hiddenWhen('has_variants', 'true');
 
+        // La soglia dell'avviso: vale sul disponibile di tutte le sedi, e con
+        // zero non arriva niente. Senza la funzionalità non esiste.
+        if (Gestionale::feature('low_stock_alerts')) {
+            $fields[] = FormField::key('product_min_stock')
+                ->number()
+                ->decimal(3)
+                ->label('Scorta minima')
+                ->hiddenWhen('has_variants', 'true');
+        }
+
         $fields[] = FormField::key('product_ean')
             ->text()
             ->label('EAN')
@@ -3447,6 +3545,7 @@ HTML)->tag('div');
             $values['product_price'],
             $values['product_sale_price'],
             $values['product_stock'],
+            $values['product_min_stock'],
         );
 
         foreach (array_keys($values) as $key) {

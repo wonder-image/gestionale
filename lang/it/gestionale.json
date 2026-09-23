@@ -27,7 +27,8 @@
                 "one_page_option": "Un articolo può avere un solo attributo «Opzione con foto proprie»: togli le spunte di uno dei due.",
                 "no_versions": "Un articolo deve avere almeno un'opzione in vendita.",
                 "has_movements": "Questo articolo ha movimenti di magazzino e non si elimina: mettilo su «Nascosto» se non lo vendi più.",
-                "stock_negative": "La giacenza non può essere un numero negativo: scrivi quanti pezzi ci sono davvero."
+                "stock_negative": "La giacenza non può essere un numero negativo: scrivi quanti pezzi ci sono davvero.",
+                "min_stock_invalid": "La scorta minima è un numero di pezzi, zero o più: con zero non arriva nessun avviso."
             },
             "contact": {
                 "vat_taken": "Questa partita IVA è già di {{contact}}: apri quella scheda invece di crearne un'altra.",

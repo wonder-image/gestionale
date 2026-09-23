@@ -27,6 +27,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
+use Wonder\Plugin\Gestionale\Support\Stock\Alerts;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
@@ -117,6 +118,10 @@ class ProductResource extends ProductModelResource
             FormField::key('height')->number()->decimal(2)->label('Altezza (cm)'),
         ];
 
+        if (Gestionale::feature('low_stock_alerts')) {
+            $fields[] = FormField::key('min_stock_quantity')->number()->decimal(3)->label('Scorta minima');
+        }
+
         foreach (Attributes::byLevel(static::attributes(), 'product') as $attribute) {
             $fields[] = static::attributeField($attribute);
         }
@@ -165,10 +170,14 @@ class ProductResource extends ProductModelResource
             static::getInput('height')->columnSpan(3),
         ])->columns(12)->columnSpan(12);
 
+        $soglia = Gestionale::feature('low_stock_alerts');
+
         $cards[] = (new Card)->components([
             SectionTitle::make(static::stockCardTitle())
-                ->tooltip('Qui la giacenza si legge. Si scrive nella riga della griglia delle opzioni in vendita, oppure con una rettifica quando serve lasciare una causale e una nota.')
+                ->tooltip('Qui la giacenza si legge. Si scrive nella riga della griglia delle opzioni in vendita, oppure con una rettifica quando serve lasciare una causale e una nota.'
+                    .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso: vale sul disponibile di tutte le sedi, e con zero non arriva niente.' : ''))
                 ->columnSpan(12),
+            ...($soglia ? [static::getInput('min_stock_quantity')->columnSpan(4)] : []),
             RichText::make(static::stockSummary())->columnSpan(12),
             RichText::make(static::stockHistoryTable())->columnSpan(12),
         ])->columns(12)->columnSpan(12);
@@ -386,6 +395,14 @@ class ProductResource extends ProductModelResource
             }
         }
 
+        // Senza la funzionalità la colonna non si scrive: un form aperto prima
+        // di bloccarla non deve azzerare la soglia.
+        if (!Gestionale::feature('low_stock_alerts')) {
+            unset($values['min_stock_quantity']);
+        } elseif (array_key_exists('min_stock_quantity', $values)) {
+            $values['min_stock_quantity'] = static::minStockValue($values['min_stock_quantity']);
+        }
+
         return $values;
     }
 
@@ -400,6 +417,12 @@ class ProductResource extends ProductModelResource
         }
 
         ProductAttributes::save('product', (int) $id, $attributes, $input);
+
+        // La soglia può essere appena cambiata senza nessun movimento:
+        // l'avviso si apre o si chiude adesso, non alla prossima vendita.
+        if (Gestionale::feature('low_stock_alerts')) {
+            Alerts::refresh((int) $id);
+        }
     }
 
     /** Riempie il form con gli attributi dell'opzione. */
