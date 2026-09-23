@@ -36,6 +36,9 @@
                 "email_taken": "Questa email è già di {{contact}}.",
                 "no_role": "Di' se è un cliente, un fornitore o tutti e due.",
                 "has_account": "Questa scheda ha un account sul sito e non si elimina: mettila su «Non attiva» se non lavori più con lei."
+            },
+            "settings": {
+                "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo."
             }
         }
     }

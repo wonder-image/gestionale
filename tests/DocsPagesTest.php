@@ -7,6 +7,7 @@ require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Resources\System\MerchantSettingResource;
 
 /**
  * I percorsi che GitBook pubblica per una guida: `gruppo/nome-del-file`, dove
@@ -116,6 +117,10 @@ check('le due guide hanno il loro indirizzo di partenza', fn () =>
         === 'https://wonder-image.gitbook.io/wonder-image-gestionale/user/catalogo/catalogo-attributi'
     && Gestionale::docsUrl('concetti/iva-e-impostazioni', 'dev')
         === 'https://wonder-image.gitbook.io/wonder-image-gestionale/concetti/iva-e-impostazioni'
+);
+
+check('anche le impostazioni del commerciante puntano a una guida che esiste', fn () =>
+    in_array(MerchantSettingResource::DOCS_PAGE, $pagine('user'), true)
 );
 
 summary();

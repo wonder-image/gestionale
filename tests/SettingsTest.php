@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Resources\System\MerchantSettingResource;
@@ -86,5 +87,50 @@ check('una conferma già data non si riscrive', function () {
 
     return ($valori['fiscal_confirmed_at'] ?? '') === '2026-01-01 10:00:00';
 });
+
+$forza = static function (?array $stato): void {
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
+};
+
+check('il commerciante ha la colonna dei destinatari degli avvisi', fn () =>
+    in_array('low_stock_emails', $colonne(MerchantSetting::class), true)
+);
+
+check('con gli avvisi bloccati i destinatari non si chiedono e non si scrivono', function () use ($forza) {
+    $forza(['low_stock_alerts' => false]);
+    $campi = array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema());
+    $valori = MerchantSettingResource::mutateRequestValues(['low_stock_emails' => 'a@x.it'], 'update');
+
+    return !in_array('low_stock_emails', $campi, true) && !array_key_exists('low_stock_emails', $valori);
+});
+
+check('con gli avvisi sbloccati i destinatari si salvano puliti', function () use ($forza) {
+    $forza(['low_stock_alerts' => true]);
+    $campi = array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema());
+    $valori = MerchantSettingResource::mutateRequestValues(['low_stock_emails' => 'a@x.it; A@x.it  b@y.it'], 'update');
+
+    return in_array('low_stock_emails', $campi, true)
+        && $valori['low_stock_emails'] === 'a@x.it, b@y.it';
+});
+
+check('un destinatario scritto male si rifiuta, nominandolo', function () use ($forza) {
+    $forza(['low_stock_alerts' => true]);
+
+    try {
+        MerchantSettingResource::mutateRequestValues(['low_stock_emails' => 'a@x.it, anna.x.it'], 'update');
+    } catch (InvalidArgumentException $errore) {
+        return str_contains($errore->getMessage(), 'anna.x.it');
+    }
+
+    return false;
+});
+
+check('un campo vuoto si salva vuoto: vuol dire nessuna email', function () use ($forza) {
+    $forza(['low_stock_alerts' => true]);
+
+    return MerchantSettingResource::mutateRequestValues(['low_stock_emails' => ' '], 'update')['low_stock_emails'] === '';
+});
+
+$forza(null);
 
 summary();

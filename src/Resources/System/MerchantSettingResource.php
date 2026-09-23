@@ -14,6 +14,8 @@ use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 
 /**
  * "Impostazioni" del commerciante, nella sezione Gestionale: una riga sola,
@@ -27,6 +29,9 @@ use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
 final class MerchantSettingResource extends SingletonResource
 {
     public static string $model = MerchantSetting::class;
+
+    /** La pagina della guida commercianti: `gruppo/file` del SUMMARY. */
+    public const DOCS_PAGE = 'ogni-giorno/impostazioni';
 
     public static function path(): string
     {
@@ -47,34 +52,83 @@ final class MerchantSettingResource extends SingletonResource
     {
         return [
             'merchant_notification_emails' => 'Email di chi riceve le notifiche',
+            'low_stock_emails' => 'Destinatari degli avvisi',
         ];
     }
 
     public static function formSchema(): array
     {
-        return [
+        $fields = [
             FormField::key('merchant_notification_emails')->text()->label('Email di chi riceve le notifiche'),
         ];
+
+        if (Gestionale::feature('low_stock_alerts')) {
+            $fields[] = FormField::key('low_stock_emails')->text()->label('Destinatari degli avvisi');
+        }
+
+        return $fields;
     }
 
     public static function formLayoutSchema(): ?Form
     {
-        return (new Form)->components([
-            (new Container)->components([
-                (new Card)->components([
-                    SectionTitle::make('Notifiche')
-                        ->tooltip('Più indirizzi separati da virgola. Arrivano le notifiche che riguardano il negozio; i guasti tecnici vanno a chi ti segue.')
-                        ->columnSpan(12),
-                    static::getInput('merchant_notification_emails')->columnSpan(12),
-                ])->columns(12)->columnSpan(12),
+        $cards = [
+            (new Card)->components([
+                SectionTitle::make('Notifiche')
+                    ->tooltip('Più indirizzi separati da virgola. Arrivano le notifiche che riguardano il negozio; i guasti tecnici vanno a chi ti segue.')
+                    ->columnSpan(12),
+                static::getInput('merchant_notification_emails')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
+        ];
+
+        if (Gestionale::feature('low_stock_alerts')) {
+            $cards[] = (new Card)->components([
+                SectionTitle::make('Avvisi di scorta minima')
+                    ->tooltip('Chi riceve l\'email dei prodotti sotto la scorta minima: più indirizzi separati da virgola. Vuoto, l\'email non parte e gli avvisi aspettano.')
+                    ->columnSpan(12),
+                static::getInput('low_stock_emails')->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        return (new Form)->components([
+            (new Container)->components($cards)->columns(12)->columnSpan(12),
         ]);
+    }
+
+    /**
+     * I destinatari si salvano puliti: un indirizzo storto si rifiuta adesso,
+     * nominandolo, invece di scoprirlo il giorno che l'email non arriva.
+     */
+    public static function mutateRequestValues(
+        array $values,
+        string $action,
+        string $context = 'backend',
+        ?array $oldValues = null
+    ): array {
+        if (!array_key_exists('low_stock_emails', $values)) {
+            return $values;
+        }
+
+        if (!Gestionale::feature('low_stock_alerts')) {
+            unset($values['low_stock_emails']);
+
+            return $values;
+        }
+
+        $parsed = Recipients::parse((string) ($values['low_stock_emails'] ?? ''));
+
+        if ($parsed['invalid'] !== []) {
+            throw UserError::make('settings.email_invalid', ['email' => $parsed['invalid'][0]]);
+        }
+
+        $values['low_stock_emails'] = Recipients::join($parsed['valid']);
+
+        return $values;
     }
 
     public static function pageSchema(): PageSchema
     {
         $schema = parent::pageSchema()->titles(['edit' => 'Impostazioni']);
-        $url = Gestionale::docsUrl('impostazioni/negozio');
+        $url = Gestionale::docsUrl(self::DOCS_PAGE);
 
         return $url === '' ? $schema : $schema->docs($url);
     }

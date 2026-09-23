@@ -16,6 +16,9 @@ use Wonder\Sql\TableSchema as Column;
  * `merchant_notification_emails` sono gli indirizzi delle **notifiche** del
  * negozio — un ordine da controllare, una spedizione ferma — non degli errori
  * tecnici, che vanno a chi sviluppa.
+ *
+ * `low_stock_emails` sono i destinatari dell'email dei prodotti sotto scorta
+ * minima: vuoto, l'email non parte e gli avvisi aspettano.
  */
 final class MerchantSetting extends Model
 {
@@ -32,6 +35,7 @@ final class MerchantSetting extends Model
     {
         return [
             Column::key('merchant_notification_emails')->type('TEXT'),
+            Column::key('low_stock_emails')->type('TEXT'),
         ];
     }
 
@@ -39,6 +43,7 @@ final class MerchantSetting extends Model
     {
         return [
             Field::key('merchant_notification_emails')->text(),
+            Field::key('low_stock_emails')->text(),
         ];
     }
 
