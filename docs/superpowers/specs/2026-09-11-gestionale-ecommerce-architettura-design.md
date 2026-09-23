@@ -249,7 +249,7 @@ indici); in questo documento i nomi delle tabelle sono scritti senza prefisso.
 | Brand, categoria, tag | brand, category, tag | `brands`, `categories`, `tags` |
 | Attributo | attribute | `attributes`, `attribute_values` |
 | Multiprodotto | bundle | `bundle_components`, `bundle_groups`, `bundle_group_options` |
-| Personalizzazione | customization | `customization_fields`, `customization_field_options` |
+| Personalizzazione | customization | `customizations`, `customization_options`, `product_model_customizations` |
 | Formato etichetta | label format | `label_formats` |
 | Anagrafica, cliente, fornitore | contact, customer, supplier | `contacts`, `contact_addresses` |
 | Sede | location | `locations` (estende `society_locations` del core; orari e chiusure nel core) |
@@ -511,8 +511,9 @@ Contenuti in una sola lingua (D4).
 | `bundle_components` | bundle_product_id, product_id, quantity, position |
 | `bundle_groups` | bundle_product_id, name, min_choices, max_choices, position |
 | `bundle_group_options` | bundle_group_id, product_id, surcharge, position |
-| `customization_fields` | product_model_id, label, help_text, type (`text`, `textarea`, `number`, `select`, `date`, `file`), is_required, max_length, allowed_extensions, max_file_size, surcharge, position |
-| `customization_field_options` | customization_field_id, label, surcharge, position |
+| `customizations` | code (`cus_`), name, help_text, type (`text`, `textarea`, `select`, `boolean`, `number`, `date`, `file`), max_length, allowed_extensions, max_file_size, surcharge, is_visible, position |
+| `customization_options` | customization_id, label, surcharge, position |
+| `product_model_customizations` | product_model_id, customization_id, is_required, position |
 
 **Livelli.** Il modello è la scheda; la variante è ciò che cambia l'aspetto
 (immagini, attributi di variante come il colore); il prodotto è ciò che si vende
@@ -550,8 +551,12 @@ righe d'ordine, DDT e fattura.
 (la "scelta del componente"). Nessuna giacenza propria: la disponibilità si calcola
 dai componenti e alla vendita si scaricano componenti e opzioni scelte (4.3, 4.7).
 
-**Personalizzazione (`customizations`).** Campi definiti sul modello, validi per
-prodotti e multiprodotti. Il tipo `file` salva in una cartella non pubblica, con
+**Personalizzazione (`customizations`).** Un elenco riusabile, come gli
+attributi: «Incisione, max 20 caratteri, +5 €» si definisce una volta e si spunta
+sui modelli, validi per prodotti e multiprodotti. Il sovrapprezzo sta
+nell'anagrafica; l'obbligatorietà si sceglie sul singolo modello. Non passa dagli
+attributi: un attributo descrive cose a magazzino, una personalizzazione la
+scrive chi compra (spec della scheda prodotto, P63). Il tipo `file` salva in una cartella non pubblica, con
 estensioni e dimensione massima per campo. Alla vendita valori, etichette, file e
 sovrapprezzi vengono copiati sulla riga del documento (4.7).
 

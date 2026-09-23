@@ -643,6 +643,127 @@ contenitore condizionale, così sparisce intera. Nel modal di «Aggiungi
 opzione» il campo non dichiarava la larghezza e prendeva una colonna su
 dodici: ora ha `->columnSpan(12)`.
 
+## 16. Settimo giro: le foto del colore, i campi spariti, gli attributi spiegati
+
+Alla prova del sesto giro sono venute fuori tre cose che mancavano e due che
+non si capivano.
+
+**Il tipo fiscale si vede sempre.** Con un tipo solo il campo spariva (P54):
+l'idea era non chiedere una cosa che non ha alternative, ma chi apre la scheda
+non sa che il campo esiste, e il giorno in cui gli serve non lo trova. Ora il
+select c'è sempre, nella card «Vendita», con il predefinito già scelto e il
+«+» per crearne uno nuovo da lì. Un tipo nascosto che un articolo usa ancora
+resta nell'elenco di quell'articolo, in coda, come «Nome (nascosto)»: senza,
+il select mostrerebbe un altro tipo e salvando lo sostituirebbe. Senza nessun
+tipo il campo dice «Nessuno: vale l'aliquota di ripiego» e non è obbligatorio,
+perché il calcolo delle imposte ricade già sull'aliquota di ripiego. Il «+»
+del quick-create non compare a chi la risorsa la legge soltanto: prima
+compariva e rispondeva 403.
+
+**La giacenza c'è anche in creazione.** Senza varianti la casella «Giacenza»
+esisteva solo su un articolo già salvato: in creazione chi aveva la merce
+davanti non sapeva dove scriverla. Ora c'è sempre. In creazione vale come
+carico iniziale — un movimento con causale «giacenza iniziale», come le righe
+nuove della griglia (P24) — e si scrive anche con più sedi, perché su un
+articolo che nasce non c'è niente da rendere ambiguo: va sulla sede
+principale. Dopo il primo salvataggio torna la regola di P35. Una giacenza
+negativa scritta a mano si rifiuta; una già negativa per le vendite in
+arretrato, lasciata com'era, passa.
+
+**Le foto del colore stanno nella riga del colore.** Le aree «Foto blu», «Foto
+rosso» del riquadro «Foto e video» c'erano solo su un articolo salvato (il
+colore in creazione non esiste ancora) e stavano lontane dalle righe a cui
+appartengono. Ora la testata del gruppo ha, accanto a «Prezzo del gruppo», un
+bottone «Foto del colore (n)» che apre un'area di caricamento: in creazione
+come in modifica. Il riquadro «Foto e video» tiene solo le foto comuni
+dell'articolo; la foto della singola opzione resta dietro «Compila le
+informazioni avanzate».
+
+Il bottone compare solo quando il primo attributo è uno con foto proprie (il
+colore, livello `variant`): con «Taglia, poi Colore» i gruppi sono taglie, e
+una foto della taglia S non vuol dire niente. Per lo stesso motivo la testata
+compare anche con un attributo solo, se è quello con foto proprie: la testata
+ripete il nome della riga, ma è il posto delle foto del colore, e metterle
+altrove per un caso solo vorrebbe dire due posti per la stessa cosa. Aggiungere
+dopo un secondo attributo non sposta niente: le foto erano già del colore.
+
+Il gruppo si riconosce dall'id del valore, non dal nome: due colori possono
+chiamarsi uguale in due articoli, e un nome si rinomina. Nel framework la
+testata diventa persistente — le testate esistenti si riusano invece di
+distruggerle e ricrearle a ogni riga aggiunta — perché un'area di caricamento
+distrutta perde i file appena scelti. Il campo della testata si posta con la
+chiave del gruppo nel nome, e il manifesto è quello di ogni altro campo di
+file (P42). Un colore di cui si sono annullate tutte le righe: in creazione le
+sue foto si ignorano (il colore non nasce), in modifica si salvano (il colore
+c'è ancora, e l'annullamento si può ripensare).
+
+**L'attributo dice a cosa serve, con parole sue.** «Come si usa» elencava tre
+voci uguali per tutti i tipi, e una di queste parlava di un «carrello» che non
+c'entra. Il campo si chiama **Uso** e offre solo le voci che il tipo permette:
+
+| Tipo | Voci |
+|---|---|
+| Testo, Numero | Scheda tecnica dell'articolo · Scheda tecnica di ogni opzione |
+| Elenco, Colore, Fantasia, Icona | Scheda tecnica dell'articolo · Opzione da scegliere · Opzione con foto proprie |
+
+Dietro restano i tre livelli di sempre (`model`, `product`, `variant`): cambia
+solo come si dicono. Un Testo non può essere un'opzione con foto proprie —
+non ha valori da scegliere — e il server lo rifiuta con un codice solo.
+L'uso non si cambia più su un attributo che sta già su degli articoli:
+spostarlo da scheda tecnica a opzione lascerebbe i collegamenti a un livello
+che non legge più nessuno. Il campo si spegne, e il tooltip dice di creare un
+attributo nuovo.
+
+**Quando un attributo compare nelle opzioni in vendita.** Quando valgono tutte
+e quattro: è visibile, il suo uso è «Opzione da scegliere» o «Opzione con foto
+proprie», il tipo ha valori (Elenco, Colore, Fantasia, Icona), ed esiste
+almeno un valore. Lo dice il tooltip del riquadro «Opzioni in vendita». Se il
+negozio non ha nessun attributo così, la domanda «Questo articolo ha
+varianti?» non si fa: non avrebbe niente da offrire.
+
+**Il tipo Icona.** Un valore con un'icona invece del colore: «Impermeabile»,
+«Lavabile in lavatrice», «Spedizione rapida». L'icona si sceglie da una
+raccolta (le Bootstrap Icons, circa duemila, in una griglia con la ricerca
+anche in italiano) oppure si carica un'immagine PNG o WebP. SVG no: è un
+documento che può portare script, e un'anagrafica non è il posto per
+controllarlo. Se ci sono tutti e due vince il file. Nel framework nasce un
+input `icon()` riusabile, e le opzioni dei select e delle pillole imparano a
+mostrare icona, colore o immagine accanto al nome. Un valore creato dal «+»
+della scheda nasce senza icona: si completa dall'anagrafica.
+
+**La personalizzazione non passa dagli attributi.** Un attributo descrive
+quello che l'articolo è, e le sue opzioni sono cose che stanno a magazzino.
+Un'incisione, un nome ricamato, un biglietto non stanno a magazzino: li
+scrive chi compra. Arriva in G5, dopo gli ordini, come **elenco riusabile**,
+simile agli attributi: «Incisione, max 20 caratteri, +5 €» si definisce una
+volta e si spunta sugli articoli. Il sovrapprezzo sta nell'anagrafica;
+l'obbligatorietà si sceglie sul singolo articolo, perché la stessa incisione
+è facoltativa su una penna e obbligatoria su una targa. Corregge D23, che
+metteva i campi sul modello e li faceva riscrivere uguali su ogni articolo.
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P58 | Il tipo fiscale si vede sempre, con il predefinito; un tipo nascosto in uso resta in coda; senza tipi vale l'aliquota di ripiego. Corregge P54 | Un campo che sparisce non si trova il giorno in cui serve |
+| P59 | La giacenza senza varianti c'è anche in creazione, come carico iniziale sulla sede principale; niente negativi scritti a mano. Estende P35 | Chi crea l'articolo ha la merce davanti; su un articolo che nasce non c'è ambiguità fra sedi |
+| P60 | Le foto del colore stanno nella testata del gruppo, in creazione e in modifica; il gruppo si riconosce dall'id del valore; la testata c'è anche con un attributo solo se ha foto proprie. Corregge P17, estende P28, P31 e P38 | Le foto vanno dove sta il colore, e in creazione il riquadro non poteva ospitarle |
+| P61 | «Come si usa» diventa «Uso», con le voci che il tipo permette; bloccato quando l'attributo è in uso | Tre voci uguali per tutti i tipi non dicevano quale serviva, e cambiare uso a un attributo in uso lascia dati orfani |
+| P62 | Tipo Icona: Bootstrap Icons o un'immagine PNG/WebP, il file vince; niente SVG | Le caratteristiche si leggono meglio con un simbolo; un SVG caricato è un documento con script |
+| P63 | La personalizzazione è un elenco riusabile in G5, non un attributo; sovrapprezzo sull'anagrafica, obbligo sull'articolo. Corregge D23 | Gli attributi descrivono cose a magazzino; un testo scritto da chi compra no |
+
+### Lavori del settimo giro
+
+- [ ] core: niente «+» del quick-create a chi legge soltanto; guida `quick-create.md`
+- [ ] core: opzioni con icona, colore o immagine in select e pillole
+- [ ] core: input `icon()` con i due renderer
+- [ ] core: testate del repeater persistenti; `repeaterGroupFiles()`; lettura dei file di gruppo
+- [ ] lib: selettore delle icone con parole chiave italiane; icone e colori nelle opzioni di Select2
+- [ ] modulo: tipo fiscale sempre visibile
+- [ ] modulo: giacenza in creazione
+- [ ] modulo: «Uso», `levelsFor()`, blocco in uso, tooltip delle opzioni in vendita
+- [ ] modulo: tipo Icona
+- [ ] modulo: foto del colore nella testata
+- [ ] guide utente e dev, spec d'architettura (D23), prova nel browser, memoria
+
 ## Piani
 
 Da scrivere dopo l'approvazione.
