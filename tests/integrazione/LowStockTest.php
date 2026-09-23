@@ -13,7 +13,9 @@ require __DIR__ . '/../harness.php';
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
@@ -128,6 +130,25 @@ check('un articolo che nasce già sotto la sua scorta minima ha l\'avviso', fn (
     );
 
     return Alerts::openRow((int) $scheletro['product_id']) !== [];
+}));
+
+check('un articolo con l\'avviso aperto e nessun movimento si elimina', fn () => annullando(function (): bool {
+    [$modelId, $productId] = articoloDiProva('LOW-5');
+    Product::update(['min_stock_quantity' => '5.000'], $productId);
+    $aperto = Alerts::refresh($productId) === 'open';
+    $esito = ProductModelResource::deleteRecord($modelId);
+    $rimasti = StockAlert::find(['product_id' => $productId]);
+
+    return $aperto && !empty($esito->success) && (!is_array($rimasti) || $rimasti === []);
+}));
+
+check('anche una versione con l\'avviso aperto si elimina dalla sua scheda', fn () => annullando(function (): bool {
+    [, $productId] = articoloDiProva('LOW-6');
+    Product::update(['min_stock_quantity' => '5.000'], $productId);
+    Alerts::refresh($productId);
+    $esito = ProductResource::deleteRecord($productId);
+
+    return !empty($esito->success) && Product::findById($productId) === [];
 }));
 
 summary();

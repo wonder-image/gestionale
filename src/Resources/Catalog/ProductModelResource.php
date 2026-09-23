@@ -1685,6 +1685,7 @@ class ProductModelResource extends GestionaleResource
                     ProductAttributes::modelClass('product')::delete((int) $link['id']);
                 }
 
+                StockHistory::dropAlerts([(int) $product['id']]);
                 Product::delete((int) $product['id']);
             }
 

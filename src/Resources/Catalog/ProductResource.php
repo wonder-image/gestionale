@@ -454,6 +454,8 @@ class ProductResource extends ProductModelResource
             ProductAttributes::modelClass('product')::delete((int) $link['id']);
         }
 
+        StockHistory::dropAlerts([(int) $id]);
+
         return Product::delete($id);
     }
 

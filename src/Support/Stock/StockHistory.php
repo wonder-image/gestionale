@@ -15,6 +15,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
  * **impedisce** di cancellarlo: è la garanzia che la storia non resti a
  * parlare di righe scomparse. Chi elimina prodotti deve quindi chiedere prima
  * se si può (`hasMovements()`) o cancellare anche la storia (`purge()`).
+ * Gli avvisi di scorta invece se ne vanno col prodotto (`dropAlerts()`).
  */
 final class StockHistory
 {
@@ -99,6 +100,42 @@ final class StockHistory
             } catch (Throwable) {
                 // Tabella non ancora creata: non c'è niente da dimenticare.
             }
+        }
+
+        return $removed;
+    }
+
+    /**
+     * Cancella gli avvisi di scorta di prodotti che stanno per sparire.
+     *
+     * Un avviso non è storia: dice "adesso questo prodotto è sotto scorta", e
+     * di un prodotto eliminato non c'è più niente da dire. Ma punta al
+     * prodotto con una chiave esterna: senza toglierlo prima, eliminare un
+     * articolo con la soglia scritta e nessun movimento finirebbe in una
+     * pagina di errore.
+     *
+     * @param list<int> $productIds
+     * @return int quanti avvisi se ne sono andati
+     */
+    public static function dropAlerts(array $productIds): int
+    {
+        $ids = array_values(array_filter(array_map('intval', $productIds), static fn (int $id): bool => $id > 0));
+
+        if ($ids === []) {
+            return 0;
+        }
+
+        $condition = 'product_id IN ('.implode(',', $ids).')';
+
+        try {
+            $rows = StockAlert::find($condition);
+            $rows = isset($rows['id']) ? [$rows] : (array) $rows;
+            $removed = count(array_filter($rows, 'is_array'));
+
+            StockAlert::query()->Delete(StockAlert::$table, $condition);
+        } catch (Throwable) {
+            // Tabella non ancora creata: non c'è niente da togliere.
+            return 0;
         }
 
         return $removed;

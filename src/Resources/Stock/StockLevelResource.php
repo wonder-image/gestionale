@@ -335,7 +335,9 @@ final class StockLevelResource extends NavigationOnlyResource
                 : 'product_model_id IN ('.implode(',', $modelIds).')';
         }
 
-        if (($_GET['sotto'] ?? '') === '1') {
+        // Senza la funzionalità il filtro non c'è: un vecchio link con
+        // `sotto=1` mostra tutte le righe invece di una pagina vuota.
+        if (($_GET['sotto'] ?? '') === '1' && Gestionale::feature('low_stock_alerts')) {
             $alerted = static::alertedProductIds();
             $parts[] = $alerted === [] ? '1 = 0' : 'id IN ('.implode(',', $alerted).')';
         }
@@ -477,9 +479,13 @@ final class StockLevelResource extends NavigationOnlyResource
         $html .= '<input type="text" class="form-control form-control-sm w-auto"'
             .' id="gst-stock-search" placeholder="Nome, SKU o EAN"'
             .' value="'.static::escape($search).'">';
-        $html .= '<a class="btn btn-sm btn-secondary" href="'
-            .static::escape(static::pageUrl(['sotto' => $sotto ? null : '1', 'p' => null])).'">'
-            .($sotto ? 'Tutte le opzioni' : 'Solo sotto scorta').'</a>';
+
+        if (Gestionale::feature('low_stock_alerts')) {
+            $html .= '<a class="btn btn-sm btn-secondary" href="'
+                .static::escape(static::pageUrl(['sotto' => $sotto ? null : '1', 'p' => null])).'">'
+                .($sotto ? 'Tutte le opzioni' : 'Solo sotto scorta').'</a>';
+        }
+
         $html .= '<a class="btn btn-sm btn-light" href="'.static::escape($base).'">Azzera i filtri</a>';
         $html .= '</div>';
 
@@ -544,6 +550,20 @@ final class StockLevelResource extends NavigationOnlyResource
             $query[$key] = (string) $value;
         }
 
+        $base = self::baseUrl();
+
+        return $query === [] ? $base : $base.'?'.http_build_query($query);
+    }
+
+    /** L'elenco con le sole righe sotto la scorta minima: ci porta la home. */
+    public static function lowStockUrl(): string
+    {
+        return self::baseUrl().'?sotto=1';
+    }
+
+    /** L'indirizzo della pagina, senza filtri. */
+    private static function baseUrl(): string
+    {
         $base = '/backend/'.static::path();
 
         if (function_exists('__r')) {
@@ -555,7 +575,7 @@ final class StockLevelResource extends NavigationOnlyResource
             }
         }
 
-        return $query === [] ? $base : $base.'?'.http_build_query($query);
+        return $base;
     }
 
     private static function currentUrl(): string

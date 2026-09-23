@@ -147,4 +147,8 @@ check('un rifiuto della rettifica non diventa una pagina 500', function () {
     return str_contains($messaggio, 'non esiste più');
 });
 
+check('il riquadro della home porta alle sole righe sotto scorta', fn () =>
+    str_ends_with(StockLevelResource::lowStockUrl(), 'giacenze?sotto=1')
+);
+
 summary();
