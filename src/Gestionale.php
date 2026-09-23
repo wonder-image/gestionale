@@ -6,6 +6,7 @@ use Wonder\App\Module\ConfigRepository;
 use Wonder\App\Module\Contracts\ModuleInterface;
 use Wonder\App\Module\Contracts\ModuleTasks;
 use Wonder\Plugin\Gestionale\Scheduler\ImagesTask;
+use Wonder\Plugin\Gestionale\Scheduler\StockAlertsTask;
 
 /**
  * Entrypoint del modulo: percorsi, configurazione, guida e attività
@@ -56,7 +57,7 @@ final class Gestionale implements ModuleInterface, ModuleTasks
      */
     public static function tasks(): iterable
     {
-        return [new ImagesTask()];
+        return [new ImagesTask(), new StockAlertsTask()];
     }
 
     public static function assetPath(string $path = ''): string

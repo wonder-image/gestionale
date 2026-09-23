@@ -12,11 +12,13 @@ use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Console\DemoCommand;
 use Wonder\Plugin\Gestionale\Console\FeaturesDocCommand;
 use Wonder\Plugin\Gestionale\Console\ImagesCommand;
+use Wonder\Plugin\Gestionale\Console\StockAlertsCommand;
 
 check('i comandi del modulo sono comandi di forge', fn () =>
     is_subclass_of(DemoCommand::class, Command::class)
     && is_subclass_of(FeaturesDocCommand::class, Command::class)
     && is_subclass_of(ImagesCommand::class, Command::class)
+    && is_subclass_of(StockAlertsCommand::class, Command::class)
 );
 
 check('i nomi sono quelli dichiarati nel manifest', function () {
@@ -26,9 +28,11 @@ check('i nomi sono quelli dichiarati nel manifest', function () {
     return in_array(DemoCommand::class, $dichiarati, true)
         && in_array(FeaturesDocCommand::class, $dichiarati, true)
         && in_array(ImagesCommand::class, $dichiarati, true)
+        && in_array(StockAlertsCommand::class, $dichiarati, true)
         && (new DemoCommand)->getName() === 'gestionale:demo'
         && (new FeaturesDocCommand)->getName() === 'gestionale:features-doc'
-        && (new ImagesCommand)->getName() === 'gestionale:images';
+        && (new ImagesCommand)->getName() === 'gestionale:images'
+        && (new StockAlertsCommand)->getName() === 'gestionale:stock-alerts';
 });
 
 check('la coda delle immagini si può chiamare a blocchi', function () {
