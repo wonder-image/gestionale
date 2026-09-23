@@ -176,9 +176,17 @@ Nessuna pagina nuova, tre innesti:
 
 Sezione di menu **Anagrafiche** con `Clienti` e `Fornitori`: **due elenchi
 sulla stessa tabella, una scheda sola**. Chi è cliente e fornitore compare in
-tutti e due gli elenchi e si modifica in un posto solo. Con `purchasing`
-bloccata la voce Fornitori non esiste e l'interruttore "è anche fornitore"
-nemmeno.
+tutti e due gli elenchi e si modifica in un posto solo.
+
+Il ruolo è **una domanda sola con tre risposte** — *Cliente*, *Fornitore*,
+*Cliente e fornitore* — non due caselle da spuntare (revisione del
+2026-09-23). Il campo non è una colonna: la scheda compone `roles` dalle due
+colonne quando si apre e lo riscompone quando si salva. Nasce sul ruolo
+dell'elenco da cui si arriva, e cambiandolo la scheda si sposta di elenco,
+cosa detta nel tooltip del riquadro. Con `purchasing` bloccata la voce
+Fornitori non esiste e il campo *Ruolo* **sparisce del tutto**: i fornitori
+non esistono, ogni scheda è un cliente, e i ruoli già in archivio restano
+come sono.
 
 `AddressExtension::billing()` del core porta tipo (privato/azienda), nome e
 cognome, ragione sociale, codice fiscale e partita IVA **già validati**, SDI,
