@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Mail;
 
 use RuntimeException;
 use Throwable;
+use Wonder\App\Credentials;
 use Wonder\Plugin\Gestionale\Extensions\Extensions;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 
@@ -78,6 +79,31 @@ final class Mailer
         self::$transport = $transport;
     }
 
+    /** A chi si risponde: l'email del negozio, se no il mittente del sito, se no niente. */
+    public static function replyTo(): string
+    {
+        $society = $GLOBALS['SOCIETY'] ?? null;
+        $email = is_object($society) && is_string($society->email ?? null) ? trim($society->email) : '';
+
+        if ($email !== '') {
+            return $email;
+        }
+
+        // Le credenziali solo se il core le ha già caricate, cioè nel sito
+        // avviato: fuori (test, comandi) leggerle aprirebbe il .env e il database.
+        if (!class_exists(Credentials::class, false)) {
+            return '';
+        }
+
+        try {
+            $username = Credentials::mail()->username ?? '';
+
+            return is_string($username) ? trim($username) : '';
+        } catch (Throwable) {
+            return '';
+        }
+    }
+
     /**
      * Prepara il corpo per `sanitizeEcho()`, che `emailTemplate()` gli passa
      * sopra: toglie le barre e decodifica le entità, e senza questa difesa un
@@ -133,7 +159,9 @@ final class Mailer
                 throw new RuntimeException('Le email partono solo dal sito avviato: qui manca sendMail().');
             }
 
-            return (bool) sendMail('', $to, $subject, self::shield($body));
+            // Su Brevo il core manda la risposta-a senza guardarla, e Brevo ne
+            // rifiuta una vuota: l'email non partirebbe mai.
+            return (bool) sendMail(self::replyTo(), $to, $subject, self::shield($body));
         };
     }
 }

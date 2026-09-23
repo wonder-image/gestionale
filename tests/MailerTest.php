@@ -7,6 +7,7 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/../vendor/wonder-image/app/app/function/string/sanitize.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\App\Credentials;
 use Wonder\Plugin\Gestionale\Extensions\Extensions;
 use Wonder\Plugin\Gestionale\Extensions\GestionaleExtension;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
@@ -66,6 +67,23 @@ $pulisci = static function () use (&$inviate): void {
     Mailer::useTransport(null);
 };
 
+/** Il negozio del sito per il tempo di `$fn`, poi com'era. */
+$conNegozio = static function (object $society, callable $fn): mixed {
+    $cera = array_key_exists('SOCIETY', $GLOBALS);
+    $prima = $GLOBALS['SOCIETY'] ?? null;
+    $GLOBALS['SOCIETY'] = $society;
+
+    try {
+        return $fn();
+    } finally {
+        if ($cera) {
+            $GLOBALS['SOCIETY'] = $prima;
+        } else {
+            unset($GLOBALS['SOCIETY']);
+        }
+    }
+};
+
 check('dopo sanitizeEcho il corpo resta quello scritto', fn () =>
     sanitizeEcho(Mailer::shield('<p>a &lt;b&gt; \ &amp; Tè</p>')) === '<p>a &#60;b&#62; \ &#38; T&#232;</p>'
 );
@@ -81,6 +99,17 @@ check('accenti ed emoji arrivano interi', fn () =>
 
 check('le barre non spariscono', fn () =>
     sanitizeEcho(Mailer::shield('C:\cartella\file')) === 'C:\cartella\file'
+);
+
+check('si risponde all\'email del negozio', fn () =>
+    $conNegozio((object) ['email' => 'negozio@esempio.it'], fn () => Mailer::replyTo()) === 'negozio@esempio.it'
+    && !array_key_exists('SOCIETY', $GLOBALS)
+);
+
+check('senza l\'email del negozio e fuori dal sito avviato la risposta-a resta vuota', fn () =>
+    $conNegozio((object) ['email' => ''], fn () => Mailer::replyTo()) === ''
+    // Le credenziali del core qui non sono caricate, e `replyTo()` non le carica.
+    && !class_exists(Credentials::class, false)
 );
 
 check('una email per destinatario, con oggetto e corpo', function () use ($postino, $pulisci, &$inviate) {
