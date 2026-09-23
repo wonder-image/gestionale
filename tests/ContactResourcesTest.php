@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\SupplierResource;
@@ -78,5 +79,90 @@ check('un fornitore nuovo nasce fornitore', function () {
 
     return ($valori['is_supplier'] ?? '') === 'true';
 });
+
+// Lo stato delle funzionalità si forza senza database: `features()` è
+// memoizzato. Il campo "Ruolo" esiste solo con gli acquisti sbloccati, e
+// senza non c'è niente da scegliere.
+$forza = static function (array $stato): void {
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
+};
+
+check('con gli acquisti bloccati il ruolo non si chiede', function () use ($forza) {
+    $forza(['purchasing' => false]);
+
+    $creazione = CustomerResource::mutateFormValues(['id' => 0], 'create');
+    $modifica = CustomerResource::mutateFormValues(
+        ['id' => 7, 'is_customer' => 'true', 'is_supplier' => 'false'],
+        'edit'
+    );
+
+    return !isset($creazione['roles']) && !isset($modifica['roles']);
+});
+
+check('il campo si apre sul ruolo dell\'elenco da cui arrivi', function () use ($forza) {
+    $forza(['purchasing' => true]);
+
+    return (CustomerResource::mutateFormValues(['id' => 0], 'create')['roles'] ?? '') === 'customer'
+        && (SupplierResource::mutateFormValues(['id' => 0], 'create')['roles'] ?? '') === 'supplier';
+});
+
+check('una scheda già salvata si riapre sul suo ruolo', function () use ($forza) {
+    $forza(['purchasing' => true]);
+
+    $valori = CustomerResource::mutateFormValues(
+        ['id' => 7, 'is_customer' => 'true', 'is_supplier' => 'true'],
+        'edit'
+    );
+
+    // Una riga vecchia senza nessun ruolo acceso non lascia il campo vuoto:
+    // si presenta con quello dell'elenco da cui la stai aprendo.
+    $orfana = SupplierResource::mutateFormValues(
+        ['id' => 8, 'is_customer' => 'false', 'is_supplier' => 'false'],
+        'edit'
+    );
+
+    return ($valori['roles'] ?? '') === 'both' && ($orfana['roles'] ?? '') === 'supplier';
+});
+
+check('da "Clienti" si può creare la scheda di un fornitore', function () use ($forza) {
+    $forza(['purchasing' => true]);
+
+    $valori = CustomerResource::mutateRequestValues(
+        ['name' => 'Mario', 'roles' => 'supplier'],
+        'store'
+    );
+
+    // Il ruolo dell'elenco non si impone sopra una scelta esplicita: la
+    // scheda nasce fornitore, e sparisce dall'elenco da cui l'hai creata.
+    return ($valori['is_customer'] ?? '') === 'false'
+        && ($valori['is_supplier'] ?? '') === 'true'
+        && !isset($valori['roles']);
+});
+
+check('"Cliente e fornitore" accende tutti e due i ruoli', function () use ($forza) {
+    $forza(['purchasing' => true]);
+
+    $valori = CustomerResource::mutateRequestValues(
+        ['roles' => 'both'],
+        'update',
+        'backend',
+        ['id' => 7]
+    );
+
+    return ($valori['is_customer'] ?? '') === 'true' && ($valori['is_supplier'] ?? '') === 'true';
+});
+
+check('con gli acquisti bloccati un ruolo arrivato da fuori non conta', function () use ($forza) {
+    $forza(['purchasing' => false]);
+
+    $valori = CustomerResource::mutateRequestValues(
+        ['name' => 'Mario', 'roles' => 'supplier'],
+        'store'
+    );
+
+    return ($valori['is_customer'] ?? '') === 'true' && !isset($valori['is_supplier']);
+});
+
+$forza([]);
 
 summary();

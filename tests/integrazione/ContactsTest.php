@@ -10,6 +10,7 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
@@ -47,6 +48,33 @@ check('i campi aziendali si vedono solo per le aziende', function () use ($campi
     return str_contains(json_encode($campi()['business_name']?->get() ?? []), 'business');
 });
 
+// Lo stato delle funzionalità si forza senza toccare il database.
+$forza = static function (?array $stato): void {
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
+};
+
+check('il ruolo è una domanda sola, con tre risposte', function () use ($campi, $forza) {
+    $forza(['purchasing' => true]);
+    $campi = $campi();
+    $forza(null);
+
+    $opzioni = (array) ($campi['roles']?->get('options') ?? []);
+
+    return !isset($campi['is_customer'], $campi['is_supplier'])
+        && array_keys($opzioni) === ['customer', 'supplier', 'both']
+        && $opzioni['both'] === 'Cliente e fornitore';
+});
+
+check('senza gli acquisti il ruolo non si chiede', function () use ($campi, $forza) {
+    $forza(['purchasing' => false]);
+    $campi = $campi();
+    $forza(null);
+
+    // Non c'è nessun fornitore da scegliere: la scheda è di un cliente, e
+    // basta.
+    return !isset($campi['roles'], $campi['is_customer'], $campi['is_supplier']);
+});
+
 check('gli indirizzi di consegna sono un repeater sulla loro tabella', function () use ($campi) {
     $relazione = ((array) ($campi()['addresses']?->get('context') ?? []))['relation'] ?? null;
 
@@ -80,11 +108,11 @@ try {
 
         check('una partita IVA già presa viene rifiutata con il nome di chi ce l\'ha', function () {
             try {
+                // Una scheda nuova: il ruolo lo mette `mutateRequestValues()`
+                // da sé, perché la stai creando dall'elenco dei clienti.
                 CustomerResource::mutateRequestValues(
-                    ['is_customer' => 'true', 'pi' => '98765432103'],
-                    'update',
-                    'backend',
-                    ['id' => 0]
+                    ['pi' => '98765432103'],
+                    'store'
                 );
             } catch (UserError $errore) {
                 return $errore->key() === 'contact.vat_taken'
@@ -96,7 +124,7 @@ try {
 
         check('la stessa scheda può risalvare la sua partita IVA', function () use ($contactId) {
             $valori = CustomerResource::mutateRequestValues(
-                ['is_customer' => 'true', 'pi' => '98765432103'],
+                ['pi' => '98765432103'],
                 'update',
                 'backend',
                 ['id' => $contactId]

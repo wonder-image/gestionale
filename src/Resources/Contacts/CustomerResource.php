@@ -77,6 +77,7 @@ class CustomerResource extends GestionaleResource
     {
         return [
             'email' => 'Email',
+            'roles' => 'Ruolo',
             'is_customer' => 'Ruolo',
             'is_supplier' => 'Fornitore',
             'note' => 'Note',
@@ -102,10 +103,6 @@ class CustomerResource extends GestionaleResource
         $fields = [
             ...array_values($billing),
             FormField::key('email')->email()->label('Email'),
-            FormField::key('is_customer')
-                ->select(['true' => 'Sì', 'false' => 'No'])
-                ->value('true')
-                ->label('È un cliente'),
             FormField::key('active')
                 ->select(['true' => 'Attiva', 'false' => 'Non attiva'])
                 ->value('true')
@@ -115,12 +112,16 @@ class CustomerResource extends GestionaleResource
             static::addressesField(),
         ];
 
-        // Il ruolo fornitore esiste solo con gli acquisti sbloccati (D20).
+        // Il ruolo si sceglie solo dove c'è una scelta: senza gli acquisti
+        // sbloccati i fornitori non esistono, e ogni scheda è un cliente
+        // (D20). Chiederlo lo stesso sarebbe una domanda con una risposta
+        // sola, e quella sbagliata rifiutata.
         if (Gestionale::feature('purchasing')) {
-            $fields[] = FormField::key('is_supplier')
-                ->select(['true' => 'Sì', 'false' => 'No'])
-                ->value('false')
-                ->label('È anche un fornitore');
+            $fields[] = FormField::key('roles')
+                ->select(Contacts::ROLE_CHOICES)
+                ->value(static::defaultRoleChoice())
+                ->label('Ruolo')
+                ->required();
         }
 
         return $fields;
@@ -128,22 +129,25 @@ class CustomerResource extends GestionaleResource
 
     public static function formLayoutSchema(): ?Form
     {
+        $acquisti = Gestionale::feature('purchasing');
+
         $chiE = [
             SectionTitle::make('Chi è')
-                ->tooltip('Una scheda è una sola identità fiscale: la stessa azienda a cui vendi e da cui compri è una riga sola, con i due ruoli accesi.')
+                ->tooltip($acquisti
+                    ? 'Una scheda è una sola identità fiscale: la stessa azienda a cui vendi e da cui compri è una riga sola, con il ruolo «Cliente e fornitore». Cambiando ruolo la scheda passa nell\'altro elenco.'
+                    : 'Una scheda è una sola identità fiscale: la stessa persona non si scrive due volte.')
                 ->columnSpan(12),
             static::getInput('type')->columnSpan(4),
             static::getInput('name')->columnSpan(4),
             static::getInput('surname')->columnSpan(4),
-            static::getInput('business_name')->columnSpan(6),
-            static::getInput('is_customer')->columnSpan(Gestionale::feature('purchasing') ? 2 : 3),
+            static::getInput('business_name')->columnSpan($acquisti ? 6 : 8),
         ];
 
-        if (Gestionale::feature('purchasing')) {
-            $chiE[] = static::getInput('is_supplier')->columnSpan(2);
+        if ($acquisti) {
+            $chiE[] = static::getInput('roles')->columnSpan(4);
         }
 
-        $chiE[] = static::getInput('active')->columnSpan(2);
+        $chiE[] = static::getInput('active')->columnSpan($acquisti ? 2 : 4);
 
         $cards = [
             (new Card)->components($chiE)->columns(12)->columnSpan(12),
@@ -249,6 +253,29 @@ class CustomerResource extends GestionaleResource
     }
 
     /**
+     * Il ruolo salvato torna nel campo che lo chiede.
+     *
+     * "Ruolo" non è una colonna: sono due, e questa le rimette insieme nella
+     * risposta che l'utente aveva dato. Una scheda vecchia senza nessun ruolo
+     * acceso si presenta con quello dell'elenco da cui la stai aprendo.
+     */
+    public static function mutateFormValues(
+        array $values,
+        string $mode,
+        string $context = 'backend'
+    ): array {
+        if (!Gestionale::feature('purchasing')) {
+            return $values;
+        }
+
+        $values['roles'] = $mode === 'edit'
+            ? (Contacts::roleChoice($values) ?: static::defaultRoleChoice())
+            : static::defaultRoleChoice();
+
+        return $values;
+    }
+
+    /**
      * Le regole della rubrica, prima di salvare.
      *
      * Chi nasce in questo elenco nasce con il suo ruolo: aprire "Clienti",
@@ -262,20 +289,27 @@ class CustomerResource extends GestionaleResource
         ?array $oldValues = null
     ): array {
         $id = (int) ($oldValues['id'] ?? 0);
+        $choice = trim((string) ($values['roles'] ?? ''));
 
-        if (!Gestionale::feature('purchasing')) {
-            // Senza acquisti il campo non si stampa: senza questa riga il
-            // ruolo si spegnerebbe da solo al primo salvataggio.
-            unset($values['is_supplier']);
+        // I ruoli non arrivano più come due caselle da spuntare: li decide il
+        // campo "Ruolo", e dove quel campo non si stampa restano quelli che
+        // sono. Senza questo `unset` il framework riscriverebbe le due colonne
+        // con il loro valore di default, e la scheda cambierebbe ruolo da
+        // sola al primo salvataggio.
+        unset($values['roles'], $values['is_customer'], $values['is_supplier']);
+
+        if (Gestionale::feature('purchasing') && $choice !== '') {
+            $values = [...$values, ...Contacts::rolesFromChoice($choice)];
         }
 
-        // Dopo la riga qui sopra, e non prima: su "Fornitori" il ruolo da
-        // accendere è proprio quello che l'altra riga toglierebbe.
-        if ($action === 'store') {
+        // Solo se nessuno ha scelto altro: da "Clienti" si può creare la
+        // scheda di un fornitore, e forzare il ruolo dell'elenco la
+        // riporterebbe qui contro la volontà di chi l'ha scritta.
+        if ($action === 'store' && !isset($values[static::roleColumn()])) {
             $values[static::roleColumn()] = 'true';
         }
 
-        $customer = ($values['is_customer'] ?? 'false') === 'true';
+        $customer = ($values['is_customer'] ?? static::storedRole($id, 'is_customer')) === 'true';
         $supplier = ($values['is_supplier'] ?? static::storedRole($id, 'is_supplier')) === 'true';
 
         if (!$customer && !$supplier) {
@@ -312,6 +346,12 @@ class CustomerResource extends GestionaleResource
         if (is_array($row) && (int) ($row['user_id'] ?? 0) > 0) {
             throw UserError::refusal('contact.has_account');
         }
+    }
+
+    /** Il ruolo con cui nasce una scheda aperta da questo elenco. */
+    protected static function defaultRoleChoice(): string
+    {
+        return static::roleColumn() === 'is_supplier' ? 'supplier' : 'customer';
     }
 
     /** Il ruolo già salvato, per quando il campo non è stato stampato. */

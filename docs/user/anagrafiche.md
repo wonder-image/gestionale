@@ -10,8 +10,16 @@ icon: people
 ## Una scheda, una persona
 
 Clienti e fornitori sono due elenchi della **stessa rubrica**. La stessa
-azienda a cui vendi e da cui compri è **una scheda sola**, con i due ruoli
-accesi: compare in tutti e due gli elenchi e si modifica in un posto solo.
+azienda a cui vendi e da cui compri è **una scheda sola**: la apri e scegli
+**Ruolo → Cliente e fornitore**. Da lì compare in tutti e due gli elenchi e si
+modifica in un posto solo.
+
+Il campo **Ruolo** ha tre risposte — *Cliente*, *Fornitore*, *Cliente e
+fornitore* — e nasce già sul ruolo dell'elenco da cui hai premuto *Aggiungi*.
+Se lo cambi, la scheda **si sposta**: un cliente che diventa solo fornitore
+esce dall'elenco dei clienti e lo trovi fra i fornitori. Senza la funzionalità
+*Acquisti* il campo non c'è: i fornitori non esistono e ogni scheda è di un
+cliente.
 
 Per questo partita IVA, codice fiscale ed email sono **unici**: se li riscrivi
 su una scheda nuova, il gestionale ti dice di chi sono già e ti lascia aprire

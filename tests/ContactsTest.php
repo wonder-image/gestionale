@@ -50,6 +50,27 @@ check('i ruoli si leggono in italiano', fn () =>
     && Contacts::roles(['is_customer' => 'false', 'is_supplier' => 'false']) === '—'
 );
 
+check('le risposte alla domanda sul ruolo sono tre', fn () =>
+    array_keys(Contacts::ROLE_CHOICES) === ['customer', 'supplier', 'both']
+);
+
+check('una scheda salvata si descrive con una risposta sola', fn () =>
+    Contacts::roleChoice(['is_customer' => 'true', 'is_supplier' => 'false']) === 'customer'
+    && Contacts::roleChoice(['is_customer' => 'false', 'is_supplier' => 'true']) === 'supplier'
+    && Contacts::roleChoice(['is_customer' => 'true', 'is_supplier' => 'true']) === 'both'
+    && Contacts::roleChoice([]) === ''
+);
+
+check('la risposta accende gli interruttori giusti, e spegne gli altri', fn () =>
+    Contacts::rolesFromChoice('customer') === ['is_customer' => 'true', 'is_supplier' => 'false']
+    && Contacts::rolesFromChoice('supplier') === ['is_customer' => 'false', 'is_supplier' => 'true']
+    && Contacts::rolesFromChoice('both') === ['is_customer' => 'true', 'is_supplier' => 'true']
+);
+
+check('una risposta che non esiste non accende niente', fn () =>
+    Contacts::rolesFromChoice('') === [] && Contacts::rolesFromChoice('capo') === []
+);
+
 check('il tipo azienda si riconosce', fn () =>
     Contacts::isCompany(['type' => 'business']) === true
     && Contacts::isCompany(['type' => 'private']) === false
