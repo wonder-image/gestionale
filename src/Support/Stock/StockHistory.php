@@ -79,24 +79,19 @@ final class StockHistory
      */
     public static function purge(array $productIds): int
     {
-        $ids = array_values(array_filter(array_map('intval', $productIds), static fn (int $id): bool => $id > 0));
+        $condition = self::condition($productIds);
 
-        if ($ids === []) {
+        if ($condition === null) {
             return 0;
         }
 
-        $condition = 'product_id IN ('.implode(',', $ids).')';
         $removed = 0;
 
         foreach ([StockAlert::class, StockReservation::class, StockMovement::class, StockRow::class] as $model) {
             try {
                 // Contate prima: dopo non c'è più niente da contare, e il
                 // comando dei dati di prova dice quante righe ha tolto.
-                $rows = $model::find($condition);
-                $rows = isset($rows['id']) ? [$rows] : (array) $rows;
-                $removed += count(array_filter($rows, 'is_array'));
-
-                $model::query()->Delete($model::$table, $condition);
+                $removed += self::deleteWhere($model, $condition);
             } catch (Throwable) {
                 // Tabella non ancora creata: non c'è niente da dimenticare.
             }
@@ -119,25 +114,49 @@ final class StockHistory
      */
     public static function dropAlerts(array $productIds): int
     {
-        $ids = array_values(array_filter(array_map('intval', $productIds), static fn (int $id): bool => $id > 0));
+        $condition = self::condition($productIds);
 
-        if ($ids === []) {
+        if ($condition === null) {
             return 0;
         }
 
-        $condition = 'product_id IN ('.implode(',', $ids).')';
-
         try {
-            $rows = StockAlert::find($condition);
-            $rows = isset($rows['id']) ? [$rows] : (array) $rows;
-            $removed = count(array_filter($rows, 'is_array'));
-
-            StockAlert::query()->Delete(StockAlert::$table, $condition);
+            return self::deleteWhere(StockAlert::class, $condition);
         } catch (Throwable) {
             // Tabella non ancora creata: non c'è niente da togliere.
             return 0;
         }
+    }
 
-        return $removed;
+    /**
+     * La condizione `product_id IN (...)` sugli id validi, o null se non ne
+     * resta nessuno.
+     *
+     * @param list<int> $productIds
+     */
+    private static function condition(array $productIds): ?string
+    {
+        $ids = array_values(array_filter(array_map('intval', $productIds), static fn (int $id): bool => $id > 0));
+
+        return $ids === [] ? null : 'product_id IN ('.implode(',', $ids).')';
+    }
+
+    /**
+     * Conta le righe del modello che rispondono alla condizione, poi le
+     * cancella. Un errore del database arriva a chi chiama: è lui a sapere
+     * cosa vuol dire.
+     *
+     * @param class-string $model
+     * @return int quante righe se ne sono andate
+     */
+    private static function deleteWhere(string $model, string $condition): int
+    {
+        $rows = $model::find($condition);
+        $rows = isset($rows['id']) ? [$rows] : (array) $rows;
+        $count = count(array_filter($rows, 'is_array'));
+
+        $model::query()->Delete($model::$table, $condition);
+
+        return $count;
     }
 }
