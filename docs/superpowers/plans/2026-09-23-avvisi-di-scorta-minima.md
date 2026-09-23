@@ -673,7 +673,7 @@ check('anche una versione con l\'avviso aperto si elimina dalla sua scheda', fn 
     Alerts::refresh($productId);
     $esito = ProductResource::deleteRecord($productId);
 
-    return !empty($esito->success) && Product::findById($productId) === null;
+    return !empty($esito->success) && Product::findById($productId) === [];
 }));
 ```
 
@@ -690,7 +690,7 @@ check('il riquadro della home porta alle sole righe sotto scorta', fn () =>
 Run: `php tests/StockPagesTest.php; php tests/integrazione/LowStockTest.php`
 Expected: FAIL — `Call to undefined method ...StockLevelResource::lowStockUrl()`; nel test d'integrazione i due controlli nuovi falliscono con l'errore della chiave esterna (`a foreign key constraint fails`).
 
-Se `Product::findById()` su una riga cancellata non restituisce `null` ma `[]` o `false`, cambia il controllo in `!is_array(Product::findById($productId)) || Product::findById($productId) === []`: conta che la riga non ci sia più.
+`Product::findById()` su una riga che non c'è restituisce `[]` (mai `null`): per questo il controllo confronta con `[]`.
 
 - [ ] **Step 3: `dropAlerts()`**
 
@@ -962,7 +962,7 @@ $forza(null);
 In `tests/DocsPagesTest.php` aggiungi `use Wonder\Plugin\Gestionale\Resources\System\MerchantSettingResource;` fra gli `use` e, prima di `summary();`:
 
 ```php
-check('anche le impostazioni del commerciante puntano a una guida che esiste', fn () use ($pagine) =>
+check('anche le impostazioni del commerciante puntano a una guida che esiste', fn () =>
     in_array(MerchantSettingResource::DOCS_PAGE, $pagine('user'), true)
 );
 ```
@@ -4158,10 +4158,11 @@ Quando hai finito rimetti su **bloccate** *Vendita senza giacenza*, *Ordini* e *
 Mandare un'email dal sito di prova è mandarla a nome dell'utente: **chiedi prima**. Se l'utente è d'accordo, è lui a fare i passi nel backend:
 
 1. sblocca *Avvisi di scorta minima* e scrive **il proprio** indirizzo in *Destinatari degli avvisi*;
-2. accende `gestionale.stock_alerts` in **Dev → Pianificazioni**.
+2. accende `gestionale.stock_alerts` in **Dev → Pianificazioni**;
+3. salvando, l'attività si mette in coda per il prossimo quarto d'ora: per farla girare subito apre `/backend/app/scheduler/`, sceglie *Gestionale: avvisi di scorta minima* in *Attività da eseguire* e preme **Richiedi esecuzione** (oppure aspetta il quarto d'ora).
 
 Run: `cd /Users/andreamarinoni/Developer/boilerplates/ecommerce-site && php forge schedule:run`
-Expected: arriva **una** email con l'elenco delle versioni sotto scorta. Rilanciando subito `php forge gestionale:stock-alerts` risponde `Nessun prodotto sotto scorta da segnalare.`: ogni prodotto si segnala una volta sola.
+Expected: il comando riporta `{"executed":1}` e arriva **una** email con l'elenco delle versioni sotto scorta. Rilanciando subito `php forge gestionale:stock-alerts` risponde `Nessun prodotto sotto scorta da segnalare.`: ogni prodotto si segnala una volta sola.
 
 Poi l'utente spegne l'attività in **Dev → Pianificazioni**, svuota *Destinatari degli avvisi* e riblocca la funzionalità. Senza permesso il passo si salta, e la validazione 6 resta coperta dai test d'integrazione del task 6 con il postino finto: dillo nel resoconto.
 
