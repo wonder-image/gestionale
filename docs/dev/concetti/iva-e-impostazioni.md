@@ -20,6 +20,16 @@ Le righe precaricate sono le quattro aliquote italiane visibili (22, 10, 5, 4) e
 una riga nascosta per ogni natura valida, il tipo fiscale "Aliquota ordinaria" e
 le due regole italiane, privato e azienda, al 22%.
 
+### Il tipo predefinito
+
+Un tipo fiscale è segnato **Predefinito** (`gst_tax_categories.is_default`), e
+uno solo: salvarne uno così toglie il segno agli altri
+(`TaxCategoryResource`). Il precaricato "Aliquota ordinaria" nasce
+predefinito. Un articolo nuovo parte da lui; se nessuno è segnato, dal primo
+visibile in ordine di posizione (`Support\Tax\TaxCategories::defaultId()`).
+Con un tipo fiscale solo la scheda prodotto lo porta come campo nascosto,
+altrimenti è un select nel riquadro «Vendita».
+
 ## A cosa serve il tipo fiscale
 
 L'aliquota **non è una proprietà del prodotto**. Lo stesso libro è al 4% per un

@@ -151,12 +151,89 @@ check('la pagina degli attributi sta nel catalogo', fn () =>
     && (AttributeResource::navigationSchema()->toArray()['section_key'] ?? '') === 'catalogo'
 );
 
-check('il riquadro dei valori c\'è solo per elenco e colore', fn () =>
+check('i valori servono a elenco, colore e fantasia', fn () =>
     AttributeResource::usesValues(['type' => 'select'])
     && AttributeResource::usesValues(['type' => 'color'])
+    && AttributeResource::usesValues(['type' => 'pattern'])
     && !AttributeResource::usesValues(['type' => 'text'])
     && !AttributeResource::usesValues(null)
 );
+
+check('il riquadro dei valori c\'è sempre e segue il tipo', function () {
+    $contenitore = (AttributeResource::formLayoutSchema()->components ?? [])[0] ?? null;
+    $riquadri = $contenitore->components ?? [];
+    $valori = $riquadri[1] ?? null;
+
+    return count($riquadri) === 2
+        && $valori !== null
+        && $valori->getAttr('data-visible-when') === 'type'
+        && $valori->getAttr('data-visible-when-values') === 'select,color,pattern'
+        && $valori->getAttr('data-wi-conditional-container') === 'true';
+});
+
+check('le colonne dei valori chiedono quello che serve al tipo', function () {
+    $colonne = [];
+
+    $contesto = (array) (AttributeResource::getInput('values')->get('context') ?? []);
+
+    foreach ((array) ($contesto['columns'] ?? []) as $colonna) {
+        $colonne[(string) $colonna->name] = $colonna;
+    }
+
+    return array_keys($colonne) === ['id', 'image', 'label', 'color', 'description']
+        && $colonne['image']->conditionalAttributes() === [
+            'data-visible-when' => 'type',
+            'data-visible-when-values' => 'pattern',
+        ]
+        && $colonne['color']->conditionalAttributes() === [
+            'data-visible-when' => 'type',
+            'data-visible-when-values' => 'color',
+        ]
+        // Il valore c'è per tutti e si allarga dove le altre mancano.
+        && $colonne['label']->conditionalAttributes() === []
+        && $colonne['label']->get('column_fill') === true;
+});
+
+check('l\'unità si vede solo su testo e numero', fn () =>
+    AttributeResource::getInput('unit')->conditionalAttributes() === [
+        'data-visible-when' => 'type',
+        'data-visible-when-values' => 'number,text',
+    ]
+);
+
+check('l\'unità nascosta si svuota al salvataggio', function () {
+    $resource = new class extends AttributeResource {
+        public static function valueCount(int $id): int { return 0; }
+    };
+    $salva = static fn (array $valori): array => $resource::mutateRequestValues(
+        $valori,
+        'update',
+        'backend',
+        ['id' => 1, 'type' => 'number', 'unit' => 'g']
+    );
+
+    return ($salva(['name' => 'Peso', 'type' => 'color', 'unit' => 'g'])['unit'] ?? null) === ''
+        && ($salva(['name' => 'Peso', 'type' => 'pattern', 'unit' => 'g'])['unit'] ?? null) === ''
+        && ($salva(['name' => 'Peso', 'type' => 'select'])['unit'] ?? null) === ''
+        && ($salva(['name' => 'Peso', 'type' => 'number', 'unit' => 'g'])['unit'] ?? null) === 'g'
+        && ($salva(['name' => 'Peso', 'type' => 'text', 'unit' => 'cm'])['unit'] ?? null) === 'cm';
+});
+
+check('da un tipo con valori a un altro i valori restano', function () {
+    // Colori e immagini non si toccano: tornando indietro si ritrovano.
+    $resource = new class extends AttributeResource {
+        public static function valueCount(int $id): int { return 3; }
+    };
+
+    $valori = $resource::mutateRequestValues(
+        ['name' => 'Tessuto', 'type' => 'pattern'],
+        'update',
+        'backend',
+        ['id' => 1, 'type' => 'color']
+    );
+
+    return ($valori['type'] ?? '') === 'pattern' && !array_key_exists('values', $valori);
+});
 
 check('i valori si salvano nella loro tabella', function () {
     $relazione = AttributeResource::repeaterRelations()['values']['relation'] ?? null;

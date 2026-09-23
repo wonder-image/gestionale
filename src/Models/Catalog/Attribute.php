@@ -13,9 +13,9 @@ use Wonder\Sql\TableSchema as Column;
  *
  * `level` dice dove vive l'attributo e decide tutto il resto: `model` descrive
  * l'articolo, `variant` distingue le varianti, `product` distingue i prodotti
- * dentro una variante. `type` dice come si scrive il valore: `select` e `color`
- * pescano da `gst_attribute_values`, `text` e `number` scrivono direttamente
- * sul collegamento del prodotto.
+ * dentro una variante. `type` dice come si scrive il valore: `select`, `color`
+ * e `pattern` (Fantasia) pescano da `gst_attribute_values`, `text` e `number`
+ * scrivono direttamente sul collegamento del prodotto.
  *
  * Il nome macchina sta in `slug` e il gruppo in `group_name`: `key` e `group`
  * sono parole riservate di MySQL e il costruttore di query del core mette le
@@ -40,7 +40,7 @@ final class Attribute extends Model
             ...static::sqlColumnsFromDataSchema(['code']),
             Column::key('slug')->length(100)->unique(),
             Column::key('name'),
-            Column::key('type')->enum(['select', 'color', 'text', 'number'])->default('select'),
+            Column::key('type')->enum(['select', 'color', 'pattern', 'text', 'number'])->default('select'),
             Column::key('level')->enum(['model', 'variant', 'product'])->default('product'),
             Column::key('unit')->length(20),
             Column::key('group_name'),

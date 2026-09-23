@@ -29,7 +29,6 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
-use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CategoryResource;
@@ -60,6 +59,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\Stocktake;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
+use Wonder\Plugin\Gestionale\Support\Tax\TaxCategories;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Positions;
 use Wonder\Sql\Transaction;
@@ -178,11 +178,10 @@ class ProductModelResource extends GestionaleResource
                 ->select(static::brandOptions())
                 ->label('Marchio')
                 ->quickCreate(BrandResource::class),
-            FormField::key('tax_category_id')
-                ->select(static::taxCategoryOptions())
-                ->label('Tipo fiscale')
-                ->required()
-                ->quickCreate(TaxCategoryResource::class),
+            // Parte dal tipo predefinito: quasi nessuno lo cambia. Con un tipo
+            // solo non c'è niente da scegliere e il campo resta nascosto,
+            // con quel valore dentro.
+            static::taxCategoryField(),
             // Il codice di famiglia: da lì nascono quelli delle opzioni.
             // Con le varianti accese non si scrive qui, ma il valore resta
             // nel modulo — nascosto, non tolto — e continua a proporre i
@@ -203,16 +202,17 @@ class ProductModelResource extends GestionaleResource
                 ->required(),
             FormField::key('short_description')->textarea()->label('Descrizione breve'),
             FormField::key('description')->textarea()->label('Descrizione'),
-            // Dichiara di elencare le categorie: una creata dal «+ Aggiungi»
-            // del campo qui sotto compare anche qui, senza ricaricare.
+            // Un albero solo: la principale è la stella di una voce spuntata,
+            // non un secondo campo. La categoria nuova chiede anche il padre
+            // e nasce sotto di lui.
             FormField::key('categories')
                 ->checkTree(static::categoryTree(), true)
                 ->label('Categorie')
-                ->listsResource(CategoryResource::class),
-            FormField::key('main_category')
-                ->select(static::categoryOptions())
-                ->label('Categoria principale')
-                ->quickCreate(CategoryResource::class),
+                ->listsResource(CategoryResource::class)
+                ->primaryField('main_category')
+                ->quickCreate(CategoryResource::class, ['name', 'parent_id'], label: 'name', button: 'Aggiungi categoria'),
+            // La scrive la stella dell'albero.
+            FormField::key('main_category')->hidden(),
             FormField::key('tags')->selectSearch(static::tagOptions(), true)->label('Tag'),
             FormField::key('package_id')
                 ->select(Packages::options())
@@ -319,27 +319,27 @@ class ProductModelResource extends GestionaleResource
                 SectionTitle::make('Prodotto')
                     ->tooltip($conVarianti
                         ? 'Questa casella è un comando, non un riepilogo: scrivici un prezzo e al salvataggio va su tutte le opzioni in vendita. Lasciala vuota e i prezzi delle righe restano come sono.'
-                        : 'Il prezzo di questo articolo. Il tipo fiscale decide l\'IVA che gli si applica.')
+                        : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il tipo fiscale, nel riquadro «Vendita».')
                     ->columnSpan(12),
                 static::getInput('name')->columnSpan(12),
                 $domanda,
                 static::getInput('axes_order'),
                 ...($bloccato ? [
                     RichText::make('<p class="small text-body-secondary mb-0">Questo articolo ha più opzioni in vendita: per tornare a un articolo singolo eliminale dalla griglia qui sotto.</p>')
+                        ->tag('div')
                         ->columnSpan(12),
                 ] : []),
-                static::getInput('product_price')->columnSpan($conVarianti ? 4 : 3),
-                static::getInput('product_sale_price')->columnSpan($conVarianti ? 4 : 3),
-                // Il tipo fiscale porta il «+ Aggiungi» accanto alla tendina:
-                // in tre dodicesimi il nome dell'aliquota si taglia.
-                static::getInput('tax_category_id')->columnSpan(4),
+                // In creazione la giacenza non c'è ancora: i due prezzi si
+                // prendono la riga.
+                static::getInput('product_price')->columnSpan($modelId > 0 ? 4 : 6),
+                static::getInput('product_sale_price')->columnSpan($modelId > 0 ? 4 : 6),
                 // Senza varianti la giacenza sta qui, accanto al prezzo: è la
                 // scheda di quell'unico articolo, e la parola "opzione" non
                 // compare da nessuna parte.
                 // In creazione non c'è ancora niente da rettificare: la
                 // giacenza compare dal primo salvataggio in poi.
                 ...($modelId > 0 ? [
-                    static::getInput('product_stock')->columnSpan(2),
+                    static::getInput('product_stock')->columnSpan(4),
                     RichText::make(static::adjustLink($modelId))
                         ->columnSpan(12)
                         ->hiddenWhen('has_variants', 'true'),
@@ -349,7 +349,7 @@ class ProductModelResource extends GestionaleResource
 
         $foto = [
             SectionTitle::make('Foto e video')
-                ->tooltip('Si caricano dove appartengono: quelle dell\'articolo valgono per tutto, quelle di un colore solo per lui. Le misure per il sito arrivano poco dopo il salvataggio; i video si salvano come sono.')
+                ->tooltip('Le foto e i video caricati qui compaiono in tutte le opzioni dell\'articolo; quelli sotto un colore solo nelle opzioni di quel colore.')
                 ->columnSpan(12),
         ];
 
@@ -418,10 +418,12 @@ class ProductModelResource extends GestionaleResource
 
         return [
             (new Card)->components([
+                // Titolo e selettore stanno sulla stessa riga: una riga a
+                // testa era spazio che non diceva niente di nuovo.
                 SectionTitle::make('Opzioni in vendita')
                     ->tooltip('Scegli un attributo — colore, taglia, gusto — e spunta i valori: le righe compaiono qui sotto e nascono al salvataggio, con codice, prezzo, giacenza e foto. Togliere una spunta non cancella niente che esista già.')
-                    ->columnSpan(12),
-                static::optionsPicker($modelId)->columnSpan(12),
+                    ->columnSpan(6),
+                static::optionsPicker($modelId)->columnSpan(6),
                 // I blocchi stanno in un contenitore loro: il riordino li
                 // sposta con `order`, e dentro un riquadro condiviso
                 // scavalcherebbero la griglia e il selettore.
@@ -472,11 +474,12 @@ class ProductModelResource extends GestionaleResource
 
         $cards = [
             (new Card)->components([
-                SectionTitle::make('Pubblicazione')
-                    ->tooltip('Una bozza non si vede da nessuna parte. Un articolo pubblicato che non si vende online resta in catalogo per il negozio e per i documenti.')
+                SectionTitle::make('Vendita')
+                    ->tooltip('Una bozza non si vede da nessuna parte. Un articolo pubblicato che non si vende online resta in catalogo per il negozio e per i documenti. Il tipo fiscale decide l\'IVA: un articolo nuovo parte dal predefinito.')
                     ->columnSpan(12),
                 static::getInput('visible')->columnSpan(12),
                 static::getInput('visible_online')->columnSpan(12),
+                static::getInput('tax_category_id')->columnSpan(12),
                 static::getInput('returnable')->columnSpan(6),
                 static::getInput('requires_shipping')->columnSpan(6),
             ])->columns(12)->columnSpan(12),
@@ -488,12 +491,12 @@ class ProductModelResource extends GestionaleResource
 
             (new Card)->components([
                 SectionTitle::make('Dove si trova')
-                    ->tooltip('La categoria principale è quella che la vetrina userà per l\'indirizzo della pagina: se la scegli e non l\'hai spuntata, viene aggiunta da sé.')
+                    ->tooltip('Spunta tutte le categorie in cui deve comparire. La stella indica quella che compare nel percorso sopra la pagina (Home › Abbigliamento › Magliette): di solito la più precisa.')
                     ->columnSpan(12),
                 static::getInput('brand_id')->columnSpan(12),
-                static::getInput('main_category')->columnSpan(12),
                 static::getInput('tags')->columnSpan(12),
                 static::getInput('categories')->columnSpan(12),
+                static::getInput('main_category'),
             ])->columns(12)->columnSpan(12),
         ];
 
@@ -671,6 +674,12 @@ class ProductModelResource extends GestionaleResource
 
         $values['has_variants'] = ($values['has_variants'] ?? 'false') === 'true' ? 'true' : 'false';
         $values['axes_order'] = static::axesFromPost((array) $_POST);
+
+        // Il tipo fiscale non arriva mai vuoto: il campo nascosto di chi ne
+        // ha uno solo, o un articolo nato prima del predefinito, prende quello.
+        if (array_key_exists('tax_category_id', $values) && (int) $values['tax_category_id'] <= 0) {
+            $values['tax_category_id'] = (string) (TaxCategories::defaultId() ?: '');
+        }
 
         static::assertSoleProduct($id, $values);
 
@@ -1316,6 +1325,11 @@ class ProductModelResource extends GestionaleResource
 
         $values['categories'] = array_map('strval', static::categoryIds($modelId));
         $values['main_category'] = (string) (static::mainCategoryId($modelId) ?: '');
+
+        if ((int) ($values['tax_category_id'] ?? 0) <= 0) {
+            $values['tax_category_id'] = (string) (TaxCategories::defaultId() ?: '');
+        }
+
         $values['tags'] = array_map('strval', static::tagIds($modelId));
 
         $links = ProductAttributes::read('model', $modelId);
@@ -1575,10 +1589,12 @@ class ProductModelResource extends GestionaleResource
                 ->quickCreate(
                     AttributeValueResource::class,
                     label: 'label',
+                    button: 'Aggiungi opzione',
                     layout: static fn (): Form => (new Form)->components([
                         (new Container)->components([
                             FormField::key('attribute_id')->hidden()->value((string) $id),
-                            AttributeValueResource::getInput('label')->label('Nuovo '.$nome),
+                            // Senza larghezza, in una griglia da 12 un campo ne prende una.
+                            AttributeValueResource::getInput('label')->label('Nuovo '.$nome)->columnSpan(12),
                         ])->columns(12)->columnSpan(12),
                     ])->columns(12),
                 );
@@ -1609,17 +1625,16 @@ class ProductModelResource extends GestionaleResource
                 .static::escape((string) ($attribute['name'] ?? '')).'</option>';
         }
 
+        // Un `div`, non il `p` di un testo: dentro c'è un altro `div`, che un
+        // `p` chiuderebbe prima del tempo.
         return RichText::make(<<<HTML
-<div class="wi-option-picker w-100">
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-        <select class="form-select form-select-sm w-auto wi-option-choose" aria-label="Aggiungi un attributo">
-            <option value="">Aggiungi un attributo…</option>
-            {$voci}
-        </select>
-        <span class="small text-body-secondary wi-option-hint">Colore, taglia, gusto: scegline uno e i suoi valori compaiono qui sotto.</span>
-        <span class="small text-body-secondary wi-option-none d-none">Le opzioni sono tutte qui sotto.</span>
-    </div>
-    <p class="small text-body-secondary mb-0 mt-2 wi-option-order d-none" data-wi-option-order="{$ordine}"></p>
+<div class="wi-option-picker d-flex flex-column align-items-end gap-1 text-end">
+    <select class="form-select form-select-sm w-auto wi-option-choose" aria-label="Aggiungi un attributo">
+        <option value="">Aggiungi un attributo…</option>
+        {$voci}
+    </select>
+    <span class="small text-body-secondary wi-option-full d-none">Tre attributi sono il massimo: per aggiungerne un altro togline uno.</span>
+    <span class="small text-body-secondary wi-option-order d-none" data-wi-option-order="{$ordine}"></span>
 </div>
 <script>
     window.wiOptionPicker = window.wiOptionPicker || (function () {
@@ -1703,7 +1718,7 @@ class ProductModelResource extends GestionaleResource
 
         // Una frase che dice cosa succederà: «Le opzioni si raggruppano per
         // Colore, poi Taglia». Con un attributo solo non c'è niente da
-        // raggruppare, e lo dice.
+        // raggruppare, e la frase non compare.
         function riepilogo(lista) {
             var riga = document.querySelector('.wi-option-order');
             if (!riga) return;
@@ -1714,13 +1729,11 @@ class ProductModelResource extends GestionaleResource
                 return nodo ? titolo(nodo) : '';
             }).filter(function (n) { return n !== ''; });
 
-            riga.classList.toggle('d-none', nomi.length === 0);
+            riga.classList.toggle('d-none', nomi.length < 2);
 
-            if (nomi.length === 0) return;
+            if (nomi.length < 2) return;
 
-            riga.textContent = nomi.length === 1
-                ? 'Le opzioni prendono il nome da ' + nomi[0] + '.'
-                : 'Le opzioni si raggruppano per ' + nomi[0] + ', poi ' + nomi.slice(1).join(', poi ') + '.';
+            riga.textContent = 'Le opzioni si raggruppano per ' + nomi[0] + ', poi ' + nomi.slice(1).join(', poi ') + '.';
         }
 
         function sposta(id, passo) {
@@ -1849,11 +1862,9 @@ class ProductModelResource extends GestionaleResource
 
             scelta.value = '';
             scelta.classList.toggle('d-none', !restano || pieno);
-            picker.querySelector('.wi-option-hint').classList.toggle('d-none', !restano || pieno);
-            picker.querySelector('.wi-option-none').classList.toggle('d-none', restano && !pieno);
-            picker.querySelector('.wi-option-none').textContent = pieno
-                ? 'Tre attributi sono il massimo: per aggiungerne un altro togline uno.'
-                : 'Gli attributi sono tutti qui sotto.';
+            // Il muro si spiega solo quando c'è: con gli attributi finiti non
+            // resta niente da aggiungere, e niente da dire.
+            picker.querySelector('.wi-option-full').classList.toggle('d-none', !(restano && pieno));
         }
 
         // «Togli» solo sulle opzioni che l'articolo non sta usando: nascondere
@@ -1866,7 +1877,9 @@ class ProductModelResource extends GestionaleResource
 
             var bottone = document.createElement('button');
             bottone.type = 'button';
-            bottone.className = 'btn btn-sm btn-link text-body-secondary wi-option-remove';
+            // In fondo alla fila, dopo il «+»: toglie l'attributo intero, non
+            // un valore, e non deve sembrare una pillola in più.
+            bottone.className = 'btn btn-sm btn-link text-body-secondary ms-auto wi-option-remove';
             bottone.title = 'Togli ' + nome(nodo);
             bottone.setAttribute('aria-label', 'Togli ' + nome(nodo));
             bottone.innerHTML = '<i class="bi bi-x-lg"></i>';
@@ -1938,7 +1951,7 @@ class ProductModelResource extends GestionaleResource
         return avvia;
     })();
 </script>
-HTML);
+HTML)->tag('div');
     }
 
     /**
@@ -1966,7 +1979,7 @@ HTML);
                     .'<span class="wi-option-grip text-body-secondary" title="Trascina per cambiare ordine" style="cursor:grab">'
                     .'<i class="bi bi-grip-vertical"></i></span>'
                     .'</div>'
-                )->columnSpan(1),
+                )->tag('div')->columnSpan(1),
                 static::getInput('option_'.$id)->pills()->columnSpan(11),
             ])
                 ->attr('data-wi-option', (string) $id)
@@ -2369,7 +2382,7 @@ HTML);
         return avvia;
     })();
 </script>
-HTML);
+HTML)->tag('div');
     }
 
     /**
@@ -2464,10 +2477,12 @@ HTML);
         $fields = [];
 
         foreach (static::imageTargets($modelId) as $variantId => $titolo) {
+            // L'area dell'articolo non ha un'etichetta sua: sta sotto il
+            // titolo del riquadro, che dice già cosa contiene.
             $fields[] = FormField::key('images_'.$variantId)
                 ->fileDragDrop('gallery')
                 ->maxFile(static::MAX_IMAGES)
-                ->label($titolo);
+                ->label($variantId === 0 ? '' : $titolo);
         }
 
         return $fields;
@@ -3223,13 +3238,9 @@ HTML);
             array_map('intval', (array) ($post['categories'] ?? [])),
             static fn (int $id): bool => $id > 0
         )));
-        $main = (int) ($post['main_category'] ?? 0);
-
-        // Scegliere la principale senza spuntarla è una svista, non un errore:
-        // la si aggiunge invece di chiedere due volte la stessa cosa.
-        if ($main > 0 && !in_array($main, $chosen, true)) {
-            $chosen[] = $main;
-        }
+        // La principale è una delle spuntate: se arriva vuota, o se la sua
+        // spunta è stata tolta, lo diventa la prima.
+        $main = static::mainAmong($chosen, (int) ($post['main_category'] ?? 0));
 
         $existing = [];
 
@@ -3448,21 +3459,37 @@ HTML);
         return $options;
     }
 
-    /** @return array<string, string> */
     /**
-     * I tipi fiscali. Niente "Predefinito": l'IVA si sceglie.
+     * Il tipo fiscale: parte dal predefinito, e con un tipo solo non si vede.
      *
-     * Lasciarla indovinare al sistema vuol dire accorgersene in fattura.
+     * Un campo obbligatorio che quasi nessuno cambia non merita una tendina;
+     * nascosto, porta comunque il suo valore.
      */
-    protected static function taxCategoryOptions(): array
+    protected static function taxCategoryField(): Input
     {
-        $options = ['' => 'Scegli…'];
+        $options = TaxCategories::options();
+        $default = (string) (TaxCategories::defaultId() ?: '');
 
-        foreach (static::rowsOf(TaxCategory::class, [], 'position') as $row) {
-            $options[(string) $row['id']] = (string) ($row['name'] ?? '');
+        if (count($options) <= 1) {
+            return FormField::key('tax_category_id')->hidden()->value($default);
         }
 
-        return $options;
+        return FormField::key('tax_category_id')
+            ->select($options)
+            ->value($default)
+            ->label('Tipo fiscale')
+            ->required()
+            ->quickCreate(TaxCategoryResource::class);
+    }
+
+    /**
+     * La categoria principale fra quelle spuntate.
+     *
+     * @param list<int> $chosen
+     */
+    public static function mainAmong(array $chosen, int $main): int
+    {
+        return in_array($main, $chosen, true) ? $main : (int) ($chosen[0] ?? 0);
     }
 
     /** @return array<string, string> */
@@ -3473,15 +3500,6 @@ HTML);
         foreach (static::rowsOf(Tag::class, [], 'name') as $row) {
             $options[(string) $row['id']] = (string) ($row['name'] ?? '');
         }
-
-        return $options;
-    }
-
-    /** @return array<string, string> */
-    protected static function categoryOptions(): array
-    {
-        $options = CategoryTree::options(static::categories());
-        $options[''] = 'Nessuna';
 
         return $options;
     }

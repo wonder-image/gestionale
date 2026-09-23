@@ -44,32 +44,41 @@ pagina e foto proprie. Il pannello te lo dice in tutti e due i casi.
 |---|---|
 | **Elenco** | scegli da una lista che prepari tu (S, M, L, XL) |
 | **Colore** | come l'elenco, ma ogni voce ha anche il suo colore |
+| **Fantasia** | come l'elenco, ma ogni voce ha anche un'immagine: un tessuto scozzese, una stampa a fiori |
 | **Testo** | si scrive a mano, valore per valore |
 | **Numero** | si scrive a mano, con l'unità di misura accanto (g, cm) |
 
-Solo *Elenco* e *Colore* fanno nascere opzioni in vendita: si spunta da un
-elenco, e un elenco deve esistere.
+Solo *Elenco*, *Colore* e *Fantasia* fanno nascere opzioni in vendita: si
+spunta da un elenco, e un elenco deve esistere.
 
 ## Creare un attributo
 
 1. **Catalogo → Attributi → Aggiungi attributo**.
-2. Scrivi il **nome** ("Colore", "Taglia", "Materiale").
-3. Rispondi a **"Come si usa"** e scegli il **tipo**.
-4. **Unità di misura**: compare solo sui tipi *Numero* e *Testo*, ed è quella
-   con cui si misura il valore — grammi, centimetri. Si sceglie da un elenco,
-   così due schede non scrivono "g" e "grammi" per la stessa cosa.
+2. Scrivi il **nome** ("Colore", "Taglia", "Materiale") e scegli il **tipo**.
+3. **Unità di misura**: accanto al tipo, compare solo su *Numero* e *Testo*,
+   ed è quella con cui si misura il valore — grammi, centimetri. Si sceglie da
+   un elenco, così due schede non scrivono "g" e "grammi" per la stessa cosa.
+4. Rispondi a **"Come si usa"**.
 5. **Filtro**: se in vetrina il cliente potrà cercare per questo attributo.
 6. Salva.
 
-Il riquadro **Valori** è lì sotto fin da subito: *Aggiungi valore* per ogni
-voce. La riga si legge da sinistra: la **fantasia**, cioè un'immagine per
-quando un colore solo non basta a far capire com'è; il **valore**, che è il
-nome; il **colore**, il pallino che il cliente vede in vetrina. Dietro
-*Aggiungi una descrizione* c'è una frase per spiegarlo a chi compra. L'ordine è
-quello che vedrà il cliente e si cambia con le frecce.
+La scheda **segue il tipo mentre lo scegli**, senza bisogno di salvare: chiede
+solo quello che serve.
+
+Il riquadro **Valori** c'è per *Elenco*, *Colore* e *Fantasia*: *Aggiungi
+valore* per ogni voce. Ogni riga ha il **valore**, cioè il nome, e in più:
+
+| Tipo | Cosa chiede la riga |
+|---|---|
+| **Elenco** | solo il valore |
+| **Colore** | il valore e il **colore**, il pallino che il cliente vede in vetrina |
+| **Fantasia** | l'**immagine**, per quando un colore solo non basta a far capire com'è, e il valore |
+
+Dietro *Aggiungi una descrizione* c'è una frase per spiegarlo a chi compra.
+L'ordine è quello che vedrà il cliente e si cambia con le frecce.
 
 Se scegli il tipo "Testo" o "Numero" i valori non servono — quello lo scrivi tu
-prodotto per prodotto — e riaprendo la scheda il riquadro non c'è più.
+prodotto per prodotto — e il riquadro sparisce.
 
 ## Cose da sapere
 
@@ -83,9 +92,16 @@ gli altri articoli.
 È l'unico posto da cui si cambiano quei nomi: nella scheda del prodotto non si
 scrivono.
 
-**Il tipo non si cambia se ci sono già dei valori.** Passare da "Elenco" a
-"Testo" cancellerebbe l'elenco che hai preparato: il gestionale si ferma e te lo
-dice. Se vuoi davvero cambiarlo, elimina prima i valori.
+**Fra Elenco, Colore e Fantasia si passa quando vuoi.** I valori restano, e
+anche i colori e le immagini che avevi messo: la scheda smette solo di
+mostrarli, e tornando al tipo di prima li ritrovi.
+
+**Verso Testo o Numero il tipo non si cambia se ci sono già dei valori.**
+Cancellerebbe l'elenco che hai preparato: il gestionale si ferma e te lo dice.
+Se vuoi davvero cambiarlo, elimina prima i valori.
+
+**L'unità di misura vale solo per Testo e Numero.** Se passi a un altro tipo,
+al salvataggio si svuota.
 
 **Un attributo usato non si elimina, si nasconde.** Mettendolo su "Nascosto"
 sparisce dalle schede nuove, ma i prodotti che l'avevano tengono il loro valore.

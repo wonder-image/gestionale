@@ -48,7 +48,7 @@ check('il select del padre non propone sé stessa né i suoi figli', function ()
 check('il select indenta i figli e ha la voce "nessuna"', function () use ($righe) {
     $opzioni = CategoryTree::options($righe);
 
-    return ($opzioni[''] ?? null) === 'Nessuna (categoria principale)'
+    return ($opzioni[''] ?? null) === 'Nessuna, sta in cima'
         && ($opzioni['1'] ?? '') === 'Abbigliamento'
         && str_starts_with($opzioni['2'] ?? '', '—');
 });

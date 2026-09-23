@@ -103,16 +103,19 @@ articolo** — due sarebbero due pagine diverse per la stessa riga, e il rifiuto
 `product.one_page_option` — e **tre attributi in tutto**, un muro del selettore,
 non del salvataggio.
 
-**Il tipo decide dove finisce il valore.** `select` e `color` pescano da
-`gst_attribute_values`; `text` e `number` scrivono direttamente sul
-collegamento, con `unit` a fianco.
+**Il tipo decide dove finisce il valore.** `select`, `color` e `pattern`
+(Fantasia) pescano da `gst_attribute_values` — `Attributes::VALUE_TYPES` —;
+`text` e `number` scrivono direttamente sul collegamento, con `unit` a fianco —
+`Attributes::UNIT_TYPES`. Un tipo è sempre in uno dei due elenchi, mai in
+tutti e due.
 
 Le regole stanno in `Support\Catalog\Attributes`, pura come `CategoryTree`:
 
 ```php
 Attributes::levels();                       // model/variant/product => nome
-Attributes::types();                        // select/color/text/number => nome
-Attributes::usesValues('color');            // true
+Attributes::types();                        // select/color/pattern/text/number => nome
+Attributes::usesValues('pattern');          // true
+Attributes::usesUnit('number');             // true: solo number e text
 Attributes::byLevel($attributi, 'variant');
 Attributes::grouped($attributi);            // gruppo => attributi, '' => 'Generale'
 Attributes::assignment($attributo, '7');    // ['attribute_value_id' => 7, 'value_text' => '', 'value_number' => null]
@@ -133,14 +136,27 @@ core mette le virgolette ai nomi solo in `INSERT`, `UPDATE` e `WHERE`: un
 ### Il riquadro dei valori
 
 `AttributeResource` dichiara i valori come repeater collegato a
-`gst_attribute_values`. Il riquadro c'è quando il tipo li usa: in creazione vale
-il tipo predefinito (`AttributeResource::DEFAULT_TYPE`, cioè `select`), così chi
-crea un attributo scrive subito i suoi valori; modificando un attributo "Testo"
-il riquadro non compare, perché non ha niente da elencare. Il layout legge la
-riga aperta con `currentId()` di `GestionaleResource`.
+`gst_attribute_values`. La scheda chiede solo quello che serve al tipo, e
+cambia mentre lo si sceglie, senza salvare: niente decide il server, tutto sta
+in `visibleWhen('type', ...)`.
 
-Il tipo non si può cambiare mentre ci sono dei valori: `mutateRequestValues()`
-si ferma, perché il salvataggio li cancellerebbe in silenzio.
+- Il riquadro *Valori* si stampa sempre, con
+  `visibleWhen('type', Attributes::VALUE_TYPES)`.
+- Nella riga, l'immagine (`image`) si vede solo sulla Fantasia e il codice
+  (`color`) solo sul Colore: le due `RepeaterColumn` hanno il loro
+  `visibleWhen()`, che il repeater del core ripete sul contenitore della
+  colonna. Il valore (`label`) ha `columnFill()` e si prende lo spazio che le
+  altre lasciano: su un Elenco è l'unica casella.
+- L'unità ha `visibleWhen('type', Attributes::UNIT_TYPES)` ed è l'ultima della
+  prima riga, così quando sparisce il vuoto resta in coda.
+
+Le caselle nascoste arrivano lo stesso con il POST. `mutateRequestValues()`
+svuota `unit` quando il tipo non la usa; colori e immagini dei valori invece
+restano nel database, e tornando al tipo di prima si ritrovano.
+
+Il tipo non può passare a Testo o Numero mentre ci sono dei valori:
+`mutateRequestValues()` si ferma, perché il salvataggio li cancellerebbe in
+silenzio. Fra Elenco, Colore e Fantasia si passa liberamente.
 
 ### Il pulsante "Guida"
 
@@ -389,6 +405,27 @@ esistere prima del primo salvataggio semplicemente non compare — la giacenza
 del riquadro in alto, le aree foto dei singoli colori, il pulsante "Dettagli
 delle opzioni".
 
+**Categorie: un albero con la stella.** La principale non è un secondo campo:
+`categories` è un `checkTree` con `->primaryField('main_category')`, e la lib
+tiene l'id della voce con la stella nel campo nascosto `main_category`. Al
+salvataggio `mainAmong($spuntate, $stella)` la riporta fra le spuntate (una
+stella rimasta su una voce tolta cade sulla prima), e finisce in
+`gst_product_model_categories.is_main`. Il `quickCreate` dell'albero chiede
+`['name', 'parent_id']`: la risposta porta `item.parent_id`, e il nodo nasce
+sotto il padre, già spuntato.
+
+**Il tipo fiscale nel riquadro «Vendita».** `taxCategoryField()` parte da
+`TaxCategories::defaultId()` (vedi [IVA e impostazioni](iva-e-impostazioni.md#il-tipo-predefinito));
+con un tipo solo è un `hidden()`, e il renderer del core lo stampa senza
+colonna, così non lascia un buco nel riquadro.
+
+**Colonne che spariscono.** Prezzi, giacenza e il riquadro dei codici hanno
+`hiddenWhen('has_variants', 'true')`. Il core marca la loro colonna come
+contenitore condizionale e la nasconde intera: in una `row g-3` una colonna
+vuota lascia comunque il margine. E un campo senza `columnSpan()` in un
+contenitore a 12 colonne ne prende una: nei layout dei `quickCreate` va
+dichiarato `->columnSpan(12)`.
+
 ## Prezzi: uno per tutte le opzioni
 
 Il prezzo del riquadro in alto vale per ogni riga: `savePrices()` lo scrive su
@@ -471,7 +508,9 @@ Il testo sta in `lang/it/gestionale.json` sotto `gestionale.errors`.
   dei form) e perché `create_unique_code()` esiste solo a sito avviato: dentro un
   comando `forge` non c'è.
 - `Support\Catalog\Slug::make($nome, $tabella)` fa lo stesso ragionamento per lo
-  slug.
+  slug. `Slug::unique($nome, $model)` lo rende libero anche dentro un comando
+  (`accessori`, poi `accessori-2`), contando pure le righe cancellate, che
+  l'indice unico vede ancora.
 
 ## Niente colonne SEO
 
@@ -481,10 +520,11 @@ vuoti o scritti male.
 
 ## Dati di prova
 
-`php forge gestionale:demo` crea un marchio, tre categorie (una annidata), due
-tag, due imballaggi, tre attributi con i loro valori — "Colore" sulla variante,
-"Taglia" e "Materiale" sul prodotto — e **quattro articoli**, che sono i quattro
-casi che la griglia deve reggere:
+`php forge gestionale:demo` crea un marchio (Maglificio Aurora), tre categorie
+(Abbigliamento › Magliette e felpe, e Accessori), due tag (Novità, Saldi), due
+imballaggi, tre attributi con i loro valori — "Colore" sulla variante, "Taglia"
+e "Materiale" sul prodotto — e **quattro articoli**, che sono i quattro casi che
+la griglia deve reggere:
 
 | Articolo | Perché c'è |
 |---|---|
@@ -496,6 +536,36 @@ casi che la griglia deve reggere:
 Ognuno ha la sua foto finta (un rettangolo colorato scritto sul disco, che nasce
 `pending` come una foto vera). Sulla maglietta ci sono anche una foto di colore
 e una di singola opzione, così l'eredità a tre livelli si legge tutta in una
-scheda. Tutte le righe hanno il nome che inizia per `Prova `. `--fresh` toglie
-quelle di prima e le rifà. Le classi stanno in `src/Seeding/`, registrate in
-`Seeding\Demo`.
+scheda. Le classi stanno in `src/Seeding/`, registrate in `Seeding\Demo`.
+
+I nomi sono quelli di un negozio vero. Una riga di prova si riconosce dal
+**segno nel codice**: il prefisso dell'entità, `demo-` e un riferimento fisso,
+come `cat_demo-accessori` (`Seeding\DemoCode`). Il codice non cambia più dopo
+l'inserimento e un codice vero non ha mai il trattino, quindi rinominare una
+riga dal gestionale non la fa sparire dai dati di prova, e una riga vera non ci
+finisce dentro.
+
+Marchio, categorie, tag, attributi e imballaggi si cercano così:
+
+1. la riga col segno;
+2. altrimenti una riga vera con lo stesso nome, senza badare alle maiuscole: si
+   usa com'è, non si segna e non si cancella mai. Sotto un attributo vero si
+   aggiungono i valori che mancano, e quei valori restano anche dopo la pulizia;
+3. altrimenti la si crea col segno.
+
+Gli articoli si cercano solo col segno. Il comando dice quali righe vere ha
+usato.
+
+`--fresh` toglie solo le righe col segno, più quelle con i vecchi nomi `Prova …`
+di prima del segno (`DemoCode::LEGACY_NAMES`, da togliere quando nessun sito le
+ha più). Prima gli articoli di prova, con varianti, prodotti, foto, collegamenti
+e storia di magazzino; poi imballaggi, attributi, tag, categorie e marchio, ma
+solo quelli che nessun articolo vero usa più. Quelli ancora in uso restano, e il
+comando li elenca sotto la sua riga, per esempio
+`Resta al suo posto 1 dato di prova ancora in uso: categoria «Accessori».` Le
+note passano da `DemoData::note()`.
+
+Le quattro schede di prova della rubrica (`Seeding\ContactsDemo`) seguono la
+stessa regola: segno nel codice (`con_demo-bianchi`), nessuna scheda nuova se ce
+n'è già una vera con lo stesso nome, e la pulizia che lascia un fornitore
+nominato da un movimento di magazzino.

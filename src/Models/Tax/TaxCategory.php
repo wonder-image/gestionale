@@ -11,8 +11,9 @@ use Wonder\Sql\TableSchema as Column;
  * Tipo fiscale del prodotto: beni ordinari, alimentari, libri, servizi.
  *
  * Ogni modello del catalogo ne avrà uno; insieme al paese e al tipo di cliente
- * è quello che sceglie l'aliquota (`TaxRule`). Quando ne esiste uno solo, la
- * scheda prodotto non lo mostra nemmeno.
+ * è quello che sceglie l'aliquota (`TaxRule`). Un articolo nuovo parte dal
+ * tipo «Predefinito»; quando ne esiste uno solo, la scheda prodotto non lo
+ * mostra nemmeno.
  */
 final class TaxCategory extends Model
 {
@@ -33,6 +34,7 @@ final class TaxCategory extends Model
             Column::key('description')->type('TEXT'),
             Column::key('position')->int(),
             Column::key('visible')->enum(['true', 'false'])->default('true'),
+            Column::key('is_default')->enum(['true', 'false'])->default('false'),
         ];
     }
 
@@ -44,6 +46,7 @@ final class TaxCategory extends Model
             Field::key('description')->text(),
             Field::key('position')->number()->decimals(0),
             Field::key('visible')->text()->sanitize(false),
+            Field::key('is_default')->text()->sanitize(false),
         ];
     }
 }

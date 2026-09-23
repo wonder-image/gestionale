@@ -547,6 +547,102 @@ aggiorna.
 | P46 | Gli attributi si scelgono in una riga, con i valori a pillole | Un riquadro che scorre dice «elenco lungo»; cinque taglie non lo sono |
 | P47 | Via «Gruppo» dall'anagrafica; l'unità è un elenco; il valore ha una descrizione | Un campo che non legge nessuno chiede lavoro e non dà niente; il testo libero fa scrivere «g» e «grammi» per la stessa cosa |
 
+## 15. Sesto giro: meno spazio, meno parole doppie
+
+Il quinto giro aveva tolto il superfluo; questo lavora su quello che resta
+e che si capisce male.
+
+**Le spunte tornano a vedersi.** Riaprendo un articolo l'albero delle
+categorie non ne mostrava nessuna: il tema confrontava in modo stretto le
+chiavi delle opzioni, che PHP rende intere, con i valori salvati, che
+arrivano stringa. Salvando senza toccare l'albero le categorie secondarie si
+perdevano. Il confronto ora è fra stringhe, come già nel select, anche nei
+gruppi di spunte.
+
+**La categoria principale è una stella.** La principale non è un secondo
+dato: è una delle categorie spuntate. Chiederla in un select a parte, prima
+dell'albero, nascondeva il legame. Ora c'è un albero solo: ogni voce spuntata
+ha una stella, quella piena è la principale, la prima spuntata lo diventa da
+sé e un clic sulla stella la sposta. Il campo `main_category` resta, nascosto,
+e l'albero lo tiene aggiornato. Se arriva vuoto vale la prima spuntata. Nell'
+anagrafica delle categorie «principale» voleva dire «senza padre»: diventa
+«Nessuna, sta in cima», così la parola ha un significato solo.
+
+**Una categoria creata dalla scheda sa dove sta.** Il «+ Aggiungi categoria»
+passa dal select all'albero e chiede nome e padre; lo store della risorsa
+accetta ora anche padre e stato, che prima scartava. La risposta porta la
+riga creata, e l'albero mette il nodo sotto il suo padre invece che in cima.
+
+**«Aggiungi opzione», in linea.** Il valore creato dal «+» di un attributo
+nasceva come una spunta fuori dalla fila di pillole e non avvisava nessuno:
+la griglia non creava le righe. Ora nasce pillola come le altre, già scelta, e
+la griglia si aggiorna. Il bottone si chiama «Aggiungi opzione» e sta nella
+riga dell'attributo, dopo le pillole.
+
+**«Opzioni in vendita» in meno righe.** Titolo e «Aggiungi un attributo» stanno
+sulla stessa riga; il suggerimento e «Le opzioni prendono il nome da…» se ne
+vanno, il riepilogo dell'ordine resta solo da due attributi in su. I testi
+del riquadro non si avvolgono più in un `<p>`, che lasciava righe vuote.
+
+**Il tipo fiscale ha un predefinito e un posto.** I tipi fiscali hanno il flag
+«Predefinito», uno solo come per gli imballaggi; un articolo nuovo parte da
+lì (o dal primo visibile, se nessuno è segnato). Con un tipo solo il campo
+non si vede. Il campo lascia la card «Prodotto» e va nella card laterale
+«Vendita», che prende il posto di «Pubblicazione».
+
+**Foto e video.** L'area dell'articolo non ha più un'etichetta sua sotto il
+titolo del riquadro; il tooltip parla di dove compaiono le foto, non delle
+misure a cui vengono ridotte.
+
+**Gli attributi chiedono quello che serve al loro tipo.** Oltre a Elenco,
+Colore, Testo e Numero c'è il tipo **Fantasia**: il valore ha un'immagine
+invece del colore. Un Elenco chiede solo il valore, un Colore valore e colore,
+una Fantasia immagine e valore; il valore si allarga nello spazio che le
+altre colonne lasciano. La card dei valori e le colonne seguono il tipo mentre
+lo si cambia, senza salvare. L'unità nascosta si svuota al salvataggio; colori
+e immagini di un attributo che cambia tipo restano nel database.
+
+**I dati di prova hanno nomi veri.** «Prova» davanti a tutto confondeva. I dati
+del seed si riconoscono da un marcatore nel codice (`cat_demo-abbigliamento`),
+che `--fresh` usa per togliere solo quelli; le tassonomie che un prodotto vero
+usa ancora restano, e il comando lo dice. Le righe «Prova …» del vecchio seed
+vengono tolte una volta, per nome esatto.
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P48 | Albero e gruppi di spunte confrontano i valori come stringhe | Riaprendo un articolo le spunte non si vedevano e salvando si perdevano |
+| P49 | La categoria principale è una stella sull'albero; `main_category` resta nascosto | È una proprietà di una categoria spuntata, non un secondo campo |
+| P50 | «Nessuna, sta in cima» al posto di «Nessuna (categoria principale)» | «Principale» voleva dire due cose diverse in due schede |
+| P51 | Il «+ Aggiungi categoria» sta sull'albero, chiede il padre e crea il nodo sotto di lui | Dal select la categoria nasceva sempre in cima |
+| P52 | Il valore creato dal «+» nasce pillola, scelto, e avvisa la griglia; il bottone è «Aggiungi opzione», in linea | Nasceva fuori fila e non creava le righe |
+| P53 | «Opzioni in vendita»: titolo e selettore in una riga, via suggerimenti e testi ripetuti | Spazio che non diceva niente di nuovo |
+| P54 | Tipo fiscale con predefinito, nascosto se è uno solo, nella card «Vendita» | Nella card «Prodotto» era un campo obbligatorio che quasi nessuno cambia |
+| P55 | Foto: niente etichetta sull'area dell'articolo; il tooltip dice dove compaiono | Il titolo del riquadro basta; le misure non interessano a chi carica |
+| P56 | Nuovo tipo di attributo Fantasia; colonne e card dei valori seguono il tipo | Il codice colore non ha senso su una taglia, l'immagine non ha senso su un colore |
+| P57 | Seed senza «Prova», riconosciuto da un marcatore nel codice | Il prefisso confondeva, e un prefisso vuoto avrebbe fatto cancellare tutto a `--fresh` |
+
+### Lavori del sesto giro
+
+- [x] core: confronto a stringhe in CheckTree e CheckGroup, con test
+- [x] core: `appendCheck` riconosce le pillole e lancia `change`; pillole in linea con il «+»
+- [x] core: la risposta del quick-create porta la riga; `primaryField()` sull'albero
+- [x] core: regola di visibilità sul contenitore della colonna del repeater; colonna «riempi»
+- [x] lib: nodo creato sotto il padre; stella della principale
+- [x] modulo: categorie (albero con stella e «+», store con padre, testi)
+- [x] modulo: «Opzioni in vendita» compatto e «Aggiungi opzione»
+- [x] modulo: tipo fiscale predefinito, card «Vendita»
+- [x] modulo: foto e video
+- [x] modulo: attributi per tipo, tipo Fantasia
+- [x] modulo: seed senza «Prova»
+- [x] prova nel browser, guide utente e dev, memoria
+
+Emerso nella prova nel browser, e sistemato nel core: un campo `hidden()` non
+prende più una colonna (in una `row g-3` lasciava il margine di una colonna
+vuota), e la colonna di un campo con `visibleWhen`/`hiddenWhen` si marca come
+contenitore condizionale, così sparisce intera. Nel modal di «Aggiungi
+opzione» il campo non dichiarava la larghezza e prendeva una colonna su
+dodici: ora ha `->columnSpan(12)`.
+
 ## Piani
 
 Da scrivere dopo l'approvazione.

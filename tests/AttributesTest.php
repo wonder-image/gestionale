@@ -12,12 +12,39 @@ $taglia = ['id' => 2, 'name' => 'Taglia', 'type' => 'select', 'level' => 'produc
 $peso = ['id' => 3, 'name' => 'Peso', 'type' => 'number', 'level' => 'model', 'unit' => 'g', 'group_name' => 'Misure'];
 $materiale = ['id' => 4, 'name' => 'Materiale', 'type' => 'text', 'level' => 'model', 'unit' => '', 'group_name' => ''];
 
-check('solo elenco e colore hanno dei valori', fn () =>
+check('elenco, colore e fantasia hanno dei valori', fn () =>
     Attributes::usesValues('select')
     && Attributes::usesValues('color')
+    && Attributes::usesValues('pattern')
     && !Attributes::usesValues('text')
     && !Attributes::usesValues('number')
 );
+
+check('solo testo e numero hanno un\'unità di misura', fn () =>
+    Attributes::usesUnit('number')
+    && Attributes::usesUnit('text')
+    && !Attributes::usesUnit('select')
+    && !Attributes::usesUnit('color')
+    && !Attributes::usesUnit('pattern')
+    && !Attributes::usesUnit('')
+);
+
+check('ogni tipo o ha dei valori o ha un\'unità, mai tutti e due', function () {
+    foreach (array_keys(Attributes::types()) as $tipo) {
+        if (Attributes::usesValues($tipo) === Attributes::usesUnit($tipo)) {
+            return false;
+        }
+    }
+
+    return true;
+});
+
+check('una fantasia si sceglie dai valori, come un elenco', function () {
+    $fantasia = ['id' => 5, 'name' => 'Fantasia', 'type' => 'pattern', 'unit' => ''];
+
+    return Attributes::assignment($fantasia, '12') === ['attribute_value_id' => 12, 'value_text' => '', 'value_number' => null]
+        && Attributes::format($fantasia, ['attribute_value_id' => 12], [12 => ['label' => 'Scozzese']]) === 'Scozzese';
+});
 
 check('i livelli si chiamano come li capisce un negoziante', fn () =>
     Attributes::levels()['model'] === 'Descrive l\'articolo'
@@ -46,6 +73,8 @@ check('due livelli su tre creano opzioni in vendita', fn () =>
 
 check('i tipi hanno un nome da leggere', fn () =>
     Attributes::types()['select'] === 'Elenco'
+    && Attributes::types()['pattern'] === 'Fantasia'
+    && array_keys(Attributes::types()) === ['select', 'color', 'pattern', 'text', 'number']
 );
 
 check('ogni livello vede solo i suoi attributi', function () use ($colore, $taglia, $peso, $materiale) {

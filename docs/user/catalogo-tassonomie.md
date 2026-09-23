@@ -22,10 +22,14 @@ Un prodotto ha un marchio solo, una o più categorie e quanti tag vuoi.
 
 1. **Catalogo → Categorie → Aggiungi categoria**.
 2. Scrivi il **nome**.
-3. **Categoria padre:** l'albero si apre già aperto. Lascia spuntato "Nessuna
-   (categoria principale)" se sta in cima, oppure spunta la categoria sotto cui
-   va. Si sceglie una sola categoria; con tante voci c'è la barra di ricerca.
+3. **Categoria padre:** l'albero si apre già aperto. Lascia spuntato "Nessuna,
+   sta in cima" se non ha padre, oppure spunta la categoria sotto cui va. Si
+   sceglie una sola categoria; con tante voci c'è la barra di ricerca.
 4. Salva.
+
+Puoi crearla anche senza lasciare la scheda di un prodotto: sotto l'albero
+delle categorie c'è **Aggiungi categoria**, che chiede nome e padre. La
+categoria nuova compare subito nell'albero, sotto il suo padre, già spuntata.
 
 L'ordine non lo devi decidere tu: una categoria nuova si mette in fondo alle
 sue sorelle.

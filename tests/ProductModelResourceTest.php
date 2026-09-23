@@ -315,7 +315,7 @@ check('la creazione mostra la scheda intera, due colonne comprese', function () 
     // capo.
     return count($colonne) === 3
         && $titoli($colonne[0]) === ['Prodotto', 'Foto e video', 'Descrizione', 'Misure']
-        && $titoli($colonne[1]) === ['Pubblicazione', 'Codici', 'Dove si trova', 'Spedizione']
+        && $titoli($colonne[1]) === ['Vendita', 'Codici', 'Dove si trova', 'Spedizione']
         && ($colonne[2]->components[0] ?? null) instanceof SectionTitle
         && $colonne[2]->components[0]->getText() === 'Opzioni in vendita';
 });
@@ -460,7 +460,7 @@ check('il riquadro delle opzioni sta in fondo, a piena larghezza', function () u
 });
 
 check('la colonna stretta tiene quello che si decide', function () use ($riquadri) {
-    return $riquadri(1) === ['Pubblicazione', 'Codici', 'Dove si trova', 'Spedizione'];
+    return $riquadri(1) === ['Vendita', 'Codici', 'Dove si trova', 'Spedizione'];
 });
 
 check('le parole interne non compaiono più nei titoli', function () use ($riquadri) {

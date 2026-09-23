@@ -9,7 +9,9 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CategoryResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\PackageResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
+use Wonder\App\ResourceSchema\Inputs\InputHidden;
 use Wonder\Plugin\Gestionale\Resources\Tax\TaxCategoryResource;
+use Wonder\Plugin\Gestionale\Support\Tax\TaxCategories;
 
 $store = static function (string $resource): array {
     $schema = $resource::apiSchema()->toArray();
@@ -27,7 +29,9 @@ $store = static function (string $resource): array {
 
 foreach ([
     'marchi' => [BrandResource::class, ['name']],
-    'categorie' => [CategoryResource::class, ['name']],
+    // Il padre serve: una categoria nata dalla scheda prodotto va sotto
+    // quella scelta, non in cima.
+    'categorie' => [CategoryResource::class, ['name', 'parent_id', 'visible']],
     'tipi fiscali' => [TaxCategoryResource::class, ['code', 'name']],
     'imballaggi' => [PackageResource::class, ['name', 'weight']],
 ] as $nome => [$resource, $campi]) {
@@ -38,33 +42,59 @@ foreach ([
     });
 }
 
-check('i quattro campi collegati hanno il "+"', function () {
+$quickCreate = static function (): array {
     $con = [];
 
     foreach (ProductModelResource::formSchema() as $campo) {
         $config = (array) (($campo->get('context')['quick_create'] ?? []) ?: []);
 
         if ($config !== []) {
-            $con[(string) $campo->name] = (string) ($config['resource'] ?? '');
+            $con[(string) $campo->name] = $config;
         }
     }
 
-    return ($con['brand_id'] ?? '') === BrandResource::class
-        && ($con['main_category'] ?? '') === CategoryResource::class
-        && ($con['tax_category_id'] ?? '') === TaxCategoryResource::class
-        && ($con['package_id'] ?? '') === PackageResource::class;
+    return $con;
+};
+
+check('marchio, categorie e imballaggio hanno il "+"', function () use ($quickCreate) {
+    $con = $quickCreate();
+
+    return ($con['brand_id']['resource'] ?? '') === BrandResource::class
+        && ($con['categories']['resource'] ?? '') === CategoryResource::class
+        && ($con['package_id']['resource'] ?? '') === PackageResource::class;
 });
 
-check('tag e categorie multiple restano senza', function () {
-    foreach (ProductModelResource::formSchema() as $campo) {
-        if (in_array((string) $campo->name, ['tags', 'categories'], true)) {
-            if ((($campo->get('context')['quick_create'] ?? []) ?: []) !== []) {
-                return false;
-            }
+check('una categoria nuova chiede nome e padre, e il bottone lo dice', function () use ($quickCreate) {
+    $categorie = $quickCreate()['categories'] ?? [];
+
+    return ($categorie['fields'] ?? null) === ['name', 'parent_id']
+        && ($categorie['button'] ?? '') === 'Aggiungi categoria';
+});
+
+check('il tipo fiscale ha il "+" solo quando c\'è da scegliere', function () use ($quickCreate) {
+    $campo = null;
+
+    foreach (ProductModelResource::formSchema() as $voce) {
+        if ((string) $voce->name === 'tax_category_id') {
+            $campo = $voce;
         }
     }
 
-    return true;
+    // Con un tipo solo (o nessuno, senza database) il campo è nascosto e
+    // porta il predefinito: non c'è niente da scegliere né da creare.
+    if (count(TaxCategories::options()) <= 1) {
+        return $campo instanceof InputHidden && !isset($quickCreate()['tax_category_id']);
+    }
+
+    return ($quickCreate()['tax_category_id']['resource'] ?? '') === TaxCategoryResource::class;
+});
+
+check('la categoria principale e i tag restano senza', function () use ($quickCreate) {
+    $con = $quickCreate();
+
+    // La principale la scrive la stella dell'albero; i tag si scrivono nel
+    // campo stesso.
+    return !isset($con['main_category']) && !isset($con['tags']);
 });
 
 summary();

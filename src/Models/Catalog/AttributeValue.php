@@ -10,9 +10,11 @@ use Wonder\Sql\TableSchema as Column;
 /**
  * Valore di un attributo a elenco: "Blu", "M", "Cotone".
  *
- * Esiste solo per i tipi `select` e `color`; `text` e `number` scrivono il
- * valore sul collegamento del prodotto. `color` tiene il codice esadecimale per
- * il pallino in vetrina, `image` la fantasia quando un colore non basta.
+ * Esiste solo per i tipi `select`, `color` e `pattern`; `text` e `number`
+ * scrivono il valore sul collegamento del prodotto. `color` tiene il codice
+ * esadecimale per il pallino in vetrina (tipo Colore), `image` l'immagine della
+ * fantasia (tipo Fantasia). Cambiando tipo all'attributo le due colonne restano
+ * come sono: la scheda smette solo di chiederle.
  */
 final class AttributeValue extends Model
 {

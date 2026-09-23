@@ -69,6 +69,7 @@ final class TaxCategoryResource extends GestionaleResource
             'name' => 'Nome',
             'description' => 'Descrizione',
             'visible' => 'Stato',
+            'is_default' => 'Predefinito',
         ];
     }
 
@@ -82,6 +83,10 @@ final class TaxCategoryResource extends GestionaleResource
                 ->value('true')
                 ->label('Stato')
                 ->required(),
+            FormField::key('is_default')
+                ->select(['false' => 'No', 'true' => 'Sì'])
+                ->value('false')
+                ->label('Predefinito'),
             FormField::key('description')->textarea()->label('Descrizione'),
         ];
     }
@@ -92,11 +97,12 @@ final class TaxCategoryResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Tipo fiscale')
-                        ->tooltip('Con un tipo fiscale solo, la scheda prodotto non lo mostra nemmeno.')
+                        ->tooltip('Un articolo nuovo parte dal tipo predefinito. Con un tipo fiscale solo, la scheda prodotto non lo mostra nemmeno.')
                         ->columnSpan(12),
                     static::getInput('code')->columnSpan(3),
-                    static::getInput('name')->columnSpan(6),
-                    static::getInput('visible')->columnSpan(3),
+                    static::getInput('name')->columnSpan(5),
+                    static::getInput('visible')->columnSpan(2),
+                    static::getInput('is_default')->columnSpan(2),
                     static::getInput('description')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
@@ -108,6 +114,11 @@ final class TaxCategoryResource extends GestionaleResource
         return [
             TableColumn::key('code')->text()->link('edit'),
             TableColumn::key('name')->text(),
+            TableColumn::key('is_default')
+                ->booleanBadge()
+                ->badgeOn('Predefinito', 'bi-star-fill', 'success')
+                ->badgeOff('No', 'bi-dash', 'secondary')
+                ->size('little'),
             TableColumn::key('visible')->visibleBadge()->size('little'),
             TableColumn::key('actions')->button()->actions(['edit', 'delete']),
         ];
@@ -166,6 +177,35 @@ final class TaxCategoryResource extends GestionaleResource
         }
 
         return $values;
+    }
+
+    /**
+     * Un predefinito solo.
+     *
+     * Sceglierne uno nuovo toglie il segno al vecchio: due tipi «predefiniti»
+     * vorrebbero dire che nessuno sa da quale parte un articolo nuovo.
+     */
+    public static function afterStore(object $result, array $values = []): void
+    {
+        static::keepSingleDefault((int) ($result->insert_id ?? 0), $values);
+    }
+
+    public static function afterUpdate(int|string $id, object $result, array $values = []): void
+    {
+        static::keepSingleDefault((int) $id, $values);
+    }
+
+    protected static function keepSingleDefault(int $id, array $values): void
+    {
+        if ($id <= 0 || ($values['is_default'] ?? 'false') !== 'true') {
+            return;
+        }
+
+        foreach (static::rowsOf(TaxCategory::class) as $row) {
+            if ((int) $row['id'] !== $id && ($row['is_default'] ?? 'false') === 'true') {
+                TaxCategory::update(['is_default' => 'false'], (int) $row['id']);
+            }
+        }
     }
 
     /** Senza il tipo fiscale le sue regole non saprebbero più che aliquota usare. */

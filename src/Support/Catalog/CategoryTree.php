@@ -85,7 +85,7 @@ final class CategoryTree
     public static function options(array $rows, ?int $exclude = null): array
     {
         $forbidden = $exclude === null ? [] : array_merge([$exclude], self::descendants($rows, $exclude));
-        $options = ['' => 'Nessuna (categoria principale)'];
+        $options = ['' => 'Nessuna, sta in cima'];
 
         foreach (self::sorted($rows) as $row) {
             $id = (int) $row['id'];
@@ -104,8 +104,8 @@ final class CategoryTree
      * Le stesse voci di `options()`, ma annidate per il `checkTree()` del
      * core: `['id' => ['name' => '…', 'child' => [...]]]`.
      *
-     * La prima voce è `0`, "categoria principale": l'albero ha bisogno di
-     * qualcosa da spuntare anche quando la categoria sta in cima.
+     * La prima voce è `0`, "sta in cima": l'albero ha bisogno di qualcosa da
+     * spuntare anche quando la categoria non ha padre.
      *
      * @param list<array<string, mixed>> $rows
      * @return array<string, array<string, mixed>>
@@ -135,7 +135,7 @@ final class CategoryTree
         }
 
         return ['0' => [
-            'name' => 'Nessuna (categoria principale)',
+            'name' => 'Nessuna, sta in cima',
             'child' => self::optionsBranch($children, 0),
         ]];
     }

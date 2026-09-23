@@ -44,7 +44,7 @@ locale, perché vuole il database.
 
 ```bash
 php forge gestionale:demo              # dati di prova, solo in locale
-php forge gestionale:demo --fresh      # rifà da capo
+php forge gestionale:demo --fresh      # toglie i dati di prova e li rifà
 php forge gestionale:features-doc      # riscrive la tabella nella guida
 ```
 

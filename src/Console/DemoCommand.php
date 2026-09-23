@@ -15,7 +15,9 @@ use Wonder\Plugin\Gestionale\Seeding\Demo;
  *
  * Si rifiuta di partire fuori dal locale: sono dati finti, e in produzione
  * finirebbero davanti ai clienti. `--fresh` cancella quelli di prima prima di
- * rifarli.
+ * rifarli: solo le righe col segno dei dati di prova nel codice (vedi
+ * `DemoCode`) e quelle con i vecchi nomi `Prova …`. Una riga di prova che
+ * qualcosa di vero usa ancora resta al suo posto, e il comando lo dice.
  */
 final class DemoCommand extends Command
 {
@@ -50,12 +52,22 @@ final class DemoCommand extends Command
             if ($fresh) {
                 $removed = (int) ($data['clear'])();
                 $output->writeln("Cancellati {$removed} dati di «{$data['title']}».");
+                self::writeNotes($output);
             }
 
             $created = (int) ($data['create'])();
             $output->writeln("Creati {$created} dati di «{$data['title']}».");
+            self::writeNotes($output);
         }
 
         return Command::SUCCESS;
+    }
+
+    /** Le note lasciate dall'ultimo passaggio, rientrate sotto la sua riga. */
+    private static function writeNotes(OutputInterface $output): void
+    {
+        foreach (DemoData::notes() as $note) {
+            $output->writeln('  '.$note);
+        }
     }
 }

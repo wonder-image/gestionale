@@ -95,7 +95,10 @@ final class Defaults implements ModuleDefaults
         $rows->ensure(Tax::class, 'code', $taxes);
     }
 
-    /** Un tipo fiscale solo: finché è così, la scheda prodotto non lo mostra. */
+    /**
+     * Un tipo fiscale solo, ed è il predefinito: finché è così, la scheda
+     * prodotto non lo mostra.
+     */
     private static function taxCategories(DefaultRows $rows): void
     {
         $rows->ensure(TaxCategory::class, 'code', [[
@@ -104,6 +107,7 @@ final class Defaults implements ModuleDefaults
             'description' => 'Beni e servizi con aliquota ordinaria.',
             'position' => 1,
             'visible' => 'true',
+            'is_default' => 'true',
         ]]);
     }
 

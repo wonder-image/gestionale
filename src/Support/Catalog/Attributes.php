@@ -30,9 +30,21 @@ final class Attributes
     public const TYPES = [
         'select' => 'Elenco',
         'color' => 'Colore',
+        'pattern' => 'Fantasia',
         'text' => 'Testo',
         'number' => 'Numero',
     ];
+
+    /**
+     * I tipi che si scelgono da un elenco di valori.
+     *
+     * Un Elenco ha solo il nome del valore, un Colore anche il codice, una
+     * Fantasia anche l'immagine.
+     */
+    public const VALUE_TYPES = ['select', 'color', 'pattern'];
+
+    /** I tipi che si scrivono sul prodotto, e che hanno un'unità di misura. */
+    public const UNIT_TYPES = ['number', 'text'];
 
     /** Gruppo di chi non ne dichiara uno. */
     public const DEFAULT_GROUP = 'Generale';
@@ -52,7 +64,13 @@ final class Attributes
     /** I tipi che pescano da `gst_attribute_values`. */
     public static function usesValues(string $type): bool
     {
-        return $type === 'select' || $type === 'color';
+        return in_array($type, self::VALUE_TYPES, true);
+    }
+
+    /** I tipi per cui l'unità di misura vuol dire qualcosa. */
+    public static function usesUnit(string $type): bool
+    {
+        return in_array($type, self::UNIT_TYPES, true);
     }
 
     /** Gli attributi che fanno nascere opzioni in vendita. */

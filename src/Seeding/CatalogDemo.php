@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Seeding;
 
+use Throwable;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
@@ -11,18 +12,17 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
-use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
-use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStock;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
@@ -31,21 +31,67 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 
 /**
  * Dati di prova del catalogo: un marchio, un piccolo albero di categorie, due
- * tag, tre attributi con i loro valori e **quattro articoli** — uno senza
- * attributi, uno che li usa tutti e tre, uno con molte opzioni in vendita e
- * uno venduto solo a taglia, senza colore — ciascuno con la sua foto.
+ * tag, tre attributi con i loro valori, due imballaggi e **quattro articoli**
+ * — uno senza attributi, uno che li usa tutti e tre, uno con molte opzioni in
+ * vendita e uno venduto solo a taglia, senza colore — ciascuno con la sua
+ * foto.
  *
  * Servono a provare le pagine su un sito vuoto e, più avanti, a dare un posto
- * ai prodotti finti. Tutte le righe portano il prefisso `Prova` nel nome, così
- * si riconoscono a colpo d'occhio e `--fresh` sa cosa togliere.
+ * ai prodotti finti. I nomi sono quelli di un negozio vero; le righe si
+ * riconoscono dal segno nel codice (`cat_demo-accessori`, vedi `DemoCode`).
+ *
+ * Marchio, categorie, tag, attributi e imballaggi si cercano prima col segno,
+ * poi per nome: se il sito ha già una categoria «Accessori» vera, gli
+ * articoli di prova finiscono lì, e la categoria resta sua — non si segna e
+ * la pulizia non la tocca. Gli articoli invece si cercano solo col segno.
+ *
+ * Sotto un attributo vero riusato si aggiungono i valori che mancano (un
+ * «Colore» senza «Nero», per esempio): quei valori non hanno una colonna
+ * `code` dove mettere il segno, e la pulizia li lascia dove sono.
+ *
+ * La pulizia toglie solo le righe col segno e quelle con i vecchi nomi
+ * `Prova …` (`DemoCode::LEGACY_NAMES`). Prima gli articoli di prova, con
+ * tutto quello che portano; poi le tassonomie, ma solo quelle che nessun
+ * articolo vero usa più: le altre restano, e il comando lo dice.
  */
 final class CatalogDemo
 {
     /** Chiave nel registro dei dati di prova. */
     public const KEY = 'catalogo-base';
 
-    /** Riconosce le righe create da qui. */
-    private const PREFIX = 'Prova ';
+    /**
+     * Gli attributi di prova, per riferimento.
+     *
+     * Il colore ha pagina e foto proprie: è lui a raggruppare la griglia delle
+     * opzioni in vendita. Taglia e materiale si scelgono invece nel carrello.
+     * Insieme sono tre attributi su un articolo solo, il massimo che la
+     * scheda accetta; il materiale serve a vedere una riga che si legge
+     * "S / Gomma".
+     */
+    private const ATTRIBUTES = [
+        'colore' => [
+            'name' => 'Colore',
+            'row' => ['type' => 'color', 'level' => 'variant', 'group_name' => '', 'position' => 1],
+            'values' => [
+                ['label' => 'Blu', 'color' => '#1f4ed8'],
+                ['label' => 'Rosso', 'color' => '#c1121f'],
+                ['label' => 'Nero', 'color' => '#111111'],
+            ],
+        ],
+        'taglia' => [
+            'name' => 'Taglia',
+            'row' => ['type' => 'select', 'level' => 'product', 'group_name' => 'Misure', 'position' => 2],
+            'values' => [['label' => 'S'], ['label' => 'M'], ['label' => 'L'], ['label' => 'XL']],
+        ],
+        'materiale' => [
+            'name' => 'Materiale',
+            'row' => ['type' => 'select', 'level' => 'product', 'group_name' => 'Materiali', 'position' => 3],
+            'values' => [['label' => 'Cotone'], ['label' => 'Gomma']],
+        ],
+    ];
+
+    /** Le righe vere usate al posto di quelle di prova, per la nota finale. @var list<string> */
+    private static array $reused = [];
 
     public static function register(): void
     {
@@ -60,68 +106,30 @@ final class CatalogDemo
     /** @return int righe create */
     public static function create(): int
     {
+        self::$reused = [];
         $created = 0;
-        $created += self::ensure(Brand::class, self::PREFIX.'Marchio', ['position' => 1, 'visible' => 'true']);
+        $created += self::ensure(Brand::class, 'maglificio-aurora', 'Maglificio Aurora', ['position' => 1, 'visible' => 'true']);
 
-        $parent = self::ensure(Category::class, self::PREFIX.'Abbigliamento', ['position' => 1, 'visible' => 'true']);
-        $created += $parent;
-        $parentId = self::idOf(Category::class, self::PREFIX.'Abbigliamento');
-
-        $created += self::ensure(Category::class, self::PREFIX.'Magliette', [
-            'parent_id' => $parentId,
+        $created += self::ensure(Category::class, 'abbigliamento', 'Abbigliamento', ['position' => 1, 'visible' => 'true']);
+        $created += self::ensure(Category::class, 'magliette-e-felpe', 'Magliette e felpe', [
+            'parent_id' => self::idOf(Category::class, 'abbigliamento', 'Abbigliamento'),
             'position' => 1,
             'visible' => 'true',
         ]);
-        $created += self::ensure(Category::class, self::PREFIX.'Accessori', ['position' => 2, 'visible' => 'true']);
+        $created += self::ensure(Category::class, 'accessori', 'Accessori', ['position' => 2, 'visible' => 'true']);
 
-        foreach (['Novità', 'Saldi'] as $tag) {
-            $created += self::ensure(Tag::class, self::PREFIX.$tag, ['visible' => 'true']);
+        $created += self::ensure(Tag::class, 'novita', 'Novità', ['visible' => 'true']);
+        $created += self::ensure(Tag::class, 'saldi', 'Saldi', ['visible' => 'true']);
+
+        foreach (array_keys(self::ATTRIBUTES) as $ref) {
+            $created += self::attribute($ref);
         }
-
-        // Il colore ha pagina e foto proprie: è lui a raggruppare la griglia
-        // delle opzioni in vendita. Taglia e materiale si scelgono invece nel
-        // carrello. Insieme sono tre attributi su un articolo solo, il
-        // massimo che la scheda accetta.
-        $created += self::attribute('Colore', [
-            'slug' => 'prova-colore',
-            'type' => 'color',
-            'level' => 'variant',
-            'group_name' => '',
-            'position' => 1,
-        ], [
-            ['label' => 'Blu', 'color' => '#1f4ed8'],
-            ['label' => 'Rosso', 'color' => '#c1121f'],
-            ['label' => 'Nero', 'color' => '#111111'],
-        ]);
-
-        $created += self::attribute('Taglia', [
-            'slug' => 'prova-taglia',
-            'type' => 'select',
-            'level' => 'product',
-            'group_name' => 'Misure',
-            'position' => 2,
-        ], [
-            ['label' => 'S'],
-            ['label' => 'M'],
-            ['label' => 'L'],
-            ['label' => 'XL'],
-        ]);
-
-        // Il terzo attributo: serve a vedere una riga che si legge "S / Gomma"
-        // e a toccare il limite di tre attributi per articolo.
-        $created += self::attribute('Materiale', [
-            'slug' => 'prova-materiale',
-            'type' => 'select',
-            'level' => 'product',
-            'group_name' => 'Materiali',
-            'position' => 3,
-        ], [
-            ['label' => 'Cotone'],
-            ['label' => 'Gomma'],
-        ]);
 
         $created += self::packages();
         $created += self::models();
+
+        DemoData::note(DemoCode::reusedNote(array_values(array_unique(self::$reused))));
+        self::$reused = [];
 
         return $created;
     }
@@ -135,7 +143,7 @@ final class CatalogDemo
      */
     private static function packages(): int
     {
-        $created = self::ensure(Package::class, self::PREFIX.'Busta imbottita', [
+        $created = self::ensure(Package::class, 'busta-imbottita', 'Busta imbottita', [
             'weight' => '0.050',
             'length' => '35.00',
             'width' => '25.00',
@@ -145,7 +153,7 @@ final class CatalogDemo
             'active' => 'true',
         ]);
 
-        $created += self::ensure(Package::class, self::PREFIX.'Scatola media', [
+        $created += self::ensure(Package::class, 'scatola-media', 'Scatola media', [
             'weight' => '0.200',
             'length' => '40.00',
             'width' => '30.00',
@@ -168,20 +176,31 @@ final class CatalogDemo
     private static function models(): int
     {
         $created = 0;
-        $colore = self::valuesOf(self::PREFIX.'Colore');
-        $taglia = self::valuesOf(self::PREFIX.'Taglia');
-        $materiale = self::valuesOf(self::PREFIX.'Materiale');
-        $magliette = self::idOf(Category::class, self::PREFIX.'Magliette');
-        $accessori = self::idOf(Category::class, self::PREFIX.'Accessori');
+        $colore = self::valuesOf('colore');
+        $taglia = self::valuesOf('taglia');
+        $materiale = self::valuesOf('materiale');
+        $magliette = self::idOf(Category::class, 'magliette-e-felpe', 'Magliette e felpe');
+        $accessori = self::idOf(Category::class, 'accessori', 'Accessori');
 
         // Senza attributi: una sola opzione in vendita, con il suo prezzo.
-        $created += self::model('Cappello di lana', 'CAP-1', $magliette, [], [], '24.90');
+        $created += self::model(
+            'cappello-di-lana',
+            'Cappello di lana',
+            'Berretto a coste in lana morbida, caldo senza pesare. Taglia unica.',
+            'CAP-1',
+            $accessori,
+            [],
+            [],
+            '24.90'
+        );
 
         // Tutti e tre gli attributi: due colori, tre taglie e due materiali
         // fanno dodici opzioni in vendita. È l'articolo dove una riga della
         // griglia si legge "S / Gomma", perché il colore lo dice la testata.
         $maglietta = self::model(
+            'maglietta-girocollo',
             'Maglietta girocollo',
+            'Maglietta a maniche corte con girocollo a coste. Si sceglie colore, taglia e tessuto.',
             'TSH-1',
             $magliette,
             array_slice($colore, 0, 2),
@@ -194,12 +213,14 @@ final class CatalogDemo
         // articolo, e solo se è appena nato: rifare i dati di prova non deve
         // aggiungerne altre due.
         if ($maglietta > 0) {
-            $created += self::optionImages(self::PREFIX.'Maglietta girocollo');
+            $created += self::optionImages(self::modelId('maglietta-girocollo'));
         }
 
         // Molte opzioni in vendita: tre colori e quattro taglie.
         $created += self::model(
+            'felpa-con-cappuccio',
             'Felpa con cappuccio',
+            'Felpa garzata con cappuccio e tasca a marsupio, per le mezze stagioni.',
             'FEL-1',
             $magliette,
             $colore,
@@ -211,7 +232,9 @@ final class CatalogDemo
         // propria fra quelli spuntati, e la griglia resta piatta, senza
         // testate di gruppo.
         $created += self::model(
+            'calzini-a-costine',
             'Calzini a costine',
+            'Calzini a coste in cotone, rinforzati su punta e tallone.',
             'CAL-1',
             $accessori,
             [],
@@ -233,34 +256,36 @@ final class CatalogDemo
      *        attributi spuntati, uno per elenco: si moltiplicano fra loro
      */
     private static function model(
+        string $ref,
         string $name,
+        string $description,
         string $sku,
         int $categoryId,
         array $variantValues,
         array $productAxes,
         string $price
     ): int {
-        $name = self::PREFIX.$name;
-
-        if (self::idOf(ProductModel::class, $name) > 0) {
+        // Un articolo si cerca solo col segno: uno vero con lo stesso nome
+        // non è un articolo di prova, e non gli si mettono sotto opzioni.
+        if (self::modelId($ref) > 0) {
             return 0;
         }
 
         $result = ProductModel::create([
-            'code' => Code::make(ProductModel::class, Codes::MODEL),
+            'code' => DemoCode::forModel(ProductModel::class, $ref),
             'name' => $name,
-            'slug' => Slug::make($name.'-'.uniqid()),
+            'slug' => Slug::unique($name, ProductModel::class),
             'sku' => $sku,
             // Il tipo fiscale è obbligatorio nella scheda: un articolo di prova
             // senza non si potrebbe nemmeno risalvare.
             'tax_category_id' => self::ordinaryTaxCategoryId(),
             // Con una scatola e un peso, il riquadro Spedizione della scheda
             // dice davvero quanto parte invece di lamentare un dato mancante.
-            'package_id' => self::idOf(Package::class, self::PREFIX.'Scatola media'),
+            'package_id' => self::idOf(Package::class, 'scatola-media', 'Scatola media'),
             'weight' => '0.250',
             'unit' => 'pz',
             'type' => 'simple',
-            'short_description' => 'Articolo di prova del gestionale.',
+            'short_description' => $description,
             'returnable' => 'true',
             'requires_shipping' => 'true',
             'visible' => 'true',
@@ -399,7 +424,7 @@ final class CatalogDemo
             return 0;
         }
 
-        $file = 'prova-'.Sku::part($alt).'-'.uniqid().'.jpg';
+        $file = 'demo-'.Sku::part($alt).'-'.uniqid().'.jpg';
         $image = imagecreatetruecolor(1200, 900);
         $colors = [[31, 78, 216], [193, 18, 31], [26, 127, 75]];
         $color = $colors[strlen($alt) % count($colors)];
@@ -443,10 +468,8 @@ final class CatalogDemo
      *
      * @return int righe create
      */
-    private static function optionImages(string $name): int
+    private static function optionImages(int $modelId): int
     {
-        $modelId = self::idOf(ProductModel::class, $name);
-
         if ($modelId <= 0) {
             return 0;
         }
@@ -458,7 +481,7 @@ final class CatalogDemo
             return 0;
         }
 
-        $created = self::image($modelId, trim((string) ($variant['name'] ?? '')) ?: $name, $variantId);
+        $created = self::image($modelId, trim((string) ($variant['name'] ?? '')) ?: 'Opzione', $variantId);
 
         foreach (self::rowsOfModel(Product::class, $modelId) as $product) {
             if ((int) ($product['product_variant_id'] ?? 0) !== $variantId) {
@@ -469,7 +492,7 @@ final class CatalogDemo
             // senza foto propria, o il livello di mezzo non si vedrebbe.
             return $created + self::image(
                 $modelId,
-                trim((string) ($product['name'] ?? '')) ?: $name,
+                trim((string) ($product['name'] ?? '')) ?: 'Opzione',
                 $variantId,
                 (int) ($product['id'] ?? 0)
             );
@@ -478,24 +501,50 @@ final class CatalogDemo
         return $created;
     }
 
-    /** I valori di un attributo di prova. @return list<array{id: int, label: string}> */
-    private static function valuesOf(string $attributeName): array
+    /**
+     * I valori di un attributo di prova, nell'ordine dei dati di prova.
+     *
+     * Solo i valori elencati qui: un «Colore» vero riusato può averne altri,
+     * e gli articoli di prova non devono prenderseli.
+     *
+     * @return list<array{id: int, label: string}>
+     */
+    private static function valuesOf(string $ref): array
     {
-        $attributeId = self::idOf(Attribute::class, $attributeName);
+        $definition = self::ATTRIBUTES[$ref];
+        $attributeId = self::idOf(Attribute::class, $ref, $definition['name']);
 
         if ($attributeId === 0) {
             return [];
         }
 
+        $existing = self::listOf(AttributeValue::find(['attribute_id' => $attributeId, 'deleted' => 'false']));
         $values = [];
 
-        foreach (self::rows(AttributeValue::class) as $row) {
-            if ((int) ($row['attribute_id'] ?? 0) === $attributeId) {
+        foreach ($definition['values'] as $value) {
+            $row = self::valueNamed($existing, (string) $value['label']);
+
+            if ($row !== null) {
                 $values[] = ['id' => (int) $row['id'], 'label' => (string) ($row['label'] ?? '')];
             }
         }
 
         return $values;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>|null
+     */
+    private static function valueNamed(array $rows, string $label): ?array
+    {
+        foreach ($rows as $row) {
+            if (DemoCode::sameName((string) ($row['label'] ?? ''), $label)) {
+                return $row;
+            }
+        }
+
+        return null;
     }
 
     /** Quante righe di quel Model appartengono al modello. */
@@ -507,71 +556,90 @@ final class CatalogDemo
     /** @return list<array<string, mixed>> */
     private static function rowsOfModel(string $model, int $modelId): array
     {
-        $rows = $model::find(['product_model_id' => $modelId, 'deleted' => 'false']);
-
-        if (!is_array($rows) || $rows === []) {
-            return [];
-        }
-
-        return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
+        return self::listOf($model::find(['product_model_id' => $modelId, 'deleted' => 'false']));
     }
 
     /**
      * Un attributo di prova con i suoi valori.
      *
-     * @param array<string, mixed> $values
-     * @param list<array<string, mixed>> $rows
+     * Se c'è già (col segno, o uno vero con lo stesso nome) si aggiungono solo
+     * i valori che mancano.
+     *
      * @return int righe create, attributo e valori insieme
      */
-    private static function attribute(string $name, array $values, array $rows): int
+    private static function attribute(string $ref): int
     {
-        $name = self::PREFIX.$name;
+        $definition = self::ATTRIBUTES[$ref];
+        $name = $definition['name'];
+        $created = 0;
+        $found = self::find(Attribute::class, $ref, $name);
 
-        if (self::idOf(Attribute::class, $name) > 0) {
-            return 0;
+        if ($found === null) {
+            $result = Attribute::create(array_merge([
+                'code' => DemoCode::forModel(Attribute::class, $ref),
+                'name' => $name,
+                'slug' => Slug::unique($name, Attribute::class),
+                'unit' => '',
+                'is_filterable' => 'true',
+                'is_visible' => 'true',
+            ], $definition['row']));
+
+            if (empty($result->success)) {
+                return 0;
+            }
+
+            $created++;
+            $attributeId = self::idOf(Attribute::class, $ref, $name);
+        } else {
+            $attributeId = $found['id'];
+
+            if (!$found['demo']) {
+                self::$reused[] = DemoCode::label(Attribute::class, $name);
+            }
         }
 
-        $result = Attribute::create(array_merge([
-            'code' => Code::make(Attribute::class, Codes::ATTRIBUTE),
-            'name' => $name,
-            'unit' => '',
-            'is_filterable' => 'true',
-            'is_visible' => 'true',
-        ], $values));
-
-        if (empty($result->success)) {
-            return 0;
+        if ($attributeId <= 0) {
+            return $created;
         }
 
-        $created = 1;
-        $attributeId = self::idOf(Attribute::class, $name);
-        $position = 1;
+        $existing = self::listOf(AttributeValue::find(['attribute_id' => $attributeId, 'deleted' => 'false']));
+        $position = count($existing);
 
-        foreach ($rows as $row) {
-            $value = AttributeValue::create(array_merge([
+        foreach ($definition['values'] as $value) {
+            if (self::valueNamed($existing, (string) $value['label']) !== null) {
+                continue;
+            }
+
+            $result = AttributeValue::create(array_merge([
                 'attribute_id' => $attributeId,
                 'color' => '',
-                'position' => $position++,
-            ], $row));
+                'position' => ++$position,
+            ], $value));
 
-            $created += !empty($value->success) ? 1 : 0;
+            $created += !empty($result->success) ? 1 : 0;
         }
 
         return $created;
     }
 
-    /** @return int righe tolte */
+    /**
+     * Toglie i dati di prova: le righe col segno e quelle con i vecchi nomi.
+     *
+     * Una tassonomia, un attributo o un imballaggio di prova che un articolo
+     * vero usa ancora resta al suo posto, e una nota lo dice. Gli attributi si
+     * staccano solo dagli articoli di prova, che se ne vanno per primi; i
+     * valori aggiunti sotto un attributo vero restano (vedi la classe).
+     *
+     * @return int righe tolte
+     */
     public static function clear(): int
     {
         $removed = 0;
+        $kept = [];
 
         // Prima gli articoli: portano via prodotti, varianti, collegamenti e
         // foto, e sono loro a tenere occupati attributi e categorie.
-        foreach (self::rows(ProductModel::class) as $row) {
-            if (!str_starts_with((string) ($row['name'] ?? ''), self::PREFIX)) {
-                continue;
-            }
-
+        foreach (self::ours(ProductModel::class) as $row) {
             $modelId = (int) $row['id'];
             // Quello che se ne va con l'articolo si conta prima: dopo non c'è
             // più niente da contare, e «tolte 19, create 49» non si spiega.
@@ -588,73 +656,188 @@ final class CatalogDemo
                 self::rowsOfModel(Product::class, $modelId)
             ));
 
-            $result = ProductModelResource::deleteRecord($modelId);
-            $removed += !empty($result->success) ? 1 + $sotto : 0;
+            if (self::remove(static fn () => ProductModelResource::deleteRecord($modelId))) {
+                $removed += 1 + $sotto;
+            } else {
+                $kept[] = DemoCode::label(ProductModel::class, (string) ($row['name'] ?? ''));
+            }
         }
 
-        foreach (self::rows(Package::class) as $row) {
-            if (!str_starts_with((string) ($row['name'] ?? ''), self::PREFIX)) {
+        foreach (self::ours(Package::class) as $row) {
+            $id = (int) $row['id'];
+
+            if (self::used(ProductModel::class, 'package_id', $id)
+                || !self::remove(static fn () => Package::delete($id))) {
+                $kept[] = DemoCode::label(Package::class, (string) ($row['name'] ?? ''));
                 continue;
             }
 
-            $result = Package::delete((int) $row['id']);
-            $removed += !empty($result->success) ? 1 : 0;
+            $removed++;
         }
 
-        foreach (self::rows(Attribute::class) as $row) {
-            if (!str_starts_with((string) ($row['name'] ?? ''), self::PREFIX)) {
+        foreach (self::ours(Attribute::class) as $row) {
+            $id = (int) $row['id'];
+
+            // Gli articoli di prova sono già andati con i loro collegamenti:
+            // chi lo usa ancora è un articolo vero, e non gli si toglie niente.
+            if (self::attributeInUse($id)) {
+                $kept[] = DemoCode::label(Attribute::class, (string) ($row['name'] ?? ''));
                 continue;
             }
 
-            // Prima chi lo usa: un prodotto che punta a questo attributo
-            // impedirebbe di toglierlo, e la pulizia morirebbe a metà.
-            foreach (Attributes::LEVELS as $level => $ignored) {
-                $model = ProductAttributes::modelClass($level);
-
-                foreach (self::rows($model) as $link) {
-                    if ((int) ($link['attribute_id'] ?? 0) === (int) $row['id']) {
-                        $model::delete((int) $link['id']);
-                    }
-                }
-            }
-
-            // Poi i valori: la chiave esterna non lascia andare l'attributo.
+            // Prima i valori: la chiave esterna non lascia andare l'attributo.
             // **Anche quelli cancellati**: il repeater li segna `deleted` e
             // basta, la riga resta e il vincolo la vede. Un valore aggiunto a
             // mano e poi tolto bloccava tutta la pulizia.
-            foreach (self::valuesOfAttribute((int) $row['id']) as $value) {
-                $removed += !empty(AttributeValue::delete((int) $value['id'])->success) ? 1 : 0;
+            foreach (self::valuesOfAttribute($id) as $value) {
+                $valueId = (int) $value['id'];
+                $removed += self::remove(static fn () => AttributeValue::delete($valueId)) ? 1 : 0;
             }
 
-            $removed += !empty(Attribute::delete((int) $row['id'])->success) ? 1 : 0;
+            if (self::remove(static fn () => Attribute::delete($id))) {
+                $removed++;
+            } else {
+                $kept[] = DemoCode::label(Attribute::class, (string) ($row['name'] ?? ''));
+            }
         }
 
-        foreach ([Tag::class, Category::class, Brand::class] as $model) {
-            foreach (self::rows($model) as $row) {
-                if (!str_starts_with((string) ($row['name'] ?? ''), self::PREFIX)) {
+        foreach (self::ours(Tag::class) as $row) {
+            $id = (int) $row['id'];
+
+            if (self::used(ProductModelTag::class, 'tag_id', $id)
+                || !self::remove(static fn () => Tag::delete($id))) {
+                $kept[] = DemoCode::label(Tag::class, (string) ($row['name'] ?? ''));
+                continue;
+            }
+
+            $removed++;
+        }
+
+        $removed += self::clearCategories($kept);
+
+        foreach (self::ours(Brand::class) as $row) {
+            $id = (int) $row['id'];
+
+            if (self::used(ProductModel::class, 'brand_id', $id)
+                || !self::remove(static fn () => Brand::delete($id))) {
+                $kept[] = DemoCode::label(Brand::class, (string) ($row['name'] ?? ''));
+                continue;
+            }
+
+            $removed++;
+        }
+
+        DemoData::note(DemoCode::keptNote($kept));
+
+        return $removed;
+    }
+
+    /**
+     * Le categorie di prova, dalle foglie in su.
+     *
+     * Si gira più volte: una categoria esce quando non ha più articoli né
+     * figlie, e una figlia tolta a questo giro libera il padre al prossimo.
+     * Una figlia vera sotto una categoria di prova la tiene al suo posto.
+     *
+     * @param list<string> $kept dove finiscono quelle rimaste
+     * @return int righe tolte
+     */
+    private static function clearCategories(array &$kept): int
+    {
+        $pending = [];
+
+        foreach (self::ours(Category::class) as $row) {
+            $pending[(int) $row['id']] = (string) ($row['name'] ?? '');
+        }
+
+        $removed = 0;
+
+        do {
+            $progress = false;
+
+            foreach ($pending as $id => $name) {
+                if (self::used(ProductModelCategory::class, 'category_id', $id)
+                    || self::used(Category::class, 'parent_id', $id)) {
                     continue;
                 }
 
-                $result = $model::delete((int) $row['id']);
-
-                if (!empty($result->success)) {
+                if (self::remove(static fn () => Category::delete($id))) {
+                    unset($pending[$id]);
                     $removed++;
+                    $progress = true;
                 }
             }
+        } while ($progress && $pending !== []);
+
+        foreach ($pending as $name) {
+            $kept[] = DemoCode::label(Category::class, $name);
         }
 
         return $removed;
     }
 
-    /** Crea la riga se manca; ritorna 1 quando l'ha creata. */
-    private static function ensure(string $model, string $name, array $values): int
+    /** Qualche articolo, opzione o collegamento usa ancora l'attributo? */
+    private static function attributeInUse(int $attributeId): bool
     {
-        if (self::idOf($model, $name) > 0) {
+        foreach (Attributes::LEVELS as $level => $ignored) {
+            if (self::used(ProductAttributes::modelClass($level), 'attribute_id', $attributeId)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Qualche riga di quel Model punta ancora lì?
+     *
+     * Contano anche le righe segnate come cancellate: la chiave esterna le
+     * vede, e la cancellazione fallirebbe lo stesso.
+     */
+    private static function used(string $model, string $column, int $id): bool
+    {
+        // La condizione nomina `deleted` di proposito: `find()` altrimenti
+        // aggiunge da sé `deleted = 'false'`.
+        $row = $model::find(
+            $column.' = '.$id." AND (deleted = 'true' OR deleted = 'false')",
+            1
+        );
+
+        return is_array($row) && $row !== [];
+    }
+
+    /** Una cancellazione riuscita? Un errore del database conta come un no. */
+    private static function remove(callable $delete): bool
+    {
+        try {
+            $result = $delete();
+        } catch (Throwable) {
+            return false;
+        }
+
+        return is_object($result) && !empty($result->success);
+    }
+
+    /**
+     * Crea la riga se manca; ritorna 1 quando l'ha creata.
+     *
+     * @param class-string<\Wonder\App\Model> $model
+     * @param array<string, mixed> $values
+     */
+    private static function ensure(string $model, string $ref, string $name, array $values): int
+    {
+        $found = self::find($model, $ref, $name);
+
+        if ($found !== null) {
+            if (!$found['demo']) {
+                self::$reused[] = DemoCode::label($model, $name);
+            }
+
             return 0;
         }
 
         $riga = array_merge($values, [
-            'code' => Code::make($model, self::prefixOf($model)),
+            'code' => DemoCode::forModel($model, $ref),
             'name' => $name,
         ]);
 
@@ -662,7 +845,7 @@ final class CatalogDemo
         // pagina pubblica, e scriverlo lo farebbe finire nella query.
         foreach ($model::tableSchema() as $column) {
             if ((string) $column->name === 'slug') {
-                $riga['slug'] = Slug::make($name, $model::$table);
+                $riga['slug'] = Slug::unique($name, $model);
                 break;
             }
         }
@@ -672,11 +855,45 @@ final class CatalogDemo
         return !empty($result->success) ? 1 : 0;
     }
 
-    private static function idOf(string $model, string $name): int
+    /**
+     * La riga da usare: quella col segno, o una vera con lo stesso nome.
+     *
+     * @return array{id: int, demo: bool}|null
+     */
+    private static function find(string $model, string $ref, string $name): ?array
     {
-        $row = $model::find(['name' => $name, 'deleted' => 'false'], 1);
+        return DemoCode::pick(self::rows($model), DemoCode::forModel($model, $ref), $name);
+    }
+
+    private static function idOf(string $model, string $ref, string $name): int
+    {
+        return self::find($model, $ref, $name)['id'] ?? 0;
+    }
+
+    /** L'id dell'articolo di prova con quel riferimento, `0` se non c'è. */
+    private static function modelId(string $ref): int
+    {
+        $row = ProductModel::find(['code' => DemoCode::forModel(ProductModel::class, $ref), 'deleted' => 'false'], 1);
 
         return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+    }
+
+    /**
+     * Le righe di quel Model che sono dati di prova: col segno o con un
+     * vecchio nome.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function ours(string $model): array
+    {
+        return array_values(array_filter(
+            self::rows($model),
+            static fn (array $row): bool => DemoCode::ours(
+                $model,
+                (string) ($row['code'] ?? ''),
+                (string) ($row['name'] ?? '')
+            )
+        ));
     }
 
     /**
@@ -689,38 +906,24 @@ final class CatalogDemo
         // La condizione nomina `deleted` di proposito: `find()` aggiunge da sé
         // `deleted = 'false'` a chi non ne parla, e qui servono anche le righe
         // segnate come cancellate — la chiave esterna le vede lo stesso.
-        $rows = AttributeValue::find(
+        return self::listOf(AttributeValue::find(
             "attribute_id = ".$attributeId." AND (deleted = 'true' OR deleted = 'false')"
-        );
-
-        if (!is_array($rows) || $rows === []) {
-            return [];
-        }
-
-        return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
+        ));
     }
 
     /** @return list<array<string, mixed>> */
     private static function rows(string $model): array
     {
-        $rows = $model::find(['deleted' => 'false']);
+        return self::listOf($model::find(['deleted' => 'false']));
+    }
 
+    /** @return list<array<string, mixed>> */
+    private static function listOf(mixed $rows): array
+    {
         if (!is_array($rows) || $rows === []) {
             return [];
         }
 
         return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
-    }
-
-    /** Il prefisso del codice di quel Model, letto dal suo schema. */
-    private static function prefixOf(string $model): string
-    {
-        foreach ($model::dataSchema() as $field) {
-            if ((string) $field->key === 'code') {
-                return (string) (($field->getSchema('unique_code')['prefix']) ?? '');
-            }
-        }
-
-        return '';
     }
 }

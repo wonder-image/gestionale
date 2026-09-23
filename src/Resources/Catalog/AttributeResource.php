@@ -29,9 +29,10 @@ use Wonder\Plugin\Gestionale\Support\Positions;
  * dall'altro e quello che fa nascere le sue opzioni in vendita.
  *
  * Come si usa si sceglie qui, e dice dove finisce il valore. I valori di un
- * attributo a elenco si scrivono nella scheda, come righe: il riquadro compare
- * solo quando il tipo li usa, perché un attributo "Testo" non ha niente da
- * elencare.
+ * attributo a elenco si scrivono nella scheda, come righe. La scheda chiede
+ * solo quello che serve al tipo, e cambia mentre lo si sceglie, senza salvare:
+ * un Elenco ha il nome del valore, un Colore anche il codice, una Fantasia
+ * anche l'immagine; Testo e Numero non hanno valori, ma un'unità di misura.
  *
  * Non è `final`: i test la estendono con una classe anonima per provare la
  * regola sul cambio di tipo senza database.
@@ -130,7 +131,7 @@ class AttributeResource extends GestionaleResource
             FormField::key('unit')
                 ->select(Units::all())
                 ->label('Unità di misura')
-                ->visibleWhen('type', ['number', 'text']),
+                ->visibleWhen('type', Attributes::UNIT_TYPES),
             FormField::key('is_filterable')
                 ->select(['true' => 'Sì', 'false' => 'No'])
                 ->value('true')
@@ -144,12 +145,22 @@ class AttributeResource extends GestionaleResource
             FormField::key('values')
                 ->repeater([
                     RepeaterColumn::key('id')->hidden(),
-                    // Nove dodicesimi, non undici: il riordino a mano prende
-                    // tre colonne per le frecce e il cestino, e con undici la
-                    // riga andava a capo.
-                    RepeaterColumn::key('image')->fileDragDrop('image')->label('Fantasia')->columnSpan(2),
-                    RepeaterColumn::key('label')->text()->label('Valore')->columnSpan(4),
-                    RepeaterColumn::key('color')->color()->label('Colore')->columnSpan(3),
+                    // Le colonne seguono il tipo: l'immagine solo sulla
+                    // Fantasia, il codice solo sul Colore. Il valore riempie
+                    // lo spazio che resta libero — il riordino a mano ne
+                    // prende tre per le frecce e il cestino — così una colonna
+                    // nascosta non lascia un buco.
+                    RepeaterColumn::key('image')
+                        ->fileDragDrop('image')
+                        ->label('Fantasia')
+                        ->columnSpan(2)
+                        ->visibleWhen('type', 'pattern'),
+                    RepeaterColumn::key('label')->text()->label('Valore')->columnFill(),
+                    RepeaterColumn::key('color')
+                        ->color()
+                        ->label('Colore')
+                        ->columnSpan(3)
+                        ->visibleWhen('type', 'color'),
                     RepeaterColumn::key('description')->text()->label('Descrizione')->columnSpan(12),
                 ])
                 ->relation(
@@ -181,29 +192,27 @@ class AttributeResource extends GestionaleResource
         $cards = [
             (new Card)->components([
                 SectionTitle::make('Attributo')
-                    ->tooltip('«Descrive l\'articolo» finisce nella scheda tecnica: Materiale, Composizione. «Crea opzioni con pagina e foto proprie» è il Colore, nei negozi dove ogni colore ha la sua pagina e le sue foto. «Crea opzioni da scegliere nel carrello» è la Taglia. L\'unità di misura compare solo sui tipi Numero e Testo, ed è quella con cui si misura il valore: grammi, centimetri.')
+                    ->tooltip('«Descrive l\'articolo» finisce nella scheda tecnica: Materiale, Composizione. «Crea opzioni con pagina e foto proprie» è il Colore, nei negozi dove ogni colore ha la sua pagina e le sue foto. «Crea opzioni da scegliere nel carrello» è la Taglia. Il tipo decide cosa chiedono i valori: un Elenco solo il nome, un Colore anche il pallino in vetrina, una Fantasia anche la sua immagine. Testo e Numero si scrivono sul prodotto, con l\'unità di misura: grammi, centimetri.')
                     ->columnSpan(12),
-                static::getInput('name')->columnSpan(12),
-                static::getInput('level')->columnSpan(4),
-                static::getInput('type')->columnSpan(4),
-                static::getInput('unit')->columnSpan(4),
-                static::getInput('is_filterable')->columnSpan(6),
-                static::getInput('is_visible')->columnSpan(6),
+                // L'unità in fondo alla riga: quando il tipo non la usa sparisce
+                // e il vuoto resta in coda, non in mezzo.
+                static::getInput('name')->columnSpan(6),
+                static::getInput('type')->columnSpan(3),
+                static::getInput('unit')->columnSpan(3),
+                static::getInput('level')->columnSpan(6),
+                static::getInput('is_filterable')->columnSpan(3),
+                static::getInput('is_visible')->columnSpan(3),
             ])->columns(12)->columnSpan(12),
-        ];
-
-        // Il riquadro dei valori dove serve: in creazione vale il tipo
-        // predefinito (Elenco), così chi crea un attributo scrive subito i suoi
-        // valori; modificando un "Testo" il riquadro non c'è, perché non ha
-        // niente da elencare.
-        if (static::usesValues(static::currentRow() ?? ['type' => static::DEFAULT_TYPE])) {
-            $cards[] = (new Card)->components([
+            // Il riquadro dei valori c'è sempre e segue il tipo mentre lo si
+            // sceglie: prima lo decideva il server, e cambiando tipo bisognava
+            // salvare per vederlo comparire o sparire.
+            (new Card)->components([
                 SectionTitle::make('Valori')
-                    ->tooltip('L\'ordine è quello che vedrà il cliente. La fantasia è l\'immagine di quel valore, il colore il pallino in vetrina. Il nome di un valore è anche quello che si legge nelle opzioni in vendita: si rinomina qui. La descrizione si apre dalla riga e serve a spiegarlo a chi compra.')
+                    ->tooltip('L\'ordine è quello che vedrà il cliente. Il nome di un valore è anche quello che si legge nelle opzioni in vendita: si rinomina qui. La descrizione si apre dalla riga e serve a spiegarlo a chi compra.')
                     ->columnSpan(12),
                 static::getInput('values')->columnSpan(12),
-            ])->columns(12)->columnSpan(12);
-        }
+            ])->columns(12)->columnSpan(12)->visibleWhen('type', Attributes::VALUE_TYPES),
+        ];
 
         return (new Form)->components([
             (new Container)->components($cards)->columns(12)->columnSpan(12),
@@ -271,7 +280,10 @@ class AttributeResource extends GestionaleResource
         return $row !== null && Attributes::usesValues((string) ($row['type'] ?? ''));
     }
 
-    /** Nome macchina alla creazione, e nessun tipo cambiato sotto ai valori. */
+    /**
+     * Nome macchina alla creazione, nessun tipo cambiato sotto ai valori, e
+     * nessuna unità dove il tipo non la usa.
+     */
     public static function mutateRequestValues(
         array $values,
         string $action,
@@ -291,6 +303,14 @@ class AttributeResource extends GestionaleResource
 
         if ($id > 0 && $to !== $from && Attributes::usesValues($from) && !Attributes::usesValues($to)) {
             static::assertNoValues($id);
+        }
+
+        // L'unità nascosta arriva lo stesso con il resto del modulo: passando
+        // da Numero a Colore resterebbe "g" su un attributo che non la mostra.
+        // Colori e immagini dei valori invece restano: tornando al tipo di
+        // prima si ritrovano.
+        if ((array_key_exists('unit', $values) || array_key_exists('type', $values)) && !Attributes::usesUnit($to)) {
+            $values['unit'] = '';
         }
 
         return $values;
@@ -324,17 +344,5 @@ class AttributeResource extends GestionaleResource
     protected static function isUsed(int $id): bool
     {
         return false;
-    }
-
-    /** La riga aperta, quando si sta modificando un attributo. */
-    protected static function currentRow(): ?array
-    {
-        $id = static::currentId();
-
-        if ($id === null) {
-            return null;
-        }
-
-        return static::rowsOf(Attribute::class, ['id' => $id])[0] ?? null;
     }
 }

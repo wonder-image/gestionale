@@ -11,11 +11,18 @@ namespace Wonder\Plugin\Gestionale\Console\Demo;
  *
  * Regola: si scrive solo in tabelle che non si sincronizzano, altrimenti i
  * dati finti finirebbero in produzione col deploy.
+ *
+ * Chi crea o cancella può lasciare una nota per chi lancia il comando — per
+ * esempio i dati di prova che la pulizia ha lasciato perché qualcosa di vero
+ * li usa ancora. Il comando le stampa e le svuota dopo ogni passaggio.
  */
 final class DemoData
 {
     /** @var array<string, array{title: string, create: callable, clear: callable}> */
     private static array $registry = [];
+
+    /** @var list<string> */
+    private static array $notes = [];
 
     public static function register(string $key, string $title, callable $create, callable $clear): void
     {
@@ -32,8 +39,32 @@ final class DemoData
         return self::$registry;
     }
 
+    /** Una nota per chi lancia il comando; le vuote non contano. */
+    public static function note(string $text): void
+    {
+        $text = trim($text);
+
+        if ($text !== '') {
+            self::$notes[] = $text;
+        }
+    }
+
+    /**
+     * Le note lasciate finora, che da qui in poi non ci sono più.
+     *
+     * @return list<string>
+     */
+    public static function notes(): array
+    {
+        $notes = self::$notes;
+        self::$notes = [];
+
+        return $notes;
+    }
+
     public static function reset(): void
     {
         self::$registry = [];
+        self::$notes = [];
     }
 }

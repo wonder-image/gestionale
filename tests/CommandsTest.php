@@ -50,6 +50,20 @@ check('i dati di prova si dichiarano con chiave, titolo e due funzioni', functio
         && is_callable($registro['prova']['clear'] ?? null);
 });
 
+check('le note dei dati di prova si leggono una volta sola', function () {
+    DemoData::note('Resta al suo posto 1 dato di prova ancora in uso: categoria «Accessori».');
+    DemoData::note('   ');
+    $prima = DemoData::notes();
+    $dopo = DemoData::notes();
+
+    DemoData::note('una nota rimasta');
+    DemoData::reset();
+
+    return $prima === ['Resta al suo posto 1 dato di prova ancora in uso: categoria «Accessori».']
+        && $dopo === []
+        && DemoData::notes() === [];
+});
+
 check('la tabella della guida ha una riga per funzionalità', function () {
     $tabella = FeaturesDocCommand::table();
     $righe = array_values(array_filter(

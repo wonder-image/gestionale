@@ -79,8 +79,12 @@ final class CategoryResource extends GestionaleResource
     {
         return [
             FormField::key('name')->text()->label('Nome')->required(),
+            // Elenca le categorie: nel «+ Aggiungi categoria» della scheda
+            // prodotto una categoria appena creata diventa subito un padre
+            // possibile per la successiva.
             FormField::key('parent_id')
                 ->checkTree(static::parentTree(), true, 'radio')
+                ->listsResource(self::class)
                 ->value('0')
                 ->label('Categoria padre'),
             FormField::key('visible')
@@ -99,7 +103,7 @@ final class CategoryResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Categoria')
-                        ->tooltip('Senza padre la categoria è principale. L\'url pubblico nasce dal nome alla creazione e non cambia più.')
+                        ->tooltip('Senza padre la categoria sta in cima all\'albero. L\'url pubblico nasce dal nome alla creazione e non cambia più.')
                         ->columnSpan(12),
                     static::getInput('name')->columnSpan(8),
                     static::getInput('visible')->columnSpan(4),
@@ -158,13 +162,14 @@ final class CategoryResource extends GestionaleResource
      * Solo `store`, e solo per il "+ Aggiungi" della scheda prodotto.
      *
      * La chiamata parte lato server come `@system`: non serve dare il permesso
-     * a nessun ruolo, il controllo sta sul bottone e nel proxy.
+     * a nessun ruolo, il controllo sta sul bottone e nel proxy. Il padre e lo
+     * stato passano: senza, la categoria nasceva sempre in cima.
      */
     public static function apiSchema(): ApiSchema
     {
         return ApiSchema::for(static::class)
             ->only(['store'])
-            ->fields('store', ['name']);
+            ->fields('store', ['name', 'parent_id', 'visible']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -234,7 +239,21 @@ final class CategoryResource extends GestionaleResource
     /** Le stesse voci, annidate per l'albero da spuntare. */
     public static function parentTree(?array $rows = null, ?int $exclude = null): array
     {
-        return CategoryTree::treeOptions($rows ?? static::rows(), $exclude ?? static::currentId());
+        return CategoryTree::treeOptions($rows ?? static::rows(), $exclude ?? static::editingId());
+    }
+
+    /**
+     * La categoria aperta, solo nella sua scheda.
+     *
+     * Il «+ Aggiungi categoria» disegna questo albero dentro la scheda di un
+     * prodotto: lì l'id dell'indirizzo è del prodotto, e toglierebbe
+     * dall'albero la categoria che per caso ha lo stesso numero.
+     */
+    protected static function editingId(): ?int
+    {
+        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+
+        return str_contains($uri, '/'.basename(static::path()).'/') ? static::currentId() : null;
     }
 
     /** Un anello nell'albero si ferma qui, con parole da leggere. */

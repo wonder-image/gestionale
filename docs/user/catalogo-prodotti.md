@@ -22,9 +22,12 @@ che rivedrai ogni volta che tornerai su questo articolo, con gli stessi
 riquadri nello stesso ordine. Non c'è più un primo passaggio con quattro
 domande e un secondo con tutto il resto.
 
-Obbligatori sono due: il **nome** e il **tipo fiscale** — quello decide l'IVA, e
-lasciarlo indovinare vuol dire accorgersene in fattura. Il resto lo compili
-adesso o un altro giorno.
+Obbligatori sono due: il **nome** e il **tipo fiscale**, che decide l'IVA. Il
+tipo fiscale è già scelto: un articolo nuovo parte da quello segnato
+**Predefinito** nei tipi fiscali, e lo cambi nel riquadro **Vendita** solo per
+gli articoli che fanno eccezione (un libro, un alimento). Se il negozio ha un
+tipo fiscale solo, la scheda non lo chiede nemmeno. Il resto lo compili adesso
+o un altro giorno.
 
 Chi vende un cappello scrive nome, prezzo e categoria e salva. Chi vende
 magliette in due colori e tre taglie spunta gli attributi, riempie le righe che
@@ -38,8 +41,8 @@ domani correggi il nome: i link che qualcuno ha salvato continuano a funzionare.
 
 - **A sinistra** quello che si compone: nome e prezzo, le foto e i video, le
   descrizioni, la scheda tecnica.
-- **A destra**, stretta, quello che si decide: pubblicazione, codici, dove sta
-  nel sito, spedizione.
+- **A destra**, stretta, quello che si decide: vendita, codici, dove sta nel
+  sito, spedizione.
 - **In fondo, a tutta larghezza, «Opzioni in vendita»**: gli attributi da
   spuntare e la griglia di quello che vendi. Compare solo se hai risposto sì
   alla domanda qui sotto.
@@ -62,8 +65,8 @@ una per una, dove la cancellazione lo dice.
 
 ## «Opzioni in vendita»
 
-1. Apri il menu **«Aggiungi un attributo…»** e scegli *Colore*: compaiono i
-   colori del negozio, da spuntare.
+1. Apri il menu **«Aggiungi un attributo…»**, accanto al titolo del riquadro,
+   e scegli *Colore*: compaiono i colori del negozio, da spuntare.
 2. Te ne serve un altro? Riapri il menu e scegli *Taglia*. Il terzo è il
    massimo: arrivato lì, il menu te lo dice.
 3. Spunti **Blu** e **Rosso**, **S**, **M** e **L**: nella griglia qui sotto
@@ -88,13 +91,14 @@ gruppi diventano **S**, **M**, **L** e dentro ci stanno **Blu** e **Rosso**. La
 griglia si riscrive mentre guardi, prima ancora di salvare, e l'ordine resta
 quello che hai lasciato quando riapri la scheda.
 
-Il pulsante **+** accanto ai valori serve quando il colore che ti serve non c'è
-ancora: lo scrivi lì, senza uscire dalla scheda, e resta spuntato. Sappi che
+**+ Aggiungi opzione**, l'ultima pillola tratteggiata della fila, serve quando
+il colore che ti serve non c'è ancora: lo scrivi lì, senza uscire dalla scheda,
+e nasce come pillola già accesa, con le sue righe nella griglia. Sappi che
 **entra nell'elenco del negozio**: lo ritroverai su tutti gli altri articoli.
 
-Un attributo aperto per sbaglio si richiude con **«Togli colore»**. Quel bottone
-non c'è sugli attributi che l'articolo sta già usando: nascondere un colore che
-ha già le sue righe direbbe una bugia.
+Un attributo aperto per sbaglio si richiude con la **×** in fondo alla fila.
+Quel bottone non c'è sugli attributi che l'articolo sta già usando: nascondere
+un colore che ha già le sue righe direbbe una bugia.
 
 ### Tre cose da sapere
 
@@ -187,12 +191,27 @@ Per i carichi lunghi — centinaia di righe con una causale sola — restano
 **Magazzino → Giacenze** e il pulsante **Rettifica**: li trovi in
 [Giacenze e rettifiche](magazzino-giacenze.md).
 
+## Dove si trova: categorie e marchio
+
+Nel riquadro **Dove si trova** scegli marchio, tag e categorie. Le categorie
+sono un albero solo: **spunta tutte quelle in cui l'articolo deve comparire**.
+
+Fra quelle spuntate, una ha la **stella piena**: è la principale, quella che
+compare nel percorso sopra la pagina (*Home › Abbigliamento › Magliette*). Di
+solito è la più precisa. La prima che spunti prende la stella da sola; per
+spostarla clicca la stella vuota di un'altra categoria spuntata. Se togli la
+spunta alla principale, la stella passa alla prima rimasta.
+
+Sotto l'albero, **Aggiungi categoria** la crea senza lasciare la scheda: nome e
+categoria padre, e quella nuova compare al suo posto nell'albero, già spuntata.
+
 ## Le foto
 
 Si caricano in due posti, e in tutti e due si trascinano:
 
-- nel riquadro **Foto e video**, che ha un'area per l'articolo e un'area per
-  ogni colore;
+- nel riquadro **Foto e video**: quello che carichi nell'area dell'articolo
+  compare in **tutte le opzioni**; quello che carichi nell'area di un colore
+  (*Foto blu*) solo nelle opzioni di quel colore;
 - nella colonna **Foto o video** della griglia, e lì il file è di quella singola
   opzione.
 
@@ -215,30 +234,29 @@ toccano di rado e non stanno nella griglia. Il pulsante **Dettagli delle
 opzioni**, in alto nella scheda, apre l'elenco di quell'articolo e da lì si apre
 la riga che ti serve. Compare solo quando le opzioni sono più di una.
 
-## Stato e vendita online
+## Stato, vendita online e tipo fiscale
 
-Sono due domande diverse, nel riquadro **Pubblicazione**:
+Stanno nel riquadro **Vendita**, e le prime due sono domande diverse:
 
 - **Stato** — *Pubblicato* o *Bozza*. Una bozza non si vede da nessuna parte.
 - **Si vende online** — *Sì* o *No*. Un articolo pubblicato che non si vende
   online resta in catalogo per il negozio, per i documenti e per il magazzino,
   ma in vetrina non compare.
 
-Lì accanto ci sono anche **Si può rendere** e **Si spedisce**.
+Sotto c'è il **tipo fiscale** (vedi sopra: parte dal predefinito), e in fondo
+**Si può rendere** e **Si spedisce**.
 
-## Spedizione
+## Misure e spedizione
 
-Il riquadro c'è quando l'articolo si spedisce:
+Il riquadro **Misure** è del prodotto, non della spedizione, e c'è sempre:
+unità, peso, lunghezza, larghezza, altezza e circonferenza. Servono a sapere se
+l'articolo sta in una scatola. Un'opzione con misure sue le usa al posto di
+queste.
 
-- **Imballaggio** — la scatola in cui parte. Lasciandolo vuoto vale quella
-  predefinita del negozio.
-- **Peso del prodotto**, e accanto, in sola lettura, **Spedito**: prodotto più
-  scatola. È il numero che andrà al corriere, e vederlo qui è il modo di
-  accorgersi che manca il peso della scatola vuota.
-- **Lunghezza, larghezza, altezza** servono ai fuori misura, quelli che nella
-  scatola scelta non ci stanno.
-
-Mettendo **Si spedisce** su *No*, il riquadro sparisce.
+Il riquadro **Spedizione** c'è quando l'articolo si spedisce, e chiede solo
+l'**imballaggio**: la scatola in cui parte. Lasciandolo vuoto vale quella
+predefinita del negozio. Mettendo **Si spedisce** su *No*, il riquadro
+sparisce.
 
 ## Eliminare un articolo
 
