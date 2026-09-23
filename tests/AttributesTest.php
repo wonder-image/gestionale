@@ -12,10 +12,11 @@ $taglia = ['id' => 2, 'name' => 'Taglia', 'type' => 'select', 'level' => 'produc
 $peso = ['id' => 3, 'name' => 'Peso', 'type' => 'number', 'level' => 'model', 'unit' => 'g', 'group_name' => 'Misure'];
 $materiale = ['id' => 4, 'name' => 'Materiale', 'type' => 'text', 'level' => 'model', 'unit' => '', 'group_name' => ''];
 
-check('elenco, colore e fantasia hanno dei valori', fn () =>
+check('elenco, colore, fantasia e icona hanno dei valori', fn () =>
     Attributes::usesValues('select')
     && Attributes::usesValues('color')
     && Attributes::usesValues('pattern')
+    && Attributes::usesValues('icon')
     && !Attributes::usesValues('text')
     && !Attributes::usesValues('number')
 );
@@ -26,6 +27,7 @@ check('solo testo e numero hanno un\'unità di misura', fn () =>
     && !Attributes::usesUnit('select')
     && !Attributes::usesUnit('color')
     && !Attributes::usesUnit('pattern')
+    && !Attributes::usesUnit('icon')
     && !Attributes::usesUnit('')
 );
 
@@ -46,10 +48,33 @@ check('una fantasia si sceglie dai valori, come un elenco', function () {
         && Attributes::format($fantasia, ['attribute_value_id' => 12], [12 => ['label' => 'Scozzese']]) === 'Scozzese';
 });
 
-check('i livelli si chiamano come li capisce un negoziante', fn () =>
-    Attributes::levels()['model'] === 'Descrive l\'articolo'
-    && Attributes::levels()['variant'] === 'Crea opzioni con pagina e foto proprie'
-    && Attributes::levels()['product'] === 'Crea opzioni da scegliere nel carrello'
+check('gli usi si chiamano come li capisce un negoziante', fn () =>
+    Attributes::levels()['model'] === 'Scheda tecnica dell\'articolo'
+    && Attributes::levels()['variant'] === 'Opzione con foto proprie'
+    && Attributes::levels()['product'] === 'Opzione da scegliere'
+);
+
+check('la parola "carrello" non si legge: gli attributi li scrive chi vende', fn () =>
+    array_filter(
+        [...Attributes::LEVELS, ...Attributes::FREE_LEVELS],
+        static fn (string $label): bool => stripos($label, 'carrello') !== false
+    ) === []
+);
+
+check('testo e numero non hanno l\'uso con foto proprie', fn () =>
+    array_keys(Attributes::levelsFor('text')) === ['model', 'product']
+    && array_keys(Attributes::levelsFor('number')) === ['model', 'product']
+    && Attributes::levelsFor('text')['product'] === 'Scheda tecnica di ogni opzione'
+    && array_keys(Attributes::levelsFor('color')) === ['model', 'variant', 'product']
+    && !Attributes::acceptsLevel('text', 'variant')
+    && Attributes::acceptsLevel('pattern', 'variant')
+);
+
+check('nella tabella l\'uso si legge con le parole del tipo', fn () =>
+    Attributes::levelLabel('number', 'product') === 'Scheda tecnica di ogni opzione'
+    && Attributes::levelLabel('select', 'product') === 'Opzione da scegliere'
+    && Attributes::levelLabel('text', 'variant') === 'Opzione con foto proprie'
+    && Attributes::levelLabel('text', 'boh') === ''
 );
 
 check('la parola "versione" non si legge da nessuna parte', fn () =>
@@ -74,7 +99,28 @@ check('due livelli su tre creano opzioni in vendita', fn () =>
 check('i tipi hanno un nome da leggere', fn () =>
     Attributes::types()['select'] === 'Elenco'
     && Attributes::types()['pattern'] === 'Fantasia'
-    && array_keys(Attributes::types()) === ['select', 'color', 'pattern', 'text', 'number']
+    && Attributes::types()['icon'] === 'Icona'
+    && array_keys(Attributes::types()) === ['select', 'color', 'pattern', 'icon', 'text', 'number']
+);
+
+check('un colore si mostra con il suo pallino', fn () =>
+    Attributes::valueVisual('color', ['color' => ' #1d4ed8 ']) === ['color' => '#1d4ed8']
+    && Attributes::valueVisual('color', ['color' => '']) === []
+);
+
+check('una fantasia senza immagine non mostra niente', fn () =>
+    Attributes::valueVisual('pattern', ['color' => '#000000']) === []
+    && Attributes::valueVisual('pattern', [], '/uploads/scozzese.jpg') === ['image' => '/uploads/scozzese.jpg']
+);
+
+check('su un\'icona l\'immagine vince sul segno della raccolta', fn () =>
+    Attributes::valueVisual('icon', ['icon' => 'bi-star'], '/uploads/stella.png') === ['image' => '/uploads/stella.png']
+    && Attributes::valueVisual('icon', ['icon' => 'bi-star']) === ['icon' => 'bi-star']
+    && Attributes::valueVisual('icon', ['icon' => ' ']) === []
+);
+
+check('un elenco che è stato un colore non mostra pallini', fn () =>
+    Attributes::valueVisual('select', ['color' => '#ff0000', 'icon' => 'bi-star'], '/uploads/x.jpg') === []
 );
 
 check('ogni livello vede solo i suoi attributi', function () use ($colore, $taglia, $peso, $materiale) {

@@ -97,7 +97,7 @@ final class TaxCategoryResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Tipo fiscale')
-                        ->tooltip('Un articolo nuovo parte dal tipo predefinito. Con un tipo fiscale solo, la scheda prodotto non lo mostra nemmeno.')
+                        ->tooltip('Un articolo nuovo parte dal tipo predefinito. Un tipo nascosto non si propone più, ma resta sugli articoli che lo usano.')
                         ->columnSpan(12),
                     static::getInput('code')->columnSpan(3),
                     static::getInput('name')->columnSpan(5),

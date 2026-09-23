@@ -13,17 +13,32 @@ namespace Wonder\Plugin\Gestionale\Support\Catalog;
 final class Attributes
 {
     /**
-     * A cosa serve un attributo, detto come lo capisce chi vende.
+     * L'uso di un attributo, detto come lo capisce chi vende.
      *
      * Le chiavi sono quelle di sempre — il database non cambia — ma nessuno
      * deve più indovinare cosa sia un "livello". La scelta si fa una volta per
      * negozio: dentro un sito lo stesso attributo si comporta sempre allo
      * stesso modo, e la scheda del prodotto non lo nomina mai.
+     *
+     * Sono le voci di un attributo a valori: per Testo e Numero le parole
+     * cambiano, vedi {@see levelsFor()}.
      */
     public const LEVELS = [
-        'model' => 'Descrive l\'articolo',
-        'variant' => 'Crea opzioni con pagina e foto proprie',
-        'product' => 'Crea opzioni da scegliere nel carrello',
+        'model' => 'Scheda tecnica dell\'articolo',
+        'variant' => 'Opzione con foto proprie',
+        'product' => 'Opzione da scegliere',
+    ];
+
+    /**
+     * Le voci di un Testo o di un Numero.
+     *
+     * Non fanno nascere opzioni — non c'è un elenco da cui sceglierle — e
+     * quindi niente foto proprie. Quello che resta è dove si scrive il valore:
+     * una volta per l'articolo, o su ogni opzione (il peso di ogni formato).
+     */
+    public const FREE_LEVELS = [
+        'model' => 'Scheda tecnica dell\'articolo',
+        'product' => 'Scheda tecnica di ogni opzione',
     ];
 
     /** Come si scrive il suo valore. */
@@ -31,6 +46,7 @@ final class Attributes
         'select' => 'Elenco',
         'color' => 'Colore',
         'pattern' => 'Fantasia',
+        'icon' => 'Icona',
         'text' => 'Testo',
         'number' => 'Numero',
     ];
@@ -39,9 +55,10 @@ final class Attributes
      * I tipi che si scelgono da un elenco di valori.
      *
      * Un Elenco ha solo il nome del valore, un Colore anche il codice, una
-     * Fantasia anche l'immagine.
+     * Fantasia anche l'immagine, un'Icona un segno della raccolta o
+     * un'immagine sua.
      */
-    public const VALUE_TYPES = ['select', 'color', 'pattern'];
+    public const VALUE_TYPES = ['select', 'color', 'pattern', 'icon'];
 
     /** I tipi che si scrivono sul prodotto, e che hanno un'unità di misura. */
     public const UNIT_TYPES = ['number', 'text'];
@@ -53,6 +70,28 @@ final class Attributes
     public static function levels(): array
     {
         return self::LEVELS;
+    }
+
+    /**
+     * Gli usi che hanno senso per quel tipo, con le parole giuste per lui.
+     *
+     * @return array<string, string>
+     */
+    public static function levelsFor(string $type): array
+    {
+        return self::usesUnit($type) ? self::FREE_LEVELS : self::LEVELS;
+    }
+
+    /** Vero quando quel tipo può avere quell'uso. */
+    public static function acceptsLevel(string $type, string $level): bool
+    {
+        return array_key_exists($level, self::levelsFor($type));
+    }
+
+    /** L'uso da leggere, con le parole del tipo. */
+    public static function levelLabel(string $type, string $level): string
+    {
+        return self::levelsFor($type)[$level] ?? self::LEVELS[$level] ?? '';
     }
 
     /** @return array<string, string> */
@@ -109,6 +148,37 @@ final class Attributes
         }
 
         return $groups;
+    }
+
+    /**
+     * Il segno che accompagna il nome di un valore: `image`, `icon` o
+     * `color`, nella forma che leggono le opzioni dei campi del core.
+     *
+     * Lo decide il tipo dell'attributo, non le colonne piene: cambiando tipo
+     * i codici e le immagini di prima restano sul valore, e un Elenco che è
+     * stato un Colore non deve mostrare pallini. Sull'Icona il file caricato
+     * vince sul nome: chi l'ha caricato ha scelto quello.
+     *
+     * @param array<string, mixed> $value riga di `gst_attribute_values`
+     * @param string $imageUrl l'indirizzo della sua immagine, se ne ha una
+     * @return array<string, string> vuoto quando il tipo non ne ha
+     */
+    public static function valueVisual(string $type, array $value, string $imageUrl = ''): array
+    {
+        $imageUrl = trim($imageUrl);
+
+        return match ($type) {
+            'color' => trim((string) ($value['color'] ?? '')) !== ''
+                ? ['color' => trim((string) $value['color'])]
+                : [],
+            'pattern' => $imageUrl !== '' ? ['image' => $imageUrl] : [],
+            'icon' => match (true) {
+                $imageUrl !== '' => ['image' => $imageUrl],
+                trim((string) ($value['icon'] ?? '')) !== '' => ['icon' => trim((string) $value['icon'])],
+                default => [],
+            },
+            default => [],
+        };
     }
 
     /**

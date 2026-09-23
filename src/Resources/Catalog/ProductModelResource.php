@@ -178,10 +178,10 @@ class ProductModelResource extends GestionaleResource
                 ->select(static::brandOptions())
                 ->label('Marchio')
                 ->quickCreate(BrandResource::class),
-            // Parte dal tipo predefinito: quasi nessuno lo cambia. Con un tipo
-            // solo non c'è niente da scegliere e il campo resta nascosto,
-            // con quel valore dentro.
-            static::taxCategoryField(),
+            // Parte dal tipo predefinito: quasi nessuno lo cambia, ma il
+            // campo si vede sempre — nascosto, il giorno in cui serve non si
+            // trova.
+            static::taxCategoryField((int) ($modelId ?? 0)),
             // Il codice di famiglia: da lì nascono quelli delle opzioni.
             // Con le varianti accese non si scrive qui, ma il valore resta
             // nel modulo — nascosto, non tolto — e continua a proporre i
@@ -314,12 +314,23 @@ class ProductModelResource extends GestionaleResource
             $domanda = $domanda->readonly()->disabled();
         }
 
+        // Senza attributi da cui far nascere opzioni, «sì» porterebbe a un
+        // riquadro vuoto: la domanda non si fa. Un articolo che ha già le
+        // varianti la tiene, o non potrebbe più tornare indietro.
+        $senzaOpzioni = !$conVarianti && static::optionAttributes() === [];
+
+        if ($senzaOpzioni) {
+            $domanda = FormField::key('has_variants')->hidden()->value('false');
+        }
+
         $cards = [
             (new Card)->components([
                 SectionTitle::make('Prodotto')
                     ->tooltip($conVarianti
                         ? 'Questa casella è un comando, non un riepilogo: scrivici un prezzo e al salvataggio va su tutte le opzioni in vendita. Lasciala vuota e i prezzi delle righe restano come sono.'
-                        : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il tipo fiscale, nel riquadro «Vendita».')
+                        : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il tipo fiscale, nel riquadro «Vendita».'
+                            .($modelId > 0 ? '' : ' La giacenza scritta alla creazione entra come giacenza iniziale, nella sede principale.')
+                            .($senzaOpzioni ? ' Per vendere colori o taglie serve un attributo con uso «Opzione da scegliere» o «Opzione con foto proprie», e dei valori: si crea in Catalogo → Attributi.' : ''))
                     ->columnSpan(12),
                 static::getInput('name')->columnSpan(12),
                 $domanda,
@@ -329,17 +340,15 @@ class ProductModelResource extends GestionaleResource
                         ->tag('div')
                         ->columnSpan(12),
                 ] : []),
-                // In creazione la giacenza non c'è ancora: i due prezzi si
-                // prendono la riga.
-                static::getInput('product_price')->columnSpan($modelId > 0 ? 4 : 6),
-                static::getInput('product_sale_price')->columnSpan($modelId > 0 ? 4 : 6),
+                static::getInput('product_price')->columnSpan(4),
+                static::getInput('product_sale_price')->columnSpan(4),
                 // Senza varianti la giacenza sta qui, accanto al prezzo: è la
                 // scheda di quell'unico articolo, e la parola "opzione" non
-                // compare da nessuna parte.
-                // In creazione non c'è ancora niente da rettificare: la
-                // giacenza compare dal primo salvataggio in poi.
+                // compare da nessuna parte. In creazione c'è già: chi crea
+                // l'articolo ha la merce davanti.
+                static::getInput('product_stock')->columnSpan(4),
+                // In creazione non c'è ancora niente da rettificare.
                 ...($modelId > 0 ? [
-                    static::getInput('product_stock')->columnSpan(4),
                     RichText::make(static::adjustLink($modelId))
                         ->columnSpan(12)
                         ->hiddenWhen('has_variants', 'true'),
@@ -421,7 +430,7 @@ class ProductModelResource extends GestionaleResource
                 // Titolo e selettore stanno sulla stessa riga: una riga a
                 // testa era spazio che non diceva niente di nuovo.
                 SectionTitle::make('Opzioni in vendita')
-                    ->tooltip('Scegli un attributo — colore, taglia, gusto — e spunta i valori: le righe compaiono qui sotto e nascono al salvataggio, con codice, prezzo, giacenza e foto. Togliere una spunta non cancella niente che esista già.')
+                    ->tooltip('Scegli un attributo — colore, taglia, gusto — e spunta i valori: le righe compaiono qui sotto e nascono al salvataggio, con codice, prezzo, giacenza e foto. Togliere una spunta non cancella niente che esista già. Nell\'elenco ci sono gli attributi visibili, con uso «Opzione da scegliere» o «Opzione con foto proprie», di tipo Elenco, Colore, Fantasia o Icona, e con almeno un valore: si sistemano in Catalogo → Attributi.')
                     ->columnSpan(6),
                 static::optionsPicker($modelId)->columnSpan(6),
                 // I blocchi stanno in un contenitore loro: il riordino li
@@ -690,32 +699,56 @@ class ProductModelResource extends GestionaleResource
         }
 
         static::assertSomeVersionLeft($id);
-        static::assertStockWritable();
+        static::assertStockWritable($id, $values['has_variants'] === 'true');
 
         return static::withoutExtras($values);
     }
 
     /**
-     * La giacenza scritta nella griglia dev'essere un numero di pezzi.
+     * La giacenza scritta a mano dev'essere un numero di pezzi.
      *
      * Il rifiuto si calcola qui, prima che il salvataggio cominci: dopo
      * l'insert non c'è nessuna rete — il sync e `afterUpdate` girano fuori da
      * qualunque try — e un errore diventerebbe una pagina di guasto su un
      * articolo già scritto a metà.
+     *
+     * Una giacenza già sotto zero per le vendite in arretrato, lasciata com'era,
+     * passa: non l'ha scritta nessuno. In creazione si controlla anche con più
+     * sedi, perché lì la casella si scrive comunque.
      */
-    public static function assertStockWritable(): void
+    public static function assertStockWritable(int $modelId = 0, bool $conVarianti = true): void
     {
-        if (!static::stockIsWritable()) {
+        if ($modelId > 0 && !static::stockIsWritable()) {
+            return;
+        }
+
+        if (!$conVarianti) {
+            $product = $modelId > 0 ? static::soleProduct($modelId) : null;
+
+            if (static::negativeWritten($_POST['product_stock'] ?? null, (int) ($product['id'] ?? 0))) {
+                throw UserError::make('product.stock_negative');
+            }
+
             return;
         }
 
         foreach (static::postedRows((array) $_POST) as $riga) {
-            $quantita = Stocktake::quantity($riga['stock'] ?? null);
-
-            if ($quantita !== null && $quantita < 0) {
+            if (static::negativeWritten($riga['stock'] ?? null, (int) ($riga['id'] ?? 0))) {
                 throw UserError::make('product.stock_negative');
             }
         }
+    }
+
+    /** Un numero sotto zero diverso da quello che il prodotto ha già. */
+    protected static function negativeWritten(mixed $value, int $productId): bool
+    {
+        $quantita = Stocktake::quantity($value);
+
+        if ($quantita === null || $quantita >= 0) {
+            return false;
+        }
+
+        return $productId <= 0 || abs($quantita - (float) (Levels::of($productId)['quantity'] ?? 0)) > 0.0005;
     }
 
     /**
@@ -772,9 +805,13 @@ class ProductModelResource extends GestionaleResource
      * pannello fa il movimento della differenza — ma la casella sta in alto,
      * accanto al prezzo, perché lì non c'è nessuna griglia da guardare.
      */
-    protected static function saveSingleStock(int $modelId, array $post, bool $conVarianti): void
-    {
-        if ($conVarianti || !static::stockIsWritable()) {
+    protected static function saveSingleStock(
+        int $modelId,
+        array $post,
+        bool $conVarianti,
+        bool $appenaNato = false
+    ): void {
+        if ($conVarianti || (!$appenaNato && !static::stockIsWritable())) {
             return;
         }
 
@@ -787,6 +824,15 @@ class ProductModelResource extends GestionaleResource
         $quantita = Stocktake::quantity($post['product_stock'] ?? null);
 
         if ($quantita === null) {
+            return;
+        }
+
+        // Su un articolo che nasce non c'è niente da rettificare: il numero
+        // è un carico, sulla sede principale anche quando le sedi sono più
+        // d'una.
+        if ($appenaNato) {
+            static::loadInitialStock((int) $product['id'], $quantita);
+
             return;
         }
 
@@ -860,7 +906,7 @@ class ProductModelResource extends GestionaleResource
         $sku = (string) ($values['sku'] ?? '');
 
         Skeleton::forModel($id, (string) ($values['name'] ?? ''), $sku);
-        static::saveExtras($id, (array) $_POST, $sku, (array) $_FILES);
+        static::saveExtras($id, (array) $_POST, $sku, (array) $_FILES, true);
     }
 
     public static function afterUpdate(int|string $id, object $result, array $values = []): void
@@ -873,19 +919,21 @@ class ProductModelResource extends GestionaleResource
      *
      * `$fallbackSku` è lo SKU del modello appena creato: se la casella del
      * prodotto è vuota, il prodotto tiene quello, invece di perdere il codice
-     * che il modello gli ha appena dato.
+     * che il modello gli ha appena dato. `$appenaNato` dice che il modello è
+     * stato creato adesso: la giacenza scritta in alto è un carico iniziale.
      */
     public static function saveExtras(
         int $modelId,
         array $post,
         string $fallbackSku = '',
-        array $files = []
+        array $files = [],
+        bool $appenaNato = false
     ): void {
         if ($modelId <= 0) {
             return;
         }
 
-        Transaction::run(static function () use ($modelId, $post, $fallbackSku, $files): void {
+        Transaction::run(static function () use ($modelId, $post, $fallbackSku, $files, $appenaNato): void {
             static::saveCategories($modelId, $post);
             static::saveTags($modelId, $post);
             static::saveModelAttributes($modelId, $post);
@@ -918,8 +966,11 @@ class ProductModelResource extends GestionaleResource
             static::savePrices($modelId, $post, $fallbackSku, $appena);
             static::saveNewVersions($modelId, $nate, $scritte, $files);
             static::saveRowExtras($modelId, $righe, $files, $conVarianti);
-            static::saveSingleStock($modelId, $post, $conVarianti);
-            static::saveImages($modelId, $post, $files);
+            static::saveSingleStock($modelId, $post, $conVarianti, $appenaNato);
+            // Dopo il generatore: le foto di un colore appena spuntato hanno
+            // bisogno della sua variante.
+            $colori = static::saveGroupImages($modelId, $post, $files);
+            static::saveImages($modelId, $post, $files, $colori);
             // Il nome non lo scrive chi compila: nasce dagli attributi, e si
             // rimette in riga a ogni salvataggio.
             static::realignNames($modelId);
@@ -1078,15 +1129,8 @@ class ProductModelResource extends GestionaleResource
             $scritto = is_array($scritte[$chiave] ?? null) ? $scritte[$chiave] : [];
             $quantita = Stocktake::quantity($scritto['stock'] ?? null);
 
-            if ($quantita !== null && $quantita > 0) {
-                // La giacenza non si scrive: si carica. Il movimento resta, con
-                // la sua causale, come per ogni altro pezzo che entra.
-                Stock::apply([
-                    'product_id' => $riga['product_id'],
-                    'quantity' => $quantita,
-                    'reason' => 'initial_stock',
-                    'note' => 'Giacenza iniziale, dalla scheda dell\'articolo',
-                ]);
+            if ($quantita !== null) {
+                static::loadInitialStock((int) $riga['product_id'], $quantita);
             }
 
             static::saveOptionImage(
@@ -1095,6 +1139,26 @@ class ProductModelResource extends GestionaleResource
                 $caricate[$chiave]['photo'] ?? null
             );
         }
+    }
+
+    /**
+     * La giacenza di un prodotto appena nato.
+     *
+     * Non si scrive: si carica. Il movimento resta, con la sua causale, come
+     * per ogni altro pezzo che entra; zero o niente non lasciano traccia.
+     */
+    protected static function loadInitialStock(int $productId, float $quantita): void
+    {
+        if ($productId <= 0 || $quantita <= 0) {
+            return;
+        }
+
+        Stock::apply([
+            'product_id' => $productId,
+            'quantity' => $quantita,
+            'reason' => 'initial_stock',
+            'note' => 'Giacenza iniziale, dalla scheda dell\'articolo',
+        ]);
     }
 
     /**
@@ -1143,11 +1207,18 @@ class ProductModelResource extends GestionaleResource
      * file appena caricato. Da lì nascono, si riordinano e spariscono le
      * righe di `gst_product_images` — una per foto, perché è una riga per
      * foto che la coda delle misure sa lavorare.
+     *
+     * @param list<int> $giaSalvate varianti le cui foto le ha già scritte la
+     *        testata del gruppo: una seconda area le riscriverebbe
      */
-    protected static function saveImages(int $modelId, array $post, array $files): void
+    protected static function saveImages(int $modelId, array $post, array $files, array $giaSalvate = []): void
     {
         foreach (array_keys(static::imageTargets($modelId)) as $variantId) {
             $campo = 'images_'.(int) $variantId;
+
+            if (in_array((int) $variantId, $giaSalvate, true)) {
+                continue;
+            }
 
             // Il campo non era in pagina: non è un'area svuotata, è un'area
             // che nessuno ha mostrato. Toccarla cancellerebbe tutto.
@@ -1163,6 +1234,48 @@ class ProductModelResource extends GestionaleResource
 
             static::syncAreaImages($modelId, (int) $variantId, $manifesto, $files[$campo] ?? null);
         }
+    }
+
+    /**
+     * Le foto che le testate dei gruppi hanno postato, colore per colore.
+     *
+     * La chiave del gruppo è l'id del valore; la variante si cerca dopo il
+     * generatore, così un colore appena spuntato ha già la sua. Un colore
+     * che non c'è — in creazione, quello di cui si sono annullate tutte le
+     * righe — non ha variante, e le sue foto si lasciano cadere.
+     *
+     * @return list<int> le varianti le cui foto sono state scritte
+     */
+    protected static function saveGroupImages(int $modelId, array $post, array $files): array
+    {
+        $gruppi = Repeater::groupFilesFromRequest('group_images', $post, $files);
+
+        if ($gruppi === []) {
+            return [];
+        }
+
+        $varianteDi = [];
+
+        foreach (static::variantValues($modelId) as $variantId => $valueId) {
+            if ($valueId > 0) {
+                $varianteDi[$valueId] = (int) $variantId;
+            }
+        }
+
+        $salvate = [];
+
+        foreach ($gruppi as $chiave => $gruppo) {
+            $variantId = $varianteDi[(int) $chiave] ?? 0;
+
+            if ($variantId <= 0 || in_array($variantId, $salvate, true)) {
+                continue;
+            }
+
+            static::syncAreaImages($modelId, $variantId, $gruppo['manifest'], $gruppo['files']);
+            $salvate[] = $variantId;
+        }
+
+        return $salvate;
     }
 
     /**
@@ -1383,6 +1496,7 @@ class ProductModelResource extends GestionaleResource
                 );
                 // Il primo asse raggruppa; quello che resta del nome si legge.
                 $values['products'][$index]['group'] = $nomi[$productId]['group'] ?? '';
+                $values['products'][$index]['group_value'] = $nomi[$productId]['group_value'] ?? '';
                 $values['products'][$index]['option'] = $nomi[$productId]['label'] ?? '';
                 $values['products'][$index]['photo'] = $foto[$productId] ?? '';
                 $values['products'][$index]['combination'] = $nomi[$productId]['key'] ?? '';
@@ -1581,7 +1695,7 @@ class ProductModelResource extends GestionaleResource
 
             $fields[] = FormField::key('option_'.$id)
                 ->checkbox()
-                ->options(static::valuesOf($id))
+                ->options(static::valueChoices($attribute))
                 ->label((string) ($attribute['name'] ?? ''))
                 // Il valore nuovo entra nell'elenco del negozio, non in questo
                 // articolo: per questo il bottone dice "aggiungi colore" e non
@@ -2017,9 +2131,12 @@ HTML)->tag('div');
         }
 
         $esistenti = static::escape(json_encode($chiavi, JSON_THROW_ON_ERROR));
+        // L'attributo con foto proprie: quando raggruppa lui, la testata
+        // porta le foto del colore.
+        $asseColore = static::variantAttributeId();
 
         return RichText::make(<<<HTML
-<div class="wi-options-grid" data-wi-existing="{$esistenti}"></div>
+<div class="wi-options-grid" data-wi-existing="{$esistenti}" data-wi-photo-attribute="{$asseColore}"></div>
 <script>
     window.wiOptionsGrid = window.wiOptionsGrid || (function () {
         function radice() {
@@ -2114,6 +2231,7 @@ HTML)->tag('div');
             document.querySelectorAll('input[type="checkbox"][name^="option_"]').forEach(function (casella) {
                 var nome = casella.getAttribute('name');
                 mappa[String(casella.value)] = {
+                    id: String(casella.value),
                     attribute: (nome.match(/option_(\d+)/) || [])[1] || '',
                     label: etichettaDi(casella)
                 };
@@ -2157,8 +2275,23 @@ HTML)->tag('div');
                 if (!etichette.length) return;
 
                 scrivi(riga, 'group', etichette[0]);
+                scrivi(riga, 'group_value', chiaveFoto(messi[0]));
                 scrivi(riga, 'option', etichette.slice(1).join(' / ') || etichette[0]);
             });
+        }
+
+        function asseFoto() {
+            var root = radice();
+
+            return root ? String(root.getAttribute('data-wi-photo-attribute') || '0') : '0';
+        }
+
+        // La chiave delle foto della testata: l'id del valore che raggruppa,
+        // se è un colore. Vuota, la testata non ha il bottone delle foto.
+        function chiaveFoto(valore) {
+            return valore && asseFoto() !== '0' && String(valore.attribute) === asseFoto()
+                ? String(valore.id)
+                : '';
         }
 
         function cartesiano(assi) {
@@ -2240,6 +2373,7 @@ HTML)->tag('div');
                 var resto = combo.slice(1).map(function (v) { return v.label; });
 
                 scrivi(riga, 'group', gruppo);
+                scrivi(riga, 'group_value', chiaveFoto(combo[0]));
                 scrivi(riga, 'option', resto.join(' / ') || gruppo);
                 scrivi(riga, 'sku', skuProposto(base, combo));
 
@@ -2266,12 +2400,15 @@ HTML)->tag('div');
         // Con un attributo solo ogni gruppo conterrebbe una riga e la testata
         // ripeterebbe il nome della riga: i gruppi cominciano da due
         // attributi in su, e senza niente su cui raggruppare la griglia resta
-        // piatta invece di mostrare una testata «Senza scelta».
+        // piatta invece di mostrare una testata «Senza scelta». Fa eccezione
+        // il colore: la sua testata è il posto delle sue foto.
         function raggruppa(box, righe) {
             if (typeof window.wiRepeaterGroupApply !== 'function') return;
             if (righe.getAttribute('data-wi-group-fixed') !== 'true') return;
 
-            var assi = assiSpuntati().length;
+            var spuntati = assiSpuntati();
+            var assi = spuntati.length;
+            var colore = assi === 1 && chiaveFoto(spuntati[0][0]) !== '';
             var conGruppo = Array.prototype.slice.call(righe.querySelectorAll('[name\$="[group]"]'))
                 .some(function (campo) { return String(campo.value || '').trim() !== ''; });
 
@@ -2283,7 +2420,7 @@ HTML)->tag('div');
             window.wiRepeaterGroupApply(
                 righe.id,
                 box.id + '-group-template',
-                conGruppo && assi >= 2 ? 'group' : ''
+                conGruppo && (assi >= 2 || colore) ? 'group' : ''
             );
         }
 
@@ -2450,7 +2587,9 @@ HTML)->tag('div');
     {
         $targets = [0 => 'Foto dell\'articolo'];
 
-        if (static::variantCount($modelId) > 1) {
+        // Le foto del colore si caricano nella testata del suo gruppo: qui
+        // resterebbero due posti per la stessa cosa.
+        if (static::variantCount($modelId) > 1 && !static::colorPhotosInGroups($modelId)) {
             foreach (static::variants($modelId) as $variant) {
                 $targets[(int) $variant['id']] = 'Foto '.mb_strtolower((string) ($variant['name'] ?? ''));
             }
@@ -2640,7 +2779,7 @@ HTML)->tag('div');
         $field = FormField::key('attribute_'.$id);
 
         if (Attributes::usesValues((string) ($attribute['type'] ?? ''))) {
-            return $field->select(static::valueOptions($id))->label($label);
+            return $field->select(static::valueOptions($attribute))->label($label);
         }
 
         if (($attribute['type'] ?? '') === 'number') {
@@ -2668,25 +2807,47 @@ HTML)->tag('div');
         return (string) ($link['value_text'] ?? '');
     }
 
-    /** Voci di un attributo a elenco. @return array<string, string> */
-    protected static function valueOptions(int $attributeId): array
+    /** Voci di un attributo a elenco, con la voce vuota in cima. @return array<string, mixed> */
+    protected static function valueOptions(array $attribute): array
     {
-        $options = ['' => '—'];
-
-        foreach (static::attributeValues() as $value) {
-            if ((int) ($value['attribute_id'] ?? 0) === $attributeId) {
-                $options[(string) $value['id']] = (string) ($value['label'] ?? '');
-            }
-        }
-
-        return $options;
+        return ['' => '—'] + static::valueChoices($attribute);
     }
 
     /**
-     * Come si chiama, in questo negozio, l'opzione con pagina propria.
+     * I valori di un attributo come voci di un campo: il nome e, accanto, il
+     * pallino, la fantasia o l'icona che il suo tipo prevede.
+     *
+     * Un valore senza segno resta una stringa: un Elenco si legge come prima.
+     *
+     * @param array<string, mixed> $attribute
+     * @return array<string, string|array<string, string>>
+     */
+    public static function valueChoices(array $attribute): array
+    {
+        $id = (int) ($attribute['id'] ?? 0);
+        $type = (string) ($attribute['type'] ?? '');
+        $choices = [];
+
+        foreach (static::attributeValues() as $value) {
+            if ((int) ($value['attribute_id'] ?? 0) !== $id) {
+                continue;
+            }
+
+            $label = (string) ($value['label'] ?? '');
+            $imageUrl = in_array($type, ['pattern', 'icon'], true) ? AttributeValue::imageUrl($value) : '';
+            $visual = Attributes::valueVisual($type, $value, $imageUrl);
+            $choices[(string) $value['id']] = $visual === [] ? $label : ['name' => $label] + $visual;
+        }
+
+        return $choices;
+    }
+
+    /**
+     * Come si chiama, in questo negozio, l'opzione con foto proprie.
      *
      * "Colore" per chi vende magliette, "Gusto" per una gelateria. Serve a non
-     * far mai leggere a nessuno la parola "variante".
+     * far mai leggere a nessuno la parola "variante"; un negozio che non ne ha
+     * una legge "Opzioni".
      */
     public static function pageOptionName(): string
     {
@@ -2696,7 +2857,7 @@ HTML)->tag('div');
             }
         }
 
-        return 'Versioni con pagina propria';
+        return 'Opzioni';
     }
 
     /**
@@ -2721,6 +2882,11 @@ HTML)->tag('div');
                 // a raggruppare, e in chiaro lo dice la testata del gruppo,
                 // una volta sola invece che su ogni riga.
                 RepeaterColumn::key('group')->hidden()->label(static::pageOptionName()),
+                // L'id del valore che raggruppa, quando è un colore: è la
+                // chiave delle foto della testata. Il nome non basta — si
+                // rinomina — e con la taglia davanti resta vuota: una foto
+                // della taglia S non vuol dire niente.
+                RepeaterColumn::key('group_value')->hidden(),
                 // Le spunte che tengono in piedi questa riga: togliendo la
                 // riga, il browser sa quali valori non servono più.
                 RepeaterColumn::key('combination')->hidden(),
@@ -2744,7 +2910,9 @@ HTML)->tag('div');
                     ->number()
                     ->decimal(3)
                     ->label('Giacenza')
-                    ->readonly(!static::stockIsWritable())
+                    // In creazione si scrive anche con più sedi: è un carico
+                    // iniziale, e va sulla sede principale.
+                    ->readonly($modelId > 0 && !static::stockIsWritable())
                     ->columnSpan(2),
                 // Dietro «Compila le informazioni avanzate»: chi carica un
                 // articolo nuovo quasi mai ha già il codice a barre in mano.
@@ -2788,9 +2956,59 @@ HTML)->tag('div');
                 ->repeaterGroupFixed('group')
                 ->repeaterGroupCommand('price', 'Prezzo del gruppo')
                 ->repeaterGroupCountLabel('opzione', 'opzioni');
+
+            if (static::variantAttributeId() > 0) {
+                $campo = $campo->repeaterGroupFiles(
+                    FormField::key('group_images')
+                        ->fileDragDrop('gallery')
+                        ->maxFile(static::MAX_IMAGES)
+                        ->label('')
+                        ->value(static::groupImageNames($modelId)),
+                    'group_value',
+                    'Foto del colore'
+                );
+            }
         }
 
         return $campo;
+    }
+
+    /**
+     * Le foto di ogni colore, per id del valore: il valore del campo della
+     * testata.
+     *
+     * @return array<string, list<string>>
+     */
+    protected static function groupImageNames(int $modelId): array
+    {
+        if ($modelId <= 0) {
+            return [];
+        }
+
+        $nomi = [];
+
+        foreach (static::variantValues($modelId) as $variantId => $valueId) {
+            if ($valueId > 0) {
+                $nomi[(string) $valueId] = static::imageNames($modelId, (int) $variantId);
+            }
+        }
+
+        return $nomi;
+    }
+
+    /**
+     * Se le foto del colore stanno nella testata del gruppo.
+     *
+     * Ci stanno quando il negozio ha un attributo con foto proprie e questo
+     * articolo raggruppa per lui. Con «Taglia, poi Colore» i gruppi sono
+     * taglie: le foto del colore restano nel riquadro «Foto e video», un'area
+     * per colore, o non ci sarebbe nessun posto dove caricarle.
+     */
+    public static function colorPhotosInGroups(int $modelId): bool
+    {
+        $asse = static::variantAttributeId();
+
+        return $asse > 0 && (static::axesOrder($modelId)[0] ?? 0) === $asse;
     }
 
     /**
@@ -2798,17 +3016,24 @@ HTML)->tag('div');
      *
      * Con un attributo solo ogni gruppo conterrebbe una riga e la testata
      * ripeterebbe il nome della riga: i gruppi cominciano da due attributi in
-     * su. In creazione non c'è ancora niente da guardare, quindi la testata si
-     * prepara se il negozio ha almeno due attributi da spuntare, e il browser
-     * spegne i gruppi finché le righe non ne hanno bisogno.
+     * su. Fa eccezione l'attributo con foto proprie: la testata è il posto
+     * delle foto del colore, e c'è anche quando è l'unico.
+     *
+     * In creazione — e su un articolo che non ha ancora spuntato niente — non
+     * c'è niente da guardare, quindi la testata si prepara se il negozio
+     * potrebbe averne bisogno, e il browser spegne i gruppi finché le righe
+     * non la chiedono.
      */
     protected static function groupsByAxis(int $modelId): bool
     {
-        if ($modelId <= 0) {
-            return count(static::optionAttributes()) >= 2;
+        $asseColore = static::variantAttributeId();
+        $assi = $modelId > 0 ? static::axesInUse($modelId) : [];
+
+        if ($assi === []) {
+            return count(static::optionAttributes()) >= 2 || $asseColore > 0;
         }
 
-        return count(static::axesInUse($modelId)) >= 2;
+        return count($assi) >= 2 || ($asseColore > 0 && in_array($asseColore, $assi, true));
     }
 
     /**
@@ -3008,7 +3233,7 @@ HTML)->tag('div');
      * Nessuno dei due si scrive a mano: nascono dai collegamenti agli
      * attributi, che sono l'unica sorgente vera.
      *
-     * @return array<int, array{variant: string, rest: string, full: string, label: string, key: string}>
+     * @return array<int, array{group: string, group_value: string, rest: string, full: string, label: string, key: string}>
      */
     public static function optionLabels(int $modelId): array
     {
@@ -3063,9 +3288,11 @@ HTML)->tag('div');
             }
 
             $etichette = [];
+            $primoAsse = 0;
 
             foreach ($ordine as $asse) {
                 if (($perAsse[$asse] ?? '') !== '') {
+                    $primoAsse = $primoAsse ?: (int) $asse;
                     $etichette[] = $perAsse[$asse];
                     unset($perAsse[$asse]);
                 }
@@ -3085,6 +3312,11 @@ HTML)->tag('div');
 
             $nomi[$id] = [
                 'group' => $gruppo,
+                // Le foto della testata sono del colore: solo quando è lui a
+                // raggruppare.
+                'group_value' => $primoAsse > 0 && $primoAsse === $asseVariante && $valoreColore > 0
+                    ? (string) $valoreColore
+                    : '',
                 'rest' => implode(' / ', $resto),
                 // La stessa chiave che calcola il browser: da lì sa quali
                 // spunte tiene in piedi questa riga.
@@ -3184,17 +3416,17 @@ HTML)->tag('div');
                 ->hiddenWhen('has_variants', 'true'),
         ];
 
-        if ($modelId !== null && $modelId > 0) {
-            // Si scrive quanti pezzi ci sono: il movimento della differenza
-            // lo fa il pannello. Con più sedi il numero sarebbe ambiguo, e la
-            // casella si legge e basta.
-            $fields[] = FormField::key('product_stock')
-                ->number()
-                ->decimal(3)
-                ->readonly(!static::stockIsWritable())
-                ->label('Giacenza')
-                ->hiddenWhen('has_variants', 'true');
-        }
+        // Si scrive quanti pezzi ci sono: il movimento della differenza lo
+        // fa il pannello. Con più sedi il numero sarebbe ambiguo, e la
+        // casella si legge e basta — ma non in creazione: su un articolo che
+        // nasce non c'è niente da rendere ambiguo, e il numero entra come
+        // giacenza iniziale nella sede principale.
+        $fields[] = FormField::key('product_stock')
+            ->number()
+            ->decimal(3)
+            ->readonly(($modelId ?? 0) > 0 && !static::stockIsWritable())
+            ->label('Giacenza')
+            ->hiddenWhen('has_variants', 'true');
 
         $fields[] = FormField::key('product_ean')
             ->text()
@@ -3460,23 +3692,35 @@ HTML)->tag('div');
     }
 
     /**
-     * Il tipo fiscale: parte dal predefinito, e con un tipo solo non si vede.
+     * Il tipo fiscale: parte dal predefinito e si vede sempre.
      *
-     * Un campo obbligatorio che quasi nessuno cambia non merita una tendina;
-     * nascosto, porta comunque il suo valore.
+     * Su un articolo salvato il tipo che usa resta nell'elenco anche se nel
+     * frattempo è stato nascosto. Senza nessun tipo le imposte ricadono
+     * sull'aliquota di ripiego, e il campo lo dice invece di pretendere una
+     * scelta che non c'è.
      */
-    protected static function taxCategoryField(): Input
+    protected static function taxCategoryField(int $modelId = 0): Input
     {
-        $options = TaxCategories::options();
-        $default = (string) (TaxCategories::defaultId() ?: '');
+        $keep = 0;
 
-        if (count($options) <= 1) {
-            return FormField::key('tax_category_id')->hidden()->value($default);
+        if ($modelId > 0) {
+            $row = static::rowsOf(ProductModel::class, ['id' => $modelId])[0] ?? [];
+            $keep = (int) ($row['tax_category_id'] ?? 0);
+        }
+
+        $options = TaxCategories::options($keep);
+
+        if ($options === []) {
+            return FormField::key('tax_category_id')
+                ->select(['' => "Nessuno: vale l'aliquota di ripiego"])
+                ->value('')
+                ->label('Tipo fiscale')
+                ->quickCreate(TaxCategoryResource::class);
         }
 
         return FormField::key('tax_category_id')
             ->select($options)
-            ->value($default)
+            ->value((string) (TaxCategories::defaultId() ?: ''))
             ->label('Tipo fiscale')
             ->required()
             ->quickCreate(TaxCategoryResource::class);

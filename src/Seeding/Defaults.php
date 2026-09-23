@@ -96,8 +96,8 @@ final class Defaults implements ModuleDefaults
     }
 
     /**
-     * Un tipo fiscale solo, ed è il predefinito: finché è così, la scheda
-     * prodotto non lo mostra.
+     * Un tipo fiscale solo, ed è il predefinito: la scheda prodotto parte da
+     * lì, e chi vende libri o alimentari ne aggiunge altri.
      */
     private static function taxCategories(DefaultRows $rows): void
     {

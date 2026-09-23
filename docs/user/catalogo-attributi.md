@@ -16,27 +16,56 @@ Sono anche quello che fa nascere le **opzioni in vendita**: spunti *Blu*,
 *Rosso*, *S*, *M* e *L* nella scheda di una maglietta e vengono fuori sei righe
 da vendere, ognuna con il suo codice, il suo prezzo e la sua giacenza.
 
-## "Come si usa": la scelta importante
+## "Uso": la scelta importante
 
 Quando crei un attributo, il gestionale chiede **a cosa serve**. È la domanda
-che conta di più, perché decide dove lo incontrerai dopo. Tre risposte:
+che conta di più, perché decide dove lo incontrerai dopo. Le risposte
+dipendono dal tipo (vedi sotto): un attributo che si sceglie da un elenco può
+far nascere delle opzioni, uno che si scrive a mano no.
+
+Per *Elenco*, *Colore*, *Fantasia* e *Icona*:
 
 | Risposta | Cosa fa | Esempio |
 |---|---|---|
-| **Descrive l'articolo** | finisce nella scheda tecnica e non fa nascere niente da vendere | Materiale: cotone |
-| **Crea opzioni con pagina e foto proprie** | in vetrina ogni valore è un articolo a sé, con le sue foto | Colore, in un negozio dove ogni colore si fotografa |
-| **Crea opzioni da scegliere nel carrello** | una pagina sola, il cliente sceglie lì dentro | Taglia: M |
+| **Scheda tecnica dell'articolo** | un valore per articolo, nella scheda tecnica; non fa nascere niente da vendere | Materiale: cotone |
+| **Opzione da scegliere** | ogni valore spuntato fa nascere delle opzioni in vendita, su una pagina sola | Taglia: S, M, L |
+| **Opzione con foto proprie** | come la precedente, ma ogni valore ha le sue foto | Colore, in un negozio dove ogni colore si fotografa |
 
-Il modo semplice di decidere fra le ultime due: **le fotografi diverse?** Se sì,
-è quella con pagina propria. Se cambia solo quello che prendi dallo scaffale, è
-quella del carrello.
+Per *Testo* e *Numero*:
 
-Questa scelta si fa **una volta per negozio**: se nel tuo il colore ha pagine
+| Risposta | Cosa fa | Esempio |
+|---|---|---|
+| **Scheda tecnica dell'articolo** | un valore per articolo | Paese di produzione |
+| **Scheda tecnica di ogni opzione** | un valore per ogni opzione in vendita, perché cambia dall'una all'altra | Peso: la L pesa più della S |
+
+Il modo semplice di decidere fra le due opzioni: **le fotografi diverse?** Se
+sì, è quella con foto proprie. Se cambia solo quello che prendi dallo scaffale,
+è l'opzione da scegliere.
+
+Questa scelta si fa **una volta per negozio**: se nel tuo il colore ha foto
 sue, le ha per tutti gli articoli. Chi compila la scheda di un prodotto non deve
 più pensarci: spunta i valori e basta.
 
+**L'uso non si cambia su un attributo che sta già sugli articoli.** I valori
+scritti fin lì stanno dove li ha messi quell'uso, e con un altro nessuno li
+leggerebbe più: la casella si spegne. Se ti serve un uso diverso, crea un
+attributo nuovo.
+
 Su uno stesso articolo puoi usarne **al massimo tre**, e **uno solo** può avere
-pagina e foto proprie. Il pannello te lo dice in tutti e due i casi.
+foto proprie. Il pannello te lo dice in tutti e due i casi.
+
+## Quando un attributo compare nelle opzioni in vendita
+
+Nel riquadro **Opzioni in vendita** della scheda prodotto trovi un attributo
+quando valgono tutte e quattro:
+
+1. è **visibile** (non nascosto);
+2. il suo uso è **Opzione da scegliere** oppure **Opzione con foto proprie**;
+3. il tipo è **Elenco**, **Colore**, **Fantasia** o **Icona**;
+4. ha **almeno un valore**.
+
+Se nel negozio non c'è nessun attributo così, la scheda non chiede nemmeno
+«Questo articolo ha varianti?»: non avrebbe niente da offrire.
 
 ## Il tipo: come si scrive il valore
 
@@ -45,11 +74,12 @@ pagina e foto proprie. Il pannello te lo dice in tutti e due i casi.
 | **Elenco** | scegli da una lista che prepari tu (S, M, L, XL) |
 | **Colore** | come l'elenco, ma ogni voce ha anche il suo colore |
 | **Fantasia** | come l'elenco, ma ogni voce ha anche un'immagine: un tessuto scozzese, una stampa a fiori |
+| **Icona** | come l'elenco, ma ogni voce ha un simbolo: «Impermeabile», «Lavabile in lavatrice», «Spedizione rapida» |
 | **Testo** | si scrive a mano, valore per valore |
 | **Numero** | si scrive a mano, con l'unità di misura accanto (g, cm) |
 
-Solo *Elenco*, *Colore* e *Fantasia* fanno nascere opzioni in vendita: si
-spunta da un elenco, e un elenco deve esistere.
+Solo *Elenco*, *Colore*, *Fantasia* e *Icona* fanno nascere opzioni in
+vendita: si spunta da un elenco, e un elenco deve esistere.
 
 ## Creare un attributo
 
@@ -58,14 +88,14 @@ spunta da un elenco, e un elenco deve esistere.
 3. **Unità di misura**: accanto al tipo, compare solo su *Numero* e *Testo*,
    ed è quella con cui si misura il valore — grammi, centimetri. Si sceglie da
    un elenco, così due schede non scrivono "g" e "grammi" per la stessa cosa.
-4. Rispondi a **"Come si usa"**.
+4. Rispondi a **"Uso"**.
 5. **Filtro**: se in vetrina il cliente potrà cercare per questo attributo.
 6. Salva.
 
 La scheda **segue il tipo mentre lo scegli**, senza bisogno di salvare: chiede
 solo quello che serve.
 
-Il riquadro **Valori** c'è per *Elenco*, *Colore* e *Fantasia*: *Aggiungi
+Il riquadro **Valori** c'è per *Elenco*, *Colore*, *Fantasia* e *Icona*: *Aggiungi
 valore* per ogni voce. Ogni riga ha il **valore**, cioè il nome, e in più:
 
 | Tipo | Cosa chiede la riga |
@@ -73,6 +103,7 @@ valore* per ogni voce. Ogni riga ha il **valore**, cioè il nome, e in più:
 | **Elenco** | solo il valore |
 | **Colore** | il valore e il **colore**, il pallino che il cliente vede in vetrina |
 | **Fantasia** | l'**immagine**, per quando un colore solo non basta a far capire com'è, e il valore |
+| **Icona** | il valore e l'**icona**: la scegli dalla raccolta, cercando anche in italiano («cuore», «camion»), oppure carichi un'**immagine** tua in PNG o WebP. Se ci sono tutte e due vale l'immagine |
 
 Dietro *Aggiungi una descrizione* c'è una frase per spiegarlo a chi compra.
 L'ordine è quello che vedrà il cliente e si cambia con le frecce.
@@ -92,8 +123,8 @@ gli altri articoli.
 È l'unico posto da cui si cambiano quei nomi: nella scheda del prodotto non si
 scrivono.
 
-**Fra Elenco, Colore e Fantasia si passa quando vuoi.** I valori restano, e
-anche i colori e le immagini che avevi messo: la scheda smette solo di
+**Fra Elenco, Colore, Fantasia e Icona si passa quando vuoi.** I valori
+restano, e anche i colori, le immagini e le icone che avevi messo: la scheda smette solo di
 mostrarli, e tornando al tipo di prima li ritrovi.
 
 **Verso Testo o Numero il tipo non si cambia se ci sono già dei valori.**
@@ -108,6 +139,12 @@ sparisce dalle schede nuove, ma i prodotti che l'avevano tengono il loro valore.
 
 **Il nome lo leggono i clienti.** "Colore" e non "col", "Taglia" e non "size".
 
+**Un valore creato dal + della scheda prodotto nasce senza icona né
+immagine.** Lo completi da qui, quando hai tempo.
+
+**Le immagini SVG non si caricano.** Un SVG è un documento che può contenere
+codice: per le icone tue usa PNG o WebP.
+
 ## Dove si usano
 
 Nella scheda del prodotto.
@@ -120,3 +157,16 @@ Nella scheda del prodotto.
   il loro codice proposto, pronte da prezzare.
 
 Come funziona quel riquadro è scritto in [I prodotti](catalogo-prodotti.md).
+
+## La personalizzazione non è un attributo
+
+Un'incisione, un nome ricamato, un biglietto d'auguri: sono cose che scrive chi
+compra, non cose che hai a magazzino. Per questo non si fanno con gli
+attributi, che descrivono quello che l'articolo è e fanno nascere opzioni da
+tenere in giacenza.
+
+Arriveranno insieme agli ordini, come un **elenco a parte**, simile a questo:
+«Incisione, massimo 20 caratteri, +5 €» si prepara una volta e si spunta sugli
+articoli che la offrono. Il sovrapprezzo sta nell'elenco; se è obbligatoria lo
+decidi articolo per articolo, perché la stessa incisione è facoltativa su una
+penna e obbligatoria su una targa.

@@ -505,8 +505,8 @@ Contenuti in una sola lingua (D4).
 | `product_variants` | product_model_id, name, slug, position, visible |
 | `products` | product_model_id, product_variant_id, sku, ean, mpn, price, sale_price, min_stock_quantity (4.3), allow_backorder e backorder_lead_days (4.3, D60), peso e misure (se vuoti valgono quelli del modello), position, active |
 | `product_images` | product_model_id, product_variant_id (vuoto = immagine del modello), file, alt, position |
-| `attributes` | key, name, type, level (`model`, `variant`, `product`), unit, is_filterable, is_visible, group, position |
-| `attribute_values` | attribute_id, label, color, image, position |
+| `attributes` | key, name, type (`select`, `color`, `pattern`, `icon`, `text`, `number`), level (`model`, `variant`, `product`), unit, is_filterable, is_visible, group, position |
+| `attribute_values` | attribute_id, label, description, color, icon, image, position |
 | `product_model_attributes`, `product_variant_attributes`, `product_attributes` | attribute_id + attribute_value_id oppure value_text / value_number |
 | `bundle_components` | bundle_product_id, product_id, quantity, position |
 | `bundle_groups` | bundle_product_id, name, min_choices, max_choices, position |

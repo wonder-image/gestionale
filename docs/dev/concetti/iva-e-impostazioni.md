@@ -27,8 +27,11 @@ uno solo: salvarne uno così toglie il segno agli altri
 (`TaxCategoryResource`). Il precaricato "Aliquota ordinaria" nasce
 predefinito. Un articolo nuovo parte da lui; se nessuno è segnato, dal primo
 visibile in ordine di posizione (`Support\Tax\TaxCategories::defaultId()`).
-Con un tipo fiscale solo la scheda prodotto lo porta come campo nascosto,
-altrimenti è un select nel riquadro «Vendita».
+La scheda prodotto lo mostra sempre, come select nel riquadro «Vendita»:
+`TaxCategories::options($keep)` elenca i visibili e, in coda, il tipo nascosto
+che l'articolo usa ancora («Nome (nascosto)»), altrimenti il select ne
+mostrerebbe un altro e salvando lo sostituirebbe. Senza nessun tipo il campo ha
+la sola voce «Nessuno: vale l'aliquota di ripiego» e non è obbligatorio.
 
 ## A cosa serve il tipo fiscale
 
@@ -82,8 +85,8 @@ che si rifiuta di chiudere. Se capita spesso, vuol dire che manca una regola.
 ### Quando serve più di un tipo fiscale
 
 Mai, finché il negozio vende cose tassate tutte allo stesso modo: il gestionale
-nasce con il solo "Aliquota ordinaria" e la scheda prodotto non mostra nemmeno
-il campo. Serve un secondo tipo fiscale il giorno in cui entra in catalogo
+nasce con il solo "Aliquota ordinaria", già scelto su ogni articolo nuovo.
+Serve un secondo tipo fiscale il giorno in cui entra in catalogo
 qualcosa con un'aliquota diversa — alimentari, libri, servizi, dispositivi
 medici.
 

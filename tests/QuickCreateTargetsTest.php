@@ -71,7 +71,7 @@ check('una categoria nuova chiede nome e padre, e il bottone lo dice', function 
         && ($categorie['button'] ?? '') === 'Aggiungi categoria';
 });
 
-check('il tipo fiscale ha il "+" solo quando c\'è da scegliere', function () use ($quickCreate) {
+check('il tipo fiscale si vede sempre, con il "+"', function () use ($quickCreate) {
     $campo = null;
 
     foreach (ProductModelResource::formSchema() as $voce) {
@@ -80,10 +80,11 @@ check('il tipo fiscale ha il "+" solo quando c\'è da scegliere', function () us
         }
     }
 
-    // Con un tipo solo (o nessuno, senza database) il campo è nascosto e
-    // porta il predefinito: non c'è niente da scegliere né da creare.
-    if (count(TaxCategories::options()) <= 1) {
-        return $campo instanceof InputHidden && !isset($quickCreate()['tax_category_id']);
+    // Anche con un tipo solo il campo resta un select (P58); senza nessun
+    // tipo (o senza database) dice che vale l'aliquota di ripiego, e il «+»
+    // crea il primo.
+    if ($campo === null || $campo instanceof InputHidden) {
+        return false;
     }
 
     return ($quickCreate()['tax_category_id']['resource'] ?? '') === TaxCategoryResource::class;

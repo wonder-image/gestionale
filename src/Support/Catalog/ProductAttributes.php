@@ -127,6 +127,31 @@ final class ProductAttributes
     }
 
     /**
+     * Vero quando quell'attributo sta su almeno un articolo, un colore o
+     * un'opzione.
+     *
+     * Guarda le tre tabelle: l'uso di un attributo decide in quale delle tre
+     * finisce il valore, e un uso cambiato dopo lascerebbe quei valori dove
+     * nessuno li legge più.
+     */
+    public static function isUsed(int $attributeId): bool
+    {
+        if ($attributeId <= 0) {
+            return false;
+        }
+
+        foreach (array_keys(self::LEVELS) as $level) {
+            $found = self::modelClass($level)::find(['attribute_id' => $attributeId, 'deleted' => 'false'], 1);
+
+            if (is_array($found) && $found !== []) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Nome dell'attributo => valore da leggere. Gli attributi senza valore non
      * compaiono: un elenco di righe vuote non serve a nessuno.
      *

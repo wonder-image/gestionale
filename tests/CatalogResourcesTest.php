@@ -151,10 +151,11 @@ check('la pagina degli attributi sta nel catalogo', fn () =>
     && (AttributeResource::navigationSchema()->toArray()['section_key'] ?? '') === 'catalogo'
 );
 
-check('i valori servono a elenco, colore e fantasia', fn () =>
+check('i valori servono a elenco, colore, fantasia e icona', fn () =>
     AttributeResource::usesValues(['type' => 'select'])
     && AttributeResource::usesValues(['type' => 'color'])
     && AttributeResource::usesValues(['type' => 'pattern'])
+    && AttributeResource::usesValues(['type' => 'icon'])
     && !AttributeResource::usesValues(['type' => 'text'])
     && !AttributeResource::usesValues(null)
 );
@@ -167,7 +168,7 @@ check('il riquadro dei valori c\'è sempre e segue il tipo', function () {
     return count($riquadri) === 2
         && $valori !== null
         && $valori->getAttr('data-visible-when') === 'type'
-        && $valori->getAttr('data-visible-when-values') === 'select,color,pattern'
+        && $valori->getAttr('data-visible-when-values') === 'select,color,pattern,icon'
         && $valori->getAttr('data-wi-conditional-container') === 'true';
 });
 
@@ -180,19 +181,30 @@ check('le colonne dei valori chiedono quello che serve al tipo', function () {
         $colonne[(string) $colonna->name] = $colonna;
     }
 
-    return array_keys($colonne) === ['id', 'image', 'label', 'color', 'description']
+    return array_keys($colonne) === ['id', 'image', 'label', 'color', 'icon', 'description']
         && $colonne['image']->conditionalAttributes() === [
             'data-visible-when' => 'type',
-            'data-visible-when-values' => 'pattern',
+            'data-visible-when-values' => 'pattern,icon',
         ]
         && $colonne['color']->conditionalAttributes() === [
             'data-visible-when' => 'type',
             'data-visible-when-values' => 'color',
         ]
+        && $colonne['icon']->conditionalAttributes() === [
+            'data-visible-when' => 'type',
+            'data-visible-when-values' => 'icon',
+        ]
         // Il valore c'è per tutti e si allarga dove le altre mancano.
         && $colonne['label']->conditionalAttributes() === []
         && $colonne['label']->get('column_fill') === true;
 });
+
+check('l\'icona di un valore si salva pulita', fn () =>
+    AttributeResource::prepareRepeaterRelationRow('values', ['icon' => 'star'], [])['icon'] === 'bi-star'
+    && AttributeResource::prepareRepeaterRelationRow('values', ['icon' => 'x" onclick'], [])['icon'] === ''
+    && AttributeResource::prepareRepeaterRelationRow('values', ['label' => 'Blu'], []) === ['label' => 'Blu']
+    && AttributeResource::prepareRepeaterRelationRow('altro', ['icon' => 'star'], [])['icon'] === 'star'
+);
 
 check('l\'unità si vede solo su testo e numero', fn () =>
     AttributeResource::getInput('unit')->conditionalAttributes() === [
@@ -290,6 +302,50 @@ check('senza valori il tipo si cambia', function () {
 
     return ($valori['type'] ?? '') === 'text';
 });
+
+check('l\'uso si legge dalla casella che il tipo mostra', function () {
+    $salva = static fn (array $valori, array $prima = ['id' => 1, 'type' => 'select', 'level' => 'product']): array
+        => AttributeResource::withLevel($valori, (string) ($valori['type'] ?? ''), $prima);
+
+    return ($salva(['type' => 'select', 'level' => 'variant', 'level_text' => 'model'])['level'] ?? '') === 'variant'
+        && ($salva(['type' => 'number', 'level' => 'variant', 'level_text' => 'product'])['level'] ?? '') === 'product'
+        && !array_key_exists('level_text', $salva(['type' => 'select', 'level' => 'model', 'level_text' => 'model']));
+});
+
+check('un testo con foto proprie si rifiuta, uno su ogni opzione passa', function () {
+    try {
+        AttributeResource::withLevel(['level_text' => 'variant'], 'text', ['id' => 1, 'type' => 'text', 'level' => 'model']);
+    } catch (UserError $errore) {
+        return str_contains($errore->getMessage(), 'non crea opzioni')
+            && (AttributeResource::withLevel(['level_text' => 'product'], 'number', null)['level'] ?? '') === 'product';
+    }
+
+    return false;
+});
+
+check('l\'uso di un attributo già sugli articoli non cambia', function () {
+    $resource = new class extends AttributeResource {
+        protected static function isUsed(int $id): bool { return true; }
+    };
+
+    // Le caselle sono spente e non arrivano: resta l'uso di prima.
+    $fermo = $resource::withLevel([], 'select', ['id' => 1, 'type' => 'select', 'level' => 'variant']);
+
+    try {
+        $resource::withLevel(['level' => 'product'], 'select', ['id' => 1, 'type' => 'select', 'level' => 'variant']);
+    } catch (UserError $errore) {
+        return ($fermo['level'] ?? '') === 'variant'
+            && str_contains($errore->getMessage(), 'crea un attributo nuovo');
+    }
+
+    return false;
+});
+
+check('le due caselle dell\'uso seguono il tipo', fn () =>
+    AttributeResource::getInput('level')->conditionalAttributes()['data-visible-when-values'] === 'select,color,pattern,icon'
+    && AttributeResource::getInput('level_text')->conditionalAttributes()['data-visible-when-values'] === 'number,text'
+    && array_keys((array) AttributeResource::getInput('level_text')->get('options')) === ['model', 'product']
+);
 
 check('un padre che non esiste più si ferma con una frase', function () {
     $righe = [

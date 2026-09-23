@@ -14,13 +14,50 @@ use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
  */
 final class TaxCategories
 {
-    /** @return array<string, string> id => nome, nell'ordine dell'elenco */
-    public static function options(): array
+    /**
+     * @param int $keep il tipo che l'articolo usa già: se è nascosto resta in
+     *                  coda, altrimenti il select ne mostrerebbe un altro e
+     *                  salvando lo sostituirebbe
+     *
+     * @return array<string, string> id => nome, nell'ordine dell'elenco
+     */
+    public static function options(int $keep = 0): array
+    {
+        $rows = self::rows();
+        $kept = null;
+
+        if ($keep > 0 && !in_array($keep, array_map(static fn ($row) => (int) $row['id'], $rows), true)) {
+            try {
+                $found = TaxCategory::find(['id' => $keep, 'deleted' => 'false'], 1);
+                $kept = is_array($found) && isset($found['id']) ? $found : null;
+            } catch (Throwable) {
+                $kept = null;
+            }
+        }
+
+        return self::optionsIn($rows, $kept);
+    }
+
+    /**
+     * La regola, senza database: i visibili in ordine, poi il nascosto in uso.
+     *
+     * @param list<array<string, mixed>> $rows tipi visibili, già in ordine
+     * @param array<string, mixed>|null  $kept il tipo nascosto che l'articolo usa
+     *
+     * @return array<string, string>
+     */
+    public static function optionsIn(array $rows, ?array $kept = null): array
     {
         $options = [];
 
-        foreach (self::rows() as $row) {
+        foreach ($rows as $row) {
             $options[(string) $row['id']] = (string) ($row['name'] ?? '');
+        }
+
+        $keptId = (string) ($kept['id'] ?? '');
+
+        if ($keptId !== '' && !isset($options[$keptId])) {
+            $options[$keptId] = (string) ($kept['name'] ?? '').' (nascosto)';
         }
 
         return $options;

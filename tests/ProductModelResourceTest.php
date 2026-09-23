@@ -267,6 +267,35 @@ check('finché una riga resta, si salva', function () {
     return true;
 });
 
+check('senza attributi da cui nascono opzioni la domanda sulle varianti non si fa', function () {
+    $trova = static function ($nodo, string $nome) use (&$trova) {
+        if ($nodo instanceof \Wonder\App\ResourceSchema\Input && $nodo->name === $nome) {
+            return $nodo;
+        }
+
+        foreach ((array) ($nodo->components ?? []) as $figlio) {
+            if (($trovato = $trova($figlio, $nome)) !== null) {
+                return $trovato;
+            }
+        }
+
+        return null;
+    };
+    $senza = new class extends ProductModelResource {
+        public static function optionAttributes(): array { return []; }
+    };
+    $con = new class extends ProductModelResource {
+        public static function optionAttributes(): array
+        {
+            return [['id' => 7, 'name' => 'Colore', 'level' => 'variant', 'type' => 'select']];
+        }
+    };
+
+    return $trova($senza::formLayoutSchema(), 'has_variants') instanceof \Wonder\App\ResourceSchema\Inputs\InputHidden
+        && ($domanda = $trova($con::formLayoutSchema(), 'has_variants')) !== null
+        && !($domanda instanceof \Wonder\App\ResourceSchema\Inputs\InputHidden);
+});
+
 check('dopo il salvataggio si atterra sulla scheda', function () {
     $schema = ProductModelResource::pageSchema();
 
@@ -326,11 +355,11 @@ check('in creazione non si chiede quello che non esiste ancora', function () {
         ProductModelResource::formSchema()
     );
 
-    // Niente giacenza da rettificare e niente foto dei singoli colori: sono
-    // cose che nascono dal primo salvataggio. La griglia invece c'è, vuota:
-    // le righe le aggiungono le spunte, e aggiungere e modificare devono
-    // essere la stessa schermata.
-    return !in_array('product_stock', $chiavi, true)
+    // La giacenza c'è già (P59): chi crea l'articolo ha la merce davanti, e
+    // il numero entra come carico iniziale. Le pagine dei colori no: nascono
+    // dal primo salvataggio. La griglia c'è, vuota: le righe le aggiungono
+    // le spunte, e aggiungere e modificare devono essere la stessa schermata.
+    return in_array('product_stock', $chiavi, true)
         && !in_array('variants', $chiavi, true)
         && in_array('products', $chiavi, true)
         && in_array('images_0', $chiavi, true);
@@ -567,6 +596,136 @@ check('le opzioni si raggruppano per il primo attributo, e il gruppo ha il suo p
     return false;
 });
 
+/** Un articolo con due colori, raggruppato per colore: `$assi` dice quali attributi usa. */
+$schedaColori = static function (array $assi, array $ordine = []) {
+    return new class ($assi, $ordine) extends ProductModelResource {
+        public static array $assi = [];
+        public static array $ordine = [];
+
+        public function __construct(array $assi, array $ordine)
+        {
+            static::$assi = $assi;
+            static::$ordine = $ordine;
+        }
+
+        protected static function currentId(): ?int
+        {
+            return 1;
+        }
+
+        public static function optionAttributes(): array
+        {
+            return [];
+        }
+
+        public static function productCount(int $modelId): int
+        {
+            return 2;
+        }
+
+        public static function variantCount(int $modelId): int
+        {
+            return 2;
+        }
+
+        public static function variants(int $modelId): array
+        {
+            return [['id' => 1, 'name' => 'Blu'], ['id' => 2, 'name' => 'Rosso']];
+        }
+
+        public static function variantLabels(int $modelId): array
+        {
+            return [1 => 'Blu', 2 => 'Rosso'];
+        }
+
+        /** Blu e Rosso sono i valori 31 e 32 del colore. */
+        public static function variantValues(int $modelId): array
+        {
+            return [1 => 31, 2 => 32];
+        }
+
+        /** Il colore è l'attributo 7. */
+        public static function variantAttributeId(): int
+        {
+            return 7;
+        }
+
+        public static function axesInUse(int $modelId): array
+        {
+            return static::$assi;
+        }
+
+        public static function axesOrder(int $modelId): array
+        {
+            return static::$ordine !== [] ? static::$ordine : static::$assi;
+        }
+
+        public static function imageFieldNames(): array
+        {
+            return array_map(static fn ($campo) => (string) $campo->name, static::imageFields(1));
+        }
+    };
+};
+
+$contestoGriglia = static function ($scheda): array {
+    foreach ($scheda::formSchema() as $campo) {
+        if ((string) $campo->name === 'products') {
+            return (array) $campo->get('context');
+        }
+    }
+
+    return [];
+};
+
+check('la testata del colore porta le sue foto, con la chiave del valore', function () use ($schedaColori, $contestoGriglia) {
+    $contesto = $contestoGriglia($schedaColori([7, 9]));
+    $colonne = array_map(static fn ($colonna) => (string) $colonna->name, $contesto['columns'] ?? []);
+    $foto = $contesto['group_files'] ?? [];
+    $campo = $foto['field'] ?? null;
+
+    // La chiave è l'id del valore, non il nome: un nome si rinomina.
+    return in_array('group_value', $colonne, true)
+        && ($foto['key_column'] ?? '') === 'group_value'
+        // Un'area per colore, anche vuota: la testata sa di chi sono.
+        && array_keys((array) $campo?->get('value')) === [31, 32]
+        && ($foto['label'] ?? '') === 'Foto del colore'
+        && $campo !== null
+        && (string) $campo->name === 'group_images'
+        && $campo->get('helper') === 'inputFileDragDrop'
+        && (int) (((array) $campo->get('prepare'))['max_file'] ?? 0) === 10;
+});
+
+check('il colore da solo fa già un gruppo: è il posto delle sue foto', function () use ($schedaColori, $contestoGriglia) {
+    $soloColore = $contestoGriglia($schedaColori([7]));
+    $soloTaglia = $contestoGriglia($schedaColori([9]));
+
+    return ($soloColore['group_fixed'] ?? '') === 'group'
+        && isset($soloColore['group_files'])
+        // Una taglia sola non ha niente da raggruppare, né foto da tenere.
+        && ($soloTaglia['group_fixed'] ?? '') === '';
+});
+
+check('con il colore davanti il riquadro delle foto tiene solo quelle comuni', function () use ($schedaColori) {
+    $coloreDavanti = $schedaColori([7, 9]);
+    $comuni = $coloreDavanti::imageFieldNames();
+
+    // Con la taglia davanti i gruppi sono taglie: le foto del colore restano
+    // nel riquadro, un'area per colore.
+    $tagliaDavanti = $schedaColori([7, 9], [9, 7]);
+    $perColore = $tagliaDavanti::imageFieldNames();
+
+    return $comuni === ['images_0']
+        && $perColore === ['images_0', 'images_1', 'images_2'];
+});
+
+check('la griglia scrive la chiave delle foto solo quando raggruppa il colore', function () use ($schedaAperta) {
+    $html = $schedaAperta::vediGriglia();
+
+    return str_contains($html, "scrivi(riga, 'group_value', chiaveFoto(combo[0]));")
+        && str_contains($html, "scrivi(riga, 'group_value', chiaveFoto(messi[0]));")
+        && str_contains($html, "String(valore.attribute) === asseFoto()");
+});
+
 check('il selettore chiede prima quale attributo, i valori vengono dopo', function () use ($schedaAperta) {
     $html = $schedaAperta::vediSelettore();
 
@@ -609,7 +768,10 @@ check('la griglia si spegne quando non c\'è niente da vedere, e si raggruppa da
     $html = $schedaAperta::vediGriglia();
 
     return str_contains($html, 'quante <= 1 && spuntate === 0')
-        && str_contains($html, "conGruppo && assi >= 2 ? 'group' : ''")
+        // Un attributo solo basta quando è il colore: la testata è il posto
+        // delle sue foto.
+        && str_contains($html, "conGruppo && (assi >= 2 || colore) ? 'group' : ''")
+        && str_contains($html, 'data-wi-photo-attribute="')
         // L'ordine degli assi lo legge dal campo nascosto, non dall'ordine
         // in cui le caselle stanno in pagina.
         && str_contains($html, 'function ordineAssi()');

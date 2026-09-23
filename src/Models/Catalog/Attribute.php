@@ -40,7 +40,7 @@ final class Attribute extends Model
             ...static::sqlColumnsFromDataSchema(['code']),
             Column::key('slug')->length(100)->unique(),
             Column::key('name'),
-            Column::key('type')->enum(['select', 'color', 'pattern', 'text', 'number'])->default('select'),
+            Column::key('type')->enum(['select', 'color', 'pattern', 'icon', 'text', 'number'])->default('select'),
             Column::key('level')->enum(['model', 'variant', 'product'])->default('product'),
             Column::key('unit')->length(20),
             Column::key('group_name'),

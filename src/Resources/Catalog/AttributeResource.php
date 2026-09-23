@@ -11,6 +11,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\Support\OptionVisual;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
@@ -19,6 +20,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
+use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Units;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -28,11 +30,12 @@ use Wonder\Plugin\Gestionale\Support\Positions;
  * "Attributi": Colore, Taglia, Materiale — quello che distingue un articolo
  * dall'altro e quello che fa nascere le sue opzioni in vendita.
  *
- * Come si usa si sceglie qui, e dice dove finisce il valore. I valori di un
+ * L'uso si sceglie qui, e dice dove finisce il valore. I valori di un
  * attributo a elenco si scrivono nella scheda, come righe. La scheda chiede
  * solo quello che serve al tipo, e cambia mentre lo si sceglie, senza salvare:
  * un Elenco ha il nome del valore, un Colore anche il codice, una Fantasia
- * anche l'immagine; Testo e Numero non hanno valori, ma un'unità di misura.
+ * anche l'immagine, un'Icona il nome di un'icona o un'immagine; Testo e
+ * Numero non hanno valori, ma un'unità di misura.
  *
  * Non è `final`: i test la estendono con una classe anonima per provare la
  * regola sul cambio di tipo senza database.
@@ -81,7 +84,7 @@ class AttributeResource extends GestionaleResource
         return [
             'name' => 'Nome',
             'slug' => 'Nome macchina',
-            'level' => 'Come si usa',
+            'level' => 'Uso',
             'type' => 'Tipo',
             'unit' => 'Unità di misura',
             'is_filterable' => 'Filtro',
@@ -113,13 +116,30 @@ class AttributeResource extends GestionaleResource
 
     public static function formSchema(): array
     {
+        // Un attributo già sugli articoli non cambia uso: i valori scritti
+        // stanno nella tabella di quell'uso, e con un altro nessuno li
+        // leggerebbe più.
+        $inUso = static::isUsed((int) (static::currentId() ?? 0));
+
         return [
             FormField::key('name')->text()->label('Nome')->required(),
+            // Due caselle per una sola risposta: le voci dipendono dal tipo,
+            // e il tipo si cambia senza ricaricare. Se ne vede una alla
+            // volta; quale conta lo decide il tipo, in mutateRequestValues().
             FormField::key('level')
-                ->select(Attributes::levels())
+                ->select(Attributes::levelsFor('select'))
                 ->value('product')
-                ->label('Come si usa')
-                ->required(),
+                ->label('Uso')
+                ->required()
+                ->disabled($inUso)
+                ->visibleWhen('type', Attributes::VALUE_TYPES),
+            FormField::key('level_text')
+                ->select(Attributes::levelsFor('text'))
+                ->value('model')
+                ->label('Uso')
+                ->required()
+                ->disabled($inUso)
+                ->visibleWhen('type', Attributes::UNIT_TYPES),
             FormField::key('type')
                 ->select(Attributes::types())
                 ->value(static::DEFAULT_TYPE)
@@ -145,22 +165,28 @@ class AttributeResource extends GestionaleResource
             FormField::key('values')
                 ->repeater([
                     RepeaterColumn::key('id')->hidden(),
-                    // Le colonne seguono il tipo: l'immagine solo sulla
-                    // Fantasia, il codice solo sul Colore. Il valore riempie
-                    // lo spazio che resta libero — il riordino a mano ne
-                    // prende tre per le frecce e il cestino — così una colonna
-                    // nascosta non lascia un buco.
+                    // Le colonne seguono il tipo: l'immagine sulla Fantasia e
+                    // sull'Icona, il codice solo sul Colore, il segno della
+                    // raccolta solo sull'Icona. Il valore riempie lo spazio
+                    // che resta libero — il riordino a mano ne prende tre per
+                    // le frecce e il cestino — così una colonna nascosta non
+                    // lascia un buco.
                     RepeaterColumn::key('image')
                         ->fileDragDrop('image')
-                        ->label('Fantasia')
+                        ->label('Immagine')
                         ->columnSpan(2)
-                        ->visibleWhen('type', 'pattern'),
+                        ->visibleWhen('type', ['pattern', 'icon']),
                     RepeaterColumn::key('label')->text()->label('Valore')->columnFill(),
                     RepeaterColumn::key('color')
                         ->color()
                         ->label('Colore')
                         ->columnSpan(3)
                         ->visibleWhen('type', 'color'),
+                    RepeaterColumn::key('icon')
+                        ->icon()
+                        ->label('Icona')
+                        ->columnSpan(3)
+                        ->visibleWhen('type', 'icon'),
                     RepeaterColumn::key('description')->text()->label('Descrizione')->columnSpan(12),
                 ])
                 ->relation(
@@ -192,14 +218,16 @@ class AttributeResource extends GestionaleResource
         $cards = [
             (new Card)->components([
                 SectionTitle::make('Attributo')
-                    ->tooltip('«Descrive l\'articolo» finisce nella scheda tecnica: Materiale, Composizione. «Crea opzioni con pagina e foto proprie» è il Colore, nei negozi dove ogni colore ha la sua pagina e le sue foto. «Crea opzioni da scegliere nel carrello» è la Taglia. Il tipo decide cosa chiedono i valori: un Elenco solo il nome, un Colore anche il pallino in vetrina, una Fantasia anche la sua immagine. Testo e Numero si scrivono sul prodotto, con l\'unità di misura: grammi, centimetri.')
+                    ->tooltip('L\'uso dice dove si sceglie il valore. «Scheda tecnica dell\'articolo»: uno per articolo, come il Materiale. «Opzione da scegliere»: fa nascere le opzioni in vendita, come la Taglia. «Opzione con foto proprie»: come la Taglia, ma ogni valore ha le sue foto, come il Colore. Il tipo decide cosa chiedono i valori: un Elenco solo il nome, un Colore anche il pallino, una Fantasia anche l\'immagine, un\'Icona un segno della raccolta o un\'immagine tua. Testo e Numero si scrivono a mano, con l\'unità di misura, e non creano opzioni. Quando un attributo è già sugli articoli il suo uso non cambia più.')
                     ->columnSpan(12),
                 // L'unità in fondo alla riga: quando il tipo non la usa sparisce
                 // e il vuoto resta in coda, non in mezzo.
                 static::getInput('name')->columnSpan(6),
                 static::getInput('type')->columnSpan(3),
                 static::getInput('unit')->columnSpan(3),
+                // Una delle due, secondo il tipo: nello stesso posto.
                 static::getInput('level')->columnSpan(6),
+                static::getInput('level_text')->columnSpan(6),
                 static::getInput('is_filterable')->columnSpan(3),
                 static::getInput('is_visible')->columnSpan(3),
             ])->columns(12)->columnSpan(12),
@@ -227,7 +255,7 @@ class AttributeResource extends GestionaleResource
                 ->text()
                 ->size('little')
                 ->formatter(static fn (array $row): string => htmlspecialchars(
-                    Attributes::levels()[(string) ($row['level'] ?? '')] ?? '',
+                    Attributes::levelLabel((string) ($row['type'] ?? ''), (string) ($row['level'] ?? '')),
                     ENT_QUOTES,
                     'UTF-8'
                 )),
@@ -280,8 +308,19 @@ class AttributeResource extends GestionaleResource
         return $row !== null && Attributes::usesValues((string) ($row['type'] ?? ''));
     }
 
+    /** La casella dell'uso che il tipo mostra, riempita dalla stessa colonna. */
+    public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
+    {
+        if (isset($values['level'])) {
+            $values['level_text'] = $values['level'];
+        }
+
+        return $values;
+    }
+
     /**
-     * Nome macchina alla creazione, nessun tipo cambiato sotto ai valori, e
+     * Nome macchina alla creazione, nessun tipo cambiato sotto ai valori,
+     * un uso che il tipo ammette e che non cambia sotto agli articoli, e
      * nessuna unità dove il tipo non la usa.
      */
     public static function mutateRequestValues(
@@ -305,6 +344,8 @@ class AttributeResource extends GestionaleResource
             static::assertNoValues($id);
         }
 
+        $values = static::withLevel($values, $to, $oldValues);
+
         // L'unità nascosta arriva lo stesso con il resto del modulo: passando
         // da Numero a Colore resterebbe "g" su un attributo che non la mostra.
         // Colori e immagini dei valori invece restano: tornando al tipo di
@@ -314,6 +355,71 @@ class AttributeResource extends GestionaleResource
         }
 
         return $values;
+    }
+
+    /**
+     * L'uso dalla casella che il tipo mostra.
+     *
+     * Arrivano tutte e due — quella nascosta viene postata lo stesso — e
+     * nessuna quando l'attributo è in uso: le caselle sono spente, e un
+     * campo spento non si posta. Allora resta quello di prima.
+     *
+     * @param array<string, mixed> $values
+     * @param array<string, mixed>|null $oldValues
+     * @return array<string, mixed>
+     */
+    public static function withLevel(array $values, string $type, ?array $oldValues = null): array
+    {
+        $key = Attributes::usesUnit($type) ? 'level_text' : 'level';
+        $before = (string) ($oldValues['level'] ?? '');
+        $level = trim((string) ($values[$key] ?? ''));
+        unset($values['level_text']);
+
+        if ($level === '') {
+            if ($before === '') {
+                unset($values['level']);
+
+                return $values;
+            }
+
+            $level = $before;
+        }
+
+        $id = (int) ($oldValues['id'] ?? 0);
+
+        if ($id > 0 && $level !== $before && static::isUsed($id)) {
+            throw UserError::make('attribute.level_locked');
+        }
+
+        // Il controllo sull'uso viene prima: un attributo in uso con un uso
+        // che il tipo nuovo non ammette dice di non cambiarlo, non di
+        // sceglierne un altro.
+        if (!Attributes::acceptsLevel($type, $level) && !($id > 0 && $level === $before && static::isUsed($id))) {
+            throw UserError::make('attribute.text_level');
+        }
+
+        $values['level'] = $level;
+
+        return $values;
+    }
+
+    /**
+     * Il nome di un'icona si scrive anche a mano: si tiene solo se è davvero
+     * un'icona, perché finisce in un attributo `class` della vetrina.
+     */
+    public static function prepareRepeaterRelationRow(
+        string $inputName,
+        array $payload,
+        array $row,
+        ?array $existingRow = null,
+        string $action = 'store',
+        string $context = 'backend'
+    ): array {
+        if ($inputName === 'values' && array_key_exists('icon', $payload)) {
+            $payload['icon'] = OptionVisual::icon((string) ($payload['icon'] ?? ''));
+        }
+
+        return $payload;
     }
 
     /** Cambiare tipo con dei valori dentro li butterebbe via in silenzio. */
@@ -340,9 +446,22 @@ class AttributeResource extends GestionaleResource
         }
     }
 
-    /** In G2a i prodotti non esistono ancora: lo saprà il piano 3. */
+    /**
+     * Vero quando l'attributo sta su almeno un articolo o un'opzione.
+     *
+     * Senza database (i test degli schemi) non lo è: lì serve il form, non i
+     * dati.
+     */
     protected static function isUsed(int $id): bool
     {
-        return false;
+        if ($id <= 0) {
+            return false;
+        }
+
+        try {
+            return ProductAttributes::isUsed($id);
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }

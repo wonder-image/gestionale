@@ -19,7 +19,10 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -72,6 +75,29 @@ try {
 
             return ($prodotto['sku'] ?? '') === 'INT-1';
         });
+
+        // La giacenza scritta alla creazione entra come carico iniziale
+        // (P59); dopo, la stessa casella rettifica.
+        ProductModelResource::forgetCatalogCache();
+        ProductModelResource::saveExtras($modelId, ['has_variants' => 'false', 'product_stock' => '7'], 'INT-1', [], true);
+
+        check('la giacenza scritta in creazione è un carico iniziale', fn () =>
+            abs((float) (Levels::of($scheletro['product_id'])['quantity'] ?? 0) - 7.0) < 0.001
+        );
+
+        $postPrima = $_POST;
+        $_POST = ['product_stock' => '-2'];
+        $rifiutato = false;
+
+        try {
+            ProductModelResource::assertStockWritable(0, false);
+        } catch (UserError) {
+            $rifiutato = true;
+        }
+
+        $_POST = $postPrima;
+
+        check('una giacenza negativa scritta a mano si rifiuta', fn () => $rifiutato);
 
         // Un attributo di modello, scritto e riletto.
         $attributo = Attribute::create([

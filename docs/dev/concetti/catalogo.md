@@ -85,16 +85,32 @@ Due tabelle, nessuna sincronizzazione come il resto del catalogo:
 | Tabella | Cosa tiene |
 |---|---|
 | `gst_attributes` | `code` (`att_`), `slug`, `name`, `type`, `level`, `unit`, `group_name`, `is_filterable`, `is_visible`, `position` |
-| `gst_attribute_values` | `attribute_id`, `label`, `color`, `image`, `position` |
+| `gst_attribute_values` | `attribute_id`, `label`, `description`, `color`, `icon`, `image`, `position` |
 
 **Il livello decide tutto.** Un attributo dichiara dove vive, e da quel livello
-`ProductAttributes` sceglie la tabella di collegamento:
+`ProductAttributes` sceglie la tabella di collegamento. Nella scheda il campo
+si chiama **Uso**, e le voci dipendono dal tipo (`Attributes::levelsFor()`,
+P61):
 
-| `level` | A cosa serve | Esempio |
-|---|---|---|
-| `model` | descrive l'articolo: finisce nella *Scheda tecnica* | Materiale: cotone |
-| `variant` | è il colore, quello con pagina e foto proprie | Colore: blu |
-| `product` | distingue le opzioni dentro un colore | Taglia: M |
+| `level` | Tipi a valori (`LEVELS`) | Testo e Numero (`FREE_LEVELS`) | Esempio |
+|---|---|---|---|
+| `model` | Scheda tecnica dell'articolo | Scheda tecnica dell'articolo | Materiale: cotone |
+| `variant` | Opzione con foto proprie | — | Colore: blu |
+| `product` | Opzione da scegliere | Scheda tecnica di ogni opzione | Taglia: M · Peso: 250 g |
+
+Un Testo di livello `variant` non ha senso — non ci sono valori da spuntare —
+e il server lo rifiuta con `attribute.text_level` (`Attributes::acceptsLevel()`).
+Nel form sono **due caselle**, `level` e `level_text`, una per famiglia di
+tipi, con `visibleWhen('type', …)`: il tipo si cambia senza ricaricare, e le
+voci di un select non si riscrivono dal lato del server. Quale conta lo decide
+il tipo in `mutateRequestValues()`.
+
+**L'uso non cambia su un attributo in uso.** `ProductAttributes::isUsed($id)`
+guarda le tre tabelle di collegamento; se l'attributo sta su almeno una riga le
+due caselle sono `disabled()`: una casella spenta non si posta, e
+`mutateRequestValues()` tiene il livello di prima; un POST che ne porta un
+altro si rifiuta con `attribute.level_locked`. Spostarlo lascerebbe i collegamenti
+in una tabella che quel livello non legge più.
 
 `Attributes::createsVersions()` tiene insieme gli ultimi due: sono quelli che la
 scheda offre da spuntare, e solo se il tipo pesca da `gst_attribute_values` e
@@ -103,8 +119,8 @@ articolo** — due sarebbero due pagine diverse per la stessa riga, e il rifiuto
 `product.one_page_option` — e **tre attributi in tutto**, un muro del selettore,
 non del salvataggio.
 
-**Il tipo decide dove finisce il valore.** `select`, `color` e `pattern`
-(Fantasia) pescano da `gst_attribute_values` — `Attributes::VALUE_TYPES` —;
+**Il tipo decide dove finisce il valore.** `select`, `color`, `pattern`
+(Fantasia) e `icon` pescano da `gst_attribute_values` — `Attributes::VALUE_TYPES` —;
 `text` e `number` scrivono direttamente sul collegamento, con `unit` a fianco —
 `Attributes::UNIT_TYPES`. Un tipo è sempre in uno dei due elenchi, mai in
 tutti e due.
@@ -113,7 +129,9 @@ Le regole stanno in `Support\Catalog\Attributes`, pura come `CategoryTree`:
 
 ```php
 Attributes::levels();                       // model/variant/product => nome
-Attributes::types();                        // select/color/pattern/text/number => nome
+Attributes::levelsFor('number');            // model/product, con le parole di Testo e Numero
+Attributes::acceptsLevel('text', 'variant'); // false
+Attributes::types();                        // select/color/pattern/icon/text/number => nome
 Attributes::usesValues('pattern');          // true
 Attributes::usesUnit('number');             // true: solo number e text
 Attributes::byLevel($attributi, 'variant');
@@ -125,6 +143,18 @@ Attributes::format($attributo, $collegamento, $valori); // '1,5 g', 'M', 'Cotone
 `assignment()` riempie **una sola** colonna e lascia vuote le altre: chi scrive
 un collegamento — pannello, vetrina, import — passa di qui e le righe restano
 tutte uguali.
+
+**Il segno accanto al nome.** `Attributes::valueVisual($tipo, $valore, $url)`
+restituisce `['color' => …]`, `['icon' => …]` o `['image' => …]`, la forma che
+le opzioni dei select e delle pillole del core sanno mostrare. Lo decide il
+**tipo**, non le colonne piene: un Elenco che è stato un Colore tiene il codice
+nel database ma non mostra pallini. Sull'Icona l'immagine caricata vince sul
+nome dell'icona. L'indirizzo dell'immagine lo dà `AttributeValue::imageUrl()`.
+
+**Il tipo Icona** (P62) tiene in `icon` il nome di un'icona Bootstrap (`bi-…`,
+scelta con l'input `icon()` del core e il selettore della lib, che cerca anche
+con parole italiane) e in `image` un file PNG, JPG o WebP. SVG no: è un
+documento che può portare script.
 
 ### Due nomi di colonna che non sono quelli della spec
 
@@ -142,8 +172,9 @@ in `visibleWhen('type', ...)`.
 
 - Il riquadro *Valori* si stampa sempre, con
   `visibleWhen('type', Attributes::VALUE_TYPES)`.
-- Nella riga, l'immagine (`image`) si vede solo sulla Fantasia e il codice
-  (`color`) solo sul Colore: le due `RepeaterColumn` hanno il loro
+- Nella riga, l'immagine (`image`) si vede sulla Fantasia e sull'Icona, il
+  codice (`color`) solo sul Colore e il segno (`icon`) solo sull'Icona: le
+  `RepeaterColumn` hanno il loro
   `visibleWhen()`, che il repeater del core ripete sul contenitore della
   colonna. Il valore (`label`) ha `columnFill()` e si prende lo spazio che le
   altre lasciano: su un Elenco è l'unica casella.
@@ -156,7 +187,7 @@ restano nel database, e tornando al tipo di prima si ritrovano.
 
 Il tipo non può passare a Testo o Numero mentre ci sono dei valori:
 `mutateRequestValues()` si ferma, perché il salvataggio li cancellerebbe in
-silenzio. Fra Elenco, Colore e Fantasia si passa liberamente.
+silenzio. Fra Elenco, Colore, Fantasia e Icona si passa liberamente.
 
 ### Il pulsante "Guida"
 
@@ -191,7 +222,7 @@ schermo vanno a capo, ed era il disallineamento che si vedeva.
 | Quando | Cosa si vede |
 |---|---|
 | `has_variants` a `true` | il riquadro "Opzioni in vendita": selettore, spunte e griglia — identico in `create` e in `edit` |
-| `has_variants` a `false` | l'EAN passa nei riquadri in alto, e con il modello già salvato ci compare anche la giacenza, scrivibile, con il link alla rettifica. Prezzo e prezzo scontato stanno lì sempre |
+| `has_variants` a `false` | l'EAN passa nei riquadri in alto con la giacenza, scrivibile (in creazione è un carico iniziale); con il modello già salvato accanto compare il link alla rettifica. Prezzo e prezzo scontato stanno lì sempre |
 | nessun attributo con valori | `optionsCard()` torna `[]` e il riquadro non c'è |
 
 `has_variants` è una **colonna di `gst_product_models`**, non un conteggio: un
@@ -234,8 +265,10 @@ scrive il selettore, con le frecce su ogni blocco acceso, e lo ripulisce
 `axesFromPost()` tenendo solo quello che è davvero spuntato.
 
 `groupsByAxis()` accende i gruppi da **due assi in su** — con uno solo ogni
-testata ripeterebbe la riga — e il browser fa lo stesso conto lato suo
-(`assi >= 2` in `raggruppa()`). Cambiando l'ordine, il browser riscrive subito
+testata ripeterebbe la riga — **oppure** quando l'unico asse è quello con foto
+proprie (`variantAttributeId()`): la testata è il posto delle sue foto (P60).
+Il browser fa lo stesso conto lato suo (`assi >= 2 || colore` in
+`raggruppa()`). Cambiando l'ordine, il browser riscrive subito
 `group` e `option` di ogni riga da `combination` (`riallinea()`), e al
 salvataggio `realignNames()` riscrive i nomi veri: "Blu / S" diventa "S / Blu".
 `Combinations::clientKey()` ordina gli id, quindi l'identità delle righe non
@@ -255,6 +288,27 @@ stato che posta sempre un valore, sarebbe diventata un prodotto senza colore.
 
 Vale sempre la regola di fondo: **un campo che non viene stampato non viene
 postato**, e `syncRepeaterRelations()` cancella le righe che non ritrova.
+
+**Le foto del colore stanno nella testata** (P60). Quando il primo asse è
+l'attributo con foto proprie (`colorPhotosInGroups($modelId)`), la griglia
+dichiara `repeaterGroupFiles($campo, 'group_value', 'Foto del colore')` del
+core: accanto a *Prezzo del gruppo* c'è un bottone con il numero dei file che
+apre un `fileDragDrop('gallery')`. Il gruppo si riconosce da `group_value`,
+colonna nascosta con l'**id del valore** del colore — non il nome, che si
+rinomina e si ripete fra articoli —, scritta da `optionLabels()` sul server e
+da `chiaveFoto()` nel browser; resta vuota quando il primo asse non è il
+colore, e senza chiave il core non mette il bottone. Il campo si posta come
+`group_images[<id valore>]` più il manifesto `group_images[<id valore>__wi_files]`
+(P42), e lo legge `Repeater::groupFilesFromRequest()`.
+
+`saveGroupImages()` gira in `saveExtras()` **dopo** il generatore: un colore
+appena spuntato ha già la sua variante, e `variantValues()` la trova. Un colore
+che non nasce (in creazione, tutte le righe annullate) non ha variante, e le sue
+foto cadono da sole. Le varianti scritte dalla testata passano a
+`saveImages(…, $giaSalvate)`, che non le riscrive una seconda volta.
+
+Con «Taglia, poi Colore» i gruppi sono taglie: `colorPhotosInGroups()` è falso
+e le aree per colore restano nel riquadro «Foto e video», come prima.
 
 ### Codici degli articoli
 
@@ -334,7 +388,8 @@ risposta giusta per chi sta guardando un colore, non una taglia.
 
 **Niente colonna "Vale per".** Al suo posto un'area di caricamento per posto
 (`imageFields()`, una per `imageTargets()`: l'articolo e, quando le varianti
-sono più di una, ogni colore). Ogni area è un repeater sulla **stessa** tabella
+sono più di una e il colore non è il primo asse, ogni colore; con il colore
+davanti le sue foto stanno nella testata del gruppo, vedi sopra). Ogni area è un repeater sulla **stessa** tabella
 ristretto alla sua fetta con `condition()`, e quella condizione guida **anche la
 cancellazione**: senza `'product_id' => null` dentro, il primo salvataggio
 porterebbe via le foto delle singole opzioni, che l'area non mostra e quindi non
@@ -401,9 +456,10 @@ cinque campi: si compilava, si salvava, si riapriva la scheda e si salvava
 ancora. Ora no, e si può perché il core sincronizza i repeater con l'id appena
 inserito (`syncRepeaterRelations($insertId, …)` subito dopo l'insert): foto,
 righe e collegamenti nascono nello stesso salvataggio. Quello che non può
-esistere prima del primo salvataggio semplicemente non compare — la giacenza
-del riquadro in alto, le aree foto dei singoli colori, il pulsante "Dettagli
-delle opzioni".
+esistere prima del primo salvataggio semplicemente non compare — il link alla
+rettifica, il pulsante "Dettagli delle opzioni". La giacenza del riquadro in
+alto invece c'è (P59): `afterStore()` passa `$appenaNato` a `saveExtras()`, e
+il numero diventa un carico iniziale.
 
 **Categorie: un albero con la stella.** La principale non è un secondo campo:
 `categories` è un `checkTree` con `->primaryField('main_category')`, e la lib
@@ -414,10 +470,12 @@ stella rimasta su una voce tolta cade sulla prima), e finisce in
 `['name', 'parent_id']`: la risposta porta `item.parent_id`, e il nodo nasce
 sotto il padre, già spuntato.
 
-**Il tipo fiscale nel riquadro «Vendita».** `taxCategoryField()` parte da
-`TaxCategories::defaultId()` (vedi [IVA e impostazioni](iva-e-impostazioni.md#il-tipo-predefinito));
-con un tipo solo è un `hidden()`, e il renderer del core lo stampa senza
-colonna, così non lascia un buco nel riquadro.
+**Il tipo fiscale nel riquadro «Vendita».** `taxCategoryField($modelId)`
+parte da `TaxCategories::defaultId()` (vedi [IVA e impostazioni](iva-e-impostazioni.md#il-tipo-predefinito))
+e si vede sempre, anche con un tipo solo (P58): un campo nascosto non si trova
+il giorno in cui serve. Su un articolo salvato passa a `options()` il tipo che
+l'articolo usa, così un tipo nascosto resta in coda invece di essere
+sostituito al primo salvataggio.
 
 **Colonne che spariscono.** Prezzi, giacenza e il riquadro dei codici hanno
 `hiddenWhen('has_variants', 'true')`. Il core marca la loro colonna come
@@ -452,13 +510,21 @@ causale `Reasons::DEFAULT` (*Inventario*). Una casella riscritta uguale non
 muove niente.
 
 Per una riga appena nata la quantità è invece un carico: `saveNewVersions()` la
-registra con causale `initial_stock`. Il magazzino ha una porta sola, e resta
-quella.
+registra con causale `initial_stock` attraverso `loadInitialStock()`. Lo stesso
+vale per la casella in alto di un articolo senza varianti appena creato:
+`saveSingleStock(..., $appenaNato)` carica invece di rettificare, e lo fa
+anche con più sedi — su un articolo che nasce non c'è niente da rendere
+ambiguo, e `Stock::apply()` senza sede va sulla principale. Per la stessa
+ragione in creazione la colonna `stock` della griglia si scrive sempre. Il
+magazzino ha una porta sola, e resta quella.
 
-Il rifiuto di un numero negativo sta in `assertStockWritable()`, chiamato da
-`mutateRequestValues()`: **dopo l'insert non c'è nessuna rete** — il sync e
-`afterUpdate` girano fuori da qualunque `try` — e l'errore diventerebbe una
-pagina di guasto su un articolo già scritto a metà.
+Il rifiuto di un numero negativo sta in `assertStockWritable($id, $conVarianti)`,
+chiamato da `mutateRequestValues()`: **dopo l'insert non c'è nessuna rete** —
+il sync e `afterUpdate` girano fuori da qualunque `try` — e l'errore
+diventerebbe una pagina di guasto su un articolo già scritto a metà. Guarda la
+casella in alto o le righe, secondo la risposta a «ha varianti?», e lascia
+passare un numero sotto zero uguale a quello che il prodotto ha già
+(`negativeWritten()`): è una vendita in arretrato, non l'ha scritto nessuno.
 
 I decimali della griglia arrivano interi fino al database dalla **2.2.15** del
 core: prima il suo `prepare()` li arrotondava (21,50 diventava 22,00). Non

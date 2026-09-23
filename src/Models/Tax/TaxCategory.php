@@ -12,8 +12,8 @@ use Wonder\Sql\TableSchema as Column;
  *
  * Ogni modello del catalogo ne avrà uno; insieme al paese e al tipo di cliente
  * è quello che sceglie l'aliquota (`TaxRule`). Un articolo nuovo parte dal
- * tipo «Predefinito»; quando ne esiste uno solo, la scheda prodotto non lo
- * mostra nemmeno.
+ * tipo «Predefinito»; un tipo nascosto non si propone più, ma resta sugli
+ * articoli che lo usano.
  */
 final class TaxCategory extends Model
 {

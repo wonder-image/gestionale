@@ -216,7 +216,7 @@ try {
             return count($rows) >= 6;
         });
 
-        check('il terzo attributo si sceglie nel carrello', function () use ($demo) {
+        check('il terzo attributo è un\'opzione da scegliere', function () use ($demo) {
             $materiale = $demo(Attribute::class, 'materiale');
 
             return ($materiale['level'] ?? '') === 'product'

@@ -109,4 +109,27 @@ check('niente spuntato, niente assi', function () use ($scheda) {
     return $scelte === ['variant' => [], 'axes' => []];
 });
 
+check('i valori di un colore o di un\'icona portano il loro segno', function () use ($scheda) {
+    $colore = ['id' => 7, 'type' => 'color'];
+    $icona = ['id' => 8, 'type' => 'icon'];
+    $valori = new class extends ProductModelResource {
+        public static function attributeValues(): array
+        {
+            return [
+                70 => ['id' => 70, 'attribute_id' => 7, 'label' => 'Blu', 'color' => '#1d4ed8'],
+                71 => ['id' => 71, 'attribute_id' => 7, 'label' => 'Senza', 'color' => ''],
+                80 => ['id' => 80, 'attribute_id' => 8, 'label' => 'Vegano', 'icon' => 'bi-leaf'],
+            ];
+        }
+    };
+
+    return $valori::valueChoices($colore) === [
+            '70' => ['name' => 'Blu', 'color' => '#1d4ed8'],
+            '71' => 'Senza',
+        ]
+        && $valori::valueChoices($icona) === ['80' => ['name' => 'Vegano', 'icon' => 'bi-leaf']]
+        // Un elenco resta testo: niente segni da disegnare.
+        && $scheda::valueChoices(['id' => 1, 'type' => 'select']) === ['10' => 'Blu', '11' => 'Rosso'];
+});
+
 summary();

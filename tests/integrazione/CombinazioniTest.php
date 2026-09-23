@@ -13,12 +13,14 @@ require __DIR__ . '/../harness.php';
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Combinations;
 use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
+use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
@@ -113,6 +115,14 @@ try {
         check('e sei prodotti', fn () =>
             ProductModelResource::productCount($modelId) === 6
         );
+
+        check('colore e taglia ora sono in uso, un attributo nuovo no', function () use ($colore, $taglia, $attributo) {
+            $nuovo = $attributo('Prova materiale', 'model', 'select', ['Cotone']);
+
+            return ProductAttributes::isUsed($colore['id'])
+                && ProductAttributes::isUsed($taglia['id'])
+                && !ProductAttributes::isUsed($nuovo['id']);
+        });
 
         check('lo scheletro è stato riusato, non lasciato in giro', function () use ($modelId) {
             // Le due varianti sono Blu e Rosso: nessuna porta ancora il nome
@@ -236,6 +246,65 @@ try {
             }
 
             return false;
+        });
+
+        check('le foto della testata vanno al colore giusto', function () use ($colore) {
+            $modello = ProductModel::create([
+                'code' => Code::make(ProductModel::class, Codes::MODEL),
+                'name' => 'Prova foto colore',
+                'slug' => Slug::make('prova-foto-colore-'.uniqid()),
+                'sku' => 'CMB-3',
+                'unit' => 'pz',
+                'type' => 'simple',
+                'visible' => 'true',
+                'visible_online' => 'true',
+                'position' => 1,
+            ]);
+            $nuovo = (int) ($modello->insert_id ?? 0);
+            Skeleton::forModel($nuovo, 'Prova foto colore', 'CMB-3');
+
+            $post = [
+                'has_variants' => 'true',
+                'axes_order' => (string) $colore['id'],
+                'option_'.$colore['id'] => array_map('strval', $colore['values']),
+                'product_price' => '10,00',
+            ];
+
+            ProductModelResource::forgetCatalogCache();
+            ProductModelResource::saveExtras($nuovo, $post, 'CMB-3');
+
+            $varianteDi = array_flip(ProductModelResource::variantValues($nuovo));
+            $blu = (int) ($varianteDi[$colore['values'][0]] ?? 0);
+            $rosso = (int) ($varianteDi[$colore['values'][1]] ?? 0);
+
+            // Le righe si scrivono a mano: il salvataggio le deve solo
+            // riordinare o togliere, e i nomi bastano a riconoscerle.
+            foreach ([[$blu, 'blu-a.jpg', 1], [$blu, 'blu-b.jpg', 2], [$rosso, 'rosso-a.jpg', 1]] as [$variante, $file, $posizione]) {
+                ProductImage::create([
+                    'product_model_id' => $nuovo,
+                    'product_variant_id' => $variante,
+                    'file' => json_encode([$file]),
+                    'alt' => '',
+                    'position' => $posizione,
+                    'status' => 'pending',
+                    'attempts' => 0,
+                ]);
+            }
+
+            ProductModelResource::saveExtras($nuovo, $post + [
+                'group_images' => [
+                    // Il blu tiene la seconda foto, che diventa la prima.
+                    $colore['values'][0].'__wi_files' => json_encode(['blu-b.jpg']),
+                    // Un valore senza variante non tocca niente.
+                    '999999__wi_files' => json_encode([]),
+                ],
+            ], 'CMB-3');
+
+            return $blu > 0 && $rosso > 0
+                && ProductModelResource::imageNames($nuovo, $blu) === ['blu-b.jpg']
+                // Il rosso non è arrivato dalla testata: le sue foto restano.
+                && ProductModelResource::imageNames($nuovo, $rosso) === ['rosso-a.jpg']
+                && ProductModelResource::colorPhotosInGroups($nuovo);
         });
 
         throw new Annulla();

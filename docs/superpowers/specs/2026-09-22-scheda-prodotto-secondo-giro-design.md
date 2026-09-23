@@ -686,6 +686,9 @@ compare anche con un attributo solo, se è quello con foto proprie: la testata
 ripete il nome della riga, ma è il posto delle foto del colore, e metterle
 altrove per un caso solo vorrebbe dire due posti per la stessa cosa. Aggiungere
 dopo un secondo attributo non sposta niente: le foto erano già del colore.
+Con «Taglia, poi Colore» invece le aree per colore restano nel riquadro «Foto e
+video», come prima (e quindi solo su un articolo salvato): le foto del colore
+devono stare da qualche parte, e la testata della taglia non è il posto.
 
 Il gruppo si riconosce dall'id del valore, non dal nome: due colori possono
 chiamarsi uguale in due articoli, e un nome si rinomina. Nel framework la
@@ -752,17 +755,18 @@ metteva i campi sul modello e li faceva riscrivere uguali su ogni articolo.
 
 ### Lavori del settimo giro
 
-- [ ] core: niente «+» del quick-create a chi legge soltanto; guida `quick-create.md`
-- [ ] core: opzioni con icona, colore o immagine in select e pillole
-- [ ] core: input `icon()` con i due renderer
-- [ ] core: testate del repeater persistenti; `repeaterGroupFiles()`; lettura dei file di gruppo
-- [ ] lib: selettore delle icone con parole chiave italiane; icone e colori nelle opzioni di Select2
-- [ ] modulo: tipo fiscale sempre visibile
-- [ ] modulo: giacenza in creazione
-- [ ] modulo: «Uso», `levelsFor()`, blocco in uso, tooltip delle opzioni in vendita
-- [ ] modulo: tipo Icona
-- [ ] modulo: foto del colore nella testata
-- [ ] guide utente e dev, spec d'architettura (D23), prova nel browser, memoria
+- [x] core: niente «+» del quick-create a chi legge soltanto; guida `quick-create.md`
+- [x] core: opzioni con icona, colore o immagine in select e pillole
+- [x] core: input `icon()` con i due renderer
+- [x] core: testate del repeater persistenti; `repeaterGroupFiles()`; lettura dei file di gruppo
+- [x] lib: selettore delle icone con parole chiave italiane; icone e colori nelle opzioni di Select2
+- [x] modulo: tipo fiscale sempre visibile
+- [x] modulo: giacenza in creazione
+- [x] modulo: «Uso», `levelsFor()`, blocco in uso, tooltip delle opzioni in vendita
+- [x] modulo: tipo Icona
+- [x] modulo: foto del colore nella testata
+- [x] guide utente e dev, spec d'architettura (D23)
+- [x] prova nel browser (1600×950: attributo Icona col selettore, Uso per tipo e spento se in uso, tipo fiscale e giacenza in creazione, foto del colore caricate in creazione e rilette in modifica), memoria
 
 ## Piani
 

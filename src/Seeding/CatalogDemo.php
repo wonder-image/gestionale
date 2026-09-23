@@ -62,8 +62,9 @@ final class CatalogDemo
     /**
      * Gli attributi di prova, per riferimento.
      *
-     * Il colore ha pagina e foto proprie: è lui a raggruppare la griglia delle
-     * opzioni in vendita. Taglia e materiale si scelgono invece nel carrello.
+     * Il colore è un'opzione con foto proprie: è lui a raggruppare la griglia
+     * delle opzioni in vendita. Taglia e materiale sono opzioni da scegliere,
+     * senza foto loro.
      * Insieme sono tre attributi su un articolo solo, il massimo che la
      * scheda accetta; il materiale serve a vedere una riga che si legge
      * "S / Gomma".

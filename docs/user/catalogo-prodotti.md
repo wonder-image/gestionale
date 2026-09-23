@@ -25,8 +25,8 @@ domande e un secondo con tutto il resto.
 Obbligatori sono due: il **nome** e il **tipo fiscale**, che decide l'IVA. Il
 tipo fiscale è già scelto: un articolo nuovo parte da quello segnato
 **Predefinito** nei tipi fiscali, e lo cambi nel riquadro **Vendita** solo per
-gli articoli che fanno eccezione (un libro, un alimento). Se il negozio ha un
-tipo fiscale solo, la scheda non lo chiede nemmeno. Il resto lo compili adesso
+gli articoli che fanno eccezione (un libro, un alimento); il **+** accanto al
+campo ne crea uno nuovo senza lasciare la scheda. Il resto lo compili adesso
 o un altro giorno.
 
 Chi vende un cappello scrive nome, prezzo e categoria e salva. Chi vende
@@ -62,6 +62,11 @@ resto.
 Un articolo che ha già più opzioni non torna indietro con l'interruttore:
 quelle righe hanno movimenti, foto e magari ordini. Si eliminano dalla griglia,
 una per una, dove la cancellazione lo dice.
+
+La domanda c'è solo se nel negozio esiste almeno un attributo che può fare
+opzioni (quando, lo spiega [Gli attributi](catalogo-attributi.md#quando-un-attributo-compare-nelle-opzioni-in-vendita)):
+senza, non avrebbe niente da offrire, e l'articolo si compila come uno senza
+varianti.
 
 ## «Opzioni in vendita»
 
@@ -137,7 +142,14 @@ La griglia è **raggruppata**, e il raggruppamento è per il primo attributo che
 hai scelto. Nella testata di ogni gruppo c'è **Prezzo del gruppo**: lo scrivi lì
 e va su tutte le righe di quel gruppo, sotto i tuoi occhi. Con un attributo solo
 non c'è niente da raggruppare — ogni testata ripeterebbe la riga — e la griglia
-resta piatta.
+resta piatta, tranne quando quell'attributo è uno con foto proprie (il colore):
+la testata allora c'è, perché è lì che stanno le sue foto.
+
+Quando il primo attributo è il colore, accanto a *Prezzo del gruppo* c'è
+**Foto del colore**, con il numero dei file già caricati: apre un'area su cui
+trascini le foto di quel colore, e valgono per tutte le sue opzioni. Funziona
+anche mentre crei l'articolo, prima di salvare. Se annulli tutte le righe di un
+colore nuovo, le sue foto non si salvano: il colore non nasce.
 
 Le righe non si trascinano: l'ordine lo decide il gestionale, ed è sempre lo
 stesso.
@@ -177,15 +189,18 @@ causale *Inventario*.
   lasciare stare le altre.
 - Una riga **appena nata** parte con un movimento di *Giacenza iniziale*.
 - Un **numero negativo** viene rifiutato: qui si scrive quanti pezzi hai, non di
-  quanto cambiarli.
+  quanto cambiarli. Se la giacenza è già sotto zero per delle vendite in
+  arretrato e non la tocchi, il salvataggio passa.
 
 Quando l'articolo non ha varianti la casella sta in alto, accanto al prezzo, e
 si scrive allo stesso modo: accanto c'è il link alla rettifica, per quando serve
-una causale diversa.
+una causale diversa. C'è anche quando crei l'articolo: quello che scrivi lì
+entra come *Giacenza iniziale*.
 
-Se un domani il magazzino avrà **più sedi**, la casella della scheda diventerà
-un totale da leggere: un numero solo non potrebbe dire in quale sede sta la
-merce.
+Se il magazzino ha **più sedi**, la casella della scheda diventa un totale da
+leggere: un numero solo non potrebbe dire in quale sede sta la merce. Fa
+eccezione la creazione: su un articolo nuovo la giacenza si scrive comunque, e
+va nella sede principale.
 
 Per i carichi lunghi — centinaia di righe con una causale sola — restano
 **Magazzino → Giacenze** e il pulsante **Rettifica**: li trovi in
@@ -209,11 +224,17 @@ categoria padre, e quella nuova compare al suo posto nell'albero, già spuntata.
 
 Si caricano in due posti, e in tutti e due si trascinano:
 
-- nel riquadro **Foto e video**: quello che carichi nell'area dell'articolo
-  compare in **tutte le opzioni**; quello che carichi nell'area di un colore
-  (*Foto blu*) solo nelle opzioni di quel colore;
-- nella colonna **Foto o video** della griglia, e lì il file è di quella singola
-  opzione.
+- nel riquadro **Foto e video**: quello che carichi qui compare in **tutte le
+  opzioni**;
+- nella testata del colore, con **Foto del colore**: quelle foto compaiono solo
+  nelle opzioni di quel colore;
+- dietro **«Compila le informazioni avanzate»** di una riga, in **Foto o
+  video**: il file è di quella singola opzione.
+
+Se hai messo la taglia prima del colore, i gruppi sono taglie e una foto della
+taglia S non vorrebbe dire niente: in quel caso le aree dei colori (*Foto blu*,
+*Foto rosso*) restano nel riquadro **Foto e video**, e compaiono dopo il primo
+salvataggio.
 
 Quale foto vede il cliente lo spiega [Le foto degli articoli](catalogo-immagini.md).
 
@@ -244,7 +265,11 @@ Stanno nel riquadro **Vendita**, e le prime due sono domande diverse:
   ma in vetrina non compare.
 
 Sotto c'è il **tipo fiscale** (vedi sopra: parte dal predefinito), e in fondo
-**Si può rendere** e **Si spedisce**.
+**Si può rendere** e **Si spedisce**. Un tipo fiscale che hai nascosto non si
+propone più agli articoli nuovi, ma su quelli che lo usano resta, in fondo
+all'elenco, con scritto *(nascosto)*. Se non hai nessun tipo fiscale il campo
+dice *Nessuno: vale l'aliquota di ripiego*, l'aliquota scelta nelle
+impostazioni per quando nessuna regola risponde.
 
 ## Misure e spedizione
 
