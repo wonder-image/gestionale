@@ -1010,6 +1010,54 @@ tooltip di «Prodotto».
 - [x] prova nel browser (1600×950: foto sopra «Come si vende», imballaggio che sparisce e torna con «Da spedire», misure due per riga in fondo a destra, SKU sotto Prezzo ed EAN sotto Prezzo scontato in creazione, spariti accendendo le varianti)
 - [x] review: con «Da spedire» spento `mutateRequestValues()` toglie `package_id` — nascosto viene postato lo stesso, e una scatola «Ferma», che non è fra le scelte, si sarebbe persa; test più stretto su SKU ed EAN nel riquadro «Prodotto»; tooltip, commenti e guide che parlavano ancora del prezzo «comando», del riquadro «Spedizione» e della griglia sotto le colonne
 
+## 20. Undicesimo giro: la stella che torna cartella, la scheda tecnica che mostra solo il necessario, la scorta minima fra i codici
+
+*Richiesta dell'utente.*
+
+**La categoria principale.** La prima categoria spuntata prende la stella, le
+altre no; tolta la spunta alla principale, torna cartella e si può rispuntare.
+Il difetto era nella lib: con `tie_selection`, il valore di partenza di
+jstree, spuntare passa per `changed.jstree` e non per `check_node`, e
+`setJsTreePrimary` non se ne accorgeva (lib `28e4f83`, con un test su un
+albero finto).
+
+**La scheda tecnica mostra solo quello che è compilato.** Ogni caratteristica
+è un blocco con id e nome; lo script nasconde i vuoti e li mette nel menu di
+un bottone tratteggiato «Aggiungi caratteristica», come «Opzioni in vendita».
+Scelta una voce, il blocco compare con il cursore dentro. La × in alto a destra
+del campo lo toglie: lo svuota, perché nascosto verrebbe postato lo stesso, e
+chiede conferma solo se c'era scritto qualcosa. «Nuova caratteristica…» e il
+link a Catalogo → Attributi stanno in fondo al menu; il bottone del quick
+create resta nella pagina, nascosto, e il menu lo clicca.
+
+**«Compila le informazioni avanzate» anche senza varianti.** SKU ed EAN
+lasciano la riga sotto il prezzo per una tendina chiusa, la stessa delle righe
+della griglia, e con gli avvisi di scorta minima accanto c'è la **Scorta
+minima** (la «giacenza minima» della richiesta): la riga del prezzo torna di
+tre caselle. Con le varianti la scorta minima sta nella tendina di ogni riga,
+fra EAN e Stato. Il core ha la variante a link dell'`Accordion`
+(`Accordion::link()`), e il layout dei form sposta sulla colonna le regole di
+visibilità di un accordion, come per il `Container`.
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P78 | La prima categoria spuntata è la principale; tolta la spunta, la vecchia principale torna cartella | Era già l'intenzione di P49: il difetto era un evento di jstree mai ascoltato |
+| P79 | La scheda tecnica mostra solo i campi compilati; gli altri stanno nel menu «Aggiungi caratteristica», con «Nuova caratteristica…» in fondo. Corregge il riquadro con tutti i campi di §17 | Con dieci caratteristiche il riquadro era una lista da scorrere; ogni articolo ne usa poche |
+| P80 | Togliere una caratteristica la svuota e al salvataggio la cancella; conferma solo se c'era un valore | Nascosto un campo viene postato lo stesso; un campo vuoto non ha niente da perdere |
+| P81 | Senza varianti SKU, EAN e scorta minima in «Compila le informazioni avanzate» sotto il prezzo; con le varianti la scorta minima in ogni riga della griglia. Corregge P77 | Sono codici e soglie che si toccano di rado, come nelle righe della griglia; la soglia è di ogni opzione |
+| P82 | `Accordion::link()` nel core: bottone di testo con la freccia, niente cornice, corpo a griglia | Dentro un riquadro già incorniciato un secondo bordo pesa; è la forma del repeater |
+| P83 | Al salvataggio prima le soglie, poi i pezzi; accendendo le varianti la riga della prima combinazione, dove è scritta, vince su quella dello scheletro che il generatore riprende, e i suoi pezzi sono una rettifica; su un articolo appena creato è tutto carico iniziale; la griglia vale anche quando l'interruttore disabilitato manda «no» | Con la soglia vecchia un movimento apriva e chiudeva avvisi finti, che arrivano per email; lo scheletro ha già i suoi pezzi, e sommarli raddoppiava la giacenza; una riga nuova nasce vuota e non deve cancellare quello che c'era |
+
+### Lavori dell'undicesimo giro
+
+- [x] lib: `setJsTreePrimary` ascolta `changed.jstree`; test `backend-tree-primary`
+- [x] core: `Accordion::link()` e `isLink()`, `renderLink()` nel tema Bootstrap, regole di visibilità sulla colonna in `ResourceFormLayoutRenderer`; test `AccordionGridTest`; CSS della freccia nella lib
+- [x] modulo: tendina «Compila le informazioni avanzate» sotto il prezzo; colonna `min_stock` nella griglia, `assertMinStocks()`, `saveMinStocks()`, rilettura in `mutateFormValues`, AutoNumeric con l'unità
+- [x] modulo: `technicalBlock()`, menu «Aggiungi caratteristica», × con conferma, blocco nuovo dal `<template>` al quick create
+- [x] modulo: test, guide utente e dev
+- [x] modulo, dopo la review: `saveMinStocks()` prima dei movimenti, `adjustStock()`, scheletro ripreso che si rettifica (solo se c'era prima della richiesta, e la riga vuota non cancella la vecchia), `hasVariants()` in `saveExtras()`; test in `CombinazioniTest`
+- [x] prova nel browser (1600×950: stella alla prima spunta e cartella togliendola; scheda tecnica vuota con il solo bottone, voce del menu che accende il blocco, × con e senza conferma, salvataggio che cancella il valore tolto, caratteristica nuova dal quick create; tendina con SKU, EAN e Scorta minima sotto Prezzo, Prezzo scontato e Giacenza; nella griglia SKU, EAN, Scorta minima e Stato)
+
 ## Piani
 
 Da scrivere dopo l'approvazione.

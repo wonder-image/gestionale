@@ -134,7 +134,7 @@ scorta*, né i *Destinatari degli avvisi* — e l'attività gira senza mandare.
 | Chi | Cosa |
 |---|---|
 | `Stock::apply()` | apre e chiude la riga di `gst_stock_alerts` a ogni movimento |
-| le due schede | salvando la soglia chiamano `Alerts::refresh()`: l'avviso si apre o si chiude subito |
+| le due schede | salvando la soglia chiamano `Alerts::refresh()`: l'avviso si apre o si chiude subito. Nella scheda dell'articolo la soglia sta in «Compila le informazioni avanzate»: sotto il prezzo senza varianti (`product_min_stock`), in ogni riga della griglia con le varianti (`products[row][min_stock]`; `assertMinStocks()` la controlla prima dell'insert). `saveMinStocks()` scrive le soglie cambiate **prima** di muovere i pezzi, così il movimento rinfresca l'avviso con la soglia nuova; quelle senza movimento si rinfrescano alla fine |
 | attività `gestionale.stock_alerts` | ogni quarto d'ora, **nata spenta**: una email sola con i prodotti ancora sotto soglia e un avviso mai mandato |
 | `php forge gestionale:stock-alerts` | l'anteprima: cosa partirebbe e a chi; non manda e non scrive |
 | riquadro *Sotto scorta* | gli stessi prodotti dell'email, letti adesso |

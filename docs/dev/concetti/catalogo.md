@@ -173,14 +173,30 @@ Gli attributi di livello `model` stanno nel riquadro *Scheda tecnica* di
 - **Il «+» dei valori** è il `quickCreate()` del core su
   `AttributeValueResource`, con l'`attribute_id` nascosto nel layout del
   modal (`newValueLayout()`).
-- **«Nuova caratteristica»** è un `QuickCreateButton` del core su
-  `AttributeResource`: dall'API nasce solo un Testo o un Numero di livello
+- **Si vede solo quello che è compilato.** Ogni caratteristica sta in un
+  blocco (`technicalBlock()`): un `Container` con `data-wi-technical="<id>"` e
+  `data-wi-technical-name`, che il core mette sul nodo interno — da nascondere
+  è il genitore, la colonna. Lo script (`technicalScript($voci)`,
+  `window.wiTechnicalSheet`) al caricamento nasconde i blocchi senza valore e
+  li mette nel menu del bottone tratteggiato «Aggiungi caratteristica»; una
+  voce del menu riaccende il blocco e ci porta il cursore.
+- **La × svuota, non nasconde e basta**: un campo nascosto viene postato lo
+  stesso. Toglierla azzera le caselle (anche AutoNumeric) e al salvataggio
+  `ProductAttributes::save()` cancella la riga. Con un valore chiede conferma
+  con `window.wiRepeaterConfirmDelete()`, con `window.confirm()` di riserva.
+  La × va nel wrapper del campo (`.form-floating` o
+  `.wi-container-checkbox`), cercato fuori dai `.modal`: quando lo script gira
+  il modal di «Aggiungi valore» di un elenco è ancora dentro il blocco — lo
+  sposta in fondo al `body` il `DOMContentLoaded`.
+- **«Nuova caratteristica…»**, in fondo al menu, clicca un
+  `QuickCreateButton` del core su `AttributeResource` la cui colonna lo
+  script nasconde: dall'API nasce solo un Testo o un Numero di livello
   `model` (`quickCreateFields()`, `QUICK_TYPES`, `QUICK_LEVEL`). Allo
-  `wi:quick-create:created` lo script del riquadro copia un `<template>` con
-  il campo vero renderizzato dal core (id segnaposto `__WI_ID__`), ci scrive
-  id, nome e unità, lo mette prima del bottone e ci porta il cursore. Al
-  salvataggio il campo si posta come gli altri, perché `attributes()` rilegge
-  il catalogo.
+  `wi:quick-create:created` lo script copia un `<template>` con il blocco vero
+  renderizzato dal core (id segnaposto `__WI_ID__`), ci scrive id, nome e
+  unità, lo mette prima del bottone, aggiunge la voce al menu (nascosta) e ci
+  porta il cursore. Al salvataggio il campo si posta come gli altri, perché
+  `attributes()` rilegge il catalogo.
 
 ### Due nomi di colonna che non sono quelli della spec
 
@@ -259,7 +275,7 @@ c'è già), con `window.confirm()` di riserva.
 | Quando | Cosa si vede |
 |---|---|
 | `has_variants` a `true` | il riquadro "Opzioni in vendita": selettore, spunte e griglia — identico in `create` e in `edit` |
-| `has_variants` a `false` | nel riquadro «Prodotto» la riga del prezzo ha anche la giacenza, scrivibile (in creazione è un carico iniziale), e sotto SKU ed EAN larghi come prezzo e scontato; con il modello già salvato compare il link alla rettifica |
+| `has_variants` a `false` | nel riquadro «Prodotto» la riga del prezzo ha anche la giacenza, scrivibile (in creazione è un carico iniziale), e sotto l'`Accordion` a link «Compila le informazioni avanzate» con SKU, EAN e, con `low_stock_alerts`, la scorta minima; con il modello già salvato compare il link alla rettifica |
 | nessun attributo con valori | `optionsCard()` torna `[]` e il riquadro non c'è |
 
 `has_variants` è una **colonna di `gst_product_models`**, non un conteggio: un
@@ -273,10 +289,28 @@ articolo con più di un prodotto la risposta è forzata a `true` e l'interruttor
 travestita.
 
 Colonne della griglia: `option` (finta, `readonly`), `price`, `stock` nella
-riga; `sku`, `ean`, `active`, `photo` dietro `repeaterAdvanced()`; `id`,
-`group` e `combination` nascoste. Quelle della riga stanno **dentro undici**: la
-dodicesima è la colonna dei bottoni, e quello che sfora va a capo. Quelle del
-blocco avanzato si contano su dodici, perché lì bottoni non ce ne sono.
+riga; `sku`, `ean`, `min_stock` (solo con `low_stock_alerts`), `active`, `photo`
+dietro `repeaterAdvanced()`; `id`, `group` e `combination` nascoste. Quelle
+della riga stanno **dentro undici**: la dodicesima è la colonna dei bottoni, e
+quello che sfora va a capo. Quelle del blocco avanzato si contano su dodici,
+perché lì bottoni non ce ne sono: con la scorta minima SKU, EAN, soglia e Stato
+passano da 4 a 3 ciascuna.
+
+Al salvataggio `saveExtras()` scrive **prima le soglie e poi i pezzi**
+(`saveMinStocks()`, poi carichi e rettifiche): ogni movimento rinfresca l'avviso
+con la soglia che trova nel database, e con quella vecchia giacenza e soglia
+cambiate insieme aprirebbero e chiuderebbero avvisi finti. Le soglie cambiate
+senza un pezzo che si muove si rinfrescano alla fine. Accendendo le varianti il
+generatore riprende lo scheletro per la prima combinazione: dove la riga nuova è
+scritta vince su quella vecchia ancora nella griglia, dove è vuota vale la
+vecchia, e i suoi pezzi sono una rettifica verso il numero scritto, non un
+carico da sommare. Su un articolo appena creato lo scheletro è nato nella stessa
+richiesta, e ogni combinazione ha il suo carico iniziale.
+
+`saveExtras()` sceglie la strada della griglia anche quando il POST dice «no»
+ma il modello dice «sì» (`hasVariants()`): eliminate le righe fino a una,
+`mutateRequestValues()` ha già forzato la colonna, mentre l'interruttore
+disabilitato manda «no» e le caselle in alto, nascoste, arrivano vuote.
 
 - `option` non è la colonna `name`: una casella di sola lettura viene postata lo
   stesso, e avrebbe scritto "S" al posto di "Blu / S". La riempie
@@ -509,7 +543,7 @@ sotto il padre, già spuntato.
 
 **La colonna larga** (`mainColumn()`): «Prodotto» — nome e stato, le due
 descrizioni, la domanda sulle varianti, poi prezzo, scontato e giacenza, e
-sotto SKU ed EAN larghi quanto prezzo e scontato —, poi «Opzioni in vendita»
+sotto «Compila le informazioni avanzate» con SKU, EAN e scorta minima —, poi «Opzioni in vendita»
 (`optionsCard()`, con `visibleWhen('has_variants', 'true')`) e «Scheda
 tecnica» in fondo.
 
@@ -535,12 +569,14 @@ il giorno in cui serve. Su un articolo salvato passa a `options()` il tipo che
 l'articolo usa, così un tipo nascosto resta in coda invece di essere
 sostituito al primo salvataggio.
 
-**Colonne che spariscono.** Prezzi, giacenza, SKU ed EAN hanno
-`hiddenWhen('has_variants', 'true')`: stanno tutti nel riquadro «Prodotto», e
-lo SKU ha la larghezza del prezzo e l'EAN quella dello scontato, così cadono
-proprio sotto. Il riquadro «Codici» non c'è più. Il core marca la loro colonna come
-contenitore condizionale e la nasconde intera: in una `row g-3` una colonna
-vuota lascia comunque il margine. E un campo senza `columnSpan()` in un
+**Colonne che spariscono.** Prezzi e giacenza hanno
+`hiddenWhen('has_variants', 'true')`, e così l'`Accordion::link()` «Compila le
+informazioni avanzate» con SKU, EAN e scorta minima: è la stessa tendina delle
+righe della griglia, perché sono codici che servono di rado. Il riquadro
+«Codici» non c'è più. Il core marca la loro colonna come contenitore
+condizionale e la nasconde intera: in una `row g-3` una colonna vuota lascia
+comunque il margine. Per l'accordion lo fa `ResourceFormLayoutRenderer`, che
+sposta le regole di visibilità dal nodo interno alla colonna. E un campo senza `columnSpan()` in un
 contenitore a 12 colonne ne prende una: nei layout dei `quickCreate` va
 dichiarato `->columnSpan(12)`.
 

@@ -8,12 +8,15 @@ require __DIR__ . '/harness.php';
 use Wonder\App\ResourceSchema\Inputs\InputCheckbox;
 use Wonder\App\ResourceSchema\Inputs\InputNumber;
 use Wonder\App\ResourceSchema\Inputs\InputText;
+use Wonder\Elements\Components\Accordion;
+use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\Link;
 use Wonder\Elements\Components\QuickCreateButton;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
@@ -576,56 +579,112 @@ check('l\'imballaggio sta sotto «Da spedire» e compare solo se si spedisce', f
         ];
 });
 
-check('senza varianti SKU ed EAN stanno sotto prezzo e scontato', function () use ($riquadro) {
-    $nomi = [];
+/** La tendina «Compila le informazioni avanzate» del riquadro Prodotto. */
+$avanzateProdotto = static function () use ($riquadro): ?Accordion {
+    foreach ($riquadro(0, 'Prodotto') as $pezzo) {
+        if ($pezzo instanceof Accordion) {
+            return $pezzo;
+        }
+    }
+
+    return null;
+};
+
+/** @return array<string, int|null> nome => larghezza, nell'ordine */
+$larghezzeDi = static function (array $pezzi): array {
     $larghezze = [];
 
-    foreach ($riquadro(0, 'Prodotto') as $pezzo) {
+    foreach ($pezzi as $pezzo) {
         if (property_exists($pezzo, 'name') && (string) $pezzo->name !== '') {
-            $nomi[] = (string) $pezzo->name;
             $larghezze[(string) $pezzo->name] = ((array) ($pezzo->columnSpan ?? []))['default'] ?? null;
         }
     }
 
-    $prezzo = array_search('product_price', $nomi, true);
-    $sku = array_search('sku', $nomi, true);
-    $ean = array_search('product_ean', $nomi, true);
+    return $larghezze;
+};
 
-    if ($prezzo === false || $sku === false || $ean !== $sku + 1) {
-        return false;
+$forza = static function (?array $stato): void {
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
+};
+
+check('senza varianti prezzo, scontato e giacenza stanno in una riga da tre', function () use ($riquadro, $larghezzeDi, $forza) {
+    $risultato = true;
+
+    // Con e senza la scorta minima la riga è la stessa: la soglia è andata
+    // nella tendina, accanto ai codici.
+    foreach ([false, true] as $soglia) {
+        $forza(['low_stock_alerts' => $soglia]);
+        $larghezze = $larghezzeDi($riquadro(0, 'Prodotto'));
+        $riga = array_intersect_key($larghezze, array_flip(['product_price', 'product_sale_price', 'product_stock']));
+
+        $risultato = $risultato
+            && $riga === ['product_price' => 4, 'product_sale_price' => 4, 'product_stock' => 4]
+            && !array_key_exists('product_min_stock', $larghezze)
+            && !array_key_exists('sku', $larghezze)
+            && !array_key_exists('product_ean', $larghezze);
     }
 
-    // Subito dopo la riga del prezzo (giacenza e scorta minima comprese), e
-    // larghi come le due caselle sopra: il codice cade sotto il prezzo,
-    // l'EAN sotto lo scontato.
-    $riga = array_slice($nomi, $prezzo, $sku - $prezzo);
-    $attesa = array_values(array_filter(
-        ['product_price', 'product_sale_price', 'product_stock', 'product_min_stock'],
-        static fn ($chiave) => in_array($chiave, $nomi, true)
-    ));
+    $forza(null);
 
-    return $riga === $attesa
-        && $larghezze['sku'] === $larghezze['product_price']
-        && $larghezze['product_ean'] === $larghezze['product_sale_price'];
+    return $risultato;
 });
 
-check('SKU ed EAN spariscono quando l\'articolo ha varianti', function () use ($riquadro) {
-    $regole = [];
+check('SKU ed EAN stanno in «Compila le informazioni avanzate», sotto il prezzo', function () use ($riquadro, $larghezzeDi, $forza) {
+    $forza(['low_stock_alerts' => false]);
+    $pezzi = $riquadro(0, 'Prodotto');
+    $forza(null);
 
-    // I campi che il layout mette davvero in «Prodotto», non quelli
-    // dichiarati: la regola deve viaggiare con il clone.
-    foreach ($riquadro(0, 'Prodotto') as $pezzo) {
-        if (property_exists($pezzo, 'name') && in_array((string) $pezzo->name, ['sku', 'product_ean'], true)) {
-            $regole[(string) $pezzo->name] = $pezzo->conditionalAttributes();
+    // Subito dopo la giacenza: è il resto di quella riga.
+    $tendina = null;
+
+    foreach ($pezzi as $indice => $pezzo) {
+        if (property_exists($pezzo, 'name') && (string) $pezzo->name === 'product_stock') {
+            $tendina = $pezzi[$indice + 1] ?? null;
         }
+    }
+
+    return $tendina instanceof Accordion
+        && $tendina->isLink()
+        && $tendina->getText() === 'Compila le informazioni avanzate'
+        && $larghezzeDi($tendina->components) === ['sku' => 6, 'product_ean' => 6];
+});
+
+check('con gli avvisi sbloccati la scorta minima sta accanto a SKU ed EAN', function () use ($avanzateProdotto, $larghezzeDi, $forza) {
+    $forza(['low_stock_alerts' => true]);
+    $tendina = $avanzateProdotto();
+    $forza(null);
+
+    return $tendina !== null
+        && $larghezzeDi($tendina->components) === ['sku' => 4, 'product_ean' => 4, 'product_min_stock' => 4];
+});
+
+check('la tendina e i suoi campi spariscono quando l\'articolo ha varianti', function () use ($avanzateProdotto, $forza) {
+    $forza(['low_stock_alerts' => true]);
+    $tendina = $avanzateProdotto();
+    $forza(null);
+
+    if ($tendina === null) {
+        return false;
     }
 
     $regola = [
         'data-hidden-when' => 'has_variants',
         'data-hidden-when-values' => 'true',
     ];
+    $attributi = (array) $tendina->getSchema('attributes');
+    $regole = [];
 
-    return $regole === ['sku' => $regola, 'product_ean' => $regola];
+    // I campi che il layout mette davvero nella tendina, non quelli
+    // dichiarati: la regola deve viaggiare con il clone.
+    foreach ($tendina->components as $pezzo) {
+        if (property_exists($pezzo, 'name')) {
+            $regole[(string) $pezzo->name] = $pezzo->conditionalAttributes();
+        }
+    }
+
+    return ($attributi['data-hidden-when'] ?? null) === 'has_variants'
+        && ($attributi['data-hidden-when-values'] ?? null) === 'true'
+        && $regole === ['sku' => $regola, 'product_ean' => $regola, 'product_min_stock' => $regola];
 });
 
 check('un articolo che non si spedisce non tocca la sua scatola', function () {
@@ -746,12 +805,35 @@ $schedaTecnica = new class extends ProductModelResource {
     }
 };
 
-/** I pezzi di un riquadro, trovati per nome del campo o per classe. */
-$dentroScheda = static function (object $riquadro, string $cosa): array {
-    return array_values(array_filter(
-        (array) ($riquadro->components ?? []),
-        static fn ($pezzo): bool => $pezzo instanceof $cosa || (isset($pezzo->name) && $pezzo->name === $cosa)
-    ));
+/**
+ * I pezzi di un riquadro, trovati per nome del campo o per classe. Si guarda
+ * anche dentro i blocchi: ogni caratteristica sta nel suo.
+ */
+$dentroScheda = static function (object $riquadro, string $cosa) use (&$dentroScheda): array {
+    $trovati = [];
+
+    foreach ((array) ($riquadro->components ?? []) as $pezzo) {
+        if ($pezzo instanceof $cosa || (isset($pezzo->name) && $pezzo->name === $cosa)) {
+            $trovati[] = $pezzo;
+        }
+
+        if ($pezzo instanceof Container) {
+            array_push($trovati, ...$dentroScheda($pezzo, $cosa));
+        }
+    }
+
+    return $trovati;
+};
+
+/** Il blocco di una caratteristica, trovato dal suo id. */
+$bloccoTecnico = static function (object $riquadro, int $id): ?Container {
+    foreach ((array) ($riquadro->components ?? []) as $pezzo) {
+        if ($pezzo instanceof Container && (($pezzo->getSchema('attributes') ?? [])['data-wi-technical'] ?? null) === (string) $id) {
+            return $pezzo;
+        }
+    }
+
+    return null;
 };
 
 /** Il testo di tutti i RichText del riquadro, uno dopo l'altro. */
@@ -810,16 +892,85 @@ check('una caratteristica a elenco si spunta a pillole, con il «+» per un valo
         && ($rapido['button'] ?? '') === 'Aggiungi valore';
 });
 
-check('testo e numero si scrivono, a mezza riga e con l\'unità', function () use ($schedaTecnica, $dentroScheda) {
+check('testo e numero si scrivono, a mezza riga e con l\'unità', function () use ($schedaTecnica, $dentroScheda, $bloccoTecnico) {
     $riquadro = $schedaTecnica::vediScheda();
     $testo = $dentroScheda($riquadro, 'attribute_32')[0] ?? null;
     $numero = $dentroScheda($riquadro, 'attribute_33')[0] ?? null;
 
+    // La mezza riga è del blocco: il campo lo riempie.
     return $testo instanceof InputText
         && $numero instanceof InputNumber
         && $numero->get('label') === 'Spessore (mm)'
-        && (($testo->columnSpan ?? [])['default'] ?? null) === 6
-        && (($numero->columnSpan ?? [])['default'] ?? null) === 6;
+        && (($bloccoTecnico($riquadro, 32)?->columnSpan ?? [])['default'] ?? null) === 6
+        && (($bloccoTecnico($riquadro, 33)?->columnSpan ?? [])['default'] ?? null) === 6;
+});
+
+check('ogni caratteristica sta nel suo blocco, che si mostra solo se serve', function () use ($schedaTecnica, $dentroScheda, $bloccoTecnico) {
+    $riquadro = $schedaTecnica::vediScheda();
+    $attesi = [31 => ['Lavaggio', 12], 32 => ['Composizione', 6], 33 => ['Spessore', 6]];
+
+    foreach ($attesi as $id => [$nome, $larghezza]) {
+        $blocco = $bloccoTecnico($riquadro, $id);
+        $campo = $dentroScheda($blocco ?? (object) [], 'attribute_'.$id)[0] ?? null;
+
+        if ($blocco === null
+            || (($blocco->getSchema('attributes') ?? [])['data-wi-technical-name'] ?? null) !== $nome
+            || (($blocco->columnSpan ?? [])['default'] ?? null) !== $larghezza
+            || (($campo?->columnSpan ?? [])['default'] ?? null) !== 12
+        ) {
+            return false;
+        }
+    }
+
+    // L'icona ancora senza valori non ha né campo né blocco.
+    return $bloccoTecnico($riquadro, 34) === null;
+});
+
+check('«Aggiungi caratteristica» propone quelle nascoste e quella nuova', function () use ($schedaTecnica, $testoScheda) {
+    $testo = $testoScheda($schedaTecnica::vediScheda());
+
+    return str_contains($testo, 'Aggiungi caratteristica')
+        && str_contains($testo, 'border-style:dashed')
+        && str_contains($testo, 'data-wi-technical-add="31">Lavaggio<')
+        && str_contains($testo, 'data-wi-technical-add="32">Composizione<')
+        && str_contains($testo, 'data-wi-technical-add="33">Spessore<')
+        && !str_contains($testo, 'data-wi-technical-add="34"')
+        // «Nuova caratteristica» è l'ultima voce del menu: apre il modal
+        // del bottone, che resta nella pagina ma non si vede.
+        && str_contains($testo, 'data-wi-technical-new')
+        && str_contains($testo, 'Nuova caratteristica…');
+});
+
+check('togliere una caratteristica la svuota, perché nascosta si salverebbe lo stesso', function () use ($schedaTecnica, $testoScheda) {
+    $testo = $testoScheda($schedaTecnica::vediScheda());
+
+    return str_contains($testo, 'window.wiTechnicalSheet')
+        && str_contains($testo, 'wi-technical-remove')
+        && str_contains($testo, 'casella.checked = false')
+        && str_contains($testo, "casella.value = ''")
+        // Un blocco vuoto se ne va subito; la conferma solo se c'era scritto
+        // qualcosa, con il modal del repeater o, senza, quello del browser.
+        && str_contains($testo, 'if (!scritto(nodo))')
+        && strpos($testo, 'if (!scritto(nodo))') < strpos($testo, 'wiRepeaterConfirmDelete')
+        && str_contains($testo, 'window.confirm(');
+});
+
+check('senza caratteristiche il menu propone solo quella nuova', function () use ($schedaAperta, $dentroScheda, $testoScheda) {
+    $vuota = null;
+
+    foreach ($schedaAperta::formLayoutSchema()->components[0]->components ?? [] as $candidato) {
+        $titolo = $candidato->components[0] ?? null;
+
+        if ($titolo instanceof SectionTitle && $titolo->getText() === 'Scheda tecnica') {
+            $vuota = $candidato;
+        }
+    }
+
+    $testo = $testoScheda($vuota ?? (object) []);
+
+    // Lo script cerca le voci con lo stesso attributo: conta solo il menu.
+    return str_contains($testo, 'data-wi-technical-new')
+        && !str_contains($testo, 'class="dropdown-item" data-wi-technical-add="');
 });
 
 check('un elenco ancora senza valori non diventa una casella sola', function () use ($schedaTecnica) {
@@ -843,6 +994,8 @@ check('il campo appena nato ha il suo modello, e lo script lo mette al suo posto
     return str_contains($testo, '<template data-wi-technical-template="text"')
         && str_contains($testo, '<template data-wi-technical-template="number"')
         && substr_count($testo, 'name="attribute___WI_ID__"') === 2
+        // Anche il campo nuovo ha il suo blocco, con la sua ×.
+        && substr_count($testo, 'data-wi-technical="__WI_ID__"') === 2
         && str_contains($testo, 'wi:quick-create:created')
         && str_contains($testo, '"app-gestionale-attributi"');
 });

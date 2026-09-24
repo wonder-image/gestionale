@@ -10,12 +10,15 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
+use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
+use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Combinations;
@@ -25,6 +28,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Stock\Alerts;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Sql\Transaction;
 
@@ -305,6 +309,291 @@ try {
                 // Il rosso non è arrivato dalla testata: le sue foto restano.
                 && ProductModelResource::imageNames($nuovo, $rosso) === ['rosso-a.jpg']
                 && ProductModelResource::colorPhotosInGroups($nuovo);
+        });
+
+        check('la scorta minima scritta nella griglia si salva, alla nascita e dopo', function () use ($colore, $taglia) {
+            // Solo per questa prova: le altre funzionalità restano come le
+            // ha il sito.
+            Gestionale::feature('low_stock_alerts');
+            $stato = new ReflectionProperty(Gestionale::class, 'features');
+            $prima = $stato->getValue();
+            $stato->setValue(null, array_merge((array) $prima, ['low_stock_alerts' => true]));
+
+            try {
+                $modello = ProductModel::create([
+                    'code' => Code::make(ProductModel::class, Codes::MODEL),
+                    'name' => 'Prova scorta griglia',
+                    'slug' => Slug::make('prova-scorta-griglia-'.uniqid()),
+                    'sku' => 'CMB-4',
+                    'unit' => 'pz',
+                    'type' => 'simple',
+                    'visible' => 'true',
+                    'visible_online' => 'true',
+                    'position' => 1,
+                ]);
+                $nuovo = (int) ($modello->insert_id ?? 0);
+                Skeleton::forModel($nuovo, 'Prova scorta griglia', 'CMB-4');
+                $spunte = [
+                    'has_variants' => 'true',
+                    'axes_order' => $colore['id'].'-'.$taglia['id'],
+                    'option_'.$colore['id'] => [(string) $colore['values'][0]],
+                    'option_'.$taglia['id'] => [(string) $taglia['values'][0]],
+                ];
+                $chiave = Combinations::clientKey($colore['values'][0], [$taglia['values'][0]]);
+
+                ProductModelResource::forgetCatalogCache();
+                // Nasce con 2 pezzi e la soglia a 5: l'avviso c'è subito.
+                ProductModelResource::saveExtras($nuovo, $spunte + [
+                    'products' => [$chiave => ['price' => '10,00', 'stock' => '2', 'min_stock' => '5']],
+                ], 'CMB-4');
+
+                $prodotto = ProductModelResource::products($nuovo)[0] ?? [];
+                $productId = (int) ($prodotto['id'] ?? 0);
+                $allaNascita = (float) ($prodotto['min_stock_quantity'] ?? 0) === 5.0
+                    && Alerts::openRow($productId) !== [];
+
+                // Poi la si abbassa dalla riga, che adesso ha il suo id.
+                ProductModelResource::saveExtras($nuovo, $spunte + [
+                    'products' => ['0' => ['id' => (string) $productId, 'stock' => '2', 'min_stock' => '1']],
+                ], 'CMB-4');
+
+                $dopo = (float) (Product::findById($productId)['min_stock_quantity'] ?? 0) === 1.0
+                    && Alerts::openRow($productId) === [];
+
+                return $productId > 0 && $allaNascita && $dopo;
+            } finally {
+                $stato->setValue(null, $prima);
+            }
+        });
+
+        /** Esegue la prova con gli avvisi di scorta minima accesi. */
+        $conAvvisi = static function (callable $prova): mixed {
+            Gestionale::feature('low_stock_alerts');
+            $stato = new ReflectionProperty(Gestionale::class, 'features');
+            $prima = $stato->getValue();
+            $stato->setValue(null, array_merge((array) $prima, ['low_stock_alerts' => true]));
+
+            try {
+                return $prova();
+            } finally {
+                $stato->setValue(null, $prima);
+            }
+        };
+
+        $articolo = static function (string $sku): int {
+            $modello = ProductModel::create([
+                'code' => Code::make(ProductModel::class, Codes::MODEL),
+                'name' => 'Prova '.$sku,
+                'slug' => Slug::make('prova-'.strtolower($sku).'-'.uniqid()),
+                'sku' => $sku,
+                'unit' => 'pz',
+                'type' => 'simple',
+                'visible' => 'true',
+                'visible_online' => 'true',
+                'position' => 1,
+            ]);
+            $nuovo = (int) ($modello->insert_id ?? 0);
+            Skeleton::forModel($nuovo, 'Prova '.$sku, $sku);
+
+            return $nuovo;
+        };
+
+        /** Tutte le righe d'avviso di un prodotto, anche quelle già chiuse. */
+        $avvisi = static function (int $productId): int {
+            $rows = StockAlert::find('product_id = '.$productId." AND deleted = 'false'");
+
+            if (!is_array($rows) || $rows === []) {
+                return 0;
+            }
+
+            return isset($rows['id']) ? 1 : count(array_filter($rows, 'is_array'));
+        };
+
+        check('accendendo le varianti la prima combinazione tiene scorta minima e giacenza della sua riga', function () use ($conAvvisi, $articolo, $colore, $taglia) {
+            return $conAvvisi(static function () use ($articolo, $colore, $taglia): bool {
+                $nuovo = $articolo('CMB-5');
+                ProductModelResource::forgetCatalogCache();
+                // Prima un articolo senza varianti: 5 pezzi, soglia 5.
+                ProductModelResource::saveExtras($nuovo, [
+                    'has_variants' => 'false',
+                    'product_stock' => '5',
+                    'product_min_stock' => '5',
+                ], 'CMB-5');
+                $scheletro = (int) (ProductModelResource::products($nuovo)[0]['id'] ?? 0);
+
+                // Poi si accendono le varianti. La riga dello scheletro c'è
+                // ancora nella griglia, con i suoi numeri; la combinazione
+                // nuova ne ha altri, e sono quelli che valgono.
+                $chiave = Combinations::clientKey($colore['values'][0], [$taglia['values'][0]]);
+                ProductModelResource::saveExtras($nuovo, [
+                    'has_variants' => 'true',
+                    'axes_order' => $colore['id'].'-'.$taglia['id'],
+                    'option_'.$colore['id'] => [(string) $colore['values'][0]],
+                    'option_'.$taglia['id'] => [(string) $taglia['values'][0]],
+                    'products' => [
+                        '0' => ['id' => (string) $scheletro, 'stock' => '5', 'min_stock' => '5'],
+                        $chiave => ['price' => '10,00', 'stock' => '3', 'min_stock' => '3'],
+                    ],
+                ], 'CMB-5');
+
+                $prodotti = ProductModelResource::products($nuovo);
+                $riga = $prodotti[0] ?? [];
+
+                return $scheletro > 0
+                    && count($prodotti) === 1
+                    && (int) ($riga['id'] ?? 0) === $scheletro
+                    && (float) ($riga['min_stock_quantity'] ?? 0) === 3.0
+                    && Levels::of($scheletro)['quantity'] === 3.0;
+            });
+        });
+
+        check('giacenza e soglia cambiate insieme: l\'avviso aperto resta quello e non ne nascono di finti', function () use ($conAvvisi, $articolo, $avvisi, $colore) {
+            return $conAvvisi(static function () use ($articolo, $avvisi, $colore): bool {
+                // Nella griglia: nasce con 3 pezzi e soglia 5, avviso aperto.
+                $griglia = $articolo('CMB-6');
+                $spunte = [
+                    'has_variants' => 'true',
+                    'axes_order' => (string) $colore['id'],
+                    'option_'.$colore['id'] => [(string) $colore['values'][0]],
+                ];
+                ProductModelResource::forgetCatalogCache();
+                ProductModelResource::saveExtras($griglia, $spunte + [
+                    'products' => [(string) $colore['values'][0] => ['price' => '10,00', 'stock' => '3', 'min_stock' => '5']],
+                ], 'CMB-6');
+                $variante = (int) (ProductModelResource::products($griglia)[0]['id'] ?? 0);
+                $aperto = (int) (Alerts::openRow($variante)['id'] ?? 0);
+
+                // Salgono tutti e due, la soglia resta sopra: stesso avviso.
+                ProductModelResource::saveExtras($griglia, $spunte + [
+                    'products' => ['0' => ['id' => (string) $variante, 'stock' => '10', 'min_stock' => '12']],
+                ], 'CMB-6');
+                $grigliaTiene = $aperto > 0 && (int) (Alerts::openRow($variante)['id'] ?? 0) === $aperto;
+
+                // Poi 20 pezzi e soglia 15, e giù a 3 pezzi con soglia 2: dopo
+                // la chiusura nessuna riga nuova, nemmeno chiusa subito.
+                ProductModelResource::saveExtras($griglia, $spunte + [
+                    'products' => ['0' => ['id' => (string) $variante, 'stock' => '20', 'min_stock' => '15']],
+                ], 'CMB-6');
+                $righe = $avvisi($variante);
+                ProductModelResource::saveExtras($griglia, $spunte + [
+                    'products' => ['0' => ['id' => (string) $variante, 'stock' => '3', 'min_stock' => '2']],
+                ], 'CMB-6');
+                $grigliaPulita = $avvisi($variante) === $righe && Alerts::openRow($variante) === [];
+
+                // Senza varianti: stessa regola per le due caselle in alto.
+                $singolo = $articolo('CMB-7');
+                ProductModelResource::saveExtras($singolo, [
+                    'has_variants' => 'false',
+                    'product_stock' => '3',
+                    'product_min_stock' => '5',
+                ], 'CMB-7', [], true);
+                $prodotto = (int) (ProductModelResource::products($singolo)[0]['id'] ?? 0);
+                $apertoSingolo = (int) (Alerts::openRow($prodotto)['id'] ?? 0);
+                ProductModelResource::saveExtras($singolo, [
+                    'has_variants' => 'false',
+                    'product_stock' => '10',
+                    'product_min_stock' => '12',
+                ], 'CMB-7');
+                $singoloTiene = $apertoSingolo > 0 && (int) (Alerts::openRow($prodotto)['id'] ?? 0) === $apertoSingolo;
+
+                return $grigliaTiene && $grigliaPulita && $singoloTiene;
+            });
+        });
+
+        /** Le causali dei movimenti di un prodotto, in ordine. */
+        $causali = static function (int $productId): array {
+            $rows = StockMovement::find('product_id = '.$productId." AND deleted = 'false'", null, 'id ASC');
+
+            if (!is_array($rows) || $rows === []) {
+                return [];
+            }
+
+            $rows = isset($rows['id']) ? [$rows] : array_filter($rows, 'is_array');
+
+            return array_values(array_map(static fn (array $row): string => (string) $row['reason'], $rows));
+        };
+
+        check('un articolo che nasce con le varianti carica i pezzi di ogni combinazione, anche della prima', function () use ($articolo, $causali, $colore) {
+            // Come `afterStore()`: lo scheletro nasce nella stessa richiesta,
+            // e il generatore lo riprende per la prima combinazione.
+            $nuovo = $articolo('CMB-8');
+            $valori = array_slice($colore['values'], 0, 2);
+            ProductModelResource::forgetCatalogCache();
+            ProductModelResource::saveExtras($nuovo, [
+                'has_variants' => 'true',
+                'axes_order' => (string) $colore['id'],
+                'option_'.$colore['id'] => array_map('strval', $valori),
+                'products' => [
+                    (string) $valori[0] => ['price' => '10,00', 'stock' => '10'],
+                    (string) $valori[1] => ['price' => '10,00', 'stock' => '5'],
+                ],
+            ], 'CMB-8', [], true);
+
+            $quante = [];
+
+            foreach (ProductModelResource::products($nuovo) as $product) {
+                $id = (int) $product['id'];
+                $quante[] = [Levels::of($id)['quantity'], $causali($id)];
+            }
+
+            usort($quante, static fn (array $a, array $b): int => $b[0] <=> $a[0]);
+
+            return $quante === [[10.0, ['initial_stock']], [5.0, ['initial_stock']]];
+        });
+
+        check('accendendo le varianti, dove la riga nuova è vuota vale quella dello scheletro', function () use ($conAvvisi, $articolo, $colore) {
+            return $conAvvisi(static function () use ($articolo, $colore): bool {
+                $nuovo = $articolo('CMB-9');
+                ProductModelResource::forgetCatalogCache();
+                ProductModelResource::saveExtras($nuovo, [
+                    'has_variants' => 'false',
+                    'product_stock' => '5',
+                    'product_min_stock' => '5',
+                ], 'CMB-9');
+                $scheletro = (int) (ProductModelResource::products($nuovo)[0]['id'] ?? 0);
+
+                // La riga nuova nasce dal modello della griglia con le caselle
+                // vuote; nella vecchia si è corretto qualcosa.
+                ProductModelResource::saveExtras($nuovo, [
+                    'has_variants' => 'true',
+                    'axes_order' => (string) $colore['id'],
+                    'option_'.$colore['id'] => [(string) $colore['values'][0]],
+                    'products' => [
+                        '0' => ['id' => (string) $scheletro, 'stock' => '7', 'min_stock' => '6'],
+                        (string) $colore['values'][0] => ['price' => '10,00', 'stock' => '', 'min_stock' => ''],
+                    ],
+                ], 'CMB-9');
+
+                $riga = ProductModelResource::products($nuovo)[0] ?? [];
+
+                return (int) ($riga['id'] ?? 0) === $scheletro
+                    && (float) ($riga['min_stock_quantity'] ?? 0) === 6.0
+                    && Levels::of($scheletro)['quantity'] === 7.0;
+            });
+        });
+
+        check('eliminate le righe fino a una, la griglia vale ancora: l\'interruttore spento non la butta', function () use ($conAvvisi, $articolo) {
+            return $conAvvisi(static function () use ($articolo): bool {
+                $nuovo = $articolo('CMB-10');
+                // `mutateRequestValues()` ha già scritto «sì» sul modello: le
+                // righe erano più d'una quando è partito il salvataggio.
+                ProductModel::update(['has_variants' => 'true'], $nuovo);
+                $prodotto = (int) (ProductModelResource::products($nuovo)[0]['id'] ?? 0);
+
+                // L'interruttore disabilitato manda «no», e le caselle in alto,
+                // nascoste, arrivano vuote.
+                ProductModelResource::saveExtras($nuovo, [
+                    'has_variants' => 'false',
+                    'product_stock' => '',
+                    'product_min_stock' => '',
+                    'products' => ['0' => ['id' => (string) $prodotto, 'stock' => '4', 'min_stock' => '8']],
+                ], 'CMB-10');
+
+                $riga = ProductModelResource::products($nuovo)[0] ?? [];
+
+                return (float) ($riga['min_stock_quantity'] ?? 0) === 8.0
+                    && Levels::of($prodotto)['quantity'] === 4.0;
+            });
         });
 
         throw new Annulla();

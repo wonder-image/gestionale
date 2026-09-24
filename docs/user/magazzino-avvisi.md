@@ -18,9 +18,11 @@ debba controllare le giacenze ogni giorno.
 È la casella **Scorta minima** nella scheda del prodotto:
 
 - per un articolo che si vende in **un'unica opzione**, nella scheda
-  dell'articolo, accanto alla giacenza;
-- per un articolo **con più opzioni**, nel riquadro *Magazzino* della scheda di
-  ogni opzione in vendita: ogni taglia o colore ha la sua.
+  dell'articolo, sotto il prezzo, dietro **«Compila le informazioni
+  avanzate»**, accanto a SKU ed EAN;
+- per un articolo **con più opzioni**, nella griglia di *Opzioni in vendita*,
+  dietro **«Compila le informazioni avanzate»** di ogni riga, e nel riquadro
+  *Magazzino* della scheda di ogni opzione: ogni taglia o colore ha la sua.
 
 Scrivi a quanti pezzi vuoi essere avvisato. Con **5**, l'avviso nasce quando ne
 restano cinque. **Zero**, o la casella vuota, vuol dire nessun avviso.

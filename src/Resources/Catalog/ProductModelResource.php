@@ -14,7 +14,9 @@ use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\Inputs\InputCheckbox;
+use Wonder\App\ResourceSchema\Inputs\InputNumber;
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
+use Wonder\Elements\Components\Accordion;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\QuickCreateButton;
@@ -328,10 +330,9 @@ class ProductModelResource extends GestionaleResource
             $domanda = FormField::key('has_variants')->hidden()->value('false');
         }
 
-        // Con la scorta minima la riga del prezzo ha quattro caselle invece
-        // di tre.
+        // La scorta minima sta nella tendina, accanto ai codici: la riga del
+        // prezzo resta di tre caselle.
         $soglia = Gestionale::feature('low_stock_alerts');
-        $larghezza = $soglia ? 3 : 4;
 
         $cards = [
             (new Card)->components([
@@ -340,6 +341,7 @@ class ProductModelResource extends GestionaleResource
                         ? 'Con le varianti prezzo, codici e giacenza sono di ogni opzione: si scrivono riga per riga in «Opzioni in vendita», qui sotto.'
                         : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il riquadro «Tipo fiscale». Lo SKU è anche il codice di famiglia: se aggiungi le varianti, da lì nascono quelli delle opzioni.'
                             .($modelId > 0 ? '' : ' La giacenza scritta alla creazione entra come giacenza iniziale, nella sede principale.')
+                            .' SKU, EAN'.($soglia ? ' e scorta minima' : '').' stanno in «Compila le informazioni avanzate».'
                             .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso: vale sul disponibile di tutte le sedi, e con zero non arriva niente.' : '')
                             .($senzaOpzioni ? ' Per vendere colori o taglie serve un attributo con uso «Opzione da scegliere» o «Opzione con foto proprie», e dei valori: si crea in Catalogo → Attributi.' : ''))
                     ->columnSpan(12),
@@ -356,20 +358,28 @@ class ProductModelResource extends GestionaleResource
                         ->tag('div')
                         ->columnSpan(12),
                 ] : []),
-                static::getInput('product_price')->columnSpan($larghezza),
-                static::getInput('product_sale_price')->columnSpan($larghezza),
+                static::getInput('product_price')->columnSpan(4),
+                static::getInput('product_sale_price')->columnSpan(4),
                 // Senza varianti la giacenza sta qui, accanto al prezzo: è la
                 // scheda di quell'unico articolo, e la parola "opzione" non
                 // compare da nessuna parte. In creazione c'è già: chi crea
                 // l'articolo ha la merce davanti.
-                static::getInput('product_stock')->columnSpan($larghezza),
-                ...($soglia ? [static::getInput('product_min_stock')->columnSpan(3)] : []),
-                // I codici sotto prezzo e scontato, larghi uguali: sono di
-                // quell'unico articolo. Con le varianti spariscono insieme al
-                // prezzo — ognuna ha i suoi nella griglia — ma lo SKU resta
-                // nel modulo e continua a proporre quelli delle righe.
-                static::getInput('sku')->columnSpan($larghezza),
-                static::getInput('product_ean')->columnSpan($larghezza),
+                static::getInput('product_stock')->columnSpan(4),
+                // Codici e scorta minima sotto il prezzo, chiusi come le
+                // informazioni avanzate delle righe della griglia: servono di
+                // rado. Con le varianti spariscono insieme al prezzo — ognuna
+                // ha i suoi nella griglia — ma lo SKU resta nel modulo, solo
+                // nascosto, e continua a proporre quelli delle righe.
+                Accordion::make('Compila le informazioni avanzate')
+                    ->link()
+                    ->columns(12)
+                    ->columnSpan(12)
+                    ->hiddenWhen('has_variants', 'true')
+                    ->components([
+                        static::getInput('sku')->columnSpan($soglia ? 4 : 6),
+                        static::getInput('product_ean')->columnSpan($soglia ? 4 : 6),
+                        ...($soglia ? [static::getInput('product_min_stock')->columnSpan(4)] : []),
+                    ]),
                 // In creazione non c'è ancora niente da rettificare.
                 ...($modelId > 0 ? [
                     RichText::make(static::adjustLink($modelId))
@@ -695,15 +705,38 @@ class ProductModelResource extends GestionaleResource
 
         // La scorta minima si controlla adesso, come la giacenza: dopo
         // l'insert un rifiuto lascerebbe l'articolo scritto a metà.
-        if (
-            Gestionale::feature('low_stock_alerts')
-            && $values['has_variants'] !== 'true'
-            && array_key_exists('product_min_stock', $_POST)
-        ) {
-            static::minStockValue($_POST['product_min_stock']);
-        }
+        static::assertMinStocks((array) $_POST, $values['has_variants'] === 'true');
 
         return static::withoutExtras($values);
+    }
+
+    /**
+     * Le scorte minime postate devono essere numeri non negativi.
+     *
+     * Senza varianti conta la casella del riquadro Prodotto, con le varianti
+     * quelle delle righe della griglia: le altre sono nascoste, ma arrivano
+     * lo stesso, e un valore rimasto lì non deve bloccare il salvataggio.
+     * Con gli avvisi bloccati non si scrive niente, e non si guarda niente.
+     */
+    public static function assertMinStocks(array $post, bool $conVarianti): void
+    {
+        if (!Gestionale::feature('low_stock_alerts')) {
+            return;
+        }
+
+        if (!$conVarianti) {
+            if (array_key_exists('product_min_stock', $post)) {
+                static::minStockValue($post['product_min_stock']);
+            }
+
+            return;
+        }
+
+        foreach (static::postedRows($post) as $riga) {
+            if (array_key_exists('min_stock', $riga)) {
+                static::minStockValue($riga['min_stock']);
+            }
+        }
     }
 
     /**
@@ -864,12 +897,29 @@ class ProductModelResource extends GestionaleResource
             return;
         }
 
-        $productId = (int) $product['id'];
-        $attuale = (float) (Levels::of($productId)['quantity'] ?? 0);
+        static::adjustStock([(int) $product['id'] => $quantita]);
+    }
 
-        foreach (Stocktake::changes([$productId => $attuale], [$productId => $quantita]) as $id => $cambio) {
+    /**
+     * Porta ogni prodotto al numero di pezzi scritto nella scheda.
+     *
+     * Si scrive **quanti pezzi ci sono**, non di quanto cambiarli: il
+     * movimento è la differenza, e un numero riscritto uguale non muove
+     * niente.
+     *
+     * @param array<int, float> $quantita pezzi voluti, per id del prodotto
+     */
+    protected static function adjustStock(array $quantita): void
+    {
+        $attuali = [];
+
+        foreach (Levels::forProducts(array_keys($quantita)) as $productId => $livello) {
+            $attuali[(int) $productId] = (float) ($livello['quantity'] ?? 0);
+        }
+
+        foreach (Stocktake::changes($attuali, $quantita) as $productId => $cambio) {
             Stock::apply([
-                'product_id' => $id,
+                'product_id' => $productId,
                 'quantity' => $cambio['delta'],
                 'reason' => Reasons::DEFAULT,
                 'note' => 'Rettifica dalla scheda dell\'articolo',
@@ -878,37 +928,106 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
-     * La scorta minima dell'articolo senza varianti.
+     * Le scorte minime scritte nella scheda: nella griglia, per riga, o in
+     * alto accanto a SKU ed EAN quando l'articolo non ha varianti.
      *
-     * Si scrive dopo la giacenza: alla creazione il carico iniziale ha già
-     * rinfrescato l'avviso con la soglia a zero, e qui lo si rinfresca con
-     * quella vera. Il rinfresco c'è anche quando nessun pezzo si è mosso:
-     * alzare la soglia sopra il disponibile è già una notizia.
+     * Si scrivono **prima** di muovere un pezzo. Ogni movimento rinfresca
+     * l'avviso del suo prodotto con la soglia che trova nel database: con
+     * quella vecchia, giacenza e soglia cambiate insieme aprirebbero e
+     * chiuderebbero avvisi finti — e chi li riceve per email se li vede
+     * arrivare lo stesso.
+     *
+     * Accendendo le varianti il generatore riprende lo scheletro per la
+     * prima combinazione, e la sua riga vecchia può essere ancora nella
+     * griglia: dove la riga nuova è scritta vince lei, dove è vuota — nasce
+     * dal modello della griglia, con le caselle vuote — vale la vecchia.
+     *
+     * @param array<string, array<string, mixed>> $righe
+     * @param array<string, array{product_id: int, variant_id: int, priced: bool}> $nate
+     * @param array<string, array<string, mixed>> $scritte
+     * @return list<int> i prodotti il cui avviso va rinfrescato alla fine
      */
-    protected static function saveSingleMinStock(int $modelId, array $post, bool $conVarianti): void
+    protected static function saveMinStocks(
+        int $modelId,
+        array $post,
+        array $righe,
+        array $nate,
+        array $scritte,
+        bool $conVarianti
+    ): array {
+        if (!Gestionale::feature('low_stock_alerts')) {
+            return [];
+        }
+
+        if (!$conVarianti) {
+            $product = static::soleProduct($modelId);
+
+            if (!is_array($product) || !array_key_exists('product_min_stock', $post)) {
+                return [];
+            }
+
+            $productId = (int) $product['id'];
+            static::writeMinStock($productId, $post['product_min_stock'], (float) ($product['min_stock_quantity'] ?? 0));
+
+            // Anche se la soglia è rimasta quella: alzarla sopra il
+            // disponibile è già una notizia, e l'avviso va guardato ora.
+            return [$productId];
+        }
+
+        $soglie = [];
+
+        foreach (static::products($modelId) as $product) {
+            $soglie[(int) $product['id']] = (float) ($product['min_stock_quantity'] ?? 0);
+        }
+
+        $volute = [];
+
+        foreach ($righe as $riga) {
+            $productId = (int) ($riga['id'] ?? 0);
+
+            if (isset($soglie[$productId]) && array_key_exists('min_stock', $riga)) {
+                $volute[$productId] = $riga['min_stock'];
+            }
+        }
+
+        foreach ($nate as $chiave => $riga) {
+            $productId = (int) $riga['product_id'];
+            $scritto = is_array($scritte[$chiave] ?? null) ? $scritte[$chiave] : [];
+
+            if (isset($soglie[$productId]) && trim((string) ($scritto['min_stock'] ?? '')) !== '') {
+                $volute[$productId] = $scritto['min_stock'];
+            }
+        }
+
+        $cambiate = [];
+
+        foreach ($volute as $productId => $raw) {
+            if (static::writeMinStock($productId, $raw, $soglie[$productId])) {
+                $cambiate[] = $productId;
+            }
+        }
+
+        return $cambiate;
+    }
+
+    /**
+     * Scrive la scorta minima di un prodotto, se è cambiata. L'avviso non lo
+     * tocca: lo rinfresca il movimento che viene dopo, o `saveExtras()` alla
+     * fine.
+     *
+     * @return bool se la soglia è cambiata
+     */
+    protected static function writeMinStock(int $productId, mixed $raw, float $attuale): bool
     {
-        if (
-            $conVarianti
-            || !Gestionale::feature('low_stock_alerts')
-            || !array_key_exists('product_min_stock', $post)
-        ) {
-            return;
+        $soglia = static::minStockValue($raw);
+
+        if ($productId <= 0 || abs((float) $soglia - $attuale) <= 0.0005) {
+            return false;
         }
 
-        $product = static::soleProduct($modelId);
+        Product::update(['min_stock_quantity' => $soglia], $productId);
 
-        if (!is_array($product)) {
-            return;
-        }
-
-        $productId = (int) $product['id'];
-        $soglia = static::minStockValue($post['product_min_stock']);
-
-        if (abs((float) $soglia - (float) ($product['min_stock_quantity'] ?? 0)) > 0.0005) {
-            Product::update(['min_stock_quantity' => $soglia], $productId);
-        }
-
-        Alerts::refresh($productId);
+        return true;
     }
 
     /**
@@ -1003,15 +1122,30 @@ class ProductModelResource extends GestionaleResource
             // Il riquadro delle opzioni è nascosto, non tolto: le sue caselle
             // arrivano comunque. Chi ha detto di non avere varianti non deve
             // ritrovarsi delle combinazioni generate da spunte che non vede.
+            // Vale anche quello che `mutateRequestValues()` ha già scritto sul
+            // modello: eliminate le righe fino a una, l'interruttore spento
+            // manda «no», ma chi ha salvato stava guardando la griglia.
             $conVarianti = ($post['has_variants'] ?? 'false') === 'true'
-                || static::productCount($modelId) > 1;
+                || static::hasVariants($modelId);
 
             $righe = static::postedRows($post);
             $nate = [];
             $scritte = [];
             $appena = [];
+            $esistenti = [];
+
+            // I prodotti di prima: quello che il generatore riprende non nasce
+            // adesso, e i suoi pezzi non sono un carico iniziale. Su un
+            // articolo appena creato lo scheletro è nato in questa richiesta:
+            // lì è tutto nuovo.
+            if ($conVarianti && !$appenaNato) {
+                foreach (static::products($modelId) as $product) {
+                    $esistenti[(int) $product['id']] = true;
+                }
+            }
 
             if ($conVarianti) {
+
                 $chosen = static::chosenAxes($post);
                 // Le righe senza id sono le combinazioni spuntate che ancora
                 // non esistono: la loro chiave è quella della combinazione.
@@ -1025,11 +1159,28 @@ class ProductModelResource extends GestionaleResource
                 }
             }
 
+            // Lo scheletro ripreso, con la chiave della sua riga nuova.
+            $riprese = [];
+
+            foreach ($nate as $chiave => $riga) {
+                if (isset($esistenti[$riga['product_id']])) {
+                    $riprese[$riga['product_id']] = (string) $chiave;
+                }
+            }
+
             static::savePrices($modelId, $post, $fallbackSku, $appena);
-            static::saveNewVersions($modelId, $nate, $scritte, $files);
-            static::saveRowExtras($modelId, $righe, $files, $conVarianti);
+            // Prima le soglie, poi i pezzi: ogni movimento rinfresca l'avviso
+            // con la soglia che trova.
+            $daRinfrescare = static::saveMinStocks($modelId, $post, $righe, $nate, $scritte, $conVarianti);
+            static::saveNewVersions($modelId, $nate, $scritte, $files, $riprese);
+            static::saveRowExtras($modelId, $righe, $files, $conVarianti, $riprese);
             static::saveSingleStock($modelId, $post, $conVarianti, $appenaNato);
-            static::saveSingleMinStock($modelId, $post, $conVarianti);
+
+            // Le soglie cambiate senza un pezzo che si muove.
+            foreach ($daRinfrescare as $productId) {
+                Alerts::refresh($productId);
+            }
+
             // Dopo il generatore: le foto di un colore appena spuntato hanno
             // bisogno della sua variante.
             $colori = static::saveGroupImages($modelId, $post, $files);
@@ -1117,8 +1268,11 @@ class ProductModelResource extends GestionaleResource
         int $modelId,
         array $righe,
         array $files,
-        bool $conVarianti = true
+        bool $conVarianti = true,
+        array $riprese = []
     ): void {
+        // `$riprese`: lo scheletro ripreso dal generatore, con la chiave della
+        // sua riga nuova. Dove quella è scritta vince lei.
         $caricate = Repeater::filesFromRequest('products', $files);
         // La giacenza della griglia si guarda solo quando la griglia si vede
         // e la casella si scrive: altrove il numero arriva com'era, e un
@@ -1134,29 +1288,23 @@ class ProductModelResource extends GestionaleResource
                 continue;
             }
 
+            $nuova = $riprese[$productId] ?? null;
             $quantita = $leggiGiacenza ? Stocktake::quantity($riga['stock'] ?? null) : null;
+
+            if ($nuova !== null && Stocktake::quantity($righe[$nuova]['stock'] ?? null) !== null) {
+                $quantita = null;
+            }
 
             if ($quantita !== null) {
                 $scritte[$productId] = $quantita;
             }
 
-            $foto[$productId] = $caricate[$chiave]['photo'] ?? null;
+            if ($nuova === null || !static::isUpload($caricate[$nuova]['photo'] ?? null)) {
+                $foto[$productId] = $caricate[$chiave]['photo'] ?? null;
+            }
         }
 
-        $attuali = [];
-
-        foreach (Levels::forProducts(array_keys($scritte)) as $productId => $livello) {
-            $attuali[(int) $productId] = (float) ($livello['quantity'] ?? 0);
-        }
-
-        foreach (Stocktake::changes($attuali, $scritte) as $productId => $cambio) {
-            Stock::apply([
-                'product_id' => $productId,
-                'quantity' => $cambio['delta'],
-                'reason' => Reasons::DEFAULT,
-                'note' => 'Rettifica dalla scheda dell\'articolo',
-            ]);
-        }
+        static::adjustStock($scritte);
 
         foreach ($foto as $productId => $file) {
             static::saveOptionImage($modelId, $productId, $file);
@@ -1170,17 +1318,24 @@ class ProductModelResource extends GestionaleResource
      * Prezzo, nome e codici li scrive il generatore mentre crea la riga; qui
      * restano le due cose che vivono altrove — un movimento di magazzino e un
      * file su disco — e che senza una riga a cui agganciarsi non si potevano
-     * scrivere prima.
+     * scrivere prima. La scorta minima è già scritta: `saveMinStocks()` gira
+     * prima, e il carico rinfresca l'avviso con quella giusta.
+     *
+     * Lo scheletro ripreso per la prima combinazione (`$riprese`) ha già i
+     * suoi pezzi: il numero scritto è quanti devono essercene, come in ogni
+     * riga che esiste, non un carico da sommare.
      *
      * @param array<string, array{product_id: int, variant_id: int, priced: bool}> $nate
      * @param array<string, mixed> $scritte
      * @param array<string, mixed> $files
+     * @param array<int, string> $riprese
      */
     protected static function saveNewVersions(
         int $modelId,
         array $nate,
         array $scritte,
-        array $files
+        array $files,
+        array $riprese = []
     ): void {
         if ($nate === []) {
             return;
@@ -1190,10 +1345,15 @@ class ProductModelResource extends GestionaleResource
 
         foreach ($nate as $chiave => $riga) {
             $scritto = is_array($scritte[$chiave] ?? null) ? $scritte[$chiave] : [];
+            $productId = (int) $riga['product_id'];
             $quantita = Stocktake::quantity($scritto['stock'] ?? null);
 
-            if ($quantita !== null) {
-                static::loadInitialStock((int) $riga['product_id'], $quantita);
+            if ($quantita !== null && isset($riprese[$productId])) {
+                if (static::stockIsWritable()) {
+                    static::adjustStock([$productId => $quantita]);
+                }
+            } elseif ($quantita !== null) {
+                static::loadInitialStock($productId, $quantita);
             }
 
             static::saveOptionImage(
@@ -1234,19 +1394,7 @@ class ProductModelResource extends GestionaleResource
      */
     protected static function saveOptionImage(int $modelId, int $productId, mixed $file): void
     {
-        if (!is_array($file) || !isset($file['name'])) {
-            return;
-        }
-
-        $nomi = (array) $file['name'];
-        $errori = (array) ($file['error'] ?? []);
-
-        // `UPLOAD_ERR_NO_FILE`: la casella è rimasta vuota, e va benissimo.
-        if (trim((string) ($nomi[0] ?? '')) === '' || (int) ($errori[0] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            return;
-        }
-
-        if ($productId <= 0) {
+        if (!static::isUpload($file) || $productId <= 0) {
             return;
         }
 
@@ -1260,6 +1408,21 @@ class ProductModelResource extends GestionaleResource
             $file,
             count(static::rowsOf(ProductImage::class, ['product_model_id' => $modelId])) + 1
         );
+    }
+
+    /** Se nella casella c'è davvero un file caricato. */
+    protected static function isUpload(mixed $file): bool
+    {
+        if (!is_array($file) || !isset($file['name'])) {
+            return false;
+        }
+
+        $nomi = (array) $file['name'];
+        $errori = (array) ($file['error'] ?? []);
+
+        // `UPLOAD_ERR_NO_FILE`: la casella è rimasta vuota, e va benissimo.
+        return trim((string) ($nomi[0] ?? '')) !== ''
+            && (int) ($errori[0] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK;
     }
 
     /**
@@ -1576,6 +1739,14 @@ class ProductModelResource extends GestionaleResource
                 $values['products'][$index]['option'] = $nomi[$productId]['label'] ?? '';
                 $values['products'][$index]['photo'] = $foto[$productId] ?? '';
                 $values['products'][$index]['combination'] = $nomi[$productId]['key'] ?? '';
+
+                // La soglia della riga, grezza come la giacenza. Una riga
+                // tornata dal form dopo un errore ha già quella scritta.
+                if (!array_key_exists('min_stock', $row)) {
+                    $values['products'][$index]['min_stock'] = static::rawNumber(
+                        (float) ($row['min_stock_quantity'] ?? 0)
+                    );
+                }
             }
         }
 
@@ -1583,13 +1754,10 @@ class ProductModelResource extends GestionaleResource
             $values['product_stock'] = static::rawNumber(
                 Levels::of((int) $product['id'])['quantity']
             );
-            // Col punto, come la colonna: il campo del backend mostra il
-            // punto come separatore dei decimali.
-            $values['product_min_stock'] = number_format(
-                (float) ($product['min_stock_quantity'] ?? 0),
-                3,
-                '.',
-                ''
+            // Grezza come la giacenza: le cifre e l'unità le mette
+            // AutoNumeric.
+            $values['product_min_stock'] = static::rawNumber(
+                (float) ($product['min_stock_quantity'] ?? 0)
             );
         }
 
@@ -2312,25 +2480,33 @@ HTML)->tag('div');
             var cifre = Object.prototype.hasOwnProperty.call(decimali, unita) ? Number(decimali[unita]) : 3;
             var simbolo = unita !== '' ? ' ' + unita : '';
 
-            // La giacenza dell'articolo senza varianti.
-            document.querySelectorAll('[name="product_stock"]').forEach(function (campo) {
-                formatta(campo, frazionario(numero(campo)) ? 3 : cifre, simbolo);
+            // La giacenza e la scorta minima dell'articolo senza varianti.
+            ['product_stock', 'product_min_stock'].forEach(function (nome) {
+                document.querySelectorAll('[name="' + nome + '"]').forEach(function (campo) {
+                    formatta(campo, frazionario(numero(campo)) ? 3 : cifre, simbolo);
+                });
             });
 
-            // La colonna della griglia ha un formato solo: se una riga ha
-            // già dei decimali, li mostrano tutte.
-            var righe = Array.prototype.slice.call(document.querySelectorAll(
-                '[data-wi-repeater="products"] input[name^="products["][name\$="[stock]"]'
-            ));
-            var colonna = righe.some(function (campo) { return frazionario(numero(campo)); }) ? 3 : cifre;
+            // Le stesse due colonne della griglia. `[stock]` non prende
+            // `[min_stock]`: ognuna ha il suo selettore.
+            ['stock', 'min_stock'].forEach(function (chiave) {
+                var fine = '[name\$="[' + chiave + ']"]';
 
-            righe.forEach(function (campo) { formatta(campo, colonna, simbolo); });
+                // Una colonna ha un formato solo: se una riga ha già dei
+                // decimali, li mostrano tutte.
+                var righe = Array.prototype.slice.call(document.querySelectorAll(
+                    '[data-wi-repeater="products"] input[name^="products["]' + fine
+                ));
+                var colonna = righe.some(function (campo) { return frazionario(numero(campo)); }) ? 3 : cifre;
 
-            // Le righe che nasceranno: AutoNumeric le legge dal modello.
-            document.querySelectorAll('[data-wi-repeater="products"] template').forEach(function (modello) {
-                modello.content.querySelectorAll('input[name\$="[stock]"]').forEach(function (campo) {
-                    campo.setAttribute('data-wi-number-decimal', String(colonna));
-                    campo.setAttribute('data-wi-number-symbol', simbolo);
+                righe.forEach(function (campo) { formatta(campo, colonna, simbolo); });
+
+                // Le righe che nasceranno: AutoNumeric le legge dal modello.
+                document.querySelectorAll('[data-wi-repeater="products"] template').forEach(function (modello) {
+                    modello.content.querySelectorAll('input' + fine).forEach(function (campo) {
+                        campo.setAttribute('data-wi-number-decimal', String(colonna));
+                        campo.setAttribute('data-wi-number-symbol', simbolo);
+                    });
                 });
             });
         }
@@ -3140,21 +3316,27 @@ HTML)->tag('div');
      * Il riquadro «Scheda tecnica»: c'è sempre, anche vuoto.
      *
      * Un posto che compare solo dopo averlo preparato in Catalogo → Attributi
-     * non si trova. Il riquadro sta in fondo alla colonna larga anche senza campi, dice a
-     * cosa serve e ha il bottone per una caratteristica nuova: Testo e Numero
-     * nascono da qui, con il campo che compare subito. Elenchi e Icone hanno
-     * valori e immagini da preparare, e il riquadro dice dove.
+     * non si trova. Il riquadro sta in fondo alla colonna larga anche senza
+     * campi e dice a cosa serve.
+     *
+     * Si vede solo quello che l'articolo ha: ogni caratteristica sta nel suo
+     * blocco, e lo script nasconde quelli vuoti. Le altre aspettano nel menu
+     * «Aggiungi caratteristica», che in fondo ha «Nuova caratteristica…»:
+     * Testo e Numero nascono da qui, con il campo che compare subito. Elenchi
+     * e Icone hanno valori e immagini da preparare, e il menu dice dove.
      */
     protected static function technicalSheetCard(): object
     {
         $campi = [];
+        $voci = [];
 
         foreach (static::technicalAttributes() as $attribute) {
-            $input = static::getInput('attribute_'.(int) $attribute['id']);
+            $id = (int) $attribute['id'];
+            $nome = (string) ($attribute['name'] ?? '');
+            $input = static::getInput('attribute_'.$id);
 
-            $campi[] = $input instanceof InputCheckbox
-                ? $input->columnSpan(12)
-                : $input->columnSpan(6);
+            $campi[] = static::technicalBlock($input, (string) $id, $nome, $input instanceof InputCheckbox ? 12 : 6);
+            $voci[$id] = $nome;
         }
 
         // La frase del riquadro vuoto c'è solo quando serve: nascosta lascerebbe
@@ -3171,6 +3353,9 @@ HTML)->tag('div');
             'Scheda tecnica',
             [
                 ...$campi,
+                // Il bottone vero del modal: lo apre la voce del menu, e lo
+                // script — che viene dopo — ne nasconde la colonna appena la
+                // legge. Il modal intanto se n'è andato in fondo alla pagina.
                 QuickCreateButton::make(AttributeResource::class)
                     ->text('Nuova caratteristica')
                     ->label('name')
@@ -3180,40 +3365,81 @@ HTML)->tag('div');
                     ->size('sm')
                     ->id(static::TECHNICAL_BUTTON)
                     ->columnSpan(12),
-                static::technicalScript()->columnSpan(12),
+                static::technicalScript($voci)->columnSpan(12),
             ],
-            'Quello che descrive l\'articolo e non fa nascere opzioni in vendita: materiale, composizione, lavaggio. Con «Nuova caratteristica» ne nasce una di testo o di numero; gli elenchi con i loro valori, come i simboli di lavaggio, si preparano in Catalogo → Attributi.'
+            'Quello che descrive l\'articolo e non fa nascere opzioni in vendita: materiale, composizione, lavaggio. Si vede solo quello che è compilato: il resto si aggiunge da «Aggiungi caratteristica», dove nasce anche una caratteristica nuova di testo o di numero. Gli elenchi con i loro valori, come i simboli di lavaggio, si preparano in Catalogo → Attributi.'
         );
     }
 
     /**
-     * Il link a Catalogo → Attributi, i modelli dei campi di testo e di numero
-     * e lo script che ne mette uno nel riquadro quando nasce una
-     * caratteristica.
+     * Il blocco di una caratteristica: il campo, e sul contenitore l'id e il
+     * nome che lo script usa per mostrarlo, nasconderlo e rimetterlo nel menu.
      *
-     * Il modello è il campo vero, renderizzato dal core con un segnaposto al
-     * posto dell'id: lo script lo copia, ci scrive l'id e il nome, e il campo
-     * si salva con l'articolo come gli altri, perché al salvataggio gli
-     * attributi si rileggono dal database.
+     * Come i blocchi delle opzioni, gli attributi finiscono sul nodo interno:
+     * quello da nascondere è il suo genitore, la colonna.
      */
-    protected static function technicalScript(): RichText
+    protected static function technicalBlock(object $campo, string $id, string $name, int $span): Container
+    {
+        return (new Container)
+            ->components([$campo->columnSpan(12)])
+            ->attr('data-wi-technical', $id)
+            ->attr('data-wi-technical-name', $name)
+            ->columns(12)
+            ->columnSpan($span);
+    }
+
+    /**
+     * Il menu «Aggiungi caratteristica», i modelli dei campi di testo e di
+     * numero e lo script del riquadro.
+     *
+     * Lo script mostra solo i blocchi compilati, mette la × per toglierne uno
+     * — che lo svuota: nascosto verrebbe salvato lo stesso — e alla nascita
+     * di una caratteristica ne copia il modello. Il modello è il campo vero,
+     * renderizzato dal core con un segnaposto al posto dell'id: lo script ci
+     * scrive l'id e il nome, e il campo si salva con l'articolo come gli
+     * altri, perché al salvataggio gli attributi si rileggono dal database.
+     *
+     * @param array<int, string> $voci le caratteristiche, per id
+     */
+    protected static function technicalScript(array $voci = []): RichText
     {
         $modelli = '';
 
         foreach (AttributeResource::QUICK_TYPES as $type) {
-            $campo = static::writtenField('attribute___WI_ID__', $type, 'Caratteristica')->columnSpan(6);
+            $campo = static::writtenField('attribute___WI_ID__', $type, 'Caratteristica');
             $modelli .= '<template data-wi-technical-template="'.static::escape($type).'">'
-                .ResourceFormLayoutRenderer::renderLayout((new Container)->columns(12)->components([$campo]))
+                .ResourceFormLayoutRenderer::renderLayout((new Container)->columns(12)->components([
+                    static::technicalBlock($campo, '__WI_ID__', '', 6),
+                ]))
                 .'</template>';
+        }
+
+        $menu = '';
+
+        foreach ($voci as $id => $nome) {
+            $menu .= '<li><button type="button" class="dropdown-item" data-wi-technical-add="'.(int) $id.'">'
+                .static::escape($nome).'</button></li>';
         }
 
         $elenco = static::escape(static::attributesUrl());
         $risorsa = json_encode(AttributeResource::slug());
         $bottone = json_encode(static::TECHNICAL_BUTTON);
 
-        // Un `div`, non il `p` di un testo: dentro ci sono i modelli e lo script.
+        // Un `div`, non il `p` di un testo: dentro ci sono il menu, i modelli
+        // e lo script. Il bordo tratteggiato dice «qui si aggiunge», come in
+        // «Opzioni in vendita».
         return RichText::make(<<<HTML
-<div class="small text-body-secondary">Elenchi e simboli con le loro immagini, come quelli di lavaggio, si preparano in <a href="{$elenco}">Catalogo → Attributi</a>.</div>
+<div class="dropdown wi-technical-picker">
+    <button type="button" class="btn btn-outline-secondary w-100 wi-technical-choose" style="border-style:dashed" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-plus-lg me-1"></i>Aggiungi caratteristica
+    </button>
+    <ul class="dropdown-menu w-100">
+        {$menu}
+        <li class="wi-technical-divider"><hr class="dropdown-divider"></li>
+        <li><button type="button" class="dropdown-item" data-wi-technical-new="true"><i class="bi bi-plus-lg me-1"></i>Nuova caratteristica…</button></li>
+        <li><span class="dropdown-item-text small text-body-secondary">Elenchi e simboli con le loro immagini, come quelli di lavaggio, si preparano in <a href="{$elenco}">Catalogo → Attributi</a>.</span></li>
+    </ul>
+</div>
 {$modelli}
 <script>
     window.wiTechnicalSheet = window.wiTechnicalSheet || (function () {
@@ -3230,6 +3456,225 @@ HTML)->tag('div');
             return nodo;
         }
 
+        function blocchi() {
+            return Array.prototype.slice.call(document.querySelectorAll('[data-wi-technical]'));
+        }
+
+        // Le caselle di una caratteristica, per nome: il modal del «+» di un
+        // elenco ha le sue, e non contano.
+        function caselle(nodo) {
+            var id = nodo.getAttribute('data-wi-technical');
+
+            return Array.prototype.slice.call(nodo.querySelectorAll(
+                '[name="attribute_' + id + '"], [name="attribute_' + id + '[]"]'
+            ));
+        }
+
+        function spunta(casella) {
+            return casella.type === 'checkbox' || casella.type === 'radio';
+        }
+
+        function scritto(nodo) {
+            return caselle(nodo).some(function (casella) {
+                return spunta(casella) ? casella.checked : String(casella.value || '').trim() !== '';
+            });
+        }
+
+        function nome(nodo) {
+            return nodo.getAttribute('data-wi-technical-name') || 'Caratteristica';
+        }
+
+        // Il divisore del menu serve solo se sopra c'è qualcosa, e la frase
+        // del riquadro vuoto solo se non si vede nessun campo.
+        function riordina() {
+            var restano = Array.prototype.slice.call(document.querySelectorAll('[data-wi-technical-add]'))
+                .some(function (voce) { return !voce.parentElement.classList.contains('d-none'); });
+            var divisore = document.querySelector('.wi-technical-divider');
+            var vuoto = document.querySelector('.wi-technical-empty');
+
+            if (divisore) {
+                divisore.classList.toggle('d-none', !restano);
+            }
+
+            if (vuoto) {
+                colonna(vuoto).classList.toggle('d-none', blocchi().some(function (nodo) {
+                    return nodo.getAttribute('data-wi-technical-on') === 'true';
+                }));
+            }
+        }
+
+        // Un blocco acceso si vede e sparisce dal menu; spento, il contrario.
+        function mostra(nodo, acceso) {
+            nodo.parentElement.classList.toggle('d-none', !acceso);
+            nodo.setAttribute('data-wi-technical-on', acceso ? 'true' : 'false');
+
+            var voce = document.querySelector('[data-wi-technical-add="' + nodo.getAttribute('data-wi-technical') + '"]');
+
+            if (voce) {
+                voce.parentElement.classList.toggle('d-none', acceso);
+            }
+
+            riordina();
+        }
+
+        function autoNumeric(casella) {
+            return window.AutoNumeric && typeof window.AutoNumeric.getAutoNumericElement === 'function'
+                ? window.AutoNumeric.getAutoNumericElement(casella)
+                : null;
+        }
+
+        // Nascosta, una caratteristica verrebbe salvata lo stesso: toglierla
+        // vuol dire svuotarla, e al salvataggio la sua riga se ne va.
+        function svuota(nodo) {
+            caselle(nodo).forEach(function (casella) {
+                if (spunta(casella)) {
+                    casella.checked = false;
+                } else {
+                    var an = autoNumeric(casella);
+
+                    if (an) {
+                        an.clear(true);
+                    }
+
+                    casella.value = '';
+                }
+
+                casella.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        }
+
+        // La casella da scrivere, per il cursore: l'input nascosto di un
+        // elenco c'è solo per mandare la lista vuota.
+        function primaCasella(nodo) {
+            return caselle(nodo).filter(function (casella) { return casella.type !== 'hidden'; })[0] || null;
+        }
+
+        // Il primo elemento del campo, fuori dai modal: quando lo script gira
+        // il modal del «+» di un elenco è ancora dentro il blocco.
+        function nelCampo(nodo, selettore) {
+            return Array.prototype.slice.call(nodo.querySelectorAll(selettore))
+                .filter(function (elemento) { return !elemento.closest('.modal'); })[0] || null;
+        }
+
+        // La × in alto a destra, all'altezza dell'etichetta: dentro il campo
+        // flottante, o sopra le spunte di un elenco. Non sul blocco, che è
+        // una riga e allargherebbe la × a tutta la sua larghezza.
+        function bottoneTogli(nodo) {
+            if (nelCampo(nodo, '.wi-technical-remove')) {
+                return;
+            }
+
+            var flottante = nelCampo(nodo, '.form-floating');
+            var dove = flottante || nelCampo(nodo, '.wi-container-checkbox') || nodo.firstElementChild;
+
+            if (!dove) {
+                return;
+            }
+
+            var bottone = document.createElement('button');
+            bottone.type = 'button';
+            bottone.className = 'btn btn-sm btn-link text-body-secondary p-0 lh-1 position-absolute top-0 end-0 me-2 wi-technical-remove'
+                + (flottante ? ' mt-2' : '');
+            bottone.style.zIndex = '3';
+
+            // Una colonna qualunque ha il suo margine interno: la × ci sta dentro.
+            if (dove === nodo.firstElementChild) {
+                bottone.style.right = 'calc(var(--bs-gutter-x) * .5)';
+            }
+
+            // Il testo lungo non ci passa sotto.
+            if (flottante) {
+                var casella = flottante.querySelector('input, textarea');
+
+                if (casella) {
+                    casella.style.paddingRight = '2.25rem';
+                }
+            }
+            bottone.title = 'Togli ' + nome(nodo);
+            bottone.setAttribute('aria-label', 'Togli ' + nome(nodo));
+            bottone.innerHTML = '<i class="bi bi-x-lg"></i>';
+            bottone.addEventListener('click', function () {
+                var togli = function () {
+                    svuota(nodo);
+                    mostra(nodo, false);
+
+                    var scelta = document.querySelector('.wi-technical-choose');
+
+                    if (scelta) {
+                        scelta.focus();
+                    }
+                };
+
+                // Vuota se ne va e basta; scritta si chiede, perché un clic
+                // storto si porterebbe via quello che c'era.
+                if (!scritto(nodo)) {
+                    togli();
+
+                    return;
+                }
+
+                var conferma = {
+                    title: 'Togliere ' + nome(nodo) + '?',
+                    text: "Quello che c'è scritto si cancella quando salvi l'articolo.",
+                    cancelLabel: 'Annulla',
+                    confirmLabel: 'Togli',
+                    confirmClass: 'btn btn-danger',
+                };
+
+                if (typeof window.wiRepeaterConfirmDelete === 'function') {
+                    window.wiRepeaterConfirmDelete(togli, conferma);
+                } else if (window.confirm(conferma.title + ' ' + conferma.text)) {
+                    togli();
+                }
+            });
+
+            dove.classList.add('position-relative');
+            dove.appendChild(bottone);
+        }
+
+        function prepara(nodo, acceso) {
+            bottoneTogli(nodo);
+            mostra(nodo, acceso);
+        }
+
+        function aggiungi(id) {
+            var nodo = document.querySelector('[data-wi-technical="' + id + '"]');
+
+            if (!nodo) {
+                return;
+            }
+
+            mostra(nodo, true);
+
+            // La voce cliccata ora è nascosta: il cursore va nel campo, che
+            // è la cosa da fare dopo.
+            var prima = primaCasella(nodo);
+
+            if (prima) {
+                prima.focus();
+            }
+        }
+
+        document.addEventListener('click', function (evento) {
+            var voce = evento.target && evento.target.closest ? evento.target.closest('[data-wi-technical-add], [data-wi-technical-new]') : null;
+
+            if (!voce) {
+                return;
+            }
+
+            if (voce.hasAttribute('data-wi-technical-new')) {
+                var bottone = document.getElementById(BOTTONE);
+
+                if (bottone) {
+                    bottone.click();
+                }
+
+                return;
+            }
+
+            aggiungi(voce.getAttribute('data-wi-technical-add'));
+        });
+
         document.addEventListener('wi:quick-create:created', function (evento) {
             var dettaglio = evento.detail || {};
 
@@ -3241,7 +3686,6 @@ HTML)->tag('div');
             var id = parseInt(dettaglio.id || riga.id, 10);
             var tipo = riga.type === 'number' ? 'number' : 'text';
             var modello = document.querySelector('template[data-wi-technical-template="' + tipo + '"]');
-            var vuoto = document.querySelector('.wi-technical-empty');
             var bottone = document.getElementById(BOTTONE);
 
             if (!(id > 0) || !modello || !bottone) {
@@ -3252,18 +3696,21 @@ HTML)->tag('div');
             scatola.innerHTML = modello.innerHTML.split('__WI_ID__').join(String(id));
 
             var campo = scatola.querySelector('.row > *');
+            var nodo = campo ? campo.querySelector('[data-wi-technical]') : null;
 
-            if (!campo) {
+            if (!nodo) {
                 return;
             }
 
             // Il nome arriva da chi vende: si scrive come testo, mai come HTML.
-            var nome = String(riga.name || dettaglio.label || '');
+            var titolo = String(riga.name || dettaglio.label || '');
             var unita = String(riga.unit || '').trim();
             var etichetta = campo.querySelector('label');
 
+            nodo.setAttribute('data-wi-technical-name', titolo);
+
             if (etichetta) {
-                etichetta.textContent = unita === '' ? nome : nome + ' (' + unita + ')';
+                etichetta.textContent = unita === '' ? titolo : titolo + ' (' + unita + ')';
             }
 
             // L'id del modello è uno per pagina: due caratteristiche nuove
@@ -3278,21 +3725,32 @@ HTML)->tag('div');
                 }
             }
 
-            // Dopo i campi che ci sono già, prima del bottone. La frase del
-            // riquadro vuoto se ne va con la sua colonna.
+            // Dopo i campi che ci sono già, prima del bottone nascosto.
             var prima = colonna(bottone);
             prima.parentElement.insertBefore(campo, prima);
 
-            if (vuoto) {
-                colonna(vuoto).classList.add('d-none');
+            // La sua voce nel menu, per quando la si toglie.
+            var divisore = document.querySelector('.wi-technical-divider');
+
+            if (divisore) {
+                var voce = document.createElement('li');
+                var tasto = document.createElement('button');
+                tasto.type = 'button';
+                tasto.className = 'dropdown-item';
+                tasto.setAttribute('data-wi-technical-add', String(id));
+                tasto.textContent = titolo;
+                voce.appendChild(tasto);
+                divisore.parentElement.insertBefore(voce, divisore);
             }
+
+            prepara(nodo, true);
 
             if (typeof setAutonumeric === 'function') {
                 setAutonumeric(campo);
             }
 
             // Chiudendosi, il modale rimette il cursore sul bottone che l'ha
-            // aperto: il campo nuovo lo prende dopo.
+            // aperto, che è nascosto: il campo nuovo lo prende dopo.
             var modale = document.querySelector('.modal.show');
 
             if (casella && modale) {
@@ -3303,6 +3761,17 @@ HTML)->tag('div');
                 casella.focus();
             }
         });
+
+        // I blocchi e il bottone stanno prima di questo script: si sistemano
+        // subito, senza aspettare la pagina intera e senza farli lampeggiare.
+        var vero = document.getElementById(BOTTONE);
+
+        if (vero) {
+            colonna(vero).classList.add('d-none');
+        }
+
+        blocchi().forEach(function (nodo) { prepara(nodo, scritto(nodo)); });
+        riordina();
 
         return true;
     })();
@@ -3426,6 +3895,21 @@ HTML)->tag('div');
             $giacenza->suffix($formato['suffix']);
         }
 
+        // La soglia dell'avviso di ogni opzione, scritta come la giacenza:
+        // i decimali dell'unità e l'unità in coda. Senza la funzionalità non
+        // esiste.
+        $soglia = null;
+
+        if (Gestionale::feature('low_stock_alerts')) {
+            $soglia = static::minStockInput(
+                RepeaterColumn::key('min_stock'),
+                $modelId,
+                $modelId > 0 ? static::products($modelId) : []
+            )->label('Scorta minima')->columnSpan(3);
+        }
+
+        $larghezza = $soglia === null ? 4 : 3;
+
         $campo = FormField::key('products')
             ->repeater([
                 RepeaterColumn::key('id')->hidden(),
@@ -3465,12 +3949,14 @@ HTML)->tag('div');
                     ->columnSpan(2),
                 // Dietro «Compila le informazioni avanzate»: chi carica un
                 // articolo nuovo quasi mai ha già il codice a barre in mano.
-                RepeaterColumn::key('sku')->text()->label('SKU')->columnSpan(4),
-                RepeaterColumn::key('ean')->text()->label('EAN')->columnSpan(4),
+                // Con la scorta minima le caselle sono quattro in fila.
+                RepeaterColumn::key('sku')->text()->label('SKU')->columnSpan($larghezza),
+                RepeaterColumn::key('ean')->text()->label('EAN')->columnSpan($larghezza),
+                ...($soglia === null ? [] : [$soglia]),
                 RepeaterColumn::key('active')
                     ->select(['true' => 'Attivo', 'false' => 'Fermo'])
                     ->label('Stato')
-                    ->columnSpan(4),
+                    ->columnSpan($larghezza),
                 // Un rettangolo su cui si trascina un file non si legge
                 // stretto: prende la riga intera del blocco.
                 RepeaterColumn::key('photo')->fileDragDrop('gallery')->label('Foto o video')->columnSpan(12),
@@ -3485,7 +3971,9 @@ HTML)->tag('div');
             // «Aggiungi» darebbe una riga senza nessuna combinazione dietro.
             ->repeaterAddButton(false)
             ->repeaterStartEmpty()
-            ->repeaterAdvanced('sku', 'ean', 'active', 'photo')
+            ->repeaterAdvanced(...($soglia === null
+                ? ['sku', 'ean', 'active', 'photo']
+                : ['sku', 'ean', 'min_stock', 'active', 'photo']))
             ->repeaterAdvancedLabel('Compila le informazioni avanzate')
             // Eliminare un'opzione è una decisione che si rimpiange: la riga
             // resta sbiadita, con il bottone per rimetterla.
@@ -3992,9 +4480,11 @@ HTML)->tag('div');
         // La soglia dell'avviso: vale sul disponibile di tutte le sedi, e con
         // zero non arriva niente. Senza la funzionalità non esiste.
         if (Gestionale::feature('low_stock_alerts')) {
-            $fields[] = FormField::key('product_min_stock')
-                ->number()
-                ->decimal(3)
+            $fields[] = static::minStockInput(
+                FormField::key('product_min_stock'),
+                $modelId,
+                $sola === null ? [] : [$sola]
+            )
                 ->label('Scorta minima')
                 ->hiddenWhen('has_variants', 'true');
         }
@@ -4412,6 +4902,30 @@ HTML)->tag('div');
             'decimals' => SaleUnits::decimalsFor($unita, ...array_values($giacenze)),
             'suffix' => SaleUnits::suffix($unita),
         ];
+    }
+
+    /**
+     * La casella della scorta minima, scritta come la giacenza: i decimali
+     * dell'unità — tre se una soglia ne ha già — e l'unità in coda.
+     *
+     * @param list<array<string, mixed>> $products
+     */
+    protected static function minStockInput(FormField $campo, int $modelId, array $products): InputNumber
+    {
+        $unita = static::modelUnit($modelId);
+        $soglie = array_map(
+            static fn (array $product): float => (float) ($product['min_stock_quantity'] ?? 0),
+            $products
+        );
+
+        $campo = $campo->number()->decimal(SaleUnits::decimalsFor($unita, ...$soglie));
+        $suffisso = SaleUnits::suffix($unita);
+
+        if ($suffisso !== '') {
+            $campo->suffix($suffisso);
+        }
+
+        return $campo;
     }
 
     /**

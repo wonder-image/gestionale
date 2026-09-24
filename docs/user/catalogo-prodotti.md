@@ -134,8 +134,9 @@ Nella riga si vedono le tre cose che si compilano sempre:
 | **Giacenza** | quanti pezzi ci sono |
 
 Il resto sta dietro **«Compila le informazioni avanzate»**, un bottone per
-riga: **SKU**, **EAN**, **Stato** (*Attivo* o *Fermo*) e **Foto o video**, il
-file di questa riga sola, su cui si trascina.
+riga: **SKU**, **EAN**, **Scorta minima** (se hai gli
+[avvisi di scorta minima](magazzino-avvisi.md)), **Stato** (*Attivo* o
+*Fermo*) e **Foto o video**, il file di questa riga sola, su cui si trascina.
 
 Eliminando una riga non sparisce: resta lì sbiadita, con scritto che verrà
 eliminata al salvataggio e un **Annulla** per rimetterla. Finché non salvi,
@@ -234,15 +235,26 @@ Per i carichi lunghi — centinaia di righe con una causale sola — restano
 Il riquadro **Scheda tecnica** sta in fondo a sinistra, e c'è sempre. Ci va quello
 che descrive l'articolo senza farne nascere opzioni in vendita: materiale,
 composizione, lavaggio, paese di produzione. Ogni caratteristica è un campo, e
-quello che scrivi si salva con l'articolo; un campo lasciato vuoto non si
-salva.
+quello che scrivi si salva con l'articolo.
 
-**Per aggiungere una caratteristica** premi **Nuova caratteristica**, in fondo
-al riquadro: scrivi il nome (*Composizione*), scegli se è un **Testo** o un
-**Numero** (per un numero anche l'unità, *cm*, *g*) e conferma. Il campo
+**Si vede solo quello che l'articolo ha.** Un articolo nuovo mostra il solo
+bottone tratteggiato **Aggiungi caratteristica**; uno già compilato mostra le
+sue caratteristiche, e le altre aspettano nel menu del bottone.
+
+**Per aggiungerne una** premi **Aggiungi caratteristica** e scegli dal menu:
+il campo compare nel riquadro, col cursore dentro, e sparisce dal menu.
+
+**Per toglierne una** premi la **×** in alto a destra del campo. Se dentro c'è
+già qualcosa ti chiede conferma, perché quello che c'è scritto si cancella
+quando salvi l'articolo; un campo vuoto se ne va subito. Torna nel menu, e lo
+riprendi quando vuoi.
+
+**Se la caratteristica non c'è ancora**, in fondo al menu c'è **Nuova
+caratteristica…**: scrivi il nome (*Composizione*), scegli se è un **Testo** o
+un **Numero** (per un numero anche l'unità, *cm*, *g*) e conferma. Il campo
 compare subito nel riquadro, vuoto e col cursore dentro: scrivi *Cotone 100%* e
-salva l'articolo. Da quel momento la caratteristica c'è su tutti gli articoli,
-e su quelli dove non ti serve la lasci vuota.
+salva l'articolo. Da quel momento la caratteristica è nel menu di tutti gli
+articoli.
 
 - Una caratteristica **Testo** si scrive a mano: *Cotone 100%*.
 - Una **Numero** si scrive con la virgola, e accanto al nome c'è la sua unità:
@@ -255,8 +267,9 @@ e su quelli dove non ti serve la lasci vuota.
 Gli elenchi si preparano in **Catalogo → Attributi**, con uso *Scheda tecnica
 dell'articolo*: i simboli di lavaggio, per esempio, sono un attributo di tipo
 **Icona** con un'immagine per ogni valore. Lo spiega
-[Gli attributi](catalogo-attributi.md); il link è anche nel riquadro. Un elenco
-che non ha ancora valori non compare, perché non ci sarebbe niente da spuntare.
+[Gli attributi](catalogo-attributi.md); il link è anche in fondo al menu. Un
+elenco che non ha ancora valori non compare, perché non ci sarebbe niente da
+spuntare.
 
 ## Dove si trova: categorie e marchio
 
@@ -292,9 +305,11 @@ Quale foto vede il cliente lo spiega [Le foto degli articoli](catalogo-immagini.
 
 ## SKU ed EAN
 
-Senza varianti stanno nel riquadro **Prodotto**, lo SKU sotto il prezzo e
-l'EAN sotto il prezzo scontato; con le varianti spariscono, e ogni riga della
-griglia ha i suoi.
+Senza varianti stanno nel riquadro **Prodotto**, sotto il prezzo, dietro
+**«Compila le informazioni avanzate»**: servono di rado, e il blocco parte
+chiuso. Con gli [avvisi di scorta minima](magazzino-avvisi.md) accanto c'è
+anche la **Scorta minima**. Con le varianti spariscono, e ogni riga della
+griglia ha i suoi, dietro lo stesso bottone.
 
 - **SKU:** lo decidi tu. Quello dell'articolo è anche il codice di famiglia: se
   un giorno aggiungi le varianti, da lì il gestionale propone quello di ogni

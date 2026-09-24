@@ -431,6 +431,15 @@ check('cambiando l\'unità le caselle della giacenza si aggiornano subito', func
         && str_contains($script, 'readOnly');
 });
 
+check('cambiando l\'unità si aggiorna anche la scorta minima', function () use ($schedaMisurata, $scriptDelRiquadro) {
+    $script = $scriptDelRiquadro($schedaMisurata, 'Misure');
+
+    // La casella dell'articolo singolo e la colonna della griglia: il
+    // selettore di `[stock]` non prende `[min_stock]`, serve il suo.
+    return str_contains($script, "'product_min_stock'")
+        && str_contains($script, "'min_stock'");
+});
+
 check('lo script dell\'unità c\'è anche in creazione', function () use ($scriptDelRiquadro) {
     $scheda = new class extends ProductModelResource {
     };
