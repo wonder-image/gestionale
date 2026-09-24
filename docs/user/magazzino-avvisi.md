@@ -32,10 +32,10 @@ sotto scorta; se la abbassi sotto i pezzi che hai, l'avviso si chiude.
 
 ## L'email
 
-Ogni quarto d'ora il gestionale guarda se qualche prodotto è sceso sotto la sua
-scorta minima e, se sì, manda **un'email sola** con l'elenco: nome, opzione,
-SKU, quanti ne restano e la soglia. In fondo c'è il link che apre le giacenze
-già filtrate.
+Ogni quarto d'ora il gestionale guarda se qualche prodotto è arrivato alla sua
+scorta minima (o sotto) e, se sì, manda **un'email sola** con l'elenco: nome,
+opzione, SKU, quanti ne restano e la soglia. In fondo c'è il link che apre le
+giacenze già filtrate.
 
 - **Per ogni prodotto l'email arriva una volta.** Torna solo se il prodotto
   risale sopra la soglia e poi ci ricade.
