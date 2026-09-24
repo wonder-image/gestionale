@@ -26,7 +26,7 @@ final class Packages
     }
 
     /**
-     * La riga in sola lettura del riquadro Spedizione.
+     * Il peso di spedizione detto per esteso.
      *
      * Dice il totale e da dove viene: senza i due addendi, un peso che non
      * torna non si sa a chi darlo.

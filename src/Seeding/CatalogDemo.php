@@ -353,8 +353,8 @@ final class CatalogDemo
             // Il tipo fiscale è obbligatorio nella scheda: un articolo di prova
             // senza non si potrebbe nemmeno risalvare.
             'tax_category_id' => self::ordinaryTaxCategoryId(),
-            // Con una scatola e un peso, il riquadro Spedizione della scheda
-            // dice davvero quanto parte invece di lamentare un dato mancante.
+            // Con una scatola e un peso l'articolo di prova ha quello che
+            // serve a calcolare il peso di spedizione.
             'package_id' => self::idOf(Package::class, 'scatola-media', 'Scatola media'),
             'weight' => '0.250',
             'unit' => 'pz',

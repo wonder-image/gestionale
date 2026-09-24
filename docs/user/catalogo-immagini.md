@@ -11,7 +11,8 @@ icon: image
 Non si sceglie da un menu a chi appartiene una foto: **si carica nel posto
 giusto**, e il posto lo dice il riquadro.
 
-Nella scheda del prodotto, sotto **Foto e video**, c'è un'area per ognuno:
+Nella scheda del prodotto, sotto **Foto e video** (in cima alla colonna di
+destra), c'è un'area per ognuno:
 
 - **Foto dell'articolo** — valgono per tutto. È il caso normale, e all'inizio
   c'è solo questa.

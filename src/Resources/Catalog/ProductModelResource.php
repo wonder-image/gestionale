@@ -270,15 +270,13 @@ class ProductModelResource extends GestionaleResource
      * Due colonne: a sinistra quello che si compone, a destra quello che si
      * decide.
      *
-     * A sinistra il lavoro lungo — nome e prezzo, le versioni, le foto, le
-     * descrizioni. A destra, stretta, le caselle corte che si guardano in un
-     * colpo d'occhio: stato, codici, dove sta nel sito, peso e misure. Erano
-     * dieci riquadri a piena larghezza, uno sotto l'altro.
-     */
-    /**
-     * La stessa scheda in creazione e in modifica.
+     * A sinistra il lavoro lungo — nome, descrizioni, prezzo e codici, le
+     * opzioni in vendita, la scheda tecnica. A destra, stretta, le foto e le
+     * caselle corte che si guardano in un colpo d'occhio: come si vende e in
+     * che scatola, l'IVA, dove sta nel sito, peso e misure. Erano dieci
+     * riquadri a piena larghezza, uno sotto l'altro.
      *
-     * Prima la creazione era una schermata a sé, con cinque campi: si
+     * La stessa scheda in creazione e in modifica. Prima la creazione era una schermata a sé, con cinque campi: si
      * compilava, si salvava, si riapriva la scheda e si salvava ancora. Chi
      * carica un prodotto vuole vedere in una volta tutto quello che gli sarà
      * chiesto — e il core sincronizza i repeater con l'id appena inserito,
@@ -339,8 +337,8 @@ class ProductModelResource extends GestionaleResource
             (new Card)->components([
                 SectionTitle::make('Prodotto')
                     ->tooltip($conVarianti
-                        ? 'Questa casella è un comando, non un riepilogo: scrivici un prezzo e al salvataggio va su tutte le opzioni in vendita. Lasciala vuota e i prezzi delle righe restano come sono.'
-                        : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il riquadro «Tipo fiscale».'
+                        ? 'Con le varianti prezzo, codici e giacenza sono di ogni opzione: si scrivono riga per riga in «Opzioni in vendita», qui sotto.'
+                        : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il riquadro «Tipo fiscale». Lo SKU è anche il codice di famiglia: se aggiungi le varianti, da lì nascono quelli delle opzioni.'
                             .($modelId > 0 ? '' : ' La giacenza scritta alla creazione entra come giacenza iniziale, nella sede principale.')
                             .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso: vale sul disponibile di tutte le sedi, e con zero non arriva niente.' : '')
                             .($senzaOpzioni ? ' Per vendere colori o taglie serve un attributo con uso «Opzione da scegliere» o «Opzione con foto proprie», e dei valori: si crea in Catalogo → Attributi.' : ''))
@@ -366,6 +364,12 @@ class ProductModelResource extends GestionaleResource
                 // l'articolo ha la merce davanti.
                 static::getInput('product_stock')->columnSpan($larghezza),
                 ...($soglia ? [static::getInput('product_min_stock')->columnSpan(3)] : []),
+                // I codici sotto prezzo e scontato, larghi uguali: sono di
+                // quell'unico articolo. Con le varianti spariscono insieme al
+                // prezzo — ognuna ha i suoi nella griglia — ma lo SKU resta
+                // nel modulo e continua a proporre quelli delle righe.
+                static::getInput('sku')->columnSpan($larghezza),
+                static::getInput('product_ean')->columnSpan($larghezza),
                 // In creazione non c'è ancora niente da rettificare.
                 ...($modelId > 0 ? [
                     RichText::make(static::adjustLink($modelId))
@@ -374,39 +378,11 @@ class ProductModelResource extends GestionaleResource
                 ] : []),
             ])->columns(12)->columnSpan(12),
             // Subito sotto la domanda «ha varianti?»: chi risponde sì trova
-            // qui le opzioni, senza scorrere foto e misure. In due terzi di
+            // qui le opzioni. In due terzi di
             // schermo la griglia ci sta: le righe raggruppate hanno tre
             // caselle, il resto si apre con «informazioni avanzate».
             ...static::optionsCard($modelId),
         ];
-
-        $foto = [
-            SectionTitle::make('Foto e video')
-                ->tooltip('Le foto e i video caricati qui compaiono in tutte le opzioni dell\'articolo; quelli sotto un colore solo nelle opzioni di quel colore.')
-                ->columnSpan(12),
-        ];
-
-        foreach (array_keys(static::imageTargets($modelId)) as $variantId) {
-            $foto[] = static::getInput('images_'.$variantId)->columnSpan(12);
-        }
-
-        $cards[] = (new Card)->components($foto)->columns(12)->columnSpan(12);
-
-        // Le misure sono del prodotto, non della spedizione: stavano in
-        // «Spedizione» e sparivano con l'articolo che non si spedisce,
-        // portandosi via anche l'unità di misura, che è obbligatoria.
-        $cards[] = (new Card)->components([
-            SectionTitle::make('Misure')
-                ->tooltip('Le dimensioni vere del prodotto, quelle che servono a sapere se sta in una scatola. Un\'opzione con misure sue le usa al posto di queste.')
-                ->columnSpan(12),
-            static::getInput('unit')->columnSpan(6),
-            static::getInput('weight')->columnSpan(6),
-            static::getInput('length')->columnSpan(3),
-            static::getInput('width')->columnSpan(3),
-            static::getInput('height')->columnSpan(3),
-            static::getInput('circumference')->columnSpan(3),
-            static::unitScript()->columnSpan(12),
-        ])->columns(12)->columnSpan(12);
 
         $cards[] = static::technicalSheetCard();
 
@@ -453,51 +429,40 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
-     * La colonna stretta: quello che si decide.
+     * La colonna stretta: le foto e quello che si decide.
      *
      * @return list<object>
      */
-    /**
-     * Se l'articolo si spedisce.
-     *
-     * Alla creazione non c'è ancora niente da leggere e la risposta è sì: il
-     * campo nasce con `true`, e un riquadro che compare solo al secondo
-     * salvataggio confonderebbe.
-     */
-    protected static function shipsFrom(int $modelId): bool
-    {
-        if ($modelId <= 0) {
-            return true;
-        }
-
-        $rows = static::rowsOf(ProductModel::class, ['id' => $modelId]);
-        $row = $rows[0] ?? null;
-
-        return !is_array($row) || ($row['requires_shipping'] ?? 'true') !== 'false';
-    }
-
     protected static function sideColumn(int $modelId): array
     {
-        $codici = [
-            SectionTitle::make('Codici')
-                ->tooltip('Lo SKU è il codice di famiglia: da lì il pannello propone quello delle singole opzioni.')
+        $foto = [
+            SectionTitle::make('Foto e video')
+                ->tooltip('Le foto e i video caricati qui compaiono in tutte le opzioni dell\'articolo; quelli sotto un colore solo nelle opzioni di quel colore.')
                 ->columnSpan(12),
-            static::getInput('sku')->columnSpan(12),
         ];
 
-        $codici[] = static::getInput('product_ean')->columnSpan(12);
+        foreach (array_keys(static::imageTargets($modelId)) as $variantId) {
+            $foto[] = static::getInput('images_'.$variantId)->columnSpan(12);
+        }
 
-        $cards = [
+        return [
+            (new Card)->components($foto)->columns(12)->columnSpan(12),
+
             // Tre interruttori uno sotto l'altro, ognuno con la sua riga che
             // dice cosa cambia: affiancati, le spiegazioni andavano a capo
             // dopo due parole.
             (new Card)->components([
                 SectionTitle::make('Come si vende')
-                    ->tooltip('Una bozza non si vede da nessuna parte, nemmeno se è acquistabile online: lo stato si sceglie accanto al nome.')
+                    ->tooltip('Una bozza non si vede da nessuna parte, nemmeno se è acquistabile online: lo stato si sceglie accanto al nome. La scatola in cui parte si sceglie sotto «Da spedire»; le misure del prodotto, in fondo, servono a sapere se ci sta.')
                     ->columnSpan(12),
                 static::getInput('visible_online')->columnSpan(12),
                 static::getInput('returnable')->columnSpan(12),
                 static::getInput('requires_shipping')->columnSpan(12),
+                // La scatola segue l'interruttore sopra, senza ricaricare:
+                // un articolo che non si spedisce non ha niente da dire qui.
+                static::getInput('package_id')
+                    ->visibleWhen('requires_shipping', 'true')
+                    ->columnSpan(12),
             ])->columns(12)->columnSpan(12),
 
             // Un riquadro solo per il tipo fiscale: decide l'IVA, e in mezzo
@@ -512,11 +477,6 @@ class ProductModelResource extends GestionaleResource
                 static::getInput('tax_category_id')->label('IVA')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
 
-            // Con le varianti dentro non resta niente: un riquadro con il
-            // solo titolo è peggio di nessun riquadro.
-            (new Card)->components($codici)->columns(12)->columnSpan(12)
-                ->hiddenWhen('has_variants', 'true'),
-
             (new Card)->components([
                 SectionTitle::make('Dove si trova')
                     ->tooltip('Spunta tutte le categorie in cui deve comparire. La stella indica quella che compare nel percorso sopra la pagina (Home › Abbigliamento › Magliette): di solito la più precisa.')
@@ -526,19 +486,25 @@ class ProductModelResource extends GestionaleResource
                 static::getInput('categories')->columnSpan(12),
                 static::getInput('main_category'),
             ])->columns(12)->columnSpan(12),
-        ];
 
-        // Un articolo che non si spedisce non ha niente da dire qui.
-        if (static::shipsFrom($modelId)) {
-            $cards[] = (new Card)->components([
-                SectionTitle::make('Spedizione')
-                    ->tooltip('La scatola in cui parte. Le misure del prodotto stanno nel loro riquadro: servono a sapere se ci sta.')
+            // Le misure sono del prodotto, non della spedizione: stavano in
+            // «Spedizione» e sparivano con l'articolo che non si spedisce,
+            // portandosi via anche l'unità di misura, che è obbligatoria. In
+            // un terzo di schermo due per riga: quattro affiancate non si
+            // leggono.
+            (new Card)->components([
+                SectionTitle::make('Misure')
+                    ->tooltip('Le dimensioni vere del prodotto, quelle che servono a sapere se sta in una scatola. Un\'opzione con misure sue le usa al posto di queste.')
                     ->columnSpan(12),
-                static::getInput('package_id')->columnSpan(12),
-            ])->columns(12)->columnSpan(12);
-        }
-
-        return $cards;
+                static::getInput('unit')->columnSpan(6),
+                static::getInput('weight')->columnSpan(6),
+                static::getInput('length')->columnSpan(6),
+                static::getInput('width')->columnSpan(6),
+                static::getInput('height')->columnSpan(6),
+                static::getInput('circumference')->columnSpan(6),
+                static::unitScript()->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+        ];
     }
 
     public static function tableSchema(): array
@@ -707,6 +673,13 @@ class ProductModelResource extends GestionaleResource
         // ha uno solo, o un articolo nato prima del predefinito, prende quello.
         if (array_key_exists('tax_category_id', $values) && (int) $values['tax_category_id'] <= 0) {
             $values['tax_category_id'] = (string) (TaxCategories::defaultId() ?: '');
+        }
+
+        // Con «Da spedire» spento l'imballaggio è solo nascosto, e arriva lo
+        // stesso: una scatola ferma non è tra le scelte, la select manderebbe
+        // vuoto e la scatola si perderebbe senza che nessuno l'abbia toccata.
+        if (($values['requires_shipping'] ?? null) === 'false') {
+            unset($values['package_id']);
         }
 
         static::assertSoleProduct($id, $values);
@@ -1560,8 +1533,8 @@ class ProductModelResource extends GestionaleResource
         }
 
         // Con una versione sola la casella è il prezzo di quella versione, e
-        // si comporta come ci si aspetta. Con più versioni **resta vuota**:
-        // non è uno specchio, è un comando — "metti questo prezzo su tutte".
+        // si comporta come ci si aspetta. Con più versioni è nascosta e
+        // **resta vuota**: non c'è un prezzo solo da mostrare.
         //
         // Precompilarla sarebbe un disastro silenzioso: il riquadro in alto si
         // salva dopo la griglia, quindi un prezzo rimasto lì dentro
@@ -3167,7 +3140,7 @@ HTML)->tag('div');
      * Il riquadro «Scheda tecnica»: c'è sempre, anche vuoto.
      *
      * Un posto che compare solo dopo averlo preparato in Catalogo → Attributi
-     * non si trova. Il riquadro sta sotto «Misure» anche senza campi, dice a
+     * non si trova. Il riquadro sta in fondo alla colonna larga anche senza campi, dice a
      * cosa serve e ha il bottone per una caratteristica nuova: Testo e Numero
      * nascono da qui, con il campo che compare subito. Elenchi e Icone hanno
      * valori e immagini da preparare, e il riquadro dice dove.
@@ -3959,16 +3932,13 @@ HTML)->tag('div');
     }
 
     /**
-     * Prezzo e codice a barre.
+     * Prezzo, scontato, giacenza e codice a barre dell'articolo senza varianti.
      *
-     * Il prezzo si scrive qui **sempre**, anche con dodici versioni: scriverlo
-     * riga per riga è lungo, e quasi sempre costano tutte uguale. Quello che si
-     * scrive qui va su tutte le righe; chi vuole differenziarne una la corregge
-     * nella griglia, e da lì in poi la casella resta vuota perché non c'è più
-     * un prezzo solo da mostrare.
-     *
-     * L'EAN invece è di una versione sola per definizione: con più versioni
-     * sparisce, e si scrive nella sua riga.
+     * Con le varianti spariscono tutti: ogni opzione ha i suoi nella griglia.
+     * Il prezzo nascosto viene postato lo stesso, e `savePrices()` lo passa
+     * alle opzioni appena nate senza un prezzo loro: chi accende le varianti
+     * su un articolo che costava 24,90 non le trova a zero. Con più versioni
+     * la casella arriva vuota e non tocca niente.
      *
      * @return list<Input>
      */
@@ -4143,17 +4113,18 @@ HTML)->tag('div');
     }
 
     /**
-     * Prezzi, codice e codice a barre scritti dal riquadro in alto.
+     * Prezzi, codice e codice a barre scritti in «Prodotto».
      *
-     * Il prezzo vale per **tutte** le versioni: con dodici righe scriverlo
-     * dodici volte è una scortesia, e quasi sempre costano uguale. La casella
-     * vuota non tocca niente — è l'unico modo di avere prezzi diversi senza che
-     * un salvataggio distratto li riallinei tutti.
+     * Con una versione sola sono i suoi. Con più versioni la casella del
+     * prezzo è nascosta, ma arriva: piena solo se alla lettura della scheda la
+     * versione era una, cioè quando le varianti si sono appena accese, e
+     * allora il prezzo che l'articolo aveva va alle opzioni nate senza il
+     * loro. Vuota non tocca niente — è l'unico modo di avere prezzi diversi
+     * senza che un salvataggio distratto li riallinei tutti.
      *
      * SKU ed EAN invece riguardano solo la versione unica: quando sono più di
      * una, ognuna ha i suoi nella griglia.
-     */
-    /**
+     *
      * @param list<int> $skip versioni appena nate con un prezzo scritto a
      *        mano: la casella in alto non le tocca
      */
@@ -4211,8 +4182,8 @@ HTML)->tag('div');
         }
 
         foreach ($prodotti as $product) {
-            // Una versione appena nata con il suo prezzo non si tocca: la
-            // casella in alto è un comando per le altre, non per quella.
+            // Una versione appena nata con il suo prezzo non si tocca: è stata
+            // scritta nella stessa schermata.
             if (Numbers::fromForm($scritto($product)['price'] ?? null) !== null) {
                 continue;
             }

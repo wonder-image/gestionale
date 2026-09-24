@@ -348,10 +348,10 @@ check('la creazione mostra la scheda intera, due colonne comprese', function () 
 
     // Due colonne, e le opzioni in vendita nella larga, subito sotto
     // «Prodotto»: la griglia raggruppata ha tre caselle per riga e in due
-    // terzi di schermo ci sta.
+    // terzi di schermo ci sta. Foto e misure stanno a destra.
     return count($colonne) === 2
-        && $titoli($colonne[0]) === ['Prodotto', 'Opzioni in vendita', 'Foto e video', 'Misure', 'Scheda tecnica']
-        && $titoli($colonne[1]) === ['Come si vende', 'Tipo fiscale', 'Codici', 'Dove si trova', 'Spedizione'];
+        && $titoli($colonne[0]) === ['Prodotto', 'Opzioni in vendita', 'Scheda tecnica']
+        && $titoli($colonne[1]) === ['Foto e video', 'Come si vende', 'Tipo fiscale', 'Dove si trova', 'Misure'];
 });
 
 check('in creazione non si chiede quello che non esiste ancora', function () {
@@ -483,7 +483,7 @@ check('la colonna larga tiene quello che si compone', function () use ($riquadri
     // Le opzioni in vendita subito sotto «Prodotto»: è lì che si risponde
     // «sì, ha varianti». La descrizione sta dentro «Prodotto», e la scheda
     // tecnica c'è anche senza caratteristiche.
-    return $riquadri(0) === ['Prodotto', 'Opzioni in vendita', 'Foto e video', 'Misure', 'Scheda tecnica'];
+    return $riquadri(0) === ['Prodotto', 'Opzioni in vendita', 'Scheda tecnica'];
 });
 
 check('il riquadro delle opzioni risponde alla domanda sulle varianti', function () use ($schedaAperta) {
@@ -497,7 +497,10 @@ check('il riquadro delle opzioni risponde alla domanda sulle varianti', function
 });
 
 check('la colonna stretta tiene quello che si decide', function () use ($riquadri) {
-    return $riquadri(1) === ['Come si vende', 'Tipo fiscale', 'Codici', 'Dove si trova', 'Spedizione'];
+    // Le foto in cima, sopra gli interruttori; le misure in fondo. «Codici»
+    // e «Spedizione» non ci sono più: SKU ed EAN stanno sotto il prezzo,
+    // l'imballaggio sotto «Da spedire».
+    return $riquadri(1) === ['Foto e video', 'Come si vende', 'Tipo fiscale', 'Dove si trova', 'Misure'];
 });
 
 /** I pezzi di un riquadro della colonna stretta o larga, per titolo. */
@@ -551,8 +554,121 @@ check('«Come si vende» ha tre interruttori con una riga che li spiega', functi
         $etichette[] = $campo->get('label');
     }
 
-    return $nomi === ['visible_online', 'returnable', 'requires_shipping']
+    return $nomi === ['visible_online', 'returnable', 'requires_shipping', 'package_id']
         && $etichette === ['Acquistabile online', 'Accetta resi', 'Da spedire'];
+});
+
+check('l\'imballaggio sta sotto «Da spedire» e compare solo se si spedisce', function () use ($riquadro) {
+    $imballaggio = null;
+
+    foreach ($riquadro(1, 'Come si vende') as $pezzo) {
+        if (property_exists($pezzo, 'name') && (string) $pezzo->name === 'package_id') {
+            $imballaggio = $pezzo;
+        }
+    }
+
+    // Un interruttore che si cambia senza ricaricare: la regola sta sul
+    // campo, non su un riquadro che il server include o no.
+    return $imballaggio !== null
+        && $imballaggio->conditionalAttributes() === [
+            'data-visible-when' => 'requires_shipping',
+            'data-visible-when-values' => 'true',
+        ];
+});
+
+check('senza varianti SKU ed EAN stanno sotto prezzo e scontato', function () use ($riquadro) {
+    $nomi = [];
+    $larghezze = [];
+
+    foreach ($riquadro(0, 'Prodotto') as $pezzo) {
+        if (property_exists($pezzo, 'name') && (string) $pezzo->name !== '') {
+            $nomi[] = (string) $pezzo->name;
+            $larghezze[(string) $pezzo->name] = ((array) ($pezzo->columnSpan ?? []))['default'] ?? null;
+        }
+    }
+
+    $prezzo = array_search('product_price', $nomi, true);
+    $sku = array_search('sku', $nomi, true);
+    $ean = array_search('product_ean', $nomi, true);
+
+    if ($prezzo === false || $sku === false || $ean !== $sku + 1) {
+        return false;
+    }
+
+    // Subito dopo la riga del prezzo (giacenza e scorta minima comprese), e
+    // larghi come le due caselle sopra: il codice cade sotto il prezzo,
+    // l'EAN sotto lo scontato.
+    $riga = array_slice($nomi, $prezzo, $sku - $prezzo);
+    $attesa = array_values(array_filter(
+        ['product_price', 'product_sale_price', 'product_stock', 'product_min_stock'],
+        static fn ($chiave) => in_array($chiave, $nomi, true)
+    ));
+
+    return $riga === $attesa
+        && $larghezze['sku'] === $larghezze['product_price']
+        && $larghezze['product_ean'] === $larghezze['product_sale_price'];
+});
+
+check('SKU ed EAN spariscono quando l\'articolo ha varianti', function () use ($riquadro) {
+    $regole = [];
+
+    // I campi che il layout mette davvero in «Prodotto», non quelli
+    // dichiarati: la regola deve viaggiare con il clone.
+    foreach ($riquadro(0, 'Prodotto') as $pezzo) {
+        if (property_exists($pezzo, 'name') && in_array((string) $pezzo->name, ['sku', 'product_ean'], true)) {
+            $regole[(string) $pezzo->name] = $pezzo->conditionalAttributes();
+        }
+    }
+
+    $regola = [
+        'data-hidden-when' => 'has_variants',
+        'data-hidden-when-values' => 'true',
+    ];
+
+    return $regole === ['sku' => $regola, 'product_ean' => $regola];
+});
+
+check('un articolo che non si spedisce non tocca la sua scatola', function () {
+    $scheda = new class extends ProductModelResource {
+        public static function productCount(int $modelId): int
+        {
+            return 1;
+        }
+    };
+
+    // Da spento l'imballaggio è solo nascosto e viene postato lo stesso:
+    // una scatola ferma non è tra le scelte, e la select manderebbe vuoto.
+    $spento = $scheda::mutateRequestValues(
+        ['name' => 'Buono regalo', 'requires_shipping' => 'false', 'package_id' => ''],
+        'update'
+    );
+    $acceso = $scheda::mutateRequestValues(
+        ['name' => 'Cappello', 'requires_shipping' => 'true', 'package_id' => '4'],
+        'update'
+    );
+
+    return !array_key_exists('package_id', $spento)
+        && ($acceso['package_id'] ?? null) === '4';
+});
+
+check('a destra le misure stanno due per riga', function () use ($riquadro) {
+    $larghezze = [];
+
+    foreach ($riquadro(1, 'Misure') as $pezzo) {
+        if (property_exists($pezzo, 'name') && (string) $pezzo->name !== '') {
+            $larghezze[(string) $pezzo->name] = ((array) ($pezzo->columnSpan ?? []))['default'] ?? null;
+        }
+    }
+
+    // In un terzo di schermo quattro caselle affiancate non si leggono.
+    return $larghezze === [
+        'unit' => 6,
+        'weight' => 6,
+        'length' => 6,
+        'width' => 6,
+        'height' => 6,
+        'circumference' => 6,
+    ];
 });
 
 check('in «Prodotto» la descrizione non ha un titolo suo', function () use ($riquadro) {

@@ -259,7 +259,7 @@ c'è già), con `window.confirm()` di riserva.
 | Quando | Cosa si vede |
 |---|---|
 | `has_variants` a `true` | il riquadro "Opzioni in vendita": selettore, spunte e griglia — identico in `create` e in `edit` |
-| `has_variants` a `false` | l'EAN passa nei riquadri in alto con la giacenza, scrivibile (in creazione è un carico iniziale); con il modello già salvato accanto compare il link alla rettifica. Prezzo e prezzo scontato stanno lì sempre |
+| `has_variants` a `false` | nel riquadro «Prodotto» la riga del prezzo ha anche la giacenza, scrivibile (in creazione è un carico iniziale), e sotto SKU ed EAN larghi come prezzo e scontato; con il modello già salvato compare il link alla rettifica |
 | nessun attributo con valori | `optionsCard()` torna `[]` e il riquadro non c'è |
 
 `has_variants` è una **colonna di `gst_product_models`**, non un conteggio: un
@@ -345,7 +345,8 @@ foto cadono da sole. Le varianti scritte dalla testata passano a
 `saveImages(…, $giaSalvate)`, che non le riscrive una seconda volta.
 
 Con «Taglia, poi Colore» i gruppi sono taglie: `colorPhotosInGroups()` è falso
-e le aree per colore restano nel riquadro «Foto e video», come prima.
+e le aree per colore restano nel riquadro «Foto e video» (in cima alla colonna
+stretta), come prima.
 
 ### Codici degli articoli
 
@@ -480,11 +481,10 @@ Tre cose imparate facendola:
    durante una richiesta web — la coda si ferma e lo dice (`blocked`), invece di
    bruciare i tentativi delle righe una per una.
 
-## La scheda: due colonne, più la griglia sotto
+## La scheda: due colonne
 
-`formLayoutSchema()` torna due `Container` — `columnSpan(8)` e `columnSpan(4)` —
-e sotto, allo stesso livello, la `Card` delle opzioni in vendita a
-`columnSpan(12)`. Perché funzioni serve `columns(12)` **sul Form**: il renderer
+`formLayoutSchema()` torna due `Container`, `columnSpan(8)` e `columnSpan(4)`.
+Perché funzioni serve `columns(12)` **sul Form**: il renderer
 calcola la larghezza di un figlio sulle colonne del padre, e un Form senza
 colonne ne ha una sola, quindi qualunque span diventa piena larghezza.
 
@@ -507,8 +507,26 @@ stella rimasta su una voce tolta cade sulla prima), e finisce in
 `['name', 'parent_id']`: la risposta porta `item.parent_id`, e il nodo nasce
 sotto il padre, già spuntato.
 
+**La colonna larga** (`mainColumn()`): «Prodotto» — nome e stato, le due
+descrizioni, la domanda sulle varianti, poi prezzo, scontato e giacenza, e
+sotto SKU ed EAN larghi quanto prezzo e scontato —, poi «Opzioni in vendita»
+(`optionsCard()`, con `visibleWhen('has_variants', 'true')`) e «Scheda
+tecnica» in fondo.
+
+**La colonna stretta** (`sideColumn()`): «Foto e video» in cima, poi «Come si
+vende» — i tre interruttori, ognuno con `InputToggle::description()`, e sotto
+«Da spedire» il `package_id` con `visibleWhen('requires_shipping', 'true')`
+—, «Tipo fiscale», «Dove si trova» e «Misure» in fondo, due caselle per riga.
+Il riquadro «Spedizione», che il server includeva solo per un articolo che si
+spedisce (`shipsFrom()`), non c'è più: la regola sul campo segue
+l'interruttore senza ricaricare. Da spento `package_id` viene postato lo
+stesso — la lib nasconde con `display:none`, non disabilita — e
+`mutateRequestValues()` lo toglie quando `requires_shipping` è `false`: una
+scatola «Ferma» non è fra le scelte di `Packages::options()`, la select
+manderebbe vuoto e la scatola si perderebbe. Riaccendendo, torna.
+
 **Il tipo fiscale in un riquadro suo.** Nella colonna stretta, sotto «Come si
-vende» (i tre interruttori, ognuno con `InputToggle::description()`), il
+vende», il
 riquadro «Tipo fiscale» ha il solo select, con etichetta «IVA»: la select è
 «floating» e un'etichetta vuota lascerebbe solo l'asterisco. `taxCategoryField($modelId)`
 parte da `TaxCategories::defaultId()` (vedi [IVA e impostazioni](iva-e-impostazioni.md#il-tipo-predefinito))
@@ -517,27 +535,31 @@ il giorno in cui serve. Su un articolo salvato passa a `options()` il tipo che
 l'articolo usa, così un tipo nascosto resta in coda invece di essere
 sostituito al primo salvataggio.
 
-**Colonne che spariscono.** Prezzi, giacenza e il riquadro dei codici hanno
-`hiddenWhen('has_variants', 'true')`. Il core marca la loro colonna come
+**Colonne che spariscono.** Prezzi, giacenza, SKU ed EAN hanno
+`hiddenWhen('has_variants', 'true')`: stanno tutti nel riquadro «Prodotto», e
+lo SKU ha la larghezza del prezzo e l'EAN quella dello scontato, così cadono
+proprio sotto. Il riquadro «Codici» non c'è più. Il core marca la loro colonna come
 contenitore condizionale e la nasconde intera: in una `row g-3` una colonna
 vuota lascia comunque il margine. E un campo senza `columnSpan()` in un
 contenitore a 12 colonne ne prende una: nei layout dei `quickCreate` va
 dichiarato `->columnSpan(12)`.
 
-## Prezzi: uno per tutte le opzioni
+## Prezzi: quello dell'articolo e quelli delle opzioni
 
-Il prezzo del riquadro in alto vale per ogni riga: `savePrices()` lo scrive su
-tutte. La casella **vuota non tocca niente**, ed è l'unico modo di tenere prezzi
-diversi senza che un salvataggio distratto li riallinei.
+Con le varianti `product_price` e `product_sale_price` sono nascosti
+(`hiddenWhen('has_variants', 'true')`): i prezzi si scrivono riga per riga
+nella griglia. La casella nascosta però viene postata, e `savePrices()` la
+scrive su tutte le righe quando è piena. La casella **vuota non tocca niente**.
 
 Con un prodotto solo la casella mostra il prezzo di quello. Con più di uno
-`mutateFormValues()` la lascia **vuota**, e non è una dimenticanza: il riquadro
-in alto si salva **dopo** la griglia, quindi un prezzo rimasto lì dentro
-riscriverebbe la riga appena corretta. Vuota, il salvataggio non tocca i prezzi.
+`mutateFormValues()` la lascia **vuota**, e non è una dimenticanza: la casella
+si salva **dopo** la griglia, quindi un prezzo rimasto lì dentro riscriverebbe
+la riga appena corretta. Resta piena solo quando le varianti si sono appena
+accese su un articolo che aveva una versione: allora il prezzo che aveva va alle
+opzioni nate senza il loro, e nessuna parte a zero.
 
-Una riga **nata adesso con il suo prezzo** `savePrices()` la salta: la casella
-in alto è un comando per le altre, non per quella che è stata appena scritta
-dieci centimetri più in basso nella stessa schermata.
+Una riga **nata adesso con il suo prezzo** `savePrices()` la salta: è stata
+appena scritta nella stessa schermata.
 
 ## La giacenza si scrive dalla scheda
 
@@ -634,7 +656,7 @@ la griglia deve reggere:
 
 | Articolo | Perché c'è |
 |---|---|
-| Cappello di lana | nessun attributo: una riga sola, prezzo ed EAN nei riquadri in alto |
+| Cappello di lana | nessun attributo: una riga sola, prezzo, SKU ed EAN nel riquadro «Prodotto» |
 | Maglietta girocollo | tutti e tre gli attributi: dodici righe, e una riga si legge "S / Gomma" |
 | Felpa con cappuccio | tre colori per quattro taglie: la griglia raggruppata, senza costruirla a mano |
 | Calzini a costine | nessun colore: la griglia resta piatta, senza testate |

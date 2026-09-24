@@ -970,6 +970,46 @@ una riga sotto che li spiega:
 - [x] modulo: test, guide utente e dev, `composer.lock` allineato a `^2.4.0-beta.1`
 - [x] prova nel browser (1600×950: riquadro dopo «Prodotto», menu largo senza l'attributo già attivo, attributo nuovo sopra il bottone, finestra di conferma e rimozione, limite di tre, «IVA» sulla select)
 
+## 19. Decimo giro: foto in cima a destra, l'imballaggio sotto «Da spedire», i codici sotto il prezzo
+
+*Richiesta dell'utente.*
+
+**«Foto e video» in cima alla colonna stretta,** sopra «Come si vende». Le
+aree dei colori (con «Taglia, poi Colore») restano nello stesso riquadro.
+
+**L'imballaggio sotto «Da spedire».** Il riquadro «Spedizione» non c'è più:
+aveva un campo solo, e il server lo includeva o no guardando l'articolo salvato
+(`shipsFrom()`), quindi spegnere l'interruttore non lo toglieva fino al
+salvataggio. Ora `package_id` sta in «Come si vende» con
+`visibleWhen('requires_shipping', 'true')` e segue l'interruttore al volo. Da
+spento il campo viene postato lo stesso, con il valore di prima: riaccendendo,
+la scatola torna.
+
+**«Misure» a destra,** in fondo alla colonna stretta, due caselle per riga: in
+un terzo di schermo quattro affiancate non si leggono. La colonna larga resta
+con «Prodotto», «Opzioni in vendita» e «Scheda tecnica».
+
+**SKU ed EAN sotto Prezzo e Prezzo scontato,** nel riquadro «Prodotto», larghi
+come le due caselle sopra (4 dodicesimi, 3 con la scorta minima). Hanno già
+`hiddenWhen('has_variants', 'true')`: con le varianti spariscono con il
+prezzo, e lo SKU resta nel modulo a proporre i codici delle righe. Il riquadro
+«Codici» non c'è più; il suo suggerimento sullo SKU di famiglia passa nel
+tooltip di «Prodotto».
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P75 | «Foto e video» in cima alla colonna stretta; «Misure» in fondo, due per riga. Corregge le due colonne di G2a-bis | Le foto si vedono subito accanto al nome; la colonna larga resta per quello che si compone |
+| P76 | L'imballaggio sotto «Da spedire», con visibilità legata all'interruttore; via il riquadro «Spedizione» e `shipsFrom()` | Un campo solo non vale un riquadro, e deve sparire quando si spegne l'interruttore, non al salvataggio |
+| P77 | Senza varianti SKU ed EAN sotto prezzo e scontato, nel riquadro «Prodotto»; via il riquadro «Codici» | Sono dell'unico articolo, come il prezzo: stanno dove si scrive il prezzo |
+
+### Lavori del decimo giro
+
+- [x] modulo: `sideColumn()` con foto, «Come si vende» + imballaggio, tipo fiscale, dove si trova, misure; `mainColumn()` con prodotto, opzioni, scheda tecnica
+- [x] modulo: SKU ed EAN nella riga sotto il prezzo; via «Codici», «Spedizione» e `shipsFrom()`
+- [x] modulo: test, guide utente e dev
+- [x] prova nel browser (1600×950: foto sopra «Come si vende», imballaggio che sparisce e torna con «Da spedire», misure due per riga in fondo a destra, SKU sotto Prezzo ed EAN sotto Prezzo scontato in creazione, spariti accendendo le varianti)
+- [x] review: con «Da spedire» spento `mutateRequestValues()` toglie `package_id` — nascosto viene postato lo stesso, e una scatola «Ferma», che non è fra le scelte, si sarebbe persa; test più stretto su SKU ed EAN nel riquadro «Prodotto»; tooltip, commenti e guide che parlavano ancora del prezzo «comando», del riquadro «Spedizione» e della griglia sotto le colonne
+
 ## Piani
 
 Da scrivere dopo l'approvazione.

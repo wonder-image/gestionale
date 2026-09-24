@@ -42,12 +42,13 @@ domani correggi il nome: i link che qualcuno ha salvato continuano a funzionare.
 
 ## Com'è fatta la scheda
 
-- **A sinistra** quello che si compone: nome, descrizioni e prezzo, poi
-  **«Opzioni in vendita»** (gli attributi da spuntare e la griglia di quello
-  che vendi, solo se hai risposto sì alla domanda qui sotto), le foto e i
-  video, le misure, la scheda tecnica.
-- **A destra**, stretta, quello che si decide: come si vende, il tipo fiscale,
-  i codici, dove sta nel sito, la spedizione.
+- **A sinistra** quello che si compone: nome, descrizioni, prezzo e codici,
+  poi **«Opzioni in vendita»** (gli attributi da spuntare e la griglia di
+  quello che vendi, solo se hai risposto sì alla domanda qui sotto) e la scheda
+  tecnica.
+- **A destra**, stretta, in cima le foto e i video, poi quello che si decide:
+  come si vende e in che scatola, il tipo fiscale, dove sta nel sito, le
+  misure.
 
 ## «Questo articolo ha varianti?»
 
@@ -172,17 +173,13 @@ insieme a lui.
 
 ## Il prezzo
 
-Il **Prezzo** in alto è un comando, non un riepilogo: lo scrivi una volta e al
-salvataggio va su **tutte** le opzioni in vendita. Quasi sempre è quello che
-serve. Lo stesso vale per il **Prezzo scontato**.
+Quando l'articolo non ha varianti, **Prezzo** e **Prezzo scontato** stanno nel
+riquadro **Prodotto** e sono il suo prezzo.
 
-Se una riga deve costare diverso, la correggi nella griglia. Da quel momento la
-casella in alto **resta vuota**, perché non c'è più un prezzo solo da mostrare —
-e lasciarla vuota è anche il modo di salvare senza toccare i prezzi che hai
-sistemato a mano.
-
-Quando l'articolo non ha varianti, la casella in alto è il suo prezzo e si
-comporta come ti aspetti.
+Con le varianti quelle caselle spariscono: ogni opzione ha il suo prezzo, e lo
+scrivi nella sua riga della griglia. Se accendi le varianti su un articolo che
+aveva già un prezzo, le opzioni che nascono senza un prezzo loro partono da
+quello.
 
 I prezzi si scrivono e si leggono in euro, con la virgola: *1.299,90 €*. Il
 punto delle migliaia e il simbolo li mette la casella da sola.
@@ -209,7 +206,7 @@ com'è: arrotondarla vorrebbe dire registrare un movimento che nessuno ha
 chiesto.
 
 Quando l'articolo non ha varianti la casella sta in alto, accanto al prezzo, e
-si scrive allo stesso modo: accanto c'è il link alla rettifica, per quando serve
+si scrive allo stesso modo: sotto, dopo SKU ed EAN, c'è il link alla rettifica, per quando serve
 una causale diversa. C'è anche quando crei l'articolo: quello che scrivi lì
 entra come *Giacenza iniziale*.
 
@@ -234,7 +231,7 @@ Per i carichi lunghi — centinaia di righe con una causale sola — restano
 
 ## La scheda tecnica
 
-Il riquadro **Scheda tecnica** sta sotto **Misure**, e c'è sempre. Ci va quello
+Il riquadro **Scheda tecnica** sta in fondo a sinistra, e c'è sempre. Ci va quello
 che descrive l'articolo senza farne nascere opzioni in vendita: materiale,
 composizione, lavaggio, paese di produzione. Ogni caratteristica è un campo, e
 quello che scrivi si salva con l'articolo; un campo lasciato vuoto non si
@@ -279,8 +276,8 @@ categoria padre, e quella nuova compare al suo posto nell'albero, già spuntata.
 
 Si caricano in due posti, e in tutti e due si trascinano:
 
-- nel riquadro **Foto e video**: quello che carichi qui compare in **tutte le
-  opzioni**;
+- nel riquadro **Foto e video**, in cima a destra: quello che carichi qui
+  compare in **tutte le opzioni**;
 - nella testata del colore, con **Foto del colore**: quelle foto compaiono solo
   nelle opzioni di quel colore;
 - dietro **«Compila le informazioni avanzate»** di una riga, in **Foto o
@@ -295,9 +292,13 @@ Quale foto vede il cliente lo spiega [Le foto degli articoli](catalogo-immagini.
 
 ## SKU ed EAN
 
-- **SKU:** lo decidi tu. Quello in alto è il codice di famiglia, e da lì il
-  gestionale propone quello di ogni riga. Due articoli non possono avere lo
-  stesso.
+Senza varianti stanno nel riquadro **Prodotto**, lo SKU sotto il prezzo e
+l'EAN sotto il prezzo scontato; con le varianti spariscono, e ogni riga della
+griglia ha i suoi.
+
+- **SKU:** lo decidi tu. Quello dell'articolo è anche il codice di famiglia: se
+  un giorno aggiungi le varianti, da lì il gestionale propone quello di ogni
+  riga. Due articoli non possono avere lo stesso.
 - **EAN:** il codice a barre del produttore, 8 o 13 cifre. È facoltativo; se lo
   scrivi, dev'essere solo tuo. Un codice di lunghezza diversa viene rifiutato
   con un messaggio, perché quasi sempre è un errore di battitura. Con più
@@ -324,6 +325,7 @@ riga che lo spiega:
   nemmeno se è acquistabile.
 - **Accetta resi** — il cliente può restituirlo dopo l'acquisto.
 - **Da spedire** — spento per servizi, buoni regalo e prodotti digitali.
+  Acceso, subito sotto c'è l'**Imballaggio** (vedi più giù).
 
 Sotto, il riquadro **Tipo fiscale** ha un campo solo, **IVA** (vedi sopra:
 parte dal predefinito), con il **+** per crearne uno nuovo. Un tipo fiscale
@@ -334,14 +336,15 @@ scelta nelle impostazioni per quando nessuna regola risponde.
 
 ## Misure e spedizione
 
-Il riquadro **Misure** è del prodotto, non della spedizione, e c'è sempre:
-unità, peso, lunghezza, larghezza, altezza e circonferenza. Servono a sapere se
-l'articolo sta in una scatola. Un'opzione con misure sue le usa al posto di
-queste.
+Il riquadro **Misure**, in fondo a destra, è del prodotto, non della
+spedizione, e c'è sempre: unità, peso, lunghezza, larghezza, altezza e
+circonferenza, due per riga. Servono a sapere se l'articolo sta in una scatola.
+Un'opzione con misure sue le usa al posto di queste.
 
-Il riquadro **Spedizione** c'è quando l'articolo si spedisce, e chiede solo
-l'**imballaggio**: la scatola in cui parte. Lasciandolo vuoto vale quella
-predefinita del negozio. Spegnendo **Da spedire**, il riquadro sparisce.
+L'**imballaggio**, la scatola in cui parte, si sceglie in **Come si vende**,
+subito sotto **Da spedire**. Lasciandolo vuoto vale quella predefinita del
+negozio. Spegnendo **Da spedire** il campo sparisce subito, senza salvare;
+riaccendendolo torna con la scatola di prima.
 
 ## Eliminare un articolo
 
