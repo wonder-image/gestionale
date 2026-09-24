@@ -473,7 +473,6 @@ final class StockLevelResource extends NavigationOnlyResource
     {
         $search = static::searchTerm($_GET['cerca'] ?? '');
         $sotto = ($_GET['sotto'] ?? '') === '1';
-        $base = static::pageUrl([]);
 
         $html = '<div class="d-flex flex-wrap gap-2 align-items-center mb-2">';
         $html .= '<input type="text" class="form-control form-control-sm w-auto"'
@@ -486,7 +485,8 @@ final class StockLevelResource extends NavigationOnlyResource
                 .($sotto ? 'Tutte le opzioni' : 'Solo sotto scorta').'</a>';
         }
 
-        $html .= '<a class="btn btn-sm btn-light" href="'.static::escape($base).'">Azzera i filtri</a>';
+        // La pagina nuda: `pageUrl([])` si porterebbe dietro i filtri di adesso.
+        $html .= '<a class="btn btn-sm btn-light" href="'.static::escape(self::baseUrl()).'">Azzera i filtri</a>';
         $html .= '</div>';
 
         // La casella di ricerca naviga: il form della pagina serve a salvare le

@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockLevelResource;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
@@ -166,5 +167,28 @@ check('un rifiuto della rettifica non diventa una pagina 500', function () {
 check('il riquadro della home porta alle sole righe sotto scorta', fn () =>
     str_ends_with(StockLevelResource::lowStockUrl(), 'giacenze?sotto=1')
 );
+
+check('"Azzera i filtri" riapre la pagina senza filtri; gli altri link li tengono', function () {
+    $stato = new ReflectionProperty(Gestionale::class, 'features');
+    $prima = [$_GET, $stato->getValue()];
+    $_GET = ['cerca' => 'x', 'sotto' => '1', 'p' => '2'];
+    $stato->setValue(null, ['low_stock_alerts' => true]);
+
+    try {
+        $html = (new ReflectionMethod(StockLevelResource::class, 'filtersBar'))->invoke(null);
+    } finally {
+        [$_GET, $features] = $prima;
+        $stato->setValue(null, $features);
+    }
+
+    preg_match('#href="([^"]*)">Azzera i filtri<#', $html, $azzera);
+    preg_match('#href="([^"]*)">Tutte le opzioni<#', $html, $tutte);
+
+    return isset($azzera[1], $tutte[1])
+        && str_ends_with($azzera[1], 'giacenze')
+        && !str_contains($azzera[1], '?')
+        && str_contains($tutte[1], 'cerca=x')
+        && !str_contains($tutte[1], 'sotto=');
+});
 
 summary();
