@@ -27,6 +27,9 @@ use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Stock\Alerts;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStockNotifier;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStockReport;
+use Wonder\Plugin\Gestionale\Support\Stock\NegativeStock;
+use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
+use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -352,6 +355,31 @@ check('a funzionalità spenta non parte niente', fn () => annullando(function ()
 
     return $esito['status'] === LowStockNotifier::DISABLED && $GLOBALS['posta'] === [];
 }));
+
+check('una giacenza sotto zero finisce fra le cose da controllare', function () use ($stato): bool {
+    // Sotto zero si va solo con la vendita senza giacenza: la si accende per
+    // questo controllo e poi si rimette come l'ha il sito.
+    $prima = $stato->getValue();
+    $stato->setValue(null, array_merge((array) $prima, ['backorders' => true]));
+
+    try {
+        return annullando(function (): bool {
+            [, $productId] = articoloDiProva('NEG-1', '2');
+            Stock::apply(['product_id' => $productId, 'quantity' => -5, 'reason' => Reasons::DEFAULT]);
+            $trovati = array_values(array_filter(
+                NegativeStock::items(),
+                static fn (array $item): bool => $item['product_id'] === $productId
+            ));
+
+            return count($trovati) === 1
+                && $trovati[0]['quantity'] === -3.0
+                && $trovati[0]['locations'] === 1
+                && $trovati[0]['sku'] === 'NEG-1';
+        });
+    } finally {
+        $stato->setValue(null, $prima);
+    }
+});
 
 Extensions::use(null);
 Mailer::useTransport(null);

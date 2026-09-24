@@ -211,4 +211,67 @@ check('i nomi dei prodotti non possono iniettare markup', function () use ($sott
         && str_contains($html, '&lt;script&gt;');
 });
 
+// Una riga come la dà `NegativeStock::items()`.
+$negativa = static fn (int $id, float $quantity, int $locations = 1, string $option = 'Rossa, M'): array => [
+    'product_id' => $id,
+    'article' => 'Maglia',
+    'option' => $option,
+    'sku' => 'MAG-'.$id,
+    'quantity' => $quantity,
+    'locations' => $locations,
+];
+
+check('una giacenza sotto zero si vede, con il pulsante per rettificarla', function () use ($negativa) {
+    $html = AttentionWidget::markup([], [$negativa(7, -3.0)]);
+
+    return str_contains($html, 'Maglia — Rossa, M')
+        && str_contains($html, 'MAG-7')
+        && str_contains($html, 'Giacenza -3')
+        && str_contains($html, 'rettifica?versione=7&amp;torna=%2Fbackend%2F')
+        && str_contains($html, 'Rettifica')
+        && !str_contains($html, 'Non c\'è niente da controllare');
+});
+
+check('le sedi si nominano solo quando sono più di una', function () use ($negativa) {
+    $una = AttentionWidget::markup([], [$negativa(7, -3.0)]);
+    $due = AttentionWidget::markup([], [$negativa(7, -4.25, 2)]);
+
+    return !str_contains($una, ' sedi')
+        && str_contains($due, 'Giacenza -4,25 in 2 sedi');
+});
+
+check('giacenze negative ed errori stanno nello stesso riquadro, prima le giacenze', function () use ($negativa) {
+    $html = AttentionWidget::markup([[
+        'id' => 3,
+        'service' => 'fatture-in-cloud',
+        'action' => 'invoice.send',
+        'message' => 'Timeout',
+        'occurrences' => 1,
+        'last_seen_at' => '',
+    ]], [$negativa(7, -1.0)]);
+
+    return str_contains($html, 'fatture-in-cloud')
+        && str_contains($html, 'MAG-7')
+        && strpos($html, 'MAG-7') < strpos($html, 'fatture-in-cloud');
+});
+
+check('oltre le dieci giacenze negative il resto si conta', function () use ($negativa) {
+    $righe = [];
+
+    for ($i = 1; $i <= 12; $i++) {
+        $righe[] = $negativa($i, -1.0);
+    }
+
+    $html = AttentionWidget::markup([], $righe);
+
+    return substr_count($html, 'Rettifica</a>') === AttentionWidget::LIMIT
+        && str_contains($html, 'e altre 2 giacenze sotto zero');
+});
+
+check('i nomi delle versioni non possono iniettare markup', function () use ($negativa) {
+    $html = AttentionWidget::markup([], [$negativa(7, -1.0, 1, '<img src=x onerror=alert(1)>')]);
+
+    return !str_contains($html, '<img') && str_contains($html, '&lt;img');
+});
+
 summary();
