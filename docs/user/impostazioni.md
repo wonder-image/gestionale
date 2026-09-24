@@ -26,6 +26,14 @@ controllare** della home.
 
 I guasti tecnici non passano di qui: arrivano a chi ti segue, senza disturbarti.
 
+**Destinatari degli avvisi.** Chi riceve l'email dei prodotti sotto la scorta
+minima; il campo c'è se hai gli [avvisi di scorta minima](magazzino-avvisi.md).
+Più indirizzi si separano con una virgola. Se uno è scritto male il salvataggio
+si ferma e ti dice quale.
+
+Se lo lasci vuoto l'email non parte: gli avvisi aspettano e arrivano appena
+scrivi un indirizzo.
+
 ## Come si salva
 
 Scrivi e premi **Salva**: in alto compare la conferma verde. Le modifiche valgono

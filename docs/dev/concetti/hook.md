@@ -35,6 +35,30 @@ final class NotificheMagazzino extends Wonder\Plugin\Gestionale\Extensions\Gesti
 
 Gli altri hook nascono con il sotto-progetto che li usa.
 
+### Le email che passano da `beforeEmailSend`
+
+| Chiave | Email | Messaggio |
+|---|---|---|
+| `stock.low_stock` | i prodotti sotto la scorta minima | `['to' => list<string>, 'subject' => string, 'body' => string]` |
+
+- `to` può tornare come lista o come stringa separata da virgole: il gestionale
+  lo rilegge e scarta gli indirizzi non validi.
+- Un `to` vuoto, o fatto solo di indirizzi non validi, **ferma l'invio**, e
+  gli avvisi contano come mandati: è una scelta del sito, non un guasto.
+- Un'estensione che solleva un'eccezione finisce nel log e l'email parte con il
+  messaggio com'era prima di lei.
+
+```php
+public function beforeEmailSend(string $key, array $message): array
+{
+    if ($key === 'stock.low_stock') {
+        $message['to'][] = 'magazzino@example.com';
+    }
+
+    return $message;
+}
+```
+
 ## Regole
 
 - Le estensioni girano **nell'ordine in cui sono dichiarate**.

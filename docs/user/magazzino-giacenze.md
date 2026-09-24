@@ -38,10 +38,10 @@ colpo solo.
   ne fanno nessuno.
 - **Uno zero scritto è uno zero vero:** diventa un movimento che svuota la riga.
 
-In alto trovi la ricerca (nome, SKU o EAN), il pulsante *Solo sotto scorta* e
-*Azzera i filtri*. Si lavora cinquanta righe per volta, con *Indietro* e
-*Avanti* in fondo. Dopo il salvataggio torni esattamente dov'eri, filtri
-compresi.
+In alto trovi la ricerca (nome, SKU o EAN) e *Azzera i filtri*; con gli
+[avvisi di scorta minima](magazzino-avvisi.md) c'è anche il pulsante *Solo
+sotto scorta*. Si lavora cinquanta righe per volta, con *Indietro* e *Avanti*
+in fondo. Dopo il salvataggio torni esattamente dov'eri, filtri compresi.
 
 ### Il primo carico
 
@@ -71,7 +71,8 @@ uno regalato, tre usati in negozio. Salvando torni da dove eri arrivato, e nei
 - Nella scheda di un articolo con **un'unica opzione**: la casella accanto al
   prezzo, in sola lettura, con il link alla rettifica.
 - Nella scheda di una **singola opzione in vendita**: il riquadro *Magazzino*,
-  con quanti pezzi ci sono e gli ultimi dieci movimenti.
+  con quanti pezzi ci sono e gli ultimi dieci movimenti, e la *Scorta minima*
+  se hai gli [avvisi](magazzino-avvisi.md).
 
 Quello che è successo, tutto e in ordine di tempo, sta in
 [Movimenti](magazzino-movimenti.md).

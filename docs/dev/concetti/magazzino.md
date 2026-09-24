@@ -92,6 +92,11 @@ form, non in una pagina 500:
 | `Levels` | no | giacenza, prenotato e disponibile di uno o più prodotti |
 | `Alerts` | no | scrive gli avvisi decisi da `LowStock` |
 | `Stock` | no | la porta di scrittura |
+| `ProductNames` | in parte | articolo e opzione come li legge la griglia: `of()` è pura, `models()` legge i nomi |
+| `LowStockReport` | in parte | gli avvisi aperti o da mandare, fatti righe: `build()` è pura e scarta chi è tornato sopra |
+| `LowStockEmail` | no | oggetto e corpo dell'email, con la view sovrascrivibile |
+| `LowStockNotifier` | no | un giro dell'attività: legge, chiude i vecchi, manda, segna |
+| `NegativeStock` | in parte | le giacenze sotto zero per prodotto: `group()` è pura |
 
 Le pure si provano con gli array e senza database: è lì che deve stare la
 logica che G3 e G4 rileggeranno.
@@ -120,7 +125,78 @@ ha **due porte con due gusti diversi**: il controller del form intercetta
 **solo** la pulizia dei dati di prova (`gestionale:demo --fresh`), che
 cancella anche i prodotti.
 
-## Due trappole del framework
+## Gli avvisi di scorta minima
+
+Funzionalità `low_stock_alerts`. Bloccata, non si vede niente — né la
+*Scorta minima*, né il filtro *Solo sotto scorta*, né il riquadro *Sotto
+scorta*, né i *Destinatari degli avvisi* — e l'attività gira senza mandare.
+
+| Chi | Cosa |
+|---|---|
+| `Stock::apply()` | apre e chiude la riga di `gst_stock_alerts` a ogni movimento |
+| le due schede | salvando la soglia chiamano `Alerts::refresh()`: l'avviso si apre o si chiude subito |
+| attività `gestionale.stock_alerts` | ogni quarto d'ora, **nata spenta**: una email sola con i prodotti ancora sotto soglia e un avviso mai mandato |
+| `php forge gestionale:stock-alerts` | l'anteprima: cosa partirebbe e a chi; non manda e non scrive |
+| riquadro *Sotto scorta* | gli stessi prodotti dell'email, letti adesso |
+
+L'attività si accende in **Dev → Pianificazioni** quando si sblocca la
+funzionalità.
+
+**Il salvataggio non manda email** (G2b.9): dieci rettifiche di fila non fanno
+dieci email, e salvare non dipende dal server di posta. Varrà anche quando a
+scaricare sarà un ordine online.
+
+**Il comando è solo un'anteprima.** `forge` carica l'autoload ma non le
+funzioni globali del core: `sendMail()` lì non esiste. L'attività invece gira
+dentro `bin/scheduler.php`, che avvia il sito.
+
+**Due pulizie a ogni giro**, che nessun altro farebbe:
+
+1. gli avvisi di prodotti eliminati o tolti dalla griglia si chiudono;
+2. gli avvisi aperti di prodotti tornati sopra la soglia senza un movimento (la
+   soglia cambiata dal database, domani una prenotazione scaduta) passano da
+   `Alerts::refresh()`. Senza, alla prossima discesa `Stock::apply()`
+   troverebbe l'avviso ancora aperto e non ne aprirebbe uno nuovo.
+
+L'anteprima non fa nemmeno queste: dice cosa succederebbe.
+
+**Eliminare un prodotto con l'avviso aperto.** Anche `gst_stock_alerts` punta al
+prodotto con una chiave esterna: `StockHistory::dropAlerts()` toglie gli avvisi
+prima dell'eliminazione, dalla scheda dell'articolo e da quella della versione.
+
+**Quando la posta non va.**
+
+| Esito | Cosa succede agli avvisi |
+|---|---|
+| mandata a tutti | `notified_at`: non tornano più |
+| fermata dall'hook | `notified_at`: è una scelta del sito, non un guasto |
+| mandata solo ad alcuni | `notified_at`, e si segnala chi non l'ha ricevuta |
+| non partita per nessuno | restano da mandare: si riprova al giro dopo |
+
+Le segnalazioni vanno in `error_reports` con un **messaggio fisso**, così le
+ripetizioni si contano sulla stessa riga. Attenzione: il registro del core, a
+ogni ripetizione, scrive di nuovo a chi sviluppa. Se il server di posta è giù
+non parte neanche quella; se invece rifiuta sempre lo stesso indirizzo, arriva
+un'email tecnica ogni quarto d'ora finché qualcuno non corregge i destinatari.
+
+**L'email.** L'oggetto è "N prodotti sotto scorta", il corpo viene da
+`view/emails/low-stock.php`. Per cambiarlo si copia il file in
+`custom/modules/gestionale/view/emails/low-stock.php`: la view riceve
+`$items`, `$count`, `$url`, `$e()` per il testo e `$qty()` per i pezzi.
+
+```php
+LowStockNotifier::run(true);   // l'anteprima, come il comando
+LowStockNotifier::run();       // un giro vero, come l'attività
+```
+
+Si manda con `Support\Mail\Mailer::send($key, $to, $subject, $body)`: applica
+l'hook `beforeEmailSend` con la chiave `stock.low_stock` (vedi
+[Hook del sito](hook.md)), manda un'email per indirizzo e torna `sent`,
+`cancelled` o `failed`. Le risposte vanno a `Mailer::replyTo()`: l'email del
+negozio o, se manca, il mittente del sito. `Support\Mail\Recipients::parse()`
+legge gli indirizzi dell'impostazione: validi, non validi, senza doppioni.
+
+## Tre trappole del framework
 
 **I decimali delle colonne.** `Field::key('quantity')->number()->decimals(3)`
 non dice niente al database: `Data\Fields\Number::sqlSchema()` del core torna
@@ -132,3 +208,10 @@ numero. Una colonna che ha bisogno di più decimali si dichiara a mano con
 ancora aperto: confrontare un `DATETIME` con la stringa vuota fa fallire la
 query in MySQL strict mode ("Incorrect DATETIME value"). Lo stesso vale per
 ogni altra colonna data del modulo.
+
+**`sendMail()` "sgrassa" il corpo.** Il core passa il corpo da
+`sanitizeEcho()`, che toglie le barre rovesciate e decodifica le entità: un
+`&lt;b&gt;` scritto con cura nel nome di un prodotto torna `<b>` e diventa
+grassetto vero, e `C:\cartella` perde la barra. `Mailer::shield()` prepara il
+corpo perché dopo quel passaggio resti esattamente quello scritto. Chi manda
+un'email dal modulo passa da `Mailer`, mai da `sendMail()` diretto.

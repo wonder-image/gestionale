@@ -17,3 +17,10 @@ versionamento semantico.
   funzionalità è bloccata.
 - Documentazione: `gitbook-docs.yaml` con gli spazi GitBook "Sviluppatori"
   (`docs/`) e "Guida commercianti" (`guide/`), con le prime pagine.
+- Avvisi di scorta minima (`low_stock_alerts`): campo *Scorta minima* nelle due
+  schede, avviso aperto e chiuso da `Stock::apply()` e dal salvataggio della
+  soglia, attività `gestionale.stock_alerts` (ogni quarto d'ora, nata spenta)
+  che manda una email raggruppata ai *Destinatari degli avvisi* con la view
+  sovrascrivibile e l'hook `beforeEmailSend` (`stock.low_stock`), anteprima
+  `php forge gestionale:stock-alerts`, riquadro *Sotto scorta* nella home e
+  giacenze negative in *Da controllare*.

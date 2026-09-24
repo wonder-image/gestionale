@@ -19,6 +19,7 @@
 
 * [Giacenze e rettifiche](magazzino-giacenze.md)
 * [Movimenti](magazzino-movimenti.md)
+* [Avvisi di scorta minima](magazzino-avvisi.md)
 
 ## Anagrafiche
 

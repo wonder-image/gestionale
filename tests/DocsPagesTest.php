@@ -123,4 +123,43 @@ check('anche le impostazioni del commerciante puntano a una guida che esiste', f
     in_array(MerchantSettingResource::DOCS_PAGE, $pagine('user'), true)
 );
 
+check('la guida degli avvisi di scorta è nel SUMMARY', fn () =>
+    in_array('magazzino/magazzino-avvisi', $pagine('user'), true)
+);
+
+check('i link fra le pagine delle guide portano a file che esistono', function (): bool {
+    // Un link a una pagina rinominata non si vede finché qualcuno non ci
+    // clicca: GitBook lo pubblica lo stesso.
+    $rotti = [];
+
+    foreach (['user', 'dev'] as $space) {
+        $root = dirname(__DIR__).'/docs/'.$space;
+        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+
+        foreach ($files as $file) {
+            if ($file->getExtension() !== 'md') {
+                continue;
+            }
+
+            preg_match_all('/\]\(([^)#\s]+\.md)(?:#[^)]*)?\)/', (string) file_get_contents($file->getPathname()), $links);
+
+            foreach ($links[1] as $link) {
+                if (preg_match('#^[a-z]+://#i', $link) === 1) {
+                    continue;
+                }
+
+                if (!is_file($file->getPath().'/'.$link)) {
+                    $rotti[] = $space.':'.substr($file->getPathname(), strlen($root) + 1).' → '.$link;
+                }
+            }
+        }
+    }
+
+    if ($rotti !== []) {
+        echo '    '.implode("\n    ", $rotti)."\n";
+    }
+
+    return $rotti === [];
+});
+
 summary();
