@@ -55,8 +55,7 @@ final class Attributes
      * I tipi che si scelgono da un elenco di valori.
      *
      * Un Elenco ha solo il nome del valore, un Colore anche il codice, una
-     * Fantasia anche l'immagine, un'Icona un segno della raccolta o
-     * un'immagine sua.
+     * Fantasia anche l'immagine, un'Icona un'immagine sua.
      */
     public const VALUE_TYPES = ['select', 'color', 'pattern', 'icon'];
 
@@ -151,13 +150,14 @@ final class Attributes
     }
 
     /**
-     * Il segno che accompagna il nome di un valore: `image`, `icon` o
-     * `color`, nella forma che leggono le opzioni dei campi del core.
+     * Il segno che accompagna il nome di un valore: `image` o `color`,
+     * nella forma che leggono le opzioni dei campi del core.
      *
      * Lo decide il tipo dell'attributo, non le colonne piene: cambiando tipo
      * i codici e le immagini di prima restano sul valore, e un Elenco che è
-     * stato un Colore non deve mostrare pallini. Sull'Icona il file caricato
-     * vince sul nome: chi l'ha caricato ha scelto quello.
+     * stato un Colore non deve mostrare pallini. Fantasia e Icona si mostrano
+     * con l'immagine caricata: un'Icona è un'immagine sua, e senza immagine
+     * non mostra niente.
      *
      * @param array<string, mixed> $value riga di `gst_attribute_values`
      * @param string $imageUrl l'indirizzo della sua immagine, se ne ha una
@@ -171,12 +171,7 @@ final class Attributes
             'color' => trim((string) ($value['color'] ?? '')) !== ''
                 ? ['color' => trim((string) $value['color'])]
                 : [],
-            'pattern' => $imageUrl !== '' ? ['image' => $imageUrl] : [],
-            'icon' => match (true) {
-                $imageUrl !== '' => ['image' => $imageUrl],
-                trim((string) ($value['icon'] ?? '')) !== '' => ['icon' => trim((string) $value['icon'])],
-                default => [],
-            },
+            'pattern', 'icon' => $imageUrl !== '' ? ['image' => $imageUrl] : [],
             default => [],
         };
     }

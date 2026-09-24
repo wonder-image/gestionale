@@ -27,7 +27,7 @@ Per *Elenco*, *Colore*, *Fantasia* e *Icona*:
 
 | Risposta | Cosa fa | Esempio |
 |---|---|---|
-| **Scheda tecnica dell'articolo** | un valore per articolo, nella scheda tecnica; non fa nascere niente da vendere | Materiale: cotone |
+| **Scheda tecnica dell'articolo** | uno o più valori per articolo, da spuntare nella scheda tecnica; non fa nascere niente da vendere | Lavaggio: 30°, non candeggiare |
 | **Opzione da scegliere** | ogni valore spuntato fa nascere delle opzioni in vendita, su una pagina sola | Taglia: S, M, L |
 | **Opzione con foto proprie** | come la precedente, ma ogni valore ha le sue foto | Colore, in un negozio dove ogni colore si fotografa |
 
@@ -74,7 +74,7 @@ Se nel negozio non c'è nessun attributo così, la scheda non chiede nemmeno
 | **Elenco** | scegli da una lista che prepari tu (S, M, L, XL) |
 | **Colore** | come l'elenco, ma ogni voce ha anche il suo colore |
 | **Fantasia** | come l'elenco, ma ogni voce ha anche un'immagine: un tessuto scozzese, una stampa a fiori |
-| **Icona** | come l'elenco, ma ogni voce ha un simbolo: «Impermeabile», «Lavabile in lavatrice», «Spedizione rapida» |
+| **Icona** | come l'elenco, ma ogni voce ha un simbolo, cioè un'immagine sua, piccola: «Impermeabile», «Lavabile in lavatrice», «Spedizione rapida» |
 | **Testo** | si scrive a mano, valore per valore |
 | **Numero** | si scrive a mano, con l'unità di misura accanto (g, cm) |
 
@@ -103,7 +103,7 @@ valore* per ogni voce. Ogni riga ha il **valore**, cioè il nome, e in più:
 | **Elenco** | solo il valore |
 | **Colore** | il valore e il **colore**, il pallino che il cliente vede in vetrina |
 | **Fantasia** | l'**immagine**, per quando un colore solo non basta a far capire com'è, e il valore |
-| **Icona** | il valore e l'**icona**: la scegli dalla raccolta, cercando anche in italiano («cuore», «camion»), oppure carichi un'**immagine** tua in PNG o WebP. Se ci sono tutte e due vale l'immagine |
+| **Icona** | il valore e la sua **immagine**: meglio un PNG o un WebP quadrato, con lo sfondo trasparente, perché si mostra piccola, a 16×16 pixel. Va bene anche un JPG, ma lo sfondo resta pieno |
 
 Dietro *Aggiungi una descrizione* c'è una frase per spiegarlo a chi compra.
 L'ordine è quello che vedrà il cliente e si cambia con le frecce.
@@ -124,7 +124,7 @@ gli altri articoli.
 scrivono.
 
 **Fra Elenco, Colore, Fantasia e Icona si passa quando vuoi.** I valori
-restano, e anche i colori, le immagini e le icone che avevi messo: la scheda smette solo di
+restano, e anche i colori e le immagini che avevi messo: la scheda smette solo di
 mostrarli, e tornando al tipo di prima li ritrovi.
 
 **Verso Testo o Numero il tipo non si cambia se ci sono già dei valori.**
@@ -139,18 +139,20 @@ sparisce dalle schede nuove, ma i prodotti che l'avevano tengono il loro valore.
 
 **Il nome lo leggono i clienti.** "Colore" e non "col", "Taglia" e non "size".
 
-**Un valore creato dal + della scheda prodotto nasce senza icona né
+**Un valore creato dal + della scheda prodotto nasce senza colore né
 immagine.** Lo completi da qui, quando hai tempo.
 
 **Le immagini SVG non si caricano.** Un SVG è un documento che può contenere
-codice: per le icone tue usa PNG o WebP.
+codice: per le icone usa PNG o WebP.
 
 ## Dove si usano
 
 Nella scheda del prodotto.
 
 - Quelli che **descrivono** stanno nel riquadro *Scheda tecnica*, in fondo alla
-  colonna di sinistra.
+  colonna di sinistra. Una caratteristica di **Testo** o di **Numero** si crea
+  anche da lì, con **Nuova caratteristica**, senza passare da questa pagina;
+  un elenco con i suoi valori (e le loro immagini) si prepara qui.
 - Gli altri stanno in **«Opzioni in vendita»**, il riquadro a tutta larghezza in
   fondo alla pagina: apri il menu *«Aggiungi un attributo…»*, scegli quello che
   ti serve, spunta i valori, e le righe da vendere compaiono nella griglia con

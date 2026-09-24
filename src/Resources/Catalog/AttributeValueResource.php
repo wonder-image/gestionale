@@ -20,8 +20,9 @@ use Wonder\Plugin\Gestionale\Support\Positions;
  * creazione rapida del core lo cerca su una Resource.
  *
  * Per questo il form ha due campi soli: l'attributo, che il modal porta
- * nascosto, e l'etichetta, l'unica cosa che chi vende deve scrivere. Colore e
- * fantasia si aggiungono dopo, dalla scheda dell'attributo, se servono.
+ * nascosto, e l'etichetta, l'unica cosa che chi vende deve scrivere. Il
+ * codice del colore e l'immagine della fantasia o dell'icona si aggiungono
+ * dopo, dalla scheda dell'attributo, se servono.
  */
 final class AttributeValueResource extends GestionaleResource
 {

@@ -87,7 +87,9 @@ final class ProductModel extends Model
             Field::key('name')->text()->sanitizeFirst(),
             Field::key('slug')->text()->slug()->readonlyOnUpdate()->immutableOnUpdate(),
             Field::key('short_description')->text(),
-            Field::key('description')->text(),
+            // Scritta con l'editor: si salva l'HTML ripulito, non il testo
+            // protetto. Quella di prima, senza tag, la riprende editorHtml().
+            Field::key('description')->text()->richText(),
             Field::key('weight')->number()->decimals(3),
             Field::key('length')->number()->decimals(2),
             Field::key('width')->number()->decimals(2),

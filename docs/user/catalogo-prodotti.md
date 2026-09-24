@@ -9,8 +9,11 @@ icon: box
 ## Due parole, e poi è tutto facile
 
 - **Attributo** è quello che distingue un articolo: *Colore*, *Taglia*,
-  *Materiale*. Lo scegli dal menu **«Aggiungi un attributo…»** e lo prepari una
-  volta sola in **Catalogo → Attributi**. Al massimo tre per articolo.
+  *Materiale*. Lo prepari una volta sola in **Catalogo → Attributi**, e il suo
+  uso dice dove compare. Quelli che fanno nascere opzioni in vendita li scegli
+  dal menu **«Aggiungi un attributo…»** del riquadro «Opzioni in vendita», al
+  massimo tre per articolo. Quelli che descrivono e basta (composizione,
+  lavaggio) stanno nella [scheda tecnica](#la-scheda-tecnica).
 - **Opzione in vendita** è una riga che si vende davvero: ha il suo SKU, il suo
   prezzo, la sua giacenza e la sua foto. Una maglietta in due colori e tre
   taglie è **un** prodotto con **sei** opzioni in vendita.
@@ -179,6 +182,9 @@ sistemato a mano.
 Quando l'articolo non ha varianti, la casella in alto è il suo prezzo e si
 comporta come ti aspetti.
 
+I prezzi si scrivono e si leggono in euro, con la virgola: *1.299,90 €*. Il
+punto delle migliaia e il simbolo li mette la casella da sola.
+
 ## La giacenza
 
 La giacenza si scrive **nella riga della griglia**: scrivi quanti pezzi ci sono
@@ -191,6 +197,14 @@ causale *Inventario*.
 - Un **numero negativo** viene rifiutato: qui si scrive quanti pezzi hai, non di
   quanto cambiarli. Se la giacenza è già sotto zero per delle vendite in
   arretrato e non la tocchi, il salvataggio passa.
+
+Accanto al numero c'è l'**unità** dell'articolo, quella scelta nel riquadro
+**Misure**: *12 pz*, *2,500 kg*. Pezzi, confezioni, grammi e millilitri si
+contano senza decimali; chilogrammi, litri e metri con tre. Se cambi l'unità,
+le caselle si aggiornano subito, anche quelle delle righe che aggiungerai. Una
+giacenza con i decimali scritta prima su un'unità a pezzi (*2,5 pz*) resta
+com'è: arrotondarla vorrebbe dire registrare un movimento che nessuno ha
+chiesto.
 
 Quando l'articolo non ha varianti la casella sta in alto, accanto al prezzo, e
 si scrive allo stesso modo: accanto c'è il link alla rettifica, per quando serve
@@ -205,6 +219,45 @@ va nella sede principale.
 Per i carichi lunghi — centinaia di righe con una causale sola — restano
 **Magazzino → Giacenze** e il pulsante **Rettifica**: li trovi in
 [Giacenze e rettifiche](magazzino-giacenze.md).
+
+## Le descrizioni
+
+- La **descrizione breve** è la frase sotto il nome: una riga sola, al massimo
+  255 caratteri. Una descrizione breve scritta prima su più righe si rilegge su
+  una.
+- La **descrizione** è il testo della pagina, con poco formato: **grassetto**,
+  *corsivo*, sottolineato, barrato e link, e un pulsante che toglie il
+  formato. Una descrizione scritta prima senza formato si apre con un paragrafo
+  per riga.
+
+## La scheda tecnica
+
+Il riquadro **Scheda tecnica** sta sotto **Misure**, e c'è sempre. Ci va quello
+che descrive l'articolo senza farne nascere opzioni in vendita: materiale,
+composizione, lavaggio, paese di produzione. Ogni caratteristica è un campo, e
+quello che scrivi si salva con l'articolo; un campo lasciato vuoto non si
+salva.
+
+**Per aggiungere una caratteristica** premi **Nuova caratteristica**, in fondo
+al riquadro: scrivi il nome (*Composizione*), scegli se è un **Testo** o un
+**Numero** (per un numero anche l'unità, *cm*, *g*) e conferma. Il campo
+compare subito nel riquadro, vuoto e col cursore dentro: scrivi *Cotone 100%* e
+salva l'articolo. Da quel momento la caratteristica c'è su tutti gli articoli,
+e su quelli dove non ti serve la lasci vuota.
+
+- Una caratteristica **Testo** si scrive a mano: *Cotone 100%*.
+- Una **Numero** si scrive con la virgola, e accanto al nome c'è la sua unità:
+  *Spessore (cm)*.
+- Una a **Elenco**, **Colore**, **Fantasia** o **Icona** mostra i suoi valori
+  come **pillole da spuntare**, e se ne spuntano quanti servono: *30°*,
+  *Non candeggiare*, *Stiro basso*. Con **Aggiungi valore** ne scrivi uno nuovo
+  senza uscire dalla scheda, e nasce già spuntato.
+
+Gli elenchi si preparano in **Catalogo → Attributi**, con uso *Scheda tecnica
+dell'articolo*: i simboli di lavaggio, per esempio, sono un attributo di tipo
+**Icona** con un'immagine per ogni valore. Lo spiega
+[Gli attributi](catalogo-attributi.md); il link è anche nel riquadro. Un elenco
+che non ha ancora valori non compare, perché non ci sarebbe niente da spuntare.
 
 ## Dove si trova: categorie e marchio
 

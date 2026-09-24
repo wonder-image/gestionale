@@ -19,9 +19,17 @@ check('la virgola è un decimale, come la scrivono tutti', fn () =>
     && Stocktake::quantity('1.234,5') === 1234.5
 );
 
+check('l\'unità in coda non rompe la quantità', fn () =>
+    Stocktake::quantity('12 pz') === 12.0
+    && Stocktake::quantity('2,5 kg') === 2.5
+    && Stocktake::quantity('1.234,5 kg') === 1234.5
+    && Stocktake::quantity("2,500\u{a0}kg") === 2.5
+);
+
 check('quello che non è un numero non diventa zero', fn () =>
     Stocktake::quantity('abc') === null
     && Stocktake::quantity('--3') === null
+    && Stocktake::quantity('pz') === null
 );
 
 check('lo zero scritto è uno zero vero', fn () =>

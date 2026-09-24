@@ -11,7 +11,6 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
-use Wonder\App\Support\OptionVisual;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
@@ -34,8 +33,8 @@ use Wonder\Plugin\Gestionale\Support\Positions;
  * attributo a elenco si scrivono nella scheda, come righe. La scheda chiede
  * solo quello che serve al tipo, e cambia mentre lo si sceglie, senza salvare:
  * un Elenco ha il nome del valore, un Colore anche il codice, una Fantasia
- * anche l'immagine, un'Icona il nome di un'icona o un'immagine; Testo e
- * Numero non hanno valori, ma un'unità di misura.
+ * anche l'immagine, un'Icona un'immagine sua; Testo e Numero non hanno
+ * valori, ma un'unità di misura.
  *
  * Non è `final`: i test la estendono con una classe anonima per provare la
  * regola sul cambio di tipo senza database.
@@ -49,6 +48,16 @@ class AttributeResource extends GestionaleResource
 
     /** Tipo di un attributo nuovo: quello che serve quasi sempre. */
     public const DEFAULT_TYPE = 'select';
+
+    /**
+     * I tipi che nascono dalla scheda prodotto, con «Nuova caratteristica»:
+     * quelli senza valori. Elenchi, Colori, Fantasie e Icone hanno valori e
+     * immagini da preparare, e si creano qui.
+     */
+    public const QUICK_TYPES = ['text', 'number'];
+
+    /** L'uso di una caratteristica nata dalla scheda prodotto. */
+    public const QUICK_LEVEL = 'model';
 
     public static function path(): string
     {
@@ -166,11 +175,11 @@ class AttributeResource extends GestionaleResource
                 ->repeater([
                     RepeaterColumn::key('id')->hidden(),
                     // Le colonne seguono il tipo: l'immagine sulla Fantasia e
-                    // sull'Icona, il codice solo sul Colore, il segno della
-                    // raccolta solo sull'Icona. Il valore riempie lo spazio
-                    // che resta libero — il riordino a mano ne prende tre per
-                    // le frecce e il cestino — così una colonna nascosta non
-                    // lascia un buco.
+                    // sull'Icona (un'Icona è un'immagine sua), il codice solo
+                    // sul Colore. Il valore riempie lo spazio che resta
+                    // libero — il riordino a mano ne prende tre per le frecce
+                    // e il cestino — così una colonna nascosta non lascia un
+                    // buco.
                     RepeaterColumn::key('image')
                         ->fileDragDrop('image')
                         ->label('Immagine')
@@ -182,11 +191,6 @@ class AttributeResource extends GestionaleResource
                         ->label('Colore')
                         ->columnSpan(3)
                         ->visibleWhen('type', 'color'),
-                    RepeaterColumn::key('icon')
-                        ->icon()
-                        ->label('Icona')
-                        ->columnSpan(3)
-                        ->visibleWhen('type', 'icon'),
                     RepeaterColumn::key('description')->text()->label('Descrizione')->columnSpan(12),
                 ])
                 ->relation(
@@ -218,7 +222,7 @@ class AttributeResource extends GestionaleResource
         $cards = [
             (new Card)->components([
                 SectionTitle::make('Attributo')
-                    ->tooltip('L\'uso dice dove si sceglie il valore. «Scheda tecnica dell\'articolo»: uno per articolo, come il Materiale. «Opzione da scegliere»: fa nascere le opzioni in vendita, come la Taglia. «Opzione con foto proprie»: come la Taglia, ma ogni valore ha le sue foto, come il Colore. Il tipo decide cosa chiedono i valori: un Elenco solo il nome, un Colore anche il pallino, una Fantasia anche l\'immagine, un\'Icona un segno della raccolta o un\'immagine tua. Testo e Numero si scrivono a mano, con l\'unità di misura, e non creano opzioni. Quando un attributo è già sugli articoli il suo uso non cambia più.')
+                    ->tooltip('L\'uso dice dove si sceglie il valore. «Scheda tecnica dell\'articolo»: uno per articolo, come il Materiale. «Opzione da scegliere»: fa nascere le opzioni in vendita, come la Taglia. «Opzione con foto proprie»: come la Taglia, ma ogni valore ha le sue foto, come il Colore. Il tipo decide cosa chiedono i valori: un Elenco solo il nome, un Colore anche il pallino, una Fantasia anche l\'immagine, un\'Icona un\'immagine sua. Testo e Numero si scrivono a mano, con l\'unità di misura, e non creano opzioni. Quando un attributo è già sugli articoli il suo uso non cambia più.')
                     ->columnSpan(12),
                 // L'unità in fondo alla riga: quando il tipo non la usa sparisce
                 // e il vuoto resta in coda, non in mezzo.
@@ -288,9 +292,16 @@ class AttributeResource extends GestionaleResource
         return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
     }
 
+    /**
+     * Solo lo store, per «Nuova caratteristica» della scheda prodotto: chi
+     * vende scrive nome, tipo e unità, il resto lo decide il server (vedi
+     * quickCreateValues()).
+     */
     public static function apiSchema(): ApiSchema
     {
-        return ApiSchema::for(static::class)->enabled(false);
+        return ApiSchema::for(static::class)
+            ->only(['store'])
+            ->fields('store', ['name', 'type', 'unit']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -329,6 +340,13 @@ class AttributeResource extends GestionaleResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        // Lo store API lo usa solo «Nuova caratteristica»: da lì nasce una
+        // caratteristica della scheda tecnica, qualunque cosa porti la
+        // richiesta.
+        if ($context === 'api' && $action === 'store') {
+            $values = static::quickCreateValues($values);
+        }
+
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) ($values['name'] ?? ''), Attribute::$table);
             $values['position'] = Positions::next(Attribute::$table);
@@ -404,22 +422,105 @@ class AttributeResource extends GestionaleResource
     }
 
     /**
-     * Il nome di un'icona si scrive anche a mano: si tiene solo se è davvero
-     * un'icona, perché finisce in un attributo `class` della vetrina.
+     * I tipi del modal «Nuova caratteristica», con i loro nomi.
+     *
+     * @return array<string, string>
      */
-    public static function prepareRepeaterRelationRow(
-        string $inputName,
-        array $payload,
-        array $row,
-        ?array $existingRow = null,
+    public static function quickTypes(): array
+    {
+        return array_intersect_key(Attributes::types(), array_flip(static::QUICK_TYPES));
+    }
+
+    /**
+     * I campi del modal «Nuova caratteristica» della scheda prodotto.
+     *
+     * Le caselle nascoste dicono cosa nasce, ma il server non le legge: uso,
+     * filtro e stato li rimette lui in quickCreateValues().
+     *
+     * @return list<\Wonder\App\ResourceSchema\Input>
+     */
+    public static function quickCreateFields(): array
+    {
+        return [
+            FormField::key('name')->text()->label('Nome')->required()->columnSpan(12),
+            FormField::key('type')
+                ->select(static::quickTypes())
+                ->value('text')
+                ->label('Tipo')
+                ->required()
+                ->columnSpan(6),
+            FormField::key('unit')->select(Units::all())->label('Unità di misura')->columnSpan(6),
+            FormField::key('level_text')->hidden()->value(static::QUICK_LEVEL),
+            FormField::key('is_filterable')->hidden()->value('false'),
+            FormField::key('is_visible')->hidden()->value('true'),
+        ];
+    }
+
+    /**
+     * Quello che lo store API accetta da «Nuova caratteristica».
+     *
+     * Dalla richiesta vengono solo nome, tipo e unità, e il tipo è un Testo
+     * o un Numero; il resto lo decide il server: la scheda tecnica
+     * dell'articolo, visibile, fuori dai filtri. Un Elenco, un Colore, una
+     * Fantasia o un'Icona hanno valori e immagini da preparare: da qui non
+     * nascono, e nemmeno un uso diverso.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    public static function quickCreateValues(array $values): array
+    {
+        $text = static fn (string $key): string => is_scalar($values[$key] ?? null) ? trim((string) $values[$key]) : '';
+
+        $name = $text('name');
+
+        if ($name === '') {
+            throw UserError::make('attribute.quick_name');
+        }
+
+        $type = $text('type') !== '' ? $text('type') : 'text';
+
+        if (!in_array($type, static::QUICK_TYPES, true)) {
+            throw UserError::make('attribute.quick_type');
+        }
+
+        $unit = $text('unit');
+
+        if (!array_key_exists($unit, Units::all())) {
+            throw UserError::make('attribute.quick_unit');
+        }
+
+        return [
+            'name' => $name,
+            'type' => $type,
+            'unit' => $unit,
+            // La casella dell'uso che un Testo e un Numero mostrano:
+            // withLevel() la legge e la toglie.
+            'level_text' => static::QUICK_LEVEL,
+            'is_filterable' => 'false',
+            'is_visible' => 'true',
+        ];
+    }
+
+    /**
+     * I valori si scrivono solo dalla scheda dell'attributo.
+     *
+     * Lo store API passa al repeater la richiesta intera, non solo i campi che
+     * accetta: senza questo un `values[...]` portato nella richiesta
+     * creerebbe dei valori sotto a un Testo appena nato.
+     */
+    public static function syncRepeaterRelations(
+        int|string $parentId,
+        array $post,
+        array $files = [],
         string $action = 'store',
         string $context = 'backend'
     ): array {
-        if ($inputName === 'values' && array_key_exists('icon', $payload)) {
-            $payload['icon'] = OptionVisual::icon((string) ($payload['icon'] ?? ''));
+        if ($context === 'api') {
+            return [];
         }
 
-        return $payload;
+        return parent::syncRepeaterRelations($parentId, $post, $files, $action, $context);
     }
 
     /** Cambiare tipo con dei valori dentro li butterebbe via in silenzio. */

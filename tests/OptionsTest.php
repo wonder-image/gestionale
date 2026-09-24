@@ -109,7 +109,7 @@ check('niente spuntato, niente assi', function () use ($scheda) {
     return $scelte === ['variant' => [], 'axes' => []];
 });
 
-check('i valori di un colore o di un\'icona portano il loro segno', function () use ($scheda) {
+check('i valori di un colore o di un\'icona portano il loro pallino o la loro immagine', function () use ($scheda) {
     $colore = ['id' => 7, 'type' => 'color'];
     $icona = ['id' => 8, 'type' => 'icon'];
     $valori = new class extends ProductModelResource {
@@ -118,7 +118,8 @@ check('i valori di un colore o di un\'icona portano il loro segno', function () 
             return [
                 70 => ['id' => 70, 'attribute_id' => 7, 'label' => 'Blu', 'color' => '#1d4ed8'],
                 71 => ['id' => 71, 'attribute_id' => 7, 'label' => 'Senza', 'color' => ''],
-                80 => ['id' => 80, 'attribute_id' => 8, 'label' => 'Vegano', 'icon' => 'bi-leaf'],
+                80 => ['id' => 80, 'attribute_id' => 8, 'label' => 'Vegano', 'image' => '["https://esempio.it/vegano.png"]'],
+                81 => ['id' => 81, 'attribute_id' => 8, 'label' => 'Senza immagine', 'icon' => 'bi-leaf'],
             ];
         }
     };
@@ -127,7 +128,11 @@ check('i valori di un colore o di un\'icona portano il loro segno', function () 
             '70' => ['name' => 'Blu', 'color' => '#1d4ed8'],
             '71' => 'Senza',
         ]
-        && $valori::valueChoices($icona) === ['80' => ['name' => 'Vegano', 'icon' => 'bi-leaf']]
+        // L'icona è solo la sua immagine: un vecchio segno della raccolta non si mostra.
+        && $valori::valueChoices($icona) === [
+            '80' => ['name' => 'Vegano', 'image' => 'https://esempio.it/vegano.png'],
+            '81' => 'Senza immagine',
+        ]
         // Un elenco resta testo: niente segni da disegnare.
         && $scheda::valueChoices(['id' => 1, 'type' => 'select']) === ['10' => 'Blu', '11' => 'Rosso'];
 });

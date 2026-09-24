@@ -24,3 +24,11 @@ versionamento semantico.
   sovrascrivibile e l'hook `beforeEmailSend` (`stock.low_stock`), anteprima
   `php forge gestionale:stock-alerts`, riquadro *Sotto scorta* nella home e
   giacenze negative in *Da controllare*.
+- Scheda articolo, ottavo giro: prezzi con l'input prezzo del core (in euro),
+  giacenza con l'unità dell'articolo (*pz*, *kg*), descrizione breve su una
+  riga, descrizione con l'editor (grassetto, corsivo, link) salvata come HTML
+  ripulito. Riquadro *Scheda tecnica* sempre presente, con *Nuova
+  caratteristica* (Testo o Numero, creata al volo) e gli attributi a valori
+  come pillole da spuntare, più d'uno per articolo
+  (`ProductAttributes::rows()`). Il tipo di attributo *Icona* ha un'immagine
+  per valore al posto dell'icona del font.

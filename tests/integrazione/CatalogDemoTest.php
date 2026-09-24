@@ -92,7 +92,7 @@ try {
             Brand::class => ['Maglificio Aurora'],
             Category::class => ['Abbigliamento', 'Magliette e felpe', 'Accessori'],
             Tag::class => ['Novità', 'Saldi'],
-            Attribute::class => ['Colore', 'Taglia', 'Materiale'],
+            Attribute::class => ['Colore', 'Taglia', 'Materiale', 'Composizione', 'Lavaggio'],
             Package::class => ['Busta imbottita', 'Scatola media'],
         ];
 
@@ -127,8 +127,8 @@ try {
                 && $dopo[0] === $prima[0] + 1      // marchio
                 && $dopo[1] === $prima[1] + 3      // categorie
                 && $dopo[2] === $prima[2] + 2      // tag
-                && $dopo[3] === $prima[3] + 3      // attributi
-                && $dopo[4] === $prima[4] + 9      // valori
+                && $dopo[3] === $prima[3] + 5      // attributi, scheda tecnica compresa
+                && $dopo[4] === $prima[4] + 12     // valori
                 && $dopo[5] === $prima[5] + 4      // articoli
                 // Una foto per articolo, più quella di un colore e quella di
                 // una singola opzione in vendita.
@@ -147,6 +147,8 @@ try {
                 [Attribute::class, 'colore', 'Colore'],
                 [Attribute::class, 'taglia', 'Taglia'],
                 [Attribute::class, 'materiale', 'Materiale'],
+                [Attribute::class, 'composizione', 'Composizione'],
+                [Attribute::class, 'lavaggio', 'Lavaggio'],
                 [Package::class, 'busta-imbottita', 'Busta imbottita'],
                 [Package::class, 'scatola-media', 'Scatola media'],
                 [ProductModel::class, 'cappello-di-lana', 'Cappello di lana'],
@@ -288,6 +290,74 @@ try {
                     && (int) $delColore[0]['product_variant_id'] === $colore
                 && count($dellArticolo) === 1
                     && (int) $dellArticolo[0]['product_variant_id'] === 0;
+        });
+
+        check('la scheda tecnica ha composizione e lavaggio', function () use ($demo, $righe) {
+            $composizione = $demo(Attribute::class, 'composizione');
+            $lavaggio = $demo(Attribute::class, 'lavaggio');
+            $valori = $righe(AttributeValue::class, ['attribute_id' => (int) ($lavaggio['id'] ?? 0)]);
+            usort($valori, static fn (array $a, array $b): int => (int) $a['position'] <=> (int) $b['position']);
+
+            // Stanno sull'articolo, si vedono in scheda e non filtrano niente.
+            return ($composizione['level'] ?? '') === 'model'
+                && ($composizione['type'] ?? '') === 'text'
+                && ($composizione['is_visible'] ?? '') === 'true'
+                && ($composizione['is_filterable'] ?? '') === 'false'
+                && $righe(AttributeValue::class, ['attribute_id' => (int) ($composizione['id'] ?? 0)]) === []
+                && ($lavaggio['level'] ?? '') === 'model'
+                && ($lavaggio['type'] ?? '') === 'select'
+                && ($lavaggio['is_visible'] ?? '') === 'true'
+                && ($lavaggio['is_filterable'] ?? '') === 'false'
+                && array_column($valori, 'label') === ['Lavaggio a 30°', 'Non candeggiare', 'Non asciugare in asciugatrice'];
+        });
+
+        check('un articolo ha la composizione e più simboli di lavaggio', function () use ($demo, $idDi, $righe) {
+            $id = $idDi(ProductModel::class, 'maglietta-girocollo');
+            $composizione = $demo(Attribute::class, 'composizione');
+            $lavaggio = $demo(Attribute::class, 'lavaggio');
+            $collegamenti = ProductAttributes::rows('model', $id);
+            $testo = $collegamenti[(int) ($composizione['id'] ?? 0)] ?? [];
+            $simboli = $collegamenti[(int) ($lavaggio['id'] ?? 0)] ?? [];
+
+            $valori = [];
+            foreach ($righe(AttributeValue::class, ['attribute_id' => (int) ($lavaggio['id'] ?? 0)]) as $valore) {
+                $valori[(int) $valore['id']] = $valore;
+            }
+
+            $scheda = ProductAttributes::describe([$composizione, $lavaggio], $collegamenti, $valori);
+
+            // Solo lei: gli altri articoli la scheda tecnica non la usano.
+            $altri = ProductAttributes::rows('model', $idDi(ProductModel::class, 'felpa-con-cappuccio'));
+
+            return $id > 0
+                && count($testo) === 1
+                && ($testo[0]['value_text'] ?? '') === 'Cotone 100%'
+                && count($simboli) === 3
+                && ($scheda['Composizione'] ?? '') === 'Cotone 100%'
+                && ($scheda['Lavaggio'] ?? '') === 'Lavaggio a 30°, Non candeggiare, Non asciugare in asciugatrice'
+                && !isset($altri[(int) ($composizione['id'] ?? 0)])
+                && !isset($altri[(int) ($lavaggio['id'] ?? 0)]);
+        });
+
+        check('la scheda tecnica torna anche su un articolo di prova già nato', function () use ($demo, $idDi) {
+            // Un sito con i dati di prova di prima: l'articolo c'è, la scheda
+            // tecnica no. Rifare i dati di prova la aggiunge, una volta sola.
+            $id = $idDi(ProductModel::class, 'maglietta-girocollo');
+            $lavaggio = (int) ($demo(Attribute::class, 'lavaggio')['id'] ?? 0);
+            $composizione = (int) ($demo(Attribute::class, 'composizione')['id'] ?? 0);
+
+            foreach ([$lavaggio, $composizione] as $attributo) {
+                foreach (ProductAttributes::rows('model', $id)[$attributo] ?? [] as $riga) {
+                    ProductAttributes::modelClass('model')::delete((int) $riga['id']);
+                }
+            }
+
+            $rifatte = CatalogDemo::create();
+            $righe = ProductAttributes::rows('model', $id);
+
+            return $rifatte === 4
+                && count($righe[$lavaggio] ?? []) === 3
+                && count($righe[$composizione] ?? []) === 1;
         });
 
         check('il colore sta sulla variante e la taglia sul prodotto', function () use ($demo) {

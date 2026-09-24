@@ -31,10 +31,11 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 
 /**
  * Dati di prova del catalogo: un marchio, un piccolo albero di categorie, due
- * tag, tre attributi con i loro valori, due imballaggi e **quattro articoli**
- * — uno senza attributi, uno che li usa tutti e tre, uno con molte opzioni in
- * vendita e uno venduto solo a taglia, senza colore — ciascuno con la sua
- * foto.
+ * tag, tre attributi con i loro valori, due caratteristiche della scheda
+ * tecnica, due imballaggi e **quattro articoli** — uno senza attributi, uno
+ * che li usa tutti e tre (ed è l'unico con la scheda tecnica), uno con molte
+ * opzioni in vendita e uno venduto solo a taglia, senza colore — ciascuno con
+ * la sua foto.
  *
  * Servono a provare le pagine su un sito vuoto e, più avanti, a dare un posto
  * ai prodotti finti. I nomi sono quelli di un negozio vero; le righe si
@@ -89,7 +90,32 @@ final class CatalogDemo
             'row' => ['type' => 'select', 'level' => 'product', 'group_name' => 'Materiali', 'position' => 3],
             'values' => [['label' => 'Cotone'], ['label' => 'Gomma']],
         ],
+        // La scheda tecnica: caratteristiche dell'articolo, che si leggono
+        // in scheda e non filtrano. La composizione è un testo libero; il
+        // lavaggio è un elenco, e un articolo ne prende più d'uno.
+        'composizione' => [
+            'name' => 'Composizione',
+            'row' => ['type' => 'text', 'level' => 'model', 'group_name' => 'Composizione e cura', 'position' => 4, 'is_filterable' => 'false'],
+            'values' => [],
+        ],
+        'lavaggio' => [
+            'name' => 'Lavaggio',
+            'row' => ['type' => 'select', 'level' => 'model', 'group_name' => 'Composizione e cura', 'position' => 5, 'is_filterable' => 'false'],
+            'values' => [
+                ['label' => 'Lavaggio a 30°'],
+                ['label' => 'Non candeggiare'],
+                ['label' => 'Non asciugare in asciugatrice'],
+            ],
+        ],
     ];
+
+    /**
+     * La scheda tecnica dell'articolo che la usa: il testo della composizione.
+     *
+     * Scritto come lo salva il campo (`sanitizeFirst()`: minuscole, poi
+     * maiuscola a ogni parola): «100% cotone» diventerebbe «100% Cotone».
+     */
+    private const COMPOSITION = 'Cotone 100%';
 
     /** Le righe vere usate al posto di quelle di prova, per la nota finale. @var list<string> */
     private static array $reused = [];
@@ -242,6 +268,53 @@ final class CatalogDemo
             [$taglia],
             '9.90'
         );
+
+        $created += self::technicalSheet(self::modelId('maglietta-girocollo'));
+
+        return $created;
+    }
+
+    /**
+     * La scheda tecnica della maglietta: la composizione e tutti i simboli di
+     * lavaggio, più d'uno sulla stessa caratteristica.
+     *
+     * Fuori da `model()`, così arriva anche su una maglietta di prova nata
+     * prima; si scrive solo la caratteristica che manca, e rifare i dati di
+     * prova non tocca niente.
+     *
+     * @return int righe create
+     */
+    private static function technicalSheet(int $modelId): int
+    {
+        if ($modelId <= 0) {
+            return 0;
+        }
+
+        $existing = ProductAttributes::rows('model', $modelId);
+        $input = [
+            'composizione' => self::COMPOSITION,
+            'lavaggio' => array_column(self::valuesOf('lavaggio'), 'id'),
+        ];
+        $created = 0;
+
+        foreach ($input as $ref => $value) {
+            $attribute = self::find(Attribute::class, $ref, self::ATTRIBUTES[$ref]['name']);
+            $attributeId = (int) ($attribute['id'] ?? 0);
+
+            // Un attributo vero riusato può essere di un altro livello: la
+            // scheda tecnica si scrive solo dove la si legge.
+            if ($attributeId <= 0 || $value === [] || isset($existing[$attributeId])) {
+                continue;
+            }
+
+            $row = Attribute::find(['id' => $attributeId, 'deleted' => 'false'], 1);
+
+            if (!is_array($row) || ($row['level'] ?? '') !== 'model') {
+                continue;
+            }
+
+            $created += ProductAttributes::save('model', $modelId, [$row], [$attributeId => $value]);
+        }
 
         return $created;
     }

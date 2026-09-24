@@ -85,12 +85,11 @@ check('tipo e livello sono elenchi chiusi', function () use ($colonne) {
         && $colonne(Attribute::class)['level']->getSchema('enum') === ['model', 'variant', 'product'];
 });
 
-check('un valore tiene il nome della sua icona', function () use ($colonne, $campo) {
-    $colonna = $colonne(AttributeValue::class)['icon'] ?? null;
-
-    return $colonna !== null
-        && (int) $colonna->getSchema('length') === 60
-        && $campo(AttributeValue::class, 'icon') !== null;
+check('un valore non tiene più il nome di un\'icona: l\'icona è solo un\'immagine', function () use ($colonne, $campo) {
+    return !array_key_exists('icon', $colonne(AttributeValue::class))
+        && $campo(AttributeValue::class, 'icon') === null
+        && array_key_exists('image', $colonne(AttributeValue::class))
+        && $campo(AttributeValue::class, 'image') !== null;
 });
 
 summary();

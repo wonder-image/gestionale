@@ -96,4 +96,44 @@ check('un attributo senza valore non si racconta', function () {
     return ProductAttributes::describe($attributi, [], []) === [];
 });
 
+check('un attributo a più valori si racconta con i valori in fila', function () {
+    $attributi = [['id' => 1, 'name' => 'Lavaggio', 'type' => 'icon', 'unit' => '']];
+    $collegamenti = [1 => [
+        ['attribute_id' => 1, 'attribute_value_id' => 4],
+        ['attribute_id' => 1, 'attribute_value_id' => 9],
+    ]];
+    $valori = [4 => ['id' => 4, 'label' => '30°'], 9 => ['id' => 9, 'label' => 'Non candeggiare']];
+
+    return ProductAttributes::describe($attributi, $collegamenti, $valori) === ['Lavaggio' => '30°, Non candeggiare'];
+});
+
+check('righe singole ed elenchi convivono, e i valori vuoti si saltano', function () {
+    $attributi = [
+        ['id' => 1, 'name' => 'Lavaggio', 'type' => 'icon', 'unit' => ''],
+        ['id' => 2, 'name' => 'Materiale', 'type' => 'text', 'unit' => ''],
+        ['id' => 3, 'name' => 'Colore', 'type' => 'color', 'unit' => ''],
+    ];
+    $collegamenti = [
+        1 => [
+            ['attribute_id' => 1, 'attribute_value_id' => 4],
+            ['attribute_id' => 1, 'attribute_value_id' => 77],
+            ['attribute_id' => 1, 'attribute_value_id' => 9],
+        ],
+        2 => ['attribute_id' => 2, 'value_text' => 'Cotone'],
+        3 => [['attribute_id' => 3, 'attribute_value_id' => 77]],
+    ];
+    $valori = [4 => ['id' => 4, 'label' => '30°'], 9 => ['id' => 9, 'label' => 'Non candeggiare']];
+
+    return ProductAttributes::describe($attributi, $collegamenti, $valori) === [
+        'Lavaggio' => '30°, Non candeggiare',
+        'Materiale' => 'Cotone',
+    ];
+});
+
+check('un elenco vuoto non si racconta', function () {
+    $attributi = [['id' => 1, 'name' => 'Lavaggio', 'type' => 'icon', 'unit' => '']];
+
+    return ProductAttributes::describe($attributi, [1 => []], []) === [];
+});
+
 summary();

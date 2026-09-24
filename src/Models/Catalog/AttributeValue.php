@@ -14,10 +14,9 @@ use Wonder\Sql\TableSchema as Column;
  * Esiste solo per i tipi `select`, `color`, `pattern` e `icon`; `text` e
  * `number` scrivono il valore sul collegamento del prodotto. `color` tiene il
  * codice esadecimale per il pallino in vetrina (tipo Colore), `image`
- * l'immagine della fantasia (tipo Fantasia) o quella che sostituisce l'icona,
- * `icon` il nome di un'icona Bootstrap (tipo Icona). Cambiando tipo
- * all'attributo le colonne restano come sono: la scheda smette solo di
- * chiederle.
+ * l'immagine della fantasia (tipo Fantasia) o dell'icona (tipo Icona:
+ * un'icona è un'immagine sua). Cambiando tipo all'attributo le colonne
+ * restano come sono: la scheda smette solo di chiederle.
  */
 final class AttributeValue extends Model
 {
@@ -37,7 +36,6 @@ final class AttributeValue extends Model
             Column::key('label'),
             Column::key('description')->type('TEXT'),
             Column::key('color')->length(20),
-            Column::key('icon')->length(60),
             Column::key('image')->json(),
             Column::key('position')->int(),
         ];
@@ -59,7 +57,6 @@ final class AttributeValue extends Model
             Field::key('label')->text(),
             Field::key('description')->text(),
             Field::key('color')->text(),
-            Field::key('icon')->text(),
             Field::key('image')
                 ->image()
                 ->extensions(['png', 'jpg', 'jpeg', 'webp'])

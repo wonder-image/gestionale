@@ -18,7 +18,10 @@
             "attribute": {
                 "type_locked": "Questo attributo ha dei valori: eliminali prima di cambiargli tipo.",
                 "level_locked": "Questo attributo è già su degli articoli: per cambiarne l'uso crea un attributo nuovo.",
-                "text_level": "Un Testo o un Numero non crea opzioni: scegli «Scheda tecnica dell'articolo» o «Scheda tecnica di ogni opzione»."
+                "text_level": "Un Testo o un Numero non crea opzioni: scegli «Scheda tecnica dell'articolo» o «Scheda tecnica di ogni opzione».",
+                "quick_name": "Scrivi il nome della caratteristica.",
+                "quick_type": "Da qui nascono solo caratteristiche Testo o Numero. Elenchi, Colori, Fantasie e Icone si creano da Catalogo → Attributi, perché hanno valori e immagini da preparare.",
+                "quick_unit": "Scegli un'unità di misura dall'elenco, o nessuna."
             },
             "product": {
                 "sku_taken": "Questo SKU è già in catalogo, su un altro articolo o su un'altra opzione in vendita: cambialo.",

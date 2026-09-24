@@ -85,7 +85,7 @@ Due tabelle, nessuna sincronizzazione come il resto del catalogo:
 | Tabella | Cosa tiene |
 |---|---|
 | `gst_attributes` | `code` (`att_`), `slug`, `name`, `type`, `level`, `unit`, `group_name`, `is_filterable`, `is_visible`, `position` |
-| `gst_attribute_values` | `attribute_id`, `label`, `description`, `color`, `icon`, `image`, `position` |
+| `gst_attribute_values` | `attribute_id`, `label`, `description`, `color`, `image`, `position` |
 
 **Il livello decide tutto.** Un attributo dichiara dove vive, e da quel livello
 `ProductAttributes` sceglie la tabella di collegamento. Nella scheda il campo
@@ -145,16 +145,42 @@ un collegamento — pannello, vetrina, import — passa di qui e le righe restan
 tutte uguali.
 
 **Il segno accanto al nome.** `Attributes::valueVisual($tipo, $valore, $url)`
-restituisce `['color' => …]`, `['icon' => …]` o `['image' => …]`, la forma che
+restituisce `['color' => …]` o `['image' => …]`, la forma che
 le opzioni dei select e delle pillole del core sanno mostrare. Lo decide il
 **tipo**, non le colonne piene: un Elenco che è stato un Colore tiene il codice
-nel database ma non mostra pallini. Sull'Icona l'immagine caricata vince sul
-nome dell'icona. L'indirizzo dell'immagine lo dà `AttributeValue::imageUrl()`.
+nel database ma non mostra pallini. L'indirizzo dell'immagine lo dà
+`AttributeValue::imageUrl()`.
 
-**Il tipo Icona** (P62) tiene in `icon` il nome di un'icona Bootstrap (`bi-…`,
-scelta con l'input `icon()` del core e il selettore della lib, che cerca anche
-con parole italiane) e in `image` un file PNG, JPG o WebP. SVG no: è un
-documento che può portare script.
+**Il tipo Icona** (P64) è un'immagine per valore, in `image`, come la
+Fantasia: un PNG, JPG o WebP, meglio quadrato e trasparente perché si mostra a
+16×16. SVG no: è un documento che può portare script. La colonna `icon` con il
+nome di un'icona del font non c'è più.
+
+### La scheda tecnica
+
+Gli attributi di livello `model` stanno nel riquadro *Scheda tecnica* di
+`ProductModelResource` (`technicalSheetCard()`), che c'è sempre, anche vuoto.
+
+- **Più valori per attributo.** Un attributo a valori di livello `model` è un
+  gruppo di caselle a pillole (`technicalField()`): il POST porta
+  `attribute_<id>` come lista, e `ProductAttributes::save()` scrive una riga
+  per valore, toglie quelle non più spuntate e ignora doppioni e id non validi.
+  `ProductAttributes::rows($level, $id)` rilegge tutte le righe per attributo;
+  `read()` resta a una riga per attributo, la prima. Un gruppo senza spunte non
+  si posta, e `null` svuota. Le opzioni in vendita restano a un valore.
+- **Un elenco senza valori non compare**: un `InputCheckbox` senza opzioni
+  sarebbe una casella sola, sì/no.
+- **Il «+» dei valori** è il `quickCreate()` del core su
+  `AttributeValueResource`, con l'`attribute_id` nascosto nel layout del
+  modal (`newValueLayout()`).
+- **«Nuova caratteristica»** è un `QuickCreateButton` del core su
+  `AttributeResource`: dall'API nasce solo un Testo o un Numero di livello
+  `model` (`quickCreateFields()`, `QUICK_TYPES`, `QUICK_LEVEL`). Allo
+  `wi:quick-create:created` lo script del riquadro copia un `<template>` con
+  il campo vero renderizzato dal core (id segnaposto `__WI_ID__`), ci scrive
+  id, nome e unità, lo mette prima del bottone e ci porta il cursore. Al
+  salvataggio il campo si posta come gli altri, perché `attributes()` rilegge
+  il catalogo.
 
 ### Due nomi di colonna che non sono quelli della spec
 
@@ -172,8 +198,8 @@ in `visibleWhen('type', ...)`.
 
 - Il riquadro *Valori* si stampa sempre, con
   `visibleWhen('type', Attributes::VALUE_TYPES)`.
-- Nella riga, l'immagine (`image`) si vede sulla Fantasia e sull'Icona, il
-  codice (`color`) solo sul Colore e il segno (`icon`) solo sull'Icona: le
+- Nella riga, l'immagine (`image`) si vede sulla Fantasia e sull'Icona e il
+  codice (`color`) solo sul Colore: le
   `RepeaterColumn` hanno il loro
   `visibleWhen()`, che il repeater del core ripete sul contenitore della
   colonna. Il valore (`label`) ha `columnFill()` e si prende lo spazio che le

@@ -181,7 +181,7 @@ check('le colonne dei valori chiedono quello che serve al tipo', function () {
         $colonne[(string) $colonna->name] = $colonna;
     }
 
-    return array_keys($colonne) === ['id', 'image', 'label', 'color', 'icon', 'description']
+    return array_keys($colonne) === ['id', 'image', 'label', 'color', 'description']
         && $colonne['image']->conditionalAttributes() === [
             'data-visible-when' => 'type',
             'data-visible-when-values' => 'pattern,icon',
@@ -190,21 +190,10 @@ check('le colonne dei valori chiedono quello che serve al tipo', function () {
             'data-visible-when' => 'type',
             'data-visible-when-values' => 'color',
         ]
-        && $colonne['icon']->conditionalAttributes() === [
-            'data-visible-when' => 'type',
-            'data-visible-when-values' => 'icon',
-        ]
         // Il valore c'è per tutti e si allarga dove le altre mancano.
         && $colonne['label']->conditionalAttributes() === []
         && $colonne['label']->get('column_fill') === true;
 });
-
-check('l\'icona di un valore si salva pulita', fn () =>
-    AttributeResource::prepareRepeaterRelationRow('values', ['icon' => 'star'], [])['icon'] === 'bi-star'
-    && AttributeResource::prepareRepeaterRelationRow('values', ['icon' => 'x" onclick'], [])['icon'] === ''
-    && AttributeResource::prepareRepeaterRelationRow('values', ['label' => 'Blu'], []) === ['label' => 'Blu']
-    && AttributeResource::prepareRepeaterRelationRow('altro', ['icon' => 'star'], [])['icon'] === 'star'
-);
 
 check('l\'unità si vede solo su testo e numero', fn () =>
     AttributeResource::getInput('unit')->conditionalAttributes() === [

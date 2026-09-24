@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Catalog;
 
+use Closure;
 use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
@@ -12,8 +13,11 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\ResourceSchema\Inputs\InputCheckbox;
+use Wonder\Backend\Support\ResourceFormLayoutRenderer;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\QuickCreateButton;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
@@ -45,6 +49,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Packages;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
+use Wonder\Plugin\Gestionale\Support\Catalog\SaleUnits;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\VersionName;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
@@ -65,6 +70,7 @@ use Wonder\Plugin\Gestionale\Support\Tax\TaxCategories;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Positions;
 use Wonder\Sql\Transaction;
+use Wonder\Support\Html\Entity;
 
 /**
  * "Modelli": la scheda dell'articolo, e l'unico posto dove si lavora.
@@ -94,7 +100,6 @@ class ProductModelResource extends GestionaleResource
     /** @var array<int, array<string, mixed>>|null valori letti una volta per richiesta */
     private static ?array $catalogValues = null;
 
-    /** Unità di misura: quelle che un negozio usa davvero. */
     /**
      * Quante foto o video per area.
      *
@@ -103,15 +108,8 @@ class ProductModelResource extends GestionaleResource
      */
     public const MAX_IMAGES = 10;
 
-    private const UNITS = [
-        'pz' => 'Pezzi',
-        'conf' => 'Confezioni',
-        'kg' => 'Chilogrammi',
-        'g' => 'Grammi',
-        'l' => 'Litri',
-        'ml' => 'Millilitri',
-        'm' => 'Metri',
-    ];
+    /** L'id del bottone «Nuova caratteristica»: lo script della scheda lo cerca. */
+    protected const TECHNICAL_BUTTON = 'wi-technical-new';
 
     public static function path(): string
     {
@@ -189,7 +187,9 @@ class ProductModelResource extends GestionaleResource
             // nel modulo — nascosto, non tolto — e continua a proporre i
             // codici delle righe.
             FormField::key('sku')->text()->label('SKU')->hiddenWhen('has_variants', 'true'),
-            FormField::key('unit')->select(self::UNITS)->value('pz')->label('Unità di misura')->required(),
+            // Le unità e i loro decimali stanno in un posto solo: cambiarla
+            // qui cambia al volo i decimali della giacenza (unitScript).
+            FormField::key('unit')->select(SaleUnits::all())->value('pz')->label('Unità di misura')->required(),
             // Due domande diverse, e devono suonare diverse: la prima dice se
             // l'articolo è finito, la seconda se si vende anche online.
             FormField::key('visible')
@@ -202,8 +202,13 @@ class ProductModelResource extends GestionaleResource
                 ->value('true')
                 ->label('Si vende online')
                 ->required(),
-            FormField::key('short_description')->textarea()->label('Descrizione breve'),
-            FormField::key('description')->textarea()->label('Descrizione'),
+            // Una riga sola, quella che sta sotto il nome in vetrina: 255
+            // caratteri bastano, la colonna resta TEXT per quelle di prima.
+            FormField::key('short_description')->text()->maxLength(255)->label('Descrizione breve'),
+            // Il testo lungo si formatta: grassetti, elenchi, paragrafi. Una
+            // descrizione scritta prima, senza tag, arriva a paragrafi
+            // (editorHtml).
+            FormField::key('description')->textarea('plus')->label('Descrizione'),
             // Un albero solo: la principale è la stella di una voce spuntata,
             // non un secondo campo. La categoria nuova chiede anche il padre
             // e nasce sotto di lui.
@@ -235,8 +240,8 @@ class ProductModelResource extends GestionaleResource
                 ->label('Si spedisce'),
         ];
 
-        foreach (Attributes::byLevel(static::attributes(), 'model') as $attribute) {
-            $fields[] = static::attributeField($attribute);
+        foreach (static::technicalAttributes() as $attribute) {
+            $fields[] = static::technicalField($attribute);
         }
 
         array_push($fields, ...static::optionFields());
@@ -396,21 +401,10 @@ class ProductModelResource extends GestionaleResource
             static::getInput('width')->columnSpan(3),
             static::getInput('height')->columnSpan(3),
             static::getInput('circumference')->columnSpan(3),
+            static::unitScript()->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
-        $attributi = [];
-
-        foreach (Attributes::byLevel(static::attributes(), 'model') as $attribute) {
-            $attributi[] = static::getInput('attribute_'.(int) $attribute['id'])->columnSpan(6);
-        }
-
-        if ($attributi !== []) {
-            $cards[] = static::foldable(
-                'Scheda tecnica',
-                $attributi,
-                'Quello che descrive l\'articolo e non fa nascere opzioni in vendita: materiale, composizione, paese.'
-            );
-        }
+        $cards[] = static::technicalSheetCard();
 
         return $cards;
     }
@@ -1512,6 +1506,17 @@ class ProductModelResource extends GestionaleResource
     ): array {
         $modelId = (int) ($values['id'] ?? 0);
 
+        // Le descrizioni scritte prima dell'editor: quella lunga era testo
+        // semplice e arriva a paragrafi, quella breve era un'area di testo e
+        // ora è una riga sola.
+        if (array_key_exists('description', $values)) {
+            $values['description'] = static::editorHtml((string) ($values['description'] ?? ''));
+        }
+
+        if (array_key_exists('short_description', $values)) {
+            $values['short_description'] = static::oneLine((string) ($values['short_description'] ?? ''));
+        }
+
         if ($mode !== 'edit' || $modelId === 0) {
             return $values;
         }
@@ -1525,11 +1530,11 @@ class ProductModelResource extends GestionaleResource
 
         $values['tags'] = array_map('strval', static::tagIds($modelId));
 
-        $links = ProductAttributes::read('model', $modelId);
+        $rows = ProductAttributes::rows('model', $modelId);
 
-        foreach (Attributes::byLevel(static::attributes(), 'model') as $attribute) {
+        foreach (static::technicalAttributes() as $attribute) {
             $id = (int) $attribute['id'];
-            $values['attribute_'.$id] = static::attributeValue($attribute, $links[$id] ?? null);
+            $values['attribute_'.$id] = static::technicalValue($attribute, $rows[$id] ?? []);
         }
 
         $product = static::soleProduct($modelId);
@@ -1571,7 +1576,9 @@ class ProductModelResource extends GestionaleResource
                 $productId = (int) ($row['id'] ?? 0);
                 $level = $levels[$productId] ?? null;
 
-                $values['products'][$index]['stock'] = static::plainNumber(
+                // Il numero grezzo, col punto: le cifre e l'unità le mette
+                // AutoNumeric, che una virgola la leggerebbe come migliaia.
+                $values['products'][$index]['stock'] = static::rawNumber(
                     $level === null ? 0.0 : $level['quantity']
                 );
                 // Il primo asse raggruppa; quello che resta del nome si legge.
@@ -1584,7 +1591,7 @@ class ProductModelResource extends GestionaleResource
         }
 
         if ($unaVersione) {
-            $values['product_stock'] = static::plainNumber(
+            $values['product_stock'] = static::rawNumber(
                 Levels::of((int) $product['id'])['quantity']
             );
             // Col punto, come la colonna: il campo del backend mostra il
@@ -1697,8 +1704,11 @@ class ProductModelResource extends GestionaleResource
                 ProductVariant::delete((int) $variant['id']);
             }
 
-            foreach (ProductAttributes::read('model', $modelId) as $link) {
-                ProductAttributes::modelClass('model')::delete((int) $link['id']);
+            // Tutte le righe: un attributo a valori ne ha una per valore.
+            foreach (ProductAttributes::rows('model', $modelId) as $links) {
+                foreach ($links as $link) {
+                    ProductAttributes::modelClass('model')::delete((int) $link['id']);
+                }
             }
 
             // Le foto se ne vanno con l'articolo, file compresi: lasciarle sul
@@ -1793,13 +1803,7 @@ class ProductModelResource extends GestionaleResource
                     AttributeValueResource::class,
                     label: 'label',
                     button: 'Aggiungi opzione',
-                    layout: static fn (): Form => (new Form)->components([
-                        (new Container)->components([
-                            FormField::key('attribute_id')->hidden()->value((string) $id),
-                            // Senza larghezza, in una griglia da 12 un campo ne prende una.
-                            AttributeValueResource::getInput('label')->label('Nuovo '.$nome)->columnSpan(12),
-                        ])->columns(12)->columnSpan(12),
-                    ])->columns(12),
+                    layout: static::newValueLayout($id, 'Nuovo '.$nome),
                 );
         }
 
@@ -2192,6 +2196,137 @@ HTML)->tag('div');
         }
 
         return $blocks;
+    }
+
+    /**
+     * Il codice che tiene la giacenza al passo con l'unità di misura.
+     *
+     * Passare da pezzi a chili in «Misure» cambia subito i decimali e l'unità
+     * in coda della giacenza: quella dell'articolo, quelle della griglia e il
+     * modello delle righe che nasceranno. Una giacenza che ha già dei
+     * decimali ne tiene tre, come la disegna il server, e una casella di sola
+     * lettura resta di sola lettura.
+     *
+     * I decimali di ogni unità arrivano da {@see SaleUnits}: lo script non ne
+     * sa niente di suo.
+     */
+    protected static function unitScript(): object
+    {
+        $decimali = static::escape(json_encode(SaleUnits::decimalsMap(), JSON_THROW_ON_ERROR));
+
+        return RichText::make(<<<HTML
+<div class="wi-stock-unit" data-wi-unit-decimals="{$decimali}"></div>
+<script>
+    window.wiStockUnit = window.wiStockUnit || (function () {
+        function mappa() {
+            var radice = document.querySelector('.wi-stock-unit');
+
+            try {
+                return JSON.parse(radice ? radice.getAttribute('data-wi-unit-decimals') || '{}' : '{}');
+            } catch (errore) {
+                return {};
+            }
+        }
+
+        function autoNumeric(campo) {
+            return window.AutoNumeric && typeof window.AutoNumeric.getAutoNumericElement === 'function'
+                ? window.AutoNumeric.getAutoNumericElement(campo)
+                : null;
+        }
+
+        // Il numero nella casella: quello di AutoNumeric quando c'è, se no
+        // letto con pazienza — «2,500 kg», «12 pz», «1.234,5».
+        function numero(campo) {
+            var an = autoNumeric(campo);
+            var valore;
+
+            if (an) {
+                valore = Number(an.getNumber());
+
+                return isNaN(valore) ? 0 : valore;
+            }
+
+            var testo = String(campo.value || '')
+                .replace(/[\s  ]/g, '')
+                .replace(/[^0-9.,]+\$/, '');
+
+            if (testo.indexOf(',') !== -1) {
+                testo = testo.replace(/\./g, '').replace(',', '.');
+            }
+
+            valore = parseFloat(testo);
+
+            return isNaN(valore) ? 0 : valore;
+        }
+
+        function frazionario(valore) {
+            return Math.round(valore * 1000) / 1000 !== Math.round(valore);
+        }
+
+        function formatta(campo, cifre, simbolo) {
+            campo.setAttribute('data-wi-number-decimal', String(cifre));
+            campo.setAttribute('data-wi-number-symbol', simbolo);
+
+            var an = autoNumeric(campo);
+
+            if (an) {
+                // Senza readOnly, update() rimetterebbe scrivibile una
+                // casella che con più sedi si legge e basta.
+                an.update({
+                    decimalPlaces: cifre,
+                    decimalPlacesShownOnFocus: cifre,
+                    currencySymbol: simbolo,
+                    readOnly: campo.readOnly
+                });
+            }
+        }
+
+        function applica(unita) {
+            unita = String(unita || '').trim().toLowerCase();
+
+            var decimali = mappa();
+            var cifre = Object.prototype.hasOwnProperty.call(decimali, unita) ? Number(decimali[unita]) : 3;
+            var simbolo = unita !== '' ? ' ' + unita : '';
+
+            // La giacenza dell'articolo senza varianti.
+            document.querySelectorAll('[name="product_stock"]').forEach(function (campo) {
+                formatta(campo, frazionario(numero(campo)) ? 3 : cifre, simbolo);
+            });
+
+            // La colonna della griglia ha un formato solo: se una riga ha
+            // già dei decimali, li mostrano tutte.
+            var righe = Array.prototype.slice.call(document.querySelectorAll(
+                '[data-wi-repeater="products"] input[name^="products["][name\$="[stock]"]'
+            ));
+            var colonna = righe.some(function (campo) { return frazionario(numero(campo)); }) ? 3 : cifre;
+
+            righe.forEach(function (campo) { formatta(campo, colonna, simbolo); });
+
+            // Le righe che nasceranno: AutoNumeric le legge dal modello.
+            document.querySelectorAll('[data-wi-repeater="products"] template').forEach(function (modello) {
+                modello.content.querySelectorAll('input[name\$="[stock]"]').forEach(function (campo) {
+                    campo.setAttribute('data-wi-number-decimal', String(colonna));
+                    campo.setAttribute('data-wi-number-symbol', simbolo);
+                });
+            });
+        }
+
+        // Con jQuery basta la sua delega: sente anche il change nativo, e
+        // una select rifatta da un plugin lo lancia da jQuery.
+        if (window.jQuery) {
+            window.jQuery(document).on('change', '[name="unit"]', function () { applica(this.value); });
+        } else {
+            document.addEventListener('change', function (evento) {
+                if (evento.target && evento.target.name === 'unit') {
+                    applica(evento.target.value);
+                }
+            });
+        }
+
+        return { applica: applica };
+    })();
+</script>
+HTML)->tag('div');
     }
 
     /**
@@ -2865,17 +3000,308 @@ HTML)->tag('div');
         $name = (string) ($attribute['name'] ?? '');
         $unit = trim((string) ($attribute['unit'] ?? ''));
         $label = $unit === '' ? $name : $name.' ('.$unit.')';
-        $field = FormField::key('attribute_'.$id);
 
         if (Attributes::usesValues((string) ($attribute['type'] ?? ''))) {
-            return $field->select(static::valueOptions($attribute))->label($label);
+            return FormField::key('attribute_'.$id)->select(static::valueOptions($attribute))->label($label);
         }
 
-        if (($attribute['type'] ?? '') === 'number') {
+        return static::writtenField('attribute_'.$id, (string) ($attribute['type'] ?? ''), $label);
+    }
+
+    /** Il campo di un attributo che si scrive: un Numero o, altrimenti, un Testo. */
+    protected static function writtenField(string $key, string $type, string $label): Input
+    {
+        $field = FormField::key($key);
+
+        if ($type === 'number') {
             return $field->number()->decimal(3)->label($label);
         }
 
         return $field->text()->label($label);
+    }
+
+    /**
+     * Le caratteristiche della scheda tecnica: gli attributi dell'articolo.
+     *
+     * Un attributo a valori che non ha ancora valori resta fuori: senza voci
+     * le spunte del core diventano una casella sola, che salverebbe «on» come
+     * se fosse un valore.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected static function technicalAttributes(): array
+    {
+        return array_values(array_filter(
+            Attributes::byLevel(static::attributes(), 'model'),
+            static fn (array $attribute): bool => !Attributes::usesValues((string) ($attribute['type'] ?? ''))
+                || static::valueChoices($attribute) !== []
+        ));
+    }
+
+    /**
+     * Il campo di una caratteristica della scheda tecnica.
+     *
+     * Testo e Numero si scrivono come ovunque. Un attributo a valori si
+     * spunta, perché i simboli di lavaggio sono più d'uno, e ha il «+» per un
+     * valore nuovo come le opzioni in vendita. Le opzioni restano a un valore
+     * per attributo: il loro campo è `attributeField()`, che serve anche alla
+     * pagina dell'opzione.
+     */
+    protected static function technicalField(array $attribute): Input
+    {
+        if (!Attributes::usesValues((string) ($attribute['type'] ?? ''))) {
+            return static::attributeField($attribute);
+        }
+
+        $id = (int) $attribute['id'];
+        $name = (string) ($attribute['name'] ?? '');
+
+        return FormField::key('attribute_'.$id)
+            ->checkbox()
+            ->pills()
+            ->options(static::valueChoices($attribute))
+            ->label($name)
+            ->quickCreate(
+                AttributeValueResource::class,
+                label: 'label',
+                button: 'Aggiungi valore',
+                layout: static::newValueLayout($id, 'Nuovo valore di '.$name),
+            );
+    }
+
+    /**
+     * Il modal del «+» di un attributo a valori: il nome del valore nuovo e,
+     * nascosto, l'attributo a cui appartiene.
+     */
+    protected static function newValueLayout(int $attributeId, string $label): Closure
+    {
+        return static fn (): Form => (new Form)->components([
+            (new Container)->components([
+                FormField::key('attribute_id')->hidden()->value((string) $attributeId),
+                // Senza larghezza, in una griglia da 12 un campo ne prende una.
+                AttributeValueResource::getInput('label')->label($label)->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+        ])->columns(12);
+    }
+
+    /**
+     * Il valore di una caratteristica nel form: la lista dei valori spuntati
+     * per un attributo a valori, il testo o il numero della prima riga per
+     * gli altri.
+     *
+     * @param array<string, mixed> $attribute
+     * @param list<array<string, mixed>> $rows
+     * @return string|list<string>
+     */
+    protected static function technicalValue(array $attribute, array $rows): string|array
+    {
+        if (!Attributes::usesValues((string) ($attribute['type'] ?? ''))) {
+            return static::attributeValue($attribute, $rows[0] ?? null);
+        }
+
+        $ids = [];
+
+        foreach ($rows as $row) {
+            $id = (int) ($row['attribute_value_id'] ?? 0);
+
+            if ($id > 0) {
+                $ids[] = (string) $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Il riquadro «Scheda tecnica»: c'è sempre, anche vuoto.
+     *
+     * Un posto che compare solo dopo averlo preparato in Catalogo → Attributi
+     * non si trova. Il riquadro sta sotto «Misure» anche senza campi, dice a
+     * cosa serve e ha il bottone per una caratteristica nuova: Testo e Numero
+     * nascono da qui, con il campo che compare subito. Elenchi e Icone hanno
+     * valori e immagini da preparare, e il riquadro dice dove.
+     */
+    protected static function technicalSheetCard(): object
+    {
+        $campi = [];
+
+        foreach (static::technicalAttributes() as $attribute) {
+            $input = static::getInput('attribute_'.(int) $attribute['id']);
+
+            $campi[] = $input instanceof InputCheckbox
+                ? $input->columnSpan(12)
+                : $input->columnSpan(6);
+        }
+
+        // La frase del riquadro vuoto c'è solo quando serve: nascosta lascerebbe
+        // la sua colonna, e un buco fra i campi e il bottone.
+        if ($campi === []) {
+            $campi[] = RichText::make(
+                '<p class="text-body-secondary mb-0 wi-technical-empty">'
+                .'Qui vanno le caratteristiche che l\'articolo ha qualunque opzione si scelga: materiale, composizione, lavaggio.'
+                .'</p>'
+            )->tag('div')->columnSpan(12);
+        }
+
+        return static::foldable(
+            'Scheda tecnica',
+            [
+                ...$campi,
+                QuickCreateButton::make(AttributeResource::class)
+                    ->text('Nuova caratteristica')
+                    ->label('name')
+                    ->layout(static fn (): Container => (new Container)
+                        ->columns(12)
+                        ->components(AttributeResource::quickCreateFields()))
+                    ->size('sm')
+                    ->id(static::TECHNICAL_BUTTON)
+                    ->columnSpan(12),
+                static::technicalScript()->columnSpan(12),
+            ],
+            'Quello che descrive l\'articolo e non fa nascere opzioni in vendita: materiale, composizione, lavaggio. Con «Nuova caratteristica» ne nasce una di testo o di numero; gli elenchi con i loro valori, come i simboli di lavaggio, si preparano in Catalogo → Attributi.'
+        );
+    }
+
+    /**
+     * Il link a Catalogo → Attributi, i modelli dei campi di testo e di numero
+     * e lo script che ne mette uno nel riquadro quando nasce una
+     * caratteristica.
+     *
+     * Il modello è il campo vero, renderizzato dal core con un segnaposto al
+     * posto dell'id: lo script lo copia, ci scrive l'id e il nome, e il campo
+     * si salva con l'articolo come gli altri, perché al salvataggio gli
+     * attributi si rileggono dal database.
+     */
+    protected static function technicalScript(): RichText
+    {
+        $modelli = '';
+
+        foreach (AttributeResource::QUICK_TYPES as $type) {
+            $campo = static::writtenField('attribute___WI_ID__', $type, 'Caratteristica')->columnSpan(6);
+            $modelli .= '<template data-wi-technical-template="'.static::escape($type).'">'
+                .ResourceFormLayoutRenderer::renderLayout((new Container)->columns(12)->components([$campo]))
+                .'</template>';
+        }
+
+        $elenco = static::escape(static::attributesUrl());
+        $risorsa = json_encode(AttributeResource::slug());
+        $bottone = json_encode(static::TECHNICAL_BUTTON);
+
+        // Un `div`, non il `p` di un testo: dentro ci sono i modelli e lo script.
+        return RichText::make(<<<HTML
+<div class="small text-body-secondary">Elenchi e simboli con le loro immagini, come quelli di lavaggio, si preparano in <a href="{$elenco}">Catalogo → Attributi</a>.</div>
+{$modelli}
+<script>
+    window.wiTechnicalSheet = window.wiTechnicalSheet || (function () {
+        var RISORSA = {$risorsa};
+        var BOTTONE = {$bottone};
+
+        // La colonna della griglia che contiene il nodo: è quella che si
+        // sposta, si copia o si nasconde.
+        function colonna(nodo) {
+            while (nodo && nodo.parentElement && !nodo.parentElement.classList.contains('row')) {
+                nodo = nodo.parentElement;
+            }
+
+            return nodo;
+        }
+
+        document.addEventListener('wi:quick-create:created', function (evento) {
+            var dettaglio = evento.detail || {};
+
+            if (dettaglio.family !== 'button' || dettaglio.resource !== RISORSA) {
+                return;
+            }
+
+            var riga = dettaglio.item || {};
+            var id = parseInt(dettaglio.id || riga.id, 10);
+            var tipo = riga.type === 'number' ? 'number' : 'text';
+            var modello = document.querySelector('template[data-wi-technical-template="' + tipo + '"]');
+            var vuoto = document.querySelector('.wi-technical-empty');
+            var bottone = document.getElementById(BOTTONE);
+
+            if (!(id > 0) || !modello || !bottone) {
+                return;
+            }
+
+            var scatola = document.createElement('div');
+            scatola.innerHTML = modello.innerHTML.split('__WI_ID__').join(String(id));
+
+            var campo = scatola.querySelector('.row > *');
+
+            if (!campo) {
+                return;
+            }
+
+            // Il nome arriva da chi vende: si scrive come testo, mai come HTML.
+            var nome = String(riga.name || dettaglio.label || '');
+            var unita = String(riga.unit || '').trim();
+            var etichetta = campo.querySelector('label');
+
+            if (etichetta) {
+                etichetta.textContent = unita === '' ? nome : nome + ' (' + unita + ')';
+            }
+
+            // L'id del modello è uno per pagina: due caratteristiche nuove
+            // avrebbero la stessa etichetta.
+            var casella = campo.querySelector('input:not([type="hidden"]), textarea');
+
+            if (casella) {
+                casella.id = 'attribute_' + id + '_field';
+
+                if (etichetta) {
+                    etichetta.htmlFor = casella.id;
+                }
+            }
+
+            // Dopo i campi che ci sono già, prima del bottone. La frase del
+            // riquadro vuoto se ne va con la sua colonna.
+            var prima = colonna(bottone);
+            prima.parentElement.insertBefore(campo, prima);
+
+            if (vuoto) {
+                colonna(vuoto).classList.add('d-none');
+            }
+
+            if (typeof setAutonumeric === 'function') {
+                setAutonumeric(campo);
+            }
+
+            // Chiudendosi, il modale rimette il cursore sul bottone che l'ha
+            // aperto: il campo nuovo lo prende dopo.
+            var modale = document.querySelector('.modal.show');
+
+            if (casella && modale) {
+                modale.addEventListener('hidden.bs.modal', function () {
+                    casella.focus();
+                }, { once: true });
+            } else if (casella) {
+                casella.focus();
+            }
+        });
+
+        return true;
+    })();
+</script>
+HTML)->tag('div');
+    }
+
+    /** Catalogo → Attributi, dove si preparano Elenchi e Icone. */
+    protected static function attributesUrl(): string
+    {
+        if (function_exists('__r')) {
+            try {
+                $url = (string) __r('backend.resource.'.AttributeResource::slug().'.list');
+
+                if ($url !== '') {
+                    return $url;
+                }
+            } catch (Throwable) {
+                // Rotta non registrata (test, comandi): resta il percorso.
+            }
+        }
+
+        return '/backend/'.AttributeResource::path().'/';
     }
 
     /** Il valore scritto nel form per quell'attributo. */
@@ -2964,6 +3390,18 @@ HTML)->tag('div');
      */
     protected static function productsField(int $modelId = 0): Input
     {
+        // Una colonna ha un formato solo: se una riga ha già dei decimali,
+        // li mostrano tutte, per non arrotondare quella.
+        $formato = static::stockFormat($modelId, $modelId > 0 ? static::products($modelId) : []);
+
+        $giacenza = RepeaterColumn::key('stock')
+            ->number()
+            ->decimal($formato['decimals']);
+
+        if ($formato['suffix'] !== '') {
+            $giacenza->suffix($formato['suffix']);
+        }
+
         $campo = FormField::key('products')
             ->repeater([
                 RepeaterColumn::key('id')->hidden(),
@@ -2988,16 +3426,14 @@ HTML)->tag('div');
                 // costa, quanti ce ne sono. Undici dodicesimi, perché il
                 // dodicesimo è del cestino.
                 RepeaterColumn::key('option')->text()->readonly()->label('Opzione')->columnSpan(7),
-                RepeaterColumn::key('price')->number()->decimal(2)->label('Prezzo')->columnSpan(2),
+                RepeaterColumn::key('price')->price()->decimal(2)->label('Prezzo')->columnSpan(2),
                 // Scrivibile finché il magazzino ha una sede sola: si scrive
                 // quanti pezzi ci sono, e il pannello fa il movimento della
                 // differenza. Una casella lasciata com'era non muove niente.
                 // Con due sedi il numero sarebbe ambiguo — mostra il totale e
                 // scriverebbe sulla principale — e la casella si legge e
                 // basta.
-                RepeaterColumn::key('stock')
-                    ->number()
-                    ->decimal(3)
+                $giacenza
                     ->label('Giacenza')
                     // In creazione si scrive anche con più sedi: è un carico
                     // iniziale, e va sulla sede principale.
@@ -3492,14 +3928,16 @@ HTML)->tag('div');
         // dichiarati sempre — e nascosti dall'interruttore — perché la
         // risposta si cambia senza ricaricare, e un campo che non esiste non
         // può comparire.
+        // Il prezzo si scrive come un prezzo: due decimali e il simbolo della
+        // valuta, che mette il campo prezzo della lib.
         $fields = [
             FormField::key('product_price')
-                ->number()
+                ->price()
                 ->decimal(2)
                 ->label('Prezzo')
                 ->hiddenWhen('has_variants', 'true'),
             FormField::key('product_sale_price')
-                ->number()
+                ->price()
                 ->decimal(2)
                 ->label('Prezzo scontato')
                 ->hiddenWhen('has_variants', 'true'),
@@ -3510,10 +3948,23 @@ HTML)->tag('div');
         // casella si legge e basta — ma non in creazione: su un articolo che
         // nasce non c'è niente da rendere ambiguo, e il numero entra come
         // giacenza iniziale nella sede principale.
-        $fields[] = FormField::key('product_stock')
+        //
+        // I decimali sono quelli dell'unità, e l'unità sta in coda: «12 pz»,
+        // «2,500 kg». Cambiare l'unità in «Misure» li cambia al volo.
+        $modelId = (int) ($modelId ?? 0);
+        $sola = $modelId > 0 ? static::soleProduct($modelId) : null;
+        $formato = static::stockFormat($modelId, $sola === null ? [] : [$sola]);
+
+        $giacenza = FormField::key('product_stock')
             ->number()
-            ->decimal(3)
-            ->readonly(($modelId ?? 0) > 0 && !static::stockIsWritable())
+            ->decimal($formato['decimals']);
+
+        if ($formato['suffix'] !== '') {
+            $giacenza->suffix($formato['suffix']);
+        }
+
+        $fields[] = $giacenza
+            ->readonly($modelId > 0 && !static::stockIsWritable())
             ->label('Giacenza')
             ->hiddenWhen('has_variants', 'true');
 
@@ -3869,6 +4320,118 @@ HTML)->tag('div');
         $decimals = round($value, 3) === round($value, 0) ? 0 : 3;
 
         return number_format($value, $decimals, ',', '');
+    }
+
+    /**
+     * Il numero grezzo per le caselle numeriche: col punto e senza zeri in
+     * coda, «3», «2.5», «1234.125». Le cifre e l'unità le mette AutoNumeric;
+     * una virgola qui la leggerebbe come separatore delle migliaia.
+     */
+    protected static function rawNumber(float $value): string
+    {
+        $value = round($value, 3);
+
+        if ($value === round($value, 0)) {
+            return number_format($value, 0, '.', '');
+        }
+
+        return rtrim(rtrim(number_format($value, 3, '.', ''), '0'), '.');
+    }
+
+    /** L'unità di misura dell'articolo; «pz» per uno nuovo, come la select. */
+    protected static function modelUnit(int $modelId): string
+    {
+        if ($modelId <= 0) {
+            return 'pz';
+        }
+
+        $riga = static::rowsOf(ProductModel::class, ['id' => $modelId])[0] ?? [];
+        $unita = trim((string) ($riga['unit'] ?? ''));
+
+        return $unita === '' ? 'pz' : $unita;
+    }
+
+    /**
+     * Le giacenze di queste versioni, sommate fra le sedi.
+     *
+     * @param list<int> $productIds
+     * @return array<int, float>
+     */
+    protected static function stockQuantities(array $productIds): array
+    {
+        $productIds = array_values(array_filter(array_map('intval', $productIds)));
+
+        if ($productIds === []) {
+            return [];
+        }
+
+        return array_map(
+            static fn (array $level): float => (float) $level['quantity'],
+            Levels::forProducts($productIds)
+        );
+    }
+
+    /**
+     * Come si scrive la giacenza di queste versioni: i decimali dell'unità,
+     * tre se una giacenza ne ha già, e l'unità in coda.
+     *
+     * @param list<array<string, mixed>> $products
+     * @return array{decimals: int, suffix: string}
+     */
+    protected static function stockFormat(int $modelId, array $products): array
+    {
+        $unita = static::modelUnit($modelId);
+        $giacenze = static::stockQuantities(array_map(
+            static fn (array $product): int => (int) ($product['id'] ?? 0),
+            $products
+        ));
+
+        return [
+            'decimals' => SaleUnits::decimalsFor($unita, ...array_values($giacenze)),
+            'suffix' => SaleUnits::suffix($unita),
+        ];
+    }
+
+    /**
+     * La descrizione come la vuole l'editor.
+     *
+     * Quella scritta con l'editor ha già i suoi tag e passa com'è. Quella di
+     * prima era testo semplice, salvato con gli apostrofi protetti e le
+     * lettere accentate in entità: si decodifica come in lettura, e ogni riga
+     * non vuota diventa un paragrafo. Un «<» scritto nel testo resta un «<»:
+     * conta come HTML solo un tag che l'editor conosce.
+     */
+    public static function editorHtml(string $stored): string
+    {
+        if (trim($stored) === '') {
+            return '';
+        }
+
+        if (preg_match('/<\/?(p|br|strong|b|em|i|u|s|strike|del|a|div|span|ul|ol|li|h[1-6]|blockquote)\b[^>]*>/i', $stored) === 1) {
+            return $stored;
+        }
+
+        $testo = function_exists('sanitizeEcho')
+            ? (string) sanitizeEcho($stored)
+            : Entity::decode(stripslashes($stored));
+
+        $paragrafi = [];
+
+        foreach (preg_split('/\R/u', $testo) ?: [] as $riga) {
+            $riga = trim($riga);
+
+            if ($riga !== '') {
+                $paragrafi[] = '<p>'.htmlspecialchars($riga, ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8').'</p>';
+            }
+        }
+
+        return implode('', $paragrafi);
+    }
+
+    /** Il testo su una riga sola: gli a capo diventano uno spazio. */
+    public static function oneLine(string $text): string
+    {
+        return trim((string) preg_replace('/\s*\R\s*/u', ' ', $text));
     }
 
     /** Il link alla rettifica della versione unica; vuoto se le versioni sono tante. */

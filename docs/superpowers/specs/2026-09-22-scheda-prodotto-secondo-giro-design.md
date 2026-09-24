@@ -768,6 +768,154 @@ metteva i campi sul modello e li faceva riscrivere uguali su ogni articolo.
 - [x] guide utente e dev, spec d'architettura (D23)
 - [x] prova nel browser (1600×950: attributo Icona col selettore, Uso per tipo e spento se in uso, tipo fiscale e giacenza in creazione, foto del colore caricate in creazione e rilette in modifica), memoria
 
+## 17. Ottavo giro: l'icona è un'immagine, i campi dicono cosa contengono, la scheda tecnica si trova
+
+Alla prova del settimo giro sono venute tre richieste: l'Icona doveva essere
+un'immagine, i campi della scheda dovevano dire cosa contengono, e non si
+capiva dove scrivere materiali e lavaggio.
+
+**L'Icona è un'immagine caricata.** Corregge P62. Chi vende ha già i suoi
+simboli, come quelli di lavaggio, le certificazioni o «fatto a mano», e una
+raccolta generica non li ha. Ogni valore di un attributo Icona si carica
+nella riga del valore, come la Fantasia (colonna `image`), in PNG, JPG o WebP.
+Conviene un'immagine quadrata con lo sfondo trasparente, perché le opzioni la
+mostrano a 16×16 ritagliata.
+
+Il modulo non usa più la raccolta. Si tolgono:
+- la colonna `icon` di `gst_attribute_values` (la sincronizzazione del core la
+  toglie da sola);
+- il campo del model;
+- la colonna del repeater;
+- la pulizia in `prepareRepeaterRelationRow()`.
+
+`valueVisual('icon', …)` restituisce solo l'immagine. Nel core e nella lib
+l'input `icon()` e il selettore restano come input generico, senza
+utilizzatori nel modulo.
+
+**I prezzi sono prezzi.** Prezzo, prezzo scontato e la colonna Prezzo della
+griglia usano `->price()` del core. Nel core i tre campi numerici nascono in
+formato italiano:
+- numero e percentuale con la virgola decimale;
+- prezzo anche con il punto delle migliaia e « €» in coda, per esempio
+  «1.299,90 €».
+
+Cambia solo quello che si vede. Al server arriva il numero grezzo (AutoNumeric
+invia il valore senza formato) e il parsing del modulo resta com'è. Un campo
+che vuole un formato diverso lo chiede con i setter che esistono già. L'Element
+del prezzo smette di dichiararsi anche percentuale (`data-wi-percentige`):
+funzionava solo per l'ordine dei cicli nella lib.
+
+**La giacenza dice l'unità.** La giacenza dell'articolo e la colonna Giacenza
+della griglia mostrano l'unità dell'articolo dopo il numero: «12 pz»,
+«2,500 kg». I decimali dipendono dall'unità:
+- nessuno per pz, conf, g e ml;
+- tre per kg, l e m.
+
+Se si cambia l'unità nel riquadro Misure, i campi si aggiornano subito,
+compreso il modello delle righe nuove.
+
+Una giacenza con decimali su un'unità intera (2,5 pz, scritta prima) si mostra
+con i decimali. Arrotondarla vorrebbe dire salvare un movimento di +0,5 che
+nessuno ha chiesto. Nel core nascono `integer()` e `suffix()`.
+`suffix()` è il simbolo in coda: su un prezzo sostituirebbe il «€», quindi
+non va usato lì.
+
+**Le righe nuove della griglia si formattano.** Le righe create dalle spunte
+nascevano come caselle di testo semplici, senza € né pz. Ora `setInput()`
+della lib avvia AutoNumeric. Anche il repeater del core lo chiama dopo aver
+aggiunto una riga, per chi ha una lib più vecchia: la funzione salta i campi
+già avviati.
+
+**La descrizione breve è una riga.** È la frase sotto il nome, non un testo:
+`->text()->maxLength(255)`. Nel core `maxLength()` arriva all'input di testo
+dello schema, e i due renderer lo emettono. La colonna resta `TEXT`. Una
+descrizione breve già scritta su più righe si legge su una sola.
+
+**La descrizione ha il grassetto, e poco altro.** Si usa `->textarea('plus')`:
+grassetto, corsivo, sottolineato, barrato, link e cancella formato.
+
+Nel core nasce `Field::richText()`:
+- sul server salva HTML pulito a lista bianca: `p`, `br`, `strong`/`b`,
+  `em`/`i`, `u`, `s`, e `a` solo con `href` http, https, mailto o tel;
+- non applica la sanitize né in lettura né in scrittura;
+- un editor vuoto salva una stringa vuota.
+
+Il browser pulisce già con DOMPurify, ma il server non si fida del browser.
+Una descrizione senza tag, scritta prima, si apre con un paragrafo per riga.
+Nella lib si corregge la rilettura: le lettere accentate tornavano rovinate
+(`atob` senza UTF-8).
+
+**La scheda tecnica c'è sempre.** Il riquadro «Scheda tecnica» sta sotto
+«Misure» anche quando non ha campi. Contiene:
+- un campo per ogni attributo visibile con uso «Scheda tecnica dell'articolo»,
+  come oggi;
+- se non ce n'è nessuno, una riga che dice a cosa serve: materiale,
+  composizione, lavaggio;
+- il bottone **«Nuova caratteristica»**.
+
+Il bottone apre un modal con Nome, Tipo (Testo o Numero, parte da Testo) e
+Unità facoltativa. L'attributo nasce con uso Scheda tecnica, visibile, e non
+come filtro. Il suo campo compare subito nel riquadro, vuoto e con il cursore
+dentro, e si salva con l'articolo. Il salvataggio rilegge gli attributi dal
+database, quindi non serve altro.
+
+Elenchi e Icone (per esempio i simboli di lavaggio) si creano in Catalogo →
+Attributi, perché hanno valori e immagini da preparare, e il riquadro lo dice
+con il link. Nel core il quick-create si può mettere anche su un bottone
+staccato da un campo, `QuickCreateButton`: stesso modal, stessi permessi,
+stesso evento `wi:quick-create:created` con `input` vuoto e la riga creata
+nell'`item`.
+
+**Più valori per le caratteristiche a elenco.** Un attributo a valori
+(Elenco, Colore, Fantasia, Icona) con uso Scheda tecnica si compila con le
+pillole invece che con una select. Le pillole mostrano pallino, fantasia o
+immagine e accettano più valori per articolo, per esempio «Lavaggio: 30°, non
+candeggiare, non asciugare». C'è anche il «+» per un valore nuovo, come nelle
+opzioni in vendita.
+
+`ProductAttributes` salva una riga per valore e ne legge una lista, e
+`describe()` unisce i valori con la virgola. Le opzioni in vendita restano a
+un valore per attributo: una combinazione è una taglia sola.
+
+**Dati di prova.** `CatalogDemo` aggiunge due attributi di scheda tecnica,
+compilati su un articolo:
+- «Composizione», di tipo Testo;
+- «Lavaggio», di tipo Elenco con tre valori.
+
+«Materiale» resta un'opzione, perché serve alla riga «S / Gomma».
+
+**Non in questo giro.** Non ci sono ancora:
+- i gruppi dentro il riquadro (`group_name`, `Attributes::grouped()`);
+- la lettura della scheda tecnica in vetrina (`describe()` è pronto, lo userà
+  il modulo e-commerce);
+- un Elenco creato dal bottone del riquadro.
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P64 | Icona = solo un'immagine caricata per valore; via la colonna `icon` dal modulo; `icon()` resta nel core come input generico. Corregge P62 | Chi vende ha già i suoi simboli, e una raccolta generica non li ha |
+| P65 | Numero, prezzo e percentuale del core in formato italiano; il prezzo con « €»; prezzi del modulo con `->price()` | «12.50€» si legge male, e un prezzo senza valuta non si distingue da una quantità |
+| P66 | Giacenza con l'unità dell'articolo e i decimali dell'unità, aggiornata dal vivo; una giacenza frazionaria non si arrotonda; `integer()` e `suffix()` nel core | «20.000» si leggeva ventimila, e arrotondare scriverebbe movimenti che nessuno ha chiesto |
+| P67 | Descrizione breve su una riga, massimo 255 caratteri; `maxLength()` nello schema del core | È la frase sotto il nome |
+| P68 | Descrizione con grassetto, corsivo, sottolineato, barrato e link; HTML a lista bianca sul server con `Field::richText()` | Una scheda ha bisogno di poco formato, e il server non si fida del browser |
+| P69 | Riquadro «Scheda tecnica» sempre presente, con «Nuova caratteristica» (Testo o Numero) che fa comparire il campo subito; `QuickCreateButton` nel core | Un posto che compare solo dopo averlo preparato altrove non si trova |
+| P70 | Attributi a valori di scheda tecnica con più valori per articolo, a pillole e con il «+» | I simboli di lavaggio sono più d'uno |
+
+### Lavori dell'ottavo giro
+
+- [x] core: formato italiano di numero, prezzo e percentuale; `integer()`, `suffix()`; il prezzo senza `data-wi-percentige`
+- [x] core: `maxLength()` nello schema dell'input di testo, emesso dai due renderer
+- [x] core: `Field::richText()` con la pulizia a lista bianca
+- [x] core: `QuickCreateButton`; AutoNumeric dopo `wiRepeaterAddRow`; guide
+- [x] lib: AutoNumeric in `setInput()`; `atob` in UTF-8; dist ricostruito
+- [x] modulo: Icona = immagine (colonna, campo, repeater, `valueVisual`, test)
+- [x] modulo: prezzi con `->price()`, giacenza con unità e decimali, aggiornamento al cambio di unità
+- [x] modulo: descrizione breve e descrizione
+- [x] modulo: riquadro «Scheda tecnica» sempre presente, «Nuova caratteristica», più valori
+- [x] modulo: dati di prova, guide utente e dev, spec d'architettura
+- [x] prova nel browser (1600×950: € sui prezzi e *pz* sulla giacenza in creazione, descrizione breve su una riga, editor della descrizione, Icona con immagine png/jpeg, «Nuova caratteristica» Testo e Numero con il campo al suo posto, vuoto e con il cursore dentro, pillole e «Aggiungi valore»), memoria, push dei tre repo
+
+Nota della prova: chiudendosi, il modale di Bootstrap rimette il cursore sul bottone che l'ha aperto, quindi il campo nuovo lo prende su `hidden.bs.modal`. I testi del riquadro usano `->tag('div')`: nel `p` di default di un RichText un `div` o un altro `p` lascerebbero due paragrafi vuoti.
+
 ## Piani
 
 Da scrivere dopo l'approvazione.

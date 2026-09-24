@@ -15,6 +15,12 @@ final class Numbers
     /**
      * Il valore da scrivere in una colonna DECIMAL: `null` quando la casella è
      * vuota, così la colonna resta vuota invece di diventare zero.
+     *
+     * Di solito arriva il numero grezzo, perché AutoNumeric toglie il formato
+     * prima di inviare. Quando non l'ha fatto (lib vecchia, JavaScript
+     * spento) arriva quello che si vede: «1.234,50 €», «12 pz», «2,5 kg». Il
+     * simbolo o l'unità in coda si tolgono; tutto il resto deve essere un
+     * numero.
      */
     public static function fromForm(mixed $value): ?string
     {
@@ -22,7 +28,10 @@ final class Numbers
             return null;
         }
 
-        $text = str_replace([' ', "\u{a0}"], '', trim((string) $value));
+        $text = str_replace([' ', "\u{a0}", "\u{202f}"], '', trim((string) $value));
+
+        // Solo in coda, e solo lettere o valute: «--3» resta un errore.
+        $text = (string) preg_replace('/[\p{L}\p{Sc}]+$/u', '', $text);
 
         if ($text === '') {
             return null;

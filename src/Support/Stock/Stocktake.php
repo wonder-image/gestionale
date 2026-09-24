@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Stock;
 
+use Wonder\Plugin\Gestionale\Support\Numbers;
+
 /**
  * L'inventario: le quantità scritte a mano, riga per riga, e la differenza
  * con quelle che c'erano.
@@ -44,26 +46,14 @@ final class Stocktake
      * Il numero scritto in una casella, o `null` se non c'è.
      *
      * In Italia i decimali si scrivono con la virgola e le migliaia con il
-     * punto: `1.234,5` è milleduecentotrentaquattro e mezzo.
+     * punto: `1.234,5` è milleduecentotrentaquattro e mezzo. L'unità in coda,
+     * «12 pz» o «2,5 kg», si toglie: la lettura è quella di
+     * {@see Numbers::fromForm()}.
      */
     public static function quantity(mixed $value): ?float
     {
-        if (is_array($value)) {
-            return null;
-        }
+        $text = Numbers::fromForm($value);
 
-        $text = str_replace([' ', "\u{a0}"], '', trim((string) ($value ?? '')));
-
-        if ($text === '') {
-            return null;
-        }
-
-        if (str_contains($text, ',')) {
-            $text = str_replace('.', '', $text);
-        }
-
-        $text = str_replace(',', '.', $text);
-
-        return is_numeric($text) ? round((float) $text, 3) : null;
+        return $text === null ? null : round((float) $text, 3);
     }
 }

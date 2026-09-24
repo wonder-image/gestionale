@@ -113,14 +113,17 @@ check('una fantasia senza immagine non mostra niente', fn () =>
     && Attributes::valueVisual('pattern', [], '/uploads/scozzese.jpg') === ['image' => '/uploads/scozzese.jpg']
 );
 
-check('su un\'icona l\'immagine vince sul segno della raccolta', fn () =>
-    Attributes::valueVisual('icon', ['icon' => 'bi-star'], '/uploads/stella.png') === ['image' => '/uploads/stella.png']
-    && Attributes::valueVisual('icon', ['icon' => 'bi-star']) === ['icon' => 'bi-star']
-    && Attributes::valueVisual('icon', ['icon' => ' ']) === []
+check('un\'icona si mostra con la sua immagine', fn () =>
+    Attributes::valueVisual('icon', [], '/uploads/stella.png') === ['image' => '/uploads/stella.png']
+    && Attributes::valueVisual('icon', [], ' ') === []
+);
+
+check('un\'icona senza immagine non mostra niente, nemmeno un vecchio segno', fn () =>
+    Attributes::valueVisual('icon', ['icon' => 'bi-star']) === []
 );
 
 check('un elenco che è stato un colore non mostra pallini', fn () =>
-    Attributes::valueVisual('select', ['color' => '#ff0000', 'icon' => 'bi-star'], '/uploads/x.jpg') === []
+    Attributes::valueVisual('select', ['color' => '#ff0000'], '/uploads/x.jpg') === []
 );
 
 check('ogni livello vede solo i suoi attributi', function () use ($colore, $taglia, $peso, $materiale) {

@@ -5,8 +5,15 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\App\ResourceSchema\Inputs\InputCheckbox;
+use Wonder\App\ResourceSchema\Inputs\InputNumber;
+use Wonder\App\ResourceSchema\Inputs\InputText;
 use Wonder\Elements\Components\Link;
+use Wonder\Elements\Components\QuickCreateButton;
+use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
+use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
@@ -343,7 +350,7 @@ check('la creazione mostra la scheda intera, due colonne comprese', function () 
     // la griglia ha sette caselle per riga e in due terzi di schermo vanno a
     // capo.
     return count($colonne) === 3
-        && $titoli($colonne[0]) === ['Prodotto', 'Foto e video', 'Descrizione', 'Misure']
+        && $titoli($colonne[0]) === ['Prodotto', 'Foto e video', 'Descrizione', 'Misure', 'Scheda tecnica']
         && $titoli($colonne[1]) === ['Vendita', 'Codici', 'Dove si trova', 'Spedizione']
         && ($colonne[2]->components[0] ?? null) instanceof SectionTitle
         && $colonne[2]->components[0]->getText() === 'Opzioni in vendita';
@@ -476,8 +483,9 @@ $riquadri = static function (int $colonna = 0) use ($schedaAperta): array {
 
 check('la colonna larga tiene quello che si compone', function () use ($riquadri) {
     // Le opzioni in vendita non stanno più qui: hanno il loro riquadro a
-    // piena larghezza, in fondo.
-    return $riquadri(0) === ['Prodotto', 'Foto e video', 'Descrizione', 'Misure'];
+    // piena larghezza, in fondo. La scheda tecnica c'è anche senza
+    // caratteristiche.
+    return $riquadri(0) === ['Prodotto', 'Foto e video', 'Descrizione', 'Misure', 'Scheda tecnica'];
 });
 
 check('il riquadro delle opzioni sta in fondo, a piena larghezza', function () use ($schedaAperta) {
@@ -496,6 +504,198 @@ check('le parole interne non compaiono più nei titoli', function () use ($riqua
     $vecchie = ['Articolo', 'Varianti', 'Genera varianti e prodotti', 'Categorie e tag', 'Attributi', 'Immagini'];
 
     return array_intersect($riquadri(), $vecchie) === [];
+});
+
+/**
+ * Una scheda con quattro caratteristiche finte: un Elenco con due valori, un
+ * Testo, un Numero con l'unità e un'Icona ancora senza valori.
+ */
+$schedaTecnica = new class extends ProductModelResource {
+    protected static function currentId(): ?int
+    {
+        return 1;
+    }
+
+    public static function optionAttributes(): array
+    {
+        return [];
+    }
+
+    public static function attributes(): array
+    {
+        return [
+            ['id' => 31, 'name' => 'Lavaggio', 'level' => 'model', 'type' => 'select', 'unit' => ''],
+            ['id' => 32, 'name' => 'Composizione', 'level' => 'model', 'type' => 'text', 'unit' => ''],
+            ['id' => 33, 'name' => 'Spessore', 'level' => 'model', 'type' => 'number', 'unit' => 'mm'],
+            ['id' => 34, 'name' => 'Simboli', 'level' => 'model', 'type' => 'icon', 'unit' => ''],
+        ];
+    }
+
+    public static function attributeValues(): array
+    {
+        return [
+            41 => ['id' => 41, 'attribute_id' => 31, 'label' => 'Lavaggio a 30°'],
+            42 => ['id' => 42, 'attribute_id' => 31, 'label' => 'Non candeggiare'],
+        ];
+    }
+
+    public static function vediScheda(): object
+    {
+        return static::technicalSheetCard();
+    }
+
+    /** @param list<array<string, mixed>> $rows */
+    public static function vediValore(int $attributeId, array $rows): string|array
+    {
+        foreach (static::attributes() as $attribute) {
+            if ((int) $attribute['id'] === $attributeId) {
+                return static::technicalValue($attribute, $rows);
+            }
+        }
+
+        return '';
+    }
+};
+
+/** I pezzi di un riquadro, trovati per nome del campo o per classe. */
+$dentroScheda = static function (object $riquadro, string $cosa): array {
+    return array_values(array_filter(
+        (array) ($riquadro->components ?? []),
+        static fn ($pezzo): bool => $pezzo instanceof $cosa || (isset($pezzo->name) && $pezzo->name === $cosa)
+    ));
+};
+
+/** Il testo di tutti i RichText del riquadro, uno dopo l'altro. */
+$testoScheda = static function (object $riquadro) use ($dentroScheda): string {
+    return implode("\n", array_map(
+        static fn ($pezzo): string => (string) $pezzo->getText(),
+        $dentroScheda($riquadro, RichText::class)
+    ));
+};
+
+check('la scheda tecnica c\'è anche vuota, e dice a cosa serve', function () use ($riquadri, $schedaAperta) {
+    $riquadro = null;
+
+    foreach ($schedaAperta::formLayoutSchema()->components[0]->components ?? [] as $candidato) {
+        $titolo = $candidato->components[0] ?? null;
+
+        if ($titolo instanceof SectionTitle && $titolo->getText() === 'Scheda tecnica') {
+            $riquadro = $candidato;
+        }
+    }
+
+    $testo = '';
+
+    foreach ($riquadro->components ?? [] as $pezzo) {
+        if ($pezzo instanceof RichText) {
+            $testo .= $pezzo->getText();
+        }
+    }
+
+    return in_array('Scheda tecnica', $riquadri(0), true)
+        && str_contains($testo, 'wi-technical-empty"')
+        && str_contains($testo, 'materiale, composizione, lavaggio')
+        && str_contains($testo, 'Catalogo → Attributi');
+});
+
+check('«Nuova caratteristica» apre il modal degli attributi', function () use ($schedaTecnica, $dentroScheda) {
+    $bottoni = $dentroScheda($schedaTecnica::vediScheda(), QuickCreateButton::class);
+    $config = $bottoni[0]?->quickCreateConfig() ?? [];
+
+    return count($bottoni) === 1
+        && $config['resource'] === AttributeResource::class
+        && $config['button'] === 'Nuova caratteristica'
+        && $config['label'] === 'name'
+        && $config['layout'] instanceof Closure;
+});
+
+check('una caratteristica a elenco si spunta a pillole, con il «+» per un valore nuovo', function () use ($schedaTecnica, $dentroScheda) {
+    $campo = $dentroScheda($schedaTecnica::vediScheda(), 'attribute_31')[0] ?? null;
+    $rapido = (array) (($campo?->get('context')['quick_create'] ?? []) ?: []);
+
+    return $campo instanceof InputCheckbox
+        && $campo->get('pills') === true
+        && array_map('strval', array_keys((array) $campo->get('options'))) === ['41', '42']
+        && (($campo->columnSpan ?? [])['default'] ?? null) === 12
+        && ($rapido['resource'] ?? '') === AttributeValueResource::class
+        && ($rapido['button'] ?? '') === 'Aggiungi valore';
+});
+
+check('testo e numero si scrivono, a mezza riga e con l\'unità', function () use ($schedaTecnica, $dentroScheda) {
+    $riquadro = $schedaTecnica::vediScheda();
+    $testo = $dentroScheda($riquadro, 'attribute_32')[0] ?? null;
+    $numero = $dentroScheda($riquadro, 'attribute_33')[0] ?? null;
+
+    return $testo instanceof InputText
+        && $numero instanceof InputNumber
+        && $numero->get('label') === 'Spessore (mm)'
+        && (($testo->columnSpan ?? [])['default'] ?? null) === 6
+        && (($numero->columnSpan ?? [])['default'] ?? null) === 6;
+});
+
+check('un elenco ancora senza valori non diventa una casella sola', function () use ($schedaTecnica) {
+    foreach ($schedaTecnica::formSchema() as $campo) {
+        if ((string) $campo->name === 'attribute_34') {
+            return false;
+        }
+    }
+
+    return true;
+});
+
+check('con le caratteristiche la riga del vuoto non c\'è', function () use ($schedaTecnica, $testoScheda) {
+    // Nascosta lascerebbe lo stesso la sua colonna, e un buco nel riquadro.
+    return !str_contains($testoScheda($schedaTecnica::vediScheda()), 'wi-technical-empty"');
+});
+
+check('il campo appena nato ha il suo modello, e lo script lo mette al suo posto', function () use ($schedaTecnica, $testoScheda) {
+    $testo = $testoScheda($schedaTecnica::vediScheda());
+
+    return str_contains($testo, '<template data-wi-technical-template="text"')
+        && str_contains($testo, '<template data-wi-technical-template="number"')
+        && substr_count($testo, 'name="attribute___WI_ID__"') === 2
+        && str_contains($testo, 'wi:quick-create:created')
+        && str_contains($testo, '"app-gestionale-attributi"');
+});
+
+check('il cursore va nel campo nuovo quando il modale si è chiuso', function () use ($schedaTecnica, $testoScheda) {
+    // Chiudendosi, Bootstrap rimette il cursore sul bottone che l'ha aperto.
+    return str_contains($testoScheda($schedaTecnica::vediScheda()), "addEventListener('hidden.bs.modal'");
+});
+
+check('i testi della scheda tecnica non finiscono dentro un paragrafo', function () use ($schedaTecnica, $schedaAperta, $dentroScheda) {
+    // Il `p` di default di un RichText, attorno a un `div` o a un altro `p`,
+    // lascia due paragrafi vuoti con il loro margine.
+    $vuota = null;
+
+    foreach ($schedaAperta::formLayoutSchema()->components[0]->components ?? [] as $candidato) {
+        $titolo = $candidato->components[0] ?? null;
+
+        if ($titolo instanceof SectionTitle && $titolo->getText() === 'Scheda tecnica') {
+            $vuota = $candidato;
+        }
+    }
+
+    $testi = [
+        ...$dentroScheda($schedaTecnica::vediScheda(), RichText::class),
+        ...$dentroScheda($vuota ?? (object) [], RichText::class),
+    ];
+
+    foreach ($testi as $testo) {
+        if (($testo->getSchema()['tag'] ?? 'p') !== 'div') {
+            return false;
+        }
+    }
+
+    return count($testi) === 3;
+});
+
+check('un elenco si rilegge come lista, testo e numero come la prima riga', function () use ($schedaTecnica) {
+    return $schedaTecnica::vediValore(31, [['attribute_value_id' => 41], ['attribute_value_id' => 42]]) === ['41', '42']
+        && $schedaTecnica::vediValore(31, []) === []
+        && $schedaTecnica::vediValore(32, [['value_text' => 'Cotone 100%'], ['value_text' => 'altro']]) === 'Cotone 100%'
+        && $schedaTecnica::vediValore(33, [['value_number' => '1.500']]) === '1.500'
+        && $schedaTecnica::vediValore(32, []) === '';
 });
 
 check('la scheda chiede l\'imballaggio, e le misure sono del prodotto', function () use ($campi) {
@@ -797,5 +997,87 @@ check('la griglia chiede codice, prezzo, giacenza e foto, e il nome non si scriv
         && str_contains((string) $colonne['option']->get('attribute'), 'readonly')
         && $colonne['photo']->get('helper') === 'inputFileDragDrop';
 });
+
+check('i prezzi sono prezzi, con il loro «€» e due decimali', function () use ($campi, $schedaAperta) {
+    $formato = static fn (?object $campo): array =>
+        (array) (((array) ($campo?->get('context') ?? []))['number'] ?? []);
+
+    $prezzo = $campi()['product_price'] ?? null;
+    $scontato = $campi()['product_sale_price'] ?? null;
+    $colonna = null;
+
+    foreach ($schedaAperta::formSchema() as $campo) {
+        if ((string) $campo->name !== 'products') {
+            continue;
+        }
+
+        foreach ($campo->get('context')['columns'] ?? [] as $dentro) {
+            if ((string) $dentro->name === 'price') {
+                $colonna = $dentro;
+            }
+        }
+    }
+
+    // Un prezzo senza valuta non si distingue da una quantità.
+    return $prezzo?->get('helper') === 'price'
+        && $scontato?->get('helper') === 'price'
+        && $colonna?->get('helper') === 'price'
+        && ($formato($prezzo)['decimal'] ?? null) === 2
+        && ($formato($scontato)['decimal'] ?? null) === 2
+        && ($formato($colonna)['decimal'] ?? null) === 2
+        // Il «€» lo mette il core: un simbolo scritto qui lo sostituirebbe.
+        && !isset($formato($prezzo)['symbol'], $formato($colonna)['symbol']);
+});
+
+check('la descrizione breve è una riga, di al massimo 255 caratteri', function () use ($campi) {
+    $campo = $campi()['short_description'] ?? null;
+
+    return $campo?->get('helper') === 'text'
+        && $campo->get('max_length') === 255;
+});
+
+check('la descrizione ha il grassetto, e poco altro', function () use ($campi) {
+    $campo = $campi()['description'] ?? null;
+
+    return $campo?->get('helper') === 'textarea'
+        && $campo->get('version') === 'plus';
+});
+
+check('il modello salva la descrizione come HTML pulito, e la breve come testo', function () {
+    $campi = [];
+
+    foreach (ProductModel::dataSchema() as $campo) {
+        $campi[(string) $campo->key] = $campo;
+    }
+
+    // Il server non si fida del browser: la lista bianca la applica il core.
+    return ($campi['description']->getSchema('rich_text') ?? false) === true
+        && ($campi['short_description']->getSchema('rich_text') ?? false) !== true;
+});
+
+check('una descrizione scritta prima, senza tag, si apre con un paragrafo per riga', fn () =>
+    ProductModelResource::editorHtml("Cotone biologico\r\n\r\nLavare a 30°\nTaglia <M>")
+        === '<p>Cotone biologico</p><p>Lavare a 30°</p><p>Taglia &lt;M&gt;</p>'
+);
+
+check('la descrizione scritta prima si legge come la leggeva il vecchio campo', fn () =>
+    // Il vecchio salvataggio aggiungeva le slash e le entità: la lettura le
+    // toglieva. Ora che la colonna non passa più da lì, le toglie la scheda.
+    ProductModelResource::editorHtml("L\\'acqua &egrave; &quot;buona&quot;")
+        === '<p>L\'acqua è "buona"</p>'
+);
+
+check('una descrizione già in HTML resta com\'è', fn () =>
+    ProductModelResource::editorHtml('<p>Ciao <strong>mondo</strong></p>') === '<p>Ciao <strong>mondo</strong></p>'
+    && ProductModelResource::editorHtml('Riga<br>altra') === 'Riga<br>altra'
+    && ProductModelResource::editorHtml('') === ''
+    && ProductModelResource::editorHtml("  \n ") === ''
+);
+
+check('una descrizione breve scritta su più righe si legge su una sola', fn () =>
+    ProductModelResource::oneLine("Maglietta in cotone\r\n  a maniche corte\n") === 'Maglietta in cotone a maniche corte'
+    && ProductModelResource::oneLine('Una riga') === 'Una riga'
+    && ProductModelResource::oneLine('') === ''
+);
 
 summary();
