@@ -8,7 +8,9 @@ require __DIR__ . '/harness.php';
 use Wonder\Backend\Contracts\HomeWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\AttentionWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\ContactsWidget;
+use Wonder\Plugin\Gestionale\Backend\Widgets\LowStockWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\SetupWidget;
+use Wonder\Plugin\Gestionale\Gestionale;
 
 check('i due riquadri sono riquadri della home', fn () =>
     is_subclass_of(SetupWidget::class, HomeWidget::class)
@@ -108,5 +110,105 @@ check('una rubrica vuota lo dice, e il singolare è singolare', fn () =>
     str_contains(ContactsWidget::markup(0, null), 'Nessuno ancora')
     && str_contains(ContactsWidget::markup(1, null), '1 cliente')
 );
+
+// Una riga come la dà `LowStockReport::items()`.
+$sottoScorta = static fn (string $article, string $option, float $available, float $threshold, int $id = 1): array => [
+    'product_id' => $id,
+    'article' => $article,
+    'option' => $option,
+    'sku' => 'SKU-'.$id,
+    'threshold' => $threshold,
+    'available' => $available,
+];
+
+check('il riquadro Sotto scorta sta fra Da controllare e Anagrafiche', fn () =>
+    is_subclass_of(LowStockWidget::class, HomeWidget::class)
+    && (new LowStockWidget)->title() === 'Sotto scorta'
+    && (new LowStockWidget)->authorities() === ['admin', 'administrator']
+    && (new LowStockWidget)->order() > (new AttentionWidget)->order()
+    && (new LowStockWidget)->order() < (new ContactsWidget)->order()
+);
+
+check('il modulo lo registra subito dopo Da controllare', function () {
+    $widgets = (require __DIR__.'/../config/module.php')['backend']['home_widgets'];
+    $posto = array_search(LowStockWidget::class, $widgets, true);
+
+    return $posto !== false && $posto === array_search(AttentionWidget::class, $widgets, true) + 1;
+});
+
+check('con gli avvisi bloccati il riquadro non disegna niente', function () {
+    // `render()` deve fermarsi prima di qualunque lettura: qui non c'è database.
+    $stato = new ReflectionProperty(Gestionale::class, 'features');
+    $prima = $stato->getValue();
+    $stato->setValue(null, ['low_stock_alerts' => false]);
+
+    try {
+        return (new LowStockWidget)->render() === '';
+    } finally {
+        $stato->setValue(null, $prima);
+    }
+});
+
+check('senza prodotti sotto scorta lo dice, senza allarmare', function () {
+    $html = LowStockWidget::markup([], true);
+
+    return str_contains($html, 'Nessun prodotto sotto la scorta minima')
+        && !str_contains($html, 'giacenze?sotto=1');
+});
+
+check('ogni riga dice cosa riordinare, e il pulsante apre le giacenze filtrate', function () use ($sottoScorta) {
+    $html = LowStockWidget::markup([$sottoScorta('Maglia', 'Rossa, M', 1.25, 5.0)], true);
+
+    return str_contains($html, 'Maglia — Rossa, M')
+        && str_contains($html, 'SKU-1')
+        && str_contains($html, 'Disponibili 1,25')
+        && str_contains($html, 'scorta minima 5')
+        && str_contains($html, 'giacenze?sotto=1');
+});
+
+check('un articolo senza varianti non si porta dietro il trattino', function () use ($sottoScorta) {
+    $html = LowStockWidget::markup([$sottoScorta('Borraccia', '', 0.0, 3.0)], true);
+
+    return str_contains($html, 'Borraccia') && !str_contains($html, 'Borraccia —');
+});
+
+check('oltre le dieci righe il resto si conta, al singolare e al plurale', function () use ($sottoScorta) {
+    $righe = static function (int $quante) use ($sottoScorta): array {
+        $items = [];
+
+        for ($i = 1; $i <= $quante; $i++) {
+            $items[] = $sottoScorta('Articolo '.$i, '', 0.0, 1.0, $i);
+        }
+
+        return $items;
+    };
+    $dodici = LowStockWidget::markup($righe(12), true);
+    $undici = LowStockWidget::markup($righe(11), true);
+    $dieci = LowStockWidget::markup($righe(10), true);
+
+    return substr_count($dodici, '<li') === LowStockWidget::LIMIT
+        && str_contains($dodici, 'e altri 2')
+        && str_contains($undici, 'e un altro')
+        && !str_contains($dieci, 'e altri') && !str_contains($dieci, 'e un altro');
+});
+
+check('senza destinatari il riquadro avvisa che l\'email non parte, anche vuoto', function () use ($sottoScorta) {
+    $con = LowStockWidget::markup([$sottoScorta('Maglia', 'M', 0.0, 2.0)], true);
+    $senza = LowStockWidget::markup([$sottoScorta('Maglia', 'M', 0.0, 2.0)], false);
+    $vuoto = LowStockWidget::markup([], false);
+
+    return !str_contains($con, 'impostazioni-negozio')
+        && str_contains($senza, 'Nessuno riceve l\'email')
+        && str_contains($senza, '/backend/app/gestionale/impostazioni-negozio')
+        && str_contains($vuoto, 'Nessuno riceve l\'email');
+});
+
+check('i nomi dei prodotti non possono iniettare markup', function () use ($sottoScorta) {
+    $html = LowStockWidget::markup([$sottoScorta('<script>alert(1)</script>', '<b>x</b>', 0.0, 1.0)], true);
+
+    return !str_contains($html, '<script>')
+        && !str_contains($html, '<b>x</b>')
+        && str_contains($html, '&lt;script&gt;');
+});
 
 summary();
