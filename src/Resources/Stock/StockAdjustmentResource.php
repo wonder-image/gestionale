@@ -68,7 +68,8 @@ final class StockAdjustmentResource extends NavigationOnlyResource
     }
 
     /**
-     * L'indirizzo del ritorno, se è di questo backend.
+     * L'indirizzo del ritorno, se è di questo backend: un percorso che
+     * comincia con una barra sola, o niente.
      *
      * Un `torna=` che arriva dalla query string è testo di chiunque: accettare
      * un indirizzo esterno vorrebbe dire spedire il commerciante altrove dopo
@@ -78,12 +79,9 @@ final class StockAdjustmentResource extends NavigationOnlyResource
     {
         $url = trim((string) ($value ?? ''));
 
-        if ($url === '' || str_starts_with($url, '//')) {
-            return '';
-        }
-
         // Le rotte del core tornano indirizzi assoluti
-        // (`https://sito/backend/...`): vanno bene finché sono di questo sito.
+        // (`https://sito/backend/...`): vanno bene finché sono di questo sito,
+        // e se ne tengono percorso e query.
         if (preg_match('#^https?://#i', $url) === 1) {
             $host = (string) (parse_url($url, PHP_URL_HOST) ?? '');
 
@@ -93,11 +91,17 @@ final class StockAdjustmentResource extends NavigationOnlyResource
 
             $path = (string) (parse_url($url, PHP_URL_PATH) ?? '/');
             $query = (string) (parse_url($url, PHP_URL_QUERY) ?? '');
-
-            return $query === '' ? $path : $path.'?'.$query;
+            $url = $query === '' ? $path : $path.'?'.$query;
         }
 
-        return str_starts_with($url, '/') ? $url : '';
+        // I browser leggono "\" come "/" e saltano tab e a capo: `/\altrove`
+        // e `/<tab>/altrove` sono `//altrove`, cioè un altro sito. Un ritorno
+        // buono non ha né spazi, né caratteri di controllo, né barre storte.
+        if (preg_match('/[\x00-\x20\x7f\\\\]/', $url) === 1) {
+            return '';
+        }
+
+        return str_starts_with($url, '/') && !str_starts_with($url, '//') ? $url : '';
     }
 
     public static function formSchema(): array

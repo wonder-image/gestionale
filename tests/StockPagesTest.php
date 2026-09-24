@@ -70,6 +70,22 @@ check('la strada del ritorno accetta solo indirizzi di questo sito', function ()
             === '/backend/app/gestionale/giacenze/?cerca=TSH';
 });
 
+check('la strada del ritorno non si fa aggirare da barre storte o spazi', function () {
+    // I browser leggono "\" come "/" e saltano tab e a capo: `/\altrove`
+    // e `/<tab>/altrove` sono `//altrove`, cioè un altro sito.
+    $_SERVER['HTTP_HOST'] = 'ecommerce.test';
+
+    return StockAdjustmentResource::backUrlFrom('/\\altrove.example') === ''
+        && StockAdjustmentResource::backUrlFrom('https://ecommerce.test//altrove.example') === ''
+        && StockAdjustmentResource::backUrlFrom('https://ecommerce.test/\\altrove.example') === ''
+        && StockAdjustmentResource::backUrlFrom("/\t/altrove.example") === ''
+        && StockAdjustmentResource::backUrlFrom("/\n/altrove.example") === ''
+        && StockAdjustmentResource::backUrlFrom('/backend/app/gestionale/giacenze/?p=2')
+            === '/backend/app/gestionale/giacenze/?p=2'
+        && StockAdjustmentResource::backUrlFrom('https://ecommerce.test/backend/app/gestionale/giacenze/?cerca=TSH&sotto=1')
+            === '/backend/app/gestionale/giacenze/?cerca=TSH&sotto=1';
+});
+
 check('le giacenze hanno il loro indirizzo e sono una pagina-form', fn () =>
     StockLevelResource::path() === 'app/gestionale/giacenze'
     && StockLevelResource::isFormPage() === true
