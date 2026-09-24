@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\App\LegacyGlobals;
 use Wonder\Backend\Contracts\HomeWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\AttentionWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\ContactsWidget;
@@ -193,14 +194,46 @@ check('oltre le dieci righe il resto si conta, al singolare e al plurale', funct
 });
 
 check('senza destinatari il riquadro avvisa che l\'email non parte, anche vuoto', function () use ($sottoScorta) {
-    $con = LowStockWidget::markup([$sottoScorta('Maglia', 'M', 0.0, 2.0)], true);
-    $senza = LowStockWidget::markup([$sottoScorta('Maglia', 'M', 0.0, 2.0)], false);
-    $vuoto = LowStockWidget::markup([], false);
+    $con = LowStockWidget::markup([$sottoScorta('Maglia', 'M', 0.0, 2.0)], true, true);
+    $senza = LowStockWidget::markup([$sottoScorta('Maglia', 'M', 0.0, 2.0)], false, true);
+    $vuoto = LowStockWidget::markup([], false, true);
 
     return !str_contains($con, 'impostazioni-negozio')
         && str_contains($senza, 'Nessuno riceve l\'email')
-        && str_contains($senza, '/backend/app/gestionale/impostazioni-negozio')
-        && str_contains($vuoto, 'Nessuno riceve l\'email');
+        && str_contains($senza, '<a href="/backend/app/gestionale/impostazioni-negozio">Aggiungi i destinatari</a>')
+        && str_contains($vuoto, 'Nessuno riceve l\'email')
+        && str_contains($vuoto, 'Aggiungi i destinatari');
+});
+
+check('a chi non apre le Impostazioni l\'avviso dice dove sono, senza link', function () use ($sottoScorta) {
+    $senza = LowStockWidget::markup([$sottoScorta('Maglia', 'M', 0.0, 2.0)], false, false);
+    $vuoto = LowStockWidget::markup([], false, false);
+    $testo = 'Nessuno riceve l\'email degli avvisi: il commerciante li aggiunge in Gestionale → Impostazioni.';
+
+    return str_contains($senza, $testo)
+        && str_contains($vuoto, $testo)
+        && !str_contains($senza, 'impostazioni-negozio')
+        && !str_contains($vuoto, 'impostazioni-negozio')
+        && !str_contains($senza, 'Aggiungi i destinatari');
+});
+
+check('le Impostazioni le apre il commerciante, non chi installa', function () {
+    // Le autorità ammesse sono quelle della pagina: a `admin` il link darebbe il Login.
+    $puo = new ReflectionMethod(LowStockWidget::class, 'canEditRecipients');
+    $prima = LegacyGlobals::get('USER');
+
+    try {
+        LegacyGlobals::set('USER', (object) ['authority' => ['administrator']]);
+        $commerciante = $puo->invoke(null);
+        LegacyGlobals::set('USER', (object) ['authority' => ['admin']]);
+        $installatore = $puo->invoke(null);
+        LegacyGlobals::set('USER', null);
+        $nessuno = $puo->invoke(null);
+    } finally {
+        LegacyGlobals::set('USER', $prima);
+    }
+
+    return $commerciante === true && $installatore === false && $nessuno === false;
 });
 
 check('i nomi dei prodotti non possono iniettare markup', function () use ($sottoScorta) {

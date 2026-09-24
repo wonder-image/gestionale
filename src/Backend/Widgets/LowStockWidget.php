@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Backend\Widgets;
 
 use Throwable;
+use Wonder\App\LegacyGlobals;
 use Wonder\Backend\Contracts\HomeWidget;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
@@ -60,15 +61,16 @@ final class LowStockWidget implements HomeWidget
             return '';
         }
 
-        return self::markup($items, $recipients !== []);
+        return self::markup($items, $recipients !== [], self::canEditRecipients());
     }
 
     /**
      * @param list<array{product_id: int, article: string, option: string, sku: string, threshold: float, available: float}> $items
+     * @param bool $canEditRecipients se chi guarda può aprire le Impostazioni: solo allora l'avviso porta il link
      */
-    public static function markup(array $items, bool $hasRecipients): string
+    public static function markup(array $items, bool $hasRecipients, bool $canEditRecipients = true): string
     {
-        $warning = $hasRecipients ? '' : self::noRecipients();
+        $warning = $hasRecipients ? '' : self::noRecipients($canEditRecipients);
 
         if ($items === []) {
             return <<<HTML
@@ -124,13 +126,38 @@ HTML;
 HTML;
     }
 
-    /** L'attività tace se nessuno riceve l'email: qui è l'unico posto dove si vede. */
-    private static function noRecipients(): string
+    /**
+     * L'attività tace se nessuno riceve l'email: qui è l'unico posto dove si vede.
+     * Il link solo a chi può aprire la pagina; agli altri, dove li aggiunge il commerciante.
+     */
+    private static function noRecipients(bool $canEditRecipients): string
     {
+        if (!$canEditRecipients) {
+            return <<<HTML
+<p class="small mt-2 mb-0"><i class="bi bi-envelope-exclamation"></i> Nessuno riceve l'email degli avvisi: il commerciante li aggiunge in Gestionale → Impostazioni.</p>
+HTML;
+        }
+
         $url = htmlspecialchars('/backend/'.MerchantSettingResource::path(), ENT_QUOTES, 'UTF-8');
 
         return <<<HTML
 <p class="small mt-2 mb-0"><i class="bi bi-envelope-exclamation"></i> Nessuno riceve l'email degli avvisi. <a href="{$url}">Aggiungi i destinatari</a></p>
 HTML;
+    }
+
+    /**
+     * Vero se chi guarda ha un'autorità ammessa dalle Impostazioni. Il riquadro
+     * lo vede anche chi installa (`admin`), ma la pagina è del commerciante:
+     * per chi installa il link finirebbe sul Login.
+     */
+    private static function canEditRecipients(): bool
+    {
+        $user = LegacyGlobals::get('USER');
+        $authority = is_object($user) && isset($user->authority) && is_array($user->authority)
+            ? $user->authority
+            : [];
+        $allowed = (array) (MerchantSettingResource::permissionSchema()->get('backend')['edit'] ?? []);
+
+        return array_intersect($authority, $allowed) !== [];
     }
 }
