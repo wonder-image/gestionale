@@ -10,9 +10,9 @@ use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
  * I prodotti con la giacenza sotto zero, per *Da controllare*.
  *
  * Sotto zero si va solo con *Vendita senza giacenza* sbloccata, o con dati
- * arrivati da fuori. `Stock::apply()` lo controlla riga per riga, cioè sede
- * per sede, e allo stesso modo si leggono qui: un prodotto con due sedi in
- * negativo è una riga sola, con la somma dei negativi e il numero delle sedi.
+ * arrivati da fuori. `Stock::apply()` lo controlla riga per riga (sede, lotto,
+ * fornitore); qui un prodotto con più righe in negativo diventa una riga sola,
+ * con la somma dei negativi e il numero delle sedi diverse.
  *
  * Un prodotto eliminato o tolto dalla griglia non si segnala: il core lo
  * esclude già dalla lettura, e non c'è niente da rettificare.
