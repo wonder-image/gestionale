@@ -916,6 +916,60 @@ compilati su un articolo:
 
 Nota della prova: chiudendosi, il modale di Bootstrap rimette il cursore sul bottone che l'ha aperto, quindi il campo nuovo lo prende su `hidden.bs.modal`. I testi del riquadro usano `->tag('div')`: nel `p` di default di un RichText un `div` o un altro `p` lascerebbero due paragrafi vuoti.
 
+## 18. Nono giro: le opzioni dopo il prodotto, un bottone per aggiungere, una conferma per togliere
+
+*Richiesta dell'utente, con lo screenshot del riquadro.*
+
+**«Opzioni in vendita» subito dopo «Prodotto».** Il riquadro lascia il fondo
+della pagina e va nella colonna larga, dopo «Prodotto»: risponde alla domanda
+«ha varianti?», che sta lì. Il motivo che l'aveva spinto sotto le due colonne
+(§12, sette caselle per riga che andavano a capo) non c'è più: con la griglia
+raggruppata la riga ha quattro caselle e il resto è nei dettagli avanzati.
+Provato a 1600×950, con i dettagli aperti: ci sta.
+
+**«Aggiungi un attributo» è un bottone largo quanto il riquadro, sotto
+l'ultimo attributo.** Via la select accanto al titolo (P53): si notava poco, e
+l'attributo scelto compariva lontano dal clic. Il bottone apre un menu con gli
+attributi non ancora aggiunti; al terzo lascia il posto alla riga «Tre
+attributi sono il massimo». Il `Dropdown` del core non allarga toggle e menu,
+quindi resta HTML scritto a mano in un `RichText`.
+
+**Togliere un attributo chiede conferma.** La × apre la finestra del repeater
+(`wiRepeaterConfirmDelete`, «Annulla» / «Togli» in rosso); il testo dice cosa
+si perde: le spunte e le righe nuove, oppure solo il blocco se non c'era
+niente di spuntato.
+
+**«Prodotto» senza il titolo «Descrizione».** Le etichette dei due campi lo
+dicono già.
+
+**Il tipo fiscale in un riquadro suo**, nella colonna stretta, con la select
+sola ed etichetta «IVA» (una select *floating* senza etichetta mostrerebbe
+solo l'asterisco).
+
+**«Vendita» diventa «Come si vende»,** con tre interruttori dai nomi corti e
+una riga sotto che li spiega:
+
+| Prima | Adesso | Riga sotto |
+|---|---|---|
+| Si vende online | Acquistabile online | Spento, resta per il negozio e per i documenti. |
+| Si può rendere | Accetta resi | Il cliente può restituirlo dopo l'acquisto. |
+| Si spedisce | Da spedire | Spento per servizi, buoni regalo e prodotti digitali. |
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P71 | «Opzioni in vendita» nella colonna larga, subito dopo «Prodotto». Corregge §12 | Risponde alla domanda sulle varianti; la griglia raggruppata ci sta |
+| P72 | «Aggiungi un attributo» è un bottone a tutta larghezza sotto l'ultimo attributo, con menu. Corregge P53 | Si trova, e l'attributo compare dove si è cliccato |
+| P73 | Togliere un attributo chiede sempre conferma | Un clic storto perdeva spunte e righe |
+| P74 | Tipo fiscale in un riquadro suo, etichetta «IVA»; «Vendita» diventa «Come si vende» con tre interruttori e una riga di spiegazione ciascuno. Estende P58 | Tre domande sì/no si leggono meglio con un nome corto e una riga sotto |
+
+### Lavori del nono giro
+
+- [x] modulo: layout a due colonne con le opzioni dopo «Prodotto»; via il titolo «Descrizione»
+- [x] modulo: bottone largo con menu, conferma sulla ×
+- [x] modulo: riquadri «Come si vende» e «Tipo fiscale», etichette e righe sotto
+- [x] modulo: test, guide utente e dev, `composer.lock` allineato a `^2.4.0-beta.1`
+- [x] prova nel browser (1600×950: riquadro dopo «Prodotto», menu largo senza l'attributo già attivo, attributo nuovo sopra il bottone, finestra di conferma e rimozione, limite di tre, «IVA» sulla select)
+
 ## Piani
 
 Da scrivere dopo l'approvazione.

@@ -11,8 +11,8 @@ icon: box
 - **Attributo** è quello che distingue un articolo: *Colore*, *Taglia*,
   *Materiale*. Lo prepari una volta sola in **Catalogo → Attributi**, e il suo
   uso dice dove compare. Quelli che fanno nascere opzioni in vendita li scegli
-  dal menu **«Aggiungi un attributo…»** del riquadro «Opzioni in vendita», al
-  massimo tre per articolo. Quelli che descrivono e basta (composizione,
+  con il bottone **«Aggiungi un attributo»** del riquadro «Opzioni in vendita»,
+  al massimo tre per articolo. Quelli che descrivono e basta (composizione,
   lavaggio) stanno nella [scheda tecnica](#la-scheda-tecnica).
 - **Opzione in vendita** è una riga che si vende davvero: ha il suo SKU, il suo
   prezzo, la sua giacenza e la sua foto. Una maglietta in due colori e tre
@@ -27,7 +27,7 @@ domande e un secondo con tutto il resto.
 
 Obbligatori sono due: il **nome** e il **tipo fiscale**, che decide l'IVA. Il
 tipo fiscale è già scelto: un articolo nuovo parte da quello segnato
-**Predefinito** nei tipi fiscali, e lo cambi nel riquadro **Vendita** solo per
+**Predefinito** nei tipi fiscali, e lo cambi nel riquadro **Tipo fiscale** solo per
 gli articoli che fanno eccezione (un libro, un alimento); il **+** accanto al
 campo ne crea uno nuovo senza lasciare la scheda. Il resto lo compili adesso
 o un altro giorno.
@@ -42,13 +42,12 @@ domani correggi il nome: i link che qualcuno ha salvato continuano a funzionare.
 
 ## Com'è fatta la scheda
 
-- **A sinistra** quello che si compone: nome e prezzo, le foto e i video, le
-  descrizioni, la scheda tecnica.
-- **A destra**, stretta, quello che si decide: vendita, codici, dove sta nel
-  sito, spedizione.
-- **In fondo, a tutta larghezza, «Opzioni in vendita»**: gli attributi da
-  spuntare e la griglia di quello che vendi. Compare solo se hai risposto sì
-  alla domanda qui sotto.
+- **A sinistra** quello che si compone: nome, descrizioni e prezzo, poi
+  **«Opzioni in vendita»** (gli attributi da spuntare e la griglia di quello
+  che vendi, solo se hai risposto sì alla domanda qui sotto), le foto e i
+  video, le misure, la scheda tecnica.
+- **A destra**, stretta, quello che si decide: come si vende, il tipo fiscale,
+  i codici, dove sta nel sito, la spedizione.
 
 ## «Questo articolo ha varianti?»
 
@@ -73,10 +72,12 @@ varianti.
 
 ## «Opzioni in vendita»
 
-1. Apri il menu **«Aggiungi un attributo…»**, accanto al titolo del riquadro,
-   e scegli *Colore*: compaiono i colori del negozio, da spuntare.
-2. Te ne serve un altro? Riapri il menu e scegli *Taglia*. Il terzo è il
-   massimo: arrivato lì, il menu te lo dice.
+1. Premi **«Aggiungi un attributo»**, il bottone largo quanto il riquadro, e
+   scegli *Colore*: compaiono i colori del negozio, da spuntare, sopra il
+   bottone.
+2. Te ne serve un altro? Premi di nuovo e scegli *Taglia*: il bottone resta
+   sempre sotto l'ultimo attributo. Il terzo è il massimo: arrivato lì, il
+   bottone lascia il posto a una riga che te lo dice.
 3. Spunti **Blu** e **Rosso**, **S**, **M** e **L**: nella griglia qui sotto
    compaiono subito sei righe, una per combinazione, con il codice proposto
    (`TSH-1-BLU-M`). Sono già lì, prima di salvare.
@@ -85,12 +86,13 @@ varianti.
 
 Ogni attributo scelto è **una riga**: la maniglia a sinistra per trascinarlo,
 e i suoi valori come pillole da accendere. La **×** in fondo ai valori toglie
-l'attributo, finché l'articolo non lo sta usando.
+l'attributo, finché l'articolo non lo sta usando, e prima chiede conferma: un
+clic storto si porterebbe via le spunte e le righe nuove che hanno aggiunto.
 
 ### L'ordine degli attributi
 
 Si trascina la riga per la maniglia, oppure si usano le frecce **↑ ↓** che le
-stanno accanto. Sotto il menu una frase dice cosa succederà: *«Le opzioni si raggruppano per Colore, poi
+stanno accanto. Sotto il bottone una frase dice cosa succederà: *«Le opzioni si raggruppano per Colore, poi
 Taglia»*. Il primo attributo fa le testate dei gruppi, gli altri compongono il
 nome della riga.
 
@@ -308,21 +310,27 @@ toccano di rado e non stanno nella griglia. Il pulsante **Dettagli delle
 opzioni**, in alto nella scheda, apre l'elenco di quell'articolo e da lì si apre
 la riga che ti serve. Compare solo quando le opzioni sono più di una.
 
-## Stato, vendita online e tipo fiscale
+## Stato, come si vende e tipo fiscale
 
-Stanno nel riquadro **Vendita**, e le prime due sono domande diverse:
+Lo **stato** sta accanto al nome: *Pubblicato* o *Bozza*. Una bozza non si vede
+da nessuna parte.
 
-- **Stato** — *Pubblicato* o *Bozza*. Una bozza non si vede da nessuna parte.
-- **Si vende online** — *Sì* o *No*. Un articolo pubblicato che non si vende
-  online resta in catalogo per il negozio, per i documenti e per il magazzino,
-  ma in vetrina non compare.
+Il riquadro **Come si vende**, a destra, ha tre interruttori, ognuno con una
+riga che lo spiega:
 
-Sotto c'è il **tipo fiscale** (vedi sopra: parte dal predefinito), e in fondo
-**Si può rendere** e **Si spedisce**. Un tipo fiscale che hai nascosto non si
-propone più agli articoli nuovi, ma su quelli che lo usano resta, in fondo
-all'elenco, con scritto *(nascosto)*. Se non hai nessun tipo fiscale il campo
-dice *Nessuno: vale l'aliquota di ripiego*, l'aliquota scelta nelle
-impostazioni per quando nessuna regola risponde.
+- **Acquistabile online** — spento, l'articolo resta in catalogo per il
+  negozio, per i documenti e per il magazzino, ma in vetrina non si compra.
+  Stato e acquistabile online sono domande diverse: una bozza non si vede
+  nemmeno se è acquistabile.
+- **Accetta resi** — il cliente può restituirlo dopo l'acquisto.
+- **Da spedire** — spento per servizi, buoni regalo e prodotti digitali.
+
+Sotto, il riquadro **Tipo fiscale** ha un campo solo, **IVA** (vedi sopra:
+parte dal predefinito), con il **+** per crearne uno nuovo. Un tipo fiscale
+che hai nascosto non si propone più agli articoli nuovi, ma su quelli che lo
+usano resta, in fondo all'elenco, con scritto *(nascosto)*. Se non hai nessun
+tipo fiscale il campo dice *Nessuno: vale l'aliquota di ripiego*, l'aliquota
+scelta nelle impostazioni per quando nessuna regola risponde.
 
 ## Misure e spedizione
 
@@ -333,8 +341,7 @@ queste.
 
 Il riquadro **Spedizione** c'è quando l'articolo si spedisce, e chiede solo
 l'**imballaggio**: la scatola in cui parte. Lasciandolo vuoto vale quella
-predefinita del negozio. Mettendo **Si spedisce** su *No*, il riquadro
-sparisce.
+predefinita del negozio. Spegnendo **Da spedire**, il riquadro sparisce.
 
 ## Eliminare un articolo
 

@@ -197,11 +197,13 @@ class ProductModelResource extends GestionaleResource
                 ->value('true')
                 ->label('Stato')
                 ->required(),
+            // Etichetta corta e una riga sotto che dice cosa succede da
+            // spento: «Si vende online» lasciava il dubbio sul resto.
             FormField::key('visible_online')
-                ->select(['true' => 'Sì', 'false' => 'No'])
+                ->toggle()
                 ->value('true')
-                ->label('Si vende online')
-                ->required(),
+                ->label('Acquistabile online')
+                ->description('Spento, resta per il negozio e per i documenti.'),
             // Una riga sola, quella che sta sotto il nome in vetrina: 255
             // caratteri bastano, la colonna resta TEXT per quelle di prima.
             FormField::key('short_description')->text()->maxLength(255)->label('Descrizione breve'),
@@ -231,13 +233,15 @@ class ProductModelResource extends GestionaleResource
             FormField::key('height')->number()->decimal(2)->label('Altezza (cm)'),
             FormField::key('circumference')->number()->decimal(2)->label('Circonferenza (cm)'),
             FormField::key('returnable')
-                ->select(['true' => 'Sì', 'false' => 'No'])
+                ->toggle()
                 ->value('true')
-                ->label('Si può rendere'),
+                ->label('Accetta resi')
+                ->description('Il cliente può restituirlo dopo l\'acquisto.'),
             FormField::key('requires_shipping')
-                ->select(['true' => 'Sì', 'false' => 'No'])
+                ->toggle()
                 ->value('true')
-                ->label('Si spedisce'),
+                ->label('Da spedire')
+                ->description('Spento per servizi, buoni regalo e prodotti digitali.'),
         ];
 
         foreach (static::technicalAttributes() as $attribute) {
@@ -294,10 +298,6 @@ class ProductModelResource extends GestionaleResource
         return (new Form)->components([
             (new Container)->components(static::mainColumn($modelId))->columns(12)->columnSpan(8),
             (new Container)->components(static::sideColumn($modelId))->columns(12)->columnSpan(4),
-            // Le opzioni in vendita prendono la pagina intera, sotto le due
-            // colonne: una griglia con sette caselle per riga dentro due terzi
-            // di schermo sono sette caselle da sessanta pixel.
-            ...static::optionsCard($modelId),
         ])->columns(12);
     }
 
@@ -340,12 +340,17 @@ class ProductModelResource extends GestionaleResource
                 SectionTitle::make('Prodotto')
                     ->tooltip($conVarianti
                         ? 'Questa casella è un comando, non un riepilogo: scrivici un prezzo e al salvataggio va su tutte le opzioni in vendita. Lasciala vuota e i prezzi delle righe restano come sono.'
-                        : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il tipo fiscale, nel riquadro «Vendita».'
+                        : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il riquadro «Tipo fiscale».'
                             .($modelId > 0 ? '' : ' La giacenza scritta alla creazione entra come giacenza iniziale, nella sede principale.')
                             .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso: vale sul disponibile di tutte le sedi, e con zero non arriva niente.' : '')
                             .($senzaOpzioni ? ' Per vendere colori o taglie serve un attributo con uso «Opzione da scegliere» o «Opzione con foto proprie», e dei valori: si crea in Catalogo → Attributi.' : ''))
                     ->columnSpan(12),
-                static::getInput('name')->columnSpan(12),
+                static::getInput('name')->columnSpan(9),
+                static::getInput('visible')->columnSpan(3),
+                // Niente titolo «Descrizione»: le etichette dei due campi lo
+                // dicono già.
+                static::getInput('short_description')->columnSpan(12),
+                static::getInput('description')->columnSpan(12),
                 $domanda,
                 static::getInput('axes_order'),
                 ...($bloccato ? [
@@ -368,6 +373,11 @@ class ProductModelResource extends GestionaleResource
                         ->hiddenWhen('has_variants', 'true'),
                 ] : []),
             ])->columns(12)->columnSpan(12),
+            // Subito sotto la domanda «ha varianti?»: chi risponde sì trova
+            // qui le opzioni, senza scorrere foto e misure. In due terzi di
+            // schermo la griglia ci sta: le righe raggruppate hanno tre
+            // caselle, il resto si apre con «informazioni avanzate».
+            ...static::optionsCard($modelId),
         ];
 
         $foto = [
@@ -381,12 +391,6 @@ class ProductModelResource extends GestionaleResource
         }
 
         $cards[] = (new Card)->components($foto)->columns(12)->columnSpan(12);
-
-        $cards[] = (new Card)->components([
-            SectionTitle::make('Descrizione')->columnSpan(12),
-            static::getInput('short_description')->columnSpan(12),
-            static::getInput('description')->columnSpan(12),
-        ])->columns(12)->columnSpan(12);
 
         // Le misure sono del prodotto, non della spedizione: stavano in
         // «Spedizione» e sparivano con l'articolo che non si spedisce,
@@ -410,13 +414,12 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
-     * Il riquadro delle opzioni in vendita: a piena larghezza, in fondo.
+     * Il riquadro delle opzioni in vendita: nella colonna larga, subito sotto
+     * «Prodotto».
      *
      * Dentro c'è tutto quello che riguarda il "in quante versioni lo vendo":
-     * il selettore degli attributi, i valori da spuntare e la griglia. Sta
-     * sotto le due colonne e non dentro quella larga perché la griglia ha
-     * sette caselle per riga, e in due terzi di schermo diventano sette
-     * caselle da sessanta pixel — è il disallineamento che si vedeva.
+     * gli attributi con i valori da spuntare, il bottone che ne aggiunge un
+     * altro e la griglia.
      *
      * @return list<object>
      */
@@ -430,16 +433,16 @@ class ProductModelResource extends GestionaleResource
 
         return [
             (new Card)->components([
-                // Titolo e selettore stanno sulla stessa riga: una riga a
-                // testa era spazio che non diceva niente di nuovo.
                 SectionTitle::make('Opzioni in vendita')
-                    ->tooltip('Scegli un attributo — colore, taglia, gusto — e spunta i valori: le righe compaiono qui sotto e nascono al salvataggio, con codice, prezzo, giacenza e foto. Togliere una spunta non cancella niente che esista già. Nell\'elenco ci sono gli attributi visibili, con uso «Opzione da scegliere» o «Opzione con foto proprie», di tipo Elenco, Colore, Fantasia o Icona, e con almeno un valore: si sistemano in Catalogo → Attributi.')
-                    ->columnSpan(6),
-                static::optionsPicker($modelId)->columnSpan(6),
+                    ->tooltip('Aggiungi un attributo — colore, taglia, gusto — e spunta i valori: le righe compaiono qui sotto e nascono al salvataggio, con codice, prezzo, giacenza e foto. Togliere una spunta non cancella niente che esista già. Nell\'elenco ci sono gli attributi visibili, con uso «Opzione da scegliere» o «Opzione con foto proprie», di tipo Elenco, Colore, Fantasia o Icona, e con almeno un valore: si sistemano in Catalogo → Attributi.')
+                    ->columnSpan(12),
                 // I blocchi stanno in un contenitore loro: il riordino li
                 // sposta con `order`, e dentro un riquadro condiviso
-                // scavalcherebbero la griglia e il selettore.
+                // scavalcherebbero la griglia e il bottone.
                 (new Container)->components($blocchi)->columns(12)->columnSpan(12),
+                // Il bottone sta sotto l'ultimo attributo, largo quanto il
+                // riquadro: l'attributo nuovo compare proprio lì sopra.
+                static::optionsPicker($modelId)->columnSpan(12),
                 static::getInput('products')->columnSpan(12),
                 static::optionsGridScript($modelId)->columnSpan(12),
             ])->columns(12)->columnSpan(12)
@@ -485,15 +488,28 @@ class ProductModelResource extends GestionaleResource
         $codici[] = static::getInput('product_ean')->columnSpan(12);
 
         $cards = [
+            // Tre interruttori uno sotto l'altro, ognuno con la sua riga che
+            // dice cosa cambia: affiancati, le spiegazioni andavano a capo
+            // dopo due parole.
             (new Card)->components([
-                SectionTitle::make('Vendita')
-                    ->tooltip('Una bozza non si vede da nessuna parte. Un articolo pubblicato che non si vende online resta in catalogo per il negozio e per i documenti. Il tipo fiscale decide l\'IVA: un articolo nuovo parte dal predefinito.')
+                SectionTitle::make('Come si vende')
+                    ->tooltip('Una bozza non si vede da nessuna parte, nemmeno se è acquistabile online: lo stato si sceglie accanto al nome.')
                     ->columnSpan(12),
-                static::getInput('visible')->columnSpan(12),
                 static::getInput('visible_online')->columnSpan(12),
-                static::getInput('tax_category_id')->columnSpan(12),
-                static::getInput('returnable')->columnSpan(6),
-                static::getInput('requires_shipping')->columnSpan(6),
+                static::getInput('returnable')->columnSpan(12),
+                static::getInput('requires_shipping')->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+
+            // Un riquadro solo per il tipo fiscale: decide l'IVA, e in mezzo
+            // agli interruttori si perdeva. Il titolo dice già cos'è, la
+            // select non lo ripete.
+            (new Card)->components([
+                SectionTitle::make('Tipo fiscale')
+                    ->tooltip('Decide l\'IVA dell\'articolo. Un articolo nuovo parte dal tipo predefinito; i tipi si gestiscono in Set Up → IVA → Tipi fiscali.')
+                    ->columnSpan(12),
+                // Un'etichetta corta anche qui: la select è «floating» e senza
+                // etichetta mostrerebbe solo l'asterisco dell'obbligatorio.
+                static::getInput('tax_category_id')->label('IVA')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
 
             // Con le varianti dentro non resta niente: un riquadro con il
@@ -1828,18 +1844,27 @@ class ProductModelResource extends GestionaleResource
         $voci = '';
 
         foreach (static::optionAttributes() as $attribute) {
-            $voci .= '<option value="'.(int) $attribute['id'].'">'
-                .static::escape((string) ($attribute['name'] ?? '')).'</option>';
+            $voci .= '<li><button type="button" class="dropdown-item" data-wi-option-add="'.(int) $attribute['id'].'">'
+                .static::escape((string) ($attribute['name'] ?? '')).'</button></li>';
         }
 
+        // Un bottone largo quanto il riquadro, sotto l'ultimo attributo: la
+        // select in alto a destra si notava poco, e l'attributo scelto
+        // compariva lontano da dove si era cliccato. Il bordo tratteggiato
+        // dice «qui si aggiunge», come uno spazio vuoto.
+        //
         // Un `div`, non il `p` di un testo: dentro c'è un altro `div`, che un
         // `p` chiuderebbe prima del tempo.
         return RichText::make(<<<HTML
-<div class="wi-option-picker d-flex flex-column align-items-end gap-1 text-end">
-    <select class="form-select form-select-sm w-auto wi-option-choose" aria-label="Aggiungi un attributo">
-        <option value="">Aggiungi un attributo…</option>
-        {$voci}
-    </select>
+<div class="wi-option-picker d-flex flex-column gap-1">
+    <div class="dropdown wi-option-add">
+        <button type="button" class="btn btn-outline-secondary w-100 wi-option-choose" style="border-style:dashed" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-plus-lg me-1"></i>Aggiungi un attributo
+        </button>
+        <ul class="dropdown-menu w-100">
+            {$voci}
+        </ul>
+    </div>
     <span class="small text-body-secondary wi-option-full d-none">Tre attributi sono il massimo: per aggiungerne un altro togline uno.</span>
     <span class="small text-body-secondary wi-option-order d-none" data-wi-option-order="{$ordine}"></span>
 </div>
@@ -2051,24 +2076,21 @@ class ProductModelResource extends GestionaleResource
             var picker = document.querySelector('.wi-option-picker');
             if (!picker) return;
 
-            var scelta = picker.querySelector('.wi-option-choose');
             var restano = false;
             var pieno = accesi() >= MASSIMO;
 
-            Array.prototype.slice.call(scelta.options).forEach(function (voce) {
-                if (voce.value === '') return;
-
-                var nodo = document.querySelector('[data-wi-option="' + voce.value + '"]');
+            picker.querySelectorAll('[data-wi-option-add]').forEach(function (voce) {
+                var nodo = document.querySelector('[data-wi-option="' + voce.getAttribute('data-wi-option-add') + '"]');
                 var acceso = !!nodo && nodo.getAttribute('data-wi-option-on') === 'true';
 
-                voce.hidden = acceso;
+                // Il menu propone solo quelli non ancora aggiunti.
+                voce.parentElement.classList.toggle('d-none', acceso);
                 voce.disabled = acceso;
 
                 if (!acceso) restano = true;
             });
 
-            scelta.value = '';
-            scelta.classList.toggle('d-none', !restano || pieno);
+            picker.querySelector('.wi-option-add').classList.toggle('d-none', !restano || pieno);
             // Il muro si spiega solo quando c'è: con gli attributi finiti non
             // resta niente da aggiungere, e niente da dire.
             picker.querySelector('.wi-option-full').classList.toggle('d-none', !(restano && pieno));
@@ -2091,11 +2113,34 @@ class ProductModelResource extends GestionaleResource
             bottone.setAttribute('aria-label', 'Togli ' + nome(nodo));
             bottone.innerHTML = '<i class="bi bi-x-lg"></i>';
             bottone.addEventListener('click', function () {
-                caselle(nodo).forEach(function (casella) { casella.checked = false; });
-                mostra(nodo, false);
-                scriviOrdine(ordine());
-                aggiornaSelettore();
-                if (typeof window.wiOptionsGrid === 'function') window.wiOptionsGrid();
+                var togli = function () {
+                    caselle(nodo).forEach(function (casella) { casella.checked = false; });
+                    mostra(nodo, false);
+                    scriviOrdine(ordine());
+                    aggiornaSelettore();
+                    if (typeof window.wiOptionsGrid === 'function') window.wiOptionsGrid();
+                };
+
+                // Si chiede sempre: un clic storto sulla X si porterebbe via
+                // le spunte e le righe che hanno fatto nascere.
+                var spuntati = caselle(nodo).filter(function (casella) { return casella.checked; }).length;
+                var conferma = {
+                    title: "Togliere l'attributo " + titolo(nodo) + '?',
+                    text: spuntati > 0
+                        ? 'Spariscono le spunte di ' + nome(nodo) + ' e le righe che hanno aggiunto alla griglia.'
+                        : 'Il blocco si chiude: lo riapri da «Aggiungi un attributo».',
+                    cancelLabel: 'Annulla',
+                    confirmLabel: 'Togli',
+                    confirmClass: 'btn btn-danger',
+                };
+
+                // La finestra è quella del repeater, che sta nella stessa
+                // pagina; senza, la conferma del browser.
+                if (typeof window.wiRepeaterConfirmDelete === 'function') {
+                    window.wiRepeaterConfirmDelete(togli, conferma);
+                } else if (window.confirm(conferma.title + ' ' + conferma.text)) {
+                    togli();
+                }
             });
 
             pillole.appendChild(bottone);
@@ -2127,15 +2172,21 @@ class ProductModelResource extends GestionaleResource
 
             scriviOrdine(ordine());
 
-            picker.querySelector('.wi-option-choose').addEventListener('change', function () {
-                var nodo = this.value === ''
-                    ? null
-                    : document.querySelector('[data-wi-option="' + this.value + '"]');
+            picker.querySelectorAll('[data-wi-option-add]').forEach(function (voce) {
+                voce.addEventListener('click', function () {
+                    var nodo = document.querySelector('[data-wi-option="' + voce.getAttribute('data-wi-option-add') + '"]');
 
-                if (nodo && accesi() < MASSIMO) mostra(nodo, true);
+                    if (nodo && accesi() < MASSIMO) mostra(nodo, true);
 
-                scriviOrdine(ordine());
-                aggiornaSelettore();
+                    scriviOrdine(ordine());
+                    aggiornaSelettore();
+
+                    // La voce cliccata ora è nascosta, e il fuoco cadrebbe
+                    // sulla pagina: va sul primo valore del blocco comparso,
+                    // che è la cosa da fare dopo.
+                    var primo = nodo ? caselle(nodo)[0] : null;
+                    if (primo) primo.focus();
+                });
             });
 
             // Spuntare o togliere un valore può accendere o spegnere un

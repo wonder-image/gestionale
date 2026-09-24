@@ -27,7 +27,7 @@ uno solo: salvarne uno così toglie il segno agli altri
 (`TaxCategoryResource`). Il precaricato "Aliquota ordinaria" nasce
 predefinito. Un articolo nuovo parte da lui; se nessuno è segnato, dal primo
 visibile in ordine di posizione (`Support\Tax\TaxCategories::defaultId()`).
-La scheda prodotto lo mostra sempre, come select nel riquadro «Vendita»:
+La scheda prodotto lo mostra sempre, come select nel riquadro «Tipo fiscale»:
 `TaxCategories::options($keep)` elenca i visibili e, in coda, il tipo nascosto
 che l'articolo usa ancora («Nome (nascosto)»), altrimenti il select ne
 mostrerebbe un altro e salvando lo sostituirebbe. Senza nessun tipo il campo ha

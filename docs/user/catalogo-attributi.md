@@ -153,9 +153,9 @@ Nella scheda del prodotto.
   colonna di sinistra. Una caratteristica di **Testo** o di **Numero** si crea
   anche da lì, con **Nuova caratteristica**, senza passare da questa pagina;
   un elenco con i suoi valori (e le loro immagini) si prepara qui.
-- Gli altri stanno in **«Opzioni in vendita»**, il riquadro a tutta larghezza in
-  fondo alla pagina: apri il menu *«Aggiungi un attributo…»*, scegli quello che
-  ti serve, spunta i valori, e le righe da vendere compaiono nella griglia con
+- Gli altri stanno in **«Opzioni in vendita»**, il riquadro subito sotto
+  «Prodotto»: premi *«Aggiungi un attributo»*, scegli quello che ti serve,
+  spunta i valori, e le righe da vendere compaiono nella griglia con
   il loro codice proposto, pronte da prezzare.
 
 Come funziona quel riquadro è scritto in [I prodotti](catalogo-prodotti.md).

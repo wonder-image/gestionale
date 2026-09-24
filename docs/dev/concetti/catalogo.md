@@ -241,9 +241,20 @@ crea insieme al primo prodotto quando nasce un modello.
 ### Una griglia sola
 
 Il repeater delle varianti **non esiste più**: la scheda ha una griglia sola,
-`products`, dichiarata da `productsField()` e messa da `optionsCard()` a piena
-larghezza **sotto** le due colonne — sette caselle per riga dentro due terzi di
-schermo vanno a capo, ed era il disallineamento che si vedeva.
+`products`, dichiarata da `productsField()` e messa da `optionsCard()` nella
+colonna larga, **subito dopo «Prodotto»**: risponde alla domanda «ha varianti?»
+che sta lì sopra. Con la griglia raggruppata (G2c) la riga ha quattro caselle e
+il resto è nei dettagli avanzati, e a 1600 px ci sta; le sette caselle che
+andavano a capo, e avevano spinto il riquadro sotto le due colonne, non ci sono
+più.
+
+Sotto l'ultimo attributo c'è `optionsPicker()`: un dropdown Bootstrap con il
+bottone largo quanto il riquadro (`w-100`), scritto a mano in un `RichText`
+perché il `Dropdown` del core non allarga toggle e menu. Le voci
+(`data-wi-option-add`) si nascondono quando l'attributo è già acceso, e il
+bottone sparisce al terzo. La **×** di un attributo non in uso passa da
+`window.wiRepeaterConfirmDelete()` (la finestra del repeater, che nella pagina
+c'è già), con `window.confirm()` di riserva.
 
 | Quando | Cosa si vede |
 |---|---|
@@ -496,7 +507,10 @@ stella rimasta su una voce tolta cade sulla prima), e finisce in
 `['name', 'parent_id']`: la risposta porta `item.parent_id`, e il nodo nasce
 sotto il padre, già spuntato.
 
-**Il tipo fiscale nel riquadro «Vendita».** `taxCategoryField($modelId)`
+**Il tipo fiscale in un riquadro suo.** Nella colonna stretta, sotto «Come si
+vende» (i tre interruttori, ognuno con `InputToggle::description()`), il
+riquadro «Tipo fiscale» ha il solo select, con etichetta «IVA»: la select è
+«floating» e un'etichetta vuota lascerebbe solo l'asterisco. `taxCategoryField($modelId)`
 parte da `TaxCategories::defaultId()` (vedi [IVA e impostazioni](iva-e-impostazioni.md#il-tipo-predefinito))
 e si vede sempre, anche con un tipo solo (P58): un campo nascosto non si trova
 il giorno in cui serve. Su un articolo salvato passa a `options()` il tipo che

@@ -346,14 +346,12 @@ check('la creazione mostra la scheda intera, due colonne comprese', function () 
         return $titoli;
     };
 
-    // Due colonne più il riquadro delle opzioni, che prende la pagina intera:
-    // la griglia ha sette caselle per riga e in due terzi di schermo vanno a
-    // capo.
-    return count($colonne) === 3
-        && $titoli($colonne[0]) === ['Prodotto', 'Foto e video', 'Descrizione', 'Misure', 'Scheda tecnica']
-        && $titoli($colonne[1]) === ['Vendita', 'Codici', 'Dove si trova', 'Spedizione']
-        && ($colonne[2]->components[0] ?? null) instanceof SectionTitle
-        && $colonne[2]->components[0]->getText() === 'Opzioni in vendita';
+    // Due colonne, e le opzioni in vendita nella larga, subito sotto
+    // «Prodotto»: la griglia raggruppata ha tre caselle per riga e in due
+    // terzi di schermo ci sta.
+    return count($colonne) === 2
+        && $titoli($colonne[0]) === ['Prodotto', 'Opzioni in vendita', 'Foto e video', 'Misure', 'Scheda tecnica']
+        && $titoli($colonne[1]) === ['Come si vende', 'Tipo fiscale', 'Codici', 'Dove si trova', 'Spedizione'];
 });
 
 check('in creazione non si chiede quello che non esiste ancora', function () {
@@ -482,22 +480,97 @@ $riquadri = static function (int $colonna = 0) use ($schedaAperta): array {
 };
 
 check('la colonna larga tiene quello che si compone', function () use ($riquadri) {
-    // Le opzioni in vendita non stanno più qui: hanno il loro riquadro a
-    // piena larghezza, in fondo. La scheda tecnica c'è anche senza
-    // caratteristiche.
-    return $riquadri(0) === ['Prodotto', 'Foto e video', 'Descrizione', 'Misure', 'Scheda tecnica'];
+    // Le opzioni in vendita subito sotto «Prodotto»: è lì che si risponde
+    // «sì, ha varianti». La descrizione sta dentro «Prodotto», e la scheda
+    // tecnica c'è anche senza caratteristiche.
+    return $riquadri(0) === ['Prodotto', 'Opzioni in vendita', 'Foto e video', 'Misure', 'Scheda tecnica'];
 });
 
-check('il riquadro delle opzioni sta in fondo, a piena larghezza', function () use ($schedaAperta) {
+check('il riquadro delle opzioni risponde alla domanda sulle varianti', function () use ($schedaAperta) {
     $form = $schedaAperta::formLayoutSchema();
-    $riquadro = ($form->components ?? [])[2] ?? null;
+    $riquadro = (($form->components ?? [])[0]->components ?? [])[1] ?? null;
 
-    return $riquadro !== null
-        && (((array) ($riquadro->columnSpan ?? []))['default'] ?? null) === 12;
+    return count($form->components ?? []) === 2
+        && $riquadro !== null
+        && (((array) ($riquadro->columnSpan ?? []))['default'] ?? null) === 12
+        && str_contains(json_encode($riquadro->getSchema()) ?: '', 'has_variants');
 });
 
 check('la colonna stretta tiene quello che si decide', function () use ($riquadri) {
-    return $riquadri(1) === ['Vendita', 'Codici', 'Dove si trova', 'Spedizione'];
+    return $riquadri(1) === ['Come si vende', 'Tipo fiscale', 'Codici', 'Dove si trova', 'Spedizione'];
+});
+
+/** I pezzi di un riquadro della colonna stretta o larga, per titolo. */
+$riquadro = static function (int $colonna, string $titolo) use ($schedaAperta): array {
+    $form = $schedaAperta::formLayoutSchema();
+
+    foreach (($form->components[$colonna] ?? null)->components ?? [] as $card) {
+        $dentro = $card->components ?? [];
+
+        if (($dentro[0] ?? null) instanceof SectionTitle && $dentro[0]->getText() === $titolo) {
+            return $dentro;
+        }
+    }
+
+    return [];
+};
+
+check('il tipo fiscale ha un riquadro tutto suo', function () use ($riquadro) {
+    $dentro = $riquadro(1, 'Tipo fiscale');
+    $nomi = array_values(array_filter(array_map(
+        static fn ($pezzo) => property_exists($pezzo, 'name') ? (string) $pezzo->name : '',
+        $dentro
+    )));
+
+    // Il titolo dice già cos'è: la select non lo ripete.
+    return $nomi === ['tax_category_id']
+        && $dentro[1]->get('label') === 'IVA'
+        && (string) ($dentro[0]->getSchema()['tooltip'] ?? '') !== '';
+});
+
+check('«Come si vende» ha tre interruttori con una riga che li spiega', function () use ($riquadro, $campi) {
+    $nomi = array_values(array_filter(array_map(
+        static fn ($pezzo) => property_exists($pezzo, 'name') ? (string) $pezzo->name : '',
+        $riquadro(1, 'Come si vende')
+    )));
+    $etichette = [];
+
+    foreach (['visible_online', 'returnable', 'requires_shipping'] as $chiave) {
+        $campo = $campi()[$chiave];
+        $spiega = (string) (((array) $campo->get('context'))['description'] ?? '');
+
+        if ($spiega === '' || mb_strlen($spiega) > 70) {
+            return false;
+        }
+
+        // Uno switch manda sempre un valore: l'asterisco non direbbe niente.
+        if (preg_match('/\brequired\b/', (string) $campo->get('attribute'))) {
+            return false;
+        }
+
+        $etichette[] = $campo->get('label');
+    }
+
+    return $nomi === ['visible_online', 'returnable', 'requires_shipping']
+        && $etichette === ['Acquistabile online', 'Accetta resi', 'Da spedire'];
+});
+
+check('in «Prodotto» la descrizione non ha un titolo suo', function () use ($riquadro) {
+    $titoli = [];
+    $nomi = [];
+
+    foreach ($riquadro(0, 'Prodotto') as $pezzo) {
+        if ($pezzo instanceof SectionTitle) {
+            $titoli[] = $pezzo->getText();
+        } elseif (property_exists($pezzo, 'name')) {
+            $nomi[] = (string) $pezzo->name;
+        }
+    }
+
+    // Bastano le etichette dei due campi: il titolo sopra le ripeteva.
+    return $titoli === ['Prodotto']
+        && in_array('short_description', $nomi, true)
+        && in_array('description', $nomi, true);
 });
 
 check('le parole interne non compaiono più nei titoli', function () use ($riquadri) {
@@ -931,9 +1004,51 @@ check('il selettore chiede prima quale attributo, i valori vengono dopo', functi
 
     return str_contains($html, 'wi-option-picker')
         && str_contains($html, 'Aggiungi un attributo')
-        && str_contains($html, '>Colore</option>')
+        && str_contains($html, 'data-wi-option-add="7"')
+        && str_contains($html, '>Colore</button>')
         // Tre sono il massimo: il quarto non si aggiunge.
         && str_contains($html, 'var MASSIMO = 3;');
+});
+
+check('«Aggiungi un attributo» è un bottone largo quanto il riquadro, sotto gli attributi', function () use ($schedaAperta, $riquadro) {
+    $html = $schedaAperta::vediSelettore();
+    $dentro = $riquadro(0, 'Opzioni in vendita');
+    $blocchi = null;
+    $selettore = null;
+
+    foreach ($dentro as $indice => $pezzo) {
+        if ($pezzo instanceof RichText && str_contains((string) $pezzo->getText(), 'wi-option-picker')) {
+            $selettore = $indice;
+        } elseif ($blocchi === null && !($pezzo instanceof SectionTitle) && !empty($pezzo->components)) {
+            $blocchi = $indice;
+        }
+    }
+
+    // Niente più select in alto a destra: il bottone sta dopo l'ultimo
+    // attributo e prende tutta la riga.
+    return !str_contains($html, '<select')
+        && preg_match('/<button[^>]*class="[^"]*w-100[^"]*wi-option-choose/', $html) === 1
+        && $blocchi !== null
+        && $selettore !== null
+        && $selettore > $blocchi
+        && (((array) ($dentro[$selettore]->columnSpan ?? []))['default'] ?? null) === 12;
+});
+
+check('scelto un attributo, il fuoco va sul suo blocco', function () use ($schedaAperta) {
+    $html = $schedaAperta::vediSelettore();
+
+    return str_contains($html, 'var primo = nodo ? caselle(nodo)[0] : null;')
+        && str_contains($html, 'primo.focus();');
+});
+
+check('togliere un attributo chiede conferma', function () use ($schedaAperta) {
+    $html = $schedaAperta::vediSelettore();
+
+    // Un clic storto non deve portarsi via le spunte e le righe nuove.
+    return str_contains($html, 'wiRepeaterConfirmDelete')
+        && str_contains($html, "title: \"Togliere l'attributo \" + titolo(nodo) + '?'")
+        && str_contains($html, "confirmLabel: 'Togli'")
+        && str_contains($html, 'window.confirm(');
 });
 
 check('ogni blocco di opzione porta la maniglia che lo accende', function () use ($schedaAperta) {

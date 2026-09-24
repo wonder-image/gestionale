@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a3eedd505921557f0773abb77212f69c",
+    "content-hash": "227b5c7d6e312a99340706b6b4467e4f",
     "packages": [
         {
             "name": "chillerlan/php-qrcode",
@@ -3277,11 +3277,11 @@
         },
         {
             "name": "wonder-image/app",
-            "version": "2.2.15",
+            "version": "2.4.0-beta.1",
             "dist": {
                 "type": "path",
                 "url": "../app",
-                "reference": "c07ad3656ac6e42db8ce441345fac32e92cd091a"
+                "reference": "88da66015adf3021dc9194e6635c9d2d4c144e17"
             },
             "require": {
                 "chillerlan/php-qrcode": "^5.0",
@@ -3307,6 +3307,12 @@
                 "psr-4": {
                     "Wonder\\": "class/"
                 }
+            },
+            "scripts": {
+                "release": [
+                    "Composer\\Config::disableProcessTimeout",
+                    "@php bin/release.php"
+                ]
             },
             "license": [
                 "MIT"
