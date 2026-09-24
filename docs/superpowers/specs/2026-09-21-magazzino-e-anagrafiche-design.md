@@ -1,7 +1,7 @@
 # G2b — Magazzino base e anagrafiche
 
 - **Sotto-progetto:** G2b, secondo pezzo di G2 (il primo era G2a, il catalogo)
-- **Stato:** da approvare
+- **Stato:** approvata ed eseguita (quattro piani, G2b chiuso il 2026-09-24)
 - **Documento di riferimento:** [architettura](2026-09-11-gestionale-ecommerce-architettura-design.md) §4.3, §4.4, §3.4
 - **Dipende da:** G1 Fondamenta (codici, impostazioni, sedi, errori, hook, attività),
   G2a Catalogo e G2a-bis (prodotti, versioni in vendita)
