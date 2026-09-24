@@ -43,8 +43,11 @@ Gli altri hook nascono con il sotto-progetto che li usa.
 
 - `to` può tornare come lista o come stringa separata da virgole: il gestionale
   lo rilegge e scarta gli indirizzi non validi.
-- Un `to` vuoto, o fatto solo di indirizzi non validi, **ferma l'invio**, e
-  gli avvisi contano come mandati: è una scelta del sito, non un guasto.
+- Un `to` vuoto **ferma l'invio**, e gli avvisi contano come mandati: è una
+  scelta del sito, non un guasto.
+- Un `to` fatto solo di indirizzi non validi ferma l'invio allo stesso modo, ma
+  lascia una segnalazione per lo sviluppatore (`error_reports`) con gli
+  indirizzi scartati: somiglia più a uno sbaglio che a una scelta.
 - Un'estensione che solleva un'eccezione finisce nel log e l'email parte con il
   messaggio com'era prima di lei.
 

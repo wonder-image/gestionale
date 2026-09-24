@@ -13,8 +13,10 @@ use Wonder\Plugin\Gestionale\Support\Errors\Errors;
  *
  * Prima di partire il messaggio passa dall'hook `beforeEmailSend`: il sito
  * può cambiare oggetto, corpo e destinatari, o fermare l'invio togliendo
- * tutti i destinatari. Poi parte un'email per destinatario, perché così la
- * manda il core; un indirizzo che salta non ferma gli altri.
+ * tutti i destinatari. Se ne lascia solo di non validi l'invio si ferma lo
+ * stesso, ma resta una segnalazione: somiglia più a uno sbaglio che a una
+ * scelta. Poi parte un'email per destinatario, perché così la manda il core;
+ * un indirizzo che salta non ferma gli altri.
  *
  * Chi chiama decide cosa fare di un invio fallito: qui si mette solo nel log,
  * indirizzo per indirizzo.
@@ -25,8 +27,14 @@ final class Mailer
     public const CANCELLED = 'cancelled';
     public const FAILED = 'failed';
 
+    /** Sempre lo stesso: il registro del core conta le ripetizioni sulla stessa riga. */
+    private const ONLY_INVALID = 'L\'hook beforeEmailSend ha lasciato solo destinatari non validi.';
+
     /** @var (callable(string, string, string): bool)|null */
     private static $transport = null;
+
+    /** @var (callable(string, array): void)|null */
+    private static $reporter = null;
 
     /**
      * @param list<string> $to
@@ -38,11 +46,20 @@ final class Mailer
         $message = Extensions::filter('beforeEmailSend', $original, $key);
         $message = is_array($message) ? $message + $original : $original;
 
-        $recipients = Recipients::parse(is_array($message['to'])
+        $parsed = Recipients::parse(is_array($message['to'])
             ? implode(',', array_map('strval', $message['to']))
-            : (string) $message['to'])['valid'];
+            : (string) $message['to']);
+        $recipients = $parsed['valid'];
 
         if ($recipients === []) {
+            // Un `to` vuoto è uno stop voluto; solo indirizzi storti, no.
+            if ($parsed['invalid'] !== []) {
+                (self::$reporter ?? self::defaultReporter($key))(self::ONLY_INVALID, [
+                    'key' => $key,
+                    'to' => $parsed['invalid'],
+                ]);
+            }
+
             return ['status' => self::CANCELLED, 'to' => [], 'sent' => [], 'failed' => []];
         }
 
@@ -77,6 +94,12 @@ final class Mailer
     public static function useTransport(?callable $transport): void
     {
         self::$transport = $transport;
+    }
+
+    /** Cambia chi riceve le segnalazioni; `null` torna al registro del core. Serve ai test. */
+    public static function reportUsing(?callable $reporter): void
+    {
+        self::$reporter = $reporter;
     }
 
     /** A chi si risponde: l'email del negozio, se no il mittente del sito, se no niente. */
@@ -147,6 +170,14 @@ final class Mailer
             static fn (array $m): string => '&amp;#'.mb_ord($m[0], 'UTF-8').';',
             $html
         );
+    }
+
+    /** @return callable(string, array): void */
+    private static function defaultReporter(string $key): callable
+    {
+        return static function (string $message, array $context) use ($key): void {
+            Errors::report('gestionale', 'mail.'.$key, $message, $context);
+        };
     }
 
     /** @return callable(string, string, string): bool */

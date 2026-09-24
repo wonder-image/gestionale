@@ -42,6 +42,16 @@ final class DestinatariAMano extends GestionaleExtension
     }
 }
 
+final class SoloScrittoMale extends GestionaleExtension
+{
+    public function beforeEmailSend(string $key, array $message): array
+    {
+        $message['to'] = ['scritto-male'];
+
+        return $message;
+    }
+}
+
 final class EstensioneRotta extends GestionaleExtension
 {
     public function beforeEmailSend(string $key, array $message): array
@@ -61,10 +71,17 @@ $postino = static function (bool $esito = true) use (&$inviate): callable {
     };
 };
 
-$pulisci = static function () use (&$inviate): void {
+/** @var list<array{0: string, 1: array}> */
+$segnalate = [];
+
+$pulisci = static function () use (&$inviate, &$segnalate): void {
     $inviate = [];
+    $segnalate = [];
     Extensions::use([]);
     Mailer::useTransport(null);
+    Mailer::reportUsing(static function (string $message, array $context) use (&$segnalate): void {
+        $segnalate[] = [$message, $context];
+    });
 };
 
 /** Il negozio del sito per il tempo di `$fn`, poi com'era. */
@@ -130,13 +147,28 @@ check('l\'hook riceve la chiave dell\'email e può cambiare il messaggio', funct
     return ($inviate[0][1] ?? '') === '[stock.low_stock] 2 prodotti sotto scorta';
 });
 
-check('un hook che toglie i destinatari ferma l\'invio', function () use ($postino, $pulisci, &$inviate) {
+check('un hook che toglie i destinatari ferma l\'invio, senza segnalarlo: è una scelta', function () use ($postino, $pulisci, &$inviate, &$segnalate) {
     $pulisci();
     Extensions::use([NessunDestinatario::class]);
     Mailer::useTransport($postino());
     $esito = Mailer::send('prova', ['a@x.it'], 'Oggetto', 'x');
 
-    return $esito['status'] === Mailer::CANCELLED && $esito['to'] === [] && $inviate === [];
+    return $esito['status'] === Mailer::CANCELLED && $esito['to'] === [] && $inviate === [] && $segnalate === [];
+});
+
+check('un hook che lascia solo indirizzi non validi ferma l\'invio, ma lo segnala', function () use ($postino, $pulisci, &$inviate, &$segnalate) {
+    $pulisci();
+    Extensions::use([SoloScrittoMale::class]);
+    Mailer::useTransport($postino());
+    $esito = Mailer::send('stock.low_stock', ['a@x.it'], 'Oggetto', 'x');
+
+    // Il risultato resta `cancelled`: chi chiama non cambia strada, ma un
+    // indirizzo storto somiglia più a uno sbaglio che a una scelta.
+    return $esito['status'] === Mailer::CANCELLED
+        && $inviate === []
+        && count($segnalate) === 1
+        && $segnalate[0][0] === 'L\'hook beforeEmailSend ha lasciato solo destinatari non validi.'
+        && ($segnalate[0][1]['to'] ?? null) === ['scritto-male'];
 });
 
 check('i destinatari scelti dall\'hook si ripuliscono come quelli delle impostazioni', function () use ($postino, $pulisci, &$inviate) {
@@ -189,5 +221,6 @@ check('senza il sito avviato non parte niente, e lo dice', function () use ($pul
 
 $pulisci();
 Extensions::use(null);
+Mailer::reportUsing(null);
 
 summary();
