@@ -447,9 +447,25 @@ class ProductResource extends ProductModelResource
         return $values;
     }
 
+    /**
+     * Una versione con movimenti non si elimina, come il suo articolo.
+     *
+     * Quella del genitore legge l'id come id del modello: qui è già il
+     * prodotto. Nessuna pagina elimina una versione, ma `api/backend/delete`
+     * del core passa di qui.
+     */
+    public static function assertDeletable(int|string $id): void
+    {
+        if (StockHistory::hasMovements((int) $id)) {
+            throw UserError::refusal('product.has_movements');
+        }
+    }
+
     /** Eliminare un'opzione porta via i suoi attributi. */
     public static function deleteRecord(int|string $id): object
     {
+        static::assertDeletable($id);
+
         foreach (ProductAttributes::read('product', (int) $id) as $link) {
             ProductAttributes::modelClass('product')::delete((int) $link['id']);
         }

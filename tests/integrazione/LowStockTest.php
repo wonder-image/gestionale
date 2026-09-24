@@ -15,6 +15,7 @@ use Wonder\Plugin\Gestionale\Extensions\GestionaleExtension;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockLevel;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
@@ -23,6 +24,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Stock\Alerts;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStockNotifier;
@@ -214,13 +216,35 @@ check('un articolo con l\'avviso aperto e nessun movimento si elimina', fn () =>
     return $aperto && !empty($esito->success) && (!is_array($rimasti) || $rimasti === []);
 }));
 
-check('anche una versione con l\'avviso aperto si elimina dalla sua scheda', fn () => annullando(function (): bool {
+check('anche una versione con l\'avviso aperto e nessun movimento si elimina', fn () => annullando(function (): bool {
     [, $productId] = articoloDiProva('LOW-6');
     Product::update(['min_stock_quantity' => '5.000'], $productId);
-    Alerts::refresh($productId);
+    $aperto = Alerts::refresh($productId) === 'open';
     $esito = ProductResource::deleteRecord($productId);
 
-    return !empty($esito->success) && Product::findById($productId) === [];
+    return $aperto && !empty($esito->success) && Product::findById($productId) === [];
+}));
+
+check('una versione con movimenti non si elimina, e le sue giacenze restano', fn () => annullando(function (): bool {
+    // Nessuna pagina elimina una versione, ma `api/backend/delete` del core sì.
+    [, $productId] = articoloDiProva('LOW-7', '3');
+    $giacenze = StockLevel::find(['product_id' => $productId]);
+
+    try {
+        ProductResource::deleteRecord($productId);
+    } catch (RuntimeException $e) {
+        // `RuntimeException` e non `UserError`: è quella che l'endpoint del
+        // core trasforma in messaggio (422).
+        $dopo = StockLevel::find(['product_id' => $productId]);
+
+        return str_contains($e->getMessage(), 'movimenti di magazzino')
+            && !($e instanceof UserError)
+            && is_array($giacenze) && $giacenze !== []
+            && $dopo === $giacenze
+            && Product::findById($productId) !== [];
+    }
+
+    return false;
 }));
 
 check('una email sola per i prodotti sotto scorta, poi più niente', fn () => annullando(function (): bool {
