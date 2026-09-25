@@ -1825,10 +1825,13 @@ class ProductModelResource extends GestionaleResource
      * più — e il database lo impedisce comunque, con una pagina di errore al
      * posto di una spiegazione. Chi non vende più un articolo lo mette su
      * "Nascosto": l'elenco resta pulito e la storia pure.
+     *
+     * Vale anche per un'opzione tolta dalla griglia: è nel cestino, ma i suoi
+     * movimenti sono ancora lì.
      */
     public static function assertDeletable(int|string $id): void
     {
-        foreach (static::products((int) $id) as $product) {
+        foreach (static::allProducts((int) $id) as $product) {
             if (StockHistory::hasMovements((int) $product['id'])) {
                 // `refusal()` e non `make()`: chi cancella dall'elenco
                 // intercetta `RuntimeException` (vedi `UserError`).
@@ -1844,7 +1847,9 @@ class ProductModelResource extends GestionaleResource
         static::assertDeletable($modelId);
 
         Transaction::run(static function () use ($modelId): void {
-            foreach (static::products($modelId) as $product) {
+            // Anche le opzioni tolte dalla griglia, prima delle varianti: una
+            // riga nel cestino tiene ferma la sua variante come le altre.
+            foreach (static::allProducts($modelId) as $product) {
                 foreach (ProductAttributes::read('product', (int) $product['id']) as $link) {
                     ProductAttributes::modelClass('product')::delete((int) $link['id']);
                 }
@@ -3151,6 +3156,20 @@ HTML)->tag('div');
     public static function products(int $modelId): array
     {
         return static::rowsOf(Product::class, ['product_model_id' => $modelId], 'position');
+    }
+
+    /**
+     * I prodotti del modello, anche quelli tolti dalla griglia.
+     *
+     * La griglia li mette in `deleted = 'true'` e basta: restano attaccati
+     * alla loro variante, con i loro avvisi e i loro movimenti. Chi elimina
+     * l'articolo deve vederli tutti.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected static function allProducts(int $modelId): array
+    {
+        return static::rowsOf(Product::class, ['product_model_id' => $modelId, 'deleted' => ['true', 'false']], 'position');
     }
 
     /** Gli attributi visibili, letti una volta per richiesta. */

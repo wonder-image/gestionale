@@ -21,6 +21,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Sql\Transaction;
 
 /**
  * "Clienti": l'elenco di chi compra, e la scheda della rubrica.
@@ -346,6 +347,23 @@ class CustomerResource extends GestionaleResource
         if (is_array($row) && (int) ($row['user_id'] ?? 0) > 0) {
             throw UserError::refusal('contact.has_account');
         }
+    }
+
+    /** La scheda se ne va con i suoi indirizzi di consegna. */
+    public static function deleteRecord(int|string $id): object
+    {
+        static::assertDeletable($id);
+
+        // Gli indirizzi di consegna se ne vanno con la scheda, anche quelli
+        // già tolti dalla griglia: da soli la terrebbero ferma. Insieme, così
+        // una scheda che non si cancella non resta senza indirizzi.
+        return Transaction::run(static function () use ($id): object {
+            foreach (static::rowsOf(ContactAddress::class, ['contact_id' => (int) $id, 'deleted' => ['true', 'false']]) as $row) {
+                ContactAddress::delete((int) $row['id']);
+            }
+
+            return parent::deleteRecord($id);
+        });
     }
 
     /** Il ruolo con cui nasce una scheda aperta da questo elenco. */
