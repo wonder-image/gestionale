@@ -1,8 +1,7 @@
 # G2c — La scheda prodotto, secondo giro
 
 - **Sotto-progetto:** seguito di G2a-bis, prima di G2b
-- **Stato:** rivista il 2026-09-22 dopo la terza prova in pannello (§4, §5,
-  §12 riscritte; decisioni P26-P32)
+- **Stato:** dodicesimo giro scritto il 2026-09-25 (§21, decisioni P84-P94)
 - **Documento di riferimento:** [G2a-bis — La scheda prodotto semplice](2026-09-21-scheda-prodotto-semplice-design.md),
   [G2a — Catalogo](2026-09-21-catalogo-design.md)
 - **Dipende da:** C1 — repeater raggruppato (spec in `wonder-image/app`:
@@ -1057,6 +1056,118 @@ visibilità di un accordion, come per il `Container`.
 - [x] modulo: test, guide utente e dev
 - [x] modulo, dopo la review: `saveMinStocks()` prima dei movimenti, `adjustStock()`, scheletro ripreso che si rettifica (solo se c'era prima della richiesta, e la riga vuota non cancella la vecchia), `hasVariants()` in `saveExtras()`; test in `CombinazioniTest`
 - [x] prova nel browser (1600×950: stella alla prima spunta e cartella togliendola; scheda tecnica vuota con il solo bottone, voce del menu che accende il blocco, × con e senza conferma, salvataggio che cancella il valore tolto, caratteristica nuova dal quick create; tendina con SKU, EAN e Scorta minima sotto Prezzo, Prezzo scontato e Giacenza; nella griglia SKU, EAN, Scorta minima e Stato)
+
+## 21. Dodicesimo giro: vendere senza giacenza è una scelta dell'articolo, il costo d'acquisto sta fra i codici
+
+*Richiesta dell'utente.*
+
+**«Vendita senza giacenza» è un interruttore dell'articolo.** Con la
+funzionalità `backorders` accesa, «Come si vende» ha un quarto interruttore
+sotto «Da spedire»: **Vendita senza giacenza**, Sì/No. Acceso, compare
+**Giorni di attesa** (i giorni che servono per riavere la merce); spento, i
+giorni tornano a zero, come l'imballaggio sotto «Da spedire». È una scelta di
+tutto l'articolo: al salvataggio si scrive su ogni opzione, anche su quelle che
+nascono in quel momento; riaprendo la scheda l'interruttore è acceso solo se
+lo è su tutte. Senza `backorders` l'interruttore non c'è e quello che arriva
+non si scrive. Un'impostazione di partenza del negozio non c'è ancora: le
+impostazioni sono di un altro lavoro.
+
+**La giacenza scende sotto zero solo se l'opzione lo permette.** Finora
+bastava la funzionalità accesa; da qui serve anche l'interruttore
+sull'opzione (`allow_backorder`). Con la funzionalità accesa e l'interruttore
+spento, per quell'opzione la giacenza resta un muro: `stock.insufficient`,
+come senza funzionalità. La regola sta in `Stock::apply()`, e vale anche per i
+documenti di carico e scarico di G2b-bis, che passano da lì.
+
+**Il costo d'acquisto è per fornitore.** Con `purchasing` acceso ogni opzione
+può avere più fornitori, ognuno con il suo codice e il suo costo, e uno è il
+preferito: è quello che si mostra e che servirà agli ordini ai fornitori. La
+tabella nuova è `gst_product_suppliers` (opzione, fornitore, codice del
+fornitore, costo, preferito, posizione). I fornitori sono i contatti con
+`is_supplier`; un costo senza fornitore non si salva.
+
+**Con al più un fornitore in anagrafica, tre campi.** In «Compila le
+informazioni avanzate», dopo SKU, EAN e scorta minima: **Fornitore**
+(tendina), **Codice fornitore** e **Costo d'acquisto** (prezzo con la
+valuta). Valgono per il fornitore preferito. Svuotare il fornitore lo
+stacca dall'opzione. Vale per l'articolo senza varianti, nella tendina sotto il
+prezzo, e per ogni riga della griglia.
+
+**Con due o più fornitori, il bottone «Costo».** Al posto dei tre campi c'è un
+bottone **Costo** con accanto il preferito e il suo costo («Filati Nord ·
+12,00 €»), o «Nessun fornitore». Il bottone apre una finestra sola per tutta la
+pagina, **Costo · <nome dell'opzione>**, con tutti i fornitori del
+negozio, uno per riga: **Preferito** (radio), nome, **Codice fornitore**,
+**Costo**; in fondo [Annulla] [Salva]. Un fornitore con codice e costo vuoti
+non è legato all'opzione. Salva scrive i dati nella riga e aggiorna il testo
+accanto al bottone; la scheda si salva con il suo Salva. Se il preferito
+scelto è vuoto, o non ce n'è uno, diventa preferito il primo legato.
+
+**La scheda dell'opzione ha l'elenco intero.** In Catalogo → Prodotti, aprendo
+un'opzione, con `purchasing` c'è un riquadro **Fornitori** con tutte le righe:
+fornitore, codice, costo, preferito.
+
+**Costo vuoto vuol dire «non lo so».** Un costo non scritto si salva vuoto
+(`NULL`), non zero: uno zero farebbe del fornitore il più conveniente e
+abbasserebbe il valore del magazzino. Nella scheda il costo ha due decimali,
+nella tabella quattro, come il costo dei movimenti.
+
+**Quando si mostra il bottone.** Contano i fornitori che la pagina può
+proporre: quelli attivi più quelli già legati alle opzioni dell'articolo. Un
+fornitore messo su «Non attivo» resta nella scelta delle opzioni che lo usano,
+con «(non attivo)» accanto al nome, e non compare per le altre: senza, la
+tendina posterebbe un valore vuoto e staccherebbe il fornitore.
+
+**Cancellare.** Un fornitore legato a opzioni in vendita non si elimina e non
+perde il ruolo di fornitore (`contact.supplier_in_use`,
+`contact.supplier_role_in_use`): si mette su «Non attivo». Il legame sparisce
+con l'opzione, quando la si toglie dalla griglia o si elimina l'articolo: è il
+costo di oggi, lo storico sta nei movimenti. Due righe per lo stesso fornitore
+sulla stessa opzione le rifiuta la scheda (`product.supplier_duplicate`), non
+un indice unico: il repeater prima scrive e poi toglie, e uno scambio di righe
+lo farebbe inciampare a metà salvataggio.
+
+**Nel core.** `FormField::button()` (`InputButton`): un bottone fra i campi,
+anche come colonna di un repeater, senza `name`, che apre una finestra con
+`opensModal()`. Il componente `Modal` (titolo, corpo a griglia, bottoni in
+fondo): si scrive nel layout come un `Accordion` e lo script lo sposta in fondo
+al `body`, così i suoi campi non partono con la scheda. `InputRadio::pills()`,
+come per le spunte, per il «Preferito» di ogni riga della finestra.
+
+**Anticipa G4.** L'architettura (D60) teneva `allow_backorder` e
+`backorder_lead_days` nascosti fino a G4; questo giro li mostra, sempre solo
+con `backorders` acceso. Il resto di G4 (date di consegna, messaggi al
+cliente) resta lì.
+
+**Fuori da questo giro.** «+ Nuovo fornitore» dalla tendina (serve un'API dei
+fornitori), il valore del magazzino, l'aggiornamento del costo dal documento di
+carico (è di G2b-bis).
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P84 | Con `backorders`, «Vendita senza giacenza» in «Come si vende» sotto «Da spedire», con «Giorni di attesa» che compare con l'interruttore; spento, i giorni tornano a zero | Chi vende decide articolo per articolo, e un'attesa senza vendita scoperta non vuol dire niente |
+| P85 | L'interruttore è dell'articolo: si scrive su tutte le opzioni, anche le nuove; riaprendo è acceso solo se lo è su tutte | Chi vende pensa all'articolo; un'opzione rimasta indietro deve vedersi |
+| P86 | Sotto zero solo con `backorders` e `allow_backorder` sull'opzione; altrimenti `stock.insufficient`. Corregge la regola di G2b | La funzionalità dice che si può, l'articolo dice se lo vuole |
+| P87 | Costo per fornitore in `gst_product_suppliers`, un preferito per opzione; solo con `purchasing` | Lo stesso articolo si compra da più parti a prezzi diversi |
+| P88 | Con al più un fornitore, Fornitore, Codice fornitore e Costo d'acquisto nella tendina dei codici; svuotare il fornitore lo stacca | Stanno con SKU ed EAN, e con un fornitore solo una finestra non serve |
+| P89 | Con due o più fornitori, bottone «Costo» con il preferito accanto e una finestra con tutti i fornitori, preferito a radio | Una tabella dentro una riga della griglia non ci sta; il riassunto dice quello che serve senza aprire |
+| P90 | La scheda dell'opzione ha il riquadro «Fornitori» con l'elenco intero | È il posto dove si guarda un'opzione sola |
+| P91 | Costo vuoto = sconosciuto (`NULL`); due decimali nella scheda, quattro nella tabella | Uno zero finto sposterebbe la scelta del fornitore e il valore del magazzino |
+| P92 | Il bottone compare con due o più fornitori proponibili: gli attivi più quelli già legati all'articolo; un fornitore non attivo resta nella scelta delle opzioni che lo usano | Altrimenti un salvataggio staccherebbe un fornitore solo perché è stato disattivato |
+| P93 | Un fornitore legato a opzioni in vendita non si elimina e non perde il ruolo; il legame sparisce con l'opzione; i doppioni li rifiuta la scheda | La chiave esterna fermerebbe l'eliminazione con un errore del database; il legame è il costo di oggi, non storia |
+| P94 | Nel core `FormField::button()`, il componente `Modal` spostato nel `body`, `InputRadio::pills()` | I campi passano sempre dal core; una finestra dentro il form ne posterebbe i campi |
+
+### Lavori del dodicesimo giro
+
+- [ ] core: `InputButton` e `FormField::button()`, componente `Modal`, `InputRadio::pills()`; test e documentazione
+- [ ] modulo: interruttore «Vendita senza giacenza» e «Giorni di attesa» in «Come si vende», scrittura su tutte le opzioni, rilettura «acceso se lo è su tutte»
+- [ ] modulo: `Stock::apply()` con `allow_backorder`; test in `LowStockTest`
+- [ ] modulo: modello `ProductSupplier` e tabella `gst_product_suppliers`; elenco dei fornitori per le tendine
+- [ ] modulo: campi Fornitore, Codice fornitore, Costo d'acquisto; bottone «Costo» e finestra; salvataggio e rilettura
+- [ ] modulo: riquadro «Fornitori» nella scheda dell'opzione
+- [ ] modulo: pulizia quando si cancellano opzioni e fornitori; codici d'errore; dati di prova
+- [ ] modulo: test, guide utente e dev
+- [ ] prova nel browser (1600×950)
 
 ## Piani
 
