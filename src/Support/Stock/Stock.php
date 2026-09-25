@@ -72,9 +72,15 @@ final class Stock
             $before = round((float) ($row['quantity'] ?? 0), 3);
             $after = round($before + $quantity, 3);
 
-            // La vendita sotto zero è una funzionalità di G4: finché è bloccata
-            // la giacenza è un muro.
-            if ($after < 0 && !Gestionale::feature('backorders')) {
+            // Sotto zero si va solo se la funzionalità lo permette **e**
+            // l'opzione lo vuole: la funzionalità dice che si può, l'articolo
+            // dice se lo vende scoperto. Altrimenti la giacenza è un muro, ma
+            // solo per chi toglie: la merce che arriva entra sempre, anche se
+            // non basta a colmare un buco rimasto da quando si vendeva scoperto.
+            $backorder = Gestionale::feature('backorders')
+                && ($product['allow_backorder'] ?? 'false') === 'true';
+
+            if ($after < 0 && $quantity < 0 && !$backorder) {
                 throw UserError::make('stock.insufficient', [
                     'product' => trim((string) ($product['name'] ?? '')) !== ''
                         ? (string) $product['name']

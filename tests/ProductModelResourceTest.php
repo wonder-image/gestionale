@@ -5,12 +5,19 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\App\ResourceSchema\Input;
+use Wonder\App\ResourceSchema\Inputs\InputButton;
 use Wonder\App\ResourceSchema\Inputs\InputCheckbox;
+use Wonder\App\ResourceSchema\Inputs\InputHidden;
 use Wonder\App\ResourceSchema\Inputs\InputNumber;
+use Wonder\App\ResourceSchema\Inputs\InputPrice;
+use Wonder\App\ResourceSchema\Inputs\InputRadio;
 use Wonder\App\ResourceSchema\Inputs\InputText;
 use Wonder\Elements\Components\Accordion;
+use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\Link;
+use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\QuickCreateButton;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
@@ -34,6 +41,11 @@ $campi = static function (): array {
     return $campi;
 };
 
+/** Sostituisce la mappa delle funzionalità; `null` la fa rileggere. */
+$forza = static function (?array $stato): void {
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
+};
+
 check('la pagina dei prodotti sta nel catalogo', fn () =>
     ProductModelResource::$model === ProductModel::class
     && ProductModelResource::path() === 'app/gestionale/prodotti'
@@ -41,16 +53,19 @@ check('la pagina dei prodotti sta nel catalogo', fn () =>
     && (ProductModelResource::navigationSchema()->toArray()['section_key'] ?? '') === 'catalogo'
 );
 
-check('il magazzino non si vede ancora', function () use ($campi) {
-    // G2a.6: le colonne esistono sul prodotto, ma non si chiedono a nessuno
-    // finché non arrivano giacenze (G2b) e vendita senza giacenza (G4).
-    foreach (['min_stock_quantity', 'allow_backorder', 'backorder_lead_days'] as $chiave) {
-        if (isset($campi()[$chiave])) {
-            return false;
-        }
+check('senza «backorders» la scheda non chiede la vendita senza giacenza', function () use ($campi, $forza) {
+    // Le colonne stanno sul prodotto: la soglia si scrive in
+    // `product_min_stock`, la vendita senza giacenza solo con la
+    // funzionalità accesa (P84). Qui è spenta apposta, non per caso.
+    $forza(['backorders' => false, 'low_stock_alerts' => false]);
+
+    try {
+        $nomi = array_keys($campi());
+    } finally {
+        $forza(null);
     }
 
-    return true;
+    return array_intersect(['min_stock_quantity', 'allow_backorder', 'backorder_lead_days'], $nomi) === [];
 });
 
 check('indirizzo e posizione non si scrivono a mano', function () use ($campi) {
@@ -73,19 +88,32 @@ check('indirizzo e posizione non si scrivono a mano', function () use ($campi) {
         && !isset($modifica['slug'], $modifica['position']);
 });
 
-check('i campi che non sono colonne non finiscono nella query', function () {
-    $valori = ProductModelResource::mutateRequestValues([
-        'name' => 'Maglietta',
-        'categories' => ['1', '2'],
-        'main_category' => '1',
-        'tags' => ['3'],
-        'attribute_7' => 'Cotone',
-        'product_ean' => '',
-        'product_price' => '19,90',
-    ], 'store');
+check('i campi che non sono colonne non finiscono nella query', function () use ($forza) {
+    $extra = ['categories', 'main_category', 'tags', 'attribute_7', 'product_ean', 'product_price', 'allow_backorder', 'backorder_lead_days'];
 
-    foreach (['categories', 'main_category', 'tags', 'attribute_7', 'product_ean', 'product_price'] as $chiave) {
-        if (isset($valori[$chiave])) {
+    // La vendita senza giacenza sta sulle opzioni, non sul modello: con la
+    // funzionalità accesa la scrive `saveExtras()`, spenta non si scrive, e
+    // in tutti e due i casi non arriva a `gst_product_models`.
+    foreach ([false, true] as $backorders) {
+        $forza(['backorders' => $backorders]);
+
+        try {
+            $valori = ProductModelResource::mutateRequestValues([
+                'name' => 'Maglietta',
+                'categories' => ['1', '2'],
+                'main_category' => '1',
+                'tags' => ['3'],
+                'attribute_7' => 'Cotone',
+                'product_ean' => '',
+                'product_price' => '19,90',
+                'allow_backorder' => 'true',
+                'backorder_lead_days' => '5',
+            ], 'store');
+        } finally {
+            $forza(null);
+        }
+
+        if (array_intersect($extra, array_keys($valori)) !== []) {
             return false;
         }
     }
@@ -414,9 +442,25 @@ check('il prezzo si legge come intervallo solo quando serve', function () {
  * creazione: qui si finge un articolo già salvato, con una versione sola.
  */
 $schedaAperta = new class extends ProductModelResource {
+    /** @var array<int, string> i fornitori che la pagina propone, id => nome */
+    public static array $fornitori = [];
+
+    /** @var list<int> quelli fra i proposti che non sono attivi */
+    public static array $inattivi = [];
+
     protected static function currentId(): ?int
     {
         return 1;
+    }
+
+    protected static function supplierChoices(int $modelId): array
+    {
+        return static::$fornitori;
+    }
+
+    protected static function inactiveSupplierIds(int $modelId): array
+    {
+        return static::$inattivi;
     }
 
     /**
@@ -579,6 +623,162 @@ check('l\'imballaggio sta sotto «Da spedire» e compare solo se si spedisce', f
         ];
 });
 
+check('con «backorders» «Come si vende» chiede anche la vendita senza giacenza', function () use ($riquadro, $campi, $forza) {
+    $forza(['backorders' => true]);
+
+    try {
+        $nomi = array_values(array_filter(array_map(
+            static fn ($pezzo) => property_exists($pezzo, 'name') ? (string) $pezzo->name : '',
+            $riquadro(1, 'Come si vende')
+        )));
+        $interruttore = $campi()['allow_backorder'] ?? null;
+        $giorni = $campi()['backorder_lead_days'] ?? null;
+    } finally {
+        $forza(null);
+    }
+
+    if ($interruttore === null || $giorni === null) {
+        return false;
+    }
+
+    $spiega = (string) (((array) $interruttore->get('context'))['description'] ?? '');
+    $formato = (array) (((array) $giorni->get('context'))['number'] ?? []);
+
+    // Sotto «Da spedire» e la sua scatola; i giorni sono un numero intero,
+    // con «giorni» in coda come «pz» sulla giacenza.
+    return $nomi === ['visible_online', 'returnable', 'requires_shipping', 'package_id', 'allow_backorder', 'backorder_lead_days']
+        && $interruttore->get('helper') === 'toggle'
+        && $interruttore->get('label') === 'Vendita senza giacenza'
+        && $spiega !== ''
+        && mb_strlen($spiega) <= 70
+        && !preg_match('/\brequired\b/', (string) $interruttore->get('attribute'))
+        && $giorni->get('helper') === 'number'
+        && $giorni->get('label') === 'Giorni di attesa'
+        && ($formato['decimal'] ?? null) === 0
+        && ($formato['symbol'] ?? null) === ' giorni'
+        && ($formato['symbol_placement'] ?? null) === 's';
+});
+
+check('i giorni di attesa compaiono solo con la vendita senza giacenza accesa', function () use ($riquadro, $forza) {
+    $forza(['backorders' => true]);
+
+    try {
+        $pezzi = $riquadro(1, 'Come si vende');
+    } finally {
+        $forza(null);
+    }
+
+    $giorni = null;
+
+    foreach ($pezzi as $pezzo) {
+        if (property_exists($pezzo, 'name') && (string) $pezzo->name === 'backorder_lead_days') {
+            $giorni = $pezzo;
+        }
+    }
+
+    // Come la scatola sotto «Da spedire»: la regola sta sul campo.
+    return $giorni !== null
+        && $giorni->conditionalAttributes() === [
+            'data-visible-when' => 'allow_backorder',
+            'data-visible-when-values' => 'true',
+        ];
+});
+
+check('i giorni di attesa vanno da 0 a 365, interi', function () use ($forza) {
+    $rifiuta = static function (string $giorni): bool {
+        try {
+            ProductModelResource::mutateRequestValues(
+                ['name' => 'Maglietta', 'allow_backorder' => 'true', 'backorder_lead_days' => $giorni],
+                'store'
+            );
+        } catch (UserError $errore) {
+            return $errore->key() === 'product.backorder_lead_days_invalid'
+                && $errore->getMessage() === 'I giorni di attesa vanno da 0 a 365.';
+        }
+
+        return false;
+    };
+    $passa = static function (array $valori): bool {
+        ProductModelResource::mutateRequestValues(['name' => 'Maglietta'] + $valori, 'store');
+
+        return true;
+    };
+
+    $forza(['backorders' => true]);
+
+    try {
+        $accesa = $rifiuta('366') && $rifiuta('-1') && $rifiuta('2,5') && $rifiuta('tre')
+            && $passa(['allow_backorder' => 'true', 'backorder_lead_days' => '0'])
+            && $passa(['allow_backorder' => 'true', 'backorder_lead_days' => '365'])
+            && $passa(['allow_backorder' => 'true', 'backorder_lead_days' => '12 giorni'])
+            && $passa(['allow_backorder' => 'true', 'backorder_lead_days' => ''])
+            // Spento, i giorni sono solo nascosti: quello che è rimasto nella
+            // casella non ferma il salvataggio, tornano a zero.
+            && $passa(['allow_backorder' => 'false', 'backorder_lead_days' => '999']);
+    } finally {
+        $forza(null);
+    }
+
+    // Senza la funzionalità non si guarda niente: non si scrive niente.
+    $forza(['backorders' => false]);
+
+    try {
+        $spenta = $passa(['allow_backorder' => 'true', 'backorder_lead_days' => '999']);
+    } finally {
+        $forza(null);
+    }
+
+    return $accesa && $spenta;
+});
+
+check('la vendita senza giacenza si scrive solo con la funzionalità e con l\'interruttore postato', function () use ($forza) {
+    $forza(['backorders' => true]);
+
+    try {
+        $accesa = ProductModelResource::backorderChoice(['allow_backorder' => 'true', 'backorder_lead_days' => '7']);
+        $spenta = ProductModelResource::backorderChoice(['allow_backorder' => 'false', 'backorder_lead_days' => '7']);
+        $vuota = ProductModelResource::backorderChoice(['allow_backorder' => 'true', 'backorder_lead_days' => '']);
+        $assente = ProductModelResource::backorderChoice(['backorder_lead_days' => '7']);
+    } finally {
+        $forza(null);
+    }
+
+    $forza(['backorders' => false]);
+
+    try {
+        $senza = ProductModelResource::backorderChoice(['allow_backorder' => 'true', 'backorder_lead_days' => '7']);
+    } finally {
+        $forza(null);
+    }
+
+    return $accesa === ['allow_backorder' => 'true', 'backorder_lead_days' => 7]
+        && $spenta === ['allow_backorder' => 'false', 'backorder_lead_days' => 0]
+        && $vuota === ['allow_backorder' => 'true', 'backorder_lead_days' => 0]
+        && $assente === null
+        && $senza === null;
+});
+
+check('riaprendo, la vendita senza giacenza è accesa solo se lo è su tutte le opzioni', function () {
+    $tutte = ProductModelResource::backorderSummary([
+        ['allow_backorder' => 'true', 'backorder_lead_days' => '3'],
+        ['allow_backorder' => 'true', 'backorder_lead_days' => '10'],
+    ]);
+    $una = ProductModelResource::backorderSummary([
+        ['allow_backorder' => 'true', 'backorder_lead_days' => '4'],
+        ['allow_backorder' => 'false', 'backorder_lead_days' => '20'],
+    ]);
+    $nessuna = ProductModelResource::backorderSummary([
+        ['allow_backorder' => 'false', 'backorder_lead_days' => '0'],
+    ]);
+
+    // I giorni sono i più lunghi fra le opzioni accese: è quello che
+    // aspetta chi ordina l'opzione più lenta.
+    return $tutte === ['allow_backorder' => 'true', 'backorder_lead_days' => '10']
+        && $una === ['allow_backorder' => 'false', 'backorder_lead_days' => '4']
+        && $nessuna === ['allow_backorder' => 'false', 'backorder_lead_days' => '0']
+        && ProductModelResource::backorderSummary([]) === ['allow_backorder' => 'false', 'backorder_lead_days' => '0'];
+});
+
 /** La tendina «Compila le informazioni avanzate» del riquadro Prodotto. */
 $avanzateProdotto = static function () use ($riquadro): ?Accordion {
     foreach ($riquadro(0, 'Prodotto') as $pezzo) {
@@ -601,10 +801,6 @@ $larghezzeDi = static function (array $pezzi): array {
     }
 
     return $larghezze;
-};
-
-$forza = static function (?array $stato): void {
-    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
 };
 
 check('senza varianti prezzo, scontato e giacenza stanno in una riga da tre', function () use ($riquadro, $larghezzeDi, $forza) {
@@ -685,6 +881,476 @@ check('la tendina e i suoi campi spariscono quando l\'articolo ha varianti', fun
     return ($attributi['data-hidden-when'] ?? null) === 'has_variants'
         && ($attributi['data-hidden-when-values'] ?? null) === 'true'
         && $regole === ['sku' => $regola, 'product_ean' => $regola, 'product_min_stock' => $regola];
+});
+
+/** Le cinque chiavi del costo d'acquisto dell'articolo senza varianti. */
+$chiaviCosto = ['product_supplier_id', 'product_supplier_sku', 'product_cost', 'product_suppliers', 'product_cost_button'];
+
+/** @return array<string, Input> i campi della scheda aperta, per nome */
+$campiAperta = static function () use ($schedaAperta): array {
+    $campi = [];
+
+    foreach ($schedaAperta::formSchema() as $campo) {
+        $campi[(string) $campo->name] = $campo;
+    }
+
+    return $campi;
+};
+
+/** @return list<Modal> le finestre della scheda aperta, dovunque stiano */
+$finestre = static function () use ($schedaAperta): array {
+    $trovate = [];
+    $cerca = static function (array $pezzi) use (&$cerca, &$trovate): void {
+        foreach ($pezzi as $pezzo) {
+            if ($pezzo instanceof Modal) {
+                $trovate[] = $pezzo;
+            } elseif (is_object($pezzo) && isset($pezzo->components) && is_array($pezzo->components)) {
+                $cerca($pezzo->components);
+            }
+        }
+    };
+
+    $cerca($schedaAperta::formLayoutSchema()->components ?? []);
+
+    return $trovate;
+};
+
+check('senza acquisti la scheda non chiede né fornitore né costo', function () use ($schedaAperta, $campiAperta, $finestre, $avanzateProdotto, $larghezzeDi, $forza, $chiaviCosto) {
+    $schedaAperta::$fornitori = [5 => 'Filati Nord', 6 => 'Lanificio Sud'];
+    $forza(['purchasing' => false, 'low_stock_alerts' => false]);
+
+    try {
+        $nomi = array_keys($campiAperta());
+        $tendina = $avanzateProdotto();
+        $modali = $finestre();
+    } finally {
+        $forza(null);
+        $schedaAperta::$fornitori = [];
+    }
+
+    return array_intersect($chiaviCosto, $nomi) === []
+        && $tendina !== null
+        && $larghezzeDi($tendina->components) === ['sku' => 6, 'product_ean' => 6]
+        && $modali === [];
+});
+
+check('con al più un fornitore la tendina chiede fornitore, codice e costo sotto i codici', function () use ($schedaAperta, $campiAperta, $finestre, $avanzateProdotto, $larghezzeDi, $forza) {
+    $risultato = true;
+    $regola = [
+        'data-hidden-when' => 'has_variants',
+        'data-hidden-when-values' => 'true',
+    ];
+
+    // Nessun fornitore o uno solo: tre caselle in fila, niente finestra.
+    foreach ([[], [5 => 'Filati Nord']] as $fornitori) {
+        foreach ([false, true] as $soglia) {
+            $schedaAperta::$fornitori = $fornitori;
+            $forza(['purchasing' => true, 'low_stock_alerts' => $soglia]);
+
+            try {
+                $campi = $campiAperta();
+                $tendina = $avanzateProdotto();
+                $modali = $finestre();
+            } finally {
+                $forza(null);
+                $schedaAperta::$fornitori = [];
+            }
+
+            $codici = $soglia
+                ? ['sku' => 4, 'product_ean' => 4, 'product_min_stock' => 4]
+                : ['sku' => 6, 'product_ean' => 6];
+            $fornitore = $campi['product_supplier_id'] ?? null;
+            $codice = $campi['product_supplier_sku'] ?? null;
+            $costo = $campi['product_cost'] ?? null;
+
+            $risultato = $risultato
+                && $tendina !== null
+                && $larghezzeDi($tendina->components) === $codici + ['product_supplier_id' => 4, 'product_supplier_sku' => 4, 'product_cost' => 4]
+                && $fornitore !== null
+                && $fornitore->get('label') === 'Fornitore'
+                && array_keys((array) $fornitore->get('options')) === ['', ...array_keys($fornitori)]
+                && $codice instanceof InputText
+                && $codice->get('label') === 'Codice fornitore'
+                && $costo instanceof InputPrice
+                && $costo->get('label') === 'Costo d\'acquisto'
+                && $fornitore->conditionalAttributes() === $regola
+                && $codice->conditionalAttributes() === $regola
+                && $costo->conditionalAttributes() === $regola
+                && !array_key_exists('product_suppliers', $campi)
+                && !array_key_exists('product_cost_button', $campi)
+                && $modali === [];
+        }
+    }
+
+    return $risultato;
+});
+
+check('con due fornitori la tendina ha il bottone «Costo» e la pagina una finestra sola', function () use ($schedaAperta, $campiAperta, $finestre, $avanzateProdotto, $larghezzeDi, $forza) {
+    $schedaAperta::$fornitori = [5 => 'Filati Nord', 6 => 'Lanificio Sud'];
+    $forza(['purchasing' => true, 'low_stock_alerts' => false]);
+
+    try {
+        $colonna = $schedaAperta::formLayoutSchema()->components[0]->components ?? [];
+        $campi = $campiAperta();
+        $tendina = $avanzateProdotto();
+        $modali = $finestre();
+    } finally {
+        $forza(null);
+        $schedaAperta::$fornitori = [];
+    }
+
+    $bottone = $campi['product_cost_button'] ?? null;
+    $larghezze = $tendina === null ? [] : $larghezzeDi($tendina->components);
+    $script = array_filter(
+        $colonna,
+        static fn ($pezzo) => $pezzo instanceof RichText && str_contains((string) $pezzo->getText(), 'wiSupplierCosts')
+    );
+    // Ogni lettura del layout costruisce oggetti nuovi: la finestra della
+    // colonna si cerca per tipo, non per identità.
+    $nellaColonna = array_filter($colonna, static fn ($pezzo) => $pezzo instanceof Modal);
+
+    // La finestra sta nella colonna larga, fuori dal riquadro delle opzioni
+    // che sparisce senza varianti: la aprono sia la tendina sia le righe.
+    return ($campi['product_suppliers'] ?? null) instanceof InputHidden
+        && $bottone instanceof InputButton
+        && $bottone->get('label') === 'Costo'
+        && str_contains((string) $bottone->get('attribute'), 'data-bs-target="#wi-supplier-costs"')
+        && (((array) $bottone->get('context'))['empty_caption'] ?? null) === 'Nessun fornitore'
+        && array_intersect(['product_supplier_id', 'product_supplier_sku', 'product_cost'], array_keys($campi)) === []
+        && array_slice(array_keys($larghezze), 0, 2) === ['sku', 'product_ean']
+        && array_key_exists('product_suppliers', $larghezze)
+        && ($larghezze['product_cost_button'] ?? null) === 12
+        && count($modali) === 1
+        && count($nellaColonna) === 1
+        && count($script) === 1;
+});
+
+check('la finestra del costo ha una riga per fornitore, e niente di obbligatorio', function () use ($schedaAperta, $finestre, $forza) {
+    $schedaAperta::$fornitori = [5 => 'Filati Nord', 6 => 'Lanificio <Sud>'];
+    $forza(['purchasing' => true]);
+
+    try {
+        $finestra = $finestre()[0] ?? null;
+    } finally {
+        $forza(null);
+        $schedaAperta::$fornitori = [];
+    }
+
+    if (!$finestra instanceof Modal) {
+        return false;
+    }
+
+    $nomi = [];
+    $scelte = [];
+    $linee = [];
+    $togli = [];
+    $obbligatori = 0;
+    $testi = '';
+
+    // Ogni fornitore è un blocco con la sua maniglia: lo script lo nasconde
+    // per intero, e la «x» in fondo lo stacca.
+    foreach ($finestra->components as $pezzo) {
+        if ($pezzo instanceof Container) {
+            $linee[] = (string) (((array) $pezzo->getSchema('attributes'))['data-wi-supplier-line'] ?? '');
+        }
+
+        foreach ($pezzo instanceof Container ? $pezzo->components : [$pezzo] as $dentro) {
+            if ($dentro instanceof InputButton) {
+                $togli[] = [(string) $dentro->get('label'), (string) $dentro->get('attribute')];
+            } elseif ($dentro instanceof Input) {
+                $nomi[] = (string) $dentro->name;
+                $obbligatori += str_contains((string) $dentro->get('attribute'), 'required') ? 1 : 0;
+
+                if ($dentro instanceof InputRadio) {
+                    $scelte[] = (array) $dentro->get('options');
+                }
+            } elseif ($dentro instanceof RichText) {
+                $testi .= (string) $dentro->getText();
+            }
+        }
+    }
+
+    $bottoni = array_map(static fn (Button $bottone) => $bottone->getLabel(), $finestra->footer);
+    $attributi = array_map(static fn (Button $bottone) => (array) $bottone->getSchema('attributes'), $finestra->footer);
+
+    return $finestra->getSchema('id') === 'wi-supplier-costs'
+        && $finestra->getTitle() === 'Costo'
+        && $nomi === [
+            'wi_supplier_cost_preferred', 'wi_supplier_cost[5][sku]', 'wi_supplier_cost[5][cost]',
+            'wi_supplier_cost_preferred', 'wi_supplier_cost[6][sku]', 'wi_supplier_cost[6][cost]',
+        ]
+        && $linee === ['5', '6']
+        && count($togli) === 2
+        && $togli[0][0] === ''
+        && str_contains($togli[0][1], 'data-wi-supplier-cost-remove="5"')
+        && str_contains($togli[1][1], 'data-wi-supplier-cost-remove="6"')
+        && str_contains($togli[0][1], 'aria-label="Togli il fornitore"')
+        && $scelte === [[5 => 'Preferito'], [6 => 'Preferito']]
+        && $obbligatori === 0
+        && str_contains($testi, 'Filati Nord')
+        && str_contains($testi, 'Lanificio &lt;Sud&gt;')
+        && !str_contains($testi, '<Sud>')
+        && str_contains($testi, 'Preferito')
+        && str_contains($testi, 'Codice fornitore')
+        && $bottoni === ['Annulla', 'Salva']
+        && ($attributi[0]['data-bs-dismiss'] ?? null) === 'modal'
+        && array_key_exists('data-wi-supplier-costs-save', $attributi[1] ?? []);
+});
+
+/**
+ * Gli script del costo d'acquisto nella colonna larga, con quei fornitori e
+ * quei non attivi: quello della finestra e quello delle tre caselle.
+ *
+ * @param array<int, string> $fornitori
+ * @param list<int> $inattivi
+ * @return array{finestra: string, caselle: string}
+ */
+$scriptCosto = static function (array $fornitori, array $inattivi = []) use ($schedaAperta, $forza): array {
+    $schedaAperta::$fornitori = $fornitori;
+    $schedaAperta::$inattivi = $inattivi;
+    $forza(['purchasing' => true]);
+
+    try {
+        $colonna = $schedaAperta::formLayoutSchema()->components[0]->components ?? [];
+    } finally {
+        $forza(null);
+        $schedaAperta::$fornitori = [];
+        $schedaAperta::$inattivi = [];
+    }
+
+    $script = ['finestra' => '', 'caselle' => ''];
+
+    foreach ($colonna as $pezzo) {
+        $testo = $pezzo instanceof RichText ? (string) $pezzo->getText() : '';
+
+        if (str_contains($testo, 'wiSupplierCosts')) {
+            $script['finestra'] .= $testo;
+        } elseif (str_contains($testo, 'wiSupplierInactive')) {
+            $script['caselle'] .= $testo;
+        }
+    }
+
+    return $script;
+};
+
+// Un legame senza codice né costo è un legame: il fornitore c'è, i numeri non
+// ancora. Riaprire la finestra e salvare non deve buttarlo via.
+check('la finestra tiene i fornitori legati anche senza codice né costo, e la «x» li stacca', function () use ($scriptCosto) {
+    $script = $scriptCosto([5 => 'Filati Nord', 6 => 'Lanificio Sud'])['finestra'];
+
+    return $script !== ''
+        // Legato vuol dire nel JSON della riga, o toccato nella finestra.
+        && str_contains($script, "closest('[data-wi-supplier-line]')")
+        && str_contains($script, "closest('[data-wi-supplier-cost-remove]')")
+        && str_contains($script, 'if (!legato(id) && codice === \'\' && costo === \'\'')
+        && !str_contains($script, "if (codice === '' && costo === '') {");
+});
+
+// P92 nella pagina: un fornitore non attivo si vede solo sulle opzioni che lo
+// usano. Il controllo vero lo fa il server; qui si evita di proporlo.
+check('un fornitore non attivo compare solo dove è già legato, nella finestra e nelle tre caselle', function () use ($scriptCosto) {
+    $finestra = $scriptCosto([5 => 'Filati Nord', 6 => 'Tintoria (non attivo)'], [6]);
+    $tuttiAttivi = $scriptCosto([5 => 'Filati Nord', 6 => 'Lanificio Sud']);
+    $caselle = $scriptCosto([6 => 'Tintoria (non attivo)'], [6]);
+    $unoAttivo = $scriptCosto([5 => 'Filati Nord']);
+
+    return str_contains($finestra['finestra'], 'data-wi-supplier-inactive="[6]"')
+        && str_contains($finestra['finestra'], 'nascosti.indexOf(id)')
+        && $finestra['caselle'] === ''
+        && str_contains($tuttiAttivi['finestra'], 'data-wi-supplier-inactive="[]"')
+        && $caselle['finestra'] === ''
+        && str_contains($caselle['caselle'], 'data-wi-supplier-inactive="[6]"')
+        // Anche nelle righe che il repeater aggiunge dopo: si clonano dal template.
+        && str_contains($caselle['caselle'], 'modello.content')
+        && str_contains($caselle['caselle'], 'select[name$="[supplier_id]"]')
+        && str_contains($caselle['caselle'], 'select[name="product_supplier_id"]')
+        && $unoAttivo === ['finestra' => '', 'caselle' => ''];
+});
+
+check('l\'aiuto del riquadro Prodotto dice dove sta il costo d\'acquisto', function () use ($riquadro, $forza) {
+    $aiuto = static function (bool $acquisti) use ($riquadro, $forza): string {
+        $forza(['purchasing' => $acquisti]);
+
+        try {
+            $dentro = $riquadro(0, 'Prodotto');
+        } finally {
+            $forza(null);
+        }
+
+        return (string) (($dentro[0] ?? null)?->getSchema()['tooltip'] ?? '');
+    };
+
+    return str_contains($aiuto(true), 'costo d\'acquisto')
+        && str_contains($aiuto(true), '«Compila le informazioni avanzate»')
+        && !str_contains($aiuto(false), 'costo d\'acquisto');
+});
+
+check('fornitore e costo non finiscono fra le colonne del modello', function () use ($forza, $chiaviCosto) {
+    $risultato = true;
+
+    foreach ([true, false] as $acquisti) {
+        $forza(['purchasing' => $acquisti]);
+
+        try {
+            $valori = ProductModelResource::mutateRequestValues(
+                ['name' => 'Maglietta'] + array_fill_keys($chiaviCosto, ''),
+                'store'
+            );
+        } finally {
+            $forza(null);
+        }
+
+        $risultato = $risultato && array_intersect($chiaviCosto, array_keys($valori)) === [];
+    }
+
+    return $risultato;
+});
+
+check('un fornitore che la pagina non propone si ferma prima del salvataggio', function () use ($forza) {
+    $scheda = new class extends ProductModelResource {
+        protected static function supplierChoices(int $modelId): array
+        {
+            return [5 => 'Filati Nord'];
+        }
+    };
+
+    $postato = $_POST;
+    $esiti = [];
+
+    // Spenti gli acquisti, quello che arriva non si guarda nemmeno.
+    foreach ([true, false] as $acquisti) {
+        $forza(['purchasing' => $acquisti]);
+        $_POST = ['name' => 'Maglietta', 'has_variants' => 'false', 'product_supplier_id' => '9', 'product_cost' => '3'];
+
+        try {
+            $scheda::mutateRequestValues($_POST, 'store');
+            $esiti[] = '';
+        } catch (UserError $errore) {
+            $esiti[] = $errore->key();
+        } finally {
+            $forza(null);
+            $_POST = $postato;
+        }
+    }
+
+    return $esiti === ['product.supplier_invalid', ''];
+});
+
+// La colonna del costo è DECIMAL(12,4): un costo troppo grande, o uno che
+// non è un numero, devono fermarsi qui, prima che l'articolo sia scritto.
+check('un costo troppo grande o illeggibile si ferma prima del salvataggio, nelle due forme', function () use ($forza) {
+    $scheda = new class extends ProductModelResource {
+        /** @var array<int, string> */
+        public static array $scelte = [5 => 'Filati Nord'];
+
+        protected static function supplierChoices(int $modelId): array
+        {
+            return static::$scelte;
+        }
+    };
+
+    $postato = $_POST;
+    $esiti = [];
+    $forza(['purchasing' => true]);
+
+    try {
+        foreach ([
+            [[5 => 'Filati Nord'], ['product_supplier_id' => '5', 'product_cost' => '123456789']],
+            [[5 => 'Filati Nord'], ['product_supplier_id' => '5', 'product_cost' => '12..5']],
+            [[5 => 'Filati Nord', 6 => 'Lanificio Sud'], ['product_suppliers' => '[{"supplier_id":5,"cost":"123456789"}]']],
+            [[5 => 'Filati Nord', 6 => 'Lanificio Sud'], ['product_suppliers' => '[{"supplier_id":6,"supplier_sku":"'.str_repeat('S', 101).'"}]']],
+        ] as [$scelte, $campi]) {
+            $scheda::$scelte = $scelte;
+            $_POST = ['name' => 'Maglietta', 'has_variants' => 'false'] + $campi;
+
+            try {
+                $scheda::mutateRequestValues($_POST, 'store');
+                $esiti[] = '';
+            } catch (UserError $errore) {
+                $esiti[] = $errore->key();
+            }
+        }
+    } finally {
+        $forza(null);
+        $_POST = $postato;
+    }
+
+    return $esiti === [
+        'product.supplier_cost_too_high',
+        'product.supplier_cost_invalid',
+        'product.supplier_cost_too_high',
+        'product.supplier_sku_too_long',
+    ];
+});
+
+// Fra l'apertura della pagina e il salvataggio un fornitore può diventare
+// attivo, o smettere di esserlo: il modo cambia, ma quello che arriva ha la
+// forma della pagina aperta, e va guardato lo stesso.
+check('un form nella forma dell\'altro modo si controlla lo stesso', function () use ($forza) {
+    $scheda = new class extends ProductModelResource {
+        /** @var array<int, string> */
+        public static array $scelte = [];
+
+        protected static function supplierChoices(int $modelId): array
+        {
+            return static::$scelte;
+        }
+    };
+
+    $esiti = [];
+    $forza(['purchasing' => true]);
+
+    try {
+        foreach ([
+            // Aperta con le tre caselle, salvata quando i fornitori sono due.
+            [[5 => 'Filati Nord', 6 => 'Lanificio Sud'], ['product_supplier_id' => '9', 'product_cost' => '3'], false],
+            [[5 => 'Filati Nord', 6 => 'Lanificio Sud'], ['products' => ['0' => ['id' => '3', 'supplier_id' => '9', 'cost' => '3']]], true],
+            // Aperta con la finestra, salvata quando il fornitore è uno.
+            [[5 => 'Filati Nord'], ['product_suppliers' => '[{"supplier_id":9,"cost":"3"}]'], false],
+            [[5 => 'Filati Nord'], ['products' => ['0' => ['id' => '3', 'suppliers' => '[{"supplier_id":9,"cost":"3"}]']]], true],
+        ] as [$scelte, $post, $conVarianti]) {
+            $scheda::$scelte = $scelte;
+
+            try {
+                $scheda::assertSupplierCosts(0, $post, $conVarianti);
+                $esiti[] = '';
+            } catch (UserError $errore) {
+                $esiti[] = $errore->key();
+            }
+        }
+    } finally {
+        $forza(null);
+    }
+
+    return $esiti === array_fill(0, 4, 'product.supplier_invalid');
+});
+
+check('con le tre caselle svuotare il fornitore lo stacca: codice e costo rimasti non fermano il salvataggio', function () use ($forza) {
+    $scheda = new class extends ProductModelResource {
+        protected static function supplierChoices(int $modelId): array
+        {
+            return [5 => 'Filati Nord'];
+        }
+    };
+
+    $forza(['purchasing' => true]);
+
+    try {
+        // Senza varianti: la tendina sotto il prezzo.
+        $scheda::assertSupplierCosts(0, [
+            'product_supplier_id' => '',
+            'product_supplier_sku' => 'FN-12',
+            'product_cost' => '12,50',
+        ], false);
+        // Con le varianti: una riga della griglia.
+        $scheda::assertSupplierCosts(0, ['products' => [
+            '0' => ['id' => '3', 'supplier_id' => '', 'supplier_sku' => 'FN-12', 'cost' => '12,50'],
+        ]], true);
+    } finally {
+        $forza(null);
+    }
+
+    return true;
 });
 
 check('un articolo che non si spedisce non tocca la sua scatola', function () {

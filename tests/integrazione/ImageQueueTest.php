@@ -45,6 +45,14 @@ $scriviFile = static function (string $name): string {
 
 try {
     Transaction::run(static function () use ($scriviFile): void {
+        // Nel database del sito possono aspettare righe vere, per esempio le
+        // foto dei dati di prova: la coda prende le più vecchie per prime e la
+        // riga del test resterebbe fuori dal blocco. Per la durata della prova
+        // si fermano; l'annullamento le rimette in attesa.
+        foreach (ImageQueue::pending(max(1, ImageQueue::count())) as $giaInCoda) {
+            ProductImage::update(['status' => 'failed'], (int) $giaInCoda['id']);
+        }
+
         $modello = ProductModel::create([
             'code' => Code::make(ProductModel::class, Codes::MODEL),
             'name' => 'Prova immagini',

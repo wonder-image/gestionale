@@ -13,6 +13,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
@@ -621,6 +622,29 @@ final class CatalogDemo
         return null;
     }
 
+    /**
+     * I fornitori legati alle opzioni di un articolo: se ne vanno con lui.
+     *
+     * Si contano anche quelli delle opzioni nel cestino, che
+     * `ProductModelResource::deleteRecord()` porta via insieme alle altre.
+     */
+    private static function supplierLinksOf(int $modelId): int
+    {
+        if ($modelId <= 0) {
+            return 0;
+        }
+
+        try {
+            return (int) ProductSupplier::query()->Count(
+                ProductSupplier::$table,
+                'WHERE product_id IN (SELECT id FROM '.Product::$table.' WHERE product_model_id = '.$modelId.')'
+            );
+        } catch (Throwable) {
+            // Un sito senza la tabella dei fornitori: non c'è niente da contare.
+            return 0;
+        }
+    }
+
     /** Quante righe di quel Model appartengono al modello. */
     private static function countOf(string $model, int $modelId): int
     {
@@ -720,7 +744,8 @@ final class CatalogDemo
             $sotto = self::countOf(ProductVariant::class, $modelId)
                 + self::countOf(Product::class, $modelId)
                 + self::countOf(ProductImage::class, $modelId)
-                + self::countOf(ProductModelCategory::class, $modelId);
+                + self::countOf(ProductModelCategory::class, $modelId)
+                + self::supplierLinksOf($modelId);
 
             // La storia di magazzino di un articolo di prova se ne va con
             // lui: senza, la chiave esterna dei movimenti bloccherebbe la

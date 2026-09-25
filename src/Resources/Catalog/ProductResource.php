@@ -8,7 +8,10 @@ use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
+use Wonder\App\ResourceSchema\RepeaterColumn;
+use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\Support\Repeater;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
@@ -17,6 +20,7 @@ use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
@@ -25,8 +29,10 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Ean;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
+use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
+use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Plugin\Gestionale\Support\Stock\Alerts;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
@@ -41,7 +47,8 @@ use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
  * "Aggiungi".
  *
  * La scheda della singola opzione tiene quello che nella griglia non
- * entrerebbe: MPN, misure proprie e gli attributi di livello `product`.
+ * entrerebbe: MPN, misure proprie, gli attributi di livello `product` e, con
+ * gli acquisti, l'elenco intero dei suoi fornitori.
  *
  * Estende la Resource dei prodotti per riusarne le letture del catalogo —
  * attributi, valori, campi degli attributi — e ne riscrive tutto il resto:
@@ -122,11 +129,107 @@ class ProductResource extends ProductModelResource
             $fields[] = FormField::key('min_stock_quantity')->number()->decimal(3)->label('Scorta minima');
         }
 
+        if (Gestionale::feature('purchasing')) {
+            $fields[] = static::supplierCardField();
+        }
+
         foreach (Attributes::byLevel(static::attributes(), 'product') as $attribute) {
             $fields[] = static::attributeField($attribute);
         }
 
         return $fields;
+    }
+
+    /**
+     * I fornitori dell'opzione, uno per riga.
+     *
+     * Le righe sono quelle di `gst_product_suppliers` e le salva il
+     * repeater: prima scrive, poi toglie quelle sparite, davvero e non nel
+     * cestino. Per questo i doppioni li ferma la scheda e non un indice unico.
+     */
+    protected static function supplierCardField(): Input
+    {
+        $productId = static::currentId() ?? 0;
+
+        return FormField::key('suppliers')
+            ->repeater([
+                RepeaterColumn::key('id')->hidden(),
+                // I fornitori attivi, più quelli già legati a questa opzione
+                // anche se non lo sono più: senza, la tendina posterebbe un
+                // valore vuoto e staccherebbe il fornitore.
+                RepeaterColumn::key('supplier_id')
+                    ->select(['' => '—'] + static::supplierCardChoices(static::supplierCardLinkedIds($productId)))
+                    ->label('Fornitore')
+                    ->columnSpan(4),
+                RepeaterColumn::key('supplier_sku')->text()->maxLength(ProductSuppliers::SKU_MAX_LENGTH)->label('Codice fornitore')->columnSpan(3),
+                // Due decimali qui, quattro nella tabella: finché la casella
+                // non cambia resta quello salvato.
+                RepeaterColumn::key('cost')->price()->decimal(2)->label('Costo d\'acquisto')->columnSpan(3),
+                // Il «No» per primo: una riga nuova nasce così e non ruba il
+                // preferito a nessuno.
+                RepeaterColumn::key('is_preferred')
+                    ->select(['false' => 'No', 'true' => 'Sì'])
+                    ->value('false')
+                    ->label('Preferito')
+                    ->columnSpan(2),
+            ])
+            ->relation(
+                RepeaterRelation::make(ProductSupplier::$table, 'product_id')
+                    ->model(ProductSupplier::class)
+                    ->positionKey('position')
+                    ->softDelete(false)
+            )
+            ->nested()
+            ->repeaterSortable()
+            ->repeaterAddLabel('Aggiungi fornitore')
+            ->repeaterDeleteTitle('Togli fornitore')
+            ->repeaterDeleteText('Questa opzione non si comprerà più da questo fornitore: il suo codice e il suo costo se ne vanno al salvataggio.')
+            ->repeaterDeleteCancelLabel('Annulla')
+            ->repeaterDeleteConfirmLabel('Togli')
+            ->repeaterDeleteConfirmClass('btn btn-danger')
+            // Il titolo lo dà il riquadro.
+            ->label('');
+    }
+
+    /**
+     * I fornitori da proporre, id => nome.
+     *
+     * @param list<int> $keepIds quelli già legati all'opzione
+     * @return array<int, string>
+     */
+    protected static function supplierCardChoices(array $keepIds): array
+    {
+        return Contacts::supplierOptions($keepIds);
+    }
+
+    /** @return list<int> i fornitori già legati all'opzione */
+    protected static function supplierCardLinkedIds(int $productId): array
+    {
+        if ($productId <= 0) {
+            return [];
+        }
+
+        return array_column(ProductSuppliers::linksFor([$productId])[$productId] ?? [], 'supplier_id');
+    }
+
+    /**
+     * Fra le righe postate, quelle che nel database sono già le preferite.
+     *
+     * @param list<string> $rowIds
+     * @return list<string>
+     */
+    protected static function supplierCardStoredPreferred(array $rowIds): array
+    {
+        $rowIds = array_values(array_filter(array_map('intval', $rowIds), static fn (int $id): bool => $id > 0));
+
+        if ($rowIds === []) {
+            return [];
+        }
+
+        return array_map(
+            static fn (array $row): string => (string) $row['id'],
+            static::rowsOf(ProductSupplier::class, ['id' => $rowIds, 'is_preferred' => 'true'])
+        );
     }
 
     public static function formLayoutSchema(): ?Form
@@ -181,6 +284,18 @@ class ProductResource extends ProductModelResource
             RichText::make(static::stockSummary())->columnSpan(12),
             RichText::make(static::stockHistoryTable())->columnSpan(12),
         ])->columns(12)->columnSpan(12);
+
+        if (Gestionale::feature('purchasing')) {
+            $cards[] = (new Card)->components([
+                SectionTitle::make('Fornitori')
+                    ->tooltip('Da chi compri questa opzione, con il suo codice e a quanto. Il preferito è quello che si vede nella scheda del prodotto e che useranno gli ordini ai fornitori. Un costo lasciato vuoto vuol dire «non lo so», non zero.')
+                    ->columnSpan(12),
+                ...(static::supplierCardChoices(static::supplierCardLinkedIds(static::currentId() ?? 0)) === []
+                    ? [RichText::make('<p class="text-muted mb-0">Nessun fornitore da proporre: aggiungilo da Anagrafiche → Fornitori.</p>')->columnSpan(12)]
+                    : []),
+                static::getInput('suppliers')->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+        }
 
         return (new Form)->components([
             (new Container)->components($cards)->columns(12)->columnSpan(12),
@@ -403,7 +518,166 @@ class ProductResource extends ProductModelResource
             $values['min_stock_quantity'] = static::minStockValue($values['min_stock_quantity']);
         }
 
+        // Le righe dei fornitori le salva il repeater dopo l'opzione, e il
+        // core le ha già tolte da `$values`: si controllano su quello che è
+        // arrivato, prima che si scriva qualcosa.
+        if (Gestionale::feature('purchasing')) {
+            $rows = Repeater::rowsFromRequest('suppliers', $_POST);
+
+            if ($rows !== []) {
+                $choices = static::supplierCardChoices(static::supplierCardLinkedIds($id));
+                ProductSuppliers::assertValid($rows, array_keys($choices), $choices);
+            }
+        }
+
         return $values;
+    }
+
+    /**
+     * Le righe dei fornitori come si salvano: senza quelle vuote, un
+     * fornitore per riga e un preferito solo.
+     *
+     * Svuotare il fornitore, il codice e il costo di una riga la stacca: non
+     * arriva al repeater, che la toglie.
+     */
+    public static function prepareRepeaterRows(
+        string $inputName,
+        array $rows,
+        string $action = 'store',
+        string $context = 'backend'
+    ): array {
+        if ($inputName !== 'suppliers') {
+            return parent::prepareRepeaterRows($inputName, $rows, $action, $context);
+        }
+
+        $prepared = [];
+        $seen = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row) || ProductSuppliers::isEmptyRow($row)) {
+                continue;
+            }
+
+            $supplierId = (int) ($row['supplier_id'] ?? 0);
+
+            // La scheda li ha già rifiutati: qui non passano comunque.
+            if ($supplierId <= 0 || isset($seen[$supplierId])) {
+                continue;
+            }
+
+            $seen[$supplierId] = true;
+            $cost = Numbers::fromForm(is_scalar($row['cost'] ?? null) ? $row['cost'] : null);
+
+            $prepared[] = [
+                'id' => trim((string) ($row['id'] ?? '')),
+                'supplier_id' => $supplierId,
+                'supplier_sku' => trim((string) ($row['supplier_sku'] ?? '')),
+                // Vuoto resta vuoto, e la colonna lo scrive NULL: «non lo so».
+                'cost' => $cost ?? '',
+                'is_preferred' => ($row['is_preferred'] ?? 'false') === 'true' ? 'true' : 'false',
+            ];
+        }
+
+        return ProductSuppliers::preferOne(static::supplierCardNewPreferred($prepared));
+    }
+
+    /**
+     * Una riga dei fornitori con un id che non è di questa opzione si salva
+     * come riga nuova.
+     *
+     * Il repeater del core aggiorna per id e riscrive l'opzione della riga:
+     * l'id di un'altra opzione (un form copiato o ritoccato) le porterebbe
+     * via il legame, e uno che non c'è più, perché nel frattempo la finestra
+     * dei costi dell'articolo ha cambiato fornitore, non aggiornerebbe
+     * niente, mentre il legame nuovo se ne andrebbe come non visto. Così
+     * anche `supplierCardStoredPreferred()` legge solo righe di questa
+     * opzione.
+     */
+    public static function syncRepeaterRelations(
+        int|string $parentId,
+        array $post,
+        array $files = [],
+        string $action = 'store',
+        string $context = 'backend'
+    ): array {
+        if (is_array($post['suppliers'] ?? null)) {
+            $own = array_map(
+                static fn (array $row): string => (string) $row['id'],
+                static::rowsOf(ProductSupplier::class, ['product_id' => (int) $parentId, 'deleted' => ['true', 'false']])
+            );
+
+            foreach ($post['suppliers'] as $key => $row) {
+                $rowId = is_array($row) && is_scalar($row['id'] ?? null) ? trim((string) $row['id']) : '';
+
+                if (is_array($row) && !in_array($rowId, $own, true)) {
+                    $post['suppliers'][$key]['id'] = '';
+                }
+            }
+        }
+
+        return parent::syncRepeaterRelations($parentId, $post, $files, $action, $context);
+    }
+
+    /**
+     * Con due «Sì» vince quello appena scelto.
+     *
+     * Il preferito è una tendina per riga, e sceglierne un altro non spegne
+     * quello di prima: fra i «Sì» si tiene il primo che nel database non era
+     * già il preferito. Senza niente di nuovo decide `preferOne()`.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @return list<array<string, mixed>>
+     */
+    protected static function supplierCardNewPreferred(array $rows): array
+    {
+        $flagged = array_keys(array_filter($rows, static fn (array $row): bool => $row['is_preferred'] === 'true'));
+
+        if (count($flagged) < 2) {
+            return $rows;
+        }
+
+        $stored = static::supplierCardStoredPreferred(array_map(
+            static fn (int $index): string => (string) $rows[$index]['id'],
+            $flagged
+        ));
+
+        foreach ($flagged as $index) {
+            if (!in_array((string) $rows[$index]['id'], $stored, true)) {
+                foreach ($flagged as $other) {
+                    $rows[$other]['is_preferred'] = $other === $index ? 'true' : 'false';
+                }
+
+                break;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Il costo si scrive con due decimali e si tiene con quattro: se la
+     * casella dice lo stesso numero arrotondato, resta quello salvato.
+     */
+    public static function prepareRepeaterRelationRow(
+        string $inputName,
+        array $payload,
+        array $row,
+        ?array $existingRow = null,
+        string $action = 'store',
+        string $context = 'backend'
+    ): array {
+        if ($inputName !== 'suppliers') {
+            return parent::prepareRepeaterRelationRow($inputName, $payload, $row, $existingRow, $action, $context);
+        }
+
+        $stored = $existingRow['cost'] ?? null;
+        $posted = $payload['cost'] ?? null;
+
+        if (is_numeric($stored) && is_numeric($posted) && round((float) $stored, 2) === round((float) $posted, 2)) {
+            $payload['cost'] = (string) $stored;
+        }
+
+        return $payload;
     }
 
     public static function afterUpdate(int|string $id, object $result, array $values = []): void
@@ -425,12 +699,25 @@ class ProductResource extends ProductModelResource
         }
     }
 
-    /** Riempie il form con gli attributi dell'opzione. */
+    /** Riempie il form con gli attributi dell'opzione e i costi dei fornitori. */
     public static function mutateFormValues(
         array $values,
         string $mode,
         string $context = 'backend'
     ): array {
+        // Le righe le ha già lette il core, dal database o da un salvataggio
+        // rifiutato. Il costo va alla casella come numero grezzo con il
+        // punto e due decimali: le cifre le mette lei, e vuoto resta vuoto.
+        if (is_array($values['suppliers'] ?? null)) {
+            foreach ($values['suppliers'] as $index => $row) {
+                if (is_array($row) && array_key_exists('cost', $row)) {
+                    $values['suppliers'][$index]['cost'] = is_numeric($row['cost'])
+                        ? number_format(round((float) $row['cost'], 2), 2, '.', '')
+                        : (string) ($row['cost'] ?? '');
+                }
+            }
+        }
+
         $productId = (int) ($values['id'] ?? 0);
 
         if ($mode !== 'edit' || $productId === 0) {
@@ -461,7 +748,7 @@ class ProductResource extends ProductModelResource
         }
     }
 
-    /** Eliminare un'opzione porta via i suoi attributi. */
+    /** Eliminare un'opzione porta via i suoi attributi e i suoi fornitori. */
     public static function deleteRecord(int|string $id): object
     {
         static::assertDeletable($id);
@@ -471,6 +758,8 @@ class ProductResource extends ProductModelResource
         }
 
         StockHistory::dropAlerts([(int) $id]);
+        // Anche ad acquisti spenti: la chiave esterna fermerebbe l'eliminazione.
+        ProductSuppliers::dropFor([(int) $id]);
 
         return Product::delete($id);
     }

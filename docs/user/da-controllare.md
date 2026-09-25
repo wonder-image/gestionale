@@ -21,10 +21,12 @@ vuoi vedere.
 
 ## Le giacenze sotto zero
 
-Una giacenza va sotto zero solo con la *Vendita senza giacenza* (vedi
-[Funzionalità](funzionalita.md)): hai venduto pezzi che non avevi ancora. Le
-trovi in cima al riquadro, una riga per prodotto, con quanti pezzi mancano e il
-pulsante **Rettifica**.
+Una giacenza va sotto zero solo con la *Vendita senza giacenza*: la
+funzionalità sbloccata (vedi [Funzionalità](funzionalita.md)) e l'interruttore
+acceso nella scheda dell'articolo (vedi [Sotto
+zero](magazzino-giacenze.md#sotto-zero)). Hai venduto pezzi che non avevi
+ancora. Le trovi in cima al riquadro, una riga per prodotto, con quanti pezzi
+mancano e il pulsante **Rettifica**.
 
 - **La merce è arrivata:** rettifica con la quantità vera, e la riga sparisce.
 - **La aspetti ancora:** lasciala lì, è il promemoria.

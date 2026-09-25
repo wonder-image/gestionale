@@ -11,11 +11,20 @@ require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
+use Wonder\Plugin\Gestionale\Resources\Contacts\SupplierResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
+use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -82,7 +91,7 @@ check('gli indirizzi di consegna sono un repeater sulla loro tabella', function 
 });
 
 try {
-    Transaction::run(static function (): void {
+    Transaction::run(static function () use ($forza): void {
         $creato = Contact::create([
             'type' => 'business',
             'business_name' => 'Prova Integrazione Srl',
@@ -172,6 +181,118 @@ try {
             CustomerResource::assertDeletable($contactId);
 
             return true;
+        });
+
+        // Due fornitori di prova, uno attivo e uno no, e il cliente di sopra.
+        $fornitore = static function (string $nome, string $attivo): int {
+            $creato = Contact::create([
+                'type' => 'business',
+                'business_name' => $nome,
+                'country' => 'IT',
+                'is_customer' => 'false',
+                'is_supplier' => 'true',
+                'active' => $attivo,
+            ]);
+
+            return (int) ($creato->insert_id ?? 0);
+        };
+        $attivo = $fornitore('Zeta Prova Fornitore Srl', 'true');
+        $fermo = $fornitore('Alfa Prova Fornitore Srl', 'false');
+
+        check('la tendina dei fornitori propone solo i fornitori attivi', function () use ($attivo, $fermo, $contactId) {
+            $opzioni = Contacts::supplierOptions();
+
+            return ($opzioni[$attivo] ?? '') === 'Zeta Prova Fornitore Srl'
+                && !isset($opzioni[$fermo])
+                && !isset($opzioni[$contactId]);
+        });
+
+        check('un fornitore non attivo resta nella scelta di chi lo usa, e si vede', function () use ($attivo, $fermo, $contactId) {
+            // Senza, la tendina posterebbe un valore vuoto e staccherebbe il
+            // fornitore dall'opzione.
+            $opzioni = Contacts::supplierOptions([$fermo, $contactId]);
+            $nostri = array_values(array_intersect(array_keys($opzioni), [$attivo, $fermo]));
+
+            return ($opzioni[$fermo] ?? '') === 'Alfa Prova Fornitore Srl (non attivo)'
+                // Un cliente non diventa fornitore perché qualcuno lo tiene.
+                && !isset($opzioni[$contactId])
+                // In ordine di nome.
+                && $nostri === [$fermo, $attivo];
+        });
+
+        // Un articolo in vendita che compra dal fornitore attivo.
+        $modello = ProductModel::create([
+            'code' => Code::make(ProductModel::class, Codes::MODEL),
+            'name' => 'Prova rubrica fornitori',
+            'slug' => Slug::make('prova-rubrica-fornitori-'.uniqid()),
+            'sku' => 'TST-RUB-'.strtoupper(substr(uniqid(), -6)),
+            'unit' => 'pz',
+            'type' => 'simple',
+            'visible' => 'true',
+            'position' => 1,
+        ]);
+        $opzione = (int) Skeleton::forModel((int) ($modello->insert_id ?? 0), 'Prova rubrica fornitori')['product_id'];
+        ProductSuppliers::sync($opzione, [['supplier_id' => $attivo, 'cost' => '4,20']]);
+
+        // Le altre funzionalità restano come sono sul sito.
+        $solo = static function (array $cambi) use ($forza): void {
+            $forza([...Gestionale::features(), ...$cambi]);
+        };
+
+        check('un fornitore con dei costi su opzioni in vendita non si elimina', function () use ($attivo, $solo, $forza) {
+            // Anche ad acquisti spenti: il costo resta salvato, e toglierlo
+            // senza dirlo cancellerebbe un dato che tornerà.
+            $solo(['purchasing' => false]);
+
+            try {
+                SupplierResource::assertDeletable($attivo);
+            } catch (RuntimeException $errore) {
+                return !$errore instanceof UserError
+                    && str_contains($errore->getMessage(), 'costi d\'acquisto')
+                    && str_contains($errore->getMessage(), '(1)');
+            } finally {
+                $forza(null);
+            }
+
+            return false;
+        });
+
+        check('un fornitore non torna cliente e basta finché ha dei costi', function () use ($attivo, $solo, $forza) {
+            $solo(['purchasing' => true]);
+
+            try {
+                CustomerResource::mutateRequestValues(['roles' => 'customer'], 'update', 'backend', ['id' => $attivo]);
+            } catch (UserError $errore) {
+                return $errore->key() === 'contact.supplier_role_in_use'
+                    && str_contains($errore->getMessage(), '(1)');
+            } finally {
+                $forza(null);
+            }
+
+            return false;
+        });
+
+        check('diventare anche cliente invece si può', function () use ($attivo, $solo, $forza) {
+            $solo(['purchasing' => true]);
+
+            try {
+                $valori = CustomerResource::mutateRequestValues(['roles' => 'both'], 'update', 'backend', ['id' => $attivo]);
+            } finally {
+                $forza(null);
+            }
+
+            return ($valori['is_customer'] ?? '') === 'true' && ($valori['is_supplier'] ?? '') === 'true';
+        });
+
+        check('con l\'opzione eliminata il fornitore si elimina, e i suoi costi con lui', function () use ($attivo, $opzione) {
+            Product::query()->Update(Product::$table, ['deleted' => 'true'], 'id', $opzione);
+
+            $esito = SupplierResource::deleteRecord($attivo);
+            $legami = ProductSupplier::find(['supplier_id' => $attivo, 'deleted' => ['true', 'false']]);
+
+            return !empty($esito->success)
+                && (!is_array($legami) || $legami === [])
+                && in_array(Contact::findById($attivo), [null, []], true);
         });
 
         throw new Annulla();

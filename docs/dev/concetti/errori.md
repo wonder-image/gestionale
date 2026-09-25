@@ -23,6 +23,64 @@ riscrive senza toccare il codice.
 throw UserError::make('stock.insufficient', ['product' => $prodotto['name']]);
 ```
 
+### `make()` o `refusal()`
+
+Il core ha due porte, e ognuna intercetta un tipo diverso:
+
+| Porta | Intercetta | Si usa |
+|---|---|---|
+| il salvataggio del form di una Resource (`mutateRequestValues()`) | `InvalidArgumentException` → avviso rosso sul form | `UserError::make()` |
+| l'eliminazione dall'elenco (`api/backend/delete`) | `RuntimeException` → risposta 422 con il messaggio | `UserError::refusal()` |
+
+Un `UserError` arrivato alla porta sbagliata non viene visto e diventa una
+pagina 500. Per questo i rifiuti di `assertDeletable()` — un articolo con
+movimenti, una scheda con un account sul sito, un fornitore con dei costi —
+usano `refusal()`: lo stesso metodo lo chiama sia l'elenco sia l'eliminazione
+dalla scheda. Il testo è uno solo, nei file di lingua, per tutti e due.
+
+Le pagine-form del magazzino non hanno nessuna delle due porte: i rifiuti si
+catturano dentro `submitFormPage()` (vedi
+[Magazzino](magazzino.md#le-due-pagine)).
+
+### Ogni chiave ha la sua frase
+
+Una chiave senza frase non esplode: arriva a schermo così com'è,
+«product.supplier_missing». `tests/ErrorKeysTest.php` cerca in `src/` ogni
+chiave scritta per intero in `UserError::make()` o `UserError::refusal()`, anche
+quando va a capo dopo la parentesi, e guarda che `lang/it/gestionale.json` abbia
+la sua frase. Le chiavi composte a runtime non le vede: quelle le coprono i test
+di chi le usa.
+
+```bash
+php tests/ErrorKeysTest.php
+```
+
+### Le chiavi dei fornitori e della vendita senza giacenza
+
+| Chiave | Metodo | Quando |
+|---|---|---|
+| `product.backorder_lead_days_invalid` | `make()` | «Giorni di attesa» fuori da 0-365, o non un numero intero; vedi [Catalogo](catalogo.md#la-vendita-senza-giacenza) |
+| `product.supplier_missing` | `make()` | una riga di costo con codice o costo ma senza fornitore |
+| `product.supplier_invalid` | `make()` | un fornitore che la pagina non propone: eliminato, non più fornitore, o disattivato e mai legato |
+| `product.supplier_sku_too_long` | `make()` | un codice del fornitore oltre cento caratteri; `{{max}}` è il limite |
+| `product.supplier_cost_invalid` | `make()` | un costo d'acquisto scritto che non è un numero |
+| `product.supplier_cost_negative` | `make()` | un costo d'acquisto sotto zero |
+| `product.supplier_cost_too_high` | `make()` | un costo d'acquisto oltre 99.999.999,9999, quello che tiene la colonna |
+| `product.supplier_duplicate` | `make()` | lo stesso fornitore due volte sulla stessa opzione; `{{supplier}}` è il nome |
+| `contact.supplier_in_use` | `refusal()` | eliminare un fornitore con dei costi su opzioni in vendita; `{{count}}` è quante |
+| `contact.supplier_role_in_use` | `make()` | togliere il ruolo di fornitore a una scheda con dei costi; `{{count}}` come sopra |
+
+Le sette `product.supplier_…` le solleva `ProductSuppliers::assertValid()`,
+per la finestra «Costo» dell'articolo e per la scheda dell'opzione; le due
+`contact.…` le solleva `CustomerResource` (vedi [Fornitori e costi
+d'acquisto](acquisti.md#un-fornitore-in-uso-non-si-toglie)).
+
+`stock.insufficient` resta com'era, ma cambia **quando** parte: una giacenza va
+sotto zero solo se è attiva `backorders` **e** l'opzione ha `allow_backorder`
+acceso. Se ne manca uno, il movimento che toglie e la porterebbe sotto zero è
+rifiutato; un carico entra sempre, anche se la giacenza resta negativa (vedi
+[Magazzino](magazzino.md#i-rifiuti)).
+
 ## Errore di un servizio esterno
 
 ```php

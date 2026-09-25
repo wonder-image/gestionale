@@ -57,6 +57,36 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Banco | Banco | Vendita in sede con documento commerciale e corrispettivi. | Ordini |
 <!-- funzionalita:fine -->
 
+## Cosa accendono oggi Acquisti e Vendita senza giacenza
+
+Alcune funzionalità arrivano un pezzo alla volta: la tabella dice a cosa
+serviranno da complete, qui c'è quello che trovi già accendendole.
+
+**Acquisti**
+
+- Il ruolo **Fornitore** nella rubrica e l'elenco **Anagrafiche → Fornitori**
+  (vedi [Clienti e fornitori](anagrafiche.md)).
+- Il **costo d'acquisto** di ogni opzione in vendita: da chi la compri, con
+  quale codice e a quanto. Si scrive nella scheda dell'articolo e nel riquadro
+  **Fornitori** della pagina dell'opzione (vedi [Da chi lo compri e a
+  quanto](catalogo-prodotti.md#da-chi-lo-compri-e-a-quanto)).
+
+Documenti di carico e valore del magazzino arriveranno dopo, e partiranno da
+questi costi. Spegnendola, fornitori e costi spariscono dalle pagine ma restano
+salvati: un fornitore che ha dei costi, per esempio, non si elimina lo stesso.
+
+**Vendita senza giacenza** (richiede gli *Ordini*)
+
+- L'interruttore **Vendita senza giacenza** nel riquadro **Come si vende** di
+  ogni articolo, con i **Giorni di attesa** (vedi [Stato, come si vende e tipo
+  fiscale](catalogo-prodotti.md#stato-come-si-vende-e-tipo-fiscale)).
+- La giacenza che va **sotto zero**, ma solo sugli articoli con l'interruttore
+  acceso: gli altri restano come prima (vedi [Sotto
+  zero](magazzino-giacenze.md#sotto-zero)).
+
+Spegnendola l'interruttore sparisce e nessuna giacenza va più sotto zero;
+riaccendendola, ogni articolo lo ritrova com'era.
+
 ## Se ti serve una funzione in più
 
 Scrivici: attivarla è questione di minuti e non richiede di rifare niente. Se la

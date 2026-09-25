@@ -20,7 +20,8 @@ numero, non compilando un documento.
   lasciare stare le altre.
 - Una riga **appena nata** parte con un movimento di *Giacenza iniziale*.
 - Un **numero negativo** viene rifiutato: si scrive quanti pezzi hai, non di
-  quanto cambiarli.
+  quanto cambiarli. Vale anche per gli articoli che si vendono senza giacenza
+  (vedi [Sotto zero](#sotto-zero)).
 
 Quando l'articolo si vende in un'unica opzione, la casella *Giacenza* in alto
 nella scheda si **legge** soltanto: accanto c'è il link alla rettifica.
@@ -63,6 +64,29 @@ singola opzione in vendita — apre una pagina che chiede tre cose:
 È la strada da fare quando la causale **non** è l'inventario: due pezzi rotti,
 uno regalato, tre usati in negozio. Salvando torni da dove eri arrivato, e nei
 *Movimenti* compare la riga nuova.
+
+## Sotto zero
+
+Di regola la giacenza **non va sotto zero**: un movimento che toglie pezzi e
+ce la porterebbe — per esempio una rettifica che toglie più pezzi di quanti ce
+ne sono — viene rifiutato con *Non c'è abbastanza giacenza*, e non si registra
+niente.
+
+Ci va solo su un articolo con **Vendita senza giacenza** accesa nel riquadro
+**Come si vende** della sua scheda (vedi [I
+prodotti](catalogo-prodotti.md#stato-come-si-vende-e-tipo-fiscale)). Servono
+tutte e due le cose: la funzionalità *Vendita senza giacenza* sbloccata e
+l'interruttore acceso su quell'articolo. Un articolo con l'interruttore spento
+non ci scende, anche con la funzionalità sbloccata.
+
+La merce che **arriva** invece si registra sempre, anche se la giacenza resta
+sotto zero. Un articolo venduto scoperto fino a −5, con l'interruttore poi
+spento, accetta un carico di 2 pezzi e sale a −3: i pezzi arrivati ci sono, e
+rifiutarli lascerebbe la giacenza ancora più lontana dal vero.
+
+Una giacenza sotto zero compare in [Da controllare](da-controllare.md), con il
+pulsante **Rettifica**: quando la merce arriva, scrivi quanti pezzi ci sono
+davvero e la riga sparisce.
 
 ## Dove si vede la giacenza
 

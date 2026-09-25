@@ -10,6 +10,7 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
@@ -193,6 +194,83 @@ try {
             // non ne ha scritto uno suo.
             return (float) ($ultimo['quantity'] ?? 0) === 0.125;
         });
+
+        // La vendita senza giacenza si accende qui e poi torna come l'ha il
+        // sito: le altre funzionalità restano quelle che sono.
+        $conVenditaScoperta = static function (callable $prova): bool {
+            Gestionale::feature('backorders');
+            $stato = new ReflectionProperty(Gestionale::class, 'features');
+            $prima = $stato->getValue();
+            $stato->setValue(null, array_merge((array) $prima, ['backorders' => true]));
+
+            try {
+                return $prova();
+            } finally {
+                $stato->setValue(null, $prima);
+            }
+        };
+
+        check('con la funzionalità accesa ma l\'opzione che non lo permette, la giacenza resta un muro', fn () =>
+            $conVenditaScoperta(function () use ($productId): bool {
+                Product::update(['allow_backorder' => 'false'], $productId);
+                $prima = Levels::of($productId)['quantity'];
+
+                try {
+                    Stock::apply(['product_id' => $productId, 'quantity' => -1000, 'reason' => 'inventory']);
+                } catch (UserError $e) {
+                    return $e->key() === 'stock.insufficient'
+                        && Levels::of($productId)['quantity'] === $prima;
+                }
+
+                return false;
+            })
+        );
+
+        check('con la funzionalità e l\'opzione che lo permette, la giacenza va sotto zero', fn () =>
+            $conVenditaScoperta(function () use ($productId): bool {
+                Product::update(['allow_backorder' => 'true'], $productId);
+                $prima = Levels::of($productId)['quantity'];
+
+                try {
+                    $esito = Stock::apply([
+                        'product_id' => $productId,
+                        'quantity' => -($prima + 2),
+                        'reason' => 'inventory',
+                    ]);
+
+                    return $esito['after'] === -2.0
+                        && Levels::of($productId)['quantity'] === -2.0;
+                } finally {
+                    // La giacenza torna dov'era, e l'opzione come nasce.
+                    Stock::apply(['product_id' => $productId, 'quantity' => $prima + 2, 'reason' => 'inventory']);
+                    Product::update(['allow_backorder' => 'false'], $productId);
+                }
+            })
+        );
+
+        check('un carico che rialza una giacenza sotto zero passa anche a interruttore spento', fn () =>
+            $conVenditaScoperta(function () use ($productId): bool {
+                Product::update(['allow_backorder' => 'true'], $productId);
+                $prima = Levels::of($productId)['quantity'];
+                Stock::apply(['product_id' => $productId, 'quantity' => -($prima + 5), 'reason' => 'inventory']);
+                // L'articolo non si vende più scoperto: il buco resta, ma
+                // la merce che arriva deve poter entrare.
+                Product::update(['allow_backorder' => 'false'], $productId);
+
+                try {
+                    $esito = Stock::apply(['product_id' => $productId, 'quantity' => 2, 'reason' => 'inventory']);
+
+                    return $esito['after'] === -3.0;
+                } catch (UserError) {
+                    return false;
+                } finally {
+                    Product::update(['allow_backorder' => 'true'], $productId);
+                    $ora = Levels::of($productId)['quantity'];
+                    Stock::apply(['product_id' => $productId, 'quantity' => $prima - $ora, 'reason' => 'inventory']);
+                    Product::update(['allow_backorder' => 'false'], $productId);
+                }
+            })
+        );
 
         check('un articolo con movimenti non si elimina', function () use ($modello, $productId) {
             try {

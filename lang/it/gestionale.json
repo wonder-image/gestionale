@@ -31,14 +31,24 @@
                 "no_versions": "Un articolo deve avere almeno un'opzione in vendita.",
                 "has_movements": "Questo articolo ha movimenti di magazzino e non si elimina: mettilo su «Nascosto» se non lo vendi più.",
                 "stock_negative": "La giacenza non può essere un numero negativo: scrivi quanti pezzi ci sono davvero.",
-                "min_stock_invalid": "La scorta minima è un numero di pezzi, zero o più: con zero non arriva nessun avviso."
+                "min_stock_invalid": "La scorta minima è un numero di pezzi, zero o più: con zero non arriva nessun avviso.",
+                "backorder_lead_days_invalid": "I giorni di attesa vanno da 0 a 365.",
+                "supplier_missing": "Scegli il fornitore di questa riga, o togli codice e costo.",
+                "supplier_invalid": "Il fornitore scelto non c'è più, o non è più un fornitore attivo: ricarica la pagina e riprova.",
+                "supplier_cost_negative": "Il costo d'acquisto non può essere negativo: lascialo vuoto se non lo sai.",
+                "supplier_cost_invalid": "Il costo d'acquisto non è un numero: scrivilo come 12,50, o lascialo vuoto se non lo sai.",
+                "supplier_cost_too_high": "Il costo d'acquisto arriva al massimo a 99.999.999,99 €: controlla le cifre.",
+                "supplier_sku_too_long": "Il codice del fornitore arriva al massimo a {{max}} caratteri: accorcialo.",
+                "supplier_duplicate": "{{supplier}} compare due volte: tieni una riga sola per fornitore."
             },
             "contact": {
                 "vat_taken": "Questa partita IVA è già di {{contact}}: apri quella scheda invece di crearne un'altra.",
                 "tax_code_taken": "Questo codice fiscale è già di {{contact}}.",
                 "email_taken": "Questa email è già di {{contact}}.",
                 "no_role": "Di' se è un cliente, un fornitore o tutti e due.",
-                "has_account": "Questa scheda ha un account sul sito e non si elimina: mettila su «Non attiva» se non lavori più con lei."
+                "has_account": "Questa scheda ha un account sul sito e non si elimina: mettila su «Non attiva» se non lavori più con lei.",
+                "supplier_in_use": "Questo fornitore ha ancora dei costi d'acquisto su opzioni in vendita ({{count}}) e non si elimina: metti la scheda su «Non attiva» se non lavori più con lui.",
+                "supplier_role_in_use": "Questa scheda è ancora il fornitore di opzioni in vendita ({{count}}): toglila dai loro fornitori prima di cambiarle ruolo, o mettila su «Non attiva»."
             },
             "settings": {
                 "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo."

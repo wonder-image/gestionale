@@ -155,4 +155,59 @@ final class Contacts
 
         return [];
     }
+
+    /**
+     * I fornitori da proporre in una tendina, id => nome, in ordine di nome.
+     *
+     * Solo quelli attivi, più quelli di `$keepIds` anche se non lo sono più:
+     * sono i fornitori già legati a quello che stai modificando. Senza, la
+     * tendina posterebbe un valore vuoto e staccherebbe il fornitore solo
+     * perché è stato messo su «Non attivo». Si riconoscono dal «(non attivo)»
+     * accanto al nome.
+     *
+     * @param list<int> $keepIds
+     * @return array<int, string>
+     */
+    public static function supplierOptions(array $keepIds = []): array
+    {
+        $keep = array_values(array_unique(array_filter(
+            array_map('intval', $keepIds),
+            static fn (int $id): bool => $id > 0
+        )));
+
+        $condition = "is_supplier = 'true' AND deleted = 'false' AND (active = 'true'"
+            .($keep === [] ? '' : ' OR id IN ('.implode(',', $keep).')')
+            .')';
+
+        try {
+            $rows = Contact::find($condition);
+        } catch (Throwable) {
+            // Senza database (test degli schemi, comandi) non c'è nessuno da
+            // proporre.
+            return [];
+        }
+
+        if (!is_array($rows) || $rows === []) {
+            return [];
+        }
+
+        $rows = isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
+        $names = [];
+
+        foreach ($rows as $row) {
+            $names[(int) ($row['id'] ?? 0)] = [self::displayName($row), ($row['active'] ?? 'true') === 'true'];
+        }
+
+        uasort($names, static fn (array $a, array $b): int => strnatcasecmp($a[0], $b[0]));
+
+        $options = [];
+
+        foreach ($names as $id => [$name, $active]) {
+            if ($id > 0) {
+                $options[$id] = $active ? $name : $name.' (non attivo)';
+            }
+        }
+
+        return $options;
+    }
 }

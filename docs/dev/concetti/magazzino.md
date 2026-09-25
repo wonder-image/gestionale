@@ -62,10 +62,10 @@ Tre cose da sapere se le si tocca:
 | `type` | no | `adjustment` se non la passi; l'enum completo è in `StockMovement::TYPES` |
 | `reason` | no | una chiave di `Reasons::all()`; una sconosciuta è un rifiuto |
 | `location_id` | no | la sede principale se non la passi (`Locations::mainId()`) |
-| `batch_id`, `supplier_id` | no | zero fino a G3 |
+| `batch_id`, `supplier_id` | no | zero fino a G3; `supplier_id` è il fornitore di quel movimento, non il legame di [`gst_product_suppliers`](acquisti.md) |
 | `reference_type`, `reference_id` | no | il documento che ha causato il movimento |
 | `source` | no | `backend` se non lo passi; `online`, `import` |
-| `user_id`, `note`, `unit_cost` | no | |
+| `user_id`, `note`, `unit_cost` | no | `unit_cost` è il costo di quel movimento, con quattro decimali: la storia. Il costo di oggi sta in `gst_product_suppliers` |
 
 ## I rifiuti
 
@@ -78,7 +78,22 @@ form, non in una pagina 500:
 | `stock.unknown_reason` | causale che non esiste |
 | `stock.product_missing` | prodotto cancellato o inesistente |
 | `stock.no_location` | nessuna sede con magazzino |
-| `stock.insufficient` | la giacenza andrebbe sotto zero e `backorders` è bloccata |
+| `stock.insufficient` | un movimento che toglie (`quantity < 0`) porterebbe la giacenza sotto zero, e `backorders` è bloccata oppure l'opzione non ha `allow_backorder = 'true'` |
+
+**Sotto zero ci vogliono due sì** (P86): la funzionalità `backorders` attiva
+**e** l'interruttore «Vendita senza giacenza» acceso sull'opzione. La
+funzionalità dice che si può, l'articolo dice se lo vende scoperto. `apply()`
+rilegge `allow_backorder` dal prodotto (`Product::findById()`) a ogni
+movimento, quindi chi accende l'interruttore e muove merce nella stessa
+richiesta deve scriverlo prima: la scheda dell'articolo lo fa (vedi
+[La vendita senza giacenza](catalogo.md#la-vendita-senza-giacenza)). In G2b
+bastava la funzionalità.
+
+**Il muro vale solo per chi toglie.** Un carico o una rettifica in più entrano
+sempre, anche se la giacenza resta sotto zero: un'opzione venduta scoperta fino
+a −5, con l'interruttore poi spento, accetta un carico di +2 e resta a −3. La
+merce che arriva c'è, e rifiutarla lascerebbe la giacenza più lontana dal vero.
+In G2b, a funzionalità bloccata, anche quel carico era rifiutato.
 
 ## Le classi
 
@@ -120,6 +135,12 @@ Il rifiuto usa `UserError::refusal()`, non `UserError::make()`, perché il core
 ha **due porte con due gusti diversi**: il controller del form intercetta
 `InvalidArgumentException`, mentre `api/backend/delete` intercetta
 `RuntimeException` e risponde 422. Il testo resta uno solo, nei file di lingua.
+
+La stessa regola vale per un **fornitore con dei costi d'acquisto** su opzioni
+in vendita: `CustomerResource::assertDeletable()` rifiuta con
+`contact.supplier_in_use`, sempre con `refusal()`, e chi non lavora più con lui
+mette la scheda su «Non attiva». Il perché e chi toglie i legami sta in
+[Fornitori e costi d'acquisto](acquisti.md#un-fornitore-in-uso-non-si-toglie).
 
 `StockHistory::purge()` cancella davvero la storia di certi prodotti: la usa
 **solo** la pulizia dei dati di prova (`gestionale:demo --fresh`), che

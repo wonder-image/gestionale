@@ -197,6 +197,11 @@ causale *Inventario*.
 - Un **numero negativo** viene rifiutato: qui si scrive quanti pezzi hai, non di
   quanto cambiarli. Se la giacenza è già sotto zero per delle vendite in
   arretrato e non la tocchi, il salvataggio passa.
+- **Sotto zero** la giacenza ci va solo su un articolo con **Vendita senza
+  giacenza** accesa (vedi [Stato, come si vende e tipo
+  fiscale](#stato-come-si-vende-e-tipo-fiscale)), e solo per la merce che
+  esce, come una rettifica che toglie più pezzi di quanti ce ne sono. Anche lì,
+  in questa casella un numero negativo viene rifiutato.
 
 Accanto al numero c'è l'**unità** dell'articolo, quella scelta nel riquadro
 **Misure**: *12 pz*, *2,500 kg*. Pezzi, confezioni, grammi e millilitri si
@@ -319,20 +324,91 @@ griglia ha i suoi, dietro lo stesso bottone.
   con un messaggio, perché quasi sempre è un errore di battitura. Con più
   opzioni in vendita si scrive nella griglia, riga per riga.
 
+## Da chi lo compri e a quanto
+
+Con la funzionalità *Acquisti*, sotto SKU ed EAN — nello stesso blocco
+**«Compila le informazioni avanzate»**, del riquadro **Prodotto** o di ogni
+riga della griglia — c'è il **costo d'acquisto**: da chi compri quell'opzione,
+con quale codice e a quanto. Ha due forme, secondo quanti fornitori ci sono da
+proporre.
+
+**Un fornitore solo, o nessuno:** tre caselle, **Fornitore**, **Codice
+fornitore** e **Costo d'acquisto**. Lasciando vuoto il fornitore l'opzione non
+si compra da nessuno: codice e costo non si salvano, e se c'erano se ne vanno.
+
+**Due fornitori o più:** il bottone **Costo**. Accanto c'è il preferito con il
+suo costo (*Filati Nord · 12,00 €*), il solo nome se il costo non lo sai, o
+*Nessun fornitore*. Il bottone apre la finestra **Costo · Blu / S**, con una
+riga per ogni fornitore:
+
+- scrivi codice e costo di chi ti vende quell'opzione, o sceglilo come
+  **Preferito**: da lì è legato, anche se poi svuoti le caselle. Un fornitore
+  già legato resta tale anche senza codice né costo;
+- la **x** in fondo alla riga, che c'è solo sui fornitori legati, lo stacca
+  dall'opzione e svuota le sue caselle;
+- scegli il **Preferito**. Se non ne scegli uno, lo diventa il primo legato
+  della finestra;
+- **Salva** chiude la finestra e aggiorna il testo accanto al bottone,
+  **Annulla** la chiude senza cambiare niente. L'articolo si salva con il suo
+  **Salva**, come sempre.
+
+In tutte e due le forme:
+
+- il costo si scrive in euro con la virgola, come i prezzi. **Vuoto vuol dire
+  «non lo so»**, non zero: uno zero farebbe sembrare quel fornitore il più
+  conveniente. Un costo negativo viene rifiutato;
+- il **preferito** è quello che vedi accanto al bottone, e quello che useranno
+  gli ordini ai fornitori, quando arriveranno;
+- un fornitore messo su **Non attiva** in rubrica non si propone più, tranne
+  sulle opzioni che lo usano già: lì resta, con *(non attivo)* accanto al nome,
+  e il suo costo non si perde. Le altre opzioni dello stesso articolo, e quelle
+  nuove, non lo vedono;
+- un'opzione tolta dalla griglia porta via con sé i suoi costi, al
+  salvataggio;
+- se accendi le varianti su un articolo che aveva già i suoi fornitori, la
+  prima opzione nuova prende il posto di quella di prima e se li tiene: quello
+  che scrivi nella sua finestra **si aggiunge**, e se scegli un preferito vale
+  quello. Per staccarne uno c'è la **x** sulla riga di prima, finché è nella
+  griglia, o la pagina dell'opzione.
+
+Tutti i fornitori di un'opzione, uno per riga, si vedono e si cambiano anche
+nella sua pagina, nel riquadro **Fornitori** (vedi sotto). I fornitori si
+aggiungono da **Anagrafiche → Fornitori**: lo spiega [Clienti e
+fornitori](anagrafiche.md).
+
 ## I dettagli di una singola opzione
 
-Peso e misure sue, codice del produttore, ordinabile su richiesta: cose che si
+Peso e misure sue, codice del produttore, i suoi fornitori: cose che si
 toccano di rado e non stanno nella griglia. Il pulsante **Dettagli delle
 opzioni**, in alto nella scheda, apre l'elenco di quell'articolo e da lì si apre
 la riga che ti serve. Compare solo quando le opzioni sono più di una.
+
+Con la funzionalità *Acquisti*, dopo **Magazzino** c'è il riquadro
+**Fornitori**: tutti quelli da cui compri quell'opzione, una riga ciascuno, con
+**Fornitore**, **Codice fornitore**, **Costo d'acquisto** e **Preferito**
+(*Sì* o *No*).
+
+- **Aggiungi fornitore** apre una riga nuova, che nasce con *Preferito: No*.
+  Le righe si trascinano per cambiarne l'ordine.
+- **Togli fornitore** chiede conferma: al salvataggio se ne vanno la riga, il
+  suo codice e il suo costo.
+- Il preferito è **uno solo**: se metti *Sì* su un'altra riga, vince quella.
+  Se nessuna ha *Sì*, lo diventa la prima.
+- Una riga vuota non si salva. Una con codice o costo ma **senza fornitore**
+  viene rifiutata, e così lo **stesso fornitore due volte**: tieni una riga
+  sola per fornitore.
+- Un costo vuoto vuol dire «non lo so», come nella scheda dell'articolo.
+
+Se in rubrica non c'è nessun fornitore da proporre, il riquadro lo dice:
+aggiungilo da **Anagrafiche → Fornitori**.
 
 ## Stato, come si vende e tipo fiscale
 
 Lo **stato** sta accanto al nome: *Pubblicato* o *Bozza*. Una bozza non si vede
 da nessuna parte.
 
-Il riquadro **Come si vende**, a destra, ha tre interruttori, ognuno con una
-riga che lo spiega:
+Il riquadro **Come si vende**, a destra, ha tre interruttori — quattro con la
+funzionalità *Vendita senza giacenza* — ognuno con una riga che lo spiega:
 
 - **Acquistabile online** — spento, l'articolo resta in catalogo per il
   negozio, per i documenti e per il magazzino, ma in vetrina non si compra.
@@ -341,9 +417,24 @@ riga che lo spiega:
 - **Accetta resi** — il cliente può restituirlo dopo l'acquisto.
 - **Da spedire** — spento per servizi, buoni regalo e prodotti digitali.
   Acceso, subito sotto c'è l'**Imballaggio** (vedi più giù).
+- **Vendita senza giacenza** — il cliente può ordinarlo anche a giacenza
+  finita, e la giacenza va sotto zero. Acceso, subito sotto compaiono i
+  **Giorni di attesa**: quanti giorni in più ci vogliono per averlo, da 0 a
+  365; vuoto vale zero. Spegnendolo, i giorni tornano a zero.
 
-Sotto, il riquadro **Tipo fiscale** ha un campo solo, **IVA** (vedi sopra:
-parte dal predefinito), con il **+** per crearne uno nuovo. Un tipo fiscale
+**Vendita senza giacenza** c'è solo con la funzionalità omonima, che richiede
+gli *Ordini*, e vale per **tutto l'articolo**: salvando, lo prendono tutte le
+sue opzioni, anche quelle appena aggiunte. Se non tutte le opzioni lo hanno
+acceso, la scheda lo mostra spento, e salvandola si spegne su tutte:
+riaccendilo se ti serve. Un articolo nuovo parte sempre spento.
+
+Spento, la giacenza non scende sotto zero: un movimento che toglie pezzi e ce
+la porterebbe viene rifiutato con *Non c'è abbastanza giacenza*. La merce che
+arriva si registra sempre, anche se la giacenza resta sotto zero (vedi [Le
+giacenze](magazzino-giacenze.md#sotto-zero)).
+
+Sotto **Come si vende**, il riquadro **Tipo fiscale** ha un campo solo, **IVA**
+(vedi sopra: parte dal predefinito), con il **+** per crearne uno nuovo. Un tipo fiscale
 che hai nascosto non si propone più agli articoli nuovi, ma su quelli che lo
 usano resta, in fondo all'elenco, con scritto *(nascosto)*. Se non hai nessun
 tipo fiscale il campo dice *Nessuno: vale l'aliquota di ripiego*, l'aliquota
@@ -363,8 +454,8 @@ riaccendendolo torna con la scatola di prima.
 
 ## Eliminare un articolo
 
-Eliminando un prodotto se ne vanno anche le sue opzioni in vendita e le sue
-foto.
+Eliminando un prodotto se ne vanno anche le sue opzioni in vendita, le sue
+foto e i suoi costi d'acquisto.
 
 Un articolo che ha già **movimenti di magazzino non si elimina**: quei movimenti
 sono la storia del tuo magazzino, e resterebbero a parlare di qualcosa che non

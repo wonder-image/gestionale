@@ -389,6 +389,8 @@ check('una giacenza sotto zero finisce fra le cose da controllare', function () 
     try {
         return annullando(function (): bool {
             [, $productId] = articoloDiProva('NEG-1', '2');
+            // La funzionalità dice che si può, l'opzione dice se lo vuole.
+            Product::update(['allow_backorder' => 'true'], $productId);
             Stock::apply(['product_id' => $productId, 'quantity' => -5, 'reason' => Reasons::DEFAULT]);
             $trovati = array_values(array_filter(
                 NegativeStock::items(),
@@ -399,6 +401,31 @@ check('una giacenza sotto zero finisce fra le cose da controllare', function () 
                 && $trovati[0]['quantity'] === -3.0
                 && $trovati[0]['locations'] === 1
                 && $trovati[0]['sku'] === 'NEG-1';
+        });
+    } finally {
+        $stato->setValue(null, $prima);
+    }
+});
+
+check('con la funzionalità accesa, un\'opzione che non lo permette non va sotto zero', function () use ($stato): bool {
+    $prima = $stato->getValue();
+    $stato->setValue(null, array_merge((array) $prima, ['backorders' => true]));
+
+    try {
+        return annullando(function (): bool {
+            [, $productId] = articoloDiProva('NEG-2', '2');
+
+            try {
+                Stock::apply(['product_id' => $productId, 'quantity' => -5, 'reason' => Reasons::DEFAULT]);
+            } catch (UserError $errore) {
+                return $errore->key() === 'stock.insufficient'
+                    && NegativeStock::items() === array_values(array_filter(
+                        NegativeStock::items(),
+                        static fn (array $item): bool => $item['product_id'] !== $productId
+                    ));
+            }
+
+            return false;
         });
     } finally {
         $stato->setValue(null, $prima);

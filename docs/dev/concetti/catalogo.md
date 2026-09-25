@@ -275,7 +275,7 @@ c'è già), con `window.confirm()` di riserva.
 | Quando | Cosa si vede |
 |---|---|
 | `has_variants` a `true` | il riquadro "Opzioni in vendita": selettore, spunte e griglia — identico in `create` e in `edit` |
-| `has_variants` a `false` | nel riquadro «Prodotto» la riga del prezzo ha anche la giacenza, scrivibile (in creazione è un carico iniziale), e sotto l'`Accordion` a link «Compila le informazioni avanzate» con SKU, EAN e, con `low_stock_alerts`, la scorta minima; con il modello già salvato compare il link alla rettifica |
+| `has_variants` a `false` | nel riquadro «Prodotto» la riga del prezzo ha anche la giacenza, scrivibile (in creazione è un carico iniziale), e sotto l'`Accordion` a link «Compila le informazioni avanzate» con SKU, EAN, con `low_stock_alerts` la scorta minima e, con `purchasing`, il costo d'acquisto — tre caselle o il bottone «Costo», vedi [I fornitori di ogni opzione](#i-fornitori-di-ogni-opzione); con il modello già salvato compare il link alla rettifica |
 | nessun attributo con valori | `optionsCard()` torna `[]` e il riquadro non c'è |
 
 `has_variants` è una **colonna di `gst_product_models`**, non un conteggio: un
@@ -289,12 +289,16 @@ articolo con più di un prodotto la risposta è forzata a `true` e l'interruttor
 travestita.
 
 Colonne della griglia: `option` (finta, `readonly`), `price`, `stock` nella
-riga; `sku`, `ean`, `min_stock` (solo con `low_stock_alerts`), `active`, `photo`
-dietro `repeaterAdvanced()`; `id`, `group` e `combination` nascoste. Quelle
+riga; `sku`, `ean`, `min_stock` (solo con `low_stock_alerts`), `active`, le
+colonne dei fornitori (solo con `purchasing`) e `photo` dietro
+`repeaterAdvanced()`; `id`, `group` e `combination` nascoste. Quelle
 della riga stanno **dentro undici**: la dodicesima è la colonna dei bottoni, e
 quello che sfora va a capo. Quelle del blocco avanzato si contano su dodici,
 perché lì bottoni non ce ne sono: con la scorta minima SKU, EAN, soglia e Stato
-passano da 4 a 3 ciascuna.
+passano da 4 a 3 ciascuna. I fornitori vanno a capo sotto lo Stato:
+`supplier_id`, `supplier_sku` e `cost` da 4 ciascuna, oppure il bottone
+`cost_button` da 12 con la colonna nascosta `suppliers` (vedi
+[I fornitori di ogni opzione](#i-fornitori-di-ogni-opzione)).
 
 Al salvataggio `saveExtras()` scrive **prima le soglie e poi i pezzi**
 (`saveMinStocks()`, poi carichi e rettifiche): ogni movimento rinfresca l'avviso
@@ -543,13 +547,19 @@ sotto il padre, già spuntato.
 
 **La colonna larga** (`mainColumn()`): «Prodotto» — nome e stato, le due
 descrizioni, la domanda sulle varianti, poi prezzo, scontato e giacenza, e
-sotto «Compila le informazioni avanzate» con SKU, EAN e scorta minima —, poi «Opzioni in vendita»
+sotto «Compila le informazioni avanzate» con SKU, EAN, scorta minima e costo
+d'acquisto —, poi «Opzioni in vendita»
 (`optionsCard()`, con `visibleWhen('has_variants', 'true')`) e «Scheda
-tecnica» in fondo.
+tecnica» in fondo. Con il bottone «Costo» dopo la scheda tecnica arrivano anche
+`supplierCostModal()` e `supplierCostScript()`: una finestra sola per pagina,
+fuori dal riquadro delle opzioni.
 
 **La colonna stretta** (`sideColumn()`): «Foto e video» in cima, poi «Come si
-vende» — i tre interruttori, ognuno con `InputToggle::description()`, e sotto
-«Da spedire» il `package_id` con `visibleWhen('requires_shipping', 'true')`
+vende» — i tre interruttori, ognuno con `InputToggle::description()`, sotto
+«Da spedire» il `package_id` con `visibleWhen('requires_shipping', 'true')` e,
+con `backorders`, un quarto interruttore, «Vendita senza giacenza», con i
+«Giorni di attesa» sotto (`backorderInputs()`, vedi
+[La vendita senza giacenza](#la-vendita-senza-giacenza))
 —, «Tipo fiscale», «Dove si trova» e «Misure» in fondo, due caselle per riga.
 Il riquadro «Spedizione», che il server includeva solo per un articolo che si
 spedisce (`shipsFrom()`), non c'è più: la regola sul campo segue
@@ -571,7 +581,7 @@ sostituito al primo salvataggio.
 
 **Colonne che spariscono.** Prezzi e giacenza hanno
 `hiddenWhen('has_variants', 'true')`, e così l'`Accordion::link()` «Compila le
-informazioni avanzate» con SKU, EAN e scorta minima: è la stessa tendina delle
+informazioni avanzate» con SKU, EAN, scorta minima e costo d'acquisto: è la stessa tendina delle
 righe della griglia, perché sono codici che servono di rado. Il riquadro
 «Codici» non c'è più. Il core marca la loro colonna come contenitore
 condizionale e la nasconde intera: in una `row g-3` una colonna vuota lascia
@@ -623,11 +633,217 @@ diventerebbe una pagina di guasto su un articolo già scritto a metà. Guarda la
 casella in alto o le righe, secondo la risposta a «ha varianti?», e lascia
 passare un numero sotto zero uguale a quello che il prodotto ha già
 (`negativeWritten()`): è una vendita in arretrato, non l'ha scritto nessuno.
+Vale anche con la vendita senza giacenza accesa: la casella dice quanti pezzi
+ci sono, e un numero negativo scritto a mano resta un errore di battitura. Sotto
+zero porta solo un movimento che scarica, e solo su un'opzione che lo permette
+(vedi [La vendita senza giacenza](#la-vendita-senza-giacenza)).
 
 I decimali della griglia arrivano interi fino al database dalla **2.2.15** del
 core: prima il suo `prepare()` li arrotondava (21,50 diventava 22,00). Non
 c'era rimedio lato modulo, perché l'hook `prepareRepeaterRelationRow()` gira
 **prima** di `preparePayload()`.
+
+## La vendita senza giacenza
+
+Funzionalità `backorders`, che richiede `orders`. Bloccata, «Come si vende» ha
+i suoi tre interruttori e nessuno scrive le due colonne: `backorderFields()` e
+`backorderInputs()` tornano `[]`, `backorderChoice()` torna `null`.
+
+Sbloccata, sotto «Da spedire» c'è **«Vendita senza giacenza»** e, solo da
+acceso, **«Giorni di attesa»** (`visibleWhen('allow_backorder', 'true')`), come
+l'imballaggio segue «Da spedire».
+
+**L'interruttore è dell'articolo, le colonne sono delle opzioni** (P85).
+`allow_backorder` e `backorder_lead_days` stanno in `gst_products`, non in
+`gst_product_models`: `withoutExtras()` le toglie dai valori del modello e
+`saveBackorders()` le scrive su **tutte** le opzioni vive, anche su quelle nate
+nella stessa richiesta, toccando solo le righe che cambiano. Cosa scrive lo
+decide `backorderChoice()`, chiamata anche da `mutateRequestValues()` perché
+il rifiuto arrivi prima dell'insert:
+
+| Nel post | Cosa si scrive |
+|---|---|
+| niente `allow_backorder` | niente: le opzioni restano come sono |
+| spento | `false` e zero giorni, anche se la casella nascosta ne porta ancora |
+| acceso, giorni vuoti | `true` e zero giorni |
+| acceso, un intero da 0 a 365 | `true` e quei giorni |
+| acceso, altro | `product.backorder_lead_days_invalid` |
+
+In `saveExtras()` gira **dopo il generatore**, perché vale anche per le opzioni
+appena nate, e **prima di prezzi, soglie e pezzi**: `Stock::apply()` rilegge
+l'opzione, e deve trovare l'interruttore già scritto.
+
+Riaprendo, `backorderSummary()` riassume le opzioni: acceso **solo se lo è su
+tutte** (e ce n'è almeno una), con i giorni più lunghi fra quelle accese. Così
+un'opzione rimasta indietro si vede: la scheda riapre spenta, e il salvataggio
+successivo spegne tutte. Dopo un salvataggio rifiutato il form torna con quello
+scritto (`mutateFormValues()` aggiunge il riassunto con `+=`).
+
+**Sotto zero ci vogliono due sì** (P86). `Stock::apply()` lascia scendere la
+giacenza solo se `backorders` è attiva **e** l'opzione ha
+`allow_backorder = 'true'`; altrimenti `stock.insufficient`. La funzionalità
+dice che si può, l'articolo dice se lo vende scoperto. In G2b bastava la
+funzionalità: ora un articolo con l'interruttore spento resta un muro anche con
+`backorders` attiva. Il muro è solo per i movimenti che tolgono: un carico
+entra sempre, anche se la giacenza resta sotto zero (vedi
+[Magazzino](magazzino.md#i-rifiuti)). I documenti di magazzino passano dalla
+stessa porta e seguono la stessa regola.
+
+Un'impostazione del negozio che faccia nascere gli articoli già accesi non c'è:
+un articolo nuovo parte spento.
+
+## I fornitori di ogni opzione
+
+Funzionalità `purchasing`. Da chi si compra un'opzione, con quale codice e a
+quanto sta in `gst_product_suppliers`: la tabella, le regole e gli helper sono
+in [Fornitori e costi d'acquisto](acquisti.md). Qui c'è come li scrive la
+scheda dell'articolo. Con la funzionalità bloccata non si vede e non si scrive
+niente, e i legami salvati restano dove sono.
+
+**Tre caselle o una finestra** (P88, P89). Lo decide `supplierCostMode()`, e
+schema, layout, controllo e salvataggio leggono la stessa risposta:
+
+| Modo | Quando | Cosa c'è |
+|---|---|---|
+| `null` | `purchasing` bloccata | niente |
+| `flat` | al più un fornitore proponibile | tre caselle: Fornitore, Codice fornitore, Costo d'acquisto |
+| `modal` | due o più | il bottone «Costo» con il riassunto del preferito, e la finestra |
+
+Senza varianti i campi stanno nella tendina del riquadro «Prodotto», con
+`hiddenWhen('has_variants', 'true')`: `product_supplier_id`,
+`product_supplier_sku` e `product_cost`, oppure `product_suppliers` (nascosto)
+e `product_cost_button`. Con le varianti sono colonne di ogni riga della
+griglia: `supplier_id`, `supplier_sku` e `cost`, oppure `suppliers` e
+`cost_button`. `withoutExtras()` toglie dai valori del modello quelli con il
+prefisso `product_`.
+
+**I fornitori proponibili** li dà `supplierChoices($modelId)`: gli attivi, più
+quelli già legati a un'opzione dell'articolo anche se nel frattempo sono stati
+messi su «Non attiva» (`Contacts::supplierOptions($legati)`, con
+«(non attivo)» accanto al nome). Senza, la tendina posterebbe vuoto e
+staccherebbe un fornitore solo perché non è più attivo. Il loro numero, e
+quindi la forma, è **per articolo**, e si legge una volta per richiesta:
+`forgetCatalogCache()` la azzera.
+
+**Un fornitore non attivo vale solo dove c'è già** (P92). Le scelte di
+un'opzione sono quelle dell'articolo meno i non attivi (`inactiveSupplierIds()`)
+che lei non ha: `supplierChoicesFor($modelId, $productId)`, su cui
+`assertSupplierCosts()` controlla ogni riga. Una riga nuova, e l'opzione unica
+di un articolo nuovo, hanno solo gli attivi; l'opzione unica di un articolo
+salvato ha i suoi. Nel browser la finestra nasconde la riga di un fornitore non
+attivo sulle opzioni che non lo hanno nel loro JSON, e con le tre caselle
+`supplierInactiveScript()` lo toglie dalle tendine che non lo hanno scelto e
+dal template da cui il repeater clona le righe nuove. Il controllo vero resta
+quello del server.
+
+**Le tre caselle** scrivono il preferito, e basta: con un fornitore solo non
+c'è altro da scegliere. Un fornitore svuotato **stacca** (P88): l'opzione perde
+il legame, e codice e costo rimasti accanto non si salvano e non fermano
+niente. Se nel post non arriva nessuna delle tre chiavi, l'opzione non si
+tocca.
+
+**La finestra** (`supplierCostModal()`, id `wi-supplier-costs`) è una sola per
+pagina, anche con dieci righe: una riga per fornitore proponibile, con
+Preferito (radio `pills()`), nome, Codice fornitore, Costo e la «x» che lo
+stacca, e i bottoni Annulla e Salva. Ogni riga è un blocco con
+`data-wi-supplier-line`, che lo script nasconde per intero. Non è legata a nessuna opzione, e i suoi campi
+(`wi_supplier_cost[...]`) non arrivano al salvataggio: il `Modal` del core si
+sposta sotto `document.body`, fuori dal form. Il trasporto è il **campo
+nascosto** della riga, un JSON:
+
+```json
+[{"supplier_id": 7, "supplier_sku": "FN-120", "cost": "12.00", "is_preferred": "true"}]
+```
+
+`supplierCostScript()` fa il resto nel browser. All'apertura
+(`show.bs.modal`) cerca il campo della riga del bottone, o `product_suppliers`
+senza varianti, mette nel titolo «Costo · Blu / S» (o il nome dell'articolo) e
+riempie le righe. «Salva» riscrive il JSON con i fornitori **legati**: quelli
+che l'opzione aveva già, anche senza codice né costo, e quelli toccati nella
+finestra — un codice, un costo, il preferito. Le tre caselle e la scheda
+dell'opzione salvano un legame con il solo fornitore, e la finestra non deve
+perderlo in silenzio: per staccarlo c'è la «x» della riga, che ne svuota anche
+i campi. Poi un preferito solo — quello scelto, o il primo legato — e il testo
+accanto al bottone
+(`span[data-wi-button-caption]`): «Filati Nord · 12,00 €», il solo nome se il
+costo non si sa, «Nessun fornitore». La scheda si salva con il suo Salva.
+
+| Campo nascosto | Cosa vuol dire |
+|---|---|
+| vuoto, o non un elenco | la finestra non l'ha toccato: i legami restano |
+| `[]` | finestra salvata senza fornitori: i legami se ne vanno |
+| un elenco | i legami dell'opzione, com'erano nella finestra |
+
+Riaprendo la scheda `supplierFields()` riempie il campo dai legami salvati e
+scrive il riassunto con `ProductSuppliers::summary()`; dopo un salvataggio
+rifiutato tiene quello postato.
+
+**Il controllo** è `assertSupplierCosts()`, chiamato da
+`mutateRequestValues()` dopo le soglie: per ogni opzione legge i fornitori
+postati (`postedSuppliers()`) e li passa a `ProductSuppliers::assertValid()`
+contro i fornitori proponibili per quell'opzione. Un doppione, un fornitore
+che la pagina non propone, un costo negativo, non numerico o oltre quello che
+la colonna tiene, o un codice oltre cento caratteri si fermano prima
+dell'insert: il core scrive l'articolo prima di `saveExtras()`, e un rifiuto di
+MySQL a metà lascerebbe i legami salvati a metà.
+
+La forma dei fornitori postati la dice quello che arriva, non il modo di
+adesso: fra l'apertura della pagina e il salvataggio un fornitore può
+diventare attivo, o smettere di esserlo, e il modo cambiare. `postedSuppliers()`
+legge il JSON se arriva solo quello, le tre caselle se arrivano solo quelle, e
+con tutte e due vince il modo. Guardando solo il modo, le modifiche della pagina
+aperta sparirebbero senza un errore.
+
+**Il salvataggio** è `saveSupplierCosts()`, in `saveExtras()` subito dopo
+`saveMinStocks()`. Senza varianti scrive sul prodotto unico; con le varianti le
+righe salvate per id (solo opzioni vive) e quelle nate per chiave della
+combinazione. Una riga nata e lasciata vuota non stacca niente: il generatore
+può averle dato lo scheletro, che i suoi fornitori li ha già. Scritta, sullo
+scheletro ripreso (`$riprese`) **si aggiunge** (`mergeSupplierRows()`): la sua
+finestra è nata vuota dal template e non ha mostrato i legami dello scheletro,
+che quindi restano — quelli postati dalla sua riga vecchia ancora nella
+griglia, o quelli salvati se quella non arriva. La riga nuova vince fornitore
+per fornitore, e il suo preferito diventa quello dell'opzione; per staccare un
+legame dello scheletro c'è la «x» sulla sua riga. Ogni opzione
+passa da `ProductSuppliers::sync()`, dopo `keepStoredCosts()`: il costo si
+scrive con due decimali e si tiene con quattro, e se la casella dice lo stesso
+numero arrotondato resta quello salvato. Alla fine
+`ProductSuppliers::dropRemovedOptions()` toglie i legami delle opzioni che la
+griglia ha messo nel cestino.
+
+**Eliminare l'articolo** (`deleteRecord()`) toglie per primi i legami di tutte
+le sue opzioni, anche di quelle già nel cestino e anche con `purchasing`
+bloccata: la chiave esterna non lascerebbe eliminare il prodotto. Lo stesso fa
+`ProductResource::deleteRecord()` per una singola opzione.
+
+**Nella scheda dell'opzione** (`ProductResource`) c'è il riquadro «Fornitori»,
+dopo «Magazzino»: il repeater `suppliers` con Fornitore, Codice fornitore,
+Costo d'acquisto e Preferito, legato a `gst_product_suppliers` con
+`RepeaterRelation` (`positionKey('position')`, `softDelete(false)`),
+riordinabile. Qui i fornitori sono **tutti**, non solo il preferito, e le
+scelte sono quelle dell'opzione: gli attivi più quelli già legati a lei. Senza
+fornitori da proporre il riquadro dice di aggiungerne uno da Anagrafiche →
+Fornitori.
+
+- `mutateRequestValues()` controlla le righe grezze
+  (`Repeater::rowsFromRequest()`) con `assertValid()`: il core le ha già tolte
+  da `$values`.
+- `syncRepeaterRelations()` svuota l'id di una riga che non è di questa
+  opzione, che così si salva come riga nuova. Il repeater del core aggiorna
+  per id e riscrive l'opzione: l'id di un'altra opzione (un form copiato o
+  ritoccato) le porterebbe via il legame, e uno che non c'è più — la finestra
+  dell'articolo ha cambiato fornitore mentre la scheda era aperta — lascerebbe
+  l'opzione senza fornitori. Vince chi salva per ultimo.
+- `prepareRepeaterRows()` scarta le righe vuote e i doppioni, e tiene un
+  preferito solo. Il preferito è una tendina per riga, e sceglierne un altro
+  non spegne quello di prima: con due «Sì» vince quello che nel database non
+  lo era (`supplierCardNewPreferred()`), poi `preferOne()`.
+- `prepareRepeaterRelationRow()` tiene il costo a quattro decimali quando la
+  casella dice lo stesso numero arrotondato; `mutateFormValues()` lo mostra
+  con due, e vuoto resta vuoto.
+- Nessun indice unico su opzione e fornitore (P93): il repeater del core prima
+  scrive e poi toglie, e uno scambio di righe inciamperebbe a metà
+  salvataggio. I doppioni li ferma la scheda, che può spiegarlo.
 
 ## Il riquadro che non si chiude
 
@@ -732,4 +948,9 @@ note passano da `DemoData::note()`.
 Le quattro schede di prova della rubrica (`Seeding\ContactsDemo`) seguono la
 stessa regola: segno nel codice (`con_demo-bianchi`), nessuna scheda nuova se ce
 n'è già una vera con lo stesso nome, e la pulizia che lascia un fornitore
-nominato da un movimento di magazzino.
+nominato da un movimento di magazzino o dal costo d'acquisto di un'opzione. I
+costi d'acquisto degli articoli di prova se ne vanno con loro
+(`ProductModelResource::deleteRecord()`), e il conto di quello che la pulizia
+ha tolto li comprende: anche quelli delle opzioni nel cestino, che se ne vanno
+con le altre (`CatalogDemo::supplierLinksOf()` conta per `product_model_id`,
+senza guardare `deleted`).

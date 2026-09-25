@@ -1076,8 +1076,10 @@ impostazioni sono di un altro lavoro.
 bastava la funzionalità accesa; da qui serve anche l'interruttore
 sull'opzione (`allow_backorder`). Con la funzionalità accesa e l'interruttore
 spento, per quell'opzione la giacenza resta un muro: `stock.insufficient`,
-come senza funzionalità. La regola sta in `Stock::apply()`, e vale anche per i
-documenti di carico e scarico di G2b-bis, che passano da lì.
+come senza funzionalità. Il muro è solo per i movimenti che tolgono: un carico
+entra sempre, anche se la giacenza resta sotto zero (da -5, un carico di 2
+porta a -3). La regola sta in `Stock::apply()`, e vale anche per i documenti
+di carico e scarico di G2b-bis, che passano da lì.
 
 **Il costo d'acquisto è per fornitore.** Con `purchasing` acceso ogni opzione
 può avere più fornitori, ognuno con il suo codice e il suo costo, e uno è il
@@ -1098,10 +1100,14 @@ bottone **Costo** con accanto il preferito e il suo costo («Filati Nord ·
 12,00 €»), o «Nessun fornitore». Il bottone apre una finestra sola per tutta la
 pagina, **Costo · <nome dell'opzione>**, con tutti i fornitori del
 negozio, uno per riga: **Preferito** (radio), nome, **Codice fornitore**,
-**Costo**; in fondo [Annulla] [Salva]. Un fornitore con codice e costo vuoti
-non è legato all'opzione. Salva scrive i dati nella riga e aggiorna il testo
-accanto al bottone; la scheda si salva con il suo Salva. Se il preferito
-scelto è vuoto, o non ce n'è uno, diventa preferito il primo legato.
+**Costo** e una «x» che lo stacca; in fondo [Annulla] [Salva]. Sono legati
+all'opzione i fornitori che aveva già, anche senza codice né costo (le tre
+caselle e la scheda dell'opzione salvano il fornitore da solo), e quelli
+toccati nella finestra: un codice, un costo, il preferito. Per staccarne uno
+c'è la «x», che ne svuota anche i campi. Salva scrive i dati nella riga e
+aggiorna il testo accanto al bottone; la scheda si salva con il suo Salva. Se
+il preferito scelto è vuoto, o non ce n'è uno, diventa preferito il primo
+legato.
 
 **La scheda dell'opzione ha l'elenco intero.** In Catalogo → Prodotti, aprendo
 un'opzione, con `purchasing` c'è un riquadro **Fornitori** con tutte le righe:
@@ -1112,11 +1118,26 @@ fornitore, codice, costo, preferito.
 abbasserebbe il valore del magazzino. Nella scheda il costo ha due decimali,
 nella tabella quattro, come il costo dei movimenti.
 
+**Cosa ferma la scheda.** Prima di scrivere l'articolo: due righe per lo stesso
+fornitore, un fornitore che l'opzione non può avere, un costo negativo, non
+numerico (`product.supplier_cost_invalid`) od oltre quello che la colonna tiene
+(`product.supplier_cost_too_high`), un codice fornitore oltre cento caratteri
+(`product.supplier_sku_too_long`). Il core scrive l'articolo prima dei
+fornitori, e un rifiuto del database a metà lascerebbe i legami salvati a
+metà.
+
 **Quando si mostra il bottone.** Contano i fornitori che la pagina può
 proporre: quelli attivi più quelli già legati alle opzioni dell'articolo. Un
 fornitore messo su «Non attivo» resta nella scelta delle opzioni che lo usano,
 con «(non attivo)» accanto al nome, e non compare per le altre: senza, la
-tendina posterebbe un valore vuoto e staccherebbe il fornitore.
+tendina posterebbe un valore vuoto e staccherebbe il fornitore. Le scelte sono
+quindi **per opzione**: gli attivi più i fornitori che lei ha già. Una riga
+nuova della griglia ha solo gli attivi. La scheda rifiuta un fornitore non
+attivo su un'opzione che non lo aveva, e nel browser la finestra e le tendine
+non lo propongono. Il bottone o i tre campi si decidono per articolo; al
+salvataggio però conta quello che arriva: se nel frattempo il modo è cambiato,
+un JSON o tre caselle postati si leggono lo stesso, e le modifiche non
+spariscono.
 
 **Cancellare.** Un fornitore legato a opzioni in vendita non si elimina e non
 perde il ruolo di fornitore (`contact.supplier_in_use`,
@@ -1147,13 +1168,13 @@ carico (è di G2b-bis).
 |---|-----------|--------|
 | P84 | Con `backorders`, «Vendita senza giacenza» in «Come si vende» sotto «Da spedire», con «Giorni di attesa» che compare con l'interruttore; spento, i giorni tornano a zero | Chi vende decide articolo per articolo, e un'attesa senza vendita scoperta non vuol dire niente |
 | P85 | L'interruttore è dell'articolo: si scrive su tutte le opzioni, anche le nuove; riaprendo è acceso solo se lo è su tutte | Chi vende pensa all'articolo; un'opzione rimasta indietro deve vedersi |
-| P86 | Sotto zero solo con `backorders` e `allow_backorder` sull'opzione; altrimenti `stock.insufficient`. Corregge la regola di G2b | La funzionalità dice che si può, l'articolo dice se lo vuole |
+| P86 | Sotto zero solo con `backorders` e `allow_backorder` sull'opzione; altrimenti `stock.insufficient`, ma solo per i movimenti che tolgono: un carico entra sempre. Corregge la regola di G2b | La funzionalità dice che si può, l'articolo dice se lo vuole; rifiutare un carico lascerebbe la giacenza più in basso di quello che c'è |
 | P87 | Costo per fornitore in `gst_product_suppliers`, un preferito per opzione; solo con `purchasing` | Lo stesso articolo si compra da più parti a prezzi diversi |
 | P88 | Con al più un fornitore, Fornitore, Codice fornitore e Costo d'acquisto nella tendina dei codici; svuotare il fornitore lo stacca | Stanno con SKU ed EAN, e con un fornitore solo una finestra non serve |
 | P89 | Con due o più fornitori, bottone «Costo» con il preferito accanto e una finestra con tutti i fornitori, preferito a radio | Una tabella dentro una riga della griglia non ci sta; il riassunto dice quello che serve senza aprire |
 | P90 | La scheda dell'opzione ha il riquadro «Fornitori» con l'elenco intero | È il posto dove si guarda un'opzione sola |
 | P91 | Costo vuoto = sconosciuto (`NULL`); due decimali nella scheda, quattro nella tabella | Uno zero finto sposterebbe la scelta del fornitore e il valore del magazzino |
-| P92 | Il bottone compare con due o più fornitori proponibili: gli attivi più quelli già legati all'articolo; un fornitore non attivo resta nella scelta delle opzioni che lo usano | Altrimenti un salvataggio staccherebbe un fornitore solo perché è stato disattivato |
+| P92 | Il bottone compare con due o più fornitori proponibili: gli attivi più quelli già legati all'articolo; un fornitore non attivo resta nella scelta delle opzioni che lo usano, e solo di quelle (server e browser) | Altrimenti un salvataggio staccherebbe un fornitore solo perché è stato disattivato, o lo legherebbe a un'opzione nuova |
 | P93 | Un fornitore legato a opzioni in vendita non si elimina e non perde il ruolo; il legame sparisce con l'opzione; i doppioni li rifiuta la scheda | La chiave esterna fermerebbe l'eliminazione con un errore del database; il legame è il costo di oggi, non storia |
 | P94 | Nel core `FormField::button()`, il componente `Modal` spostato nel `body`, `InputRadio::pills()` | I campi passano sempre dal core; una finestra dentro il form ne posterebbe i campi |
 
@@ -1168,6 +1189,7 @@ carico (è di G2b-bis).
 - [ ] modulo: pulizia quando si cancellano opzioni e fornitori; codici d'errore; dati di prova
 - [ ] modulo: test, guide utente e dev
 - [ ] prova nel browser (1600×950)
+- [x] modulo e core, dopo la review: controlli di costo e codice prima dell'insert, forma dei fornitori dal post, legami della finestra tenuti e «x» per staccare, P92 per opzione (server e browser), id di riga della scheda dell'opzione limitati all'opzione, carico sempre ammesso nei documenti, fornitori della riga nuova che riprende lo scheletro aggiunti ai suoi (`mergeSupplierRows()`: la riga nuova vince fornitore per fornitore), conto della pulizia di prova con i legami delle opzioni nel cestino; nel core id e `for` delle righe aggiunte dal repeater, pillole senza titolo con `label('')`
 
 ## Piani
 

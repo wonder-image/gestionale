@@ -88,4 +88,11 @@ check('un valore vuoto non è mai un duplicato', fn () =>
     && Contacts::duplicateOf('pi', '   ', 7) === []
 );
 
+check('senza database non c\'è nessun fornitore da proporre', fn () =>
+    // Le tendine dei fornitori si costruiscono anche nei test degli schemi:
+    // vuote, non rotte.
+    Contacts::supplierOptions() === []
+    && Contacts::supplierOptions([5, 6]) === []
+);
+
 summary();

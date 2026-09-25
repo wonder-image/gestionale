@@ -21,6 +21,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Sql\Transaction;
 
 /**
@@ -317,6 +318,16 @@ class CustomerResource extends GestionaleResource
             throw UserError::make('contact.no_role');
         }
 
+        // Un fornitore che smette di esserlo sparirebbe dalla tendina delle
+        // opzioni che comprano da lui, e al primo salvataggio le perderebbe.
+        if ($id > 0 && !$supplier && static::storedRole($id, 'is_supplier') === 'true') {
+            $links = ProductSuppliers::countForSupplier($id);
+
+            if ($links > 0) {
+                throw UserError::make('contact.supplier_role_in_use', ['count' => $links]);
+            }
+        }
+
         foreach ([
             'pi' => 'contact.vat_taken',
             'cf' => 'contact.tax_code_taken',
@@ -339,6 +350,9 @@ class CustomerResource extends GestionaleResource
      * Cancellarla lascerebbe un utente che può entrare e non ha più una
      * scheda. Quando arriveranno ordini e documenti (G4) la stessa regola
      * varrà per loro: si disattiva, non si cancella.
+     *
+     * Lo stesso per un fornitore con dei costi d'acquisto su opzioni in
+     * vendita, anche ad acquisti spenti: il costo resta salvato e tornerà.
      */
     public static function assertDeletable(int|string $id): void
     {
@@ -347,12 +361,24 @@ class CustomerResource extends GestionaleResource
         if (is_array($row) && (int) ($row['user_id'] ?? 0) > 0) {
             throw UserError::refusal('contact.has_account');
         }
+
+        $links = ProductSuppliers::countForSupplier((int) $id);
+
+        if ($links > 0) {
+            throw UserError::refusal('contact.supplier_in_use', ['count' => $links]);
+        }
     }
 
-    /** La scheda se ne va con i suoi indirizzi di consegna. */
+    /**
+     * La scheda se ne va con i suoi indirizzi di consegna.
+     *
+     * Prima di cancellare la scheda se ne vanno i suoi costi su opzioni già
+     * eliminate: nessuno li vede più, e la chiave esterna li terrebbe fermi.
+     */
     public static function deleteRecord(int|string $id): object
     {
         static::assertDeletable($id);
+        ProductSuppliers::dropForRemovedProducts((int) $id);
 
         // Gli indirizzi di consegna se ne vanno con la scheda, anche quelli
         // già tolti dalla griglia: da soli la terrebbero ferma. Insieme, così
