@@ -203,6 +203,19 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
       - Giro di correzioni della revisione finale (2026-09-24): il link «Aggiungi i destinatari» del riquadro compare solo a chi può aprire le *Impostazioni*, gli altri leggono che li aggiunge il commerciante; una versione con movimenti non si elimina più nemmeno da codice (`ProductResource::assertDeletable()`); il ritorno `torna=` della Rettifica rifiuta barre rovesciate, spazi, caratteri di controllo e `//` anche dopo l'host (redirect aperto); «Azzera i filtri» nelle Giacenze azzera davvero; un hook che lascia solo indirizzi non validi viene segnalato fra gli errori, un hook che svuota i destinatari apposta no.
       - AutoNumeric mostra le giacenze negative come `5,000-` (segno in fondo): è la configurazione del sito, come per i prezzi.
       - La pagina delle impostazioni del negozio, aperta da chi non ha il permesso, porta al Login invece di un 403: comportamento del core.
+  - [ ] **G2b-bis Giacenze, movimenti e documenti di magazzino** — revisione di G2b prima di G3; spec: `docs/superpowers/specs/2026-09-23-giacenze-movimenti-documenti-design.md`
+    - [x] §1 Aggiunte al core: azioni-array, `TableLayoutSchema::select()`, filtri (approvata il 2026-09-23, rivista il 2026-09-24: tolta la pagina-form in popup)
+    - [x] §2 Giacenze: elenco datatable in sola consultazione, una colonna per sede con più sedi, niente rettifica (approvata il 2026-09-23, rivista il 2026-09-24)
+    - [x] §3 Movimenti: sede con più sedi, documento dentro *Tipo* e nel menu ⋯, *Chi*, *Prima*, filtro *Periodo*, ricerca sull'articolo (approvata il 2026-09-24)
+    - [x] §4 Documenti di magazzino: Carico, Scarico, Inventario — dati, stati, movimenti e pagine (approvata il 2026-09-24)
+    - [x] §5 Documentazione, test, piani: guide, dati di prova, test, validazione e sei piani, Giacenze e Movimenti subito dopo il core (approvata il 2026-09-24)
+    - [x] Revisione della spec completa da parte dell'utente e commit (2026-09-25)
+    - [ ] Piano 1 Tabelle del core (repository `app`): azioni-array, `TableLayoutSchema::select()`, `filterQuery()`, correzioni di `FilterCustom`, ricerca annidata; nel `main` del core prima del piano 2
+    - [ ] Piano 2 Giacenze: `Locations::shown()`, elenco in sola consultazione con una colonna per sede, filtri, `lowStockUrl()` sul filtro *Scorta*; via la pagina-form
+    - [ ] Piano 3 Movimenti: colonne, *Chi*, *Prima*, filtri *Causale*, *Sede* e *Periodo*, ricerca sull'articolo, *Ultimi movimenti* nella scheda della versione
+    - [ ] Piano 4 Documenti, dati e servizio: tabelle, Model, regole, conferma, annullamento, duplica, inventario; documento e storni dentro *Tipo* nei Movimenti
+    - [ ] Piano 5 Carichi e scarichi, pagine: menu, elenchi, bozza con i componenti, rotta JSON e indice `ean`, pagina in sola lettura, azioni, dati di prova
+    - [ ] Piano 6 Inventario, pagine: Attesi · Contati · Differenza, *Aggiungi versioni*, limite di 500 righe, dati di prova; chiusura di G2b-bis
 - [ ] G3 Magazzino avanzato
 - [ ] G4 Ordini e pagamenti
 - [ ] G5 Multiprodotto e personalizzazione

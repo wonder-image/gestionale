@@ -370,7 +370,7 @@ che li richiedono.
 | Catalogo | Personalizzazione | `customizations` | campi compilati al momento della vendita (testo, scelta, scelta del componente) con eventuale sovrapprezzo, salvati sulla riga | Ordini (scelta del componente: anche Multiprodotto) | G5 |
 | Catalogo | Etichette | `barcode_labels` | etichette con codice a barre e prezzo in PDF, su foglio A4 o rotolo termico | — | futura |
 | Magazzino | Più sedi | `multi_location` | altre sedi con giacenze proprie e trasferimenti | — | G3 |
-| Magazzino | Acquisti | `purchasing` | costi d'acquisto per fornitore, documenti di carico, valore del magazzino | — | G3 |
+| Magazzino | Acquisti | `purchasing` | fornitori e costi d'acquisto nei prodotti e nei carichi, valore del magazzino | — | G3 |
 | Magazzino | Lotti e scadenze | `batch_tracking` | lotto e data di scadenza su carichi e scarichi | — | G3 |
 | Magazzino | Avvisi di scorta minima | `low_stock_alerts` | email e riquadro della dashboard per i prodotti sotto la propria scorta minima | — | G2 |
 | Magazzino | Vendita senza giacenza | `backorders` | prodotti vendibili a magazzino vuoto, con la giacenza che va sotto zero e l'indicazione "su ordinazione" (D60) | Ordini | G4 |
@@ -635,23 +635,27 @@ disponibile.
 
 *Scartato:* scarico all'evasione (emissione del DDT, spedizione o ritiro).
 
-**Documenti di magazzino.** Carichi, scarichi e trasferimenti in una sola tabella,
-come i documenti di carico e scarico di cco:
+**Documenti di magazzino.** Carichi, scarichi, inventari e trasferimenti in una
+sola tabella, come i documenti di carico e scarico di cco:
 
 | Tabella | Colonne principali |
 |---|---|
-| `stock_documents` | code `stk_`, type (`receipt`, `issue`, `transfer`), number (4.1), date, location_id, to_location_id, supplier_id, supplier_document_number, supplier_document_date, reason, status, total_cost, note, user_id |
-| `stock_document_items` | stock_document_id, product_id, batch_id, supplier_id (vuoti: scelta automatica), quantity, unit_cost, line_total, position |
+| `stock_documents` | code `stk_`, type (`receipt`, `issue`, `stocktake`, `transfer`), number (4.1), date, location_id, to_location_id, supplier_id, supplier_document_number, supplier_document_date, reason, status, total_cost, note, user_id |
+| `stock_document_items` | stock_document_id, product_id, batch_id, supplier_id (vuoti: scelta automatica), quantity, expected_quantity (inventario), unit_cost, line_total, position |
 
 - **Stati:** `draft`, `completed`, `cancelled`; i trasferimenti anche `in_transit`.
-  Log in `stock_document_status_logs`.
+  Log in `stock_document_status_logs`. Il numero arriva alla conferma, con una
+  sequenza per tipo.
 - **Movimenti alla conferma:** carico `purchase`; scarico `adjustment` con la
-  causale del documento; trasferimento `transfer_out` alla partenza e `transfer_in`
-  all'arrivo.
+  causale del documento; inventario `adjustment` con causale `inventory`, la
+  differenza fra pezzi contati e attesi; trasferimento `transfer_out` alla partenza
+  e `transfer_in` all'arrivo.
 - **Annullamento:** un documento confermato si annulla con movimenti di storno
-  (stesso tipo, segno opposto), mai cancellando.
-- **Funzionalità:** carico e scarico richiedono `purchasing`, il trasferimento
-  `multi_location`.
+  (stesso tipo, segno opposto, `reference_type` = `stock_document_cancel`), mai
+  cancellando.
+- **Funzionalità:** carico, scarico e inventario sono sempre disponibili (G2b-bis);
+  con `purchasing` il carico riceve fornitore, documento del fornitore e costi. Il
+  trasferimento richiede `multi_location`.
 
 **Rettifica rapida** dalla scheda prodotto, sempre disponibile: movimento
 `adjustment` senza documento, con causale (`reason`): `damaged`, `gift`,
@@ -1994,8 +1998,8 @@ In ordine di dipendenza; `1.0.0` al termine.
 |---|---|---|---|
 | — | Lavori preparatori nel core | quelli "prima del gestionale" | 10.2 |
 | G1 | Fondamenta | repository `wonder-image/gestionale`; scheletro del modulo; funzionalità e pannello; codici; log degli stati; numerazioni; impostazioni; sync e `Defaults`; errori (`error_reports`, `provider_events`, "Da controllare"); IVA e impostazioni fiscali; sede principale; base di "Primi passi"; hook; test e GitHub Actions; spazi GitBook; comando dei dati di prova; sito di prova | 3, 4.1, 4.5, 4.14, 7, 8, 9 |
-| G2 | Catalogo, magazzino base, anagrafiche | modelli, varianti, prodotti, attributi, brand, categorie, tag, immagini, SKU, EAN e MPN; giacenze, movimenti, rettifiche, prenotazioni; clienti e fornitori; avvisi di scorta minima | 4.2, 4.3, 4.4 |
-| G3 | Magazzino avanzato | più sedi e trasferimenti; acquisti e documenti di carico; lotti e scadenze; giacenza per fornitore | 4.3 |
+| G2 | Catalogo, magazzino base, anagrafiche | modelli, varianti, prodotti, attributi, brand, categorie, tag, immagini, SKU, EAN e MPN; giacenze, movimenti, rettifiche, prenotazioni; carichi, scarichi e inventari (G2b-bis); clienti e fornitori; avvisi di scorta minima | 4.2, 4.3, 4.4 |
+| G3 | Magazzino avanzato | più sedi e trasferimenti; acquisti: fornitore e costi sui carichi; lotti e scadenze; giacenza per fornitore | 4.3 |
 | G4 | Ordini e pagamenti | classe dei prezzi (prezzo base e scontato); ordini e righe (fasi carrello e ordine, totali e IVA, numerazione); gestione degli ordini nel backend (elenco, dettaglio, stati, evasione, annullamento); metodi e conti di pagamento; pagamenti; prenotazioni e scarico alla conferma con sedi, lotti e fornitori; resi con ricarico | 4.6 (priorità), 4.7, 4.8, 4.10 |
 | G5 | Multiprodotto e personalizzazione | componenti e loro scarico; campi di personalizzazione sulle righe | 4.2, 4.7 |
 | G6 | Listini e promozioni | listini cliente con scaglioni; sconto massivo; coupon; ripartizione degli sconti sulle righe | 4.6 |
@@ -2028,8 +2032,8 @@ quando si realizza.
 
 - **Etichette con codice a barre (D30, `barcode_labels`):**
   - stampa dall'elenco prodotti (scelta dei prodotti e numero di etichette), dalla
-    scheda prodotto e dal documento di carico con un'etichetta per pezzo ricevuto
-    (con `purchasing`);
+    scheda prodotto e dal documento di carico con un'etichetta per pezzo
+    ricevuto;
   - formati (`label_formats`, gestiti da `admin`, sincronizzati): pagina, righe e
     colonne, misure, margini e contenuto (nome, variante, prezzo al pubblico IVA
     inclusa, SKU, codice a barre); precaricati i più comuni su foglio A4 e rotolo
