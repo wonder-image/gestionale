@@ -254,9 +254,9 @@ indici); in questo documento i nomi delle tabelle sono scritti senza prefisso.
 | Anagrafica, cliente, fornitore | contact, customer, supplier | `contacts`, `contact_addresses` |
 | Sede | location | `locations` (estende `society_locations` del core; orari e chiusure nel core) |
 | Documento di magazzino | stock document | `stock_documents`, `stock_document_items` |
-| Fornitore del prodotto | product supplier | `product_suppliers` |
+| Fornitore del prodotto | product supplier | `product_model_suppliers`; `product_suppliers` per le eccezioni di un'opzione |
 | Giacenza, movimento, prenotazione | stock, stock movement, stock reservation | `stock`, `stock_movements`, `stock_reservations` |
-| Avviso di scorta minima | low stock alert | `stock_alerts` |
+| Soglia e avviso di scorta minima | stock threshold, low stock alert | `stock_thresholds`, `stock_alerts` |
 | Lotto | batch | `batches` |
 | Listino | price list | `price_lists`, `price_list_items` |
 | Sconto massivo | discount campaign | `discount_campaigns`, `discount_campaign_categories`, `discount_campaign_tags`, `discount_campaign_brands`, `discount_campaign_product_models` |
@@ -503,7 +503,7 @@ Contenuti in una sola lingua (D4).
 | `product_models` | brand_id, type (`simple`, `bundle`), tax_category_id, code, sku, unit (predefinita `pz`), name, slug, short_description, description, peso e misure predefiniti, seo_title, seo_description, returnable (4.10), requires_shipping (4.11), visible, visible_online |
 | `product_model_categories`, `product_model_tags` | tabelle ponte; per le categorie anche `is_main` e `position` |
 | `product_variants` | product_model_id, name, slug, position, visible |
-| `products` | product_model_id, product_variant_id, sku, ean, mpn, price, sale_price, min_stock_quantity (4.3), allow_backorder e backorder_lead_days (4.3, D60), peso e misure (se vuoti valgono quelli del modello), position, active |
+| `products` | product_model_id, product_variant_id, sku, ean, mpn, price, sale_price, allow_backorder e backorder_lead_days (4.3, D60), peso e misure (se vuoti valgono quelli del modello), position, active |
 | `product_images` | product_model_id, product_variant_id (vuoto = immagine del modello), file, alt, position |
 | `attributes` | key, name, type (`select`, `color`, `pattern`, `icon`, `text`, `number`), level (`model`, `variant`, `product`), unit, is_filterable, is_visible, group, position |
 | `attribute_values` | attribute_id, label, description, color, image (fantasia o icona), position |
@@ -592,7 +592,8 @@ in `wonder-image/app`.
 | `stock` | product_id, location_id, batch_id (vuoto senza lotti), supplier_id (vuoto senza acquisti), quantity |
 | `stock_reservations` | order_id, order_item_id, product_id, location_id, quantity, expires_at, released_at |
 | `stock_movements` | code `mov_`, product_id, location_id, batch_id, supplier_id, type, reason, quantity (con segno), quantity_before, quantity_after, unit_cost, reference_type + reference_id (ordine, DDT, reso, documento), source, user_id, note |
-| `stock_alerts` | product_id, location_id (vuoto: soglia sul totale del prodotto), threshold, quantity_at_alert, notified_at, resolved_at |
+| `stock_thresholds` | product_id, location_id, quantity: la scorta minima di un prodotto in una sede |
+| `stock_alerts` | product_id, location_id, threshold, quantity_at_alert, notified_at, resolved_at |
 
 - **Tipi di movimento:** `sale`, `sale_cancel`, `return`, `purchase`, `adjustment`,
   `transfer_in`, `transfer_out`.
@@ -673,8 +674,10 @@ senza `purchasing`, D55), `other`.
 
 **Acquisti (`purchasing`).**
 
-- `product_suppliers`: product_id, supplier_id, supplier_sku, cost, is_preferred,
-  position.
+- `product_model_suppliers`: product_model_id, supplier_id, supplier_sku, cost,
+  position. `product_suppliers` ha le stesse colonne con `product_id`, solo per
+  l'opzione che si compra diversamente dal suo articolo: per quel fornitore vince
+  la riga dell'opzione. Nessun fornitore preferito.
 - Il carico aggiorna il costo del fornitore; lo storico dei costi resta nei
   movimenti (`unit_cost`).
 - Riquadro della dashboard con il valore del magazzino.
@@ -692,13 +695,13 @@ senza `purchasing`, D55), `other`.
 
 **Avvisi di scorta minima (`low_stock_alerts`).**
 
-- Campo "Scorta minima" sul prodotto (`products.min_stock_quantity`); se è vuoto
-  non ci sono avvisi.
-- Soglia sul disponibile totale del prodotto, somma di tutte le sedi.
+- Campo "Scorta minima" per prodotto e sede (`stock_thresholds`); se manca non
+  ci sono avvisi per quella sede. Con una sede sola il commerciante ne vede una.
+- Soglia sul disponibile della sede; un avviso per prodotto e sede.
 - Sotto soglia parte un'email ai destinatari scelti dal commerciante (impostazioni
   del commerciante, 8.2); se una sola operazione porta sotto soglia più prodotti,
   arriva un'unica email con l'elenco.
-- L'avviso non si ripete finché il prodotto non torna sopra soglia (`resolved_at`).
+- L'avviso non si ripete finché quella sede non torna sopra soglia (`resolved_at`).
 - Riquadro della dashboard con i prodotti sotto soglia.
 
 *Scartati:* costo medio ponderato (più semplice, ma perde la disponibilità per
@@ -706,8 +709,7 @@ fornitore); strati di carico FIFO (valore esatto, ma rettifiche, resi e
 trasferimenti devono spezzare gli strati); orari delle sedi modificabili dal
 commerciante.
 
-**Più avanti:** ordini a fornitore, inventario con conteggio guidato, soglia di
-scorta minima per sede (10.5).
+**Più avanti:** ordini a fornitore, inventario con conteggio guidato (10.5).
 
 ### 4.4 Anagrafiche e account (D31)
 
@@ -2095,8 +2097,7 @@ quando si realizza.
 - **Listini per categoria** (D33).
 - **Coupon:** generazione in blocco di codici usa e getta, più coupon nello stesso
   ordine (D35).
-- **Magazzino:** ordini a fornitore, inventario con conteggio guidato, soglia di
-  scorta minima per sede (D27, D29).
+- **Magazzino:** ordini a fornitore, inventario con conteggio guidato (D27, D29).
 - **Anagrafiche:** più utenti della stessa azienda sul portale B2B, referenti
   aziendali, gruppi di clienti (D31).
 - **Spedizioni:** zone per CAP, orari di ritiro prenotabili, tariffe in tempo reale

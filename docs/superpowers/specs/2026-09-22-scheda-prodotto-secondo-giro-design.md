@@ -1191,6 +1191,225 @@ carico (è di G2b-bis).
 - [ ] prova nel browser (1600×950)
 - [x] modulo e core, dopo la review: controlli di costo e codice prima dell'insert, forma dei fornitori dal post, legami della finestra tenuti e «x» per staccare, P92 per opzione (server e browser), id di riga della scheda dell'opzione limitati all'opzione, carico sempre ammesso nei documenti, fornitori della riga nuova che riprende lo scheletro aggiunti ai suoi (`mergeSupplierRows()`: la riga nuova vince fornitore per fornitore), conto della pulizia di prova con i legami delle opzioni nel cestino; nel core id e `for` delle righe aggiunte dal repeater, pillole senza titolo con `label('')`
 
+## 22. Tredicesimo giro: i fornitori sono dell'articolo, la giacenza ha una sede, lo sconto resta, le personalizzazioni prendono forma
+
+*Richiesta dell'utente, in quattro punti: il costo per fornitore va bene ma
+meglio a righe, come le opzioni di vendita, e il preferito forse non serve;
+con più sedi che cosa sono la giacenza e la scorta minima della scheda; il
+«Prezzo scontato» si tiene o no, e se si tiene va anche nelle opzioni; manca
+ancora la personalizzazione.*
+
+Dipende da G2b-bis, piano 2: `Locations::shown()` è la regola che dice quali
+sedi contano, e la scrive quel piano. Questo giro la usa e non la ridefinisce.
+
+### 22.1 I fornitori sono dell'articolo
+
+**Le righe stanno nella scheda dell'articolo, non fra i codici.** Il
+dodicesimo giro aveva messo fornitore, codice e costo nella tendina dei codici
+dell'opzione, con una finestra da due fornitori in su (P88, P89). Chi vende
+però compra l'articolo, non l'opzione: la maglia si prende da Filati Nord in
+tutte le taglie. Con la funzionalità `purchasing` accesa la scheda
+dell'articolo ha il riquadro **Fornitori** dopo «Come si vende», con o senza
+varianti: un repeater del core con le colonne **Fornitore** (tendina),
+**Codice fornitore** e **Costo** (input prezzo, due decimali), il bottone
+«Aggiungi fornitore», le righe che si trascinano e la conferma prima di
+toglierne una, come per le opzioni (§18). Le righe si scrivono nella tabella
+nuova `gst_product_model_suppliers` (`product_model_id` → `gst_product_models`,
+`supplier_id` → `gst_contacts`, `supplier_sku` a 100 caratteri, `cost`
+`DECIMAL(12,4)` a `NULL`, `position`), tramite `RepeaterRelation` come i
+fornitori della scheda dell'opzione. La tendina propone i fornitori attivi più
+quelli già legati all'articolo (P92, spostato dall'opzione all'articolo);
+senza nessuno da proporre il riquadro dice «Nessun fornitore da proporre:
+aggiungilo da Anagrafiche → Fornitori». Lo stesso fornitore due volte, un
+costo oltre `MAX_COST` e un codice più lungo di 100 caratteri li rifiuta la
+scheda con i codici d'errore di oggi (`ProductSuppliers::assertValid()`); una
+riga senza fornitore non si scrive. Nessun indice unico articolo×fornitore,
+per la stessa ragione di `gst_product_suppliers` (il repeater prima scrive e
+poi toglie).
+
+**La griglia perde tre campi, un bottone e una finestra.** Fornitore, Codice
+fornitore e Costo escono dalla tendina dei codici, e con loro il bottone
+«Costo», il campo nascosto con il JSON, la finestra `supplierCostModal()` e il
+suo script. P87–P90 sono superate; resta P91 (costo vuoto = sconosciuto, due
+decimali nella scheda e quattro nella tabella) e P93 esteso: un fornitore
+legato ad articoli **o** a opzioni non si elimina e non perde il ruolo
+(`countForSupplier()` conta le due tabelle), il legame sparisce con
+l'articolo o con l'opzione (`dropForRemovedModels()` accanto a
+`dropForRemovedProducts()`; l'eliminazione dell'articolo si coordina con il
+lavoro sulle eliminazioni, che ha `tests/integrazione/EliminazioniTest.php`).
+
+**L'opzione può fare eccezione.** `gst_product_suppliers` resta, senza la
+colonna `is_preferred` (il core la toglie da sé perché sparisce dallo schema;
+le righe esistenti restano come eccezioni). La scheda dell'opzione tiene il
+riquadro «Fornitori» senza la colonna «Preferito», con il titolo che spiega,
+in tooltip, «Vale solo per questa opzione e vince sui fornitori
+dell'articolo», e sopra le righe una riga di contesto: «Dall'articolo: Filati
+Nord · 12,00 € · Lana Sud · 11,50 €», oppure «L'articolo non ha fornitori».
+Il costo che vale per un'opzione lo dice `ProductSuppliers::effective(array
+$modelRows, array $optionRows)`, pura: fornitore per fornitore vince la riga
+dell'opzione, i fornitori dell'articolo senza riga nell'opzione valgono lo
+stesso, nell'ordine dell'articolo e poi quelli soli dell'opzione. Nessun
+preferito: `preferOne()`, `preferred()` e `summary()` spariscono; quando un
+lavoro futuro avrà bisogno di *un* costo (il valore del magazzino di una riga
+senza fornitore, G3) prenderà il primo per posizione, e lo dirà la sua spec.
+
+**Dati di prova.** `CatalogDemo` lega i fornitori agli articoli
+(`gst_product_model_suppliers`) e lascia una sola eccezione su un'opzione, per
+vedere la riga di contesto e la vittoria dell'eccezione.
+
+### 22.2 La giacenza ha una sede
+
+**Oggi la scheda parla del totale.** I pezzi stanno già per sede in
+`gst_stock`; la scheda mostra la somma, con due o più sedi la casella è in
+sola lettura (`stockIsWritable()`), un articolo nuovo carica la giacenza sulla
+sede principale senza dirlo, e la scorta minima è del prodotto sul totale
+(architettura 4.3, G2b-bis §2). Con più sedi chi compila non sa di quale sede
+sta parlando: la risposta è che ogni riga dice la sua.
+
+**Più sedi vuol dire due o più sedi da mostrare** (`Locations::shown()`,
+G2b-bis §2). Con una sola sede **niente cambia sullo schermo**: Giacenza e
+Scorta minima restano dove sono, nella tendina dei codici dell'articolo senza
+varianti, nelle colonne della griglia e nella scheda dell'opzione, e parlano
+della sede principale (`Locations::mainId()`).
+
+**La scorta minima ha la sua tabella.** `gst_stock_thresholds`: `product_id`
+→ `gst_products`, `location_id` → `gst_locations`, `quantity`
+`DECIMAL(12,3)`, un indice unico prodotto×sede (qui il salvataggio non
+scambia righe: scrive per sede). La colonna `gst_products.min_stock_quantity`
+esce **subito** dallo schema, senza copia: il core la toglie al primo
+`forge update`, e i valori di oggi (solo dati di prova) si perdono; copiarli
+non si può, perché il core allinea le tabelle prima di dare la parola al
+modulo. Il servizio `Support\Stock\Thresholds` legge e scrive le soglie
+(`forProduct()`, `forProducts()`, `save($productId, $byLocation)` che
+inserisce, aggiorna e cancella, `dropFor()`); una soglia vuota o a zero è una
+riga in meno.
+
+**Articolo senza varianti, più sedi: righe per sede.** Al posto delle due
+caselle c'è il riquadro **Magazzino** dopo i codici, con il repeater
+**Giacenza per sede**: colonne **Sede** (tendina sulle sedi da mostrare),
+**Giacenza** e **Scorta minima**, il bottone «Aggiungi sede», la conferma
+prima di togliere una riga. Il repeater non ha relazione: le righe le compone
+`Support\Stock\LocationRows` (pura) da `Levels::byLocation()` e dalle soglie,
+una riga per ogni sede che ha pezzi o una soglia, nell'ordine di `shown()`;
+un articolo nuovo parte con una riga sulla sede principale, vuota. Al
+salvataggio ogni riga si legge con `Stocktake`: la Giacenza è la quantità
+che si vuole (casella vuota = non toccare, zero scritto = zero) e diventa una
+rettifica su quella sede con `Stock::apply()` e la causale predefinita, o il
+carico iniziale se l'articolo nasce ora; la Scorta minima va nella soglia di
+quella sede. Una sede tolta dalle righe perde la soglia e **non** i pezzi: la
+riga ricompare finché ha giacenza. La stessa sede due volte e una sede fuori
+da `shown()` sono errori (`stock.location_duplicate`,
+`stock.location_unknown`); una riga senza sede non si scrive.
+
+**Griglia con più sedi: il totale e un bottone.** La colonna *Giacenza*
+mostra il totale in sola lettura, come oggi; la colonna *Scorta minima* lascia
+il posto al bottone **Giacenza** con accanto il riassunto «Milano 12 · Roma
+3». Il bottone apre una finestra con le stesse righe [Sede · Giacenza ·
+Scorta minima], «Aggiungi sede» e una «x» per riga: campi del core dentro
+`Modal`, un campo nascosto `product_locations` con il JSON per ogni riga della
+griglia, «Salva» che riscrive JSON e riassunto, come faceva la finestra dei
+costi. Il server legge il JSON con `LocationRows::fromForm()` e salva con lo
+stesso codice della scheda dell'articolo. Con una sede sola le colonne restano
+quelle di oggi.
+
+**Scheda dell'opzione, più sedi.** La casella «Scorta minima» del riquadro
+*Magazzino* lascia il posto allo stesso repeater «Giacenza per sede»; la riga
+«Giacenza 15 · Rettifica» e gli ultimi movimenti restano.
+
+**Gli avvisi sono per prodotto e sede.** `Levels::byLocation($productId)`
+dà giacenza, impegnati e disponibili per sede (le prenotazioni hanno già
+`location_id`). `Alerts::refresh($productId)` passa ogni sede con una soglia,
+confronta il disponibile della sede con la sua soglia (`LowStock::decide()`
+non cambia) e tiene aperto al più un avviso per prodotto e sede, con
+`gst_stock_alerts.location_id` compilato; un avviso senza sede (`0`, di
+prima) o di una sede che non ha più soglia si chiude al primo giro, come gli
+avvisi orfani. `LowStockReport`, l'email, il riquadro *Sotto scorta* e
+`gestionale:stock-alerts` ragionano per prodotto e sede e mostrano la colonna
+**Sede** solo con più sedi. `LevelsSql::openAlert()` continua a dire «almeno
+un avviso aperto» e non cambia.
+
+**Le spec.** L'architettura 4.3 ora dice «soglia per prodotto e sede» e non
+rimanda più la soglia per sede a dopo; la tabella `stock_thresholds` sta con
+quelle del magazzino. In G2b-bis §2 la frase «La scorta minima è della
+versione, non della sede: il rosso e il badge stanno sul *Totale*» è superata:
+il rosso sta sulla sede sotto soglia, e con una sede sola coincide con il
+totale. Quella spec non la tocca questo giro.
+
+**Dati di prova.** Le soglie di prova stanno sulla sede principale, una
+versione per articolo sotto soglia, come prima.
+
+### 22.3 Il prezzo scontato resta
+
+**Serve per uno sconto su un prodotto solo.** Le campagne scontano categorie,
+tag, marchi e articoli interi, mai una singola opzione (architettura 4.6), e
+D19 lascia al commerciante «Prezzo» e «Prezzo scontato». Il campo resta, senza
+date: per una promozione con le date ci sono le campagne. Nella scheda
+dell'articolo senza varianti non cambia niente; nella griglia arriva la
+colonna **Scontato** dopo *Prezzo*, con il nome dell'opzione un po' più
+stretto; la scheda dell'opzione usa l'input prezzo del core (`price()`) per
+tutti e due i campi, come l'articolo (§17); accendere le varianti copia anche
+`sale_price` nello scheletro, come il prezzo.
+
+### 22.4 Le personalizzazioni prendono forma sulla carta
+
+**Solo spec: il codice è di G5**, perché la funzionalità `customizations`
+richiede `orders` (architettura 4.2, D23; 4.7). Il disegno, perché la scheda
+non lo dimentichi:
+
+- **Catalogo → Personalizzazioni**: `gst_customizations` (`name`, `kind`
+  `text`/`choice`, `label` per il cliente, `max_length`, `surcharge`
+  `DECIMAL(12,2)`, `active`) e `gst_customization_options` (`customization_id`,
+  `label`, `surcharge`, `position`) per le scelte; le tabelle e la pagina si
+  disegnano come gli attributi (G2a, piano 2).
+- **Nella scheda dell'articolo**, sotto «Scheda tecnica», il riquadro
+  **Personalizzazioni**: righe [Personalizzazione (tendina) · Obbligatoria],
+  «Aggiungi» e «Nuova personalizzazione…» con il `quickCreate()` del core;
+  ponte `gst_product_model_customizations` (`product_model_id`,
+  `customization_id`, `is_required`, `position`). È dell'articolo, come i
+  fornitori.
+- **In vetrina** i campi compaiono sulla pagina del prodotto e viaggiano nel
+  carrello; l'ordine tiene `order_items.customization` (JSON) e
+  `customization_surcharge` (architettura 4.7).
+
+### Fuori da questo giro
+
+- Il codice delle personalizzazioni (G5).
+- Il valore del magazzino con il costo del fornitore, e quale costo prendere
+  senza un preferito (G3).
+- Il rosso per sede nell'elenco *Giacenze* e il suo filtro «Scorta»: è di
+  G2b-bis, piano 2, che lavora in parallelo; si allinea a questo giro quando
+  arriva.
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P95 | Fornitori dell'articolo in `gst_product_model_suppliers`; `gst_product_suppliers` resta per le eccezioni di un'opzione, senza `is_preferred` | Si compra l'articolo, non la taglia; l'eccezione serve quando una taglia si compra altrove |
+| P96 | Fornitore per fornitore vince la riga dell'opzione; i fornitori dell'articolo senza eccezione valgono lo stesso (`effective()`) | Un'eccezione su un fornitore non deve far sparire gli altri |
+| P97 | Riquadro «Fornitori» a righe nella scheda dell'articolo con il repeater del core; via i tre campi, il bottone «Costo» e la finestra dalla griglia (supera P87–P90; P92 sull'articolo) | Le righe si leggono d'un colpo; una finestra dentro la griglia era il ripiego di un posto sbagliato |
+| P98 | Nessun preferito | Nessuno lo usa oggi; quando servirà *un* costo lo dirà quella spec |
+| P99 | Un fornitore legato ad articoli o opzioni non si elimina e non perde il ruolo; il legame sparisce con l'articolo o l'opzione (estende P93) | La chiave esterna fermerebbe l'eliminazione con un errore del database |
+| P100 | Scorta minima per prodotto e sede in `gst_stock_thresholds`; via `gst_products.min_stock_quantity` subito, senza copia | Con più sedi una soglia sul totale non dice dove manca la merce; copiare non si può prima dell'allineamento del core, e i valori sono di prova |
+| P101 | Con una sede sola niente cambia sullo schermo: le caselle parlano della sede principale | Chi ha un magazzino non deve vedere una sede |
+| P102 | Con più sedi (`Locations::shown()` ≥ 2) righe «Giacenza per sede» [Sede · Giacenza · Scorta minima] con «Aggiungi sede»; Giacenza come `Stocktake` → rettifica sulla sede, soglia per sede; riga tolta = soglia via, pezzi restano | Ogni riga dice di quale sede parla; i pezzi non spariscono da un form |
+| P103 | Griglia con più sedi: *Giacenza* totale in sola lettura, bottone «Giacenza» con riassunto e finestra a righe, JSON per riga, stesso codice del server | Una tabella dentro una riga della griglia non ci sta; il pattern è quello della finestra dei costi |
+| P104 | Avvisi per prodotto e sede: `Levels::byLocation()`, un avviso aperto per sede, `location_id` compilato; colonna *Sede* in report, email e riquadro solo con più sedi; avvisi senza sede chiusi al primo giro | La soglia è della sede, l'avviso deve dire quale |
+| P105 | Prezzo scontato resta senza date: articolo, colonna «Scontato» nella griglia, `price()` nella scheda dell'opzione, copia nello scheletro | Le campagne non scontano una singola opzione (4.6, D19) |
+| P106 | Personalizzazioni: tabelle, riquadro sotto «Scheda tecnica» con `quickCreate()`, vetrina e ordine scritti qui; codice in G5 | `customizations` richiede `orders` |
+
+### Lavori del tredicesimo giro
+
+- [ ] modulo: modello `ProductModelSupplier` (`gst_product_model_suppliers`); via `is_preferred` da `ProductSupplier`; `ProductSuppliers` con `modelLinksFor()`, `effective()`, `dropForRemovedModels()`, `countForSupplier()` sulle due tabelle; via `preferOne()`, `preferred()`, `summary()`
+- [ ] modulo: riquadro «Fornitori» nella scheda dell'articolo (repeater, scelte P92, nota senza fornitori, controlli); via campi, bottone, JSON, finestra e script dei costi dalla griglia
+- [ ] modulo: scheda dell'opzione senza «Preferito», con tooltip e riga di contesto
+- [ ] modulo: modello `StockThreshold` (`gst_stock_thresholds`), servizio `Thresholds`; via `min_stock_quantity` da `Product` e da chi lo legge (`saveMinStocks()`, `writeMinStock()`, `minStockInput()`, colonna della griglia, `ProductResource`, `LowStockReport`, dati di prova)
+- [ ] modulo: `Levels::byLocation()`; `LocationRows` pura; repeater «Giacenza per sede» nella scheda dell'articolo senza varianti e in quella dell'opzione; bottone «Giacenza», finestra e script nella griglia; salvataggio per sede con `Stocktake` e `Stock::apply()`
+- [ ] modulo: `Alerts::refresh()` per sede, `openRow()` con la sede, chiusura degli avvisi senza sede; `LowStockReport`, `LowStockEmail`, `LowStockNotifier`, riquadro e comando con la colonna *Sede*
+- [ ] modulo: colonna «Scontato» nella griglia, `price()` nella scheda dell'opzione, `sale_price` nello scheletro
+- [ ] modulo: `CustomerResource` con i conti sulle due tabelle; `CatalogDemo` con fornitori sull'articolo, un'eccezione e le soglie; lang; codici d'errore
+- [ ] modulo: test unitari (`ProductSuppliers`, `LocationRows`, `Thresholds`, `LowStock*`) e d'integrazione (`tests/integrazione`)
+- [ ] modulo: guide `catalogo-prodotti`, `anagrafiche`, `magazzino-giacenze`, `magazzino-avvisi`, `funzionalita`, `da-controllare`; `docs/dev/concetti/{acquisti,magazzino,catalogo}`
+- [ ] spec: architettura 4.3 e tabelle aggiornate (fatto con questa sezione); G2b-bis §2 da allineare da chi la tiene
+- [ ] prova nel browser (1600×950) con «Più sedi» sbloccata e una seconda sede con magazzino, create dall'utente
+
 ## Piani
 
 Da scrivere dopo l'approvazione.

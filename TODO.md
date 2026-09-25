@@ -216,6 +216,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - [ ] Piano 4 Documenti, dati e servizio: tabelle, Model, regole, conferma, annullamento, duplica, inventario; documento e storni dentro *Tipo* nei Movimenti
     - [ ] Piano 5 Carichi e scarichi, pagine: menu, elenchi, bozza con i componenti, rotta JSON e indice `ean`, pagina in sola lettura, azioni, dati di prova
     - [ ] Piano 6 Inventario, pagine: Attesi · Contati · Differenza, *Aggiungi versioni*, limite di 500 righe, dati di prova; chiusura di G2b-bis
+  - [ ] **G2c La scheda prodotto, secondo giro** — spec: `docs/superpowers/specs/2026-09-22-scheda-prodotto-secondo-giro-design.md` (dodici giri chiusi, decisioni P1–P94)
+    - [ ] Tredicesimo giro (spec §22, 2026-09-25): fornitori dell'articolo in un riquadro a righe, con eccezioni per opzione e senza preferito (`gst_product_model_suppliers`); giacenza e scorta minima per sede (`gst_stock_thresholds`, via `gst_products.min_stock_quantity`); colonna «Scontato» nella griglia; personalizzazioni scritte in spec per G5. Architettura 4.3 aggiornata; G2b-bis §2 «la scorta minima è della versione» superata
 - [ ] G3 Magazzino avanzato
 - [ ] G4 Ordini e pagamenti
 - [ ] G5 Multiprodotto e personalizzazione
