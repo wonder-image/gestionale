@@ -210,7 +210,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - [x] §4 Documenti di magazzino: Carico, Scarico, Inventario — dati, stati, movimenti e pagine (approvata il 2026-09-24)
     - [x] §5 Documentazione, test, piani: guide, dati di prova, test, validazione e sei piani, Giacenze e Movimenti subito dopo il core (approvata il 2026-09-24)
     - [x] Revisione della spec completa da parte dell'utente e commit (2026-09-25)
-    - [ ] Piano 1 Tabelle del core (repository `app`): azioni-array, `TableLayoutSchema::select()`, `filterQuery()`, correzioni di `FilterCustom`, ricerca annidata; nel `main` del core prima del piano 2
+    - [x] Piano 1 Tabelle del core eseguito (2026-09-25, senza piano scritto): azioni-array, `TableLayoutSchema::select()`, `filterQuery()`, `FilterCustom` sicuro, ricerca annidata; nel `main` del core (`2d2fdc14`) e nel sito di prova
     - [ ] Piano 2 Giacenze: `Locations::shown()`, elenco in sola consultazione con una colonna per sede, filtri, `lowStockUrl()` sul filtro *Scorta*; via la pagina-form
     - [ ] Piano 3 Movimenti: colonne, *Chi*, *Prima*, filtri *Causale*, *Sede* e *Periodo*, ricerca sull'articolo, *Ultimi movimenti* nella scheda della versione
     - [ ] Piano 4 Documenti, dati e servizio: tabelle, Model, regole, conferma, annullamento, duplica, inventario; documento e storni dentro *Tipo* nei Movimenti
