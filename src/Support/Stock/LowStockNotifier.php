@@ -18,8 +18,9 @@ use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
  * salvataggio: dieci rettifiche di fila fanno un'email, e il magazzino non
  * aspetta il server di posta.
  *
- * Ogni avviso si manda una volta. Se la posta non parte si riprova al giro
- * dopo; se il sito ferma l'email con l'hook, è una scelta sua e l'avviso si
+ * Ogni avviso si manda una volta: un avviso è di un prodotto in una sede, e
+ * la stessa sede non torna nell'email finché non risale e ricade. Se la
+ * posta non parte si riprova al giro dopo; se il sito ferma l'email con l'hook, è una scelta sua e l'avviso si
  * considera mandato.
  */
 final class LowStockNotifier
@@ -67,29 +68,34 @@ final class LowStockNotifier
         $products = LowStockReport::products($open);
         $orphans = LowStockReport::orphans($open, $products);
         $current = LowStockReport::items($open, $products);
-        $low = array_column($current, 'product_id');
+        $low = [];
 
-        /** @var array<int, list<int>> $pending avvisi mai mandati, per prodotto */
+        foreach ($current as $item) {
+            $low[self::key($item)] = true;
+        }
+
+        /** @var array<string, list<int>> $pending avvisi mai mandati, per prodotto e sede */
         $pending = [];
-        /** @var array<int, true> $stale prodotti con l'avviso aperto ma non più sotto la soglia */
+        /** @var array<int, true> $stale prodotti con un avviso aperto che non è più vero */
         $stale = [];
 
         foreach ($open as $alert) {
             $alertId = (int) $alert['id'];
             $productId = (int) ($alert['product_id'] ?? 0);
+            $key = self::key($alert);
 
             if (in_array($alertId, $orphans, true)) {
                 continue;
             }
 
-            if (!in_array($productId, $low, true)) {
+            if (!isset($low[$key])) {
                 $stale[$productId] = true;
 
                 continue;
             }
 
             if (trim((string) ($alert['notified_at'] ?? '')) === '') {
-                $pending[$productId][] = $alertId;
+                $pending[$key][] = $alertId;
             }
         }
 
@@ -110,7 +116,7 @@ final class LowStockNotifier
 
         $items = array_values(array_filter(
             $current,
-            static fn (array $item): bool => isset($pending[$item['product_id']])
+            static fn (array $item): bool => isset($pending[self::key($item)])
         ));
 
         if ($items === []) {
@@ -143,7 +149,7 @@ final class LowStockNotifier
             $now = date('Y-m-d H:i:s');
 
             foreach ($items as $item) {
-                foreach ($pending[$item['product_id']] as $alertId) {
+                foreach ($pending[self::key($item)] as $alertId) {
                     StockAlert::update(['notified_at' => $now], $alertId);
                 }
             }
@@ -158,6 +164,12 @@ final class LowStockNotifier
         }
 
         return $result;
+    }
+
+    /** La chiave di un avviso o di una riga: prodotto e sede. @param array<string, mixed> $row */
+    private static function key(array $row): string
+    {
+        return (int) ($row['product_id'] ?? 0).':'.(int) ($row['location_id'] ?? 0);
     }
 
     /** Cambia chi riceve i guasti; `null` torna al registro del core. Serve ai test. */

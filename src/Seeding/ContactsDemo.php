@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Seeding;
 
 use Throwable;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
@@ -23,7 +24,7 @@ use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
  * stesso nome, quella di prova non si crea e la vera resta com'è. La pulizia
  * toglie le schede col segno e quelle con i vecchi nomi `Prova …`, con i loro
  * indirizzi, tranne quelle che un movimento di magazzino o il costo
- * d'acquisto di un'opzione nomina come fornitore.
+ * d'acquisto di un articolo o di un'opzione nomina come fornitore.
  *
  * Le partite IVA sono valide davvero: il campo del core le controlla, e una
  * finta non si salverebbe. Stessa cosa per le email, di cui il core controlla
@@ -242,10 +243,14 @@ final class ContactsDemo
             || DemoCode::isLegacy(Contact::class, (string) ($row['surname'] ?? ''));
     }
 
-    /** Qualche giacenza, movimento o costo d'acquisto nomina la scheda come fornitore? */
+    /**
+     * Qualche giacenza, movimento o costo d'acquisto nomina la scheda come
+     * fornitore? I costi stanno in due tabelle: quella dell'articolo e quella
+     * delle eccezioni di un'opzione.
+     */
     private static function usedAsSupplier(int $contactId): bool
     {
-        foreach ([Stock::class, StockMovement::class, ProductSupplier::class] as $model) {
+        foreach ([Stock::class, StockMovement::class, ProductModelSupplier::class, ProductSupplier::class] as $model) {
             try {
                 $row = $model::find(
                     'supplier_id = '.$contactId." AND (deleted = 'true' OR deleted = 'false')",

@@ -318,8 +318,9 @@ class CustomerResource extends GestionaleResource
             throw UserError::make('contact.no_role');
         }
 
-        // Un fornitore che smette di esserlo sparirebbe dalla tendina delle
-        // opzioni che comprano da lui, e al primo salvataggio le perderebbe.
+        // Un fornitore che smette di esserlo sparirebbe dalla tendina degli
+        // articoli e delle opzioni che comprano da lui, e al primo salvataggio
+        // li perderebbe.
         if ($id > 0 && !$supplier && static::storedRole($id, 'is_supplier') === 'true') {
             $links = ProductSuppliers::countForSupplier($id);
 
@@ -351,8 +352,9 @@ class CustomerResource extends GestionaleResource
      * scheda. Quando arriveranno ordini e documenti (G4) la stessa regola
      * varrà per loro: si disattiva, non si cancella.
      *
-     * Lo stesso per un fornitore con dei costi d'acquisto su opzioni in
-     * vendita, anche ad acquisti spenti: il costo resta salvato e tornerà.
+     * Lo stesso per un fornitore con dei costi d'acquisto su articoli o
+     * opzioni in vendita, anche ad acquisti spenti: il costo resta salvato e
+     * tornerà.
      */
     public static function assertDeletable(int|string $id): void
     {
@@ -372,12 +374,14 @@ class CustomerResource extends GestionaleResource
     /**
      * La scheda se ne va con i suoi indirizzi di consegna.
      *
-     * Prima di cancellare la scheda se ne vanno i suoi costi su opzioni già
-     * eliminate: nessuno li vede più, e la chiave esterna li terrebbe fermi.
+     * Prima di cancellare la scheda se ne vanno i suoi costi su articoli e
+     * opzioni già eliminati: nessuno li vede più, e la chiave esterna li
+     * terrebbe fermi.
      */
     public static function deleteRecord(int|string $id): object
     {
         static::assertDeletable($id);
+        ProductSuppliers::dropForRemovedModels((int) $id);
         ProductSuppliers::dropForRemovedProducts((int) $id);
 
         // Gli indirizzi di consegna se ne vanno con la scheda, anche quelli

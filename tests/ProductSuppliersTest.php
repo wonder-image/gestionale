@@ -21,23 +21,25 @@ $rifiuto = static function (array $righe, array $ammessi, array $nomi = []): str
 };
 
 check('una riga senza fornitore, codice e costo non è un legame', function () {
-    // Il preferito posta sempre il suo «No»: da solo non tiene in piedi una
-    // riga.
+    // Il repeater posta anche l'`id` della riga: da solo non tiene in piedi
+    // una riga.
     return ProductSuppliers::normalize([
-        ['supplier_id' => '', 'supplier_sku' => ' ', 'cost' => '', 'is_preferred' => 'false'],
-        ['supplier_id' => '0', 'supplier_sku' => '', 'cost' => null, 'is_preferred' => 'true'],
+        ['supplier_id' => '', 'supplier_sku' => ' ', 'cost' => '', 'id' => '12'],
+        ['supplier_id' => '0', 'supplier_sku' => '', 'cost' => null],
         'non è una riga',
     ]) === [];
 });
 
 check('le righe arrivano nella forma che si salva', function () {
-    // Come le manda la finestra dei costi: JSON, con numeri e booleani veri.
-    $righe = json_decode('[{"supplier_id":"5","supplier_sku":" FN-12 ","cost":"12,50","is_preferred":true},'
-        .'{"supplier_id":6,"cost":7,"is_preferred":false}]', true);
+    // Come le manda il repeater: stringhe, con gli spazi di chi scrive.
+    $righe = [
+        ['supplier_id' => '5', 'supplier_sku' => ' FN-12 ', 'cost' => '12,50', 'id' => '3'],
+        ['supplier_id' => 6, 'cost' => 7],
+    ];
 
     return ProductSuppliers::normalize($righe) === [
-        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.5, 'is_preferred' => 'true'],
-        ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => 7.0, 'is_preferred' => 'false'],
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.5],
+        ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => 7.0],
     ];
 });
 
@@ -54,52 +56,11 @@ check('il costo si legge come lo scrive una persona, e vuoto vuol dire «non lo 
     return $costi === [1234.5, 12.5, 3.25, null, null];
 });
 
-check('un preferito solo: vince il primo segnato', function () {
-    $righe = ProductSuppliers::normalize([
-        ['supplier_id' => 1, 'is_preferred' => 'false'],
-        ['supplier_id' => 2, 'is_preferred' => 'true'],
-        ['supplier_id' => 3, 'is_preferred' => true],
-    ]);
-
-    return array_column($righe, 'is_preferred') === ['false', 'true', 'false'];
-});
-
-check('senza un preferito diventa preferito il primo legato', function () {
-    $righe = ProductSuppliers::normalize([
-        // Il preferito di una riga vuota se ne va con la riga.
-        ['supplier_id' => '', 'is_preferred' => 'true'],
-        ['supplier_id' => 7, 'cost' => '4,00'],
-        ['supplier_id' => 8, 'cost' => '3,00'],
-    ]);
-
-    return array_column($righe, 'is_preferred') === ['true', 'false']
-        && array_column($righe, 'supplier_id') === [7, 8];
-});
-
-check('il preferito si sistema senza perdere le altre colonne della riga', fn () =>
-    ProductSuppliers::preferOne([
-        ['id' => '12', 'supplier_id' => 1, 'is_preferred' => 'false'],
-        ['id' => '', 'supplier_id' => 2, 'is_preferred' => 'false'],
-    ]) === [
-        ['id' => '12', 'supplier_id' => 1, 'is_preferred' => 'true'],
-        ['id' => '', 'supplier_id' => 2, 'is_preferred' => 'false'],
-    ]
-);
-
-check('il preferito di un elenco è quello segnato, o il primo', fn () =>
-    ProductSuppliers::preferred([
-        ['supplier_id' => 1, 'is_preferred' => 'false'],
-        ['supplier_id' => 2, 'is_preferred' => 'true'],
-    ])['supplier_id'] === 2
-    && ProductSuppliers::preferred([['supplier_id' => 3, 'is_preferred' => 'false']])['supplier_id'] === 3
-    && ProductSuppliers::preferred([]) === null
-);
-
 check('codice o costo senza fornitore non si salvano', fn () =>
     $rifiuto([['supplier_id' => '', 'supplier_sku' => 'FN-12']], [5]) === 'product.supplier_missing'
     && $rifiuto([['supplier_id' => '', 'cost' => '12,00']], [5]) === 'product.supplier_missing'
-    // Le righe grezze del form: il «No» del preferito non è un dato.
-    && $rifiuto([['supplier_id' => '', 'supplier_sku' => '', 'cost' => '', 'is_preferred' => 'false']], [5]) === ''
+    // Le righe grezze del repeater: l'`id` della riga non è un dato.
+    && $rifiuto([['supplier_id' => '', 'supplier_sku' => '', 'cost' => '', 'id' => '4']], [5]) === ''
 );
 
 check('un fornitore che la pagina non propone viene rifiutato', fn () =>
@@ -161,27 +122,67 @@ check('lo stesso fornitore due volte viene rifiutato, con il suo nome', function
 
 check('righe corrette passano', fn () =>
     $rifiuto([
-        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => '12,00', 'is_preferred' => 'true'],
-        ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => '', 'is_preferred' => 'false'],
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => '12,00'],
+        ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => ''],
     ], [5, 6]) === ''
 );
 
-check('il riassunto accanto al bottone dice chi è il preferito e quanto costa', function () {
-    $nomi = [5 => 'Filati Nord'];
+// I fornitori di un'opzione sono quelli dell'articolo, e la riga
+// dell'opzione vince sul suo fornitore.
+check('l\'opzione eredita i fornitori dell\'articolo', fn () =>
+    ProductSuppliers::effective([
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.0],
+        ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => 11.5],
+    ], []) === [
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.0],
+        ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => 11.5],
+    ]
+);
 
-    return ProductSuppliers::summary(['supplier_id' => 5, 'cost' => 12.0], $nomi) === 'Filati Nord · 12,00 €'
-        && ProductSuppliers::summary(['supplier_id' => 5, 'cost' => '1234.5'], $nomi) === 'Filati Nord · 1.234,50 €'
-        && ProductSuppliers::summary(['supplier_id' => 5, 'cost' => null], $nomi) === 'Filati Nord'
-        && ProductSuppliers::summary(null, $nomi) === 'Nessun fornitore';
-});
+check('la riga dell\'opzione vince su quella dell\'articolo, al suo posto', fn () =>
+    ProductSuppliers::effective([
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.0],
+        ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => 11.5],
+    ], [
+        ['supplier_id' => 6, 'supplier_sku' => 'LS-XL', 'cost' => 13.0],
+    ]) === [
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.0],
+        ['supplier_id' => 6, 'supplier_sku' => 'LS-XL', 'cost' => 13.0],
+    ]
+);
+
+check('un fornitore solo dell\'opzione si accoda a quelli dell\'articolo', fn () =>
+    array_column(ProductSuppliers::effective([
+        ['supplier_id' => 5, 'supplier_sku' => '', 'cost' => 12.0],
+    ], [
+        ['supplier_id' => 9, 'supplier_sku' => 'X', 'cost' => null],
+        ['supplier_id' => 5, 'supplier_sku' => '', 'cost' => 10.0],
+    ]), 'supplier_id') === [5, 9]
+    && ProductSuppliers::effective([], [['supplier_id' => 9, 'supplier_sku' => '', 'cost' => 1.0]])
+        === [['supplier_id' => 9, 'supplier_sku' => '', 'cost' => 1.0]]
+    && ProductSuppliers::effective([], []) === []
+);
+
+check('le righe grezze passano da normalize anche in effective', fn () =>
+    ProductSuppliers::effective(
+        [['supplier_id' => '5', 'cost' => '12,00', 'id' => '1'], ['supplier_id' => '', 'cost' => '']],
+        [['supplier_id' => '5', 'supplier_sku' => ' A ', 'cost' => '']]
+    ) === [['supplier_id' => 5, 'supplier_sku' => 'A', 'cost' => null]]
+);
 
 check('senza database non c\'è niente da leggere né da togliere', fn () =>
     ProductSuppliers::linksFor([1, 2]) === []
     && ProductSuppliers::linksFor([]) === []
+    && ProductSuppliers::modelLinksFor([1, 2]) === []
+    && ProductSuppliers::modelLinksFor([]) === []
     && ProductSuppliers::dropFor([1]) === 0
     && ProductSuppliers::dropFor([0, -3]) === 0
+    && ProductSuppliers::dropForModels([1]) === 0
+    && ProductSuppliers::dropForModels([]) === 0
     && ProductSuppliers::dropRemovedOptions(1) === 0
     && ProductSuppliers::dropForRemovedProducts(1) === 0
+    && ProductSuppliers::dropForRemovedModels(1) === 0
+    && ProductSuppliers::dropForRemovedModels(0) === 0
     && ProductSuppliers::countForSupplier(1) === 0
     && ProductSuppliers::countForSupplier(0) === 0
 );

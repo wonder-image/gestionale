@@ -65,7 +65,7 @@ final class LowStockWidget implements HomeWidget
     }
 
     /**
-     * @param list<array{product_id: int, article: string, option: string, sku: string, threshold: float, available: float}> $items
+     * @param list<array{product_id: int, location_id?: int, location?: string, article: string, option: string, sku: string, threshold: float, available: float}> $items
      * @param bool $canEditRecipients se chi guarda può aprire le Impostazioni: solo allora l'avviso porta il link
      */
     public static function markup(array $items, bool $hasRecipients, bool $canEditRecipients = true): string
@@ -90,7 +90,12 @@ HTML;
                 ENT_QUOTES,
                 'UTF-8'
             );
-            $sku = htmlspecialchars($item['sku'], ENT_QUOTES, 'UTF-8');
+            // SKU e sede sulla stessa riga; la sede c'è solo con più sedi.
+            $meta = htmlspecialchars(
+                implode(' · ', array_filter([$item['sku'], $item['location'] ?? ''])),
+                ENT_QUOTES,
+                'UTF-8'
+            );
             $available = LowStockEmail::quantity((float) $item['available']);
             $threshold = LowStockEmail::quantity((float) $item['threshold']);
 
@@ -98,7 +103,7 @@ HTML;
 <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center gap-3">
     <span>
         <strong>{$name}</strong>
-        <span class="d-block text-body-secondary small">{$sku}</span>
+        <span class="d-block text-body-secondary small">{$meta}</span>
     </span>
     <span class="small text-nowrap">Disponibili {$available} · scorta minima {$threshold}</span>
 </li>

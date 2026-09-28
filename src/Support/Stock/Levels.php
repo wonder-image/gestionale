@@ -9,11 +9,13 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 /**
  * Quanti pezzi ci sono, quanti sono impegnati, quanti se ne possono vendere.
  *
- * Somma tutte le sedi: è il numero che interessa a chi guarda un articolo.
- * La regola di cosa conta come impegnato sta in `Availability`, che è pura;
- * qui c'è solo la lettura.
+ * `of()` e `forProducts()` sommano tutte le sedi: è il numero che interessa
+ * a chi guarda un articolo. `byLocation()` tiene le sedi separate: serve
+ * alla scheda con più sedi e agli avvisi, che ragionano per sede. La regola
+ * di cosa conta come impegnato sta in `Availability`, che è pura; qui c'è
+ * solo la lettura, e il conto per sede sta in `perLocation()`, pura anche lei.
  *
- * `forProducts()` esiste per l'elenco delle giacenze, che altrimenti farebbe
+ * Le versioni al plurale esistono per gli elenchi, che altrimenti farebbero
  * due query per riga.
  */
 final class Levels
@@ -66,6 +68,90 @@ final class Levels
             $rows = $reservations[$id] ?? [];
             $levels[$id]['reserved'] = Availability::reserved($rows, $now);
             $levels[$id]['available'] = Availability::of($level['quantity'], $rows, $now);
+        }
+
+        return $levels;
+    }
+
+    /** @return array<int, array{quantity: float, reserved: float, available: float}> per sede, solo le sedi con righe */
+    public static function byLocation(int $productId): array
+    {
+        return self::byLocationForProducts([$productId])[$productId] ?? [];
+    }
+
+    /**
+     * @param list<int> $productIds
+     * @return array<int, array<int, array{quantity: float, reserved: float, available: float}>> per prodotto, poi per sede
+     */
+    public static function byLocationForProducts(array $productIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $productIds)));
+        $levels = array_fill_keys($ids, []);
+
+        if ($ids === []) {
+            return $levels;
+        }
+
+        $perLocation = self::perLocation(
+            self::rows(StockRow::class, $ids),
+            self::rows(StockReservation::class, $ids),
+            date('Y-m-d H:i:s')
+        );
+
+        foreach ($ids as $id) {
+            $levels[$id] = $perLocation[$id] ?? [];
+        }
+
+        return $levels;
+    }
+
+    /**
+     * Il conto per prodotto e sede, puro: pezzi, impegnati, disponibili.
+     *
+     * Le righe di `gst_stock` si sommano per prodotto e sede (lotti e
+     * fornitori diversi sono righe diverse della stessa sede); le prenotazioni
+     * contano solo se vive adesso. Un prodotto senza righe non compare; le
+     * sedi stanno in ordine di id.
+     *
+     * @param list<array<string, mixed>> $stockRows righe di `gst_stock`
+     * @param list<array<string, mixed>> $reservationRows righe di `gst_stock_reservations`
+     * @param string|null $now `Y-m-d H:i:s`; null = adesso
+     * @return array<int, array<int, array{quantity: float, reserved: float, available: float}>>
+     */
+    public static function perLocation(array $stockRows, array $reservationRows, ?string $now = null): array
+    {
+        $now ??= date('Y-m-d H:i:s');
+        $quantities = [];
+        $reservations = [];
+
+        foreach ($stockRows as $row) {
+            $productId = (int) ($row['product_id'] ?? 0);
+            $locationId = (int) ($row['location_id'] ?? 0);
+            $quantities[$productId][$locationId] = round(
+                ($quantities[$productId][$locationId] ?? 0.0) + (float) ($row['quantity'] ?? 0),
+                3
+            );
+        }
+
+        foreach ($reservationRows as $row) {
+            $reservations[(int) ($row['product_id'] ?? 0)][(int) ($row['location_id'] ?? 0)][] = $row;
+        }
+
+        $levels = [];
+
+        foreach (array_keys($quantities + $reservations) as $productId) {
+            $locationIds = array_keys(($quantities[$productId] ?? []) + ($reservations[$productId] ?? []));
+            sort($locationIds);
+
+            foreach ($locationIds as $locationId) {
+                $rows = $reservations[$productId][$locationId] ?? [];
+                $quantity = $quantities[$productId][$locationId] ?? 0.0;
+                $levels[$productId][$locationId] = [
+                    'quantity' => $quantity,
+                    'reserved' => Availability::reserved($rows, $now),
+                    'available' => Availability::of($quantity, $rows, $now),
+                ];
+            }
         }
 
         return $levels;

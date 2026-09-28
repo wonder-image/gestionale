@@ -22,10 +22,10 @@ use Wonder\Sql\TableSchema as Column;
  * Peso e misure vuoti valgono quelli del modello: la regola sta nella scheda,
  * non qui, perché è una scelta di lettura e non un dato.
  *
- * `min_stock_quantity`, `allow_backorder` e `backorder_lead_days` nascono ora
- * ma restano invisibili finché non arrivano il magazzino (G2b) e la vendita
- * senza giacenza (G4): stanno sul prodotto, e aggiungerle dopo vorrebbe dire
- * rifare la scheda.
+ * `allow_backorder` e `backorder_lead_days` nascono ora ma restano invisibili
+ * finché non arriva la vendita senza giacenza (G4): stanno sul prodotto, e
+ * aggiungerle dopo vorrebbe dire rifare la scheda. La scorta minima invece
+ * sta in `gst_stock_thresholds`, per sede.
  *
  * SKU ed EAN non hanno un indice unico: il framework scrive stringhe vuote e
  * non NULL, e due prodotti senza EAN si scontrerebbero. L'unicità la controlla
@@ -46,7 +46,7 @@ final class Product extends Model
     {
         return [
             ...static::sqlColumnsFromDataSchema([
-                'code', 'price', 'sale_price', 'min_stock_quantity',
+                'code', 'price', 'sale_price',
                 'weight', 'length', 'width', 'height', 'circumference',
             ]),
             Column::key('product_model_id')->int()->null(false)->foreign(ProductModel::$table),
@@ -84,7 +84,6 @@ final class Product extends Model
             Field::key('mpn')->text(),
             Field::key('price')->number()->decimals(2),
             Field::key('sale_price')->number()->decimals(2),
-            Field::key('min_stock_quantity')->number()->decimals(3),
             Field::key('allow_backorder')->text()->sanitize(false),
             Field::key('backorder_lead_days')->number()->decimals(0),
             Field::key('weight')->number()->decimals(3),

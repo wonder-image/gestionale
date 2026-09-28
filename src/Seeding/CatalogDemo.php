@@ -12,11 +12,13 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
+use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
@@ -24,9 +26,12 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStock;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
+use Wonder\Plugin\Gestionale\Support\Stock\Thresholds;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 
@@ -41,6 +46,12 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
  * Servono a provare le pagine su un sito vuoto e, più avanti, a dare un posto
  * ai prodotti finti. I nomi sono quelli di un negozio vero; le righe si
  * riconoscono dal segno nel codice (`cat_demo-accessori`, vedi `DemoCode`).
+ *
+ * Gli articoli comprano dai due fornitori di prova di `ContactsDemo`, con le
+ * righe sull'articolo (`gst_product_model_suppliers`); una sola opzione fa
+ * eccezione con un costo suo, per vedere nella sua scheda la riga di contesto
+ * e l'eccezione che vince (spec §22.1). L'ultima opzione di ogni articolo
+ * nasce sotto la sua scorta minima, scritta sulla sede principale.
  *
  * Marchio, categorie, tag, attributi e imballaggi si cercano prima col segno,
  * poi per nome: se il sito ha già una categoria «Accessori» vera, gli
@@ -118,6 +129,26 @@ final class CatalogDemo
      */
     private const COMPOSITION = 'Cotone 100%';
 
+    /**
+     * Da chi compra ogni articolo di prova: il riferimento della scheda in
+     * `ContactsDemo`, il codice del fornitore e il costo, come si scrivono
+     * nella scheda. Filati Nord fornisce tutto; i calzini si comprano anche da
+     * Imballaggi Sud, così un riquadro «Fornitori» ha due righe.
+     */
+    private const SUPPLIERS = [
+        'cappello-di-lana' => [['filati-nord', 'FN-CAP-01', '9,50']],
+        'maglietta-girocollo' => [['filati-nord', 'FN-TSH-01', '7,20']],
+        'felpa-con-cappuccio' => [['filati-nord', 'FN-FEL-01', '21,00']],
+        'calzini-a-costine' => [['filati-nord', 'FN-CAL-01', '2,40'], ['imballaggi-sud', 'IS-CAL-01', '2,10']],
+    ];
+
+    /**
+     * L'eccezione di un'opzione: l'ultima dei calzini si compra da Filati Nord
+     * con un codice e un costo suoi, che nella sua scheda vincono su quelli
+     * dell'articolo; Imballaggi Sud vale lo stesso, dall'articolo.
+     */
+    private const SUPPLIER_EXCEPTION = ['calzini-a-costine', ['filati-nord', 'FN-CAL-XL', '2,90']];
+
     /** Le righe vere usate al posto di quelle di prova, per la nota finale. @var list<string> */
     private static array $reused = [];
 
@@ -155,6 +186,7 @@ final class CatalogDemo
 
         $created += self::packages();
         $created += self::models();
+        $created += self::suppliers();
 
         DemoData::note(DemoCode::reusedNote(array_values(array_unique(self::$reused))));
         self::$reused = [];
@@ -439,8 +471,10 @@ final class CatalogDemo
             }
 
             if ($index === $last) {
-                // Un'opzione sotto scorta: è il caso che si vuole provare.
-                Product::update(['min_stock_quantity' => '5'], $productId);
+                // Un'opzione sotto scorta, sulla sede principale: è il caso
+                // che si vuole provare. La soglia è una riga, e la pulizia la
+                // toglie con la storia di magazzino.
+                $created += Thresholds::save($productId, [Locations::mainId() => 5.0]);
             }
 
             $esito = Stock::apply([
@@ -623,10 +657,11 @@ final class CatalogDemo
     }
 
     /**
-     * I fornitori legati alle opzioni di un articolo: se ne vanno con lui.
+     * I fornitori legati a un articolo e alle sue opzioni: se ne vanno con lui.
      *
-     * Si contano anche quelli delle opzioni nel cestino, che
-     * `ProductModelResource::deleteRecord()` porta via insieme alle altre.
+     * Si contano le due tabelle, e anche le eccezioni delle opzioni nel
+     * cestino, che `ProductModelResource::deleteRecord()` porta via insieme
+     * alle altre.
      */
     private static function supplierLinksOf(int $modelId): int
     {
@@ -635,14 +670,92 @@ final class CatalogDemo
         }
 
         try {
-            return (int) ProductSupplier::query()->Count(
+            return (int) ProductModelSupplier::query()->Count(
+                ProductModelSupplier::$table,
+                'WHERE product_model_id = '.$modelId
+            ) + (int) ProductSupplier::query()->Count(
                 ProductSupplier::$table,
                 'WHERE product_id IN (SELECT id FROM '.Product::$table.' WHERE product_model_id = '.$modelId.')'
             );
         } catch (Throwable) {
-            // Un sito senza la tabella dei fornitori: non c'è niente da contare.
+            // Un sito senza le tabelle dei fornitori: non c'è niente da contare.
             return 0;
         }
+    }
+
+    /**
+     * I fornitori degli articoli di prova, e l'eccezione di un'opzione.
+     *
+     * Si scrivono solo dove non c'è ancora nessuna riga: rifare i dati di
+     * prova non tocca un costo cambiato a mano. Una scheda di prova che manca
+     * (le anagrafiche non create, o una scheda vera riusata al suo posto) non
+     * fa riga.
+     *
+     * @return int righe create
+     */
+    private static function suppliers(): int
+    {
+        $created = 0;
+
+        foreach (self::SUPPLIERS as $ref => $rows) {
+            $modelId = self::modelId($ref);
+
+            if ($modelId <= 0 || (ProductSuppliers::modelLinksFor([$modelId])[$modelId] ?? []) !== []) {
+                continue;
+            }
+
+            $created += ProductSuppliers::syncModel($modelId, self::supplierRows($rows));
+        }
+
+        [$ref, $row] = self::SUPPLIER_EXCEPTION;
+        $products = self::rowsOfModel(Product::class, self::modelId($ref));
+        // L'ultima opzione: la stessa che `seedStock()` mette sotto scorta.
+        $productId = $products === [] ? 0 : (int) ($products[count($products) - 1]['id'] ?? 0);
+
+        if ($productId > 0 && (ProductSuppliers::linksFor([$productId])[$productId] ?? []) === []) {
+            $created += ProductSuppliers::sync($productId, self::supplierRows([$row]));
+        }
+
+        return $created;
+    }
+
+    /**
+     * Le righe per `ProductSuppliers`, con l'id della scheda al posto del
+     * riferimento.
+     *
+     * @param list<array{string, string, string}> $rows riferimento, codice e costo
+     * @return list<array{supplier_id: int, supplier_sku: string, cost: string}>
+     */
+    private static function supplierRows(array $rows): array
+    {
+        $result = [];
+
+        foreach ($rows as [$ref, $sku, $cost]) {
+            $supplierId = self::supplierId($ref);
+
+            if ($supplierId > 0) {
+                $result[] = ['supplier_id' => $supplierId, 'supplier_sku' => $sku, 'cost' => $cost];
+            }
+        }
+
+        return $result;
+    }
+
+    /** L'id della scheda fornitore di prova con quel riferimento, `0` se non c'è. */
+    private static function supplierId(string $ref): int
+    {
+        try {
+            $row = Contact::find([
+                'code' => DemoCode::forModel(Contact::class, $ref),
+                'is_supplier' => 'true',
+                'deleted' => 'false',
+            ], 1);
+        } catch (Throwable) {
+            // Rubrica non ancora creata: nessuno da cui comprare.
+            return 0;
+        }
+
+        return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
     }
 
     /** Quante righe di quel Model appartengono al modello. */

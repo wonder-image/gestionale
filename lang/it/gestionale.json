@@ -8,7 +8,9 @@
                 "unknown_reason": "Scegli una causale per questo movimento.",
                 "product_missing": "Questa opzione in vendita non esiste più: ricarica la pagina e riprova.",
                 "no_location": "Manca la sede del magazzino: apri Set Up → Sedi e salva la sede principale.",
-                "quantity_missing": "Scrivi quanti pezzi: la casella è vuota."
+                "quantity_missing": "Scrivi quanti pezzi: la casella è vuota.",
+                "location_duplicate": "La sede {{location}} compare due volte nelle righe della giacenza: tienine una sola.",
+                "location_unknown": "Una riga della giacenza punta a una sede che non è più del magazzino: ricarica la pagina e riprova."
             },
             "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
             "category": {
@@ -47,8 +49,8 @@
                 "email_taken": "Questa email è già di {{contact}}.",
                 "no_role": "Di' se è un cliente, un fornitore o tutti e due.",
                 "has_account": "Questa scheda ha un account sul sito e non si elimina: mettila su «Non attiva» se non lavori più con lei.",
-                "supplier_in_use": "Questo fornitore ha ancora dei costi d'acquisto su opzioni in vendita ({{count}}) e non si elimina: metti la scheda su «Non attiva» se non lavori più con lui.",
-                "supplier_role_in_use": "Questa scheda è ancora il fornitore di opzioni in vendita ({{count}}): toglila dai loro fornitori prima di cambiarle ruolo, o mettila su «Non attiva»."
+                "supplier_in_use": "Questo fornitore ha ancora dei costi d'acquisto su articoli o opzioni in vendita ({{count}}) e non si elimina: metti la scheda su «Non attiva» se non lavori più con lui.",
+                "supplier_role_in_use": "Questa scheda è ancora il fornitore di articoli o opzioni in vendita ({{count}}): toglila dai loro fornitori prima di cambiarle ruolo, o mettila su «Non attiva»."
             },
             "settings": {
                 "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo."

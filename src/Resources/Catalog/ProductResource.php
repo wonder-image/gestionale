@@ -35,8 +35,12 @@ use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Plugin\Gestionale\Support\Stock\Alerts;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\LocationRows;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
+use Wonder\Plugin\Gestionale\Support\Stock\LocationStock;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
+use Wonder\Plugin\Gestionale\Support\Stock\Thresholds;
 
 /**
  * "Opzioni in vendita": l'elenco piatto di quello che si vende davvero.
@@ -47,8 +51,9 @@ use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
  * "Aggiungi".
  *
  * La scheda della singola opzione tiene quello che nella griglia non
- * entrerebbe: MPN, misure proprie, gli attributi di livello `product` e, con
- * gli acquisti, l'elenco intero dei suoi fornitori.
+ * entrerebbe: MPN, misure proprie, gli attributi di livello `product`, la
+ * scorta minima — per sede, quando le sedi sono più di una — e, con gli
+ * acquisti, i fornitori suoi, che vincono su quelli dell'articolo.
  *
  * Estende la Resource dei prodotti per riusarne le letture del catalogo —
  * attributi, valori, campi degli attributi — e ne riscrive tutto il resto:
@@ -112,8 +117,8 @@ class ProductResource extends ProductModelResource
             FormField::key('sku')->text()->label('SKU'),
             FormField::key('ean')->text()->label('EAN'),
             FormField::key('mpn')->text()->label('Codice del produttore'),
-            FormField::key('price')->number()->decimal(2)->label('Prezzo'),
-            FormField::key('sale_price')->number()->decimal(2)->label('Prezzo scontato'),
+            FormField::key('price')->price()->decimal(2)->label('Prezzo'),
+            FormField::key('sale_price')->price()->decimal(2)->label('Prezzo scontato'),
             FormField::key('active')
                 ->select(['true' => 'Attiva', 'false' => 'Ferma'])
                 ->value('true')
@@ -125,8 +130,21 @@ class ProductResource extends ProductModelResource
             FormField::key('height')->number()->decimal(2)->label('Altezza (cm)'),
         ];
 
-        if (Gestionale::feature('low_stock_alerts')) {
-            $fields[] = FormField::key('min_stock_quantity')->number()->decimal(3)->label('Scorta minima');
+        // La soglia non è una colonna dell'opzione: sta in `gst_stock_thresholds`,
+        // per sede. Con più sedi la scrivono le righe per sede, insieme alla
+        // giacenza; con una sola resta la casella, che parla della sede
+        // principale.
+        if (static::hasManyLocations()) {
+            $fields[] = static::locationRowsField();
+        } elseif (Gestionale::feature('low_stock_alerts')) {
+            $formato = static::optionFormat(static::currentId() ?? 0);
+            $minima = FormField::key('min_stock')->number()->decimal($formato['min_stock'])->label('Scorta minima');
+
+            if ($formato['suffix'] !== '') {
+                $minima->suffix($formato['suffix']);
+            }
+
+            $fields[] = $minima;
         }
 
         if (Gestionale::feature('purchasing')) {
@@ -138,6 +156,92 @@ class ProductResource extends ProductModelResource
         }
 
         return $fields;
+    }
+
+    /** Due o più sedi da mostrare: giacenza e scorta minima si scrivono per sede. */
+    protected static function hasManyLocations(): bool
+    {
+        return count(Locations::shown()) >= 2;
+    }
+
+    /**
+     * Come si scrivono giacenza e scorta minima dell'opzione: con l'unità del
+     * suo articolo, come nella scheda dell'articolo.
+     *
+     * @return array{stock: int, min_stock: int, suffix: string}
+     */
+    protected static function optionFormat(int $productId): array
+    {
+        $product = $productId > 0 ? (static::rowsOf(Product::class, ['id' => $productId])[0] ?? []) : [];
+
+        return static::locationFormat(
+            (int) ($product['product_model_id'] ?? 0),
+            $productId > 0 ? [['id' => $productId]] : []
+        );
+    }
+
+    /**
+     * La giacenza e la scorta minima dell'opzione, una riga per sede.
+     *
+     * Il repeater non ha relazione: le righe le compone `LocationRows` da
+     * giacenze e soglie in `mutateFormValues()`, le controlla
+     * `mutateRequestValues()` e le scrive `afterUpdate()` con
+     * `LocationStock::apply()`. Una riga tolta porta via la soglia della sede
+     * e non i suoi pezzi: ricompare finché ha giacenza.
+     */
+    protected static function locationRowsField(): Input
+    {
+        $soglia = Gestionale::feature('low_stock_alerts');
+        $formato = static::optionFormat(static::currentId() ?? 0);
+        $sedi = [];
+
+        foreach (Locations::shown() as $location) {
+            $sedi[(int) ($location['id'] ?? 0)] = (string) ($location['label'] ?? '');
+        }
+
+        // La quantità che si vuole: vuota non tocca niente, zero scritto
+        // vale zero e diventa una rettifica sulla sede.
+        $giacenza = RepeaterColumn::key('stock')
+            ->number()
+            ->decimal($formato['stock'])
+            ->label('Giacenza')
+            ->columnSpan($soglia ? 3 : 4);
+        $minima = RepeaterColumn::key('min_stock')
+            ->number()
+            ->decimal($formato['min_stock'])
+            ->label('Scorta minima')
+            ->columnSpan(3);
+
+        if ($formato['suffix'] !== '') {
+            $giacenza->suffix($formato['suffix']);
+            $minima->suffix($formato['suffix']);
+        }
+
+        // Undici dodicesimi: il dodicesimo è del cestino.
+        $columns = [
+            // Il «—» per primo: una riga aggiunta e lasciata lì non scrive
+            // niente su nessuna sede.
+            RepeaterColumn::key('location_id')
+                ->select(['' => '—'] + $sedi)
+                ->label('Sede')
+                ->columnSpan($soglia ? 5 : 7),
+            $giacenza,
+        ];
+
+        if ($soglia) {
+            $columns[] = $minima;
+        }
+
+        return FormField::key('locations')
+            ->repeater($columns)
+            ->nested()
+            ->repeaterAddLabel('Aggiungi sede')
+            ->repeaterDeleteTitle('Togli sede')
+            ->repeaterDeleteText('Questa sede perde la sua scorta minima al salvataggio. I pezzi restano dove sono: finché ne ha, la riga ricompare.')
+            ->repeaterDeleteCancelLabel('Annulla')
+            ->repeaterDeleteConfirmLabel('Togli')
+            ->repeaterDeleteConfirmClass('btn btn-danger')
+            ->label('Giacenza per sede');
     }
 
     /**
@@ -161,17 +265,10 @@ class ProductResource extends ProductModelResource
                     ->select(['' => '—'] + static::supplierCardChoices(static::supplierCardLinkedIds($productId)))
                     ->label('Fornitore')
                     ->columnSpan(4),
-                RepeaterColumn::key('supplier_sku')->text()->maxLength(ProductSuppliers::SKU_MAX_LENGTH)->label('Codice fornitore')->columnSpan(3),
+                RepeaterColumn::key('supplier_sku')->text()->maxLength(ProductSuppliers::SKU_MAX_LENGTH)->label('Codice fornitore')->columnSpan(4),
                 // Due decimali qui, quattro nella tabella: finché la casella
                 // non cambia resta quello salvato.
-                RepeaterColumn::key('cost')->price()->decimal(2)->label('Costo d\'acquisto')->columnSpan(3),
-                // Il «No» per primo: una riga nuova nasce così e non ruba il
-                // preferito a nessuno.
-                RepeaterColumn::key('is_preferred')
-                    ->select(['false' => 'No', 'true' => 'Sì'])
-                    ->value('false')
-                    ->label('Preferito')
-                    ->columnSpan(2),
+                RepeaterColumn::key('cost')->price()->decimal(2)->label('Costo d\'acquisto')->columnSpan(4),
             ])
             ->relation(
                 RepeaterRelation::make(ProductSupplier::$table, 'product_id')
@@ -213,23 +310,38 @@ class ProductResource extends ProductModelResource
     }
 
     /**
-     * Fra le righe postate, quelle che nel database sono già le preferite.
+     * I fornitori dell'articolo, per chi scrive quelli dell'opzione.
      *
-     * @param list<string> $rowIds
-     * @return list<string>
+     * «Dall'articolo: Filati Nord · 12,00 € · Lana Sud · 11,50 €», con
+     * «costo sconosciuto» dove il costo è NULL; se l'articolo non ne ha, lo
+     * dice. Vuoto per un'opzione che non c'è ancora.
      */
-    protected static function supplierCardStoredPreferred(array $rowIds): array
+    protected static function supplierCardContext(int $productId): string
     {
-        $rowIds = array_values(array_filter(array_map('intval', $rowIds), static fn (int $id): bool => $id > 0));
-
-        if ($rowIds === []) {
-            return [];
+        if ($productId <= 0) {
+            return '';
         }
 
-        return array_map(
-            static fn (array $row): string => (string) $row['id'],
-            static::rowsOf(ProductSupplier::class, ['id' => $rowIds, 'is_preferred' => 'true'])
-        );
+        $product = static::rowsOf(Product::class, ['id' => $productId])[0] ?? [];
+        $modelId = (int) ($product['product_model_id'] ?? 0);
+        $links = $modelId > 0 ? (ProductSuppliers::modelLinksFor([$modelId])[$modelId] ?? []) : [];
+
+        if ($links === []) {
+            return 'L\'articolo non ha fornitori';
+        }
+
+        $names = static::supplierCardChoices(array_column($links, 'supplier_id'));
+        $parts = [];
+
+        foreach ($links as $link) {
+            $supplierId = (int) $link['supplier_id'];
+            $parts[] = $names[$supplierId] ?? '#'.$supplierId;
+            $parts[] = $link['cost'] === null
+                ? 'costo sconosciuto'
+                : number_format((float) $link['cost'], 2, ',', '.').' €';
+        }
+
+        return 'Dall\'articolo: '.implode(' · ', $parts);
     }
 
     public static function formLayoutSchema(): ?Form
@@ -274,23 +386,40 @@ class ProductResource extends ProductModelResource
         ])->columns(12)->columnSpan(12);
 
         $soglia = Gestionale::feature('low_stock_alerts');
+        $sedi = static::hasManyLocations();
+
+        if ($sedi) {
+            $spiegazione = 'Una riga per sede: la giacenza scritta diventa una rettifica su quella sede, vuota non tocca niente. Per lasciare una causale e una nota c\'è la rettifica.'
+                .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso per quella sede, e con zero non arriva niente.' : '');
+        } else {
+            $spiegazione = 'Qui la giacenza si legge. Si scrive nella riga della griglia delle opzioni in vendita, oppure con una rettifica quando serve lasciare una causale e una nota.'
+                .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso, e con zero non arriva niente.' : '');
+        }
 
         $cards[] = (new Card)->components([
             SectionTitle::make(static::stockCardTitle())
-                ->tooltip('Qui la giacenza si legge. Si scrive nella riga della griglia delle opzioni in vendita, oppure con una rettifica quando serve lasciare una causale e una nota.'
-                    .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso: vale sul disponibile di tutte le sedi, e con zero non arriva niente.' : ''))
+                ->tooltip($spiegazione)
                 ->columnSpan(12),
-            ...($soglia ? [static::getInput('min_stock_quantity')->columnSpan(4)] : []),
+            ...($sedi
+                ? [static::getInput('locations')->columnSpan(12)]
+                : ($soglia ? [static::getInput('min_stock')->columnSpan(4)] : [])),
             RichText::make(static::stockSummary())->columnSpan(12),
             RichText::make(static::stockHistoryTable())->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
         if (Gestionale::feature('purchasing')) {
+            $productId = static::currentId() ?? 0;
+            $contesto = static::supplierCardContext($productId);
+
             $cards[] = (new Card)->components([
                 SectionTitle::make('Fornitori')
-                    ->tooltip('Da chi compri questa opzione, con il suo codice e a quanto. Il preferito è quello che si vede nella scheda del prodotto e che useranno gli ordini ai fornitori. Un costo lasciato vuoto vuol dire «non lo so», non zero.')
+                    ->tooltip('Vale solo per questa opzione e vince sui fornitori dell\'articolo. Un costo lasciato vuoto vuol dire «non lo so», non zero.')
                     ->columnSpan(12),
-                ...(static::supplierCardChoices(static::supplierCardLinkedIds(static::currentId() ?? 0)) === []
+                // Quello che vale senza righe: i fornitori dell'articolo.
+                ...($contesto !== ''
+                    ? [RichText::make('<p class="small text-body-secondary mb-0">'.static::escape($contesto).'</p>')->tag('div')->columnSpan(12)]
+                    : []),
+                ...(static::supplierCardChoices(static::supplierCardLinkedIds($productId)) === []
                     ? [RichText::make('<p class="text-muted mb-0">Nessun fornitore da proporre: aggiungilo da Anagrafiche → Fornitori.</p>')->columnSpan(12)]
                     : []),
                 static::getInput('suppliers')->columnSpan(12),
@@ -510,12 +639,30 @@ class ProductResource extends ProductModelResource
             }
         }
 
-        // Senza la funzionalità la colonna non si scrive: un form aperto prima
-        // di bloccarla non deve azzerare la soglia.
-        if (!Gestionale::feature('low_stock_alerts')) {
-            unset($values['min_stock_quantity']);
-        } elseif (array_key_exists('min_stock_quantity', $values)) {
-            $values['min_stock_quantity'] = static::minStockValue($values['min_stock_quantity']);
+        // La scorta minima e le righe per sede non sono colonne dell'opzione:
+        // le scrive `afterUpdate()`, e qui si controllano soltanto, prima che
+        // si scriva qualcosa. Senza la funzionalità la casella non si guarda:
+        // un form aperto prima di bloccarla non deve azzerare la soglia.
+        $sedi = static::hasManyLocations();
+
+        if (array_key_exists('min_stock', $values)) {
+            if (!$sedi && Gestionale::feature('low_stock_alerts')) {
+                static::minStockValue($values['min_stock']);
+            }
+
+            unset($values['min_stock']);
+        }
+
+        unset($values['locations']);
+
+        if ($sedi) {
+            // Anche la giacenza sotto zero si ferma qui (P59): `afterUpdate()`
+            // gira fuori da qualunque try, e lì un rifiuto sarebbe una pagina
+            // di guasto su un'opzione scritta a metà.
+            LocationStock::assertNotNegative(
+                $id,
+                LocationRows::normalize(Repeater::rowsFromRequest('locations', $_POST), Locations::shown())
+            );
         }
 
         // Le righe dei fornitori le salva il repeater dopo l'opzione, e il
@@ -534,8 +681,8 @@ class ProductResource extends ProductModelResource
     }
 
     /**
-     * Le righe dei fornitori come si salvano: senza quelle vuote, un
-     * fornitore per riga e un preferito solo.
+     * Le righe dei fornitori come si salvano: senza quelle vuote e un
+     * fornitore per riga.
      *
      * Svuotare il fornitore, il codice e il costo di una riga la stacca: non
      * arriva al repeater, che la toglie.
@@ -574,11 +721,10 @@ class ProductResource extends ProductModelResource
                 'supplier_sku' => trim((string) ($row['supplier_sku'] ?? '')),
                 // Vuoto resta vuoto, e la colonna lo scrive NULL: «non lo so».
                 'cost' => $cost ?? '',
-                'is_preferred' => ($row['is_preferred'] ?? 'false') === 'true' ? 'true' : 'false',
             ];
         }
 
-        return ProductSuppliers::preferOne(static::supplierCardNewPreferred($prepared));
+        return $prepared;
     }
 
     /**
@@ -589,9 +735,7 @@ class ProductResource extends ProductModelResource
      * l'id di un'altra opzione (un form copiato o ritoccato) le porterebbe
      * via il legame, e uno che non c'è più, perché nel frattempo la finestra
      * dei costi dell'articolo ha cambiato fornitore, non aggiornerebbe
-     * niente, mentre il legame nuovo se ne andrebbe come non visto. Così
-     * anche `supplierCardStoredPreferred()` legge solo righe di questa
-     * opzione.
+     * niente, mentre il legame nuovo se ne andrebbe come non visto.
      */
     public static function syncRepeaterRelations(
         int|string $parentId,
@@ -616,42 +760,6 @@ class ProductResource extends ProductModelResource
         }
 
         return parent::syncRepeaterRelations($parentId, $post, $files, $action, $context);
-    }
-
-    /**
-     * Con due «Sì» vince quello appena scelto.
-     *
-     * Il preferito è una tendina per riga, e sceglierne un altro non spegne
-     * quello di prima: fra i «Sì» si tiene il primo che nel database non era
-     * già il preferito. Senza niente di nuovo decide `preferOne()`.
-     *
-     * @param list<array<string, mixed>> $rows
-     * @return list<array<string, mixed>>
-     */
-    protected static function supplierCardNewPreferred(array $rows): array
-    {
-        $flagged = array_keys(array_filter($rows, static fn (array $row): bool => $row['is_preferred'] === 'true'));
-
-        if (count($flagged) < 2) {
-            return $rows;
-        }
-
-        $stored = static::supplierCardStoredPreferred(array_map(
-            static fn (int $index): string => (string) $rows[$index]['id'],
-            $flagged
-        ));
-
-        foreach ($flagged as $index) {
-            if (!in_array((string) $rows[$index]['id'], $stored, true)) {
-                foreach ($flagged as $other) {
-                    $rows[$other]['is_preferred'] = $other === $index ? 'true' : 'false';
-                }
-
-                break;
-            }
-        }
-
-        return $rows;
     }
 
     /**
@@ -692,6 +800,17 @@ class ProductResource extends ProductModelResource
 
         ProductAttributes::save('product', (int) $id, $attributes, $input);
 
+        // Le soglie, e con più sedi la giacenza, si scrivono adesso che
+        // l'opzione è salvata: le righe le ha già controllate
+        // `mutateRequestValues()`. Con una sede sola la casella parla della
+        // sede principale; se non è arrivata, la soglia resta com'è.
+        if (static::hasManyLocations()) {
+            $rows = LocationRows::normalize(Repeater::rowsFromRequest('locations', $_POST), Locations::shown());
+            LocationStock::apply((int) $id, static::keepThresholds((int) $id, $rows), false);
+        } elseif (Gestionale::feature('low_stock_alerts') && array_key_exists('min_stock', $_POST)) {
+            Thresholds::save((int) $id, [Locations::mainId() => static::minStockValue($_POST['min_stock'])]);
+        }
+
         // La soglia può essere appena cambiata senza nessun movimento:
         // l'avviso si apre o si chiude adesso, non alla prossima vendita.
         if (Gestionale::feature('low_stock_alerts')) {
@@ -699,7 +818,39 @@ class ProductResource extends ProductModelResource
         }
     }
 
-    /** Riempie il form con gli attributi dell'opzione e i costi dei fornitori. */
+    /**
+     * Ad avvisi spenti la colonna della scorta minima non c'è: le soglie
+     * salvate restano come sono, anche quelle delle sedi che nelle righe non
+     * ci sono più, e le righe muovono solo la giacenza.
+     *
+     * @param list<array{location_id: int, stock: ?float, min_stock: float}> $rows righe di `LocationRows::normalize()`
+     * @return list<array{location_id: int, stock: ?float, min_stock: float}>
+     */
+    protected static function keepThresholds(int $productId, array $rows): array
+    {
+        if (Gestionale::feature('low_stock_alerts')) {
+            return $rows;
+        }
+
+        $stored = Thresholds::forProduct($productId);
+
+        foreach ($rows as $index => $row) {
+            $locationId = (int) $row['location_id'];
+            $rows[$index]['min_stock'] = (float) ($stored[$locationId] ?? 0);
+            unset($stored[$locationId]);
+        }
+
+        foreach ($stored as $locationId => $quantity) {
+            $rows[] = ['location_id' => (int) $locationId, 'stock' => null, 'min_stock' => (float) $quantity];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Riempie il form con gli attributi dell'opzione, i costi dei fornitori,
+     * la scorta minima e — con più sedi — le righe della giacenza.
+     */
     public static function mutateFormValues(
         array $values,
         string $mode,
@@ -731,6 +882,30 @@ class ProductResource extends ProductModelResource
             $values['attribute_'.$attributeId] = static::attributeValue($attribute, $links[$attributeId] ?? null);
         }
 
+        // Soglie e righe per sede non sono colonne dell'opzione. Dopo un
+        // salvataggio rifiutato le righe le ha già rilette il core dalla
+        // richiesta, e la casella arriva com'era scritta; altrimenti si
+        // leggono adesso, e i numeri vanno alle caselle grezzi, con il punto.
+        if (static::hasManyLocations()) {
+            if (!is_array($values['locations'] ?? null)) {
+                $values['locations'] = LocationRows::compose(
+                    Locations::shown(),
+                    Levels::byLocation($productId),
+                    Thresholds::forProduct($productId)
+                );
+            }
+
+            foreach ($values['locations'] as $index => $row) {
+                foreach (['stock', 'min_stock'] as $key) {
+                    if (is_array($row) && is_numeric($row[$key] ?? null)) {
+                        $values['locations'][$index][$key] = static::rawNumber((float) $row[$key]);
+                    }
+                }
+            }
+        } elseif (Gestionale::feature('low_stock_alerts') && !array_key_exists('min_stock', $values)) {
+            $values['min_stock'] = static::rawNumber((float) (Thresholds::forProduct($productId)[Locations::mainId()] ?? 0));
+        }
+
         return $values;
     }
 
@@ -748,7 +923,7 @@ class ProductResource extends ProductModelResource
         }
     }
 
-    /** Eliminare un'opzione porta via i suoi attributi e i suoi fornitori. */
+    /** Eliminare un'opzione porta via i suoi attributi, le sue soglie e i suoi fornitori. */
     public static function deleteRecord(int|string $id): object
     {
         static::assertDeletable($id);
@@ -758,6 +933,8 @@ class ProductResource extends ProductModelResource
         }
 
         StockHistory::dropAlerts([(int) $id]);
+        // Anche ad avvisi spenti: le soglie puntano all'opzione con una chiave esterna.
+        Thresholds::dropFor([(int) $id]);
         // Anche ad acquisti spenti: la chiave esterna fermerebbe l'eliminazione.
         ProductSuppliers::dropFor([(int) $id]);
 

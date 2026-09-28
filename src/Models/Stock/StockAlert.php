@@ -10,14 +10,17 @@ use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
 
 /**
- * L'avviso di scorta minima: una riga aperta per prodotto sceso sotto soglia.
+ * L'avviso di scorta minima: una riga aperta per prodotto e sede scesi sotto
+ * soglia.
  *
  * `resolved_at` vuoto vuol dire aperto; finché lo è, l'avviso **non si
  * ripete**. `notified_at` vuoto vuol dire che l'email non è ancora partita: la
  * manda l'attività dello scheduler del piano 4, mai il salvataggio.
  *
- * `location_id` resta a zero perché la soglia vale sul disponibile totale del
- * prodotto, somma di tutte le sedi: per questo non ha chiave esterna.
+ * `location_id` è la sede della soglia (`gst_stock_thresholds`). Niente
+ * chiave esterna: gli avvisi nati quando la soglia valeva sul totale hanno la
+ * sede a zero, e restano finché `Support\Stock\Alerts::refresh()` non li
+ * chiude.
  */
 final class StockAlert extends Model
 {
@@ -46,6 +49,7 @@ final class StockAlert extends Model
     {
         return [
             'ind_product' => ['index' => 'product_id'],
+            'ind_product_location' => ['index' => ['product_id', 'location_id']],
         ];
     }
 

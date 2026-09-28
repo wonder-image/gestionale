@@ -55,11 +55,13 @@ final class StockAlertsCommand extends Command
         foreach ($result['items'] as $item) {
             $name = $item['article'].($item['option'] !== '' ? ' — '.$item['option'] : '');
             $sku = $item['sku'] !== '' ? ' ('.$item['sku'].')' : '';
+            $location = ($item['location'] ?? '') !== '' ? ' · '.$item['location'] : '';
 
             $output->writeln(sprintf(
-                '- %s%s: disponibili %s, scorta minima %s',
+                '- %s%s%s: disponibili %s, scorta minima %s',
                 $name,
                 $sku,
+                $location,
                 LowStockEmail::quantity($item['available']),
                 LowStockEmail::quantity($item['threshold'])
             ));

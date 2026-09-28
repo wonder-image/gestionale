@@ -1397,18 +1397,21 @@ non lo dimentichi:
 
 ### Lavori del tredicesimo giro
 
-- [ ] modulo: modello `ProductModelSupplier` (`gst_product_model_suppliers`); via `is_preferred` da `ProductSupplier`; `ProductSuppliers` con `modelLinksFor()`, `effective()`, `dropForRemovedModels()`, `countForSupplier()` sulle due tabelle; via `preferOne()`, `preferred()`, `summary()`
-- [ ] modulo: riquadro «Fornitori» nella scheda dell'articolo (repeater, scelte P92, nota senza fornitori, controlli); via campi, bottone, JSON, finestra e script dei costi dalla griglia
-- [ ] modulo: scheda dell'opzione senza «Preferito», con tooltip e riga di contesto
-- [ ] modulo: modello `StockThreshold` (`gst_stock_thresholds`), servizio `Thresholds`; via `min_stock_quantity` da `Product` e da chi lo legge (`saveMinStocks()`, `writeMinStock()`, `minStockInput()`, colonna della griglia, `ProductResource`, `LowStockReport`, dati di prova)
-- [ ] modulo: `Levels::byLocation()`; `LocationRows` pura; repeater «Giacenza per sede» nella scheda dell'articolo senza varianti e in quella dell'opzione; bottone «Giacenza», finestra e script nella griglia; salvataggio per sede con `Stocktake` e `Stock::apply()`
-- [ ] modulo: `Alerts::refresh()` per sede, `openRow()` con la sede, chiusura degli avvisi senza sede; `LowStockReport`, `LowStockEmail`, `LowStockNotifier`, riquadro e comando con la colonna *Sede*
-- [ ] modulo: colonna «Scontato» nella griglia, `price()` nella scheda dell'opzione, `sale_price` nello scheletro
-- [ ] modulo: `CustomerResource` con i conti sulle due tabelle; `CatalogDemo` con fornitori sull'articolo, un'eccezione e le soglie; lang; codici d'errore
-- [ ] modulo: test unitari (`ProductSuppliers`, `LocationRows`, `Thresholds`, `LowStock*`) e d'integrazione (`tests/integrazione`)
-- [ ] modulo: guide `catalogo-prodotti`, `anagrafiche`, `magazzino-giacenze`, `magazzino-avvisi`, `funzionalita`, `da-controllare`; `docs/dev/concetti/{acquisti,magazzino,catalogo}`
+- [x] modulo: modello `ProductModelSupplier` (`gst_product_model_suppliers`); via `is_preferred` da `ProductSupplier`; `ProductSuppliers` con `modelLinksFor()`, `effective()`, `dropForRemovedModels()`, `countForSupplier()` sulle due tabelle; via `preferOne()`, `preferred()`, `summary()`
+- [x] modulo: riquadro «Fornitori» nella scheda dell'articolo (repeater, scelte P92, nota senza fornitori, controlli); via campi, bottone, JSON, finestra e script dei costi dalla griglia
+- [x] modulo: scheda dell'opzione senza «Preferito», con tooltip e riga di contesto
+- [x] modulo: modello `StockThreshold` (`gst_stock_thresholds`), servizio `Thresholds`; via `min_stock_quantity` da `Product` e da chi lo legge (`saveMinStocks()`, `writeMinStock()`, `minStockInput()`, colonna della griglia, `ProductResource`, `LowStockReport`, dati di prova)
+- [x] modulo: `Levels::byLocation()`; `LocationRows` pura; repeater «Giacenza per sede» nella scheda dell'articolo senza varianti e in quella dell'opzione; bottone «Giacenza», finestra e script nella griglia; salvataggio per sede con `Stocktake` e `Stock::apply()`
+- [x] modulo: `Alerts::refresh()` per sede, `openRow()` con la sede, chiusura degli avvisi senza sede; `LowStockReport`, `LowStockEmail`, `LowStockNotifier`, riquadro e comando con la colonna *Sede*
+- [x] modulo: colonna «Scontato» nella griglia, `price()` nella scheda dell'opzione, `sale_price` nello scheletro
+- [x] modulo: `CustomerResource` con i conti sulle due tabelle; `CatalogDemo` con fornitori sull'articolo, un'eccezione e le soglie; lang; codici d'errore
+- [x] modulo: test unitari (`ProductSuppliers`, `LocationRows`, `Thresholds`, `LowStock*`) e d'integrazione (`tests/integrazione`)
+- [x] modulo: guide `catalogo-prodotti`, `anagrafiche`, `magazzino-giacenze`, `magazzino-avvisi`, `funzionalita`, `da-controllare`; `docs/dev/concetti/{acquisti,magazzino,catalogo}`
+- [x] modulo: revisione del giro, due difetti corretti. Una giacenza per sede sotto zero si rifiuta prima di scrivere (`LocationStock::assertNotNegative()`, da `assertLocationRows()` e dal `mutateRequestValues()` della scheda dell'opzione; `product.stock_negative`, con l'eccezione del numero già negativo per gli arretrati). Con più sedi la colonna *Giacenza* e la casella `product_stock` sono il totale da leggere **anche in creazione**: i pezzi si scrivono solo nelle righe per sede (supera «in creazione si scrive anche con più sedi, sulla sede principale»)
 - [ ] spec: architettura 4.3 e tabelle aggiornate (fatto con questa sezione); G2b-bis §2 da allineare da chi la tiene
-- [ ] prova nel browser (1600×950) con «Più sedi» sbloccata e una seconda sede con magazzino, create dall'utente
+- [x] modulo: difetti trovati con la prova nel browser. Dopo un salvataggio rifiutato la griglia tiene bottone e didascalia (`withFormStockButtons()`, `LocationRows::summaryOfRows()`). Le righe per sede si scrivono con l'unità dell'articolo anche nella scheda dell'opzione, e i decimali si decidono sede per sede (`LocationRows::format()`, `locationFormat()`, `optionFormat()`). Le prove d'integrazione con una sede sola spengono «Più sedi» da sé
+- [x] prova nel browser (1600×950) con «Più sedi», «Acquisti» e «Avvisi di scorta minima» accese e una seconda sede con magazzino, create dall'utente. Fatta il 2026-09-28 in due tempi. Primo: righe per sede dell'articolo e dell'opzione, finestra «Giacenza» della griglia, rifiuto del negativo, colonna «Scontato». Secondo: riquadro «Fornitori» dell'articolo e dell'opzione (eccezione, riga di contesto, doppione rifiutato), «Scorta minima» per sede nelle righe e nella finestra della griglia, avviso per sede nel riquadro «Sotto scorta» e nell'elenco delle giacenze, chiuso togliendo la soglia. Dati di prova tolti a fine prova
+- [x] modulo e core: difetti trovati con la seconda prova. Nella scheda dell'opzione la riga «Giacenza per sede» occupava dodici dodicesimi e il cestino andava a capo: ora *Sede* è larga 5 con la scorta minima e 7 senza, come nella scheda dell'articolo (`ProductResource::locationRowsField()`). Tolto l'unico fornitore il salvataggio era rifiutato con `product.supplier_missing`: il repeater del core svuota l'ultima riga invece di toglierla, ma AutoNumeric teneva il costo vecchio e lo riscriveva all'invio. Corretto nel core (`wiRepeaterRemoveRow` svuota anche AutoNumeric, `tests/Themes/RepeaterAutonumericTest.php`): vale per ogni repeater con un campo numerico, e arriva sul sito con il prossimo rilascio del core
 
 ## Piani
 

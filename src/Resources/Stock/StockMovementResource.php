@@ -193,6 +193,12 @@ final class StockMovementResource extends GestionaleResource
     /** L'indirizzo dell'elenco filtrato su un'opzione in vendita. */
     public static function listUrlFor(int $productId): string
     {
+        return static::listUrl().'?versione='.$productId;
+    }
+
+    /** L'indirizzo dell'elenco, dalla rotta con il nome; il percorso è il ripiego. */
+    public static function listUrl(): string
+    {
         $base = '/backend/'.static::path();
 
         if (function_exists('__r')) {
@@ -204,7 +210,7 @@ final class StockMovementResource extends GestionaleResource
             }
         }
 
-        return $base.'?versione='.$productId;
+        return $base;
     }
 
     /** Una data `YYYY-MM-DD`, o stringa vuota: niente altro entra in una query. */

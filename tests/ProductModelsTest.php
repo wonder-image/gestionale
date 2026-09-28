@@ -143,12 +143,15 @@ check('prezzi, peso e misure del prodotto tengono i decimali', function () use (
     return true;
 });
 
-check('le colonne del magazzino nascono qui, anche se non si vedono', function () use ($colonne) {
-    // G2a.6: arrivano con G2b e G4, ma stanno sul prodotto e aggiungerle dopo
-    // significherebbe rifare la scheda.
+check('le colonne della vendita senza giacenza nascono qui, la scorta minima no', function () use ($colonne) {
+    // G2a.6: arrivano con G4, ma stanno sul prodotto e aggiungerle dopo
+    // significherebbe rifare la scheda. La scorta minima invece è per
+    // prodotto e sede, in `gst_stock_thresholds` (P100): dal prodotto è
+    // uscita, senza copia.
     $prodotto = $colonne(Product::class);
 
-    return isset($prodotto['min_stock_quantity'], $prodotto['allow_backorder'], $prodotto['backorder_lead_days']);
+    return isset($prodotto['allow_backorder'], $prodotto['backorder_lead_days'])
+        && !isset($prodotto['min_stock_quantity']);
 });
 
 check('il prodotto ha il nome della sua combinazione', function () use ($colonne) {

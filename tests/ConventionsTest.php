@@ -49,6 +49,7 @@ check('ogni Resource con dati dichiara la sua funzionalità', function () use ($
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\PackageResource',
         // Il magazzino base è sempre attivo: le funzionalità sbloccano le sedi
         // in più, gli acquisti e i lotti, non la giacenza.
+        'Wonder\\Plugin\\Gestionale\\Resources\\Stock\\StockLevelResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Stock\\StockMovementResource',
         // I clienti ci sono sempre; i fornitori arrivano con gli acquisti, e
         // infatti `SupplierResource` dichiara la sua funzionalità.

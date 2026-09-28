@@ -10,8 +10,10 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 
+use Wonder\App\Models\Config\SocietyLocation;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -52,6 +54,8 @@ try {
             Levels::of($productId) === ['quantity' => 0.0, 'reserved' => 0.0, 'available' => 0.0]
         );
 
+        check('e per sede non c\'è nessuna riga', fn () => Levels::byLocation($productId) === []);
+
         StockRow::create([
             'product_id' => $productId,
             'location_id' => $locationId,
@@ -90,10 +94,61 @@ try {
             Levels::of($productId)['available'] === 10.0
         );
 
+        check('i livelli si leggono anche sede per sede', function () use ($productId, $locationId) {
+            $perSede = Levels::byLocation($productId);
+
+            return array_keys($perSede) === [$locationId]
+                && $perSede[$locationId]['quantity'] === 12.0
+                && $perSede[$locationId]['reserved'] === 2.0
+                && $perSede[$locationId]['available'] === 10.0;
+        });
+
+        // Una seconda sede, con i suoi pezzi: la riga del core e quella del
+        // gestionale, cancellate con la transazione.
+        $sede = SocietyLocation::create([
+            'label' => 'Prova Deposito livelli',
+            'slug' => Slug::make('prova-deposito-livelli-'.uniqid()),
+            'position' => 9001,
+            'visible' => 'true',
+        ]);
+        $deposito = Location::create([
+            'society_location_id' => (int) ($sede->insert_id ?? 0),
+            'has_stock' => 'true',
+            'active' => 'true',
+        ]);
+        $depositoId = (int) ($deposito->insert_id ?? 0);
+
+        StockRow::create([
+            'product_id' => $productId,
+            'location_id' => $depositoId,
+            'batch_id' => 0,
+            'supplier_id' => 0,
+            'quantity' => '3.000',
+        ]);
+
+        check('una seconda sede ha la sua riga, e il totale le somma', function () use ($productId, $locationId, $depositoId) {
+            $perSede = Levels::byLocation($productId);
+
+            return $depositoId > 0
+                && count($perSede) === 2
+                && $perSede[$locationId]['quantity'] === 12.0
+                && $perSede[$depositoId] === ['quantity' => 3.0, 'reserved' => 0.0, 'available' => 3.0]
+                && Levels::of($productId)['quantity'] === 15.0
+                && Levels::of($productId)['available'] === 13.0;
+        });
+
+        check('più prodotti si leggono per sede in un colpo solo', function () use ($productId, $depositoId) {
+            $livelli = Levels::byLocationForProducts([$productId, 0]);
+
+            return ($livelli[$productId][$depositoId]['quantity'] ?? null) === 3.0
+                && array_key_exists(0, $livelli)
+                && $livelli[0] === [];
+        });
+
         check('più prodotti si leggono in un colpo solo', function () use ($productId) {
             $livelli = Levels::forProducts([$productId, 0]);
 
-            return ($livelli[$productId]['available'] ?? null) === 10.0
+            return ($livelli[$productId]['available'] ?? null) === 13.0
                 && array_key_exists(0, $livelli)
                 && $livelli[0]['quantity'] === 0.0;
         });

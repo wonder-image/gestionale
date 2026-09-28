@@ -7,6 +7,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
+use Wonder\Plugin\Gestionale\Models\Stock\StockThreshold;
 
 /**
  * Chi ha una storia di magazzino e chi può dimenticarla.
@@ -87,7 +88,7 @@ final class StockHistory
 
         $removed = 0;
 
-        foreach ([StockAlert::class, StockReservation::class, StockMovement::class, StockRow::class] as $model) {
+        foreach ([StockAlert::class, StockThreshold::class, StockReservation::class, StockMovement::class, StockRow::class] as $model) {
             try {
                 // Contate prima: dopo non c'è più niente da contare, e il
                 // comando dei dati di prova dice quante righe ha tolto.

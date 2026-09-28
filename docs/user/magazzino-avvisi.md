@@ -24,10 +24,16 @@ debba controllare le giacenze ogni giorno.
   dietro **«Compila le informazioni avanzate»** di ogni riga, e nel riquadro
   *Magazzino* della scheda di ogni opzione: ogni taglia o colore ha la sua.
 
+Con **più sedi** la soglia è **di ogni sede**, e sta nelle righe *Giacenza per
+sede*: nel riquadro *Magazzino* della scheda (articolo senza varianti e
+singola opzione) e nella finestra del bottone **Giacenza** di ogni riga della
+griglia (vedi [Con più sedi](catalogo-prodotti.md#con-piu-sedi)).
+
 Scrivi a quanti pezzi vuoi essere avvisato. Con **5**, l'avviso nasce quando ne
 restano cinque. **Zero**, o la casella vuota, vuol dire nessun avviso.
 
-Contano i pezzi **disponibili**: se hai più sedi, tutte insieme.
+Contano i pezzi **disponibili**: con più sedi quelli della sede della soglia,
+e ogni sede ha il suo avviso.
 
 La soglia vale da subito: se la alzi sopra i pezzi che hai, il prodotto è già
 sotto scorta; se la abbassi sotto i pezzi che hai, l'avviso si chiude.
@@ -36,11 +42,11 @@ sotto scorta; se la abbassi sotto i pezzi che hai, l'avviso si chiude.
 
 Ogni quarto d'ora il gestionale guarda se qualche prodotto è arrivato alla sua
 scorta minima (o sotto) e, se sì, manda **un'email sola** con l'elenco: nome,
-opzione, SKU, quanti ne restano e la soglia. In fondo c'è il link che apre le
-giacenze già filtrate.
+opzione, SKU — con più sedi anche la sede —, quanti ne restano e la soglia. In
+fondo c'è il link che apre le giacenze già filtrate.
 
-- **Per ogni prodotto l'email arriva una volta.** Torna solo se il prodotto
-  risale sopra la soglia e poi ci ricade.
+- **Per ogni prodotto, e per ogni sede, l'email arriva una volta.** Torna
+  solo se in quella sede risale sopra la soglia e poi ci ricade.
 - Dieci rettifiche di fila non fanno dieci email: l'elenco parte al giro
   successivo, tutto insieme.
 - L'email arriva agli indirizzi scritti in **Destinatari degli avvisi**, nelle
@@ -55,16 +61,20 @@ Il giro ogni quarto d'ora lo accende chi ti segue, insieme alla funzionalità.
 Il riquadro **Sotto scorta** elenca i prodotti che sono sotto la scorta minima
 **adesso**: dieci al massimo, poi quanti altri ce ne sono e il pulsante **Apri
 le giacenze**. Un prodotto che hai appena ricaricato sparisce subito, senza
-aspettare il giro dell'email.
+aspettare il giro dell'email. Con più sedi c'è una riga per sede, con il nome
+della sede accanto allo SKU.
 
 Se nessuno riceve l'email, il riquadro te lo ricorda con il link per aggiungere
 i destinatari.
 
 ## Nell'elenco Giacenze
 
-In **Magazzino → Giacenze** il pulsante **Solo sotto scorta** mostra le sole
-righe da riordinare. È il posto giusto per caricare la merce quando arriva:
-scrivi la quantità nuova, salva, e l'avviso si chiude da sé.
+In **Magazzino → Giacenze** il filtro **Scorta** su *Sotto scorta* mostra le
+sole righe da riordinare; il pulsante **Apri le giacenze** della home e il link
+dell'email ci arrivano già filtrati. Le righe sotto scorta hanno il totale in
+rosso con l'etichetta *sotto scorta*, e la colonna *Scorta minima* dice la
+soglia (con più sedi, quella della sede principale).
 
-Come si caricano e si correggono le quantità lo trovi in
+Da qui si guarda soltanto. Quando la merce arriva, registrala con la rettifica
+della sua scheda: l'avviso si chiude da sé. Tutto questo lo trovi in
 [Giacenze e rettifiche](magazzino-giacenze.md).

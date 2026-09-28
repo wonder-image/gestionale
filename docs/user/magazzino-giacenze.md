@@ -23,37 +23,63 @@ numero, non compilando un documento.
   quanto cambiarli. Vale anche per gli articoli che si vendono senza giacenza
   (vedi [Sotto zero](#sotto-zero)).
 
-Quando l'articolo si vende in un'unica opzione, la casella *Giacenza* in alto
-nella scheda si **legge** soltanto: accanto c'è il link alla rettifica.
+Quando l'articolo si vende in un'unica opzione, la casella *Giacenza* sta in
+alto nella scheda, accanto al prezzo, e si scrive allo stesso modo; sotto c'è
+il link alla rettifica.
+
+Con **più sedi** la casella della griglia mostra il totale e si legge
+soltanto: i pezzi e la scorta minima si scrivono sede per sede, dal bottone
+**Giacenza** dietro «Compila le informazioni avanzate» o, senza varianti,
+dalle righe **Giacenza per sede** del riquadro *Magazzino* (vedi [Con più
+sedi](catalogo-prodotti.md#con-piu-sedi)).
 
 ## L'elenco Giacenze
 
-**Magazzino → Giacenze** serve quando le righe da sistemare sono tante e stanno
-su articoli diversi: è l'elenco di tutto quello che vendi, con la sua quantità
-già scritta nella casella. Correggi quelle che devi correggere e salvi in un
-colpo solo.
+**Magazzino → Giacenze** serve a **consultare**: quanti pezzi hai di ogni
+opzione in vendita e, se hai più sedi, in quale. Da qui non si cambia nessun
+numero.
 
-- In cima c'è la **causale di tutta la schermata**: di solito *Inventario*,
-  perché si sta contando lo scaffale.
-- Ogni riga cambiata diventa un movimento. Le righe che **lasci come sono** non
-  ne fanno nessuno.
-- **Uno zero scritto è uno zero vero:** diventa un movimento che svuota la riga.
+C'è una riga per ogni opzione, anche a zero e anche ferma, con foto, nome e
+SKU. Poi:
 
-In alto trovi la ricerca (nome, SKU o EAN) e *Azzera i filtri*; con gli
-[avvisi di scorta minima](magazzino-avvisi.md) c'è anche il pulsante *Solo
-sotto scorta*. Si lavora cinquanta righe per volta, con *Indietro* e *Avanti*
-in fondo. Dopo il salvataggio torni esattamente dov'eri, filtri compresi.
+- **Giacenza**: i pezzi che hai. Con più sedi si chiama **Totale**, e prima
+  vengono le colonne delle sedi, una per sede, con il suo nome; gli zeri sono
+  in grigio.
+- **Scorta minima**, se hai gli [avvisi di scorta minima](magazzino-avvisi.md);
+  con più sedi è quella della sede principale. Un'opzione sotto scorta ha il
+  totale in rosso, con l'etichetta *sotto scorta*.
+- **Impegnati** e **Disponibili**, se hai gli ordini: i pezzi già promessi a
+  un ordine e quelli che puoi ancora vendere, contando tutte le sedi.
 
-### Il primo carico
+Ogni colonna si ordina con un clic sul titolo. In alto ci sono la ricerca
+(nome dell'articolo, SKU o EAN) e i filtri *Stato*, *Marchio*, *Categoria*
+(sottocategorie comprese) e, con gli avvisi, *Scorta*.
 
-Appena installato il gestionale, il modo più veloce per caricare il magazzino è
-proprio questo: apri *Giacenze*, metti la causale su **Giacenza iniziale**,
-scrivi le quantità e salva.
+I tre puntini in fondo alla riga portano ai **Movimenti** di quell'opzione, già
+filtrati, e alla sua scheda con **Apri la versione**.
+
+### Quali sedi hanno una colonna
+
+Le colonne delle sedi ci sono solo con la funzionalità *Più sedi* e almeno due
+sedi da mostrare. Sono le sedi che tengono la giacenza, nell'ordine della
+pagina [Sedi](sedi.md), più ogni altra sede che ha ancora dei pezzi: così la
+somma delle colonne è sempre il *Totale*. Con una sede sola resta la colonna
+*Giacenza*. Sono le stesse sedi che la scheda propone nelle righe *Giacenza
+per sede*.
+
+## Il primo carico
+
+Appena installato il gestionale, i pezzi che hai si scrivono nella colonna
+**Giacenza** della scheda dell'articolo, quando crei le opzioni: una riga
+appena nata parte con un movimento di *Giacenza iniziale*. Per un'opzione che
+esiste già usa la [rettifica](#rettificare-una-riga-sola), con la causale
+**Giacenza iniziale**.
 
 ## Rettificare una riga sola
 
-Il pulsante **Rettifica** — nell'elenco *Giacenze*, o nella scheda di una
-singola opzione in vendita — apre una pagina che chiede tre cose:
+Il pulsante **Rettifica** nella scheda di una singola opzione in vendita — o il
+link accanto alla casella *Giacenza*, negli articoli con un'unica opzione —
+apre una pagina che chiede tre cose:
 
 - **Come la scrivi:** *Adesso ce ne sono* (il totale che hai contato) oppure
   *Aggiungi o togli* (scrivi `-2` se ne hai buttati due).
@@ -90,13 +116,16 @@ davvero e la riga sparisce.
 
 ## Dove si vede la giacenza
 
+- Nell'elenco **Giacenze**: tutte le opzioni, sede per sede.
 - Nella **scheda dell'articolo**: la colonna *Giacenza* della griglia, che si
-  scrive.
+  scrive con una sede sola; con più sedi si legge, e i pezzi stanno dietro il
+  bottone *Giacenza* di ogni riga, sede per sede.
 - Nella scheda di un articolo con **un'unica opzione**: la casella accanto al
-  prezzo, in sola lettura, con il link alla rettifica.
+  prezzo, che si scrive, con il link alla rettifica; con più sedi le righe
+  *Giacenza per sede* del riquadro *Magazzino*.
 - Nella scheda di una **singola opzione in vendita**: il riquadro *Magazzino*,
-  con quanti pezzi ci sono e gli ultimi dieci movimenti, e la *Scorta minima*
-  se hai gli [avvisi](magazzino-avvisi.md).
+  con quanti pezzi ci sono — con più sedi, sede per sede — e gli ultimi dieci
+  movimenti, e la *Scorta minima* se hai gli [avvisi](magazzino-avvisi.md).
 
 Quello che è successo, tutto e in ordine di tempo, sta in
 [Movimenti](magazzino-movimenti.md).

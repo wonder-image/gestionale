@@ -5,9 +5,6 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
-use Wonder\App\ResourceSchema\Inputs\InputButton;
-use Wonder\App\ResourceSchema\Inputs\InputHidden;
-use Wonder\App\ResourceSchema\Inputs\InputPrice;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
@@ -60,35 +57,37 @@ check('con gli avvisi bloccati la scorta minima non compare in nessuna scheda', 
     $forza(['low_stock_alerts' => false]);
 
     return !in_array('product_min_stock', $chiavi(ProductModelResource::class), true)
-        && !in_array('min_stock_quantity', $chiavi(ProductResource::class), true);
+        && !in_array('min_stock', $chiavi(ProductResource::class), true);
 });
 
 check('con gli avvisi sbloccati la scorta minima c\'è in tutte e due', function () use ($forza, $chiavi) {
     $forza(['low_stock_alerts' => true]);
 
     return in_array('product_min_stock', $chiavi(ProductModelResource::class), true)
-        && in_array('min_stock_quantity', $chiavi(ProductResource::class), true);
+        && in_array('min_stock', $chiavi(ProductResource::class), true);
 });
 
-check('la scheda della versione salva la soglia col punto', function () use ($forza) {
+check('la scheda della versione controlla la soglia e la toglie dai valori: non è una colonna', function () use ($forza) {
     $forza(['low_stock_alerts' => true]);
-    $valori = ProductResource::mutateRequestValues(['min_stock_quantity' => '2,5'], 'update', 'backend', ['id' => 1]);
+    $valori = ProductResource::mutateRequestValues(['min_stock' => '2,5', 'name' => 'Rosso'], 'update', 'backend', ['id' => 1]);
 
-    return ($valori['min_stock_quantity'] ?? null) === '2.500';
+    // La scrive `afterUpdate()` sulla sede principale, tramite `Thresholds`.
+    return !array_key_exists('min_stock', $valori)
+        && ($valori['name'] ?? null) === 'Rosso';
 });
 
-check('con gli avvisi bloccati la soglia non si scrive, nemmeno da un form vecchio', function () use ($forza) {
+check('con gli avvisi bloccati la soglia non si guarda, nemmeno da un form vecchio', function () use ($forza) {
     $forza(['low_stock_alerts' => false]);
-    $valori = ProductResource::mutateRequestValues(['min_stock_quantity' => '9'], 'update', 'backend', ['id' => 1]);
+    $valori = ProductResource::mutateRequestValues(['min_stock' => '-9'], 'update', 'backend', ['id' => 1]);
 
-    return !array_key_exists('min_stock_quantity', $valori);
+    return !array_key_exists('min_stock', $valori);
 });
 
 check('la scheda della versione rifiuta una soglia negativa', function () use ($forza) {
     $forza(['low_stock_alerts' => true]);
 
     try {
-        ProductResource::mutateRequestValues(['min_stock_quantity' => '-2'], 'update', 'backend', ['id' => 1]);
+        ProductResource::mutateRequestValues(['min_stock' => '-2'], 'update', 'backend', ['id' => 1]);
     } catch (InvalidArgumentException $errore) {
         return str_contains($errore->getMessage(), 'scorta minima');
     }
@@ -103,7 +102,7 @@ check('la scheda della versione rifiuta una soglia negativa', function () use ($
 $schedaConSoglie = new class extends ProductModelResource {
     public static string $unita = 'pz';
 
-    /** @var array<int, float> scorta minima per id del prodotto */
+    /** @var array<int, float> scorta minima sulla sede principale, per id del prodotto */
     public static array $soglie = [2 => 5.0, 3 => 0.0];
 
     /** @var array<int, string> i fornitori che la pagina propone, id => nome */
@@ -133,8 +132,8 @@ $schedaConSoglie = new class extends ProductModelResource {
     {
         $righe = [];
 
-        foreach (static::$soglie as $id => $soglia) {
-            $righe[] = ['id' => $id, 'sku' => 'CAP-'.$id, 'price' => '24.90', 'min_stock_quantity' => $soglia];
+        foreach (array_keys(static::$soglie) as $id) {
+            $righe[] = ['id' => $id, 'sku' => 'CAP-'.$id, 'price' => '24.90'];
         }
 
         return $righe;
@@ -148,6 +147,19 @@ $schedaConSoglie = new class extends ProductModelResource {
     protected static function stockQuantities(array $productIds): array
     {
         return [];
+    }
+
+    // Le soglie stanno in `gst_stock_thresholds`, non nella riga del
+    // prodotto: la scheda le legge da qui, sede principale.
+    protected static function mainThresholds(array $productIds): array
+    {
+        $soglie = [];
+
+        foreach ($productIds as $id) {
+            $soglie[(int) $id] = static::$soglie[(int) $id] ?? 0.0;
+        }
+
+        return $soglie;
     }
 };
 
@@ -281,84 +293,26 @@ $larghezze = static function (object $scheda, array $nomi) use ($colonna): array
     return $larghezze;
 };
 
-check('con gli acquisti e al più un fornitore, fornitore, codice e costo vanno a capo dopo lo stato', function () use ($forza, $schedaConSoglie, $griglia, $colonna, $larghezze) {
+check('i fornitori non stanno nella griglia, con o senza acquisti', function () use ($forza, $schedaConSoglie, $griglia, $colonna, $larghezze) {
     $risultato = true;
 
-    // La prima riga delle avanzate resta com'era; i tre campi del fornitore
-    // ne fanno una loro, un terzo ciascuno. Anche senza fornitori in
-    // anagrafica: la tendina resta, vuota.
-    foreach ([[], [5 => 'Filati Nord']] as $fornitori) {
-        foreach ([true, false] as $avvisi) {
+    // Da questo giro fornitore, codice e costo vivono nel riquadro
+    // «Fornitori» dell'articolo (P95): la riga delle avanzate resta com'era,
+    // quattro caselle e la foto sotto, qualunque sia lo stato degli acquisti
+    // e quanti fornitori proponga la pagina.
+    foreach ([[], [5 => 'Filati Nord'], [5 => 'Filati Nord', 6 => 'Lanificio Sud']] as $fornitori) {
+        foreach ([true, false] as $acquisti) {
             $schedaConSoglie::$fornitori = $fornitori;
-            $forza(['low_stock_alerts' => $avvisi, 'purchasing' => true]);
-            $prima = $avvisi ? ['sku', 'ean', 'min_stock', 'active'] : ['sku', 'ean', 'active'];
-            $fornitore = $colonna($schedaConSoglie, 'supplier_id');
-            $costo = $colonna($schedaConSoglie, 'cost');
+            $forza(['low_stock_alerts' => true, 'purchasing' => $acquisti]);
 
             $risultato = $risultato
-                && array_values((array) ($griglia($schedaConSoglie)['advanced'] ?? [])) === [...$prima, 'supplier_id', 'supplier_sku', 'cost', 'photo']
-                && $larghezze($schedaConSoglie, $prima) === array_fill_keys($prima, $avvisi ? 3 : 4)
-                && $larghezze($schedaConSoglie, ['supplier_id', 'supplier_sku', 'cost', 'photo'])
-                    === ['supplier_id' => 4, 'supplier_sku' => 4, 'cost' => 4, 'photo' => 12]
-                && $fornitore?->get('label') === 'Fornitore'
-                && array_map('strval', array_keys((array) $fornitore->get('options')))
-                    === ['', ...array_map('strval', array_keys($fornitori))]
-                && $colonna($schedaConSoglie, 'supplier_sku')?->get('label') === 'Codice fornitore'
-                && $colonna($schedaConSoglie, 'supplier_sku')?->get('max_length') === 100
-                && $costo instanceof InputPrice
-                && $costo->get('label') === 'Costo d\'acquisto'
-                && $colonna($schedaConSoglie, 'suppliers') === null
-                && $colonna($schedaConSoglie, 'cost_button') === null;
-        }
-    }
+                && array_values((array) ($griglia($schedaConSoglie)['advanced'] ?? [])) === ['sku', 'ean', 'min_stock', 'active', 'photo']
+                && $larghezze($schedaConSoglie, ['sku', 'ean', 'min_stock', 'active', 'photo'])
+                    === ['sku' => 3, 'ean' => 3, 'min_stock' => 3, 'active' => 3, 'photo' => 12];
 
-    $schedaConSoglie::$fornitori = [];
-
-    return $risultato;
-});
-
-check('con gli acquisti e due fornitori, al posto dei tre campi il bottone «Costo» su tutta la riga', function () use ($forza, $schedaConSoglie, $griglia, $colonna, $larghezze) {
-    $risultato = true;
-    $schedaConSoglie::$fornitori = [5 => 'Filati Nord', 6 => 'Lanificio Sud'];
-
-    foreach ([true, false] as $avvisi) {
-        $forza(['low_stock_alerts' => $avvisi, 'purchasing' => true]);
-        $prima = $avvisi ? ['sku', 'ean', 'min_stock', 'active'] : ['sku', 'ean', 'active'];
-        $bottone = $colonna($schedaConSoglie, 'cost_button');
-
-        // I dati della finestra viaggiano nella colonna nascosta, che non
-        // sta fra le avanzate: il bottone la trova nella sua riga.
-        $risultato = $risultato
-            && array_values((array) ($griglia($schedaConSoglie)['advanced'] ?? [])) === [...$prima, 'cost_button', 'photo']
-            && $larghezze($schedaConSoglie, $prima) === array_fill_keys($prima, $avvisi ? 3 : 4)
-            && $larghezze($schedaConSoglie, ['cost_button', 'photo']) === ['cost_button' => 12, 'photo' => 12]
-            && $colonna($schedaConSoglie, 'suppliers') instanceof InputHidden
-            && $bottone instanceof InputButton
-            && $bottone->get('label') === 'Costo'
-            && str_contains((string) $bottone->get('attribute'), 'data-bs-target="#wi-supplier-costs"')
-            && (((array) $bottone->get('context'))['empty_caption'] ?? null) === 'Nessun fornitore'
-            && $colonna($schedaConSoglie, 'supplier_id') === null
-            && $colonna($schedaConSoglie, 'supplier_sku') === null
-            && $colonna($schedaConSoglie, 'cost') === null;
-    }
-
-    $schedaConSoglie::$fornitori = [];
-
-    return $risultato;
-});
-
-check('senza acquisti la griglia non ha né fornitori né costo', function () use ($forza, $schedaConSoglie, $griglia, $colonna) {
-    $risultato = true;
-
-    foreach ([[5 => 'Filati Nord'], [5 => 'Filati Nord', 6 => 'Lanificio Sud']] as $fornitori) {
-        $schedaConSoglie::$fornitori = $fornitori;
-        $forza(['low_stock_alerts' => true, 'purchasing' => false]);
-
-        $risultato = $risultato
-            && array_values((array) ($griglia($schedaConSoglie)['advanced'] ?? [])) === ['sku', 'ean', 'min_stock', 'active', 'photo'];
-
-        foreach (['supplier_id', 'supplier_sku', 'cost', 'suppliers', 'cost_button'] as $nome) {
-            $risultato = $risultato && $colonna($schedaConSoglie, $nome) === null;
+            foreach (['supplier_id', 'supplier_sku', 'cost', 'suppliers', 'cost_button'] as $nome) {
+                $risultato = $risultato && $colonna($schedaConSoglie, $nome) === null;
+            }
         }
     }
 

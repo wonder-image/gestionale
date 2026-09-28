@@ -9,9 +9,10 @@ use Wonder\Plugin\Gestionale\Models\Stock\Stock;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
+use Wonder\Plugin\Gestionale\Models\Stock\StockThreshold;
 use Wonder\Plugin\Gestionale\Support\Codes;
 
-$modelli = [Stock::class, StockMovement::class, StockReservation::class, StockAlert::class];
+$modelli = [Stock::class, StockMovement::class, StockReservation::class, StockAlert::class, StockThreshold::class];
 
 $colonne = static function (string $model): array {
     $colonne = [];
@@ -33,11 +34,12 @@ $campo = static function (string $model, string $key): ?object {
     return null;
 };
 
-check('le quattro tabelle hanno il prefisso del gestionale', fn () =>
+check('le cinque tabelle hanno il prefisso del gestionale', fn () =>
     Stock::$table === 'gst_stock'
     && StockMovement::$table === 'gst_stock_movements'
     && StockReservation::$table === 'gst_stock_reservations'
     && StockAlert::$table === 'gst_stock_alerts'
+    && StockThreshold::$table === 'gst_stock_thresholds'
 );
 
 check('il magazzino non viaggia con il deploy', function () use ($modelli) {
@@ -54,6 +56,24 @@ check('una giacenza è una sola riga per prodotto, sede, lotto e fornitore', fun
     $unico = Stock::tablePseudos()['uni_stock']['unique'] ?? [];
 
     return $unico === ['product_id', 'location_id', 'batch_id', 'supplier_id'];
+});
+
+check('una scorta minima è una sola riga per prodotto e sede', function () {
+    $unico = StockThreshold::tablePseudos()['uni_threshold']['unique'] ?? [];
+
+    return $unico === ['product_id', 'location_id'];
+});
+
+check('la scorta minima è legata a prodotto e sede, con tre decimali', function () use ($colonne, $campo) {
+    $c = $colonne(StockThreshold::class);
+
+    return $c['product_id']->getSchema('foreign_table') === 'gst_products'
+        && $c['location_id']->getSchema('foreign_table') === 'gst_locations'
+        && $c['product_id']->getSchema('null') === false
+        && $c['location_id']->getSchema('null') === false
+        && $c['quantity']->getSchema('type') === 'DECIMAL'
+        && $c['quantity']->getSchema('length') === '12,3'
+        && (int) ($campo(StockThreshold::class, 'quantity')?->getSchema('decimals') ?? 0) === 3;
 });
 
 check('il movimento ha il suo prefisso', function () use ($campo) {
@@ -88,7 +108,8 @@ check('il movimento tiene prima, dopo e il segno', function () use ($colonne) {
 
 check('le colonne che valgono zero non hanno chiave esterna', function () use ($colonne) {
     // MySQL rifiuterebbe lo zero: batch e fornitore restano vuoti fino a G3,
-    // e la soglia di scorta vale sul totale, non su una sede.
+    // e gli avvisi nati prima delle soglie per sede hanno la sede a zero
+    // finché non si chiudono.
     foreach ([
         [Stock::class, 'batch_id'], [Stock::class, 'supplier_id'],
         [StockMovement::class, 'batch_id'], [StockMovement::class, 'supplier_id'],

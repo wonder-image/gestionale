@@ -23,8 +23,10 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStock;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
+use Wonder\Plugin\Gestionale\Support\Stock\Thresholds;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -45,11 +47,12 @@ try {
         $productId = $scheletro['product_id'];
 
         // La scorta minima si scrive dopo: la crea il generatore dello
-        // scheletro, che non la conosce.
-        Product::update(['min_stock_quantity' => '5'], $productId);
+        // scheletro, che non la conosce. È una riga per sede, e qui la sede
+        // è quella principale.
+        Thresholds::save($productId, [Locations::mainId() => 5.0]);
 
-        check('l\'articolo di prova ha la sua scorta minima', fn () =>
-            (float) (Product::findById($productId)['min_stock_quantity'] ?? 0) === 5.0
+        check('l\'articolo di prova ha la sua scorta minima sulla sede principale', fn () =>
+            Thresholds::forProduct($productId) === [Locations::mainId() => 5.0]
         );
 
         check('il primo carico crea giacenza e movimento', function () use ($productId) {

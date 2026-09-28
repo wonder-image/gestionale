@@ -10,10 +10,15 @@ namespace Wonder\Plugin\Gestionale\Seeding;
  */
 final class Demo
 {
-    /** @var list<class-string> */
+    /**
+     * Le anagrafiche prima del catalogo: gli articoli di prova comprano dai
+     * fornitori di prova, e al primo giro devono già esserci.
+     *
+     * @var list<class-string>
+     */
     private const PROVIDERS = [
-        CatalogDemo::class,
         ContactsDemo::class,
+        CatalogDemo::class,
     ];
 
     public static function registerAll(): void

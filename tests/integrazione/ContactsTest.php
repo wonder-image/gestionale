@@ -13,6 +13,7 @@ require __DIR__ . '/../harness.php';
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
@@ -220,7 +221,8 @@ try {
                 && $nostri === [$fermo, $attivo];
         });
 
-        // Un articolo in vendita che compra dal fornitore attivo.
+        // Un articolo in vendita che compra dal fornitore attivo, e la sua
+        // opzione che lo compra a un altro costo: un legame per tabella.
         $modello = ProductModel::create([
             'code' => Code::make(ProductModel::class, Codes::MODEL),
             'name' => 'Prova rubrica fornitori',
@@ -231,7 +233,9 @@ try {
             'visible' => 'true',
             'position' => 1,
         ]);
-        $opzione = (int) Skeleton::forModel((int) ($modello->insert_id ?? 0), 'Prova rubrica fornitori')['product_id'];
+        $modelId = (int) ($modello->insert_id ?? 0);
+        $opzione = (int) Skeleton::forModel($modelId, 'Prova rubrica fornitori')['product_id'];
+        ProductSuppliers::syncModel($modelId, [['supplier_id' => $attivo, 'cost' => '4,00']]);
         ProductSuppliers::sync($opzione, [['supplier_id' => $attivo, 'cost' => '4,20']]);
 
         // Le altre funzionalità restano come sono sul sito.
@@ -239,9 +243,10 @@ try {
             $forza([...Gestionale::features(), ...$cambi]);
         };
 
-        check('un fornitore con dei costi su opzioni in vendita non si elimina', function () use ($attivo, $solo, $forza) {
+        check('un fornitore con dei costi su articoli o opzioni in vendita non si elimina', function () use ($attivo, $solo, $forza) {
             // Anche ad acquisti spenti: il costo resta salvato, e toglierlo
-            // senza dirlo cancellerebbe un dato che tornerà.
+            // senza dirlo cancellerebbe un dato che tornerà. Il conto somma
+            // le due tabelle: l'articolo e la sua opzione.
             $solo(['purchasing' => false]);
 
             try {
@@ -249,7 +254,7 @@ try {
             } catch (RuntimeException $errore) {
                 return !$errore instanceof UserError
                     && str_contains($errore->getMessage(), 'costi d\'acquisto')
-                    && str_contains($errore->getMessage(), '(1)');
+                    && str_contains($errore->getMessage(), '(2)');
             } finally {
                 $forza(null);
             }
@@ -264,7 +269,7 @@ try {
                 CustomerResource::mutateRequestValues(['roles' => 'customer'], 'update', 'backend', ['id' => $attivo]);
             } catch (UserError $errore) {
                 return $errore->key() === 'contact.supplier_role_in_use'
-                    && str_contains($errore->getMessage(), '(1)');
+                    && str_contains($errore->getMessage(), '(2)');
             } finally {
                 $forza(null);
             }
@@ -284,14 +289,31 @@ try {
             return ($valori['is_customer'] ?? '') === 'true' && ($valori['is_supplier'] ?? '') === 'true';
         });
 
-        check('con l\'opzione eliminata il fornitore si elimina, e i suoi costi con lui', function () use ($attivo, $opzione) {
+        check('con l\'opzione nel cestino l\'articolo in vendita tiene ancora fermo il fornitore', function () use ($attivo, $opzione, $solo, $forza) {
             Product::query()->Update(Product::$table, ['deleted' => 'true'], 'id', $opzione);
+            $solo(['purchasing' => true]);
+
+            try {
+                SupplierResource::assertDeletable($attivo);
+            } catch (RuntimeException $errore) {
+                return str_contains($errore->getMessage(), '(1)');
+            } finally {
+                $forza(null);
+            }
+
+            return false;
+        });
+
+        check('con l\'articolo eliminato il fornitore si elimina, e i suoi costi con lui', function () use ($attivo, $modelId) {
+            ProductModel::query()->Update(ProductModel::$table, ['deleted' => 'true'], 'id', $modelId);
 
             $esito = SupplierResource::deleteRecord($attivo);
-            $legami = ProductSupplier::find(['supplier_id' => $attivo, 'deleted' => ['true', 'false']]);
+            $eccezioni = ProductSupplier::find(['supplier_id' => $attivo, 'deleted' => ['true', 'false']]);
+            $articoli = ProductModelSupplier::find(['supplier_id' => $attivo, 'deleted' => ['true', 'false']]);
 
             return !empty($esito->success)
-                && (!is_array($legami) || $legami === [])
+                && (!is_array($eccezioni) || $eccezioni === [])
+                && (!is_array($articoli) || $articoli === [])
                 && in_array(Contact::findById($attivo), [null, []], true);
         });
 

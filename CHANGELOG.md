@@ -32,3 +32,10 @@ versionamento semantico.
   come pillole da spuntare, più d'uno per articolo
   (`ProductAttributes::rows()`). Il tipo di attributo *Icona* ha un'immagine
   per valore al posto dell'icona del font.
+- Giacenze in sola consultazione: l'elenco del core su `Product`, con una
+  colonna per sede (`Locations::shown()`), *Totale*, *Scorta minima*,
+  *Impegnati* e *Disponibili* secondo le funzionalità, numeri calcolati nella
+  query (`LevelsSql`) e ordinabili, ricerca anche sul nome dell'articolo, filtri
+  *Stato*, *Marchio*, *Categoria* e *Scorta*, menu ⋯ con *Movimenti* e *Apri la
+  versione*. Tolta la pagina-form con le caselle e il salvataggio in blocco;
+  `lowStockUrl()` apre l'elenco con il filtro *Scorta*.

@@ -25,8 +25,14 @@ use Wonder\Sql\TableSchema as Column;
  * sa: i ruoli, l'email, l'account del sito e le scelte commerciali.
  *
  * `price_list_id`, `payment_method_id` e `payment_term_id` nascono adesso ma
- * non hanno nessun campo nel form: non c'è ancora niente da scegliere. È la
- * stessa regola con cui `min_stock_quantity` è nato in G2a.
+ * non hanno nessun campo nel form: non c'è ancora niente da scegliere, e il
+ * campo arriverà con listini e pagamenti.
+ *
+ * Un fornitore è legato agli articoli che si comprano da lui
+ * (`gst_product_model_suppliers`) e, per eccezione, a singole opzioni
+ * (`gst_product_suppliers`). Finché ha un legame in vendita la scheda non si
+ * elimina e non perde il ruolo: lo controlla `CustomerResource` con
+ * `ProductSuppliers::countForSupplier()`, che conta le due tabelle.
  */
 final class Contact extends Model
 {

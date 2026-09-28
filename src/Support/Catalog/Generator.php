@@ -31,7 +31,8 @@ final class Generator
     /**
      * @param array<string, array<string, mixed>> $typed quello che è stato
      *        scritto nella griglia delle versioni nuove, per chiave di
-     *        `Combinations::clientKey()`: nome, codice, EAN, prezzo
+     *        `Combinations::clientKey()`: nome, codice, EAN, prezzo e
+     *        scontato
      * @return array<string, array{product_id: int, variant_id: int, priced: bool}>
      *         le versioni appena nate, per la stessa chiave: da lì la scheda
      *         ritrova la riga a cui agganciare giacenza e foto
@@ -116,6 +117,7 @@ final class Generator
             $name = trim((string) ($scritto['name'] ?? '')) ?: VersionName::from($product['labels'], $sku);
             $ean = trim((string) ($scritto['ean'] ?? ''));
             $prezzo = Numbers::fromForm($scritto['price'] ?? null);
+            $scontato = Numbers::fromForm($scritto['sale_price'] ?? null);
 
             $reused = $reuse !== null && $reuse['product_id'] > 0;
 
@@ -148,6 +150,10 @@ final class Generator
                     $riga['price'] = $prezzo;
                 }
 
+                if ($scontato !== null) {
+                    $riga['sale_price'] = $scontato;
+                }
+
                 if ($ean !== '') {
                     $riga['ean'] = $ean;
                 }
@@ -168,8 +174,15 @@ final class Generator
                 'priced' => $prezzo !== null,
             ];
 
-            if ($prezzo !== null && $reused) {
-                Product::update(['price' => $prezzo], $productId);
+            // Prezzo e scontato scritti nella riga, anche su una versione
+            // ripresa: lo scontato come il prezzo (P105).
+            $prezzi = array_filter(
+                ['price' => $prezzo, 'sale_price' => $scontato],
+                static fn (?string $valore): bool => $valore !== null
+            );
+
+            if ($reused && $prezzi !== []) {
+                Product::update($prezzi, $productId);
             }
 
             // Un collegamento per asse: con tre opzioni spuntate il prodotto ne

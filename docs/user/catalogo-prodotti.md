@@ -125,18 +125,21 @@ un colore che ha già le sue righe direbbe una bugia.
 Le opzioni che esistono e quelle che stanno per nascere stanno **nella stessa
 griglia**, con le stesse caselle:
 
-Nella riga si vedono le tre cose che si compilano sempre:
+Nella riga si vedono le quattro cose che si compilano sempre:
 
 | Colonna | Cosa ci scrivi |
 |---|---|
 | **Opzione** | niente: è quello che resta del nome una volta detta la testata — "S", oppure "S / Gomma" se gli attributi sono tre |
 | **Prezzo** | quanto costa questa riga |
-| **Giacenza** | quanti pezzi ci sono |
+| **Scontato** | il prezzo scontato di questa riga; vuoto vuol dire nessuno sconto |
+| **Giacenza** | quanti pezzi ci sono; con più sedi è un totale da leggere (vedi [Con più sedi](#con-piu-sedi)) |
 
 Il resto sta dietro **«Compila le informazioni avanzate»**, un bottone per
 riga: **SKU**, **EAN**, **Scorta minima** (se hai gli
-[avvisi di scorta minima](magazzino-avvisi.md)), **Stato** (*Attivo* o
-*Fermo*) e **Foto o video**, il file di questa riga sola, su cui si trascina.
+[avvisi di scorta minima](magazzino-avvisi.md) e il magazzino ha una sede
+sola), **Stato** (*Attivo* o *Fermo*), con più sedi il bottone **Giacenza**
+con i pezzi e la scorta minima di ogni sede, e **Foto o video**, il file di
+questa riga sola, su cui si trascina.
 
 Eliminando una riga non sparisce: resta lì sbiadita, con scritto che verrà
 eliminata al salvataggio e un **Annulla** per rimetterla. Finché non salvi,
@@ -216,10 +219,45 @@ si scrive allo stesso modo: sotto, dopo SKU ed EAN, c'è il link alla rettifica,
 una causale diversa. C'è anche quando crei l'articolo: quello che scrivi lì
 entra come *Giacenza iniziale*.
 
-Se il magazzino ha **più sedi**, la casella della scheda diventa un totale da
-leggere: un numero solo non potrebbe dire in quale sede sta la merce. Fa
-eccezione la creazione: su un articolo nuovo la giacenza si scrive comunque, e
-va nella sede principale.
+### Con più sedi
+
+Se il magazzino mostra **più sedi** (la funzionalità *Più sedi* e almeno due
+sedi che tengono la giacenza, vedi [Sedi](sedi.md)), un numero solo non
+potrebbe dire in quale sede sta la merce: i pezzi, e la scorta minima, si
+scrivono **sede per sede**.
+
+- Senza varianti, al posto della casella accanto al prezzo c'è il riquadro
+  **Magazzino**, con le righe **Giacenza per sede**: una riga per ogni sede
+  che ha dei pezzi o una scorta minima, con **Sede**, **Giacenza** e, se hai
+  gli [avvisi](magazzino-avvisi.md), **Scorta minima**. **Aggiungi sede** apre
+  una riga per una sede che ancora non c'è. Sotto resta il link alla
+  rettifica.
+- Con le varianti la casella *Giacenza* della griglia mostra il totale e si
+  legge soltanto. Le sedi stanno dietro **«Compila le informazioni
+  avanzate»**, con il bottone **Giacenza**: accanto leggi il riassunto
+  (*Milano 12 · Roma 3*, o *Nessun pezzo*), e il bottone apre la finestra
+  **Giacenza · Blu / S** con le stesse righe. **Salva** chiude la finestra e
+  aggiorna il riassunto, **Annulla** la chiude senza cambiare niente.
+  L'articolo si salva con il suo **Salva**, come sempre.
+- Nella pagina di una singola opzione le stesse righe stanno nel riquadro
+  **Magazzino**.
+
+Le righe si compilano come la casella di prima: scrivi **quanti pezzi ci
+sono** in quella sede, e il gestionale registra il movimento della differenza.
+Una casella lasciata vuota non tocca niente, uno zero scritto vale zero. Un
+numero sotto zero non si accetta: l'articolo non si salva e il messaggio dice
+perché. La stessa sede non può comparire in due righe, e una riga con la sede
+su *—* non scrive niente.
+
+**Togli sede** chiede conferma: la sede perde la sua scorta minima, non i
+pezzi. Finché ne ha, la riga ricompare alla prossima apertura; per svuotarla
+scrivi zero. Per spostare la merce da una sede all'altra scrivi il numero
+nuovo su tutte e due.
+
+Un articolo **nuovo** parte con una riga vuota sulla sede principale: quello
+che scrivi lì entra come *Giacenza iniziale*. Nella griglia la casella
+*Giacenza* resta il totale da leggere anche mentre crei l'articolo: i pezzi di
+ogni opzione si scrivono dal bottone **Giacenza**, sede per sede.
 
 Per i carichi lunghi — centinaia di righe con una causale sola — restano
 **Magazzino → Giacenze** e il pulsante **Rettifica**: li trovi in
@@ -312,9 +350,11 @@ Quale foto vede il cliente lo spiega [Le foto degli articoli](catalogo-immagini.
 
 Senza varianti stanno nel riquadro **Prodotto**, sotto il prezzo, dietro
 **«Compila le informazioni avanzate»**: servono di rado, e il blocco parte
-chiuso. Con gli [avvisi di scorta minima](magazzino-avvisi.md) accanto c'è
-anche la **Scorta minima**. Con le varianti spariscono, e ogni riga della
-griglia ha i suoi, dietro lo stesso bottone.
+chiuso. Con gli [avvisi di scorta minima](magazzino-avvisi.md), e una sede
+sola, accanto c'è anche la **Scorta minima**: con più sedi sta nel riquadro
+**Magazzino**, una per sede (vedi [Con più sedi](#con-piu-sedi)). Con le
+varianti spariscono, e ogni riga della griglia ha i suoi, dietro lo stesso
+bottone.
 
 - **SKU:** lo decidi tu. Quello dell'articolo è anche il codice di famiglia: se
   un giorno aggiungi le varianti, da lì il gestionale propone quello di ogni
@@ -326,78 +366,73 @@ griglia ha i suoi, dietro lo stesso bottone.
 
 ## Da chi lo compri e a quanto
 
-Con la funzionalità *Acquisti*, sotto SKU ed EAN — nello stesso blocco
-**«Compila le informazioni avanzate»**, del riquadro **Prodotto** o di ogni
-riga della griglia — c'è il **costo d'acquisto**: da chi compri quell'opzione,
-con quale codice e a quanto. Ha due forme, secondo quanti fornitori ci sono da
-proporre.
+Con la funzionalità *Acquisti*, nella colonna di destra dopo **Come si
+vende**, c'è il riquadro **Fornitori**: da chi compri **questo articolo**, con
+quale codice e a quanto. Vale per tutte le sue opzioni in vendita — una taglia
+in più non cambia il fornitore — e c'è sempre, con o senza varianti.
 
-**Un fornitore solo, o nessuno:** tre caselle, **Fornitore**, **Codice
-fornitore** e **Costo d'acquisto**. Lasciando vuoto il fornitore l'opzione non
-si compra da nessuno: codice e costo non si salvano, e se c'erano se ne vanno.
+Una riga per fornitore, con **Fornitore**, **Codice fornitore** e **Costo**:
 
-**Due fornitori o più:** il bottone **Costo**. Accanto c'è il preferito con il
-suo costo (*Filati Nord · 12,00 €*), il solo nome se il costo non lo sai, o
-*Nessun fornitore*. Il bottone apre la finestra **Costo · Blu / S**, con una
-riga per ogni fornitore:
-
-- scrivi codice e costo di chi ti vende quell'opzione, o sceglilo come
-  **Preferito**: da lì è legato, anche se poi svuoti le caselle. Un fornitore
-  già legato resta tale anche senza codice né costo;
-- la **x** in fondo alla riga, che c'è solo sui fornitori legati, lo stacca
-  dall'opzione e svuota le sue caselle;
-- scegli il **Preferito**. Se non ne scegli uno, lo diventa il primo legato
-  della finestra;
-- **Salva** chiude la finestra e aggiorna il testo accanto al bottone,
-  **Annulla** la chiude senza cambiare niente. L'articolo si salva con il suo
-  **Salva**, come sempre.
-
-In tutte e due le forme:
-
+- **Aggiungi fornitore** apre una riga nuova. Le righe si trascinano per
+  cambiarne l'ordine, ed è l'unico ordine che c'è: un preferito da scegliere
+  non esiste, il primo della lista è quello che si legge per primo;
+- **Togli fornitore** chiede conferma: al salvataggio se ne vanno la riga, il
+  suo codice e il suo costo;
 - il costo si scrive in euro con la virgola, come i prezzi. **Vuoto vuol dire
   «non lo so»**, non zero: uno zero farebbe sembrare quel fornitore il più
-  conveniente. Un costo negativo viene rifiutato;
-- il **preferito** è quello che vedi accanto al bottone, e quello che useranno
-  gli ordini ai fornitori, quando arriveranno;
-- un fornitore messo su **Non attiva** in rubrica non si propone più, tranne
-  sulle opzioni che lo usano già: lì resta, con *(non attivo)* accanto al nome,
-  e il suo costo non si perde. Le altre opzioni dello stesso articolo, e quelle
-  nuove, non lo vedono;
-- un'opzione tolta dalla griglia porta via con sé i suoi costi, al
-  salvataggio;
-- se accendi le varianti su un articolo che aveva già i suoi fornitori, la
-  prima opzione nuova prende il posto di quella di prima e se li tiene: quello
-  che scrivi nella sua finestra **si aggiunge**, e se scegli un preferito vale
-  quello. Per staccarne uno c'è la **x** sulla riga di prima, finché è nella
-  griglia, o la pagina dell'opzione.
+  conveniente. Un costo negativo, o che non è un numero, viene rifiutato;
+- una riga vuota non si salva. Una con codice o costo ma **senza fornitore**
+  viene rifiutata, e così lo **stesso fornitore due volte**: tieni una riga
+  sola per fornitore;
+- un fornitore messo su **Non attiva** in rubrica non si propone più agli
+  articoli che non lo hanno, ma dove è già scelto resta, con *(non attivo)*
+  accanto al nome: il suo codice e il suo costo non si perdono finché non lo
+  togli tu.
 
-Tutti i fornitori di un'opzione, uno per riga, si vedono e si cambiano anche
-nella sua pagina, nel riquadro **Fornitori** (vedi sotto). I fornitori si
-aggiungono da **Anagrafiche → Fornitori**: lo spiega [Clienti e
-fornitori](anagrafiche.md).
+Se in rubrica non c'è nessun fornitore da proporre, il riquadro lo dice:
+aggiungilo da **Anagrafiche → Fornitori** (vedi [Clienti e
+fornitori](anagrafiche.md)).
+
+Quando un'opzione **fa eccezione** — la taglia XL la compri da un altro, o
+dallo stesso fornitore con un altro codice o a un altro prezzo — lo scrivi
+nella sua pagina, nel riquadro **Fornitori** dell'opzione (vedi sotto). Vale
+fornitore per fornitore: per lo stesso fornitore vince la riga dell'opzione,
+i fornitori dell'articolo senza eccezione valgono anche per lei, e un
+fornitore che ha solo lei si aggiunge ai suoi.
 
 ## I dettagli di una singola opzione
 
-Peso e misure sue, codice del produttore, i suoi fornitori: cose che si
-toccano di rado e non stanno nella griglia. Il pulsante **Dettagli delle
+Peso e misure sue, codice del produttore, un fornitore diverso dagli altri:
+cose che si toccano di rado e non stanno nella griglia. Il pulsante **Dettagli delle
 opzioni**, in alto nella scheda, apre l'elenco di quell'articolo e da lì si apre
 la riga che ti serve. Compare solo quando le opzioni sono più di una.
 
 Con la funzionalità *Acquisti*, dopo **Magazzino** c'è il riquadro
-**Fornitori**: tutti quelli da cui compri quell'opzione, una riga ciascuno, con
-**Fornitore**, **Codice fornitore**, **Costo d'acquisto** e **Preferito**
-(*Sì* o *No*).
+**Fornitori** dell'opzione: vale **solo per questa opzione** e vince sui
+fornitori dell'articolo. Serve per l'eccezione — la taglia XL che compri da un
+altro, o dallo stesso fornitore con un altro codice o un altro costo. Per il
+caso normale qui non si scrive niente: i fornitori dell'articolo valgono già
+per lei.
 
-- **Aggiungi fornitore** apre una riga nuova, che nasce con *Preferito: No*.
-  Le righe si trascinano per cambiarne l'ordine.
+Sotto il titolo una riga ricorda cosa vale già: *Dall'articolo: Filati Nord ·
+12,00 € · Lana Sud · costo sconosciuto*, oppure *L'articolo non ha
+fornitori*.
+
+Le righe sono come quelle dell'articolo, con **Fornitore**, **Codice
+fornitore** e **Costo d'acquisto**:
+
+- **Aggiungi fornitore** apre una riga nuova; le righe si trascinano per
+  cambiarne l'ordine.
 - **Togli fornitore** chiede conferma: al salvataggio se ne vanno la riga, il
-  suo codice e il suo costo.
-- Il preferito è **uno solo**: se metti *Sì* su un'altra riga, vince quella.
-  Se nessuna ha *Sì*, lo diventa la prima.
+  suo codice e il suo costo, e per quel fornitore torna a valere la riga
+  dell'articolo, se c'è.
 - Una riga vuota non si salva. Una con codice o costo ma **senza fornitore**
   viene rifiutata, e così lo **stesso fornitore due volte**: tieni una riga
   sola per fornitore.
 - Un costo vuoto vuol dire «non lo so», come nella scheda dell'articolo.
+
+Un'eccezione con un fornitore che l'articolo non ha si aggiunge ai suoi: quella
+sola opzione si compra anche da lui.
 
 Se in rubrica non c'è nessun fornitore da proporre, il riquadro lo dice:
 aggiungilo da **Anagrafiche → Fornitori**.
@@ -454,8 +489,9 @@ riaccendendolo torna con la scatola di prima.
 
 ## Eliminare un articolo
 
-Eliminando un prodotto se ne vanno anche le sue opzioni in vendita, le sue
-foto e i suoi costi d'acquisto.
+Eliminando un articolo se ne vanno anche le sue opzioni in vendita, le sue
+foto, i suoi fornitori — quelli dell'articolo e le eccezioni delle opzioni — e
+le sue scorte minime.
 
 Un articolo che ha già **movimenti di magazzino non si elimina**: quei movimenti
 sono la storia del tuo magazzino, e resterebbero a parlare di qualcosa che non

@@ -11,6 +11,7 @@ require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
@@ -22,13 +23,20 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
+use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
+use Wonder\Plugin\Gestionale\Seeding\ContactsDemo;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
+use Wonder\Plugin\Gestionale\Support\Stock\Alerts;
+use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
+use Wonder\Plugin\Gestionale\Support\Stock\Thresholds;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -64,6 +72,20 @@ $demo = static function (string $model, string $ref): array {
 /** L'id di una riga di prova, dal suo riferimento. */
 $idDi = static fn (string $model, string $ref): int => (int) ($demo($model, $ref)['id'] ?? 0);
 
+/** L'id della scheda fornitore di prova con quel riferimento, `0` se non c'è. */
+$fornitoreId = static function (string $ref): int {
+    $riga = Contact::find([
+        'code' => DemoCode::forModel(Contact::class, $ref),
+        'is_supplier' => 'true',
+        'deleted' => 'false',
+    ], 1);
+
+    return is_array($riga) ? (int) ($riga['id'] ?? 0) : 0;
+};
+
+/** Gli articoli di prova, nell'ordine in cui nascono. */
+const ARTICOLI = ['cappello-di-lana', 'maglietta-girocollo', 'felpa-con-cappuccio', 'calzini-a-costine'];
+
 $tutte = [
     Brand::class, Category::class, Tag::class, Attribute::class, AttributeValue::class,
     ProductModel::class, ProductVariant::class, Product::class, ProductImage::class,
@@ -79,11 +101,33 @@ $prima = $stato();
 $cartella = rtrim((string) ($GLOBALS['ROOT'] ?? ''), '/').'/assets/upload'.ProductImages::folder();
 $foto = Istantanea::di($cartella);
 
+// Gli avvisi di scorta nascono solo a funzionalità accesa: si accende qui,
+// così l'opzione sotto soglia fa il suo avviso qualunque sia il sito.
+$funzionalita = new ReflectionProperty(Gestionale::class, 'features');
+$funzionalitaPrima = $funzionalita->getValue();
+$funzionalita->setValue(null, [...Gestionale::features(), 'low_stock_alerts' => true]);
+
 try {
-    Transaction::run(static function () use ($conta, $stato, $righe, $idDi, $demo, $tutte): void {
+    Transaction::run(static function () use ($conta, $stato, $righe, $idDi, $demo, $tutte, $fornitoreId): void {
         // Il sito può avere già i dati di prova: si parte dal pulito, e la
         // transazione rimette tutto com'era.
         CatalogDemo::clear();
+
+        // I fornitori degli articoli di prova sono schede della rubrica di
+        // prova: senza, il catalogo nasce senza costi. Una scheda vera con lo
+        // stesso nome verrebbe riusata al posto di quella di prova, e non
+        // avrebbe il segno nel codice: si rinomina, e l'annullamento la
+        // rimette com'era.
+        foreach (['Filati Nord Spa', 'Imballaggi Sud Srl'] as $nome) {
+            foreach ($righe(Contact::class) as $scheda) {
+                if (!DemoCode::is((string) ($scheda['code'] ?? '')) && DemoCode::sameName((string) ($scheda['business_name'] ?? ''), $nome)) {
+                    Contact::update(['business_name' => $nome.' vera'], (int) $scheda['id']);
+                }
+            }
+        }
+
+        ContactsDemo::create();
+        DemoData::notes();
 
         // Il sito può avere anche righe vere con gli stessi nomi: i dati di
         // prova le userebbero invece di crearne di loro, e i conti qui sotto
@@ -207,6 +251,102 @@ try {
                 && $conta('maglietta-girocollo') === [2, 12]
                 && $conta('felpa-con-cappuccio') === [3, 12]
                 && $conta('calzini-a-costine') === [1, 4];
+        });
+
+        check('ogni articolo compra da Filati Nord, e i calzini anche da Imballaggi Sud', function () use ($idDi, $fornitoreId) {
+            $nord = $fornitoreId('filati-nord');
+            $sud = $fornitoreId('imballaggi-sud');
+
+            if ($nord <= 0 || $sud <= 0) {
+                echo "    mancano le schede fornitore di prova\n";
+
+                return false;
+            }
+
+            // I fornitori stanno sull'articolo, nella loro tabella, con
+            // codice e costo come li scrive la scheda.
+            $attesi = [
+                'cappello-di-lana' => [['supplier_id' => $nord, 'supplier_sku' => 'FN-CAP-01', 'cost' => 9.5]],
+                'maglietta-girocollo' => [['supplier_id' => $nord, 'supplier_sku' => 'FN-TSH-01', 'cost' => 7.2]],
+                'felpa-con-cappuccio' => [['supplier_id' => $nord, 'supplier_sku' => 'FN-FEL-01', 'cost' => 21.0]],
+                'calzini-a-costine' => [
+                    ['supplier_id' => $nord, 'supplier_sku' => 'FN-CAL-01', 'cost' => 2.4],
+                    ['supplier_id' => $sud, 'supplier_sku' => 'IS-CAL-01', 'cost' => 2.1],
+                ],
+            ];
+
+            foreach ($attesi as $ref => $fornitori) {
+                $id = $idDi(ProductModel::class, $ref);
+
+                if ((ProductSuppliers::modelLinksFor([$id])[$id] ?? []) !== $fornitori) {
+                    echo "    fornitori diversi su {$ref}\n";
+
+                    return false;
+                }
+            }
+
+            return true;
+        });
+
+        check('l\'ultima opzione dei calzini ha la sua eccezione, che vince sulla riga dell\'articolo', function () use ($idDi, $righe, $fornitoreId) {
+            $nord = $fornitoreId('filati-nord');
+            $sud = $fornitoreId('imballaggi-sud');
+            $modelId = $idDi(ProductModel::class, 'calzini-a-costine');
+            $opzioni = $righe(Product::class, ['product_model_id' => $modelId]);
+            $prima = (int) ($opzioni[0]['id'] ?? 0);
+            $ultima = (int) ($opzioni[count($opzioni) - 1]['id'] ?? 0);
+            $articolo = ProductSuppliers::modelLinksFor([$modelId])[$modelId] ?? [];
+            $eccezione = ProductSuppliers::linksFor([$ultima])[$ultima] ?? [];
+
+            // Solo lei ha una riga sua; le altre opzioni partono dall'articolo.
+            // Nella sua scheda Filati Nord prende codice e costo dell'eccezione,
+            // Imballaggi Sud resta com'è sull'articolo.
+            return $prima > 0 && $ultima > 0 && $prima !== $ultima
+                && $eccezione === [['supplier_id' => $nord, 'supplier_sku' => 'FN-CAL-XL', 'cost' => 2.9]]
+                && !isset(ProductSuppliers::linksFor([$prima])[$prima])
+                && ProductSuppliers::effective($articolo, $eccezione) === [
+                    ['supplier_id' => $nord, 'supplier_sku' => 'FN-CAL-XL', 'cost' => 2.9],
+                    ['supplier_id' => $sud, 'supplier_sku' => 'IS-CAL-01', 'cost' => 2.1],
+                ];
+        });
+
+        check('ogni opzione nasce con venti pezzi sulla sede principale, e l\'ultima di ogni articolo con due sotto la sua soglia', function () use ($idDi, $righe) {
+            $sede = Locations::mainId();
+
+            foreach (ARTICOLI as $ref) {
+                $opzioni = $righe(Product::class, ['product_model_id' => $idDi(ProductModel::class, $ref)]);
+                $ultima = count($opzioni) - 1;
+
+                foreach ($opzioni as $indice => $opzione) {
+                    $id = (int) $opzione['id'];
+                    $pezzi = $indice === $ultima ? 2.0 : 20.0;
+                    $livelli = Levels::byLocation($id);
+                    $soglia = Thresholds::forProduct($id);
+                    $avviso = Alerts::openRow($id);
+
+                    // La giacenza è una riga per sede, e qui c'è solo la
+                    // principale; la soglia pure, e ce l'ha solo l'ultima
+                    // opzione, che nasce sotto e fa il suo avviso su quella
+                    // sede.
+                    $bene = (float) (Levels::of($id)['quantity'] ?? -1) === $pezzi
+                        && $livelli === [$sede => ['quantity' => $pezzi, 'reserved' => 0.0, 'available' => $pezzi]]
+                        && $soglia === ($indice === $ultima ? [$sede => 5.0] : [])
+                        && ($indice === $ultima
+                            ? $avviso !== []
+                                && (int) $avviso['location_id'] === $sede
+                                && (float) $avviso['threshold'] === 5.0
+                                && (float) $avviso['quantity_at_alert'] === 2.0
+                            : $avviso === []);
+
+                    if (!$bene) {
+                        echo "    giacenza o soglia diverse su {$ref}, opzione {$indice}\n";
+
+                        return false;
+                    }
+                }
+            }
+
+            return true;
         });
 
         check('le foto nascono in attesa delle misure', function () {
@@ -503,6 +643,8 @@ try {
         throw new Annulla();
     });
 } catch (Annulla) {
+} finally {
+    $funzionalita->setValue(null, $funzionalitaPrima);
 }
 
 check('dopo l\'annullamento il catalogo è come prima', fn () => $stato() === $prima);

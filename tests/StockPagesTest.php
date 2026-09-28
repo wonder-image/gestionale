@@ -5,9 +5,12 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Backend\Support\ResourceTableRenderer;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockLevelResource;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 
 $campi = static function (string $resource): array {
@@ -18,6 +21,35 @@ $campi = static function (string $resource): array {
     }
 
     return $keys;
+};
+
+/**
+ * Esegue `$fai` con le sedi e le funzionalità date, poi rimette tutto com'era.
+ * Le sedi entrano nella cache di `Locations::shown()`.
+ */
+$conSedi = static function (array $sedi, array $features, callable $fai): mixed {
+    $cacheSedi = new ReflectionProperty(Locations::class, 'shown');
+    $cacheFeatures = new ReflectionProperty(Gestionale::class, 'features');
+    $prima = [$cacheSedi->getValue(), $cacheFeatures->getValue()];
+    $cacheSedi->setValue(null, $sedi);
+    $cacheFeatures->setValue(null, $features + ['multi_location' => true, 'low_stock_alerts' => false, 'orders' => false]);
+
+    try {
+        return $fai();
+    } finally {
+        $cacheSedi->setValue(null, $prima[0]);
+        $cacheFeatures->setValue(null, $prima[1]);
+    }
+};
+
+$colonne = static function (): array {
+    $nomi = [];
+
+    foreach (StockLevelResource::tableSchema() as $column) {
+        $nomi[] = (string) $column->name;
+    }
+
+    return $nomi;
 };
 
 check('la rettifica ha il suo indirizzo ed è una pagina-form', fn () =>
@@ -87,10 +119,14 @@ check('la strada del ritorno non si fa aggirare da barre storte o spazi', functi
             === '/backend/app/gestionale/giacenze/?cerca=TSH&sotto=1';
 });
 
-check('le giacenze hanno il loro indirizzo e sono una pagina-form', fn () =>
-    StockLevelResource::path() === 'app/gestionale/giacenze'
-    && StockLevelResource::isFormPage() === true
-);
+check('le giacenze sono un elenco del core in sola consultazione', function () {
+    $pagine = (array) (StockLevelResource::pageSchema()->toArray()['pages'] ?? []);
+
+    return StockLevelResource::path() === 'app/gestionale/giacenze'
+        && StockLevelResource::isFormPage() === false
+        && StockLevelResource::$model === Product::class
+        && array_keys(array_filter($pagine)) === ['list'];
+});
 
 check('le giacenze stanno nel menu Magazzino, prima dei movimenti', function () {
     $nav = StockLevelResource::navigationSchema()->toArray();
@@ -100,38 +136,12 @@ check('le giacenze stanno nel menu Magazzino, prima dei movimenti', function () 
         && (int) ($nav['order'] ?? 0) < 20;
 });
 
-check('si lavora cinquanta righe per volta', fn () =>
-    StockLevelResource::PER_PAGE === 50
-);
+check('niente carichi né scarichi da qui: senza "Aggiungi" e senza API', function () {
+    $layout = StockLevelResource::tableLayoutSchema()->toArray();
 
-check('la causale della schermata parte dall\'inventario', function () {
-    foreach (StockLevelResource::formSchema() as $field) {
-        if ((string) $field->name === 'reason') {
-            return $field->get('value') === Reasons::DEFAULT;
-        }
-    }
-
-    return false;
+    return ($layout['button_add']['enabled'] ?? true) === false
+        && (StockLevelResource::apiSchema()->toArray()['enabled'] ?? true) === false;
 });
-
-check('dalla ricerca non passano virgolette né punti e virgola', function () {
-    // Il testo arriva dall'indirizzo e finisce dentro una LIKE: quello che
-    // chiuderebbe la stringa non deve sopravvivere. I trattini sì: stanno
-    // negli SKU.
-    $pulito = StockLevelResource::searchTerm("Rosso'; DROP TABLE gst_stock; --");
-
-    return !str_contains($pulito, "'")
-        && !str_contains($pulito, ';')
-        && !str_contains($pulito, '\\')
-        && StockLevelResource::searchTerm('TSH-1_B') === 'TSH-1_B';
-});
-
-check('una pagina fuori scala torna alla prima', fn () =>
-    StockLevelResource::pageNumber('0') === 1
-    && StockLevelResource::pageNumber('-4') === 1
-    && StockLevelResource::pageNumber('abc') === 1
-    && StockLevelResource::pageNumber('3') === 3
-);
 
 check('la rettifica porta con sé l\'opzione e il ritorno', function () {
     $_GET['versione'] = '9';
@@ -165,30 +175,138 @@ check('un rifiuto della rettifica non diventa una pagina 500', function () {
 });
 
 check('il riquadro della home porta alle sole righe sotto scorta', fn () =>
-    str_ends_with(StockLevelResource::lowStockUrl(), 'giacenze?sotto=1')
+    str_ends_with(StockLevelResource::lowStockUrl(), 'giacenze?gst_products__scorta=sotto')
 );
 
-check('"Azzera i filtri" riapre la pagina senza filtri; gli altri link li tengono', function () {
-    $stato = new ReflectionProperty(Gestionale::class, 'features');
-    $prima = [$_GET, $stato->getValue()];
-    $_GET = ['cerca' => 'x', 'sotto' => '1', 'p' => '2'];
-    $stato->setValue(null, ['low_stock_alerts' => true]);
+check('una colonna per sede solo quando le sedi sono almeno due', function () use ($conSedi, $colonne) {
+    $una = $conSedi([['id' => 1, 'label' => 'Negozio']], [], $colonne);
+    $due = $conSedi([['id' => 2, 'label' => 'Magazzino'], ['id' => 1, 'label' => 'Negozio']], [], $colonne);
 
-    try {
-        $html = (new ReflectionMethod(StockLevelResource::class, 'filtersBar'))->invoke(null);
-    } finally {
-        [$_GET, $features] = $prima;
-        $stato->setValue(null, $features);
-    }
+    return $una === ['photo', 'model_name', 'sku', 'stock_quantity', 'actions']
+        && $due === ['photo', 'model_name', 'sku', 'stock_loc_2', 'stock_loc_1', 'stock_quantity', 'actions'];
+});
 
-    preg_match('#href="([^"]*)">Azzera i filtri<#', $html, $azzera);
-    preg_match('#href="([^"]*)">Tutte le opzioni<#', $html, $tutte);
+check('le colonne di sede hanno il nome della sede, e il totale si chiama Totale', function () use ($conSedi) {
+    $etichette = $conSedi([['id' => 2, 'label' => 'Magazzino'], ['id' => 1, 'label' => 'Negozio']], [], function () {
+        $etichette = [];
 
-    return isset($azzera[1], $tutte[1])
-        && str_ends_with($azzera[1], 'giacenze')
-        && !str_contains($azzera[1], '?')
-        && str_contains($tutte[1], 'cerca=x')
-        && !str_contains($tutte[1], 'sotto=');
+        foreach (StockLevelResource::tableSchema() as $column) {
+            $etichette[(string) $column->name] = $column->toArray()['label'] ?? null;
+        }
+
+        return $etichette;
+    });
+
+    return $etichette['stock_loc_2'] === 'Magazzino'
+        && $etichette['stock_loc_1'] === 'Negozio'
+        && $etichette['stock_quantity'] === 'Totale';
+});
+
+check('scorta minima, impegnati e disponibili seguono le loro funzionalità', function () use ($conSedi, $colonne) {
+    $tutte = $conSedi([], ['low_stock_alerts' => true, 'orders' => true], $colonne);
+
+    return $tutte === ['photo', 'model_name', 'sku', 'stock_quantity', 'min_stock_quantity', 'stock_reserved', 'stock_available', 'actions'];
+});
+
+check('la select dà un alias a ogni numero, e nessuno in più', function () use ($conSedi) {
+    $alias = $conSedi([['id' => 2, 'label' => 'A'], ['id' => 1, 'label' => 'B']], ['low_stock_alerts' => true, 'orders' => true], fn () =>
+        ResourceTableRenderer::selectAliases(StockLevelResource::select())
+    );
+
+    sort($alias);
+
+    return $alias === ['model_name', 'stock_alert', 'stock_available', 'stock_loc_1', 'stock_loc_2', 'stock_quantity', 'stock_reserved'];
+});
+
+check('il filtro Scorta c\'è solo con gli avvisi di scorta minima', function () use ($conSedi) {
+    $filtri = fn () => array_column((array) (StockLevelResource::tableLayoutSchema()->toArray()['custom_filters'] ?? []), 'column');
+
+    $senza = $conSedi([], [], $filtri);
+    $con = $conSedi([], ['low_stock_alerts' => true], $filtri);
+
+    return !in_array('scorta', $senza, true)
+        && in_array('scorta', $con, true)
+        && in_array('marchio', $con, true)
+        && in_array('categoria', $con, true)
+        && in_array('active', $con, true);
+});
+
+check('il menu della riga porta ai movimenti e alla versione', function () use ($conSedi) {
+    $azioni = $conSedi([], [], function () {
+        foreach (StockLevelResource::tableSchema() as $column) {
+            if ((string) $column->name === 'actions') {
+                return (array) ($column->toArray()['actions'] ?? []);
+            }
+        }
+
+        return [];
+    });
+
+    return array_keys($azioni) === ['movimenti', 'versione']
+        && str_contains((string) $azioni['movimenti']['href'], 'versione={id}')
+        && str_contains((string) $azioni['versione']['href'], '{id}');
+});
+
+check('marchio: solo id validi, e niente condizione se non resta nulla', fn () =>
+    StockLevelResource::brandCondition(['abc', '0', '-3', '']) === ''
+    && str_contains(StockLevelResource::brandCondition(['4', '4', 'x', '7']), 'brand_id IN (4,7)')
+);
+
+check('categoria: comprende le sottocategorie', function () {
+    $albero = [
+        ['id' => 1, 'parent_id' => 0, 'name' => 'Abbigliamento'],
+        ['id' => 2, 'parent_id' => 1, 'name' => 'Magliette'],
+        ['id' => 3, 'parent_id' => 2, 'name' => 'Polo'],
+        ['id' => 4, 'parent_id' => 0, 'name' => 'Scarpe'],
+    ];
+
+    return StockLevelResource::categoryCondition(['x'], $albero) === ''
+        && str_contains(StockLevelResource::categoryCondition(['2'], $albero), 'category_id IN (2,3)')
+        && str_contains(StockLevelResource::categoryCondition(['4'], $albero), 'category_id IN (4)');
+});
+
+// Una sede del gestionale (`gst_locations`) punta alla sua sede del core.
+$sede = static fn (int $id, int $core, string $merce = 'true', string $cancellata = 'false'): array =>
+    ['id' => $id, 'society_location_id' => $core, 'has_stock' => $merce, 'deleted' => $cancellata];
+$delCore = static fn (int $id, string $nome, int $posizione, string $cancellata = 'false', string $attivita = ''): array =>
+    ['id' => $id, 'label' => $nome, 'name' => $attivita, 'position' => $posizione, 'deleted' => $cancellata];
+
+check('sedi: ordine per posizione, poi per id', function () use ($sede, $delCore) {
+    $sedi = Locations::pick(
+        [$sede(5, 50), $sede(3, 30), $sede(8, 80)],
+        [$delCore(50, 'Centro', 1), $delCore(30, 'Porto', 2), $delCore(80, 'Lago', 1)],
+        []
+    );
+
+    return array_column($sedi, 'id') === [5, 8, 3]
+        && array_column($sedi, 'label') === ['Centro', 'Lago', 'Porto'];
+});
+
+check('sedi: senza merce gestita non c\'è colonna, a meno che abbia pezzi', function () use ($sede, $delCore) {
+    $sedi = Locations::pick(
+        [$sede(1, 10), $sede(2, 20, 'false'), $sede(3, 30, 'false')],
+        [$delCore(10, 'Negozio', 1), $delCore(20, 'Ufficio', 2), $delCore(30, 'Deposito', 3)],
+        [3]
+    );
+
+    return array_column($sedi, 'id') === [1, 3];
+});
+
+check('sedi: una sede cancellata con pezzi resta, col suo nome', function () use ($sede, $delCore) {
+    $sedi = Locations::pick(
+        [$sede(1, 10), $sede(2, 20, 'true', 'true')],
+        [$delCore(10, 'Negozio', 1), $delCore(20, 'Vecchio negozio', 2, 'true')],
+        [2]
+    );
+    $vuota = Locations::pick([$sede(2, 20, 'true', 'true')], [$delCore(20, 'Vecchio negozio', 2, 'true')], []);
+
+    return array_column($sedi, 'label') === ['Negozio', 'Vecchio negozio'] && $vuota === [];
+});
+
+check('sedi: senza nome si usa il nome dell\'attività, poi "Sede #id"', function () use ($sede, $delCore) {
+    $sedi = Locations::pick([$sede(1, 10)], [$delCore(10, '', 1, 'false', 'Bottega Rossi')], [9]);
+
+    return array_column($sedi, 'label') === ['Bottega Rossi', 'Sede #9'];
 });
 
 summary();

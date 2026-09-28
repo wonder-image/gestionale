@@ -154,7 +154,7 @@ check('senza prodotti sotto scorta lo dice, senza allarmare', function () {
     $html = LowStockWidget::markup([], true);
 
     return str_contains($html, 'Nessun prodotto sotto la scorta minima')
-        && !str_contains($html, 'giacenze?sotto=1');
+        && !str_contains($html, 'giacenze?gst_products__scorta=sotto');
 });
 
 check('ogni riga dice cosa riordinare, e il pulsante apre le giacenze filtrate', function () use ($sottoScorta) {
@@ -164,7 +164,7 @@ check('ogni riga dice cosa riordinare, e il pulsante apre le giacenze filtrate',
         && str_contains($html, 'SKU-1')
         && str_contains($html, 'Disponibili 1,25')
         && str_contains($html, 'scorta minima 5')
-        && str_contains($html, 'giacenze?sotto=1');
+        && str_contains($html, 'giacenze?gst_products__scorta=sotto');
 });
 
 check('un articolo senza varianti non si porta dietro il trattino', function () use ($sottoScorta) {

@@ -27,11 +27,13 @@ use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Stock\Alerts;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStockNotifier;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStockReport;
 use Wonder\Plugin\Gestionale\Support\Stock\NegativeStock;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
+use Wonder\Plugin\Gestionale\Support\Stock\Thresholds;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -99,11 +101,16 @@ function sottoScorta(string $sku): int
     return $productId;
 }
 
-// Le funzionalità si leggono una volta per richiesta: si accende solo quella
-// che serve, lasciando le altre come le ha il sito.
+// Le funzionalità si leggono una volta per richiesta: si accende quella che
+// serve e si spegne «Più sedi», perché queste prove parlano di un magazzino
+// con una sede sola; le altre restano come le ha il sito.
 Gestionale::feature('low_stock_alerts');
 $stato = new ReflectionProperty(Gestionale::class, 'features');
-$stato->setValue(null, array_merge((array) $stato->getValue(), ['low_stock_alerts' => true]));
+$stato->setValue(null, array_merge((array) $stato->getValue(), [
+    'low_stock_alerts' => true,
+    'multi_location' => false,
+]));
+Locations::reset();
 
 /**
  * Un articolo senza varianti. Con una giacenza scritta nasce col suo carico
@@ -154,12 +161,14 @@ check('alzare la soglia sopra il disponibile apre l\'avviso subito, senza movime
     [$modelId, $productId] = articoloDiProva('LOW-1', '3');
     ProductModelResource::saveExtras($modelId, ['has_variants' => 'false', 'product_min_stock' => '5'], 'LOW-1');
     $avviso = Alerts::openRow($productId);
-    $prodotto = Product::findById($productId);
 
+    // La soglia è una riga per sede, e l'avviso dice la sua sede: con una
+    // sede sola è quella principale.
     return $avviso !== []
         && (float) $avviso['threshold'] === 5.0
         && (float) $avviso['quantity_at_alert'] === 3.0
-        && (float) ($prodotto['min_stock_quantity'] ?? 0) === 5.0;
+        && (int) $avviso['location_id'] === Locations::mainId()
+        && Thresholds::forProduct($productId) === [Locations::mainId() => 5.0];
 }));
 
 check('abbassarla sotto il disponibile chiude l\'avviso', fn () => annullando(function (): bool {
@@ -208,7 +217,7 @@ check('un articolo che nasce già sotto la sua scorta minima ha l\'avviso', fn (
 
 check('un articolo con l\'avviso aperto e nessun movimento si elimina', fn () => annullando(function (): bool {
     [$modelId, $productId] = articoloDiProva('LOW-5');
-    Product::update(['min_stock_quantity' => '5.000'], $productId);
+    Thresholds::save($productId, [Locations::mainId() => 5.0]);
     $aperto = Alerts::refresh($productId) === 'open';
     $esito = ProductModelResource::deleteRecord($modelId);
     $rimasti = StockAlert::find(['product_id' => $productId]);
@@ -218,7 +227,7 @@ check('un articolo con l\'avviso aperto e nessun movimento si elimina', fn () =>
 
 check('anche una versione con l\'avviso aperto e nessun movimento si elimina', fn () => annullando(function (): bool {
     [, $productId] = articoloDiProva('LOW-6');
-    Product::update(['min_stock_quantity' => '5.000'], $productId);
+    Thresholds::save($productId, [Locations::mainId() => 5.0]);
     $aperto = Alerts::refresh($productId) === 'open';
     $esito = ProductResource::deleteRecord($productId);
 
@@ -340,7 +349,7 @@ check('un prodotto tornato sopra la soglia senza movimenti non si segnala, e l\'
     postino(true);
     $productId = sottoScorta('LOW-16');
     // La soglia cambiata senza passare dalla scheda: nessuno chiude l'avviso.
-    Product::query()->Update(Product::$table, ['min_stock_quantity' => '1.000'], 'id', $productId);
+    Thresholds::save($productId, [Locations::mainId() => 1.0]);
 
     $esito = LowStockNotifier::run();
 

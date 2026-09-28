@@ -15,6 +15,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
@@ -26,6 +27,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Plugin\Gestionale\Support\Stock\Alerts;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Sql\Transaction;
@@ -186,7 +188,7 @@ check('l\'articolo con un\'opzione tolta dalla griglia si elimina, e non lascia 
 
 check('con l\'opzione tolta se ne vanno anche il suo avviso di scorta e la sua foto', fn () => annullando(function (): bool {
     $articolo = articoloConOpzioneTolta('ELM-3', static function (int $productId): void {
-        Product::update(['min_stock_quantity' => '5.000'], $productId);
+        \Wonder\Plugin\Gestionale\Support\Stock\Thresholds::save($productId, [\Wonder\Plugin\Gestionale\Support\Stock\Locations::mainId() => 5.0]);
         Alerts::refresh($productId);
     });
     // La foto dopo il salvataggio: la griglia rimette in riga le foto che vede.
@@ -207,6 +209,36 @@ check('con l\'opzione tolta se ne vanno anche il suo avviso di scorta e la sua f
         && !empty($esito->success)
         && righe(StockAlert::class, ['product_id' => $articolo['removed']]) === []
         && righe(ProductImage::class, ['product_model_id' => $articolo['model']]) === [];
+}));
+
+check('con l\'opzione tolta se ne vanno anche i suoi fornitori', fn () => annullando(function (): bool {
+    $fornitore = (int) (Contact::create([
+        'type' => 'business',
+        'business_name' => 'Prova Fornitore Eliminazioni Srl',
+        'country' => 'IT',
+        'is_customer' => 'false',
+        'is_supplier' => 'true',
+        'active' => 'true',
+    ])->insert_id ?? 0);
+    // L'eccezione scritta prima del salvataggio se ne va con la riga tolta
+    // dalla griglia (`saveExtras()` → `dropRemovedOptions()`, P99)…
+    $articolo = articoloConOpzioneTolta('ELM-5', static function (int $productId) use ($fornitore): void {
+        ProductSuppliers::sync($productId, [['supplier_id' => $fornitore, 'cost' => '3']]);
+    });
+    $dopoLaGriglia = righe(ProductSupplier::class, ['product_id' => $articolo['removed']]);
+
+    // …e una rimasta nel cestino (scritta dopo, come una di prima di questo
+    // giro) se ne va con l'articolo: la chiave esterna non lo lascerebbe
+    // eliminare.
+    ProductSuppliers::sync($articolo['removed'], [['supplier_id' => $fornitore, 'cost' => '3']]);
+    $legami = righe(ProductSupplier::class, ['product_id' => $articolo['removed']]);
+
+    $esito = ProductModelResource::deleteRecord($articolo['model']);
+
+    return $dopoLaGriglia === []
+        && $legami !== []
+        && !empty($esito->success)
+        && righe(ProductSupplier::class, ['supplier_id' => $fornitore]) === [];
 }));
 
 check('un\'opzione tolta dalla griglia con dei movimenti ferma ancora l\'eliminazione', fn () => annullando(function (): bool {

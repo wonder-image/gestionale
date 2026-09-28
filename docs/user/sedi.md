@@ -23,6 +23,10 @@ Il resto (nome, indirizzo, dati fiscali, giacenza) lo prepara chi ti segue: sono
 dati che finiscono sui documenti e non devono cambiare per sbaglio. Se serve una
 correzione, scrivici.
 
+Quando le sedi che tengono la giacenza sono almeno due, i pezzi e la scorta
+minima di ogni articolo si scrivono sede per sede, dalla sua scheda (vedi [Con
+più sedi](catalogo-prodotti.md#con-piu-sedi)).
+
 ## Orari regolari
 
 1. Apri la sede e scorri fino a **Orari e chiusure**.

@@ -7,8 +7,10 @@
  * gestionale usa la copia del sito se c'è.
  *
  * Variabili:
- * - `$items`: le righe, ognuna con `product_id`, `article`, `option` (vuota
- *   per gli articoli senza varianti), `sku`, `threshold`, `available`;
+ * - `$items`: le righe, ognuna con `product_id`, `location_id`, `location`
+ *   (il nome della sede, vuoto quando il magazzino ha una sede sola),
+ *   `article`, `option` (vuota per gli articoli senza varianti), `sku`,
+ *   `threshold`, `available`;
  * - `$count`: quante sono;
  * - `$url`: l'indirizzo completo dell'elenco Giacenze, già filtrato sui
  *   prodotti sotto scorta;
@@ -16,7 +18,7 @@
  *   che viene dal catalogo;
  * - `$qty($numero)`: i pezzi come li legge una persona ("3", "2,5").
  *
- * @var list<array{product_id: int, article: string, option: string, sku: string, threshold: float, available: float}> $items
+ * @var list<array{product_id: int, location_id: int, location: string, article: string, option: string, sku: string, threshold: float, available: float}> $items
  * @var int $count
  * @var string $url
  * @var callable(mixed): string $e
@@ -26,10 +28,11 @@
 <p><?= $count === 1 ? 'Questo prodotto è sceso' : 'Questi prodotti sono scesi' ?> sotto la scorta minima.</p>
 <table cellpadding="6" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
     <?php foreach ($items as $item) { ?>
+    <?php $meta = implode(' · ', array_filter([$item['sku'], $item['location'] ?? ''])); ?>
     <tr style="border-bottom: 1px solid #e5e5e5;">
         <td>
             <b><?= $e($item['article']) ?></b><?php if ($item['option'] !== '') { ?> — <?= $e($item['option']) ?><?php } ?>
-            <?php if ($item['sku'] !== '') { ?><br><small style="color: #777;"><?= $e($item['sku']) ?></small><?php } ?>
+            <?php if ($meta !== '') { ?><br><small style="color: #777;"><?= $e($meta) ?></small><?php } ?>
         </td>
         <td style="text-align: right; white-space: nowrap;">
             disponibili <b><?= $e($qty($item['available'])) ?></b><br>
@@ -39,4 +42,4 @@
     <?php } ?>
 </table>
 <p><a href="<?= $e($url) ?>">Apri le giacenze sotto scorta</a></p>
-<p style="color: #777;"><small>Per ogni prodotto l'avviso arriva una volta sola: torna solo se il prodotto risale sopra la soglia e poi ci ricade.</small></p>
+<p style="color: #777;"><small>Per ogni prodotto, e per ogni sede, l'avviso arriva una volta sola: torna solo se il prodotto risale sopra la soglia e poi ci ricade.</small></p>

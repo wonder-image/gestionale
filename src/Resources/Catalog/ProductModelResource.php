@@ -34,10 +34,10 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
-use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CategoryResource;
@@ -68,10 +68,14 @@ use Wonder\App\Support\Repeater;
 use Wonder\App\Table;
 use Wonder\Plugin\Gestionale\Support\Stock\Alerts;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\LocationRows;
+use Wonder\Plugin\Gestionale\Support\Stock\LocationStock;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\Stocktake;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
+use Wonder\Plugin\Gestionale\Support\Stock\Thresholds;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxCategories;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Positions;
@@ -109,12 +113,6 @@ class ProductModelResource extends GestionaleResource
     /** @var array<int, array<int, string>> i fornitori proponibili, per articolo */
     private static array $supplierChoices = [];
 
-    /** @var array<int, array<int, list<int>>> i fornitori legati, per articolo e per opzione */
-    private static array $supplierLinks = [];
-
-    /** @var array<int, list<int>> i fornitori non attivi ma legati, per articolo */
-    private static array $inactiveSuppliers = [];
-
     /**
      * Quante foto o video per area.
      *
@@ -126,8 +124,11 @@ class ProductModelResource extends GestionaleResource
     /** L'id del bottone «Nuova caratteristica»: lo script della scheda lo cerca. */
     protected const TECHNICAL_BUTTON = 'wi-technical-new';
 
-    /** L'id della finestra «Costo»: una per pagina, la aprono tutti i bottoni. */
-    protected const SUPPLIER_COSTS_MODAL = 'wi-supplier-costs';
+    /**
+     * L'id della finestra «Giacenza» della griglia, con più sedi (P103): il
+     * bottone di ogni riga la apre, e lo script la cerca.
+     */
+    protected const LOCATIONS_MODAL = 'wi-location-stock';
 
     public static function path(): string
     {
@@ -284,6 +285,20 @@ class ProductModelResource extends GestionaleResource
 
         array_push($fields, ...static::priceFields($modelId));
 
+        // Con più sedi giacenza e scorta minima dell'articolo senza varianti
+        // si scrivono sede per sede (P102): il repeater non ha relazione, le
+        // righe le compone e le legge la scheda.
+        if (static::hasManyLocations()) {
+            $fields[] = static::stockRowsField($modelId ?? 0);
+        }
+
+        // Da chi si compra: una riga per fornitore, sull'articolo (P95).
+        // Senza `purchasing` il campo non esiste, e il core non ha niente
+        // da sincronizzare.
+        if (Gestionale::feature('purchasing')) {
+            $fields[] = static::suppliersField($modelId ?? 0);
+        }
+
         return $fields;
     }
 
@@ -349,25 +364,24 @@ class ProductModelResource extends GestionaleResource
             $domanda = FormField::key('has_variants')->hidden()->value('false');
         }
 
+        // Con più sedi giacenza e scorta minima stanno nel riquadro
+        // «Magazzino», sede per sede (P102): qui restano prezzo e codici.
+        $sedi = static::hasManyLocations();
         // La scorta minima sta nella tendina, accanto ai codici: la riga del
         // prezzo resta di tre caselle.
-        $soglia = Gestionale::feature('low_stock_alerts');
-        // Il costo d'acquisto va a capo sotto i codici: tre caselle, o il
-        // bottone «Costo» su tutta la riga.
-        $costo = static::supplierCostMode($modelId);
-        $avanzate = 'SKU, EAN'
-            .($soglia ? ($costo !== null ? ', scorta minima' : ' e scorta minima') : '')
-            .($costo !== null ? ', fornitore e costo d\'acquisto' : '');
+        $soglia = Gestionale::feature('low_stock_alerts') && !$sedi;
+        $avanzate = 'SKU, EAN'.($soglia ? ' e scorta minima' : '');
 
         $cards = [
             (new Card)->components([
                 SectionTitle::make('Prodotto')
                     ->tooltip($conVarianti
-                        ? 'Con le varianti prezzo, codici'.($costo !== null ? ', giacenza e costo d\'acquisto' : ' e giacenza').' sono di ogni opzione: si scrivono riga per riga in «Opzioni in vendita», qui sotto.'
+                        ? 'Con le varianti prezzo, codici e giacenza sono di ogni opzione: si scrivono riga per riga in «Opzioni in vendita», qui sotto.'
                         : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il riquadro «Tipo fiscale». Lo SKU è anche il codice di famiglia: se aggiungi le varianti, da lì nascono quelli delle opzioni.'
-                            .($modelId > 0 ? '' : ' La giacenza scritta alla creazione entra come giacenza iniziale, nella sede principale.')
+                            .($modelId > 0 || $sedi ? '' : ' La giacenza scritta alla creazione entra come giacenza iniziale, nella sede principale.')
                             .' '.$avanzate.' stanno in «Compila le informazioni avanzate».'
-                            .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso: vale sul disponibile di tutte le sedi, e con zero non arriva niente.' : '')
+                            .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso: vale sul disponibile, e con zero non arriva niente.' : '')
+                            .($sedi ? ' Giacenza e scorta minima stanno nel riquadro «Magazzino», sede per sede.' : '')
                             .($senzaOpzioni ? ' Per vendere colori o taglie serve un attributo con uso «Opzione da scegliere» o «Opzione con foto proprie», e dei valori: si crea in Catalogo → Attributi.' : ''))
                     ->columnSpan(12),
                 static::getInput('name')->columnSpan(9),
@@ -383,13 +397,14 @@ class ProductModelResource extends GestionaleResource
                         ->tag('div')
                         ->columnSpan(12),
                 ] : []),
-                static::getInput('product_price')->columnSpan(4),
-                static::getInput('product_sale_price')->columnSpan(4),
+                static::getInput('product_price')->columnSpan($sedi ? 6 : 4),
+                static::getInput('product_sale_price')->columnSpan($sedi ? 6 : 4),
                 // Senza varianti la giacenza sta qui, accanto al prezzo: è la
                 // scheda di quell'unico articolo, e la parola "opzione" non
                 // compare da nessuna parte. In creazione c'è già: chi crea
-                // l'articolo ha la merce davanti.
-                static::getInput('product_stock')->columnSpan(4),
+                // l'articolo ha la merce davanti. Con più sedi la casella non
+                // c'è: i pezzi si scrivono sede per sede, nel riquadro sotto.
+                ...($sedi ? [] : [static::getInput('product_stock')->columnSpan(4)]),
                 // Codici e scorta minima sotto il prezzo, chiusi come le
                 // informazioni avanzate delle righe della griglia: servono di
                 // rado. Con le varianti spariscono insieme al prezzo — ognuna
@@ -404,26 +419,17 @@ class ProductModelResource extends GestionaleResource
                         static::getInput('sku')->columnSpan($soglia ? 4 : 6),
                         static::getInput('product_ean')->columnSpan($soglia ? 4 : 6),
                         ...($soglia ? [static::getInput('product_min_stock')->columnSpan(4)] : []),
-                        ...match ($costo) {
-                            'flat' => [
-                                static::getInput('product_supplier_id')->columnSpan(4),
-                                static::getInput('product_supplier_sku')->columnSpan(4),
-                                static::getInput('product_cost')->columnSpan(4),
-                            ],
-                            'modal' => [
-                                static::getInput('product_suppliers'),
-                                static::getInput('product_cost_button')->columnSpan(12),
-                            ],
-                            default => [],
-                        },
                     ]),
-                // In creazione non c'è ancora niente da rettificare.
-                ...($modelId > 0 ? [
+                // In creazione non c'è ancora niente da rettificare; con più
+                // sedi il link sta nel riquadro «Magazzino».
+                ...($modelId > 0 && !$sedi ? [
                     RichText::make(static::adjustLink($modelId))
                         ->columnSpan(12)
                         ->hiddenWhen('has_variants', 'true'),
                 ] : []),
             ])->columns(12)->columnSpan(12),
+            // Con più sedi le righe per sede, subito dopo i codici (P102).
+            ...($sedi ? [static::stockCard($modelId)] : []),
             // Subito sotto la domanda «ha varianti?»: chi risponde sì trova
             // qui le opzioni. In due terzi di
             // schermo la griglia ci sta: le righe raggruppate hanno tre
@@ -433,17 +439,40 @@ class ProductModelResource extends GestionaleResource
 
         $cards[] = static::technicalSheetCard();
 
-        // Una finestra sola per la pagina, qui e non nel riquadro delle
-        // opzioni, che senza varianti sparisce: la aprono sia il bottone
-        // della tendina sia quelli delle righe.
-        if ($costo === 'modal') {
-            $cards[] = static::supplierCostModal($modelId);
-            $cards[] = static::supplierCostScript($modelId)->columnSpan(12);
-        } elseif ($costo === 'flat' && static::inactiveSupplierIds($modelId) !== []) {
-            $cards[] = static::supplierInactiveScript($modelId)->columnSpan(12);
+        // La finestra «Giacenza» della griglia (P103) e il suo script: una
+        // sola per la pagina, qui e non nel riquadro delle opzioni, che senza
+        // varianti sparisce — e la griglia c'è sempre.
+        if ($sedi) {
+            $cards[] = static::locationStockModal($modelId);
+            $cards[] = static::locationStockScript();
         }
 
         return $cards;
+    }
+
+    /**
+     * Il riquadro «Magazzino» dell'articolo senza varianti, con più sedi
+     * (P102): una riga per sede, con i pezzi e la scorta minima di quella.
+     *
+     * Sta al posto delle due caselle del riquadro «Prodotto»: con due sedi il
+     * totale non dice dove stanno i pezzi, e una soglia sola non dice quando
+     * avvisare. Con le varianti sparisce insieme al prezzo: ogni opzione ha le
+     * sue sedi nella griglia, dietro il bottone «Giacenza».
+     */
+    protected static function stockCard(int $modelId): Card
+    {
+        $soglia = Gestionale::feature('low_stock_alerts');
+
+        return (new Card)->components([
+            SectionTitle::make('Magazzino')
+                ->tooltip('Quanti pezzi ci sono in ogni sede'.($soglia ? ', e sotto quanti arriva l\'avviso' : '').'.'
+                    .' Si scrive quanti ce ne sono, e il movimento della differenza lo fa il magazzino: casella vuota = non toccare, zero scritto = zero.'
+                    .($modelId > 0 ? '' : ' Su un articolo che nasce i pezzi entrano come giacenza iniziale.')
+                    .' Una sede tolta dalle righe perde la sua scorta minima, non i pezzi: finché ne ha, la riga ricompare.')
+                ->columnSpan(12),
+            static::getInput('locations')->columnSpan(12),
+            ...($modelId > 0 ? [RichText::make(static::adjustLink($modelId))->columnSpan(12)] : []),
+        ])->columns(12)->columnSpan(12)->hiddenWhen('has_variants', 'true');
     }
 
     /**
@@ -523,6 +552,11 @@ class ProductModelResource extends GestionaleResource
                 ...static::backorderInputs(),
             ])->columns(12)->columnSpan(12),
 
+            // Da chi si compra, subito sotto come si vende (P97): una riga
+            // per fornitore, e vale per tutte le opzioni. Senza
+            // `purchasing` il riquadro non c'è.
+            ...(Gestionale::feature('purchasing') ? [static::suppliersCard($modelId)] : []),
+
             // Un riquadro solo per il tipo fiscale: decide l'IVA, e in mezzo
             // agli interruttori si perdeva. Il titolo dice già cos'è, la
             // select non lo ripete.
@@ -563,6 +597,27 @@ class ProductModelResource extends GestionaleResource
                 static::unitScript()->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];
+    }
+
+    /**
+     * Il riquadro «Fornitori»: il repeater, o la riga che dice dove creare
+     * un fornitore quando non ce n'è nessuno da proporre.
+     *
+     * Con la tendina vuota il repeater sarebbe una riga di caselle che non
+     * si può compilare: meglio dirlo. Il campo resta nello schema, e il
+     * core, non trovando righe, non tocca niente — legami non ce ne sono,
+     * o la tendina non sarebbe vuota.
+     */
+    protected static function suppliersCard(int $modelId): Card
+    {
+        return (new Card)->components([
+            SectionTitle::make('Fornitori')
+                ->tooltip('Da chi compri questo articolo, con il codice che usa lui e il costo d\'acquisto: valgono per tutte le opzioni in vendita. Un costo lasciato vuoto vuol dire «non lo so», non zero. Un fornitore messo su «Non attivo» resta qui finché non lo togli.')
+                ->columnSpan(12),
+            static::supplierChoices($modelId) === []
+                ? RichText::make('<p class="text-muted mb-0">Nessun fornitore da proporre: aggiungilo da Anagrafiche → Fornitori.</p>')->columnSpan(12)
+                : static::getInput('suppliers')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
     }
 
     public static function tableSchema(): array
@@ -758,120 +813,41 @@ class ProductModelResource extends GestionaleResource
         // La scorta minima si controlla adesso, come la giacenza: dopo
         // l'insert un rifiuto lascerebbe l'articolo scritto a metà.
         static::assertMinStocks((array) $_POST, $values['has_variants'] === 'true');
+        // E le righe per sede (P102, P103): una sede doppia, una fuori
+        // dall'elenco, una soglia che non è un numero o una giacenza sotto
+        // zero si fermano qui.
+        static::assertLocationRows((array) $_POST, $values['has_variants'] === 'true', $id);
 
-        // Anche i fornitori: un doppione o un fornitore che la pagina non
-        // propone si fermano qui, non a metà del salvataggio.
-        static::assertSupplierCosts($id, (array) $_POST, $values['has_variants'] === 'true');
+        // Anche i fornitori: un doppione, un fornitore che la pagina non
+        // propone o un costo che non è un numero si fermano qui, non a metà
+        // del salvataggio.
+        static::assertSuppliers($id, (array) $_POST);
 
         return static::withoutExtras($values);
     }
 
     /**
-     * I fornitori postati devono essere tra quelli che la pagina propone,
-     * una volta sola per opzione, con un costo non negativo.
+     * Le righe del riquadro «Fornitori» devono avere un fornitore fra quelli
+     * che la pagina propone, una volta sola, con un codice corto e un costo
+     * che sia un numero non negativo (P97).
      *
-     * Come per la scorta minima conta solo quello che si vede: le righe della
-     * griglia con le varianti, i campi della tendina senza. Senza `purchasing`
-     * non si scrive niente, e non si guarda niente.
-     *
-     * I fornitori ammessi sono dell'opzione (`supplierChoicesFor()`): uno non
-     * attivo passa solo sulle opzioni che lo hanno già.
+     * Senza `purchasing` il riquadro non c'è e non arriva niente. Una riga
+     * lasciata vuota non conta: il repeater la toglie da sé.
      */
-    public static function assertSupplierCosts(int $modelId, array $post, bool $conVarianti): void
+    public static function assertSuppliers(int $modelId, array $post): void
     {
-        $modo = static::supplierCostMode($modelId);
-
-        if ($modo === null) {
+        if (!Gestionale::feature('purchasing')) {
             return;
         }
 
-        $gruppi = [];
+        $righe = Repeater::rowsFromRequest('suppliers', $post);
 
-        if ($conVarianti) {
-            foreach (static::postedRows($post) as $riga) {
-                $gruppi[] = [(int) (is_numeric($riga['id'] ?? null) ? $riga['id'] : 0), static::postedSuppliers($riga, '', $modo)];
-            }
-        } else {
-            $unico = $modelId > 0 ? static::soleProduct($modelId) : null;
-            $gruppi[] = [(int) ($unico['id'] ?? 0), static::postedSuppliers($post, 'product_', $modo)];
+        if ($righe === []) {
+            return;
         }
 
-        foreach ($gruppi as [$productId, $righe]) {
-            if ($righe !== null) {
-                $scelte = static::supplierChoicesFor($modelId, $productId);
-                ProductSuppliers::assertValid($righe, array_keys($scelte), $scelte);
-            }
-        }
-    }
-
-    /**
-     * Le righe dei fornitori postate per un'opzione, `null` se non ne è
-     * arrivata nessuna.
-     *
-     * Con le tre caselle la riga è una, ed è il preferito; con la finestra
-     * arriva il JSON della colonna nascosta. `null` vuol dire «non toccare»:
-     * un form vecchio, o una finestra mai salvata su quella riga.
-     *
-     * Con le tre caselle il fornitore svuotato stacca il legame (P88): codice
-     * e costo rimasti scritti accanto non si salvano, e non fermano niente.
-     *
-     * La forma la dice quello che arriva, non il modo di adesso: fra
-     * l'apertura della pagina e il salvataggio un fornitore può diventare
-     * attivo, o smettere di esserlo, e il modo cambiare. Guardando solo il
-     * modo, le modifiche della pagina aperta sparirebbero senza un errore.
-     * Se arrivano tutte e due le forme vince quella del modo.
-     *
-     * @param array<string, mixed> $posted la riga della griglia, o tutto il POST
-     * @param string $prefix `product_` per l'articolo senza varianti
-     * @return list<array<string, mixed>>|null
-     */
-    protected static function postedSuppliers(array $posted, string $prefix, string $mode): ?array
-    {
-        $chiavi = [$prefix.'supplier_id', $prefix.'supplier_sku', $prefix.'cost'];
-        $finestra = array_key_exists($prefix.'suppliers', $posted);
-        $caselle = array_intersect($chiavi, array_keys($posted)) !== [];
-
-        if ($finestra && ($mode === 'modal' || !$caselle)) {
-            return static::supplierRowsFromJson($posted[$prefix.'suppliers']);
-        }
-
-        if (!$caselle) {
-            return null;
-        }
-
-        if (trim((string) (is_scalar($posted[$prefix.'supplier_id'] ?? null) ? $posted[$prefix.'supplier_id'] : '')) === '') {
-            return [];
-        }
-
-        return [[
-            'supplier_id' => $posted[$prefix.'supplier_id'] ?? '',
-            'supplier_sku' => $posted[$prefix.'supplier_sku'] ?? '',
-            'cost' => $posted[$prefix.'cost'] ?? '',
-            'is_preferred' => 'true',
-        ]];
-    }
-
-    /**
-     * Le righe del JSON della finestra «Costo»; `null` se il campo è vuoto o
-     * non è un elenco — la finestra non l'ha toccato.
-     *
-     * @return list<array<string, mixed>>|null
-     */
-    protected static function supplierRowsFromJson(mixed $json): ?array
-    {
-        if (!is_string($json) || trim($json) === '') {
-            return null;
-        }
-
-        try {
-            $righe = json_decode($json, true, 8, JSON_THROW_ON_ERROR);
-        } catch (Throwable) {
-            return null;
-        }
-
-        return is_array($righe) && array_is_list($righe)
-            ? array_values(array_filter($righe, 'is_array'))
-            : null;
+        $scelte = static::supplierChoices($modelId);
+        ProductSuppliers::assertValid($righe, array_keys($scelte), $scelte);
     }
 
     /**
@@ -880,11 +856,13 @@ class ProductModelResource extends GestionaleResource
      * Senza varianti conta la casella del riquadro Prodotto, con le varianti
      * quelle delle righe della griglia: le altre sono nascoste, ma arrivano
      * lo stesso, e un valore rimasto lì non deve bloccare il salvataggio.
-     * Con gli avvisi bloccati non si scrive niente, e non si guarda niente.
+     * Con gli avvisi bloccati non si scrive niente, e non si guarda niente;
+     * con più sedi le soglie viaggiano nelle righe per sede, e le controlla
+     * `assertLocationRows()`.
      */
     public static function assertMinStocks(array $post, bool $conVarianti): void
     {
-        if (!Gestionale::feature('low_stock_alerts')) {
+        if (!Gestionale::feature('low_stock_alerts') || static::hasManyLocations()) {
             return;
         }
 
@@ -904,6 +882,50 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
+     * Le righe per sede postate devono reggere (P102, P103).
+     *
+     * Senza varianti sono quelle del repeater «Giacenza per sede»; con le
+     * varianti il JSON di ogni riga della griglia, e `null` — finestra mai
+     * aperta — non ha niente da controllare. Le altre arrivano lo stesso,
+     * nascoste, e non si guardano. Con una sede sola non ci sono righe.
+     *
+     * La giacenza sotto zero scritta a mano si ferma qui come nella casella
+     * della sede sola (P59): `saveLocationStock()` gira dopo l'insert, e lì
+     * un rifiuto sarebbe una pagina di guasto su un articolo scritto a metà.
+     */
+    public static function assertLocationRows(array $post, bool $conVarianti, int $modelId = 0): void
+    {
+        if (!static::hasManyLocations()) {
+            return;
+        }
+
+        $sedi = Locations::shown();
+
+        if (!$conVarianti) {
+            $righe = LocationRows::normalize(Repeater::rowsFromRequest('locations', $post), $sedi);
+
+            // L'opzione si cerca solo se c'è un numero negativo da confrontare.
+            if (LocationStock::hasNegative($righe)) {
+                $product = $modelId > 0 ? static::soleProduct($modelId) : null;
+                LocationStock::assertNotNegative((int) ($product['id'] ?? 0), $righe);
+            }
+
+            return;
+        }
+
+        foreach (static::postedRows($post) as $riga) {
+            $perSede = LocationRows::fromForm($riga['locations'] ?? null);
+
+            if ($perSede !== null) {
+                LocationStock::assertNotNegative(
+                    (int) ($riga['id'] ?? 0),
+                    LocationRows::normalize($perSede, $sedi)
+                );
+            }
+        }
+    }
+
+    /**
      * La giacenza scritta a mano dev'essere un numero di pezzi.
      *
      * Il rifiuto si calcola qui, prima che il salvataggio cominci: dopo
@@ -912,12 +934,13 @@ class ProductModelResource extends GestionaleResource
      * articolo già scritto a metà.
      *
      * Una giacenza già sotto zero per le vendite in arretrato, lasciata com'era,
-     * passa: non l'ha scritta nessuno. In creazione si controlla anche con più
-     * sedi, perché lì la casella si scrive comunque.
+     * passa: non l'ha scritta nessuno. Con più sedi la casella non si scrive,
+     * nemmeno in creazione: lì si controllano le righe per sede
+     * ({@see assertLocationRows()}).
      */
     public static function assertStockWritable(int $modelId = 0, bool $conVarianti = true): void
     {
-        if ($modelId > 0 && !static::stockIsWritable()) {
+        if (!static::stockIsWritable()) {
             return;
         }
 
@@ -1036,7 +1059,9 @@ class ProductModelResource extends GestionaleResource
         bool $conVarianti,
         bool $appenaNato = false
     ): void {
-        if ($conVarianti || (!$appenaNato && !static::stockIsWritable())) {
+        // Con più sedi la casella non si scrive, nemmeno in creazione: i
+        // pezzi arrivano dalle righe per sede.
+        if ($conVarianti || !static::stockIsWritable()) {
             return;
         }
 
@@ -1053,8 +1078,7 @@ class ProductModelResource extends GestionaleResource
         }
 
         // Su un articolo che nasce non c'è niente da rettificare: il numero
-        // è un carico, sulla sede principale anche quando le sedi sono più
-        // d'una.
+        // è un carico.
         if ($appenaNato) {
             static::loadInitialStock((int) $product['id'], $quantita);
 
@@ -1062,6 +1086,122 @@ class ProductModelResource extends GestionaleResource
         }
 
         static::adjustStock([(int) $product['id'] => $quantita]);
+    }
+
+    /**
+     * Giacenza e scorta minima per sede, con più sedi (P102, P103).
+     *
+     * Senza varianti sono le righe del repeater «Giacenza per sede»; con le
+     * varianti il JSON che la finestra «Giacenza» ha scritto nel campo
+     * nascosto `locations` di ogni riga della griglia, e `null` — finestra
+     * mai aperta — lascia tutto com'è. Per ogni prodotto `LocationStock`
+     * scrive prima le soglie e poi i movimenti, una rettifica per sede
+     * cambiata, o il carico iniziale se il prodotto nasce adesso. Lo
+     * scheletro ripreso per la prima combinazione non nasce ora, e dove la
+     * sua riga nuova ha un JSON vince lei, come per la giacenza.
+     *
+     * @param array<string, array<string, mixed>> $righe
+     * @param array<string, array{product_id: int, variant_id: int, priced: bool}> $nate
+     * @param array<string, array<string, mixed>> $scritte
+     * @param array<int, string> $riprese
+     */
+    protected static function saveLocationStock(
+        int $modelId,
+        array $post,
+        array $righe,
+        array $nate,
+        array $scritte,
+        bool $conVarianti,
+        bool $appenaNato,
+        array $riprese
+    ): void {
+        if (!static::hasManyLocations()) {
+            return;
+        }
+
+        $sedi = Locations::shown();
+
+        if (!$conVarianti) {
+            $product = static::soleProduct($modelId);
+
+            if (is_array($product)) {
+                static::applyLocationRows(
+                    (int) $product['id'],
+                    LocationRows::normalize(Repeater::rowsFromRequest('locations', $post), $sedi),
+                    $appenaNato
+                );
+            }
+
+            return;
+        }
+
+        foreach ($righe as $riga) {
+            $productId = (int) ($riga['id'] ?? 0);
+            $nuova = $riprese[$productId] ?? null;
+
+            if (
+                $productId <= 0
+                || ($nuova !== null && LocationRows::fromForm($righe[$nuova]['locations'] ?? null) !== null)
+            ) {
+                continue;
+            }
+
+            $perSede = LocationRows::fromForm($riga['locations'] ?? null);
+
+            if ($perSede !== null) {
+                static::applyLocationRows($productId, LocationRows::normalize($perSede, $sedi), false);
+            }
+        }
+
+        foreach ($nate as $chiave => $riga) {
+            $productId = (int) $riga['product_id'];
+            $scritto = is_array($scritte[$chiave] ?? null) ? $scritte[$chiave] : [];
+            $perSede = LocationRows::fromForm($scritto['locations'] ?? null);
+
+            if ($perSede !== null) {
+                static::applyLocationRows(
+                    $productId,
+                    LocationRows::normalize($perSede, $sedi),
+                    !isset($riprese[$productId])
+                );
+            }
+        }
+    }
+
+    /**
+     * Scrive le righe per sede di un prodotto e rinfresca il suo avviso.
+     *
+     * Con gli avvisi bloccati le righe non hanno la casella della scorta
+     * minima e arriverebbero a zero: le soglie salvate restano quelle, e una
+     * sede che ha una soglia ma nessuna riga la tiene senza toccare i pezzi.
+     * È quello che fa la scheda dell'opzione (`ProductResource`).
+     *
+     * @param list<array{location_id: int, stock: ?float, min_stock: float}> $rows righe pulite
+     */
+    protected static function applyLocationRows(int $productId, array $rows, bool $appenaNato): void
+    {
+        $avvisi = Gestionale::feature('low_stock_alerts');
+
+        if (!$avvisi) {
+            $salvate = Thresholds::forProduct($productId);
+
+            foreach ($rows as $index => $row) {
+                $rows[$index]['min_stock'] = (float) ($salvate[$row['location_id']] ?? 0);
+                unset($salvate[$row['location_id']]);
+            }
+
+            foreach ($salvate as $locationId => $soglia) {
+                $rows[] = ['location_id' => (int) $locationId, 'stock' => null, 'min_stock' => (float) $soglia];
+            }
+        }
+
+        LocationStock::apply($productId, $rows, $appenaNato);
+
+        // Anche una soglia cambiata senza un pezzo che si muove: alzarla
+        // sopra il disponibile è già una notizia.
+        if ($avvisi) {
+            Alerts::refresh($productId);
+        }
     }
 
     /**
@@ -1093,7 +1233,10 @@ class ProductModelResource extends GestionaleResource
 
     /**
      * Le scorte minime scritte nella scheda: nella griglia, per riga, o in
-     * alto accanto a SKU ed EAN quando l'articolo non ha varianti.
+     * alto accanto a SKU ed EAN quando l'articolo non ha varianti. Sono le
+     * soglie della sede principale (`Thresholds`, P100): con una sede sola è
+     * l'unica, e con più sedi la scheda non passa da qui ma dalle righe per
+     * sede (`saveLocationStock()`).
      *
      * Si scrivono **prima** di muovere un pezzo. Ogni movimento rinfresca
      * l'avviso del suo prodotto con la soglia che trova nel database: con
@@ -1119,7 +1262,7 @@ class ProductModelResource extends GestionaleResource
         array $scritte,
         bool $conVarianti
     ): array {
-        if (!Gestionale::feature('low_stock_alerts')) {
+        if (!Gestionale::feature('low_stock_alerts') || static::hasManyLocations()) {
             return [];
         }
 
@@ -1131,18 +1274,21 @@ class ProductModelResource extends GestionaleResource
             }
 
             $productId = (int) $product['id'];
-            static::writeMinStock($productId, $post['product_min_stock'], (float) ($product['min_stock_quantity'] ?? 0));
+            static::writeMinStock(
+                $productId,
+                $post['product_min_stock'],
+                static::mainThresholds([$productId])[$productId] ?? 0.0
+            );
 
             // Anche se la soglia è rimasta quella: alzarla sopra il
             // disponibile è già una notizia, e l'avviso va guardato ora.
             return [$productId];
         }
 
-        $soglie = [];
-
-        foreach (static::products($modelId) as $product) {
-            $soglie[(int) $product['id']] = (float) ($product['min_stock_quantity'] ?? 0);
-        }
+        $soglie = static::mainThresholds(array_map(
+            static fn (array $product): int => (int) $product['id'],
+            static::products($modelId)
+        ));
 
         $volute = [];
 
@@ -1175,169 +1321,9 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
-     * Fornitori, codici e costi d'acquisto delle opzioni (P87, P88, P89, P91).
-     *
-     * Senza varianti valgono i campi della tendina, sul prodotto unico; con
-     * le varianti le righe della griglia: quelle salvate per id, quelle nate
-     * con la chiave della loro combinazione. Quello che non arriva non si
-     * tocca. Poi via i legami delle opzioni tolte dalla griglia: il repeater
-     * del core le ha già messe nel cestino, e la chiave esterna non le
-     * lascerebbe eliminare. Senza `purchasing` non si scrive niente.
-     *
-     * @param array<string, array<string, mixed>> $righe
-     * @param array<string, array{product_id: int}> $nate
-     * @param array<string, array<string, mixed>> $scritte
-     * @param array<int, string> $riprese lo scheletro ripreso dal generatore
-     */
-    protected static function saveSupplierCosts(
-        int $modelId,
-        array $post,
-        array $righe,
-        array $nate,
-        array $scritte,
-        bool $conVarianti,
-        array $riprese = []
-    ): void {
-        $modo = static::supplierCostMode($modelId);
-
-        if ($modo === null) {
-            return;
-        }
-
-        $volute = [];
-
-        if (!$conVarianti) {
-            $product = static::soleProduct($modelId);
-            $postate = static::postedSuppliers($post, 'product_', $modo);
-
-            if (is_array($product) && $postate !== null) {
-                $volute[(int) $product['id']] = $postate;
-            }
-        } else {
-            $vive = [];
-
-            foreach (static::products($modelId) as $product) {
-                $vive[(int) $product['id']] = true;
-            }
-
-            foreach ($righe as $riga) {
-                $productId = (int) ($riga['id'] ?? 0);
-                $postate = static::postedSuppliers($riga, '', $modo);
-
-                if (isset($vive[$productId]) && $postate !== null) {
-                    $volute[$productId] = $postate;
-                }
-            }
-
-            // Una riga nuova lasciata vuota non stacca niente: il generatore
-            // può averle dato lo scheletro, che i suoi fornitori li ha già.
-            // Scritta, sullo scheletro ripreso (`$riprese`) si aggiunge a
-            // quello che lui ha: la sua finestra è nata vuota, e non ha
-            // mostrato i legami che sostituirebbe.
-            foreach ($nate as $chiave => $riga) {
-                $productId = (int) $riga['product_id'];
-                $scritto = is_array($scritte[$chiave] ?? null) ? $scritte[$chiave] : [];
-                $postate = static::postedSuppliers($scritto, '', $modo);
-
-                if ($postate === null || $postate === []) {
-                    continue;
-                }
-
-                if (isset($riprese[$productId])) {
-                    $postate = static::mergeSupplierRows(
-                        $volute[$productId] ?? ProductSuppliers::linksFor([$productId])[$productId] ?? [],
-                        $postate
-                    );
-                }
-
-                $volute[$productId] = $postate;
-            }
-        }
-
-        $salvati = $volute === [] ? [] : ProductSuppliers::linksFor(array_keys($volute));
-
-        foreach ($volute as $productId => $postate) {
-            ProductSuppliers::sync($productId, static::keepStoredCosts($postate, $salvati[$productId] ?? []));
-        }
-
-        ProductSuppliers::dropRemovedOptions($modelId);
-    }
-
-    /**
-     * I fornitori dello scheletro ripreso, con sopra quelli della riga nuova.
-     *
-     * La riga nuova vince fornitore per fornitore, e il suo preferito diventa
-     * quello dell'opzione; gli altri legami restano com'erano, al loro posto.
-     *
-     * @param list<array<string, mixed>> $base quello che lo scheletro ha, o che la sua riga ha postato
-     * @param list<array<string, mixed>> $sopra le righe della riga nuova
-     * @return list<array<string, mixed>>
-     */
-    protected static function mergeSupplierRows(array $base, array $sopra): array
-    {
-        $righe = [];
-        $preferito = null;
-
-        foreach ([$base, $sopra] as $elenco) {
-            foreach ($elenco as $row) {
-                $supplierId = (int) (is_numeric($row['supplier_id'] ?? null) ? $row['supplier_id'] : 0);
-
-                if ($supplierId > 0) {
-                    $righe[$supplierId] = $row;
-                }
-            }
-        }
-
-        foreach ($sopra as $row) {
-            if ($preferito === null && in_array($row['is_preferred'] ?? null, [true, 'true'], true)) {
-                $preferito = (int) (is_numeric($row['supplier_id'] ?? null) ? $row['supplier_id'] : 0);
-            }
-        }
-
-        if ($preferito !== null && isset($righe[$preferito])) {
-            foreach ($righe as $supplierId => $row) {
-                $righe[$supplierId]['is_preferred'] = $supplierId === $preferito ? 'true' : 'false';
-            }
-        }
-
-        return array_values($righe);
-    }
-
-    /**
-     * Il costo si scrive con due decimali e si tiene con quattro: se la
-     * casella dice lo stesso numero arrotondato, resta quello salvato.
-     *
-     * @param list<array<string, mixed>> $postate
-     * @param list<array<string, mixed>> $salvati i legami normalizzati dell'opzione
-     * @return list<array<string, mixed>>
-     */
-    protected static function keepStoredCosts(array $postate, array $salvati): array
-    {
-        $costi = [];
-
-        foreach ($salvati as $row) {
-            if (is_numeric($row['cost'] ?? null)) {
-                $costi[(int) $row['supplier_id']] = (float) $row['cost'];
-            }
-        }
-
-        foreach ($postate as $indice => $row) {
-            $supplierId = (int) (is_numeric($row['supplier_id'] ?? null) ? $row['supplier_id'] : 0);
-            $scritto = Numbers::fromForm(is_scalar($row['cost'] ?? null) ? $row['cost'] : null);
-
-            if (isset($costi[$supplierId]) && $scritto !== null
-                && round((float) $scritto, 2) === round($costi[$supplierId], 2)) {
-                $postate[$indice]['cost'] = number_format($costi[$supplierId], 4, '.', '');
-            }
-        }
-
-        return $postate;
-    }
-
-    /**
-     * Scrive la scorta minima di un prodotto, se è cambiata. L'avviso non lo
-     * tocca: lo rinfresca il movimento che viene dopo, o `saveExtras()` alla
-     * fine.
+     * Scrive la scorta minima di un prodotto sulla sede principale, se è
+     * cambiata: zero è una soglia in meno. L'avviso non lo tocca: lo
+     * rinfresca il movimento che viene dopo, o `saveExtras()` alla fine.
      *
      * @return bool se la soglia è cambiata
      */
@@ -1349,7 +1335,7 @@ class ProductModelResource extends GestionaleResource
             return false;
         }
 
-        Product::update(['min_stock_quantity' => $soglia], $productId);
+        Thresholds::save($productId, [Locations::mainId() => (float) $soglia]);
 
         return true;
     }
@@ -1649,10 +1635,18 @@ class ProductModelResource extends GestionaleResource
             // Prima le soglie, poi i pezzi: ogni movimento rinfresca l'avviso
             // con la soglia che trova.
             $daRinfrescare = static::saveMinStocks($modelId, $post, $righe, $nate, $scritte, $conVarianti);
-            static::saveSupplierCosts($modelId, $post, $righe, $nate, $scritte, $conVarianti, $riprese);
             static::saveNewVersions($modelId, $nate, $scritte, $files, $riprese);
             static::saveRowExtras($modelId, $righe, $files, $conVarianti, $riprese);
+            // Via le eccezioni delle opzioni tolte dalla griglia: il repeater
+            // del core le ha già messe nel cestino, e di un'opzione tolta non
+            // serve sapere quanto costava (P99). Anche senza `purchasing`,
+            // come in `deleteRecord()`: la chiave esterna non guarda le
+            // funzionalità.
+            ProductSuppliers::dropRemovedOptions($modelId);
             static::saveSingleStock($modelId, $post, $conVarianti, $appenaNato);
+            // Con più sedi: le righe del riquadro «Magazzino» o della finestra
+            // della griglia, soglie prima dei pezzi, prodotto per prodotto.
+            static::saveLocationStock($modelId, $post, $righe, $nate, $scritte, $conVarianti, $appenaNato, $riprese);
 
             // Le soglie cambiate senza un pezzo che si muove.
             foreach ($daRinfrescare as $productId) {
@@ -1707,12 +1701,17 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
-     * Le righe che il core deve sincronizzare: quelle che esistono già.
+     * Le righe che il core deve sincronizzare.
      *
-     * Una riga nata da una spunta non ha ancora il suo colore — lo crea
-     * `Generator::run()` dopo, in `afterStore`/`afterUpdate` — e il sync gira
-     * prima: le passerebbe al database con una variante che non c'è, e il
-     * database rifiuterebbe lasciando l'articolo a metà.
+     * Della griglia, quelle che esistono già: una riga nata da una spunta
+     * non ha ancora il suo colore — lo crea `Generator::run()` dopo, in
+     * `afterStore`/`afterUpdate` — e il sync gira prima: le passerebbe al
+     * database con una variante che non c'è, e il database rifiuterebbe
+     * lasciando l'articolo a metà.
+     *
+     * Dei fornitori, quelle con un fornitore: svuotare la riga la stacca,
+     * perché non arriva al repeater, che la toglie. I doppioni la scheda li
+     * ha già rifiutati (`assertSuppliers()`): qui non passano comunque.
      */
     public static function prepareRepeaterRows(
         string $inputName,
@@ -1720,6 +1719,10 @@ class ProductModelResource extends GestionaleResource
         string $action = 'store',
         string $context = 'backend'
     ): array {
+        if ($inputName === 'suppliers') {
+            return static::supplierRows($rows);
+        }
+
         if ($inputName !== 'products') {
             return $rows;
         }
@@ -1728,6 +1731,88 @@ class ProductModelResource extends GestionaleResource
             $rows,
             static fn ($row): bool => is_array($row) && trim((string) ($row['id'] ?? '')) !== ''
         ));
+    }
+
+    /**
+     * Le righe del riquadro «Fornitori» come le vuole
+     * `gst_product_model_suppliers`: fornitore, codice e costo, senza
+     * doppioni e senza righe vuote.
+     *
+     * @param list<array<string, mixed>> $rows quello che il repeater ha postato
+     * @return list<array{id: string, supplier_id: int, supplier_sku: string, cost: string}>
+     */
+    protected static function supplierRows(array $rows): array
+    {
+        $pronte = [];
+        $visti = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row) || ProductSuppliers::isEmptyRow($row)) {
+                continue;
+            }
+
+            $supplierId = (int) (is_numeric($row['supplier_id'] ?? null) ? $row['supplier_id'] : 0);
+
+            if ($supplierId <= 0 || isset($visti[$supplierId])) {
+                continue;
+            }
+
+            $visti[$supplierId] = true;
+
+            $pronte[] = [
+                'id' => trim((string) ($row['id'] ?? '')),
+                'supplier_id' => $supplierId,
+                'supplier_sku' => trim((string) ($row['supplier_sku'] ?? '')),
+                // Vuoto resta vuoto, e la colonna lo scrive NULL: «non lo
+                // so» (P91). I decimali arrivano con la virgola: MySQL non
+                // li accetta.
+                'cost' => Numbers::fromForm(is_scalar($row['cost'] ?? null) ? $row['cost'] : null) ?? '',
+            ];
+        }
+
+        return $pronte;
+    }
+
+    /**
+     * Una riga dei fornitori con un id che non è di questo articolo si salva
+     * come riga nuova.
+     *
+     * Il repeater del core aggiorna per id e riscrive l'articolo della riga:
+     * l'id di un altro articolo (un form copiato o ritoccato) gli porterebbe
+     * via il fornitore, e uno che non c'è più non aggiornerebbe niente,
+     * mentre il legame nuovo se ne andrebbe come non visto.
+     *
+     * Solo quando il repeater `suppliers` è quello dell'articolo: la scheda
+     * dell'opzione (`ProductResource`) ne ha uno con lo stesso nome, sulle
+     * sue righe, e passa di qui.
+     */
+    public static function syncRepeaterRelations(
+        int|string $parentId,
+        array $post,
+        array $files = [],
+        string $action = 'store',
+        string $context = 'backend'
+    ): array {
+        $relation = static::repeaterRelations()['suppliers']['relation'] ?? null;
+
+        if (is_array($post['suppliers'] ?? null)
+            && $relation instanceof RepeaterRelation
+            && $relation->table === ProductModelSupplier::$table) {
+            $proprie = array_map(
+                static fn (array $row): string => (string) $row['id'],
+                static::rowsOf(ProductModelSupplier::class, ['product_model_id' => (int) $parentId, 'deleted' => ['true', 'false']])
+            );
+
+            foreach ($post['suppliers'] as $chiave => $row) {
+                $rowId = is_array($row) && is_scalar($row['id'] ?? null) ? trim((string) $row['id']) : '';
+
+                if (is_array($row) && !in_array($rowId, $proprie, true)) {
+                    $post['suppliers'][$chiave]['id'] = '';
+                }
+            }
+        }
+
+        return parent::syncRepeaterRelations($parentId, $post, $files, $action, $context);
     }
 
     /**
@@ -1824,12 +1909,14 @@ class ProductModelResource extends GestionaleResource
         foreach ($nate as $chiave => $riga) {
             $scritto = is_array($scritte[$chiave] ?? null) ? $scritte[$chiave] : [];
             $productId = (int) $riga['product_id'];
-            $quantita = Stocktake::quantity($scritto['stock'] ?? null);
+            // Con più sedi la colonna è il totale da leggere: i pezzi
+            // arrivano dalle righe per sede, anche per un'opzione che nasce.
+            $quantita = static::stockIsWritable()
+                ? Stocktake::quantity($scritto['stock'] ?? null)
+                : null;
 
             if ($quantita !== null && isset($riprese[$productId])) {
-                if (static::stockIsWritable()) {
-                    static::adjustStock([$productId => $quantita]);
-                }
+                static::adjustStock([$productId => $quantita]);
             } elseif ($quantita !== null) {
                 static::loadInitialStock($productId, $quantita);
             }
@@ -2128,6 +2215,34 @@ class ProductModelResource extends GestionaleResource
         sqlInsert(ProductImage::$table, $pronta);
     }
 
+    /**
+     * Dopo un errore il core ridà al form quello che è arrivato, senza `id`:
+     * le righe della griglia portano ancora il JSON scritto nella finestra
+     * «Giacenza», ma il bottone non si invia e il suo riassunto va rifatto
+     * da lì (P103). Senza più sedi, o senza JSON, non tocca niente.
+     */
+    protected static function withFormStockButtons(array $values): array
+    {
+        if (!is_array($values['products'] ?? null) || !static::hasManyLocations()) {
+            return $values;
+        }
+
+        $mostrate = Locations::shown();
+
+        foreach ($values['products'] as $index => $row) {
+            $json = is_array($row) ? ($row['locations'] ?? null) : null;
+
+            if (is_string($json) && trim($json) !== '') {
+                $values['products'][$index]['stock_button'] = LocationRows::summaryOfRows(
+                    $mostrate,
+                    LocationRows::fromForm($json) ?? []
+                );
+            }
+        }
+
+        return $values;
+    }
+
     /** Riempie il form con ciò che non sta nella tabella del modello. */
     public static function mutateFormValues(
         array $values,
@@ -2147,8 +2262,19 @@ class ProductModelResource extends GestionaleResource
             $values['short_description'] = static::oneLine((string) ($values['short_description'] ?? ''));
         }
 
+        // Con più sedi un articolo nuovo parte con una riga sulla sede
+        // principale, vuota (P102): il repeater non ha relazione, e il core
+        // non ha niente da caricare. Dopo un errore le righe tornano dal form.
+        if ($mode !== 'edit' && static::hasManyLocations() && !is_array($values['locations'] ?? null)) {
+            $values['locations'] = [[
+                'location_id' => (string) Locations::mainId(),
+                'stock' => '',
+                'min_stock' => '',
+            ]];
+        }
+
         if ($mode !== 'edit' || $modelId === 0) {
-            return $values;
+            return static::withFormStockButtons($values);
         }
 
         $values['categories'] = array_map('strval', static::categoryIds($modelId));
@@ -2193,10 +2319,19 @@ class ProductModelResource extends GestionaleResource
             $nomi = static::optionLabels($modelId);
             $foto = static::optionImages($modelId);
 
-            $levels = Levels::forProducts(array_map(
+            $ids = array_map(
                 static fn ($row): int => (int) (is_array($row) ? ($row['id'] ?? 0) : 0),
                 $values['products']
-            ));
+            );
+            $levels = Levels::forProducts($ids);
+            $sedi = static::hasManyLocations();
+            // Con una sede sola la soglia della principale, per la colonna
+            // «Scorta minima»; con più sedi pezzi e soglie per sede, per il
+            // JSON e il riassunto del bottone «Giacenza» (P103).
+            $soglie = $sedi ? [] : static::mainThresholds($ids);
+            $perSede = $sedi ? Levels::byLocationForProducts($ids) : [];
+            $soglieSede = $sedi ? Thresholds::forProducts($ids) : [];
+            $mostrate = $sedi ? Locations::shown() : [];
 
             foreach ($values['products'] as $index => $row) {
                 if (!is_array($row)) {
@@ -2218,28 +2353,89 @@ class ProductModelResource extends GestionaleResource
                 $values['products'][$index]['photo'] = $foto[$productId] ?? '';
                 $values['products'][$index]['combination'] = $nomi[$productId]['key'] ?? '';
 
-                // La soglia della riga, grezza come la giacenza. Una riga
-                // tornata dal form dopo un errore ha già quella scritta.
-                if (!array_key_exists('min_stock', $row)) {
-                    $values['products'][$index]['min_stock'] = static::rawNumber(
-                        (float) ($row['min_stock_quantity'] ?? 0)
-                    );
+                // La soglia della riga, grezza come la giacenza: quella della
+                // sede principale, e vuota se non c'è. Una riga tornata dal
+                // form dopo un errore ha già quella scritta.
+                if (!$sedi && !array_key_exists('min_stock', $row)) {
+                    $soglia = (float) ($soglie[$productId] ?? 0);
+                    $values['products'][$index]['min_stock'] = $soglia > 0 ? static::rawNumber($soglia) : '';
+                }
+
+                // Con più sedi: il JSON delle righe per sede nel campo
+                // nascosto — quello tornato dal form dopo un errore resta —
+                // e il riassunto «Milano 12 · Roma 3» accanto al bottone.
+                if ($sedi) {
+                    $json = $row['locations'] ?? null;
+
+                    if (!is_string($json) || trim($json) === '') {
+                        $values['products'][$index]['locations'] = json_encode(LocationRows::compose(
+                            $mostrate,
+                            $perSede[$productId] ?? [],
+                            $soglieSede[$productId] ?? []
+                        ), JSON_THROW_ON_ERROR);
+                    }
+
+                    // Il riassunto dice quello che c'è nel JSON: i pezzi
+                    // letti, o quelli scritti e tornati dal form.
+                    $values['products'][$index]['stock_button'] = is_string($json) && trim($json) !== ''
+                        ? LocationRows::summaryOfRows($mostrate, LocationRows::fromForm($json) ?? [])
+                        : LocationRows::summary($mostrate, $perSede[$productId] ?? []);
                 }
             }
         }
 
-        if ($unaVersione) {
+        if ($unaVersione && static::hasManyLocations()) {
+            $productId = (int) $product['id'];
+
+            // Le righe per sede (P102): quelle tornate dal form dopo un errore
+            // restano; le altre le compone `LocationRows`, una per sede con
+            // pezzi o soglia. I numeri vanno grezzi, col punto — le cifre e
+            // l'unità le mette AutoNumeric — e una soglia a zero è una
+            // casella vuota.
+            if (!is_array($values['locations'] ?? null)) {
+                $values['locations'] = LocationRows::compose(
+                    Locations::shown(),
+                    Levels::byLocation($productId),
+                    Thresholds::forProduct($productId)
+                );
+            }
+
+            foreach ($values['locations'] as $index => $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                if (is_numeric($row['stock'] ?? null)) {
+                    $values['locations'][$index]['stock'] = static::rawNumber((float) $row['stock']);
+                }
+
+                if (is_numeric($row['min_stock'] ?? null)) {
+                    $soglia = (float) $row['min_stock'];
+                    $values['locations'][$index]['min_stock'] = $soglia > 0 ? static::rawNumber($soglia) : '';
+                }
+            }
+        } elseif ($unaVersione) {
             $values['product_stock'] = static::rawNumber(
                 Levels::of((int) $product['id'])['quantity']
             );
             // Grezza come la giacenza: le cifre e l'unità le mette
-            // AutoNumeric.
-            $values['product_min_stock'] = static::rawNumber(
-                (float) ($product['min_stock_quantity'] ?? 0)
-            );
+            // AutoNumeric. È la soglia della sede principale (P100), e vuota
+            // se non c'è.
+            $soglia = (float) (static::mainThresholds([(int) $product['id']])[(int) $product['id']] ?? 0);
+            $values['product_min_stock'] = $soglia > 0 ? static::rawNumber($soglia) : '';
         }
 
-        $values = static::supplierFormValues($modelId, $values, $product);
+        // Le righe dei fornitori le ha già lette il core, dal database o da
+        // un salvataggio rifiutato. Il costo va alla casella grezzo, col
+        // punto e due decimali: le cifre e la valuta le mette lei, e vuoto
+        // resta vuoto.
+        if (is_array($values['suppliers'] ?? null)) {
+            foreach ($values['suppliers'] as $index => $row) {
+                if (is_array($row) && is_numeric($row['cost'] ?? null)) {
+                    $values['suppliers'][$index]['cost'] = number_format(round((float) $row['cost'], 2), 2, '.', '');
+                }
+            }
+        }
 
         // Un articolo che ha già più opzioni risponde «sì» comunque, anche se
         // la colonna dice altro: è nato prima che la domanda esistesse.
@@ -2263,111 +2459,9 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
-     * Fornitori, codici e costi d'acquisto nel form: sulle righe della
-     * griglia e, con un'opzione sola, nei campi della tendina. Stanno in
-     * `gst_product_suppliers`, non nelle righe che il core ha già letto.
-     *
-     * @param array<string, mixed>|null $product il prodotto unico, se c'è
+     * Una riga nuova del repeater deve avere codice e indirizzo; una riga
+     * vecchia tiene quello che non è cambiato davvero.
      */
-    protected static function supplierFormValues(int $modelId, array $values, ?array $product): array
-    {
-        $modo = static::supplierCostMode($modelId);
-
-        if ($modo === null) {
-            return $values;
-        }
-
-        $righe = is_array($values['products'] ?? null) ? $values['products'] : [];
-        $ids = array_map(static fn ($row): int => (int) (is_array($row) ? ($row['id'] ?? 0) : 0), $righe);
-
-        if ($product !== null) {
-            $ids[] = (int) $product['id'];
-        }
-
-        $legami = ProductSuppliers::linksFor(array_values(array_unique(array_filter($ids))));
-        $scelte = static::supplierChoices($modelId);
-
-        foreach ($righe as $index => $row) {
-            if (is_array($row)) {
-                $values['products'][$index] = static::supplierFields(
-                    $row,
-                    '',
-                    $modo,
-                    $legami[(int) ($row['id'] ?? 0)] ?? [],
-                    $scelte
-                );
-            }
-        }
-
-        if ($product !== null) {
-            $values = static::supplierFields($values, 'product_', $modo, $legami[(int) $product['id']] ?? [], $scelte);
-        }
-
-        return $values;
-    }
-
-    /**
-     * I campi dei fornitori di un'opzione. Dopo un salvataggio rifiutato la
-     * riga torna con quello scritto, e quello resta: si riempie solo quello
-     * che manca. Il riassunto accanto al bottone «Costo» segue il campo
-     * nascosto, cioè quello che il salvataggio terrebbe.
-     *
-     * @param array<string, mixed> $row la riga della griglia, o tutto il form
-     * @param list<array<string, mixed>> $links i legami normalizzati dell'opzione
-     * @param array<int, string> $choices
-     * @return array<string, mixed>
-     */
-    protected static function supplierFields(array $row, string $prefix, string $mode, array $links, array $choices): array
-    {
-        if ($mode === 'flat') {
-            if (array_intersect([$prefix.'supplier_id', $prefix.'supplier_sku', $prefix.'cost'], array_keys($row)) !== []) {
-                return $row;
-            }
-
-            $preferito = ProductSuppliers::preferred($links);
-
-            $row[$prefix.'supplier_id'] = $preferito === null ? '' : (string) $preferito['supplier_id'];
-            $row[$prefix.'supplier_sku'] = (string) ($preferito['supplier_sku'] ?? '');
-            $row[$prefix.'cost'] = static::formCost($preferito['cost'] ?? null);
-
-            return $row;
-        }
-
-        // Vuoto è una finestra mai salvata: i legami sono quelli di prima.
-        $scritto = $row[$prefix.'suppliers'] ?? null;
-
-        if (!is_string($scritto) || trim($scritto) === '') {
-            $row[$prefix.'suppliers'] = (string) json_encode(array_map(
-                static fn (array $link): array => [
-                    'supplier_id' => (int) $link['supplier_id'],
-                    'supplier_sku' => (string) $link['supplier_sku'],
-                    'cost' => static::formCost($link['cost']),
-                    'is_preferred' => (string) $link['is_preferred'],
-                ],
-                $links
-            ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }
-
-        $row[$prefix.'cost_button'] = ProductSuppliers::summary(
-            ProductSuppliers::preferred(
-                ProductSuppliers::normalize(static::supplierRowsFromJson($row[$prefix.'suppliers']) ?? [])
-            ),
-            $choices
-        );
-
-        return $row;
-    }
-
-    /**
-     * Il costo per la casella: grezzo, col punto e due decimali. Le cifre e
-     * la valuta le mette lei, e vuoto resta vuoto.
-     */
-    protected static function formCost(mixed $cost): string
-    {
-        return is_numeric($cost) ? number_format(round((float) $cost, 2), 2, '.', '') : '';
-    }
-
-    /** Una riga nuova del repeater deve avere codice e indirizzo. */
     public static function prepareRepeaterRelationRow(
         string $inputName,
         array $payload,
@@ -2384,6 +2478,19 @@ class ProductModelResource extends GestionaleResource
                 && ($existingRow['status'] ?? '') === 'failed') {
                 $payload['attempts'] = 0;
                 $payload['error'] = '';
+            }
+
+            // Il costo del fornitore si scrive con due decimali e si tiene
+            // con quattro: se la casella dice lo stesso numero arrotondato,
+            // resta quello salvato.
+            if ($inputName === 'suppliers') {
+                $salvato = $existingRow['cost'] ?? null;
+                $scritto = $payload['cost'] ?? null;
+
+                if (is_numeric($salvato) && is_numeric($scritto)
+                    && round((float) $salvato, 2) === round((float) $scritto, 2)) {
+                    $payload['cost'] = (string) $salvato;
+                }
             }
 
             return $payload;
@@ -2441,10 +2548,15 @@ class ProductModelResource extends GestionaleResource
             // I fornitori prima delle opzioni, anche di quelle già tolte dalla
             // griglia e senza `purchasing`: la chiave esterna non lascerebbe
             // eliminare il prodotto, e i legami senza articolo non servono.
-            ProductSuppliers::dropFor(array_map(
+            // Con loro quelli dell'articolo stesso (P95) e le soglie per sede
+            // (P100), che senza prodotto non dicono più niente.
+            $productIds = array_map(
                 static fn (array $product): int => (int) $product['id'],
                 static::rowsOf(Product::class, ['product_model_id' => $modelId, 'deleted' => ['true', 'false']])
-            ));
+            );
+            ProductSuppliers::dropFor($productIds);
+            ProductSuppliers::dropForModels([$modelId]);
+            Thresholds::dropFor($productIds);
 
             // Anche le opzioni tolte dalla griglia, prima delle varianti: una
             // riga nel cestino tiene ferma la sua variante come le altre.
@@ -3091,7 +3203,8 @@ HTML)->tag('div');
                 });
             });
 
-            // Le stesse due colonne della griglia. `[stock]` non prende
+            // Le stesse due colonne della griglia, delle righe per sede e
+            // della finestra «Giacenza» (P102, P103). `[stock]` non prende
             // `[min_stock]`: ognuna ha il suo selettore.
             ['stock', 'min_stock'].forEach(function (chiave) {
                 var fine = '[name\$="[' + chiave + ']"]';
@@ -3100,13 +3213,15 @@ HTML)->tag('div');
                 // decimali, li mostrano tutte.
                 var righe = Array.prototype.slice.call(document.querySelectorAll(
                     '[data-wi-repeater="products"] input[name^="products["]' + fine
+                    + ', [data-wi-repeater="locations"] input[name^="locations["]' + fine
+                    + ', input[name^="wi_location_stock["]' + fine
                 ));
                 var colonna = righe.some(function (campo) { return frazionario(numero(campo)); }) ? 3 : cifre;
 
                 righe.forEach(function (campo) { formatta(campo, colonna, simbolo); });
 
                 // Le righe che nasceranno: AutoNumeric le legge dal modello.
-                document.querySelectorAll('[data-wi-repeater="products"] template').forEach(function (modello) {
+                document.querySelectorAll('[data-wi-repeater="products"] template, [data-wi-repeater="locations"] template').forEach(function (modello) {
                     modello.content.querySelectorAll('input' + fine).forEach(function (campo) {
                         campo.setAttribute('data-wi-number-decimal', String(colonna));
                         campo.setAttribute('data-wi-number-symbol', simbolo);
@@ -3789,130 +3904,30 @@ HTML)->tag('div');
         static::$catalogAttributes = null;
         static::$catalogValues = null;
         self::$supplierChoices = [];
-        self::$supplierLinks = [];
-        self::$inactiveSuppliers = [];
     }
 
     /**
-     * I fornitori che la scheda propone, id => nome: gli attivi, più quelli
-     * già legati a un'opzione in vendita dell'articolo anche se non lo sono
-     * più (P92). Senza, la tendina posterebbe vuoto e staccherebbe un
-     * fornitore solo perché è stato messo su «Non attivo».
+     * I fornitori che il riquadro propone, id => nome: gli attivi, più quelli
+     * già legati all'articolo anche se non lo sono più (P92). Senza, la
+     * tendina posterebbe vuoto e staccherebbe un fornitore solo perché è
+     * stato messo su «Non attivo».
      *
-     * Schema, layout, controllo e salvataggio leggono la stessa risposta: è
-     * lei a scegliere fra le tre caselle e la finestra. Si legge una volta
-     * per articolo e per richiesta, come attributi e valori.
+     * Schema, layout e controllo leggono la stessa risposta, una volta per
+     * articolo e per richiesta, come attributi e valori.
      *
      * @return array<int, string>
      */
     protected static function supplierChoices(int $modelId): array
     {
         if (!array_key_exists($modelId, self::$supplierChoices)) {
-            self::$supplierChoices[$modelId] = Contacts::supplierOptions(
-                array_merge([], ...array_values(static::supplierLinks($modelId)))
-            );
+            $legati = $modelId > 0
+                ? array_column(ProductSuppliers::modelLinksFor([$modelId])[$modelId] ?? [], 'supplier_id')
+                : [];
+
+            self::$supplierChoices[$modelId] = Contacts::supplierOptions(array_map('intval', $legati));
         }
 
         return self::$supplierChoices[$modelId];
-    }
-
-    /**
-     * I fornitori legati alle opzioni in vendita dell'articolo, per opzione.
-     *
-     * @return array<int, list<int>> id dell'opzione => id dei fornitori
-     */
-    protected static function supplierLinks(int $modelId): array
-    {
-        if ($modelId <= 0) {
-            return [];
-        }
-
-        if (!array_key_exists($modelId, self::$supplierLinks)) {
-            $prodotti = array_map(
-                static fn (array $product): int => (int) ($product['id'] ?? 0),
-                static::products($modelId)
-            );
-            $legati = [];
-
-            foreach (ProductSuppliers::linksFor($prodotti) as $productId => $legami) {
-                $legati[(int) $productId] = array_map(
-                    static fn (array $legame): int => (int) $legame['supplier_id'],
-                    $legami
-                );
-            }
-
-            self::$supplierLinks[$modelId] = $legati;
-        }
-
-        return self::$supplierLinks[$modelId];
-    }
-
-    /**
-     * I fornitori che la scheda propone solo perché già legati: sono su
-     * «Non attivo». Restano nella scelta delle opzioni che li usano, e non
-     * compaiono per le altre (P92).
-     *
-     * Il database si guarda solo se l'articolo ha dei legami.
-     *
-     * @return list<int>
-     */
-    protected static function inactiveSupplierIds(int $modelId): array
-    {
-        if (!array_key_exists($modelId, self::$inactiveSuppliers)) {
-            $inattivi = [];
-
-            if (static::supplierLinks($modelId) !== []) {
-                $attivi = Contacts::supplierOptions();
-
-                foreach (array_keys(static::supplierChoices($modelId)) as $id) {
-                    if (!isset($attivi[$id])) {
-                        $inattivi[] = (int) $id;
-                    }
-                }
-            }
-
-            self::$inactiveSuppliers[$modelId] = $inattivi;
-        }
-
-        return self::$inactiveSuppliers[$modelId];
-    }
-
-    /**
-     * I fornitori che un'opzione può avere: quelli della scheda, meno i non
-     * attivi che non sono già suoi (P92).
-     *
-     * Un'opzione che non è dell'articolo — una riga nuova, un id di un altro
-     * articolo — ha solo quelli attivi. Il modo, tre caselle o finestra,
-     * resta dell'articolo: lo sceglie `supplierChoices()`.
-     *
-     * @return array<int, string>
-     */
-    protected static function supplierChoicesFor(int $modelId, int $productId): array
-    {
-        $scelte = static::supplierChoices($modelId);
-        $suoi = static::supplierLinks($modelId)[$productId] ?? [];
-
-        foreach (static::inactiveSupplierIds($modelId) as $id) {
-            if (!in_array($id, $suoi, true)) {
-                unset($scelte[$id]);
-            }
-        }
-
-        return $scelte;
-    }
-
-    /**
-     * Come si scrive il costo d'acquisto: `null` senza la funzionalità,
-     * `modal` da due fornitori proponibili in su (il bottone «Costo» e la
-     * finestra, P89), `flat` altrimenti (tre caselle, P88).
-     */
-    protected static function supplierCostMode(int $modelId): ?string
-    {
-        if (!Gestionale::feature('purchasing')) {
-            return null;
-        }
-
-        return count(static::supplierChoices($modelId)) >= 2 ? 'modal' : 'flat';
     }
 
     /** I valori degli attributi a elenco, per id. @return array<int, array<string, mixed>> */
@@ -4640,10 +4655,12 @@ HTML)->tag('div');
 
         // La soglia dell'avviso di ogni opzione, scritta come la giacenza:
         // i decimali dell'unità e l'unità in coda. Senza la funzionalità non
-        // esiste.
+        // esiste; con più sedi è una per sede, e sta nella finestra
+        // «Giacenza» (P103).
         $soglia = null;
+        $sedi = static::hasManyLocations();
 
-        if (Gestionale::feature('low_stock_alerts')) {
+        if (Gestionale::feature('low_stock_alerts') && !$sedi) {
             $soglia = static::minStockInput(
                 RepeaterColumn::key('min_stock'),
                 $modelId,
@@ -4652,39 +4669,6 @@ HTML)->tag('div');
         }
 
         $larghezza = $soglia === null ? 4 : 3;
-
-        // Il costo d'acquisto di ogni opzione (P88, P89): con al più un
-        // fornitore proponibile tre caselle, un terzo di riga ciascuna, sotto
-        // lo stato; da due in su il bottone «Costo», che apre la finestra con
-        // una riga per fornitore e ne riporta i dati nella colonna nascosta.
-        $fornitori = [];
-        $avanzate = [];
-
-        switch (static::supplierCostMode($modelId)) {
-            case 'flat':
-                $fornitori = [
-                    RepeaterColumn::key('supplier_id')
-                        ->select(['' => '—'] + static::supplierChoices($modelId))
-                        ->label('Fornitore')
-                        ->columnSpan(4),
-                    RepeaterColumn::key('supplier_sku')->text()->maxLength(ProductSuppliers::SKU_MAX_LENGTH)->label('Codice fornitore')->columnSpan(4),
-                    RepeaterColumn::key('cost')->price()->decimal(2)->label('Costo d\'acquisto')->columnSpan(4),
-                ];
-                $avanzate = ['supplier_id', 'supplier_sku', 'cost'];
-                break;
-
-            case 'modal':
-                $fornitori = [
-                    RepeaterColumn::key('suppliers')->hidden(),
-                    RepeaterColumn::key('cost_button')
-                        ->button('Costo')
-                        ->opensModal(static::SUPPLIER_COSTS_MODAL)
-                        ->emptyCaption('Nessun fornitore')
-                        ->columnSpan(12),
-                ];
-                $avanzate = ['cost_button'];
-                break;
-        }
 
         $campo = FormField::key('products')
             ->repeater([
@@ -4707,21 +4691,25 @@ HTML)->tag('div');
                 // una casella di sola lettura viene postata lo stesso, e
                 // scriverebbe "S" al posto di "Blu / S".
                 // Quello che si compila sempre: come si chiama, quanto
-                // costa, quanti ce ne sono. Undici dodicesimi, perché il
-                // dodicesimo è del cestino.
-                RepeaterColumn::key('option')->text()->readonly()->label('Opzione')->columnSpan(7),
+                // costa, a quanto è scontato, quanti ce ne sono. Undici
+                // dodicesimi, perché il dodicesimo è del cestino.
+                RepeaterColumn::key('option')->text()->readonly()->label('Opzione')->columnSpan(5),
                 RepeaterColumn::key('price')->price()->decimal(2)->label('Prezzo')->columnSpan(2),
+                // Lo scontato accanto al prezzo, come nel riquadro in alto
+                // (P105): vuoto vuol dire che non c'è sconto. È una colonna
+                // di `gst_products`, e la scrive il repeater del core.
+                RepeaterColumn::key('sale_price')->price()->decimal(2)->label('Scontato')->columnSpan(2),
                 // Scrivibile finché il magazzino ha una sede sola: si scrive
                 // quanti pezzi ci sono, e il pannello fa il movimento della
                 // differenza. Una casella lasciata com'era non muove niente.
                 // Con due sedi il numero sarebbe ambiguo — mostra il totale e
                 // scriverebbe sulla principale — e la casella si legge e
-                // basta.
+                // basta, anche in creazione: i pezzi si scrivono sede per
+                // sede dalla finestra «Giacenza», e due porte sulla sede
+                // principale si contenderebbero il numero.
                 $giacenza
                     ->label('Giacenza')
-                    // In creazione si scrive anche con più sedi: è un carico
-                    // iniziale, e va sulla sede principale.
-                    ->readonly($modelId > 0 && !static::stockIsWritable())
+                    ->readonly(!static::stockIsWritable())
                     ->columnSpan(2),
                 // Dietro «Compila le informazioni avanzate»: chi carica un
                 // articolo nuovo quasi mai ha già il codice a barre in mano.
@@ -4733,7 +4721,18 @@ HTML)->tag('div');
                     ->select(['true' => 'Attivo', 'false' => 'Fermo'])
                     ->label('Stato')
                     ->columnSpan($larghezza),
-                ...$fornitori,
+                // Con più sedi (P103): il JSON delle righe per sede, che la
+                // finestra «Giacenza» legge e riscrive, e il bottone che la
+                // apre, con accanto «Milano 12 · Roma 3». Prende il posto
+                // della scorta minima, che con più sedi è una per sede.
+                ...($sedi ? [
+                    RepeaterColumn::key('locations')->hidden(),
+                    RepeaterColumn::key('stock_button')
+                        ->button('Giacenza')
+                        ->opensModal(static::LOCATIONS_MODAL)
+                        ->emptyCaption('Nessun pezzo')
+                        ->columnSpan(12),
+                ] : []),
                 // Un rettangolo su cui si trascina un file non si legge
                 // stretto: prende la riga intera del blocco.
                 RepeaterColumn::key('photo')->fileDragDrop('gallery')->label('Foto o video')->columnSpan(12),
@@ -4750,7 +4749,7 @@ HTML)->tag('div');
             ->repeaterStartEmpty()
             ->repeaterAdvanced(...[
                 ...($soglia === null ? ['sku', 'ean', 'active'] : ['sku', 'ean', 'min_stock', 'active']),
-                ...$avanzate,
+                ...($sedi ? ['stock_button'] : []),
                 'photo',
             ])
             ->repeaterAdvancedLabel('Compila le informazioni avanzate')
@@ -4787,6 +4786,585 @@ HTML)->tag('div');
         }
 
         return $campo;
+    }
+
+    /**
+     * Le righe «Giacenza per sede» dell'articolo senza varianti, con più
+     * sedi (P102): sede, pezzi e scorta minima di quella.
+     *
+     * È un repeater senza relazione: le righe le compone `mutateFormValues()`
+     * — una per sede con pezzi o soglia — e le legge `saveLocationStock()`,
+     * che passa da `LocationRows` e `LocationStock` come la scheda
+     * dell'opzione. La giacenza si scrive come nella casella di prima: quanti
+     * ce ne sono, e il magazzino fa il movimento della differenza; vuota vuol
+     * dire non toccare. Togliere una riga chiede conferma: la sede perde la
+     * sua soglia, non i pezzi.
+     */
+    protected static function stockRowsField(int $modelId): Input
+    {
+        $soglia = Gestionale::feature('low_stock_alerts');
+        $products = $modelId > 0 ? static::products($modelId) : [];
+        $formato = static::locationFormat($modelId, $products);
+
+        $giacenza = RepeaterColumn::key('stock')
+            ->number()
+            ->decimal($formato['stock'])
+            ->label('Giacenza')
+            ->columnSpan($soglia ? 3 : 4);
+        $minima = RepeaterColumn::key('min_stock')
+            ->number()
+            ->decimal($formato['min_stock'])
+            ->label('Scorta minima')
+            ->columnSpan(3);
+
+        if ($formato['suffix'] !== '') {
+            $giacenza->suffix($formato['suffix']);
+            $minima->suffix($formato['suffix']);
+        }
+
+        // Undici dodicesimi: il dodicesimo è del cestino.
+        $colonne = [
+            RepeaterColumn::key('location_id')
+                ->select(['' => '—'] + static::locationChoices())
+                ->label('Sede')
+                ->columnSpan($soglia ? 5 : 7),
+            $giacenza,
+        ];
+
+        if ($soglia) {
+            $colonne[] = $minima;
+        }
+
+        return FormField::key('locations')
+            ->repeater($colonne)
+            ->nested()
+            ->repeaterAddLabel('Aggiungi sede')
+            ->repeaterDeleteTitle('Togli sede')
+            ->repeaterDeleteText('Questa sede perde la sua scorta minima al salvataggio. I pezzi restano dove sono: finché ne ha, la riga ricompare.')
+            ->repeaterDeleteCancelLabel('Annulla')
+            ->repeaterDeleteConfirmLabel('Togli')
+            ->repeaterDeleteConfirmClass('btn btn-danger')
+            ->label('Giacenza per sede');
+    }
+
+    /**
+     * La finestra «Giacenza» della griglia, con più sedi (P103): una riga
+     * per sede, con la sede, i pezzi e la scorta minima di quella.
+     *
+     * Non è legata a nessuna riga della griglia: il bottone che la apre le
+     * passa il JSON della sua opzione, e «Salva» glielo riporta nel campo
+     * nascosto `locations` (`locationStockScript()`). Le righe sono tante
+     * quante le sedi — più di così non se ne possono scegliere — e stanno
+     * nascoste finché non servono: «Aggiungi sede» ne mostra una, la «x» la
+     * svuota e la nasconde. I suoi campi escono dal form con la finestra, e
+     * `withoutExtras()` li scarta: quello che conta è il JSON.
+     */
+    protected static function locationStockModal(int $modelId): Modal
+    {
+        $soglia = Gestionale::feature('low_stock_alerts');
+        $sedi = static::locationChoices();
+        $products = $modelId > 0 ? static::products($modelId) : [];
+        $formato = static::locationFormat($modelId, $products);
+
+        // Le intestazioni una volta sola, sopra le righe.
+        $components = [
+            RichText::make(
+                '<div class="row g-3 small text-body-secondary">'
+                .'<div class="col-'.($soglia ? 5 : 7).'">Sede</div>'
+                .'<div class="col-'.($soglia ? 3 : 4).'">Giacenza</div>'
+                .($soglia ? '<div class="col-3">Scorta minima</div>' : '')
+                .'<div class="col-1"></div>'
+                .'</div>'
+            )->tag('div')->columnSpan(12),
+        ];
+
+        for ($i = 0, $n = count($sedi); $i < $n; $i++) {
+            $giacenza = FormField::key('wi_location_stock['.$i.'][stock]')
+                ->number()
+                ->decimal($formato['stock'])
+                ->label('')
+                ->columnSpan($soglia ? 3 : 4);
+            $minima = FormField::key('wi_location_stock['.$i.'][min_stock]')
+                ->number()
+                ->decimal($formato['min_stock'])
+                ->label('')
+                ->columnSpan(3);
+
+            if ($formato['suffix'] !== '') {
+                $giacenza->suffix($formato['suffix']);
+                $minima->suffix($formato['suffix']);
+            }
+
+            $campi = [
+                FormField::key('wi_location_stock['.$i.'][location_id]')
+                    ->select(['' => '—'] + $sedi)
+                    ->label('')
+                    ->columnSpan($soglia ? 5 : 7),
+                $giacenza,
+            ];
+
+            if ($soglia) {
+                $campi[] = $minima;
+            }
+
+            $campi[] = FormField::key('wi_location_stock_remove')
+                ->button('')
+                ->icon('bi bi-x-lg')
+                ->size('sm')
+                ->attribute('data-wi-location-remove="'.$i.'" title="Togli la sede" aria-label="Togli la sede"')
+                ->columnSpan(1);
+
+            $components[] = (new Container)->components($campi)
+                ->attr('data-wi-location-line', (string) $i)
+                ->columns(12)
+                ->columnSpan(12);
+        }
+
+        return Modal::make('Giacenza')
+            ->id(static::LOCATIONS_MODAL)
+            ->size('lg')
+            ->columns(12)
+            ->components($components)
+            ->footer([
+                Button::make('Aggiungi sede')->variant('secondary')->outline()->attr('data-wi-location-add', 'true'),
+                Button::make('Annulla')->variant('secondary')->attr('data-bs-dismiss', 'modal'),
+                Button::make('Salva')->attr('data-wi-location-stock-save', 'true'),
+            ]);
+    }
+
+    /**
+     * Il codice della finestra «Giacenza» (P103).
+     *
+     * All'apertura legge il JSON della riga che l'ha aperta — la colonna
+     * nascosta `locations` — e riempie una riga della finestra per ogni
+     * sede scritta; senza righe ne mostra una vuota sulla sede principale.
+     * «Salva» riscrive il JSON con le righe che hanno una sede, nello stesso
+     * formato del server (`location_id`, `stock`, `min_stock`; casella vuota
+     * = `""`), e aggiorna il riassunto accanto al bottone, «Milano 12 ·
+     * Roma 3». La scheda si salva con il suo Salva: è `saveLocationStock()`
+     * che legge il JSON, e un JSON mai toccato rettifica zero pezzi.
+     */
+    protected static function locationStockScript(): RichText
+    {
+        $sedi = [];
+
+        foreach (static::locationChoices() as $id => $nome) {
+            $sedi[] = ['id' => (int) $id, 'name' => $nome];
+        }
+
+        $dati = static::escape(json_encode($sedi, JSON_THROW_ON_ERROR));
+        $principale = (int) Locations::mainId();
+
+        return RichText::make(
+            '<div class="wi-location-stock" data-wi-location-names="'.$dati.'"'
+            .' data-wi-location-main="'.$principale.'"></div>'
+            .<<<'HTML'
+<script>
+    window.wiLocationStock = window.wiLocationStock || (function () {
+        var FINESTRA = 'wi-location-stock';
+        // Il campo nascosto e il bottone della riga che ha aperto la finestra.
+        var aperta = null;
+
+        function radice() {
+            return document.querySelector('.wi-location-stock');
+        }
+
+        function sedi() {
+            var elemento = radice();
+
+            try {
+                var valori = JSON.parse(elemento ? elemento.getAttribute('data-wi-location-names') || '[]' : '[]');
+
+                return Array.isArray(valori) ? valori : [];
+            } catch (errore) {
+                return [];
+            }
+        }
+
+        function principale() {
+            var elemento = radice();
+
+            return elemento ? String(elemento.getAttribute('data-wi-location-main') || '') : '';
+        }
+
+        function nomeSede(id) {
+            var nome = '';
+
+            sedi().forEach(function (sede) {
+                if (String(sede.id) === String(id)) {
+                    nome = String(sede.name || '');
+                }
+            });
+
+            return nome !== '' ? nome : 'Sede n. ' + id;
+        }
+
+        function autoNumeric(campo) {
+            return window.AutoNumeric && typeof window.AutoNumeric.getAutoNumericElement === 'function'
+                ? window.AutoNumeric.getAutoNumericElement(campo)
+                : null;
+        }
+
+        // Il numero nella casella, col punto: «» se vuota. AutoNumeric
+        // quando c'è, se no letto come lo scrive una persona — «2,5 kg»,
+        // «1.234,5».
+        function numeroDi(campo) {
+            var an = autoNumeric(campo);
+            var testo;
+
+            if (an) {
+                testo = String(an.getNumericString() || '');
+
+                return testo === '' || isNaN(Number(testo)) ? '' : testo;
+            }
+
+            testo = String(campo.value || '').replace(/[^0-9.,-]/g, '');
+
+            if (testo.indexOf(',') !== -1) {
+                testo = testo.replace(/\./g, '').replace(',', '.');
+            }
+
+            return testo === '' || isNaN(Number(testo)) ? '' : String(Number(testo));
+        }
+
+        function scrivi(campo, valore) {
+            var vuoto = valore === null || valore === undefined || valore === '' || isNaN(Number(valore));
+            var an = autoNumeric(campo);
+
+            if (an) {
+                if (vuoto) {
+                    an.clear();
+                } else {
+                    an.set(Number(valore));
+                }
+
+                return;
+            }
+
+            campo.value = vuoto ? '' : String(Number(valore));
+        }
+
+        // «12» o «2,5», come il riassunto che scrive il server.
+        function quantita(valore) {
+            var numero = Math.round(Number(valore) * 1000) / 1000;
+
+            return String(numero).replace('.', ',');
+        }
+
+        function linee(finestra) {
+            return Array.prototype.slice.call(finestra.querySelectorAll('[data-wi-location-line]'));
+        }
+
+        function caselle(linea) {
+            var i = linea.getAttribute('data-wi-location-line');
+
+            return {
+                sede: linea.querySelector('[name="wi_location_stock[' + i + '][location_id]"]'),
+                pezzi: linea.querySelector('[name="wi_location_stock[' + i + '][stock]"]'),
+                soglia: linea.querySelector('[name="wi_location_stock[' + i + '][min_stock]"]')
+            };
+        }
+
+        // La cella che contiene la riga, quando il tema la incolonna.
+        function cella(linea) {
+            var padre = linea.parentElement;
+
+            return padre && /(^|\s)col-/.test(padre.className || '') ? padre : linea;
+        }
+
+        function nascosta(linea) {
+            return cella(linea).hidden === true;
+        }
+
+        function mostra(linea, si) {
+            cella(linea).hidden = !si;
+        }
+
+        function svuota(linea) {
+            var c = caselle(linea);
+
+            if (c.sede) {
+                c.sede.value = '';
+            }
+
+            if (c.pezzi) {
+                scrivi(c.pezzi, null);
+            }
+
+            if (c.soglia) {
+                scrivi(c.soglia, null);
+            }
+        }
+
+        // «Aggiungi sede» si spegne quando le righe sono tutte fuori.
+        function aggiorna(finestra) {
+            var bottone = finestra.querySelector('[data-wi-location-add]');
+
+            if (bottone) {
+                bottone.disabled = linee(finestra).filter(nascosta).length === 0;
+            }
+        }
+
+        // Il campo nascosto della riga del bottone.
+        function campoDi(bottone) {
+            var riga = bottone.closest('.wi-repeater-row');
+
+            return riga ? riga.querySelector('input[name$="[locations]"]') : null;
+        }
+
+        // Il nome dell'opzione, per il titolo: «Blu / S».
+        function nomeDi(bottone) {
+            var riga = bottone.closest('.wi-repeater-row');
+
+            if (!riga) {
+                return '';
+            }
+
+            var gruppo = riga.querySelector('input[name$="[group]"]');
+            var opzione = riga.querySelector('input[name$="[option]"]');
+            var g = gruppo ? String(gruppo.value || '').trim() : '';
+            var o = opzione ? String(opzione.value || '').trim() : '';
+
+            return g !== '' && o !== '' && g !== o ? g + ' / ' + o : (o || g);
+        }
+
+        function righe(campo) {
+            try {
+                var elenco = JSON.parse(campo && campo.value ? campo.value : '[]');
+
+                return Array.isArray(elenco) ? elenco : [];
+            } catch (errore) {
+                return [];
+            }
+        }
+
+        function riempi(finestra, campo) {
+            var elenco = righe(campo);
+            var tutte = linee(finestra);
+
+            tutte.forEach(function (linea, i) {
+                var riga = elenco[i] && typeof elenco[i] === 'object' ? elenco[i] : null;
+                var c = caselle(linea);
+
+                svuota(linea);
+
+                if (riga === null) {
+                    mostra(linea, false);
+
+                    return;
+                }
+
+                if (c.sede) {
+                    c.sede.value = String(riga.location_id === undefined || riga.location_id === null ? '' : riga.location_id);
+                }
+
+                if (c.pezzi) {
+                    scrivi(c.pezzi, riga.stock);
+                }
+
+                // Una soglia a zero è una casella vuota: «non avvisarmi».
+                if (c.soglia) {
+                    scrivi(c.soglia, Number(riga.min_stock) > 0 ? riga.min_stock : null);
+                }
+
+                mostra(linea, true);
+            });
+
+            // Senza righe se ne mostra una, sulla sede principale: qualcosa
+            // da compilare.
+            if (elenco.length === 0 && tutte.length > 0) {
+                var prima = caselle(tutte[0]);
+
+                if (prima.sede) {
+                    prima.sede.value = principale();
+                }
+
+                mostra(tutte[0], true);
+            }
+
+            aggiorna(finestra);
+        }
+
+        // La prima riga nascosta esce, con la prima sede non ancora scelta.
+        function aggiungi(finestra) {
+            var tutte = linee(finestra);
+            var libera = tutte.filter(nascosta)[0] || null;
+
+            if (libera === null) {
+                return;
+            }
+
+            var scelte = tutte.filter(function (linea) { return !nascosta(linea); }).map(function (linea) {
+                var c = caselle(linea);
+
+                return c.sede ? String(c.sede.value || '') : '';
+            });
+            var proposta = sedi().filter(function (sede) { return scelte.indexOf(String(sede.id)) === -1; })[0] || null;
+            var c = caselle(libera);
+
+            svuota(libera);
+
+            if (c.sede && proposta !== null) {
+                c.sede.value = String(proposta.id);
+            }
+
+            mostra(libera, true);
+            aggiorna(finestra);
+        }
+
+        function didascalia(bottone, elenco) {
+            var posto = bottone && bottone.parentElement ? bottone.parentElement.querySelector('[data-wi-button-caption]') : null;
+
+            if (!posto) {
+                return;
+            }
+
+            var parti = [];
+
+            elenco.forEach(function (riga) {
+                if (riga.stock !== '' && Number(riga.stock) !== 0) {
+                    parti.push(nomeSede(riga.location_id) + ' ' + quantita(riga.stock));
+                }
+            });
+
+            posto.textContent = parti.length > 0 ? parti.join(' · ') : 'Nessun pezzo';
+        }
+
+        function salva(finestra) {
+            if (!aperta || !aperta.campo) {
+                return;
+            }
+
+            var elenco = [];
+
+            // Nell'ordine della finestra, solo le righe con una sede: una
+            // riga senza sede non dice niente. Casella vuota = «», che per
+            // il server vuol dire non toccare i pezzi, o nessuna soglia.
+            linee(finestra).forEach(function (linea) {
+                if (nascosta(linea)) {
+                    return;
+                }
+
+                var c = caselle(linea);
+                var sede = c.sede ? String(c.sede.value || '') : '';
+
+                if (sede === '') {
+                    return;
+                }
+
+                var pezzi = c.pezzi ? numeroDi(c.pezzi) : '';
+                var soglia = c.soglia ? numeroDi(c.soglia) : '';
+
+                elenco.push({
+                    location_id: Number(sede),
+                    stock: pezzi === '' ? '' : Number(pezzi),
+                    min_stock: soglia === '' ? '' : Number(soglia)
+                });
+            });
+
+            aperta.campo.value = JSON.stringify(elenco);
+            aperta.campo.dispatchEvent(new Event('change', { bubbles: true }));
+            didascalia(aperta.bottone, elenco);
+        }
+
+        function avvia() {
+            if (window.wiLocationStockReady) {
+                return;
+            }
+
+            window.wiLocationStockReady = true;
+
+            document.addEventListener('show.bs.modal', function (evento) {
+                var finestra = evento.target;
+                var bottone = evento.relatedTarget || null;
+
+                if (!finestra || finestra.id !== FINESTRA) {
+                    return;
+                }
+
+                aperta = bottone ? { bottone: bottone, campo: campoDi(bottone) } : null;
+
+                var titolo = finestra.querySelector('[data-wi-modal-title]');
+                var nome = bottone ? nomeDi(bottone) : '';
+
+                if (titolo) {
+                    titolo.textContent = nome !== '' ? 'Giacenza · ' + nome : 'Giacenza';
+                }
+
+                if (typeof setAutonumeric === 'function') {
+                    setAutonumeric(finestra);
+                }
+
+                riempi(finestra, aperta ? aperta.campo : null);
+            });
+
+            document.addEventListener('click', function (evento) {
+                var bersaglio = evento.target && evento.target.closest ? evento.target : null;
+
+                if (!bersaglio) {
+                    return;
+                }
+
+                var togli = bersaglio.closest('[data-wi-location-remove]');
+
+                // La «x»: la riga si svuota e torna nascosta.
+                if (togli) {
+                    var linea = togli.closest('[data-wi-location-line]');
+                    var dentro = togli.closest('#' + FINESTRA);
+
+                    evento.preventDefault();
+
+                    if (linea && dentro) {
+                        svuota(linea);
+                        mostra(linea, false);
+                        aggiorna(dentro);
+                    }
+
+                    return;
+                }
+
+                var aggiungiSede = bersaglio.closest('[data-wi-location-add]');
+
+                if (aggiungiSede) {
+                    var finestraDaAllargare = aggiungiSede.closest('#' + FINESTRA);
+
+                    evento.preventDefault();
+
+                    if (finestraDaAllargare) {
+                        aggiungi(finestraDaAllargare);
+                    }
+
+                    return;
+                }
+
+                var conferma = bersaglio.closest('[data-wi-location-stock-save]');
+
+                if (!conferma) {
+                    return;
+                }
+
+                var finestra = conferma.closest('.modal');
+
+                evento.preventDefault();
+                salva(finestra);
+
+                if (window.bootstrap && window.bootstrap.Modal) {
+                    window.bootstrap.Modal.getOrCreateInstance(finestra).hide();
+                }
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', avvia);
+        } else {
+            avvia();
+        }
+
+        return avvia;
+    })();
+</script>
+HTML
+        )->tag('div');
     }
 
     /**
@@ -4962,11 +5540,60 @@ HTML)->tag('div');
      * La casella mostra il totale di tutte le sedi e scriverebbe sulla
      * principale: con una sede sola le due cose coincidono, con due no, e
      * riscrivere il numero sposterebbe la merce da una sede all'altra senza
-     * dirlo. Dalla seconda in poi si legge e si rettifica dal magazzino.
+     * dirlo. Dalla seconda sede mostrata in poi si legge e basta, e i pezzi
+     * si scrivono sede per sede (P102, P103).
      */
     public static function stockIsWritable(): bool
     {
-        return count(static::rowsOf(Location::class, ['has_stock' => 'true'])) <= 1;
+        return count(Locations::shown()) <= 1;
+    }
+
+    /** Se il magazzino mostra due o più sedi (P102): la scheda le scrive una per una. */
+    protected static function hasManyLocations(): bool
+    {
+        return count(Locations::shown()) >= 2;
+    }
+
+    /**
+     * Le sedi da mostrare come voci di una tendina: `[id => nome]`.
+     *
+     * @return array<int, string>
+     */
+    protected static function locationChoices(): array
+    {
+        $sedi = [];
+
+        foreach (Locations::shown() as $sede) {
+            $sedi[(int) ($sede['id'] ?? 0)] = (string) ($sede['label'] ?? '');
+        }
+
+        return $sedi;
+    }
+
+    /**
+     * La scorta minima della sede principale di ogni prodotto (P100), zero
+     * dove non c'è: è quella che la scheda mostra e scrive finché il
+     * magazzino ha una sede sola.
+     *
+     * @param list<int> $productIds
+     * @return array<int, float> `[productId => soglia]`
+     */
+    protected static function mainThresholds(array $productIds): array
+    {
+        $productIds = array_values(array_unique(array_filter(array_map('intval', $productIds))));
+
+        if ($productIds === []) {
+            return [];
+        }
+
+        $principale = Locations::mainId();
+        $soglie = [];
+
+        foreach (Thresholds::forProducts($productIds) as $productId => $perSede) {
+            $soglie[(int) $productId] = (float) ($perSede[$principale] ?? 0);
+        }
+
+        return $soglie;
     }
 
     /** L'attributo con pagina propria, se il negozio ne ha uno. */
@@ -5233,9 +5860,8 @@ HTML)->tag('div');
 
         // Si scrive quanti pezzi ci sono: il movimento della differenza lo
         // fa il pannello. Con più sedi il numero sarebbe ambiguo, e la
-        // casella si legge e basta — ma non in creazione: su un articolo che
-        // nasce non c'è niente da rendere ambiguo, e il numero entra come
-        // giacenza iniziale nella sede principale.
+        // casella si legge e basta, anche in creazione: i pezzi si scrivono
+        // nelle righe per sede.
         //
         // I decimali sono quelli dell'unità, e l'unità sta in coda: «12 pz»,
         // «2,500 kg». Cambiare l'unità in «Misure» li cambia al volo.
@@ -5252,7 +5878,7 @@ HTML)->tag('div');
         }
 
         $fields[] = $giacenza
-            ->readonly($modelId > 0 && !static::stockIsWritable())
+            ->readonly(!static::stockIsWritable())
             ->label('Giacenza')
             ->hiddenWhen('has_variants', 'true');
 
@@ -5273,593 +5899,55 @@ HTML)->tag('div');
             ->label('EAN')
             ->hiddenWhen('has_variants', 'true');
 
-        // Il costo d'acquisto, solo con `purchasing`: le stesse tre caselle
-        // di una riga della griglia, o il bottone «Costo» con i dati della
-        // finestra nel campo nascosto accanto. Valgono per il preferito.
-        switch (static::supplierCostMode($modelId)) {
-            case 'flat':
-                $fields[] = FormField::key('product_supplier_id')
-                    ->select(['' => '—'] + static::supplierChoices($modelId))
-                    ->label('Fornitore')
-                    ->hiddenWhen('has_variants', 'true');
-                $fields[] = FormField::key('product_supplier_sku')
-                    ->text()
-                    ->maxLength(ProductSuppliers::SKU_MAX_LENGTH)
-                    ->label('Codice fornitore')
-                    ->hiddenWhen('has_variants', 'true');
-                $fields[] = FormField::key('product_cost')
-                    ->price()
-                    ->decimal(2)
-                    ->label('Costo d\'acquisto')
-                    ->hiddenWhen('has_variants', 'true');
-                break;
-
-            case 'modal':
-                $fields[] = FormField::key('product_suppliers')->hidden();
-                $fields[] = FormField::key('product_cost_button')
-                    ->button('Costo')
-                    ->opensModal(static::SUPPLIER_COSTS_MODAL)
-                    ->emptyCaption('Nessun fornitore')
-                    ->hiddenWhen('has_variants', 'true');
-                break;
-        }
-
         return $fields;
     }
 
     /**
-     * La finestra «Costo»: una riga per ogni fornitore proponibile, con il
-     * preferito, il nome, il codice e il costo (P89).
+     * I fornitori dell'articolo, uno per riga (P95, P97).
      *
-     * Non è legata a nessuna riga: il bottone che la apre le passa i dati
-     * della sua opzione, e «Salva» glieli riporta nel campo nascosto
-     * (`supplierCostScript()`). I suoi campi escono dal form con la finestra,
-     * e nessuno è obbligatorio: un fornitore è legato se lo era già, o se
-     * nella finestra gli si scrive qualcosa, anche senza codice né costo. La
-     * «x» in fondo alla riga lo stacca.
+     * Le righe sono quelle di `gst_product_model_suppliers` e le salva il
+     * repeater del core: prima scrive, poi toglie quelle sparite, davvero e
+     * non nel cestino. Per questo i doppioni li ferma la scheda
+     * (`assertSuppliers()`) e non un indice unico. Un preferito non c'è
+     * (P98): l'ordine delle righe è l'unico ordine.
      *
-     * Ogni fornitore è un blocco con `data-wi-supplier-line`: lo script lo
-     * nasconde per intero sulle opzioni che non possono averlo (P92).
+     * Sta nella colonna stretta: il fornitore su tutta la riga, codice e
+     * costo sotto. Undici dodicesimi, perché il dodicesimo è dei bottoni.
      */
-    protected static function supplierCostModal(int $modelId): Modal
+    protected static function suppliersField(int $modelId): Input
     {
-        // Le intestazioni una volta sola, sopra le righe: su ogni riga
-        // ripeterebbero quattro etichette per fornitore.
-        $components = [
-            RichText::make(
-                '<div class="row g-3 small text-body-secondary">'
-                .'<div class="col-2">Preferito</div>'
-                .'<div class="col-3">Fornitore</div>'
-                .'<div class="col-3">Codice fornitore</div>'
-                .'<div class="col-3">Costo</div>'
-                .'<div class="col-1"></div>'
-                .'</div>'
-            )->tag('div')->columnSpan(12),
-        ];
-
-        foreach (static::supplierChoices($modelId) as $id => $nome) {
-            $components[] = (new Container)->components([
-                FormField::key('wi_supplier_cost_preferred')
-                    ->radio([$id => 'Preferito'])
-                    ->pills()
-                    ->label('')
-                    ->columnSpan(2),
-                RichText::make('<div class="pt-1" data-wi-supplier-name>'.static::escape($nome).'</div>')
-                    ->tag('div')
-                    ->columnSpan(3),
-                FormField::key('wi_supplier_cost['.$id.'][sku]')
+        return FormField::key('suppliers')
+            ->repeater([
+                RepeaterColumn::key('id')->hidden(),
+                RepeaterColumn::key('supplier_id')
+                    ->select(['' => '—'] + static::supplierChoices($modelId))
+                    ->label('Fornitore')
+                    ->columnSpan(11),
+                RepeaterColumn::key('supplier_sku')
                     ->text()
                     ->maxLength(ProductSuppliers::SKU_MAX_LENGTH)
-                    ->label('')
-                    ->columnSpan(3),
-                FormField::key('wi_supplier_cost['.$id.'][cost]')
-                    ->price()
-                    ->decimal(2)
-                    ->label('')
-                    ->columnSpan(3),
-                FormField::key('wi_supplier_cost_remove')
-                    ->button('')
-                    ->icon('bi bi-x-lg')
-                    ->size('sm')
-                    ->attribute('data-wi-supplier-cost-remove="'.(int) $id.'" title="Togli il fornitore" aria-label="Togli il fornitore"')
-                    ->columnSpan(1),
+                    ->label('Codice fornitore')
+                    ->columnSpan(6),
+                // Due decimali qui, quattro nella tabella: finché la casella
+                // non cambia resta quello salvato. Vuoto è «non lo so» (P91).
+                RepeaterColumn::key('cost')->price()->decimal(2)->label('Costo')->columnSpan(5),
             ])
-                ->attr('data-wi-supplier-line', (string) $id)
-                ->columns(12)
-                ->columnSpan(12);
-        }
-
-        return Modal::make('Costo')
-            ->id(static::SUPPLIER_COSTS_MODAL)
-            ->size('lg')
-            ->columns(12)
-            ->components($components)
-            ->footer([
-                Button::make('Annulla')->variant('secondary')->attr('data-bs-dismiss', 'modal'),
-                Button::make('Salva')->attr('data-wi-supplier-costs-save', 'true'),
-            ]);
-    }
-
-    /**
-     * Il codice della finestra «Costo».
-     *
-     * All'apertura legge il JSON della riga che l'ha aperta — la colonna
-     * nascosta `suppliers`, o `product_suppliers` senza varianti — e riempie
-     * le righe; «Salva» lo riscrive con i fornitori legati, un preferito solo
-     * (quello scelto, o il primo legato), e aggiorna il testo accanto al
-     * bottone. La scheda si salva con il suo Salva.
-     *
-     * Legato vuol dire: nel JSON della riga, o toccato nella finestra — un
-     * codice, un costo, il preferito. Un legame senza codice né costo resta
-     * com'è; la «x» della riga lo stacca. I fornitori non attivi
-     * (`data-wi-supplier-inactive`) si vedono solo sulle opzioni che li hanno
-     * già (P92).
-     *
-     * Il campo nascosto vuoto vuol dire «la finestra non l'ha toccato»: il
-     * server lascia i legami come sono. Una finestra salvata senza nessun
-     * fornitore scrive `[]`, e i legami se ne vanno.
-     */
-    protected static function supplierCostScript(int $modelId): RichText
-    {
-        $fornitori = [];
-
-        foreach (static::supplierChoices($modelId) as $id => $nome) {
-            $fornitori[] = ['id' => (int) $id, 'name' => (string) $nome];
-        }
-
-        $dati = static::escape(json_encode($fornitori, JSON_THROW_ON_ERROR));
-        $inattivi = static::escape(json_encode(
-            array_values(array_map('intval', static::inactiveSupplierIds($modelId))),
-            JSON_THROW_ON_ERROR
-        ));
-
-        return RichText::make(
-            '<div class="wi-supplier-costs" data-wi-supplier-names="'.$dati.'"'
-            .' data-wi-supplier-inactive="'.$inattivi.'"></div>'
-            .<<<'HTML'
-<script>
-    window.wiSupplierCosts = window.wiSupplierCosts || (function () {
-        var FINESTRA = 'wi-supplier-costs';
-        // Il campo e il bottone della riga che ha aperto la finestra.
-        var aperta = null;
-        // I fornitori legati all'opzione aperta, per id: quelli del suo
-        // JSON, più quelli toccati nella finestra, meno quelli tolti.
-        var legati = {};
-
-        function elenco(attributo) {
-            var radice = document.querySelector('.wi-supplier-costs');
-
-            try {
-                var valori = JSON.parse(radice ? radice.getAttribute(attributo) || '[]' : '[]');
-
-                return Array.isArray(valori) ? valori : [];
-            } catch (errore) {
-                return [];
-            }
-        }
-
-        function fornitori() {
-            return elenco('data-wi-supplier-names');
-        }
-
-        function legato(id) {
-            return legati[id] === true;
-        }
-
-        // Il segno si vede: la «x» c'è solo sui fornitori legati.
-        function segna(finestra, id, acceso) {
-            var togli = finestra.querySelector('[data-wi-supplier-cost-remove="' + id + '"]');
-
-            legati[id] = acceso;
-
-            if (togli) {
-                togli.classList.toggle('invisible', !acceso);
-            }
-        }
-
-        function autoNumeric(campo) {
-            return window.AutoNumeric && typeof window.AutoNumeric.getAutoNumericElement === 'function'
-                ? window.AutoNumeric.getAutoNumericElement(campo)
-                : null;
-        }
-
-        // Il costo scritto, col punto: «» se vuoto. AutoNumeric quando c'è,
-        // se no letto come lo scrive una persona — «12,50», «1.234,50 €».
-        function costoDi(campo) {
-            var an = autoNumeric(campo);
-            var testo;
-
-            if (an) {
-                testo = String(an.getNumericString() || '');
-
-                return testo === '' || isNaN(Number(testo)) ? '' : testo;
-            }
-
-            testo = String(campo.value || '').replace(/[^0-9.,-]/g, '');
-
-            if (testo.indexOf(',') !== -1) {
-                testo = testo.replace(/\./g, '').replace(',', '.');
-            }
-
-            return testo === '' || isNaN(Number(testo)) ? '' : String(Number(testo));
-        }
-
-        function scriviCosto(campo, costo) {
-            var vuoto = costo === null || costo === undefined || costo === '' || isNaN(Number(costo));
-            var an = autoNumeric(campo);
-
-            if (an) {
-                if (vuoto) {
-                    an.clear();
-                } else {
-                    an.set(Number(costo));
-                }
-
-                return;
-            }
-
-            campo.value = vuoto ? '' : Number(costo).toFixed(2);
-        }
-
-        // «1.234,50 €», come il riassunto che scrive il server.
-        function euro(costo) {
-            var parti = Number(costo).toFixed(2).split('.');
-
-            parti[0] = parti[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-
-            return parti.join(',') + ' €';
-        }
-
-        function caselle(finestra, id) {
-            return {
-                codice: finestra.querySelector('[name="wi_supplier_cost[' + id + '][sku]"]'),
-                costo: finestra.querySelector('[name="wi_supplier_cost[' + id + '][cost]"]'),
-                preferito: finestra.querySelector('[name="wi_supplier_cost_preferred"][value="' + id + '"]')
-            };
-        }
-
-        // Il campo nascosto della riga del bottone, o quello dell'articolo
-        // senza varianti.
-        function campoDi(bottone) {
-            var riga = bottone.closest('.wi-repeater-row');
-
-            if (riga) {
-                return riga.querySelector('input[name$="[suppliers]"]');
-            }
-
-            var form = bottone.closest('form') || document;
-
-            return form.querySelector('[name="product_suppliers"]');
-        }
-
-        // Il nome dell'opzione, per il titolo: «Blu / S», o il nome
-        // dell'articolo senza varianti.
-        function nomeDi(bottone) {
-            var riga = bottone.closest('.wi-repeater-row');
-
-            if (riga) {
-                var gruppo = riga.querySelector('input[name$="[group]"]');
-                var opzione = riga.querySelector('input[name$="[option]"]');
-                var g = gruppo ? String(gruppo.value || '').trim() : '';
-                var o = opzione ? String(opzione.value || '').trim() : '';
-
-                return g !== '' && o !== '' && g !== o ? g + ' / ' + o : (o || g);
-            }
-
-            var nome = document.querySelector('[name="name"]');
-
-            return nome ? String(nome.value || '').trim() : '';
-        }
-
-        function righe(campo) {
-            try {
-                var elenco = JSON.parse(campo && campo.value ? campo.value : '[]');
-
-                return Array.isArray(elenco) ? elenco : [];
-            } catch (errore) {
-                return [];
-            }
-        }
-
-        function preferita(riga) {
-            return riga.is_preferred === true || riga.is_preferred === 'true';
-        }
-
-        function riempi(finestra, campo) {
-            var perFornitore = {};
-            var scelto = null;
-            var nascosti = elenco('data-wi-supplier-inactive').map(String);
-
-            legati = {};
-
-            righe(campo).forEach(function (riga) {
-                var id = String(riga && riga.supplier_id !== undefined ? riga.supplier_id : '');
-
-                if (id === '' || id === '0') {
-                    return;
-                }
-
-                perFornitore[id] = riga;
-
-                if (scelto === null && preferita(riga)) {
-                    scelto = id;
-                }
-            });
-
-            fornitori().forEach(function (fornitore) {
-                var id = String(fornitore.id);
-                var c = caselle(finestra, id);
-                var riga = perFornitore[id] || null;
-
-                if (c.codice) {
-                    c.codice.value = riga ? String(riga.supplier_sku || '') : '';
-                }
-
-                if (c.costo) {
-                    scriviCosto(c.costo, riga ? riga.cost : null);
-                }
-
-                if (c.preferito) {
-                    c.preferito.checked = scelto === id;
-                }
-
-                // Un fornitore non attivo resta solo sulle opzioni che lo
-                // hanno già (P92): sulle altre la sua riga non c'è.
-                var linea = finestra.querySelector('[data-wi-supplier-line="' + id + '"]');
-
-                if (linea && linea.parentElement) {
-                    linea.parentElement.hidden = riga === null && nascosti.indexOf(id) !== -1;
-                }
-
-                segna(finestra, id, riga !== null);
-            });
-        }
-
-        function didascalia(bottone, legati) {
-            var posto = bottone.parentElement ? bottone.parentElement.querySelector('[data-wi-button-caption]') : null;
-
-            if (!posto) {
-                return;
-            }
-
-            var primo = legati.filter(preferita)[0] || null;
-            var nome = '';
-
-            if (primo === null) {
-                posto.textContent = 'Nessun fornitore';
-
-                return;
-            }
-
-            fornitori().forEach(function (fornitore) {
-                if (String(fornitore.id) === String(primo.supplier_id)) {
-                    nome = String(fornitore.name || '');
-                }
-            });
-
-            nome = nome !== '' ? nome : 'Fornitore n. ' + primo.supplier_id;
-            posto.textContent = primo.cost === '' ? nome : nome + ' · ' + euro(primo.cost);
-        }
-
-        function salva(finestra) {
-            if (!aperta || !aperta.campo) {
-                return;
-            }
-
-            var legati = [];
-            var scelto = -1;
-
-            // Nell'ordine della finestra: il primo legato fa da preferito
-            // quando quello scelto non c'è. Un legato senza codice né costo
-            // resta: il fornitore c'è, i numeri non ancora.
-            fornitori().forEach(function (fornitore) {
-                var id = String(fornitore.id);
-                var c = caselle(finestra, id);
-                var codice = c.codice ? String(c.codice.value || '').trim() : '';
-                var costo = c.costo ? costoDi(c.costo) : '';
-
-                if (!legato(id) && codice === '' && costo === '' && !(c.preferito && c.preferito.checked)) {
-                    return;
-                }
-
-                if (c.preferito && c.preferito.checked) {
-                    scelto = legati.length;
-                }
-
-                legati.push({ supplier_id: Number(id), supplier_sku: codice, cost: costo, is_preferred: 'false' });
-            });
-
-            if (legati.length > 0) {
-                legati[scelto >= 0 ? scelto : 0].is_preferred = 'true';
-            }
-
-            aperta.campo.value = JSON.stringify(legati);
-            aperta.campo.dispatchEvent(new Event('change', { bubbles: true }));
-            didascalia(aperta.bottone, legati);
-        }
-
-        function avvia() {
-            if (window.wiSupplierCostsReady) {
-                return;
-            }
-
-            window.wiSupplierCostsReady = true;
-
-            document.addEventListener('show.bs.modal', function (evento) {
-                var finestra = evento.target;
-                var bottone = evento.relatedTarget || null;
-
-                if (!finestra || finestra.id !== FINESTRA) {
-                    return;
-                }
-
-                aperta = bottone ? { bottone: bottone, campo: campoDi(bottone) } : null;
-
-                var titolo = finestra.querySelector('[data-wi-modal-title]');
-                var nome = bottone ? nomeDi(bottone) : '';
-
-                if (titolo) {
-                    titolo.textContent = nome !== '' ? 'Costo · ' + nome : 'Costo';
-                }
-
-                if (typeof setAutonumeric === 'function') {
-                    setAutonumeric(finestra);
-                }
-
-                riempi(finestra, aperta ? aperta.campo : null);
-            });
-
-            // Scrivere un codice o un costo, o scegliere il preferito, lega
-            // il fornitore: anche se poi il campo torna vuoto.
-            function tocca(evento) {
-                var linea = evento.target && evento.target.closest
-                    ? evento.target.closest('[data-wi-supplier-line]')
-                    : null;
-                var finestra = linea ? linea.closest('#' + FINESTRA) : null;
-
-                if (finestra) {
-                    segna(finestra, linea.getAttribute('data-wi-supplier-line'), true);
-                }
-            }
-
-            document.addEventListener('input', tocca);
-            document.addEventListener('change', tocca);
-
-            document.addEventListener('click', function (evento) {
-                var togli = evento.target && evento.target.closest
-                    ? evento.target.closest('[data-wi-supplier-cost-remove]')
-                    : null;
-
-                // La «x»: il fornitore si stacca dall'opzione, e i suoi campi
-                // si svuotano.
-                if (togli) {
-                    var dentro = togli.closest('#' + FINESTRA);
-                    var id = togli.getAttribute('data-wi-supplier-cost-remove');
-                    var c = dentro ? caselle(dentro, id) : null;
-
-                    evento.preventDefault();
-
-                    if (!c) {
-                        return;
-                    }
-
-                    if (c.codice) {
-                        c.codice.value = '';
-                    }
-
-                    if (c.costo) {
-                        scriviCosto(c.costo, null);
-                    }
-
-                    if (c.preferito) {
-                        c.preferito.checked = false;
-                    }
-
-                    segna(dentro, id, false);
-
-                    return;
-                }
-
-                var bottone = evento.target && evento.target.closest
-                    ? evento.target.closest('[data-wi-supplier-costs-save]')
-                    : null;
-
-                if (!bottone) {
-                    return;
-                }
-
-                var finestra = bottone.closest('.modal');
-
-                evento.preventDefault();
-                salva(finestra);
-
-                if (window.bootstrap && window.bootstrap.Modal) {
-                    window.bootstrap.Modal.getOrCreateInstance(finestra).hide();
-                }
-            });
-        }
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', avvia);
-        } else {
-            avvia();
-        }
-
-        return avvia;
-    })();
-</script>
-HTML
-        )->tag('div');
-    }
-
-    /**
-     * Con le tre caselle, il fornitore non attivo resta solo nelle tendine
-     * che lo hanno già scelto (P92).
-     *
-     * La tendina è una per tutta la griglia: dalle righe che non lo usano, e
-     * dal template da cui il repeater clona le righe nuove, lo toglie questo
-     * script. Il controllo vero lo fa il server (`assertSupplierCosts()`):
-     * qui si evita solo di proporlo.
-     */
-    protected static function supplierInactiveScript(int $modelId): RichText
-    {
-        $inattivi = static::escape(json_encode(
-            array_values(array_map('intval', static::inactiveSupplierIds($modelId))),
-            JSON_THROW_ON_ERROR
-        ));
-
-        return RichText::make(
-            '<div class="wi-supplier-inactive" data-wi-supplier-inactive="'.$inattivi.'"></div>'
-            .<<<'HTML'
-<script>
-    window.wiSupplierInactive = window.wiSupplierInactive || (function () {
-        var TENDINE = 'select[name="product_supplier_id"], select[name$="[supplier_id]"]';
-
-        function togli() {
-            var radice = document.querySelector('.wi-supplier-inactive');
-            var inattivi = [];
-
-            try {
-                inattivi = JSON.parse(radice ? radice.getAttribute('data-wi-supplier-inactive') || '[]' : '[]');
-            } catch (errore) {
-                inattivi = [];
-            }
-
-            if (!Array.isArray(inattivi) || inattivi.length === 0) {
-                return;
-            }
-
-            var dove = [document];
-
-            document.querySelectorAll('template').forEach(function (modello) {
-                dove.push(modello.content);
-            });
-
-            dove.forEach(function (contenitore) {
-                contenitore.querySelectorAll(TENDINE).forEach(function (tendina) {
-                    inattivi.forEach(function (id) {
-                        var voce = tendina.querySelector('option[value="' + String(id) + '"]');
-
-                        // Resta dove è la scelta salvata.
-                        if (voce && !voce.hasAttribute('selected') && !voce.selected) {
-                            voce.remove();
-                        }
-                    });
-                });
-            });
-        }
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', togli);
-        } else {
-            togli();
-        }
-
-        return togli;
-    })();
-</script>
-HTML
-        )->tag('div');
+            ->relation(
+                RepeaterRelation::make(ProductModelSupplier::$table, 'product_model_id')
+                    ->model(ProductModelSupplier::class)
+                    ->positionKey('position')
+                    ->softDelete(false)
+            )
+            ->nested()
+            ->repeaterSortable()
+            ->repeaterAddLabel('Aggiungi fornitore')
+            ->repeaterDeleteTitle('Togli fornitore')
+            ->repeaterDeleteText('Questo articolo non si comprerà più da questo fornitore: il suo codice e il suo costo se ne vanno al salvataggio.')
+            ->repeaterDeleteCancelLabel('Annulla')
+            ->repeaterDeleteConfirmLabel('Togli')
+            ->repeaterDeleteConfirmClass('btn btn-danger')
+            // Il titolo lo dà il riquadro.
+            ->label('');
     }
 
     /** Toglie dai valori tutto ciò che non è una colonna del modello. */
@@ -5874,12 +5962,10 @@ HTML
             $values['product_sale_price'],
             $values['product_stock'],
             $values['product_min_stock'],
-            // Stanno in `gst_product_suppliers`: le scrive `saveSupplierCosts()`.
-            $values['product_supplier_id'],
-            $values['product_supplier_sku'],
-            $values['product_cost'],
-            $values['product_suppliers'],
-            $values['product_cost_button'],
+            // Le righe per sede (P102) e i campi della finestra «Giacenza»
+            // (P103): li legge `saveLocationStock()`.
+            $values['locations'],
+            $values['wi_location_stock'],
             // Sono delle opzioni: le scrive `saveBackorders()`.
             $values['allow_backorder'],
             $values['backorder_lead_days'],
@@ -6025,7 +6111,7 @@ HTML
                 'ean' => $ean,
                 // I decimali arrivano con la virgola: MySQL non li accetta.
                 'price' => Numbers::fromForm($riga['price'] ?? null) ?? $prezzo,
-                'sale_price' => $scontato,
+                'sale_price' => Numbers::fromForm($riga['sale_price'] ?? null) ?? $scontato,
             ], (int) $product['id']);
 
             return;
@@ -6046,13 +6132,24 @@ HTML
         }
 
         foreach ($prodotti as $product) {
+            $riga = $scritto($product);
+
             // Una versione appena nata con il suo prezzo non si tocca: è stata
-            // scritta nella stessa schermata.
-            if (Numbers::fromForm($scritto($product)['price'] ?? null) !== null) {
+            // scritta nella stessa schermata. Con il solo scontato suo prende
+            // il prezzo dell'articolo e tiene lo sconto.
+            if (Numbers::fromForm($riga['price'] ?? null) !== null) {
                 continue;
             }
 
-            Product::update($values, (int) $product['id']);
+            $suoi = $values;
+
+            if (Numbers::fromForm($riga['sale_price'] ?? null) !== null) {
+                unset($suoi['sale_price']);
+            }
+
+            if ($suoi !== []) {
+                Product::update($suoi, (int) $product['id']);
+            }
         }
     }
 
@@ -6279,6 +6376,61 @@ HTML
     }
 
     /**
+     * Come si scrivono le righe per sede di queste versioni: si guarda ogni
+     * sede, perché una somma tonda nasconde i decimali di una sede sola.
+     *
+     * @param list<array<string, mixed>> $products
+     * @return array{stock: int, min_stock: int, suffix: string}
+     */
+    protected static function locationFormat(int $modelId, array $products): array
+    {
+        $ids = array_values(array_filter(array_map(
+            static fn (array $product): int => (int) ($product['id'] ?? 0),
+            $products
+        )));
+
+        return LocationRows::format(
+            static::modelUnit($modelId),
+            static::locationQuantities($ids),
+            static::locationThresholds($ids)
+        );
+    }
+
+    /**
+     * @param list<int> $productIds
+     * @return list<float> le giacenze di queste versioni, sede per sede
+     */
+    protected static function locationQuantities(array $productIds): array
+    {
+        $quantities = [];
+
+        foreach ($productIds === [] ? [] : Levels::byLocationForProducts($productIds) as $perSede) {
+            foreach ($perSede as $level) {
+                $quantities[] = (float) $level['quantity'];
+            }
+        }
+
+        return $quantities;
+    }
+
+    /**
+     * @param list<int> $productIds
+     * @return list<float> le soglie di queste versioni, sede per sede
+     */
+    protected static function locationThresholds(array $productIds): array
+    {
+        $thresholds = [];
+
+        foreach ($productIds === [] ? [] : Thresholds::forProducts($productIds) as $perSede) {
+            foreach ($perSede as $threshold) {
+                $thresholds[] = (float) $threshold;
+            }
+        }
+
+        return $thresholds;
+    }
+
+    /**
      * La casella della scorta minima, scritta come la giacenza: i decimali
      * dell'unità — tre se una soglia ne ha già — e l'unità in coda.
      *
@@ -6287,10 +6439,12 @@ HTML
     protected static function minStockInput(FormField $campo, int $modelId, array $products): InputNumber
     {
         $unita = static::modelUnit($modelId);
-        $soglie = array_map(
-            static fn (array $product): float => (float) ($product['min_stock_quantity'] ?? 0),
+        // Le soglie sono in `gst_stock_thresholds` (P100, P101): quelle
+        // della sede principale, che è ciò che la casella mostra.
+        $soglie = array_values(static::mainThresholds(array_map(
+            static fn (array $product): int => (int) ($product['id'] ?? 0),
             $products
-        );
+        )));
 
         $campo = $campo->number()->decimal(SaleUnits::decimalsFor($unita, ...$soglie));
         $suffisso = SaleUnits::suffix($unita);

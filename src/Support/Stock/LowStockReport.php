@@ -9,9 +9,11 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
 /**
  * I prodotti sotto scorta minima, come li leggono l'email e la home.
  *
- * Gli avvisi dicono chi è sceso sotto la soglia; le righe dicono come stanno
- * le cose adesso. `build()` tiene solo quello che è ancora vero: un prodotto
- * sparito, tolto dalla griglia o tornato sopra la soglia non si segnala.
+ * Gli avvisi dicono chi è sceso sotto la soglia, e in quale sede; le righe
+ * dicono come stanno le cose adesso. `build()` tiene solo quello che è
+ * ancora vero: un prodotto sparito, tolto dalla griglia o tornato sopra la
+ * soglia non si segnala, e nemmeno una sede che non è più del magazzino.
+ * Con una sede sola la sede non si nomina.
  */
 final class LowStockReport
 {
@@ -61,41 +63,67 @@ final class LowStockReport
     /**
      * @param list<array<string, mixed>> $alerts
      * @param array<int, array<string, mixed>> $products
-     * @return list<array{product_id: int, article: string, option: string, sku: string, threshold: float, available: float}>
+     * @return list<array{product_id: int, location_id: int, location: string, article: string, option: string, sku: string, threshold: float, available: float}>
      */
     public static function items(array $alerts, array $products): array
     {
+        $ids = array_keys($products);
+
         return self::build(
             $alerts,
             $products,
             ProductNames::models($products),
-            Levels::forProducts(array_keys($products))
+            Levels::byLocationForProducts($ids),
+            Thresholds::forProducts($ids),
+            Locations::shown()
         );
     }
 
     /**
      * Le righe da mostrare, pure: nessuna lettura qui dentro.
      *
+     * Una riga per prodotto e sede. La sede si scrive solo quando le sedi da
+     * mostrare sono almeno due: con una sola sarebbe rumore.
+     *
      * @param list<array<string, mixed>> $alerts
      * @param array<int, array<string, mixed>> $products
      * @param array<int, string> $modelNames
-     * @param array<int, array{available: float}> $levels
-     * @return list<array{product_id: int, article: string, option: string, sku: string, threshold: float, available: float}>
+     * @param array<int, array<int, array{available: float}>> $levels per prodotto, poi per sede
+     * @param array<int, array<int, float>> $thresholds per prodotto, poi per sede
+     * @param list<array{id: int, label: string}> $locations le sedi da mostrare, in ordine
+     * @return list<array{product_id: int, location_id: int, location: string, article: string, option: string, sku: string, threshold: float, available: float}>
      */
-    public static function build(array $alerts, array $products, array $modelNames, array $levels): array
-    {
+    public static function build(
+        array $alerts,
+        array $products,
+        array $modelNames,
+        array $levels,
+        array $thresholds,
+        array $locations
+    ): array {
+        $labels = [];
+        $positions = [];
+
+        foreach ($locations as $position => $location) {
+            $labels[(int) ($location['id'] ?? 0)] = count($locations) >= 2 ? (string) ($location['label'] ?? '') : '';
+            $positions[(int) ($location['id'] ?? 0)] = $position;
+        }
+
         $items = [];
 
         foreach ($alerts as $alert) {
             $id = (int) ($alert['product_id'] ?? 0);
+            $locationId = (int) ($alert['location_id'] ?? 0);
+            $key = $id.':'.$locationId;
             $product = $products[$id] ?? null;
 
-            if (isset($items[$id]) || !is_array($product) || ($product['deleted'] ?? 'false') === 'true') {
+            if (isset($items[$key]) || !isset($labels[$locationId])
+                || !is_array($product) || ($product['deleted'] ?? 'false') === 'true') {
                 continue;
             }
 
-            $threshold = round((float) ($product['min_stock_quantity'] ?? 0), 3);
-            $available = round((float) ($levels[$id]['available'] ?? 0), 3);
+            $threshold = round((float) ($thresholds[$id][$locationId] ?? 0), 3);
+            $available = round((float) ($levels[$id][$locationId]['available'] ?? 0), 3);
 
             // Tornato sopra la soglia, o soglia tolta: non è più una notizia.
             if (LowStock::decide($threshold, $available, false) !== LowStock::OPEN) {
@@ -104,8 +132,10 @@ final class LowStockReport
 
             $names = ProductNames::of($product, $modelNames);
 
-            $items[$id] = [
+            $items[$key] = [
                 'product_id' => $id,
+                'location_id' => $locationId,
+                'location' => $labels[$locationId],
                 'article' => $names['article'],
                 'option' => $names['option'],
                 'sku' => (string) ($product['sku'] ?? ''),
@@ -115,8 +145,8 @@ final class LowStockReport
         }
 
         usort($items, static fn (array $a, array $b): int =>
-            [mb_strtolower($a['article'], 'UTF-8'), mb_strtolower($a['option'], 'UTF-8'), $a['sku']]
-            <=> [mb_strtolower($b['article'], 'UTF-8'), mb_strtolower($b['option'], 'UTF-8'), $b['sku']]
+            [mb_strtolower($a['article'], 'UTF-8'), mb_strtolower($a['option'], 'UTF-8'), $a['sku'], $positions[$a['location_id']]]
+            <=> [mb_strtolower($b['article'], 'UTF-8'), mb_strtolower($b['option'], 'UTF-8'), $b['sku'], $positions[$b['location_id']]]
         );
 
         return array_values($items);

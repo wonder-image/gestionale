@@ -7,8 +7,10 @@ require __DIR__ . '/harness.php';
 
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 
 /**
  * Una scheda con più versioni: è lì che vive la griglia.
@@ -366,9 +368,44 @@ check('in creazione la giacenza parte a pezzi', function () use ($formato) {
     return false;
 });
 
-check('con più sedi la giacenza con l\'unità resta da leggere e basta', function () use ($campiDi) {
+/**
+ * Fa girare `$fai` con quelle sedi in magazzino e «Più sedi» accesa: senza
+ * database le sedi mostrate sarebbero zero, e la giacenza si scriverebbe
+ * come con una sede sola.
+ *
+ * @param list<array{id: int, label: string}> $sedi
+ */
+$conSedi = static function (array $sedi, callable $fai): mixed {
+    $mostrate = new ReflectionProperty(Locations::class, 'shown');
+    $funzionalita = new ReflectionProperty(Gestionale::class, 'features');
+    $primaSedi = $mostrate->getValue();
+    $primaFunzionalita = $funzionalita->getValue();
+    $mostrate->setValue(null, $sedi);
+    $funzionalita->setValue(null, ['multi_location' => true]);
+
+    try {
+        return $fai();
+    } finally {
+        $mostrate->setValue(null, $primaSedi);
+        $funzionalita->setValue(null, $primaFunzionalita);
+    }
+};
+
+check('con più sedi la giacenza della griglia con l\'unità resta da leggere e basta, e si scrive sede per sede', function () use ($conSedi, $campiDi, $formato) {
+    // Due sedi vere, non uno `stockIsWritable()` forzato: è `Locations::shown()`
+    // che decide (P102, P103), e la scheda deve leggerla da lì.
     $scheda = new class extends ProductModelResource {
         protected static function currentId(): ?int
+        {
+            return 1;
+        }
+
+        public static function productCount(int $modelId): int
+        {
+            return 1;
+        }
+
+        public static function variantCount(int $modelId): int
         {
             return 1;
         }
@@ -378,23 +415,87 @@ check('con più sedi la giacenza con l\'unità resta da leggere e basta', functi
             return [['id' => 2, 'sku' => 'CAP-1', 'price' => '24.90']];
         }
 
-        public static function stockIsWritable(): bool
-        {
-            return false;
-        }
-
         protected static function modelUnit(int $modelId): string
         {
             return 'kg';
         }
     };
 
-    $campo = $campiDi($scheda)['product_stock'] ?? null;
-    $numero = (array) (((array) ($campo?->get('context') ?? []))['number'] ?? []);
+    $colonne = static function (?object $campo): array {
+        $colonne = [];
 
-    return $campo !== null
-        && str_contains((string) $campo->get('attribute'), 'readonly')
-        && ($numero['symbol'] ?? null) === ' kg';
+        foreach ((array) (((array) ($campo?->get('context') ?? []))['columns'] ?? []) as $colonna) {
+            $colonne[(string) $colonna->name] = $colonna;
+        }
+
+        return $colonne;
+    };
+
+    [$scrivibile, $campi] = $conSedi([['id' => 1, 'label' => 'Milano'], ['id' => 2, 'label' => 'Roma']], static fn (): array => [
+        $scheda::stockIsWritable(),
+        $campiDi($scheda),
+    ]);
+
+    $casella = $campi['product_stock'] ?? null;
+    $griglia = $colonne($campi['products'] ?? null)['stock'] ?? null;
+    $perSede = $colonne($campi['locations'] ?? null)['stock'] ?? null;
+
+    // Fuori dalle due sedi la scheda torna scrivibile: la giacenza è
+    // ambigua solo quando le sedi sono due.
+    return $scrivibile === false
+        && $scheda::stockIsWritable() === true
+        // La casella dell'articolo singolo resta nel modulo (la scheda la
+        // tiene fuori dal riquadro) e la griglia la mostra: entrambe da
+        // leggere e basta, con l'unità in coda.
+        && $casella !== null
+        && str_contains((string) $casella->get('attribute'), 'readonly')
+        && ($formato($casella)['symbol'] ?? null) === ' kg'
+        && $griglia !== null
+        && str_contains((string) $griglia->get('attribute'), 'readonly')
+        && ($formato($griglia)['symbol'] ?? null) === ' kg'
+        // Si scrive nelle righe per sede, con la stessa unità e i suoi
+        // decimali.
+        && $perSede !== null
+        && !str_contains((string) $perSede->get('attribute'), 'readonly')
+        && ($formato($perSede)['symbol'] ?? null) === ' kg'
+        && ($formato($perSede)['decimal'] ?? null) === 3;
+});
+
+check('con più sedi anche in creazione la giacenza si scrive solo sede per sede', function () use ($conSedi, $campiDi) {
+    // Una scheda che nasce ora: nessun id. Con la casella scrivibile la
+    // griglia e la finestra delle sedi si contenderebbero la sede principale.
+    $scheda = new class extends ProductModelResource {
+        protected static function currentId(): ?int
+        {
+            return null;
+        }
+    };
+
+    $colonne = static function (?object $campo): array {
+        $colonne = [];
+
+        foreach ((array) (((array) ($campo?->get('context') ?? []))['columns'] ?? []) as $colonna) {
+            $colonne[(string) $colonna->name] = $colonna;
+        }
+
+        return $colonne;
+    };
+
+    $campi = $conSedi([['id' => 1, 'label' => 'Milano'], ['id' => 2, 'label' => 'Roma']], static fn (): array => $campiDi($scheda));
+    $unaSede = $campiDi($scheda);
+
+    $casella = $campi['product_stock'] ?? null;
+    $griglia = $colonne($campi['products'] ?? null)['stock'] ?? null;
+    $grigliaUnaSede = $colonne($unaSede['products'] ?? null)['stock'] ?? null;
+
+    return $casella !== null
+        && str_contains((string) $casella->get('attribute'), 'readonly')
+        && $griglia !== null
+        && str_contains((string) $griglia->get('attribute'), 'readonly')
+        // Con una sede sola in creazione si scrive, come sempre.
+        && $grigliaUnaSede !== null
+        && !str_contains((string) $grigliaUnaSede->get('attribute'), 'readonly')
+        && !str_contains((string) ($unaSede['product_stock'] ?? null)?->get('attribute'), 'readonly');
 });
 
 check('il valore della giacenza arriva ad AutoNumeric col punto', function () use ($schedaMisurata) {
@@ -438,6 +539,17 @@ check('cambiando l\'unità si aggiorna anche la scorta minima', function () use 
     // selettore di `[stock]` non prende `[min_stock]`, serve il suo.
     return str_contains($script, "'product_min_stock'")
         && str_contains($script, "'min_stock'");
+});
+
+check('cambiando l\'unità si aggiornano anche le righe per sede e la finestra «Giacenza»', function () use ($schedaMisurata, $scriptDelRiquadro) {
+    $script = $scriptDelRiquadro($schedaMisurata, 'Misure');
+
+    // Con più sedi la giacenza sta nel repeater «Giacenza per sede» e nella
+    // finestra della griglia (P102, P103): stessa unità, stessi decimali, e
+    // anche le righe che il repeater aggiungerà dopo.
+    return str_contains($script, '[data-wi-repeater="locations"] input[name^="locations["]')
+        && str_contains($script, 'input[name^="wi_location_stock["]')
+        && str_contains($script, '[data-wi-repeater="locations"] template');
 });
 
 check('lo script dell\'unità c\'è anche in creazione', function () use ($scriptDelRiquadro) {

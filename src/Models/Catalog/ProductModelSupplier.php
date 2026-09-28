@@ -10,27 +10,26 @@ use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
 
 /**
- * Da chi si compra un'opzione, con quale codice e a quanto: l'eccezione.
+ * Da chi si compra un articolo, con quale codice e a quanto.
  *
- * I fornitori stanno sull'articolo (`ProductModelSupplier`) e valgono per
- * tutte le opzioni. Qui c'è solo l'opzione che si compra a un prezzo diverso,
- * o da un fornitore suo: una riga per fornitore, e per quel fornitore vince
- * sulla riga dell'articolo (vedi
- * `Support\Purchasing\ProductSuppliers::effective()`).
+ * I fornitori si scrivono sull'articolo, una riga per fornitore: valgono per
+ * tutte le sue opzioni. Un'opzione che si compra a un prezzo diverso, o da
+ * un fornitore suo, ha la sua riga in `gst_product_suppliers`, che per quel
+ * fornitore vince (vedi `Support\Purchasing\ProductSuppliers::effective()`).
  *
  * `cost` è il costo **di oggi**: lo storico sta nel costo dei movimenti. Per
- * questo il legame si cancella davvero, quando sparisce l'opzione o la riga,
- * e non resta niente in `deleted = 'true'` a tenere ferma la chiave esterna.
- * Vuoto vuol dire «non lo so» (`NULL`), non zero: uno zero farebbe del
- * fornitore il più conveniente e abbasserebbe il valore del magazzino.
+ * questo il legame si cancella davvero, quando sparisce l'articolo o la
+ * riga, e non resta niente in `deleted = 'true'` a tenere ferma la chiave
+ * esterna. Vuoto vuol dire «non lo so» (`NULL`), non zero: uno zero farebbe
+ * del fornitore il più conveniente e abbasserebbe il valore del magazzino.
  *
- * Nessun indice unico su opzione e fornitore: il repeater prima scrive e poi
- * toglie, e uno scambio di righe inciamperebbe a metà salvataggio. I doppioni
- * li rifiuta la scheda, che può spiegarlo con una frase.
+ * Nessun indice unico su articolo e fornitore: il repeater prima scrive e
+ * poi toglie, e uno scambio di righe inciamperebbe a metà salvataggio. I
+ * doppioni li rifiuta la scheda, che può spiegarlo con una frase.
  */
-final class ProductSupplier extends Model
+final class ProductModelSupplier extends Model
 {
-    public static string $table = 'gst_product_suppliers';
+    public static string $table = 'gst_product_model_suppliers';
     public static string $folder = 'gestionale/models';
     public static string $icon = 'bi bi-truck';
 
@@ -43,7 +42,7 @@ final class ProductSupplier extends Model
     public static function tableSchema(): array
     {
         return [
-            Column::key('product_id')->int()->null(false)->foreign(Product::$table),
+            Column::key('product_model_id')->int()->null(false)->foreign(ProductModel::$table),
             Column::key('supplier_id')->int()->null(false)->foreign(Contact::$table),
             Column::key('supplier_sku')->length(100),
             // Quattro decimali come il costo dei movimenti; nella scheda se ne
@@ -56,7 +55,7 @@ final class ProductSupplier extends Model
     public static function tablePseudos(): array
     {
         return [
-            'ind_product' => ['index' => 'product_id'],
+            'ind_model' => ['index' => 'product_model_id'],
             'ind_supplier' => ['index' => 'supplier_id'],
         ];
     }
@@ -64,7 +63,7 @@ final class ProductSupplier extends Model
     public static function dataSchema(): array
     {
         return [
-            Field::key('product_id')->number()->decimals(0),
+            Field::key('product_model_id')->number()->decimals(0),
             Field::key('supplier_id')->number()->decimals(0),
             Field::key('supplier_sku')->text(),
             Field::key('cost')->number()->decimals(4),

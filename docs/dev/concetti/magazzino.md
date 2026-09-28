@@ -26,26 +26,45 @@ Cosa fa, in ordine, dentro `Transaction::run()`:
 
 Il `FOR UPDATE` è il motivo per cui due ordini contemporanei non possono
 prendere lo stesso ultimo pezzo. Le transazioni si annidano: chiamare `apply()`
-dentro una transazione propria (l'elenco delle giacenze che salva venti righe)
-apre un savepoint, non una seconda transazione.
+dentro una transazione propria apre un savepoint, non una seconda transazione.
 
-## Le due pagine
+## Le pagine
 
 | Pagina | Classe | Cosa fa |
 |---|---|---|
-| Giacenze | `StockLevelResource` | pagina-form: una casella per riga, salvataggio in blocco dentro una transazione |
+| Giacenze | `StockLevelResource` | elenco del core su `Product`, in sola consultazione: una colonna per sede, filtri, menu ⋯ |
 | Rettifica | `StockAdjustmentResource` | pagina-form su `?versione=`, con causale e nota |
 
-Nessuna delle due scrive sul database: compongono un movimento e chiamano
+**Giacenze non scrive niente.** I numeri nascono nella query: `select()`
+aggiunge `model_name`, `stock_quantity`, una `stock_loc_<id>` per sede e,
+secondo le funzionalità, `stock_reserved`, `stock_available` e `stock_alert`.
+Le formule stanno in `LevelsSql`, accanto a `Levels` e `Availability`: il core
+ordina e pagina nel database, e una colonna si ordina solo se il suo numero è
+nella select. Un test d'integrazione controlla che diano gli stessi numeri di
+`Levels::forProducts()` e delle righe di `gst_stock` sede per sede. Dentro le
+formule niente `AS`: il core legge gli alias con una regex e ne vedrebbe uno di
+troppo.
+
+**Le colonne delle sedi.** Quali sedi mostrare lo dice `Locations::shown()`, e
+vale per ogni pagina che divide per sede. Con `multi_location` bloccata c'è
+solo la sede principale; attiva, le sedi con `has_stock` nell'ordine della
+pagina *Sedi* (posizione, poi id) più ogni sede che ha ancora pezzi, anche se
+cancellata, così le colonne sommano sempre al totale. Le colonne compaiono con
+almeno due sedi. `Locations::pick()` è la regola pura, provata con gli array.
+
+**Il filtro della home.** `lowStockUrl()` apre l'elenco con il filtro *Scorta*
+(`?gst_products__scorta=sotto`): lo usano il riquadro *Sotto scorta* e l'email.
+
+La rettifica non scrive sul database: compone un movimento e chiama
 `Stock::apply()`. La differenza fra quello che c'era e quello che è stato
 scritto la calcola `Stocktake`, che è pura — una casella vuota non è uno zero,
 uno zero scritto sì.
 
-Tre cose da sapere se le si tocca:
+Tre cose da sapere se la si tocca:
 
-1. **La rotta del salvataggio non ha query string.** Filtri, pagina e versione
-   viaggiano in campi nascosti (`back`, `product_id`); chi li rileggesse da
-   `$_GET` salverebbe la prima pagina invece di quella aperta.
+1. **La rotta del salvataggio non ha query string.** La versione e la strada
+   del ritorno viaggiano in campi nascosti (`product_id`, `back`); chi le
+   rileggesse da `$_GET` al salvataggio non le troverebbe.
 2. **Il controller delle pagine-form non intercetta niente.** Un `UserError`
    che vola via da `submitFormPage()` diventa una pagina 500: i rifiuti si
    catturano lì dentro e diventano un `FlashAlert` più un redirect.
@@ -103,7 +122,8 @@ In G2b, a funzionalità bloccata, anche quel carico era rifiutato.
 | `Availability` | sì | disponibile = giacenza − prenotazioni attive |
 | `Adjustment` | sì | dalla quantità scritta al movimento (`fromTarget`, `fromDelta`) |
 | `LowStock` | sì | `open`, `close` o `none` per l'avviso di scorta |
-| `Locations` | no | la sede principale, con cache per richiesta |
+| `Locations` | in parte | la sede principale e le sedi da mostrare (`shown()`), con cache per richiesta: `pick()` è pura |
+| `LevelsSql` | sì | le formule di `Levels` e `Availability` in SQL, per l'elenco Giacenze |
 | `Levels` | no | giacenza, prenotato e disponibile di uno o più prodotti |
 | `Alerts` | no | scrive gli avvisi decisi da `LowStock` |
 | `Stock` | no | la porta di scrittura |
@@ -155,7 +175,7 @@ scorta*, né i *Destinatari degli avvisi* — e l'attività gira senza mandare.
 | Chi | Cosa |
 |---|---|
 | `Stock::apply()` | apre e chiude la riga di `gst_stock_alerts` a ogni movimento |
-| le due schede | salvando la soglia chiamano `Alerts::refresh()`: l'avviso si apre o si chiude subito. Nella scheda dell'articolo la soglia sta in «Compila le informazioni avanzate»: sotto il prezzo senza varianti (`product_min_stock`), in ogni riga della griglia con le varianti (`products[row][min_stock]`; `assertMinStocks()` la controlla prima dell'insert). `saveMinStocks()` scrive le soglie cambiate **prima** di muovere i pezzi, così il movimento rinfresca l'avviso con la soglia nuova; quelle senza movimento si rinfrescano alla fine |
+| le due schede | la soglia è **per prodotto e sede**, in `gst_stock_thresholds` (`Support\Stock\Thresholds`: `forProduct()`, `forProducts()`, `save()`, `dropFor()`); `gst_products.min_stock_quantity` non c'è più. Con una sede sola la casella «Scorta minima» — sotto il prezzo senza varianti (`product_min_stock`), in ogni riga della griglia con le varianti (`products[row][min_stock]`; `assertMinStocks()` la controlla prima dell'insert) — è la soglia della sede principale: `saveMinStocks()` scrive quelle cambiate **prima** di muovere i pezzi, così il movimento rinfresca l'avviso con la soglia nuova; quelle senza movimento si rinfrescano alla fine. Con più sedi la soglia viaggia nelle righe «Giacenza per sede» insieme ai pezzi (`LocationRows`, `LocationStock::apply()`) e ogni salvataggio chiama `Alerts::refresh()`, che apre e chiude un avviso per sede (vedi [Catalogo](catalogo.md#la-giacenza-si-scrive-dalla-scheda)) |
 | attività `gestionale.stock_alerts` | ogni quarto d'ora, **nata spenta**: una email sola con i prodotti ancora sotto soglia e un avviso mai mandato |
 | `php forge gestionale:stock-alerts` | l'anteprima: cosa partirebbe e a chi; non manda e non scrive |
 | riquadro *Sotto scorta* | gli stessi prodotti dell'email, letti adesso |

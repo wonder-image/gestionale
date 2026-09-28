@@ -10,6 +10,7 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -24,6 +25,7 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -39,6 +41,13 @@ $conta = static function (string $model): int {
 };
 
 $prima = [$conta(ProductModel::class), $conta(ProductVariant::class), $conta(Product::class)];
+
+// Queste prove parlano di un magazzino con una sede sola: «Più sedi» si
+// spegne a mano, qualunque cosa abbia acceso il sito.
+Gestionale::feature('multi_location');
+$unaSede = new ReflectionProperty(Gestionale::class, 'features');
+$unaSede->setValue(null, array_merge((array) $unaSede->getValue(), ['multi_location' => false]));
+Locations::reset();
 
 try {
     Transaction::run(static function () use ($conta, $prima): void {
