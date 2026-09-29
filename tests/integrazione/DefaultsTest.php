@@ -44,6 +44,7 @@ try {
         // Giacenze e movimenti puntano alla sede: senza toglierli prima, la
         // chiave esterna non lascia svuotare `gst_locations`. La transazione
         // rimette tutto a posto.
+        sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockThreshold::$table);
         sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockAlert::$table);
         sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockReservation::$table);
         sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockMovement::$table);
