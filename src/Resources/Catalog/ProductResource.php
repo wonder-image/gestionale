@@ -136,7 +136,7 @@ class ProductResource extends ProductModelResource
             FormField::key('price')->price()->decimal(2)->label('Prezzo'),
             FormField::key('sale_price')->price()->decimal(2)->label('Prezzo scontato'),
             FormField::key('active')
-                ->select(['true' => 'Attiva', 'false' => 'Ferma'])
+                ->select(['true' => 'Pubblicato', 'false' => 'Bozza'])
                 ->value('true')
                 ->label('Stato')
                 ->required(),
@@ -806,13 +806,15 @@ HTML;
                 )),
             TableColumn::key('sku')->text(),
             TableColumn::key('price')->price()->size('medium'),
-            // "Attiva" e "Ferma": qui non si parla di vetrina ma di magazzino.
-            // La pillola si clicca (P124): togliere una taglia dal sito è un
-            // gesto solo, dall'elenco come dalla scheda dell'articolo.
+            // Le stesse due parole dell'articolo: un'opzione o sta nel
+            // negozio o è ancora in lavorazione, e chi legge la scheda non
+            // deve tradurre «attiva» in «pubblicata». La pillola si clicca
+            // (P124): togliere una taglia dal sito è un gesto solo,
+            // dall'elenco come dalla scheda dell'articolo.
             TableColumn::key('active')
                 ->booleanBadge()
-                ->badgeOn('Attiva', 'bi-check-circle', 'success', 'Ferma')
-                ->badgeOff('Ferma', 'bi-pause-circle', 'secondary', 'Attiva')
+                ->badgeOn('Pubblicato', 'bi bi-eye', 'success', 'Metti in bozza')
+                ->badgeOff('Bozza', 'bi bi-eye-slash', 'secondary', 'Pubblica')
                 ->badgeClickable()
                 ->size('little'),
             TableColumn::key('actions')->button()->actions(['edit']),

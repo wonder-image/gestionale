@@ -1009,11 +1009,35 @@ check('lo stato dell\'opzione si cambia con un click, dov\'è scritto (P124)', f
         $badge = (array) ($colonna->schema['badge'] ?? []);
 
         return ($badge['clickable'] ?? false) === true
-            && (($badge['on'] ?? [])['text'] ?? '') === 'Attiva'
-            && (($badge['off'] ?? [])['text'] ?? '') === 'Ferma';
+            && (($badge['on'] ?? [])['text'] ?? '') === 'Pubblicato'
+            && (($badge['off'] ?? [])['text'] ?? '') === 'Bozza';
     }
 
     return false;
+});
+
+// L'opzione sta nel negozio o non c'è: sono le stesse due parole
+// dell'articolo, e chi le legge in fila non deve tradurre «attiva» in
+// «pubblicata». Anche il bottone della pillola dice cosa succede al click.
+check('l\'opzione è pubblicata o in bozza, come l\'articolo', function () {
+    foreach (ProductResource::tableSchema() as $colonna) {
+        if ((string) $colonna->name !== 'active') {
+            continue;
+        }
+
+        $badge = (array) ($colonna->schema['badge'] ?? []);
+
+        return (($badge['on'] ?? [])['button'] ?? '') === 'Metti in bozza'
+            && (($badge['off'] ?? [])['button'] ?? '') === 'Pubblica';
+    }
+
+    return false;
+});
+
+check('anche la modifica dell\'opzione dice «Pubblicato» e «Bozza»', function () use ($campi) {
+    $scelte = (array) (($campi()['active'] ?? null)?->get('options') ?? []);
+
+    return ($scelte['true'] ?? '') === 'Pubblicato' && ($scelte['false'] ?? '') === 'Bozza';
 });
 
 summary();
