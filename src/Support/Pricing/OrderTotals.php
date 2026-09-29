@@ -149,9 +149,8 @@ final class OrderTotals
         }
 
         $shares = [];
+        $totals = [];
         $assigned = 0.0;
-        $tallest = null;
-        $tallestTotal = 0.0;
 
         foreach ($lines as $index => $line) {
             $total = static::money($line['line_total'] ?? 0);
@@ -160,20 +159,39 @@ final class OrderTotals
                 continue;
             }
 
-            $share = round($discount * $total / $base, 2);
+            $share = min(round($discount * $total / $base, 2), $total);
             $shares[$index] = $share;
+            $totals[$index] = $total;
             $assigned = round($assigned + $share, 2);
-
-            if ($total > $tallestTotal) {
-                $tallest = $index;
-                $tallestTotal = $total;
-            }
         }
 
-        // Il centesimo che manca (o che avanza) alla riga più alta: la somma
-        // delle quote deve fare **esattamente** lo sconto.
-        if ($tallest !== null) {
-            $shares[$tallest] = round($shares[$tallest] + ($discount - $assigned), 2);
+        // Il centesimo che manca (o che avanza) va alle righe più alte, una
+        // per volta: la somma delle quote deve fare **esattamente** lo sconto,
+        // ma nessuna riga può scontare più di quanto costa — una riga con
+        // imponibile negativo non entra in fattura né in un reso.
+        $rest = (int) round(($discount - $assigned) * 100);
+
+        if ($rest !== 0 && $totals !== []) {
+            $order = $totals;
+            arsort($order);
+            $step = $rest > 0 ? 1 : -1;
+
+            foreach (array_keys($order) as $index) {
+                while ($rest !== 0) {
+                    $next = round($shares[$index] + $step / 100, 2);
+
+                    if ($next < 0.0 || $next > $totals[$index]) {
+                        break;
+                    }
+
+                    $shares[$index] = $next;
+                    $rest -= $step;
+                }
+
+                if ($rest === 0) {
+                    break;
+                }
+            }
         }
 
         return $shares;

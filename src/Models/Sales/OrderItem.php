@@ -47,7 +47,7 @@ final class OrderItem extends Model
             Column::key('type')->enum(static::TYPES)->default('product'),
             Column::key('product_id')->int()->default(0),
             Column::key('parent_item_id')->int()->default(0),
-            Column::key('position')->int(),
+            Column::key('position')->int()->default(0),
             // Copia del prodotto
             Column::key('sku')->length(100),
             Column::key('name'),

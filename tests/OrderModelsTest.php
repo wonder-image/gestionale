@@ -120,7 +120,7 @@ check('riga e riepilogo sono legati al loro ordine', function () use ($colonne) 
         && $colonne(OrderTaxSummary::class)['order_id']->getSchema('foreign_table') === 'gst_orders';
 });
 
-check('le colonne che valgono zero non hanno chiave esterna', function () use ($colonne) {
+check('le colonne che valgono zero valgono zero e non hanno chiave esterna', function () use ($colonne) {
     // Un carrello di un ospite non ha cliente, un carrello non ha ancora sede
     // né metodo di pagamento, una riga di spedizione non ha prodotto: MySQL
     // rifiuterebbe lo zero. Listino, coupon, spedizione e condizione puntano a
@@ -134,12 +134,23 @@ check('le colonne che valgono zero non hanno chiave esterna', function () use ($
         [OrderItem::class, 'tax_id'], [OrderItem::class, 'tax_category_id'],
         [OrderItem::class, 'price_list_id'], [OrderItem::class, 'discount_campaign_id'],
     ] as [$modello, $nome]) {
-        if (($colonne($modello)[$nome] ?? null)?->getSchema('foreign_table') !== null) {
+        $colonna = $colonne($modello)[$nome] ?? null;
+
+        // Senza predefinito la colonna nasce NULL, e in MySQL NULL non è zero:
+        // `where('customer_id', 0)` non troverebbe più i carrelli degli ospiti.
+        if ($colonna?->getSchema('foreign_table') !== null
+            || (string) $colonna?->getSchema('default') !== '0') {
             return false;
         }
     }
 
     return true;
+});
+
+check('la posizione della riga parte da zero, non da NULL', function () use ($colonne) {
+    // Il servizio che aggiunge una riga fa MAX(position) + 1: su NULL resta
+    // NULL, e le righe escono in fattura in ordine sparso.
+    return (string) ($colonne(OrderItem::class)['position'] ?? null)?->getSchema('default') === '0';
 });
 
 check('quantità e peso tengono tre decimali, il denaro due', function () use ($colonne, $campo) {

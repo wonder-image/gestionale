@@ -94,13 +94,13 @@ final class Order extends Model
             Column::key('ordered_at')->datetime(),
             Column::key('completed_at')->datetime(),
             Column::key('cancelled_at')->datetime(),
-            Column::key('user_id')->int(),
+            Column::key('user_id')->int()->default(0),
             // Stati
             Column::key('status')->enum(static::STATUSES)->default('pending'),
             Column::key('payment_status')->enum(static::PAYMENT_STATUSES)->default('unpaid'),
             Column::key('fulfillment_status')->enum(static::FULFILLMENT_STATUSES)->default('unfulfilled'),
             // Cliente
-            Column::key('customer_id')->int(),
+            Column::key('customer_id')->int()->default(0),
             Column::key('email')->length(150),
             Column::key('phone')->length(50),
             ...static::billingAddress()->tableSchema(),
@@ -109,10 +109,10 @@ final class Order extends Model
             Column::key('prices_include_tax')->enum(['true', 'false'])->default('true'),
             // Consegna
             Column::key('fulfillment_type')->enum(static::FULFILLMENT_TYPES)->default('shipping'),
-            Column::key('location_id')->int(),
+            Column::key('location_id')->int()->default(0),
             Column::key('shipping_method_id')->int()->default(0),
             // Pagamento
-            Column::key('payment_method_id')->int(),
+            Column::key('payment_method_id')->int()->default(0),
             Column::key('payment_term_id')->int()->default(0),
             // Sconti sul totale
             Column::key('coupon_id')->int()->default(0),

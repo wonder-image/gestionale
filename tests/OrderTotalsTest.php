@@ -232,4 +232,29 @@ check('le righe tornano indietro tutte, nello stesso ordine', function () use ($
         && $totali['lines'][2]['line_total'] === '30.00';
 });
 
+check('lo sconto di una riga non supera mai il totale della riga', function () use ($riga) {
+    // Uno sconto quasi pari alla merce: tutte le quote arrotondano per
+    // difetto e il resto, tutto in una volta sulla riga più alta, la
+    // sfonderebbe — una riga con imponibile negativo non entra in fattura.
+    $righe = array_map(
+        static fn (float $totale): array => $riga($totale, 22.0),
+        [0.20, 0.22, 0.17, 0.24, 0.18]
+    );
+
+    $totali = OrderTotals::of($righe, ['discount_type' => 'amount', 'discount_value' => 0.98]);
+    $somma = 0.0;
+
+    foreach ($totali['lines'] as $linea) {
+        $sconto = (float) $linea['order_discount_amount'];
+        $somma = round($somma + $sconto, 2);
+
+        if ($sconto < 0.0 || $sconto > (float) $linea['line_total']) {
+            return false;
+        }
+    }
+
+    // E la somma delle quote fa ancora esattamente lo sconto.
+    return $somma === 0.98 && $totali['discount_total'] === '0.98';
+});
+
 summary();
