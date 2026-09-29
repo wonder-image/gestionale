@@ -416,28 +416,6 @@ check('l\'elenco dice foto, prezzo e quante versioni', function () {
         && in_array('versions', $colonne, true);
 });
 
-check('il prezzo si legge come intervallo solo quando serve', function () {
-    $scheda = new class extends ProductModelResource {
-        public static array $finti = [];
-
-        public static function products(int $modelId): array
-        {
-            return static::$finti;
-        }
-    };
-
-    $scheda::$finti = [['price' => '19.90'], ['price' => '19.90']];
-    $uguali = $scheda::priceRange(1);
-
-    $scheda::$finti = [['price' => '24.50'], ['price' => '19.90']];
-    $diversi = $scheda::priceRange(1);
-
-    $scheda::$finti = [];
-    $nessuno = $scheda::priceRange(1);
-
-    return $uguali === '19,90' && $diversi === 'da 19,90' && $nessuno === '';
-});
-
 /**
  * I titoli dei riquadri di una scheda aperta, nell'ordine in cui stanno.
  *
@@ -2794,6 +2772,69 @@ check('le foto del colore stanno nella testata anche col secondo attributo', fun
     // L'articolo raggruppa per «Colore»: le foto stanno nella testata del
     // gruppo, e imageTargets() non rimette un riquadro per colore.
     return $scheda::colorPhotosInGroups(3168) === true;
+});
+
+check('il prezzo dell\'elenco porta l\'euro, e barra il pieno quando c\'è lo sconto', function () {
+    $scheda = new class extends ProductModelResource {
+        public static array $finti = [];
+
+        public static function products(int $modelId): array
+        {
+            return static::$finti;
+        }
+    };
+
+    $scheda::$finti = [['price' => '19.90'], ['price' => '19.90']];
+    $uguali = $scheda::priceCell(1);
+
+    $scheda::$finti = [['price' => '24.50'], ['price' => '19.90']];
+    $diversi = $scheda::priceCell(1);
+
+    $scheda::$finti = [['price' => '19.90', 'sale_price' => '14.90']];
+    $scontato = $scheda::priceCell(1);
+
+    $scheda::$finti = [['price' => '19.90', 'sale_price' => '0']];
+    $senzaSconto = $scheda::priceCell(1);
+
+    $scheda::$finti = [];
+    $nessuno = $scheda::priceCell(1);
+
+    return $uguali === '19,90 €'
+        && $diversi === 'da 19,90 €'
+        && $scontato === '<s>19,90 €</s> 14,90 €'
+        && $senzaSconto === '19,90 €'
+        && $nessuno === '';
+});
+
+check('il «da» guarda quello che si paga davvero', function () {
+    $scheda = new class extends ProductModelResource {
+        public static function products(int $modelId): array
+        {
+            return [
+                ['price' => '19.90'],
+                ['price' => '19.90', 'sale_price' => '14.90'],
+            ];
+        }
+    };
+
+    return $scheda::priceCell(1) === 'da 14,90 €';
+});
+
+check('l\'elenco non porta più il marchio, e lo SKU non è stretto', function () {
+    $nomi = [];
+    $strette = [];
+
+    foreach (ProductModelResource::tableSchema() as $colonna) {
+        $nomi[] = (string) $colonna->name;
+
+        if (($colonna->schema['size'] ?? '') === 'little') {
+            $strette[] = (string) $colonna->name;
+        }
+    }
+
+    return !in_array('brand_id', $nomi, true)
+        && in_array('sku', $nomi, true)
+        && !in_array('sku', $strette, true);
 });
 
 summary();

@@ -653,53 +653,64 @@ class ProductModelResource extends GestionaleResource
                 ->size('little')
                 ->formatter(static fn (array $row): string => static::firstImage((int) ($row['id'] ?? 0))),
             TableColumn::key('name')->text()->link('edit'),
-            TableColumn::key('sku')->text()->size('little'),
+            TableColumn::key('sku')->text(),
             TableColumn::key('price')
                 ->text()
                 ->size('little')
-                ->formatter(static fn (array $row): string => static::escape(
-                    static::priceRange((int) ($row['id'] ?? 0))
-                )),
+                ->formatter(static fn (array $row): string => static::priceCell((int) ($row['id'] ?? 0))),
             TableColumn::key('versions')
                 ->text()
                 ->size('little')
                 ->formatter(static fn (array $row): string => (string) static::productCount((int) ($row['id'] ?? 0))),
-            TableColumn::key('brand_id')
-                ->text()
-                ->size('little')
-                ->formatter(static fn (array $row): string => static::escape(
-                    static::brandOptions()[(string) ($row['brand_id'] ?? '')] ?? ''
-                )),
             TableColumn::key('visible')->visibleBadge()->size('little'),
             TableColumn::key('actions')->button()->actions(['edit', 'delete']),
         ];
     }
 
     /**
-     * Il prezzo dell'articolo, come lo legge chi scorre l'elenco.
+     * Il prezzo dell'articolo, come lo legge chi scorre l'elenco (P126).
      *
-     * Un prezzo solo quando le versioni costano uguale, "da 19,90" quando no:
-     * scrivere il minimo e basta farebbe credere che costino tutte così.
+     * Conta quello che si paga: dove c'è lo sconto vale lo scontato. Un
+     * prezzo solo quando le opzioni costano uguale, «da 19,90 €» quando no —
+     * scrivere il minimo e basta farebbe credere che costino tutte così — e
+     * il pieno barrato accanto allo scontato, che è l'informazione che conta
+     * scorrendo un listino.
      */
-    public static function priceRange(int $modelId): string
+    public static function priceCell(int $modelId): string
     {
-        $prices = [];
+        $daPagare = [];
+        $pieno = 0.0;
 
         foreach (static::products($modelId) as $product) {
-            $price = (float) ($product['price'] ?? 0);
+            $intero = (float) ($product['price'] ?? 0);
+            $sconto = (float) ($product['sale_price'] ?? 0);
+            $prezzo = $sconto > 0 ? $sconto : $intero;
 
-            if ($price > 0) {
-                $prices[] = $price;
+            if ($prezzo > 0) {
+                $daPagare[] = $prezzo;
+                $pieno = max($pieno, $intero);
             }
         }
 
-        if ($prices === []) {
+        if ($daPagare === []) {
             return '';
         }
 
-        $minimo = number_format(min($prices), 2, ',', '.');
+        $minimo = min($daPagare);
 
-        return min($prices) === max($prices) ? $minimo : 'da '.$minimo;
+        if ($minimo !== max($daPagare)) {
+            return 'da '.static::euro($minimo);
+        }
+
+        return $pieno > $minimo
+            ? '<s>'.static::euro($pieno).'</s> '.static::euro($minimo)
+            : static::euro($minimo);
+    }
+
+    /** Un prezzo come si scrive in italiano: `19,90 €`. */
+    protected static function euro(float $prezzo): string
+    {
+        return number_format($prezzo, 2, ',', '.').' €';
     }
 
     /** La prima foto dell'articolo, per la miniatura dell'elenco. */
