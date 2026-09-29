@@ -148,8 +148,9 @@ final class SettingResource extends SingletonResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('set-up')
+            ->inGroup('gestionale')
             ->title('Impostazioni')
-            ->order(63)
+            ->order(10)
             ->authority(['admin']);
     }
 

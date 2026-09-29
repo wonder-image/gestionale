@@ -117,6 +117,7 @@ final class FeatureResource extends NavigationOnlyResource
     {
         return NavigationSchema::for(static::class)
             ->section('set-up', 'Set Up', 'bi-gear', 1020, ['admin'])
+            ->group('gestionale', 'Gestionale', 40, ['admin'])
             ->title('Funzionalità')
             ->order(20)
             ->authority(['admin']);

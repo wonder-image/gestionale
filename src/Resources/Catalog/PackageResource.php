@@ -77,10 +77,10 @@ final class PackageResource extends GestionaleResource
     {
         return [
             FormField::key('name')->text()->label('Nome')->required(),
-            FormField::key('weight')->number()->decimal(3)->label('Peso a vuoto (kg)'),
-            FormField::key('length')->number()->decimal(2)->label('Lunghezza (cm)'),
-            FormField::key('width')->number()->decimal(2)->label('Larghezza (cm)'),
-            FormField::key('height')->number()->decimal(2)->label('Altezza (cm)'),
+            FormField::key('weight')->number()->decimal(3)->label('Peso a vuoto (kg)')->required(),
+            FormField::key('length')->number()->decimal(2)->label('Lunghezza (cm)')->required(),
+            FormField::key('width')->number()->decimal(2)->label('Larghezza (cm)')->required(),
+            FormField::key('height')->number()->decimal(2)->label('Altezza (cm)')->required(),
             FormField::key('is_default')
                 ->select(['false' => 'No', 'true' => 'Sì'])
                 ->value('false')
@@ -186,8 +186,9 @@ final class PackageResource extends GestionaleResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('set-up')
+            ->inGroup('gestionale')
             ->title('Imballaggi')
-            ->order(62)
+            ->order(30)
             ->authority(['admin']);
     }
 

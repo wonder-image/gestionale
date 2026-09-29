@@ -158,8 +158,9 @@ final class TaxCategoryResource extends GestionaleResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('set-up')
+            ->group('iva', 'IVA', 50, ['admin'])
             ->title('Tipi fiscali')
-            ->order(61)
+            ->order(10)
             ->authority(['admin']);
     }
 

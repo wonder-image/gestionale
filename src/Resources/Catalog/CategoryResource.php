@@ -86,7 +86,8 @@ final class CategoryResource extends GestionaleResource
                 ->checkTree(static::parentTree(), true, 'radio')
                 ->listsResource(self::class)
                 ->value('0')
-                ->label('Categoria padre'),
+                ->label('Categoria padre')
+                ->required(),
             FormField::key('visible')
                 ->select(['true' => 'Visibile', 'false' => 'Nascosta'])
                 ->value('true')

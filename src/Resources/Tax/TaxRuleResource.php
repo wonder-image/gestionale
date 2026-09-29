@@ -169,8 +169,9 @@ final class TaxRuleResource extends GestionaleResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('set-up')
-            ->title('Regole IVA')
-            ->order(62)
+            ->inGroup('iva')
+            ->title('Regole')
+            ->order(30)
             ->authority(['admin']);
     }
 

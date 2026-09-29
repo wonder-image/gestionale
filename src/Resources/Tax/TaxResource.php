@@ -157,8 +157,9 @@ final class TaxResource extends GestionaleResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('set-up')
-            ->title('Aliquote IVA')
-            ->order(60)
+            ->inGroup('iva')
+            ->title('Aliquote')
+            ->order(20)
             ->authority(['admin']);
     }
 
