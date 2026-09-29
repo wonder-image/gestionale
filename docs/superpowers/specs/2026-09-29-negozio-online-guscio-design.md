@@ -275,7 +275,8 @@ file e va aggiornato nello stesso commit del lavoro, non a fine giornata:
 
 ## Revisioni della spec di architettura
 
-Da riportare come D62:
+Riportate nella spec di architettura il 2026-09-29 come **D62** (§2.3, §7, §10.2,
+§10.3 e Appendice A):
 
 - **§2.3 e §7:** le pagine dell'ecommerce non sono tutte pubblicabili. Carrello,
   checkout, area cliente e autenticazione sono sigillate e si personalizzano con il

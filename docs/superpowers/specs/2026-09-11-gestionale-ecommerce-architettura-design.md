@@ -177,7 +177,7 @@ ecommerce/src/Providers/     adattatori dei gateway di pagamento online
 ecommerce/http/  view/  lang/  config/
 ```
 
-### 2.3 Frontend dell'ecommerce (D6, D11, D12)
+### 2.3 Frontend dell'ecommerce (D6, D11, D12, D62)
 
 - **Pagine complete e componenti** su `wonder-image/lib`: catalogo, scheda
   prodotto, carrello, checkout, area cliente con ordini, indirizzi, resi e
@@ -187,13 +187,23 @@ ecommerce/http/  view/  lang/  config/
 - **Modulo, non boilerplate:** la logica resta nel pacchetto e si aggiorna con
   `composer update` (checkout, pagamenti e webhook, prenotazione delle giacenze,
   sconti e listini, creazione dell'ordine, area cliente). La libertà grafica passa
-  dal publish delle view (capitolo 7).
+  dal publish delle view pubblicabili (capitolo 7).
+- **View sigillate (D62):** carrello, checkout, area cliente e pagine di
+  autenticazione **non** si pubblicano: devono restare aggiornabili con
+  `composer update` senza intoppi. Si personalizzano con il tema di
+  `wonder-image/lib`, i testi dei `lang/`, gli slot di markup (capitolo 7) e gli
+  hook. Header, footer e i componenti che il sito innesta in essi restano del sito e
+  si cambiano al 100%. L'elenco delle view sigillate sta nel `module.json`, il blocco
+  è nel `viewPath()` del modulo e `publish:module` le salta con un avviso (10.2).
+- **Layout:** le pagine del modulo non portano header e footer: si agganciano ai
+  layout del sito con layout sottili propri (asset, dati JS, slot, SEO), come fa
+  `wonder-image/immobili`.
 - **Regole delle view:** nessuna logica, ricevono dati pronti (prezzo finale,
   disponibilità, errori); contratto dei dati documentato per ogni view, con i cambi
   segnalati nel changelog.
 - **Starter (D12):** dopo il primo rilascio, uno starter basato su
-  `boilerplates/ecommerce-site` (D58) con gestionale ed ecommerce abilitati e view
-  pubblicate; solo configurazione, nessuna logica.
+  `boilerplates/ecommerce-site` (D58) con gestionale ed ecommerce abilitati e le view
+  pubblicabili già pubblicate; solo configurazione, nessuna logica.
 
 ### 2.4 Credenziali nel core (D14)
 
@@ -1546,14 +1556,21 @@ contratti di 2 o 3 commercianti reali. Ricerca iniziale (2026-09-15):
 - servizio del corriere per metodo di spedizione in
   `shipping_methods.provider_service_code`; credenziali del servizio nel core.
 
-## 7. Estensibilità per sito (D11, D52)
+## 7. Estensibilità per sito (D11, D52, D62)
 
 **Presentazione.**
 
-- **Pagine dell'ecommerce** (vetrina, carrello, checkout, area cliente): pubblicate
-  con `php forge publish:module ecommerce` e modificate in
-  `custom/modules/ecommerce/view/`, come in immobili. I dati che ricevono sono
-  documentati; ogni cambiamento è segnalato nel changelog del modulo.
+- **Pagine pubblicabili dell'ecommerce** (vetrina, catalogo, scheda prodotto e i
+  componenti del guscio): pubblicate con `php forge publish:module ecommerce` e
+  modificate in `custom/modules/ecommerce/view/`, come in immobili. I dati che
+  ricevono sono documentati; ogni cambiamento è segnalato nel changelog del modulo.
+- **Pagine sigillate (D62)** (carrello, checkout, area cliente, autenticazione): non
+  si pubblicano, così restano aggiornabili. Si personalizzano con il tema della lib,
+  i testi dei `lang/`, gli **slot** e gli hook. Gli slot sono punti d'innesto di
+  markup dichiarati nella view e riempiti dal sito con proprie partial indicate nella
+  configurazione del modulo: sono contratto pubblico come i dati delle view,
+  documentati uno per uno, e i cambi vanno nel changelog. Gli slot aggiungono
+  markup; per i dati e per i campi valgono gli hook qui sotto.
 - **Email:** stesso meccanismo delle pagine.
 - **PDF** (preventivo, ordine, DDT, proforma, etichette): una classe per layout,
   indicata nella configurazione del modulo (es. `pdf.quote`); il sito la sostituisce
@@ -1986,6 +2003,7 @@ disponibili.
 | Prima del gestionale | helper `transaction(fn)` | 9.2 |
 | Prima del gestionale | opzione `docs()` nel `PageSchema` | 9.5 |
 | Prima del gestionale | classe delle aliquote IVA italiane | 4.5 |
+| Prima dell'ecommerce | `publish:module` che salta le view dichiarate sigillate nel `module.json`, con un avviso | 2.3, 7 |
 | Con E2 | credenziali PayPal e Nexi in `Credentials::api()`, tabella `security` e pagina backend; alias e chiave MAC nella classe `Nexi` | 2.4, 6.3 |
 | Dopo il primo rilascio | `AuthFederated` (accesso con Google e Apple) | 10.4 |
 | Con le etichette | EAN-13 ed EAN-8 in `createBarcode()` | 10.5 |
@@ -2008,6 +2026,19 @@ In ordine di dipendenza; `1.0.0` al termine.
 | G7 | Spedizioni | metodi, zone e tariffe; spedizioni e tracking manuali; ritiro in sede | 4.11 |
 | G8 | Fatturazione elettronica | fatture dopo il pagamento; provider XML e Fatture in Cloud con coda; bollo | 4.12, 5.3, 6.2 |
 | E1 | Negozio online (`wonder-image/ecommerce`) | vetrina, carrello, checkout con Stripe Payment Element ed Express Checkout, acquisto da ospite, area cliente, webhook, richiesta di reso, email, condizioni di vendita, blocco del checkout, SEO | 2.3, 5.1, 5.2, 6.3, 7, 8.5, 8.6 |
+
+**E1 diviso in tre fette (D62).** Solo l'ultima dipende da G4, quindi il pacchetto si
+apre subito.
+
+| # | Fetta | Contenuto | Dipende da |
+|---|---|---|---|
+| E1a | Guscio | pacchetto e collegamento a `ecommerce-site`; layout sottili `ecommerce.shop`, `ecommerce.checkout`, `ecommerce.auth` sopra quelli del sito; view sigillate e slot; account dei clienti sul permesso `frontend.client` del core, con le rotte di `spingy-it`; area cliente con profilo, indirizzi, consensi e password | G1, G2 |
+| E1b | Vetrina | vetrina, catalogo pubblico, scheda prodotto, SEO delle pagine prodotto | G2 |
+| E1c | Vendita | carrello, checkout, pagamenti e webhook, ordini e resi nell'area cliente, email, condizioni di vendita, blocco del checkout | G4 |
+
+Spec di E1a: `docs/superpowers/specs/2026-09-29-negozio-online-guscio-design.md`.
+I componenti che il sito innesta nel proprio header e footer (mini-carrello, ricerca,
+voce dell'account, avvisi) sono una fetta a sé, dopo E1a.
 
 - **G3 subito dopo G2:** lo scarico degli ordini (G4) nasce già con sedi, lotti e
   fornitori.
@@ -2222,6 +2253,8 @@ Il testo originale di ogni decisione è nel commit `4fa9852`.
 | D58 | Roadmap: lavori nel core, priorità all'online, sito di prova | D59 | 10.1, 10.2 |
 | D59 | Sequenza dei sotto-progetti | | 10.3, 10.4 |
 | D60 | Vendita senza giacenza e prefisso `gst_` delle tabelle | | 1.5, 2.5, 3.4, 4.2, 4.3 |
+| D61 | Sequenza rivista per la consegna del primo negozio | D59 | 10.3 |
+| D62 | View sigillate, slot e divisione di E1 in tre fette | D11, D52 | 2.3, 7, 10.2, 10.3 |
 
 ## Appendice B — Vincoli del framework (verificati il 2026-09-11 e il 2026-09-16)
 
