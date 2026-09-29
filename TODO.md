@@ -126,6 +126,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Ramo `feature/prerequisiti-moduli-gestionale` unito in `main` in locale (avanzamento diretto fino a 223adf4b, 72 file di test verdi) e cancellato in locale (2026-09-17)
   - [x] Push di `main` di `wonder-image/app`, rilasci fino a `v2.4.0-beta.1` e ramo remoto `feature/prerequisiti-moduli-gestionale` cancellato (verificato il 2026-09-29)
 - [ ] D60 (2026-09-18): vendita senza giacenza per prodotto con giacenza sotto zero (funzionalità `backorders`, G4) e prefisso delle tabelle `gst_`; spec di architettura aggiornata (1316556)
+- [ ] D61 (2026-09-29): **sequenza rivista per la consegna del primo negozio** (entro il 2026-10-29). Il negozio vende da una sede sola, con spedizioni, coupon e sconti, prodotti composti e personalizzabili; senza fatturazione elettronica. G3 e i documenti di magazzino (G2b-bis piani 4-6) escono dal percorso della consegna: restano dietro i loro interruttori (`multi_location`, `purchasing`, `batch_tracking` spenti) e la merce entra con la rettifica rapida. Vincolo su G4: prenotazione e scarico passano da **un unico servizio**, che riceve già sede, lotto e fornitore anche se `gst_stock.batch_id` e `supplier_id` restano a zero, così G3 toccherà solo quel punto. Spec di architettura §10.3 aggiornata
 - [x] G1 Fondamenta (chiuso il 2026-09-21)
   - Spec: `docs/superpowers/specs/2026-09-18-fondamenta-gestionale-design.md`
   - [x] Repository `wonder-image/gestionale` creato su GitHub (privato) e primo push (2026-09-18)
@@ -213,6 +214,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - [x] Piano 1 Tabelle del core eseguito (2026-09-25, senza piano scritto): azioni-array, `TableLayoutSchema::select()`, `filterQuery()`, `FilterCustom` sicuro, ricerca annidata; nel `main` del core (`2d2fdc14`) e nel sito di prova
     - [x] Piano 2 Giacenze eseguito (2026-09-29): elenco del core su `Product` in sola consultazione, una colonna per sede con `Locations::shown()`, *Totale*, *Scorta minima*, *Impegnati* e *Disponibili* calcolati nella query (`LevelsSql`) e ordinabili, ricerca sul nome dell'articolo, filtri *Stato*, *Marchio*, *Categoria* e *Scorta*, menu ⋯ con *Movimenti* e *Apri la versione*, `lowStockUrl()` che apre il filtro *Scorta*; via la pagina-form con le caselle e il salvataggio in blocco
     - [ ] Piano 3 Movimenti: colonne, *Chi*, *Prima*, filtri *Causale*, *Sede* e *Periodo*, ricerca sull'articolo, *Ultimi movimenti* nella scheda della versione
+    - [ ] **Rimandati dopo la consegna (D61)** i piani 4-6: carichi, scarichi, inventario e trasferimenti. Fino ad allora la merce entra ed esce con la rettifica rapida della scheda prodotto
     - [ ] Piano 4 Documenti, dati e servizio: tabelle, Model, regole, conferma, annullamento, duplica, inventario; documento e storni dentro *Tipo* nei Movimenti
     - [ ] Piano 5 Carichi e scarichi, pagine: menu, elenchi, bozza con i componenti, rotta JSON e indice `ean`, pagina in sola lettura, azioni, dati di prova
     - [ ] Piano 6 Inventario, pagine: Attesi · Contati · Differenza, *Aggiungi versioni*, limite di 500 righe, dati di prova; chiusura di G2b-bis
@@ -220,14 +222,28 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - [x] Tredicesimo giro eseguito (spec §22, 2026-09-25, commit `0a04ef9`): fornitori dell'articolo, giacenza e scorta minima per sede (`gst_stock_thresholds`, via `gst_products.min_stock_quantity`), colonna «Scontato» nella griglia, personalizzazioni scritte in spec per G5. Architettura 4.3 aggiornata; G2b-bis §2 «la scorta minima è della versione» superata
     - [x] Quattordicesimo giro eseguito (spec §23, 2026-09-29, commit `7b55c80` e `5265522`): i fornitori tornano all'opzione in `gst_product_suppliers` (via `gst_product_model_suppliers` e `ProductModelSupplier`, decisioni P107–P115), due campi con un fornitore solo e bottone «Fornitori» con finestra a righe da due in su, «Salva per tutte le opzioni», fornitori copiati accendendo le varianti; con più sedi la griglia non ha la colonna *Giacenza*. Guide, CHANGELOG e test allineati; prova nel browser chiusa senza difetti
     - [ ] Quindicesimo giro, se serve: da aprire dopo la prossima prova nel browser
-- [ ] G3 Magazzino avanzato
-- [ ] G4 Ordini e pagamenti
-- [ ] G5 Multiprodotto e personalizzazione
-- [ ] G6 Listini e promozioni
-- [ ] G7 Spedizioni
-- [ ] G8 Fatturazione elettronica
-- [ ] E1 Negozio online
+**Percorso della consegna (D61)** — nell'ordine; quello che non serve al primo negozio resta spento.
+
+- [ ] G4 Ordini e pagamenti — [spec](docs/superpowers/specs/2026-09-29-ordini-e-pagamenti-design.md) scritta il 2026-09-29, cinque piani; **con dentro il Piano 3 di G2b-bis** (Movimenti: *Chi*, *Prima*, filtri, ricerca, riferimento al documento): la pagina si tocca una volta sola, quando gli ordini cominciano a scaricare. Il blocco grosso: prezzi, ordini e righe, stati, pagamenti, prenotazione e scarico da un unico servizio, resi
+  - [x] Piano 1 **fatto** (2026-09-29): `docs/superpowers/plans/2026-09-29-tabelle-e-prezzi-degli-ordini.md` — gli otto Model più i tre log (undici tabelle), `LinePrice` e `OrderTotals` puri con i loro test, le due impostazioni della vendita, i prefissi dei codici. Sei task, ramo `feature/ordini-tabelle-e-prezzi`
+  - [ ] Piano 2 Magazzino delle vendite e pagamenti: `Allocation` e `Ledger`, test di contemporaneità e di idempotenza
+  - [ ] Piano 3 Carrello, checkout e ciclo di vita: `Cart`, `Checkout`, `Lifecycle`, `Expiry` nello scheduler, le email
+  - [ ] Piano 4 Backend *Vendite*: elenco, dettaglio, azioni, metodi e conti in Set Up, ordini finti nel `DemoCommand`; **con dentro il Piano 3 di G2b-bis** (Movimenti)
+  - [ ] Piano 5 Resi, guide e prova nel browser: `Returns`, la pagina di registrazione, le tre guide utente e la guida per sviluppatori
+- [ ] G5 Multiprodotto e personalizzazione — componenti e campi compilati in vendita, sulle righe di G4
+- [ ] G6 ridotto — sconto sulla riga, coupon e sconto massivo; **listini cliente rimandati** (B2B, D61)
+- [ ] G7 Spedizioni — metodi, zone e tariffe, tracking a mano, ritiro in sede
+- [ ] E1 Negozio online — vetrina, carrello, checkout con Stripe, area cliente, email, condizioni di vendita, SEO. Pacchetto nuovo `wonder-image/ecommerce`, diviso in tre fette; il dettaglio dei compiti sta in [`packages/ecommerce/TODO.md`](../ecommerce/TODO.md), che è lo stato del lavoro del modulo
+  - [~] E1a Guscio — [spec](docs/superpowers/specs/2026-09-29-negozio-online-guscio-design.md) approvata il 2026-09-29, tre piani: pacchetto e collegamento a `ecommerce-site` (**fatto**: repository privato `wonder-image/ecommerce`, due moduli validi sul sito di prova), i tre layout sottili con le view sigillate e gli slot, account dei clienti sul permesso `frontend.client` del core. **Non dipende da G4: aperto ora, in parallelo**
+  - [ ] E1b Vetrina, catalogo pubblico e scheda prodotto — legge G2, apribile senza G4
+  - [ ] E1c Carrello, checkout con Stripe, ordini e resi nell'area cliente, email, condizioni di vendita — **dopo G4**
 - [ ] Rilascio `1.0.0` di gestionale ed ecommerce
+- [ ] Sito del cliente sopra `boilerplates/ecommerce-site`: tema, contenuti, prodotti veri, Stripe in produzione, collaudo
+
+**Fuori dal percorso della consegna (D61)**
+
+- [ ] G3 Magazzino avanzato — più sedi e trasferimenti, lotti e scadenze, giacenza e costi per fornitore, valore del magazzino
+- [ ] G8 Fatturazione elettronica — il checkout è già previsto con la fatturazione spenta (§8.6); serve se il negozio fattura a partite IVA o su richiesta
 
 **Dopo il primo rilascio**
 
@@ -240,20 +256,20 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 
 ### Lavori preparatori in `wonder-image/app` (D58)
 
-- [ ] `Data\Fields\Number::sqlSchema()` torna `'length' => '10,2'` fisso e ignora `decimals()`: ogni colonna nata da `sqlColumnsFromDataSchema()` perde i decimali oltre il secondo (le quantità del magazzino, `gst_products.weight`). Nel modulo c'è il ripiego `Support\Columns::decimal()`
-- [ ] `app/function/mail.php` riga 158: Brevo riceve `->replyTo($from, ...)` anche quando `$from` è vuoto — il ramo PHPMailer (riga 208) la guardia ce l'ha già. Le email senza mittente sono quelle dello scheduler e dei comandi
+- [x] `Data\Fields\Number::sqlSchema()` torna `'length' => '10,2'` fisso e ignora `decimals()`: ogni colonna nata da `sqlColumnsFromDataSchema()` perde i decimali oltre il secondo (le quantità del magazzino, `gst_products.weight`). Nel modulo c'è il ripiego `Support\Columns::decimal()`
+- [x] `app/function/mail.php` riga 158: Brevo riceve `->replyTo($from, ...)` anche quando `$from` è vuoto — il ramo PHPMailer (riga 208) la guardia ce l'ha già. Le email senza mittente sono quelle dello scheduler e dei comandi
 
-- [ ] Credenziali PayPal e Nexi in `Credentials::api()`, tabella `security` e pagina backend delle credenziali (D14)
-- [ ] Classe delle aliquote IVA italiane accanto a `Custom\Fattura\Valori\Natura` (D21)
-- [ ] EAN-13 ed EAN-8 in `createBarcode()`, insieme alle etichette (funzionalità futura, D30, D59)
-- [ ] Nexi: alias e chiave MAC nella classe `Nexi`, oltre all'API key (D50)
-- [ ] Opzione `docs()` nel `PageSchema` per il pulsante "Guida" del backend (D32)
+- [x] Credenziali PayPal e Nexi in `Credentials::api()`, tabella `security` e pagina backend delle credenziali (D14)
+- [x] Classe delle aliquote IVA italiane accanto a `Custom\Fattura\Valori\Natura` (D21)
+- [x] EAN-13 ed EAN-8 in `createBarcode()`, insieme alle etichette (funzionalità futura, D30, D59)
+- [x] Nexi: alias e chiave MAC nella classe `Nexi`, oltre all'API key (D50)
+- [x] Opzione `docs()` nel `PageSchema` per il pulsante "Guida" del backend (D32)
 - [ ] Dopo il primo rilascio: completare l'accesso con Google e Apple (`AuthFederated`), oggi non funzionante (D31, D58)
-- [ ] Sync con `id` stabili: opzione di `SyncSchema` che esporta `id` e `deleted`, import che inserisce o aggiorna per `id` senza `TRUNCATE`, righe assenti segnate come cancellate (D54)
-- [ ] Pagine delle tabelle sincronizzate in sola lettura in produzione, con avviso (D54)
-- [ ] `forge update` in locale: classe `Defaults` di ogni modulo abilitato, in ordine di dipendenza, poi aggiornamento di `shared/sync-data.json` (D54)
-- [ ] Opzione che permette a un modulo di rendere in sola lettura una Resource del core, es. indirizzo e orari della società (D54)
-- [ ] Helper `transaction(fn)` per le transazioni, sul modello di `ConsentService` (D56)
+- [x] Sync con `id` stabili: opzione di `SyncSchema` che esporta `id` e `deleted`, import che inserisce o aggiorna per `id` senza `TRUNCATE`, righe assenti segnate come cancellate (D54)
+- [x] Pagine delle tabelle sincronizzate in sola lettura in produzione, con avviso (D54)
+- [x] `forge update` in locale: classe `Defaults` di ogni modulo abilitato, in ordine di dipendenza, poi aggiornamento di `shared/sync-data.json` (D54)
+- [x] Opzione che permette a un modulo di rendere in sola lettura una Resource del core, es. indirizzo e orari della società (D54)
+- [x] Helper `transaction(fn)` per le transazioni, sul modello di `ConsentService` (D56)
 
 ### Documentazione
 

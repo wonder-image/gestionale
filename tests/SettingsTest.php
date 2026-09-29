@@ -131,6 +131,32 @@ check('un campo vuoto si salva vuoto: vuol dire nessuna email', function () use 
     return MerchantSettingResource::mutateRequestValues(['low_stock_emails' => ' '], 'update')['low_stock_emails'] === '';
 });
 
+check('le due impostazioni della vendita ci sono, con i predefiniti di 5.2', function () {
+    $colonne = [];
+
+    foreach (Setting::tableSchema() as $column) {
+        $colonne[(string) $column->name] = $column;
+    }
+
+    return isset($colonne['order_reservation_minutes'], $colonne['order_payment_wait_days'])
+        && (string) $colonne['order_reservation_minutes']->getSchema('default') === '30'
+        && (string) $colonne['order_payment_wait_days']->getSchema('default') === '7';
+});
+
+check('le due impostazioni si possono cambiare dal form', function () {
+    $campi = array_map(static fn ($field): string => (string) $field->name, SettingResource::formSchema());
+
+    return in_array('order_reservation_minutes', $campi, true)
+        && in_array('order_payment_wait_days', $campi, true);
+});
+
+check('le due impostazioni hanno un\'etichetta in italiano', function () {
+    $etichette = SettingResource::labelSchema();
+
+    return trim((string) ($etichette['order_reservation_minutes'] ?? '')) !== ''
+        && trim((string) ($etichette['order_payment_wait_days'] ?? '')) !== '';
+});
+
 $forza(null);
 
 summary();

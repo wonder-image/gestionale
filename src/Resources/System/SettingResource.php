@@ -62,6 +62,8 @@ final class SettingResource extends SingletonResource
             'stamp_duty_auto' => 'Bollo automatico',
             'fiscal_confirmed_at' => 'Confermate il',
             'developer_error_emails' => 'Email dello sviluppatore',
+            'order_reservation_minutes' => 'Minuti di prenotazione',
+            'order_payment_wait_days' => 'Giorni di attesa del pagamento',
         ];
     }
 
@@ -88,6 +90,8 @@ final class SettingResource extends SingletonResource
                 ->value('true')
                 ->label('Bollo automatico'),
             FormField::key('developer_error_emails')->text()->label('Email dello sviluppatore'),
+            FormField::key('order_reservation_minutes')->number()->decimal(0)->value(30)->label('Minuti di prenotazione')->required(),
+            FormField::key('order_payment_wait_days')->number()->decimal(0)->value(7)->label('Giorni di attesa del pagamento')->required(),
         ];
     }
 
@@ -113,6 +117,14 @@ final class SettingResource extends SingletonResource
                     static::getInput('invoice_provider')->columnSpan(4),
                     static::getInput('invoice_numeration')->columnSpan(4),
                     static::getInput('stamp_duty_auto')->columnSpan(4),
+                ])->columns(12)->columnSpan(12),
+
+                (new Card)->components([
+                    SectionTitle::make('Vendite')
+                        ->tooltip('Quanto resta impegnata la merce di un ordine non ancora pagato, e per quanti giorni si aspetta il bonifico prima di annullare.')
+                        ->columnSpan(12),
+                    static::getInput('order_reservation_minutes')->columnSpan(6),
+                    static::getInput('order_payment_wait_days')->columnSpan(6),
                 ])->columns(12)->columnSpan(12),
 
                 (new Card)->components([
