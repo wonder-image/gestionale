@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockMovementResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 
@@ -970,6 +971,29 @@ check('i campi obbligatori della finestra armano la spunta del backend', functio
         && str_contains($html, 'name="quantity" data-wi-check="true"')
         && str_contains($html, 'name="reason" data-wi-check="true"')
         && str_contains($html, 'typeof check');
+});
+
+check('i movimenti della scheda sono le colonne dell\'elenco Movimenti, senza l\'opzione', function () {
+    $dichiarate = [];
+
+    foreach (StockMovementResource::tableSchema() as $colonna) {
+        $dichiarate[] = (string) $colonna->name;
+    }
+
+    $scelte = ProductResource::stockHistoryColumns();
+
+    // Le colonne nascono dallo schema della Resource che le possiede: se una
+    // sparisce di là, la scheda se ne accorge qui invece che in pagina.
+    return $scelte === ['creation', 'type', 'reason', 'quantity', 'quantity_after']
+        && array_diff($scelte, $dichiarate) === []
+        && !in_array('product_id', $scelte, true);
+});
+
+check('senza opzione aperta i movimenti sono la frase, non la tabella', function () {
+    $metodo = new ReflectionMethod(ProductResource::class, 'stockHistoryTable');
+    $html = (string) $metodo->invoke(null);
+
+    return str_contains($html, 'Nessun movimento') && !str_contains($html, '<table');
 });
 
 check('il codice del produttore si chiama MPN', fn () =>

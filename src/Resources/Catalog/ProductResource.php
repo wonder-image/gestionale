@@ -12,7 +12,6 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\Support\Repeater;
-use Wonder\Backend\Table\Table as Datatable;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
@@ -22,7 +21,6 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
-use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockMovementResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
@@ -461,28 +459,24 @@ class ProductResource extends ProductModelResource
         // larghezza di un figlio sulle colonne del padre.
         return (new Form)->components([
             (new Container)->components($cards)->columns(12)->columnSpan(8),
-            (new Container)->components([static::identificationCard(), static::measuresCard()])->columns(12)->columnSpan(4),
+            (new Container)->components([static::identificationCard()])->columns(12)->columnSpan(4),
         ])->columns(12);
     }
 
-    /** I codici dell'opzione e le sue misure, nella colonna stretta (P117). */
+    /**
+     * I codici dell'opzione e le sue misure, nella colonna stretta (P117,
+     * P118). Un riquadro solo: i codici e le misure descrivono tutti e due il
+     * pezzo fisico, e si guardano di rado.
+     */
     protected static function identificationCard(): Card
     {
         return (new Card)->components([
             SectionTitle::make('Identificazione')
+                ->tooltip('I codici di questa opzione, e quanto pesa e misura il suo pacco. Lasciando vuote le misure valgono peso e misure dell\'articolo.')
                 ->columnSpan(12),
             static::getInput('sku')->columnSpan(12),
             static::getInput('ean')->columnSpan(12),
             static::getInput('mpn')->columnSpan(12),
-        ])->columns(12)->columnSpan(12);
-    }
-
-    protected static function measuresCard(): Card
-    {
-        return (new Card)->components([
-            SectionTitle::make('Misure')
-                ->tooltip('Quaanto pesa e misura il suo pacco. Lasciando vuote le misure valgono peso e misure dell\'articolo.')
-                ->columnSpan(12),
             static::getInput('weight')->columnSpan(6),
             static::getInput('length')->columnSpan(6),
             static::getInput('width')->columnSpan(6),
@@ -624,14 +618,30 @@ class ProductResource extends ProductModelResource
     }
 
     /**
-     * I movimenti di questa opzione, cinque per volta (P119).
+     * Le colonne dei movimenti dentro la scheda dell'opzione (P128).
      *
-     * È il datatable del core sulla tabella dei movimenti, con le colonne e i
-     * formatter dell'elenco *Movimenti*: la stessa lettura, senza uscire
-     * dalla scheda. La ricerca resta spenta — la sua casella farebbe partire
-     * il salvataggio della scheda che c'è intorno.
+     * Sono nomi dello schema di `StockMovementResource`: l'opzione non c'è
+     * perché la scheda è già la sua, la nota resta all'elenco — qui ruberebbe
+     * la riga alle quantità.
      *
-     * Senza database il datatable non nasce: resta la frase, e la scheda si
+     * @return list<string>
+     */
+    public static function stockHistoryColumns(): array
+    {
+        return ['creation', 'type', 'reason', 'quantity', 'quantity_after'];
+    }
+
+    /**
+     * I movimenti di questa opzione, cinque per volta (P119, P128).
+     *
+     * Nasce dalle colonne che `StockMovementResource` dichiara per il suo
+     * elenco, ristretta a quest'opzione: le etichette e i formattatori si
+     * scrivono una volta sola, di là. Titolo e filtri restano spenti — il
+     * riquadro ha già il suo titolo, e le caselle dei filtri starebbero
+     * dentro la form della scheda, dove un invio salverebbe invece di
+     * filtrare.
+     *
+     * Senza database la tabella non nasce: resta la frase, e la scheda si
      * legge lo stesso.
      */
     protected static function stockHistoryTable(): string
@@ -643,20 +653,17 @@ class ProductResource extends ProductModelResource
             return $vuoto;
         }
 
-        $slug = StockMovementResource::slug();
-
         try {
-            $tabella = new Datatable(StockMovement::$table);
+            $tabella = StockMovementResource::backendTable(static::stockHistoryColumns());
             $tabella->title(false);
+            $tabella->titleNResult(false);
+            $tabella->filterSearch(false);
+            $tabella->filterDate(false);
+            $tabella->filterLimit(false);
+            $tabella->filterCustom(false);
             $tabella->length(5);
             $tabella->query('`product_id` = '.$productId." AND `deleted` = 'false'");
             $tabella->queryOrder('id', 'DESC');
-            $tabella
-                ->addColumn('Quando', 'creation', false, '', null, null)
-                ->addColumn('Tipo', 'type', false, '', null, null, ['formatter' => $slug.'.type'])
-                ->addColumn('Causale', 'reason', false, '', null, null, ['formatter' => $slug.'.reason'])
-                ->addColumn('Pezzi', 'quantity', false, '', null, 'little', ['formatter' => $slug.'.quantity'])
-                ->addColumn('Dopo', 'quantity_after', false, '', null, 'little', ['formatter' => $slug.'.quantity_after']);
 
             $html = (string) $tabella->generate(false);
         } catch (Throwable) {
