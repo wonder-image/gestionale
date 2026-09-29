@@ -233,7 +233,10 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 - [ ] G5 Multiprodotto e personalizzazione — componenti e campi compilati in vendita, sulle righe di G4
 - [ ] G6 ridotto — sconto sulla riga, coupon e sconto massivo; **listini cliente rimandati** (B2B, D61)
 - [ ] G7 Spedizioni — metodi, zone e tariffe, tracking a mano, ritiro in sede
-- [ ] E1 Negozio online — vetrina, carrello, checkout con Stripe, area cliente, email, condizioni di vendita, SEO. Pacchetto nuovo `wonder-image/ecommerce`: si può aprire in parallelo a G5-G7 appena G4 è chiuso
+- [ ] E1 Negozio online — vetrina, carrello, checkout con Stripe, area cliente, email, condizioni di vendita, SEO. Pacchetto nuovo `wonder-image/ecommerce`, diviso in tre fette; il dettaglio dei compiti sta in [`packages/ecommerce/TODO.md`](../ecommerce/TODO.md), che è lo stato del lavoro del modulo
+  - [ ] E1a Guscio — [spec](docs/superpowers/specs/2026-09-29-negozio-online-guscio-design.md) approvata il 2026-09-29, tre piani: pacchetto e collegamento a `ecommerce-site`, i tre layout sottili con le view sigillate e gli slot, account dei clienti sul permesso `frontend.client` del core. **Non dipende da G4: aperto ora, in parallelo**
+  - [ ] E1b Vetrina, catalogo pubblico e scheda prodotto — legge G2, apribile senza G4
+  - [ ] E1c Carrello, checkout con Stripe, ordini e resi nell'area cliente, email, condizioni di vendita — **dopo G4**
 - [ ] Rilascio `1.0.0` di gestionale ed ecommerce
 - [ ] Sito del cliente sopra `boilerplates/ecommerce-site`: tema, contenuti, prodotti veri, Stripe in produzione, collaudo
 
