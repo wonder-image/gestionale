@@ -546,9 +546,27 @@ ancora. Ora no, e si può perché il core sincronizza i repeater con l'id appena
 inserito (`syncRepeaterRelations($insertId, …)` subito dopo l'insert): foto,
 righe e collegamenti nascono nello stesso salvataggio. Quello che non può
 esistere prima del primo salvataggio semplicemente non compare — il link alla
-rettifica, il pulsante "Dettagli delle opzioni". La giacenza del riquadro in
+rettifica. La giacenza del riquadro in
 alto invece c'è (P59): `afterStore()` passa `$appenaNato` a `saveExtras()`, e
 il numero diventa un carico iniziale.
+
+**La scheda in lettura** (P123). `pageSchema()` accende la pagina `view`, le
+dà il titolo «Scheda prodotto» e la view del modulo
+(`->view('show', Gestionale::viewPath('pages/product-model-show.php'))`); la
+view non disegna niente, chiama `showLayoutSchema($ITEM)` e la passa a
+`ResourceFormLayoutRenderer`. Il disegno è quello della modifica — due
+`Container`, otto e quattro — con i riquadri «Prodotto» e «Opzioni in vendita»
+a sinistra, «Foto e video», «Stato» e «Dove si trova» a destra; sotto la
+colonna stretta resta lo spazio per le statistiche dell'articolo. Nell'elenco
+la colonna `name` porta lì (`->link('view')`), e l'unica azione della pagina è
+«Modifica», che apre `editUrlFor($id)`.
+
+Le opzioni sono la tabella di `ProductResource` ristretta all'articolo
+(`optionsTable()` con `backendTable(optionsColumns())`, P128), senza titolo e
+senza filtri; lo stato di ogni riga si commuta dalla pillola
+(`TableColumn::badgeClickable()`). Quello dell'articolo è una `BooleanBadge`
+fuori tabella (`statusBadge()`): `ajaxRequest` con il solo indirizzo ricarica
+la pagina, che qui è quello che serve.
 
 **Categorie: un albero con la stella.** La principale non è un secondo campo:
 `categories` è un `checkTree` con `->primaryField('main_category')`, e la lib

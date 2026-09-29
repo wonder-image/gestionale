@@ -16,6 +16,7 @@ use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\Inputs\InputCheckbox;
 use Wonder\App\ResourceSchema\Inputs\InputNumber;
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
+use Wonder\Backend\Table\Badge\BooleanBadge;
 use Wonder\Elements\Components\Accordion;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
@@ -141,9 +142,6 @@ class ProductModelResource extends GestionaleResource
      * scheda dell'opzione, e lo script la cerca.
      */
     protected const SUPPLIERS_MODAL = 'wi-product-suppliers';
-
-    /** La finestra che elenca le opzioni dell'articolo (P116). */
-    public const OPTIONS_MODAL = 'wi-product-options';
 
     /**
      * Quante righe ha la finestra «Fornitori», al massimo: lo stesso
@@ -477,12 +475,6 @@ class ProductModelResource extends GestionaleResource
 
         $cards[] = static::technicalSheetCard();
 
-        // La finestra delle opzioni (P116), che apre il bottone in alto: c'è
-        // solo quando il bottone c'è.
-        if (static::optionsAction($modelId, static::productCount($modelId)) !== []) {
-            $cards[] = static::optionsModal($modelId);
-        }
-
         // La finestra «Giacenza» della griglia (P103) e il suo script: una
         // sola per la pagina, qui e non nel riquadro delle opzioni, che senza
         // varianti sparisce — e la griglia c'è sempre.
@@ -652,7 +644,7 @@ class ProductModelResource extends GestionaleResource
                 ->image()
                 ->size('little')
                 ->formatter(static fn (array $row): string => static::firstImage((int) ($row['id'] ?? 0))),
-            TableColumn::key('name')->text()->link('edit'),
+            TableColumn::key('name')->text()->link('view'),
             TableColumn::key('sku')->text(),
             TableColumn::key('price')
                 ->text()
@@ -729,127 +721,290 @@ class ProductModelResource extends GestionaleResource
 
     public static function pageSchema(): PageSchema
     {
-        $schema = parent::pageSchema()
-            ->disable(['view'])
+        return parent::pageSchema()
+            // La scheda si apre in lettura (P123): guardare un articolo non
+            // deve voler dire aprirne il cantiere. La modifica resta dov'era,
+            // dietro al bottone «Modifica».
+            ->enable(['view'])
             ->titles([
                 'list' => 'Prodotti',
                 'create' => 'Nuovo prodotto',
+                'view' => 'Scheda prodotto',
                 'edit' => 'Modifica prodotto',
             ])
+            ->view('show', Gestionale::viewPath('pages/product-model-show.php'))
+            ->actions('view', static fn (array $item): array => [[
+                'label' => 'Modifica',
+                'icon' => 'bi-pencil',
+                'class' => 'btn-primary',
+                'href' => static::editUrlFor((int) ($item['id'] ?? 0)),
+            ]])
             // Appena creato si atterra sulla sua scheda: la creazione chiede
             // quattro cose e il resto si scrive lì, non ritrovando la riga in
             // un elenco. Serve `wonder-image/app` con redirectUrl($action,$id).
             ->redirect('store', 'edit');
+    }
 
-        // I campi rari di una singola versione — codice del produttore, misure
-        // proprie, ordinabile su richiesta — non stanno in una riga di griglia.
-        // Il pulsante c'è solo quando le versioni sono più di una: con una
-        // sola, quei campi non li cerca nessuno.
-        return $schema->actions('edit', static function (array $item): array {
-            $modelId = (int) ($item['id'] ?? 0);
-            $azione = static::optionsAction($modelId, static::productCount($modelId));
+    /** L'indirizzo della modifica di questo articolo. */
+    public static function editUrlFor(int $modelId): string
+    {
+        $fallback = '/backend/'.static::path().'/'.$modelId.'/edit/';
 
-            return $azione === [] ? [] : [$azione];
-        });
+        if (!function_exists('__r')) {
+            return $fallback;
+        }
+
+        try {
+            $named = (string) __r('backend.resource.'.static::slug().'.edit', ['id' => $modelId]);
+        } catch (Throwable) {
+            return $fallback;
+        }
+
+        return $named !== '' ? $named : $fallback;
     }
 
     /**
-     * Il bottone «Dettagli delle opzioni» (P116).
+     * La scheda in lettura (P123).
      *
-     * Apre la finestra invece di portare via dalla scheda: chi guarda gli SKU
-     * delle taglie stava compilando qualcos'altro. Le azioni di pagina non
-     * prendono attributi `data-*`, quindi la finestra si apre da `onclick`,
-     * come la aprirebbe `opensModal()`.
-     *
-     * @return array<string, string>
+     * Stesso disegno della modifica — due colonne, otto e quattro — perché è
+     * la stessa scheda vista dall'altra parte: chi arriva dall'elenco ritrova
+     * i riquadri dov'erano. Sotto la colonna stretta resta spazio libero: lì
+     * andranno le statistiche dell'articolo, quando ci saranno gli ordini.
      */
-    public static function optionsAction(int $modelId, int $count): array
+    public static function showLayoutSchema(array $item): Container
     {
-        // Con una sola opzione i suoi campi rari stanno già nella scheda
-        // dell'articolo: non c'è niente da elencare.
-        if ($modelId <= 0 || $count <= 1) {
-            return [];
-        }
+        $modelId = (int) ($item['id'] ?? 0);
+
+        return (new Container)->components([
+            (new Container)->components(static::showMainColumn($modelId, $item))->columns(12)->columnSpan(8),
+            (new Container)->components(static::showSideColumn($modelId, $item))->columns(12)->columnSpan(4),
+        ])->columns(12);
+    }
+
+    /**
+     * La colonna larga in lettura: cos'è e cosa si vende.
+     *
+     * @return list<object>
+     */
+    protected static function showMainColumn(int $modelId, array $item): array
+    {
+        $nome = trim((string) ($item['name'] ?? ''));
+        $opzioni = static::productCount($modelId);
 
         return [
-            'label' => 'Dettagli delle opzioni',
-            'href' => '',
-            'class' => 'btn-outline-primary btn-sm',
-            'icon' => 'bi-upc-scan',
-            'onclick' => 'window.bootstrap && window.bootstrap.Modal'
-                .".getOrCreateInstance(document.getElementById('".static::OPTIONS_MODAL."')).show(); return false;",
+            (new Card)->components([
+                SectionTitle::make('Prodotto')->columnSpan(12),
+                RichText::make('<h5 class="mb-0">'.static::escape($nome !== '' ? $nome : 'Senza nome').'</h5>')
+                    ->tag('div')
+                    ->columnSpan(12),
+                static::showRow('SKU', (string) ($item['sku'] ?? ''))->columnSpan(4),
+                // Il prezzo è già scritto come lo legge l'elenco: scontato,
+                // barrato, «da» quando le opzioni costano diverso.
+                static::showRow('Prezzo', static::priceCell($modelId), true)->columnSpan(4),
+                static::showRow('Opzioni', $opzioni > 0 ? (string) $opzioni : '')->columnSpan(4),
+                static::showRow('Descrizione breve', (string) ($item['short_description'] ?? ''))->columnSpan(12),
+            ]),
+            (new Card)->components([
+                SectionTitle::make('Opzioni in vendita')
+                    ->tooltip('Le righe che si vendono davvero, con il loro codice e il loro prezzo. Lo stato si cambia da qui con un click; il resto dai tre puntini, nella scheda dell\'opzione.')
+                    ->columnSpan(12),
+                RichText::make(static::optionsTable($modelId))->tag('div')->columnSpan(12),
+            ]),
         ];
     }
 
     /**
-     * La tabella della finestra: Opzione · SKU · Prezzo · Stato (P116).
+     * La colonna stretta in lettura: la foto, lo stato, dove sta.
      *
-     * Il nome è il collegamento alla scheda dell'opzione, e i tre puntini
-     * portano allo stesso posto: chi cerca il menu lo trova, chi clicca il
-     * nome non deve cercarlo.
-     *
-     * @param list<array<string, mixed>> $products
+     * @return list<object>
      */
-    public static function optionsTable(array $products): string
+    protected static function showSideColumn(int $modelId, array $item): array
     {
-        if ($products === []) {
-            return '<p class="text-muted mb-0">Questo articolo non ha ancora opzioni in vendita.</p>';
-        }
+        $foto = static::firstImage($modelId);
+        $marchio = (string) (static::brandOptions()[(string) ($item['brand_id'] ?? '')] ?? '');
+        $principale = static::mainCategoryId($modelId);
+        $altre = array_values(array_filter(
+            static::categoryIds($modelId),
+            static fn (int $id): bool => $id !== $principale
+        ));
 
-        $html = '<table class="table table-sm align-middle mb-0"><thead><tr>'
-            .'<th>Opzione</th><th>SKU</th><th class="text-end">Prezzo</th><th>Stato</th><th></th>'
-            .'</tr></thead><tbody>';
-
-        foreach ($products as $product) {
-            $id = (int) ($product['id'] ?? 0);
-            $url = static::escape(ProductResource::editUrlFor($id));
-            $sku = trim((string) ($product['sku'] ?? ''));
-            // Le opzioni nate prima che il nome esistesse mostrano lo SKU,
-            // come nell'elenco: meglio un codice di una casella vuota.
-            $nome = trim((string) ($product['name'] ?? '')) ?: $sku ?: 'Opzione #'.$id;
-            $attiva = (string) ($product['active'] ?? 'true') !== 'false';
-
-            $html .= '<tr>'
-                .'<td><a href="'.$url.'">'.static::escape($nome).'</a></td>'
-                .'<td class="small">'.static::escape($sku !== '' ? $sku : '—').'</td>'
-                .'<td class="text-end">'.static::escape(number_format((float) ($product['price'] ?? 0), 2, ',', '.')).'</td>'
-                .'<td><span class="badge '.($attiva ? 'text-bg-success' : 'text-bg-secondary').'">'
-                .($attiva ? 'Attiva' : 'Ferma').'</span></td>'
-                .'<td class="text-end"><div class="dropdown">'
-                .'<button class="btn btn-sm btn-link text-body-secondary p-0" type="button"'
-                .' data-bs-toggle="dropdown" aria-expanded="false" aria-label="Azioni">'
-                .'<i class="bi bi-three-dots-vertical"></i></button>'
-                .'<ul class="dropdown-menu dropdown-menu-end">'
-                .'<li><a class="dropdown-item" href="'.$url.'">Modifica</a></li>'
-                .'</ul></div></td>'
-                .'</tr>';
-        }
-
-        return $html.'</tbody></table>';
+        return [
+            (new Card)->components([
+                SectionTitle::make('Foto e video')->columnSpan(12),
+                RichText::make($foto !== ''
+                    ? '<img src="'.static::escape($foto).'" alt="'.static::escape((string) ($item['name'] ?? '')).'" class="img-fluid rounded">'
+                    : '<p class="text-muted mb-0">Nessuna foto: si caricano dalla modifica.</p>')
+                    ->tag('div')
+                    ->columnSpan(12),
+            ]),
+            (new Card)->components([
+                SectionTitle::make('Stato')
+                    ->tooltip('«Pubblicato» vuol dire che l\'articolo si vede nel negozio. Si cambia da qui, con un click.')
+                    ->columnSpan(12),
+                RichText::make(static::statusBadge($item))->tag('div')->columnSpan(12),
+            ]),
+            (new Card)->components([
+                SectionTitle::make('Dove si trova')
+                    ->tooltip('Marchio, categorie e tag si cambiano dalla modifica.')
+                    ->columnSpan(12),
+                static::showRow('Marchio', $marchio === 'Nessuno' ? '' : $marchio)->columnSpan(12),
+                static::showRow('Categoria principale', static::categoryNames([$principale]))->columnSpan(12),
+                static::showRow('Altre categorie', static::categoryNames($altre))->columnSpan(12),
+                static::showRow('Tag', static::tagNames($modelId))->columnSpan(12),
+            ]),
+        ];
     }
 
     /**
-     * La finestra delle opzioni (P116, P117).
+     * Una riga della scheda in lettura: l'etichetta piccola, sotto il valore.
      *
-     * Le righe sono quelle del caricamento della pagina: aggiornarle da sole
-     * vorrebbe una chiamata al server per un dato che si rilegge ricaricando.
+     * Quello che non c'è si dice con un trattino, non con il vuoto: una
+     * casella bianca lascia il dubbio che manchi la pagina, non il dato.
      */
-    protected static function optionsModal(int $modelId): Modal
+    protected static function showRow(string $etichetta, string $valore, bool $html = false): RichText
     {
-        return Modal::make('Dettagli delle opzioni')
-            ->id(static::OPTIONS_MODAL)
-            ->size('lg')
-            ->columns(12)
-            ->components([
-                RichText::make(static::optionsTable(static::products($modelId)))->tag('div')->columnSpan(12),
-            ])
-            ->footer([
-                Button::make('Apri l\'elenco completo')
-                    ->variant('secondary')
-                    ->outline()
-                    ->attr('onclick', 'window.location.href = \''.static::escape(ProductResource::listUrlFor($modelId)).'\';'),
-                Button::make('Chiudi')->variant('secondary')->attr('data-bs-dismiss', 'modal'),
-            ]);
+        $valore = trim($valore) !== ''
+            ? ($html ? $valore : static::escape($valore))
+            : '<span class="text-muted">—</span>';
+
+        return RichText::make(
+            '<div class="small text-muted">'.static::escape($etichetta).'</div>'
+            .'<div>'.$valore.'</div>'
+        )->tag('div')->columnSpan(12);
+    }
+
+    /**
+     * Le colonne delle opzioni nella scheda in lettura (P124).
+     *
+     * Sono quelle che `ProductResource` dichiara per il suo elenco, scelte:
+     * la colonna del modello ripeterebbe il titolo della pagina.
+     *
+     * @return list<string>
+     */
+    public static function optionsColumns(): array
+    {
+        return ['name', 'sku', 'price', 'active', 'actions'];
+    }
+
+    /**
+     * Le opzioni di questo articolo (P124, P128).
+     *
+     * Nasce dalle colonne che `ProductResource` dichiara, ristretta
+     * all'articolo: etichette, prezzi e la pillola dello stato si scrivono
+     * una volta sola, di là. Titolo e filtri restano spenti — il riquadro ha
+     * già il suo titolo, e fra due taglie non c'è niente da cercare.
+     *
+     * Senza database la tabella non nasce: resta la frase, e la scheda si
+     * legge lo stesso.
+     */
+    public static function optionsTable(int $modelId): string
+    {
+        $vuoto = '<p class="text-muted mb-0">Nessuna opzione: questo articolo non ha ancora niente da vendere.</p>';
+
+        if ($modelId <= 0) {
+            return $vuoto;
+        }
+
+        try {
+            $tabella = ProductResource::backendTable(static::optionsColumns());
+            $tabella->title(false);
+            $tabella->titleNResult(false);
+            $tabella->filterSearch(false);
+            $tabella->filterDate(false);
+            $tabella->filterLimit(false);
+            $tabella->filterCustom(false);
+            $tabella->query('`product_model_id` = '.$modelId." AND `deleted` = 'false'");
+            $tabella->queryOrder('id', 'ASC');
+
+            $html = (string) $tabella->generate(false);
+        } catch (Throwable) {
+            $html = '';
+        }
+
+        return trim($html) !== '' ? $html : $vuoto;
+    }
+
+    /**
+     * La pillola dello stato dell'articolo, che si commuta con un click (P124).
+     *
+     * Fuori da una tabella non c'è nessun elenco da ricaricare: `ajaxRequest`
+     * con il solo indirizzo ricarica la pagina, ed è quello che serve.
+     */
+    public static function statusBadge(array $item): string
+    {
+        $modelId = (int) ($item['id'] ?? 0);
+
+        $pillola = BooleanBadge::make((string) ($item['visible'] ?? 'false'))
+            ->on('Pubblicato', 'bi bi-eye', 'success', 'Metti in bozza')
+            ->off('Bozza', 'bi bi-eye-slash', 'secondary', 'Pubblica');
+
+        if ($modelId <= 0) {
+            return $pillola->badge();
+        }
+
+        $url = static::booleanToggleUrl(ProductModel::$table, 'visible', $modelId);
+
+        return $pillola->action('onclick="ajaxRequest(\''.$url.'\')"')->clickable()->badge();
+    }
+
+    /** L'indirizzo che commuta una colonna sì/no di una riga. */
+    protected static function booleanToggleUrl(string $table, string $column, int $id): string
+    {
+        try {
+            $path = LegacyGlobals::get('PATH');
+            $api = is_object($path) ? (string) ($path->api ?? '') : '';
+        } catch (Throwable) {
+            $api = '';
+        }
+
+        return $api.'/backend/change/boolean/?table='.$table.'&column='.$column.'&id='.$id;
+    }
+
+    /**
+     * I nomi di queste categorie, nell'ordine in cui arrivano.
+     *
+     * @param list<int> $ids
+     */
+    protected static function categoryNames(array $ids): string
+    {
+        $ids = array_values(array_filter($ids, static fn (int $id): bool => $id > 0));
+
+        if ($ids === []) {
+            return '';
+        }
+
+        $mappa = [];
+
+        foreach (static::categories() as $row) {
+            $mappa[(int) ($row['id'] ?? 0)] = (string) ($row['name'] ?? '');
+        }
+
+        $nomi = [];
+
+        foreach ($ids as $id) {
+            if (($mappa[$id] ?? '') !== '') {
+                $nomi[] = $mappa[$id];
+            }
+        }
+
+        return implode(', ', $nomi);
+    }
+
+    /** I tag di questo articolo, scritti di fila. */
+    protected static function tagNames(int $modelId): string
+    {
+        $mappa = static::tagOptions();
+        $nomi = [];
+
+        foreach (static::tagIds($modelId) as $id) {
+            $nome = (string) ($mappa[(string) $id] ?? '');
+
+            if ($nome !== '') {
+                $nomi[] = $nome;
+            }
+        }
+
+        return implode(', ', $nomi);
     }
 
     public static function permissionSchema(): PermissionSchema

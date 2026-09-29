@@ -40,6 +40,20 @@ le giacenze e le foto nascono tutti insieme.
 L'url pubblico nasce dal nome alla creazione e non cambia più, nemmeno se un
 domani correggi il nome: i link che qualcuno ha salvato continuano a funzionare.
 
+## L'elenco e la scheda
+
+**Catalogo → Prodotti** è l'elenco: la foto, il nome, lo SKU, il prezzo e
+quante opzioni ha. Il prezzo è quello che si paga — dove c'è lo sconto trovi il
+pieno barrato accanto allo scontato, e quando le opzioni costano diverso è
+scritto *da 19,90 €*.
+
+Il nome apre la **scheda in lettura**: si guarda e basta, senza il rischio di
+cambiare qualcosa mentre si controlla. Ci trovi la foto, il prezzo, le
+descrizioni, dove sta l'articolo e l'elenco delle sue **opzioni in vendita**,
+con codice, prezzo e stato. Due cose si cambiano anche da qui, con un click:
+lo **stato** dell'articolo, nel riquadro a destra, e quello di ogni opzione,
+nella sua riga. Per tutto il resto c'è **Modifica**, in alto.
+
 ## Com'è fatta la scheda
 
 - **A sinistra** quello che si compone: nome, descrizioni, prezzo e codici,
@@ -424,12 +438,9 @@ finestra di una riga che li ha e usa **Salva per tutte le opzioni**.
 ## I dettagli di una singola opzione
 
 Peso e misure sue, MPN: cose che si toccano di rado e non stanno nella griglia.
-Il pulsante **Dettagli delle opzioni**, in alto nella scheda, apre una finestra
-con tutte le opzioni — *Opzione*, *SKU*, *Prezzo* e *Stato* — e da lì il nome
-dell'opzione, o i tre puntini in fondo alla riga, aprono la sua scheda. In
-fondo alla finestra **Apri l'elenco completo** porta alla pagina di prima, dove
-si filtra e si ordina. Il pulsante compare solo quando le opzioni sono più di
-una.
+La scheda di una singola opzione si apre dalla **scheda in lettura**
+dell'articolo: nel riquadro **Opzioni in vendita** il nome dell'opzione, o i
+tre puntini in fondo alla riga, portano lì.
 
 La scheda dell'opzione sta su **due colonne**. A destra, nel riquadro
 **Identificazione**, quello che identifica il pezzo fisico: **SKU**, **EAN**,
@@ -469,7 +480,8 @@ aggiungilo da **Anagrafiche → Fornitori**.
 ## Stato, come si vende e tipo fiscale
 
 Lo **stato** sta accanto al nome: *Pubblicato* o *Bozza*. Una bozza non si vede
-da nessuna parte.
+da nessuna parte. Per cambiarlo non serve aprire la modifica: la pillola della
+scheda in lettura si clicca.
 
 Il riquadro **Come si vende**, a destra, ha tre interruttori — quattro con la
 funzionalità *Vendita senza giacenza* — ognuno con una riga che lo spiega:

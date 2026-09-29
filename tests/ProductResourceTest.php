@@ -1000,4 +1000,20 @@ check('il codice del produttore si chiama MPN', fn () =>
     (ProductResource::labelSchema()['mpn'] ?? '') === 'MPN'
 );
 
+check('lo stato dell\'opzione si cambia con un click, dov\'è scritto (P124)', function () {
+    foreach (ProductResource::tableSchema() as $colonna) {
+        if ((string) $colonna->name !== 'active') {
+            continue;
+        }
+
+        $badge = (array) ($colonna->schema['badge'] ?? []);
+
+        return ($badge['clickable'] ?? false) === true
+            && (($badge['on'] ?? [])['text'] ?? '') === 'Attiva'
+            && (($badge['off'] ?? [])['text'] ?? '') === 'Ferma';
+    }
+
+    return false;
+});
+
 summary();

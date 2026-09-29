@@ -1815,10 +1815,10 @@ tabelle di questo giro — i movimenti dell'opzione e le opzioni dell'articolo.
 - [x] modulo: movimenti della scheda dell'opzione dalla tabella di `StockMovementResource` (via il `Table` a mano)
 - [x] modulo: `variantAttributeId()` per articolo; riquadri di foto per colore solo quando il colore non raggruppa
 - [x] modulo: colonne dell'elenco dei prodotti (SKU, prezzo con euro e barrato, «da», via il marchio)
-- [ ] modulo: pagina in lettura della scheda dell'articolo, con la tabella delle opzioni e le pillole dello stato
-- [ ] modulo: via «Dettagli delle opzioni», la finestra e `optionsTable()`
-- [ ] modulo: test allineati (`ProductModelResourceTest`, `ProductResourceTest`)
-- [ ] modulo: guida `catalogo-prodotti`; `CHANGELOG.md`
+- [x] modulo: pagina in lettura della scheda dell'articolo, con la tabella delle opzioni e le pillole dello stato
+- [x] modulo: via «Dettagli delle opzioni», la finestra e `optionsTable()`
+- [x] modulo: test allineati (`ProductModelResourceTest`, `ProductResourceTest`)
+- [x] modulo: guida `catalogo-prodotti`; `CHANGELOG.md`
 - [ ] prova nel browser: scheda in lettura con e senza opzioni, stato commutato, elenco, foto del colore
 - [ ] dati di prova rifatti da zero e commit con percorsi espliciti; niente push senza OK
 

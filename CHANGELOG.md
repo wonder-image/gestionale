@@ -64,3 +64,19 @@ versionamento semantico.
   scrivi* si chiama *Azione* e ha tre voci — *Aggiungi* (il predefinito),
   *Sottrai* e *Imposta*: il segno lo mette l'azione, la quantità si legge
   sempre in valore assoluto.
+- Scheda articolo, sedicesimo giro: il nome dell'elenco apre la **scheda in
+  lettura**, con lo stesso disegno a due colonne della modifica — *Prodotto* e
+  *Opzioni in vendita* a sinistra, *Foto e video*, *Stato* e *Dove si trova* a
+  destra, e sotto lo spazio per le statistiche che arriveranno con gli ordini.
+  Le opzioni sono la tabella di `ProductResource` ristretta all'articolo
+  (Opzione · SKU · Prezzo · Stato, tre puntini alla scheda), e lo stato si
+  commuta con un click: quello dell'articolo dalla pillola *Pubblicato /
+  Bozza*, quello di ogni opzione dalla sua riga (*Attiva / Ferma*). Dalla
+  modifica spariscono il bottone *Dettagli delle opzioni*, la sua finestra e la
+  tabella scritta a mano. Nell'elenco dei prodotti le colonne sono foto, nome,
+  SKU, prezzo e numero di opzioni: il prezzo porta l'euro, barra il pieno
+  quando c'è lo sconto e scrive *da 19,90 €* quando le opzioni costano diverso;
+  il marchio non c'è più. I movimenti della scheda dell'opzione nascono dalle
+  colonne che `StockMovementResource` dichiara (`Resource::backendTable()`), e
+  le foto proprie seguono l'attributo che l'articolo usa davvero, non il primo
+  del negozio.

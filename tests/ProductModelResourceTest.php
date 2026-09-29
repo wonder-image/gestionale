@@ -2641,41 +2641,6 @@ check('una descrizione breve scritta su più righe si legge su una sola', fn () 
     && ProductModelResource::oneLine('') === ''
 );
 
-check('«Dettagli delle opzioni» è piccolo e apre la finestra invece di portare via', function () {
-    $azione = ProductModelResource::optionsAction(7, 3);
-
-    return str_contains((string) ($azione['class'] ?? ''), 'btn-sm')
-        && ($azione['href'] ?? '') === ''
-        && str_contains((string) ($azione['onclick'] ?? ''), ProductModelResource::OPTIONS_MODAL)
-        && ($azione['label'] ?? '') === 'Dettagli delle opzioni';
-});
-
-check('con una sola opzione il bottone non c\'è: quei campi non li cerca nessuno', fn () =>
-    ProductModelResource::optionsAction(7, 1) === []
-    && ProductModelResource::optionsAction(0, 5) === []
-);
-
-check('la finestra delle opzioni ha le quattro colonne, il nome che apre la scheda e i tre puntini', function () {
-    $html = ProductModelResource::optionsTable([
-        ['id' => 12, 'name' => 'Rossetto · Rosso', 'sku' => 'RS-01', 'price' => '12.50', 'active' => 'true'],
-        ['id' => 13, 'name' => 'Rossetto · Nude', 'sku' => '', 'price' => '9.00', 'active' => 'false'],
-    ]);
-
-    foreach (['Opzione', 'SKU', 'Prezzo', 'Stato', 'Rossetto · Rosso', 'RS-01', '12,50', 'Attiva', 'Ferma', 'Modifica'] as $pezzo) {
-        if (!str_contains($html, $pezzo)) {
-            return false;
-        }
-    }
-
-    // Il nome è il collegamento, e i tre puntini portano allo stesso posto.
-    return substr_count($html, ProductResource::editUrlFor(12)) === 2
-        && str_contains($html, ProductResource::listUrlFor(7)) === false;
-});
-
-check('senza opzioni la finestra lo dice invece di mostrare una tabella vuota', fn () =>
-    str_contains(ProductModelResource::optionsTable([]), '<table') === false
-);
-
 // Un negozio con due attributi «Opzione con foto proprie»: «Prova Colore» (7)
 // e «Colore» (9). Un articolo ne usa uno solo, e quello conta (P127).
 $dueAttributiConFoto = static function (array $valoriDelleVarianti) {
@@ -2835,6 +2800,118 @@ check('l\'elenco non porta più il marchio, e lo SKU non è stretto', function (
     return !in_array('brand_id', $nomi, true)
         && in_array('sku', $nomi, true)
         && !in_array('sku', $strette, true);
+});
+
+// ── Il sedicesimo giro: la scheda in lettura (P123, P124, P125) ─────────────
+
+check('la scheda dell\'articolo si apre in lettura', function () {
+    $pagine = (array) ProductModelResource::pageSchema()->get('pages');
+
+    return ($pagine['view'] ?? false) === true
+        && ($pagine['edit'] ?? false) === true;
+});
+
+check('la pagina in lettura ha la sua view nel modulo', function () {
+    $view = (string) (((array) ProductModelResource::pageSchema()->get('views'))['show'] ?? '');
+
+    return $view !== '' && is_file($view) && str_ends_with($view, '/view/pages/product-model-show.php');
+});
+
+check('il nome dell\'elenco porta alla scheda, non al cantiere', function () {
+    foreach (ProductModelResource::tableSchema() as $colonna) {
+        if ((string) $colonna->name === 'name') {
+            return ($colonna->schema['link'] ?? '') === 'view';
+        }
+    }
+
+    return false;
+});
+
+check('dalla scheda in lettura «Modifica» apre la modifica', function () {
+    $azioni = (array) ProductModelResource::pageSchema()->get('actions');
+    $perLaLettura = $azioni['view'] ?? null;
+
+    if (!is_callable($perLaLettura)) {
+        return false;
+    }
+
+    $bottoni = $perLaLettura(['id' => 3168]);
+    $primo = $bottoni[0] ?? [];
+
+    return count($bottoni) === 1
+        && ($primo['label'] ?? '') === 'Modifica'
+        && ($primo['href'] ?? '') === ProductModelResource::editUrlFor(3168);
+});
+
+check('la modifica non ha più il bottone «Dettagli delle opzioni»', fn () =>
+    (((array) ProductModelResource::pageSchema()->get('actions'))['edit'] ?? null) === null
+    && !method_exists(ProductModelResource::class, 'optionsAction')
+    && !method_exists(ProductModelResource::class, 'optionsModal')
+    && !defined(ProductModelResource::class . '::OPTIONS_MODAL')
+);
+
+check('la scheda in lettura nasce a due colonne, come la modifica', function () {
+    $scheda = ProductModelResource::showLayoutSchema(['id' => 3168]);
+    $colonne = $scheda->components ?? [];
+
+    return $scheda instanceof Container
+        && count($colonne) === 2
+        && (((array) $colonne[0]->columnSpan)['default'] ?? null) === 8
+        && (((array) $colonne[1]->columnSpan)['default'] ?? null) === 4;
+});
+
+check('i riquadri della scheda in lettura sono quelli della modifica', function () {
+    $scheda = ProductModelResource::showLayoutSchema(['id' => 3168]);
+
+    $titoli = static function (object $colonna): array {
+        $titoli = [];
+
+        foreach ($colonna->components ?? [] as $riquadro) {
+            foreach ($riquadro->components ?? [] as $dentro) {
+                if ($dentro instanceof SectionTitle) {
+                    $titoli[] = $dentro->getText();
+                    break;
+                }
+            }
+        }
+
+        return $titoli;
+    };
+
+    return $titoli($scheda->components[0]) === ['Prodotto', 'Opzioni in vendita']
+        && $titoli($scheda->components[1]) === ['Foto e video', 'Stato', 'Dove si trova'];
+});
+
+check('le opzioni della scheda sono le colonne che ProductResource dichiara', function () {
+    $dichiarate = [];
+
+    foreach (ProductResource::tableSchema() as $colonna) {
+        $dichiarate[] = (string) $colonna->name;
+    }
+
+    $scelte = ProductModelResource::optionsColumns();
+
+    return $scelte === ['name', 'sku', 'price', 'active', 'actions']
+        && array_diff($scelte, $dichiarate) === [];
+});
+
+check('senza database la scheda in lettura si legge lo stesso', fn () =>
+    str_contains(ProductModelResource::optionsTable(3168), 'Nessuna opzione')
+    && ProductModelResource::optionsTable(0) !== ''
+);
+
+check('lo stato dell\'articolo si commuta dalla sua pillola', function () {
+    $pubblicato = ProductModelResource::statusBadge(['id' => 3168, 'visible' => 'true']);
+    $bozza = ProductModelResource::statusBadge(['id' => 3168, 'visible' => 'false']);
+
+    return str_contains($pubblicato, 'PUBBLICATO')
+        && str_contains($bozza, 'BOZZA')
+        && str_contains($pubblicato, 'role=\'button\'')
+        && str_contains($pubblicato, 'column=visible')
+        && str_contains($pubblicato, 'id=3168')
+        // Fuori da una tabella non c'è niente da ricaricare: si ricarica la
+        // pagina, e `ajaxRequest` lo fa da sola con un argomento solo.
+        && !str_contains($pubblicato, 'reloadDataTable');
 });
 
 summary();

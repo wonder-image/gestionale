@@ -807,10 +807,13 @@ HTML;
             TableColumn::key('sku')->text(),
             TableColumn::key('price')->price()->size('medium'),
             // "Attiva" e "Ferma": qui non si parla di vetrina ma di magazzino.
+            // La pillola si clicca (P124): togliere una taglia dal sito è un
+            // gesto solo, dall'elenco come dalla scheda dell'articolo.
             TableColumn::key('active')
                 ->booleanBadge()
-                ->badgeOn('Attiva', 'bi-check-circle', 'success')
-                ->badgeOff('Ferma', 'bi-pause-circle', 'secondary')
+                ->badgeOn('Attiva', 'bi-check-circle', 'success', 'Ferma')
+                ->badgeOff('Ferma', 'bi-pause-circle', 'secondary', 'Attiva')
+                ->badgeClickable()
                 ->size('little'),
             TableColumn::key('actions')->button()->actions(['edit']),
         ];
