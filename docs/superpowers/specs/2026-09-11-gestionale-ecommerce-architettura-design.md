@@ -2014,6 +2014,24 @@ In ordine di dipendenza; `1.0.0` al termine.
 - **G6 prima di spedizioni e fatture:** righe e totali nascono già con listini e
   sconti.
 
+**Sequenza rivista per la consegna del primo negozio (D61).** Il primo negozio va
+consegnato entro fine ottobre 2026: vende da una sede sola, con spedizioni, coupon e
+sconti, prodotti composti e personalizzabili, senza fatturazione elettronica. L'ordine
+diventa: G4 → G5 → G6 ridotto (sconto sulla riga, coupon, sconto massivo; listini
+cliente rimandati) → G7 → E1, con E1 apribile in parallelo a G5–G7 perché è un
+pacchetto a parte.
+
+- **G3 esce dal nucleo** e va dopo il rilascio, insieme ai documenti di magazzino
+  (carichi, scarichi, inventario e trasferimenti): `multi_location`, `purchasing` e
+  `batch_tracking` restano spente, `stock.batch_id` e `supplier_id` restano a zero
+  come già previsto, e la merce entra con la rettifica rapida.
+- **Vincolo su G4:** prenotazione e scarico passano da un unico servizio, che riceve
+  già sede, lotto e fornitore. Quando arriverà G3 si tocca solo quel punto, e lo
+  scarico automatico (lotto in scadenza, poi costo più basso) si innesta lì.
+- **G8 esce dal nucleo:** il checkout con la fatturazione elettronica bloccata è già
+  previsto (8.6). Rientra quando il negozio deve fatturare a partite IVA o su
+  richiesta.
+
 ### 10.4 Dopo il primo rilascio (D59)
 
 1. **Starter** da `boilerplates/ecommerce-site` (2.3).
