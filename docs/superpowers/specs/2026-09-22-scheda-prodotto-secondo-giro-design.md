@@ -1819,8 +1819,8 @@ tabelle di questo giro — i movimenti dell'opzione e le opzioni dell'articolo.
 - [x] modulo: via «Dettagli delle opzioni», la finestra e `optionsTable()`
 - [x] modulo: test allineati (`ProductModelResourceTest`, `ProductResourceTest`)
 - [x] modulo: guida `catalogo-prodotti`; `CHANGELOG.md`
-- [ ] prova nel browser: scheda in lettura con e senza opzioni, stato commutato, elenco, foto del colore
-- [ ] dati di prova rifatti da zero e commit con percorsi espliciti; niente push senza OK
+- [x] prova nel browser: scheda in lettura con e senza opzioni, stato commutato, elenco, foto del colore
+- [x] dati di prova rifatti da zero e commit con percorsi espliciti; niente push senza OK
 
 ## Piani
 
