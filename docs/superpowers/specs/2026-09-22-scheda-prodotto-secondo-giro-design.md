@@ -1693,6 +1693,135 @@ arriva. «Imposta» è quella dell'inventario, e chi fa l'inventario la cerca.
 - [x] prova nel browser: finestra delle opzioni con e senza varianti, scheda dell'opzione (attributi divisi, colonna destra), rettifica dalla finestra e dalla pagina con le tre azioni
 - [x] memoria e commit con percorsi espliciti; niente push senza OK
 
+## 25. Sedicesimo giro: la scheda in lettura
+
+Il quindicesimo giro ha messo in una finestra quello che non stava nella
+pagina di modifica. Questo giro fa il passo che mancava: la scheda
+dell'articolo si **apre**, invece di aprirsi sempre in modifica, e quello che
+si guardava dalla finestra — le opzioni in vendita — ha finalmente una casa.
+Per strada spariscono tre cose scritte a mano: la tabella delle opzioni, la
+tabella dei movimenti e i riquadri di foto che comparivano dove non dovevano.
+
+### 25.1 La scheda dell'articolo si apre in lettura
+
+Fino a oggi il nome dell'elenco portava dritto alla modifica: per guardare un
+articolo bisognava entrare nel suo cantiere, con quaranta caselle aperte e il
+rischio di lasciarci dentro un carattere di troppo. Nasce la **scheda in
+lettura**: il nome dell'elenco porta lì, e da lì il bottone **«Modifica»**
+apre la pagina di sempre.
+
+La pagina ha **lo stesso disegno della modifica** — la griglia a dodici
+colonne, gli stessi riquadri con il loro titolo — perché è la stessa scheda
+vista da fermi: chi passa dall'una all'altra ritrova le cose dove le aveva
+lasciate. A sinistra, largo, l'articolo: nome, codice, descrizione breve,
+prezzo, e sotto le **opzioni in vendita**. A destra, stretta, la colonna che
+nella modifica tiene le foto e gli interruttori: qui tiene la foto, lo stato,
+il marchio, le categorie.
+
+La colonna di destra, sotto quei riquadri, resta **libera per le statistiche**:
+quanto ha venduto l'articolo, come va nel tempo. Non si disegnano in questo
+giro — i dati degli ordini arrivano con G4 — ma il posto è quello, e il
+layout nasce già a due colonne perché non vada rifatto quando ci saranno.
+
+### 25.2 Le opzioni in vendita, con lo stato che si cambia da lì
+
+Nella scheda in lettura le opzioni sono una **tabella vera**, non un elenco
+disegnato a mano: nasce dalle colonne che `ProductResource` dichiara per il
+suo elenco, ristretta a quest'articolo. Le colonne sono **Opzione · SKU ·
+Prezzo · Stato**, più i tre puntini che portano alla scheda dell'opzione.
+
+Lo **Stato** si cambia lì, senza aprire niente: un click sulla pillola passa
+da **Attiva** a **Ferma** e viceversa, e il cambio è già salvato quando la
+pillola cambia colore. È il gesto che serve al commerciante che ha finito una
+taglia e la toglie dal sito senza perdere niente di quello che ha scritto.
+
+«Attiva» e «Ferma» sono le parole dell'opzione; **«Pubblicato» e «Bozza»**
+sono quelle dell'articolo intero, e stanno nella pillola dello stato in cima
+alla scheda, che si commuta allo stesso modo. Sono due cose diverse — un
+articolo in bozza non si vede comunque, anche con tutte le opzioni attive — e
+tenerle con lo stesso nome farebbe credere il contrario.
+
+### 25.3 «Dettagli delle opzioni» sparisce dalla modifica
+
+Il bottone del quindicesimo giro (P116), la sua finestra e la tabella HTML che
+la riempiva se ne vanno: quello che mostravano adesso sta nella scheda in
+lettura, sempre visibile e con lo stato che si cambia. La modifica resta il
+posto dove si compila, e la griglia delle opzioni è già lì.
+
+### 25.4 L'elenco dei prodotti si legge meglio
+
+Quattro ritocchi alle colonne:
+
+- lo **SKU** smette di essere una colonna stretta: i codici veri vanno a capo
+  o si tagliano, e un codice tagliato non serve a niente;
+- il **prezzo** porta l'**euro** — `19,90 €` — perché una colonna di numeri
+  nudi accanto a «Opzioni» si legge male;
+- quando l'opzione ha un **prezzo scontato**, il prezzo pieno si vede
+  **barrato** con accanto quello che si paga: è l'informazione che conta
+  scorrendo un listino;
+- quando le opzioni costano **diverso**, resta il «da», con l'euro:
+  `da 19,90 €`;
+- il **marchio** esce dall'elenco: è un dato che si filtra, non che si legge
+  riga per riga, e la sua colonna rubava spazio al nome.
+
+### 25.5 Le foto del colore tornano nella loro testata
+
+`variantAttributeId()` — l'attributo «Opzione con foto proprie» — oggi si
+legge **dal negozio**: torna il primo che trova. Con due attributi di quel
+tipo, l'articolo che usa il secondo perde la chiave del gruppo, il core gli
+toglie il bottone delle foto dalla testata, e il gestionale gli rimette un
+riquadro di foto per ogni colore nella colonna di destra: due posti per la
+stessa cosa, che è esattamente quello che quel disegno voleva evitare.
+
+L'attributo con foto proprie si legge **dall'articolo**: quello che
+quell'articolo sta davvero usando, con il primo del negozio come ripiego solo
+quando l'articolo non ha ancora scelto niente. Così la foto del colore sta
+sempre nella testata del suo gruppo, e i riquadri per colore compaiono solo
+quando il colore non raggruppa — che è il caso «Taglia, poi Colore» già
+previsto.
+
+### 25.6 Le tabelle dentro le schede nascono dallo schema
+
+I movimenti nel riquadro «Magazzino» della scheda dell'opzione erano una
+tabella costruita a mano, con le cinque colonne e i loro formattatori
+ricopiati da `StockMovementResource`. Una tabella incorporata in una scheda
+nasce **dalle colonne che la Resource dichiara**, scegliendo quali servono:
+un'etichetta cambiata nello schema cambia dappertutto, e i formattatori
+restano scritti una volta sola.
+
+Serve un'aggiunta al core: `ResourceTableRenderer::make()` accetta l'elenco
+delle colonne da montare, nell'ordine chiesto. Le usano tutte e due le
+tabelle di questo giro — i movimenti dell'opzione e le opzioni dell'articolo.
+
+### Fuori da questo giro
+
+- Le statistiche della scheda in lettura: il posto c'è, i dati arrivano con G4.
+- La scheda in lettura dell'**opzione**: si apre ancora in modifica, e va
+  bene finché è la pagina di chi compila.
+- Il filtro per marchio nell'elenco dei prodotti, ora che la colonna non c'è.
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P123 | La scheda dell'articolo ha una pagina in **sola lettura**, con lo stesso disegno a due colonne della modifica; il nome dell'elenco porta lì, «Modifica» apre la modifica; la colonna di destra tiene il posto per le statistiche | Guardare un articolo non deve voler dire aprirne il cantiere; il posto delle statistiche si prepara adesso per non rifare il layout con G4 |
+| P124 | Nella scheda in lettura le opzioni sono la tabella di `ProductResource` ristretta all'articolo (Opzione · SKU · Prezzo · Stato, tre puntini alla scheda); lo Stato si commuta con un click, come la pillola «Pubblicato / Bozza» dell'articolo in cima | Togliere una taglia dal sito è un gesto solo; «Attiva/Ferma» resta il nome dell'opzione, «Pubblicato/Bozza» quello dell'articolo |
+| P125 | Dalla modifica spariscono il bottone «Dettagli delle opzioni» (P116), la sua finestra e la tabella HTML | Quello che mostravano ora è sempre visibile nella scheda in lettura |
+| P126 | Nell'elenco: SKU a larghezza piena, prezzo con l'euro, prezzo pieno barrato quando c'è lo scontato, «da 19,90 €» quando le opzioni costano diverso, via il marchio | Un codice tagliato non serve, un prezzo senza valuta si legge male, e il marchio si filtra invece che leggerlo riga per riga |
+| P127 | L'attributo «Opzione con foto proprie» si legge **dall'articolo**, non dal negozio; il primo del negozio resta solo come ripiego in creazione | Con due attributi di quel tipo l'articolo perdeva la chiave del gruppo e si ritrovava i riquadri di foto in due posti |
+| P128 | Le tabelle incorporate nelle schede nascono da `tableSchema()` con le colonne scelte; `ResourceTableRenderer::make()` accetta l'elenco delle colonne (core) | Le colonne e i formattatori si scrivono una volta sola, nello schema della Resource che li possiede |
+
+### Lavori del sedicesimo giro
+
+- [ ] core: `ResourceTableRenderer::make()` con l'elenco delle colonne da montare
+- [ ] modulo: movimenti della scheda dell'opzione dalla tabella di `StockMovementResource` (via il `Table` a mano)
+- [ ] modulo: `variantAttributeId()` per articolo; riquadri di foto per colore solo quando il colore non raggruppa
+- [ ] modulo: colonne dell'elenco dei prodotti (SKU, prezzo con euro e barrato, «da», via il marchio)
+- [ ] modulo: pagina in lettura della scheda dell'articolo, con la tabella delle opzioni e le pillole dello stato
+- [ ] modulo: via «Dettagli delle opzioni», la finestra e `optionsTable()`
+- [ ] modulo: test allineati (`ProductModelResourceTest`, `ProductResourceTest`)
+- [ ] modulo: guida `catalogo-prodotti`; `CHANGELOG.md`
+- [ ] prova nel browser: scheda in lettura con e senza opzioni, stato commutato, elenco, foto del colore
+- [ ] dati di prova rifatti da zero e commit con percorsi espliciti; niente push senza OK
+
 ## Piani
 
 Da scrivere dopo l'approvazione.

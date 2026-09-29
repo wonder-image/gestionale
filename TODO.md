@@ -258,6 +258,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 
 - [ ] Dati di prova: `CatalogDemo::model()` e `CatalogDemo::attribute()` non rimettono al suo posto una riga cancellata dal backend, come fanno ora `ensure()` e `ContactsDemo::contact()` con `DemoCode::revive()`. Il loro ripristino tocca anche le righe figlie (versioni, immagini, valori dell'attributo), che restano cancellate: va deciso se rimetterle in vita insieme alla scheda o rifarle
 
+- [ ] Finestre e campi scritti a mano invece dei componenti del core. `ProductResource::stockAdjustModal()` e `stockAdjustScript()` compongono la finestra della rettifica con HTML in stringa — `<div class="modal">`, `<input>`, `<button>` — al posto di `Modal`, `FormField` e `Button`. Il blocco è che la finestra ha una **form propria** (posta su `StockAdjustmentResource::submitUrl()`) e il `Modal` del core non ammette un `<form>` dentro: va prima aggiunto al core un modo di fare finestre con form, poi riscritte qui. Stesso debito, in piccolo, nei quattro widget della dashboard e in altri punti di `ProductModelResource`
+
 ### Lavori preparatori in `wonder-image/app` (D58)
 
 - [x] `Data\Fields\Number::sqlSchema()` torna `'length' => '10,2'` fisso e ignora `decimals()`: ogni colonna nata da `sqlColumnsFromDataSchema()` perde i decimali oltre il secondo (le quantità del magazzino, `gst_products.weight`). Nel modulo c'è il ripiego `Support\Columns::decimal()`
