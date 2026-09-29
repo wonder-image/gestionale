@@ -3661,7 +3661,7 @@ HTML)->tag('div');
         $esistenti = static::escape(json_encode($chiavi, JSON_THROW_ON_ERROR));
         // L'attributo con foto proprie: quando raggruppa lui, la testata
         // porta le foto del colore.
-        $asseColore = static::variantAttributeId();
+        $asseColore = static::variantAttributeId($modelId);
 
         return RichText::make(<<<HTML
 <div class="wi-options-grid" data-wi-existing="{$esistenti}" data-wi-photo-attribute="{$asseColore}"></div>
@@ -5331,7 +5331,7 @@ HTML)->tag('div');
                 ->repeaterGroupCommand('price', 'Prezzo del gruppo')
                 ->repeaterGroupCountLabel('opzione', 'opzioni');
 
-            if (static::variantAttributeId() > 0) {
+            if (static::variantAttributeId($modelId) > 0) {
                 $campo = $campo->repeaterGroupFiles(
                     FormField::key('group_images')
                         ->fileDragDrop('gallery')
@@ -5959,7 +5959,7 @@ HTML
      */
     public static function colorPhotosInGroups(int $modelId): bool
     {
-        $asse = static::variantAttributeId();
+        $asse = static::variantAttributeId($modelId);
 
         return $asse > 0 && (static::axesOrder($modelId)[0] ?? 0) === $asse;
     }
@@ -5979,7 +5979,7 @@ HTML
      */
     protected static function groupsByAxis(int $modelId): bool
     {
-        $asseColore = static::variantAttributeId();
+        $asseColore = static::variantAttributeId($modelId);
         $assi = $modelId > 0 ? static::axesInUse($modelId) : [];
 
         if ($assi === []) {
@@ -5997,7 +5997,7 @@ HTML
     public static function axesInUse(int $modelId): array
     {
         $assi = [];
-        $asseVariante = static::variantAttributeId();
+        $asseVariante = static::variantAttributeId($modelId);
 
         foreach (static::variantValues($modelId) as $valueId) {
             if ($valueId > 0 && $asseVariante > 0) {
@@ -6052,7 +6052,7 @@ HTML
             return $ordine;
         }
 
-        $asseVariante = static::variantAttributeId();
+        $asseVariante = static::variantAttributeId($modelId);
 
         if ($asseVariante > 0) {
             $ordine[] = $asseVariante;
@@ -6155,16 +6155,48 @@ HTML
         return $soglie;
     }
 
-    /** L'attributo con pagina propria, se il negozio ne ha uno. */
-    public static function variantAttributeId(): int
+    /**
+     * L'attributo con pagina propria che conta per questo articolo.
+     *
+     * Il negozio può averne più d'uno — «Colore» e una sua prova — e quello
+     * che vale è quello che l'articolo sta davvero usando: è lui a decidere
+     * se le foto stanno nella testata del gruppo. Il primo del negozio resta
+     * il ripiego in creazione, e su un articolo che non ha ancora scelto.
+     */
+    public static function variantAttributeId(int $modelId = 0): int
     {
+        $primo = 0;
+        $conPaginaPropria = [];
+
         foreach (static::attributes() as $attribute) {
-            if (($attribute['level'] ?? '') === 'variant') {
-                return (int) $attribute['id'];
+            if (($attribute['level'] ?? '') !== 'variant') {
+                continue;
             }
+
+            $id = (int) $attribute['id'];
+            $conPaginaPropria[$id] = true;
+            $primo = $primo > 0 ? $primo : $id;
         }
 
-        return 0;
+        if ($primo === 0 || $modelId <= 0) {
+            return $primo;
+        }
+
+        try {
+            $valori = static::attributeValues();
+
+            foreach (static::variantValues($modelId) as $valueId) {
+                $asse = (int) ($valori[$valueId]['attribute_id'] ?? 0);
+
+                if (isset($conPaginaPropria[$asse])) {
+                    return $asse;
+                }
+            }
+        } catch (Throwable) {
+            // Senza database (i test degli schemi) vale il ripiego.
+        }
+
+        return $primo;
     }
 
     /** L'etichetta di ogni valore d'attributo, per id. @return array<int, string> */
@@ -6242,7 +6274,7 @@ HTML
         $etichetteValori = static::valueLabels();
         $varianti = static::variantLabels($modelId);
         $valoriVariante = static::variantValues($modelId);
-        $asseVariante = static::variantAttributeId();
+        $asseVariante = static::variantAttributeId($modelId);
         // L'ordine è quello che l'articolo ha scelto: il primo asse
         // raggruppa, gli altri compongono il nome, su tutte le righe uguale.
         $ordine = static::axesOrder($modelId);

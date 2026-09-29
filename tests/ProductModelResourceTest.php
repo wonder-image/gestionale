@@ -2356,7 +2356,7 @@ $schedaColori = static function (array $assi, array $ordine = []) {
         }
 
         /** Il colore è l'attributo 7. */
-        public static function variantAttributeId(): int
+        public static function variantAttributeId(int $modelId = 0): int
         {
             return 7;
         }
@@ -2697,5 +2697,103 @@ check('la finestra delle opzioni ha le quattro colonne, il nome che apre la sche
 check('senza opzioni la finestra lo dice invece di mostrare una tabella vuota', fn () =>
     str_contains(ProductModelResource::optionsTable([]), '<table') === false
 );
+
+// Un negozio con due attributi «Opzione con foto proprie»: «Prova Colore» (7)
+// e «Colore» (9). Un articolo ne usa uno solo, e quello conta (P127).
+$dueAttributiConFoto = static function (array $valoriDelleVarianti) {
+    return new class($valoriDelleVarianti) extends ProductModelResource {
+        /** @var array<int, int> variante => valore d'attributo */
+        public static array $valori = [];
+
+        public function __construct(array $valori)
+        {
+            static::$valori = $valori;
+        }
+
+        public static function attributes(): array
+        {
+            return [
+                ['id' => 7, 'name' => 'Prova Colore', 'level' => 'variant', 'type' => 'color'],
+                ['id' => 9, 'name' => 'Colore', 'level' => 'variant', 'type' => 'color'],
+                ['id' => 11, 'name' => 'Taglia', 'level' => 'product', 'type' => 'select'],
+            ];
+        }
+
+        public static function attributeValues(): array
+        {
+            return [
+                31 => ['id' => 31, 'attribute_id' => 7, 'label' => 'Blu di prova'],
+                51 => ['id' => 51, 'attribute_id' => 9, 'label' => 'Blu'],
+                52 => ['id' => 52, 'attribute_id' => 9, 'label' => 'Rosso'],
+            ];
+        }
+
+        public static function variantValues(int $modelId): array
+        {
+            return static::$valori;
+        }
+    };
+};
+
+check('l\'attributo con foto proprie è quello che l\'articolo usa, non il primo del negozio', function () use ($dueAttributiConFoto) {
+    $scheda = $dueAttributiConFoto([1 => 51, 2 => 52]);
+
+    return $scheda::variantAttributeId(3168) === 9;
+});
+
+check('un articolo che usa il primo attributo tiene il primo', function () use ($dueAttributiConFoto) {
+    $scheda = $dueAttributiConFoto([1 => 31]);
+
+    return $scheda::variantAttributeId(3168) === 7;
+});
+
+check('in creazione, e su un articolo senza varianti, vale il primo del negozio', function () use ($dueAttributiConFoto) {
+    $scheda = $dueAttributiConFoto([]);
+
+    return $scheda::variantAttributeId(0) === 7
+        && $scheda::variantAttributeId(3168) === 7;
+});
+
+check('senza attributi con foto proprie non c\'è nessun asse', function () {
+    $scheda = new class extends ProductModelResource {
+        public static function attributes(): array
+        {
+            return [['id' => 11, 'name' => 'Taglia', 'level' => 'product', 'type' => 'select']];
+        }
+    };
+
+    return $scheda::variantAttributeId(3168) === 0 && $scheda::variantAttributeId() === 0;
+});
+
+check('le foto del colore stanno nella testata anche col secondo attributo', function () {
+    $scheda = new class extends ProductModelResource {
+        public static function attributes(): array
+        {
+            return [
+                ['id' => 7, 'name' => 'Prova Colore', 'level' => 'variant', 'type' => 'color'],
+                ['id' => 9, 'name' => 'Colore', 'level' => 'variant', 'type' => 'color'],
+            ];
+        }
+
+        public static function attributeValues(): array
+        {
+            return [51 => ['id' => 51, 'attribute_id' => 9, 'label' => 'Blu']];
+        }
+
+        public static function variantValues(int $modelId): array
+        {
+            return [1 => 51];
+        }
+
+        public static function axesOrder(int $modelId): array
+        {
+            return [9];
+        }
+    };
+
+    // L'articolo raggruppa per «Colore»: le foto stanno nella testata del
+    // gruppo, e imageTargets() non rimette un riquadro per colore.
+    return $scheda::colorPhotosInGroups(3168) === true;
+});
 
 summary();
