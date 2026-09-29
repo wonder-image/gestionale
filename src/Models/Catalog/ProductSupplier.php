@@ -10,13 +10,11 @@ use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
 
 /**
- * Da chi si compra un'opzione, con quale codice e a quanto: l'eccezione.
+ * Da chi si compra un'opzione, con quale codice e a quanto.
  *
- * I fornitori stanno sull'articolo (`ProductModelSupplier`) e valgono per
- * tutte le opzioni. Qui c'è solo l'opzione che si compra a un prezzo diverso,
- * o da un fornitore suo: una riga per fornitore, e per quel fornitore vince
- * sulla riga dell'articolo (vedi
- * `Support\Purchasing\ProductSuppliers::effective()`).
+ * I fornitori sono del prodotto, una riga per fornitore: l'articolo senza
+ * varianti li ha sul suo unico prodotto, quello con le varianti su ogni
+ * opzione (vedi `Support\Purchasing\ProductSuppliers`).
  *
  * `cost` è il costo **di oggi**: lo storico sta nel costo dei movimenti. Per
  * questo il legame si cancella davvero, quando sparisce l'opzione o la riga,
@@ -24,9 +22,9 @@ use Wonder\Sql\TableSchema as Column;
  * Vuoto vuol dire «non lo so» (`NULL`), non zero: uno zero farebbe del
  * fornitore il più conveniente e abbasserebbe il valore del magazzino.
  *
- * Nessun indice unico su opzione e fornitore: il repeater prima scrive e poi
- * toglie, e uno scambio di righe inciamperebbe a metà salvataggio. I doppioni
- * li rifiuta la scheda, che può spiegarlo con una frase.
+ * Nessun indice unico su opzione e fornitore: il salvataggio prima scrive e
+ * poi toglie, e uno scambio di righe inciamperebbe a metà. I doppioni li
+ * rifiuta la scheda, che può spiegarlo con una frase.
  */
 final class ProductSupplier extends Model
 {

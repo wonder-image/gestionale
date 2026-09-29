@@ -391,7 +391,7 @@ $conSedi = static function (array $sedi, callable $fai): mixed {
     }
 };
 
-check('con più sedi la giacenza della griglia con l\'unità resta da leggere e basta, e si scrive sede per sede', function () use ($conSedi, $campiDi, $formato) {
+check('con più sedi la griglia non ha la giacenza: si scrive sede per sede, con l\'unità', function () use ($conSedi, $campiDi, $formato) {
     // Due sedi vere, non uno `stockIsWritable()` forzato: è `Locations::shown()`
     // che decide (P102, P103), e la scheda deve leggerla da lì.
     $scheda = new class extends ProductModelResource {
@@ -445,14 +445,12 @@ check('con più sedi la giacenza della griglia con l\'unità resta da leggere e 
     return $scrivibile === false
         && $scheda::stockIsWritable() === true
         // La casella dell'articolo singolo resta nel modulo (la scheda la
-        // tiene fuori dal riquadro) e la griglia la mostra: entrambe da
-        // leggere e basta, con l'unità in coda.
+        // tiene fuori dal riquadro), da leggere e basta, con l'unità in
+        // coda. La griglia non la mostra: di quale sede sarebbe? (P113)
         && $casella !== null
         && str_contains((string) $casella->get('attribute'), 'readonly')
         && ($formato($casella)['symbol'] ?? null) === ' kg'
-        && $griglia !== null
-        && str_contains((string) $griglia->get('attribute'), 'readonly')
-        && ($formato($griglia)['symbol'] ?? null) === ' kg'
+        && $griglia === null
         // Si scrive nelle righe per sede, con la stessa unità e i suoi
         // decimali.
         && $perSede !== null
@@ -463,7 +461,8 @@ check('con più sedi la giacenza della griglia con l\'unità resta da leggere e 
 
 check('con più sedi anche in creazione la giacenza si scrive solo sede per sede', function () use ($conSedi, $campiDi) {
     // Una scheda che nasce ora: nessun id. Con la casella scrivibile la
-    // griglia e la finestra delle sedi si contenderebbero la sede principale.
+    // scheda e la finestra delle sedi si contenderebbero la sede principale,
+    // e la griglia la giacenza non ce l'ha (P113).
     $scheda = new class extends ProductModelResource {
         protected static function currentId(): ?int
         {
@@ -490,8 +489,7 @@ check('con più sedi anche in creazione la giacenza si scrive solo sede per sede
 
     return $casella !== null
         && str_contains((string) $casella->get('attribute'), 'readonly')
-        && $griglia !== null
-        && str_contains((string) $griglia->get('attribute'), 'readonly')
+        && $griglia === null
         // Con una sede sola in creazione si scrive, come sempre.
         && $grigliaUnaSede !== null
         && !str_contains((string) $grigliaUnaSede->get('attribute'), 'readonly')

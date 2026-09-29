@@ -32,6 +32,17 @@ versionamento semantico.
   come pillole da spuntare, più d'uno per articolo
   (`ProductAttributes::rows()`). Il tipo di attributo *Icona* ha un'immagine
   per valore al posto dell'icona del font.
+- Acquisti (`purchasing`), fornitori per opzione: da chi si compra ogni
+  opzione in vendita, con quale codice e a quanto, in `gst_product_suppliers`
+  (`ProductSuppliers`). Si compilano dietro «Compila le informazioni
+  avanzate», nel riquadro *Prodotto* o nella riga della griglia, e nella
+  scheda dell'opzione: con un fornitore solo *Codice fornitore* e *Costo
+  d'acquisto*, con due o più il bottone *Fornitori* con la finestra a righe e
+  *Salva per tutte le opzioni*. Accendendo le varianti le opzioni che nascono
+  prendono i fornitori dell'articolo. Un fornitore con dei costi non si
+  elimina e non perde il ruolo.
+- Con più sedi la griglia delle opzioni non ha la colonna *Giacenza*: i pezzi
+  si scrivono sede per sede dal bottone *Giacenza*.
 - Giacenze in sola consultazione: l'elenco del core su `Product`, con una
   colonna per sede (`Locations::shown()`), *Totale*, *Scorta minima*,
   *Impegnati* e *Disponibili* secondo le funzionalità, numeri calcolati nella

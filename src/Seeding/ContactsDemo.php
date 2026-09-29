@@ -4,7 +4,6 @@ namespace Wonder\Plugin\Gestionale\Seeding;
 
 use Throwable;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
@@ -245,12 +244,11 @@ final class ContactsDemo
 
     /**
      * Qualche giacenza, movimento o costo d'acquisto nomina la scheda come
-     * fornitore? I costi stanno in due tabelle: quella dell'articolo e quella
-     * delle eccezioni di un'opzione.
+     * fornitore?
      */
     private static function usedAsSupplier(int $contactId): bool
     {
-        foreach ([Stock::class, StockMovement::class, ProductModelSupplier::class, ProductSupplier::class] as $model) {
+        foreach ([Stock::class, StockMovement::class, ProductSupplier::class] as $model) {
             try {
                 $row = $model::find(
                     'supplier_id = '.$contactId." AND (deleted = 'true' OR deleted = 'false')",

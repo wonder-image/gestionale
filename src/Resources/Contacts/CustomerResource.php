@@ -374,14 +374,13 @@ class CustomerResource extends GestionaleResource
     /**
      * La scheda se ne va con i suoi indirizzi di consegna.
      *
-     * Prima di cancellare la scheda se ne vanno i suoi costi su articoli e
-     * opzioni già eliminati: nessuno li vede più, e la chiave esterna li
-     * terrebbe fermi.
+     * Prima di cancellare la scheda se ne vanno i suoi costi sulle opzioni
+     * già eliminate: nessuno li vede più, e la chiave esterna li terrebbe
+     * fermi.
      */
     public static function deleteRecord(int|string $id): object
     {
         static::assertDeletable($id);
-        ProductSuppliers::dropForRemovedModels((int) $id);
         ProductSuppliers::dropForRemovedProducts((int) $id);
 
         // Gli indirizzi di consegna se ne vanno con la scheda, anche quelli

@@ -127,62 +127,126 @@ check('righe corrette passano', fn () =>
     ], [5, 6]) === ''
 );
 
-// I fornitori di un'opzione sono quelli dell'articolo, e la riga
-// dell'opzione vince sul suo fornitore.
-check('l\'opzione eredita i fornitori dell\'articolo', fn () =>
-    ProductSuppliers::effective([
+// Con un fornitore solo la scheda ha due campi, senza tendina: il fornitore
+// è quello, e i due campi vuoti vogliono dire «non si compra da lui».
+check('i due campi vuoti non sono un legame, uno compilato sì', fn () =>
+    ProductSuppliers::fromFields(5, '', '') === []
+    && ProductSuppliers::fromFields(5, '  ', null) === []
+    && ProductSuppliers::fromFields(5, ' FN-12 ', '') === [['supplier_id' => 5, 'supplier_sku' => ' FN-12 ', 'cost' => '']]
+    && ProductSuppliers::fromFields(5, '', '12,50') === [['supplier_id' => 5, 'supplier_sku' => '', 'cost' => '12,50']]
+    // Senza fornitore non c'è niente da legare.
+    && ProductSuppliers::fromFields(0, 'FN-12', '12,50') === []
+);
+
+check('i due campi arrivano grezzi, così un costo sbagliato si vede', fn () =>
+    $rifiuto(ProductSuppliers::fromFields(5, '', '12..5'), [5]) === 'product.supplier_cost_invalid'
+    && $rifiuto(ProductSuppliers::fromFields(5, str_repeat('A', 101), ''), [5]) === 'product.supplier_sku_too_long'
+    && $rifiuto(ProductSuppliers::fromFields(5, 'FN-12', '12,50'), [5]) === ''
+);
+
+// I due campi sono del fornitore unico: gli altri legami dell'opzione non
+// si toccano.
+check('i due campi scrivono solo il loro fornitore, al suo posto', fn () =>
+    ProductSuppliers::replaceOne([
         ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.0],
         ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => 11.5],
-    ], []) === [
-        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.0],
+    ], 5, ProductSuppliers::fromFields(5, 'FN-13', '13,00')) === [
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-13', 'cost' => 13.0],
         ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => 11.5],
     ]
 );
 
-check('la riga dell\'opzione vince su quella dell\'articolo, al suo posto', fn () =>
-    ProductSuppliers::effective([
+check('i due campi vuoti tolgono solo il loro fornitore', fn () =>
+    ProductSuppliers::replaceOne([
         ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.0],
         ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => 11.5],
+    ], 5, []) === [['supplier_id' => 6, 'supplier_sku' => '', 'cost' => 11.5]]
+    && ProductSuppliers::replaceOne([], 5, []) === []
+);
+
+check('un fornitore che l\'opzione non aveva si accoda', fn () =>
+    ProductSuppliers::replaceOne(
+        [['supplier_id' => 6, 'supplier_sku' => '', 'cost' => 11.5]],
+        5,
+        ProductSuppliers::fromFields(5, '', '2')
+    ) === [
+        ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => 11.5],
+        ['supplier_id' => 5, 'supplier_sku' => '', 'cost' => 2.0],
+    ]
+);
+
+// La finestra manda le righe in un campo nascosto.
+check('il JSON della finestra diventa righe, e vuoto vuol dire «non toccare»', fn () =>
+    ProductSuppliers::fromJson('[{"supplier_id":5,"supplier_sku":"FN-12","cost":"12.00"},"x",{"supplier_id":"6"}]') === [
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => '12.00'],
+        ['supplier_id' => '6'],
+    ]
+    && ProductSuppliers::fromJson('[]') === []
+    && ProductSuppliers::fromJson('') === null
+    && ProductSuppliers::fromJson('  ') === null
+    && ProductSuppliers::fromJson(null) === null
+    && ProductSuppliers::fromJson(['supplier_id' => 5]) === null
+    && ProductSuppliers::fromJson('{"supplier_id":5}') === null
+    && ProductSuppliers::fromJson('[{') === null
+);
+
+// Il costo si scrive con due decimali e si tiene con quattro (P91).
+check('il costo non toccato resta quello salvato, con i suoi quattro decimali', fn () =>
+    ProductSuppliers::keepStoredCosts([
+        ['supplier_id' => '5', 'supplier_sku' => 'FN-12', 'cost' => '12.35'],
+        ['supplier_id' => 6, 'cost' => '11,50'],
+        ['supplier_id' => 7, 'cost' => ''],
+        ['supplier_id' => 8, 'cost' => '3,00'],
     ], [
-        ['supplier_id' => 6, 'supplier_sku' => 'LS-XL', 'cost' => 13.0],
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.3456],
+        ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => 11.4],
+        ['supplier_id' => 7, 'supplier_sku' => '', 'cost' => 9.1234],
     ]) === [
-        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.0],
-        ['supplier_id' => 6, 'supplier_sku' => 'LS-XL', 'cost' => 13.0],
+        ['supplier_id' => '5', 'supplier_sku' => 'FN-12', 'cost' => '12.3456'],
+        ['supplier_id' => 6, 'cost' => '11,50'],
+        // Svuotato vuol dire «non lo so»: non torna quello di prima.
+        ['supplier_id' => 7, 'cost' => ''],
+        ['supplier_id' => 8, 'cost' => '3,00'],
     ]
 );
 
-check('un fornitore solo dell\'opzione si accoda a quelli dell\'articolo', fn () =>
-    array_column(ProductSuppliers::effective([
-        ['supplier_id' => 5, 'supplier_sku' => '', 'cost' => 12.0],
-    ], [
-        ['supplier_id' => 9, 'supplier_sku' => 'X', 'cost' => null],
-        ['supplier_id' => 5, 'supplier_sku' => '', 'cost' => 10.0],
-    ]), 'supplier_id') === [5, 9]
-    && ProductSuppliers::effective([], [['supplier_id' => 9, 'supplier_sku' => '', 'cost' => 1.0]])
-        === [['supplier_id' => 9, 'supplier_sku' => '', 'cost' => 1.0]]
-    && ProductSuppliers::effective([], []) === []
+// Il riassunto accanto al bottone «Fornitori».
+check('il riassunto dice i fornitori, con il costo solo dove c\'è', fn () =>
+    ProductSuppliers::summary([
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.0],
+        ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => null],
+    ], [5 => 'Filati Nord', 6 => 'Lana Sud']) === 'Filati Nord 12,00 € · Lana Sud'
+    && ProductSuppliers::summary([['supplier_id' => '5', 'cost' => '1.234,5']], [5 => 'Filati Nord']) === 'Filati Nord 1.234,50 €'
+    && ProductSuppliers::summary([['supplier_id' => 5, 'cost' => '0']], [5 => 'Filati Nord']) === 'Filati Nord 0,00 €'
 );
 
-check('le righe grezze passano da normalize anche in effective', fn () =>
-    ProductSuppliers::effective(
-        [['supplier_id' => '5', 'cost' => '12,00', 'id' => '1'], ['supplier_id' => '', 'cost' => '']],
-        [['supplier_id' => '5', 'supplier_sku' => ' A ', 'cost' => '']]
-    ) === [['supplier_id' => 5, 'supplier_sku' => 'A', 'cost' => null]]
+check('senza righe il riassunto lo dice, e un fornitore senza nome ha il numero', fn () =>
+    ProductSuppliers::summary([], [5 => 'Filati Nord']) === 'Nessun fornitore'
+    && ProductSuppliers::summary([['supplier_id' => '', 'cost' => '']], []) === 'Nessun fornitore'
+    && ProductSuppliers::summary([['supplier_id' => 9, 'cost' => '']], [5 => 'Filati Nord']) === 'Fornitore n. 9'
+    // Lo stesso fornitore due volte non arriva al salvataggio: vale il primo.
+    && ProductSuppliers::summary([['supplier_id' => 5, 'cost' => 1], ['supplier_id' => 5, 'cost' => 2]], [5 => 'Filati Nord']) === 'Filati Nord 1,00 €'
 );
+
+// I fornitori sono dell'opzione (P107): i due livelli non ci sono più.
+check('non c\'è più niente da sommare fra articolo e opzione', function () {
+    foreach (['effective', 'modelLinksFor', 'syncModel', 'dropForModels', 'dropForRemovedModels'] as $metodo) {
+        if (method_exists(ProductSuppliers::class, $metodo)) {
+            return false;
+        }
+    }
+
+    return !class_exists(\Wonder\Plugin\Gestionale\Models\Catalog\ProductModelSupplier::class);
+});
 
 check('senza database non c\'è niente da leggere né da togliere', fn () =>
     ProductSuppliers::linksFor([1, 2]) === []
     && ProductSuppliers::linksFor([]) === []
-    && ProductSuppliers::modelLinksFor([1, 2]) === []
-    && ProductSuppliers::modelLinksFor([]) === []
     && ProductSuppliers::dropFor([1]) === 0
     && ProductSuppliers::dropFor([0, -3]) === 0
-    && ProductSuppliers::dropForModels([1]) === 0
-    && ProductSuppliers::dropForModels([]) === 0
     && ProductSuppliers::dropRemovedOptions(1) === 0
     && ProductSuppliers::dropForRemovedProducts(1) === 0
-    && ProductSuppliers::dropForRemovedModels(1) === 0
-    && ProductSuppliers::dropForRemovedModels(0) === 0
+    && ProductSuppliers::dropForRemovedProducts(0) === 0
     && ProductSuppliers::countForSupplier(1) === 0
     && ProductSuppliers::countForSupplier(0) === 0
 );

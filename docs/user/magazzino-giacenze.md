@@ -27,8 +27,8 @@ Quando l'articolo si vende in un'unica opzione, la casella *Giacenza* sta in
 alto nella scheda, accanto al prezzo, e si scrive allo stesso modo; sotto c'è
 il link alla rettifica.
 
-Con **più sedi** la casella della griglia mostra il totale e si legge
-soltanto: i pezzi e la scorta minima si scrivono sede per sede, dal bottone
+Con **più sedi** la colonna della griglia non c'è: i pezzi e la scorta
+minima si scrivono sede per sede, dal bottone
 **Giacenza** dietro «Compila le informazioni avanzate» o, senza varianti,
 dalle righe **Giacenza per sede** del riquadro *Magazzino* (vedi [Con più
 sedi](catalogo-prodotti.md#con-piu-sedi)).
@@ -117,8 +117,8 @@ davvero e la riga sparisce.
 ## Dove si vede la giacenza
 
 - Nell'elenco **Giacenze**: tutte le opzioni, sede per sede.
-- Nella **scheda dell'articolo**: la colonna *Giacenza* della griglia, che si
-  scrive con una sede sola; con più sedi si legge, e i pezzi stanno dietro il
+- Nella **scheda dell'articolo**: la colonna *Giacenza* della griglia, con
+  una sede sola; con più sedi la colonna non c'è, e i pezzi stanno dietro il
   bottone *Giacenza* di ogni riga, sede per sede.
 - Nella scheda di un articolo con **un'unica opzione**: la casella accanto al
   prezzo, che si scrive, con il link alla rettifica; con più sedi le righe

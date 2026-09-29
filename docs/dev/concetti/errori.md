@@ -60,21 +60,22 @@ php tests/ErrorKeysTest.php
 | Chiave | Metodo | Quando |
 |---|---|---|
 | `product.backorder_lead_days_invalid` | `make()` | «Giorni di attesa» fuori da 0-365, o non un numero intero; vedi [Catalogo](catalogo.md#la-vendita-senza-giacenza) |
-| `product.supplier_missing` | `make()` | una riga di costo con codice o costo ma senza fornitore |
-| `product.supplier_invalid` | `make()` | un fornitore che la pagina non propone: eliminato, non più fornitore, o disattivato e mai legato |
+| `product.supplier_missing` | `make()` | una riga della finestra «Fornitori» con codice o costo ma senza fornitore |
+| `product.supplier_invalid` | `make()` | un fornitore che la pagina non propone: eliminato, non più fornitore, o disattivato e mai legato a quell'opzione; oppure «Codice fornitore» e «Costo d'acquisto» compilati quando il fornitore unico non c'è più |
 | `product.supplier_sku_too_long` | `make()` | un codice del fornitore oltre cento caratteri; `{{max}}` è il limite |
 | `product.supplier_cost_invalid` | `make()` | un costo d'acquisto scritto che non è un numero |
 | `product.supplier_cost_negative` | `make()` | un costo d'acquisto sotto zero |
 | `product.supplier_cost_too_high` | `make()` | un costo d'acquisto oltre 99.999.999,9999, quello che tiene la colonna |
 | `product.supplier_duplicate` | `make()` | lo stesso fornitore due volte sulla stessa opzione; `{{supplier}}` è il nome |
-| `contact.supplier_in_use` | `refusal()` | eliminare un fornitore scritto su articoli o opzioni in vendita; `{{count}}` è quanti |
+| `contact.supplier_in_use` | `refusal()` | eliminare un fornitore scritto su opzioni in vendita; `{{count}}` è quante |
 | `contact.supplier_role_in_use` | `make()` | togliere il ruolo di fornitore a una scheda con dei costi; `{{count}}` come sopra |
 | `stock.location_duplicate` | `make()` | la stessa sede due volte nelle righe «Giacenza per sede»; `{{location}}` è il suo nome |
 | `stock.location_unknown` | `make()` | una riga per sede che punta a una sede che il magazzino non mostra più |
 | `product.min_stock_invalid` | `make()` | una scorta minima che non è un numero da zero in su (vuota vale zero) |
 
 Le sette `product.supplier_…` le solleva `ProductSuppliers::assertValid()`,
-per il riquadro «Fornitori» dell'articolo e per quello dell'opzione; le due
+per i fornitori scritti nella scheda dell'articolo e in quella dell'opzione
+(`product.supplier_invalid` anche `postedSuppliers()`); le due
 `contact.…` le solleva `CustomerResource` (vedi [Fornitori e costi
 d'acquisto](acquisti.md#un-fornitore-in-uso-non-si-toglie)). Le due
 `stock.location_…` le solleva `LocationRows::normalize()`, per le righe

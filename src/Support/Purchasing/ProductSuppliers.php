@@ -6,29 +6,27 @@ use RuntimeException;
 use Throwable;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Sql\Transaction;
 
 /**
- * Da chi si compra ogni articolo e ogni opzione: come si leggono, si
- * controllano, si salvano e si tolgono i legami di
- * `gst_product_model_suppliers` (l'articolo) e `gst_product_suppliers`
- * (l'eccezione dell'opzione).
+ * Da chi si compra ogni opzione: come si leggono, si controllano, si
+ * salvano e si tolgono i legami di `gst_product_suppliers`.
  *
- * I fornitori si scrivono sull'articolo e valgono per tutte le opzioni.
- * Un'opzione può avere righe sue: per lo stesso fornitore vince la sua, e un
- * fornitore solo suo si accoda a quelli dell'articolo (`effective()`).
+ * I fornitori sono del prodotto: l'articolo senza varianti li ha sul suo
+ * unico prodotto, quello con le varianti su ogni opzione. Non c'è niente da
+ * sommare: quello che vale per un'opzione è quello che ha scritto.
  *
- * Le righe arrivano dai repeater delle due schede e passano tutte da
- * `normalize()` e `assertValid()`: le regole sono le stesse, e stanno qui.
+ * Le righe arrivano dalle due schede, dalla finestra «Fornitori»
+ * (`fromJson()`) o dai due campi del fornitore unico (`fromFields()`), e
+ * passano tutte da `normalize()` e `assertValid()`: le regole sono le
+ * stesse, e stanno qui.
  *
  * Il legame è il costo **di oggi**, non storia: se ne va davvero, con
- * l'articolo, con l'opzione o con la riga. Un legame rimasto su un'opzione
- * tolta terrebbe ferma la chiave esterna del fornitore, e nessuno lo
- * vedrebbe più.
+ * l'opzione o con la riga. Un legame rimasto su un'opzione tolta terrebbe
+ * ferma la chiave esterna del fornitore, e nessuno lo vedrebbe più.
  *
  * Un'opzione è **in vendita** quando né lei né il suo articolo sono stati
  * eliminati: l'elenco degli articoli li mette in `deleted = 'true'` senza
@@ -88,39 +86,153 @@ final class ProductSuppliers
     }
 
     /**
-     * I fornitori che valgono per un'opzione: quelli dell'articolo, con la
-     * riga dell'opzione al posto di quella dell'articolo per lo stesso
-     * fornitore, e i fornitori solo dell'opzione in coda.
+     * Le righe dei due campi del fornitore unico, grezze: nessuna se sono
+     * vuoti tutti e due, una se ne basta uno compilato.
      *
-     * Puro: le righe passano da `normalize()`, così vanno bene sia quelle
-     * lette dal database sia quelle grezze di un form.
+     * Grezze perché passano da `assertValid()`: un costo scritto male si
+     * deve vedere, non sparire.
      *
-     * @param array<int|string, mixed> $modelRows righe dell'articolo
-     * @param array<int|string, mixed> $optionRows righe dell'opzione
+     * @return list<array{supplier_id: int, supplier_sku: mixed, cost: mixed}>
+     */
+    public static function fromFields(int $supplierId, mixed $sku, mixed $cost): array
+    {
+        if ($supplierId <= 0 || (self::text($sku) === '' && self::text($cost) === '' && !is_array($cost))) {
+            return [];
+        }
+
+        return [['supplier_id' => $supplierId, 'supplier_sku' => $sku ?? '', 'cost' => $cost ?? '']];
+    }
+
+    /**
+     * I legami di un'opzione con quello di un fornitore solo riscritto: al
+     * suo posto se c'era, in coda se non c'era, via se `$rows` è vuoto.
+     *
+     * È quello che fanno i due campi del fornitore unico: gli altri legami
+     * dell'opzione non li vedono, e non li toccano.
+     *
+     * @param array<int|string, mixed> $links i legami dell'opzione
+     * @param array<int|string, mixed> $rows le righe di `fromFields()`
      * @return list<array{supplier_id: int, supplier_sku: string, cost: ?float}>
      */
-    public static function effective(array $modelRows, array $optionRows): array
+    public static function replaceOne(array $links, int $supplierId, array $rows): array
     {
-        $overrides = [];
+        $row = null;
 
-        foreach (self::normalize($optionRows) as $row) {
-            if ($row['supplier_id'] > 0 && !isset($overrides[$row['supplier_id']])) {
-                $overrides[$row['supplier_id']] = $row;
+        foreach (self::normalize($rows) as $candidate) {
+            if ($candidate['supplier_id'] === $supplierId) {
+                $row = $candidate;
+                break;
             }
         }
 
-        $rows = [];
+        $replaced = [];
+        $found = false;
 
-        foreach (self::normalize($modelRows) as $row) {
-            if ($row['supplier_id'] <= 0 || isset($rows[$row['supplier_id']])) {
+        foreach (self::normalize($links) as $link) {
+            if ($link['supplier_id'] !== $supplierId) {
+                $replaced[] = $link;
                 continue;
             }
 
-            $rows[$row['supplier_id']] = $overrides[$row['supplier_id']] ?? $row;
-            unset($overrides[$row['supplier_id']]);
+            if (!$found && $row !== null) {
+                $replaced[] = $row;
+            }
+
+            $found = true;
         }
 
-        return array_values($rows + $overrides);
+        if (!$found && $row !== null) {
+            $replaced[] = $row;
+        }
+
+        return $replaced;
+    }
+
+    /**
+     * Le righe del campo nascosto della finestra «Fornitori»; `null` se è
+     * vuoto o non è un elenco — la finestra non l'ha toccato.
+     *
+     * @return list<array<string, mixed>>|null
+     */
+    public static function fromJson(mixed $json): ?array
+    {
+        if (!is_string($json) || trim($json) === '') {
+            return null;
+        }
+
+        try {
+            $rows = json_decode($json, true, 8, JSON_THROW_ON_ERROR);
+        } catch (Throwable) {
+            return null;
+        }
+
+        return is_array($rows) && array_is_list($rows)
+            ? array_values(array_filter($rows, 'is_array'))
+            : null;
+    }
+
+    /**
+     * Il costo si scrive con due decimali e si tiene con quattro: se la
+     * casella dice lo stesso numero arrotondato, resta quello salvato.
+     *
+     * @param list<array<string, mixed>> $posted le righe della pagina
+     * @param list<array<string, mixed>> $stored i legami dell'opzione, da `linksFor()`
+     * @return list<array<string, mixed>>
+     */
+    public static function keepStoredCosts(array $posted, array $stored): array
+    {
+        $costs = [];
+
+        foreach ($stored as $row) {
+            if (is_array($row) && is_numeric($row['cost'] ?? null)) {
+                $costs[self::id($row['supplier_id'] ?? null)] = (float) $row['cost'];
+            }
+        }
+
+        foreach ($posted as $index => $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $supplierId = self::id($row['supplier_id'] ?? null);
+            $written = Numbers::fromForm(is_scalar($row['cost'] ?? null) ? $row['cost'] : null);
+
+            if (isset($costs[$supplierId]) && $written !== null
+                && round((float) $written, 2) === round($costs[$supplierId], 2)) {
+                $posted[$index]['cost'] = number_format($costs[$supplierId], 4, '.', '');
+            }
+        }
+
+        return $posted;
+    }
+
+    /**
+     * Il riassunto accanto al bottone «Fornitori»: i nomi in ordine, con il
+     * costo solo dove c'è — «Filati Nord 12,00 € · Lana Sud».
+     *
+     * @param array<int|string, mixed> $rows le righe dell'opzione, anche grezze
+     * @param array<int, string> $names id => nome del fornitore
+     */
+    public static function summary(array $rows, array $names): string
+    {
+        $parts = [];
+
+        foreach (self::normalize($rows) as $row) {
+            $supplierId = $row['supplier_id'];
+
+            if ($supplierId <= 0 || isset($parts[$supplierId])) {
+                continue;
+            }
+
+            $name = trim((string) ($names[$supplierId] ?? ''));
+            $name = $name !== '' ? $name : 'Fornitore n. '.$supplierId;
+
+            $parts[$supplierId] = $row['cost'] === null
+                ? $name
+                : $name.' '.number_format($row['cost'], 2, ',', '.').' €';
+        }
+
+        return $parts === [] ? 'Nessun fornitore' : implode(' · ', $parts);
     }
 
     /**
@@ -193,40 +305,38 @@ final class ProductSuppliers
     }
 
     /**
-     * I legami di certi articoli, per articolo e in ordine di posizione.
-     *
-     * @param list<int> $modelIds
-     * @return array<int, list<array{supplier_id: int, supplier_sku: string, cost: ?float}>>
-     */
-    public static function modelLinksFor(array $modelIds): array
-    {
-        return self::linksOf(ProductModelSupplier::class, 'product_model_id', $modelIds);
-    }
-
-    /**
-     * Le eccezioni di certe opzioni, per opzione e in ordine di posizione.
+     * I legami di certe opzioni, per opzione e in ordine di posizione.
      *
      * @param list<int> $productIds
      * @return array<int, list<array{supplier_id: int, supplier_sku: string, cost: ?float}>>
      */
     public static function linksFor(array $productIds): array
     {
-        return self::linksOf(ProductSupplier::class, 'product_id', $productIds);
+        $condition = self::inCondition('product_id', $productIds);
+
+        if ($condition === null) {
+            return [];
+        }
+
+        try {
+            $rows = ProductSupplier::find($condition, null, 'position ASC, id', 'ASC');
+        } catch (Throwable) {
+            // Tabella non ancora creata, o nessun database: nessun legame.
+            return [];
+        }
+
+        $byProduct = [];
+
+        foreach (self::listOf($rows) as $row) {
+            $byProduct[(int) ($row['product_id'] ?? 0)][] = $row;
+        }
+
+        return array_map(self::normalize(...), $byProduct);
     }
 
     /**
-     * Scrive i fornitori di un articolo com'erano nella pagina.
-     *
-     * @param list<array<string, mixed>> $rows righe di `normalize()`
-     * @return int quanti fornitori ha l'articolo dopo il salvataggio
-     */
-    public static function syncModel(int $modelId, array $rows): int
-    {
-        return self::write(ProductModelSupplier::class, 'product_model_id', $modelId, $rows);
-    }
-
-    /**
-     * Scrive le eccezioni di un'opzione com'erano nella pagina.
+     * Scrive i fornitori di un'opzione com'erano nella pagina, in una
+     * transazione.
      *
      * Il confronto è per fornitore: chi c'era si aggiorna, chi manca nasce,
      * chi non c'è più se ne va davvero. La posizione è l'ordine delle righe.
@@ -238,161 +348,7 @@ final class ProductSuppliers
      */
     public static function sync(int $productId, array $rows): int
     {
-        return self::write(ProductSupplier::class, 'product_id', $productId, $rows);
-    }
-
-    /**
-     * Toglie i fornitori di articoli che stanno per sparire.
-     *
-     * @param list<int> $modelIds
-     * @return int quanti legami se ne sono andati
-     */
-    public static function dropForModels(array $modelIds): int
-    {
-        $condition = self::inCondition('product_model_id', $modelIds);
-
-        return $condition === null ? 0 : self::deleteWhere(ProductModelSupplier::class, $condition);
-    }
-
-    /**
-     * Toglie le eccezioni di opzioni che stanno per sparire.
-     *
-     * La chiave esterna fermerebbe l'eliminazione dell'opzione con un errore
-     * del database: chi cancella un'opzione passa prima di qui.
-     *
-     * @param list<int> $productIds
-     * @return int quanti legami se ne sono andati
-     */
-    public static function dropFor(array $productIds): int
-    {
-        $condition = self::inCondition('product_id', $productIds);
-
-        return $condition === null ? 0 : self::deleteWhere(ProductSupplier::class, $condition);
-    }
-
-    /**
-     * Toglie le eccezioni delle opzioni di un articolo tolte dalla griglia.
-     *
-     * La griglia le mette in `deleted = 'true'`, e di un'opzione tolta non
-     * serve sapere quanto costava.
-     *
-     * @return int quanti legami se ne sono andati
-     */
-    public static function dropRemovedOptions(int $modelId): int
-    {
-        if ($modelId <= 0) {
-            return 0;
-        }
-
-        return self::deleteWhere(
-            ProductSupplier::class,
-            'product_id IN (SELECT id FROM '.Product::$table
-            .' WHERE product_model_id = '.$modelId." AND deleted = 'true')"
-        );
-    }
-
-    /**
-     * Toglie le eccezioni di un fornitore su opzioni che non sono più in
-     * vendita: chi lo elimina passa prima di qui, perché la chiave esterna
-     * non guarda il cestino.
-     *
-     * @return int quanti legami se ne sono andati
-     */
-    public static function dropForRemovedProducts(int $contactId): int
-    {
-        if ($contactId <= 0) {
-            return 0;
-        }
-
-        return self::deleteWhere(
-            ProductSupplier::class,
-            'supplier_id = '.$contactId.' AND product_id NOT IN ('.self::liveProducts().')'
-        );
-    }
-
-    /**
-     * Toglie i legami di un fornitore con articoli nel cestino: il gemello
-     * di `dropForRemovedProducts()` per la tabella dell'articolo.
-     *
-     * @return int quanti legami se ne sono andati
-     */
-    public static function dropForRemovedModels(int $contactId): int
-    {
-        if ($contactId <= 0) {
-            return 0;
-        }
-
-        return self::deleteWhere(
-            ProductModelSupplier::class,
-            'supplier_id = '.$contactId.' AND product_model_id NOT IN ('.self::liveModels().')'
-        );
-    }
-
-    /** Su quanti articoli e opzioni in vendita un fornitore ha un costo. */
-    public static function countForSupplier(int $contactId): int
-    {
-        if ($contactId <= 0) {
-            return 0;
-        }
-
-        try {
-            return (int) ProductModelSupplier::query()->Count(
-                ProductModelSupplier::$table,
-                'WHERE supplier_id = '.$contactId." AND deleted = 'false'"
-                .' AND product_model_id IN ('.self::liveModels().')'
-            ) + (int) ProductSupplier::query()->Count(
-                ProductSupplier::$table,
-                'WHERE supplier_id = '.$contactId." AND deleted = 'false'"
-                .' AND product_id IN ('.self::liveProducts().')'
-            );
-        } catch (Throwable) {
-            // Tabella non ancora creata, o nessun database: nessun legame.
-            return 0;
-        }
-    }
-
-    /**
-     * I legami di una tabella per padre, in ordine di posizione.
-     *
-     * @param class-string<ProductModelSupplier|ProductSupplier> $modelClass
-     * @param list<int> $parentIds
-     * @return array<int, list<array{supplier_id: int, supplier_sku: string, cost: ?float}>>
-     */
-    private static function linksOf(string $modelClass, string $parentKey, array $parentIds): array
-    {
-        $condition = self::inCondition($parentKey, $parentIds);
-
-        if ($condition === null) {
-            return [];
-        }
-
-        try {
-            $rows = $modelClass::find($condition, null, 'position ASC, id', 'ASC');
-        } catch (Throwable) {
-            // Tabella non ancora creata, o nessun database: nessun legame.
-            return [];
-        }
-
-        $byParent = [];
-
-        foreach (self::listOf($rows) as $row) {
-            $byParent[(int) ($row[$parentKey] ?? 0)][] = $row;
-        }
-
-        return array_map(self::normalize(...), $byParent);
-    }
-
-    /**
-     * Scrive i legami di un padre com'erano nella pagina, in una
-     * transazione.
-     *
-     * @param class-string<ProductModelSupplier|ProductSupplier> $modelClass
-     * @param list<array<string, mixed>> $rows
-     * @return int quanti legami ha il padre dopo il salvataggio
-     */
-    private static function write(string $modelClass, string $parentKey, int $parentId, array $rows): int
-    {
-        if ($parentId <= 0) {
+        if ($productId <= 0) {
             return 0;
         }
 
@@ -406,13 +362,13 @@ final class ProductSuppliers
 
         $wanted = array_values($wanted);
 
-        return Transaction::run(static function () use ($modelClass, $parentKey, $parentId, $wanted): int {
+        return Transaction::run(static function () use ($productId, $wanted): int {
             $existing = [];
             $stale = [];
 
             // Anche le righe in `deleted = 'true'`: nessuno ce le mette, ma se
             // ci sono se ne vanno con le altre.
-            $rows = $modelClass::find([$parentKey => $parentId, 'deleted' => ['true', 'false']], null, 'id', 'ASC');
+            $rows = ProductSupplier::find(['product_id' => $productId, 'deleted' => ['true', 'false']], null, 'id', 'ASC');
 
             foreach (self::listOf($rows) as $row) {
                 $supplierId = (int) ($row['supplier_id'] ?? 0);
@@ -426,7 +382,7 @@ final class ProductSuppliers
 
             foreach ($wanted as $position => $row) {
                 $values = [
-                    $parentKey => $parentId,
+                    'product_id' => $productId,
                     'supplier_id' => $row['supplier_id'],
                     'supplier_sku' => $row['supplier_sku'],
                     // Vuoto diventa NULL: il costo resta «non lo so».
@@ -435,8 +391,8 @@ final class ProductSuppliers
                 ];
 
                 $saved = isset($existing[$row['supplier_id']])
-                    ? $modelClass::update($values, $existing[$row['supplier_id']])
-                    : $modelClass::create($values);
+                    ? ProductSupplier::update($values, $existing[$row['supplier_id']])
+                    : ProductSupplier::create($values);
 
                 if (($saved->success ?? false) !== true) {
                     // Un guasto, non una risposta: la transazione riporta
@@ -450,11 +406,84 @@ final class ProductSuppliers
             $gone = array_merge(array_values($existing), $stale);
 
             if ($gone !== []) {
-                $modelClass::query()->Delete($modelClass::$table, 'WHERE id IN ('.implode(',', $gone).')');
+                ProductSupplier::query()->Delete(ProductSupplier::$table, 'WHERE id IN ('.implode(',', $gone).')');
             }
 
             return count($wanted);
         });
+    }
+
+    /**
+     * Toglie i fornitori di opzioni che stanno per sparire.
+     *
+     * La chiave esterna fermerebbe l'eliminazione dell'opzione con un errore
+     * del database: chi cancella un'opzione passa prima di qui.
+     *
+     * @param list<int> $productIds
+     * @return int quanti legami se ne sono andati
+     */
+    public static function dropFor(array $productIds): int
+    {
+        $condition = self::inCondition('product_id', $productIds);
+
+        return $condition === null ? 0 : self::deleteWhere($condition);
+    }
+
+    /**
+     * Toglie i fornitori delle opzioni di un articolo tolte dalla griglia.
+     *
+     * La griglia le mette in `deleted = 'true'`, e di un'opzione tolta non
+     * serve sapere quanto costava.
+     *
+     * @return int quanti legami se ne sono andati
+     */
+    public static function dropRemovedOptions(int $modelId): int
+    {
+        if ($modelId <= 0) {
+            return 0;
+        }
+
+        return self::deleteWhere(
+            'product_id IN (SELECT id FROM '.Product::$table
+            .' WHERE product_model_id = '.$modelId." AND deleted = 'true')"
+        );
+    }
+
+    /**
+     * Toglie i legami di un fornitore con opzioni che non sono più in
+     * vendita: chi lo elimina passa prima di qui, perché la chiave esterna
+     * non guarda il cestino.
+     *
+     * @return int quanti legami se ne sono andati
+     */
+    public static function dropForRemovedProducts(int $contactId): int
+    {
+        if ($contactId <= 0) {
+            return 0;
+        }
+
+        return self::deleteWhere(
+            'supplier_id = '.$contactId.' AND product_id NOT IN ('.self::liveProducts().')'
+        );
+    }
+
+    /** Su quante opzioni in vendita un fornitore ha un legame. */
+    public static function countForSupplier(int $contactId): int
+    {
+        if ($contactId <= 0) {
+            return 0;
+        }
+
+        try {
+            return (int) ProductSupplier::query()->Count(
+                ProductSupplier::$table,
+                'WHERE supplier_id = '.$contactId." AND deleted = 'false'"
+                .' AND product_id IN ('.self::liveProducts().')'
+            );
+        } catch (Throwable) {
+            // Tabella non ancora creata, o nessun database: nessun legame.
+            return 0;
+        }
     }
 
     /**
@@ -468,28 +497,21 @@ final class ProductSuppliers
             ." WHERE p.deleted = 'false' AND m.deleted = 'false'";
     }
 
-    /** Gli articoli in vendita, come sottoquery. */
-    private static function liveModels(): string
-    {
-        return 'SELECT m.id FROM '.ProductModel::$table." m WHERE m.deleted = 'false'";
-    }
-
     /**
      * Conta i legami che rispondono alla condizione, poi li cancella.
      *
      * Il `WHERE` si scrive qui: il core prende così com'è una condizione che
      * contiene già un `WHERE`, e quello di una sottoquery lo ingannerebbe.
      *
-     * @param class-string<ProductModelSupplier|ProductSupplier> $modelClass
      * @return int quanti legami se ne sono andati
      */
-    private static function deleteWhere(string $modelClass, string $condition): int
+    private static function deleteWhere(string $condition): int
     {
         try {
-            $count = (int) $modelClass::query()->Count($modelClass::$table, 'WHERE '.$condition);
+            $count = (int) ProductSupplier::query()->Count(ProductSupplier::$table, 'WHERE '.$condition);
 
             if ($count > 0) {
-                $modelClass::query()->Delete($modelClass::$table, 'WHERE '.$condition);
+                ProductSupplier::query()->Delete(ProductSupplier::$table, 'WHERE '.$condition);
             }
 
             return $count;

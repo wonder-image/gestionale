@@ -1204,6 +1204,8 @@ sedi contano, e la scrive quel piano. Questo giro la usa e non la ridefinisce.
 
 ### 22.1 I fornitori sono dell'articolo
 
+*Superata dal quattordicesimo giro (§23): i fornitori tornano all'opzione.*
+
 **Le righe stanno nella scheda dell'articolo, non fra i codici.** Il
 dodicesimo giro aveva messo fornitore, codice e costo nella tendina dei codici
 dell'opzione, con una finestra da due fornitori in su (P88, P89). Chi vende
@@ -1412,6 +1414,164 @@ non lo dimentichi:
 - [x] modulo: difetti trovati con la prova nel browser. Dopo un salvataggio rifiutato la griglia tiene bottone e didascalia (`withFormStockButtons()`, `LocationRows::summaryOfRows()`). Le righe per sede si scrivono con l'unità dell'articolo anche nella scheda dell'opzione, e i decimali si decidono sede per sede (`LocationRows::format()`, `locationFormat()`, `optionFormat()`). Le prove d'integrazione con una sede sola spengono «Più sedi» da sé
 - [x] prova nel browser (1600×950) con «Più sedi», «Acquisti» e «Avvisi di scorta minima» accese e una seconda sede con magazzino, create dall'utente. Fatta il 2026-09-28 in due tempi. Primo: righe per sede dell'articolo e dell'opzione, finestra «Giacenza» della griglia, rifiuto del negativo, colonna «Scontato». Secondo: riquadro «Fornitori» dell'articolo e dell'opzione (eccezione, riga di contesto, doppione rifiutato), «Scorta minima» per sede nelle righe e nella finestra della griglia, avviso per sede nel riquadro «Sotto scorta» e nell'elenco delle giacenze, chiuso togliendo la soglia. Dati di prova tolti a fine prova
 - [x] modulo e core: difetti trovati con la seconda prova. Nella scheda dell'opzione la riga «Giacenza per sede» occupava dodici dodicesimi e il cestino andava a capo: ora *Sede* è larga 5 con la scorta minima e 7 senza, come nella scheda dell'articolo (`ProductResource::locationRowsField()`). Tolto l'unico fornitore il salvataggio era rifiutato con `product.supplier_missing`: il repeater del core svuota l'ultima riga invece di toglierla, ma AutoNumeric teneva il costo vecchio e lo riscriveva all'invio. Corretto nel core (`wiRepeaterRemoveRow` svuota anche AutoNumeric, `tests/Themes/RepeaterAutonumericTest.php`): vale per ogni repeater con un campo numerico, e arriva sul sito con il prossimo rilascio del core
+
+## 23. Quattordicesimo giro: i fornitori tornano all'opzione, in una finestra; con più sedi la griglia non ha la giacenza
+
+*Richiesta dell'utente, dopo aver visto il tredicesimo giro: con le varianti
+i fornitori si compilano uno per opzione, come la giacenza; con più sedi la
+casella «Giacenza» non si deve vedere nelle opzioni; i fornitori si compilano
+in una finestra, e come per le sedi la finestra c'è solo quando serve: con
+più fornitori il bottone che la apre, con un fornitore solo subito i campi.*
+
+Supera P95–P97 (i fornitori dell'articolo, le eccezioni dell'opzione, il
+riquadro nella colonna di destra) e la parte di P103 sul totale in sola
+lettura. Restano P91 (costo vuoto = sconosciuto, due decimali nella scheda e
+quattro nella tabella), P92 (si propongono i fornitori attivi più quelli già
+legati), P98 (nessun preferito) e P99 (un fornitore legato non si elimina e
+non perde il ruolo).
+
+### 23.1 I fornitori sono dell'opzione
+
+**Una tabella sola.** I fornitori stanno in `gst_product_suppliers`, prodotto
+per prodotto: l'articolo senza varianti li ha sul suo unico prodotto, quello
+con le varianti su ogni opzione. `gst_product_model_suppliers` e il modello
+`ProductModelSupplier` spariscono, e con loro `syncModel()`,
+`modelLinksFor()`, `dropForModels()`, `dropForRemovedModels()` ed
+`effective()`: non c'è più niente da sommare, quello che vale per un'opzione
+è quello che ha scritto. `countForSupplier()` torna a contare una tabella. La
+tabella dell'articolo non è mai uscita da questo computer (il tredicesimo
+giro non è pushato): non c'è niente da copiare, e sul sito di prova le sue
+righe erano dati di prova.
+
+**Quanti fornitori ci sono decide che cosa si vede.** Conta i fornitori da
+proporre (P92: quelli attivi, più quelli già legati a un prodotto
+dell'articolo):
+
+| Fornitori da proporre | Che cosa si vede |
+|---|---|
+| nessuno | niente: né campi né bottone |
+| uno | due campi, **Codice fornitore** e **Costo d'acquisto** |
+| due o più | il bottone **Fornitori** con il riassunto accanto, che apre la finestra |
+
+Con un fornitore solo la tendina non c'è: il fornitore è quello, e il suo
+nome sta nel tooltip dei due campi («Filati Nord, l'unico fornitore»). I due
+campi vuoti vogliono dire che l'opzione non si compra da lui: il legame non
+si scrive, e se c'era si toglie. Basta uno dei due compilato perché il legame
+ci sia.
+
+**Dove stanno.** Dentro «Compila le informazioni avanzate», dopo i codici:
+nella riga della griglia per l'articolo con le varianti, nel riquadro
+«Prodotto» per quello senza. Il riquadro «Fornitori» della colonna di destra
+non c'è più. Nella griglia il bottone «Fornitori» sta accanto al bottone
+«Giacenza» quando ci sono tutti e due.
+
+### 23.2 La finestra dei fornitori
+
+**A righe, come quella della giacenza** (P103): una finestra sola per la
+pagina, con le righe [Fornitore (tendina) · Codice fornitore · Costo
+d'acquisto · ×] e «Aggiungi fornitore». Ogni riga della griglia porta un
+campo nascosto `suppliers` con il JSON delle sue righe; il bottone lo legge
+aprendo la finestra e «Salva» lo riscrive insieme al riassunto accanto al
+bottone: «Filati Nord 12,00 € · Lana Sud», con il costo solo dove c'è, e
+«Nessun fornitore» senza righe. Niente si scrive nel database finché non si
+salva la scheda.
+
+**In fondo tre bottoni**: «Annulla», «Salva» e **«Salva per tutte le
+opzioni»**, che scrive le stesse righe e lo stesso riassunto su tutte le
+righe della griglia, anche quelle chiuse in un gruppo. È il modo di dire «la
+maglia si compra da Filati Nord in tutte le taglie» senza ripeterlo taglia
+per taglia. Senza conferma: finché la scheda non si salva si torna indietro
+ricaricando. Nella finestra dell'articolo senza varianti e in quella della
+scheda dell'opzione il terzo bottone non c'è.
+
+**La tendina di una riga** propone i fornitori attivi più quelli non attivi
+che *quell'opzione* ha già (P92): un fornitore spento resta dove c'era e non
+si può dare a un'altra opzione. Lo stesso fornitore due volte, un costo oltre
+`MAX_COST`, un codice oltre i 100 caratteri e una riga con codice o costo ma
+senza fornitore li rifiuta la scheda prima di scrivere, con i codici d'errore
+di oggi (`ProductSuppliers::assertValid()`); la finestra li segnala già su
+«Salva», senza chiudersi.
+
+### 23.3 La scheda dell'opzione
+
+**Stessa regola.** Il riquadro «Fornitori» della scheda dell'opzione resta,
+ma senza il repeater, la riga «Dall'articolo: …» e il tooltip
+sull'eccezione: con un fornitore solo ha i due campi, con due o più il
+bottone «Fornitori» con il riassunto e la stessa finestra, senza nessuno la
+nota «Nessun fornitore da proporre: aggiungilo da Anagrafiche → Fornitori».
+Finestra, script e lettura di quello che arriva sono gli stessi della scheda
+dell'articolo: `ProductResource` li eredita.
+
+### 23.4 Con più sedi la griglia non ha la giacenza
+
+**La colonna «Giacenza» sparisce.** Con più sedi (`Locations::shown()` ≥ 2)
+la riga principale della griglia ha *Opzione*, *Prezzo* e *Scontato*;
+*Opzione* si allarga da cinque a sette dodicesimi. Il totale in sola lettura
+di P103 non c'è più, e la griglia non manda nessuna giacenza totale: i pezzi
+si scrivono solo dalla finestra. Il bottone **Giacenza** resta dov'è, nelle
+informazioni avanzate, con il riassunto per sede («Milano 12 · Roma 3»).
+Con una sede sola non cambia niente, e nemmeno per l'articolo senza varianti,
+che con più sedi ha già il riquadro «Magazzino» al posto della casella.
+
+### 23.5 Quello che fa il server
+
+- **Legge quello che arriva**, non il modo in cui crede di essere: il JSON se
+  c'è, altrimenti i due campi. Fra l'apertura della scheda e il salvataggio
+  qualcuno può aver aggiunto il secondo fornitore.
+- **I due campi sono del fornitore unico.** Compilati, scrivono il legame con
+  lui; vuoti, lo tolgono. Gli altri legami dell'opzione non si toccano: se ce
+  ne fossero, i fornitori da proporre sarebbero due e ci sarebbe la finestra.
+- **Il JSON sostituisce** i legami dell'opzione: prima scrive, poi toglie
+  quelli spariti (`ProductSuppliers::sync()`). Il costo non toccato resta
+  quello salvato, con i suoi quattro decimali (P91).
+- **Le opzioni che nascono accendendo le varianti** prendono i fornitori
+  dell'articolo singolo, come il prezzo e lo sconto. Quelle aggiunte dopo
+  nascono con quello che ha la loro riga nella griglia.
+- **Con `purchasing` spenta** campi, bottone e finestra non ci sono, e quello
+  che arriva non si scrive; i legami già scritti restano.
+- **Con le varianti i campi del riquadro «Prodotto» non si guardano**: sono
+  nascosti, ma arrivano lo stesso. Fa eccezione l'articolo con un prodotto
+  solo a cui si stanno accendendo le varianti (P115): vanno al suo prodotto,
+  e da lì alle opzioni che nascono.
+- **I due campi compilati senza un fornitore unico** si rifiutano
+  (`product.supplier_invalid`): fra l'apertura e il salvataggio il fornitore
+  è sparito o ne è arrivato un secondo, e non si sa di chi siano. Vuoti
+  passano, e non toccano niente.
+- **Nella scheda dell'opzione il modo è dell'opzione**: conta i fornitori
+  attivi più quelli già legati a lei. Una sorella con un fornitore non più
+  attivo può avere la finestra dove questa ha i due campi.
+
+### Fuori da questo giro
+
+- Il costo del gruppo (un «Costo del gruppo» come «Prezzo del gruppo»): c'è
+  «Salva per tutte le opzioni».
+- Il valore del magazzino e quale costo prendere senza un preferito (G3).
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P107 | I fornitori sono del prodotto, in `gst_product_suppliers`; via `gst_product_model_suppliers`, `ProductModelSupplier` ed `effective()` (supera P95, P96) | L'utente li vuole uno per opzione, come la giacenza; due livelli da sommare non servono più |
+| P108 | Si compilano nelle informazioni avanzate: riga della griglia con le varianti, riquadro «Prodotto» senza; via il riquadro «Fornitori» dell'articolo (supera P97) | Stanno con i codici dell'opzione a cui appartengono |
+| P109 | Nessun fornitore da proporre: niente; uno: «Codice fornitore» e «Costo d'acquisto» senza tendina; due o più: bottone «Fornitori» con riassunto e finestra | Stessa regola delle sedi: la finestra c'è solo quando serve |
+| P110 | Finestra a righe [Fornitore · Codice · Costo · ×] con «Aggiungi fornitore», JSON nascosto per riga, una finestra per pagina | È la finestra della giacenza (P103): un solo modo di fare le cose |
+| P111 | «Salva per tutte le opzioni» accanto a «Salva», senza conferma | Di solito l'articolo si compra da uno in tutte le taglie; niente si scrive finché la scheda non si salva |
+| P112 | Scheda dell'opzione con la stessa regola: due campi o bottone e finestra; via repeater, riga di contesto e tooltip dell'eccezione | Chiesto dall'utente; stesso codice, ereditato |
+| P113 | Con più sedi la griglia non ha la colonna «Giacenza»; *Opzione* a sette dodicesimi; il bottone «Giacenza» resta nelle informazioni avanzate (supera il totale di P103) | Un totale che non si può scrivere confonde; il riassunto per sede dice di più |
+| P114 | Il server legge il JSON se c'è, altrimenti i due campi; i due campi scrivono o tolgono solo il fornitore unico | Il modo può cambiare fra apertura e salvataggio |
+| P115 | Accendere le varianti copia i fornitori dell'articolo singolo su ogni opzione che nasce | Come prezzo e sconto: chi passa alle taglie non ricompila |
+
+### Lavori del quattordicesimo giro
+
+- [x] modulo: `ProductSuppliers` su una tabella sola (via `syncModel()`, `modelLinksFor()`, `dropForModels()`, `dropForRemovedModels()`, `effective()`; `countForSupplier()` su `gst_product_suppliers`), con `summary()` per il riassunto e le righe dai due campi; via il modello `ProductModelSupplier`
+- [x] modulo: scheda dell'articolo senza il riquadro «Fornitori»; modo per numero di fornitori; due campi o bottone nelle informazioni avanzate del riquadro «Prodotto» e della griglia; colonna nascosta `suppliers`
+- [x] modulo: finestra dei fornitori e script (righe, «Aggiungi fornitore», «Salva», «Salva per tutte le opzioni», controlli, fornitori non attivi riga per riga)
+- [x] modulo: salvataggio (JSON o due campi, controlli prima di scrivere, costo non toccato, griglia tenuta dopo un rifiuto), fornitori copiati accendendo le varianti
+- [x] modulo: scheda dell'opzione con i due campi o bottone e finestra; via repeater, riga di contesto e tooltip
+- [x] modulo: griglia con più sedi senza colonna «Giacenza», *Opzione* a sette dodicesimi, script dell'unità e del totale che non la cercano
+- [x] modulo: `CustomerResource` e `Contact` con i conti su una tabella; `CatalogDemo` e `ContactsDemo` con i fornitori per opzione
+- [x] modulo: test unitari e d'integrazione allineati (`ProductSuppliersTest`, `ProductSupplierModelsTest`, `ProductModelResourceTest`, `CatalogDemoTest`, `CombinazioniTest`, `ContactsTest`, `LocationStockTest`)
+- [x] modulo: guide `catalogo-prodotti`, `anagrafiche`, `funzionalita`, `magazzino-giacenze`; `docs/dev/concetti/{acquisti,catalogo,errori}` (`magazzino` non parla dei due livelli); `CHANGELOG.md`. `TODO.md` non toccato: la voce del tredicesimo giro che nomina `gst_product_model_suppliers` va aggiornata insieme a chi lo tiene
+- [ ] prova nel browser (1600×950): un fornitore e più fornitori, con e senza varianti, scheda dell'opzione, «Salva per tutte le opzioni», griglia con una sede e con più sedi
+- [ ] memoria e commit con percorsi espliciti; niente push senza OK
 
 ## Piani
 

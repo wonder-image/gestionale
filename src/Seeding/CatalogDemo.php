@@ -12,7 +12,6 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
@@ -48,10 +47,11 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
  * riconoscono dal segno nel codice (`cat_demo-accessori`, vedi `DemoCode`).
  *
  * Gli articoli comprano dai due fornitori di prova di `ContactsDemo`, con le
- * righe sull'articolo (`gst_product_model_suppliers`); una sola opzione fa
- * eccezione con un costo suo, per vedere nella sua scheda la riga di contesto
- * e l'eccezione che vince (spec §22.1). L'ultima opzione di ogni articolo
- * nasce sotto la sua scorta minima, scritta sulla sede principale.
+ * righe scritte opzione per opzione (`gst_product_suppliers`, spec §23.1):
+ * tutte le opzioni di un articolo hanno le stesse, e una sola ha un codice e
+ * un costo suoi, per vedere due riassunti diversi nella stessa griglia.
+ * L'ultima opzione di ogni articolo nasce sotto la sua scorta minima, scritta
+ * sulla sede principale.
  *
  * Marchio, categorie, tag, attributi e imballaggi si cercano prima col segno,
  * poi per nome: se il sito ha già una categoria «Accessori» vera, gli
@@ -130,10 +130,10 @@ final class CatalogDemo
     private const COMPOSITION = 'Cotone 100%';
 
     /**
-     * Da chi compra ogni articolo di prova: il riferimento della scheda in
-     * `ContactsDemo`, il codice del fornitore e il costo, come si scrivono
-     * nella scheda. Filati Nord fornisce tutto; i calzini si comprano anche da
-     * Imballaggi Sud, così un riquadro «Fornitori» ha due righe.
+     * Da chi si comprano le opzioni di ogni articolo di prova: il riferimento
+     * della scheda in `ContactsDemo`, il codice del fornitore e il costo, come
+     * si scrivono nella scheda. Filati Nord fornisce tutto; i calzini si
+     * comprano anche da Imballaggi Sud, così una finestra ha due righe.
      */
     private const SUPPLIERS = [
         'cappello-di-lana' => [['filati-nord', 'FN-CAP-01', '9,50']],
@@ -143,11 +143,12 @@ final class CatalogDemo
     ];
 
     /**
-     * L'eccezione di un'opzione: l'ultima dei calzini si compra da Filati Nord
-     * con un codice e un costo suoi, che nella sua scheda vincono su quelli
-     * dell'articolo; Imballaggi Sud vale lo stesso, dall'articolo.
+     * L'opzione che si compra diversamente: l'ultima dei calzini ha da Filati
+     * Nord un codice e un costo suoi; Imballaggi Sud resta com'è per le altre.
      */
-    private const SUPPLIER_EXCEPTION = ['calzini-a-costine', ['filati-nord', 'FN-CAL-XL', '2,90']];
+    private const LAST_OPTION_SUPPLIERS = [
+        'calzini-a-costine' => [['filati-nord', 'FN-CAL-XL', '2,90'], ['imballaggi-sud', 'IS-CAL-01', '2,10']],
+    ];
 
     /** Le righe vere usate al posto di quelle di prova, per la nota finale. @var list<string> */
     private static array $reused = [];
@@ -657,11 +658,10 @@ final class CatalogDemo
     }
 
     /**
-     * I fornitori legati a un articolo e alle sue opzioni: se ne vanno con lui.
+     * I fornitori legati alle opzioni di un articolo: se ne vanno con lui.
      *
-     * Si contano le due tabelle, e anche le eccezioni delle opzioni nel
-     * cestino, che `ProductModelResource::deleteRecord()` porta via insieme
-     * alle altre.
+     * Si contano anche quelli delle opzioni nel cestino, che
+     * `ProductModelResource::deleteRecord()` porta via insieme agli altri.
      */
     private static function supplierLinksOf(int $modelId): int
     {
@@ -670,26 +670,23 @@ final class CatalogDemo
         }
 
         try {
-            return (int) ProductModelSupplier::query()->Count(
-                ProductModelSupplier::$table,
-                'WHERE product_model_id = '.$modelId
-            ) + (int) ProductSupplier::query()->Count(
+            return (int) ProductSupplier::query()->Count(
                 ProductSupplier::$table,
                 'WHERE product_id IN (SELECT id FROM '.Product::$table.' WHERE product_model_id = '.$modelId.')'
             );
         } catch (Throwable) {
-            // Un sito senza le tabelle dei fornitori: non c'è niente da contare.
+            // Un sito senza la tabella dei fornitori: non c'è niente da contare.
             return 0;
         }
     }
 
     /**
-     * I fornitori degli articoli di prova, e l'eccezione di un'opzione.
+     * I fornitori delle opzioni degli articoli di prova.
      *
-     * Si scrivono solo dove non c'è ancora nessuna riga: rifare i dati di
-     * prova non tocca un costo cambiato a mano. Una scheda di prova che manca
-     * (le anagrafiche non create, o una scheda vera riusata al suo posto) non
-     * fa riga.
+     * Si scrivono solo sulle opzioni che non hanno ancora nessuna riga: rifare
+     * i dati di prova non tocca un costo cambiato a mano. Una scheda di prova
+     * che manca (le anagrafiche non create, o una scheda vera riusata al suo
+     * posto) non fa riga.
      *
      * @return int righe create
      */
@@ -698,22 +695,27 @@ final class CatalogDemo
         $created = 0;
 
         foreach (self::SUPPLIERS as $ref => $rows) {
-            $modelId = self::modelId($ref);
+            $productIds = array_values(array_filter(array_map(
+                static fn (array $product): int => (int) ($product['id'] ?? 0),
+                self::rowsOfModel(Product::class, self::modelId($ref))
+            )));
 
-            if ($modelId <= 0 || (ProductSuppliers::modelLinksFor([$modelId])[$modelId] ?? []) !== []) {
+            if ($productIds === []) {
                 continue;
             }
 
-            $created += ProductSuppliers::syncModel($modelId, self::supplierRows($rows));
-        }
+            $links = ProductSuppliers::linksFor($productIds);
+            // L'ultima opzione: la stessa che `seedStock()` mette sotto scorta.
+            $last = $productIds[count($productIds) - 1];
 
-        [$ref, $row] = self::SUPPLIER_EXCEPTION;
-        $products = self::rowsOfModel(Product::class, self::modelId($ref));
-        // L'ultima opzione: la stessa che `seedStock()` mette sotto scorta.
-        $productId = $products === [] ? 0 : (int) ($products[count($products) - 1]['id'] ?? 0);
+            foreach ($productIds as $productId) {
+                if (($links[$productId] ?? []) !== []) {
+                    continue;
+                }
 
-        if ($productId > 0 && (ProductSuppliers::linksFor([$productId])[$productId] ?? []) === []) {
-            $created += ProductSuppliers::sync($productId, self::supplierRows([$row]));
+                $own = $productId === $last ? (self::LAST_OPTION_SUPPLIERS[$ref] ?? $rows) : $rows;
+                $created += ProductSuppliers::sync($productId, self::supplierRows($own));
+            }
         }
 
         return $created;

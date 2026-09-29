@@ -16,7 +16,6 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
@@ -59,7 +58,7 @@ $conta = static function (string $model): int {
 
 /** Le tabelle che la prova tocca, contate prima e dopo l'annullamento. */
 $tabelle = static fn (): array => array_map($conta, [
-    ProductModel::class, Product::class, ProductModelSupplier::class, ProductSupplier::class,
+    ProductModel::class, Product::class, ProductSupplier::class,
     Contact::class, Location::class, StockMovement::class,
 ]);
 
@@ -621,7 +620,7 @@ try {
 
         $nord = $fornitore('Prova Filati Sedi');
 
-        check('eliminare l\'articolo porta via le soglie per sede e i fornitori suoi e delle opzioni', function () use ($articolo, $centro, $deposito, $nord, $soglie, $legami) {
+        check('eliminare l\'articolo porta via le soglie per sede e i fornitori delle sue opzioni', function () use ($articolo, $centro, $deposito, $nord, $soglie, $legami) {
             $modello = $articolo('SED-4');
             // Solo soglie: senza pezzi non c'è nessun movimento, e l'articolo
             // si può eliminare.
@@ -633,19 +632,17 @@ try {
                 ],
             ], 'SED-4', [], true);
             $prodotto = (int) (ProductModelResource::products($modello)[0]['id'] ?? 0);
-            ProductSuppliers::syncModel($modello, [['supplier_id' => $nord, 'supplier_sku' => 'N-4', 'cost' => '1']]);
-            ProductSuppliers::sync($prodotto, [['supplier_id' => $nord, 'supplier_sku' => 'N-4b', 'cost' => '2']]);
+            ProductSuppliers::sync($prodotto, [['supplier_id' => $nord, 'supplier_sku' => 'N-4', 'cost' => '2']]);
 
             $primaSoglie = $soglie($prodotto);
-            $primaLegami = [$legami(ProductModelSupplier::class, 'product_model_id', $modello), $legami(ProductSupplier::class, 'product_id', $prodotto)];
+            $primaLegami = $legami(ProductSupplier::class, 'product_id', $prodotto);
 
             ProductModelResource::deleteRecord($modello);
 
             return $prodotto > 0
                 && $primaSoglie === [$centro => 3.0, $deposito => 1.0]
-                && $primaLegami === [1, 1]
+                && $primaLegami === 1
                 && $soglie($prodotto) === []
-                && $legami(ProductModelSupplier::class, 'product_model_id', $modello) === 0
                 && $legami(ProductSupplier::class, 'product_id', $prodotto) === 0
                 && Alerts::openRows($prodotto) === [];
         });

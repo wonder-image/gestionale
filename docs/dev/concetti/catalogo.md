@@ -275,7 +275,7 @@ c'è già), con `window.confirm()` di riserva.
 | Quando | Cosa si vede |
 |---|---|
 | `has_variants` a `true` | il riquadro "Opzioni in vendita": selettore, spunte e griglia — identico in `create` e in `edit` |
-| `has_variants` a `false` | nel riquadro «Prodotto» la riga del prezzo ha anche la giacenza, scrivibile con una sede sola (in creazione è un carico iniziale), e sotto l'`Accordion` a link «Compila le informazioni avanzate» con SKU, EAN e, con `low_stock_alerts` e una sede sola, la scorta minima; con il modello già salvato compare il link alla rettifica. Con più sedi giacenza e scorta minima stanno invece nel riquadro «Magazzino» (`stockCard()`), righe «Giacenza per sede», vedi [Con più sedi](#con-piu-sedi) |
+| `has_variants` a `false` | nel riquadro «Prodotto» la riga del prezzo ha anche la giacenza, scrivibile con una sede sola (in creazione è un carico iniziale), e sotto l'`Accordion` a link «Compila le informazioni avanzate» con SKU, EAN, con `low_stock_alerts` e una sede sola la scorta minima e, con `purchasing`, i fornitori del prodotto (vedi [I fornitori delle opzioni](#i-fornitori-delle-opzioni)); con il modello già salvato compare il link alla rettifica. Con più sedi giacenza e scorta minima stanno invece nel riquadro «Magazzino» (`stockCard()`), righe «Giacenza per sede», vedi [Con più sedi](#con-piu-sedi) |
 | nessun attributo con valori | `optionsCard()` torna `[]` e il riquadro non c'è |
 
 `has_variants` è una **colonna di `gst_product_models`**, non un conteggio: un
@@ -289,18 +289,27 @@ articolo con più di un prodotto la risposta è forzata a `true` e l'interruttor
 travestita.
 
 Colonne della griglia: `option` (finta, `readonly`), `price`, `sale_price`
-(«Scontato», P105) e `stock` nella riga; `sku`, `ean`, `min_stock` (solo con
-`low_stock_alerts` e una sede sola), `active`, con più sedi il bottone
-`stock_button` («Giacenza») e `photo` dietro `repeaterAdvanced()`; `id`,
-`group`, `combination` e, con più sedi, `locations` nascoste. Quelle della
-riga stanno **dentro undici**: la dodicesima è la colonna dei bottoni, e
-quello che sfora va a capo. Quelle del blocco avanzato si contano su dodici,
-perché lì bottoni non ce ne sono: con la scorta minima SKU, EAN, soglia e Stato
-passano da 4 a 3 ciascuna. Il bottone «Giacenza» va a capo sotto lo Stato, da
-12, con accanto il riassunto delle sedi («Milano 12 · Roma 3», o «Nessun
-pezzo» da `emptyCaption()`; vedi [Con più sedi](#con-piu-sedi)). Colonne dei
-fornitori nella griglia non ce ne sono più: stanno nel riquadro «Fornitori»
-dell'articolo (vedi [I fornitori dell'articolo](#i-fornitori-dellarticolo)).
+(«Scontato», P105) e, con una sede sola, `stock` nella riga; `sku`, `ean`,
+`min_stock` (solo con `low_stock_alerts` e una sede sola), `active`, i
+fornitori (con `purchasing`), con più sedi il bottone `stock_button`
+(«Giacenza») e `photo` dietro `repeaterAdvanced()`; `id`, `group`,
+`group_value`, `combination` e, quando servono, `locations` e `suppliers`
+nascoste. Quelle della riga stanno **dentro undici**: la dodicesima è la
+colonna dei bottoni, e quello che sfora va a capo. **Con più sedi la colonna
+«Giacenza» non c'è** (P113): un totale che non si può scrivere confonde, e i
+pezzi si scrivono sede per sede dalla finestra; *Opzione* passa da 5 a 7 e si
+prende il suo posto.
+
+Quelle del blocco avanzato si contano su dodici, perché lì bottoni di riga non
+ce ne sono: con la scorta minima SKU, EAN, soglia e Stato passano da 4 a 3
+ciascuna. Sotto vengono i fornitori (`supplierColumns()`, P108): con un
+fornitore solo `supplier_sku` e `supplier_cost`, da 6 ciascuna; con due o più
+il bottone `suppliers_button` («Fornitori»). Il bottone «Giacenza» ha accanto
+il riassunto delle sedi («Milano 12 · Roma 3», o «Nessun pezzo» da
+`emptyCaption()`; vedi [Con più sedi](#con-piu-sedi)), quello dei fornitori il
+suo («Filati Nord 12,00 € · Lana Sud», o «Nessun fornitore»): da 6 e in fila
+quando ci sono tutti e due, da 12 quando ce n'è uno solo (vedi [I fornitori
+delle opzioni](#i-fornitori-delle-opzioni)).
 
 Al salvataggio `saveExtras()` scrive **prima le soglie e poi i pezzi**
 (`saveMinStocks()`, poi carichi e rettifiche, e con più sedi
@@ -552,7 +561,8 @@ sotto il padre, già spuntato.
 
 **La colonna larga** (`mainColumn()`): «Prodotto» — nome e stato, le due
 descrizioni, la domanda sulle varianti, poi prezzo, scontato e giacenza, e
-sotto «Compila le informazioni avanzate» con SKU, EAN e scorta minima —, con
+sotto «Compila le informazioni avanzate» con SKU, EAN, scorta minima e
+fornitori —, con
 più sedi «Magazzino» (`stockCard()`, con `hiddenWhen('has_variants', 'true')`:
 le righe «Giacenza per sede» e il link alla rettifica, al posto della giacenza
 e della scorta minima del riquadro «Prodotto»), poi «Opzioni in vendita»
@@ -560,6 +570,9 @@ e della scorta minima del riquadro «Prodotto»), poi «Opzioni in vendita»
 tecnica» in fondo. Con più sedi dopo la scheda tecnica arrivano anche
 `locationStockModal()` e `locationStockScript()`: una finestra sola per
 pagina, fuori dal riquadro delle opzioni (vedi [Con più sedi](#con-piu-sedi)).
+Con due o più fornitori da proporre li seguono `suppliersModal()` e
+`suppliersScript()`, per la stessa ragione (vedi [I fornitori delle
+opzioni](#i-fornitori-delle-opzioni)).
 
 **La colonna stretta** (`sideColumn()`): «Foto e video» in cima, poi «Come si
 vende» — i tre interruttori, ognuno con `InputToggle::description()`, sotto
@@ -567,9 +580,9 @@ vende» — i tre interruttori, ognuno con `InputToggle::description()`, sotto
 con `backorders`, un quarto interruttore, «Vendita senza giacenza», con i
 «Giorni di attesa» sotto (`backorderInputs()`, vedi
 [La vendita senza giacenza](#la-vendita-senza-giacenza))
-—, con `purchasing` «Fornitori» (`suppliersCard()`, vedi [I fornitori
-dell'articolo](#i-fornitori-dellarticolo)), «Tipo fiscale», «Dove si trova» e
-«Misure» in fondo, due caselle per riga.
+—, «Tipo fiscale», «Dove si trova» e «Misure» in fondo, due caselle per riga.
+Il riquadro «Fornitori» del tredicesimo giro non c'è più: i fornitori sono
+delle opzioni, e stanno con i loro codici (P108).
 Il riquadro «Spedizione», che il server includeva solo per un articolo che si
 spedisce (`shipsFrom()`), non c'è più: la regola sul campo segue
 l'interruttore senza ricaricare. Da spento `package_id` viene postato lo
@@ -579,8 +592,7 @@ scatola «Ferma» non è fra le scelte di `Packages::options()`, la select
 manderebbe vuoto e la scatola si perderebbe. Riaccendendo, torna.
 
 **Il tipo fiscale in un riquadro suo.** Nella colonna stretta, sotto «Come si
-vende» (e «Fornitori»), il
-riquadro «Tipo fiscale» ha il solo select, con etichetta «IVA»: la select è
+vende», il riquadro «Tipo fiscale» ha il solo select, con etichetta «IVA»: la select è
 «floating» e un'etichetta vuota lascerebbe solo l'asterisco. `taxCategoryField($modelId)`
 parte da `TaxCategories::defaultId()` (vedi [IVA e impostazioni](iva-e-impostazioni.md#il-tipo-predefinito))
 e si vede sempre, anche con un tipo solo (P58): un campo nascosto non si trova
@@ -590,8 +602,8 @@ sostituito al primo salvataggio.
 
 **Colonne che spariscono.** Prezzi e giacenza hanno
 `hiddenWhen('has_variants', 'true')`, e così il riquadro «Magazzino» delle
-sedi e l'`Accordion::link()` «Compila le informazioni avanzate» con SKU, EAN e
-scorta minima: è la stessa tendina delle
+sedi e l'`Accordion::link()` «Compila le informazioni avanzate» con SKU, EAN,
+scorta minima e fornitori: è la stessa tendina delle
 righe della griglia, perché sono codici che servono di rado. Il riquadro
 «Codici» non c'è più. Il core marca la loro colonna come contenitore
 condizionale e la nasconde intera: in una `row g-3` una colonna vuota lascia
@@ -633,18 +645,20 @@ Per una riga appena nata la quantità è invece un carico: con una sede sola
 senza varianti appena creato: `saveSingleStock(..., $appenaNato)` carica invece
 di rettificare.
 
-Con più sedi né la colonna né la casella si scrivono, **nemmeno in
-creazione**: `saveNewVersions()` e `saveSingleStock()` non leggono il numero
-quando `stockIsWritable()` è falsa, e i pezzi arrivano solo dalle righe per
-sede. L'articolo nuovo senza varianti parte con una riga vuota sulla sede
+Con più sedi né la colonna né la casella ci sono (P113), e un numero postato
+lo stesso non si scrive, **nemmeno in creazione**: `saveNewVersions()` e
+`saveSingleStock()` non lo leggono quando `stockIsWritable()` è falsa, e i
+pezzi arrivano solo dalle righe per sede. L'articolo nuovo senza varianti parte con una riga vuota sulla sede
 principale (`mutateFormValues()`), un'opzione che nasce si carica dalla finestra
 «Giacenza»; `applyLocationRows(..., $appenaNato)` scrive le righe come carico.
 Due porte sulla sede principale si contenderebbero lo stesso numero: il
 magazzino ne ha una sola, e resta quella.
 
-`stockIsWritable()` è `count(Locations::shown()) <= 1`: `product_stock` e la
-colonna `stock` della griglia hanno `readonly()` quando è falsa. Con più sedi
-si leggono, e sono il totale.
+`stockIsWritable()` è `count(Locations::shown()) <= 1`. Con più sedi
+`formLayoutSchema()` non mette `product_stock` nel riquadro «Prodotto» e
+`productsField()` non dichiara la colonna `stock`: il totale si legge
+nell'elenco degli articoli e in Giacenze, non in una casella che non si può
+scrivere.
 
 ### Con più sedi
 
@@ -705,7 +719,7 @@ casella in alto o le righe, secondo la risposta a «ha varianti?», e lascia
 passare un numero sotto zero uguale a quello che il prodotto ha già
 (`negativeWritten()`): è una vendita in arretrato, non l'ha scritto nessuno.
 Con più sedi `assertStockWritable()` non guarda niente, perché casella e
-colonna non si scrivono: lo stesso rifiuto, con la stessa eccezione sede per
+colonna non ci sono: lo stesso rifiuto, con la stessa eccezione sede per
 sede, è di `LocationStock::assertNotNegative()` (`hasNegative()` evita la
 lettura delle giacenze quando nessuna riga è sotto zero).
 Vale anche con la vendita senza giacenza accesa: la casella dice quanti pezzi
@@ -767,76 +781,117 @@ stessa porta e seguono la stessa regola.
 Un'impostazione del negozio che faccia nascere gli articoli già accesi non c'è:
 un articolo nuovo parte spento.
 
-## I fornitori dell'articolo
+## I fornitori delle opzioni
 
-Funzionalità `purchasing`. Da chi si compra un articolo, con quale codice e a
-quanto sta in `gst_product_model_suppliers`, e l'eccezione di un'opzione in
-`gst_product_suppliers`: le tabelle, le regole e gli helper sono in
-[Fornitori e costi d'acquisto](acquisti.md). Qui c'è come li scrivono le due
-schede. Con la funzionalità bloccata non si vede e non si scrive niente, e i
-legami salvati restano dove sono.
+Funzionalità `purchasing`. Da chi si compra un'opzione, con quale codice e a
+quanto sta in `gst_product_suppliers`: la tabella, le regole e gli helper sono
+in [Fornitori e costi d'acquisto](acquisti.md). Qui c'è come li fanno
+compilare le due schede. Con la funzionalità bloccata non si vede e non si
+scrive niente, e i legami salvati restano dove sono.
 
-**Il riquadro «Fornitori»** (`suppliersCard()`, P95–P97) sta nella colonna
-stretta dopo «Come si vende», con o senza varianti: una taglia in più non
-cambia il fornitore. Dentro c'è `suppliersField()`, un repeater `suppliers`
-con `RepeaterRelation` su `ProductModelSupplier::$table` per
-`product_model_id`, `positionKey('position')`, `sortable()` e
-`softDelete(false)`: le righe le scrive il core, prima quelle nuove e
-aggiornate, poi toglie davvero quelle sparite. Le colonne sono `id` (nascosta),
-`supplier_id` («Fornitore», su undici dodicesimi), `supplier_sku` («Codice
-fornitore») e `cost` («Costo», con `->price()`). Un preferito non c'è (P98):
-l'ordine delle righe è l'unico ordine. Il bottone «Togli fornitore» chiede
-conferma con la finestra del repeater.
+I fornitori sono **del prodotto, come la giacenza** (P107): l'articolo senza
+varianti li ha sul suo unico prodotto, quello con le varianti su ogni riga
+della griglia. E si compilano come le sedi (P109): la finestra c'è solo quando
+serve. `supplierMode($modelId)` conta i fornitori che la scheda propone
+(`supplierChoices()`, gli attivi più quelli già legati a una qualunque opzione
+dell'articolo, P92):
 
-**Le scelte** le dà `supplierChoices($modelId)` (P92): `Contacts::supplierOptions()`
-con gli attivi più i fornitori già legati all'articolo
-(`ProductSuppliers::modelLinksFor()`), calcolate una volta per richiesta. Sono
-le stesse per tutte le righe. Senza nessuna scelta il riquadro mostra la nota
-«Nessun fornitore da proporre: aggiungilo da Anagrafiche → Fornitori.» al
-posto del repeater.
+| Modo | Quando | Cosa dichiara `supplierInputs()` / `supplierColumns()` |
+|---|---|---|
+| `null` | `purchasing` bloccata | niente |
+| `none` | nessun fornitore da proporre | niente |
+| `flat` | un fornitore solo | `supplier_sku` («Codice fornitore», `maxLength(100)`) e `supplier_cost` («Costo d'acquisto», `price()` a due decimali); niente tendina, il nome sta nel `title` (`soleSupplierTitle()`) |
+| `modal` | due o più | `suppliers`, nascosto, con le righe in JSON, e `suppliers_button`: `->button('Fornitori')->opensModal(SUPPLIERS_MODAL)->emptyCaption('Nessun fornitore')` |
 
-**Il controllo** è `assertSuppliers($modelId, $post)`, chiamato da
-`mutateRequestValues()` — prima dell'insert, come gli altri `assert…()`:
-`Repeater::rowsFromRequest('suppliers')` e `ProductSuppliers::assertValid()`
-sulle righe grezze, con le chiavi `product.supplier_…` di
-[Errori](errori.md).
+**Dove stanno** (P108): nelle informazioni avanzate, con i codici.
 
-**Il salvataggio** passa dagli hook del repeater. `prepareRepeaterRows()`
-manda le righe a `supplierRows()`, che toglie quelle vuote e i doppioni (che
-la scheda ha già rifiutato) e legge il costo con `Numbers::fromForm()`: vuoto
-resta vuoto, e la colonna lo scrive `NULL` (P91). Svuotare una riga la stacca,
-perché non arriva al repeater, che la toglie. `syncRepeaterRelations()` azzera
-l'`id` di una riga che non è di questo articolo, che così nasce come riga
-nuova invece di rubare il fornitore a un altro. `prepareRepeaterRelationRow()`
-tiene il costo a quattro decimali quando la casella dice lo stesso numero
-arrotondato; `mutateFormValues()` lo mostra con due.
+| Dove | Campi | Larghezza |
+|---|---|---|
+| articolo senza varianti | `product_supplier_sku`, `product_supplier_cost`, oppure `product_suppliers` e `product_suppliers_button`, nell'accordion del riquadro «Prodotto»; hanno `hiddenWhen('has_variants', 'true')` | 6 e 6, oppure 12 |
+| riga della griglia | le colonne `supplier_sku`, `supplier_cost`, oppure `suppliers` e `suppliers_button`, dietro `repeaterAdvanced()` | 6 e 6; il bottone da 6 accanto a «Giacenza», da 12 con una sede sola |
+| scheda dell'opzione | `supplier_sku`, `supplier_cost`, oppure `suppliers` e `suppliers_button`, nel riquadro «Fornitori» | 4 e 4, oppure 12 |
+
+**La finestra** è una per pagina: `suppliersModal()`, con id
+`wi-product-suppliers`, in fondo alla colonna larga dopo quella della
+giacenza, e il bottone di ogni riga apre sempre lei. Ha una riga per
+fornitore — «Fornitore», «Codice fornitore», «Costo d'acquisto» e la × —,
+tante quante i fornitori da proporre, nascoste finché non servono, fino a
+`SUPPLIER_ROWS` (dieci) o a quante ne ha l'opzione che ne ha di più. In fondo
+«Aggiungi fornitore», «Annulla», «Salva per tutte le opzioni» e «Salva». Le
+caselle `wi_product_supplier[i][…]` stanno fuori dal repeater, e
+`withoutExtras()` le butta via: quello che conta è il JSON.
+
+`suppliersScript()` (`window.wiProductSuppliers`) fa il resto nel browser:
+
+- all'apertura legge il JSON dell'opzione del bottone, intitola la finestra
+  «Fornitori · Blu / S» (o con il nome dell'articolo) e riempie una riga per
+  legame; senza legami mostra una riga vuota;
+- nasconde nella tendina i fornitori non attivi che quell'opzione non ha già
+  (`data-wi-supplier-inactive`, P92);
+- «Salva» fa gli **stessi controlli del server** — fornitore mancante,
+  doppione, codice troppo lungo, costo che non è un numero, sotto zero o
+  troppo alto, con le frasi di `UserError::make()` passate in
+  `data-wi-supplier-messages` — e con un errore lo dice nella finestra senza
+  chiuderla; altrimenti riscrive il JSON (`[{supplier_id, supplier_sku,
+  cost}]`, `'[]'` quando si tolgono tutti), lancia `change` e aggiorna il
+  riassunto accanto al bottone;
+- «Salva per tutte le opzioni» (P111) scrive le stesse righe nel campo
+  `suppliers` di **ogni riga della griglia**, senza chiedere conferma: è
+  ancora solo la pagina, e si salva con la scheda. Un fornitore non attivo non
+  va sulle righe che non lo avevano già. Il bottone c'è solo quando la
+  finestra si apre da una riga: nell'articolo senza varianti e nella scheda
+  dell'opzione non ha senso.
+
+**I valori del form** li prepara `supplierFormValues()`, da
+`mutateFormValues()`, con una lettura sola per tutte le opzioni
+(`supplierLinks()` → `ProductSuppliers::linksFor()`): in `flat` i due campi
+dal legame con il fornitore unico, il costo a due decimali; in `modal` il JSON
+e il riassunto di `ProductSuppliers::summary()`. Dopo un salvataggio rifiutato
+la pagina torna con quello che era stato scritto, e
+`withFormSupplierButtons()` rifà il riassunto dal JSON del form.
+
+**Il controllo** è `assertSupplierRows($modelId, $post, $conVarianti)`,
+chiamato da `mutateRequestValues()` — prima dell'insert, come gli altri
+`assert…()`: per ogni opzione `postedSuppliers()` e poi
+`ProductSuppliers::assertValid()` sulle righe grezze, con le scelte di
+`supplierChoicesFor($modelId, $productId)`, cioè senza i non attivi che non
+sono già suoi. Le chiavi sono le `product.supplier_…` di [Errori](errori.md).
+
+**Il salvataggio** è `saveSuppliers()`, in `saveExtras()`, dopo le righe e
+dopo `ProductSuppliers::dropRemovedOptions()` e prima della giacenza. Il
+server legge quello che arriva, non il modo in cui crede di essere (P114): il
+JSON se c'è, altrimenti i due campi, altrimenti niente, e allora i legami
+restano quelli che sono. Chi scrive cosa, e perché i due campi toccano solo il
+legame del fornitore unico, è in [Chi scrive i
+legami](acquisti.md#chi-scrive-i-legami).
+
+**Accendendo le varianti** (P115) su un articolo che ha un prodotto solo, i
+fornitori scritti nel riquadro «Prodotto» vanno al suo prodotto — lo
+scheletro della prima combinazione — e le opzioni che nascono nello stesso
+salvataggio li copiano, come il prezzo e lo sconto, a meno che la loro riga
+non dica altro. Le opzioni aggiunte dopo nascono senza fornitori, o con quelli
+scritti nella loro riga.
 
 **Chi toglie i legami**: `deleteRecord()` chiama `ProductSuppliers::dropFor()`
-su tutte le opzioni, anche quelle nel cestino, poi `dropForModels()` e
-`Thresholds::dropFor()`, anche a funzionalità bloccata. Un'opzione tolta dalla
-griglia perde le sue eccezioni nello stesso salvataggio: `saveExtras()` chiama
-`ProductSuppliers::dropRemovedOptions()` dopo le righe, anche a funzionalità
-bloccata.
+e `Thresholds::dropFor()` su tutte le opzioni, anche quelle nel cestino;
+un'opzione tolta dalla griglia li perde nello stesso salvataggio
+(`dropRemovedOptions()`). Tutti e due anche a funzionalità bloccata.
 
-**La scheda dell'opzione** (`ProductResource`) ha il suo riquadro «Fornitori»
-dopo «Magazzino», con il tooltip che dice a cosa serve: vale solo per quella
-opzione e vince sui fornitori dell'articolo (P96). Sotto il titolo
-`supplierCardContext($productId)` stampa quello che vale già dall'articolo —
-«Dall'articolo: Filati Nord · 12,00 € · Lana Sud · costo sconosciuto», o
-«L'articolo non ha fornitori» — leggendo `modelLinksFor()`. Il repeater
-(`supplierCardField()`) è lo stesso dell'articolo su `ProductSupplier::$table`
-per `product_id`, colonne «Fornitore», «Codice fornitore» e «Costo
-d'acquisto» da quattro, senza «Preferito»; le scelte sono
-`supplierCardChoices()` con i fornitori legati all'opzione
-(`supplierCardLinkedIds()`); `mutateRequestValues()` chiama `assertValid()`,
-e `prepareRepeaterRows()`, `syncRepeaterRelations()` e
-`prepareRepeaterRelationRow()` fanno quello che fanno nell'articolo. Chi vale
-per l'opzione, fornitore per fornitore, lo dice
-`ProductSuppliers::effective()`.
+**La scheda dell'opzione** (`ProductResource`) ha il riquadro «Fornitori» dopo
+«Magazzino», con il tooltip che dice a cosa serve. La regola è la stessa
+(P112), ma il conto è **dell'opzione**: `supplierChoices($productId)` propone
+gli attivi più i fornitori già legati a lei, e una sorella con un fornitore
+non più attivo può avere la finestra dove questa ha i due campi. Con `none`
+mostra la nota «Nessun fornitore da proporre: aggiungilo da Anagrafiche →
+Fornitori.»; con `modal` aggiunge `suppliersModal($productId, false)`, senza
+«Salva per tutte le opzioni», e lo stesso script. `mutateRequestValues()`
+controlla con `postedSuppliers()` e `assertValid()` e toglie i campi che non
+sono colonne, `afterUpdate()` scrive con `writeSuppliers()`, `deleteRecord()`
+chiama `dropFor()`.
 
-Nessun indice unico su padre e fornitore (P93): il repeater del core prima
-scrive e poi toglie, e uno scambio di righe inciamperebbe a metà salvataggio.
-I doppioni li ferma la scheda, che può spiegarlo.
+Nessun indice unico su opzione e fornitore (P93): `sync()` prima scrive e poi
+toglie, e uno scambio di righe inciamperebbe a metà salvataggio. I doppioni li
+fermano la finestra e il server, che possono spiegarlo.
 
 ## Il riquadro che non si chiude
 
@@ -941,14 +996,15 @@ note passano da `DemoData::note()`.
 Le quattro schede di prova della rubrica (`Seeding\ContactsDemo`) seguono la
 stessa regola: segno nel codice (`con_demo-bianchi`), nessuna scheda nuova se ce
 n'è già una vera con lo stesso nome, e la pulizia che lascia un fornitore
-nominato da un movimento di magazzino o dai fornitori di un articolo o di
-un'opzione. `CatalogDemo::SUPPLIERS` scrive i fornitori sugli articoli di
-prova (Filati Nord su tutti, i calzini anche da Imballaggi Sud) e
-`SUPPLIER_EXCEPTION` un'eccezione sull'ultima opzione dei calzini, solo dove
-non c'è ancora nessuna riga; la stessa opzione nasce sotto la sua scorta
-minima, scritta sulla sede principale (`Thresholds::save()`). I fornitori
-degli articoli di prova se ne vanno con loro
-(`ProductModelResource::deleteRecord()`), e il conto di quello che la pulizia
-ha tolto li comprende: le due tabelle, anche le eccezioni delle opzioni nel
-cestino (`CatalogDemo::supplierLinksOf()` conta per `product_model_id`, senza
-guardare `deleted`).
+nominato da un movimento di magazzino o dai fornitori di un'opzione.
+`CatalogDemo::SUPPLIERS` dice da chi si comprano le opzioni di ogni articolo
+di prova (Filati Nord per tutti, i calzini anche da Imballaggi Sud) e
+`LAST_OPTION_SUPPLIERS` cosa cambia per l'ultima opzione dei calzini, che ha
+un codice e un costo suoi; `suppliers()` li scrive con
+`ProductSuppliers::sync()`, opzione per opzione, solo dove non c'è ancora
+nessuna riga. La stessa opzione nasce sotto la sua scorta minima, scritta
+sulla sede principale (`Thresholds::save()`). I fornitori delle opzioni di
+prova se ne vanno con gli articoli (`ProductModelResource::deleteRecord()`), e
+il conto di quello che la pulizia ha tolto li comprende, anche quelli delle
+opzioni nel cestino: `CatalogDemo::supplierLinksOf()` conta le righe di
+`gst_product_suppliers` delle opzioni dell'articolo, senza guardare `deleted`.

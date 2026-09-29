@@ -34,7 +34,6 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
@@ -113,6 +112,12 @@ class ProductModelResource extends GestionaleResource
     /** @var array<int, array<int, string>> i fornitori proponibili, per articolo */
     private static array $supplierChoices = [];
 
+    /** @var array<int, array<int, list<array{supplier_id: int, supplier_sku: string, cost: ?float}>>> i fornitori legati, per articolo e per opzione */
+    private static array $supplierLinks = [];
+
+    /** @var array<int, list<int>> i fornitori proposti solo perché già legati, per articolo */
+    private static array $inactiveSuppliers = [];
+
     /**
      * Quante foto o video per area.
      *
@@ -129,6 +134,20 @@ class ProductModelResource extends GestionaleResource
      * bottone di ogni riga la apre, e lo script la cerca.
      */
     protected const LOCATIONS_MODAL = 'wi-location-stock';
+
+    /**
+     * L'id della finestra «Fornitori», da due fornitori in su (P109, P110):
+     * la aprono i bottoni della griglia, del riquadro «Prodotto» e della
+     * scheda dell'opzione, e lo script la cerca.
+     */
+    protected const SUPPLIERS_MODAL = 'wi-product-suppliers';
+
+    /**
+     * Quante righe ha la finestra «Fornitori», al massimo: lo stesso
+     * fornitore non si scrive due volte, e un'opzione che si compra da più
+     * di dieci non si è ancora vista. Chi ne ha già di più le ha tutte.
+     */
+    protected const SUPPLIER_ROWS = 10;
 
     public static function path(): string
     {
@@ -292,12 +311,10 @@ class ProductModelResource extends GestionaleResource
             $fields[] = static::stockRowsField($modelId ?? 0);
         }
 
-        // Da chi si compra: una riga per fornitore, sull'articolo (P95).
-        // Senza `purchasing` il campo non esiste, e il core non ha niente
-        // da sincronizzare.
-        if (Gestionale::feature('purchasing')) {
-            $fields[] = static::suppliersField($modelId ?? 0);
-        }
+        // Da chi si compra l'articolo senza varianti: i due campi del
+        // fornitore unico, o il bottone della finestra (P109). Quelli delle
+        // opzioni sono colonne della griglia.
+        array_push($fields, ...static::supplierInputs($modelId ?? 0, 'product_'));
 
         return $fields;
     }
@@ -370,17 +387,26 @@ class ProductModelResource extends GestionaleResource
         // La scorta minima sta nella tendina, accanto ai codici: la riga del
         // prezzo resta di tre caselle.
         $soglia = Gestionale::feature('low_stock_alerts') && !$sedi;
-        $avanzate = 'SKU, EAN'.($soglia ? ' e scorta minima' : '');
+        // Da chi si compra, dopo i codici (P108): due campi con un fornitore
+        // solo, il bottone della finestra da due in su.
+        $fornitori = static::supplierMode($modelId);
+        $conFornitori = $fornitori === 'flat' || $fornitori === 'modal';
+        $avanzate = match (true) {
+            $conFornitori => 'SKU, EAN'.($soglia ? ', scorta minima' : '').' e fornitori',
+            $soglia => 'SKU, EAN e scorta minima',
+            default => 'SKU, EAN',
+        };
 
         $cards = [
             (new Card)->components([
                 SectionTitle::make('Prodotto')
                     ->tooltip($conVarianti
-                        ? 'Con le varianti prezzo, codici e giacenza sono di ogni opzione: si scrivono riga per riga in «Opzioni in vendita», qui sotto.'
+                        ? 'Con le varianti prezzo, codici'.($conFornitori ? ', fornitori' : '').' e giacenza sono di ogni opzione: si scrivono riga per riga in «Opzioni in vendita», qui sotto.'
                         : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il riquadro «Tipo fiscale». Lo SKU è anche il codice di famiglia: se aggiungi le varianti, da lì nascono quelli delle opzioni.'
                             .($modelId > 0 || $sedi ? '' : ' La giacenza scritta alla creazione entra come giacenza iniziale, nella sede principale.')
                             .' '.$avanzate.' stanno in «Compila le informazioni avanzate».'
                             .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso: vale sul disponibile, e con zero non arriva niente.' : '')
+                            .($conFornitori ? ' Dei fornitori si scrive il codice che usano loro e il costo d\'acquisto: un costo vuoto vuol dire «non lo so», non zero.' : '')
                             .($sedi ? ' Giacenza e scorta minima stanno nel riquadro «Magazzino», sede per sede.' : '')
                             .($senzaOpzioni ? ' Per vendere colori o taglie serve un attributo con uso «Opzione da scegliere» o «Opzione con foto proprie», e dei valori: si crea in Catalogo → Attributi.' : ''))
                     ->columnSpan(12),
@@ -405,11 +431,12 @@ class ProductModelResource extends GestionaleResource
                 // l'articolo ha la merce davanti. Con più sedi la casella non
                 // c'è: i pezzi si scrivono sede per sede, nel riquadro sotto.
                 ...($sedi ? [] : [static::getInput('product_stock')->columnSpan(4)]),
-                // Codici e scorta minima sotto il prezzo, chiusi come le
-                // informazioni avanzate delle righe della griglia: servono di
-                // rado. Con le varianti spariscono insieme al prezzo — ognuna
-                // ha i suoi nella griglia — ma lo SKU resta nel modulo, solo
-                // nascosto, e continua a proporre quelli delle righe.
+                // Codici, scorta minima e fornitori sotto il prezzo, chiusi
+                // come le informazioni avanzate delle righe della griglia:
+                // servono di rado. Con le varianti spariscono insieme al
+                // prezzo — ognuna ha i suoi nella griglia — ma lo SKU resta
+                // nel modulo, solo nascosto, e continua a proporre quelli
+                // delle righe.
                 Accordion::make('Compila le informazioni avanzate')
                     ->link()
                     ->columns(12)
@@ -419,6 +446,14 @@ class ProductModelResource extends GestionaleResource
                         static::getInput('sku')->columnSpan($soglia ? 4 : 6),
                         static::getInput('product_ean')->columnSpan($soglia ? 4 : 6),
                         ...($soglia ? [static::getInput('product_min_stock')->columnSpan(4)] : []),
+                        ...($fornitori === 'flat' ? [
+                            static::getInput('product_supplier_sku')->columnSpan(6),
+                            static::getInput('product_supplier_cost')->columnSpan(6),
+                        ] : []),
+                        ...($fornitori === 'modal' ? [
+                            static::getInput('product_suppliers'),
+                            static::getInput('product_suppliers_button')->columnSpan(12),
+                        ] : []),
                     ]),
                 // In creazione non c'è ancora niente da rettificare; con più
                 // sedi il link sta nel riquadro «Magazzino».
@@ -445,6 +480,13 @@ class ProductModelResource extends GestionaleResource
         if ($sedi) {
             $cards[] = static::locationStockModal($modelId);
             $cards[] = static::locationStockScript();
+        }
+
+        // Lo stesso per la finestra «Fornitori» (P110): la aprono le righe
+        // della griglia e il riquadro «Prodotto».
+        if ($fornitori === 'modal') {
+            $cards[] = static::suppliersModal($modelId);
+            $cards[] = static::suppliersScript($modelId);
         }
 
         return $cards;
@@ -552,11 +594,6 @@ class ProductModelResource extends GestionaleResource
                 ...static::backorderInputs(),
             ])->columns(12)->columnSpan(12),
 
-            // Da chi si compra, subito sotto come si vende (P97): una riga
-            // per fornitore, e vale per tutte le opzioni. Senza
-            // `purchasing` il riquadro non c'è.
-            ...(Gestionale::feature('purchasing') ? [static::suppliersCard($modelId)] : []),
-
             // Un riquadro solo per il tipo fiscale: decide l'IVA, e in mezzo
             // agli interruttori si perdeva. Il titolo dice già cos'è, la
             // select non lo ripete.
@@ -597,27 +634,6 @@ class ProductModelResource extends GestionaleResource
                 static::unitScript()->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];
-    }
-
-    /**
-     * Il riquadro «Fornitori»: il repeater, o la riga che dice dove creare
-     * un fornitore quando non ce n'è nessuno da proporre.
-     *
-     * Con la tendina vuota il repeater sarebbe una riga di caselle che non
-     * si può compilare: meglio dirlo. Il campo resta nello schema, e il
-     * core, non trovando righe, non tocca niente — legami non ce ne sono,
-     * o la tendina non sarebbe vuota.
-     */
-    protected static function suppliersCard(int $modelId): Card
-    {
-        return (new Card)->components([
-            SectionTitle::make('Fornitori')
-                ->tooltip('Da chi compri questo articolo, con il codice che usa lui e il costo d\'acquisto: valgono per tutte le opzioni in vendita. Un costo lasciato vuoto vuol dire «non lo so», non zero. Un fornitore messo su «Non attivo» resta qui finché non lo togli.')
-                ->columnSpan(12),
-            static::supplierChoices($modelId) === []
-                ? RichText::make('<p class="text-muted mb-0">Nessun fornitore da proporre: aggiungilo da Anagrafiche → Fornitori.</p>')->columnSpan(12)
-                : static::getInput('suppliers')->columnSpan(12),
-        ])->columns(12)->columnSpan(12);
     }
 
     public static function tableSchema(): array
@@ -818,36 +834,137 @@ class ProductModelResource extends GestionaleResource
         // zero si fermano qui.
         static::assertLocationRows((array) $_POST, $values['has_variants'] === 'true', $id);
 
-        // Anche i fornitori: un doppione, un fornitore che la pagina non
-        // propone o un costo che non è un numero si fermano qui, non a metà
-        // del salvataggio.
-        static::assertSuppliers($id, (array) $_POST);
+        // Anche i fornitori, opzione per opzione (P114): un doppione, un
+        // fornitore che la pagina non propone o un costo che non è un numero
+        // si fermano qui, non a metà del salvataggio.
+        static::assertSupplierRows($id, (array) $_POST, $values['has_variants'] === 'true');
 
         return static::withoutExtras($values);
     }
 
     /**
-     * Le righe del riquadro «Fornitori» devono avere un fornitore fra quelli
-     * che la pagina propone, una volta sola, con un codice corto e un costo
-     * che sia un numero non negativo (P97).
+     * Scrive i fornitori di un'opzione come sono arrivati: dalla finestra
+     * sono tutti i suoi, dai due campi è il fornitore unico, e gli altri
+     * legami restano (P114).
      *
-     * Senza `purchasing` il riquadro non c'è e non arriva niente. Una riga
-     * lasciata vuota non conta: il repeater la toglie da sé.
+     * Il costo si scrive con due decimali e si tiene con quattro: se la
+     * casella dice lo stesso numero arrotondato resta quello salvato.
+     *
+     * @param array{0: string, 1: list<array<string, mixed>>} $postate quello di `postedSuppliers()`
+     * @param list<array<string, mixed>> $prima i legami salvati dell'opzione
      */
-    public static function assertSuppliers(int $modelId, array $post): void
+    protected static function writeSuppliers(int $productId, array $postate, array $prima, int $unico): void
+    {
+        [$come, $rows] = $postate;
+        $dopo = $come === 'flat'
+            ? ProductSuppliers::replaceOne($prima, $unico, $rows)
+            : ProductSuppliers::normalize($rows);
+
+        ProductSuppliers::sync($productId, ProductSuppliers::keepStoredCosts($dopo, $prima));
+    }
+
+    /**
+     * I fornitori che un'opzione ha mandato: `['json', righe]` dal campo
+     * nascosto della finestra, `['flat', righe]` dai due campi del fornitore
+     * unico, `null` se non è arrivato niente — e allora i suoi legami restano
+     * quelli che sono (P114).
+     *
+     * Il JSON vince: c'è solo dove c'è la finestra. I due campi scrivono il
+     * fornitore unico, e se quando arrivano la scheda non ne propone più uno
+     * solo — ne è nato un altro, o è stato tolto — compilati non si sa di chi
+     * siano: si rifiuta, e la pagina ricaricata mostra quello giusto.
+     *
+     * @param array<string, mixed> $posted la riga della griglia, o tutto il form
+     * @return array{0: string, 1: list<array<string, mixed>>}|null
+     */
+    protected static function postedSuppliers(array $posted, string $prefix, int $modelId): ?array
+    {
+        if (!Gestionale::feature('purchasing')) {
+            return null;
+        }
+
+        $righe = ProductSuppliers::fromJson($posted[$prefix.'suppliers'] ?? null);
+
+        if ($righe !== null) {
+            return ['json', $righe];
+        }
+
+        if (
+            !array_key_exists($prefix.'supplier_sku', $posted)
+            && !array_key_exists($prefix.'supplier_cost', $posted)
+        ) {
+            return null;
+        }
+
+        $codice = $posted[$prefix.'supplier_sku'] ?? '';
+        $costo = $posted[$prefix.'supplier_cost'] ?? '';
+        $unico = static::soleSupplierId($modelId);
+
+        if ($unico > 0) {
+            return ['flat', ProductSuppliers::fromFields($unico, $codice, $costo)];
+        }
+
+        // Vuoti non dicono niente, di chiunque fossero.
+        if (ProductSuppliers::fromFields(1, $codice, $costo) === []) {
+            return null;
+        }
+
+        throw UserError::make('product.supplier_invalid');
+    }
+
+    /**
+     * I fornitori postati devono essere fra quelli che l'opzione può avere,
+     * una volta sola, con un codice corto e un costo che sia un numero non
+     * negativo (P114).
+     *
+     * Senza varianti contano i campi del riquadro «Prodotto», con le
+     * varianti quelli delle righe della griglia: gli altri sono nascosti, ma
+     * arrivano lo stesso, e un valore rimasto lì non deve bloccare il
+     * salvataggio. Fa eccezione l'articolo con un prodotto solo che ha le
+     * varianti accese: quello scritto nel riquadro «Prodotto» va al suo
+     * prodotto, che le opzioni riprendono (P115), e si controlla anche lui.
+     * Senza `purchasing` i campi non ci sono, e quello che arriva non si
+     * guarda.
+     */
+    public static function assertSupplierRows(int $modelId, array $post, bool $conVarianti): void
     {
         if (!Gestionale::feature('purchasing')) {
             return;
         }
 
-        $righe = Repeater::rowsFromRequest('suppliers', $post);
+        $gruppi = [];
 
-        if ($righe === []) {
-            return;
+        if ($conVarianti) {
+            foreach (static::postedRows($post) as $riga) {
+                $gruppi[] = [
+                    is_numeric($riga['id'] ?? null) ? (int) $riga['id'] : 0,
+                    static::postedSuppliers($riga, '', $modelId),
+                ];
+            }
+
+            if ($modelId > 0 && static::productCount($modelId) === 1) {
+                $gruppi[] = [
+                    (int) (static::soleProduct($modelId)['id'] ?? 0),
+                    static::postedSuppliers($post, 'product_', $modelId),
+                ];
+            }
+        } else {
+            $product = $modelId > 0 ? static::soleProduct($modelId) : null;
+
+            $gruppi[] = [
+                (int) ($product['id'] ?? 0),
+                static::postedSuppliers($post, 'product_', $modelId),
+            ];
         }
 
-        $scelte = static::supplierChoices($modelId);
-        ProductSuppliers::assertValid($righe, array_keys($scelte), $scelte);
+        foreach ($gruppi as [$productId, $postate]) {
+            if ($postate === null) {
+                continue;
+            }
+
+            $scelte = static::supplierChoicesFor($modelId, $productId);
+            ProductSuppliers::assertValid($postate[1], array_keys($scelte), $scelte);
+        }
     }
 
     /**
@@ -1044,6 +1161,124 @@ class ProductModelResource extends GestionaleResource
         }
 
         return implode('-', $ordinati);
+    }
+
+    /**
+     * I fornitori delle opzioni (P107, P114): il JSON della finestra, o i
+     * due campi del fornitore unico.
+     *
+     * Senza varianti sono i campi del riquadro «Prodotto»; con le varianti
+     * quelli di ogni riga della griglia, e i primi non si guardano. Il JSON
+     * sostituisce i legami dell'opzione; i due campi riscrivono solo quello
+     * del fornitore unico, e vuoti lo tolgono. Un'opzione che non ha mandato
+     * niente resta com'è. Il costo non toccato resta quello salvato, con i
+     * suoi quattro decimali.
+     *
+     * Accendendo le varianti le opzioni che nascono prendono i fornitori
+     * dell'articolo singolo, come il prezzo (P115): lo scheletro ripreso
+     * tiene i suoi — o quelli scritti nel riquadro «Prodotto» un attimo
+     * prima di accenderle — e chi nasce senza niente di scritto nella sua
+     * riga li copia. Dove la riga nuova dello scheletro ha qualcosa di
+     * scritto vince lei, come per la giacenza.
+     *
+     * @param array<string, array<string, mixed>> $righe
+     * @param array<string, array{product_id: int, variant_id: int, priced: bool}> $nate
+     * @param array<string, array<string, mixed>> $scritte
+     * @param array<int, string> $riprese
+     */
+    protected static function saveSuppliers(
+        int $modelId,
+        array $post,
+        array $righe,
+        array $nate,
+        array $scritte,
+        bool $conVarianti,
+        array $riprese
+    ): void {
+        if (!Gestionale::feature('purchasing')) {
+            return;
+        }
+
+        $volute = [];
+        $copie = [];
+
+        if (!$conVarianti) {
+            $product = static::soleProduct($modelId);
+            $postate = is_array($product) ? static::postedSuppliers($post, 'product_', $modelId) : null;
+
+            if ($postate !== null) {
+                $volute[(int) $product['id']] = $postate;
+            }
+        } else {
+            // Solo le opzioni dell'articolo: un id di un altro non si scrive.
+            $vive = [];
+
+            foreach (static::products($modelId) as $product) {
+                $vive[(int) $product['id']] = true;
+            }
+
+            foreach ($righe as $riga) {
+                $productId = is_numeric($riga['id'] ?? null) ? (int) $riga['id'] : 0;
+
+                if (!isset($vive[$productId])) {
+                    continue;
+                }
+
+                $postate = static::postedSuppliers($riga, '', $modelId);
+
+                if ($postate !== null) {
+                    $volute[$productId] = $postate;
+                }
+            }
+
+            // Quello scritto nel riquadro «Prodotto» è dello scheletro, come
+            // il prezzo (P115): vince sulla sua riga vecchia, che era
+            // nascosta, e la sua riga nuova, se dice altro, lo riscrive.
+            if ($riprese !== []) {
+                $postate = static::postedSuppliers($post, 'product_', $modelId);
+
+                if ($postate !== null) {
+                    $volute[(int) array_key_first($riprese)] = $postate;
+                }
+            }
+
+            foreach ($nate as $chiave => $riga) {
+                $productId = (int) $riga['product_id'];
+                $scritto = is_array($scritte[$chiave] ?? null) ? $scritte[$chiave] : [];
+                $postate = static::postedSuppliers($scritto, '', $modelId);
+
+                // I due campi lasciati vuoti su una riga nuova non dicono
+                // «nessun fornitore»: dicono che nessuno li ha compilati.
+                if ($postate !== null && ($postate[0] === 'json' || $postate[1] !== [])) {
+                    $volute[$productId] = $postate;
+                } elseif ($riprese !== [] && !isset($riprese[$productId])) {
+                    $copie[] = $productId;
+                }
+            }
+        }
+
+        $salvati = $volute === [] ? [] : ProductSuppliers::linksFor(array_keys($volute));
+        $unico = static::soleSupplierId($modelId);
+
+        foreach ($volute as $productId => $postate) {
+            static::writeSuppliers($productId, $postate, $salvati[$productId] ?? [], $unico);
+        }
+
+        if ($copie !== [] && $riprese !== []) {
+            $scheletro = (int) array_key_first($riprese);
+            $suoi = ProductSuppliers::linksFor([$scheletro])[$scheletro] ?? [];
+
+            if ($suoi !== []) {
+                foreach ($copie as $productId) {
+                    ProductSuppliers::sync($productId, $suoi);
+                }
+            }
+        }
+
+        // Quello che la richiesta ha letto prima non vale più.
+        self::$supplierLinks = [];
+        self::$supplierChoices = [];
+        self::$inactiveSuppliers = [];
     }
 
     /**
@@ -1637,12 +1872,15 @@ class ProductModelResource extends GestionaleResource
             $daRinfrescare = static::saveMinStocks($modelId, $post, $righe, $nate, $scritte, $conVarianti);
             static::saveNewVersions($modelId, $nate, $scritte, $files, $riprese);
             static::saveRowExtras($modelId, $righe, $files, $conVarianti, $riprese);
-            // Via le eccezioni delle opzioni tolte dalla griglia: il repeater
+            // Via i legami delle opzioni tolte dalla griglia: il repeater
             // del core le ha già messe nel cestino, e di un'opzione tolta non
             // serve sapere quanto costava (P99). Anche senza `purchasing`,
             // come in `deleteRecord()`: la chiave esterna non guarda le
             // funzionalità.
             ProductSuppliers::dropRemovedOptions($modelId);
+            // I fornitori di quelle che restano e di quelle appena nate
+            // (P107): dopo il generatore, che dice chi è nato.
+            static::saveSuppliers($modelId, $post, $righe, $nate, $scritte, $conVarianti, $riprese);
             static::saveSingleStock($modelId, $post, $conVarianti, $appenaNato);
             // Con più sedi: le righe del riquadro «Magazzino» o della finestra
             // della griglia, soglie prima dei pezzi, prodotto per prodotto.
@@ -1708,10 +1946,6 @@ class ProductModelResource extends GestionaleResource
      * `afterStore`/`afterUpdate` — e il sync gira prima: le passerebbe al
      * database con una variante che non c'è, e il database rifiuterebbe
      * lasciando l'articolo a metà.
-     *
-     * Dei fornitori, quelle con un fornitore: svuotare la riga la stacca,
-     * perché non arriva al repeater, che la toglie. I doppioni la scheda li
-     * ha già rifiutati (`assertSuppliers()`): qui non passano comunque.
      */
     public static function prepareRepeaterRows(
         string $inputName,
@@ -1719,10 +1953,6 @@ class ProductModelResource extends GestionaleResource
         string $action = 'store',
         string $context = 'backend'
     ): array {
-        if ($inputName === 'suppliers') {
-            return static::supplierRows($rows);
-        }
-
         if ($inputName !== 'products') {
             return $rows;
         }
@@ -1731,88 +1961,6 @@ class ProductModelResource extends GestionaleResource
             $rows,
             static fn ($row): bool => is_array($row) && trim((string) ($row['id'] ?? '')) !== ''
         ));
-    }
-
-    /**
-     * Le righe del riquadro «Fornitori» come le vuole
-     * `gst_product_model_suppliers`: fornitore, codice e costo, senza
-     * doppioni e senza righe vuote.
-     *
-     * @param list<array<string, mixed>> $rows quello che il repeater ha postato
-     * @return list<array{id: string, supplier_id: int, supplier_sku: string, cost: string}>
-     */
-    protected static function supplierRows(array $rows): array
-    {
-        $pronte = [];
-        $visti = [];
-
-        foreach ($rows as $row) {
-            if (!is_array($row) || ProductSuppliers::isEmptyRow($row)) {
-                continue;
-            }
-
-            $supplierId = (int) (is_numeric($row['supplier_id'] ?? null) ? $row['supplier_id'] : 0);
-
-            if ($supplierId <= 0 || isset($visti[$supplierId])) {
-                continue;
-            }
-
-            $visti[$supplierId] = true;
-
-            $pronte[] = [
-                'id' => trim((string) ($row['id'] ?? '')),
-                'supplier_id' => $supplierId,
-                'supplier_sku' => trim((string) ($row['supplier_sku'] ?? '')),
-                // Vuoto resta vuoto, e la colonna lo scrive NULL: «non lo
-                // so» (P91). I decimali arrivano con la virgola: MySQL non
-                // li accetta.
-                'cost' => Numbers::fromForm(is_scalar($row['cost'] ?? null) ? $row['cost'] : null) ?? '',
-            ];
-        }
-
-        return $pronte;
-    }
-
-    /**
-     * Una riga dei fornitori con un id che non è di questo articolo si salva
-     * come riga nuova.
-     *
-     * Il repeater del core aggiorna per id e riscrive l'articolo della riga:
-     * l'id di un altro articolo (un form copiato o ritoccato) gli porterebbe
-     * via il fornitore, e uno che non c'è più non aggiornerebbe niente,
-     * mentre il legame nuovo se ne andrebbe come non visto.
-     *
-     * Solo quando il repeater `suppliers` è quello dell'articolo: la scheda
-     * dell'opzione (`ProductResource`) ne ha uno con lo stesso nome, sulle
-     * sue righe, e passa di qui.
-     */
-    public static function syncRepeaterRelations(
-        int|string $parentId,
-        array $post,
-        array $files = [],
-        string $action = 'store',
-        string $context = 'backend'
-    ): array {
-        $relation = static::repeaterRelations()['suppliers']['relation'] ?? null;
-
-        if (is_array($post['suppliers'] ?? null)
-            && $relation instanceof RepeaterRelation
-            && $relation->table === ProductModelSupplier::$table) {
-            $proprie = array_map(
-                static fn (array $row): string => (string) $row['id'],
-                static::rowsOf(ProductModelSupplier::class, ['product_model_id' => (int) $parentId, 'deleted' => ['true', 'false']])
-            );
-
-            foreach ($post['suppliers'] as $chiave => $row) {
-                $rowId = is_array($row) && is_scalar($row['id'] ?? null) ? trim((string) $row['id']) : '';
-
-                if (is_array($row) && !in_array($rowId, $proprie, true)) {
-                    $post['suppliers'][$chiave]['id'] = '';
-                }
-            }
-        }
-
-        return parent::syncRepeaterRelations($parentId, $post, $files, $action, $context);
     }
 
     /**
@@ -2243,6 +2391,161 @@ class ProductModelResource extends GestionaleResource
         return $values;
     }
 
+    /**
+     * Dopo un errore il core ridà al form quello che è arrivato, senza `id`:
+     * il JSON scritto nella finestra «Fornitori» c'è ancora, ma il bottone
+     * non si invia e il suo riassunto va rifatto da lì (P110). I due campi
+     * del fornitore unico tornano da soli.
+     */
+    protected static function withFormSupplierButtons(array $values): array
+    {
+        $modelId = static::currentId() ?? 0;
+
+        if (static::supplierMode($modelId) !== 'modal') {
+            return $values;
+        }
+
+        $scelte = static::supplierChoices($modelId);
+        $riassunto = static fn (mixed $json): ?string => is_string($json) && trim($json) !== ''
+            ? ProductSuppliers::summary(ProductSuppliers::fromJson($json) ?? [], $scelte)
+            : null;
+
+        foreach (is_array($values['products'] ?? null) ? $values['products'] : [] as $index => $row) {
+            $testo = is_array($row) ? $riassunto($row['suppliers'] ?? null) : null;
+
+            if ($testo !== null) {
+                $values['products'][$index]['suppliers_button'] = $testo;
+            }
+        }
+
+        $testo = $riassunto($values['product_suppliers'] ?? null);
+
+        if ($testo !== null) {
+            $values['product_suppliers_button'] = $testo;
+        }
+
+        return $values;
+    }
+
+    /**
+     * I fornitori delle opzioni, per il form (P109): i due campi del
+     * fornitore unico, o il JSON della finestra con il suo riassunto.
+     *
+     * Quelli delle righe della griglia, e quelli dell'articolo senza
+     * varianti con il prefisso `product_`. Una lettura sola per tutte le
+     * opzioni.
+     *
+     * @param array<string, mixed>|null $product il prodotto unico, se c'è
+     */
+    protected static function supplierFormValues(int $modelId, array $values, ?array $product): array
+    {
+        $modo = static::supplierMode($modelId);
+
+        if ($modo !== 'flat' && $modo !== 'modal') {
+            return $values;
+        }
+
+        $legami = static::supplierLinks($modelId);
+        $scelte = static::supplierChoices($modelId);
+        $unico = static::soleSupplierId($modelId);
+
+        foreach (is_array($values['products'] ?? null) ? $values['products'] : [] as $index => $row) {
+            if (is_array($row)) {
+                $values['products'][$index] = static::supplierFields(
+                    $row,
+                    '',
+                    $modo,
+                    $legami[(int) ($row['id'] ?? 0)] ?? [],
+                    $scelte,
+                    $unico
+                );
+            }
+        }
+
+        if ($product !== null) {
+            $values = static::supplierFields(
+                $values,
+                'product_',
+                $modo,
+                $legami[(int) $product['id']] ?? [],
+                $scelte,
+                $unico
+            );
+        }
+
+        return $values;
+    }
+
+    /**
+     * I campi dei fornitori di un'opzione. Dopo un salvataggio rifiutato la
+     * riga torna con quello scritto, e quello resta: si riempie solo quello
+     * che manca. Il riassunto accanto al bottone «Fornitori» segue il campo
+     * nascosto, cioè quello che il salvataggio terrebbe.
+     *
+     * @param array<string, mixed> $row la riga della griglia, o tutto il form
+     * @param list<array<string, mixed>> $links i legami dell'opzione
+     * @param array<int, string> $choices
+     * @return array<string, mixed>
+     */
+    protected static function supplierFields(
+        array $row,
+        string $prefix,
+        string $mode,
+        array $links,
+        array $choices,
+        int $soleSupplierId = 0
+    ): array {
+        if ($mode === 'flat') {
+            if (array_intersect([$prefix.'supplier_sku', $prefix.'supplier_cost'], array_keys($row)) !== []) {
+                return $row;
+            }
+
+            $suo = null;
+
+            foreach ($links as $link) {
+                if ((int) ($link['supplier_id'] ?? 0) === $soleSupplierId) {
+                    $suo = $link;
+                    break;
+                }
+            }
+
+            $row[$prefix.'supplier_sku'] = (string) ($suo['supplier_sku'] ?? '');
+            $row[$prefix.'supplier_cost'] = static::formCost($suo['cost'] ?? null);
+
+            return $row;
+        }
+
+        // Vuoto è una finestra mai salvata: i legami sono quelli di prima.
+        $scritto = $row[$prefix.'suppliers'] ?? null;
+
+        if (!is_string($scritto) || trim($scritto) === '') {
+            $row[$prefix.'suppliers'] = (string) json_encode(array_map(
+                static fn (array $link): array => [
+                    'supplier_id' => (int) ($link['supplier_id'] ?? 0),
+                    'supplier_sku' => (string) ($link['supplier_sku'] ?? ''),
+                    'cost' => static::formCost($link['cost'] ?? null),
+                ],
+                array_values($links)
+            ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        $row[$prefix.'suppliers_button'] = ProductSuppliers::summary(
+            ProductSuppliers::fromJson($row[$prefix.'suppliers']) ?? [],
+            $choices
+        );
+
+        return $row;
+    }
+
+    /**
+     * Il costo per la casella: grezzo, col punto e due decimali. Le cifre e
+     * la valuta le mette lei, e vuoto resta vuoto.
+     */
+    protected static function formCost(mixed $cost): string
+    {
+        return is_numeric($cost) ? number_format(round((float) $cost, 2), 2, '.', '') : '';
+    }
+
     /** Riempie il form con ciò che non sta nella tabella del modello. */
     public static function mutateFormValues(
         array $values,
@@ -2274,7 +2577,7 @@ class ProductModelResource extends GestionaleResource
         }
 
         if ($mode !== 'edit' || $modelId === 0) {
-            return static::withFormStockButtons($values);
+            return static::withFormSupplierButtons(static::withFormStockButtons($values));
         }
 
         $values['categories'] = array_map('strval', static::categoryIds($modelId));
@@ -2343,9 +2646,13 @@ class ProductModelResource extends GestionaleResource
 
                 // Il numero grezzo, col punto: le cifre e l'unità le mette
                 // AutoNumeric, che una virgola la leggerebbe come migliaia.
-                $values['products'][$index]['stock'] = static::rawNumber(
-                    $level === null ? 0.0 : $level['quantity']
-                );
+                // Con più sedi la colonna non c'è (P113): i pezzi stanno nel
+                // JSON della finestra.
+                if (!$sedi) {
+                    $values['products'][$index]['stock'] = static::rawNumber(
+                        $level === null ? 0.0 : $level['quantity']
+                    );
+                }
                 // Il primo asse raggruppa; quello che resta del nome si legge.
                 $values['products'][$index]['group'] = $nomi[$productId]['group'] ?? '';
                 $values['products'][$index]['group_value'] = $nomi[$productId]['group_value'] ?? '';
@@ -2425,17 +2732,9 @@ class ProductModelResource extends GestionaleResource
             $values['product_min_stock'] = $soglia > 0 ? static::rawNumber($soglia) : '';
         }
 
-        // Le righe dei fornitori le ha già lette il core, dal database o da
-        // un salvataggio rifiutato. Il costo va alla casella grezzo, col
-        // punto e due decimali: le cifre e la valuta le mette lei, e vuoto
-        // resta vuoto.
-        if (is_array($values['suppliers'] ?? null)) {
-            foreach ($values['suppliers'] as $index => $row) {
-                if (is_array($row) && is_numeric($row['cost'] ?? null)) {
-                    $values['suppliers'][$index]['cost'] = number_format(round((float) $row['cost'], 2), 2, '.', '');
-                }
-            }
-        }
+        // I fornitori, opzione per opzione (P109): i due campi o il JSON
+        // della finestra, nelle righe della griglia e nel riquadro «Prodotto».
+        $values = static::supplierFormValues($modelId, $values, $product);
 
         // Un articolo che ha già più opzioni risponde «sì» comunque, anche se
         // la colonna dice altro: è nato prima che la domanda esistesse.
@@ -2478,19 +2777,6 @@ class ProductModelResource extends GestionaleResource
                 && ($existingRow['status'] ?? '') === 'failed') {
                 $payload['attempts'] = 0;
                 $payload['error'] = '';
-            }
-
-            // Il costo del fornitore si scrive con due decimali e si tiene
-            // con quattro: se la casella dice lo stesso numero arrotondato,
-            // resta quello salvato.
-            if ($inputName === 'suppliers') {
-                $salvato = $existingRow['cost'] ?? null;
-                $scritto = $payload['cost'] ?? null;
-
-                if (is_numeric($salvato) && is_numeric($scritto)
-                    && round((float) $salvato, 2) === round((float) $scritto, 2)) {
-                    $payload['cost'] = (string) $salvato;
-                }
             }
 
             return $payload;
@@ -2548,14 +2834,13 @@ class ProductModelResource extends GestionaleResource
             // I fornitori prima delle opzioni, anche di quelle già tolte dalla
             // griglia e senza `purchasing`: la chiave esterna non lascerebbe
             // eliminare il prodotto, e i legami senza articolo non servono.
-            // Con loro quelli dell'articolo stesso (P95) e le soglie per sede
-            // (P100), che senza prodotto non dicono più niente.
+            // Con loro le soglie per sede (P100), che senza prodotto non dicono
+            // più niente.
             $productIds = array_map(
                 static fn (array $product): int => (int) $product['id'],
                 static::rowsOf(Product::class, ['product_model_id' => $modelId, 'deleted' => ['true', 'false']])
             );
             ProductSuppliers::dropFor($productIds);
-            ProductSuppliers::dropForModels([$modelId]);
             Thresholds::dropFor($productIds);
 
             // Anche le opzioni tolte dalla griglia, prima delle varianti: una
@@ -3904,13 +4189,18 @@ HTML)->tag('div');
         static::$catalogAttributes = null;
         static::$catalogValues = null;
         self::$supplierChoices = [];
+        self::$supplierLinks = [];
+        self::$inactiveSuppliers = [];
     }
 
     /**
-     * I fornitori che il riquadro propone, id => nome: gli attivi, più quelli
-     * già legati all'articolo anche se non lo sono più (P92). Senza, la
-     * tendina posterebbe vuoto e staccherebbe un fornitore solo perché è
-     * stato messo su «Non attivo».
+     * I fornitori che la scheda propone, id => nome: gli attivi, più quelli
+     * già legati a un'opzione dell'articolo anche se non lo sono più (P92).
+     * Senza, un fornitore messo su «Non attivo» sparirebbe dalla finestra, e
+     * il salvataggio dopo lo staccherebbe.
+     *
+     * Dal loro numero dipende come si compilano (P109): nessuno, niente; uno,
+     * due campi; due o più, il bottone e la finestra.
      *
      * Schema, layout e controllo leggono la stessa risposta, una volta per
      * articolo e per richiesta, come attributi e valori.
@@ -3920,14 +4210,137 @@ HTML)->tag('div');
     protected static function supplierChoices(int $modelId): array
     {
         if (!array_key_exists($modelId, self::$supplierChoices)) {
-            $legati = $modelId > 0
-                ? array_column(ProductSuppliers::modelLinksFor([$modelId])[$modelId] ?? [], 'supplier_id')
-                : [];
+            $legati = [];
 
-            self::$supplierChoices[$modelId] = Contacts::supplierOptions(array_map('intval', $legati));
+            foreach (static::supplierLinks($modelId) as $legami) {
+                foreach ($legami as $legame) {
+                    $legati[] = (int) $legame['supplier_id'];
+                }
+            }
+
+            self::$supplierChoices[$modelId] = Contacts::supplierOptions(array_values(array_unique($legati)));
         }
 
         return self::$supplierChoices[$modelId];
+    }
+
+    /**
+     * I fornitori delle opzioni dell'articolo, per prodotto: solo le opzioni
+     * che ne hanno, nell'ordine in cui si leggono (P107). Una lettura per
+     * articolo e per richiesta.
+     *
+     * @return array<int, list<array{supplier_id: int, supplier_sku: string, cost: ?float}>>
+     */
+    protected static function supplierLinks(int $modelId): array
+    {
+        if ($modelId <= 0) {
+            return [];
+        }
+
+        if (!array_key_exists($modelId, self::$supplierLinks)) {
+            $prodotti = array_map(
+                static fn (array $product): int => (int) ($product['id'] ?? 0),
+                static::products($modelId)
+            );
+
+            self::$supplierLinks[$modelId] = ProductSuppliers::linksFor(array_values(array_filter($prodotti)));
+        }
+
+        return self::$supplierLinks[$modelId];
+    }
+
+    /**
+     * I fornitori che la scheda propone solo perché già legati: sono su
+     * «Non attivo». Restano nella scelta delle opzioni che li usano, e non
+     * compaiono per le altre (P92).
+     *
+     * Il database si guarda solo se l'articolo ha dei legami.
+     *
+     * @return list<int>
+     */
+    protected static function inactiveSupplierIds(int $modelId): array
+    {
+        if (!array_key_exists($modelId, self::$inactiveSuppliers)) {
+            $inattivi = [];
+
+            if (static::supplierLinks($modelId) !== []) {
+                $attivi = Contacts::supplierOptions();
+
+                foreach (array_keys(static::supplierChoices($modelId)) as $id) {
+                    if (!isset($attivi[$id])) {
+                        $inattivi[] = (int) $id;
+                    }
+                }
+            }
+
+            self::$inactiveSuppliers[$modelId] = $inattivi;
+        }
+
+        return self::$inactiveSuppliers[$modelId];
+    }
+
+    /**
+     * I fornitori che un'opzione può avere: quelli della scheda, meno i non
+     * attivi che non sono già suoi (P92).
+     *
+     * Un'opzione che non è dell'articolo — una riga nuova, un id di un altro
+     * articolo — ha solo quelli attivi. Il modo, due campi o finestra, resta
+     * dell'articolo: lo sceglie `supplierChoices()`.
+     *
+     * @return array<int, string>
+     */
+    protected static function supplierChoicesFor(int $modelId, int $productId): array
+    {
+        $scelte = static::supplierChoices($modelId);
+        $suoi = array_map(
+            'intval',
+            array_column(static::supplierLinks($modelId)[$productId] ?? [], 'supplier_id')
+        );
+
+        foreach (static::inactiveSupplierIds($modelId) as $id) {
+            if (!in_array($id, $suoi, true)) {
+                unset($scelte[$id]);
+            }
+        }
+
+        return $scelte;
+    }
+
+    /**
+     * Come si compilano i fornitori (P109): `null` senza `purchasing`,
+     * `none` senza fornitori da proporre, `flat` con uno solo — due campi,
+     * codice e costo — e `modal` da due in su, il bottone e la finestra.
+     */
+    protected static function supplierMode(int $modelId): ?string
+    {
+        if (!Gestionale::feature('purchasing')) {
+            return null;
+        }
+
+        return match (count(static::supplierChoices($modelId))) {
+            0 => 'none',
+            1 => 'flat',
+            default => 'modal',
+        };
+    }
+
+    /** Il fornitore dei due campi, quando la scheda ne propone uno solo: zero altrimenti. */
+    protected static function soleSupplierId(int $modelId): int
+    {
+        $scelte = static::supplierChoices($modelId);
+
+        return count($scelte) === 1 ? (int) array_key_first($scelte) : 0;
+    }
+
+    /**
+     * Il nome del fornitore unico, per il tooltip dei due campi: la tendina
+     * non c'è, e di chi sono codice e costo va detto lo stesso.
+     */
+    protected static function soleSupplierTitle(int $modelId): string
+    {
+        $nome = (string) (static::supplierChoices($modelId)[static::soleSupplierId($modelId)] ?? '');
+
+        return $nome === '' ? '' : 'title="'.static::escape($nome).', l\'unico fornitore"';
     }
 
     /** I valori degli attributi a elenco, per id. @return array<int, array<string, mixed>> */
@@ -4637,7 +5050,9 @@ HTML)->tag('div');
      * non esiste ancora quando il sync gira, e il database rifiuterebbe.
      *
      * Le colonne stanno dentro undici: la dodicesima è quella dei bottoni, e
-     * quello che sfora va a capo. È il conto che mancava.
+     * quello che sfora va a capo. È il conto che mancava. Con più sedi la
+     * giacenza non c'è (P113) — i pezzi si scrivono dalla finestra — e il suo
+     * posto lo prende il nome dell'opzione.
      */
     protected static function productsField(int $modelId = 0): Input
     {
@@ -4669,6 +5084,9 @@ HTML)->tag('div');
         }
 
         $larghezza = $soglia === null ? 4 : 3;
+        // I fornitori dell'opzione (P108): due colonne, o il campo nascosto
+        // e il bottone della finestra.
+        $fornitori = static::supplierColumns($modelId, $sedi);
 
         $campo = FormField::key('products')
             ->repeater([
@@ -4693,24 +5111,23 @@ HTML)->tag('div');
                 // Quello che si compila sempre: come si chiama, quanto
                 // costa, a quanto è scontato, quanti ce ne sono. Undici
                 // dodicesimi, perché il dodicesimo è del cestino.
-                RepeaterColumn::key('option')->text()->readonly()->label('Opzione')->columnSpan(5),
+                RepeaterColumn::key('option')->text()->readonly()->label('Opzione')->columnSpan($sedi ? 7 : 5),
                 RepeaterColumn::key('price')->price()->decimal(2)->label('Prezzo')->columnSpan(2),
                 // Lo scontato accanto al prezzo, come nel riquadro in alto
                 // (P105): vuoto vuol dire che non c'è sconto. È una colonna
                 // di `gst_products`, e la scrive il repeater del core.
                 RepeaterColumn::key('sale_price')->price()->decimal(2)->label('Scontato')->columnSpan(2),
-                // Scrivibile finché il magazzino ha una sede sola: si scrive
-                // quanti pezzi ci sono, e il pannello fa il movimento della
-                // differenza. Una casella lasciata com'era non muove niente.
-                // Con due sedi il numero sarebbe ambiguo — mostra il totale e
-                // scriverebbe sulla principale — e la casella si legge e
-                // basta, anche in creazione: i pezzi si scrivono sede per
-                // sede dalla finestra «Giacenza», e due porte sulla sede
-                // principale si contenderebbero il numero.
-                $giacenza
-                    ->label('Giacenza')
-                    ->readonly(!static::stockIsWritable())
-                    ->columnSpan(2),
+                // Si scrive quanti pezzi ci sono, e il pannello fa il
+                // movimento della differenza. Una casella lasciata com'era
+                // non muove niente. Con più sedi la colonna non c'è (P113):
+                // un totale che non si può scrivere confonde, e i pezzi si
+                // scrivono sede per sede dalla finestra «Giacenza».
+                ...($sedi ? [] : [
+                    $giacenza
+                        ->label('Giacenza')
+                        ->readonly(!static::stockIsWritable())
+                        ->columnSpan(2),
+                ]),
                 // Dietro «Compila le informazioni avanzate»: chi carica un
                 // articolo nuovo quasi mai ha già il codice a barre in mano.
                 // Con la scorta minima le caselle sono quattro in fila.
@@ -4721,6 +5138,7 @@ HTML)->tag('div');
                     ->select(['true' => 'Attivo', 'false' => 'Fermo'])
                     ->label('Stato')
                     ->columnSpan($larghezza),
+                ...$fornitori['fields'],
                 // Con più sedi (P103): il JSON delle righe per sede, che la
                 // finestra «Giacenza» legge e riscrive, e il bottone che la
                 // apre, con accanto «Milano 12 · Roma 3». Prende il posto
@@ -4731,8 +5149,10 @@ HTML)->tag('div');
                         ->button('Giacenza')
                         ->opensModal(static::LOCATIONS_MODAL)
                         ->emptyCaption('Nessun pezzo')
-                        ->columnSpan(12),
+                        // In fila con «Fornitori», quando c'è.
+                        ->columnSpan($fornitori['buttons'] === [] ? 12 : 6),
                 ] : []),
+                ...$fornitori['buttons'],
                 // Un rettangolo su cui si trascina un file non si legge
                 // stretto: prende la riga intera del blocco.
                 RepeaterColumn::key('photo')->fileDragDrop('gallery')->label('Foto o video')->columnSpan(12),
@@ -4749,7 +5169,9 @@ HTML)->tag('div');
             ->repeaterStartEmpty()
             ->repeaterAdvanced(...[
                 ...($soglia === null ? ['sku', 'ean', 'active'] : ['sku', 'ean', 'min_stock', 'active']),
+                ...($fornitori['buttons'] === [] ? $fornitori['advanced'] : []),
                 ...($sedi ? ['stock_button'] : []),
+                ...($fornitori['buttons'] === [] ? [] : $fornitori['advanced']),
                 'photo',
             ])
             ->repeaterAdvancedLabel('Compila le informazioni avanzate')
@@ -5903,51 +6325,808 @@ HTML
     }
 
     /**
-     * I fornitori dell'articolo, uno per riga (P95, P97).
+     * I campi dei fornitori di un'opzione sola (P109): dell'articolo senza
+     * varianti, con il prefisso `product_`, o della scheda dell'opzione.
      *
-     * Le righe sono quelle di `gst_product_model_suppliers` e le salva il
-     * repeater del core: prima scrive, poi toglie quelle sparite, davvero e
-     * non nel cestino. Per questo i doppioni li ferma la scheda
-     * (`assertSuppliers()`) e non un indice unico. Un preferito non c'è
-     * (P98): l'ordine delle righe è l'unico ordine.
+     * Con un fornitore i due campi, codice e costo, con il suo nome nel
+     * tooltip; da due in su il campo nascosto con il JSON delle righe e il
+     * bottone che apre la finestra, con il riassunto accanto. Senza
+     * fornitori, o senza `purchasing`, niente. Non sono colonne di nessuna
+     * tabella: li legge `saveSuppliers()`, e `withoutExtras()` li scarta.
      *
-     * Sta nella colonna stretta: il fornitore su tutta la riga, codice e
-     * costo sotto. Undici dodicesimi, perché il dodicesimo è dei bottoni.
+     * @return list<Input>
      */
-    protected static function suppliersField(int $modelId): Input
+    protected static function supplierInputs(int $modelId, string $prefix = ''): array
     {
-        return FormField::key('suppliers')
-            ->repeater([
-                RepeaterColumn::key('id')->hidden(),
-                RepeaterColumn::key('supplier_id')
-                    ->select(['' => '—'] + static::supplierChoices($modelId))
-                    ->label('Fornitore')
-                    ->columnSpan(11),
-                RepeaterColumn::key('supplier_sku')
+        $modo = static::supplierMode($modelId);
+
+        if ($modo === 'flat') {
+            $titolo = static::soleSupplierTitle($modelId);
+            $campi = [
+                FormField::key($prefix.'supplier_sku')
                     ->text()
                     ->maxLength(ProductSuppliers::SKU_MAX_LENGTH)
                     ->label('Codice fornitore')
-                    ->columnSpan(6),
-                // Due decimali qui, quattro nella tabella: finché la casella
-                // non cambia resta quello salvato. Vuoto è «non lo so» (P91).
-                RepeaterColumn::key('cost')->price()->decimal(2)->label('Costo')->columnSpan(5),
+                    ->attribute($titolo),
+                FormField::key($prefix.'supplier_cost')
+                    ->price()
+                    ->decimal(2)
+                    ->label('Costo d\'acquisto')
+                    ->attribute($titolo),
+            ];
+        } elseif ($modo === 'modal') {
+            $campi = [
+                FormField::key($prefix.'suppliers')->hidden(),
+                FormField::key($prefix.'suppliers_button')
+                    ->button('Fornitori')
+                    ->opensModal(static::SUPPLIERS_MODAL)
+                    ->emptyCaption('Nessun fornitore'),
+            ];
+        } else {
+            return [];
+        }
+
+        // Quelli dell'articolo valgono finché non ha varianti: il campo
+        // nascosto resta, non si vede comunque.
+        if ($prefix !== '') {
+            foreach ($campi as $campo) {
+                if ($campo->name !== $prefix.'suppliers') {
+                    $campo->hiddenWhen('has_variants', 'true');
+                }
+            }
+        }
+
+        return $campi;
+    }
+
+    /**
+     * Le colonne dei fornitori nella griglia (P108, P109), dietro «Compila
+     * le informazioni avanzate»: i due campi del fornitore unico, oppure la
+     * colonna nascosta con il JSON e il bottone della finestra.
+     *
+     * Il bottone sta in fila con «Giacenza» quando c'è anche quello, mezza
+     * riga per uno; da solo la prende intera.
+     *
+     * @return array{fields: list<Input>, buttons: list<Input>, advanced: list<string>}
+     */
+    protected static function supplierColumns(int $modelId, bool $conGiacenza): array
+    {
+        $modo = static::supplierMode($modelId);
+
+        if ($modo === 'flat') {
+            $titolo = static::soleSupplierTitle($modelId);
+
+            return [
+                'fields' => [
+                    RepeaterColumn::key('supplier_sku')
+                        ->text()
+                        ->maxLength(ProductSuppliers::SKU_MAX_LENGTH)
+                        ->label('Codice fornitore')
+                        ->attribute($titolo)
+                        ->columnSpan(6),
+                    RepeaterColumn::key('supplier_cost')
+                        ->price()
+                        ->decimal(2)
+                        ->label('Costo d\'acquisto')
+                        ->attribute($titolo)
+                        ->columnSpan(6),
+                ],
+                'buttons' => [],
+                'advanced' => ['supplier_sku', 'supplier_cost'],
+            ];
+        }
+
+        if ($modo === 'modal') {
+            return [
+                'fields' => [],
+                'buttons' => [
+                    RepeaterColumn::key('suppliers')->hidden(),
+                    RepeaterColumn::key('suppliers_button')
+                        ->button('Fornitori')
+                        ->opensModal(static::SUPPLIERS_MODAL)
+                        ->emptyCaption('Nessun fornitore')
+                        ->columnSpan($conGiacenza ? 6 : 12),
+                ],
+                'advanced' => ['suppliers_button'],
+            ];
+        }
+
+        return ['fields' => [], 'buttons' => [], 'advanced' => []];
+    }
+
+    /**
+     * La finestra «Fornitori» (P110): una riga per fornitore, con il
+     * fornitore, il suo codice e il costo d'acquisto.
+     *
+     * Non è legata a nessuna opzione: il bottone che la apre le passa il
+     * JSON della sua — il campo nascosto `suppliers` della riga della
+     * griglia, `product_suppliers` dell'articolo senza varianti — e «Salva»
+     * glielo riporta (`suppliersScript()`). Le righe stanno nascoste finché
+     * non servono: «Aggiungi fornitore» ne mostra una, la «x» la svuota e la
+     * nasconde. I suoi campi escono dal form con la finestra, e
+     * `withoutExtras()` li scarta: quello che conta è il JSON.
+     *
+     * «Salva per tutte le opzioni» (P111) c'è solo dove c'è una griglia, e
+     * lo script lo nasconde quando la finestra l'ha aperta il bottone del
+     * riquadro «Prodotto».
+     */
+    protected static function suppliersModal(int $modelId, bool $perTutte = true): Modal
+    {
+        $scelte = static::supplierChoices($modelId);
+        $legami = 0;
+
+        foreach (static::supplierLinks($modelId) as $suoi) {
+            $legami = max($legami, count($suoi));
+        }
+
+        // Lo stesso fornitore non si scrive due volte: più righe dei
+        // fornitori non servono.
+        $righe = min(count($scelte), max(static::SUPPLIER_ROWS, $legami));
+
+        // Il posto dell'avviso e le intestazioni, una volta sola sopra le
+        // righe.
+        $components = [
+            RichText::make(
+                '<div class="alert alert-danger small" data-wi-supplier-error role="alert" hidden></div>'
+                .'<div class="row g-3 small text-body-secondary">'
+                .'<div class="col-5">Fornitore</div>'
+                .'<div class="col-3">Codice fornitore</div>'
+                .'<div class="col-3">Costo d\'acquisto</div>'
+                .'<div class="col-1"></div>'
+                .'</div>'
+            )->tag('div')->columnSpan(12),
+        ];
+
+        for ($i = 0; $i < $righe; $i++) {
+            $components[] = (new Container)->components([
+                FormField::key('wi_product_supplier['.$i.'][supplier_id]')
+                    ->select(['' => '—'] + $scelte)
+                    ->label('')
+                    ->columnSpan(5),
+                FormField::key('wi_product_supplier['.$i.'][sku]')
+                    ->text()
+                    ->maxLength(ProductSuppliers::SKU_MAX_LENGTH)
+                    ->label('')
+                    ->columnSpan(3),
+                FormField::key('wi_product_supplier['.$i.'][cost]')
+                    ->price()
+                    ->decimal(2)
+                    ->label('')
+                    ->columnSpan(3),
+                FormField::key('wi_product_supplier_remove')
+                    ->button('')
+                    ->icon('bi bi-x-lg')
+                    ->size('sm')
+                    ->attribute('data-wi-supplier-remove="'.$i.'" title="Togli il fornitore" aria-label="Togli il fornitore"')
+                    ->columnSpan(1),
             ])
-            ->relation(
-                RepeaterRelation::make(ProductModelSupplier::$table, 'product_model_id')
-                    ->model(ProductModelSupplier::class)
-                    ->positionKey('position')
-                    ->softDelete(false)
-            )
-            ->nested()
-            ->repeaterSortable()
-            ->repeaterAddLabel('Aggiungi fornitore')
-            ->repeaterDeleteTitle('Togli fornitore')
-            ->repeaterDeleteText('Questo articolo non si comprerà più da questo fornitore: il suo codice e il suo costo se ne vanno al salvataggio.')
-            ->repeaterDeleteCancelLabel('Annulla')
-            ->repeaterDeleteConfirmLabel('Togli')
-            ->repeaterDeleteConfirmClass('btn btn-danger')
-            // Il titolo lo dà il riquadro.
-            ->label('');
+                ->attr('data-wi-supplier-line', (string) $i)
+                ->columns(12)
+                ->columnSpan(12);
+        }
+
+        return Modal::make('Fornitori')
+            ->id(static::SUPPLIERS_MODAL)
+            ->size('lg')
+            ->columns(12)
+            ->components($components)
+            ->footer([
+                Button::make('Aggiungi fornitore')->variant('secondary')->outline()->attr('data-wi-supplier-add', 'true'),
+                Button::make('Annulla')->variant('secondary')->attr('data-bs-dismiss', 'modal'),
+                ...($perTutte ? [
+                    Button::make('Salva per tutte le opzioni')->outline()->attr('data-wi-supplier-save-all', 'true'),
+                ] : []),
+                Button::make('Salva')->attr('data-wi-supplier-save', 'true'),
+            ]);
+    }
+
+    /**
+     * Il codice della finestra «Fornitori» (P110, P111).
+     *
+     * All'apertura legge il JSON dell'opzione che l'ha aperta e riempie una
+     * riga per fornitore; senza righe ne mostra una vuota, con la tendina su
+     * «—»: una riga con il solo fornitore è già un legame, e sceglierlo al
+     * posto di chi compila ne scriverebbe uno che nessuno ha chiesto. I
+     * fornitori non attivi stanno nella tendina solo per l'opzione che li ha
+     * già (P92).
+     *
+     * «Salva» controlla le righe come farà il server — fornitore mancante,
+     * doppione, codice lungo, costo fuori misura — e se qualcosa non va lo
+     * dice nella finestra, senza chiuderla. Poi riscrive il JSON nello
+     * stesso formato del server (`supplier_id`, `supplier_sku`, `cost`;
+     * costo vuoto = `""`) e il riassunto accanto al bottone. «Salva per
+     * tutte le opzioni» lo scrive su ogni riga della griglia. La scheda si
+     * salva con il suo Salva: è `saveSuppliers()` che legge il JSON.
+     */
+    protected static function suppliersScript(int $modelId): RichText
+    {
+        $nomi = [];
+
+        foreach (static::supplierChoices($modelId) as $id => $nome) {
+            $nomi[] = ['id' => (int) $id, 'name' => $nome];
+        }
+
+        // Le frasi sono quelle del server: chi sbaglia legge la stessa cosa
+        // nella finestra e dopo il salvataggio.
+        $messaggi = [
+            'missing' => UserError::make('product.supplier_missing')->getMessage(),
+            'duplicate' => UserError::make('product.supplier_duplicate', ['supplier' => '{{supplier}}'])->getMessage(),
+            'sku' => UserError::make(
+                'product.supplier_sku_too_long',
+                ['max' => (string) ProductSuppliers::SKU_MAX_LENGTH]
+            )->getMessage(),
+            'invalid' => UserError::make('product.supplier_cost_invalid')->getMessage(),
+            'negative' => UserError::make('product.supplier_cost_negative')->getMessage(),
+            'high' => UserError::make('product.supplier_cost_too_high')->getMessage(),
+        ];
+
+        $json = static fn (array $valore): string => static::escape(json_encode(
+            $valore,
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
+        ));
+
+        return RichText::make(
+            '<div class="wi-product-suppliers"'
+            .' data-wi-supplier-names="'.$json($nomi).'"'
+            .' data-wi-supplier-inactive="'.$json(array_values(static::inactiveSupplierIds($modelId))).'"'
+            .' data-wi-supplier-messages="'.$json($messaggi).'"'
+            .' data-wi-supplier-max-cost="'.ProductSuppliers::MAX_COST.'"'
+            .' data-wi-supplier-sku-length="'.ProductSuppliers::SKU_MAX_LENGTH.'"></div>'
+            .<<<'HTML'
+<script>
+    window.wiProductSuppliers = window.wiProductSuppliers || (function () {
+        var FINESTRA = 'wi-product-suppliers';
+        // Il campo nascosto e il bottone dell'opzione che ha aperto la
+        // finestra.
+        var aperta = null;
+
+        function radice() {
+            return document.querySelector('.wi-product-suppliers');
+        }
+
+        function dato(nome, vuoto) {
+            var elemento = radice();
+
+            try {
+                var valore = JSON.parse(elemento ? elemento.getAttribute(nome) || '' : '');
+
+                return valore === null || valore === undefined ? vuoto : valore;
+            } catch (errore) {
+                return vuoto;
+            }
+        }
+
+        function fornitori() {
+            var valori = dato('data-wi-supplier-names', []);
+
+            return Array.isArray(valori) ? valori : [];
+        }
+
+        function inattivi() {
+            var valori = dato('data-wi-supplier-inactive', []);
+
+            return Array.isArray(valori) ? valori.map(String) : [];
+        }
+
+        function messaggio(chiave) {
+            var testi = dato('data-wi-supplier-messages', {});
+
+            return testi && typeof testi === 'object' && testi[chiave] ? String(testi[chiave]) : 'Controlla le righe dei fornitori.';
+        }
+
+        function limite(nome) {
+            var elemento = radice();
+            var numero = elemento ? Number(elemento.getAttribute(nome) || 0) : 0;
+
+            return isNaN(numero) ? 0 : numero;
+        }
+
+        function nomeFornitore(id) {
+            var nome = '';
+
+            fornitori().forEach(function (fornitore) {
+                if (String(fornitore.id) === String(id)) {
+                    nome = String(fornitore.name || '').trim();
+                }
+            });
+
+            return nome !== '' ? nome : 'Fornitore n. ' + id;
+        }
+
+        function autoNumeric(campo) {
+            return window.AutoNumeric && typeof window.AutoNumeric.getAutoNumericElement === 'function'
+                ? window.AutoNumeric.getAutoNumericElement(campo)
+                : null;
+        }
+
+        // Il numero nella casella, col punto: «» se vuota. AutoNumeric
+        // quando c'è, se no letto come lo scrive una persona — «12,50 €»,
+        // «1.234,5».
+        function numeroDi(campo) {
+            var an = autoNumeric(campo);
+            var testo;
+
+            if (an) {
+                testo = String(an.getNumericString() || '');
+
+                return testo === '' || isNaN(Number(testo)) ? '' : testo;
+            }
+
+            testo = String(campo.value || '').replace(/[^0-9.,-]/g, '');
+
+            if (testo.indexOf(',') !== -1) {
+                testo = testo.replace(/\./g, '').replace(',', '.');
+            }
+
+            return testo === '' || isNaN(Number(testo)) ? '' : String(Number(testo));
+        }
+
+        function scrivi(campo, valore) {
+            var vuoto = valore === null || valore === undefined || valore === '' || isNaN(Number(valore));
+            var an = autoNumeric(campo);
+
+            if (an) {
+                if (vuoto) {
+                    an.clear();
+                } else {
+                    an.set(Number(valore));
+                }
+
+                return;
+            }
+
+            campo.value = vuoto ? '' : String(Number(valore));
+        }
+
+        // «12,00 €» o «1.234,50 €», come il riassunto che scrive il server.
+        function euro(costo) {
+            var parti = Number(costo).toFixed(2).split('.');
+
+            parti[0] = parti[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+            return parti.join(',') + ' €';
+        }
+
+        function linee(finestra) {
+            return Array.prototype.slice.call(finestra.querySelectorAll('[data-wi-supplier-line]'));
+        }
+
+        function caselle(linea) {
+            var i = linea.getAttribute('data-wi-supplier-line');
+
+            return {
+                fornitore: linea.querySelector('[name="wi_product_supplier[' + i + '][supplier_id]"]'),
+                codice: linea.querySelector('[name="wi_product_supplier[' + i + '][sku]"]'),
+                costo: linea.querySelector('[name="wi_product_supplier[' + i + '][cost]"]')
+            };
+        }
+
+        // La cella che contiene la riga, quando il tema la incolonna.
+        function cella(linea) {
+            var padre = linea.parentElement;
+
+            return padre && /(^|\s)col-/.test(padre.className || '') ? padre : linea;
+        }
+
+        function nascosta(linea) {
+            return cella(linea).hidden === true;
+        }
+
+        function mostra(linea, si) {
+            cella(linea).hidden = !si;
+        }
+
+        function svuota(linea) {
+            var c = caselle(linea);
+
+            if (c.fornitore) {
+                c.fornitore.value = '';
+            }
+
+            if (c.codice) {
+                c.codice.value = '';
+            }
+
+            if (c.costo) {
+                scrivi(c.costo, null);
+            }
+        }
+
+        function avviso(finestra, testo) {
+            var posto = finestra.querySelector('[data-wi-supplier-error]');
+
+            if (posto) {
+                posto.textContent = testo || '';
+                posto.hidden = !testo;
+            }
+        }
+
+        // «Aggiungi fornitore» si spegne quando le righe sono tutte fuori.
+        function aggiorna(finestra) {
+            var bottone = finestra.querySelector('[data-wi-supplier-add]');
+
+            if (bottone) {
+                bottone.disabled = linee(finestra).filter(nascosta).length === 0;
+            }
+        }
+
+        function rigaDi(bottone) {
+            return bottone && bottone.closest ? bottone.closest('.wi-repeater-row') : null;
+        }
+
+        // Il campo nascosto dell'opzione del bottone: quello della riga
+        // della griglia, o quello della scheda quando l'opzione è una sola.
+        function campoDi(bottone) {
+            var riga = rigaDi(bottone);
+
+            if (riga) {
+                return riga.querySelector('input[name$="[suppliers]"]');
+            }
+
+            var form = bottone.closest('form') || document;
+
+            return form.querySelector('[name="product_suppliers"]') || form.querySelector('[name="suppliers"]');
+        }
+
+        // Il nome dell'opzione, per il titolo: «Blu / S», o il nome
+        // dell'articolo senza varianti.
+        function nomeDi(bottone) {
+            var riga = rigaDi(bottone);
+
+            if (!riga) {
+                var nome = (bottone.closest('form') || document).querySelector('[name="name"]');
+
+                return nome ? String(nome.value || '').trim() : '';
+            }
+
+            var gruppo = riga.querySelector('input[name$="[group]"]');
+            var opzione = riga.querySelector('input[name$="[option]"]');
+            var g = gruppo ? String(gruppo.value || '').trim() : '';
+            var o = opzione ? String(opzione.value || '').trim() : '';
+
+            return g !== '' && o !== '' && g !== o ? g + ' / ' + o : (o || g);
+        }
+
+        function righe(campo) {
+            try {
+                var elenco = JSON.parse(campo && campo.value ? campo.value : '[]');
+
+                return Array.isArray(elenco) ? elenco.filter(function (riga) {
+                    return riga && typeof riga === 'object';
+                }) : [];
+            } catch (errore) {
+                return [];
+            }
+        }
+
+        // I fornitori scritti nel campo di un'opzione.
+        function fornitoriDi(campo) {
+            return righe(campo).map(function (riga) {
+                return String(riga.supplier_id === undefined || riga.supplier_id === null ? '' : riga.supplier_id);
+            });
+        }
+
+        // Un fornitore non attivo resta nella tendina solo per l'opzione
+        // che lo ha già (P92).
+        function tendine(finestra, suoi) {
+            var spenti = inattivi();
+
+            if (spenti.length === 0) {
+                return;
+            }
+
+            linee(finestra).forEach(function (linea) {
+                var c = caselle(linea);
+
+                if (!c.fornitore) {
+                    return;
+                }
+
+                Array.prototype.slice.call(c.fornitore.options).forEach(function (voce) {
+                    if (spenti.indexOf(String(voce.value)) !== -1) {
+                        voce.hidden = voce.disabled = suoi.indexOf(String(voce.value)) === -1;
+                    }
+                });
+            });
+        }
+
+        function riempi(finestra, campo) {
+            var elenco = righe(campo);
+            var tutte = linee(finestra);
+
+            tendine(finestra, fornitoriDi(campo));
+
+            tutte.forEach(function (linea, i) {
+                var riga = elenco[i] || null;
+                var c = caselle(linea);
+
+                svuota(linea);
+
+                if (riga === null) {
+                    mostra(linea, false);
+
+                    return;
+                }
+
+                if (c.fornitore) {
+                    c.fornitore.value = String(riga.supplier_id === undefined || riga.supplier_id === null ? '' : riga.supplier_id);
+                }
+
+                if (c.codice) {
+                    c.codice.value = String(riga.supplier_sku === undefined || riga.supplier_sku === null ? '' : riga.supplier_sku);
+                }
+
+                if (c.costo) {
+                    scrivi(c.costo, riga.cost);
+                }
+
+                mostra(linea, true);
+            });
+
+            // Senza righe se ne mostra una vuota: qualcosa da compilare.
+            if (elenco.length === 0 && tutte.length > 0) {
+                mostra(tutte[0], true);
+            }
+
+            aggiorna(finestra);
+        }
+
+        // La prima riga nascosta esce, vuota.
+        function aggiungi(finestra) {
+            var libera = linee(finestra).filter(nascosta)[0] || null;
+
+            if (libera === null) {
+                return;
+            }
+
+            svuota(libera);
+            mostra(libera, true);
+            aggiorna(finestra);
+        }
+
+        // Le righe scritte, nell'ordine della finestra, oppure la frase di
+        // quello che non va: gli stessi controlli del server.
+        function leggi(finestra) {
+            var elenco = [];
+            var visti = {};
+            var errore = '';
+            var massimo = limite('data-wi-supplier-max-cost');
+            var lunghezza = limite('data-wi-supplier-sku-length');
+
+            linee(finestra).forEach(function (linea) {
+                if (errore !== '' || nascosta(linea)) {
+                    return;
+                }
+
+                var c = caselle(linea);
+                var fornitore = c.fornitore ? String(c.fornitore.value || '') : '';
+                var codice = c.codice ? String(c.codice.value || '').trim() : '';
+                var costo = c.costo ? numeroDi(c.costo) : '';
+                var scritto = c.costo && !autoNumeric(c.costo) ? String(c.costo.value || '').trim() : '';
+
+                // Una riga lasciata vuota non dice niente.
+                if (fornitore === '' && codice === '' && costo === '' && scritto === '') {
+                    return;
+                }
+
+                if (fornitore === '') {
+                    errore = messaggio('missing');
+                } else if (lunghezza > 0 && codice.length > lunghezza) {
+                    errore = messaggio('sku');
+                } else if (costo === '' && scritto !== '') {
+                    errore = messaggio('invalid');
+                } else if (costo !== '' && Number(costo) < 0) {
+                    errore = messaggio('negative');
+                } else if (costo !== '' && massimo > 0 && Number(costo) > massimo) {
+                    errore = messaggio('high');
+                } else if (visti[fornitore]) {
+                    errore = messaggio('duplicate').replace('{{supplier}}', function () {
+                        return nomeFornitore(fornitore);
+                    });
+                }
+
+                if (errore !== '') {
+                    return;
+                }
+
+                visti[fornitore] = true;
+                elenco.push({
+                    supplier_id: Number(fornitore),
+                    supplier_sku: codice,
+                    cost: costo === '' ? '' : Number(costo)
+                });
+            });
+
+            return { elenco: elenco, errore: errore };
+        }
+
+        function riassunto(elenco) {
+            var parti = elenco.map(function (riga) {
+                var nome = nomeFornitore(riga.supplier_id);
+
+                return riga.cost === '' || riga.cost === null || riga.cost === undefined
+                    ? nome
+                    : nome + ' ' + euro(riga.cost);
+            });
+
+            return parti.length > 0 ? parti.join(' · ') : 'Nessun fornitore';
+        }
+
+        function scriviIn(campo, bottone, elenco) {
+            if (!campo) {
+                return;
+            }
+
+            campo.value = JSON.stringify(elenco);
+            campo.dispatchEvent(new Event('change', { bubbles: true }));
+
+            var posto = bottone && bottone.parentElement
+                ? bottone.parentElement.querySelector('[data-wi-button-caption]')
+                : null;
+
+            if (posto) {
+                posto.textContent = riassunto(elenco);
+            }
+        }
+
+        // Su tutte le righe della griglia, anche quelle chiuse in un gruppo.
+        // Un fornitore non attivo va solo alle opzioni che lo hanno già: il
+        // server lo rifiuterebbe sulle altre.
+        function scriviOvunque(elenco) {
+            var form = (aperta && aperta.bottone ? aperta.bottone.closest('form') : null) || document;
+            var spenti = inattivi();
+            var campi = Array.prototype.slice.call(
+                form.querySelectorAll('.wi-repeater-row input[name$="[suppliers]"]')
+            );
+
+            campi.forEach(function (campo) {
+                var riga = campo.closest('.wi-repeater-row');
+                var suoi = fornitoriDi(campo);
+                var ammesse = elenco.filter(function (voce) {
+                    var id = String(voce.supplier_id);
+
+                    return spenti.indexOf(id) === -1 || suoi.indexOf(id) !== -1;
+                });
+
+                scriviIn(
+                    campo,
+                    riga ? riga.querySelector('[data-bs-target="#' + FINESTRA + '"]') : null,
+                    ammesse
+                );
+            });
+        }
+
+        function salva(finestra, ovunque) {
+            if (!aperta || !aperta.campo) {
+                return false;
+            }
+
+            var letto = leggi(finestra);
+
+            if (letto.errore !== '') {
+                avviso(finestra, letto.errore);
+
+                return false;
+            }
+
+            avviso(finestra, '');
+
+            if (ovunque) {
+                scriviOvunque(letto.elenco);
+            }
+
+            scriviIn(aperta.campo, aperta.bottone, letto.elenco);
+
+            return true;
+        }
+
+        function avvia() {
+            if (window.wiProductSuppliersReady) {
+                return;
+            }
+
+            window.wiProductSuppliersReady = true;
+
+            document.addEventListener('show.bs.modal', function (evento) {
+                var finestra = evento.target;
+                var bottone = evento.relatedTarget || null;
+
+                if (!finestra || finestra.id !== FINESTRA) {
+                    return;
+                }
+
+                aperta = bottone ? { bottone: bottone, campo: campoDi(bottone) } : null;
+
+                var titolo = finestra.querySelector('[data-wi-modal-title]');
+                var nome = bottone ? nomeDi(bottone) : '';
+                var perTutte = finestra.querySelector('[data-wi-supplier-save-all]');
+
+                if (titolo) {
+                    titolo.textContent = nome !== '' ? 'Fornitori · ' + nome : 'Fornitori';
+                }
+
+                // «Salva per tutte le opzioni» serve dove c'è una griglia.
+                if (perTutte) {
+                    perTutte.hidden = !(bottone && rigaDi(bottone));
+                }
+
+                if (typeof setAutonumeric === 'function') {
+                    setAutonumeric(finestra);
+                }
+
+                avviso(finestra, '');
+                riempi(finestra, aperta ? aperta.campo : null);
+            });
+
+            document.addEventListener('click', function (evento) {
+                var bersaglio = evento.target && evento.target.closest ? evento.target : null;
+
+                if (!bersaglio) {
+                    return;
+                }
+
+                var togli = bersaglio.closest('[data-wi-supplier-remove]');
+
+                // La «x»: la riga si svuota e torna nascosta.
+                if (togli) {
+                    var linea = togli.closest('[data-wi-supplier-line]');
+                    var dentro = togli.closest('#' + FINESTRA);
+
+                    evento.preventDefault();
+
+                    if (linea && dentro) {
+                        svuota(linea);
+                        mostra(linea, false);
+                        aggiorna(dentro);
+                    }
+
+                    return;
+                }
+
+                var aggiungiFornitore = bersaglio.closest('[data-wi-supplier-add]');
+
+                if (aggiungiFornitore) {
+                    var finestraDaAllargare = aggiungiFornitore.closest('#' + FINESTRA);
+
+                    evento.preventDefault();
+
+                    if (finestraDaAllargare) {
+                        aggiungi(finestraDaAllargare);
+                    }
+
+                    return;
+                }
+
+                var perTutte = bersaglio.closest('[data-wi-supplier-save-all]');
+                var conferma = perTutte || bersaglio.closest('[data-wi-supplier-save]');
+
+                if (!conferma) {
+                    return;
+                }
+
+                var finestra = conferma.closest('.modal');
+
+                evento.preventDefault();
+
+                // Con un errore la finestra resta aperta, con la frase in
+                // cima.
+                if (finestra && salva(finestra, perTutte !== null) && window.bootstrap && window.bootstrap.Modal) {
+                    window.bootstrap.Modal.getOrCreateInstance(finestra).hide();
+                }
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', avvia);
+        } else {
+            avvia();
+        }
+
+        return avvia;
+    })();
+</script>
+HTML
+        )->tag('div');
     }
 
     /** Toglie dai valori tutto ciò che non è una colonna del modello. */
@@ -5966,6 +7145,18 @@ HTML
             // (P103): li legge `saveLocationStock()`.
             $values['locations'],
             $values['wi_location_stock'],
+            // I fornitori (P109) e i campi della finestra: li legge
+            // `saveSuppliers()`.
+            $values['product_supplier_sku'],
+            $values['product_supplier_cost'],
+            $values['product_suppliers'],
+            $values['product_suppliers_button'],
+            $values['suppliers'],
+            $values['suppliers_button'],
+            $values['supplier_sku'],
+            $values['supplier_cost'],
+            $values['wi_product_supplier'],
+            $values['wi_product_supplier_remove'],
             // Sono delle opzioni: le scrive `saveBackorders()`.
             $values['allow_backorder'],
             $values['backorder_lead_days'],

@@ -6,12 +6,18 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\App\ResourceSchema\Input;
-use Wonder\App\ResourceSchema\RepeaterRelation;
+use Wonder\App\ResourceSchema\Inputs\InputButton;
+use Wonder\App\ResourceSchema\Inputs\InputHidden;
+use Wonder\App\ResourceSchema\Inputs\InputPrice;
+use Wonder\App\ResourceSchema\Inputs\InputText;
+use Wonder\Elements\Components\Button;
+use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
@@ -141,7 +147,7 @@ check('a funzionalità spente la scheda non ha soglia, righe per sede, vendita s
 
     try {
         $trovati = array_intersect(
-            ['min_stock', 'locations', 'allow_backorder', 'backorder_lead_days', 'suppliers'],
+            ['min_stock', 'locations', 'allow_backorder', 'backorder_lead_days', 'suppliers', 'suppliers_button', 'supplier_sku', 'supplier_cost'],
             array_keys($campi())
         );
     } finally {
@@ -156,7 +162,7 @@ check('con gli acquisti la scheda ha il riquadro «Fornitori», dopo il magazzin
 
     try {
         $con = $riquadri();
-        $campo = $campi()['suppliers'] ?? null;
+        $nomi = array_keys($campi());
     } finally {
         $forza(['purchasing' => false]);
     }
@@ -167,104 +173,203 @@ check('con gli acquisti la scheda ha il riquadro «Fornitori», dopo il magazzin
         $forza(null);
     }
 
-    // Senza database non ci sono attributi: niente riquadro «Attributi».
+    // Senza database non ci sono attributi: niente riquadro «Attributi». E
+    // nessun fornitore da proporre: il riquadro c'è, i campi no.
     return $con === ['Prodotto', 'Misure', 'Magazzino', 'Fornitori']
         && $senza === ['Prodotto', 'Misure', 'Magazzino']
-        && $campo !== null
-        && $campo->get('helper') === 'inputRepeater';
+        && array_intersect(['suppliers', 'suppliers_button', 'supplier_sku', 'supplier_cost'], $nomi) === [];
 });
 
-check('ogni riga dice fornitore, codice e costo, un terzo ciascuno', function () use ($campi, $forza) {
-    $forza(['purchasing' => true]);
-
-    try {
-        $contesto = (array) $campi()['suppliers']->get('context');
-    } finally {
-        $forza(null);
-    }
-
-    $colonne = [];
-    $larghezze = [];
-
-    foreach ((array) ($contesto['columns'] ?? []) as $colonna) {
-        $colonne[(string) $colonna->name] = $colonna;
-        $larghezze[(string) $colonna->name] = ((array) $colonna->columnSpan)['default'] ?? null;
-    }
-
-    $relazione = $contesto['relation'] ?? null;
-
-    // Niente «Preferito» (P96): il fornitore da cui si compra lo si decide
-    // sull'ordine, non qui.
-    return array_keys($colonne) === ['id', 'supplier_id', 'supplier_sku', 'cost']
-        && $colonne['id']->get('helper') === 'hidden'
-        && $colonne['supplier_id']->get('label') === 'Fornitore'
-        // Senza database nessuno da proporre: resta la voce vuota.
-        && array_keys((array) $colonne['supplier_id']->get('options')) === ['']
-        && $colonne['supplier_sku']->get('label') === 'Codice fornitore'
-        // La colonna tiene cento caratteri: il browser non lascia scrivere oltre.
-        && $colonne['supplier_sku']->get('max_length') === 100
-        && $colonne['cost']->get('label') === 'Costo d\'acquisto'
-        && $colonne['cost']->get('helper') === 'price'
-        && ((((array) $colonne['cost']->get('context'))['number'] ?? [])['decimal'] ?? null) === 2
-        && array_slice($larghezze, 1) === ['supplier_id' => 4, 'supplier_sku' => 4, 'cost' => 4]
-        && ($contesto['add_label'] ?? null) === 'Aggiungi fornitore'
-        && ($contesto['delete_modal_title'] ?? null) === 'Togli fornitore'
-        && $relazione instanceof RepeaterRelation
-        && $relazione->table === ProductSupplier::$table
-        && $relazione->parentKey === 'product_id'
-        && $relazione->positionKey === 'position'
-        // Il legame è il costo di oggi: una riga tolta se ne va davvero.
-        && $relazione->softDelete === false
-        && ($contesto['sortable'] ?? false) === true;
-});
-
-// Una scheda con due fornitori da proporre: senza database la tendina
-// sarebbe vuota.
+// Una scheda che propone quei fornitori, con quei legami già salvati: senza
+// database non ce ne sarebbe nessuno.
 $conFornitori = new class extends ProductResource {
-    protected static function supplierCardChoices(array $keepIds): array
+    /** @var array<int, string> i fornitori che la scheda propone, id => nome */
+    public static array $fornitori = [];
+
+    /** @var list<array<string, mixed>> i fornitori già legati all'opzione */
+    public static array $legami = [];
+
+    protected static function supplierChoices(int $productId): array
     {
-        return [5 => 'Filati Nord', 6 => 'Imballaggi Sud'];
+        return static::$fornitori;
+    }
+
+    protected static function supplierLinks(int $productId): array
+    {
+        return static::$legami === [] ? [] : [$productId => static::$legami];
+    }
+
+    protected static function inactiveSupplierIds(int $productId): array
+    {
+        return [];
     }
 };
 
-check('senza fornitori da proporre il riquadro dice dove aggiungerli', function () use ($forza, $conFornitori) {
-    // Il testo del riquadro «Fornitori», prima del repeater.
-    $avviso = static function (string $scheda): string {
-        $riquadri = $scheda::formLayoutSchema()->components[0]->components ?? [];
-        $testo = '';
+$dueFornitori = [5 => 'Filati Nord', 6 => 'Imballaggi Sud'];
+$tooltipFornitori = 'Da chi si compra questa opzione: il codice che le dà il fornitore e il costo d\'acquisto. Un costo lasciato vuoto vuol dire «non lo so», non zero.';
 
-        foreach (end($riquadri)->components ?? [] as $dentro) {
-            if ($dentro instanceof RichText) {
-                $testo .= (string) $dentro->getText();
-            }
-        }
-
-        return $testo;
-    };
-
+/**
+ * Il riquadro «Fornitori», i suoi campi, le finestre e lo script della
+ * scheda con quei fornitori da proporre.
+ *
+ * @param array<int, string> $fornitori
+ * @return array{riquadro: array<string, mixed>, campi: array<string, Input>, modali: list<Modal>, script: string}
+ */
+$schedaCon = static function (array $fornitori) use ($conFornitori, $forza, $riquadro): array {
+    $conFornitori::$fornitori = $fornitori;
     $forza(['purchasing' => true]);
 
     try {
-        $vuoto = $avviso(ProductResource::class);
-        $pieno = $avviso($conFornitori::class);
+        $campi = [];
+        $modali = [];
+        $script = '';
+
+        foreach ($conFornitori::formSchema() as $field) {
+            $campi[(string) $field->name] = $field;
+        }
+
+        foreach ($conFornitori::formLayoutSchema()->components[0]->components ?? [] as $pezzo) {
+            if ($pezzo instanceof Modal) {
+                $modali[] = $pezzo;
+            } elseif ($pezzo instanceof RichText && str_contains((string) $pezzo->getText(), 'wiProductSuppliers')) {
+                $script .= (string) $pezzo->getText();
+            }
+        }
+
+        return [
+            'riquadro' => $riquadro('Fornitori', $conFornitori::class) ?? [],
+            'campi' => $campi,
+            'modali' => $modali,
+            'script' => $script,
+        ];
+    } finally {
+        $forza(null);
+        $conFornitori::$fornitori = [];
+    }
+};
+
+check('senza fornitori da proporre il riquadro dice dove aggiungerli', function () use ($schedaCon, $tooltipFornitori) {
+    $vuoto = $schedaCon([]);
+    $pieno = $schedaCon([5 => 'Filati Nord']);
+
+    return ($vuoto['riquadro']['tooltip'] ?? '') === $tooltipFornitori
+        && ($vuoto['riquadro']['campi'] ?? null) === []
+        && array_column($vuoto['riquadro']['testi'] ?? [], 0) === ['p']
+        && str_contains($vuoto['riquadro']['testi'][0][1] ?? '', 'Anagrafiche → Fornitori')
+        && $vuoto['modali'] === []
+        && $vuoto['script'] === ''
+        && ($pieno['riquadro']['testi'] ?? null) === [];
+});
+
+check('con un fornitore solo il riquadro chiede codice e costo, con il suo nome nel tooltip', function () use ($schedaCon, $tooltipFornitori) {
+    $letto = $schedaCon([5 => 'Filati Nord']);
+    $codice = $letto['campi']['supplier_sku'] ?? null;
+    $costo = $letto['campi']['supplier_cost'] ?? null;
+
+    // Niente tendina del fornitore né finestra (P112): è quello, e lo dice
+    // il tooltip dei due campi.
+    return $codice instanceof InputText
+        && $costo instanceof InputPrice
+        && $codice->get('label') === 'Codice fornitore'
+        && $codice->get('max_length') === 100
+        && str_contains((string) $codice->get('attribute'), 'title="Filati Nord, l\'unico fornitore"')
+        && $costo->get('label') === 'Costo d\'acquisto'
+        && ((((array) $costo->get('context'))['number'] ?? [])['decimal'] ?? null) === 2
+        && str_contains((string) $costo->get('attribute'), 'title="Filati Nord, l\'unico fornitore"')
+        // Qui le varianti non si accendono: i campi si vedono sempre.
+        && $codice->conditionalAttributes() === []
+        && $costo->conditionalAttributes() === []
+        && !isset($letto['campi']['suppliers'], $letto['campi']['suppliers_button'])
+        && ($letto['riquadro']['tooltip'] ?? '') === $tooltipFornitori
+        && ($letto['riquadro']['campi'] ?? null) === ['supplier_sku' => 4, 'supplier_cost' => 4]
+        && $letto['modali'] === []
+        && $letto['script'] === '';
+});
+
+check('con più fornitori il riquadro ha il bottone che apre la finestra, senza «Salva per tutte le opzioni»', function () use ($schedaCon, $dueFornitori, $tooltipFornitori) {
+    $letto = $schedaCon($dueFornitori);
+    $nascosto = $letto['campi']['suppliers'] ?? null;
+    $bottone = $letto['campi']['suppliers_button'] ?? null;
+    $finestra = $letto['modali'][0] ?? null;
+
+    if (count($letto['modali']) !== 1 || !$finestra instanceof Modal) {
+        return false;
+    }
+
+    $righe = count(array_filter($finestra->components, static fn ($pezzo) => $pezzo instanceof Container));
+    $bottoni = array_map(static fn (Button $bottone) => $bottone->getLabel(), $finestra->footer);
+    $attributi = array_map(static fn (Button $bottone) => (array) $bottone->getSchema('attributes'), $finestra->footer);
+
+    return $nascosto instanceof InputHidden
+        && $bottone instanceof InputButton
+        && $bottone->get('label') === 'Fornitori'
+        && str_contains((string) $bottone->get('attribute'), 'data-bs-target="#wi-product-suppliers"')
+        && (((array) $bottone->get('context'))['empty_caption'] ?? null) === 'Nessun fornitore'
+        && $bottone->conditionalAttributes() === []
+        && !isset($letto['campi']['supplier_sku'], $letto['campi']['supplier_cost'])
+        && ($letto['riquadro']['tooltip'] ?? '') === $tooltipFornitori
+        // Il campo nascosto non occupa posto: la larghezza è quella che il core dà a tutti.
+        && ($letto['riquadro']['campi'] ?? null) === ['suppliers' => 1, 'suppliers_button' => 12]
+        && ($letto['riquadro']['testi'] ?? null) === []
+        && $finestra->getSchema('id') === 'wi-product-suppliers'
+        && $finestra->getTitle() === 'Fornitori'
+        // Lo stesso fornitore non si scrive due volte: due fornitori, due righe.
+        && $righe === 2
+        // La scheda è di un'opzione sola: non c'è nessun'altra a cui copiarli.
+        && $bottoni === ['Aggiungi fornitore', 'Annulla', 'Salva']
+        && array_key_exists('data-wi-supplier-save', $attributi[2] ?? [])
+        && str_contains($letto['script'], 'window.wiProductSuppliers')
+        && str_contains($letto['script'], 'Imballaggi Sud');
+});
+
+check('i fornitori letti per un\'opzione non finiscono fra quelli dell\'articolo con lo stesso id', function () use ($forza) {
+    $scheda = new class extends ProductResource {
+        public static function leggi(int $productId): array
+        {
+            return [
+                static::supplierLinks($productId),
+                static::supplierChoices($productId),
+                static::inactiveSupplierIds($productId),
+            ];
+        }
+    };
+
+    $forza(['purchasing' => true]);
+    ProductResource::forgetCatalogCache();
+
+    try {
+        $letti = $scheda::leggi(7);
     } finally {
         $forza(null);
     }
 
-    return str_contains($vuoto, 'Anagrafiche → Fornitori') && $pieno === '';
+    // Le cache del genitore hanno per chiave l'id dell'articolo: l'opzione 7
+    // non è l'articolo 7.
+    foreach (['supplierLinks', 'supplierChoices', 'inactiveSuppliers'] as $nome) {
+        if (array_key_exists(7, (array) (new ReflectionProperty(ProductModelResource::class, $nome))->getValue())) {
+            return false;
+        }
+    }
+
+    // Senza database: nessun legame, nessuno da proporre.
+    return $letti === [[], [], []];
 });
 
-// La chiave dell'errore con cui la scheda rifiuta le righe, '' se le accetta.
-$rifiutoFornitori = static function (array $righe, bool $acquisti = true) use ($forza, $conFornitori): string {
+// La chiave dell'errore con cui la scheda rifiuta i fornitori arrivati, ''
+// se li accetta.
+$rifiutoFornitori = static function (array $post, ?array $fornitori = null, bool $acquisti = true) use ($forza, $conFornitori, $dueFornitori): string {
+    $conFornitori::$fornitori = $fornitori ?? $dueFornitori;
     $forza(['purchasing' => $acquisti]);
-    $_POST['suppliers'] = $righe;
+    $prima = $_POST;
+    $_POST = $post + $_POST;
 
     try {
-        $conFornitori::mutateRequestValues(['sku' => 'X-1'], 'update', 'backend', ['id' => 1]);
+        $conFornitori::mutateRequestValues(['sku' => 'X-1'] + $post, 'update', 'backend', ['id' => 1]);
     } catch (UserError $errore) {
         return $errore->key().(str_contains($errore->getMessage(), '{{') ? ' con segnaposto' : '');
     } finally {
-        unset($_POST['suppliers']);
+        $_POST = $prima;
+        $conFornitori::$fornitori = [];
         $forza(null);
     }
 
@@ -272,21 +377,22 @@ $rifiutoFornitori = static function (array $righe, bool $acquisti = true) use ($
 };
 
 check('un fornitore che la scheda non propone viene rifiutato', fn () =>
-    $rifiutoFornitori([['id' => '', 'supplier_id' => '9', 'supplier_sku' => '', 'cost' => '1,00']])
+    $rifiutoFornitori(['suppliers' => json_encode([['supplier_id' => 9, 'supplier_sku' => '', 'cost' => '1,00']])])
         === 'product.supplier_invalid'
 );
 
 check('un codice senza fornitore viene rifiutato', fn () =>
-    $rifiutoFornitori([['id' => '', 'supplier_id' => '', 'supplier_sku' => 'FN-12', 'cost' => '']])
+    $rifiutoFornitori(['suppliers' => json_encode([['supplier_id' => '', 'supplier_sku' => 'FN-12', 'cost' => '']])])
         === 'product.supplier_missing'
 );
 
-check('lo stesso fornitore due volte viene rifiutato, con il suo nome', function () use ($forza, $conFornitori) {
+check('lo stesso fornitore due volte viene rifiutato, con il suo nome', function () use ($forza, $conFornitori, $dueFornitori) {
+    $conFornitori::$fornitori = $dueFornitori;
     $forza(['purchasing' => true]);
-    $_POST['suppliers'] = [
-        ['id' => '', 'supplier_id' => '5', 'supplier_sku' => '', 'cost' => '1,00'],
-        ['id' => '', 'supplier_id' => '5', 'supplier_sku' => 'FN-12', 'cost' => ''],
-    ];
+    $_POST['suppliers'] = json_encode([
+        ['supplier_id' => 5, 'supplier_sku' => '', 'cost' => '1,00'],
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => ''],
+    ]);
 
     try {
         $conFornitori::mutateRequestValues(['sku' => 'X-1'], 'update', 'backend', ['id' => 1]);
@@ -295,6 +401,7 @@ check('lo stesso fornitore due volte viene rifiutato, con il suo nome', function
             && str_contains($errore->getMessage(), 'Filati Nord');
     } finally {
         unset($_POST['suppliers']);
+        $conFornitori::$fornitori = [];
         $forza(null);
     }
 
@@ -302,63 +409,115 @@ check('lo stesso fornitore due volte viene rifiutato, con il suo nome', function
 });
 
 check('righe corrette e righe vuote passano', fn () =>
-    $rifiutoFornitori([
-        ['id' => '', 'supplier_id' => '5', 'supplier_sku' => 'FN-12', 'cost' => '12,50'],
-        ['id' => '', 'supplier_id' => '6', 'supplier_sku' => '', 'cost' => ''],
+    $rifiutoFornitori(['suppliers' => json_encode([
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => '12,50'],
+        ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => ''],
         // Una riga aggiunta e lasciata lì.
-        ['id' => '', 'supplier_id' => '', 'supplier_sku' => '', 'cost' => ''],
-    ]) === ''
+        ['supplier_id' => '', 'supplier_sku' => '', 'cost' => ''],
+    ])]) === ''
+    // Una finestra svuotata stacca tutti: è una scelta, non un errore.
+    && $rifiutoFornitori(['suppliers' => '[]']) === ''
 );
 
-check('ad acquisti spenti le righe non si guardano: il riquadro non c\'è', fn () =>
-    $rifiutoFornitori([['id' => '', 'supplier_id' => '9', 'cost' => '1,00']], false) === ''
+check('con un fornitore solo si controllano i due campi', fn () =>
+    $rifiutoFornitori(['supplier_sku' => 'FN-12', 'supplier_cost' => 'abc'], [5 => 'Filati Nord']) === 'product.supplier_cost_invalid'
+    && $rifiutoFornitori(['supplier_sku' => str_repeat('x', 101), 'supplier_cost' => ''], [5 => 'Filati Nord']) === 'product.supplier_sku_too_long'
+    && $rifiutoFornitori(['supplier_sku' => 'FN-12', 'supplier_cost' => '12,50'], [5 => 'Filati Nord']) === ''
+    && $rifiutoFornitori(['supplier_sku' => '', 'supplier_cost' => ''], [5 => 'Filati Nord']) === ''
 );
 
-check('le righe arrivano al salvataggio pulite, senza doppioni', fn () =>
-    ProductResource::prepareRepeaterRows('suppliers', [
-        ['id' => '', 'supplier_id' => '', 'supplier_sku' => ' ', 'cost' => ''],
-        ['id' => '12', 'supplier_id' => '5', 'supplier_sku' => ' FN-12 ', 'cost' => '12,50'],
-        ['id' => '', 'supplier_id' => '6', 'supplier_sku' => '', 'cost' => ''],
-        // Lo stesso fornitore un'altra volta: la scheda l'ha già rifiutato,
-        // qui non passa comunque.
-        ['id' => '', 'supplier_id' => '5', 'supplier_sku' => 'FN-13', 'cost' => '9'],
-    ], 'update') === [
-        ['id' => '12', 'supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => '12.50'],
-        // Vuoto resta vuoto, e il database lo scrive NULL: «non lo so».
-        ['id' => '', 'supplier_id' => 6, 'supplier_sku' => '', 'cost' => ''],
-    ]
+check('i due campi compilati quando il fornitore unico non c\'è più vengono rifiutati', fn () =>
+    // La scheda è stata aperta con un fornitore, e nel frattempo ne è nato
+    // un altro: di chi siano codice e costo non si sa più.
+    $rifiutoFornitori(['supplier_sku' => 'FN-12', 'supplier_cost' => ''])
+        === 'product.supplier_invalid'
+    && $rifiutoFornitori(['supplier_sku' => 'FN-12', 'supplier_cost' => ''], []) === 'product.supplier_invalid'
+    // Vuoti non dicono niente.
+    && $rifiutoFornitori(['supplier_sku' => '', 'supplier_cost' => '']) === ''
 );
 
-check('gli altri repeater passano come sono', fn () =>
-    ProductResource::prepareRepeaterRows('altro', [['x' => '1'], ['x' => '']]) === [['x' => '1'], ['x' => '']]
+check('ad acquisti spenti i fornitori non si guardano: il riquadro non c\'è', fn () =>
+    $rifiutoFornitori(['suppliers' => json_encode([['supplier_id' => 9, 'cost' => '1,00']])], null, false) === ''
+    && $rifiutoFornitori(['supplier_sku' => 'FN-12', 'supplier_cost' => 'abc'], null, false) === ''
 );
 
-check('il costo salvato con quattro decimali non si arrotonda se la casella non cambia', function () {
-    $riga = ['supplier_id' => 5, 'cost' => '12.35', 'product_id' => 7, 'position' => 0];
+check('i campi dei fornitori non arrivano alle colonne dell\'opzione', function () use ($forza, $conFornitori, $dueFornitori) {
+    $arrivati = [
+        'suppliers' => '[]',
+        'suppliers_button' => '',
+        'supplier_sku' => '',
+        'supplier_cost' => '',
+        'wi_product_supplier' => [['supplier_id' => '5', 'sku' => '', 'cost' => '']],
+        'wi_product_supplier_remove' => '',
+    ];
+    $resto = [];
 
-    $uguale = ProductResource::prepareRepeaterRelationRow('suppliers', $riga, $riga, ['id' => '12', 'cost' => '12.3456'], 'update');
-    $cambiato = ProductResource::prepareRepeaterRelationRow('suppliers', ['cost' => '12.40'] + $riga, $riga, ['id' => '12', 'cost' => '12.3456'], 'update');
-    $vuoto = ProductResource::prepareRepeaterRelationRow('suppliers', ['cost' => ''] + $riga, $riga, ['id' => '12', 'cost' => '12.3456'], 'update');
-    $nuovo = ProductResource::prepareRepeaterRelationRow('suppliers', $riga, $riga, null, 'update');
+    // Anche ad acquisti spenti: un form aperto prima di bloccarli li manda lo stesso.
+    foreach ([true, false] as $acquisti) {
+        $conFornitori::$fornitori = $dueFornitori;
+        $forza(['purchasing' => $acquisti]);
 
-    return $uguale['cost'] === '12.3456'
-        && $cambiato['cost'] === '12.40'
-        && $vuoto['cost'] === ''
-        && $nuovo['cost'] === '12.35';
+        try {
+            $valori = $conFornitori::mutateRequestValues(['sku' => 'X-1'] + $arrivati, 'update', 'backend', ['id' => 1]);
+        } finally {
+            $conFornitori::$fornitori = [];
+            $forza(null);
+        }
+
+        $resto[] = array_intersect(array_keys($arrivati), array_keys($valori));
+    }
+
+    return $resto === [[], []];
 });
 
-check('la scheda mostra il costo con due decimali, e vuoto quando non si sa', function () {
-    // Senza id la scheda non legge gli attributi: qui non c'è database.
-    $valori = ProductResource::mutateFormValues([
-        'suppliers' => [
-            ['id' => '1', 'supplier_id' => '5', 'cost' => '12.3456'],
-            ['id' => '2', 'supplier_id' => '6', 'cost' => null],
-            ['id' => '3', 'supplier_id' => '8', 'cost' => '3.0000'],
-        ],
-    ], 'edit');
+check('i fornitori arrivano al form: due campi con un fornitore, JSON e riassunto con più', function () use ($forza, $conFornitori, $dueFornitori) {
+    $leggi = static function (array $valori, array $fornitori, array $legami, bool $acquisti = true) use ($forza, $conFornitori): array {
+        $conFornitori::$fornitori = $fornitori;
+        $conFornitori::$legami = $legami;
+        $forza(['purchasing' => $acquisti]);
+
+        try {
+            // Senza id la scheda non legge gli attributi: qui non c'è database.
+            return $conFornitori::mutateFormValues($valori, 'edit');
+        } finally {
+            $conFornitori::$fornitori = [];
+            $conFornitori::$legami = [];
+            $forza(null);
+        }
+    };
+
+    $legami = [
+        ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => 12.3456],
+        ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => null],
+    ];
+
+    $due = $leggi(['sku' => 'X-1'], [5 => 'Filati Nord'], [$legami[0]]);
+    $vuoti = $leggi(['sku' => 'X-1'], [5 => 'Filati Nord'], []);
+    // Dopo un salvataggio rifiutato quello scritto resta.
+    $scritti = $leggi(['supplier_sku' => 'X', 'supplier_cost' => ''], [5 => 'Filati Nord'], [$legami[0]]);
+    $finestra = $leggi(['sku' => 'X-1'], $dueFornitori, $legami);
+    $nessuno = $leggi(['sku' => 'X-1'], $dueFornitori, []);
+    $tenuto = $leggi(['suppliers' => '[{"supplier_id":6,"supplier_sku":"IS-1","cost":3}]'], $dueFornitori, $legami);
+    $senza = $leggi(['sku' => 'X-1'], [], []);
+    $spenti = $leggi(['sku' => 'X-1'], $dueFornitori, $legami, false);
 
     // Il numero grezzo, con il punto: le cifre le mette la casella del prezzo.
-    return array_column($valori['suppliers'], 'cost') === ['12.35', '', '3.00'];
+    return $due === ['sku' => 'X-1', 'supplier_sku' => 'FN-12', 'supplier_cost' => '12.35']
+        && $vuoti === ['sku' => 'X-1', 'supplier_sku' => '', 'supplier_cost' => '']
+        && $scritti === ['supplier_sku' => 'X', 'supplier_cost' => '']
+        && json_decode((string) ($finestra['suppliers'] ?? ''), true) === [
+            ['supplier_id' => 5, 'supplier_sku' => 'FN-12', 'cost' => '12.35'],
+            ['supplier_id' => 6, 'supplier_sku' => '', 'cost' => ''],
+        ]
+        && str_contains((string) ($finestra['suppliers_button'] ?? ''), 'Filati Nord')
+        && str_contains((string) ($finestra['suppliers_button'] ?? ''), 'Imballaggi Sud')
+        && ($nessuno['suppliers'] ?? null) === '[]'
+        && ($nessuno['suppliers_button'] ?? null) === 'Nessun fornitore'
+        && ($tenuto['suppliers'] ?? null) === '[{"supplier_id":6,"supplier_sku":"IS-1","cost":3}]'
+        && str_contains((string) ($tenuto['suppliers_button'] ?? ''), 'Imballaggi Sud')
+        && !str_contains((string) ($tenuto['suppliers_button'] ?? ''), 'Filati Nord')
+        && $senza === ['sku' => 'X-1']
+        && $spenti === ['sku' => 'X-1'];
 });
 
 check('prodotto e opzione nell\'elenco si leggono, non sono numeri', function () {
@@ -660,46 +819,6 @@ check('con due sedi una giacenza per sede sotto zero si ferma prima di scrivere'
 
     return $esito([['location_id' => '1', 'stock' => '3'], ['location_id' => '2', 'stock' => '-1']]) === 'product.stock_negative'
         && $esito([['location_id' => '1', 'stock' => '0'], ['location_id' => '2', 'stock' => '4']]) === '';
-});
-
-check('il riquadro Fornitori spiega che vince sull\'articolo, e la riga di contesto c\'è solo con un articolo', function () use ($forza, $riquadro) {
-    // Senza database l'opzione non c'è: l'articolo «non ha fornitori». Con
-    // una scheda che ne trova, la riga li elenca prima del repeater.
-    $scheda = new class extends ProductResource {
-        public static string $contesto = 'Dall\'articolo: Filati Nord · 12,00 € · Lana Sud · costo sconosciuto';
-
-        protected static function supplierCardContext(int $productId): string
-        {
-            return static::$contesto;
-        }
-
-        public static function contestoDi(int $productId): string
-        {
-            return parent::supplierCardContext($productId);
-        }
-    };
-
-    $forza(['purchasing' => true]);
-
-    try {
-        $senzaId = $riquadro('Fornitori') ?? [];
-        $conArticolo = $riquadro('Fornitori', $scheda::class) ?? [];
-        $vuotoDaDb = $scheda::contestoDi(0);
-        $senzaLegami = $scheda::contestoDi(1);
-    } finally {
-        $forza(null);
-    }
-
-    return ($senzaId['tooltip'] ?? '') === 'Vale solo per questa opzione e vince sui fornitori dell\'articolo. Un costo lasciato vuoto vuol dire «non lo so», non zero.'
-        && ($senzaId['campi'] ?? null) === ['suppliers' => 12]
-        // Senza id nessuna riga di contesto: resta solo l'avviso che non c'è nessuno da proporre.
-        && array_column($senzaId['testi'] ?? [], 0) === ['p']
-        && str_contains($senzaId['testi'][0][1] ?? '', 'Anagrafiche → Fornitori')
-        // La riga è testo, non HTML: l'apostrofo arriva già protetto.
-        && ($conArticolo['testi'][0] ?? null) === ['div', '<p class="small text-body-secondary mb-0">Dall&#039;articolo: Filati Nord · 12,00 € · Lana Sud · costo sconosciuto</p>']
-        && ($conArticolo['campi'] ?? null) === ['suppliers' => 12]
-        && $vuotoDaDb === ''
-        && $senzaLegami === 'L\'articolo non ha fornitori';
 });
 
 check('la scheda dice di che articolo si tratta', function () {

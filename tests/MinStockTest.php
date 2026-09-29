@@ -293,26 +293,29 @@ $larghezze = static function (object $scheda, array $nomi) use ($colonna): array
     return $larghezze;
 };
 
-check('i fornitori non stanno nella griglia, con o senza acquisti', function () use ($forza, $schedaConSoglie, $griglia, $colonna, $larghezze) {
+check('i fornitori stanno fra le avanzate, dopo lo stato e prima della foto', function () use ($forza, $schedaConSoglie, $griglia, $larghezze) {
+    // Da questo giro i fornitori sono dell'opzione (P107, P108): la riga
+    // delle avanzate tiene le sue quattro caselle, poi i fornitori — due
+    // campi con uno solo, il bottone con più — e la foto in fondo.
+    $attese = [
+        0 => ['sku' => 3, 'ean' => 3, 'min_stock' => 3, 'active' => 3, 'photo' => 12],
+        1 => ['sku' => 3, 'ean' => 3, 'min_stock' => 3, 'active' => 3, 'supplier_sku' => 6, 'supplier_cost' => 6, 'photo' => 12],
+        2 => ['sku' => 3, 'ean' => 3, 'min_stock' => 3, 'active' => 3, 'suppliers_button' => 12, 'photo' => 12],
+    ];
     $risultato = true;
 
-    // Da questo giro fornitore, codice e costo vivono nel riquadro
-    // «Fornitori» dell'articolo (P95): la riga delle avanzate resta com'era,
-    // quattro caselle e la foto sotto, qualunque sia lo stato degli acquisti
-    // e quanti fornitori proponga la pagina.
     foreach ([[], [5 => 'Filati Nord'], [5 => 'Filati Nord', 6 => 'Lanificio Sud']] as $fornitori) {
         foreach ([true, false] as $acquisti) {
             $schedaConSoglie::$fornitori = $fornitori;
             $forza(['low_stock_alerts' => true, 'purchasing' => $acquisti]);
 
-            $risultato = $risultato
-                && array_values((array) ($griglia($schedaConSoglie)['advanced'] ?? [])) === ['sku', 'ean', 'min_stock', 'active', 'photo']
-                && $larghezze($schedaConSoglie, ['sku', 'ean', 'min_stock', 'active', 'photo'])
-                    === ['sku' => 3, 'ean' => 3, 'min_stock' => 3, 'active' => 3, 'photo' => 12];
+            // Ad acquisti spenti la riga resta quella di sempre.
+            $attesa = $attese[$acquisti ? count($fornitori) : 0];
+            $avanzate = array_values((array) ($griglia($schedaConSoglie)['advanced'] ?? []));
 
-            foreach (['supplier_id', 'supplier_sku', 'cost', 'suppliers', 'cost_button'] as $nome) {
-                $risultato = $risultato && $colonna($schedaConSoglie, $nome) === null;
-            }
+            $risultato = $risultato
+                && $avanzate === array_keys($attesa)
+                && $larghezze($schedaConSoglie, $avanzate) === $attesa;
         }
     }
 

@@ -253,7 +253,7 @@ try {
                 && $conta('calzini-a-costine') === [1, 4];
         });
 
-        check('ogni articolo compra da Filati Nord, e i calzini anche da Imballaggi Sud', function () use ($idDi, $fornitoreId) {
+        check('ogni opzione compra da Filati Nord, e quelle dei calzini anche da Imballaggi Sud', function () use ($idDi, $righe, $fornitoreId) {
             $nord = $fornitoreId('filati-nord');
             $sud = $fornitoreId('imballaggi-sud');
 
@@ -263,8 +263,9 @@ try {
                 return false;
             }
 
-            // I fornitori stanno sull'articolo, nella loro tabella, con
-            // codice e costo come li scrive la scheda.
+            // I fornitori stanno sull'opzione (spec §23.1), con codice e
+            // costo come li scrive la scheda: tutte le opzioni di un articolo
+            // hanno le stesse righe, meno l'ultima dei calzini.
             $attesi = [
                 'cappello-di-lana' => [['supplier_id' => $nord, 'supplier_sku' => 'FN-CAP-01', 'cost' => 9.5]],
                 'maglietta-girocollo' => [['supplier_id' => $nord, 'supplier_sku' => 'FN-TSH-01', 'cost' => 7.2]],
@@ -274,40 +275,53 @@ try {
                     ['supplier_id' => $sud, 'supplier_sku' => 'IS-CAL-01', 'cost' => 2.1],
                 ],
             ];
+            $ultimaDeiCalzini = [
+                ['supplier_id' => $nord, 'supplier_sku' => 'FN-CAL-XL', 'cost' => 2.9],
+                ['supplier_id' => $sud, 'supplier_sku' => 'IS-CAL-01', 'cost' => 2.1],
+            ];
 
             foreach ($attesi as $ref => $fornitori) {
-                $id = $idDi(ProductModel::class, $ref);
+                $opzioni = array_map(
+                    static fn (array $opzione): int => (int) $opzione['id'],
+                    $righe(Product::class, ['product_model_id' => $idDi(ProductModel::class, $ref)])
+                );
+                $legami = ProductSuppliers::linksFor($opzioni);
+                $ultima = $opzioni === [] ? 0 : $opzioni[count($opzioni) - 1];
 
-                if ((ProductSuppliers::modelLinksFor([$id])[$id] ?? []) !== $fornitori) {
-                    echo "    fornitori diversi su {$ref}\n";
+                if ($opzioni === []) {
+                    echo "    nessuna opzione su {$ref}\n";
 
                     return false;
+                }
+
+                foreach ($opzioni as $id) {
+                    $suoi = $ref === 'calzini-a-costine' && $id === $ultima ? $ultimaDeiCalzini : $fornitori;
+
+                    if (($legami[$id] ?? []) !== $suoi) {
+                        echo "    fornitori diversi su {$ref}, opzione {$id}\n";
+
+                        return false;
+                    }
                 }
             }
 
             return true;
         });
 
-        check('l\'ultima opzione dei calzini ha la sua eccezione, che vince sulla riga dell\'articolo', function () use ($idDi, $righe, $fornitoreId) {
+        check('rifare i dati di prova non tocca i fornitori già scritti, e riempie solo le opzioni che non ne hanno', function () use ($idDi, $righe, $fornitoreId) {
             $nord = $fornitoreId('filati-nord');
-            $sud = $fornitoreId('imballaggi-sud');
-            $modelId = $idDi(ProductModel::class, 'calzini-a-costine');
-            $opzioni = $righe(Product::class, ['product_model_id' => $modelId]);
-            $prima = (int) ($opzioni[0]['id'] ?? 0);
-            $ultima = (int) ($opzioni[count($opzioni) - 1]['id'] ?? 0);
-            $articolo = ProductSuppliers::modelLinksFor([$modelId])[$modelId] ?? [];
-            $eccezione = ProductSuppliers::linksFor([$ultima])[$ultima] ?? [];
+            $opzioni = $righe(Product::class, ['product_model_id' => $idDi(ProductModel::class, 'maglietta-girocollo')]);
+            $cambiata = (int) ($opzioni[0]['id'] ?? 0);
+            $vuota = (int) ($opzioni[1]['id'] ?? 0);
 
-            // Solo lei ha una riga sua; le altre opzioni partono dall'articolo.
-            // Nella sua scheda Filati Nord prende codice e costo dell'eccezione,
-            // Imballaggi Sud resta com'è sull'articolo.
-            return $prima > 0 && $ultima > 0 && $prima !== $ultima
-                && $eccezione === [['supplier_id' => $nord, 'supplier_sku' => 'FN-CAL-XL', 'cost' => 2.9]]
-                && !isset(ProductSuppliers::linksFor([$prima])[$prima])
-                && ProductSuppliers::effective($articolo, $eccezione) === [
-                    ['supplier_id' => $nord, 'supplier_sku' => 'FN-CAL-XL', 'cost' => 2.9],
-                    ['supplier_id' => $sud, 'supplier_sku' => 'IS-CAL-01', 'cost' => 2.1],
-                ];
+            ProductSuppliers::sync($cambiata, [['supplier_id' => $nord, 'supplier_sku' => 'A-MANO', 'cost' => '8,00']]);
+            ProductSuppliers::sync($vuota, []);
+            CatalogDemo::create();
+            $legami = ProductSuppliers::linksFor([$cambiata, $vuota]);
+
+            return $cambiata > 0 && $vuota > 0
+                && ($legami[$cambiata] ?? []) === [['supplier_id' => $nord, 'supplier_sku' => 'A-MANO', 'cost' => 8.0]]
+                && ($legami[$vuota] ?? []) === [['supplier_id' => $nord, 'supplier_sku' => 'FN-TSH-01', 'cost' => 7.2]];
         });
 
         check('ogni opzione nasce con venti pezzi sulla sede principale, e l\'ultima di ogni articolo con due sotto la sua soglia', function () use ($idDi, $righe) {

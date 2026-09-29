@@ -28,11 +28,11 @@ use Wonder\Sql\TableSchema as Column;
  * non hanno nessun campo nel form: non c'è ancora niente da scegliere, e il
  * campo arriverà con listini e pagamenti.
  *
- * Un fornitore è legato agli articoli che si comprano da lui
- * (`gst_product_model_suppliers`) e, per eccezione, a singole opzioni
- * (`gst_product_suppliers`). Finché ha un legame in vendita la scheda non si
- * elimina e non perde il ruolo: lo controlla `CustomerResource` con
- * `ProductSuppliers::countForSupplier()`, che conta le due tabelle.
+ * Un fornitore è legato alle opzioni che si comprano da lui
+ * (`gst_product_suppliers`): l'articolo senza varianti ha la sua sola
+ * opzione. Finché ha un legame in vendita la scheda non si elimina e non
+ * perde il ruolo: lo controlla `CustomerResource` con
+ * `ProductSuppliers::countForSupplier()`.
  */
 final class Contact extends Model
 {

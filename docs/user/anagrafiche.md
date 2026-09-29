@@ -25,7 +25,7 @@ Per questo partita IVA, codice fiscale ed email sono **unici**: se li riscrivi
 su una scheda nuova, il gestionale ti dice di chi sono già e ti lascia aprire
 quella invece di crearne una seconda.
 
-Un fornitore scritto fra i **fornitori** di un articolo, o di una sua singola
+Un fornitore scritto fra i **fornitori** di un articolo, o di una sua
 opzione, non smette di essere fornitore: da *Fornitore* o *Cliente e
 fornitore* non passa a *Cliente*. Se ci provi il salvataggio si ferma e ti
 dice su quanti articoli o opzioni in vendita compare. Prima toglilo dai loro

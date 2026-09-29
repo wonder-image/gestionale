@@ -66,11 +66,11 @@ serviranno da complete, qui c'è quello che trovi già accendendole.
 
 - Il ruolo **Fornitore** nella rubrica e l'elenco **Anagrafiche → Fornitori**
   (vedi [Clienti e fornitori](anagrafiche.md)).
-- I **fornitori** di ogni articolo: da chi lo compri, con quale codice e a
-  quanto, nel riquadro **Fornitori** della scheda dell'articolo; valgono per
-  tutte le sue opzioni. L'opzione che fa eccezione lo scrive nel riquadro
-  **Fornitori** della sua pagina (vedi [Da chi lo compri e a
-  quanto](catalogo-prodotti.md#da-chi-lo-compri-e-a-quanto)).
+- I **fornitori** di ogni opzione in vendita: da chi la compri, con quale
+  codice e a quanto. Si scrivono nella scheda dell'articolo, dietro «Compila
+  le informazioni avanzate»: due caselle se hai un fornitore solo, il bottone
+  **Fornitori** con la sua finestra se ne hai di più (vedi [Da chi lo compri e
+  a quanto](catalogo-prodotti.md#da-chi-lo-compri-e-a-quanto)).
 
 Documenti di carico e valore del magazzino arriveranno dopo, e partiranno da
 questi costi. Spegnendola, fornitori e costi spariscono dalle pagine ma restano
