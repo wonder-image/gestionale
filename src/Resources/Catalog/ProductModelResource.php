@@ -733,10 +733,13 @@ class ProductModelResource extends GestionaleResource
                 'edit' => 'Modifica prodotto',
             ])
             ->view('show', Gestionale::viewPath('pages/product-model-show.php'))
+            // Giallo e piccolo: è l'unico bottone che porta fuori dalla
+            // lettura, e in testata sta accanto alla guida, che è della
+            // stessa misura.
             ->actions('view', static fn (array $item): array => [[
                 'label' => 'Modifica',
                 'icon' => 'bi-pencil',
-                'class' => 'btn-primary',
+                'class' => 'btn-warning btn-sm',
                 'href' => static::editUrlFor((int) ($item['id'] ?? 0)),
             ]])
             // Appena creato si atterra sulla sua scheda: la creazione chiede
@@ -807,7 +810,11 @@ class ProductModelResource extends GestionaleResource
             (new Card)->components([
                 SectionTitle::make('Opzioni in vendita')
                     ->tooltip('Le righe che si vendono davvero, con il loro codice e il loro prezzo. Lo stato si cambia da qui con un click; il resto dai tre puntini, nella scheda dell\'opzione.')
-                    ->columnSpan(12),
+                    ->columnSpan(9),
+                // La guida sta in riga col titolo, non sotto: prima la
+                // portava la tabella incorporata e apriva il riquadro con
+                // una fascia vuota.
+                RichText::make(static::optionsDocsButton())->tag('div')->columnSpan(3),
                 RichText::make(static::optionsTable($modelId))->tag('div')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];
@@ -906,7 +913,12 @@ class ProductModelResource extends GestionaleResource
         }
 
         try {
-            $tabella = ProductResource::backendTable(static::optionsColumns());
+            // Senza il bottone «Guida»: in questa scheda ce l'ha già il
+            // titolo del riquadro, e porterebbe alla stessa pagina.
+            $tabella = ProductResource::backendTable(
+                static::optionsColumns(),
+                ProductResource::tableLayoutSchema()->docs(false)
+            );
             $tabella->title(false);
             $tabella->titleNResult(false);
             $tabella->filterSearch(false);
@@ -922,6 +934,25 @@ class ProductModelResource extends GestionaleResource
         }
 
         return trim($html) !== '' ? $html : $vuoto;
+    }
+
+    /**
+     * Il bottone «Guida» del riquadro delle opzioni.
+     *
+     * È lo stesso dell'intestazione di un elenco — stessa pagina, stesso
+     * colore, stessa misura — ma qui lo mette il riquadro, in riga col suo
+     * titolo, e non la tabella che ci sta dentro.
+     */
+    public static function optionsDocsButton(): string
+    {
+        $url = ProductResource::pageSchema()->docsUrl('list');
+
+        if ($url === '') {
+            return '';
+        }
+
+        return '<div class="text-end"><a class="btn btn-info btn-sm" href="'.static::escape($url)
+            .'" target="_blank" rel="noopener"><i class="bi bi-question-circle"></i> Guida</a></div>';
     }
 
     /**

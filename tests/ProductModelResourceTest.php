@@ -2943,4 +2943,58 @@ check('lo stato dell\'articolo si commuta dalla sua pillola', function () {
         && !str_contains($pubblicato, 'reloadDataTable');
 });
 
+// Il bottone della scheda in lettura porta al cantiere: giallo perché è
+// l'unico gesto che cambia le carte, e piccolo perché la scheda si legge,
+// non si comanda da lì.
+check('dalla scheda in lettura si passa alla modifica con un bottone giallo e piccolo', function () {
+    $azioni = ProductModelResource::pageSchema()->get('actions')['view'] ?? null;
+    $azioni = is_callable($azioni) ? $azioni(['id' => 3168]) : (array) $azioni;
+    $modifica = $azioni[0] ?? [];
+    $classe = (string) ($modifica['class'] ?? '');
+
+    return ($modifica['label'] ?? '') === 'Modifica'
+        && str_contains($classe, 'btn-warning')
+        && str_contains($classe, 'btn-sm')
+        && !str_contains($classe, 'btn-primary');
+});
+
+// La guida stava sotto il titolo, in una riga sua, perché la portava la
+// tabella incorporata: il riquadro si apriva con una fascia vuota e il
+// titolo finiva schiacciato. Ora è il riquadro a metterla, accanto al
+// titolo, e la tabella non se la porta più dietro.
+check('la guida delle opzioni sta accanto al titolo, non sotto', function () {
+    $card = null;
+
+    foreach (ProductModelResource::showLayoutSchema(['id' => 3168])->components ?? [] as $colonna) {
+        foreach ($colonna->components ?? [] as $riquadro) {
+            foreach ($riquadro->components ?? [] as $pezzo) {
+                if ($pezzo instanceof SectionTitle && trim((string) $pezzo->getText()) === 'Opzioni in vendita') {
+                    $card = $riquadro;
+                }
+            }
+        }
+    }
+
+    if ($card === null) {
+        return false;
+    }
+
+    $titolo = $card->components[0] ?? null;
+    $guida = $card->components[1] ?? null;
+
+    if (!$titolo instanceof SectionTitle || $guida === null) {
+        return false;
+    }
+
+    $largoTitolo = ((array) $titolo->columnSpan)['default'] ?? 0;
+    $largoGuida = ((array) $guida->columnSpan)['default'] ?? 0;
+    $html = (string) $guida->getText();
+
+    return $largoTitolo < 12
+        && $largoTitolo + $largoGuida === 12
+        && str_contains($html, ProductResource::pageSchema()->docsUrl('list'))
+        && str_contains($html, 'Guida</a>')
+        && str_contains($html, 'text-end');
+});
+
 summary();
