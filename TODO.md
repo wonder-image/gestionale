@@ -254,6 +254,10 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 - [ ] E4 Portale B2B con account creato dall'azienda cliente (D31)
 - [ ] `AuthFederated` e accesso al sito con Apple e Google (D46)
 
+### Debiti tecnici del gestionale
+
+- [ ] Dati di prova: `CatalogDemo::model()` e `CatalogDemo::attribute()` non rimettono al suo posto una riga cancellata dal backend, come fanno ora `ensure()` e `ContactsDemo::contact()` con `DemoCode::revive()`. Il loro ripristino tocca anche le righe figlie (versioni, immagini, valori dell'attributo), che restano cancellate: va deciso se rimetterle in vita insieme alla scheda o rifarle
+
 ### Lavori preparatori in `wonder-image/app` (D58)
 
 - [x] `Data\Fields\Number::sqlSchema()` torna `'length' => '10,2'` fisso e ignora `decimals()`: ogni colonna nata da `sqlColumnsFromDataSchema()` perde i decimali oltre il secondo (le quantità del magazzino, `gst_products.weight`). Nel modulo c'è il ripiego `Support\Columns::decimal()`

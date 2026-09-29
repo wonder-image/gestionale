@@ -200,6 +200,12 @@ final class ContactsDemo
             return 0;
         }
 
+        // La scheda di prova c'è ancora ma è stata cancellata: si rimette al
+        // suo posto, perché il codice è unico e rifarla non si può.
+        if (DemoCode::revive(Contact::class, $code) > 0) {
+            return 1;
+        }
+
         $values['code'] = $code;
         $values['active'] = 'true';
         $values['is_customer'] ??= 'false';

@@ -137,6 +137,38 @@ final class DemoCode
     }
 
     /**
+     * La riga di prova con quel codice, cancellata, rimessa al suo posto: il
+     * suo id, `0` se non c'era niente da rimettere.
+     *
+     * La cancellazione è morbida — la riga resta in tabella con `deleted` a
+     * `true` — ma il codice col segno è unico: chi guarda solo fra le righe
+     * vive non la trova e prova a rifarla, e l'INSERT muore sulla chiave. Un
+     * dato di prova cancellato a mano basterebbe a far morire il comando che
+     * i dati di prova li rimette.
+     *
+     * @param class-string $modelClass
+     */
+    public static function revive(string $modelClass, string $code): int
+    {
+        if ($code === '' || !self::is($code)) {
+            return 0;
+        }
+
+        $row = $modelClass::find(['code' => $code, 'deleted' => 'true'], 1);
+        $id = is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+
+        if ($id <= 0) {
+            return 0;
+        }
+
+        // `update()` scrive solo le colonne che la scheda conosce, e `deleted`
+        // non è una di quelle: il ripristino passa dalla query.
+        $result = $modelClass::query()->Update($modelClass::$table, ['deleted' => 'false'], 'id', $id);
+
+        return is_object($result) && !empty($result->success) ? $id : 0;
+    }
+
+    /**
      * La riga da usare fra quelle date: prima quella col segno, poi una vera
      * con lo stesso nome, `null` quando va creata.
      *

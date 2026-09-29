@@ -1050,8 +1050,16 @@ final class CatalogDemo
             return 0;
         }
 
+        $code = DemoCode::forModel($model, $ref);
+
+        // La riga di prova c'è ancora ma è stata cancellata: si rimette al
+        // suo posto, perché il codice è unico e rifarla non si può.
+        if (DemoCode::revive($model, $code) > 0) {
+            return 1;
+        }
+
         $riga = array_merge($values, [
-            'code' => DemoCode::forModel($model, $ref),
+            'code' => $code,
             'name' => $name,
         ]);
 
