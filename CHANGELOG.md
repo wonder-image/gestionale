@@ -50,3 +50,17 @@ versionamento semantico.
   *Stato*, *Marchio*, *Categoria* e *Scorta*, menu ⋯ con *Movimenti* e *Apri la
   versione*. Tolta la pagina-form con le caselle e il salvataggio in blocco;
   `lowStockUrl()` apre l'elenco con il filtro *Scorta*.
+- Scheda opzione, quindicesimo giro: dalla scheda dell'articolo *Dettagli delle
+  opzioni* è un bottone piccolo che apre una finestra con Opzione · SKU ·
+  Prezzo · Stato — il nome e i tre puntini portano alla scheda, in fondo resta
+  *Apri l'elenco completo*. La scheda dell'opzione va su due colonne: a destra
+  *Identificazione* con SKU, EAN, MPN (prima *Codice del produttore*) e le
+  misure, e il riquadro *Misure* sparisce. Gli attributi si dividono in
+  *Opzioni di vendita*, in sola lettura perché si cambiano dalla griglia
+  dell'articolo, e *Scheda tecnica* con *Aggiungi caratteristica*: tutti e due
+  mostrano solo quello che è compilato. Nel riquadro *Magazzino* la rettifica
+  si fa in una finestra e i movimenti sono un datatable da cinque righe, con
+  *Vedi tutti i movimenti* per la storia lunga. Nella rettifica *Come la
+  scrivi* si chiama *Azione* e ha tre voci — *Aggiungi* (il predefinito),
+  *Sottrai* e *Imposta*: il segno lo mette l'azione, la quantità si legge
+  sempre in valore assoluto.

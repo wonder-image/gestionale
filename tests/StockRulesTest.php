@@ -33,6 +33,34 @@ check('una quantità può scendere sotto zero: il rifiuto è di chi scrive', fn 
     Adjustment::fromDelta(1.0, -3.0)['after'] === -2.0
 );
 
+check('le tre azioni della rettifica sono quelle della scheda', fn () =>
+    Adjustment::ACTIONS === ['add' => 'Aggiungi', 'subtract' => 'Sottrai', 'set' => 'Imposta']
+);
+
+check('aggiungere somma i pezzi a quelli che ci sono', fn () =>
+    Adjustment::of('add', 7.0, 3.0) === ['delta' => 3.0, 'before' => 7.0, 'after' => 10.0]
+);
+
+check('sottrarre li toglie, senza chiedere il segno a chi scrive', fn () =>
+    Adjustment::of('subtract', 7.0, 3.0) === ['delta' => -3.0, 'before' => 7.0, 'after' => 4.0]
+);
+
+check('impostare porta la giacenza a quel numero', fn () =>
+    Adjustment::of('set', 7.0, 3.0) === ['delta' => -4.0, 'before' => 7.0, 'after' => 3.0]
+);
+
+check('il segno lo mette l\'azione, non la quantità', fn () =>
+    // "Sottrai -3" toglie tre pezzi: chi scrive il meno voleva toglierli, non
+    // aggiungerli. Vale anche per il contrario.
+    Adjustment::of('subtract', 7.0, -3.0)['after'] === 4.0
+    && Adjustment::of('add', 7.0, -3.0)['after'] === 10.0
+    && Adjustment::of('set', 7.0, -3.0)['after'] === 3.0
+);
+
+check('un\'azione che non esiste aggiunge, come il predefinito della scheda', fn () =>
+    Adjustment::of('boh', 7.0, 3.0)['after'] === 10.0
+);
+
 check('senza soglia non c\'è nessun avviso', fn () =>
     LowStock::decide(0.0, -5.0, false) === LowStock::NONE
 );

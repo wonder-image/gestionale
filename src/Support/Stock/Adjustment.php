@@ -15,6 +15,40 @@ namespace Wonder\Plugin\Gestionale\Support\Stock;
  */
 final class Adjustment
 {
+    /**
+     * Le tre azioni della scheda, con il nome che legge chi rettifica.
+     *
+     * La prima è il predefinito: la rettifica più frequente è la merce che
+     * arriva.
+     */
+    public const ACTIONS = [
+        'add' => 'Aggiungi',
+        'subtract' => 'Sottrai',
+        'set' => 'Imposta',
+    ];
+
+    /**
+     * Il movimento dell'azione scelta nella scheda.
+     *
+     * La quantità si legge **in valore assoluto**: il segno lo mette l'azione,
+     * non chi scrive. Chi mette un meno davanti a "Sottrai" voleva togliere i
+     * pezzi, e un `-(-5)` glieli aggiungerebbe.
+     *
+     * @return array{delta: float, before: float, after: float}
+     */
+    public static function of(string $action, float $current, float $quantity): array
+    {
+        $quantity = abs($quantity);
+
+        return match ($action) {
+            'subtract' => static::fromDelta($current, -$quantity),
+            'set' => static::fromTarget($current, $quantity),
+            // Un'azione che non conosciamo aggiunge, come il predefinito: una
+            // tendina manomessa non deve azzerare un magazzino.
+            default => static::fromDelta($current, $quantity),
+        };
+    }
+
     /** @return array{delta: float, before: float, after: float} */
     public static function fromTarget(float $current, float $target): array
     {

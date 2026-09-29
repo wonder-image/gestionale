@@ -30,6 +30,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 
@@ -2660,6 +2661,41 @@ check('una descrizione breve scritta su più righe si legge su una sola', fn () 
     ProductModelResource::oneLine("Maglietta in cotone\r\n  a maniche corte\n") === 'Maglietta in cotone a maniche corte'
     && ProductModelResource::oneLine('Una riga') === 'Una riga'
     && ProductModelResource::oneLine('') === ''
+);
+
+check('«Dettagli delle opzioni» è piccolo e apre la finestra invece di portare via', function () {
+    $azione = ProductModelResource::optionsAction(7, 3);
+
+    return str_contains((string) ($azione['class'] ?? ''), 'btn-sm')
+        && ($azione['href'] ?? '') === ''
+        && str_contains((string) ($azione['onclick'] ?? ''), ProductModelResource::OPTIONS_MODAL)
+        && ($azione['label'] ?? '') === 'Dettagli delle opzioni';
+});
+
+check('con una sola opzione il bottone non c\'è: quei campi non li cerca nessuno', fn () =>
+    ProductModelResource::optionsAction(7, 1) === []
+    && ProductModelResource::optionsAction(0, 5) === []
+);
+
+check('la finestra delle opzioni ha le quattro colonne, il nome che apre la scheda e i tre puntini', function () {
+    $html = ProductModelResource::optionsTable([
+        ['id' => 12, 'name' => 'Rossetto · Rosso', 'sku' => 'RS-01', 'price' => '12.50', 'active' => 'true'],
+        ['id' => 13, 'name' => 'Rossetto · Nude', 'sku' => '', 'price' => '9.00', 'active' => 'false'],
+    ]);
+
+    foreach (['Opzione', 'SKU', 'Prezzo', 'Stato', 'Rossetto · Rosso', 'RS-01', '12,50', 'Attiva', 'Ferma', 'Modifica'] as $pezzo) {
+        if (!str_contains($html, $pezzo)) {
+            return false;
+        }
+    }
+
+    // Il nome è il collegamento, e i tre puntini portano allo stesso posto.
+    return substr_count($html, ProductResource::editUrlFor(12)) === 2
+        && str_contains($html, ProductResource::listUrlFor(7)) === false;
+});
+
+check('senza opzioni la finestra lo dice invece di mostrare una tabella vuota', fn () =>
+    str_contains(ProductModelResource::optionsTable([]), '<table') === false
 );
 
 summary();

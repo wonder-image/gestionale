@@ -142,6 +142,9 @@ class ProductModelResource extends GestionaleResource
      */
     protected const SUPPLIERS_MODAL = 'wi-product-suppliers';
 
+    /** La finestra che elenca le opzioni dell'articolo (P116). */
+    public const OPTIONS_MODAL = 'wi-product-options';
+
     /**
      * Quante righe ha la finestra «Fornitori», al massimo: lo stesso
      * fornitore non si scrive due volte, e un'opzione che si compra da più
@@ -474,6 +477,12 @@ class ProductModelResource extends GestionaleResource
 
         $cards[] = static::technicalSheetCard();
 
+        // La finestra delle opzioni (P116), che apre il bottone in alto: c'è
+        // solo quando il bottone c'è.
+        if (static::optionsAction($modelId, static::productCount($modelId)) !== []) {
+            $cards[] = static::optionsModal($modelId);
+        }
+
         // La finestra «Giacenza» della griglia (P103) e il suo script: una
         // sola per la pagina, qui e non nel riquadro delle opzioni, che senza
         // varianti sparisce — e la griglia c'è sempre.
@@ -727,18 +736,109 @@ class ProductModelResource extends GestionaleResource
         // sola, quei campi non li cerca nessuno.
         return $schema->actions('edit', static function (array $item): array {
             $modelId = (int) ($item['id'] ?? 0);
+            $azione = static::optionsAction($modelId, static::productCount($modelId));
 
-            if ($modelId === 0 || static::productCount($modelId) <= 1) {
-                return [];
-            }
-
-            return [[
-                'label' => 'Dettagli delle opzioni',
-                'href' => ProductResource::listUrlFor($modelId),
-                'class' => 'btn-outline-primary',
-                'icon' => 'bi-upc-scan',
-            ]];
+            return $azione === [] ? [] : [$azione];
         });
+    }
+
+    /**
+     * Il bottone «Dettagli delle opzioni» (P116).
+     *
+     * Apre la finestra invece di portare via dalla scheda: chi guarda gli SKU
+     * delle taglie stava compilando qualcos'altro. Le azioni di pagina non
+     * prendono attributi `data-*`, quindi la finestra si apre da `onclick`,
+     * come la aprirebbe `opensModal()`.
+     *
+     * @return array<string, string>
+     */
+    public static function optionsAction(int $modelId, int $count): array
+    {
+        // Con una sola opzione i suoi campi rari stanno già nella scheda
+        // dell'articolo: non c'è niente da elencare.
+        if ($modelId <= 0 || $count <= 1) {
+            return [];
+        }
+
+        return [
+            'label' => 'Dettagli delle opzioni',
+            'href' => '',
+            'class' => 'btn-outline-primary btn-sm',
+            'icon' => 'bi-upc-scan',
+            'onclick' => 'window.bootstrap && window.bootstrap.Modal'
+                .".getOrCreateInstance(document.getElementById('".static::OPTIONS_MODAL."')).show(); return false;",
+        ];
+    }
+
+    /**
+     * La tabella della finestra: Opzione · SKU · Prezzo · Stato (P116).
+     *
+     * Il nome è il collegamento alla scheda dell'opzione, e i tre puntini
+     * portano allo stesso posto: chi cerca il menu lo trova, chi clicca il
+     * nome non deve cercarlo.
+     *
+     * @param list<array<string, mixed>> $products
+     */
+    public static function optionsTable(array $products): string
+    {
+        if ($products === []) {
+            return '<p class="text-muted mb-0">Questo articolo non ha ancora opzioni in vendita.</p>';
+        }
+
+        $html = '<table class="table table-sm align-middle mb-0"><thead><tr>'
+            .'<th>Opzione</th><th>SKU</th><th class="text-end">Prezzo</th><th>Stato</th><th></th>'
+            .'</tr></thead><tbody>';
+
+        foreach ($products as $product) {
+            $id = (int) ($product['id'] ?? 0);
+            $url = static::escape(ProductResource::editUrlFor($id));
+            $sku = trim((string) ($product['sku'] ?? ''));
+            // Le opzioni nate prima che il nome esistesse mostrano lo SKU,
+            // come nell'elenco: meglio un codice di una casella vuota.
+            $nome = trim((string) ($product['name'] ?? '')) ?: $sku ?: 'Opzione #'.$id;
+            $attiva = (string) ($product['active'] ?? 'true') !== 'false';
+
+            $html .= '<tr>'
+                .'<td><a href="'.$url.'">'.static::escape($nome).'</a></td>'
+                .'<td class="small">'.static::escape($sku !== '' ? $sku : '—').'</td>'
+                .'<td class="text-end">'.static::escape(number_format((float) ($product['price'] ?? 0), 2, ',', '.')).'</td>'
+                .'<td><span class="badge '.($attiva ? 'text-bg-success' : 'text-bg-secondary').'">'
+                .($attiva ? 'Attiva' : 'Ferma').'</span></td>'
+                .'<td class="text-end"><div class="dropdown">'
+                .'<button class="btn btn-sm btn-link text-body-secondary p-0" type="button"'
+                .' data-bs-toggle="dropdown" aria-expanded="false" aria-label="Azioni">'
+                .'<i class="bi bi-three-dots-vertical"></i></button>'
+                .'<ul class="dropdown-menu dropdown-menu-end">'
+                .'<li><a class="dropdown-item" href="'.$url.'">Modifica</a></li>'
+                .'</ul></div></td>'
+                .'</tr>';
+        }
+
+        return $html.'</tbody></table>';
+    }
+
+    /**
+     * La finestra delle opzioni (P116, P117).
+     *
+     * Le righe sono quelle del caricamento della pagina: aggiornarle da sole
+     * vorrebbe una chiamata al server per un dato che si rilegge ricaricando.
+     */
+    protected static function optionsModal(int $modelId): Modal
+    {
+        return Modal::make('Dettagli delle opzioni')
+            ->id(static::OPTIONS_MODAL)
+            ->size('lg')
+            ->columns(12)
+            ->components([
+                RichText::make(static::optionsTable(static::products($modelId)))->tag('div')->columnSpan(12),
+            ])
+            ->footer([
+                Button::make('Apri l\'elenco completo')
+                    ->variant('secondary')
+                    ->outline()
+                    ->attr('onclick', 'window.location.href = \''.static::escape(ProductResource::listUrlFor($modelId)).'\';'),
+                Button::make('Chiudi')->variant('secondary')->attr('data-bs-dismiss', 'modal'),
+            ]);
     }
 
     public static function permissionSchema(): PermissionSchema
@@ -4510,12 +4610,14 @@ HTML)->tag('div');
             $voci[$id] = $nome;
         }
 
+        $nuova = static::technicalNew();
+
         // La frase del riquadro vuoto c'è solo quando serve: nascosta lascerebbe
         // la sua colonna, e un buco fra i campi e il bottone.
         if ($campi === []) {
             $campi[] = RichText::make(
                 '<p class="text-body-secondary mb-0 wi-technical-empty">'
-                .'Qui vanno le caratteristiche che l\'articolo ha qualunque opzione si scelga: materiale, composizione, lavaggio.'
+                .static::escape(static::technicalEmptyText())
                 .'</p>'
             )->tag('div')->columnSpan(12);
         }
@@ -4527,19 +4629,44 @@ HTML)->tag('div');
                 // Il bottone vero del modal: lo apre la voce del menu, e lo
                 // script — che viene dopo — ne nasconde la colonna appena la
                 // legge. Il modal intanto se n'è andato in fondo alla pagina.
-                QuickCreateButton::make(AttributeResource::class)
-                    ->text('Nuova caratteristica')
-                    ->label('name')
-                    ->layout(static fn (): Container => (new Container)
-                        ->columns(12)
-                        ->components(AttributeResource::quickCreateFields()))
-                    ->size('sm')
-                    ->id(static::TECHNICAL_BUTTON)
-                    ->columnSpan(12),
-                static::technicalScript($voci)->columnSpan(12),
+                ...($nuova ? [
+                    QuickCreateButton::make(AttributeResource::class)
+                        ->text('Nuova caratteristica')
+                        ->label('name')
+                        ->layout(static fn (): Container => (new Container)
+                            ->columns(12)
+                            ->components(AttributeResource::quickCreateFields()))
+                        ->size('sm')
+                        ->id(static::TECHNICAL_BUTTON)
+                        ->columnSpan(12),
+                ] : []),
+                static::technicalScript($voci, $nuova)->columnSpan(12),
             ],
-            'Quello che descrive l\'articolo e non fa nascere opzioni in vendita: materiale, composizione, lavaggio. Si vede solo quello che è compilato: il resto si aggiunge da «Aggiungi caratteristica», dove nasce anche una caratteristica nuova di testo o di numero. Gli elenchi con i loro valori, come i simboli di lavaggio, si preparano in Catalogo → Attributi.'
+            static::technicalTooltip()
         );
+    }
+
+    /**
+     * Da qui nasce una caratteristica nuova?
+     *
+     * Nella scheda dell'articolo sì; in quella dell'opzione no, perché
+     * nascerebbe sull'articolo e l'opzione non la vedrebbe.
+     */
+    protected static function technicalNew(): bool
+    {
+        return true;
+    }
+
+    /** La frase del riquadro senza nessuna caratteristica compilata. */
+    protected static function technicalEmptyText(): string
+    {
+        return 'Qui vanno le caratteristiche che l\'articolo ha qualunque opzione si scelga: materiale, composizione, lavaggio.';
+    }
+
+    /** Il tooltip del titolo «Scheda tecnica». */
+    protected static function technicalTooltip(): string
+    {
+        return 'Quello che descrive l\'articolo e non fa nascere opzioni in vendita: materiale, composizione, lavaggio. Si vede solo quello che è compilato: il resto si aggiunge da «Aggiungi caratteristica», dove nasce anche una caratteristica nuova di testo o di numero. Gli elenchi con i loro valori, come i simboli di lavaggio, si preparano in Catalogo → Attributi.';
     }
 
     /**
@@ -4570,13 +4697,18 @@ HTML)->tag('div');
      * scrive l'id e il nome, e il campo si salva con l'articolo come gli
      * altri, perché al salvataggio gli attributi si rileggono dal database.
      *
+     * Nella scheda dell'opzione una caratteristica non nasce da qui: nascerebbe
+     * sull'articolo, dove l'opzione non la vedrebbe. Con `$nuova` a `false` il
+     * menu perde «Nuova caratteristica…» e i modelli dei campi, e al loro
+     * posto dice dove si prepara.
+     *
      * @param array<int, string> $voci le caratteristiche, per id
      */
-    protected static function technicalScript(array $voci = []): RichText
+    protected static function technicalScript(array $voci = [], bool $nuova = true): RichText
     {
         $modelli = '';
 
-        foreach (AttributeResource::QUICK_TYPES as $type) {
+        foreach ($nuova ? AttributeResource::QUICK_TYPES : [] as $type) {
             $campo = static::writtenField('attribute___WI_ID__', $type, 'Caratteristica');
             $modelli .= '<template data-wi-technical-template="'.static::escape($type).'">'
                 .ResourceFormLayoutRenderer::renderLayout((new Container)->columns(12)->components([
@@ -4596,6 +4728,13 @@ HTML)->tag('div');
         $risorsa = json_encode(AttributeResource::slug());
         $bottone = json_encode(static::TECHNICAL_BUTTON);
 
+        // Senza «Nuova caratteristica…» sotto, il divisore non divide niente.
+        $coda = $nuova
+            ? '<li class="wi-technical-divider"><hr class="dropdown-divider"></li>'
+                .'<li><button type="button" class="dropdown-item" data-wi-technical-new="true"><i class="bi bi-plus-lg me-1"></i>Nuova caratteristica…</button></li>'
+                .'<li><span class="dropdown-item-text small text-body-secondary">Elenchi e simboli con le loro immagini, come quelli di lavaggio, si preparano in <a href="'.$elenco.'">Catalogo → Attributi</a>.</span></li>'
+            : '<li><span class="dropdown-item-text small text-body-secondary">Una caratteristica nuova si prepara in <a href="'.$elenco.'">Catalogo → Attributi</a>, scegliendo «Scheda tecnica di ogni opzione».</span></li>';
+
         // Un `div`, non il `p` di un testo: dentro ci sono il menu, i modelli
         // e lo script. Il bordo tratteggiato dice «qui si aggiunge», come in
         // «Opzioni in vendita».
@@ -4606,9 +4745,7 @@ HTML)->tag('div');
     </button>
     <ul class="dropdown-menu w-100">
         {$menu}
-        <li class="wi-technical-divider"><hr class="dropdown-divider"></li>
-        <li><button type="button" class="dropdown-item" data-wi-technical-new="true"><i class="bi bi-plus-lg me-1"></i>Nuova caratteristica…</button></li>
-        <li><span class="dropdown-item-text small text-body-secondary">Elenchi e simboli con le loro immagini, come quelli di lavaggio, si preparano in <a href="{$elenco}">Catalogo → Attributi</a>.</span></li>
+        {$coda}
     </ul>
 </div>
 {$modelli}

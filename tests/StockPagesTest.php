@@ -10,6 +10,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockLevelResource;
+use Wonder\Plugin\Gestionale\Support\Stock\Adjustment;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 
@@ -68,6 +69,18 @@ check('chiede quantità, causale e nota, e come leggerla', function () use ($cam
         && in_array('quantity', $keys, true)
         && in_array('reason', $keys, true)
         && in_array('note', $keys, true);
+});
+
+check('l\'azione ha le tre voci della rettifica e parte da «Aggiungi»', function () {
+    foreach (StockAdjustmentResource::formSchema() as $field) {
+        if ((string) $field->name === 'mode') {
+            return (array) $field->get('options') === Adjustment::ACTIONS
+                && $field->get('value') === 'add'
+                && (string) $field->get('label') === 'Azione';
+        }
+    }
+
+    return false;
 });
 
 check('le causali sono quelle vere, con l\'inventario già scelto', function () {

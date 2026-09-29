@@ -38,11 +38,25 @@ $forza = static function (?array $stato): void {
     (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
 };
 
+// I riquadri della scheda, nell'ordine in cui si leggono: prima la colonna
+// larga del lavoro di tutti i giorni, poi quella dei codici.
+$colonne = static function (string $scheda = ProductResource::class): array {
+    $riquadri = [];
+
+    foreach ($scheda::formLayoutSchema()->components ?? [] as $colonna) {
+        foreach ($colonna->components ?? [] as $riquadro) {
+            $riquadri[] = $riquadro;
+        }
+    }
+
+    return $riquadri;
+};
+
 // I titoli dei riquadri della scheda, nell'ordine in cui stanno.
-$riquadri = static function (): array {
+$riquadri = static function () use ($colonne): array {
     $titoli = [];
 
-    foreach (ProductResource::formLayoutSchema()->components[0]->components ?? [] as $riquadro) {
+    foreach ($colonne() as $riquadro) {
         foreach ($riquadro->components ?? [] as $dentro) {
             if ($dentro instanceof SectionTitle) {
                 $titoli[] = $dentro->getText();
@@ -56,8 +70,8 @@ $riquadri = static function (): array {
 
 // Il riquadro con quel titolo, e quello che c'è dentro: il tooltip del
 // titolo, le caselle con la loro larghezza, i testi.
-$riquadro = static function (string $titolo, string $scheda = ProductResource::class): ?array {
-    foreach ($scheda::formLayoutSchema()->components[0]->components ?? [] as $riquadro) {
+$riquadro = static function (string $titolo, string $scheda = ProductResource::class) use ($colonne): ?array {
+    foreach ($colonne($scheda) as $riquadro) {
         $trovato = false;
         $letto = ['tooltip' => '', 'campi' => [], 'testi' => []];
 
@@ -175,8 +189,8 @@ check('con gli acquisti la scheda ha il riquadro «Fornitori», dopo il magazzin
 
     // Senza database non ci sono attributi: niente riquadro «Attributi». E
     // nessun fornitore da proporre: il riquadro c'è, i campi no.
-    return $con === ['Prodotto', 'Misure', 'Magazzino', 'Fornitori']
-        && $senza === ['Prodotto', 'Misure', 'Magazzino']
+    return $con === ['Prodotto', 'Magazzino', 'Fornitori', 'Identificazione']
+        && $senza === ['Prodotto', 'Magazzino', 'Identificazione']
         && array_intersect(['suppliers', 'suppliers_button', 'supplier_sku', 'supplier_cost'], $nomi) === [];
 });
 
@@ -829,5 +843,137 @@ check('la scheda dice di che articolo si tratta', function () {
     // Senza id nell'indirizzo resta il titolo generico.
     return $resource::currentTitle() === 'Prodotto';
 });
+
+check('la scheda dell\'opzione sta su due colonne, con i codici a destra', function () use ($riquadro) {
+    $colonne = ProductResource::formLayoutSchema()->components ?? [];
+    $larghezze = array_map(
+        static fn (object $colonna): mixed => ((array) ($colonna->columnSpan ?? []))['default'] ?? null,
+        $colonne
+    );
+    $codici = $riquadro('Identificazione') ?? [];
+
+    return $larghezze === [8, 4]
+        // Le misure sono salite accanto ai codici: il riquadro «Misure» non
+        // c'è più, e quello che c'era dentro si ritrova qui.
+        && array_keys($codici['campi'] ?? []) === ['sku', 'ean', 'mpn', 'weight', 'length', 'width', 'height']
+        && str_contains($codici['tooltip'] ?? '', 'peso e misure dell\'articolo');
+});
+
+check('gli attributi dell\'opzione si dividono: quelli che la fanno nascere e quelli con l\'unità', function () {
+    $diviso = ProductResource::splitAttributes([
+        ['id' => 1, 'type' => 'select', 'name' => 'Formato'],
+        ['id' => 2, 'type' => 'number', 'name' => 'Volume'],
+        ['id' => 3, 'type' => 'color', 'name' => 'Colore'],
+        ['id' => 4, 'type' => 'text', 'name' => 'Profumo'],
+    ]);
+
+    return array_column($diviso['sales'], 'id') === [1, 3]
+        && array_column($diviso['technical'], 'id') === [2, 4];
+});
+
+// Una scheda con quegli attributi e quei valori: senza database non ce n'è
+// nessuno.
+$conAttributi = new class extends ProductResource {
+    /** @var list<array<string, mixed>> */
+    public static array $tutti = [];
+
+    /** @var array<int, array<string, string>> le voci di ogni attributo */
+    public static array $voci = [];
+
+    public static function attributes(): array
+    {
+        return static::$tutti;
+    }
+
+    public static function valueChoices(array $attribute): array
+    {
+        return static::$voci[(int) ($attribute['id'] ?? 0)] ?? [];
+    }
+
+    public static function leggiVendita(array $links): array
+    {
+        return static::salesOptions(static::splitAttributes(static::$tutti)['sales'], $links);
+    }
+};
+
+check('le opzioni di vendita si leggono col nome del valore, e quelle vuote non si vedono', function () use ($conAttributi) {
+    $conAttributi::$tutti = [
+        ['id' => 1, 'type' => 'select', 'name' => 'Formato', 'level' => 'product'],
+        ['id' => 3, 'type' => 'color', 'name' => 'Colore', 'level' => 'product'],
+        ['id' => 5, 'type' => 'select', 'name' => 'Finitura', 'level' => 'product'],
+    ];
+    $conAttributi::$voci = [
+        1 => ['10' => '50 ml'],
+        // Un colore porta con sé il pallino: il nome sta dentro.
+        3 => ['20' => ['name' => 'Rosso', 'color' => '#f00']],
+    ];
+
+    $voci = $conAttributi::leggiVendita([
+        1 => ['attribute_value_id' => '10'],
+        3 => ['attribute_value_id' => '20'],
+        5 => ['attribute_value_id' => '0'],
+    ]);
+
+    $conAttributi::$tutti = [];
+    $conAttributi::$voci = [];
+
+    return $voci === [
+        ['name' => 'Formato', 'value' => '50 ml'],
+        ['name' => 'Colore', 'value' => 'Rosso'],
+    ];
+});
+
+check('il riquadro delle opzioni di vendita si legge e non si scrive', function () {
+    $html = ProductResource::salesOptionsHtml([
+        ['name' => 'Formato', 'value' => '50 ml'],
+        ['name' => '<b>Colore</b>', 'value' => '"Rosso"'],
+    ]);
+
+    return str_contains($html, 'Formato')
+        && str_contains($html, '50 ml')
+        // Nome e valore arrivano da chi vende: si scrivono come testo.
+        && str_contains($html, '&lt;b&gt;Colore&lt;/b&gt;')
+        && str_contains($html, '&quot;Rosso&quot;')
+        && !str_contains($html, '<input')
+        && !str_contains($html, '<select');
+});
+
+check('la rettifica si apre in una finestra che posta dove postava la pagina', function () {
+    $html = ProductResource::stockAdjustModal(7, '/backend/app/gestionale/versioni/7/edit/');
+
+    return str_contains($html, '<template')
+        // Un form dentro un form il browser lo butta via: la finestra nasce
+        // in un template e lo script la porta in fondo alla pagina.
+        && str_contains($html, 'method="post"')
+        && str_contains($html, 'name="mode"')
+        && str_contains($html, 'name="quantity"')
+        && str_contains($html, 'name="reason"')
+        && str_contains($html, 'name="note"')
+        && str_contains($html, 'name="product_id" value="7"')
+        && str_contains($html, 'name="back" value="/backend/app/gestionale/versioni/7/edit/"')
+        && str_contains($html, 'Aggiungi')
+        && str_contains($html, 'Sottrai')
+        && str_contains($html, 'Imposta');
+});
+
+check('senza opzione aperta la finestra della rettifica non c\'è', fn () =>
+    ProductResource::stockAdjustModal(0, '') === ''
+);
+
+check('i campi obbligatori della finestra armano la spunta del backend', function () {
+    $html = ProductResource::stockAdjustModal(7, '/torna');
+
+    // Il backend tiene spento «Salva» finché un campo obbligatorio è vuoto, e
+    // riaccende ascoltando i campi con «data-wi-check». Senza, il bottone
+    // della finestra resterebbe spento per sempre.
+    return str_contains($html, 'name="mode" data-wi-check="true"')
+        && str_contains($html, 'name="quantity" data-wi-check="true"')
+        && str_contains($html, 'name="reason" data-wi-check="true"')
+        && str_contains($html, 'typeof check');
+});
+
+check('il codice del produttore si chiama MPN', fn () =>
+    (ProductResource::labelSchema()['mpn'] ?? '') === 'MPN'
+);
 
 summary();

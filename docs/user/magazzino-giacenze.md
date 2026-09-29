@@ -77,12 +77,16 @@ esiste già usa la [rettifica](#rettificare-una-riga-sola), con la causale
 
 ## Rettificare una riga sola
 
-Il pulsante **Rettifica** nella scheda di una singola opzione in vendita — o il
-link accanto alla casella *Giacenza*, negli articoli con un'unica opzione —
-apre una pagina che chiede tre cose:
+Il pulsante **Rettifica** nel riquadro *Magazzino* della scheda di un'opzione
+in vendita apre una finestra lì dentro, senza lasciare quello che stavi
+compilando. Il link *Rettifica la giacenza* accanto alla casella *Giacenza* —
+negli articoli con un'unica opzione — e il pulsante *Rettifica* del riquadro
+*Da controllare* aprono la stessa scheda in una pagina sua. Le domande sono
+tre:
 
-- **Come la scrivi:** *Adesso ce ne sono* (il totale che hai contato) oppure
-  *Aggiungi o togli* (scrivi `-2` se ne hai buttati due).
+- **Azione:** *Aggiungi* (ne sono arrivati), *Sottrai* (ne sono usciti) o
+  *Imposta* (il totale che hai contato). Il segno lo mette l'azione: scrivi
+  sempre quanti pezzi sono, senza il meno davanti.
 - **Causale:** inventario, giacenza iniziale, danneggiato, scaduto, regalo, uso
   interno, altro.
 - **Nota:** facoltativa, ma è quella che fra sei mesi spiega cosa era successo.
@@ -124,8 +128,9 @@ davvero e la riga sparisce.
   prezzo, che si scrive, con il link alla rettifica; con più sedi le righe
   *Giacenza per sede* del riquadro *Magazzino*.
 - Nella scheda di una **singola opzione in vendita**: il riquadro *Magazzino*,
-  con quanti pezzi ci sono — con più sedi, sede per sede — e gli ultimi dieci
-  movimenti, e la *Scorta minima* se hai gli [avvisi](magazzino-avvisi.md).
+  con quanti pezzi ci sono — con più sedi, sede per sede — e i movimenti a
+  cinque righe per volta, che si sfogliano lì; la *Scorta minima* c'è se hai
+  gli [avvisi](magazzino-avvisi.md).
 
 Quello che è successo, tutto e in ordine di tempo, sta in
 [Movimenti](magazzino-movimenti.md).

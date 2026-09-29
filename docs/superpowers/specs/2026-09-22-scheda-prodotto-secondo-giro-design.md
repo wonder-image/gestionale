@@ -1573,6 +1573,126 @@ che con più sedi ha già il riquadro «Magazzino» al posto della casella.
 - [x] prova nel browser (1600×950, 2026-09-29): un fornitore e più fornitori, con e senza varianti, in creazione e in modifica, scheda dell'opzione, «Salva per tutte le opzioni», fornitore non attivo (P92), varianti accese con i fornitori copiati (P115), griglia con una sede e con più sedi. Nessun difetto
 - [x] memoria e commit con percorsi espliciti; niente push senza OK
 
+## 24. Quindicesimo giro: le opzioni in una finestra, la scheda dell'opzione in due colonne, la rettifica con tre azioni
+
+Il giro nasce da tre fastidi d'uso, tutti nella stessa strada: dall'articolo
+si arriva alle sue opzioni, e dall'opzione ai suoi pezzi. Oggi ogni passo è
+una pagina nuova, e chi torna indietro perde quello che stava guardando.
+
+### 24.1 Le opzioni in una finestra
+
+«Dettagli delle opzioni», il bottone in alto nella scheda dell'articolo con
+le varianti, diventa **piccolo** (`btn-sm`, come gli altri bottoni di
+servizio) e apre una **finestra** invece di portare via dalla scheda.
+
+Dentro, una tabella con quattro colonne — **Opzione · SKU · Prezzo · Stato** —
+una riga per opzione. Il nome dell'opzione è il collegamento alla sua scheda,
+e la riga finisce con i tre puntini che portano allo stesso posto: chi cerca
+il menu lo trova, chi clicca il nome non deve cercarlo. In fondo alla finestra
+resta **«Apri l'elenco completo»**, che è la pagina di prima — da lì si filtra,
+si ordina e si cancella, cose che in una finestra non servono.
+
+La tabella è **quella del caricamento della pagina**: cambiare un prezzo nella
+griglia e salvare la aggiorna, perché la scheda si ricarica. Una finestra che
+si aggiorna da sola vorrebbe una chiamata al server che nessuno ha chiesto.
+
+### 24.2 La scheda dell'opzione: i codici a destra
+
+La scheda «Modifica opzione» si divide in **due colonne**. A destra, in un
+riquadro solo — **«Identificazione»** — stanno le cose che identificano il
+pezzo fisico: **SKU**, **EAN**, **MPN** e le misure (peso, lunghezza,
+larghezza, altezza). A sinistra resta il lavoro di tutti i giorni: prezzo,
+prezzo scontato, stato, attributi, magazzino, fornitori.
+
+«Codice del produttore» si chiama **MPN**, come lo chiamano i cataloghi e i
+feed (*Manufacturer Part Number*): è il nome che chi compila la scheda trova
+scritto sul listino del fornitore.
+
+Il riquadro «Misure» in fondo alla pagina sparisce: le misure sono salite
+nella colonna di destra, accanto ai codici che descrivono la stessa cosa.
+
+### 24.3 Gli attributi divisi: opzioni di vendita e scheda tecnica
+
+Gli attributi dell'opzione smettono di stare tutti insieme in un riquadro che
+mostra anche quello che nessuno ha compilato. Si dividono in due, con la
+regola dell'articolo (§20): **si vede solo quello che è compilato**, il resto
+si aggiunge dal menu.
+
+- **«Opzioni di vendita»** — gli attributi che fanno nascere le opzioni
+  (tendina, colore, fantasia, icona: i `VALUE_TYPES`). Si vedono **in sola
+  lettura**: sono quello che distingue questa opzione dalle sorelle, e
+  cambiarli qui vorrebbe dire spostare l'opzione in un'altra combinazione
+  senza accorgersene. Si cambiano dalla griglia della scheda dell'articolo,
+  e un tooltip lo dice. Niente menu «Aggiungi»: quello che c'è è tutto.
+- **«Scheda tecnica»** — gli attributi con l'unità di misura (numero e testo:
+  gli `UNIT_TYPES`). Si scrivono qui, si vedono solo se compilati, e il menu
+  **«Aggiungi caratteristica»** tira fuori gli altri. È la scheda tecnica
+  dell'articolo, con lo stesso codice.
+
+Un'opzione senza opzioni di vendita — l'articolo con un prodotto solo — non
+vede il primo riquadro.
+
+### 24.4 Il magazzino dell'opzione: rettifica in finestra, movimenti a cinque
+
+Nel riquadro «Magazzino» **«Rettifica»** smette di essere un collegamento a
+una pagina e diventa un **bottone piccolo che apre una finestra**, con gli
+stessi campi della pagina: causale, azione, quantità, nota. Quello che manda
+va alla stessa rotta di prima, che sa già tornare da dove è stata chiamata:
+si salva e si riapre la scheda dell'opzione, con i pezzi aggiornati.
+
+Sotto, la tabella ferma degli ultimi dieci movimenti lascia il posto al
+**datatable da cinque righe**, dentro la scheda: si sfoglia lì, senza andare
+via. Il collegamento **«Vedi tutti i movimenti»** resta per chi cerca in un
+anno di storia.
+
+### 24.5 La rettifica: Aggiungi, Sottrai, Imposta
+
+Nella scheda della rettifica «Come la scrivi» si chiama **«Azione»** e ha tre
+voci al posto di due:
+
+| Azione | Cosa fa |
+|--------|---------|
+| **Aggiungi** | somma i pezzi a quelli che ci sono |
+| **Sottrai** | li toglie |
+| **Imposta** | li mette a quel numero, qualunque fosse prima |
+
+Prima erano due — «Adesso ce ne sono» e «Aggiungi o togli» — e per togliere
+bisognava scrivere un numero negativo, cosa che nessuno fa alla prima e che
+in un inventario di sera diventa un errore. Adesso il segno lo mette l'azione:
+la quantità si legge **sempre in valore assoluto**, e «Sottrai −5» toglie
+cinque pezzi invece di aggiungerli.
+
+Il predefinito è **Aggiungi**: la rettifica più frequente è la merce che
+arriva. «Imposta» è quella dell'inventario, e chi fa l'inventario la cerca.
+
+### Fuori da questo giro
+
+- La finestra delle opzioni che si aggiorna da sola dopo un salvataggio.
+- Le opzioni di vendita modificabili dalla scheda dell'opzione (spostano
+  l'opzione in un'altra combinazione: è un lavoro suo, non di questo giro).
+
+| # | Decisione | Perché |
+|---|-----------|--------|
+| P116 | «Dettagli delle opzioni» è `btn-sm` e apre una finestra con Opzione · SKU · Prezzo · Stato; nome e tre puntini portano alla scheda; in fondo «Apri l'elenco completo» | Guardare le opzioni non deve costare la pagina che si stava compilando |
+| P117 | La tabella della finestra è quella del caricamento della pagina | Aggiornarla da sola vorrebbe una chiamata al server per un dato che si rilegge ricaricando |
+| P118 | La scheda dell'opzione va su due colonne: a destra «Identificazione» con SKU, EAN, MPN e le misure; via il riquadro «Misure» | I codici e le misure descrivono il pezzo fisico: stanno insieme, fuori dal lavoro di tutti i giorni |
+| P119 | «Codice del produttore» si chiama MPN | È il nome scritto sui listini e nei feed |
+| P120 | Gli attributi dell'opzione si dividono in «Opzioni di vendita» (`VALUE_TYPES`, in sola lettura) e «Scheda tecnica» (`UNIT_TYPES`, con «Aggiungi caratteristica»); entrambi mostrano solo il compilato (come §20) | Cambiare un attributo di vendita sposta l'opzione in un'altra combinazione: si fa dalla griglia, dove si vede l'effetto |
+| P121 | Nel riquadro «Magazzino» la rettifica è un bottone piccolo con finestra sulla rotta di oggi (che torna indietro da sola), e i movimenti sono un datatable da cinque righe; «Vedi tutti i movimenti» resta | Correggere i pezzi e guardare la storia non devono portare via dalla scheda |
+| P122 | Nella rettifica «Come la scrivi» diventa «Azione» con Aggiungi, Sottrai e Imposta; la quantità si legge in valore assoluto; il predefinito è Aggiungi | Il segno lo mette l'azione, non chi scrive di sera; la rettifica più frequente è la merce che arriva |
+
+### Lavori del quindicesimo giro
+
+- [x] modulo: «Dettagli delle opzioni» `btn-sm` con la finestra delle opzioni (Opzione · SKU · Prezzo · Stato, nome e tre puntini alla scheda, «Apri l'elenco completo»)
+- [x] modulo: scheda dell'opzione su due colonne, riquadro «Identificazione» con SKU, EAN, MPN e misure; via il riquadro «Misure»
+- [x] modulo: attributi dell'opzione divisi in «Opzioni di vendita» (sola lettura) e «Scheda tecnica» (con menu), tutti e due solo compilati
+- [x] modulo: rettifica in finestra e datatable dei movimenti da cinque righe nel riquadro «Magazzino»
+- [x] modulo: rettifica con «Azione» a tre voci, quantità in valore assoluto, predefinito «Aggiungi»
+- [x] modulo: test allineati (`ProductModelResourceTest`, `StockPagesTest`)
+- [x] modulo: guide `catalogo-prodotti` e `magazzino-giacenze`; `CHANGELOG.md`
+- [x] prova nel browser: finestra delle opzioni con e senza varianti, scheda dell'opzione (attributi divisi, colonna destra), rettifica dalla finestra e dalla pagina con le tre azioni
+- [x] memoria e commit con percorsi espliciti; niente push senza OK
+
 ## Piani
 
 Da scrivere dopo l'approvazione.

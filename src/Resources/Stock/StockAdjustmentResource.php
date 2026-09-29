@@ -68,6 +68,17 @@ final class StockAdjustmentResource extends NavigationOnlyResource
     }
 
     /**
+     * Dove si posta una rettifica: la stessa rotta della pagina, in POST.
+     *
+     * La usa la finestra della scheda dell'opzione, che è una form HTML
+     * scritta a mano e deve sapere dove mandare i suoi campi.
+     */
+    public static function submitUrl(): string
+    {
+        return static::pageUrl();
+    }
+
+    /**
      * L'indirizzo del ritorno, se è di questo backend: un percorso che
      * comincia con una barra sola, o niente.
      *
@@ -108,12 +119,9 @@ final class StockAdjustmentResource extends NavigationOnlyResource
     {
         return [
             FormField::key('mode')
-                ->select([
-                    'target' => 'Adesso ce ne sono',
-                    'delta' => 'Aggiungi o togli',
-                ])
-                ->value('target')
-                ->label('Come la scrivi')
+                ->select(Adjustment::ACTIONS)
+                ->value(array_key_first(Adjustment::ACTIONS))
+                ->label('Azione')
                 ->required(),
             FormField::key('quantity')
                 ->number()
@@ -159,7 +167,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
         return parent::pageSchema()
             ->only([])
             ->titles(['form' => 'Rettifica la giacenza'])
-            ->subtitles(['form' => 'Scrivi quanti pezzi ci sono adesso, oppure quanti ne aggiungi o ne togli. La causale e la nota restano scritte nei movimenti.'])
+            ->subtitles(['form' => 'Aggiungi o togli dei pezzi, oppure imposta quanti ce ne sono adesso. La causale e la nota restano scritte nei movimenti.'])
             ->docs(Gestionale::docsUrl('magazzino/magazzino-giacenze'), 'form');
     }
 
@@ -218,9 +226,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
         }
 
         $current = Levels::of($productId)['quantity'];
-        $change = ($values['mode'] ?? 'target') === 'delta'
-            ? Adjustment::fromDelta($current, $quantity)
-            : Adjustment::fromTarget($current, $quantity);
+        $change = Adjustment::of((string) ($values['mode'] ?? ''), $current, $quantity);
 
         if ($change['delta'] === 0.0) {
             throw UserError::make('stock.zero_quantity');

@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Catalog;
 
+use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\Input;
@@ -11,6 +12,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\Support\Repeater;
+use Wonder\Backend\Table\Table as Datatable;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
@@ -31,6 +33,7 @@ use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
+use Wonder\Plugin\Gestionale\Support\Stock\Adjustment;
 use Wonder\Plugin\Gestionale\Support\Stock\Alerts;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\LocationRows;
@@ -61,6 +64,9 @@ use Wonder\Plugin\Gestionale\Support\Stock\Thresholds;
  */
 class ProductResource extends ProductModelResource
 {
+    /** L'id della finestra della rettifica: lo cerca il bottone del riquadro «Magazzino». */
+    public const ADJUST_MODAL = 'wi-stock-adjust';
+
     public static string $model = Product::class;
 
     /**
@@ -114,7 +120,7 @@ class ProductResource extends ProductModelResource
         return [
             'sku' => 'SKU',
             'ean' => 'EAN',
-            'mpn' => 'Codice del produttore',
+            'mpn' => 'MPN',
             'price' => 'Prezzo',
             'sale_price' => 'Prezzo scontato',
             'active' => 'Stato',
@@ -128,7 +134,7 @@ class ProductResource extends ProductModelResource
         $fields = [
             FormField::key('sku')->text()->label('SKU'),
             FormField::key('ean')->text()->label('EAN'),
-            FormField::key('mpn')->text()->label('Codice del produttore'),
+            FormField::key('mpn')->text()->label('MPN'),
             FormField::key('price')->price()->decimal(2)->label('Prezzo'),
             FormField::key('sale_price')->price()->decimal(2)->label('Prezzo scontato'),
             FormField::key('active')
@@ -163,7 +169,16 @@ class ProductResource extends ProductModelResource
         // solo, il bottone della finestra con più, niente senza.
         array_push($fields, ...static::supplierInputs(static::currentId() ?? 0));
 
-        foreach (Attributes::byLevel(static::attributes(), 'product') as $attribute) {
+        $attributi = static::splitAttributes(Attributes::byLevel(static::attributes(), 'product'));
+
+        // Le opzioni di vendita si leggono e non si scrivono (P118), ma il
+        // legame va rimandato indietro lo stesso: `afterUpdate()` riscrive
+        // quello che arriva, e un campo assente cancellerebbe il valore.
+        foreach ($attributi['sales'] as $attribute) {
+            $fields[] = FormField::key('attribute_'.(int) $attribute['id'])->hidden();
+        }
+
+        foreach ($attributi['technical'] as $attribute) {
             $fields[] = static::attributeField($attribute);
         }
 
@@ -335,44 +350,53 @@ class ProductResource extends ProductModelResource
 
     public static function formLayoutSchema(): ?Form
     {
+        $productId = static::currentId() ?? 0;
+        $attributi = static::splitAttributes(Attributes::byLevel(static::attributes(), 'product'));
+
         $cards = [
             (new Card)->components([
                 SectionTitle::make(static::currentTitle())
                     ->tooltip('Questa opzione nasce nella scheda del prodotto: nome, descrizioni e categorie si cambiano di là, e il nome della riga segue gli attributi che la compongono. Qui c\'è quello che vale solo per lei.')
                     ->columnSpan(12),
-                static::getInput('sku')->columnSpan(4),
-                static::getInput('ean')->columnSpan(4),
-                static::getInput('mpn')->columnSpan(4),
                 static::getInput('price')->columnSpan(4),
                 static::getInput('sale_price')->columnSpan(4),
                 static::getInput('active')->columnSpan(4),
             ])->columns(12)->columnSpan(12),
         ];
 
-        $attributeInputs = [];
+        if ($attributi['sales'] !== []) {
+            // I campi nascosti ci sono tutti, anche quelli senza valore: sono
+            // loro a rimandare indietro il legame che la scheda non scrive.
+            $nascosti = [];
 
-        foreach (Attributes::byLevel(static::attributes(), 'product') as $attribute) {
-            $attributeInputs[] = static::getInput('attribute_'.(int) $attribute['id'])->columnSpan(4);
-        }
+            foreach ($attributi['sales'] as $attribute) {
+                $nascosti[] = static::getInput('attribute_'.(int) $attribute['id'])->columnSpan(12);
+            }
 
-        if ($attributeInputs !== []) {
+            $voci = static::salesOptions(
+                $attributi['sales'],
+                $productId > 0 ? ProductAttributes::read('product', $productId) : []
+            );
+            $letto = static::salesOptionsHtml($voci);
+
             $cards[] = (new Card)->components([
-                SectionTitle::make('Attributi')
-                    ->tooltip('Gli attributi che cambiano da un\'opzione all\'altra — taglia, misura, gusto — e non quelli che descrivono tutto l\'articolo.')
+                SectionTitle::make('Opzioni di vendita')
+                    ->tooltip('Gli attributi che fanno nascere questa opzione — taglia, formato, colore — e che dicono quale delle sorelle è. Qui si leggono: cambiarli vuol dire cambiare opzione, e si fa nella griglia della scheda dell\'articolo, dove si vedono tutte insieme.')
                     ->columnSpan(12),
-                ...$attributeInputs,
+                RichText::make($letto !== ''
+                    ? $letto
+                    : '<p class="text-body-secondary mb-0">Questa opzione non ha ancora nessun valore scelto: si scelgono nella griglia della scheda dell\'articolo.</p>')
+                    ->tag('div')
+                    ->columnSpan(12),
+                ...$nascosti,
             ])->columns(12)->columnSpan(12);
         }
 
-        $cards[] = (new Card)->components([
-            SectionTitle::make('Misure')
-                ->tooltip('Lasciando vuoto valgono peso e misure dell\'articolo.')
-                ->columnSpan(12),
-            static::getInput('weight')->columnSpan(3),
-            static::getInput('length')->columnSpan(3),
-            static::getInput('width')->columnSpan(3),
-            static::getInput('height')->columnSpan(3),
-        ])->columns(12)->columnSpan(12);
+        // La scheda tecnica è quella dell'articolo, con le caratteristiche di
+        // livello «opzione»: senza nemmeno una, il riquadro non serve.
+        if (static::technicalAttributes() !== []) {
+            $cards[] = static::technicalSheetCard();
+        }
 
         $soglia = Gestionale::feature('low_stock_alerts');
         $sedi = static::hasManyLocations();
@@ -385,6 +409,8 @@ class ProductResource extends ProductModelResource
                 .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso, e con zero non arriva niente.' : '');
         }
 
+        $finestra = static::stockAdjustModal($productId, static::editUrlFor($productId));
+
         $cards[] = (new Card)->components([
             SectionTitle::make(static::stockCardTitle())
                 ->tooltip($spiegazione)
@@ -393,10 +419,12 @@ class ProductResource extends ProductModelResource
                 ? [static::getInput('locations')->columnSpan(12)]
                 : ($soglia ? [static::getInput('min_stock')->columnSpan(4)] : [])),
             RichText::make(static::stockSummary())->columnSpan(12),
-            RichText::make(static::stockHistoryTable())->columnSpan(12),
+            RichText::make(static::stockHistoryTable())->tag('div')->columnSpan(12),
+            // Senza un'opzione aperta non c'è niente da rettificare, e un
+            // nodo vuoto lascerebbe comunque la sua colonna.
+            ...($finestra !== '' ? [RichText::make($finestra)->tag('div')->columnSpan(12)] : []),
         ])->columns(12)->columnSpan(12);
 
-        $productId = static::currentId() ?? 0;
         $fornitori = static::supplierMode($productId);
 
         if ($fornitori !== null) {
@@ -427,9 +455,139 @@ class ProductResource extends ProductModelResource
             $cards[] = static::suppliersScript($productId);
         }
 
+        // Due colonne (P117): a sinistra il lavoro di tutti i giorni, a destra
+        // i codici e le misure, che si guardano di rado. `columns(12)` sta
+        // anche sul Form, non solo sui contenitori: il renderer calcola la
+        // larghezza di un figlio sulle colonne del padre.
         return (new Form)->components([
-            (new Container)->components($cards)->columns(12)->columnSpan(12),
-        ]);
+            (new Container)->components($cards)->columns(12)->columnSpan(8),
+            (new Container)->components([static::identificationCard(), static::measuresCard()])->columns(12)->columnSpan(4),
+        ])->columns(12);
+    }
+
+    /** I codici dell'opzione e le sue misure, nella colonna stretta (P117). */
+    protected static function identificationCard(): Card
+    {
+        return (new Card)->components([
+            SectionTitle::make('Identificazione')
+                ->columnSpan(12),
+            static::getInput('sku')->columnSpan(12),
+            static::getInput('ean')->columnSpan(12),
+            static::getInput('mpn')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+    }
+
+    protected static function measuresCard(): Card
+    {
+        return (new Card)->components([
+            SectionTitle::make('Misure')
+                ->tooltip('Quaanto pesa e misura il suo pacco. Lasciando vuote le misure valgono peso e misure dell\'articolo.')
+                ->columnSpan(12),
+            static::getInput('weight')->columnSpan(6),
+            static::getInput('length')->columnSpan(6),
+            static::getInput('width')->columnSpan(6),
+            static::getInput('height')->columnSpan(6),
+        ])->columns(12)->columnSpan(12);
+    }
+
+    /**
+     * Gli attributi dell'opzione, divisi in due (P118): quelli che la fanno
+     * nascere — taglia, colore, formato — e quelli che la descrivono.
+     *
+     * @param list<array<string, mixed>> $attributes
+     * @return array{sales: list<array<string, mixed>>, technical: list<array<string, mixed>>}
+     */
+    public static function splitAttributes(array $attributes): array
+    {
+        $diviso = ['sales' => [], 'technical' => []];
+
+        foreach ($attributes as $attribute) {
+            $dove = Attributes::usesValues((string) ($attribute['type'] ?? '')) ? 'sales' : 'technical';
+            $diviso[$dove][] = $attribute;
+        }
+
+        return $diviso;
+    }
+
+    /**
+     * Le opzioni di vendita di questa opzione, come si leggono: il nome
+     * dell'attributo e il valore scelto.
+     *
+     * Quelle senza valore restano fuori (P118): una riga vuota non dice
+     * niente, e qui non c'è niente da compilare.
+     *
+     * @param list<array<string, mixed>> $attributes
+     * @param array<int, array<string, mixed>> $links i legami di `ProductAttributes::read()`
+     * @return list<array{name: string, value: string}>
+     */
+    public static function salesOptions(array $attributes, array $links): array
+    {
+        $voci = [];
+
+        foreach ($attributes as $attribute) {
+            $id = (int) ($attribute['id'] ?? 0);
+            $valueId = (string) ($links[$id]['attribute_value_id'] ?? '');
+
+            if ($valueId === '' || $valueId === '0') {
+                continue;
+            }
+
+            $scelto = static::valueChoices($attribute)[$valueId] ?? '';
+            // Un valore che porta con sé il pallino, la fantasia o l'icona
+            // arriva come array: il nome sta dentro.
+            $valore = trim(is_array($scelto) ? (string) ($scelto['name'] ?? '') : (string) $scelto);
+
+            if ($valore === '') {
+                continue;
+            }
+
+            $voci[] = ['name' => (string) ($attribute['name'] ?? ''), 'value' => $valore];
+        }
+
+        return $voci;
+    }
+
+    /**
+     * Il riquadro delle opzioni di vendita: testo, non caselle (P118).
+     *
+     * @param list<array{name: string, value: string}> $voci
+     */
+    public static function salesOptionsHtml(array $voci): string
+    {
+        if ($voci === []) {
+            return '';
+        }
+
+        $html = '<dl class="row mb-0">';
+
+        foreach ($voci as $voce) {
+            $html .= '<dt class="col-4 fw-normal text-body-secondary">'.static::escape($voce['name']).'</dt>'
+                .'<dd class="col-8 mb-1">'.static::escape($voce['value']).'</dd>';
+        }
+
+        return $html.'</dl>';
+    }
+
+    /** Le caratteristiche della scheda tecnica dell'opzione: le sue, non quelle dell'articolo. */
+    protected static function technicalAttributes(): array
+    {
+        return static::splitAttributes(Attributes::byLevel(static::attributes(), 'product'))['technical'];
+    }
+
+    /** Qui una caratteristica non nasce: nascerebbe sull'articolo (P118). */
+    protected static function technicalNew(): bool
+    {
+        return false;
+    }
+
+    protected static function technicalEmptyText(): string
+    {
+        return 'Qui vanno le caratteristiche che cambiano da un\'opzione all\'altra: volume, gradazione, durata.';
+    }
+
+    protected static function technicalTooltip(): string
+    {
+        return 'Quello che descrive questa opzione e non la fa nascere: volume, gradazione, durata. Si vede solo quello che è compilato, e il resto si aggiunge da «Aggiungi caratteristica». Una caratteristica nuova si prepara in Catalogo → Attributi.';
     }
 
     public static function stockCardTitle(): string
@@ -454,42 +612,171 @@ class ProductResource extends ProductModelResource
             $parts[] = 'disponibili '.static::escape(static::plainNumber($levels['available']));
         }
 
-        $parts[] = '<a href="'.static::escape(StockAdjustmentResource::urlFor($productId)).'">Rettifica</a>';
+        // La rettifica non porta via dalla scheda: apre la finestra (P119).
+        $parts[] = '<button type="button" class="btn btn-sm btn-outline-primary" onclick="'
+            .static::escape(
+                'window.bootstrap && window.bootstrap.Modal'
+                .".getOrCreateInstance(document.getElementById('".static::ADJUST_MODAL."')).show();"
+            )
+            .'"><i class="bi bi-pencil-square me-1"></i>Rettifica</button>';
 
         return implode(' · ', $parts);
     }
 
-    /** Gli ultimi dieci movimenti di questa opzione. */
+    /**
+     * I movimenti di questa opzione, cinque per volta (P119).
+     *
+     * È il datatable del core sulla tabella dei movimenti, con le colonne e i
+     * formatter dell'elenco *Movimenti*: la stessa lettura, senza uscire
+     * dalla scheda. La ricerca resta spenta — la sua casella farebbe partire
+     * il salvataggio della scheda che c'è intorno.
+     *
+     * Senza database il datatable non nasce: resta la frase, e la scheda si
+     * legge lo stesso.
+     */
     protected static function stockHistoryTable(): string
     {
         $productId = static::currentId() ?? 0;
-        $rows = $productId > 0 ? StockHistory::latest($productId, 10) : [];
+        $vuoto = '<p class="text-muted mb-0">Nessun movimento: la giacenza di questa opzione non è mai cambiata.</p>';
 
-        if ($rows === []) {
-            return '<p class="text-muted mb-0">Nessun movimento: la giacenza di questa opzione non è mai cambiata.</p>';
+        if ($productId <= 0) {
+            return $vuoto;
         }
 
-        $html = '<table class="table table-sm mb-2"><thead><tr>'
-            .'<th>Quando</th><th>Tipo</th><th>Causale</th><th>Pezzi</th><th>Dopo</th><th>Nota</th>'
-            .'</tr></thead><tbody>';
+        $slug = StockMovementResource::slug();
 
-        foreach ($rows as $row) {
-            $quantity = (float) ($row['quantity'] ?? 0);
-            $html .= '<tr>'
-                .'<td>'.static::escape((string) ($row['creation'] ?? '')).'</td>'
-                .'<td>'.static::escape(StockMovement::typeLabels()[(string) ($row['type'] ?? '')] ?? '').'</td>'
-                .'<td>'.static::escape(Reasons::label((string) ($row['reason'] ?? ''))).'</td>'
-                .'<td>'.static::escape(($quantity > 0 ? '+' : '').static::plainNumber($quantity)).'</td>'
-                .'<td>'.static::escape(static::plainNumber((float) ($row['quantity_after'] ?? 0))).'</td>'
-                .'<td>'.static::escape((string) ($row['note'] ?? '')).'</td>'
-                .'</tr>';
+        try {
+            $tabella = new Datatable(StockMovement::$table);
+            $tabella->title(false);
+            $tabella->length(5);
+            $tabella->query('`product_id` = '.$productId." AND `deleted` = 'false'");
+            $tabella->queryOrder('id', 'DESC');
+            $tabella
+                ->addColumn('Quando', 'creation', false, '', null, null)
+                ->addColumn('Tipo', 'type', false, '', null, null, ['formatter' => $slug.'.type'])
+                ->addColumn('Causale', 'reason', false, '', null, null, ['formatter' => $slug.'.reason'])
+                ->addColumn('Pezzi', 'quantity', false, '', null, 'little', ['formatter' => $slug.'.quantity'])
+                ->addColumn('Dopo', 'quantity_after', false, '', null, 'little', ['formatter' => $slug.'.quantity_after']);
+
+            $html = (string) $tabella->generate(false);
+        } catch (Throwable) {
+            $html = $vuoto;
         }
-
-        $html .= '</tbody></table><a href="'
-            .static::escape(StockMovementResource::listUrlFor($productId))
-            .'">Vedi tutti i movimenti</a>';
 
         return $html;
+    }
+
+    /**
+     * La finestra della rettifica (P119).
+     *
+     * Posta dove postava la pagina — la stessa rotta, in POST — e con `back`
+     * torna qui da sola. Un `<form>` dentro un altro `<form>` il browser lo
+     * butta via: la finestra nasce dentro un `<template>`, e lo script la
+     * porta in fondo alla pagina, fuori dalla scheda.
+     */
+    public static function stockAdjustModal(int $productId, string $back): string
+    {
+        if ($productId <= 0) {
+            return '';
+        }
+
+        $id = static::ADJUST_MODAL;
+        $azione = static::escape(StockAdjustmentResource::submitUrl());
+        $azioni = '';
+
+        foreach (Adjustment::ACTIONS as $chiave => $nome) {
+            $azioni .= '<option value="'.static::escape((string) $chiave).'">'.static::escape($nome).'</option>';
+        }
+
+        $causali = '';
+
+        foreach (Reasons::all() as $chiave => $nome) {
+            $causali .= '<option value="'.static::escape((string) $chiave).'"'
+                .((string) $chiave === Reasons::DEFAULT ? ' selected' : '').'>'
+                .static::escape((string) $nome).'</option>';
+        }
+
+        return '<template data-wi-stock-adjust="'.$id.'">'
+            .'<div class="modal fade" id="'.$id.'" tabindex="-1" aria-hidden="true">'
+            .'<div class="modal-dialog modal-dialog-centered"><div class="modal-content">'
+            .'<form method="post" action="'.$azione.'">'
+            .'<div class="modal-header"><h5 class="modal-title">Rettifica la giacenza</h5>'
+            .'<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>'
+            .'<div class="modal-body"><div class="row g-3">'
+            .'<div class="col-4"><label class="form-label" for="'.$id.'-mode">Azione</label>'
+            .'<select class="form-select" id="'.$id.'-mode" name="mode" data-wi-check="true" required>'.$azioni.'</select></div>'
+            .'<div class="col-4"><label class="form-label" for="'.$id.'-quantity">Quantità</label>'
+            .'<input class="form-control" id="'.$id.'-quantity" type="number" step="0.001" min="0" name="quantity" data-wi-check="true" required></div>'
+            .'<div class="col-4"><label class="form-label" for="'.$id.'-reason">Causale</label>'
+            .'<select class="form-select" id="'.$id.'-reason" name="reason" data-wi-check="true" required>'.$causali.'</select></div>'
+            .'<div class="col-12"><label class="form-label" for="'.$id.'-note">Nota</label>'
+            .'<textarea class="form-control" id="'.$id.'-note" name="note" rows="2"></textarea></div>'
+            .'</div></div>'
+            .'<div class="modal-footer">'
+            .'<input type="hidden" name="product_id" value="'.$productId.'">'
+            .'<input type="hidden" name="back" value="'.static::escape($back).'">'
+            .'<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>'
+            .'<button type="submit" class="btn btn-primary">Salva la rettifica</button>'
+            .'</div></form></div></div></div></template>'
+            .static::stockAdjustScript();
+    }
+
+    /**
+     * Porta la finestra in fondo alla pagina: un form dentro un form non
+     * esiste.
+     *
+     * Il backend tiene spento «Salva» finché un campo obbligatorio è vuoto, e
+     * riaccende ascoltando i campi con «data-wi-check»: quegli ascolti li
+     * attacca una volta sola al caricamento, quando la finestra non è ancora
+     * arrivata. Qui li rimette la finestra stessa, e cerca la spunta del
+     * backend quando l'evento arriva, non quando si attacca: al momento del
+     * trasloco quella funzione può non esserci ancora.
+     */
+    protected static function stockAdjustScript(): string
+    {
+        $id = json_encode(static::ADJUST_MODAL);
+
+        return <<<HTML
+<script>
+    (function () {
+        var ID = {$id};
+
+        function porta() {
+            var modello = document.querySelector('template[data-wi-stock-adjust="' + ID + '"]');
+
+            if (!modello || document.getElementById(ID)) {
+                return;
+            }
+
+            document.body.appendChild(modello.content.cloneNode(true));
+            spunta(document.getElementById(ID));
+        }
+
+        function spunta(finestra) {
+            if (!finestra) {
+                return;
+            }
+
+            // Il backend ascolta i tasti; «input» prende anche quello che
+            // arriva senza tastiera — incollato, dettato, riempito dal
+            // browser.
+            ['input', 'keyup', 'change', 'focusin', 'focusout'].forEach(function (evento) {
+                finestra.addEventListener(evento, function (fatto) {
+                    if (typeof check === 'function' && fatto.target.dataset.wiCheck === 'true') {
+                        check();
+                    }
+                }, true);
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', porta);
+        } else {
+            porta();
+        }
+    })();
+</script>
+HTML;
     }
 
     public static function tableSchema(): array
@@ -510,9 +797,8 @@ class ProductResource extends ProductModelResource
                 ->formatter(static fn (array $row): string => static::escape(
                     static::modelNames()[(int) ($row['product_model_id'] ?? 0)] ?? '—'
                 )),
-            TableColumn::key('sku')->text()->size('little'),
-            TableColumn::key('ean')->text()->size('little'),
-            TableColumn::key('price')->text()->size('little'),
+            TableColumn::key('sku')->text(),
+            TableColumn::key('price')->price()->size('medium'),
             // "Attiva" e "Ferma": qui non si parla di vetrina ma di magazzino.
             TableColumn::key('active')
                 ->booleanBadge()
@@ -582,6 +868,29 @@ class ProductResource extends ProductModelResource
         }
 
         return $base.'?prodotto='.$modelId;
+    }
+
+    /**
+     * L'indirizzo della scheda di un'opzione.
+     *
+     * La strada è la stessa di `listUrlFor()`: la rotta con il nome quando il
+     * framework è avviato, il percorso quando non lo è.
+     */
+    public static function editUrlFor(int $productId): string
+    {
+        $fallback = '/backend/'.static::path().'/'.$productId.'/edit/';
+
+        if (!function_exists('__r')) {
+            return $fallback;
+        }
+
+        try {
+            $named = (string) __r('backend.resource.'.static::slug().'.edit', ['id' => $productId]);
+        } catch (\Throwable) {
+            return $fallback;
+        }
+
+        return $named !== '' ? $named : $fallback;
     }
 
     /**

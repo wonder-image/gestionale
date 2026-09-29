@@ -423,10 +423,37 @@ finestra di una riga che li ha e usa **Salva per tutte le opzioni**.
 
 ## I dettagli di una singola opzione
 
-Peso e misure sue, codice del produttore: cose che si toccano di rado e non
-stanno nella griglia. Il pulsante **Dettagli delle
-opzioni**, in alto nella scheda, apre l'elenco di quell'articolo e da lì si apre
-la riga che ti serve. Compare solo quando le opzioni sono più di una.
+Peso e misure sue, MPN: cose che si toccano di rado e non stanno nella griglia.
+Il pulsante **Dettagli delle opzioni**, in alto nella scheda, apre una finestra
+con tutte le opzioni — *Opzione*, *SKU*, *Prezzo* e *Stato* — e da lì il nome
+dell'opzione, o i tre puntini in fondo alla riga, aprono la sua scheda. In
+fondo alla finestra **Apri l'elenco completo** porta alla pagina di prima, dove
+si filtra e si ordina. Il pulsante compare solo quando le opzioni sono più di
+una.
+
+La scheda dell'opzione sta su **due colonne**. A destra, nel riquadro
+**Identificazione**, quello che identifica il pezzo fisico: **SKU**, **EAN**,
+**MPN** — il codice del produttore, quello scritto sul listino del fornitore —
+e le misure. A sinistra il lavoro di tutti i giorni: prezzo, stato, attributi,
+magazzino.
+
+Gli attributi si leggono in due riquadri, e tutti e due mostrano **solo quello
+che è compilato**:
+
+- **Opzioni di vendita** — quello che distingue questa opzione dalle sorelle
+  (taglia, colore, fantasia). Si vedono e basta: cambiarli qui sposterebbe
+  l'opzione in un'altra combinazione, e si cambiano dalla griglia della scheda
+  dell'articolo, dove si vede l'effetto. Un articolo con un'unica opzione non
+  ha questo riquadro.
+- **Scheda tecnica** — le caratteristiche con l'unità di misura, che si
+  scrivono qui; **Aggiungi caratteristica** tira fuori quelle che non hai
+  ancora compilato. Una caratteristica nuova si prepara in **Catalogo →
+  Attributi**.
+
+Nel riquadro **Magazzino**, **Rettifica** apre una finestra lì dentro (vedi [Le
+giacenze](magazzino-giacenze.md#rettificare-una-riga-sola)) e i movimenti si
+sfogliano cinque per volta, senza uscire dalla scheda; **Vedi tutti i
+movimenti** resta per la storia lunga.
 
 Con la funzionalità *Acquisti*, dopo **Magazzino** c'è il riquadro
 **Fornitori**: gli stessi fornitori che vedi nella riga della griglia, per
