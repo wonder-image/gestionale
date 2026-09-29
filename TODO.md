@@ -260,6 +260,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 
 - [ ] Finestre e campi scritti a mano invece dei componenti del core. `ProductResource::stockAdjustModal()` e `stockAdjustScript()` compongono la finestra della rettifica con HTML in stringa — `<div class="modal">`, `<input>`, `<button>` — al posto di `Modal`, `FormField` e `Button`. Il blocco è che la finestra ha una **form propria** (posta su `StockAdjustmentResource::submitUrl()`) e il `Modal` del core non ammette un `<form>` dentro: va prima aggiunto al core un modo di fare finestre con form, poi riscritte qui. Stesso debito, in piccolo, nei quattro widget della dashboard e in altri punti di `ProductModelResource`
 
+- [ ] Prezzi all'inglese nelle tabelle del core. `Backend\Table\Field` rende il tipo `price` con `number_format($v, 2, '.', '').'€'`: nella scheda dell'articolo la stessa pagina scrive «da 9,90 €» nel riquadro «Prodotto» (lo compone il modulo) e «9.90€» nella tabella delle opzioni (lo compone il core). Va deciso se il formato lo prende dalla lingua del sito o da un'impostazione, e sistemato nel core: riguarda tutte le tabelle, non solo il gestionale
+
 ### Lavori preparatori in `wonder-image/app` (D58)
 
 - [x] `Data\Fields\Number::sqlSchema()` torna `'length' => '10,2'` fisso e ignora `decimals()`: ogni colonna nata da `sqlColumnsFromDataSchema()` perde i decimali oltre il secondo (le quantità del magazzino, `gst_products.weight`). Nel modulo c'è il ripiego `Support\Columns::decimal()`

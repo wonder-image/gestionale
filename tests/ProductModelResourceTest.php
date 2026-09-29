@@ -2882,6 +2882,35 @@ check('i riquadri della scheda in lettura sono quelli della modifica', function 
         && $titoli($scheda->components[1]) === ['Foto e video', 'Stato', 'Dove si trova'];
 });
 
+check('i riquadri della scheda in lettura sono larghi quanto la loro colonna', function () {
+    $scheda = ProductModelResource::showLayoutSchema(['id' => 3168]);
+    $riquadri = [];
+
+    foreach ($scheda->components ?? [] as $colonna) {
+        foreach ($colonna->components ?? [] as $riquadro) {
+            $riquadri[] = $riquadro;
+        }
+    }
+
+    if ($riquadri === []) {
+        return false;
+    }
+
+    foreach ($riquadri as $riquadro) {
+        // Senza questi due numeri il riquadro esce in «col-1» e il testo
+        // scende in colonna, una lettera per riga.
+        if ((((array) $riquadro->columnSpan)['default'] ?? null) !== 12) {
+            return false;
+        }
+
+        if ((((array) $riquadro->columns)['default'] ?? null) !== 12) {
+            return false;
+        }
+    }
+
+    return true;
+});
+
 check('le opzioni della scheda sono le colonne che ProductResource dichiara', function () {
     $dichiarate = [];
 

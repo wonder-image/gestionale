@@ -803,13 +803,13 @@ class ProductModelResource extends GestionaleResource
                 static::showRow('Prezzo', static::priceCell($modelId), true)->columnSpan(4),
                 static::showRow('Opzioni', $opzioni > 0 ? (string) $opzioni : '')->columnSpan(4),
                 static::showRow('Descrizione breve', (string) ($item['short_description'] ?? ''))->columnSpan(12),
-            ]),
+            ])->columns(12)->columnSpan(12),
             (new Card)->components([
                 SectionTitle::make('Opzioni in vendita')
                     ->tooltip('Le righe che si vendono davvero, con il loro codice e il loro prezzo. Lo stato si cambia da qui con un click; il resto dai tre puntini, nella scheda dell\'opzione.')
                     ->columnSpan(12),
                 RichText::make(static::optionsTable($modelId))->tag('div')->columnSpan(12),
-            ]),
+            ])->columns(12)->columnSpan(12),
         ];
     }
 
@@ -836,13 +836,13 @@ class ProductModelResource extends GestionaleResource
                     : '<p class="text-muted mb-0">Nessuna foto: si caricano dalla modifica.</p>')
                     ->tag('div')
                     ->columnSpan(12),
-            ]),
+            ])->columns(12)->columnSpan(12),
             (new Card)->components([
                 SectionTitle::make('Stato')
                     ->tooltip('«Pubblicato» vuol dire che l\'articolo si vede nel negozio. Si cambia da qui, con un click.')
                     ->columnSpan(12),
                 RichText::make(static::statusBadge($item))->tag('div')->columnSpan(12),
-            ]),
+            ])->columns(12)->columnSpan(12),
             (new Card)->components([
                 SectionTitle::make('Dove si trova')
                     ->tooltip('Marchio, categorie e tag si cambiano dalla modifica.')
@@ -851,7 +851,7 @@ class ProductModelResource extends GestionaleResource
                 static::showRow('Categoria principale', static::categoryNames([$principale]))->columnSpan(12),
                 static::showRow('Altre categorie', static::categoryNames($altre))->columnSpan(12),
                 static::showRow('Tag', static::tagNames($modelId))->columnSpan(12),
-            ]),
+            ])->columns(12)->columnSpan(12),
         ];
     }
 
