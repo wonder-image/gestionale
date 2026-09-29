@@ -41,6 +41,10 @@ final class Setting extends Model
             Column::key('shipping_tax_id')->int()->foreign(Tax::$table),
             Column::key('invoice_numeration')->length(20)->default('WEB'),
             Column::key('stamp_duty_auto')->enum(['true', 'false'])->default('true'),
+            // Vendita (5.2): quanto resta impegnata la merce di un ordine non
+            // ancora pagato e quanti giorni si aspetta il bonifico.
+            Column::key('order_reservation_minutes')->int()->default(30),
+            Column::key('order_payment_wait_days')->int()->default(7),
             Column::key('fiscal_confirmed_at')->datetime(),
             Column::key('developer_error_emails')->type('TEXT'),
         ];
@@ -59,6 +63,8 @@ final class Setting extends Model
             Field::key('shipping_tax_id')->number()->decimals(0),
             Field::key('invoice_numeration')->text()->sanitize(false),
             Field::key('stamp_duty_auto')->text()->sanitize(false),
+            Field::key('order_reservation_minutes')->number()->decimals(0),
+            Field::key('order_payment_wait_days')->number()->decimals(0),
             Field::key('fiscal_confirmed_at')->date(),
             Field::key('developer_error_emails')->text(),
         ];
