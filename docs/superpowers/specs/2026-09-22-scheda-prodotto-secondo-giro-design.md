@@ -1570,8 +1570,8 @@ che con più sedi ha già il riquadro «Magazzino» al posto della casella.
 - [x] modulo: `CustomerResource` e `Contact` con i conti su una tabella; `CatalogDemo` e `ContactsDemo` con i fornitori per opzione
 - [x] modulo: test unitari e d'integrazione allineati (`ProductSuppliersTest`, `ProductSupplierModelsTest`, `ProductModelResourceTest`, `CatalogDemoTest`, `CombinazioniTest`, `ContactsTest`, `LocationStockTest`)
 - [x] modulo: guide `catalogo-prodotti`, `anagrafiche`, `funzionalita`, `magazzino-giacenze`; `docs/dev/concetti/{acquisti,catalogo,errori}` (`magazzino` non parla dei due livelli); `CHANGELOG.md`. `TODO.md` non toccato: la voce del tredicesimo giro che nomina `gst_product_model_suppliers` va aggiornata insieme a chi lo tiene
-- [ ] prova nel browser (1600×950): un fornitore e più fornitori, con e senza varianti, scheda dell'opzione, «Salva per tutte le opzioni», griglia con una sede e con più sedi
-- [ ] memoria e commit con percorsi espliciti; niente push senza OK
+- [x] prova nel browser (1600×950, 2026-09-29): un fornitore e più fornitori, con e senza varianti, in creazione e in modifica, scheda dell'opzione, «Salva per tutte le opzioni», fornitore non attivo (P92), varianti accese con i fornitori copiati (P115), griglia con una sede e con più sedi. Nessun difetto
+- [x] memoria e commit con percorsi espliciti; niente push senza OK
 
 ## Piani
 
