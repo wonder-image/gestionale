@@ -523,6 +523,29 @@ try {
             return false;
         });
 
+        check('una prenotazione scaduta si chiude, una ancora buona e una senza scadenza no', function () use ($sede) {
+            $productId = articoloConGiacenza(9, 'TST-EXP-1');
+            $ordine = ordineDiProva();
+
+            foreach ([date('Y-m-d H:i:s', strtotime('-1 hour')), date('Y-m-d H:i:s', strtotime('+1 hour')), ''] as $scadenza) {
+                Allocation::reserve([
+                    'product_id' => $productId,
+                    'quantity' => 1,
+                    'location_id' => $sede,
+                    'order_id' => $ordine,
+                    'expires_at' => $scadenza,
+                ]);
+            }
+
+            $chiuse = Allocation::expire($ordine);
+            $aperte = (int) sqlCount(
+                Wonder\Plugin\Gestionale\Models\Stock\StockReservation::$table,
+                "order_id = {$ordine} AND released_at IS NULL AND deleted = 'false'"
+            );
+
+            return $chiuse === 1 && $aperte === 2 && Allocation::expire($ordine) === 0;
+        });
+
         summary();
 
         throw new Annulla('Fine della prova: niente resta scritto.');

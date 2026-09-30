@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale;
 use Wonder\App\Module\ConfigRepository;
 use Wonder\App\Module\Contracts\ModuleInterface;
 use Wonder\App\Module\Contracts\ModuleTasks;
+use Wonder\Plugin\Gestionale\Scheduler\ExpiryTask;
 use Wonder\Plugin\Gestionale\Scheduler\ImagesTask;
 use Wonder\Plugin\Gestionale\Scheduler\StockAlertsTask;
 
@@ -57,7 +58,7 @@ final class Gestionale implements ModuleInterface, ModuleTasks
      */
     public static function tasks(): iterable
     {
-        return [new ImagesTask(), new StockAlertsTask()];
+        return [new ImagesTask(), new StockAlertsTask(), new ExpiryTask()];
     }
 
     public static function assetPath(string $path = ''): string

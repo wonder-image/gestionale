@@ -160,6 +160,45 @@ final class Allocation
     }
 
     /**
+     * Chiude le prenotazioni di un ordine che hanno passato la scadenza.
+     *
+     * Una prenotazione scaduta non conta già più nel disponibile — lo dice
+     * `Availability::isActive()` — ma la riga resta aperta finché qualcuno non
+     * la chiude, e `release()` la salta proprio perché non è più attiva. Questo
+     * è quel «qualcuno»: serve solo a tenere ordinata la tabella e a far
+     * leggere «rilasciata» a chi guarda la storia dell'ordine. Quelle ancora
+     * buone e quelle senza scadenza non si toccano.
+     *
+     * @return int quante righe ha chiuso
+     */
+    public static function expire(int $orderId): int
+    {
+        if ($orderId <= 0) {
+            return 0;
+        }
+
+        return Transaction::run(static function () use ($orderId): int {
+            $now = date('Y-m-d H:i:s');
+            $closed = 0;
+
+            foreach (self::reservationsOfOrder($orderId) as $reservation) {
+                $released = trim((string) ($reservation['released_at'] ?? ''));
+
+                // Non attiva e mai rilasciata vuol dire una cosa sola: scaduta.
+                if (Availability::isActive($reservation, $now)
+                    || ($released !== '' && !str_starts_with($released, '0000-00-00'))) {
+                    continue;
+                }
+
+                StockReservation::update(['released_at' => $now], (int) $reservation['id']);
+                ++$closed;
+            }
+
+            return $closed;
+        });
+    }
+
+    /**
      * Scarica davvero la merce di una riga d'ordine.
      *
      * Con una prenotazione valida scarica **sempre**, anche se il magazzino
