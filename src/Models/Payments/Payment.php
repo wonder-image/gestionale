@@ -16,9 +16,10 @@ use Wonder\Sql\TableSchema as Column;
  * somma delle righe riuscite, ed è `Support\Payments\Ledger` (piano 2) l'unico
  * che lo tocca.
  *
- * `provider` e `provider_reference` hanno un indice unico insieme: è la difesa
- * contro la notifica doppia del gateway, che arriva anche due volte per lo
- * stesso incasso. `order_id`, `subscription_id` e `customer_id` sono interi
+ * `provider`, `provider_reference` e `type` hanno un indice unico insieme: è la
+ * difesa contro la notifica doppia del gateway, che arriva anche due volte per
+ * lo stesso incasso, e il `type` tiene distinto il rimborso che porta il
+ * riferimento dell'incasso. `order_id`, `subscription_id` e `customer_id` sono interi
  * semplici: un pagamento di un abbonamento non ha ordine e uno al banco può
  * non avere cliente.
  */
@@ -60,8 +61,11 @@ final class Payment extends Model
     public static function tablePseudos(): array
     {
         return [
-            // La stessa notifica del gateway non entra due volte.
-            'uni_provider_reference' => ['unique' => ['provider', 'provider_reference']],
+            // La stessa notifica del gateway non entra due volte. Il tipo fa
+            // parte della chiave perché certi gateway rimandano il riferimento
+            // dell'incasso anche sul rimborso, e un rimborso non è la ripetizione
+            // di un incasso.
+            'uni_provider_reference' => ['unique' => ['provider', 'provider_reference', 'type']],
             'ind_order' => ['index' => 'order_id'],
             'ind_due_date' => ['index' => 'due_date'],
             'ind_status' => ['index' => 'status'],

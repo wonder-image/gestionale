@@ -57,6 +57,26 @@ if ($ruolo === 'pezzo') {
     exit;
 }
 
+if ($ruolo === 'annulla') {
+    [$ordine, $barriera] = [(int) $argv[2], (string) $argv[3]];
+
+    attendi($barriera);
+
+    try {
+        echo (string) Transaction::run(static function () use ($ordine): int {
+            $chiuse = Allocation::release(['order_id' => $ordine]);
+            // Tiene il blocco quel tanto che basta perché l'altro ci sbatta.
+            usleep(250000);
+
+            return $chiuse;
+        });
+    } catch (Throwable) {
+        echo 'KO';
+    }
+
+    exit;
+}
+
 if ($ruolo === 'incasso') {
     [$ordine, $riferimento, $barriera] = [(int) $argv[2], (string) $argv[3], (string) $argv[4]];
 
@@ -145,6 +165,36 @@ check('l\'ultimo pezzo lo prende uno solo dei due', function () use (&$spazzatur
     return $esiti === ['KO', 'OK'] && $righe === 1;
 });
 
+check('lo stesso ordine annullato due volte libera la merce una volta sola', function () use (&$spazzatura) {
+    $prodotto = articoloConGiacenza(5, 'TST-GARA-'.substr((string) microtime(true), -6));
+    $ordine = ordineDiProva();
+
+    $spazzatura['prodotti'][] = $prodotto;
+    $spazzatura['ordini'][] = $ordine;
+
+    Allocation::reserve(['product_id' => $prodotto, 'quantity' => 2, 'order_id' => $ordine]);
+
+    $barriera = barriera();
+    $processi = [
+        avvia('annulla', [$ordine, $barriera]),
+        avvia('annulla', [$ordine, $barriera]),
+    ];
+
+    via($barriera);
+    $esiti = array_map('esito', $processi);
+    sort($esiti);
+
+    // Chi arriva secondo trova la riga già chiusa e non la richiude: se la
+    // contasse anche lui, chi legge il ritorno crederebbe di aver rimesso sul
+    // banco il doppio della merce.
+    $vive = (int) sqlCount(
+        StockReservation::$table,
+        "order_id = {$ordine} AND released_at IS NULL AND deleted = 'false'"
+    );
+
+    return $esiti === ['0', '1'] && $vive === 0;
+});
+
 check('la stessa notifica da due processi incassa una volta sola', function () use (&$spazzatura) {
     $ordine = ordineDiProva(100.0);
     $spazzatura['ordini'][] = $ordine;
@@ -158,12 +208,15 @@ check('la stessa notifica da due processi incassa una volta sola', function () u
 
     via($barriera);
     $esiti = array_map('esito', $processi);
-    $vinti = array_values(array_filter($esiti, 'ctype_digit'));
+    // Gli id che i due riportano: uno solo, comunque sia andata. Se si sono
+    // pestati i piedi ne passa uno e l'altro trova l'indice unico; se uno è
+    // arrivato a cose fatte, ritrova la riga del primo e ne riporta l'id. Due
+    // id diversi vorrebbero dire due incassi.
+    $vinti = array_values(array_unique(array_filter($esiti, 'ctype_digit')));
 
-    // Dei due ne passa uno solo: l'altro si trova davanti l'indice unico e
-    // torna indietro senza scrivere niente. Un gateway a cui la notifica è
-    // andata storta la rimanda, e al secondo giro — da solo — ritrova la riga
-    // che c'era già invece di incassare una seconda volta.
+    // Un gateway a cui la notifica è andata storta la rimanda, e al secondo
+    // giro — da solo — ritrova la riga che c'era già invece di incassare una
+    // seconda volta.
     $ripetuta = Ledger::register([
         'order_id' => $ordine,
         'amount' => 50.0,

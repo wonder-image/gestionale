@@ -67,10 +67,12 @@ check('gli enum del pagamento sono quelli della spec', fn () =>
     && Payment::PROVIDERS === ['stripe', 'paypal', 'nexi', 'manual']
 );
 
-check('la notifica doppia del gateway non passa due volte', function () {
+check('la notifica doppia del gateway non passa due volte, il rimborso sì', function () {
+    // Il tipo sta nella chiave perché certi gateway rimandano il riferimento
+    // dell'incasso anche sul rimborso: quello non è una notifica ripetuta.
     $unico = Payment::tablePseudos()['uni_provider_reference']['unique'] ?? [];
 
-    return $unico === ['provider', 'provider_reference'];
+    return $unico === ['provider', 'provider_reference', 'type'];
 });
 
 check('il metodo di pagamento tiene tutte le colonne di 4.8', function () use ($colonne) {

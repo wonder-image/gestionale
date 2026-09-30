@@ -91,11 +91,20 @@ final class Allocation
      * Lascia andare la merce messa da parte: tutta quella di un ordine, o solo
      * quella di una sua riga.
      *
-     * Una prenotazione già chiusa non si richiude: torna quante ne ha chiuse
-     * davvero, che è zero quando il carrello era già scaduto.
+     * Con `consume` se ne prende invece una quantità precisa, ed è quello che
+     * fa `commit()`: si spedisce quel che si spedisce, e il resto resta di
+     * questo cliente. Una riga che ne teneva più del necessario si accorcia
+     * senza chiudersi, e la conta di ritorno è quella delle righe chiuse
+     * davvero — zero quando il carrello era già scaduto.
+     *
+     * Legge con il lock, dentro la propria transazione, perché due annulli
+     * dello stesso ordine non chiudano due volte le stesse righe: una lettura
+     * normale risponde con la fotografia di quando la transazione è
+     * cominciata, e l'altro non l'ha ancora scritta.
      *
      * @param array<string, mixed> $line `order_id` (obbligatoria),
-     *     `order_item_id`, `product_id`, `location_id`, `batch_id`, `supplier_id`
+     *     `order_item_id`, `product_id`, `location_id`, `batch_id`,
+     *     `supplier_id`, `consume`
      */
     public static function release(array $line): int
     {
@@ -105,29 +114,49 @@ final class Allocation
             return 0;
         }
 
-        $itemId = (int) ($line['order_item_id'] ?? 0);
-        $productId = (int) ($line['product_id'] ?? 0);
-        $now = date('Y-m-d H:i:s');
-        $closed = 0;
+        return Transaction::run(static function () use ($line, $orderId): int {
+            $itemId = (int) ($line['order_item_id'] ?? 0);
+            $productId = (int) ($line['product_id'] ?? 0);
+            $left = round((float) ($line['consume'] ?? 0), 3);
+            $partial = $left > 0;
+            $now = date('Y-m-d H:i:s');
+            $closed = 0;
 
-        foreach (self::reservationsOfOrder($orderId) as $reservation) {
-            if ($itemId > 0 && (int) ($reservation['order_item_id'] ?? 0) !== $itemId) {
-                continue;
+            foreach (self::reservationsOfOrder($orderId) as $reservation) {
+                if ($itemId > 0 && (int) ($reservation['order_item_id'] ?? 0) !== $itemId) {
+                    continue;
+                }
+
+                if ($productId > 0 && (int) ($reservation['product_id'] ?? 0) !== $productId) {
+                    continue;
+                }
+
+                if (!Availability::isActive($reservation, $now)) {
+                    continue;
+                }
+
+                if ($partial && $left <= 0) {
+                    break;
+                }
+
+                $quantity = round((float) ($reservation['quantity'] ?? 0), 3);
+
+                if ($partial && $quantity > $left) {
+                    StockReservation::update(
+                        ['quantity' => self::number(round($quantity - $left, 3))],
+                        (int) $reservation['id']
+                    );
+
+                    break;
+                }
+
+                StockReservation::update(['released_at' => $now], (int) $reservation['id']);
+                ++$closed;
+                $left = round($left - $quantity, 3);
             }
 
-            if ($productId > 0 && (int) ($reservation['product_id'] ?? 0) !== $productId) {
-                continue;
-            }
-
-            if (!Availability::isActive($reservation, $now)) {
-                continue;
-            }
-
-            StockReservation::update(['released_at' => $now], (int) $reservation['id']);
-            ++$closed;
-        }
-
-        return $closed;
+            return $closed;
+        });
     }
 
     /**
@@ -164,9 +193,10 @@ final class Allocation
                 throw UserError::make('order.reservation_lost');
             }
 
-            if ($hasReservation) {
-                self::release($line);
-            }
+            // Si consuma solo la merce che esce davvero: quella messa da
+            // parte in più resta dell'ordine, e quella che non bastava non
+            // lascia dietro una prenotazione che nessuno chiuderà più.
+            self::release(array_merge($line, ['consume' => $context['quantity']]));
 
             $movement = Stock::apply([
                 'product_id' => $context['product_id'],
@@ -445,7 +475,7 @@ final class Allocation
     /** @return list<array<string, mixed>> */
     private static function reservationsOfOrder(int $orderId): array
     {
-        return self::rows(StockReservation::find(
+        return self::rows(StockReservation::findForUpdate(
             "order_id = {$orderId} AND deleted = 'false'"
         ));
     }

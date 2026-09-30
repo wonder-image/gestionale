@@ -86,6 +86,13 @@ final class Ledger
                 throw new RuntimeException("Pagamento {$paymentId} non trovato.");
             }
 
+            if ((string) $row['status'] === 'paid') {
+                // La notifica di fallimento che arriva dopo l'incasso, in
+                // ritardo o ripetuta: dichiararlo fallito rimetterebbe a «non
+                // pagato» un ordine che i soldi li ha già portati.
+                throw UserError::make('payment.already_paid');
+            }
+
             self::move($row, 'failed', $message);
 
             return self::sync((int) $row['order_id']);
@@ -148,15 +155,23 @@ final class Ledger
         return Transaction::run(static function () use ($data, $type, $status, $orderId, $amount): array {
             $provider = self::provider($data);
             $reference = trim((string) ($data['provider_reference'] ?? ''));
-            $existing = $reference === '' ? null : self::findByReference($provider, $reference);
+            $existing = $reference === '' ? null : self::findByReference($provider, $reference, $type);
 
             if (is_array($existing)) {
+                if ((int) $existing['order_id'] !== $orderId) {
+                    // Quel riferimento è già di un altro ordine: preso per
+                    // buono qui, pagherebbe quello e lascerebbe questo senza
+                    // una riga di denaro.
+                    throw UserError::make('payment.reference_other_order');
+                }
+
+                self::reconcile($existing, $amount);
                 self::move($existing, $status, (string) ($data['note'] ?? ''));
 
                 return [
                     'payment_id' => (int) $existing['id'],
                     'created' => false,
-                    'payment_status' => self::sync((int) $existing['order_id']),
+                    'payment_status' => self::sync($orderId),
                 ];
             }
 
@@ -239,21 +254,58 @@ final class Ledger
     }
 
     /**
-     * La riga di quel gateway con quel riferimento, bloccata.
+     * La riga di quel gateway con quel riferimento, dello stesso tipo,
+     * bloccata.
      *
      * La condizione è sull'indice unico: se la riga non c'è, il blocco resta
      * sullo spazio dove andrebbe, e la notifica gemella aspetta qui.
      *
+     * Il tipo fa parte della chiave perché certi gateway rimandano il
+     * riferimento dell'incasso anche quando restituiscono i soldi: senza,
+     * il rimborso si confonderebbe con l'incasso e il denaro uscito non
+     * risulterebbe da nessuna parte.
+     *
      * @return array<string, mixed>|null
      */
-    private static function findByReference(string $provider, string $reference): ?array
+    private static function findByReference(string $provider, string $reference, string $type): ?array
     {
         $row = Payment::findForUpdate([
             'provider' => $provider,
             'provider_reference' => $reference,
+            'type' => $type,
         ], 1);
 
         return is_array($row) && $row !== [] ? $row : null;
+    }
+
+    /**
+     * Rimette sulla riga l'importo che è arrivato davvero.
+     *
+     * Si autorizzano cento e se ne incassano sessanta: quella riga vale
+     * sessanta, e l'ordine resta pagato in parte. Tenendo l'importo della
+     * prima notizia, l'ordine risulterebbe saldato con quaranta euro che
+     * nessuno ha mai versato.
+     *
+     * @param array<string, mixed> $row
+     */
+    private static function reconcile(array $row, float $amount): void
+    {
+        $before = round((float) ($row['amount'] ?? 0), 2);
+
+        if ($before === $amount) {
+            return;
+        }
+
+        Payment::update(['amount' => self::money($amount)], (int) $row['id']);
+
+        StatusLogger::record(
+            PaymentStatusLog::class,
+            (int) $row['id'],
+            'amount',
+            self::money($before),
+            self::money($amount),
+            'system'
+        );
     }
 
     /**
@@ -272,12 +324,32 @@ final class Ledger
         return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
     }
 
-    /** @param array<string, mixed> $data */
+    /**
+     * Il gateway, scritto come lo scriviamo noi.
+     *
+     * Il caso non conta: un webhook che si firma «Stripe» e la conferma che
+     * si firma «stripe» sono lo stesso gateway, e la riga aperta si deve
+     * ritrovare. Un nome che non conosciamo invece non diventa un incasso a
+     * mano — la riga resterebbe firmata da un altro, la notifica buona non la
+     * ritroverebbe e l'ordine finirebbe incassato due volte.
+     *
+     * @param array<string, mixed> $data
+     */
     private static function provider(array $data): string
     {
-        $provider = trim((string) ($data['provider'] ?? ''));
+        $provider = strtolower(trim((string) ($data['provider'] ?? '')));
 
-        return in_array($provider, Payment::PROVIDERS, true) ? $provider : 'manual';
+        if ($provider === '') {
+            return 'manual';
+        }
+
+        if (!in_array($provider, Payment::PROVIDERS, true)) {
+            throw UserError::make('payment.unknown_provider', [
+                'provider' => trim((string) ($data['provider'] ?? '')),
+            ]);
+        }
+
+        return $provider;
     }
 
     /** @param array<string, mixed> $data */

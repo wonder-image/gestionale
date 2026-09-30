@@ -235,6 +235,38 @@ try {
                 && $livelli['reserved'] === 0.0;
         });
 
+        check('scaricare più di quanto era da parte non lascia prenotazioni in giro', function () use ($sede) {
+            // Il carrello ne teneva due, l'ordine ne porta via cinque: quelle
+            // due non sono più da parte per nessuno.
+            $productId = articoloConGiacenza(5, 'TST-CMT-3');
+            $ordine = ordineDiProva();
+
+            Allocation::reserve(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine]);
+            Allocation::commit(['product_id' => $productId, 'quantity' => 5, 'location_id' => $sede, 'order_id' => $ordine]);
+
+            $livelli = Levels::of($productId);
+
+            return $livelli['quantity'] === 0.0
+                && $livelli['reserved'] === 0.0
+                && $livelli['available'] === 0.0;
+        });
+
+        check('scaricarne meno lascia all\'ordine il resto della sua merce', function () use ($sede) {
+            // Se ne spediscono due dei cinque messi da parte: gli altri tre
+            // restano di questo cliente, non tornano sul banco.
+            $productId = articoloConGiacenza(10, 'TST-CMT-4');
+            $ordine = ordineDiProva();
+
+            Allocation::reserve(['product_id' => $productId, 'quantity' => 5, 'location_id' => $sede, 'order_id' => $ordine]);
+            Allocation::commit(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine]);
+
+            $livelli = Levels::of($productId);
+
+            return $livelli['quantity'] === 8.0
+                && $livelli['reserved'] === 3.0
+                && $livelli['available'] === 5.0;
+        });
+
         check('lo scarico scrive un movimento di vendita legato all\'ordine', function () use ($sede) {
             $productId = articoloConGiacenza(3, 'TST-CMT-2');
             $ordine = ordineDiProva();
