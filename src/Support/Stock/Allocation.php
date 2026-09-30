@@ -421,16 +421,23 @@ final class Allocation
     }
 
     /**
-     * Le prenotazioni vive del prodotto in quella sede.
+     * Le prenotazioni vive del prodotto in quella sede, lette con il lock.
      *
      * Non si restringono per lotto: la tabella non ha la colonna, e contarle
      * tutte è il verso prudente dell'errore.
+     *
+     * Il lock serve come quello sulla giacenza, e per la stessa ragione: una
+     * lettura normale, dentro una transazione, risponde con la fotografia
+     * scattata alla sua prima lettura, e di lì in poi non vede più niente di
+     * quello che gli altri hanno scritto. Due ordini che si contendono
+     * l'ultimo pezzo leggerebbero tutti e due zero prenotazioni, e lo
+     * prenderebbero tutti e due.
      *
      * @return list<array<string, mixed>>
      */
     private static function liveReservations(int $productId, int $locationId): array
     {
-        return self::rows(StockReservation::find(
+        return self::rows(StockReservation::findForUpdate(
             "product_id = {$productId} AND location_id = {$locationId} AND deleted = 'false'"
         ));
     }
