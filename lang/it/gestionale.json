@@ -12,6 +12,9 @@
                 "location_duplicate": "La sede {{location}} compare due volte nelle righe della giacenza: tienine una sola.",
                 "location_unknown": "Una riga della giacenza punta a una sede che non è più del magazzino: ricarica la pagina e riprova."
             },
+            "order": {
+                "zero_quantity": "Una riga d'ordine deve avere una quantità maggiore di zero."
+            },
             "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
             "category": {
                 "loop": "Una categoria non può stare sotto sé stessa o sotto una sua sottocategoria.",
