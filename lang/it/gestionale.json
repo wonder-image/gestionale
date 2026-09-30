@@ -72,6 +72,40 @@
             "settings": {
                 "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo."
             }
+        },
+        "emails": {
+            "order": {
+                "received": {
+                    "subject": "Abbiamo ricevuto il tuo ordine :number",
+                    "title": "Grazie, l'ordine è arrivato",
+                    "intro": "Abbiamo registrato il tuo ordine :number del :date. Appena il pagamento risulta, te lo confermiamo."
+                },
+                "confirmed": {
+                    "subject": "Ordine :number confermato",
+                    "title": "Ordine confermato",
+                    "intro": "Il pagamento è a posto: prepariamo l'ordine :number."
+                },
+                "reminder": {
+                    "subject": "L'ordine :number aspetta il pagamento",
+                    "title": "Manca il pagamento",
+                    "intro": "L'ordine :number è ancora in attesa. Teniamo la merce da parte fino al :deadline, poi lo annulliamo."
+                },
+                "cancelled": {
+                    "subject": "Ordine :number annullato",
+                    "title": "Ordine annullato",
+                    "intro": "L'ordine :number è stato annullato. Se avevi già pagato, ti restituiamo l'importo."
+                },
+                "merchant_new": {
+                    "subject": "Nuovo ordine :number",
+                    "title": "È arrivato un ordine",
+                    "intro": "Ordine :number del :date, :total. Metodo di pagamento: :method."
+                },
+                "merchant_cancelled": {
+                    "subject": "Ordine :number annullato per mancato pagamento",
+                    "title": "Ordine annullato",
+                    "intro": "L'ordine :number è scaduto senza pagamento: la merce è tornata disponibile."
+                }
+            }
         }
     }
 }
