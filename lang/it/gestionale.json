@@ -16,6 +16,9 @@
                 "zero_quantity": "Una riga d'ordine deve avere una quantità maggiore di zero.",
                 "reservation_lost": "I pezzi che avevi messo da parte non ci sono più: l'ordine resta in attesa e ti scriviamo appena rientrano."
             },
+            "payment": {
+                "zero_amount": "Un pagamento deve avere un importo maggiore di zero."
+            },
             "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
             "category": {
                 "loop": "Una categoria non può stare sotto sé stessa o sotto una sua sottocategoria.",
