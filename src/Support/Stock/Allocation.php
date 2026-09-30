@@ -5,10 +5,12 @@ namespace Wonder\Plugin\Gestionale\Support\Stock;
 use RuntimeException;
 use Throwable;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Sql\Transaction;
 
 /**
@@ -126,6 +128,148 @@ final class Allocation
         }
 
         return $closed;
+    }
+
+    /**
+     * Scarica davvero la merce di una riga d'ordine.
+     *
+     * Con una prenotazione valida scarica **sempre**, anche se il magazzino
+     * nel frattempo si è svuotato: quel pezzo era di questo cliente. Senza
+     * prenotazione, e senza merce, decide il resto — `backorders` accesa manda
+     * sotto zero; spenta, un ordine già pagato va sotto zero e il commerciante
+     * viene avvisato; spenta e non pagato, l'ordine resta in attesa.
+     *
+     * @param array<string, mixed> $line come `reserve()`, più `payment_ok`
+     *     (bool: il pagamento è riuscito), `source` e `user_id`
+     * @return array{movement_id: int, before: float, after: float, reserved: float, oversold: bool, merchant_alert: bool}
+     */
+    public static function commit(array $line): array
+    {
+        $context = self::context($line);
+
+        if ($context['quantity'] <= 0) {
+            throw UserError::make('order.zero_quantity');
+        }
+
+        return Transaction::run(static function () use ($context, $line): array {
+            $onHand = self::lockedQuantity($context);
+            $reserved = self::reservedFor($line, $context);
+            $hasReservation = $reserved + 0.0005 >= $context['quantity'];
+            $backorder = Stock::allowsBackorder($context['product']);
+            $paid = ($line['payment_ok'] ?? false) === true;
+
+            if (!$hasReservation && $onHand < $context['quantity'] && !$backorder && !$paid) {
+                // La merce non c'è, nessuno l'aveva messa da parte e nessuno ha
+                // ancora pagato: l'ordine aspetta invece di scavare un buco.
+                throw UserError::make('order.reservation_lost');
+            }
+
+            if ($hasReservation) {
+                self::release($line);
+            }
+
+            $movement = Stock::apply([
+                'product_id' => $context['product_id'],
+                'location_id' => $context['location_id'],
+                'batch_id' => $context['batch_id'],
+                'supplier_id' => $context['supplier_id'],
+                'quantity' => -$context['quantity'],
+                'type' => 'sale',
+                'reference_type' => 'order',
+                'reference_id' => (int) ($line['order_id'] ?? 0),
+                'source' => (string) ($line['source'] ?? 'backend'),
+                'user_id' => (int) ($line['user_id'] ?? 0),
+                'allow_negative' => $hasReservation || $backorder || $paid,
+            ]);
+
+            $oversold = $movement['after'] < 0;
+            $alert = $oversold && !$backorder;
+
+            if ($alert) {
+                self::warnMerchant((int) ($line['order_id'] ?? 0), $context, $movement['after'], $line);
+            }
+
+            return [
+                'movement_id' => $movement['movement_id'],
+                'before' => $movement['before'],
+                'after' => $movement['after'],
+                'reserved' => $reserved,
+                'oversold' => $oversold,
+                'merchant_alert' => $alert,
+            ];
+        });
+    }
+
+    /**
+     * Quanta merce di questa riga era messa da parte e vale ancora.
+     *
+     * Con `order_item_id` conta solo quella riga; senza, tutte le prenotazioni
+     * di quel prodotto in quell'ordine — un ordine dal banco non ha righe
+     * numerate.
+     *
+     * @param array<string, mixed> $line
+     * @param array{product_id: int, location_id: int} $context
+     */
+    private static function reservedFor(array $line, array $context): float
+    {
+        $orderId = (int) ($line['order_id'] ?? 0);
+
+        if ($orderId <= 0) {
+            return 0.0;
+        }
+
+        $itemId = (int) ($line['order_item_id'] ?? 0);
+        $now = date('Y-m-d H:i:s');
+        $total = 0.0;
+
+        foreach (self::reservationsOfOrder($orderId) as $reservation) {
+            if ((int) ($reservation['product_id'] ?? 0) !== $context['product_id']) {
+                continue;
+            }
+
+            if ($itemId > 0 && (int) ($reservation['order_item_id'] ?? 0) !== $itemId) {
+                continue;
+            }
+
+            if (Availability::isActive($reservation, $now)) {
+                $total += (float) ($reservation['quantity'] ?? 0);
+            }
+        }
+
+        return round($total, 3);
+    }
+
+    /**
+     * Scrive nel log dell'ordine che si è venduto qualcosa che non c'era.
+     *
+     * Qui resta scritto; l'email al commerciante la manda il piano 3, che
+     * porta tutte le email di G4. Un log che non si scrive non ferma una
+     * vendita già incassata.
+     *
+     * @param array{product: array<string, mixed>, location_id: int} $context
+     * @param array<string, mixed> $line
+     */
+    private static function warnMerchant(int $orderId, array $context, float $after, array $line): void
+    {
+        if ($orderId <= 0) {
+            return;
+        }
+
+        StatusLogger::record(
+            OrderStatusLog::class,
+            $orderId,
+            'stock',
+            'available',
+            'oversold',
+            (string) ($line['source'] ?? 'system') === 'backend' ? 'user' : 'system',
+            (int) ($line['user_id'] ?? 0) ?: null,
+            sprintf(
+                'Venduto senza giacenza: %s resta a %s pezzi nella sede %d.',
+                self::label($context['product']),
+                self::number($after),
+                $context['location_id']
+            )
+        );
     }
 
     /**

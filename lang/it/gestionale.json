@@ -13,7 +13,8 @@
                 "location_unknown": "Una riga della giacenza punta a una sede che non è più del magazzino: ricarica la pagina e riprova."
             },
             "order": {
-                "zero_quantity": "Una riga d'ordine deve avere una quantità maggiore di zero."
+                "zero_quantity": "Una riga d'ordine deve avere una quantità maggiore di zero.",
+                "reservation_lost": "I pezzi che avevi messo da parte non ci sono più: l'ordine resta in attesa e ti scriviamo appena rientrano."
             },
             "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
             "category": {

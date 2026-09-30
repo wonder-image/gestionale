@@ -10,8 +10,13 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 
+use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
+use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
+use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
@@ -65,6 +70,30 @@ function ordineDiProva(float $totale = 100.0): int
     ]);
 
     return (int) ($ordine->insert_id ?? 0);
+}
+
+/**
+ * Accende delle funzionalità per la prova.
+ *
+ * Lo stato sta nel database e `Gestionale` lo tiene in cache: dopo la
+ * scrittura la cache va buttata, altrimenti si continua a leggere quella di
+ * prima. Tutto dentro la transazione, quindi alla fine non resta niente.
+ *
+ * @param list<string> $chiavi
+ */
+function accendiFunzionalita(array $chiavi): void
+{
+    foreach ($chiavi as $chiave) {
+        $riga = Feature::find(['feature_key' => $chiave, 'deleted' => 'false'], 1);
+
+        if (is_array($riga) && isset($riga['id'])) {
+            Feature::update(['enabled' => 'true'], (int) $riga['id']);
+        } else {
+            Feature::create(['feature_key' => $chiave, 'enabled' => 'true']);
+        }
+    }
+
+    Gestionale::reset();
 }
 
 try {
@@ -254,6 +283,162 @@ try {
             }
 
             return false;
+        });
+
+        check('lo scarico consuma la prenotazione e abbassa la giacenza', function () use ($sede) {
+            $productId = articoloConGiacenza(10, 'TST-CMT-1');
+            $ordine = ordineDiProva();
+
+            Allocation::reserve(['product_id' => $productId, 'quantity' => 4, 'location_id' => $sede, 'order_id' => $ordine]);
+            $esito = Allocation::commit([
+                'product_id' => $productId,
+                'quantity' => 4,
+                'location_id' => $sede,
+                'order_id' => $ordine,
+            ]);
+
+            $livelli = Levels::of($productId);
+
+            return $esito['movement_id'] > 0
+                && $esito['after'] === 6.0
+                && $esito['oversold'] === false
+                && $livelli['quantity'] === 6.0
+                && $livelli['reserved'] === 0.0;
+        });
+
+        check('lo scarico scrive un movimento di vendita legato all\'ordine', function () use ($sede) {
+            $productId = articoloConGiacenza(3, 'TST-CMT-2');
+            $ordine = ordineDiProva();
+
+            Allocation::reserve(['product_id' => $productId, 'quantity' => 1, 'location_id' => $sede, 'order_id' => $ordine]);
+            $esito = Allocation::commit(['product_id' => $productId, 'quantity' => 1, 'location_id' => $sede, 'order_id' => $ordine]);
+
+            $movimento = StockMovement::findById($esito['movement_id']);
+
+            return is_array($movimento)
+                && $movimento['type'] === 'sale'
+                && $movimento['reference_type'] === 'order'
+                && (int) $movimento['reference_id'] === $ordine
+                && (float) $movimento['quantity'] === -1.0;
+        });
+
+        check('con la prenotazione in mano si scarica anche a magazzino vuoto', function () use ($sede) {
+            $productId = articoloConGiacenza(1, 'TST-CMT-3');
+            $ordine = ordineDiProva();
+
+            Allocation::reserve(['product_id' => $productId, 'quantity' => 1, 'location_id' => $sede, 'order_id' => $ordine]);
+
+            // Intanto qualcuno rompe l'ultimo pezzo e lo toglie dal magazzino.
+            Stock::apply(['product_id' => $productId, 'quantity' => -1, 'reason' => 'damaged']);
+
+            $esito = Allocation::commit(['product_id' => $productId, 'quantity' => 1, 'location_id' => $sede, 'order_id' => $ordine]);
+
+            return $esito['after'] === -1.0 && $esito['oversold'] === true;
+        });
+
+        check('senza prenotazione ma con merce lo scarico è normale', function () use ($sede) {
+            $productId = articoloConGiacenza(5, 'TST-CMT-4');
+
+            $esito = Allocation::commit([
+                'product_id' => $productId,
+                'quantity' => 2,
+                'location_id' => $sede,
+                'order_id' => ordineDiProva(),
+            ]);
+
+            return $esito['after'] === 3.0
+                && $esito['reserved'] === 0.0
+                && $esito['merchant_alert'] === false;
+        });
+
+        check('senza prenotazione, senza merce e senza pagamento l\'ordine resta in attesa', function () use ($sede) {
+            $productId = articoloConGiacenza(1, 'TST-CMT-5');
+
+            try {
+                Allocation::commit([
+                    'product_id' => $productId,
+                    'quantity' => 2,
+                    'location_id' => $sede,
+                    'order_id' => ordineDiProva(),
+                    'payment_ok' => false,
+                ]);
+            } catch (UserError $errore) {
+                // Niente scarico: la giacenza è rimasta quella di prima.
+                return Levels::of($productId)['quantity'] === 1.0
+                    && $errore->getMessage() !== '';
+            }
+
+            return false;
+        });
+
+        check('un ordine già pagato si scarica lo stesso e avvisa il commerciante', function () use ($sede) {
+            $productId = articoloConGiacenza(1, 'TST-CMT-6');
+            $ordine = ordineDiProva();
+
+            $esito = Allocation::commit([
+                'product_id' => $productId,
+                'quantity' => 3,
+                'location_id' => $sede,
+                'order_id' => $ordine,
+                'payment_ok' => true,
+            ]);
+
+            $log = OrderStatusLog::find("order_id = {$ordine} AND field = 'stock'");
+
+            return $esito['after'] === -2.0
+                && $esito['oversold'] === true
+                && $esito['merchant_alert'] === true
+                && is_array($log) && $log !== [];
+        });
+
+        check('lo scarico di zero pezzi non si fa', function () use ($sede) {
+            $productId = articoloConGiacenza(5, 'TST-CMT-7');
+
+            try {
+                Allocation::commit(['product_id' => $productId, 'quantity' => 0, 'location_id' => $sede, 'order_id' => ordineDiProva()]);
+            } catch (UserError) {
+                return Levels::of($productId)['quantity'] === 5.0;
+            }
+
+            return false;
+        });
+
+        check('la prenotazione consumata non serve una seconda volta', function () use ($sede) {
+            $productId = articoloConGiacenza(5, 'TST-CMT-8');
+            $ordine = ordineDiProva();
+
+            Allocation::reserve(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine]);
+            Allocation::commit(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine]);
+            $secondo = Allocation::commit(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine]);
+
+            // Il secondo scarico c'è comunque — la merce c'era — ma senza
+            // prenotazione da consumare.
+            return $secondo['reserved'] === 0.0 && Levels::of($productId)['quantity'] === 1.0;
+        });
+
+        check('con la vendita senza giacenza accesa si scarica sotto zero senza avvisi', function () use ($sede) {
+            $productId = articoloConGiacenza(1, 'TST-CMT-9');
+            Product::update(['allow_backorder' => 'true'], $productId);
+            accendiFunzionalita(['orders', 'backorders']);
+
+            if (!Gestionale::feature('backorders')) {
+                return false;
+            }
+
+            $esito = Allocation::commit([
+                'product_id' => $productId,
+                'quantity' => 4,
+                'location_id' => $sede,
+                'order_id' => ordineDiProva(),
+            ]);
+
+            // La cache delle funzionalità resta accesa per questo processo:
+            // spegnila subito, così i prossimi check ripartono puliti.
+            Gestionale::reset();
+
+            return $esito['after'] === -3.0
+                && $esito['oversold'] === true
+                && $esito['merchant_alert'] === false;
         });
 
         summary();
