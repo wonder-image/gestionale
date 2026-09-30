@@ -14,7 +14,12 @@
             },
             "order": {
                 "zero_quantity": "Una riga d'ordine deve avere una quantità maggiore di zero.",
-                "reservation_lost": "I pezzi che avevi messo da parte non ci sono più: l'ordine resta in attesa e ti scriviamo appena rientrano."
+                "reservation_lost": "I pezzi che avevi messo da parte non ci sono più: l'ordine resta in attesa e ti scriviamo appena rientrano.",
+                "not_found": "Questo ordine non esiste più.",
+                "not_an_order": "Questo è ancora un carrello: non ha uno stato da cambiare.",
+                "cancelled_cannot_confirm": "L'ordine è stato annullato e non si può confermare.",
+                "completed_cannot_cancel": "L'ordine è chiuso: per disfarlo serve un reso.",
+                "unknown_fulfillment": "«{{status}}» non è uno stato di evasione."
             },
             "cart": {
                 "not_opened": "Non è stato possibile aprire il carrello. Riprova.",
