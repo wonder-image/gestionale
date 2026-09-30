@@ -9,11 +9,13 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
+use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxTotals;
+use Throwable;
 use Wonder\Sql\Transaction;
 
 /**
@@ -49,8 +51,10 @@ final class Checkout
                 throw UserError::make('cart.not_a_cart');
             }
 
-            $method = self::method((int) ($data['payment_method_id'] ?? 0));
-            Order::update(self::details($data, $method), $cartId);
+            $type = self::fulfillment($data);
+            $method = self::method((int) ($data['payment_method_id'] ?? 0), $type);
+            self::checkAddress($data, $type);
+            self::write($cartId, self::details($data, $method, $type, (string) ($cart['email'] ?? '')));
 
             self::applyFee($cartId, $method);
             $recalculated = Cart::recalculate($cartId);
@@ -120,40 +124,124 @@ final class Checkout
             ];
         });
 
+        // Da qui l'ordine esiste ed è a posto: quello che segue non lo deve
+        // disfare. Se la conferma cade, l'ordine resta in attesa e si può
+        // confermare da capo; il commerciante lo deve sapere comunque.
+        //
         // Il contrassegno e il ritiro si pagano alla consegna: l'ordine è
         // buono così com'è e la merce può uscire subito. `confirm()` manda la
         // sua email di conferma, quindi qui basta avvisare il commerciante.
-        if ($result['timing'] === PaymentTiming::ON_DELIVERY) {
-            $confirmed = Lifecycle::confirm($result['order_id'], [
-                'payment' => false,
-                'source' => (string) ($data['source'] ?? 'user'),
-                'user_id' => (int) ($data['user_id'] ?? 0),
-            ]);
-            $result['status'] = $confirmed['status'];
-        } else {
-            OrderNotifier::send('received', $result['order_id']);
+        try {
+            if ($result['timing'] === PaymentTiming::ON_DELIVERY) {
+                $confirmed = Lifecycle::confirm($result['order_id'], [
+                    'payment' => false,
+                    'source' => (string) ($data['source'] ?? 'user'),
+                    'user_id' => (int) ($data['user_id'] ?? 0),
+                ]);
+                $result['status'] = $confirmed['status'];
+            } else {
+                OrderNotifier::send('received', $result['order_id']);
+            }
+        } catch (Throwable $error) {
+            Errors::internal($error, 'checkout.after_place', ['order_id' => $result['order_id']]);
         }
 
-        OrderNotifier::send('merchant_new', $result['order_id']);
+        try {
+            OrderNotifier::send('merchant_new', $result['order_id']);
+        } catch (Throwable $error) {
+            Errors::internal($error, 'checkout.merchant_notice', ['order_id' => $result['order_id']]);
+        }
+
         unset($result['timing']);
 
         return $result;
     }
 
     /**
-     * Il metodo di pagamento, se si può ancora usare.
+     * Il metodo di pagamento, se si può ancora usare per questa consegna.
+     *
+     * Deve essere attivo, offerto sul sito e ammesso per la consegna scelta:
+     * il contrassegno di una spedizione non si usa per un ritiro, e un metodo
+     * che il commerciante ha lasciato solo per il banco non compare online.
      *
      * @return array<string, mixed>
      */
-    private static function method(int $methodId): array
+    private static function method(int $methodId, string $fulfillment): array
     {
         $method = $methodId > 0 ? PaymentMethod::findById($methodId) : null;
 
-        if (!is_array($method) || $method === [] || ($method['active'] ?? 'false') !== 'true') {
+        if (!is_array($method) || $method === []
+            || ($method['active'] ?? 'false') !== 'true'
+            || ($method['applies_online'] ?? 'true') !== 'true') {
+            throw UserError::make('order.payment_method_unavailable');
+        }
+
+        $for = (string) ($method['available_for'] ?? 'all');
+
+        if ($for !== 'all' && $fulfillment !== 'none' && $for !== $fulfillment) {
             throw UserError::make('order.payment_method_unavailable');
         }
 
         return $method;
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function fulfillment(array $data): string
+    {
+        $type = (string) ($data['fulfillment_type'] ?? 'shipping');
+
+        return in_array($type, Order::FULFILLMENT_TYPES, true) ? $type : 'shipping';
+    }
+
+    /**
+     * Una spedizione senza dove spedire non è un ordine: il corriere non
+     * saprebbe dove andare. Conta l'indirizzo di consegna se il cliente l'ha
+     * scritto, altrimenti quello di fatturazione. Il paese ha un ripiego e non
+     * si controlla.
+     *
+     * @param array<string, mixed> $data
+     */
+    private static function checkAddress(array $data, string $fulfillment): void
+    {
+        if ($fulfillment !== 'shipping') {
+            return;
+        }
+
+        $address = [];
+
+        foreach (['shipping', 'billing'] as $group) {
+            $candidate = is_array($data[$group] ?? null) ? $data[$group] : [];
+
+            if (array_filter($candidate, static fn (mixed $value): bool => is_scalar($value) && trim((string) $value) !== '') !== []) {
+                $address = $candidate;
+
+                break;
+            }
+        }
+
+        foreach (['city', 'street'] as $key) {
+            if (trim((string) ($address[$key] ?? '')) === '') {
+                throw UserError::make('order.address_incomplete');
+            }
+        }
+    }
+
+    /**
+     * Scrive i dati del cliente sull'ordine. Se il modello li rifiuta — un
+     * indirizzo email che non è tale — ci si ferma qui: proseguire vorrebbe
+     * dire numerare e impegnare la merce di un ordine senza chi lo riceve.
+     *
+     * @param array<string, string|int> $fields
+     */
+    private static function write(int $orderId, array $fields): void
+    {
+        $result = Order::update($fields, $orderId);
+
+        if (($result->success ?? false) !== true) {
+            $invalid = is_array($result->response ?? null) ? array_keys($result->response) : [];
+
+            throw UserError::make('order.invalid_details', ['fields' => implode(', ', $invalid)]);
+        }
     }
 
     /**
@@ -163,10 +251,18 @@ final class Checkout
      * @param array<string, mixed> $method
      * @return array<string, string|int>
      */
-    private static function details(array $data, array $method): array
+    private static function details(array $data, array $method, string $type, string $current): array
     {
+        $email = trim((string) ($data['email'] ?? ''));
+
+        // Senza indirizzo non si scrive niente: un valore vuoto farebbe
+        // rifiutare tutto all'ordine, e uno già buono va tenuto.
+        if ($email === '' && trim($current) === '') {
+            throw UserError::make('order.invalid_details', ['fields' => 'email']);
+        }
+
         $fields = [
-            'email' => (string) ($data['email'] ?? ''),
+            'email' => $email !== '' ? $email : $current,
             'phone' => (string) ($data['phone'] ?? ''),
             'customer_id' => (int) ($data['customer_id'] ?? 0),
             'payment_method_id' => (int) $method['id'],
@@ -176,8 +272,7 @@ final class Checkout
             'last_activity_at' => date('Y-m-d H:i:s'),
         ];
 
-        $type = (string) ($data['fulfillment_type'] ?? 'shipping');
-        $fields['fulfillment_type'] = in_array($type, Order::FULFILLMENT_TYPES, true) ? $type : 'shipping';
+        $fields['fulfillment_type'] = $type;
 
         foreach (['billing', 'shipping'] as $group) {
             $address = $data[$group] ?? [];

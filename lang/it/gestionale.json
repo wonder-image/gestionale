@@ -21,7 +21,9 @@
                 "completed_cannot_cancel": "L'ordine è chiuso: per disfarlo serve un reso.",
                 "unknown_fulfillment": "«{{status}}» non è uno stato di evasione.",
                 "empty_cart": "Il carrello è vuoto.",
-                "payment_method_unavailable": "Questo metodo di pagamento non è disponibile."
+                "payment_method_unavailable": "Questo metodo di pagamento non è disponibile.",
+                "invalid_details": "Alcuni dati dell'ordine non sono validi: {{fields}}. Controllali e riprova.",
+                "address_incomplete": "Per la spedizione servono almeno la città e l'indirizzo."
             },
             "cart": {
                 "not_opened": "Non è stato possibile aprire il carrello. Riprova.",

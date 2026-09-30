@@ -221,4 +221,48 @@ check('l\'ordine già annullato non si annulla di nuovo e non riscrive email', f
     });
 });
 
+/**
+ * Un'estensione che, quando il primo pagamento aperto decade, fa risultare
+ * incassato il secondo: annullare quell'ordine cade su «già pagato».
+ */
+final class IncassaIlSecondo extends Wonder\Plugin\Gestionale\Extensions\GestionaleExtension
+{
+    public static int $secondo = 0;
+
+    public function onStatusChanged(string $entity, int $entityId, string $field, string $from, string $to): void
+    {
+        if ($entity === Wonder\Plugin\Gestionale\Models\Payments\Payment::$table && $to === 'failed' && self::$secondo > 0) {
+            Wonder\Plugin\Gestionale\Models\Payments\Payment::update(['status' => 'paid'], self::$secondo);
+        }
+    }
+}
+
+check('un ordine che non si riesce ad annullare non ferma gli altri', function () {
+    return prova(static function (): bool {
+        $giorni = (int) (Wonder\Plugin\Gestionale\Models\System\Setting::current()['order_payment_wait_days'] ?? 7);
+        $scaduto = date('Y-m-d H:i:s', strtotime('-'.($giorni + 1).' days'));
+
+        [$guasto] = ordineInAttesa($scaduto, date('Y-m-d H:i:s', strtotime('-1 hour')));
+        $primo = Wonder\Plugin\Gestionale\Support\Payments\Ledger::open(['order_id' => $guasto, 'amount' => 20.0]);
+        $secondo = Wonder\Plugin\Gestionale\Support\Payments\Ledger::open(['order_id' => $guasto, 'amount' => 20.0]);
+        IncassaIlSecondo::$secondo = $secondo['payment_id'];
+        [$buono] = ordineInAttesa($scaduto, date('Y-m-d H:i:s', strtotime('-1 hour')));
+
+        Wonder\Plugin\Gestionale\Extensions\Extensions::use([IncassaIlSecondo::class]);
+
+        try {
+            [$esito] = conPosta(static fn (): array => Expiry::run());
+        } finally {
+            Wonder\Plugin\Gestionale\Extensions\Extensions::use(null);
+            IncassaIlSecondo::$secondo = 0;
+        }
+
+        return $primo['payment_id'] > 0
+            && in_array($buono, $esito['orders'], true)
+            && (string) Order::findById($buono)['status'] === 'cancelled'
+            && !in_array($guasto, $esito['orders'], true)
+            && (string) Order::findById($guasto)['status'] === 'pending';
+    });
+});
+
 summary();

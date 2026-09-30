@@ -44,6 +44,17 @@ function prova(callable $corpo): mixed
     return $esito;
 }
 
+/** Un'estensione che, appena l'ordine nasce, lo fa risultare non più un ordine: la conferma dovrà cadere. */
+final class SabotaLaConferma extends Wonder\Plugin\Gestionale\Extensions\GestionaleExtension
+{
+    public function onStatusChanged(string $entity, int $entityId, string $field, string $from, string $to): void
+    {
+        if ($field === 'status' && $to === 'pending') {
+            Order::update(['stage' => 'cart'], $entityId);
+        }
+    }
+}
+
 /** Un metodo di pagamento di prova, col modo e la commissione che servono. */
 function metodoDiProva(string $timing, string $feeType = 'none', float $feeValue = 0): int
 {
@@ -316,6 +327,202 @@ check('un carrello con la sola riga a quantità zero non diventa un ordine', fun
         }
 
         return false;
+    });
+});
+
+/** Il carrello com'era: nessun numero, nessuna merce impegnata, nessun pagamento. */
+function carrelloIntatto(int $carrello, int $prodotto, float $disponibile): bool
+{
+    $riga = Order::findById($carrello);
+
+    return $riga['stage'] === 'cart'
+        && trim((string) $riga['order_number']) === ''
+        && Levels::of($prodotto)['available'] === $disponibile
+        && (int) sqlCount(StockReservation::$table, "order_id = {$carrello} AND deleted = 'false'") === 0
+        && (int) sqlCount(Payment::$table, "order_id = {$carrello} AND deleted = 'false'") === 0;
+}
+
+/** Il checkout con questi dati deve fermarsi con un UserError e non toccare niente. */
+function rifiutato(array $dati, ?int $carrello = null, ?int $prodotto = null): bool
+{
+    if ($carrello === null) {
+        [$carrello, $prodotto] = carrelloPronto();
+    }
+
+    $prima = Levels::of($prodotto)['available'];
+
+    try {
+        senzaPosta(static fn (): array => Checkout::place($carrello, $dati));
+    } catch (UserError) {
+        return carrelloIntatto($carrello, $prodotto, $prima);
+    }
+
+    return false;
+}
+
+check('senza email il carrello non diventa un ordine', function () {
+    return prova(static function (): bool {
+        $dati = datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE));
+        unset($dati['email']);
+
+        return rifiutato($dati);
+    });
+});
+
+check('con un\'email non valida il carrello non diventa un ordine', function () {
+    return prova(static function (): bool {
+        $dati = datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE));
+        $dati['email'] = 'non-e-un-indirizzo';
+
+        return rifiutato($dati);
+    });
+});
+
+check('un\'email lasciata vuota non cancella quella già scritta sul carrello', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        Order::update(['email' => 'vecchia@example.com'], $carrello);
+        $dati = datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE));
+        $dati['email'] = '';
+
+        $esito = senzaPosta(static fn (): array => Checkout::place($carrello, $dati));
+
+        return (string) Order::findById($esito['order_id'])['email'] === 'vecchia@example.com';
+    });
+});
+
+check('un metodo solo per il ritiro non serve una spedizione', function () {
+    return prova(static function (): bool {
+        $metodo = metodoDiProva(PaymentTiming::DEFERRED);
+        PaymentMethod::update(['available_for' => 'pickup'], $metodo);
+
+        return rifiutato(datiCheckout($metodo));
+    });
+});
+
+check('un metodo solo per la spedizione non serve un ritiro', function () {
+    return prova(static function (): bool {
+        $metodo = metodoDiProva(PaymentTiming::DEFERRED);
+        PaymentMethod::update(['available_for' => 'shipping'], $metodo);
+        $dati = datiCheckout($metodo);
+        $dati['fulfillment_type'] = 'pickup';
+
+        return rifiutato($dati);
+    });
+});
+
+check('un metodo non offerto online non si usa dal sito', function () {
+    return prova(static function (): bool {
+        $metodo = metodoDiProva(PaymentTiming::DEFERRED);
+        PaymentMethod::update(['applies_online' => 'false'], $metodo);
+
+        return rifiutato(datiCheckout($metodo));
+    });
+});
+
+check('un metodo per la consegna scelta passa', function () {
+    return prova(static function (): bool {
+        $metodo = metodoDiProva(PaymentTiming::DEFERRED);
+        PaymentMethod::update(['available_for' => 'shipping'], $metodo);
+        [$carrello] = carrelloPronto();
+
+        $esito = senzaPosta(static fn (): array => Checkout::place($carrello, datiCheckout($metodo)));
+
+        return $esito['status'] === 'pending';
+    });
+});
+
+check('una spedizione senza indirizzo non diventa un ordine', function () {
+    return prova(static function (): bool {
+        $dati = datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE));
+        $dati['billing'] = ['name' => 'Mario', 'surname' => 'Rossi'];
+
+        return rifiutato($dati);
+    });
+});
+
+check('il ritiro non chiede l\'indirizzo', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        $dati = datiCheckout(metodoDiProva(PaymentTiming::DEFERRED));
+        $dati['fulfillment_type'] = 'pickup';
+        $dati['billing'] = ['name' => 'Mario', 'surname' => 'Rossi'];
+
+        $esito = senzaPosta(static fn (): array => Checkout::place($carrello, $dati));
+
+        return $esito['status'] === 'pending';
+    });
+});
+
+check('se la conferma del contrassegno cade, l\'ordine resta e il commerciante lo sa', function () {
+    return prova(static function (): bool {
+        Wonder\Plugin\Gestionale\Extensions\Extensions::use([SabotaLaConferma::class]);
+        Wonder\Plugin\Gestionale\Models\System\MerchantSetting::update(
+            ['merchant_notification_emails' => 'negozio@example.com'],
+            (int) (Wonder\Plugin\Gestionale\Models\System\MerchantSetting::current()['id'] ?? 1)
+        );
+        $partite = [];
+        Mailer::useTransport(static function (string $to) use (&$partite): bool {
+            $partite[] = $to;
+
+            return true;
+        });
+
+        try {
+            [$carrello] = carrelloPronto();
+            $esito = Checkout::place($carrello, datiCheckout(metodoDiProva(PaymentTiming::ON_DELIVERY)));
+        } finally {
+            Mailer::useTransport(null);
+            Wonder\Plugin\Gestionale\Extensions\Extensions::use(null);
+        }
+
+        // L'ordine c'è ed è in attesa: confermarlo si può rifare.
+        return $esito['status'] === 'pending'
+            && $esito['order_number'] !== ''
+            && $partite === ['negozio@example.com'];
+    });
+});
+
+check('confermare col riferimento del gateway chiude il pagamento aperto, senza farne un secondo', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        $esito = senzaPosta(static fn (): array => Checkout::place(
+            $carrello,
+            datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE))
+        ));
+
+        senzaPosta(static fn (): array => Wonder\Plugin\Gestionale\Support\Orders\Lifecycle::confirm($carrello, [
+            'provider' => 'stripe',
+            'provider_reference' => 'pi_'.uniqid(),
+        ]));
+
+        $righe = Payment::find(['order_id' => $carrello, 'deleted' => 'false']);
+        $righe = isset($righe['id']) ? [$righe] : array_values((array) $righe);
+
+        return count($righe) === 1
+            && (int) $righe[0]['id'] === $esito['payment_id']
+            && $righe[0]['status'] === 'paid'
+            && (string) Order::findById($carrello)['payment_status'] === 'paid';
+    });
+});
+
+check('confermare senza riferimento, a mano, chiude il pagamento aperto senza farne un secondo', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        $esito = senzaPosta(static fn (): array => Checkout::place(
+            $carrello,
+            datiCheckout(metodoDiProva(PaymentTiming::DEFERRED))
+        ));
+
+        senzaPosta(static fn (): array => Wonder\Plugin\Gestionale\Support\Orders\Lifecycle::confirm($carrello));
+
+        $righe = Payment::find(['order_id' => $carrello, 'deleted' => 'false']);
+        $righe = isset($righe['id']) ? [$righe] : array_values((array) $righe);
+
+        return count($righe) === 1
+            && (int) $righe[0]['id'] === $esito['payment_id']
+            && $righe[0]['status'] === 'paid'
+            && (string) Order::findById($carrello)['payment_status'] === 'paid';
     });
 });
 

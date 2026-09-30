@@ -103,6 +103,43 @@ check('le istruzioni del metodo finiscono nell\'email di ricevuta', function () 
     });
 });
 
+check('le istruzioni di pagamento stanno solo nella ricevuta e nel promemoria', function () {
+    return prova(static function (): bool {
+        $ordine = ordineConRiga();
+        $metodo = Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod::create([
+            'code' => 'tst_'.uniqid(),
+            'name' => 'Bonifico di prova',
+            'provider' => 'manual',
+            'timing' => 'deferred',
+            'active' => 'true',
+            'position' => 1,
+            'instructions' => 'Bonifico a IT99 ISTRUZIONI',
+        ]);
+        Order::update(['payment_method_id' => (int) ($metodo->insert_id ?? 0)], $ordine);
+
+        $corpi = [];
+        Mailer::useTransport(static function (string $to, string $subject, string $body) use (&$corpi): bool {
+            $corpi[] = $body;
+
+            return true;
+        });
+
+        try {
+            $dentro = [];
+
+            foreach (['received', 'reminder', 'confirmed', 'cancelled'] as $chiave) {
+                $corpi = [];
+                OrderNotifier::send($chiave, $ordine);
+                $dentro[$chiave] = str_contains(implode(' ', $corpi), 'IT99 ISTRUZIONI');
+            }
+        } finally {
+            Mailer::useTransport(null);
+        }
+
+        return $dentro === ['received' => true, 'reminder' => true, 'confirmed' => false, 'cancelled' => false];
+    });
+});
+
 check('il corpo non si fa scrivere dentro dal nome di un articolo', function () {
     return prova(static function (): bool {
         $ordine = ordineConRiga();

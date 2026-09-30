@@ -23,6 +23,9 @@ final class OrderEmail
 
     public const KEYS = ['received', 'confirmed', 'reminder', 'cancelled', 'merchant_new', 'merchant_cancelled'];
 
+    /** Le sole in cui ha senso dire come si paga: dopo, o senza, sarebbero rumore. */
+    public const INSTRUCTION_KEYS = ['received', 'reminder'];
+
     /** Quelle che vanno al commerciante, non al cliente. */
     public const MERCHANT_KEYS = ['merchant_new', 'merchant_cancelled'];
 
@@ -49,7 +52,7 @@ final class OrderEmail
             'body' => self::render($merchant ? self::MERCHANT_VIEW : self::CUSTOMER_VIEW, [
                 'title' => self::text($key, 'title', $values),
                 'intro' => self::text($key, 'intro', $values),
-                'instructions' => (string) ($extra['instructions'] ?? ''),
+                'instructions' => in_array($key, self::INSTRUCTION_KEYS, true) ? (string) ($extra['instructions'] ?? '') : '',
                 'order' => $order,
                 'items' => $items,
                 'url' => self::absoluteUrl((string) ($extra['url'] ?? '')),

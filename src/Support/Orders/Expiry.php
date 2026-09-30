@@ -6,8 +6,10 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
+use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
+use Throwable;
 
 /**
  * Il giro che tiene pulito il magazzino: chi non paga libera la merce.
@@ -41,55 +43,78 @@ final class Expiry
         $result = ['released' => 0, 'reminded' => 0, 'cancelled' => 0, 'orders' => []];
 
         foreach (self::expiredOrders($now) as $orderId) {
-            $order = Order::findById($orderId);
+            try {
+                $order = Order::findById($orderId);
 
-            if (!is_array($order) || !in_array((string) $order['status'], self::WAITING, true)) {
-                continue;
+                if (!is_array($order) || !in_array((string) $order['status'], self::WAITING, true)) {
+                    continue;
+                }
+
+                $result['released'] += Allocation::expire($orderId);
+            } catch (Throwable $error) {
+                Errors::internal($error, 'expiry.release', ['order_id' => $orderId]);
             }
-
-            $result['released'] += Allocation::expire($orderId);
         }
 
         foreach (self::waitingOrders() as $order) {
             $orderId = (int) $order['id'];
-            $ordered = strtotime((string) $order['ordered_at']);
 
-            if ($ordered === false || $days <= 0) {
-                continue;
-            }
-
-            $deadline = $ordered + $days * 86400;
-            $moment = strtotime($now);
-
-            if ($moment >= $deadline) {
-                Lifecycle::cancel($orderId, [
-                    'reason' => 'Pagamento non ricevuto entro il termine',
-                    'source' => 'cron',
-                    'merchant_notice' => true,
-                ]);
-                ++$result['cancelled'];
-                $result['orders'][] = $orderId;
-
-                continue;
-            }
-
-            if ($moment >= $ordered + (int) floor($days * 86400 / 2) && !self::reminded($orderId)) {
-                OrderNotifier::send('reminder', $orderId, [
-                    'deadline' => date('Y-m-d H:i:s', $deadline),
-                ]);
-                StatusLogger::record(
-                    OrderStatusLog::class,
-                    $orderId,
-                    self::REMINDER_FIELD,
-                    '',
-                    'sent',
-                    'cron'
-                );
-                ++$result['reminded'];
+            // Un ordine che non si riesce a chiudere non deve tenere fermi
+            // gli altri: resta dov'è, finisce nel log, e il giro dopo riprova.
+            try {
+                self::deadline($order, $days, $now, $result);
+            } catch (Throwable $error) {
+                Errors::internal($error, 'expiry.order', ['order_id' => $orderId]);
             }
         }
 
         return $result;
+    }
+
+    /**
+     * Un ordine in attesa: il promemoria a metà, l'annullamento alla fine.
+     *
+     * @param array<string, mixed> $order
+     * @param array{released: int, reminded: int, cancelled: int, orders: list<int>} $result
+     */
+    private static function deadline(array $order, int $days, string $now, array &$result): void
+    {
+        $orderId = (int) $order['id'];
+        $ordered = strtotime((string) $order['ordered_at']);
+
+        if ($ordered === false || $days <= 0) {
+            return;
+        }
+
+        $deadline = $ordered + $days * 86400;
+        $moment = strtotime($now);
+
+        if ($moment >= $deadline) {
+            Lifecycle::cancel($orderId, [
+                'reason' => 'Pagamento non ricevuto entro il termine',
+                'source' => 'cron',
+                'merchant_notice' => true,
+            ]);
+            ++$result['cancelled'];
+            $result['orders'][] = $orderId;
+
+            return;
+        }
+
+        if ($moment >= $ordered + (int) floor($days * 86400 / 2) && !self::reminded($orderId)) {
+            OrderNotifier::send('reminder', $orderId, [
+                'deadline' => date('Y-m-d H:i:s', $deadline),
+            ]);
+            StatusLogger::record(
+                OrderStatusLog::class,
+                $orderId,
+                self::REMINDER_FIELD,
+                '',
+                'sent',
+                'cron'
+            );
+            ++$result['reminded'];
+        }
     }
 
     /**
