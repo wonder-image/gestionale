@@ -20,7 +20,8 @@
                 "not_opened": "Non è stato possibile aprire il carrello. Riprova.",
                 "not_a_cart": "Questo ordine non è più un carrello e non si può modificare.",
                 "product_unavailable": "Questo articolo non è più in vendita.",
-                "not_enough_stock": "Di «{{name}}» restano {{available}} pezzi."
+                "not_enough_stock": "Di «{{name}}» restano {{available}} pezzi.",
+                "item_not_found": "Questa riga non è nel tuo carrello."
             },
             "payment": {
                 "zero_amount": "Un pagamento deve avere un importo maggiore di zero.",

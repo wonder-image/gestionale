@@ -118,4 +118,108 @@ check('quantità zero: rifiutata', function () {
     });
 });
 
+check('la quantità cambiata rifà il totale', function () {
+    return prova(static function (): bool {
+        $prodotto = articoloConGiacenza(10, 'TST-CART-'.substr((string) microtime(true), -6));
+        Product::update(['price' => '15.00'], $prodotto);
+
+        $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        $esito = Cart::add($carrello, ['product_id' => $prodotto, 'quantity' => 1]);
+        $riga = (int) $esito['items'][0]['id'];
+        $dopo = Cart::setQuantity($carrello, $riga, 4);
+
+        return (float) $dopo['items'][0]['quantity'] === 4.0
+            && (string) $dopo['order']['products_total'] === '60.00';
+    });
+});
+
+check('la quantità a zero toglie la riga', function () {
+    return prova(static function (): bool {
+        $prodotto = articoloConGiacenza(10, 'TST-CART-'.substr((string) microtime(true), -6));
+        $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        $esito = Cart::add($carrello, ['product_id' => $prodotto, 'quantity' => 1]);
+        $dopo = Cart::setQuantity($carrello, (int) $esito['items'][0]['id'], 0);
+
+        return $dopo['items'] === [] && (string) $dopo['order']['products_total'] === '0.00';
+    });
+});
+
+check('la riga tolta non torna', function () {
+    return prova(static function (): bool {
+        $prodotto = articoloConGiacenza(10, 'TST-CART-'.substr((string) microtime(true), -6));
+        $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        $esito = Cart::add($carrello, ['product_id' => $prodotto, 'quantity' => 2]);
+
+        return Cart::remove($carrello, (int) $esito['items'][0]['id'])['items'] === [];
+    });
+});
+
+check('la riga di un altro carrello non si tocca', function () {
+    return prova(static function (): bool {
+        $prodotto = articoloConGiacenza(10, 'TST-CART-'.substr((string) microtime(true), -6));
+        $mio = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        $altrui = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        $esito = Cart::add($altrui, ['product_id' => $prodotto, 'quantity' => 1]);
+
+        try {
+            Cart::remove($mio, (int) $esito['items'][0]['id']);
+        } catch (UserError) {
+            return true;
+        }
+
+        return false;
+    });
+});
+
+check('due carrelli uniti sommano le righe uguali', function () {
+    return prova(static function (): bool {
+        $prodotto = articoloConGiacenza(10, 'TST-CART-'.substr((string) microtime(true), -6));
+        Product::update(['price' => '10.00'], $prodotto);
+
+        $ospite = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        $cliente = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        Cart::add($ospite, ['product_id' => $prodotto, 'quantity' => 2]);
+        Cart::add($cliente, ['product_id' => $prodotto, 'quantity' => 1]);
+
+        $unito = Cart::merge($ospite, $cliente);
+
+        return count($unito['items']) === 1
+            && (float) $unito['items'][0]['quantity'] === 3.0
+            && (string) $unito['order']['products_total'] === '30.00'
+            && empty(Wonder\Plugin\Gestionale\Models\Sales\Order::find(
+                ['id' => $ospite, 'deleted' => 'false'],
+                1
+            ));
+    });
+});
+
+check('l\'unione non scrive più pezzi di quanti ce ne sono', function () {
+    return prova(static function (): bool {
+        $prodotto = articoloConGiacenza(3, 'TST-CART-'.substr((string) microtime(true), -6));
+        $ospite = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        $cliente = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        Cart::add($ospite, ['product_id' => $prodotto, 'quantity' => 2]);
+        Cart::add($cliente, ['product_id' => $prodotto, 'quantity' => 2]);
+
+        // Quattro pezzi chiesti, tre sul banco: l'unione si ferma a tre invece
+        // di scrivere una quantità che il checkout non potrebbe prenotare.
+        return (float) Cart::merge($ospite, $cliente)['items'][0]['quantity'] === 3.0;
+    });
+});
+
+check('l\'articolo spento sotto il carrello esce, e si sa', function () {
+    return prova(static function (): bool {
+        $prodotto = articoloConGiacenza(10, 'TST-CART-'.substr((string) microtime(true), -6));
+        $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        Cart::add($carrello, ['product_id' => $prodotto, 'quantity' => 1]);
+
+        Product::update(['active' => 'false'], $prodotto);
+        $dopo = Cart::recalculate($carrello);
+
+        return $dopo['items'] === []
+            && count($dopo['removed']) === 1
+            && (string) $dopo['order']['total'] === '0.00';
+    });
+});
+
 summary();

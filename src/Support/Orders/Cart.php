@@ -244,6 +244,109 @@ final class Cart
     }
 
     /**
+     * Cambia la quantità di una riga. Zero vuol dire toglierla.
+     *
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>}
+     */
+    public static function setQuantity(int $cartId, int $itemId, float $quantity): array
+    {
+        return Transaction::run(static function () use ($cartId, $itemId, $quantity): array {
+            self::cart($cartId);
+            $item = self::item($cartId, $itemId);
+            $quantity = round($quantity, 3);
+
+            if ($quantity <= 0) {
+                OrderItem::delete($itemId);
+
+                return self::recalculate($cartId);
+            }
+
+            if ((int) ($item['product_id'] ?? 0) > 0) {
+                self::assertAvailable(self::product((int) $item['product_id']), $quantity);
+            }
+
+            OrderItem::update(['quantity' => self::number($quantity)], $itemId);
+
+            return self::recalculate($cartId);
+        });
+    }
+
+    /**
+     * Toglie una riga dal carrello.
+     *
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>}
+     */
+    public static function remove(int $cartId, int $itemId): array
+    {
+        return Transaction::run(static function () use ($cartId, $itemId): array {
+            self::cart($cartId);
+            self::item($cartId, $itemId);
+            OrderItem::delete($itemId);
+
+            return self::recalculate($cartId);
+        });
+    }
+
+    /**
+     * Versa il carrello dell'ospite in quello di chi ha appena fatto l'accesso.
+     *
+     * Le righe uguali si sommano, ma non oltre quello che c'è: due pezzi più
+     * due, con tre sul banco, fanno tre. Scriverne quattro sposterebbe il
+     * rifiuto al checkout, dove il cliente ha già messo l'indirizzo.
+     *
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>}
+     */
+    public static function merge(int $guestCartId, int $targetCartId): array
+    {
+        return Transaction::run(static function () use ($guestCartId, $targetCartId): array {
+            if ($guestCartId === $targetCartId) {
+                return self::recalculate($targetCartId);
+            }
+
+            self::cart($targetCartId);
+            self::cart($guestCartId);
+
+            foreach (self::items($guestCartId) as $item) {
+                $productId = (int) ($item['product_id'] ?? 0);
+                $signature = (string) ($item['customization'] ?? '');
+                $existing = self::itemLike($targetCartId, $productId, $signature);
+                $wanted = round((float) $item['quantity'] + (float) ($existing['quantity'] ?? 0), 3);
+                $wanted = self::capped($productId, $wanted);
+
+                if ($wanted <= 0) {
+                    continue;
+                }
+
+                if (is_array($existing)) {
+                    OrderItem::update(['quantity' => self::number($wanted)], (int) $existing['id']);
+
+                    continue;
+                }
+
+                OrderItem::update([
+                    'order_id' => $targetCartId,
+                    'position' => self::nextPosition($targetCartId),
+                    'quantity' => self::number($wanted),
+                ], (int) $item['id']);
+            }
+
+            // Le righe sommate a una già presente, o azzerate dalla giacenza, sono
+            // ancora qui: la cancellazione fisica dell'ordine si ferma sulla
+            // chiave esterna finché ce n'è una.
+            foreach (self::items($guestCartId) as $left) {
+                OrderItem::delete((int) $left['id']);
+            }
+
+            // Quello dell'ospite ha finito il suo mestiere: se restasse, il
+            // prossimo accesso con lo stesso gettone lo ritroverebbe vuoto e
+            // sembrerebbe che la roba sia sparita.
+            Order::delete($guestCartId);
+
+            return self::recalculate($targetCartId);
+        });
+    }
+
+    /**
      * L'ordine e le sue righe, come stanno adesso.
      *
      * @return array{order: array<string, mixed>, items: list<array<string, mixed>>}
@@ -291,6 +394,42 @@ final class Cart
         $row = Order::findById($cartId);
 
         return is_array($row) ? $row : [];
+    }
+
+    /**
+     * La riga, ma solo se è di questo carrello.
+     *
+     * @return array<string, mixed>
+     */
+    private static function item(int $cartId, int $itemId): array
+    {
+        foreach (self::items($cartId) as $item) {
+            if ((int) $item['id'] === $itemId) {
+                return $item;
+            }
+        }
+
+        throw UserError::make('cart.item_not_found');
+    }
+
+    /** La quantità chiesta, tagliata a quello che c'è davvero. */
+    private static function capped(int $productId, float $wanted): float
+    {
+        if ($productId <= 0) {
+            return $wanted;
+        }
+
+        $product = Product::findById($productId);
+
+        if (!is_array($product) || ($product['active'] ?? 'false') !== 'true') {
+            return 0.0;
+        }
+
+        if (Stock::allowsBackorder($product)) {
+            return $wanted;
+        }
+
+        return min($wanted, max(0.0, Levels::of($productId)['available']));
     }
 
     /** @return array<string, mixed> */
