@@ -30,6 +30,7 @@ final class PaymentMethod extends Model
     public const FEE_TYPES = ['none', 'amount', 'percent'];
     public const AVAILABLE_FOR = ['all', 'shipping', 'pickup'];
     public const PROVIDERS = ['manual', 'stripe', 'paypal', 'nexi'];
+    public const TIMINGS = ['immediate', 'deferred', 'on_delivery'];
 
     public static function syncSchema(): ?SyncSchema
     {
@@ -44,6 +45,10 @@ final class PaymentMethod extends Model
             Column::key('name'),
             Column::key('sdi_code')->length(10),
             Column::key('provider')->enum(static::PROVIDERS)->default('manual'),
+            // Quando arriva il denaro: subito (carta), fra giorni (bonifico),
+            // alla consegna (contrassegno, ritiro). Decide quanto resta
+            // impegnata la merce e se l'ordine si conferma senza incasso.
+            Column::key('timing')->enum(static::TIMINGS)->default('immediate'),
             // Zero vuol dire "nessun conto": niente chiave esterna.
             Column::key('payment_account_id')->int()->default(0),
             Column::key('fee_type')->enum(static::FEE_TYPES)->default('none'),
@@ -65,6 +70,7 @@ final class PaymentMethod extends Model
             Field::key('name')->text()->sanitizeFirst(),
             Field::key('sdi_code')->text()->sanitize(false),
             Field::key('provider')->text()->sanitize(false),
+            Field::key('timing')->text()->sanitize(false),
             Field::key('payment_account_id')->number()->decimals(0),
             Field::key('fee_type')->text()->sanitize(false),
             Field::key('fee_value')->number()->decimals(2),
