@@ -201,6 +201,88 @@ final class Allocation
     }
 
     /**
+     * Fa rientrare la merce di un ordine annullato.
+     *
+     * L'ordine era confermato e scaricato, ma non è mai partito: il movimento
+     * è `sale_cancel`, e la giacenza torna dov'era. Se era andata sotto zero,
+     * questo la risana.
+     *
+     * @param array<string, mixed> $line come `commit()`
+     * @return array{movement_id: int, before: float, after: float}
+     */
+    public static function restore(array $line): array
+    {
+        return self::giveBack($line, 'sale_cancel', 'order', (int) ($line['order_id'] ?? 0));
+    }
+
+    /**
+     * Fa rientrare la merce di un reso.
+     *
+     * Solo se è rivendibile: una riga con `restock` a `false` — rotta, aperta,
+     * usata — si registra nel reso e basta, e in magazzino non torna niente.
+     * Il movimento porta il numero del reso, non quello dell'ordine: è il reso
+     * il documento che lo giustifica.
+     *
+     * @param array<string, mixed> $line come `commit()`, più `sales_return_id`
+     *     e `restock` (bool, predefinita `true`)
+     * @return array{movement_id: int, before: float, after: float, restocked: bool}
+     */
+    public static function returnGoods(array $line): array
+    {
+        $restock = ($line['restock'] ?? true) !== false;
+        $context = self::context($line);
+
+        if ($context['quantity'] <= 0) {
+            throw UserError::make('order.zero_quantity');
+        }
+
+        if (!$restock) {
+            $onHand = self::lockedQuantity($context);
+
+            return ['movement_id' => 0, 'before' => $onHand, 'after' => $onHand, 'restocked' => false];
+        }
+
+        return self::giveBack($line, 'return', 'sales_return', (int) ($line['sales_return_id'] ?? 0))
+            + ['restocked' => true];
+    }
+
+    /**
+     * Il rientro vero e proprio, uguale per l'annullamento e per il reso:
+     * cambiano solo il tipo del movimento e il documento che lo giustifica.
+     *
+     * @param array<string, mixed> $line
+     * @return array{movement_id: int, before: float, after: float}
+     */
+    private static function giveBack(array $line, string $type, string $referenceType, int $referenceId): array
+    {
+        $context = self::context($line);
+
+        if ($context['quantity'] <= 0) {
+            throw UserError::make('order.zero_quantity');
+        }
+
+        $movement = Stock::apply([
+            'product_id' => $context['product_id'],
+            'location_id' => $context['location_id'],
+            'batch_id' => $context['batch_id'],
+            'supplier_id' => $context['supplier_id'],
+            'quantity' => $context['quantity'],
+            'type' => $type,
+            'reference_type' => $referenceType,
+            'reference_id' => $referenceId,
+            'source' => (string) ($line['source'] ?? 'backend'),
+            'user_id' => (int) ($line['user_id'] ?? 0),
+            'note' => (string) ($line['note'] ?? ''),
+        ]);
+
+        return [
+            'movement_id' => $movement['movement_id'],
+            'before' => $movement['before'],
+            'after' => $movement['after'],
+        ];
+    }
+
+    /**
      * Quanta merce di questa riga era messa da parte e vale ancora.
      *
      * Con `order_item_id` conta solo quella riga; senza, tutte le prenotazioni

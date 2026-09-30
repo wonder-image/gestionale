@@ -15,6 +15,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
+use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -70,6 +71,21 @@ function ordineDiProva(float $totale = 100.0): int
     ]);
 
     return (int) ($ordine->insert_id ?? 0);
+}
+
+/** Un reso di prova sull'ordine dato: serve un id vero per i movimenti. */
+function resoDiProva(int $ordine, int $sede): int
+{
+    $reso = SalesReturn::create([
+        'code' => Code::make(SalesReturn::class, Codes::SALES_RETURN),
+        'number' => 'RES/'.date('Y').'/'.substr((string) microtime(true), -6),
+        'order_id' => $ordine,
+        'location_id' => $sede,
+        'status' => 'received',
+        'received_at' => date('Y-m-d H:i:s'),
+    ]);
+
+    return (int) ($reso->insert_id ?? 0);
 }
 
 /**
@@ -439,6 +455,127 @@ try {
             return $esito['after'] === -3.0
                 && $esito['oversold'] === true
                 && $esito['merchant_alert'] === false;
+        });
+
+        check('l\'annullamento fa rientrare la merce con un movimento di vendita annullata', function () use ($sede) {
+            $productId = articoloConGiacenza(5, 'TST-RST-1');
+            $ordine = ordineDiProva();
+
+            Allocation::commit(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine]);
+            $esito = Allocation::restore(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine]);
+
+            $movimento = StockMovement::findById($esito['movement_id']);
+
+            return $esito['after'] === 5.0
+                && is_array($movimento)
+                && $movimento['type'] === 'sale_cancel'
+                && $movimento['reference_type'] === 'order'
+                && (int) $movimento['reference_id'] === $ordine;
+        });
+
+        check('l\'annullamento risana anche una giacenza sotto zero', function () use ($sede) {
+            $productId = articoloConGiacenza(1, 'TST-RST-2');
+            $ordine = ordineDiProva();
+
+            Allocation::commit(['product_id' => $productId, 'quantity' => 3, 'location_id' => $sede, 'order_id' => $ordine, 'payment_ok' => true]);
+            $esito = Allocation::restore(['product_id' => $productId, 'quantity' => 3, 'location_id' => $sede, 'order_id' => $ordine]);
+
+            return $esito['before'] === -2.0 && $esito['after'] === 1.0;
+        });
+
+        check('l\'annullamento di zero pezzi non si fa', function () use ($sede) {
+            $productId = articoloConGiacenza(4, 'TST-RST-3');
+
+            try {
+                Allocation::restore(['product_id' => $productId, 'quantity' => 0, 'location_id' => $sede, 'order_id' => ordineDiProva()]);
+            } catch (UserError) {
+                return Levels::of($productId)['quantity'] === 4.0;
+            }
+
+            return false;
+        });
+
+        check('il reso rimette la merce in magazzino', function () use ($sede) {
+            $productId = articoloConGiacenza(5, 'TST-RET-1');
+            $ordine = ordineDiProva();
+            $reso = resoDiProva($ordine, $sede);
+
+            Allocation::commit(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine]);
+            $esito = Allocation::returnGoods([
+                'product_id' => $productId,
+                'quantity' => 2,
+                'location_id' => $sede,
+                'order_id' => $ordine,
+                'sales_return_id' => $reso,
+                'restock' => true,
+            ]);
+
+            $movimento = StockMovement::findById($esito['movement_id']);
+
+            return $esito['restocked'] === true
+                && $esito['after'] === 5.0
+                && is_array($movimento)
+                && $movimento['type'] === 'return'
+                && $movimento['reference_type'] === 'sales_return'
+                && (int) $movimento['reference_id'] === $reso;
+        });
+
+        check('la merce rotta non rientra in magazzino', function () use ($sede) {
+            $productId = articoloConGiacenza(5, 'TST-RET-2');
+            $ordine = ordineDiProva();
+            $reso = resoDiProva($ordine, $sede);
+
+            Allocation::commit(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine]);
+            $esito = Allocation::returnGoods([
+                'product_id' => $productId,
+                'quantity' => 2,
+                'location_id' => $sede,
+                'order_id' => $ordine,
+                'sales_return_id' => $reso,
+                'restock' => false,
+            ]);
+
+            return $esito['restocked'] === false
+                && $esito['movement_id'] === 0
+                && Levels::of($productId)['quantity'] === 3.0;
+        });
+
+        check('il reso senza ricarico non scrive nessun movimento', function () use ($sede) {
+            $productId = articoloConGiacenza(2, 'TST-RET-3');
+            $ordine = ordineDiProva();
+            $reso = resoDiProva($ordine, $sede);
+
+            Allocation::returnGoods([
+                'product_id' => $productId,
+                'quantity' => 1,
+                'location_id' => $sede,
+                'order_id' => $ordine,
+                'sales_return_id' => $reso,
+                'restock' => false,
+            ]);
+
+            $movimenti = StockMovement::find("product_id = {$productId} AND type = 'return'");
+
+            return !is_array($movimenti) || $movimenti === [];
+        });
+
+        check('il reso di zero pezzi non si fa', function () use ($sede) {
+            $productId = articoloConGiacenza(4, 'TST-RET-4');
+            $ordine = ordineDiProva();
+
+            try {
+                Allocation::returnGoods([
+                    'product_id' => $productId,
+                    'quantity' => 0,
+                    'location_id' => $sede,
+                    'order_id' => $ordine,
+                    'sales_return_id' => resoDiProva($ordine, $sede),
+                ]);
+            } catch (UserError) {
+                return Levels::of($productId)['quantity'] === 4.0;
+            }
+
+            return false;
         });
 
         summary();
