@@ -80,3 +80,8 @@ versionamento semantico.
   colonne che `StockMovementResource` dichiara (`Resource::backendTable()`), e
   le foto proprie seguono l'attributo che l'articolo usa davvero, non il primo
   del negozio.
+- Magazzino delle vendite e pagamenti: `Support\Stock\Allocation` mette da
+  parte la merce di un carrello, la scarica alla conferma senza vendere due
+  volte l'ultimo pezzo e la fa rientrare da annullamenti e resi;
+  `Support\Payments\Ledger` tiene le righe di denaro, regge la notifica doppia
+  del gateway e ricalcola da solo il `payment_status` dell'ordine.

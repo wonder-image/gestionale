@@ -12,6 +12,16 @@
                 "location_duplicate": "La sede {{location}} compare due volte nelle righe della giacenza: tienine una sola.",
                 "location_unknown": "Una riga della giacenza punta a una sede che non è più del magazzino: ricarica la pagina e riprova."
             },
+            "order": {
+                "zero_quantity": "Una riga d'ordine deve avere una quantità maggiore di zero.",
+                "reservation_lost": "I pezzi che avevi messo da parte non ci sono più: l'ordine resta in attesa e ti scriviamo appena rientrano."
+            },
+            "payment": {
+                "zero_amount": "Un pagamento deve avere un importo maggiore di zero.",
+                "reference_other_order": "Questo riferimento del gateway è già di un altro ordine: controlla la notifica prima di registrare l'incasso.",
+                "unknown_provider": "Il gateway «{{provider}}» non è fra quelli che gestiamo: scegli Stripe, PayPal, Nexi o un incasso a mano.",
+                "already_paid": "Questo pagamento è già incassato: non si può dichiarare fallito. Se i soldi sono tornati indietro, registra un rimborso."
+            },
             "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
             "category": {
                 "loop": "Una categoria non può stare sotto sé stessa o sotto una sua sottocategoria.",

@@ -72,15 +72,18 @@ final class Stock
             $before = round((float) ($row['quantity'] ?? 0), 3);
             $after = round($before + $quantity, 3);
 
-            // Sotto zero si va solo se la funzionalità lo permette **e**
-            // l'opzione lo vuole: la funzionalità dice che si può, l'articolo
-            // dice se lo vende scoperto. Altrimenti la giacenza è un muro, ma
-            // solo per chi toglie: la merce che arriva entra sempre, anche se
-            // non basta a colmare un buco rimasto da quando si vendeva scoperto.
-            $backorder = Gestionale::feature('backorders')
-                && ($product['allow_backorder'] ?? 'false') === 'true';
+            // Sotto zero si va in due casi. Il primo è il backorder: la
+            // funzionalità dice che si può, l'articolo dice se lo vende
+            // scoperto. Il secondo è `allow_negative`, e lo passa solo
+            // `Allocation::commit()`: la merce di quell'ordine era già stata
+            // messa da parte, o è già stata pagata, e non si rifiuta una
+            // vendita chiusa per un numero che non torna. Chi toglie trova
+            // comunque un muro; la merce che arriva entra sempre, anche se non
+            // basta a colmare un buco rimasto da quando si vendeva scoperto.
+            $negative = ($movement['allow_negative'] ?? false) === true
+                || self::allowsBackorder($product);
 
-            if ($after < 0 && $quantity < 0 && !$backorder) {
+            if ($after < 0 && $quantity < 0 && !$negative) {
                 throw UserError::make('stock.insufficient', [
                     'product' => trim((string) ($product['name'] ?? '')) !== ''
                         ? (string) $product['name']
@@ -126,6 +129,21 @@ final class Stock
                 'alert' => Alerts::refresh($keys['product_id']),
             ];
         });
+    }
+
+    /**
+     * L'opzione si vende scoperta?
+     *
+     * La funzionalità dice che si può, l'articolo dice se lo fa. Sta qui, e
+     * non dentro chi chiama, perché la regola è una sola: `Allocation` la
+     * legge prima di prenotare, `apply()` prima di scendere sotto zero.
+     *
+     * @param array<string, mixed> $product riga di `gst_products`
+     */
+    public static function allowsBackorder(array $product): bool
+    {
+        return Gestionale::feature('backorders')
+            && ($product['allow_backorder'] ?? 'false') === 'true';
     }
 
     /**
