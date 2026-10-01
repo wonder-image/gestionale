@@ -5,8 +5,11 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\App\Theme;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderNoteResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
+
+Theme::set('bootstrap');
 
 /**
  * Le note interne e quelle sul documento si modificano dalla scheda, con una
@@ -40,8 +43,11 @@ check('la finestra porta con sé la strada del ritorno', fn () =>
 );
 
 check('la scheda ha il pulsante che apre la finestra, accanto a ciascuna nota', function () {
-    $r = new ReflectionMethod(OrderResource::class, 'headerHtml');
-    $html = (string) $r->invoke(null, ['id' => 9, 'order_number' => '2025/001', 'internal_note' => 'x'], []);
+    $r = new ReflectionMethod(OrderResource::class, 'headerItems');
+    $html = implode('', array_map(
+        static fn ($item): string => $item->render('bootstrap'),
+        $r->invoke(null, ['id' => 9, 'order_number' => '2025/001', 'internal_note' => 'x'], [])
+    ));
 
     return substr_count($html, OrderNoteResource::MODAL_ID) >= 2 && str_contains($html, 'bi-pencil');
 });

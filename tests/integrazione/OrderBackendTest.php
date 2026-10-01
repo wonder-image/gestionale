@@ -10,6 +10,7 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
+require __DIR__.'/supporto/layout.php';
 
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
@@ -67,18 +68,7 @@ check('un ordine senza nomi si riconosce dall\'email', function () {
 /** Tutto l'HTML della scheda, per cercarci dentro. */
 function schedaHtml(int $ordine): string
 {
-    $layout = OrderResource::showLayoutSchema((array) Order::findById($ordine));
-    $testo = static function (object $c) use (&$testo): string {
-        $html = property_exists($c, 'text') ? (string) (new ReflectionProperty($c, 'text'))->getValue($c).' ' : '';
-
-        foreach ((array) ($c->components ?? []) as $figlio) {
-            $html .= $testo($figlio);
-        }
-
-        return $html;
-    };
-
-    return $testo($layout);
+    return layoutHtml(OrderResource::showLayoutSchema((array) Order::findById($ordine)));
 }
 
 check('la scheda mostra numero, cliente, totale e riepilogo IVA; il nome è escapato', function () {

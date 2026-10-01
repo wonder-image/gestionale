@@ -13,6 +13,7 @@ use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Accordion;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\DataItem;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Gestionale;
@@ -406,9 +407,7 @@ final class OrderResource extends GestionaleResource
         // e il riepilogo IVA. Sotto, le tabelle a tutta larghezza.
         $componenti = [
             (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components([
-                (new Card)->components([
-                    RichText::make(static::headerHtml($order, $metodi))->tag('div')->columnSpan(12),
-                ])->columns(12)->columnSpan(12),
+                (new Card)->components(static::headerItems($order, $metodi))->columns(12)->columnSpan(12),
             ]),
             (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components([
                 $riquadro('Totali', OrderSheet::totals($order)),
@@ -438,42 +437,46 @@ final class OrderResource extends GestionaleResource
 
     /**
      * L'intestazione: numero, data, canale, i tre stati, il cliente, gli
-     * indirizzi, il metodo di pagamento e le note.
+     * indirizzi, il metodo di pagamento e le note, un `DataItem` ciascuno.
      *
      * @param array<int, string> $metodi
+     * @return list<DataItem>
      */
-    protected static function headerHtml(array $order, array $metodi): string
+    protected static function headerItems(array $order, array $metodi): array
     {
-        $dato = static fn (string $etichetta, string $html, string $modifica = ''): string => '<div class="col-12 col-sm-4 mb-3">'
-            .'<div class="small text-muted">'.static::escape($etichetta).$modifica.'</div><div>'.($html !== '' ? $html : '<span class="text-muted">—</span>').'</div></div>';
+        // Testo semplice, o markup già escapato da noi con `html()`.
+        $dato = static fn (string $etichetta, string $valore, bool $html = false, string $azione = ''): DataItem => ($azione === ''
+            ? DataItem::make($etichetta, $valore)
+            : DataItem::make($etichetta, $valore)->action($azione))
+            ->html($html)
+            ->columnSpan(['default' => 12, 'sm' => 4]);
         // La matita accanto a una nota apre la finestra delle note.
         $bloccate = OrderNoteResource::isLocked($order);
         $lucchetto = ' <i class="bi bi-lock text-muted ms-1" title="'.static::escape(OrderNoteResource::LOCKED_TEXT).'" aria-label="'.static::escape(OrderNoteResource::LOCKED_TEXT).'"></i>';
         $matita = static fn (string $nota): string => $bloccate ? $lucchetto : ' <a href="#" class="text-muted ms-1" title="Modifica la '.static::escape(strtolower($nota)).'" aria-label="Modifica la '.static::escape(strtolower($nota)).'"'
             .' onclick="window.bootstrap.Modal.getOrCreateInstance(document.getElementById('.static::escape((string) json_encode(OrderNoteResource::MODAL_ID)).')).show(); return false;">'
             .'<i class="bi bi-pencil"></i></a>';
-        $testo = static fn (string $v): string => trim($v) !== '' ? static::escape($v) : '';
         $nota = static fn (string $v): string => trim($v) !== '' ? nl2br(static::escape($v)) : '';
         $canali = ['online' => 'Online', 'office' => 'Ufficio', 'pos' => 'Cassa'];
         $canale = (string) ($order['channel'] ?? '');
 
-        return '<div class="row">'
-            .$dato('Numero', $testo((string) ($order['order_number'] ?? '')))
-            .$dato('Data', static::escape(static::date((string) ($order['ordered_at'] ?? ''))))
-            .$dato('Canale', static::escape($canali[$canale] ?? $canale))
-            .$dato('Ordine', StatusLabels::badge('order', (string) ($order['status'] ?? '')))
-            .$dato('Pagamento', StatusLabels::badge('payment', (string) ($order['payment_status'] ?? '')))
-            .$dato('Evasione', StatusLabels::badge('fulfillment', (string) ($order['fulfillment_status'] ?? '')))
-            .$dato('Cliente', static::customerLink($order))
-            .$dato('Email', $testo((string) ($order['email'] ?? '')))
-            .$dato('Telefono', $testo((string) ($order['phone'] ?? '')))
-            .$dato('Fatturazione', OrderSheet::address($order, 'billing'))
-            .$dato('Spedizione', OrderSheet::address($order, 'shipping'))
-            .$dato('Metodo di pagamento', $testo($metodi[(int) ($order['payment_method_id'] ?? 0)] ?? ''))
-            .$dato('Nota del cliente', $nota((string) ($order['customer_note'] ?? '')))
-            .$dato('Nota interna', $nota((string) ($order['internal_note'] ?? '')), $matita('Nota interna'))
-            .$dato('Nota sul documento', $nota((string) ($order['document_note'] ?? '')), $matita('Nota sul documento'))
-            .'</div>';
+        return [
+            $dato('Numero', (string) ($order['order_number'] ?? '')),
+            $dato('Data', static::date((string) ($order['ordered_at'] ?? ''))),
+            $dato('Canale', $canali[$canale] ?? $canale),
+            $dato('Ordine', StatusLabels::badge('order', (string) ($order['status'] ?? '')), true),
+            $dato('Pagamento', StatusLabels::badge('payment', (string) ($order['payment_status'] ?? '')), true),
+            $dato('Evasione', StatusLabels::badge('fulfillment', (string) ($order['fulfillment_status'] ?? '')), true),
+            $dato('Cliente', static::customerLink($order), true),
+            $dato('Email', (string) ($order['email'] ?? '')),
+            $dato('Telefono', (string) ($order['phone'] ?? '')),
+            $dato('Fatturazione', OrderSheet::address($order, 'billing'), true),
+            $dato('Spedizione', OrderSheet::address($order, 'shipping'), true),
+            $dato('Metodo di pagamento', $metodi[(int) ($order['payment_method_id'] ?? 0)] ?? ''),
+            $dato('Nota del cliente', $nota((string) ($order['customer_note'] ?? '')), true),
+            $dato('Nota interna', $nota((string) ($order['internal_note'] ?? '')), true, $matita('Nota interna')),
+            $dato('Nota sul documento', $nota((string) ($order['document_note'] ?? '')), true, $matita('Nota sul documento')),
+        ];
     }
 
     /**
