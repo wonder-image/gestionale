@@ -22,6 +22,10 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
+use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
+use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
+use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnStatusLog;
+use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
@@ -31,6 +35,7 @@ use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Plugin\Gestionale\Seeding\OrdersDemo;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -73,7 +78,7 @@ $esito = [];
 try {
     Transaction::run(static function () use (&$esito, $righe, $ordine, $agganciate, $sempre): void {
         // Si parte dal pulito: la transazione rimette tutto com'era.
-        accendiFunzionalita(['orders']);
+        accendiFunzionalita(['orders', 'returns']);
         OrdersDemo::clear();
         CatalogDemo::clear();
         ContactsDemo::clear();
@@ -104,6 +109,22 @@ try {
 
         $esito['numeri'] = array_map(static fn (array $o): string => (string) ($o['order_number'] ?? ''), $esito['ordini']);
         $esito['conteggio'] = count($righe(Order::class, "code LIKE 'ord\\_demo-%' AND deleted = 'false'"));
+
+        // Il reso di prova, sull'ordine evaso: com'è finito e cosa ha mosso.
+        $evasoId = (int) ($esito['ordini']['evaso']['id'] ?? 0);
+        $resi = $righe(SalesReturn::class, "order_id = {$evasoId} AND deleted = 'false'");
+        $esito['resi'] = count($resi);
+        $esito['reso'] = $resi[0] ?? [];
+        $resoId = (int) ($esito['reso']['id'] ?? 0);
+        $esito['reso_righe'] = $righe(SalesReturnItem::class, "sales_return_id = {$resoId}");
+        $esito['reso_movimenti'] = count($righe(StockMovement::class, "reference_type = 'sales_return' AND reference_id = {$resoId} AND type = 'return'"));
+        $esito['resi_altri'] = count($righe(SalesReturn::class, "order_id <> {$evasoId} AND code LIKE 'ret\\_demo-%'"));
+
+        // Un reso vero, su un ordine vero: la pulizia non lo tocca.
+        $ordineVero = ordineDiProva(10.0);
+        $esito['reso_vero'] = (int) (SalesReturn::create([
+            'code' => 'ret_vero-1', 'number' => 'R-VERO', 'order_id' => $ordineVero, 'status' => 'received', 'location_id' => Locations::mainId(),
+        ])->insert_id ?? 0);
 
         // Cosa ha fatto al magazzino ciascun ordine.
         foreach ($esito['ordini'] as $ref => $o) {
@@ -139,6 +160,11 @@ try {
         ];
 
         $esito['dopo'] = Levels::forProducts($tutti);
+        $esito['resti']['resi'] = count($righe(SalesReturn::class, "order_id IN (".implode(',', $idDemo).')'));
+        $esito['resti']['resi_righe'] = $agganciate(SalesReturnItem::class, 'sales_return_id', [$resoId]);
+        $esito['resti']['resi_log'] = $agganciate(SalesReturnStatusLog::class, 'sales_return_id', [$resoId]);
+        $esito['resti']['resi_movimenti'] = count($righe(StockMovement::class, "reference_type = 'sales_return' AND reference_id = {$resoId}"));
+        $esito['reso_vero_resta'] = SalesReturn::findById((int) $esito['reso_vero']) !== null;
 
         // Il catalogo che segue non trova chiavi esterne.
         try {
@@ -229,5 +255,51 @@ check('dopo clear la giacenza di ogni articolo è quella di prima', fn () =>
 check('il catalogo che segue non incontra chiavi esterne', fn () => ($esito['errore'] ?? 'no') === '' && ($esito['catalogo'] ?? 0) > 0);
 
 check('una seconda pulizia non trova niente e non rompe', fn () => ($esito['secondaPulizia'] ?? -1) === 0);
+
+check('l\'ordine evaso ha un reso ricevuto, con il segno della demo', fn () =>
+    ($esito['resi'] ?? 0) === 1 && ($esito['reso']['status'] ?? '') === 'received'
+    && DemoCode::is((string) ($esito['reso']['code'] ?? ''))
+);
+
+check('il reso ha una riga che rientra a magazzino, con il suo movimento', fn () =>
+    count($esito['reso_righe'] ?? []) === 1 && ($esito['reso_righe'][0]['restock'] ?? '') === 'true'
+    && ($esito['reso_righe'][0]['reason'] ?? '') === 'changed_mind' && ($esito['reso_movimenti'] ?? 0) === 1
+);
+
+check('gli altri ordini di prova non hanno resi', fn () => ($esito['resi_altri'] ?? -1) === 0);
+
+check('clear toglie anche il reso: righe, storia e movimenti', fn () =>
+    ($esito['resti']['resi'] ?? 1) === 0 && ($esito['resti']['resi_righe'] ?? 1) === 0
+    && ($esito['resti']['resi_log'] ?? 1) === 0 && ($esito['resti']['resi_movimenti'] ?? 1) === 0
+);
+
+check('clear non tocca il reso di un ordine vero', fn () => ($esito['reso_vero_resta'] ?? false) === true);
+
+// Con «returns» spenta la demo non fa resi.
+$senzaResi = null;
+
+try {
+    Transaction::run(static function () use (&$senzaResi, $righe, $ordine): void {
+        accendiFunzionalita(['orders']);
+        sqlModify(Feature::$table, ['enabled' => 'false'], 'feature_key', 'returns');
+        Wonder\Plugin\Gestionale\Gestionale::reset();
+        OrdersDemo::clear();
+        CatalogDemo::clear();
+        ContactsDemo::clear();
+        ContactsDemo::create();
+        CatalogDemo::create();
+        OrdersDemo::create();
+        $evaso = (int) ($ordine('evaso')['id'] ?? 0);
+        $senzaResi = count($righe(SalesReturn::class, "order_id = {$evaso}"));
+
+        throw new Annulla();
+    });
+} catch (Annulla) {
+} finally {
+    Wonder\Plugin\Gestionale\Gestionale::reset();
+    $foto->ripristina();
+}
+
+check('con i resi spenti l\'ordine evaso non ne ha', fn () => $senzaResi === 0);
 
 summary();
