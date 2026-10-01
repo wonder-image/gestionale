@@ -85,3 +85,23 @@ versionamento semantico.
   volte l'ultimo pezzo e la fa rientrare da annullamenti e resi;
   `Support\Payments\Ledger` tiene le righe di denaro, regge la notifica doppia
   del gateway e ricalcola da solo il `payment_status` dell'ordine.
+- Backend *Vendite*: l'elenco **Ordini** (tre etichette — ordine, pagamento,
+  evasione — filtri per i tre stati e per periodo, ricerca per numero, cliente
+  ed email) e la **scheda in sola lettura** (righe, riepilogo IVA, totali,
+  pagamenti, resi, storico). Le azioni stanno nei pulsanti della scheda e
+  chiamano `Lifecycle` e `Ledger` senza regole proprie: *Conferma*, *Segna
+  evaso* e *Annulla* con una finestra che dice cosa succede al magazzino
+  (`OrderActions`), *Registra pagamento* come pagina-form con ritorno `torna=`.
+  *Metodi di pagamento* e *Conti di pagamento* in Set Up, per l'`admin`.
+  *Registra reso* e la sua voce nel menu arrivano col Piano 5.
+- *Movimenti* leggibili: colonne *Chi*, *Prima*, *Sede*, il documento dentro
+  *Tipo* col link all'ordine, filtri *Causale*, *Sede* e *Periodo*
+  (`MovementPeriod`), ricerca sull'articolo, *Ultimi movimenti* nella scheda
+  della versione.
+- `gestionale:demo` crea **sette ordini di prova** in tutti gli stati (in
+  attesa, pagato, evaso, annullato, pagamento parziale, ospite, azienda) e li
+  toglie rimettendo in magazzino la merce; con `--fresh` cancella tutto in
+  ordine inverso di registrazione prima di ricreare.
+- Per chi aggiorna: `PaymentMethod` e `PaymentAccount` **non cambiano tabelle**
+  in questo giro; `Defaults` semina tre metodi nuovi (bonifico, contanti, carta
+  — la carta nasce spenta).
