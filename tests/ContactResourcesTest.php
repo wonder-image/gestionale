@@ -199,4 +199,33 @@ check('il titolo della scheda è il nome del cliente', fn () =>
     CustomerResource::pageTitle(['type' => 'business', 'business_name' => 'Rossi Srl']) === 'Rossi Srl'
 );
 
+check('il gestionale distingue password e provider federati', function () {
+    $columns = array_map(
+        static fn ($column): string => (string) $column->name,
+        CustomerResource::tableSchema()
+    );
+    $select = (string) (CustomerResource::tableLayoutSchema()->toArray()['select'] ?? '');
+
+    return in_array('auth_method', $columns, true)
+        && str_contains($select, 'auth_federated')
+        && str_contains($select, 'AS auth_providers')
+        && str_contains($select, 'AS has_local_password')
+        && CustomerResource::authMethod(['user_id' => 0]) === 'Nessun account'
+        && CustomerResource::authMethod([
+            'user_id' => 7,
+            'has_local_password' => false,
+            'auth_providers' => 'google',
+        ]) === 'Google'
+        && CustomerResource::authMethod([
+            'user_id' => 7,
+            'has_local_password' => true,
+            'auth_providers' => 'google',
+        ]) === 'Email e password + Google'
+        && CustomerResource::authMethod([
+            'user_id' => 7,
+            'has_local_password' => true,
+            'auth_providers' => '',
+        ]) === 'Email e password';
+});
+
 summary();
