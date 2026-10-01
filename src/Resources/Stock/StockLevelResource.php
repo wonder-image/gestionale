@@ -13,13 +13,12 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
-use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
+use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Stock\LevelsSql;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
@@ -43,9 +42,6 @@ final class StockLevelResource extends GestionaleResource
     public static string $orderColumn = 'model_name';
     public static string $orderDirection = 'ASC';
     public static string $docsPage = 'magazzino/magazzino-giacenze';
-
-    /** @var array<int, list<array<string, mixed>>> le foto pronte, per articolo */
-    private static array $images = [];
 
     /** @var array<int, float> la scorta minima sulla sede principale, per versione */
     private static array $thresholds = [];
@@ -360,26 +356,11 @@ final class StockLevelResource extends GestionaleResource
     /** La prima foto pronta: della versione, poi della variante, poi dell'articolo. */
     private static function photo(array $row): string
     {
-        $modelId = (int) ($row['product_model_id'] ?? 0);
-
-        self::$images[$modelId] ??= array_values(array_filter(
-            static::rowsOf(ProductImage::class, ['product_model_id' => $modelId], 'position'),
-            [ProductImages::class, 'isReady']
-        ));
-
-        $images = ProductImages::for(
-            self::$images[$modelId],
+        return ProductPhotos::forModel(
+            (int) ($row['product_model_id'] ?? 0),
             (int) ($row['product_variant_id'] ?? 0),
             (int) ($row['id'] ?? 0)
         );
-
-        foreach ($images as $image) {
-            if (($url = ProductImages::url($image)) !== '') {
-                return $url;
-            }
-        }
-
-        return '';
     }
 
     /** La scorta minima della versione sulla sede principale; zero senza soglia. */

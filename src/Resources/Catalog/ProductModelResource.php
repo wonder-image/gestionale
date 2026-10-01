@@ -643,19 +643,19 @@ class ProductModelResource extends GestionaleResource
             TableColumn::key('photo')
                 ->image()
                 ->size('little')
-                ->formatter(static fn (array $row): string => static::firstImage((int) ($row['id'] ?? 0))),
+                ->formatter(static fn (array $row): string => static::firstImage((int) ($row['id'] ?? 0)))
+                ->link('view'),
             TableColumn::key('name')->text()->link('view'),
             TableColumn::key('sku')->text(),
             TableColumn::key('price')
                 ->text()
-                ->size('little')
                 ->formatter(static fn (array $row): string => static::priceCell((int) ($row['id'] ?? 0))),
             TableColumn::key('versions')
                 ->text()
                 ->size('little')
                 ->formatter(static fn (array $row): string => (string) static::productCount((int) ($row['id'] ?? 0))),
             TableColumn::key('visible')->visibleBadge()->size('little'),
-            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+            TableColumn::key('actions')->button()->actions(['view', 'edit', 'visible', 'delete']),
         ];
     }
 

@@ -73,6 +73,28 @@ check('la riga aggiunta porta prezzo, quantità e totale', function () {
     });
 });
 
+check('la riga copia il nome intero (articolo e opzione) e la foto di quel momento', function () {
+    return prova(static function (): bool {
+        $prodotto = articoloConGiacenza(10, 'TST-CART-'.substr((string) microtime(true), -6));
+        Product::update(['price' => '20.00'], $prodotto);
+        $riga = (array) Product::findById($prodotto);
+        $modelId = (int) $riga['product_model_id'];
+        $modello = (array) Wonder\Plugin\Gestionale\Models\Catalog\ProductModel::findById($modelId);
+        $file = 'prova-riga-'.uniqid().'.jpg';
+        Wonder\Plugin\Gestionale\Models\Catalog\ProductImage::create([
+            'product_model_id' => $modelId, 'file' => json_encode([$file]), 'position' => 1, 'status' => 'ready', 'attempts' => 0,
+        ]);
+
+        $carrello = Cart::open(['cart_token' => 'tok-'.uniqid()]);
+        $voce = Cart::add((int) $carrello['id'], ['product_id' => $prodotto, 'quantity' => 1])['items'][0] ?? [];
+        $nome = (string) ($voce['name'] ?? '');
+
+        return str_starts_with($nome, (string) $modello['name'])
+            && str_contains($nome, (string) $riga['name'])
+            && str_ends_with((string) ($voce['image'] ?? ''), $file);
+    });
+});
+
 check('due volte lo stesso articolo fanno una riga sola', function () {
     return prova(static function (): bool {
         $prodotto = articoloConGiacenza(10, 'TST-CART-'.substr((string) microtime(true), -6));

@@ -365,6 +365,52 @@ try {
             return false;
         });
 
+        check('la data dell\'incasso passata si scrive, senza resta «adesso»', function () {
+            $ieri = date('Y-m-d', strtotime('-3 days'));
+            $a = ordineDiProva(50.0);
+            $b = ordineDiProva(50.0);
+            $conData = Ledger::register(['order_id' => $a, 'amount' => 50.0, 'paid_at' => $ieri]);
+            $senza = Ledger::register(['order_id' => $b, 'amount' => 50.0]);
+
+            return str_starts_with((string) Payment::findById($conData['payment_id'])['paid_at'], $ieri)
+                && str_starts_with((string) Payment::findById($senza['payment_id'])['paid_at'], date('Y-m-d'));
+        });
+
+        check('la data dell\'incasso vale anche quando chiude un pagamento già aperto', function () {
+            $ieri = date('Y-m-d', strtotime('-2 days'));
+            $ordine = ordineDiProva(50.0);
+            $aperto = Ledger::open(['order_id' => $ordine, 'amount' => 50.0]);
+            $chiuso = Ledger::register(['order_id' => $ordine, 'amount' => 50.0, 'paid_at' => $ieri]);
+
+            return $chiuso['payment_id'] === $aperto['payment_id']
+                && str_starts_with((string) Payment::findById($chiuso['payment_id'])['paid_at'], $ieri);
+        });
+
+        check('una data nel futuro è rifiutata e non scrive niente', function () {
+            $ordine = ordineDiProva(50.0);
+
+            try {
+                Ledger::register(['order_id' => $ordine, 'amount' => 50.0, 'paid_at' => date('Y-m-d', strtotime('+2 days'))]);
+            } catch (UserError $e) {
+                return str_contains($e->getMessage(), 'futuro')
+                    && (int) sqlCount(Payment::$table, "order_id = {$ordine}") === 0;
+            }
+
+            return false;
+        });
+
+        check('una data che non è una data è rifiutata', function () {
+            $ordine = ordineDiProva(50.0);
+
+            try {
+                Ledger::register(['order_id' => $ordine, 'amount' => 50.0, 'paid_at' => 'ieri sera']);
+            } catch (UserError) {
+                return (int) sqlCount(Payment::$table, "order_id = {$ordine}") === 0;
+            }
+
+            return false;
+        });
+
         throw new Annulla();
     });
 } catch (Annulla) {

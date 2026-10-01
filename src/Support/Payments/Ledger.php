@@ -147,6 +147,37 @@ final class Ledger
     }
 
     /**
+     * Quando è arrivato il denaro: `paid_at` se c'è, altrimenti adesso.
+     *
+     * Chi registra un bonifico a mano lo fa spesso dopo l'arrivo: la data
+     * vera è quella dell'estratto conto. Una data senza ora vale la
+     * mezzanotte di quel giorno; nel futuro non si incassa.
+     *
+     * @param array<string, mixed> $data
+     */
+    private static function paidAt(array $data): string
+    {
+        $raw = trim((string) ($data['paid_at'] ?? ''));
+
+        if ($raw === '') {
+            return date('Y-m-d H:i:s');
+        }
+
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2})(?::(\d{2}))?)?$/', $raw, $m) !== 1
+            || !checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+            throw UserError::make('payment.invalid_date');
+        }
+
+        $moment = sprintf('%s-%s-%s %02d:%02d:%02d', $m[1], $m[2], $m[3], (int) ($m[4] ?? 0), (int) ($m[5] ?? 0), (int) ($m[6] ?? 0));
+
+        if (strtotime($moment) > time() + 60) {
+            throw UserError::make('payment.future_date');
+        }
+
+        return $moment;
+    }
+
+    /**
      * La riga nuova, o quella che c'era già.
      *
      * @param array<string, mixed> $data
@@ -161,7 +192,11 @@ final class Ledger
             throw UserError::make('payment.zero_amount');
         }
 
-        return Transaction::run(static function () use ($data, $type, $status, $orderId, $amount): array {
+        // La data si controlla prima di aprire la transazione: un rifiuto non
+        // deve lasciare niente scritto.
+        $paidAt = $status === 'paid' ? self::paidAt($data) : '';
+
+        return Transaction::run(static function () use ($data, $type, $status, $orderId, $amount, $paidAt): array {
             $provider = self::provider($data);
             $reference = trim((string) ($data['provider_reference'] ?? ''));
             $existing = $reference === '' ? null : self::findByReference($provider, $reference, $type);
@@ -179,7 +214,7 @@ final class Ledger
                 }
 
                 self::reconcile($existing, $amount);
-                self::move($existing, $status, (string) ($data['note'] ?? ''));
+                self::move($existing, $status, (string) ($data['note'] ?? ''), $paidAt);
 
                 return [
                     'payment_id' => (int) $existing['id'],
@@ -203,7 +238,7 @@ final class Ledger
                 // Senza riferimento del gateway ci si firma con il proprio
                 // codice: l'indice unico vuole un valore diverso per riga.
                 'provider_reference' => $reference !== '' ? $reference : $code,
-                'paid_at' => $status === 'paid' ? date('Y-m-d H:i:s') : '',
+                'paid_at' => $paidAt,
                 'note' => (string) ($data['note'] ?? ''),
             ]);
 
@@ -238,7 +273,7 @@ final class Ledger
      *
      * @param array<string, mixed> $row
      */
-    private static function move(array $row, string $status, string $message = ''): void
+    private static function move(array $row, string $status, string $message = '', string $paidAt = ''): void
     {
         $before = (string) $row['status'];
 
@@ -249,7 +284,7 @@ final class Ledger
         $changes = ['status' => $status];
 
         if ($status === 'paid' && trim((string) ($row['paid_at'] ?? '')) === '') {
-            $changes['paid_at'] = date('Y-m-d H:i:s');
+            $changes['paid_at'] = $paidAt !== '' ? $paidAt : date('Y-m-d H:i:s');
         }
 
         Payment::update($changes, (int) $row['id']);

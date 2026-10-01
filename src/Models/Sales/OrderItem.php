@@ -11,7 +11,8 @@ use Wonder\Sql\TableSchema as Column;
 /**
  * Le righe dell'ordine (4.7).
  *
- * Nome, SKU, descrizione e unità sono **copiati** al momento dell'aggiunta: un
+ * Nome completo (articolo e opzione, "Maglia — Blu / M"), SKU, descrizione,
+ * unità e foto sono **copiati** al momento dell'aggiunta: un
  * ordine di marzo deve continuare a dire cosa è stato venduto anche se il
  * prodotto oggi si chiama diversamente o non esiste più. Per la stessa ragione
  * `product_id` è un intero semplice, senza chiave esterna: le righe `text`,
@@ -51,6 +52,8 @@ final class OrderItem extends Model
             // Copia del prodotto
             Column::key('sku')->length(100),
             Column::key('name'),
+            // L'indirizzo della foto che l'articolo aveva al momento dell'ordine.
+            Column::key('image'),
             Column::key('description')->type('TEXT'),
             Column::key('unit')->length(10),
             // Prezzo
@@ -88,6 +91,7 @@ final class OrderItem extends Model
             Field::key('sku')->text(),
             // Niente `sanitizeFirst()`: "XL" deve restare "XL".
             Field::key('name')->text(),
+            Field::key('image')->text()->sanitize(false),
             Field::key('description')->text(),
             Field::key('unit')->text()->sanitize(false),
             Field::key('quantity')->number()->decimals(3),

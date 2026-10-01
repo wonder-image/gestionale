@@ -85,3 +85,54 @@ versionamento semantico.
   volte l'ultimo pezzo e la fa rientrare da annullamenti e resi;
   `Support\Payments\Ledger` tiene le righe di denaro, regge la notifica doppia
   del gateway e ricalcola da solo il `payment_status` dell'ordine.
+- Backend *Vendite*: l'elenco **Ordini** (tre etichette — ordine, pagamento,
+  evasione — filtri per i tre stati e per periodo, ricerca per numero, cliente
+  ed email) e la **scheda** «Ordine <numero>» (intestazione, riepilogo IVA e
+  totali in riquadri; *Righe* — con la foto del prodotto —, *Pagamenti*, *Resi*
+  e *Storico* in accordion, ciascuno una tabella del core con
+  `TableLayoutSchema` e `TableColumn`: `OrderItemTableResource`,
+  `OrderPaymentTableResource`, `OrderReturnTableResource`,
+  `OrderHistoryTableResource`, senza pagina e senza menu). Il cliente è un link
+  alla sua scheda. Le **note** interna e sul documento si modificano da una
+  finestra (`OrderNoteResource`); la nota del cliente resta sua. Le azioni
+  stanno nei pulsanti della scheda e chiamano `Lifecycle` e `Ledger` senza
+  regole proprie: *Conferma*, *Segna evaso* e *Annulla* con una finestra che
+  dice cosa succede al magazzino (`OrderActions`), *Registra pagamento* in una
+  finestra che posta a `OrderPaymentResource`. Il ritorno all'elenco è la
+  chevron del titolo. Nell'elenco il totale è una colonna importo
+  (`TableColumn::price()`, dal core: importo all'italiana, a destra, cifre
+  tabulari). In alto a destra, accanto all'intestazione, stanno *Totali* e poi
+  *Riepilogo IVA*. Ogni riga d'ordine salva il **nome completo** dell'articolo
+  (`ProductNames::full()`: articolo e opzione) e l'**indirizzo della foto** che
+  aveva al momento dell'ordine (colonna `image`); le righe già esistenti ne
+  sono prive e la tabella ripiega sulla foto del catalogo.
+  Le *note* di un ordine evaso e pagato sono bloccate: lucchetto al posto
+  della matita, e il salvataggio le rifiuta anche se la richiesta arriva a
+  mano. Il cliente nella scheda ordine è un link alla **scheda cliente**.
+- Scheda cliente (sola lettura, `view` della Resource *Clienti*; il nome
+  nell'elenco la apre, il pulsante *Modifica* porta al form): *Statistiche*
+  (ordini, speso, scontrino medio, primo e ultimo ordine, da pagare, carrello),
+  *Ordini* (tabella del core, con i tre stati), *Prodotti nel carrello*,
+  *Coupon assegnati* (per ora solo la frase: i coupon non esistono ancora) e
+  *Tutti i suoi dati* (anagrafica, fatturazione, indirizzi di consegna,
+  metodo di accesso, note). Senza la funzionalità «orders» restano coupon e
+  dati. Le statistiche stanno in `Support\Contacts\CustomerStats` (non contano
+  gli ordini annullati o rimborsati per intero né i carrelli) e il disegno in
+  `Support\Contacts\CustomerSheet`. I fornitori non hanno scheda: il nome apre
+  la modifica. Dati di prova: nuova cliente *Anna Verdi* con i suoi ordini; solo
+  l'ospite resta senza scheda.
+- `Support\Catalog\ProductPhotos`: la foto di un articolo (opzione, colore,
+  poi modello), usata dalle giacenze e dalle righe dell'ordine.
+  *Metodi di pagamento* e *Conti di pagamento* in Set Up, per l'`admin`.
+  *Registra reso* e la sua voce nel menu arrivano col Piano 5.
+- *Movimenti* leggibili: colonne *Chi*, *Prima*, *Sede*, il documento dentro
+  *Tipo* col link all'ordine, filtri *Causale*, *Sede* e *Periodo*
+  (`MovementPeriod`), ricerca sull'articolo, *Ultimi movimenti* nella scheda
+  della versione.
+- `gestionale:demo` crea **sette ordini di prova** in tutti gli stati (in
+  attesa, pagato, evaso, annullato, pagamento parziale, ospite, azienda) e li
+  toglie rimettendo in magazzino la merce; con `--fresh` cancella tutto in
+  ordine inverso di registrazione prima di ricreare.
+- Per chi aggiorna: `PaymentMethod` e `PaymentAccount` **non cambiano tabelle**
+  in questo giro; `Defaults` semina tre metodi nuovi (bonifico, contanti, carta
+  — la carta nasce spenta).

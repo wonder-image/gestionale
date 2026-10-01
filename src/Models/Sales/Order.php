@@ -43,6 +43,9 @@ final class Order extends Model
         'pending', 'confirmed', 'processing', 'completed', 'cancelled',
     ];
 
+    /** Gli stati di un ordine vero: senza quelli del preventivo. */
+    public const LIVE_STATUSES = ['pending', 'confirmed', 'processing', 'completed', 'cancelled'];
+
     public const PAYMENT_STATUSES = [
         'unpaid', 'pending', 'partially_paid', 'paid', 'partially_refunded', 'refunded',
     ];

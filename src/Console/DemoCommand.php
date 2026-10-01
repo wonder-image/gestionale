@@ -37,6 +37,7 @@ final class DemoCommand extends Command
             return Command::FAILURE;
         }
 
+        self::boot();
         Demo::registerAll();
         $registry = DemoData::all();
 
@@ -48,19 +49,43 @@ final class DemoCommand extends Command
 
         $fresh = (bool) $input->getOption('fresh');
 
-        foreach ($registry as $key => $data) {
-            if ($fresh) {
+        // Prima si toglie tutto, dall'ultimo registrato al primo: gli ordini
+        // vanno via prima degli articoli che hanno venduto. Poi si crea, nell'ordine
+        // di registrazione. Un giro per dato farebbe cancellare il catalogo sotto gli ordini.
+        if ($fresh) {
+            foreach (DemoData::inClearOrder() as $data) {
                 $removed = (int) ($data['clear'])();
                 $output->writeln("Cancellati {$removed} dati di «{$data['title']}».");
                 self::writeNotes($output);
             }
+        }
 
+        foreach ($registry as $data) {
             $created = (int) ($data['create'])();
             $output->writeln("Creati {$created} dati di «{$data['title']}».");
             self::writeNotes($output);
         }
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Gli ordini di prova passano dal carrello vero, che usa le funzioni del
+     * sito (`sqlDelete()` e le altre): `forge` da solo non le carica, come
+     * fanno i comandi `update`, `export` e `import`, che aprono il sito.
+     */
+    private static function boot(): void
+    {
+        $root = getcwd() ?: '.';
+        $bootstrap = $root.'/vendor/wonder-image/app/wonder-image.php';
+
+        if (function_exists('sqlDelete') || !file_exists($bootstrap)) {
+            return;
+        }
+
+        $GLOBALS['ROOT'] = $root;
+
+        require_once $bootstrap;
     }
 
     /** Le note lasciate dall'ultimo passaggio, rientrate sotto la sua riga. */

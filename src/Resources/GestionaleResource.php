@@ -130,13 +130,13 @@ abstract class GestionaleResource extends Resource
      */
     protected static function rowsOf(
         string $modelClass,
-        array $where = [],
+        array|string $where = [],
         ?string $order = null,
         string $direction = 'ASC'
     ): array {
         try {
             $rows = $modelClass::find(
-                array_merge(['deleted' => 'false'], $where),
+                is_array($where) ? array_merge(['deleted' => 'false'], $where) : "({$where}) AND `deleted` = 'false'",
                 null,
                 $order,
                 $order === null ? null : $direction

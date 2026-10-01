@@ -9,6 +9,7 @@ use Wonder\Plugin\Custom\Fattura\Valori\AliquoteIva;
 use Wonder\Plugin\Custom\Fattura\Valori\Natura;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
@@ -41,6 +42,7 @@ final class Defaults implements ModuleDefaults
         self::taxRules($rows);
         self::settings($rows);
         self::location($rows);
+        self::paymentMethods($rows);
     }
 
     /** Una riga bloccata per ogni funzionalità del catalogo. */
@@ -229,6 +231,53 @@ final class Defaults implements ModuleDefaults
             'is_pos' => 'false',
             'active' => 'true',
         ]]);
+    }
+
+    /**
+     * Tre modi di pagare per cominciare. Stripe nasce spento: si accende
+     * quando c'è la chiave, un metodo che non può incassare non si propone.
+     */
+    private static function paymentMethods(DefaultRows $rows): void
+    {
+        $rows->ensure(PaymentMethod::class, 'code', [
+            [
+                'code' => 'bank-transfer',
+                'name' => 'Bonifico bancario',
+                'provider' => 'manual',
+                'timing' => 'deferred',
+                'instructions' => 'Fai il bonifico indicando il numero dell\'ordine nella causale: preparerai l\'ordine all\'arrivo del denaro.',
+                'applies_online' => 'true',
+                'applies_office' => 'true',
+                'applies_pos' => 'false',
+                'active' => 'true',
+                'position' => 1,
+            ],
+            [
+                'code' => 'cash',
+                'name' => 'Contanti al ritiro',
+                'provider' => 'manual',
+                'timing' => 'on_delivery',
+                'available_for' => 'pickup',
+                'instructions' => 'Paghi in contanti quando ritiri l\'ordine in sede.',
+                'applies_online' => 'true',
+                'applies_office' => 'true',
+                'applies_pos' => 'true',
+                'active' => 'true',
+                'position' => 2,
+            ],
+            [
+                'code' => 'stripe',
+                'name' => 'Carta di credito',
+                'provider' => 'stripe',
+                'timing' => 'immediate',
+                'stripe_payment_method_types' => 'card',
+                'applies_online' => 'true',
+                'applies_office' => 'false',
+                'applies_pos' => 'false',
+                'active' => 'false',
+                'position' => 3,
+            ],
+        ]);
     }
 
     private static function ordinaryTaxId(): int

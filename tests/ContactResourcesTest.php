@@ -165,4 +165,38 @@ check('con gli acquisti bloccati un ruolo arrivato da fuori non conta', function
 
 $forza([]);
 
+check('i clienti hanno la scheda in lettura, i fornitori vanno diritti alla modifica', function () {
+    $clienti = CustomerResource::pageSchema()->toArray();
+    $fornitori = SupplierResource::pageSchema()->toArray();
+
+    return CustomerResource::hasSheet() && !SupplierResource::hasSheet()
+        && json_encode($clienti) !== json_encode($fornitori)
+        && str_contains(json_encode($clienti), 'customer-show.php')
+        && !str_contains(json_encode($fornitori), 'customer-show.php');
+});
+
+check('il nome in elenco apre la scheda per i clienti e la modifica per i fornitori', function () {
+    $link = static function (string $classe): string {
+        foreach ($classe::tableSchema() as $c) {
+            if ((string) $c->name === 'name') {
+                return (string) ($c->schema['link'] ?? '');
+            }
+        }
+
+        return '';
+    };
+
+    return $link(CustomerResource::class) === 'view' && $link(SupplierResource::class) === 'modify';
+});
+
+check('l\'indirizzo della scheda e quello della modifica sono diversi e portano l\'id', fn () =>
+    str_contains(CustomerResource::viewUrl(7), '/7/')
+    && str_contains(CustomerResource::editUrlFor(7), '/7/edit')
+    && CustomerResource::viewUrl(7) !== CustomerResource::editUrlFor(7)
+);
+
+check('il titolo della scheda è il nome del cliente', fn () =>
+    CustomerResource::pageTitle(['type' => 'business', 'business_name' => 'Rossi Srl']) === 'Rossi Srl'
+);
+
 summary();
