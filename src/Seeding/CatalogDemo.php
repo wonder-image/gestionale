@@ -7,6 +7,10 @@ use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
+use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Models\Catalog\Package;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
@@ -188,11 +192,87 @@ final class CatalogDemo
         $created += self::packages();
         $created += self::models();
         $created += self::suppliers();
+        $created += self::customizations();
 
         DemoData::note(DemoCode::reusedNote(array_values(array_unique(self::$reused))));
         self::$reused = [];
 
         return $created;
+    }
+
+    /**
+     * Le personalizzazioni di prova, entrambe facoltative: un'incisione
+     * (testo, +5) sulla maglietta, l'articolo che gli ordini di prova
+     * vendono, e una confezione regalo (scelta fra due colori, +3) sulla
+     * felpa. Le opzioni si rimettono a una personalizzazione già nata che non
+     * ne ha: la pulizia le porta via con lei.
+     *
+     * @return int righe create
+     */
+    private static function customizations(): int
+    {
+        $created = self::ensure(Customization::class, 'incisione', 'Incisione', [
+            'label' => 'Incisione',
+            'help_text' => 'Fino a 20 caratteri',
+            'kind' => 'text',
+            'max_length' => 20,
+            'surcharge' => '5.00',
+            'active' => 'true',
+            'position' => 1,
+        ]);
+        $created += self::ensure(Customization::class, 'confezione-regalo', 'Confezione regalo', [
+            'label' => 'Confezione regalo',
+            'help_text' => '',
+            'kind' => 'choice',
+            'max_length' => 0,
+            'surcharge' => '3.00',
+            'active' => 'true',
+            'position' => 2,
+        ]);
+
+        $gift = self::idOf(Customization::class, 'confezione-regalo', 'Confezione regalo');
+
+        // Solo se non ne ha: un'opzione che il commerciante ha tolto o
+        // cambiato a mano non si rimette ogni volta.
+        if ($gift > 0 && !self::used(CustomizationOption::class, 'customization_id', $gift)) {
+            foreach (['Rossa', 'Blu'] as $position => $label) {
+                $created += !empty(CustomizationOption::create([
+                    'customization_id' => $gift,
+                    'label' => $label,
+                    'surcharge' => '0.00',
+                    'position' => $position + 1,
+                ])->success) ? 1 : 0;
+            }
+        }
+
+        $created += self::linkCustomization('maglietta-girocollo', 'incisione', 'Incisione');
+        $created += self::linkCustomization('felpa-con-cappuccio', 'confezione-regalo', 'Confezione regalo');
+
+        return $created;
+    }
+
+    /** Collega la personalizzazione all'articolo, facoltativa, se il collegamento non c'è già. */
+    private static function linkCustomization(string $modelRef, string $ref, string $name): int
+    {
+        $modelId = self::modelId($modelRef);
+        $id = self::idOf(Customization::class, $ref, $name);
+
+        if ($modelId === 0 || $id === 0) {
+            return 0;
+        }
+
+        $link = ProductModelCustomization::find(['product_model_id' => $modelId, 'customization_id' => $id, 'deleted' => 'false'], 1);
+
+        if (is_array($link) && isset($link['id'])) {
+            return 0;
+        }
+
+        return !empty(ProductModelCustomization::create([
+            'product_model_id' => $modelId,
+            'customization_id' => $id,
+            'is_required' => 'false',
+            'position' => 1,
+        ])->success) ? 1 : 0;
     }
 
     /**
@@ -875,6 +955,19 @@ final class CatalogDemo
             } else {
                 $kept[] = DemoCode::label(ProductModel::class, (string) ($row['name'] ?? ''));
             }
+        }
+
+        foreach (self::ours(Customization::class) as $row) {
+            $id = (int) $row['id'];
+
+            // Una ancora su un articolo vero (gli articoli di prova sono già
+            // andati con i loro collegamenti) resta: lo rifiuta la Resource.
+            if (!self::remove(static fn () => CustomizationResource::deleteRecord($id))) {
+                $kept[] = DemoCode::label(Customization::class, (string) ($row['name'] ?? ''));
+                continue;
+            }
+
+            $removed++;
         }
 
         foreach (self::ours(Package::class) as $row) {

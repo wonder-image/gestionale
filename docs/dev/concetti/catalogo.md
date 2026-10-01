@@ -958,6 +958,58 @@ Il testo sta in `lang/it/gestionale.json` sotto `gestionale.errors`.
   (`accessori`, poi `accessori-2`), contando pure le righe cancellate, che
   l'indice unico vede ancora.
 
+## Personalizzazioni
+
+Un campo che il cliente compila comprando: un **testo** (l'incisione) o una
+**scelta** fra opzioni (la confezione). Si accende con la funzionalità
+`customizations` (richiede `orders`) e si gestisce da *Catalogo → Personalizzazioni*.
+
+| Tabella | Cos'è |
+|---|---|
+| `gst_customizations` | la definizione: nome, etichetta, aiuto, `kind` (`text` o `choice`), `max_length` (solo testo), sovrapprezzo, `active` |
+| `gst_customization_options` | le opzioni di una scelta, ciascuna col suo sovrapprezzo |
+| `gst_product_model_customizations` | il collegamento all'**articolo** (non alla variante), con `is_required` e la posizione |
+
+Il sovrapprezzo di una scelta è quello della personalizzazione **più** quello
+dell'opzione. Una personalizzazione collegata a qualche articolo non si
+elimina (`customization.in_use`): si disattiva, e sparisce dalla vendita.
+Scollegare o disattivare non tocca le righe già vendute, che portano con sé una
+copia di quello che il cliente ha scritto.
+
+### Il contratto per la vetrina
+
+`Customizations::forModel($modelId)` è l'unica lettura che la vetrina (E1b) deve
+usare: ridà, in ordine, solo le personalizzazioni **attive** collegate
+all'articolo, ciascuna con `id`, `name`, `label`, `help_text`, `kind`,
+`max_length`, `surcharge`, `required` e le `options` (`id`, `label`,
+`surcharge`). I testi sono già in chiaro: chi li stampa li escapa.
+
+Il form della vetrina manda al carrello i valori come
+`customization => [id della personalizzazione => testo | id dell'opzione]`
+(vedi [Vendite](vendite.md)). Non manda mai un prezzo: lo calcola il server.
+
+### Validare: `resolve()` e `field()`
+
+`Customizations::resolve($modelId, $valori)` controlla i valori contro la
+definizione di oggi e ridà `['fields' => [...], 'surcharge' => '5.00']`. Gli
+errori sono `UserError` del gruppo `customization` (`required`, `too_long`,
+`bad_option`, `unknown`); **`$e->field()` è l'id della personalizzazione**:
+la vetrina lo usa per mettere la frase sotto il campo giusto. Testo e opzioni
+si ripuliscono: i caratteri di controllo (tranne l'a capo) e gli spazi ai
+lati escono, e un testo vuoto su un campo facoltativo non diventa un valore.
+
+### Come si salva: latin1 e `decode()`
+
+La colonna `customization` delle righe d'ordine è latin1: un emoji o un `☕`
+non ci stanno. `Customizations::encode()` scrive JSON **solo ASCII**, con le
+entità numeriche (`&#9749;`) dopo aver trasformato `&` in `&amp;`; così quello
+che torna è identico a quello che è entrato. Per questo la colonna **non si
+legge mai a mano**: sempre `Customizations::decode()`, che ridà la lista
+`customization_id`, `label`, `value`, `option_id`, `surcharge` già in
+chiaro. `lines($riga)` ne fa le righe «Etichetta: valore» per le schede e le
+email; `signature()` è l'impronta con cui il carrello capisce se due righe
+sono la stessa.
+
 ## Niente colonne SEO
 
 Titolo e descrizione per i motori di ricerca li compone l'ecommerce da come è
@@ -978,6 +1030,11 @@ la griglia deve reggere:
 | Maglietta girocollo | tutti e tre gli attributi: dodici righe, e una riga si legge "S / Gomma" |
 | Felpa con cappuccio | tre colori per quattro taglie: la griglia raggruppata, senza costruirla a mano |
 | Calzini a costine | nessun colore: la griglia resta piatta, senza testate |
+
+Ci sono anche due personalizzazioni, entrambe facoltative: l'*Incisione* (testo,
+20 caratteri, +5 €) sulla maglietta e la *Confezione regalo* (Rossa o Blu, +3 €)
+sulla felpa. Con la funzionalità accesa, metà degli ordini di prova
+porta l'incisione «Auguri».
 
 Ognuno ha la sua foto finta (un rettangolo colorato scritto sul disco, che nasce
 `pending` come una foto vera). Sulla maglietta ci sono anche una foto di colore

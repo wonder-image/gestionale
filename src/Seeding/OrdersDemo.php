@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
 use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
@@ -105,7 +106,19 @@ final class OrdersDemo
                     continue;
                 }
 
-                $created += self::place($ref, $plan, $products[$turn % count($products)], $turn);
+                $product = $products[$turn % count($products)];
+
+                // Ai giri pari l'incisione ci vuole: si passa a un articolo che la offre.
+                if ($turn % 2 === 0 && self::engraving($product['id']) === []) {
+                    foreach ($products as $other) {
+                        if (self::engraving($other['id']) !== []) {
+                            $product = $other;
+                            break;
+                        }
+                    }
+                }
+
+                $created += self::place($ref, $plan, $product, $turn);
                 $turn++;
             }
         } finally {
@@ -158,7 +171,11 @@ final class OrdersDemo
             'email' => $email,
         ])['id'];
 
-        Cart::add($cartId, ['product_id' => $product['id'], 'quantity' => 1 + ($turn % 3)]);
+        Cart::add($cartId, [
+            'product_id' => $product['id'],
+            'quantity' => 1 + ($turn % 3),
+            'customization' => $turn % 2 === 0 ? self::engraving((int) $product['id']) : [],
+        ]);
 
         // Il codice col segno: serve a riconoscere l'ordine alla pulizia.
         Order::update(['code' => DemoCode::forModel(Order::class, $ref)], $cartId);
@@ -193,6 +210,30 @@ final class OrdersDemo
         Order::update(['ordered_at' => $when], $orderId);
 
         return 1;
+    }
+
+    /**
+     * L'incisione «Auguri», se l'articolo ce l'ha e la funzionalità è accesa:
+     * così una riga d'ordine su due porta una personalizzazione vera, pagata
+     * e scritta dal flusso del carrello.
+     *
+     * @return array<int, string> valori per `Cart::add()`, vuoto se non c'è
+     */
+    private static function engraving(int $productId): array
+    {
+        if (!Gestionale::feature('customizations')) {
+            return [];
+        }
+
+        $product = Product::findById($productId);
+
+        foreach (Customizations::forModel((int) ($product['product_model_id'] ?? 0)) as $entry) {
+            if ($entry['kind'] === 'text' && !$entry['required']) {
+                return [$entry['id'] => 'Auguri'];
+            }
+        }
+
+        return [];
     }
 
     private static function fulfilled(int $orderId): void
