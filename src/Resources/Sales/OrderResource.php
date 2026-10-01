@@ -9,6 +9,18 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Elements\Components\Card;
+use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\RichText;
+use Wonder\Elements\Components\SectionTitle;
+use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Payments\Payment;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
+use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
+use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Orders\StatusLabels;
@@ -131,8 +143,27 @@ final class OrderResource extends GestionaleResource
     {
         return parent::pageSchema()
             ->only(['list'])
-            ->titles(['list' => 'Ordini'])
-            ->subtitles(['list' => 'Gli ordini dei clienti, dal checkout alla consegna. Si consultano qui; ogni cambio passa dalle azioni della scheda.']);
+            ->enable(['view'])
+            ->titles(['list' => 'Ordini', 'view' => 'Ordine'])
+            ->subtitles(['list' => 'Gli ordini dei clienti, dal checkout alla consegna. Si consultano qui; ogni cambio passa dalle azioni della scheda.'])
+            ->view('show', Gestionale::viewPath('pages/order-show.php'))
+            ->actions('view', static fn (array $item): array => static::actionsFor($item));
+    }
+
+    /**
+     * I pulsanti in testa alla scheda: il ritorno all'elenco e, dal Task 3,
+     * le azioni dell'ordine.
+     *
+     * @return list<array<string, string>>
+     */
+    public static function actionsFor(array $order): array
+    {
+        return [[
+            'label' => 'Elenco',
+            'icon' => 'bi-list-ul',
+            'class' => 'btn-outline-secondary btn-sm',
+            'href' => static::listUrl(),
+        ]];
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -195,15 +226,79 @@ final class OrderResource extends GestionaleResource
     /** Un importo all'italiana, con l'euro: `1.234,50 €`. */
     public static function money(mixed $value): string
     {
-        return number_format((float) $value, 2, ',', '.').' €';
+        return OrderSheet::money($value);
     }
 
     /** `15/10/2025 10:30`; vuota o zero diventano un trattino. */
     public static function date(string $value): string
     {
-        $time = $value === '' || str_starts_with($value, '0000') ? false : strtotime($value);
+        return OrderSheet::date($value);
+    }
 
-        return $time === false ? '—' : date('d/m/Y H:i', $time);
+    /**
+     * La scheda dell'ordine, sola lettura: sette riquadri nell'ordine della
+     * spec — intestazione, righe, riepilogo IVA, totali, pagamenti, resi,
+     * storico. Le righe si leggono qui; il disegno sta in `OrderSheet`.
+     */
+    public static function showLayoutSchema(array $order): Container
+    {
+        $id = (int) ($order['id'] ?? 0);
+        $per = ['order_id' => $id];
+        $metodi = [];
+
+        foreach (static::rowsOf(PaymentMethod::class) as $metodo) {
+            $metodi[(int) $metodo['id']] = (string) ($metodo['name'] ?? '');
+        }
+
+        $riquadro = static fn (string $titolo, string $html, ?string $aiuto = null): Card => (new Card)->components([
+            $aiuto === null ? SectionTitle::make($titolo)->columnSpan(12) : SectionTitle::make($titolo)->tooltip($aiuto)->columnSpan(12),
+            RichText::make($html)->tag('div')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+
+        return (new Container)->components([
+            $riquadro('Ordine '.(string) ($order['order_number'] ?? ''), static::headerHtml($order, $metodi)),
+            $riquadro('Righe', OrderSheet::items(static::rowsOf(OrderItem::class, $per, 'position'))),
+            $riquadro('Riepilogo IVA', OrderSheet::taxSummary(static::rowsOf(OrderTaxSummary::class, $per)),
+                'L\'imposta si calcola sul totale imponibile di ogni aliquota, non riga per riga.'),
+            $riquadro('Totali', OrderSheet::totals($order)),
+            $riquadro('Pagamenti', OrderSheet::payments(static::rowsOf(Payment::class, $per, 'id'), $metodi)),
+            $riquadro('Resi', OrderSheet::returns(Gestionale::feature('returns') ? static::rowsOf(SalesReturn::class, $per, 'id') : [])),
+            $riquadro('Storico', OrderSheet::history(static::rowsOf(OrderStatusLog::class, $per, 'id', 'DESC'))),
+        ])->columns(12);
+    }
+
+    /**
+     * L'intestazione: numero, data, canale, i tre stati, il cliente, gli
+     * indirizzi, il metodo di pagamento e le note.
+     *
+     * @param array<int, string> $metodi
+     */
+    protected static function headerHtml(array $order, array $metodi): string
+    {
+        $dato = static fn (string $etichetta, string $html): string => '<div class="col-12 col-md-4 mb-3">'
+            .'<div class="small text-muted">'.static::escape($etichetta).'</div><div>'.($html !== '' ? $html : '<span class="text-muted">—</span>').'</div></div>';
+        $testo = static fn (string $v): string => trim($v) !== '' ? static::escape($v) : '';
+        $nota = static fn (string $v): string => trim($v) !== '' ? nl2br(static::escape($v)) : '';
+        $canali = ['online' => 'Online', 'office' => 'Ufficio', 'pos' => 'Cassa'];
+        $canale = (string) ($order['channel'] ?? '');
+
+        return '<div class="row">'
+            .$dato('Numero', $testo((string) ($order['order_number'] ?? '')))
+            .$dato('Data', static::escape(static::date((string) ($order['ordered_at'] ?? ''))))
+            .$dato('Canale', static::escape($canali[$canale] ?? $canale))
+            .$dato('Ordine', StatusLabels::badge('order', (string) ($order['status'] ?? '')))
+            .$dato('Pagamento', StatusLabels::badge('payment', (string) ($order['payment_status'] ?? '')))
+            .$dato('Evasione', StatusLabels::badge('fulfillment', (string) ($order['fulfillment_status'] ?? '')))
+            .$dato('Cliente', static::escape(static::customerName($order)))
+            .$dato('Email', $testo((string) ($order['email'] ?? '')))
+            .$dato('Telefono', $testo((string) ($order['phone'] ?? '')))
+            .$dato('Fatturazione', OrderSheet::address($order, 'billing'))
+            .$dato('Spedizione', OrderSheet::address($order, 'shipping'))
+            .$dato('Metodo di pagamento', $testo($metodi[(int) ($order['payment_method_id'] ?? 0)] ?? ''))
+            .$dato('Nota del cliente', $nota((string) ($order['customer_note'] ?? '')))
+            .$dato('Nota interna', $nota((string) ($order['internal_note'] ?? '')))
+            .$dato('Nota sul documento', $nota((string) ($order['document_note'] ?? '')))
+            .'</div>';
     }
 
     /**

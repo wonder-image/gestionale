@@ -98,4 +98,46 @@ check('le celle si disegnano davvero, con le etichette', function () {
         && str_contains($html, '10,00 €') && str_contains($html, 'a@b.it');
 });
 
+/** Il testo di un componente: titolo di riquadro o HTML del contenuto. */
+$testoDi = static function (object $componente): string {
+    $r = new ReflectionProperty($componente, 'text');
+
+    return (string) $r->getValue($componente);
+};
+
+check('la scheda ha sette riquadri, nell\'ordine della spec', function () use ($testoDi) {
+    $layout = OrderResource::showLayoutSchema(['id' => 0, 'order_number' => '2025/001']);
+    $titoli = [];
+
+    foreach ($layout->components as $card) {
+        $titoli[] = $testoDi($card->components[0]);
+    }
+
+    return $titoli === ['Ordine 2025/001', 'Righe', 'Riepilogo IVA', 'Totali', 'Pagamenti', 'Resi', 'Storico'];
+});
+
+check('la scheda è in sola lettura: nessun campo da compilare', function () use ($testoDi) {
+    $layout = OrderResource::showLayoutSchema(['id' => 0]);
+
+    foreach ($layout->components as $card) {
+        foreach ($card->components as $c) {
+            if (str_contains(strtolower($c::class), 'input') || str_contains(strtolower($c::class), 'formfield')) {
+                return false;
+            }
+
+            if ($c instanceof Wonder\Elements\Components\RichText && preg_match('/<(input|textarea|select|form)\b/i', $testoDi($c)) === 1) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+});
+
+check('la scheda ha la pagina «view» e il pulsante Elenco', function () use ($pagine) {
+    $item = OrderResource::actionsFor(['id' => 1]);
+
+    return !empty($pagine['pages']['view']) && ($item[0]['label'] ?? '') === 'Elenco';
+});
+
 summary();
