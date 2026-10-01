@@ -45,6 +45,10 @@ try {
         // Giacenze e movimenti puntano alla sede: senza toglierli prima, la
         // chiave esterna non lascia svuotare `gst_locations`. La transazione
         // rimette tutto a posto.
+        // Lo stesso vale per i resi, che ricordano la sede dove la merce è rientrata.
+        sqlDelete(\Wonder\Plugin\Gestionale\Models\Sales\SalesReturnStatusLog::$table);
+        sqlDelete(\Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem::$table);
+        sqlDelete(\Wonder\Plugin\Gestionale\Models\Sales\SalesReturn::$table);
         sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockThreshold::$table);
         sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockAlert::$table);
         sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockReservation::$table);

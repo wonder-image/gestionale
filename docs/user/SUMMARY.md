@@ -21,6 +21,12 @@
 * [Movimenti](magazzino-movimenti.md)
 * [Avvisi di scorta minima](magazzino-avvisi.md)
 
+## Vendite
+
+* [Ordini](vendite-ordini.md)
+* [Pagamenti e scadenze](vendite-pagamenti.md)
+* [Resi](vendite-resi.md)
+
 ## Anagrafiche
 
 * [Clienti e fornitori](anagrafiche.md)

@@ -171,12 +171,14 @@ final class OrderResource extends GestionaleResource
 
         $azioni = OrderActions::available($order, ['returns' => Gestionale::feature('returns')]);
         $incassa = OrderActions::canRegisterPayment($order);
+        $rende = OrderActions::canRegisterReturn($order, ['returns' => Gestionale::feature('returns')]);
 
         foreach ($azioni as $azione) {
-            // «Registra pagamento» sta prima di Annulla.
-            if ($azione === OrderActions::CANCEL && $incassa) {
-                $pulsanti[] = static::registerPaymentButton($order);
-                $incassa = false;
+            // «Registra pagamento» e «Registra reso» stanno prima di Annulla.
+            if ($azione === OrderActions::CANCEL) {
+                $incassa && $pulsanti[] = static::registerPaymentButton($order);
+                $rende && $pulsanti[] = static::registerReturnButton($order);
+                $incassa = $rende = false;
             }
 
             $pulsanti[] = [
@@ -189,11 +191,24 @@ final class OrderResource extends GestionaleResource
             ];
         }
 
-        if ($incassa) {
-            $pulsanti[] = static::registerPaymentButton($order);
-        }
+        $incassa && $pulsanti[] = static::registerPaymentButton($order);
+        $rende && $pulsanti[] = static::registerReturnButton($order);
 
         return $pulsanti;
+    }
+
+    /** «Registra reso» porta a una pagina con le righe da compilare: porta con sé il ritorno all'elenco, e la scheda lo rimette da sé. @return array<string, string> */
+    private static function registerReturnButton(array $order): array
+    {
+        $id = (int) ($order['id'] ?? 0);
+        $torna = StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '');
+
+        return [
+            'label' => 'Registra reso',
+            'icon' => 'bi-arrow-return-left',
+            'class' => 'btn-outline-secondary btn-sm',
+            'href' => OrderReturnResource::urlFor($id, $torna),
+        ];
     }
 
     /** @return array<string, string> */

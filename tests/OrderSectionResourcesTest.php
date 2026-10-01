@@ -22,7 +22,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 $sezioni = [
     OrderItemTableResource::class => [OrderItem::class, 'ordine-righe', ['photo', 'name', 'quantity', 'unit_price', 'discount_value', 'tax_rate', 'line_total']],
     OrderPaymentTableResource::class => [Payment::class, 'ordine-pagamenti', ['code', 'type', 'amount', 'status', 'paid_at', 'payment_method_id', 'provider_reference']],
-    OrderReturnTableResource::class => [SalesReturn::class, 'ordine-resi', ['number', 'status', 'requested_at']],
+    OrderReturnTableResource::class => [SalesReturn::class, 'ordine-resi', ['number', 'status', 'requested_at', 'lines', 'actions']],
     OrderHistoryTableResource::class => [OrderStatusLog::class, 'ordine-storico', ['creation', 'field', 'from_value', 'to_value', 'source', 'user_id']],
 ];
 
@@ -90,6 +90,21 @@ check('Righe: il nome porta lo SKU sotto, escapato; la riga di sola nota è in c
     return str_contains($prodotto, '&lt;b&gt;Maglia&lt;/b&gt;') && !str_contains($prodotto, '<b>Maglia')
         && str_contains($prodotto, 'MG-1')
         && str_contains($nota, 'fst-italic') && str_contains($nota, 'Ritiro in sede');
+});
+
+check('Righe: il nome come sta nel database (con le entità) si legge una volta sola, senza doppio escape', function () {
+    $nome = array_values(array_filter(
+        OrderItemTableResource::tableSchema(),
+        static fn ($c): bool => (string) $c->name === 'name'
+    ))[0]->schema['formatter'];
+
+    $trattino = $nome(['type' => 'product', 'name' => 'Maglietta &#8212; Blu', 'sku' => 'MG-1']);
+    $tag = $nome(['type' => 'product', 'name' => '&lt;b&gt;Maglia&lt;/b&gt;', 'sku' => '']);
+    $grezzo = $nome(['type' => 'product', 'name' => '<script>x</script>', 'sku' => '']);
+
+    return str_contains($trattino, 'Maglietta — Blu') && !str_contains($trattino, '&amp;')
+        && str_contains($tag, '&lt;b&gt;Maglia&lt;/b&gt;') && !str_contains($tag, '&amp;')
+        && !str_contains($grezzo, '<script>');
 });
 
 check('Righe: lo sconto si legge in percentuale, in euro o con un trattino', function () {

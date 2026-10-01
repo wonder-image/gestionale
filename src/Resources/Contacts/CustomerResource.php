@@ -145,14 +145,14 @@ class CustomerResource extends GestionaleResource
         $acquisti = Gestionale::feature('purchasing');
 
         $chiE = [
-            SectionTitle::make('Chi è')
+            SectionTitle::make('Dettagli')
                 ->tooltip($acquisti
                     ? 'Una scheda è una sola identità fiscale: la stessa azienda a cui vendi e da cui compri è una riga sola, con il ruolo «Cliente e fornitore». Cambiando ruolo la scheda passa nell\'altro elenco.'
                     : 'Una scheda è una sola identità fiscale: la stessa persona non si scrive due volte.')
                 ->columnSpan(12),
-            static::getInput('type')->columnSpan(4),
-            static::getInput('name')->columnSpan(4),
-            static::getInput('surname')->columnSpan(4),
+            static::getInput('type')->columnSpan(3),
+            static::getInput('name')->columnSpan(3),
+            static::getInput('surname')->columnSpan(3),
             static::getInput('business_name')->columnSpan($acquisti ? 6 : 8),
         ];
 
@@ -160,7 +160,7 @@ class CustomerResource extends GestionaleResource
             $chiE[] = static::getInput('roles')->columnSpan(4);
         }
 
-        $chiE[] = static::getInput('active')->columnSpan($acquisti ? 2 : 4);
+        $chiE[] = static::getInput('active')->columnSpan($acquisti ? 2 : 3);
 
         $cards = [
             (new Card)->components($chiE)->columns(12)->columnSpan(12),
@@ -213,7 +213,7 @@ class CustomerResource extends GestionaleResource
                     Contacts::displayName($row)
                 )),
             TableColumn::key('email')->text(),
-            TableColumn::key('city')->text()->size('little'),
+            TableColumn::key('city')->text(),
             TableColumn::key('is_customer')
                 ->text()
                 ->size('little')
@@ -676,6 +676,6 @@ class CustomerResource extends GestionaleResource
             ->repeaterDeleteCancelLabel('Annulla')
             ->repeaterDeleteConfirmLabel('Elimina')
             ->repeaterDeleteConfirmClass('btn btn-danger')
-            ->label('Indirizzi di consegna');
+            ->label('');
     }
 }

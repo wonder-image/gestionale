@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Seeding;
 
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
@@ -13,6 +14,9 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
+use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
+use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
+use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
@@ -20,6 +24,7 @@ use Wonder\Plugin\Gestionale\Support\Orders\Cart;
 use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
+use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\App\Support\DefaultRows;
@@ -194,6 +199,27 @@ final class OrdersDemo
     {
         Lifecycle::confirm($orderId, ['payment' => true, 'notify' => false, 'source' => 'system']);
         Lifecycle::fulfill($orderId, 'fulfilled', ['notify' => false, 'source' => 'system']);
+
+        if (Gestionale::feature('returns')) {
+            self::returned($orderId);
+        }
+    }
+
+    /** Un pezzo della prima riga è tornato indietro: reso ricevuto e rientrato a magazzino. */
+    private static function returned(int $orderId): void
+    {
+        $item = OrderItem::find(['order_id' => $orderId, 'type' => 'product', 'deleted' => 'false'], 1);
+
+        if (!is_array($item) || !isset($item['id'])) {
+            return;
+        }
+
+        $done = Returns::register($orderId, [
+            ['order_item_id' => (int) $item['id'], 'quantity' => 1, 'reason' => 'changed_mind'],
+        ], ['internal_note' => 'Reso di prova', 'source' => 'system']);
+
+        // Il codice col segno: serve a riconoscere il reso alla pulizia.
+        SalesReturn::update(['code' => DemoCode::forModel(SalesReturn::class, 'evaso')], $done['return_id']);
     }
 
     /** Confermato, con metà del denaro arrivato. */
@@ -313,15 +339,24 @@ final class OrdersDemo
         Transaction::run(static function () use ($id, $order): void {
             $status = (string) ($order['status'] ?? '');
 
+            // I resi hanno già rimesso a scaffale una parte: si restituisce solo il resto.
+            $back = self::restocked($id);
+
             if (in_array($status, ['confirmed', 'processing', 'completed'], true)) {
                 foreach (self::rows(OrderItem::find(['order_id' => $id, 'deleted' => 'false'])) as $item) {
                     if ((int) ($item['product_id'] ?? 0) <= 0 || (string) $item['type'] !== 'product') {
                         continue;
                     }
 
+                    $quantity = (float) $item['quantity'] - ($back[(int) $item['id']] ?? 0.0);
+
+                    if ($quantity <= 0) {
+                        continue;
+                    }
+
                     Allocation::restore([
                         'product_id' => (int) $item['product_id'],
-                        'quantity' => (float) $item['quantity'],
+                        'quantity' => $quantity,
                         'location_id' => (int) ($order['location_id'] ?? 0),
                         'order_id' => $id,
                         'order_item_id' => (int) $item['id'],
@@ -336,6 +371,17 @@ final class OrdersDemo
                 sqlDelete(PaymentStatusLog::$table, 'payment_id = '.(int) $payment['id']);
             }
 
+            // I resi dell'ordine, di prova o fatti a mano: l'ordine se ne va e i resi con lui,
+            // con la merce rientrata, prima delle righe d'ordine a cui sono legati.
+            foreach (self::rows(SalesReturn::find(['order_id' => $id])) as $return) {
+                $returnId = (int) $return['id'];
+
+                sqlDelete(StockMovement::$table, "reference_type = 'sales_return' AND reference_id = ".$returnId);
+                sqlDelete(SalesReturnStatusLog::$table, 'sales_return_id = '.$returnId);
+                sqlDelete(SalesReturnItem::$table, 'sales_return_id = '.$returnId);
+                sqlDelete(SalesReturn::$table, 'id = '.$returnId);
+            }
+
             sqlDelete(StockMovement::$table, "reference_type = 'order' AND reference_id = ".$id);
             sqlDelete(StockReservation::$table, 'order_id = '.$id);
             sqlDelete(Payment::$table, 'order_id = '.$id);
@@ -344,6 +390,24 @@ final class OrdersDemo
             sqlDelete(OrderItem::$table, 'order_id = '.$id);
             sqlDelete(Order::$table, 'id = '.$id);
         });
+    }
+
+    /**
+     * I pezzi rientrati a magazzino con i resi di quell'ordine, per riga.
+     *
+     * @return array<int, float>
+     */
+    private static function restocked(int $orderId): array
+    {
+        $out = [];
+
+        foreach (self::rows(SalesReturn::find(['order_id' => $orderId])) as $return) {
+            foreach (self::rows(SalesReturnItem::find(['sales_return_id' => (int) $return['id'], 'restock' => 'true'])) as $item) {
+                $out[(int) $item['order_item_id']] = ($out[(int) $item['order_item_id']] ?? 0.0) + (float) $item['quantity'];
+            }
+        }
+
+        return $out;
     }
 
     /** @return list<array<string, mixed>> */

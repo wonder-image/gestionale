@@ -111,7 +111,7 @@ final class OrderItemTableResource extends OrderSectionResource
     private static function nameCell(array $row): string
     {
         $tipo = (string) ($row['type'] ?? 'product');
-        $nome = static::escape((string) ($row['name'] ?? ''));
+        $nome = static::escapeStored((string) ($row['name'] ?? ''));
 
         if ($tipo === 'text') {
             return '<span class="fst-italic">'.$nome.'</span>';
@@ -125,7 +125,7 @@ final class OrderItemTableResource extends OrderSectionResource
         }
 
         if ($sku !== '') {
-            $html .= '<div class="text-muted small">'.static::escape($sku).'</div>';
+            $html .= '<div class="text-muted small">'.static::escapeStored($sku).'</div>';
         }
 
         return $html;
