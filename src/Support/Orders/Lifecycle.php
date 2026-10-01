@@ -8,6 +8,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
+use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Sql\Transaction;
@@ -179,9 +180,17 @@ final class Lifecycle
                         continue;
                     }
 
+                    // Quel che un reso ha già reso non si rimette due volte: se è
+                    // rientrato lo ha fatto il reso, se era rotto non va a scaffale.
+                    $daRimettere = round((float) $item['quantity'] - Returns::returned((int) $item['id']), 3);
+
+                    if ($daRimettere <= 0) {
+                        continue;
+                    }
+
                     Allocation::restore([
                         'product_id' => (int) $item['product_id'],
-                        'quantity' => (float) $item['quantity'],
+                        'quantity' => $daRimettere,
                         'location_id' => (int) ($order['location_id'] ?? 0),
                         'order_id' => $orderId,
                         'order_item_id' => (int) $item['id'],
