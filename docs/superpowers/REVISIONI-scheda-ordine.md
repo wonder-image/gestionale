@@ -20,13 +20,14 @@
 
 ## Scheda cliente, seconda revisione (2026-10-01)
 
-- [ ] 5.1 Core: componente `DataItem` (etichetta + valore in linea, azione accanto all'etichetta) — branch `data-item` di packages/app, PR a parte
-- [ ] 5.2 Scheda ordine: l'intestazione usa `DataItem` al posto del `$dato` scritto a mano
-- [ ] 5.3 Scheda cliente: Coupon in fondo (dopo ordini e carrello, e dopo gli indirizzi)
-- [ ] 5.4 «Tutti i suoi dati» non è più un accordion: una card, senza «Chi è» e senza i dati di fatturazione, con `DataItem`
-- [ ] 5.5 Card «Dati di fatturazione» in alto a destra (codice fiscale, P.IVA/SDI/PEC se azienda, indirizzo)
-- [ ] 5.6 Card «Indirizzi di consegna» con una card per indirizzo; aggiungi / modifica / predefinito / elimina da modal (`ContactAddressResource`, un solo predefinito)
-- [ ] Test (unitari + integrazione), CHANGELOG, prova nel browser, push e CI
+- [x] 5.1 Core: componente `DataItem` (etichetta + valore in linea, azione accanto all'etichetta) — branch `data-item` di packages/app, PR a parte
+- [x] 5.2 Scheda ordine: l'intestazione usa `DataItem` al posto del `$dato` scritto a mano
+- [x] 5.3 Scheda cliente: Coupon in fondo (dopo ordini e carrello, e dopo gli indirizzi)
+- [x] 5.4 «Tutti i suoi dati» non è più un accordion: una card, senza «Chi è» e senza i dati di fatturazione, con `DataItem`
+- [x] 5.5 Card «Dati di fatturazione» in alto a destra (codice fiscale, P.IVA/SDI/PEC se azienda, indirizzo)
+- [x] 5.6 Card «Indirizzi di consegna» con una card per indirizzo; aggiungi / modifica / predefinito / elimina da modal (`ContactAddressResource`, un solo predefinito)
+- [x] Test (unitari + integrazione), CHANGELOG, guida utente; disegno e finestre provati su un HTML statico con Bootstrap
+- [ ] Prova nel browser sul sito (serve il login) dopo il merge
 
 ## Prova nel browser del Piano 5 (2026-10-01, sito di prova, funzionalità Ordini e Resi accese)
 

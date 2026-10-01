@@ -313,9 +313,10 @@ class CustomerResource extends GestionaleResource
     }
 
     /**
-     * La scheda del cliente: statistiche, ordini, carrello, coupon e tutti i
-     * suoi dati. Ordini, carrello e statistiche seguono la funzionalità
-     * «orders»: spenta, restano i dati e i coupon.
+     * La scheda del cliente. A sinistra le statistiche, tutti i suoi dati,
+     * gli ordini e il carrello; a destra la fatturazione e gli indirizzi di
+     * consegna; in fondo i coupon. Ordini, carrello e statistiche seguono la
+     * funzionalità «orders»: spenta, restano dati, indirizzi e coupon.
      */
     public static function showLayoutSchema(array $contact): Container
     {
@@ -327,7 +328,7 @@ class CustomerResource extends GestionaleResource
             ? Accordion::make($titolo)->expanded()->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12)
             : Accordion::make($titolo)->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12);
 
-        $componenti = [];
+        $sinistra = [];
 
         if ($vendite) {
             $mine = '`customer_id` = '.$id.($userId > 0 ? ' OR `user_id` = '.$userId : '');
@@ -339,25 +340,67 @@ class CustomerResource extends GestionaleResource
             $righe = $carrelli === [] ? [] : static::rowsOf(OrderItem::class, '`order_id` IN ('.implode(',', $carrelli).')');
             $stats = CustomerStats::of($ordini, $righe);
 
-            $componenti[] = (new Card)->components([
+            $sinistra[] = (new Card)->components([
                 SectionTitle::make('Statistiche')
                     ->tooltip('Gli ordini annullati o rimborsati per intero non si contano fra gli speso. Il carrello è quello ancora aperto.')
                     ->columnSpan(12),
                 RichText::make(CustomerSheet::stats($stats))->tag('div')->columnSpan(12),
             ])->columns(12)->columnSpan(12);
-
-            $componenti[] = $accordion('Ordini', CustomerOrderTableResource::embedForCustomer($id, $userId), true);
-            $componenti[] = $accordion('Prodotti nel carrello', OrderItemTableResource::embedMany($carrelli, 'Nessun prodotto nel carrello.'));
         }
 
-        $componenti[] = $accordion('Coupon assegnati', '<p class="text-muted mb-0">'.static::escape(CustomerSheet::couponsEmpty()).'</p>');
-        $componenti[] = $accordion('Tutti i suoi dati', CustomerSheet::details(
-            $contact,
-            static::rowsOf(ContactAddress::class, ['contact_id' => $id], 'position'),
-            static::authMethod(static::withAccount($contact))
-        ), !$vendite);
+        $sinistra[] = (new Card)->components([
+            SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
+            ...CustomerSheet::data($contact, static::authMethod(static::withAccount($contact))),
+        ])->columns(12)->columnSpan(12);
 
-        return (new Container)->components($componenti)->columns(12);
+        if ($vendite) {
+            $sinistra[] = $accordion('Ordini', CustomerOrderTableResource::embedForCustomer($id, $userId), true);
+            $sinistra[] = $accordion('Prodotti nel carrello', OrderItemTableResource::embedMany($carrelli, 'Nessun prodotto nel carrello.'));
+        }
+
+        $destra = [
+            (new Card)->components([
+                SectionTitle::make('Dati di fatturazione')->columnSpan(12),
+                ...CustomerSheet::billing($contact),
+            ])->columns(12)->columnSpan(12),
+            static::deliveryCard($id),
+        ];
+
+        return (new Container)->components([
+            (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components($sinistra),
+            (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components($destra),
+            $accordion('Coupon assegnati', '<p class="text-muted mb-0">'.static::escape(CustomerSheet::couponsEmpty()).'</p>'),
+        ])->columns(12);
+    }
+
+    /**
+     * Gli indirizzi di consegna: una card che ne contiene una per indirizzo,
+     * ciascuna con i suoi pulsanti. Le finestre le stampa la pagina.
+     */
+    protected static function deliveryCard(int $contactId): Card
+    {
+        $indirizzi = ContactAddressResource::addressesOf($contactId);
+        $riquadri = [];
+
+        foreach ($indirizzi as $indirizzo) {
+            $indirizzoId = (int) $indirizzo['id'];
+            $predefinito = (string) ($indirizzo['is_default'] ?? '') === 'true';
+            $pulsanti = ContactAddressResource::openButton('<i class="bi bi-pencil"></i> Modifica', 'btn-outline-secondary btn-sm', $indirizzo)
+                .($predefinito ? '' : ' '.ContactAddressResource::defaultForm($contactId, $indirizzoId, 'Rendi predefinito', 'btn-outline-secondary btn-sm'))
+                .' '.ContactAddressResource::deleteButton('<i class="bi bi-trash"></i>', 'btn-outline-danger btn-sm', $indirizzo);
+
+            $riquadri[] = (new Card)->components([
+                RichText::make(CustomerSheet::delivery($indirizzo).'<div class="mt-2 d-flex flex-wrap gap-1">'.$pulsanti.'</div>')->tag('div')->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        return (new Card)->components([
+            SectionTitle::make('Indirizzi di consegna')->columnSpan(12),
+            ...($riquadri === []
+                ? [RichText::make('<p class="text-muted">'.static::escape(CustomerSheet::noDelivery()).'</p>')->tag('div')->columnSpan(12)]
+                : $riquadri),
+            RichText::make(ContactAddressResource::openButton('<i class="bi bi-plus-lg"></i> Aggiungi indirizzo', 'btn-outline-primary btn-sm'))->tag('div')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
     }
 
     /**

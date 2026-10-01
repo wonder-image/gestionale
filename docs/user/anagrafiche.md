@@ -47,6 +47,22 @@ scrive nel riquadro *Indirizzi di consegna*: uno per il magazzino, uno per
 casa, uno per il cantiere. Il **destinatario** è chi il corriere deve cercare,
 e spesso non è chi compra.
 
+Gli indirizzi si gestiscono anche dalla **scheda del cliente** (il nome nell'elenco
+la apre): il riquadro *Indirizzi di consegna* mostra una card per indirizzo, con
+**Modifica**, **Rendi predefinito** e il cestino per eliminarlo, e **Aggiungi
+indirizzo** in fondo. Ogni gesto apre una finestra; non serve passare dal form
+di modifica. Uno solo è il **predefinito** e il primo che scrivi lo diventa; se
+elimini il predefinito, passa al primo rimasto. Un indirizzo eliminato esce dalla
+scheda ma non dagli ordini già fatti, che ne conservano una copia.
+
+## La scheda del cliente
+
+In alto le **statistiche** e, a destra, i **dati di fatturazione** (codice
+fiscale, e per un'azienda partita IVA, SDI e PEC, più l'indirizzo). Sotto, **tutti
+i suoi dati** — tipo, nome, ruolo, stato, email, telefono, accesso al sito e note
+— e gli **indirizzi di consegna**. Poi gli ordini, il carrello e, in fondo, i
+coupon.
+
 ## Eliminare o disattivare
 
 Una scheda con un **account sul sito** non si elimina: chi ha le credenziali

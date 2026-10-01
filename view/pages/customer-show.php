@@ -11,6 +11,7 @@
  */
 
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
+use Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\View\View;
 
@@ -24,5 +25,8 @@ if (($cliente['is_customer'] ?? 'false') !== 'true') {
 View::layout('backend.show', ['TITLE' => CustomerResource::pageTitle($cliente)]);
 
 echo ResourceFormLayoutRenderer::renderLayout(CustomerResource::showLayoutSchema($cliente));
+
+// Le finestre degli indirizzi stanno fuori dal disegno: hanno ciascuna la sua form.
+echo ContactAddressResource::modals((int) $cliente['id']);
 
 View::end();

@@ -2,10 +2,11 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Contacts;
 
+use Wonder\Elements\Components\DataItem;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
 /**
- * La scheda del cliente, scritta in HTML: statistiche e dati.
+ * La scheda del cliente: statistiche in HTML, dati in `DataItem`.
  *
  * Come `OrderSheet` non legge il database: la Resource porta le righe già
  * lette e qui si disegnano. Tutto il testo che arriva da un cliente passa da
@@ -50,91 +51,98 @@ final class CustomerSheet
     }
 
     /**
-     * Tutti i dati della scheda, in blocchi: chi è, contatti, fatturazione,
-     * consegne, accesso al sito, note. Dove non c'è un valore, un trattino.
+     * I dati della scheda, un `DataItem` ciascuno: tipo, nome, ruolo, stato,
+     * contatti, accesso al sito, note. Quelli di fatturazione sono in
+     * `billing()`. Dove non c'è un valore compare un trattino.
      *
      * @param array<string, mixed> $contact
-     * @param list<array<string, mixed>> $addresses indirizzi di consegna
+     * @return list<DataItem>
      */
-    public static function details(array $contact, array $addresses, string $access): string
+    public static function data(array $contact, string $access): array
     {
         $get = static fn (string $key): string => trim((string) ($contact[$key] ?? ''));
-        $azienda = $get('type') === 'business';
-        $telefono = trim($get('phone_prefix').' '.$get('phone'));
+        $dato = static fn (string $etichetta, string $valore, bool $html = false, int $colonne = 4): DataItem => DataItem::make($etichetta, $valore)
+            ->html($html)
+            ->columnSpan(['default' => 12, 'sm' => $colonne]);
 
-        $chiE = [
-            ['Tipo', self::text(self::TYPES[$get('type')] ?? '')],
-            ['Nome', self::text(trim($get('name').' '.$get('surname')))],
+        $items = [
+            $dato('Tipo', self::TYPES[$get('type')] ?? ''),
+            $dato('Nome', trim($get('name').' '.$get('surname'))),
         ];
 
-        if ($azienda) {
-            $chiE[] = ['Ragione sociale', self::text($get('business_name'))];
+        if ($get('type') === 'business') {
+            $items[] = $dato('Ragione sociale', $get('business_name'));
         }
 
-        $chiE[] = ['Ruolo', self::text(Contacts::roles($contact))];
-        $chiE[] = ['Stato', ($contact['active'] ?? 'true') === 'false'
+        $items[] = $dato('Ruolo', Contacts::roles($contact));
+        $items[] = $dato('Stato', ($contact['active'] ?? 'true') === 'false'
             ? '<span class="badge text-bg-secondary">Non attiva</span>'
-            : '<span class="badge text-bg-success">Attiva</span>'];
+            : '<span class="badge text-bg-success">Attiva</span>', true);
+        $items[] = $dato('Email', $get('email'));
+        $items[] = $dato('Telefono', trim($get('phone_prefix').' '.$get('phone')));
+        $items[] = $dato('Accesso al sito', $access);
+        $items[] = $dato('Note', $get('note') !== '' ? nl2br(OrderSheet::esc($get('note'))) : '', true, 12);
 
-        $fatturazione = [['Codice fiscale', self::text($get('cf'))]];
+        return $items;
+    }
 
-        if ($azienda) {
-            $fatturazione[] = ['Partita IVA', self::text($get('pi'))];
-            $fatturazione[] = ['SDI', self::text($get('sdi'))];
-            $fatturazione[] = ['PEC', self::text($get('pec'))];
+    /**
+     * I dati di fatturazione, un `DataItem` ciascuno: codice fiscale, per le
+     * aziende partita IVA, SDI e PEC, poi l'indirizzo.
+     *
+     * @param array<string, mixed> $contact
+     * @return list<DataItem>
+     */
+    public static function billing(array $contact): array
+    {
+        $get = static fn (string $key): string => trim((string) ($contact[$key] ?? ''));
+        $dato = static fn (string $etichetta, string $valore, bool $html = false, int $colonne = 6): DataItem => DataItem::make($etichetta, $valore)
+            ->html($html)
+            ->columnSpan(['default' => 12, 'sm' => $colonne]);
+
+        $items = [$dato('Codice fiscale', $get('cf'))];
+
+        if ($get('type') === 'business') {
+            $items[] = $dato('Partita IVA', $get('pi'));
+            $items[] = $dato('SDI', $get('sdi'));
+            $items[] = $dato('PEC', $get('pec'));
         }
 
-        $fatturazione[] = ['Indirizzo', OrderSheet::address(self::prefixed($contact), 'c')];
+        $items[] = $dato('Indirizzo', OrderSheet::address(self::prefixed($contact), 'c'), true, 12);
 
-        $consegne = $addresses === []
-            ? '<p class="text-muted mb-0">Nessun indirizzo di consegna: si spedisce all\'indirizzo di fatturazione.</p>'
-            : '<div class="row g-3">'.implode('', array_map(static fn (array $a): string => self::delivery($a), $addresses)).'</div>';
+        return $items;
+    }
 
-        return self::block('Chi è', $chiE)
-            .self::block('Contatti', [['Email', self::text($get('email'))], ['Telefono', self::text($telefono)]])
-            .self::block('Dati di fatturazione', $fatturazione)
-            .'<h6 class="mt-4">Indirizzi di consegna</h6>'.$consegne
-            .self::block('Accesso al sito', [['Metodo', self::text($access)]])
-            .'<h6 class="mt-4">Note</h6>'
-            .($get('note') !== '' ? '<p class="mb-0">'.nl2br(OrderSheet::esc($get('note'))).'</p>' : '<p class="text-muted mb-0">Nessuna nota.</p>');
+    /**
+     * Il corpo della card di un indirizzo di consegna: l'etichetta, il
+     * «Predefinito» se lo è, l'indirizzo. I pulsanti li aggiunge chi la
+     * disegna.
+     *
+     * @param array<string, mixed> $address
+     */
+    public static function delivery(array $address): string
+    {
+        $etichetta = trim((string) ($address['label'] ?? ''));
+        $predefinito = ($address['is_default'] ?? 'false') === 'true';
+
+        return '<div class="fw-semibold mb-1">'.OrderSheet::esc($etichetta !== '' ? $etichetta : 'Indirizzo')
+            .($predefinito ? ' <span class="badge text-bg-light">Predefinito</span>' : '').'</div>'
+            .OrderSheet::address(self::prefixed($address), 'c')
+            .(trim((string) ($address['phone'] ?? '')) !== ''
+                ? '<div class="small text-muted mt-1">'.OrderSheet::esc(trim((string) ($address['phone_prefix'] ?? '').' '.$address['phone'])).'</div>'
+                : '');
+    }
+
+    /** La frase degli indirizzi di consegna che non ci sono. */
+    public static function noDelivery(): string
+    {
+        return 'Nessun indirizzo di consegna: si spedisce all\'indirizzo di fatturazione.';
     }
 
     /** La frase dei coupon, finché i coupon non esistono. */
     public static function couponsEmpty(): string
     {
         return 'Nessun coupon assegnato: i coupon arriveranno con la loro funzionalità e compariranno qui.';
-    }
-
-    private static function delivery(array $address): string
-    {
-        $etichetta = trim((string) ($address['label'] ?? ''));
-        $predefinito = ($address['is_default'] ?? 'false') === 'true';
-
-        return '<div class="col-12 col-md-6 col-xl-4"><div class="border rounded p-3 h-100">'
-            .'<div class="fw-semibold mb-1">'.OrderSheet::esc($etichetta !== '' ? $etichetta : 'Indirizzo')
-            .($predefinito ? ' <span class="badge text-bg-light">Predefinito</span>' : '').'</div>'
-            .OrderSheet::address(self::prefixed($address), 'c').'</div></div>';
-    }
-
-    /**
-     * Un blocco di coppie «etichetta: valore».
-     *
-     * @param list<array{0: string, 1: string}> $rows il valore è HTML già escapato
-     */
-    private static function block(string $titolo, array $rows): string
-    {
-        $html = '';
-
-        foreach ($rows as [$etichetta, $valore]) {
-            $html .= '<dt class="col-sm-3 text-muted fw-normal">'.OrderSheet::esc($etichetta).'</dt><dd class="col-sm-9">'.$valore.'</dd>';
-        }
-
-        return '<h6 class="mt-4">'.OrderSheet::esc($titolo).'</h6><dl class="row mb-0">'.$html.'</dl>';
-    }
-
-    private static function text(string $value): string
-    {
-        return $value !== '' ? OrderSheet::esc($value) : '<span class="text-muted">—</span>';
     }
 
     /** Il giorno senza l'ora: `10/09/2026`; un trattino se manca. */
