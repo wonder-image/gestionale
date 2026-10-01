@@ -18,6 +18,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
+use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Sql\Transaction;
@@ -262,6 +263,40 @@ check('l\'annullamento dice quanto denaro resta da restituire', function () {
         ]));
 
         return senzaPosta(static fn (): array => Lifecycle::cancel($ordine))['refundable'] === '50.00';
+    });
+});
+
+check('il pagamento che arriva dopo l\'evasione chiude l\'ordine', function () {
+    return prova(static function (): bool {
+        [$ordine] = ordinePrenotato();
+        senzaPosta(static fn (): array => Lifecycle::confirm($ordine, ['payment' => false]));
+        $evaso = Lifecycle::fulfill($ordine, 'fulfilled');
+
+        // Evaso ma non pagato: l'ordine aspetta i soldi.
+        $aspetta = $evaso['status'] === 'confirmed';
+
+        Ledger::register(['order_id' => $ordine, 'amount' => 50.0]);
+        $riga = Order::findById($ordine);
+
+        return $aspetta
+            && $riga['payment_status'] === 'paid'
+            && $riga['status'] === 'completed'
+            && trim((string) $riga['completed_at']) !== ''
+            && (int) sqlCount(
+                OrderStatusLog::$table,
+                "order_id = {$ordine} AND field = 'status' AND to_value = 'completed' AND deleted = 'false'"
+            ) === 1;
+    });
+});
+
+check('il pagamento che arriva prima dell\'evasione non chiude l\'ordine', function () {
+    return prova(static function (): bool {
+        [$ordine] = ordinePrenotato();
+        senzaPosta(static fn (): array => Lifecycle::confirm($ordine, ['payment' => false]));
+
+        Ledger::register(['order_id' => $ordine, 'amount' => 50.0]);
+
+        return Order::findById($ordine)['status'] === 'confirmed';
     });
 });
 

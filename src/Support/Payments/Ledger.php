@@ -10,6 +10,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Sql\Transaction;
 
@@ -132,6 +133,14 @@ final class Ledger
                 $status,
                 'system'
             );
+
+            // Pagato dopo l'evasione — il bonifico che arriva a merce già
+            // partita — è l'ultimo pezzo che mancava: l'ordine si chiude qui,
+            // senza aspettare che qualcuno lanci `refresh()`. Un carrello non
+            // ha stati da chiudere: `refresh()` lì lancerebbe.
+            if ((string) $order['stage'] === 'order') {
+                Lifecycle::refresh($orderId);
+            }
 
             return $status;
         });
