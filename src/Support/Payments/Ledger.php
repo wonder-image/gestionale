@@ -157,6 +157,10 @@ final class Ledger
             $reference = trim((string) ($data['provider_reference'] ?? ''));
             $existing = $reference === '' ? null : self::findByReference($provider, $reference, $type);
 
+            if ($existing === null && $status === 'paid') {
+                $existing = self::adoptOpen($orderId, $provider, $reference, $type);
+            }
+
             if (is_array($existing)) {
                 if ((int) $existing['order_id'] !== $orderId) {
                     // Quel riferimento è già di un altro ordine: preso per
@@ -276,6 +280,40 @@ final class Ledger
         ], 1);
 
         return is_array($row) && $row !== [] ? $row : null;
+    }
+
+    /**
+     * Il pagamento aperto al checkout, ancora firmato col nostro codice, che
+     * l'incasso col riferimento del gateway deve chiudere.
+     *
+     * Al checkout il gateway non ha ancora un riferimento e la riga si firma
+     * da sola. Quando l'incasso arriva con il suo, cercarlo non trova niente
+     * e ne nascerebbe una seconda: la prima resterebbe «in attesa» per sempre,
+     * e con lei un ordine che non risulta mai del tutto saldato. Vale anche
+     * per l'incasso a mano, che un riferimento non ce l'ha. La riga si
+     * riconosce perché è dello stesso ordine, dello stesso gateway, dello
+     * stesso tipo, ancora aperta e mai passata dal gateway.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function adoptOpen(int $orderId, string $provider, string $reference, string $type): ?array
+    {
+        foreach (self::paymentsOf($orderId) as $row) {
+            if ((string) $row['type'] !== $type
+                || (string) $row['status'] !== 'pending'
+                || (string) $row['provider'] !== $provider
+                || (string) $row['provider_reference'] !== (string) $row['code']) {
+                continue;
+            }
+
+            if ($reference !== '') {
+                Payment::update(['provider_reference' => $reference], (int) $row['id']);
+            }
+
+            return Payment::findForUpdate(['id' => (int) $row['id']], 1) ?: null;
+        }
+
+        return null;
     }
 
     /**

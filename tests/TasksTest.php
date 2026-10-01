@@ -81,14 +81,14 @@ check('gli avvisi nascono spenti: prima si scelgono i destinatari', fn () =>
     && (new StockAlertsTask())->validate([]) === []
 );
 
-check('le due attività hanno chiavi diverse', function () {
+check('le attività hanno chiavi diverse', function () {
     $chiavi = [];
 
     foreach (Gestionale::tasks() as $task) {
         $chiavi[] = $task->key();
     }
 
-    return $chiavi === array_values(array_unique($chiavi)) && count($chiavi) === 2;
+    return $chiavi === array_values(array_unique($chiavi)) && count($chiavi) === 3;
 });
 
 summary();
