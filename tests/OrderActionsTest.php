@@ -76,4 +76,26 @@ check('ogni azione ha il suo nome e il suo colore', function () {
     return OrderActions::label('confirm') === 'Conferma';
 });
 
+check('Registra pagamento vale su un ordine vivo non ancora saldato', function () use ($ordine) {
+    foreach (['pending', 'confirmed', 'processing'] as $stato) {
+        foreach (['unpaid', 'pending', 'partially_paid'] as $pagamento) {
+            if (!OrderActions::canRegisterPayment($ordine($stato) + ['payment_status' => $pagamento])) {
+                return false;
+            }
+        }
+    }
+
+    // Senza `payment_status` l\'ordine conta come non pagato.
+    return OrderActions::canRegisterPayment($ordine('pending'));
+});
+
+check('Registra pagamento non c\'è su un ordine saldato, rimborsato, chiuso, annullato o in bozza', function () use ($ordine) {
+    return !OrderActions::canRegisterPayment($ordine('confirmed') + ['payment_status' => 'paid'])
+        && !OrderActions::canRegisterPayment($ordine('confirmed') + ['payment_status' => 'refunded'])
+        && !OrderActions::canRegisterPayment($ordine('confirmed') + ['payment_status' => 'partially_refunded'])
+        && !OrderActions::canRegisterPayment($ordine('cancelled') + ['payment_status' => 'unpaid'])
+        && !OrderActions::canRegisterPayment($ordine('completed') + ['payment_status' => 'partially_paid'])
+        && !OrderActions::canRegisterPayment($ordine('draft') + ['payment_status' => 'unpaid']);
+});
+
 summary();

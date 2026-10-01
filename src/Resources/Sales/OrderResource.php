@@ -169,7 +169,16 @@ final class OrderResource extends GestionaleResource
             'href' => static::listUrl(),
         ]];
 
-        foreach (OrderActions::available($order, ['returns' => Gestionale::feature('returns')]) as $azione) {
+        $azioni = OrderActions::available($order, ['returns' => Gestionale::feature('returns')]);
+        $incassa = OrderActions::canRegisterPayment($order);
+
+        foreach ($azioni as $azione) {
+            // «Registra pagamento» è una pagina, non una finestra: sta prima di Annulla.
+            if ($azione === OrderActions::CANCEL && $incassa) {
+                $pulsanti[] = static::registerPaymentButton($order);
+                $incassa = false;
+            }
+
             $pulsanti[] = [
                 'label' => OrderActions::label($azione),
                 'icon' => OrderActions::icon($azione),
@@ -180,7 +189,22 @@ final class OrderResource extends GestionaleResource
             ];
         }
 
+        if ($incassa) {
+            $pulsanti[] = static::registerPaymentButton($order);
+        }
+
         return $pulsanti;
+    }
+
+    /** @return array<string, string> */
+    private static function registerPaymentButton(array $order): array
+    {
+        return [
+            'label' => 'Registra pagamento',
+            'icon' => 'bi-cash-coin',
+            'class' => 'btn-outline-success btn-sm',
+            'href' => OrderPaymentResource::urlFor((int) ($order['id'] ?? 0), StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '')),
+        ];
     }
 
     /** L'id della finestra di conferma di un'azione. */

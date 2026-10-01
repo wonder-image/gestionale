@@ -141,7 +141,7 @@ check('la scheda ha la pagina «view» e il pulsante Elenco', function () use ($
 });
 
 check('un ordine in attesa offre Conferma e Annulla, nei pulsanti, dopo Elenco', function () {
-    $pulsanti = OrderResource::actionsFor(['id' => 9, 'status' => 'pending', 'fulfillment_status' => 'unfulfilled']);
+    $pulsanti = OrderResource::actionsFor(['id' => 9, 'status' => 'pending', 'fulfillment_status' => 'unfulfilled', 'payment_status' => 'paid']);
     $nomi = array_map(static fn (array $p): string => (string) $p['label'], $pulsanti);
 
     return $nomi === ['Elenco', 'Conferma', 'Annulla']
@@ -151,9 +151,33 @@ check('un ordine in attesa offre Conferma e Annulla, nei pulsanti, dopo Elenco',
 });
 
 check('un ordine confermato offre Segna evaso e Annulla', function () {
-    $pulsanti = OrderResource::actionsFor(['id' => 9, 'status' => 'confirmed', 'fulfillment_status' => 'unfulfilled']);
+    $pulsanti = OrderResource::actionsFor(['id' => 9, 'status' => 'confirmed', 'fulfillment_status' => 'unfulfilled', 'payment_status' => 'paid']);
 
     return array_map(static fn (array $p): string => (string) $p['label'], $pulsanti) === ['Elenco', 'Segna evaso', 'Annulla'];
+});
+
+check('un ordine da incassare offre Registra pagamento, prima di Annulla, e porta alla pagina con il ritorno', function () {
+    $ordine = ['id' => 9, 'status' => 'confirmed', 'fulfillment_status' => 'unfulfilled', 'payment_status' => 'unpaid'];
+    $pulsanti = OrderResource::actionsFor($ordine);
+    $nomi = array_map(static fn (array $p): string => (string) $p['label'], $pulsanti);
+    $href = (string) $pulsanti[2]['href'];
+
+    return $nomi === ['Elenco', 'Segna evaso', 'Registra pagamento', 'Annulla']
+        && str_contains($href, 'ordine=9')
+        && $href === Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentResource::urlFor(9)
+        && !isset($pulsanti[2]['onclick']);
+});
+
+check('un ordine saldato o annullato non offre Registra pagamento', function () {
+    foreach ([['confirmed', 'paid'], ['cancelled', 'unpaid'], ['completed', 'partially_paid']] as [$stato, $pagamento]) {
+        foreach (OrderResource::actionsFor(['id' => 9, 'status' => $stato, 'fulfillment_status' => 'fulfilled', 'payment_status' => $pagamento]) as $p) {
+            if ($p['label'] === 'Registra pagamento') {
+                return false;
+            }
+        }
+    }
+
+    return true;
 });
 
 check('un ordine annullato o chiuso ha solo Elenco', function () {

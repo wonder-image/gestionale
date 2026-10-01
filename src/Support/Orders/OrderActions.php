@@ -51,6 +51,21 @@ final class OrderActions
         return $azioni;
     }
 
+    /**
+     * «Registra pagamento» vale finché l'ordine è vivo e c'è ancora qualcosa
+     * da incassare.
+     *
+     * Non sta in `available()`: quelle azioni aprono una finestra di
+     * conferma, questa porta a una pagina con i suoi campi.
+     *
+     * @param array<string, mixed> $order
+     */
+    public static function canRegisterPayment(array $order): bool
+    {
+        return in_array((string) ($order['status'] ?? ''), ['pending', 'confirmed', 'processing'], true)
+            && in_array((string) ($order['payment_status'] ?? 'unpaid'), ['unpaid', 'pending', 'partially_paid'], true);
+    }
+
     public static function label(string $action): string
     {
         return self::LABELS[$action] ?? '';

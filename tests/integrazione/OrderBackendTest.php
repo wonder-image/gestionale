@@ -16,6 +16,8 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource;
+use Wonder\Plugin\Gestionale\Models\Payments\Payment;
+use Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
@@ -279,6 +281,145 @@ check('un carrello, un id che non c\'è e un\'azione sconosciuta non sollevano',
             && $a['message'] !== '' && $b['message'] !== '' && $c['message'] !== ''
             && (string) Order::findById($carrelloId)['status'] === 'draft'
             && (string) Order::findById($ordine)['status'] === 'pending';
+    });
+});
+
+/** Le righe di denaro dell'ordine, per contarle. */
+function righeDenaro(int $ordine): int
+{
+    return (int) sqlCount(Payment::$table, "order_id = {$ordine} AND deleted = 'false'");
+}
+
+/** La prima riga di denaro dell'ordine, qualunque forma abbia il risultato di `find`. */
+function primaRigaDenaro(int $ordine): array
+{
+    $righe = Payment::find(['order_id' => $ordine, 'deleted' => 'false']);
+    $righe = isset($righe['id']) ? [$righe] : array_values((array) $righe);
+
+    return (array) ($righe[0] ?? []);
+}
+
+check('Registra pagamento: l\'importo intero porta l\'ordine a pagato', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(40.0);
+
+        $esito = OrderPaymentResource::run($ordine, ['amount' => '40,00'], 7);
+
+        return $esito['ok'] === true
+            && (string) Order::findById($ordine)['payment_status'] === 'paid'
+            && righeDenaro($ordine) === 1;
+    });
+});
+
+check('Registra pagamento: metà è pagato in parte, l\'altra metà salda', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(40.0);
+
+        OrderPaymentResource::run($ordine, ['amount' => '12,50'], 7);
+        $meta = (string) Order::findById($ordine)['payment_status'];
+        $riga = primaRigaDenaro($ordine);
+        $resto = OrderPaymentResource::run($ordine, ['amount' => '27,50'], 7);
+
+        return $meta === 'partially_paid'
+            && (string) $riga['amount'] === '12.50'
+            && $resto['ok'] === true
+            && (string) Order::findById($ordine)['payment_status'] === 'paid';
+    });
+});
+
+check('Registra pagamento sull\'ordine già evaso lo chiude', function () {
+    return prova(static function (): bool {
+        [$ordine] = ordineConRiga();
+        senzaPosta(static fn (): array => OrderActionResource::run('confirm', $ordine, 7));
+        senzaPosta(static fn (): array => OrderActionResource::run('fulfill', $ordine, 7));
+
+        OrderPaymentResource::run($ordine, ['amount' => '40,00'], 7);
+
+        return (string) Order::findById($ordine)['status'] === 'completed';
+    });
+});
+
+check('Registra pagamento: zero, negativo e testo non scrivono niente', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(40.0);
+
+        foreach (['0', '-5', 'abc', ''] as $importo) {
+            $esito = OrderPaymentResource::run($ordine, ['amount' => $importo], 7);
+
+            if ($esito['ok'] !== false || $esito['message'] === '') {
+                return false;
+            }
+        }
+
+        return righeDenaro($ordine) === 0;
+    });
+});
+
+check('Registra pagamento: oltre il residuo è rifiutato e dice il residuo', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(40.0);
+        OrderPaymentResource::run($ordine, ['amount' => '30'], 7);
+
+        $esito = OrderPaymentResource::run($ordine, ['amount' => '10,01'], 7);
+
+        return $esito['ok'] === false
+            && str_contains($esito['message'], '10,00')
+            && righeDenaro($ordine) === 1;
+    });
+});
+
+check('Registra pagamento su un ordine annullato o già saldato è rifiutato', function () {
+    return prova(static function (): bool {
+        $annullato = ordineDiProva(40.0);
+        Order::update(['status' => 'cancelled'], $annullato);
+        $saldato = ordineDiProva(40.0);
+        OrderPaymentResource::run($saldato, ['amount' => '40'], 7);
+
+        $a = OrderPaymentResource::run($annullato, ['amount' => '10'], 7);
+        $b = OrderPaymentResource::run($saldato, ['amount' => '1'], 7);
+
+        return $a['ok'] === false && $b['ok'] === false
+            && righeDenaro($annullato) === 0 && righeDenaro($saldato) === 1;
+    });
+});
+
+check('Registra pagamento: la data si scrive, il futuro no, il formato italiano va bene', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(40.0);
+        $tre = strtotime('-3 days');
+
+        $futuro = OrderPaymentResource::run($ordine, ['amount' => '5', 'paid_at' => date('d/m/Y', strtotime('+3 days'))], 7);
+        $vera = OrderPaymentResource::run($ordine, ['amount' => '5', 'paid_at' => date('d/m/Y', $tre), 'reference' => 'CRO123'], 7);
+        $riga = primaRigaDenaro($ordine);
+
+        return $futuro['ok'] === false
+            && $vera['ok'] === true
+            && str_starts_with((string) $riga['paid_at'], date('Y-m-d', $tre))
+            && (string) $riga['provider_reference'] === 'CRO123';
+    });
+});
+
+check('Registra pagamento lascia scritto chi l\'ha registrato', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(40.0);
+
+        OrderPaymentResource::run($ordine, ['amount' => '40'], 7);
+        $riga = primaRigaDenaro($ordine);
+
+        return (int) sqlCount(
+            Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog::$table,
+            "payment_id = ".(int) $riga['id']." AND to_value = 'paid' AND source = 'user' AND user_id = 7 AND deleted = 'false'"
+        ) === 1;
+    });
+});
+
+check('Registra pagamento: un carrello o un id che non c\'è non sollevano', function () {
+    return prova(static function (): bool {
+        $carrello = Order::create(['stage' => 'cart', 'status' => 'draft', 'payment_status' => 'unpaid', 'total' => '5.00']);
+        $a = OrderPaymentResource::run((int) ($carrello->insert_id ?? 0), ['amount' => '5'], 7);
+        $b = OrderPaymentResource::run(999999999, ['amount' => '5'], 7);
+
+        return $a['ok'] === false && $b['ok'] === false;
     });
 });
 

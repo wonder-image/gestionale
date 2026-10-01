@@ -36,7 +36,11 @@
                 "zero_amount": "Un pagamento deve avere un importo maggiore di zero.",
                 "reference_other_order": "Questo riferimento del gateway è già di un altro ordine: controlla la notifica prima di registrare l'incasso.",
                 "unknown_provider": "Il gateway «{{provider}}» non è fra quelli che gestiamo: scegli Stripe, PayPal, Nexi o un incasso a mano.",
-                "already_paid": "Questo pagamento è già incassato: non si può dichiarare fallito. Se i soldi sono tornati indietro, registra un rimborso."
+                "already_paid": "Questo pagamento è già incassato: non si può dichiarare fallito. Se i soldi sono tornati indietro, registra un rimborso.",
+                "future_date": "La data dell'incasso è nel futuro: indica il giorno in cui il denaro è arrivato, oggi o prima.",
+                "invalid_date": "La data dell'incasso non è valida: usa il formato anno-mese-giorno, per esempio 2026-10-01.",
+                "over_balance": "L'importo supera quanto resta da incassare ({{residuo}}): scrivi al massimo quella cifra.",
+                "order_closed": "Quest'ordine è annullato: non si registrano incassi."
             },
             "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
             "category": {
