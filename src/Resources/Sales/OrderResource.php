@@ -92,7 +92,7 @@ final class OrderResource extends GestionaleResource
             TableColumn::key('customer')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(static::customerName($row))),
-            TableColumn::key('total')->money()->size('little')->sortable(),
+            TableColumn::key('total')->price()->size('little')->sortable(),
             TableColumn::key('ordered_at')
                 ->date()
                 ->sortable()
@@ -402,14 +402,20 @@ final class OrderResource extends GestionaleResource
             ? Accordion::make($titolo)->expanded()->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12)
             : Accordion::make($titolo)->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12);
 
+        // In alto a sinistra l'intestazione; a destra, uno sopra l'altro, i totali
+        // e il riepilogo IVA. Sotto, le tabelle a tutta larghezza.
         $componenti = [
-            (new Card)->components([
-                RichText::make(static::headerHtml($order, $metodi))->tag('div')->columnSpan(12),
-            ])->columns(12)->columnSpan(12),
+            (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components([
+                (new Card)->components([
+                    RichText::make(static::headerHtml($order, $metodi))->tag('div')->columnSpan(12),
+                ])->columns(12)->columnSpan(12),
+            ]),
+            (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components([
+                $riquadro('Totali', OrderSheet::totals($order)),
+                $riquadro('Riepilogo IVA', OrderSheet::taxSummary(static::rowsOf(OrderTaxSummary::class, ['order_id' => $id])),
+                    'L\'imposta si calcola sul totale imponibile di ogni aliquota, non riga per riga.'),
+            ]),
             $tabella('Righe', OrderItemTableResource::embed($id), true),
-            $riquadro('Riepilogo IVA', OrderSheet::taxSummary(static::rowsOf(OrderTaxSummary::class, ['order_id' => $id])),
-                'L\'imposta si calcola sul totale imponibile di ogni aliquota, non riga per riga.'),
-            $riquadro('Totali', OrderSheet::totals($order)),
             $tabella('Pagamenti', OrderPaymentTableResource::embed($id)),
         ];
 
@@ -454,7 +460,7 @@ final class OrderResource extends GestionaleResource
      */
     protected static function headerHtml(array $order, array $metodi): string
     {
-        $dato = static fn (string $etichetta, string $html, string $modifica = ''): string => '<div class="col-12 col-md-4 mb-3">'
+        $dato = static fn (string $etichetta, string $html, string $modifica = ''): string => '<div class="col-12 col-sm-6 mb-3">'
             .'<div class="small text-muted">'.static::escape($etichetta).$modifica.'</div><div>'.($html !== '' ? $html : '<span class="text-muted">—</span>').'</div></div>';
         // La matita accanto a una nota apre la finestra delle note.
         $matita = static fn (string $nota): string => ' <a href="#" class="text-muted ms-1" title="Modifica la '.static::escape(strtolower($nota)).'" aria-label="Modifica la '.static::escape(strtolower($nota)).'"'

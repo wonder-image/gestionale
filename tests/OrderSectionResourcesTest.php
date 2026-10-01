@@ -75,7 +75,7 @@ check('Righe: prezzo e totale sono importi', function () {
         $tipi[(string) $c->name] = $c->type;
     }
 
-    return $tipi['unit_price'] === 'money' && $tipi['line_total'] === 'money';
+    return $tipi['unit_price'] === 'price' && $tipi['line_total'] === 'price';
 });
 
 check('Righe: il nome porta lo SKU sotto, escapato; la riga di sola nota è in corsivo', function () {
@@ -126,7 +126,7 @@ check('Pagamenti: tipo e stato si leggono in italiano, con l\'importo all\'itali
     return str_contains($tipo(['type' => 'refund']), 'Rimborso')
         && str_contains($tipo(['type' => 'payment']), 'Incasso')
         && str_contains($stato(['status' => 'paid']), 'Pagato')
-        && $per['amount']->type === 'money';
+        && $per['amount']->type === 'price';
 });
 
 check('Storico: gli stati si leggono con le parole del gestionale', function () {
@@ -143,6 +143,12 @@ check('Storico: gli stati si leggono con le parole del gestionale', function () 
         && str_contains($a(['field' => 'status', 'to_value' => 'confirmed']), 'Confermato')
         && str_contains($a(['field' => 'status', 'to_value' => '']), '—');
 });
+
+check('Righe: vale la foto copiata sulla riga; le righe che non sono prodotti non ne hanno', fn () =>
+    OrderItemTableResource::photoOf(['type' => 'product', 'product_id' => 0, 'image' => '/assets/upload/x.jpg']) === '/assets/upload/x.jpg'
+    && OrderItemTableResource::photoOf(['type' => 'shipping', 'product_id' => 5, 'image' => '/assets/upload/x.jpg']) === ''
+    && OrderItemTableResource::photoOf(['type' => 'product', 'product_id' => 0, 'image' => '']) === ''
+);
 
 check('la tabella dei resi segue la funzionalità «returns»', fn () => OrderReturnTableResource::$feature === 'returns');
 

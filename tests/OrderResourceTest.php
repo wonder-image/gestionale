@@ -121,7 +121,7 @@ check('il totale è una colonna importo e la data una colonna data', function ()
         $tipi[(string) $colonna->name] = $colonna->toArray()['type'] ?? null;
     }
 
-    return $tipi['total'] === 'money' && $tipi['ordered_at'] === 'date' && $tipi['order_number'] === 'text';
+    return $tipi['total'] === 'price' && $tipi['ordered_at'] === 'date' && $tipi['order_number'] === 'text';
 });
 
 /** Il testo di un componente: titolo di riquadro o HTML del contenuto. */
@@ -131,17 +131,30 @@ $testoDi = static function (object $componente): string {
     return (string) $r->getValue($componente);
 };
 
-check('la scheda: intestazione, righe, riepilogo IVA, totali, pagamenti, resi (se attivi) e storico', function () use ($testoDi) {
-    $layout = OrderResource::showLayoutSchema(['id' => 0, 'order_number' => '2025/001']);
+/** I titoli dei riquadri e degli accordion, nell'ordine in cui compaiono, scendendo nei contenitori. */
+$titoliDellaScheda = function (Wonder\Elements\Components\Container $layout) use ($testoDi): array {
     $titoli = [];
+    $scendi = function (array $componenti) use (&$scendi, &$titoli, $testoDi): void {
+        foreach ($componenti as $c) {
+            if ($c instanceof Wonder\Elements\Components\Accordion) {
+                $titoli[] = $testoDi($c);
+            } elseif ($c instanceof Wonder\Elements\Components\Container) {
+                $scendi($c->components);
+            } elseif (($c->components[0] ?? null) instanceof Wonder\Elements\Components\SectionTitle) {
+                $titoli[] = $testoDi($c->components[0]);
+            } else {
+                $titoli[] = 'Intestazione';
+            }
+        }
+    };
+    $scendi($layout->components);
 
-    foreach ($layout->components as $c) {
-        $titoli[] = $c instanceof Wonder\Elements\Components\Accordion
-            ? $testoDi($c)
-            : ($c->components[0] instanceof Wonder\Elements\Components\SectionTitle ? $testoDi($c->components[0]) : 'Intestazione');
-    }
+    return $titoli;
+};
 
-    $attesi = ['Intestazione', 'Righe', 'Riepilogo IVA', 'Totali', 'Pagamenti'];
+check('la scheda: intestazione, totali, riepilogo IVA, poi righe, pagamenti, resi (se attivi) e storico', function () use ($titoliDellaScheda) {
+    $titoli = $titoliDellaScheda(OrderResource::showLayoutSchema(['id' => 0, 'order_number' => '2025/001']));
+    $attesi = ['Intestazione', 'Totali', 'Riepilogo IVA', 'Righe', 'Pagamenti'];
 
     if (Wonder\Plugin\Gestionale\Gestionale::feature('returns')) {
         $attesi[] = 'Resi';
@@ -150,6 +163,18 @@ check('la scheda: intestazione, righe, riepilogo IVA, totali, pagamenti, resi (s
     $attesi[] = 'Storico';
 
     return $titoli === $attesi;
+});
+
+check('totali e riepilogo IVA stanno insieme in una colonna a destra, accanto all\'intestazione', function () use ($titoliDellaScheda) {
+    $layout = OrderResource::showLayoutSchema(['id' => 0]);
+    [$sinistra, $destra] = $layout->components;
+
+    return $sinistra instanceof Wonder\Elements\Components\Container
+        && $destra instanceof Wonder\Elements\Components\Container
+        && ($sinistra->columnSpan['lg'] ?? 0) === 8
+        && ($destra->columnSpan['lg'] ?? 0) === 4
+        && ($destra->columnSpan['default'] ?? 0) === 12
+        && count($destra->components) === 2;
 });
 
 check('righe, pagamenti, resi e storico sono accordion; solo le righe partono aperte', function () use ($testoDi) {
@@ -167,7 +192,7 @@ check('righe, pagamenti, resi e storico sono accordion; solo le righe partono ap
 
 check('la scheda non ripete il titolo «Ordine» nell\'intestazione', function () use ($testoDi) {
     $layout = OrderResource::showLayoutSchema(['id' => 0, 'order_number' => '2025/001']);
-    $primo = $layout->components[0]->components[0];
+    $primo = $layout->components[0]->components[0]->components[0];
 
     return !($primo instanceof Wonder\Elements\Components\SectionTitle);
 });

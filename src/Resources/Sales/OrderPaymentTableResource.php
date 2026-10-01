@@ -66,7 +66,7 @@ final class OrderPaymentTableResource extends OrderSectionResource
                 ->text()
                 ->size('little')
                 ->formatter(static fn (array $row): string => ($row['type'] ?? '') === 'refund' ? 'Rimborso' : 'Incasso'),
-            TableColumn::key('amount')->money()->size('little'),
+            TableColumn::key('amount')->price()->size('little'),
             TableColumn::key('status')
                 ->text()
                 ->size('little')

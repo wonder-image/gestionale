@@ -100,7 +100,12 @@ versionamento semantico.
   dice cosa succede al magazzino (`OrderActions`), *Registra pagamento* in una
   finestra che posta a `OrderPaymentResource`. Il ritorno all'elenco è la
   chevron del titolo. Nell'elenco il totale è una colonna importo
-  (`TableColumn::money()`, dal core).
+  (`TableColumn::price()`, dal core: importo all'italiana, a destra, cifre
+  tabulari). In alto a destra, accanto all'intestazione, stanno *Totali* e poi
+  *Riepilogo IVA*. Ogni riga d'ordine salva il **nome completo** dell'articolo
+  (`ProductNames::full()`: articolo e opzione) e l'**indirizzo della foto** che
+  aveva al momento dell'ordine (colonna `image`); le righe già esistenti ne
+  sono prive e la tabella ripiega sulla foto del catalogo.
 - `Support\Catalog\ProductPhotos`: la foto di un articolo (opzione, colore,
   poi modello), usata dalle giacenze e dalle righe dell'ordine.
   *Metodi di pagamento* e *Conti di pagamento* in Set Up, per l'`admin`.

@@ -81,6 +81,12 @@ check('articolo e opzione si leggono come nella griglia', fn () =>
     && ProductNames::of(['product_model_id' => 99, 'name' => 'Sola'], []) === ['article' => '—', 'option' => 'Sola']
 );
 
+check('il nome intero è articolo e opzione; senza opzione, il solo articolo', fn () =>
+    ProductNames::full(['product_model_id' => 10, 'name' => 'Blu / M'], [10 => 'Maglia']) === 'Maglia — Blu / M'
+    && ProductNames::full(['product_model_id' => 20, 'name' => 'borraccia'], [20 => 'Borraccia']) === 'Borraccia'
+    && ProductNames::full(['product_model_id' => 99, 'name' => 'Sola'], []) === 'Sola'
+);
+
 check('gli avvisi di prodotti spariti o tolti dalla griglia sono da chiudere', fn () =>
     LowStockReport::orphans($avvisi, $prodotti) === [13, 14]
 );

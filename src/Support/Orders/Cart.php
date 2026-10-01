@@ -10,11 +10,13 @@ use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Pricing\LinePrice;
 use Wonder\Plugin\Gestionale\Support\Pricing\OrderTotals;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxResolver;
 use Wonder\Sql\Transaction;
@@ -126,7 +128,8 @@ final class Cart
                     'product_id' => $productId,
                     'position' => self::nextPosition($cartId),
                     'sku' => (string) $product['sku'],
-                    'name' => (string) $product['name'],
+                    'name' => ProductNames::full($product, ProductNames::models([$product])),
+                    'image' => ProductPhotos::forProduct($productId),
                     'unit' => (string) (is_array($model) ? ($model['unit'] ?? 'pz') : 'pz'),
                     'quantity' => self::number($wanted),
                     'tax_category_id' => (int) (is_array($model) ? ($model['tax_category_id'] ?? 0) : 0),

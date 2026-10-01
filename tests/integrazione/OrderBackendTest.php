@@ -123,6 +123,11 @@ check('un ordine con la sola spedizione si disegna senza avvisi', function () {
 
 check('le righe della scheda sono una vera tabella con le colonne dell\'ordine; senza righe c\'è la frase', function () {
     return prova(static function (): bool {
+        // La tabella esiste solo con la funzionalità «orders» accesa: nel database
+        // di sviluppo può essere spenta, quindi la si accende qui (la transazione la rimette).
+        sqlModify(Wonder\Plugin\Gestionale\Models\System\Feature::$table, ['enabled' => 'true'], 'feature_key', 'orders');
+        Wonder\Plugin\Gestionale\Gestionale::reset();
+
         $ordine = ordineDiProva(5.0);
         $prima = Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource::embed($ordine);
         OrderItem::create([
@@ -133,9 +138,14 @@ check('le righe della scheda sono una vera tabella con le colonne dell\'ordine; 
 
         // Le celle si disegnano nel primo draw della tabella, che legge da un'altra connessione:
         // dentro la transazione di prova non vede la riga. Il disegno delle celle è provato dai test unitari.
-        return !str_contains($prima, '<table') && str_contains($prima, 'Nessuna riga')
+        $esito = !str_contains($prima, '<table') && str_contains($prima, 'Nessuna riga')
             && str_contains($dopo, '<table') && str_contains($dopo, 'gst_order_items__table')
             && str_contains($dopo, '"title":"Foto"') && str_contains($dopo, '"title":"Articolo"');
+
+        // La cache delle funzionalità non deve portarsi dietro lo stato acceso per gli altri check.
+        Wonder\Plugin\Gestionale\Gestionale::reset();
+
+        return $esito;
     });
 });
 

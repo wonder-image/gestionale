@@ -59,9 +59,7 @@ final class OrderItemTableResource extends OrderSectionResource
             TableColumn::key('photo')
                 ->image()
                 ->size('little')
-                ->formatter(static fn (array $row): string => ($row['type'] ?? 'product') === 'product'
-                    ? ProductPhotos::forProduct((int) ($row['product_id'] ?? 0))
-                    : ''),
+                ->formatter(static fn (array $row): string => static::photoOf($row)),
             TableColumn::key('name')
                 ->text()
                 ->formatter(static fn (array $row): string => static::nameCell($row)),
@@ -70,7 +68,7 @@ final class OrderItemTableResource extends OrderSectionResource
                 ->size('little')
                 ->formatter(static fn (array $row): string => static::onlyIfPriced($row, static::escape(OrderSheet::number($row['quantity'] ?? 0)))),
             TableColumn::key('unit_price')
-                ->money()
+                ->price()
                 ->size('little'),
             TableColumn::key('discount_value')
                 ->text()
@@ -81,9 +79,24 @@ final class OrderItemTableResource extends OrderSectionResource
                 ->size('little')
                 ->formatter(static fn (array $row): string => static::onlyIfPriced($row, static::escape(OrderSheet::number($row['tax_rate'] ?? 0)).'%')),
             TableColumn::key('line_total')
-                ->money()
+                ->price()
                 ->size('little'),
         ];
+    }
+
+    /**
+     * La foto che l'articolo aveva quando è stato ordinato; per le righe nate
+     * prima che la foto si copiasse, quella di oggi.
+     */
+    public static function photoOf(array $row): string
+    {
+        if (($row['type'] ?? 'product') !== 'product') {
+            return '';
+        }
+
+        $copia = trim((string) ($row['image'] ?? ''));
+
+        return $copia !== '' ? $copia : ProductPhotos::forProduct((int) ($row['product_id'] ?? 0));
     }
 
     protected static function emptyText(): string
