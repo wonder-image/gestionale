@@ -620,15 +620,16 @@ class ProductResource extends ProductModelResource
     /**
      * Le colonne dei movimenti dentro la scheda dell'opzione (P128).
      *
-     * Sono nomi dello schema di `StockMovementResource`: l'opzione non c'è
-     * perché la scheda è già la sua, la nota resta all'elenco — qui ruberebbe
-     * la riga alle quantità.
+     * Sono nomi dello schema di `StockMovementResource`, che le sceglie lei
+     * (`historyColumns()`): la versione non c'è perché la scheda è già la sua,
+     * la nota resta all'elenco, la sede compare solo con più sedi. Data, *Tipo*
+     * col documento e *Sede* escono dalle stesse celle dell'elenco.
      *
      * @return list<string>
      */
     public static function stockHistoryColumns(): array
     {
-        return ['creation', 'type', 'reason', 'quantity', 'quantity_after'];
+        return StockMovementResource::historyColumns();
     }
 
     /**

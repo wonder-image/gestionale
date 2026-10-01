@@ -7,6 +7,7 @@ require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
+use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 
 $pagine = OrderResource::pageSchema()->toArray();
 $colonne = [];
@@ -70,6 +71,19 @@ check('i filtri usano gli stati del Model', fn () =>
     && array_diff($filtro('status'), ['', ...Order::STATUSES]) === []
     && $filtro('status') !== []
 );
+
+check('il filtro Periodo dell\'elenco offre gli stessi periodi dei movimenti e usa la data dell\'ordine', function () {
+    foreach ((array) (OrderResource::tableLayoutSchema()->toArray()['custom_filters'] ?? []) as $f) {
+        if (($f['column'] ?? '') === 'periodo') {
+            return array_keys((array) $f['array']) === ['', ...array_keys(MovementPeriod::OPTIONS)]
+                && str_contains(($f['where'])(['oggi']), '`ordered_at` >= ')
+                && ($f['where'])(['']) === ''
+                && ($f['where'])(["oggi'; DROP TABLE x; --"]) === '';
+        }
+    }
+
+    return false;
+});
 
 check('il cliente si riconosce: ragione sociale, poi nome e cognome, poi email', fn () =>
     OrderResource::customerName(['billing_business_name' => 'Acme Srl', 'billing_name' => 'Anna']) === 'Acme Srl'

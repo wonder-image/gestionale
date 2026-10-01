@@ -984,9 +984,22 @@ check('i movimenti della scheda sono le colonne dell\'elenco Movimenti, senza l\
 
     // Le colonne nascono dallo schema della Resource che le possiede: se una
     // sparisce di là, la scheda se ne accorge qui invece che in pagina.
-    return $scelte === ['creation', 'type', 'reason', 'quantity', 'quantity_after']
+    return array_values(array_diff($scelte, ['location_id'])) === ['creation', 'type', 'reason', 'quantity', 'quantity_after']
+        && $scelte === StockMovementResource::historyColumns()
         && array_diff($scelte, $dichiarate) === []
         && !in_array('product_id', $scelte, true);
+});
+
+check('la scheda mostra la Sede dei movimenti solo con più sedi', function () {
+    $cache = new ReflectionProperty(Locations::class, 'shown');
+    $prima = $cache->getValue();
+    $cache->setValue(null, [['id' => 1, 'label' => ''], ['id' => 2, 'label' => 'Magazzino']]);
+    $due = ProductResource::stockHistoryColumns();
+    $cache->setValue(null, [['id' => 1, 'label' => '']]);
+    $una = ProductResource::stockHistoryColumns();
+    $cache->setValue(null, $prima);
+
+    return in_array('location_id', $due, true) && !in_array('location_id', $una, true);
 });
 
 check('senza opzione aperta i movimenti sono la frase, non la tabella', function () {

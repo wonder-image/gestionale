@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
+use DateTimeImmutable;
 use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -24,6 +25,7 @@ use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentStatus;
+use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Orders\StatusLabels;
@@ -126,7 +128,13 @@ final class OrderResource extends GestionaleResource
             ->searchFields(['order_number', 'billing_name', 'billing_surname', 'billing_business_name', 'email'])
             ->filterCustom('Ordine', 'status', static::options('order', Order::LIVE_STATUSES))
             ->filterCustom('Pagamento', 'payment_status', static::options('payment', Order::PAYMENT_STATUSES))
-            ->filterCustom('Evasione', 'fulfillment_status', static::options('fulfillment', Order::FULFILLMENT_STATUSES));
+            ->filterCustom('Evasione', 'fulfillment_status', static::options('fulfillment', Order::FULFILLMENT_STATUSES))
+            ->filterQuery(
+                'Periodo',
+                'periodo',
+                MovementPeriod::filterOptions(),
+                static fn (array $values): string => MovementPeriod::sql((string) ($values[0] ?? ''), 'ordered_at', new DateTimeImmutable('now'))
+            );
     }
 
     /**
@@ -305,6 +313,17 @@ final class OrderResource extends GestionaleResource
         $url = static::routeUrl('view', '/backend/'.static::path().'/'.$id.'/', ['id' => $id]);
 
         return $back === null || $back === '' ? $url : $url.'?torna='.rawurlencode($back);
+    }
+
+    /**
+     * L'indirizzo della scheda con un segnaposto al posto dell'id, per i menu di
+     * riga di altre tabelle (`{reference_id}`).
+     */
+    public static function detailUrlPattern(string $placeholder): string
+    {
+        $url = static::routeUrl('view', '/backend/'.static::path().'/__ROW_ID__/', ['id' => '__ROW_ID__']);
+
+        return str_replace('__ROW_ID__', $placeholder, $url);
     }
 
     /**
