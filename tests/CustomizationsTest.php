@@ -184,6 +184,15 @@ check('il sovrapprezzo non è negativo, né della personalizzazione né di un\'o
     return $neg?->key() === 'customization.surcharge' && $negOpz?->key() === 'customization.surcharge';
 });
 
+check('un sovrapprezzo lasciato vuoto o scritto con la virgola non è un errore', function () use ($rifiuto) {
+    $vuoto = $rifiuto(fn () => Customizations::assertDefinition(
+        ['kind' => 'choice', 'surcharge' => ''],
+        [['label' => 'A', 'surcharge' => ''], ['label' => 'B', 'surcharge' => '1,50']]
+    ));
+
+    return $vuoto === null;
+});
+
 check('una scelta ha bisogno di due opzioni con l\'etichetta', function () use ($rifiuto) {
     $uno = $rifiuto(fn () => Customizations::assertDefinition(['kind' => 'choice', 'surcharge' => '0'], [['label' => 'A', 'surcharge' => '0']]));
     $vuota = $rifiuto(fn () => Customizations::assertDefinition(['kind' => 'choice', 'surcharge' => '0'], [['label' => 'A', 'surcharge' => '0'], ['label' => '  ', 'surcharge' => '0']]));

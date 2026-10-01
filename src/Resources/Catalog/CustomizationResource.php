@@ -22,6 +22,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Positions;
 use Wonder\Sql\Transaction;
 
@@ -293,6 +294,15 @@ class CustomizationResource extends GestionaleResource
             $options = Repeater::rowsFromRequest('options', (array) $_POST);
 
             Customizations::assertDefinition($values, $options);
+
+            // Il controllo ha accettato vuoto e virgola: si scrive sempre un decimale.
+            $values['surcharge'] = Numbers::fromForm($values['surcharge'] ?? null) ?? '0.00';
+
+            foreach ((array) ($_POST['options'] ?? []) as $key => $row) {
+                if (is_array($row)) {
+                    $_POST['options'][$key]['surcharge'] = Numbers::fromForm($row['surcharge'] ?? null) ?? '0.00';
+                }
+            }
 
             // Un testo non ha opzioni: passando da scelta a testo quelle
             // postate (il riquadro è solo nascosto) non devono restare.

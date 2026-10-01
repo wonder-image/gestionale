@@ -6,6 +6,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Numbers;
 
 /**
  * Le personalizzazioni di un articolo: quali sono, cosa si può scrivere, quanto
@@ -380,8 +381,18 @@ final class Customizations
         return number_format((float) $amount, 2, '.', '');
     }
 
+    /**
+     * Un sovrapprezzo lasciato vuoto vale zero; scritto con la virgola («1,50»)
+     * si legge come in un form. Negativo o non numero è un errore.
+     */
     private static function negative(mixed $amount): bool
     {
-        return !is_numeric($amount) || (float) $amount < 0;
+        if ($amount === null || (is_string($amount) && trim($amount) === '')) {
+            return false;
+        }
+
+        $number = Numbers::fromForm($amount);
+
+        return $number === null || (float) $number < 0;
     }
 }

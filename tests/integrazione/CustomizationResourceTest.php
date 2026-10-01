@@ -143,6 +143,17 @@ check('un testo con caratteri massimi 0 o 1001 dà max_length', function () use 
     });
 });
 
+check('un sovrapprezzo di opzione vuoto vale zero e con la virgola si legge bene', function () use ($scelta) {
+    return prova(static function () use ($scelta): bool {
+        $id = salva($scelta, [['label' => 'Oro', 'surcharge' => ''], ['label' => 'Argento', 'surcharge' => '1,50']]);
+        $righe = opzioniDi($id);
+
+        return array_column($righe, 'label') === ['Oro', 'Argento']
+            && (string) $righe[0]['surcharge'] === '0.00'
+            && (string) $righe[1]['surcharge'] === '1.50';
+    });
+});
+
 check('un sovrapprezzo negativo dà surcharge, sulla personalizzazione e sull\'opzione', function () use ($testo, $scelta, $rosso) {
     return prova(static function () use ($testo, $scelta, $rosso): bool {
         return errore(static fn () => salva(['surcharge' => '-1'] + $testo, [])) === 'customization.surcharge'

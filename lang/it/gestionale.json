@@ -65,7 +65,7 @@
                 "few_options": "Una scelta ha bisogno di almeno due opzioni.",
                 "surcharge": "Il sovrapprezzo non può essere negativo.",
                 "kind": "Scegli se è un testo o una scelta.",
-                "in_use": "È usata da {{count}} articoli: disattivala invece di eliminarla.",
+                "in_use": "È collegata ad articoli ({{count}}) e non si elimina: disattivala, e non si propone più.",
                 "quick_name": "Scrivi il nome della personalizzazione."
             },
             "product": {

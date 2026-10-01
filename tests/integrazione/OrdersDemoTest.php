@@ -320,6 +320,8 @@ $senzaPersonalizzazioni = null;
 try {
     Transaction::run(static function () use (&$senzaResi, &$senzaPersonalizzazioni, $righe, $ordine): void {
         accendiFunzionalita(['orders']);
+        // Spente per davvero: il sito di prova può averle accese.
+        spegniFunzionalita(['customizations']);
         sqlModify(Feature::$table, ['enabled' => 'false'], 'feature_key', 'returns');
         Wonder\Plugin\Gestionale\Gestionale::reset();
         OrdersDemo::clear();
