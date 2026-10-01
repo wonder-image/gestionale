@@ -92,6 +92,21 @@ check('Righe: il nome porta lo SKU sotto, escapato; la riga di sola nota è in c
         && str_contains($nota, 'fst-italic') && str_contains($nota, 'Ritiro in sede');
 });
 
+check('Righe: il nome come sta nel database (con le entità) si legge una volta sola, senza doppio escape', function () {
+    $nome = array_values(array_filter(
+        OrderItemTableResource::tableSchema(),
+        static fn ($c): bool => (string) $c->name === 'name'
+    ))[0]->schema['formatter'];
+
+    $trattino = $nome(['type' => 'product', 'name' => 'Maglietta &#8212; Blu', 'sku' => 'MG-1']);
+    $tag = $nome(['type' => 'product', 'name' => '&lt;b&gt;Maglia&lt;/b&gt;', 'sku' => '']);
+    $grezzo = $nome(['type' => 'product', 'name' => '<script>x</script>', 'sku' => '']);
+
+    return str_contains($trattino, 'Maglietta — Blu') && !str_contains($trattino, '&amp;')
+        && str_contains($tag, '&lt;b&gt;Maglia&lt;/b&gt;') && !str_contains($tag, '&amp;')
+        && !str_contains($grezzo, '<script>');
+});
+
 check('Righe: lo sconto si legge in percentuale, in euro o con un trattino', function () {
     $sconto = array_values(array_filter(
         OrderItemTableResource::tableSchema(),

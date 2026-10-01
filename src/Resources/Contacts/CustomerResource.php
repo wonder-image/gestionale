@@ -213,7 +213,7 @@ class CustomerResource extends GestionaleResource
                     Contacts::displayName($row)
                 )),
             TableColumn::key('email')->text(),
-            TableColumn::key('city')->text()->size('little'),
+            TableColumn::key('city')->text(),
             TableColumn::key('is_customer')
                 ->text()
                 ->size('little')
@@ -632,6 +632,7 @@ class CustomerResource extends GestionaleResource
             ->repeaterDeleteText('Confermi l\'eliminazione di questo indirizzo?')
             ->repeaterDeleteCancelLabel('Annulla')
             ->repeaterDeleteConfirmLabel('Elimina')
-            ->repeaterDeleteConfirmClass('btn btn-danger');
+            ->repeaterDeleteConfirmClass('btn btn-danger')
+            ->label('');
     }
 }

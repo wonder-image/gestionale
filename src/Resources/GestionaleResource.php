@@ -119,6 +119,16 @@ abstract class GestionaleResource extends Resource
     }
 
     /**
+     * Testo scritto da un utente come il database lo conserva (con le entità,
+     * «&#8212;» per «—»), pronto per l'HTML di una cella: si decodifica e si
+     * escapa una volta sola, altrimenti in tabella si leggerebbe il codice.
+     */
+    protected static function escapeStored(string $value): string
+    {
+        return static::escape(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    }
+
+    /**
      * Le righe vive di un Model, sempre come lista.
      *
      * Senza database (test degli schemi, convenzioni) torna vuoto invece di far
