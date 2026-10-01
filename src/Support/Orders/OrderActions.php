@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Orders;
 
+use Wonder\Plugin\Gestionale\Support\Returns\ReturnRules;
+
 /**
  * Le azioni che il backend offre su un ordine, e la frase che dice cosa
  * faranno.
@@ -64,6 +66,20 @@ final class OrderActions
     {
         return in_array((string) ($order['status'] ?? ''), ['pending', 'confirmed', 'processing'], true)
             && in_array((string) ($order['payment_status'] ?? 'unpaid'), ['unpaid', 'pending', 'partially_paid'], true);
+    }
+
+    /**
+     * «Registra reso» vale per un ordine già confermato, con i resi accesi.
+     *
+     * Come «Registra pagamento» porta a una pagina, non a una finestra di
+     * conferma: la regola è quella del servizio (`ReturnRules`).
+     *
+     * @param array<string, mixed> $order
+     * @param array<string, bool> $features
+     */
+    public static function canRegisterReturn(array $order, array $features = []): bool
+    {
+        return ReturnRules::eligibleOrder($order, $features);
     }
 
     public static function label(string $action): string

@@ -98,4 +98,17 @@ check('Registra pagamento non c\'è su un ordine saldato, rimborsato, chiuso, an
         && !OrderActions::canRegisterPayment($ordine('draft') + ['payment_status' => 'unpaid']);
 });
 
+check('«Registra reso» vale per un ordine confermato, in evasione o chiuso, con la funzionalità accesa', fn () =>
+    OrderActions::canRegisterReturn(['stage' => 'order', 'status' => 'confirmed'], ['returns' => true])
+    && OrderActions::canRegisterReturn(['stage' => 'order', 'status' => 'processing'], ['returns' => true])
+    && OrderActions::canRegisterReturn(['stage' => 'order', 'status' => 'completed'], ['returns' => true])
+);
+
+check('«Registra reso» non vale per ordini non consegnabili né con la funzionalità spenta', fn () =>
+    !OrderActions::canRegisterReturn(['stage' => 'order', 'status' => 'cancelled'], ['returns' => true])
+    && !OrderActions::canRegisterReturn(['stage' => 'order', 'status' => 'pending'], ['returns' => true])
+    && !OrderActions::canRegisterReturn(['stage' => 'order', 'status' => 'confirmed'], ['returns' => false])
+    && !OrderActions::canRegisterReturn(['stage' => 'order', 'status' => 'confirmed'], [])
+);
+
 summary();

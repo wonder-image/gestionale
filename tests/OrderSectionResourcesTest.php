@@ -22,7 +22,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 $sezioni = [
     OrderItemTableResource::class => [OrderItem::class, 'ordine-righe', ['photo', 'name', 'quantity', 'unit_price', 'discount_value', 'tax_rate', 'line_total']],
     OrderPaymentTableResource::class => [Payment::class, 'ordine-pagamenti', ['code', 'type', 'amount', 'status', 'paid_at', 'payment_method_id', 'provider_reference']],
-    OrderReturnTableResource::class => [SalesReturn::class, 'ordine-resi', ['number', 'status', 'requested_at']],
+    OrderReturnTableResource::class => [SalesReturn::class, 'ordine-resi', ['number', 'status', 'requested_at', 'lines', 'actions']],
     OrderHistoryTableResource::class => [OrderStatusLog::class, 'ordine-storico', ['creation', 'field', 'from_value', 'to_value', 'source', 'user_id']],
 ];
 
