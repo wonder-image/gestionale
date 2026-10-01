@@ -16,6 +16,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource;
+use Wonder\Plugin\Gestionale\Resources\Sales\OrderNoteResource;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
@@ -67,15 +68,17 @@ check('un ordine senza nomi si riconosce dall\'email', function () {
 function schedaHtml(int $ordine): string
 {
     $layout = OrderResource::showLayoutSchema((array) Order::findById($ordine));
-    $html = '';
+    $testo = static function (object $c) use (&$testo): string {
+        $html = property_exists($c, 'text') ? (string) (new ReflectionProperty($c, 'text'))->getValue($c).' ' : '';
 
-    foreach ($layout->components as $card) {
-        foreach ($card->components as $c) {
-            $html .= (string) (new ReflectionProperty($c, 'text'))->getValue($c).' ';
+        foreach ((array) ($c->components ?? []) as $figlio) {
+            $html .= $testo($figlio);
         }
-    }
 
-    return $html;
+        return $html;
+    };
+
+    return $testo($layout);
 }
 
 check('la scheda mostra numero, cliente, totale e riepilogo IVA; il nome è escapato', function () {
@@ -118,6 +121,33 @@ check('un ordine con la sola spedizione si disegna senza avvisi', function () {
     });
 });
 
+check('le righe della scheda sono una vera tabella con le colonne dell\'ordine; senza righe c\'è la frase', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(5.0);
+        $prima = Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource::embed($ordine);
+        OrderItem::create([
+            'order_id' => $ordine, 'type' => 'custom', 'position' => 1, 'name' => 'Maglia', 'sku' => 'MG-BLU',
+            'quantity' => '2.000', 'unit_price' => '2.50', 'line_total' => '5.00',
+        ]);
+        $dopo = Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource::embed($ordine);
+
+        // Le celle si disegnano nel primo draw della tabella, che legge da un'altra connessione:
+        // dentro la transazione di prova non vede la riga. Il disegno delle celle è provato dai test unitari.
+        return !str_contains($prima, '<table') && str_contains($prima, 'Nessuna riga')
+            && str_contains($dopo, '<table') && str_contains($dopo, 'gst_order_items__table')
+            && str_contains($dopo, '"title":"Foto"') && str_contains($dopo, '"title":"Articolo"');
+    });
+});
+
+check('senza righe l\'accordion dice che non ce ne sono, senza tabella', fn () =>
+    prova(static function (): bool {
+        $ordine = ordineDiProva(5.0);
+        $html = Wonder\Plugin\Gestionale\Resources\Sales\OrderHistoryTableResource::embed($ordine + 100000);
+
+        return str_contains($html, 'Nessun') && !str_contains($html, '<table');
+    })
+);
+
 check('una riga cancellata non compare nella scheda', function () {
     return prova(static function (): bool {
         $ordine = ordineDiProva(5.0);
@@ -128,6 +158,53 @@ check('una riga cancellata non compare nella scheda', function () {
         OrderItem::query()->Update(OrderItem::$table, ['deleted' => 'true'], 'id', (int) ($riga->insert_id ?? 0));
 
         return !str_contains(schedaHtml($ordine), 'Riga da dimenticare');
+    });
+});
+
+check('le note si salvano, e quella del cliente non si tocca', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(10.0);
+        Order::update(['customer_note' => 'Citofono rotto', 'internal_note' => 'vecchia'], $ordine);
+        $esito = OrderNoteResource::run($ordine, ['internal_note' => "  Chiamare Rossi\r\n ", 'document_note' => 'Pagamento a 30 giorni', 'customer_note' => 'cambiata']);
+        $dopo = (array) Order::findById($ordine);
+
+        return $esito['ok'] === true
+            && $dopo['internal_note'] === 'Chiamare Rossi'
+            && $dopo['document_note'] === 'Pagamento a 30 giorni'
+            && $dopo['customer_note'] === 'Citofono rotto';
+    });
+});
+
+check('una nota assente dai valori resta com\'è, e una nota vuota la svuota', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(10.0);
+        Order::update(['internal_note' => 'resta', 'document_note' => 'va via'], $ordine);
+        OrderNoteResource::run($ordine, ['document_note' => '']);
+        $dopo = (array) Order::findById($ordine);
+
+        return $dopo['internal_note'] === 'resta' && (string) ($dopo['document_note'] ?? '') === '';
+    });
+});
+
+check('una nota troppo lunga si rifiuta con una frase e non cambia niente', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(10.0);
+        Order::update(['internal_note' => 'prima'], $ordine);
+        $esito = OrderNoteResource::run($ordine, ['internal_note' => str_repeat('a', OrderNoteResource::MAX + 1)]);
+
+        return $esito['ok'] === false && str_contains($esito['message'], 'troppo lunghe')
+            && ((array) Order::findById($ordine))['internal_note'] === 'prima';
+    });
+});
+
+check('le note di un carrello o di un ordine che non c\'è non si scrivono', function () {
+    return prova(static function (): bool {
+        $carrello = Order::create(['stage' => 'cart', 'status' => 'draft', 'payment_status' => 'unpaid', 'total' => '5.00']);
+        $id = (int) ($carrello->insert_id ?? 0);
+
+        return OrderNoteResource::run($id, ['internal_note' => 'x'])['ok'] === false
+            && OrderNoteResource::run(0, ['internal_note' => 'x'])['ok'] === false
+            && ((array) Order::findById($id))['internal_note'] !== 'x';
     });
 });
 

@@ -35,6 +35,9 @@ use Wonder\Plugin\Gestionale\Support\Payments\PaymentStatus;
  */
 final class OrderPaymentResource extends NavigationOnlyResource
 {
+    /** L'id della finestra che la scheda dell'ordine apre dal pulsante. */
+    public const MODAL_ID = 'wi-ordine-pagamento';
+
     public static function path(): string
     {
         return 'app/gestionale/ordine-pagamento';
@@ -80,6 +83,72 @@ final class OrderPaymentResource extends NavigationOnlyResource
         return $base;
     }
 
+    /**
+     * La finestra di «Registra pagamento» della scheda dell'ordine: gli stessi
+     * quattro campi della pagina, e posta alla stessa rotta. Il metodo
+     * dell'ordine è quello scelto, l'importo è il residuo, la data è oggi.
+     *
+     * @param array<string, mixed> $order
+     * @param list<array<string, mixed>> $payments i pagamenti dell'ordine, per il residuo
+     * @param array<int, string> $methods nome del metodo per id
+     */
+    public static function modal(array $order, array $payments, array $methods, string $back): string
+    {
+        $id = static::MODAL_ID;
+        $orderId = (int) ($order['id'] ?? 0);
+        $totale = (float) ($order['total'] ?? 0);
+        $residuo = static::balanceOf($order, $payments);
+        $predefinito = (int) ($order['payment_method_id'] ?? 0);
+        $scelto = isset($methods[$predefinito]) ? $predefinito : (int) (array_key_first($methods) ?? 0);
+        $opzioni = '';
+
+        foreach ($methods as $metodoId => $nome) {
+            $opzioni .= '<option value="'.(int) $metodoId.'"'.((int) $metodoId === $scelto ? ' selected' : '').'>'.OrderSheet::esc($nome).'</option>';
+        }
+
+        $aiuto = 'L\'importo è quanto resta da incassare: scrivine meno per un acconto. La data è quella dell\'arrivo del denaro, non di oggi, se lo registri in ritardo. Il riferimento è il numero di CRO o di operazione, facoltativo.';
+        $titolo = trim('Registra pagamento: ordine '.trim((string) ($order['order_number'] ?? '')));
+
+        return '<div class="modal fade" id="'.$id.'" tabindex="-1" aria-hidden="true">'
+            .'<div class="modal-dialog modal-dialog-centered"><div class="modal-content">'
+            .'<form method="post" action="'.OrderSheet::esc(static::submitUrl()).'">'
+            .'<div class="modal-header"><h5 class="modal-title">'.OrderSheet::esc($titolo)
+            .' <i class="bi bi-info-circle text-muted fs-6 ms-1" title="'.OrderSheet::esc($aiuto).'"></i></h5>'
+            .'<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>'
+            .'<div class="modal-body"><p class="small mb-3">'
+            .'<b>Totale</b> '.OrderSheet::esc(OrderSheet::money($totale))
+            .' · <b>Già incassato</b> '.OrderSheet::esc(OrderSheet::money(round($totale - $residuo, 2)))
+            .' · <b>Residuo</b> '.OrderSheet::esc(OrderSheet::money($residuo)).'</p>'
+            .'<div class="row g-3">'
+            .'<div class="col-6"><label class="form-label" for="'.$id.'-amount">Importo (€)</label>'
+            .'<input class="form-control" id="'.$id.'-amount" type="text" inputmode="decimal" name="amount" value="'.OrderSheet::esc(static::moneyField($residuo)).'" data-wi-check="true" required></div>'
+            .'<div class="col-6"><label class="form-label" for="'.$id.'-paid_at">Data</label>'
+            .'<input class="form-control" id="'.$id.'-paid_at" type="date" name="paid_at" value="'.date('Y-m-d').'" data-wi-check="true" required></div>'
+            .'<div class="col-6"><label class="form-label" for="'.$id.'-method">Metodo</label>'
+            .'<select class="form-select" id="'.$id.'-method" name="payment_method_id">'.$opzioni.'</select></div>'
+            .'<div class="col-6"><label class="form-label" for="'.$id.'-reference">Riferimento</label>'
+            .'<input class="form-control" id="'.$id.'-reference" type="text" name="reference"></div>'
+            .'</div></div>'
+            .'<div class="modal-footer">'
+            .'<input type="hidden" name="order_id" value="'.$orderId.'">'
+            .'<input type="hidden" name="back" value="'.OrderSheet::esc($back).'">'
+            .'<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Indietro</button>'
+            .'<button type="submit" class="btn btn-success">Registra</button>'
+            .'</div></form></div></div></div>';
+    }
+
+    /** I metodi di pagamento attivi, per id: la scelta della finestra. @return array<int, string> */
+    public static function activeMethods(): array
+    {
+        $metodi = [];
+
+        foreach (static::rowsOf(PaymentMethod::class, ['active' => 'true'], 'position') as $metodo) {
+            $metodi[(int) $metodo['id']] = (string) ($metodo['name'] ?? '');
+        }
+
+        return $metodi;
+    }
+
     public static function pageSchema(): PageSchema
     {
         return parent::pageSchema()
@@ -107,12 +176,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
     public static function formSchema(): array
     {
         $ordine = static::currentOrder();
-        $metodi = [];
-
-        foreach (static::rowsOf(PaymentMethod::class, ['active' => 'true'], 'position') as $metodo) {
-            $metodi[(int) $metodo['id']] = (string) ($metodo['name'] ?? '');
-        }
-
+        $metodi = static::activeMethods();
         $predefinito = (int) ($ordine['payment_method_id'] ?? 0);
 
         return [

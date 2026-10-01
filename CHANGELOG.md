@@ -87,11 +87,22 @@ versionamento semantico.
   del gateway e ricalcola da solo il `payment_status` dell'ordine.
 - Backend *Vendite*: l'elenco **Ordini** (tre etichette — ordine, pagamento,
   evasione — filtri per i tre stati e per periodo, ricerca per numero, cliente
-  ed email) e la **scheda in sola lettura** (righe, riepilogo IVA, totali,
-  pagamenti, resi, storico). Le azioni stanno nei pulsanti della scheda e
-  chiamano `Lifecycle` e `Ledger` senza regole proprie: *Conferma*, *Segna
-  evaso* e *Annulla* con una finestra che dice cosa succede al magazzino
-  (`OrderActions`), *Registra pagamento* come pagina-form con ritorno `torna=`.
+  ed email) e la **scheda** «Ordine <numero>» (intestazione, riepilogo IVA e
+  totali in riquadri; *Righe* — con la foto del prodotto —, *Pagamenti*, *Resi*
+  e *Storico* in accordion, ciascuno una tabella del core con
+  `TableLayoutSchema` e `TableColumn`: `OrderItemTableResource`,
+  `OrderPaymentTableResource`, `OrderReturnTableResource`,
+  `OrderHistoryTableResource`, senza pagina e senza menu). Il cliente è un link
+  alla sua scheda. Le **note** interna e sul documento si modificano da una
+  finestra (`OrderNoteResource`); la nota del cliente resta sua. Le azioni
+  stanno nei pulsanti della scheda e chiamano `Lifecycle` e `Ledger` senza
+  regole proprie: *Conferma*, *Segna evaso* e *Annulla* con una finestra che
+  dice cosa succede al magazzino (`OrderActions`), *Registra pagamento* in una
+  finestra che posta a `OrderPaymentResource`. Il ritorno all'elenco è la
+  chevron del titolo. Nell'elenco il totale è una colonna importo
+  (`TableColumn::money()`, dal core).
+- `Support\Catalog\ProductPhotos`: la foto di un articolo (opzione, colore,
+  poi modello), usata dalle giacenze e dalle righe dell'ordine.
   *Metodi di pagamento* e *Conti di pagamento* in Set Up, per l'`admin`.
   *Registra reso* e la sua voce nel menu arrivano col Piano 5.
 - *Movimenti* leggibili: colonne *Chi*, *Prima*, *Sede*, il documento dentro

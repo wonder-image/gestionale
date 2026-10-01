@@ -10,17 +10,17 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Elements\Components\Accordion;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
-use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
-use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
-use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
+use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
@@ -88,21 +88,15 @@ final class OrderResource extends GestionaleResource
     public static function tableSchema(): array
     {
         return [
-            TableColumn::key('order_number')->text()->size('little')->sortable(),
-            TableColumn::key('ordered_at')
-                ->text()
-                ->size('little')
-                ->sortable()
-                ->formatter(static fn (array $row): string => static::escape(static::date((string) ($row['ordered_at'] ?? '')))),
+            TableColumn::key('order_number')->text()->size('little')->sortable()->link('view'),
             TableColumn::key('customer')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(static::customerName($row))),
-            TableColumn::key('total')
-                ->text()
-                ->size('little')
+            TableColumn::key('total')->money()->size('little')->sortable(),
+            TableColumn::key('ordered_at')
+                ->date()
                 ->sortable()
-                ->formatter(static fn (array $row): string => '<span class="d-block text-end" style="font-variant-numeric: tabular-nums">'
-                    .static::escape(static::money($row['total'] ?? 0)).'</span>'),
+                ->size('medium'),
             TableColumn::key('status')
                 ->text()
                 ->size('little')
@@ -115,6 +109,7 @@ final class OrderResource extends GestionaleResource
                 ->text()
                 ->size('little')
                 ->formatter(static fn (array $row): string => StatusLabels::badge('fulfillment', (string) ($row['fulfillment_status'] ?? ''))),
+            TableColumn::key('actions')->button()->actions(['view']),
         ];
     }
 
@@ -162,26 +157,22 @@ final class OrderResource extends GestionaleResource
     }
 
     /**
-     * I pulsanti in testa alla scheda: il ritorno all'elenco e le azioni che
-     * valgono per lo stato dell'ordine. Ogni azione apre la sua finestra di
-     * conferma, che `actionModals()` disegna in fondo alla scheda.
+     * I pulsanti in testa alla scheda: le azioni che valgono per lo stato
+     * dell'ordine. Il ritorno all'elenco è la chevron del titolo. Ogni azione
+     * apre la sua finestra di conferma, che `actionModals()` disegna in fondo
+     * alla scheda.
      *
      * @return list<array<string, string>>
      */
     public static function actionsFor(array $order): array
     {
-        $pulsanti = [[
-            'label' => 'Elenco',
-            'icon' => 'bi-list-ul',
-            'class' => 'btn-outline-secondary btn-sm',
-            'href' => static::listUrl(),
-        ]];
+        $pulsanti = [];
 
         $azioni = OrderActions::available($order, ['returns' => Gestionale::feature('returns')]);
         $incassa = OrderActions::canRegisterPayment($order);
 
         foreach ($azioni as $azione) {
-            // «Registra pagamento» è una pagina, non una finestra: sta prima di Annulla.
+            // «Registra pagamento» sta prima di Annulla.
             if ($azione === OrderActions::CANCEL && $incassa) {
                 $pulsanti[] = static::registerPaymentButton($order);
                 $incassa = false;
@@ -211,7 +202,9 @@ final class OrderResource extends GestionaleResource
             'label' => 'Registra pagamento',
             'icon' => 'bi-cash-coin',
             'class' => 'btn-outline-success btn-sm',
-            'href' => OrderPaymentResource::urlFor((int) ($order['id'] ?? 0), StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '')),
+            'href' => '#',
+            'onclick' => 'window.bootstrap.Modal.getOrCreateInstance(document.getElementById('
+                .json_encode(OrderPaymentResource::MODAL_ID).')).show(); return false;',
         ];
     }
 
@@ -234,22 +227,27 @@ final class OrderResource extends GestionaleResource
             $order,
             static::rowsOf(OrderItem::class, $per, 'position'),
             static::rowsOf(Payment::class, $per, 'id'),
-            $back
+            $back,
+            OrderPaymentResource::activeMethods()
         );
     }
 
     /**
      * Una finestra per azione disponibile. La form posta a `OrderActionResource`
-     * con l'ordine, l'azione e la strada del ritorno.
+     * con l'ordine, l'azione e la strada del ritorno. Se l'ordine si può
+     * incassare c'è anche la finestra di «Registra pagamento», che posta alla
+     * sua pagina.
      *
      * @param list<array<string, mixed>> $items
      * @param list<array<string, mixed>> $payments
+     * @param array<int, string> $methods metodi di pagamento attivi, per id
      */
-    public static function actionModals(array $order, array $items, array $payments, string $back): string
+    public static function actionModals(array $order, array $items, array $payments, string $back, array $methods = []): string
     {
         $azioni = OrderActions::available($order, ['returns' => Gestionale::feature('returns')]);
+        $incassa = OrderActions::canRegisterPayment($order);
 
-        if ($azioni === []) {
+        if ($azioni === [] && !$incassa) {
             return '';
         }
 
@@ -278,6 +276,10 @@ final class OrderResource extends GestionaleResource
                 .'</div></form></div></div></div>';
         }
 
+        if ($incassa) {
+            $html .= OrderPaymentResource::modal($order, $payments, $methods, $back);
+        }
+
         return $html;
     }
 
@@ -299,6 +301,12 @@ final class OrderResource extends GestionaleResource
     public static function apiSchema(): ApiSchema
     {
         return ApiSchema::for(static::class)->enabled(false);
+    }
+
+    /** Il titolo della scheda: «Ordine 2025/001», o solo «Ordine» se il numero manca. */
+    public static function pageTitle(array $order): string
+    {
+        return trim('Ordine '.trim((string) ($order['order_number'] ?? '')));
     }
 
     /** L'indirizzo dell'elenco, dalla rotta con il nome; il percorso è il ripiego. */
@@ -324,6 +332,15 @@ final class OrderResource extends GestionaleResource
         $url = static::routeUrl('view', '/backend/'.static::path().'/__ROW_ID__/', ['id' => '__ROW_ID__']);
 
         return str_replace('__ROW_ID__', $placeholder, $url);
+    }
+
+    /** Il nome del cliente: un link alla sua scheda se l'ordine ne ha una, altrimenti solo il nome. */
+    protected static function customerLink(array $order): string
+    {
+        $nome = static::escape(static::customerName($order));
+        $url = static::customerUrl($order);
+
+        return $url === '' ? $nome : '<a href="'.static::escape($url).'">'.$nome.'</a>';
     }
 
     /**
@@ -362,14 +379,14 @@ final class OrderResource extends GestionaleResource
     }
 
     /**
-     * La scheda dell'ordine, sola lettura: sette riquadri nell'ordine della
-     * spec — intestazione, righe, riepilogo IVA, totali, pagamenti, resi,
-     * storico. Le righe si leggono qui; il disegno sta in `OrderSheet`.
+     * La scheda dell'ordine: l'intestazione, il riepilogo IVA e i totali in
+     * riquadri; righe, pagamenti, resi e storico in accordion con la loro
+     * tabella. Il titolo della pagina è già «Ordine <numero>», quindi
+     * l'intestazione non lo ripete. Il disegno dei totali sta in `OrderSheet`.
      */
     public static function showLayoutSchema(array $order): Container
     {
         $id = (int) ($order['id'] ?? 0);
-        $per = ['order_id' => $id];
         $metodi = [];
 
         foreach (static::rowsOf(PaymentMethod::class) as $metodo) {
@@ -381,16 +398,52 @@ final class OrderResource extends GestionaleResource
             RichText::make($html)->tag('div')->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
-        return (new Container)->components([
-            $riquadro('Ordine '.(string) ($order['order_number'] ?? ''), static::headerHtml($order, $metodi)),
-            $riquadro('Righe', OrderSheet::items(static::rowsOf(OrderItem::class, $per, 'position'))),
-            $riquadro('Riepilogo IVA', OrderSheet::taxSummary(static::rowsOf(OrderTaxSummary::class, $per)),
+        $tabella = static fn (string $titolo, string $html, bool $aperto = false): Accordion => $aperto
+            ? Accordion::make($titolo)->expanded()->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12)
+            : Accordion::make($titolo)->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12);
+
+        $componenti = [
+            (new Card)->components([
+                RichText::make(static::headerHtml($order, $metodi))->tag('div')->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+            $tabella('Righe', OrderItemTableResource::embed($id), true),
+            $riquadro('Riepilogo IVA', OrderSheet::taxSummary(static::rowsOf(OrderTaxSummary::class, ['order_id' => $id])),
                 'L\'imposta si calcola sul totale imponibile di ogni aliquota, non riga per riga.'),
             $riquadro('Totali', OrderSheet::totals($order)),
-            $riquadro('Pagamenti', OrderSheet::payments(static::rowsOf(Payment::class, $per, 'id'), $metodi)),
-            $riquadro('Resi', OrderSheet::returns(Gestionale::feature('returns') ? static::rowsOf(SalesReturn::class, $per, 'id') : [])),
-            $riquadro('Storico', OrderSheet::history(static::rowsOf(OrderStatusLog::class, $per, 'id', 'DESC'))),
-        ])->columns(12);
+            $tabella('Pagamenti', OrderPaymentTableResource::embed($id)),
+        ];
+
+        if (Gestionale::feature('returns')) {
+            $componenti[] = $tabella('Resi', OrderReturnTableResource::embed($id));
+        }
+
+        $componenti[] = $tabella('Storico', OrderHistoryTableResource::embed($id));
+
+        return (new Container)->components($componenti)->columns(12);
+    }
+
+    /** L'indirizzo della scheda del cliente di un ordine; vuoto se l'ordine non ha un cliente registrato. */
+    public static function customerUrl(array $order): string
+    {
+        $id = (int) ($order['customer_id'] ?? 0);
+
+        if ($id <= 0) {
+            return '';
+        }
+
+        $fallback = '/backend/'.CustomerResource::path().'/'.$id.'/edit/';
+
+        if (!function_exists('__r')) {
+            return $fallback;
+        }
+
+        try {
+            $named = (string) __r('backend.resource.'.CustomerResource::slug().'.edit', ['id' => $id]);
+        } catch (Throwable) {
+            return $fallback;
+        }
+
+        return $named !== '' ? $named : $fallback;
     }
 
     /**
@@ -401,8 +454,12 @@ final class OrderResource extends GestionaleResource
      */
     protected static function headerHtml(array $order, array $metodi): string
     {
-        $dato = static fn (string $etichetta, string $html): string => '<div class="col-12 col-md-4 mb-3">'
-            .'<div class="small text-muted">'.static::escape($etichetta).'</div><div>'.($html !== '' ? $html : '<span class="text-muted">—</span>').'</div></div>';
+        $dato = static fn (string $etichetta, string $html, string $modifica = ''): string => '<div class="col-12 col-md-4 mb-3">'
+            .'<div class="small text-muted">'.static::escape($etichetta).$modifica.'</div><div>'.($html !== '' ? $html : '<span class="text-muted">—</span>').'</div></div>';
+        // La matita accanto a una nota apre la finestra delle note.
+        $matita = static fn (string $nota): string => ' <a href="#" class="text-muted ms-1" title="Modifica la '.static::escape(strtolower($nota)).'" aria-label="Modifica la '.static::escape(strtolower($nota)).'"'
+            .' onclick="window.bootstrap.Modal.getOrCreateInstance(document.getElementById('.static::escape((string) json_encode(OrderNoteResource::MODAL_ID)).')).show(); return false;">'
+            .'<i class="bi bi-pencil"></i></a>';
         $testo = static fn (string $v): string => trim($v) !== '' ? static::escape($v) : '';
         $nota = static fn (string $v): string => trim($v) !== '' ? nl2br(static::escape($v)) : '';
         $canali = ['online' => 'Online', 'office' => 'Ufficio', 'pos' => 'Cassa'];
@@ -415,15 +472,15 @@ final class OrderResource extends GestionaleResource
             .$dato('Ordine', StatusLabels::badge('order', (string) ($order['status'] ?? '')))
             .$dato('Pagamento', StatusLabels::badge('payment', (string) ($order['payment_status'] ?? '')))
             .$dato('Evasione', StatusLabels::badge('fulfillment', (string) ($order['fulfillment_status'] ?? '')))
-            .$dato('Cliente', static::escape(static::customerName($order)))
+            .$dato('Cliente', static::customerLink($order))
             .$dato('Email', $testo((string) ($order['email'] ?? '')))
             .$dato('Telefono', $testo((string) ($order['phone'] ?? '')))
             .$dato('Fatturazione', OrderSheet::address($order, 'billing'))
             .$dato('Spedizione', OrderSheet::address($order, 'shipping'))
             .$dato('Metodo di pagamento', $testo($metodi[(int) ($order['payment_method_id'] ?? 0)] ?? ''))
             .$dato('Nota del cliente', $nota((string) ($order['customer_note'] ?? '')))
-            .$dato('Nota interna', $nota((string) ($order['internal_note'] ?? '')))
-            .$dato('Nota sul documento', $nota((string) ($order['document_note'] ?? '')))
+            .$dato('Nota interna', $nota((string) ($order['internal_note'] ?? '')), $matita('Nota interna'))
+            .$dato('Nota sul documento', $nota((string) ($order['document_note'] ?? '')), $matita('Nota sul documento'))
             .'</div>';
     }
 

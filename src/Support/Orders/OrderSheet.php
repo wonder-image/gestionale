@@ -97,45 +97,20 @@ final class OrderSheet
         return implode('<br>', array_map(static fn (string $r): string => self::esc($r), $righe));
     }
 
-    /** @param list<array<string, mixed>> $items */
-    public static function items(array $items): string
+    /** Il tipo di riga in parole: «Prodotto», «Spedizione», «Nota». */
+    public static function itemType(string $type): string
     {
-        if ($items === []) {
-            return self::empty('Nessuna riga: l\'ordine non ha ancora articoli.');
-        }
+        return self::ITEM_TYPES[$type] ?? $type;
+    }
 
-        $righe = [];
-
-        foreach ($items as $item) {
-            $tipo = (string) ($item['type'] ?? 'product');
-            $nome = self::esc((string) ($item['name'] ?? ''));
-            $sku = trim((string) ($item['sku'] ?? ''));
-            $etichetta = $nome.($sku !== '' ? ' <span class="text-muted small">'.self::esc($sku).'</span>' : '');
-
-            if ($tipo === 'text') {
-                $righe[] = '<tr><td colspan="6" class="fst-italic">'.$nome.'</td></tr>';
-
-                continue;
-            }
-
-            $sconto = match ((string) ($item['discount_type'] ?? 'none')) {
-                'percent' => self::number($item['discount_value'] ?? 0).'%',
-                'amount' => self::money($item['discount_value'] ?? 0),
-                default => '—',
-            };
-            $tipoEtichetta = self::ITEM_TYPES[$tipo] ?? $tipo;
-
-            $righe[] = '<tr>'
-                .'<td>'.$etichetta.($tipo !== 'product' ? ' <span class="badge text-bg-light">'.self::esc($tipoEtichetta).'</span>' : '').'</td>'
-                .'<td class="text-end">'.self::number($item['quantity'] ?? 0).'</td>'
-                .'<td class="text-end">'.self::money($item['unit_price'] ?? 0).'</td>'
-                .'<td class="text-end">'.$sconto.'</td>'
-                .'<td class="text-end">'.self::number($item['tax_rate'] ?? 0).'%</td>'
-                .'<td class="text-end">'.self::money($item['line_total'] ?? 0).'</td>'
-                .'</tr>';
-        }
-
-        return self::table(['Articolo', 'Quantità', 'Prezzo', 'Sconto', 'IVA', 'Totale'], $righe, [1, 2, 3, 4, 5]);
+    /** Lo sconto di una riga: `10%`, `5,00 €` o un trattino. */
+    public static function discount(array $item): string
+    {
+        return match ((string) ($item['discount_type'] ?? 'none')) {
+            'percent' => self::number($item['discount_value'] ?? 0).'%',
+            'amount' => self::money($item['discount_value'] ?? 0),
+            default => '—',
+        };
     }
 
     /** @param list<array<string, mixed>> $rows */
@@ -185,81 +160,36 @@ final class OrderSheet
         return '<table class="table table-sm mb-0" style="max-width: 24rem; font-variant-numeric: tabular-nums"><tbody>'.$righe.'</tbody></table>';
     }
 
-    /**
-     * @param list<array<string, mixed>> $rows
-     * @param array<int, string> $methods nome del metodo per id
-     */
-    public static function payments(array $rows, array $methods): string
+    /** Lo stato di un pagamento come etichetta colorata. */
+    public static function paymentBadge(string $status): string
     {
-        if ($rows === []) {
-            return self::empty('Nessun pagamento registrato.');
-        }
+        [$testo, $colore] = self::PAYMENT_STATUSES[$status] ?? [$status, 'secondary'];
 
-        $righe = [];
-
-        foreach ($rows as $row) {
-            [$stato, $colore] = self::PAYMENT_STATUSES[(string) ($row['status'] ?? '')] ?? [(string) ($row['status'] ?? ''), 'secondary'];
-            $metodo = $methods[(int) ($row['payment_method_id'] ?? 0)] ?? '';
-            $righe[] = '<tr>'
-                .'<td>'.self::esc((string) ($row['code'] ?? '')).'</td>'
-                .'<td>'.(($row['type'] ?? '') === 'refund' ? 'Rimborso' : 'Incasso').'</td>'
-                .'<td class="text-end">'.self::money($row['amount'] ?? 0).'</td>'
-                .'<td><span class="badge text-bg-'.$colore.'">'.self::esc($stato).'</span></td>'
-                .'<td>'.self::date((string) ($row['paid_at'] ?? '')).'</td>'
-                .'<td>'.($metodo !== '' ? self::esc($metodo) : '—').'</td>'
-                .'<td>'.(trim((string) ($row['provider_reference'] ?? '')) !== '' ? self::esc((string) $row['provider_reference']) : '—').'</td>'
-                .'</tr>';
-        }
-
-        return self::table(['Codice', 'Tipo', 'Importo', 'Stato', 'Data', 'Metodo', 'Riferimento'], $righe, [2]);
+        return '<span class="badge text-bg-'.$colore.'">'.self::esc($testo).'</span>';
     }
 
-    /** @param list<array<string, mixed>> $rows */
-    public static function returns(array $rows): string
+    /** Lo stato di un reso in parole. */
+    public static function returnStatus(string $status): string
     {
-        if ($rows === []) {
-            return self::empty('Nessun reso su questo ordine.');
-        }
-
-        $righe = [];
-
-        foreach ($rows as $row) {
-            $stato = (string) ($row['status'] ?? '');
-            $righe[] = '<tr>'
-                .'<td>'.self::esc((string) ($row['number'] ?? $row['code'] ?? '')).'</td>'
-                .'<td>'.self::esc(self::RETURN_STATUSES[$stato] ?? $stato).'</td>'
-                .'<td>'.self::date((string) ($row['requested_at'] ?? $row['creation'] ?? '')).'</td>'
-                .'</tr>';
-        }
-
-        return self::table(['Numero', 'Stato', 'Data'], $righe, []);
+        return self::RETURN_STATUSES[$status] ?? $status;
     }
 
-    /** @param list<array<string, mixed>> $rows */
-    public static function history(array $rows): string
+    /** Cosa è cambiato nello storico: «Ordine», «Pagamento», «Evasione». */
+    public static function logField(string $field): string
     {
-        if ($rows === []) {
-            return self::empty('Nessun cambio registrato.');
+        return self::LOG_FIELDS[$field] ?? $field;
+    }
+
+    /** Un valore dello storico, con le parole dello stato quando il campo è uno stato; un trattino se vuoto. */
+    public static function logValue(string $field, string $value): string
+    {
+        if ($value === '') {
+            return '—';
         }
 
-        $righe = [];
+        $kind = self::LOG_KINDS[$field] ?? null;
 
-        foreach ($rows as $row) {
-            $campo = (string) ($row['field'] ?? '');
-            $kind = self::LOG_KINDS[$campo] ?? null;
-            $valore = static fn (string $v): string => $v === '' ? '—' : self::esc($kind !== null ? StatusLabels::{$kind}($v)['label'] : $v);
-            $utente = (int) ($row['user_id'] ?? 0);
-            $righe[] = '<tr>'
-                .'<td>'.self::date((string) ($row['creation'] ?? '')).'</td>'
-                .'<td>'.self::esc(self::LOG_FIELDS[$campo] ?? $campo).'</td>'
-                .'<td>'.$valore((string) ($row['from_value'] ?? '')).'</td>'
-                .'<td>'.$valore((string) ($row['to_value'] ?? '')).'</td>'
-                .'<td>'.self::esc((string) ($row['source'] ?? '')).'</td>'
-                .'<td>'.($utente > 0 ? '#'.$utente : '—').'</td>'
-                .'</tr>';
-        }
-
-        return self::table(['Data', 'Cosa', 'Da', 'A', 'Origine', 'Utente'], $righe, []);
+        return $kind !== null ? StatusLabels::{$kind}($value)['label'] : $value;
     }
 
     private static function empty(string $frase): string

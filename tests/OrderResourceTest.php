@@ -57,7 +57,7 @@ check('i permessi dell\'elenco sono di admin e administrator', function () {
 check('l\'API è spenta', fn () => (bool) (OrderResource::apiSchema()->toArray()['enabled'] ?? true) === false);
 
 check('le colonne sono quelle dell\'elenco', fn () =>
-    $colonne === ['order_number', 'ordered_at', 'customer', 'total', 'status', 'payment_status', 'fulfillment_status']
+    $colonne === ['order_number', 'customer', 'total', 'ordered_at', 'status', 'payment_status', 'fulfillment_status', 'actions']
 );
 
 check('l\'elenco mostra solo gli ordini veri, non i carrelli', function () {
@@ -111,7 +111,17 @@ check('le celle si disegnano davvero, con le etichette', function () {
     }
 
     return str_contains($html, 'In attesa') && str_contains($html, 'Pagato') && str_contains($html, 'Da evadere')
-        && str_contains($html, '10,00 €') && str_contains($html, 'a@b.it');
+        && str_contains($html, 'a@b.it');
+});
+
+check('il totale è una colonna importo e la data una colonna data', function () {
+    $tipi = [];
+
+    foreach (OrderResource::tableSchema() as $colonna) {
+        $tipi[(string) $colonna->name] = $colonna->toArray()['type'] ?? null;
+    }
+
+    return $tipi['total'] === 'money' && $tipi['ordered_at'] === 'date' && $tipi['order_number'] === 'text';
 });
 
 /** Il testo di un componente: titolo di riquadro o HTML del contenuto. */
@@ -121,16 +131,51 @@ $testoDi = static function (object $componente): string {
     return (string) $r->getValue($componente);
 };
 
-check('la scheda ha sette riquadri, nell\'ordine della spec', function () use ($testoDi) {
+check('la scheda: intestazione, righe, riepilogo IVA, totali, pagamenti, resi (se attivi) e storico', function () use ($testoDi) {
     $layout = OrderResource::showLayoutSchema(['id' => 0, 'order_number' => '2025/001']);
     $titoli = [];
 
-    foreach ($layout->components as $card) {
-        $titoli[] = $testoDi($card->components[0]);
+    foreach ($layout->components as $c) {
+        $titoli[] = $c instanceof Wonder\Elements\Components\Accordion
+            ? $testoDi($c)
+            : ($c->components[0] instanceof Wonder\Elements\Components\SectionTitle ? $testoDi($c->components[0]) : 'Intestazione');
     }
 
-    return $titoli === ['Ordine 2025/001', 'Righe', 'Riepilogo IVA', 'Totali', 'Pagamenti', 'Resi', 'Storico'];
+    $attesi = ['Intestazione', 'Righe', 'Riepilogo IVA', 'Totali', 'Pagamenti'];
+
+    if (Wonder\Plugin\Gestionale\Gestionale::feature('returns')) {
+        $attesi[] = 'Resi';
+    }
+
+    $attesi[] = 'Storico';
+
+    return $titoli === $attesi;
 });
+
+check('righe, pagamenti, resi e storico sono accordion; solo le righe partono aperte', function () use ($testoDi) {
+    $layout = OrderResource::showLayoutSchema(['id' => 0]);
+    $aperti = [];
+
+    foreach ($layout->components as $c) {
+        if ($c instanceof Wonder\Elements\Components\Accordion) {
+            $aperti[$testoDi($c)] = (bool) ($c->getSchema('expanded') ?? false);
+        }
+    }
+
+    return ($aperti['Righe'] ?? false) === true && ($aperti['Pagamenti'] ?? true) === false && ($aperti['Storico'] ?? true) === false;
+});
+
+check('la scheda non ripete il titolo «Ordine» nell\'intestazione', function () use ($testoDi) {
+    $layout = OrderResource::showLayoutSchema(['id' => 0, 'order_number' => '2025/001']);
+    $primo = $layout->components[0]->components[0];
+
+    return !($primo instanceof Wonder\Elements\Components\SectionTitle);
+});
+
+check('il cliente è un link alla sua scheda solo se l\'ordine ne ha uno', fn () =>
+    OrderResource::customerUrl(['customer_id' => 0]) === ''
+    && str_contains(OrderResource::customerUrl(['customer_id' => 7]), '/7/edit')
+);
 
 check('la scheda è in sola lettura: nessun campo da compilare', function () use ($testoDi) {
     $layout = OrderResource::showLayoutSchema(['id' => 0]);
@@ -150,38 +195,77 @@ check('la scheda è in sola lettura: nessun campo da compilare', function () use
     return true;
 });
 
-check('la scheda ha la pagina «view» e il pulsante Elenco', function () use ($pagine) {
-    $item = OrderResource::actionsFor(['id' => 1]);
-
-    return !empty($pagine['pages']['view']) && ($item[0]['label'] ?? '') === 'Elenco';
+check('la scheda ha la pagina «view» e nessun pulsante Elenco: per tornare c\'è la chevron', function () use ($pagine) {
+    return !empty($pagine['pages']['view']) && OrderResource::actionsFor(['id' => 1]) === [];
 });
 
-check('un ordine in attesa offre Conferma e Annulla, nei pulsanti, dopo Elenco', function () {
+check('il titolo della scheda è «Ordine» e il numero, e non resta vuoto senza numero', fn () =>
+    OrderResource::pageTitle(['order_number' => '2025/001']) === 'Ordine 2025/001'
+    && OrderResource::pageTitle(['order_number' => '  ']) === 'Ordine'
+    && OrderResource::pageTitle([]) === 'Ordine'
+);
+
+check('un ordine in attesa offre Conferma e Annulla, nei pulsanti', function () {
     $pulsanti = OrderResource::actionsFor(['id' => 9, 'status' => 'pending', 'fulfillment_status' => 'unfulfilled', 'payment_status' => 'paid']);
     $nomi = array_map(static fn (array $p): string => (string) $p['label'], $pulsanti);
 
-    return $nomi === ['Elenco', 'Conferma', 'Annulla']
-        && str_contains((string) $pulsanti[1]['onclick'], OrderResource::actionModalId('confirm'))
-        && str_contains((string) $pulsanti[2]['onclick'], OrderResource::actionModalId('cancel'))
-        && !isset($pulsanti[0]['onclick']);
+    return $nomi === ['Conferma', 'Annulla']
+        && str_contains((string) $pulsanti[0]['onclick'], OrderResource::actionModalId('confirm'))
+        && str_contains((string) $pulsanti[1]['onclick'], OrderResource::actionModalId('cancel'));
 });
 
 check('un ordine confermato offre Segna evaso e Annulla', function () {
     $pulsanti = OrderResource::actionsFor(['id' => 9, 'status' => 'confirmed', 'fulfillment_status' => 'unfulfilled', 'payment_status' => 'paid']);
 
-    return array_map(static fn (array $p): string => (string) $p['label'], $pulsanti) === ['Elenco', 'Segna evaso', 'Annulla'];
+    return array_map(static fn (array $p): string => (string) $p['label'], $pulsanti) === ['Segna evaso', 'Annulla'];
 });
 
-check('un ordine da incassare offre Registra pagamento, prima di Annulla, e porta alla pagina con il ritorno', function () {
+check('un ordine da incassare offre Registra pagamento, prima di Annulla, e lo apre in una finestra', function () {
     $ordine = ['id' => 9, 'status' => 'confirmed', 'fulfillment_status' => 'unfulfilled', 'payment_status' => 'unpaid'];
     $pulsanti = OrderResource::actionsFor($ordine);
     $nomi = array_map(static fn (array $p): string => (string) $p['label'], $pulsanti);
-    $href = (string) $pulsanti[2]['href'];
 
-    return $nomi === ['Elenco', 'Segna evaso', 'Registra pagamento', 'Annulla']
-        && str_contains($href, 'ordine=9')
-        && $href === Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentResource::urlFor(9)
-        && !isset($pulsanti[2]['onclick']);
+    return $nomi === ['Segna evaso', 'Registra pagamento', 'Annulla']
+        && str_contains((string) $pulsanti[1]['onclick'], OrderPaymentResource::MODAL_ID)
+        && ($pulsanti[1]['href'] ?? '') === '#';
+});
+
+check('la finestra del pagamento posta a Registra pagamento con ordine e ritorno, e propone il residuo', function () {
+    $html = OrderPaymentResource::modal(
+        ['id' => 9, 'status' => 'confirmed', 'payment_status' => 'partially_paid', 'total' => '100.00', 'order_number' => '2026/0009', 'payment_method_id' => 2],
+        [['type' => 'payment', 'status' => 'paid', 'amount' => '40.00']],
+        [1 => 'Bonifico', 2 => 'Contanti'],
+        '/backend/ordini/'
+    );
+
+    return str_contains($html, 'id="'.OrderPaymentResource::MODAL_ID.'"')
+        && str_contains($html, 'method="post"')
+        && str_contains($html, 'action="'.htmlspecialchars(OrderPaymentResource::submitUrl(), ENT_QUOTES).'"')
+        && str_contains($html, 'name="order_id" value="9"')
+        && str_contains($html, 'name="back" value="/backend/ordini/"')
+        && str_contains($html, 'name="amount"') && str_contains($html, 'value="60,00"')
+        && str_contains($html, '<option value="2" selected>Contanti</option>')
+        && str_contains($html, '<option value="1">Bonifico</option>')
+        && str_contains($html, 'name="paid_at"') && str_contains($html, 'value="'.date('Y-m-d').'"')
+        && str_contains($html, 'name="reference"')
+        && str_contains($html, '2026/0009');
+});
+
+check('nella finestra i campi obbligatori sono marcati per il backend e il testo del cliente è escapato', function () {
+    $html = OrderPaymentResource::modal(['id' => 9, 'total' => '10.00', 'order_number' => '<i>x</i>'], [], [1 => '<b>M</b>'], '');
+
+    return substr_count($html, 'data-wi-check="true"') >= 2
+        && !str_contains($html, '<i>x</i>') && !str_contains($html, '<b>M</b>');
+});
+
+check('la finestra del pagamento si disegna solo se l\'ordine si può incassare', function () {
+    $da = OrderResource::actionModals(['id' => 9, 'status' => 'confirmed', 'fulfillment_status' => 'fulfilled', 'payment_status' => 'unpaid', 'total' => '10.00'], [], [], '');
+    $saldato = OrderResource::actionModals(['id' => 9, 'status' => 'confirmed', 'fulfillment_status' => 'fulfilled', 'payment_status' => 'paid', 'total' => '10.00'], [], [], '');
+    $annullato = OrderResource::actionModals(['id' => 9, 'status' => 'cancelled', 'payment_status' => 'unpaid'], [], [], '');
+
+    return str_contains($da, OrderPaymentResource::MODAL_ID)
+        && !str_contains($saldato, OrderPaymentResource::MODAL_ID)
+        && $annullato === '';
 });
 
 check('un ordine saldato o annullato non offre Registra pagamento', function () {
@@ -196,9 +280,9 @@ check('un ordine saldato o annullato non offre Registra pagamento', function () 
     return true;
 });
 
-check('un ordine annullato o chiuso ha solo Elenco', function () {
+check('un ordine annullato o chiuso non ha pulsanti', function () {
     foreach (['cancelled', 'completed'] as $stato) {
-        if (count(OrderResource::actionsFor(['id' => 9, 'status' => $stato, 'fulfillment_status' => 'fulfilled'])) !== 1) {
+        if (OrderResource::actionsFor(['id' => 9, 'status' => $stato, 'fulfillment_status' => 'fulfilled']) !== []) {
             return false;
         }
     }
