@@ -283,6 +283,12 @@ check('le righe dell\'ordine dicono ordinato, già reso e massimo; un reso annul
     });
 });
 
+check('leggere quanto è reso e le righe di un ordine non chiede una transazione', function () {
+    // La pagina «Registra reso» legge senza scrivere: fuori da Transaction::run
+    // il blocco delle righe (FOR UPDATE) non c'è e non deve servire.
+    return !Transaction::active() && Returns::returned(0) === 0.0 && Returns::lines(0) === [];
+});
+
 check('annullare un ordine con un reso fa rientrare solo la merce non ancora resa', function () {
     return conReso(static function (): bool {
         [$ordine, $riga, $prodotto] = ordineVenduto(3);

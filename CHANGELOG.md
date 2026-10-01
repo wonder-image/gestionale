@@ -150,3 +150,12 @@ versionamento semantico.
   accesa) e lo toglie restituendo al magazzino solo quel che non era già rientrato.
 - Guide: tre pagine per il commerciante (*Ordini*, *Pagamenti*, *Resi*, sezione
   *Vendite*) e *Vendite: ordini, pagamenti e resi* per gli sviluppatori.
+
+### Corretto
+
+- *Registra reso* dava errore 500: `Returns::returned()` chiedeva il blocco delle
+  righe anche quando la pagina leggeva soltanto; ora blocca solo dentro una
+  transazione.
+- Tabella *Righe* dell'ordine: il nome con un trattino lungo (o altre entità) si
+  leggeva come codice, `&#8212;`; ora si decodifica e si escapa una volta sola
+  (`GestionaleResource::escapeStored()`).

@@ -31,13 +31,21 @@ final class Returns
     /** Gli stati in cui un reso non conta più sulla quantità resa. */
     private const NOT_COUNTED = ['cancelled', 'rejected'];
 
-    /** Quanto è già stato reso di una riga d'ordine, resi annullati esclusi. */
+    /**
+     * Quanto è già stato reso di una riga d'ordine, resi annullati esclusi.
+     *
+     * Dentro una transazione blocca le righe (chi registra o annulla deve
+     * vedere un conteggio che non cambia); fuori, per la sola lettura della
+     * pagina, legge e basta.
+     */
     public static function returned(int $orderItemId): float
     {
         $total = 0.0;
         $statuses = [];
+        $where = ['order_item_id' => $orderItemId, 'deleted' => 'false'];
+        $found = Transaction::active() ? SalesReturnItem::findForUpdate($where) : SalesReturnItem::find($where);
 
-        foreach (self::rows(SalesReturnItem::findForUpdate(['order_item_id' => $orderItemId, 'deleted' => 'false'])) as $item) {
+        foreach (self::rows($found) as $item) {
             $returnId = (int) $item['sales_return_id'];
             $statuses[$returnId] ??= (string) (SalesReturn::findById($returnId)['status'] ?? 'cancelled');
 
