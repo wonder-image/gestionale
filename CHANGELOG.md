@@ -136,3 +136,17 @@ versionamento semantico.
 - Per chi aggiorna: `PaymentMethod` e `PaymentAccount` **non cambiano tabelle**
   in questo giro; `Defaults` semina tre metodi nuovi (bonifico, contanti, carta
   — la carta nasce spenta).
+- Resi (`returns`): `Returns` registra, chiude e annulla i resi; il reso nasce
+  *ricevuto* e il rientro a magazzino passa da `Allocation::returnGoods()`, solo
+  per le righe con la spunta. Le regole pure stanno in `ReturnRules` (massimo
+  rendibile, ricarico proposto dal motivo, quantità). Un reso si annulla solo se
+  nessuna riga è rientrata (`return.already_restocked`): per correggere la
+  giacenza c'è la rettifica in Magazzino. Il rimborso del denaro non fa parte
+  dei resi: resta al gateway con `Ledger::refund()`.
+- *Registra reso*: pagina con le righe dell'ordine, motivo, ricarico e sede, voce
+  nel menu dell'ordine (`OrderActions::canRegisterReturn`) e tabella *Resi
+  dell'ordine* nella scheda con *Chiudi* e *Annulla*.
+- `gestionale:demo` crea anche un reso di un pezzo sull'ordine evaso (con `returns`
+  accesa) e lo toglie restituendo al magazzino solo quel che non era già rientrato.
+- Guide: tre pagine per il commerciante (*Ordini*, *Pagamenti*, *Resi*, sezione
+  *Vendite*) e *Vendite: ordini, pagamenti e resi* per gli sviluppatori.
