@@ -140,4 +140,64 @@ check('la scheda ha la pagina «view» e il pulsante Elenco', function () use ($
     return !empty($pagine['pages']['view']) && ($item[0]['label'] ?? '') === 'Elenco';
 });
 
+check('un ordine in attesa offre Conferma e Annulla, nei pulsanti, dopo Elenco', function () {
+    $pulsanti = OrderResource::actionsFor(['id' => 9, 'status' => 'pending', 'fulfillment_status' => 'unfulfilled']);
+    $nomi = array_map(static fn (array $p): string => (string) $p['label'], $pulsanti);
+
+    return $nomi === ['Elenco', 'Conferma', 'Annulla']
+        && str_contains((string) $pulsanti[1]['onclick'], OrderResource::actionModalId('confirm'))
+        && str_contains((string) $pulsanti[2]['onclick'], OrderResource::actionModalId('cancel'))
+        && !isset($pulsanti[0]['onclick']);
+});
+
+check('un ordine confermato offre Segna evaso e Annulla', function () {
+    $pulsanti = OrderResource::actionsFor(['id' => 9, 'status' => 'confirmed', 'fulfillment_status' => 'unfulfilled']);
+
+    return array_map(static fn (array $p): string => (string) $p['label'], $pulsanti) === ['Elenco', 'Segna evaso', 'Annulla'];
+});
+
+check('un ordine annullato o chiuso ha solo Elenco', function () {
+    foreach (['cancelled', 'completed'] as $stato) {
+        if (count(OrderResource::actionsFor(['id' => 9, 'status' => $stato, 'fulfillment_status' => 'fulfilled'])) !== 1) {
+            return false;
+        }
+    }
+
+    return true;
+});
+
+check('le finestre postano all\'azione con ordine, azione e ritorno, e dicono cosa faranno', function () {
+    $html = OrderResource::actionModals(
+        ['id' => 9, 'status' => 'pending', 'fulfillment_status' => 'unfulfilled', 'order_number' => '2026/0009'],
+        [['type' => 'product', 'quantity' => '2.000']],
+        [],
+        '/backend/ordini/'
+    );
+
+    return str_contains($html, 'method="post"')
+        && str_contains($html, 'action="'.htmlspecialchars(Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource::submitUrl(), ENT_QUOTES).'"')
+        && str_contains($html, 'name="order_id" value="9"')
+        && str_contains($html, 'name="action" value="confirm"')
+        && str_contains($html, 'name="action" value="cancel"')
+        && !str_contains($html, 'value="fulfill"')
+        && str_contains($html, 'name="torna" value="/backend/ordini/"')
+        && str_contains($html, 'scarica 2 pezzi')
+        && str_contains($html, 'libera 2 pezzi prenotati');
+});
+
+check('la finestra di Annulla ricorda il denaro già incassato', function () {
+    $html = OrderResource::actionModals(
+        ['id' => 9, 'status' => 'confirmed', 'fulfillment_status' => 'unfulfilled', 'order_number' => 'X'],
+        [['type' => 'product', 'quantity' => '1.000']],
+        [['amount' => '40.00', 'type' => 'payment', 'status' => 'paid'], ['amount' => '10.00', 'type' => 'refund', 'status' => 'paid']],
+        ''
+    );
+
+    return str_contains($html, 'non si rimborsa da qui') && str_contains($html, '30,00');
+});
+
+check('un ordine senza azioni non porta finestre', fn () =>
+    OrderResource::actionModals(['id' => 9, 'status' => 'cancelled', 'fulfillment_status' => 'unfulfilled'], [], [], '') === ''
+);
+
 summary();

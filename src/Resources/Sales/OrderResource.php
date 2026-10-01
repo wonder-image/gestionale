@@ -20,7 +20,10 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
+use Wonder\Plugin\Gestionale\Support\Payments\PaymentStatus;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Orders\StatusLabels;
@@ -151,19 +154,99 @@ final class OrderResource extends GestionaleResource
     }
 
     /**
-     * I pulsanti in testa alla scheda: il ritorno all'elenco e, dal Task 3,
-     * le azioni dell'ordine.
+     * I pulsanti in testa alla scheda: il ritorno all'elenco e le azioni che
+     * valgono per lo stato dell'ordine. Ogni azione apre la sua finestra di
+     * conferma, che `actionModals()` disegna in fondo alla scheda.
      *
      * @return list<array<string, string>>
      */
     public static function actionsFor(array $order): array
     {
-        return [[
+        $pulsanti = [[
             'label' => 'Elenco',
             'icon' => 'bi-list-ul',
             'class' => 'btn-outline-secondary btn-sm',
             'href' => static::listUrl(),
         ]];
+
+        foreach (OrderActions::available($order, ['returns' => Gestionale::feature('returns')]) as $azione) {
+            $pulsanti[] = [
+                'label' => OrderActions::label($azione),
+                'icon' => OrderActions::icon($azione),
+                'class' => OrderActions::buttonClass($azione).' btn-sm',
+                'href' => '#',
+                'onclick' => 'window.bootstrap.Modal.getOrCreateInstance(document.getElementById('
+                    .json_encode(static::actionModalId($azione)).')).show(); return false;',
+            ];
+        }
+
+        return $pulsanti;
+    }
+
+    /** L'id della finestra di conferma di un'azione. */
+    public static function actionModalId(string $action): string
+    {
+        return 'wi-ordine-azione-'.$action;
+    }
+
+    /**
+     * Le finestre di conferma, lette dal database: le righe e i pagamenti
+     * servono a dire cosa farà l'azione prima che si prema.
+     */
+    public static function actionModalsFor(array $order): string
+    {
+        $per = ['order_id' => (int) ($order['id'] ?? 0)];
+        $back = StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '');
+
+        return static::actionModals(
+            $order,
+            static::rowsOf(OrderItem::class, $per, 'position'),
+            static::rowsOf(Payment::class, $per, 'id'),
+            $back
+        );
+    }
+
+    /**
+     * Una finestra per azione disponibile. La form posta a `OrderActionResource`
+     * con l'ordine, l'azione e la strada del ritorno.
+     *
+     * @param list<array<string, mixed>> $items
+     * @param list<array<string, mixed>> $payments
+     */
+    public static function actionModals(array $order, array $items, array $payments, string $back): string
+    {
+        $azioni = OrderActions::available($order, ['returns' => Gestionale::feature('returns')]);
+
+        if ($azioni === []) {
+            return '';
+        }
+
+        $sums = PaymentStatus::sums($payments);
+        $order['paid_total'] = max(0.0, round($sums['paid'] - $sums['refunded'], 2));
+        $url = static::escape(OrderActionResource::submitUrl());
+        $html = '';
+
+        foreach ($azioni as $azione) {
+            $id = static::actionModalId($azione);
+            $titolo = OrderActions::label($azione).' l\'ordine '.trim((string) ($order['order_number'] ?? ''));
+
+            $html .= '<div class="modal fade" id="'.static::escape($id).'" tabindex="-1" aria-hidden="true">'
+                .'<div class="modal-dialog modal-dialog-centered"><div class="modal-content">'
+                .'<form method="post" action="'.$url.'">'
+                .'<div class="modal-header"><h5 class="modal-title">'.static::escape(trim($titolo)).'</h5>'
+                .'<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>'
+                .'<div class="modal-body"><p class="mb-0">'.static::escape(OrderActions::summary($azione, $order, $items)).'</p></div>'
+                .'<div class="modal-footer">'
+                .'<input type="hidden" name="order_id" value="'.(int) ($order['id'] ?? 0).'">'
+                .'<input type="hidden" name="action" value="'.static::escape($azione).'">'
+                .'<input type="hidden" name="torna" value="'.static::escape($back).'">'
+                .'<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Indietro</button>'
+                .'<button type="submit" class="btn '.static::escape(OrderActions::buttonClass($azione)).'">'
+                .static::escape(OrderActions::label($azione)).'</button>'
+                .'</div></form></div></div></div>';
+        }
+
+        return $html;
     }
 
     public static function navigationSchema(): NavigationSchema

@@ -24,4 +24,7 @@ View::layout('backend.show');
 
 echo ResourceFormLayoutRenderer::renderLayout(OrderResource::showLayoutSchema($ordine));
 
+// Le finestre di conferma stanno fuori dal disegno: la scheda resta di sola lettura.
+echo OrderResource::actionModalsFor($ordine);
+
 View::end();
