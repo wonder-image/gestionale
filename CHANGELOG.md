@@ -112,12 +112,18 @@ versionamento semantico.
 - Scheda cliente (sola lettura, `view` della Resource *Clienti*; il nome
   nell'elenco la apre, il pulsante *Modifica* porta al form): *Statistiche*
   (ordini, speso, scontrino medio, primo e ultimo ordine, da pagare, carrello),
-  *Ordini* (tabella del core, con i tre stati), *Prodotti nel carrello*,
-  *Coupon assegnati* (per ora solo la frase: i coupon non esistono ancora) e
-  *Tutti i suoi dati* (anagrafica, fatturazione, indirizzi di consegna,
-  metodo di accesso, note). Senza la funzionalità «orders» restano coupon e
-  dati. Le statistiche stanno in `Support\Contacts\CustomerStats` (non contano
-  gli ordini annullati o rimborsati per intero né i carrelli) e il disegno in
+  *Ordini* (tabella del core, con i tre stati), *Prodotti nel carrello* e, in
+  fondo, *Coupon assegnati* (per ora solo la frase: i coupon non esistono
+  ancora). *Tutti i suoi dati* è una card sempre aperta (tipo, nome, ruolo,
+  stato, contatti, accesso al sito, note) scritta con `DataItem` del core; i
+  **dati di fatturazione** stanno in una card a parte, in alto a destra. Gli
+  *Indirizzi di consegna* hanno una card con una card per indirizzo e, da
+  finestre, **aggiungi, modifica, rendi predefinito, elimina**
+  (`ContactAddressResource`, pagina-form senza menu: un solo predefinito, il
+  primo lo diventa da sé, l'eliminazione manda l'indirizzo nel cestino). Senza
+  la funzionalità «orders» restano dati, fatturazione, indirizzi e coupon. Le
+  statistiche stanno in `Support\Contacts\CustomerStats` (non contano gli
+  ordini annullati o rimborsati per intero né i carrelli) e il disegno in
   `Support\Contacts\CustomerSheet`. I fornitori non hanno scheda: il nome apre
   la modifica. Dati di prova: nuova cliente *Anna Verdi* con i suoi ordini; solo
   l'ospite resta senza scheda.

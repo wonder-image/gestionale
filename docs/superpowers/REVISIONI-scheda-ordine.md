@@ -22,8 +22,8 @@
 
 - [x] 5.1 Core: componente `DataItem` (etichetta + valore in linea, azione accanto all'etichetta) — branch `data-item` di packages/app, PR a parte
 - [x] 5.2 Scheda ordine: l'intestazione usa `DataItem` al posto del `$dato` scritto a mano
-- [ ] 5.3 Scheda cliente: Coupon in fondo (dopo ordini e carrello, e dopo gli indirizzi)
-- [ ] 5.4 «Tutti i suoi dati» non è più un accordion: una card, senza «Chi è» e senza i dati di fatturazione, con `DataItem`
-- [ ] 5.5 Card «Dati di fatturazione» in alto a destra (codice fiscale, P.IVA/SDI/PEC se azienda, indirizzo)
-- [ ] 5.6 Card «Indirizzi di consegna» con una card per indirizzo; aggiungi / modifica / predefinito / elimina da modal (`ContactAddressResource`, un solo predefinito)
+- [x] 5.3 Scheda cliente: Coupon in fondo (dopo ordini e carrello, e dopo gli indirizzi)
+- [x] 5.4 «Tutti i suoi dati» non è più un accordion: una card, senza «Chi è» e senza i dati di fatturazione, con `DataItem`
+- [x] 5.5 Card «Dati di fatturazione» in alto a destra (codice fiscale, P.IVA/SDI/PEC se azienda, indirizzo)
+- [x] 5.6 Card «Indirizzi di consegna» con una card per indirizzo; aggiungi / modifica / predefinito / elimina da modal (`ContactAddressResource`, un solo predefinito)
 - [ ] Test (unitari + integrazione), CHANGELOG, prova nel browser, push e CI
