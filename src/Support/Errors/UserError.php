@@ -24,6 +24,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 final class UserError extends InvalidArgumentException
 {
     private string $key = '';
+    private int $field = 0;
 
     /** @param array<string, string|int|float> $replacements */
     public static function make(string $key, array $replacements = [], ?Throwable $previous = null): self
@@ -50,6 +51,20 @@ final class UserError extends InvalidArgumentException
     public static function refusal(string $key, array $replacements = []): RuntimeException
     {
         return new RuntimeException(self::translate($key, $replacements));
+    }
+
+    /** Lega l'errore a un campo (l'id della personalizzazione), per metterlo sotto il suo input. */
+    public function withField(int $id): self
+    {
+        $this->field = $id;
+
+        return $this;
+    }
+
+    /** L'id del campo a cui l'errore si riferisce, 0 se riguarda tutto il form. */
+    public function field(): int
+    {
+        return $this->field;
     }
 
     /** La chiave di lingua, utile a chi deve reagire a un errore preciso. */

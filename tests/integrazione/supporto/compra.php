@@ -3,7 +3,11 @@
 /** Le cose da comprare e da vendere che servono alle prove: articoli, ordini, resi. */
 
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
+use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
@@ -92,4 +96,81 @@ function accendiFunzionalita(array $chiavi): void
     }
 
     Gestionale::reset();
+}
+
+/**
+ * Come {@see accendiFunzionalita()}, al contrario: spegne le funzionalità
+ * date. Anche questa vive dentro la transazione della prova.
+ *
+ * @param list<string> $chiavi
+ */
+function spegniFunzionalita(array $chiavi): void
+{
+    foreach ($chiavi as $chiave) {
+        $riga = Feature::find(['feature_key' => $chiave, 'deleted' => 'false'], 1);
+
+        if (is_array($riga) && isset($riga['id'])) {
+            Feature::update(['enabled' => 'false'], (int) $riga['id']);
+        } else {
+            Feature::create(['feature_key' => $chiave, 'enabled' => 'false']);
+        }
+    }
+
+    Gestionale::reset();
+}
+
+/** Il modello a cui appartiene l'articolo dato. */
+function modelloDi(int $prodotto): int
+{
+    $riga = Product::find(['id' => $prodotto], 1);
+
+    return (int) ($riga['product_model_id'] ?? 0);
+}
+
+/**
+ * Una personalizzazione attiva: un testo da 20 caratteri, senza sovrapprezzo.
+ * `$valori` sovrascrive i campi; `$opzioni` ([['label' => …, 'surcharge' => …]])
+ * crea le opzioni, nell'ordine dato.
+ *
+ * @param array<string, mixed>                       $valori
+ * @param list<array{label:string, surcharge?:mixed}> $opzioni
+ */
+function personalizzazioneDiProva(array $valori = [], array $opzioni = []): int
+{
+    $personalizzazione = Customization::create($valori + [
+        'code' => Code::make(Customization::class, Codes::CUSTOMIZATION),
+        'name' => 'Prova '.uniqid(),
+        'label' => '',
+        'help_text' => '',
+        'kind' => $opzioni === [] ? 'text' : 'choice',
+        'max_length' => 20,
+        'surcharge' => '0.00',
+        'active' => 'true',
+        'position' => 1,
+    ]);
+    $id = (int) ($personalizzazione->insert_id ?? 0);
+
+    foreach (array_values($opzioni) as $i => $opzione) {
+        CustomizationOption::create([
+            'customization_id' => $id,
+            'label' => $opzione['label'],
+            'surcharge' => number_format((float) ($opzione['surcharge'] ?? 0), 2, '.', ''),
+            'position' => $i + 1,
+        ]);
+    }
+
+    return $id;
+}
+
+/** Collega una personalizzazione a un modello; ridà l'id del collegamento. */
+function collegaPersonalizzazione(int $modello, int $personalizzazione, bool $obbligatoria = false, int $posizione = 1): int
+{
+    $collegamento = ProductModelCustomization::create([
+        'product_model_id' => $modello,
+        'customization_id' => $personalizzazione,
+        'is_required' => $obbligatoria ? 'true' : 'false',
+        'position' => $posizione,
+    ]);
+
+    return (int) ($collegamento->insert_id ?? 0);
 }
