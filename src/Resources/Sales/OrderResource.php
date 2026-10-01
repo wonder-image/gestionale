@@ -293,7 +293,7 @@ final class OrderResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['list'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->backend(['list', 'view'], ['admin', 'administrator']);
     }
 
     public static function apiSchema(): ApiSchema

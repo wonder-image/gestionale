@@ -6,6 +6,8 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource;
+use Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 
@@ -236,6 +238,34 @@ check('la finestra di Annulla ricorda il denaro già incassato', function () {
 
 check('un ordine senza azioni non porta finestre', fn () =>
     OrderResource::actionModals(['id' => 9, 'status' => 'cancelled', 'fulfillment_status' => 'unfulfilled'], [], [], '') === ''
+);
+
+/** I permessi di un'area backend, come li legge il registro delle rotte. */
+$permessi = static fn (string $resource): array => (array) ($resource::permissionSchema()->toArray()['backend'] ?? []);
+
+check('la scheda dell\'ordine è riservata come l\'elenco: admin e administrator', fn () =>
+    ($permessi(OrderResource::class)['view'] ?? []) === ['admin', 'administrator']
+);
+
+check('le azioni e il pagamento (pagine-form: edit e update) sono di admin e administrator', function () use ($permessi) {
+    foreach ([OrderActionResource::class, OrderPaymentResource::class] as $resource) {
+        foreach (['edit', 'update'] as $azione) {
+            if (($permessi($resource)[$azione] ?? []) !== ['admin', 'administrator']) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+});
+
+check('un importo senza virgola con i punti delle migliaia vale migliaia: 1.250 sono milleduecentocinquanta', fn () =>
+    OrderPaymentResource::amountFrom('1.250') === 1250.0
+    && OrderPaymentResource::amountFrom('1.250.000') === 1250000.0
+    && OrderPaymentResource::amountFrom('1.250,50') === 1250.5
+    && OrderPaymentResource::amountFrom('12.50') === 12.5
+    && OrderPaymentResource::amountFrom('0.500') === 0.5
+    && OrderPaymentResource::amountFrom('12,50') === 12.5
 );
 
 summary();

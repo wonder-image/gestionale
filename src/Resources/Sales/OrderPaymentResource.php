@@ -8,6 +8,7 @@ use Wonder\App\Resources\Support\NavigationOnlyResource;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
+use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\Backend\Support\FlashAlert;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
@@ -85,6 +86,12 @@ final class OrderPaymentResource extends NavigationOnlyResource
             ->only([])
             ->titles(['form' => 'Registra pagamento'])
             ->subtitles(['form' => 'Scrivi il denaro arrivato su questo ordine: resta tra i pagamenti e ne aggiorna lo stato.']);
+    }
+
+    /** Le pagine-form leggono `edit` (apertura) e `update` (invio): le azioni toccano denaro e magazzino, come l'elenco. */
+    public static function permissionSchema(): PermissionSchema
+    {
+        return PermissionSchema::for(static::class)->backend(['edit', 'update'], ['admin', 'administrator']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -173,7 +180,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
     }
 
     /**
-     * L'importo scritto da una persona: `12,50`, `12.50`, `1.250,50`, `40 €`.
+     * L'importo scritto da una persona: `12,50`, `12.50`, `1.250`, `1.250,50`, `40 €`.
      *
      * @return float|null null se non è un importo maggiore di zero
      */
@@ -187,6 +194,9 @@ final class OrderPaymentResource extends NavigationOnlyResource
 
         if (str_contains($text, ',')) {
             $text = str_replace(',', '.', str_replace('.', '', $text));
+        } elseif (preg_match('/^[1-9]\d{0,2}(\.\d{3})+$/', $text) === 1) {
+            // `1.250` all'italiana sono milleduecentocinquanta, non uno e venticinque.
+            $text = str_replace('.', '', $text);
         }
 
         if (preg_match('/^\d+(\.\d+)?$/', $text) !== 1) {

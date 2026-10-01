@@ -7,6 +7,7 @@ use Wonder\App\LegacyGlobals;
 use Wonder\App\Resources\Support\NavigationOnlyResource;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
+use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\Backend\Support\FlashAlert;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
@@ -48,6 +49,12 @@ final class OrderActionResource extends NavigationOnlyResource
     public static function pageSchema(): PageSchema
     {
         return parent::pageSchema()->only([])->titles(['form' => 'Azione sull\'ordine']);
+    }
+
+    /** Le pagine-form leggono `edit` (apertura) e `update` (invio): le azioni toccano denaro e magazzino, come l'elenco. */
+    public static function permissionSchema(): PermissionSchema
+    {
+        return PermissionSchema::for(static::class)->backend(['edit', 'update'], ['admin', 'administrator']);
     }
 
     public static function navigationSchema(): NavigationSchema
