@@ -91,6 +91,18 @@
             "payment_account": {
                 "in_use": "Questo conto è collegato a dei metodi di pagamento ({{count}}) e non si elimina: scollegalo dai metodi, oppure mettilo su «Non attivo».",
                 "invalid_iban": "L'IBAN non è valido: servono da 15 a 34 tra lettere e cifre, senza altri segni."
+            },
+            "return": {
+                "order_not_returnable": "Su quest'ordine non si può registrare un reso: serve un ordine confermato, evaso o chiuso, con i resi attivi.",
+                "nothing_selected": "Scrivi la quantità di almeno una riga: non c'è niente da rendere.",
+                "line_not_returnable": "Una delle righe non è un prodotto di quest'ordine: ricarica la pagina e riprova.",
+                "over_quantity": "Di {{product}} se ne possono rendere al massimo {{max}}: il resto è già stato reso.",
+                "unknown_reason": "Scegli il motivo del reso per ogni riga.",
+                "not_found": "Questo reso non esiste più.",
+                "cannot_complete": "Solo un reso ricevuto si può chiudere.",
+                "cannot_cancel": "Solo un reso ricevuto si può annullare.",
+                "already_restocked": "La merce di questo reso è già rientrata a magazzino: per correggere la giacenza usa una rettifica in Magazzino.",
+                "invalid_quantity": "La quantità di {{product}} non è valida: scrivi un numero maggiore di zero, oppure lascia la casella vuota."
             }
         },
         "emails": {
