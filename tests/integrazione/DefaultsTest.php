@@ -15,6 +15,7 @@ use Wonder\App\Support\DefaultRows;
 use Wonder\Plugin\Custom\Fattura\Valori\AliquoteIva;
 use Wonder\Plugin\Custom\Fattura\Valori\Natura;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Models\System\FeatureLog;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
@@ -55,6 +56,7 @@ try {
         sqlDelete(TaxCategory::$table);
         sqlDelete(Tax::$table);
         sqlDelete(MerchantSetting::$table);
+        sqlDelete(PaymentMethod::$table);
 
         Defaults::seed(new DefaultRows());
         $dopo = $righe();
@@ -141,6 +143,44 @@ try {
 
             return $riga !== [] && ($riga['has_stock'] ?? '') === 'true'
                 && str_starts_with((string) ($riga['code'] ?? ''), 'loc_');
+        });
+
+        $metodi = static function (): array {
+            $righe = array_values(array_filter((array) sqlSelect(PaymentMethod::$table, null)->row, 'is_array'));
+
+            return array_column($righe, null, 'code');
+        };
+
+        check('nascono tre metodi di pagamento: bonifico, contanti e Stripe', function () use ($metodi) {
+            $m = $metodi();
+
+            return array_keys($m) === ['bank-transfer', 'cash', 'stripe']
+                && ($m['bank-transfer']['timing'] ?? '') === 'deferred' && ($m['bank-transfer']['provider'] ?? '') === 'manual'
+                && ($m['cash']['timing'] ?? '') === 'on_delivery' && ($m['cash']['provider'] ?? '') === 'manual'
+                && ($m['cash']['available_for'] ?? '') === 'pickup'
+                && ($m['stripe']['timing'] ?? '') === 'immediate' && ($m['stripe']['provider'] ?? '') === 'stripe';
+        });
+
+        check('Stripe nasce spento finché non c\'è la chiave, gli altri due accesi', function () use ($metodi) {
+            $m = $metodi();
+
+            return ($m['stripe']['active'] ?? '') === 'false'
+                && ($m['bank-transfer']['active'] ?? '') === 'true'
+                && ($m['cash']['active'] ?? '') === 'true';
+        });
+
+        // Spento a mano e acceso a mano: il rilancio non rimette le cose com'erano.
+        PaymentMethod::update(['active' => 'false'], (int) $metodi()['bank-transfer']['id']);
+        PaymentMethod::update(['active' => 'true'], (int) $metodi()['stripe']['id']);
+
+        Defaults::seed(new DefaultRows());
+
+        check('il rilancio non duplica i metodi e non tocca quelli cambiati a mano', function () use ($metodi) {
+            $m = $metodi();
+
+            return count($m) === 3
+                && ($m['bank-transfer']['active'] ?? '') === 'false'
+                && ($m['stripe']['active'] ?? '') === 'true';
         });
 
         Defaults::seed(new DefaultRows());

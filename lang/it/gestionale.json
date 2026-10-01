@@ -84,6 +84,13 @@
             },
             "settings": {
                 "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo."
+            },
+            "payment_method": {
+                "in_use": "Questo metodo è già su ordini o pagamenti ({{count}}) e non si elimina: mettilo su «Non attivo» e non si propone più."
+            },
+            "payment_account": {
+                "in_use": "Questo conto è collegato a dei metodi di pagamento ({{count}}) e non si elimina: scollegalo dai metodi, oppure mettilo su «Non attivo».",
+                "invalid_iban": "L'IBAN non è valido: servono da 15 a 34 tra lettere e cifre, senza altri segni."
             }
         },
         "emails": {

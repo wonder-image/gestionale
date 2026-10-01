@@ -1,0 +1,141 @@
+<?php
+/** php tests/PaymentMethodResourceTest.php */
+declare(strict_types=1);
+
+require __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . '/harness.php';
+
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Resources\Payments\PaymentAccountResource;
+use Wonder\Plugin\Gestionale\Resources\Payments\PaymentMethodResource;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+
+$risorse = [
+    PaymentMethodResource::class => PaymentMethod::class,
+    PaymentAccountResource::class => PaymentAccount::class,
+];
+
+/** Le chiavi del form di una Resource. */
+$campi = static function (string $resource): array {
+    return array_values(array_map(static fn (object $f): string => (string) $f->name, $resource::formSchema()));
+};
+
+/** Le colonne vere di un Model, senza quelle di sistema. */
+$colonne = static function (string $model): array {
+    $nomi = [];
+
+    foreach ($model::tableSchema() as $colonna) {
+        $nomi[] = (string) $colonna->name;
+    }
+
+    return $nomi;
+};
+
+$opzioni = static function (string $resource, string $key): array {
+    foreach ($resource::formSchema() as $campo) {
+        if ((string) $campo->name === $key) {
+            return array_keys((array) ($campo->get('options') ?? []));
+        }
+    }
+
+    return [];
+};
+
+check('metodi e conti hanno il loro model e il loro indirizzo', fn () =>
+    PaymentMethodResource::$model === PaymentMethod::class
+    && PaymentAccountResource::$model === PaymentAccount::class
+    && PaymentMethodResource::path() === 'app/gestionale/metodi-di-pagamento'
+    && PaymentAccountResource::path() === 'app/gestionale/conti-di-pagamento'
+);
+
+check('stanno in Set Up, gruppo Pagamenti, solo per admin', function () use ($risorse) {
+    foreach (array_keys($risorse) as $resource) {
+        $nav = $resource::navigationSchema()->toArray();
+
+        if (($nav['section_key'] ?? '') !== 'set-up' || ($nav['group_key'] ?? '') !== 'pagamenti' || ($nav['authority'] ?? []) !== ['admin']) {
+            return false;
+        }
+
+        foreach ($resource::permissionSchema()->toArray()['backend'] ?? [] as $autorita) {
+            if ($autorita !== [] && $autorita !== ['admin']) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+});
+
+check('sono la configurazione: sempre attive e senza API', function () use ($risorse) {
+    foreach (array_keys($risorse) as $resource) {
+        if ($resource::$feature !== '' || (bool) ($resource::apiSchema()->toArray()['enabled'] ?? true) !== false) {
+            return false;
+        }
+    }
+
+    return true;
+});
+
+check('ogni campo del form è una colonna del Model: nessun campo fantasma', function () use ($risorse, $campi, $colonne) {
+    foreach ($risorse as $resource => $model) {
+        $vere = $colonne($model);
+
+        foreach ($campi($resource) as $campo) {
+            if (!in_array($campo, $vere, true)) {
+                echo "    {$resource}: campo fantasma {$campo}\n";
+
+                return false;
+            }
+        }
+    }
+
+    return true;
+});
+
+check('ogni colonna ha il suo campo, tranne la posizione, che mette il backend, e i tipi di Stripe', function () use ($risorse, $campi, $colonne) {
+    $esenti = ['id', 'creation', 'last_modified', 'deleted', 'position', 'stripe_payment_method_types'];
+
+    foreach ($risorse as $resource => $model) {
+        foreach ($colonne($model) as $colonna) {
+            if (!in_array($colonna, $esenti, true) && !in_array($colonna, $campi($resource), true)) {
+                echo "    {$resource}: colonna senza campo {$colonna}\n";
+
+                return false;
+            }
+        }
+    }
+
+    return true;
+});
+
+check('il tipo e il «quando» offrono le chiavi del Model', fn () =>
+    $opzioni(PaymentMethodResource::class, 'provider') === PaymentMethod::PROVIDERS
+    && $opzioni(PaymentMethodResource::class, 'timing') === PaymentMethod::TIMINGS
+    && $opzioni(PaymentMethodResource::class, 'fee_type') === PaymentMethod::FEE_TYPES
+    && $opzioni(PaymentMethodResource::class, 'available_for') === PaymentMethod::AVAILABLE_FOR
+);
+
+check('il codice si scrive: è un campo del form, non si inventa', fn () =>
+    in_array('code', $campi(PaymentMethodResource::class), true) && in_array('code', $campi(PaymentAccountResource::class), true)
+);
+
+check('l\'IBAN si normalizza: spazi tolti, maiuscole', fn () =>
+    PaymentAccountResource::normalizeIban(' it60 x054 2811 1010 0000 0123 456 ') === 'IT60X0542811101000000123456'
+);
+
+check('l\'IBAN malformato si rifiuta, quello vuoto no', function () {
+    foreach (['IT60', 'IT60-X054-2811-1010-0000-0123-456', str_repeat('A', 35)] as $iban) {
+        try {
+            PaymentAccountResource::normalizeIban($iban);
+
+            return false;
+        } catch (UserError) {
+            // atteso
+        }
+    }
+
+    return PaymentAccountResource::normalizeIban('') === '';
+});
+
+summary();
