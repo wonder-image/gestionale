@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Orders;
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
@@ -10,6 +11,7 @@ use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -96,7 +98,10 @@ final class Cart
     /**
      * Mette un articolo nel carrello, o ne aumenta la quantità.
      *
-     * @param array{product_id: int, quantity?: float, customization?: array<string, mixed>, customization_surcharge?: float} $line
+     * `customization` è `id della personalizzazione => testo o id dell'opzione`:
+     * il sovrapprezzo lo decide il server dall'anagrafica, mai il client.
+     *
+     * @param array{product_id: int, quantity?: float, customization?: array<int|string, mixed>} $line
      * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>}
      */
     public static function add(int $cartId, array $line): array
@@ -111,9 +116,8 @@ final class Cart
 
             $productId = (int) ($line['product_id'] ?? 0);
             $product = self::product($productId);
-            $customization = $line['customization'] ?? [];
-            $signature = self::signature($customization);
-            $existing = self::itemLike($cartId, $productId, $signature);
+            $resolved = self::resolveCustomization($product, (array) ($line['customization'] ?? []));
+            $existing = self::itemLike($cartId, $productId, Customizations::signature($resolved['fields']));
             $wanted = round($quantity + (float) ($existing['quantity'] ?? 0), 3);
 
             self::assertAvailable($product, $wanted);
@@ -133,8 +137,8 @@ final class Cart
                     'unit' => (string) (is_array($model) ? ($model['unit'] ?? 'pz') : 'pz'),
                     'quantity' => self::number($wanted),
                     'tax_category_id' => (int) (is_array($model) ? ($model['tax_category_id'] ?? 0) : 0),
-                    'customization' => $signature !== '' ? $signature : '',
-                    'customization_surcharge' => self::money((float) ($line['customization_surcharge'] ?? 0)),
+                    'customization' => Customizations::encode($resolved['fields']),
+                    'customization_surcharge' => $resolved['surcharge'],
                 ]);
             }
 
@@ -164,6 +168,7 @@ final class Cart
             $customerType = trim((string) ($cart['billing_pi'] ?? '')) !== '' ? 'business' : 'private';
             $removed = [];
             $computed = [];
+            $rewritten = [];
 
             foreach (self::items($cartId) as $item) {
                 $productId = (int) ($item['product_id'] ?? 0);
@@ -175,6 +180,34 @@ final class Cart
                     $removed[] = (string) $item['name'];
 
                     continue;
+                }
+
+                // Con la funzionalità spenta le righe già personalizzate restano
+                // come sono: il sovrapprezzo scritto è quello che il cliente ha
+                // visto, e rifarlo dall'anagrafica non si può.
+                if ((string) $item['type'] === 'product' && Gestionale::feature('customizations')) {
+                    try {
+                        $resolved = Customizations::resolve(
+                            (int) ($product['product_model_id'] ?? 0),
+                            Customizations::valuesOf(Customizations::decode($item['customization'] ?? ''))
+                        );
+                    } catch (UserError) {
+                        // L'anagrafica è cambiata sotto il carrello (personalizzazione
+                        // spenta, opzione tolta, obbligo nuovo): la riga non è più
+                        // vendibile così, e chi chiama lo trova in `removed`.
+                        OrderItem::delete((int) $item['id']);
+                        $removed[] = (string) $item['name'];
+
+                        continue;
+                    }
+
+                    $item['customization_surcharge'] = $resolved['surcharge'];
+                    // Le etichette cambiate in anagrafica si copiano finché la
+                    // riga sta nel carrello; dopo l'ordine non si toccano più.
+                    $rewritten[(int) $item['id']] = [
+                        'customization' => Customizations::encode($resolved['fields']),
+                        'customization_surcharge' => $resolved['surcharge'],
+                    ];
                 }
 
                 $price = LinePrice::of([
@@ -227,7 +260,7 @@ final class Cart
                     'tax_rate' => number_format((float) $line['tax_rate'], 2, '.', ''),
                     'tax_nature' => (string) $line['tax_nature'],
                     'line_total' => $line['line_total'],
-                ], (int) $line['id']);
+                ] + ($rewritten[(int) $line['id']] ?? []), (int) $line['id']);
             }
 
             Order::update([
@@ -311,7 +344,7 @@ final class Cart
 
             foreach (self::items($guestCartId) as $item) {
                 $productId = (int) ($item['product_id'] ?? 0);
-                $signature = (string) ($item['customization'] ?? '');
+                $signature = Customizations::signature(Customizations::decode($item['customization'] ?? ''));
                 $existing = self::itemLike($targetCartId, $productId, $signature);
                 $wanted = round((float) $item['quantity'] + (float) ($existing['quantity'] ?? 0), 3);
                 $wanted = self::capped($productId, $wanted);
@@ -360,7 +393,11 @@ final class Cart
 
         return [
             'order' => is_array($order) ? $order : [],
-            'items' => self::items($cartId),
+            'items' => array_map(static function (array $item): array {
+                $item['customization'] = Customizations::decode($item['customization'] ?? '');
+
+                return $item;
+            }, self::items($cartId)),
         ];
     }
 
@@ -469,7 +506,8 @@ final class Cart
     }
 
     /**
-     * La riga uguale a quella che sta entrando, se c'è.
+     * La riga uguale a quella che sta entrando, se c'è: stesso articolo e
+     * stessi valori di personalizzazione, qualunque ne sia l'ordine.
      *
      * @return array<string, mixed>|null
      */
@@ -478,7 +516,7 @@ final class Cart
         foreach (self::items($cartId) as $item) {
             if ((string) $item['type'] === 'product'
                 && (int) $item['product_id'] === $productId
-                && (string) ($item['customization'] ?? '') === $signature) {
+                && Customizations::signature(Customizations::decode($item['customization'] ?? '')) === $signature) {
                 return $item;
             }
         }
@@ -486,16 +524,33 @@ final class Cart
         return null;
     }
 
-    /** Due personalizzazioni uguali devono dare la stessa stringa. */
-    private static function signature(mixed $customization): string
+    /**
+     * Le personalizzazioni di una riga che sta entrando, controllate e
+     * prezzate sull'anagrafica.
+     *
+     * Con la funzionalità spenta i valori mandati si ignorano; ma un articolo
+     * che ne pretende una non si può comprare così, e lo si dice invece di
+     * vendere un articolo incompleto.
+     *
+     * @param array<string, mixed>     $product
+     * @param array<int|string, mixed> $values
+     * @return array{fields: list<array<string, mixed>>, surcharge: string}
+     */
+    private static function resolveCustomization(array $product, array $values): array
     {
-        if (!is_array($customization) || $customization === []) {
-            return '';
+        $modelId = (int) ($product['product_model_id'] ?? 0);
+
+        if (Gestionale::feature('customizations')) {
+            return Customizations::resolve($modelId, $values);
         }
 
-        ksort($customization);
+        foreach (Customizations::forModel($modelId) as $definition) {
+            if ($definition['required']) {
+                throw UserError::make('customization.unavailable', ['name' => (string) $product['name']]);
+            }
+        }
 
-        return (string) json_encode($customization, JSON_UNESCAPED_UNICODE);
+        return ['fields' => [], 'surcharge' => '0.00'];
     }
 
     private static function nextPosition(int $cartId): int
