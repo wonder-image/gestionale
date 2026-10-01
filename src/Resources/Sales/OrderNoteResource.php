@@ -29,6 +29,9 @@ final class OrderNoteResource extends NavigationOnlyResource
     /** Caratteri al massimo per ciascuna nota. */
     public const MAX = 5000;
 
+    /** Perché le note sono bloccate: sta nel tooltip del lucchetto e nel rifiuto. */
+    public const LOCKED_TEXT = 'Ordine evaso e pagato: le note non si modificano più.';
+
     public static function path(): string
     {
         return 'app/gestionale/ordine-note';
@@ -88,12 +91,28 @@ final class OrderNoteResource extends NavigationOnlyResource
     }
 
     /**
-     * La finestra con le due note, già compilate.
+     * Un ordine evaso e pagato è chiuso: le sue note non si riscrivono più.
+     *
+     * @param array<string, mixed> $order
+     */
+    public static function isLocked(array $order): bool
+    {
+        return (string) ($order['fulfillment_status'] ?? '') === 'fulfilled'
+            && (string) ($order['payment_status'] ?? '') === 'paid';
+    }
+
+    /**
+     * La finestra con le due note, già compilate. Vuota se le note sono
+     * bloccate: non c'è niente da aprire.
      *
      * @param array<string, mixed> $order
      */
     public static function modal(array $order, string $back): string
     {
+        if (static::isLocked($order)) {
+            return '';
+        }
+
         $id = static::MODAL_ID;
         $esc = static fn (string $v): string => OrderSheet::esc($v);
         $titolo = trim('Note: ordine '.trim((string) ($order['order_number'] ?? '')));
@@ -147,6 +166,10 @@ final class OrderNoteResource extends NavigationOnlyResource
             || (string) ($order['deleted'] ?? 'false') === 'true'
             || (string) ($order['stage'] ?? '') !== 'order') {
             return ['ok' => false, 'message' => 'Ordine non trovato.'];
+        }
+
+        if (static::isLocked($order)) {
+            return ['ok' => false, 'message' => static::LOCKED_TEXT];
         }
 
         $nuove = [];

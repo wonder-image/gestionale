@@ -143,9 +143,10 @@ final class OrdersDemo
             return 0;
         }
 
-        $customer = !empty($plan['company']) ? self::customer('rossi-abbigliamento') : 0;
         $guest = !empty($plan['guest']);
-        $email = $guest ? 'ospite.demo@example.com' : ($customer > 0 ? 'amministrazione.rossi@example.com' : 'anna.verdi@example.com');
+        // L'ospite compra senza scheda: è il caso in cui il cliente non è un link.
+        $customer = !empty($plan['company']) ? self::customer('rossi-abbigliamento') : ($guest ? 0 : self::customer('verdi'));
+        $email = $guest ? 'ospite.demo@example.com' : (!empty($plan['company']) ? 'amministrazione.rossi@example.com' : 'anna.verdi@example.com');
         $cartId = (int) Cart::open([
             'cart_token' => 'demo-'.$ref,
             'customer_id' => $customer,

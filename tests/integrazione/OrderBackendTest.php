@@ -218,6 +218,25 @@ check('le note di un carrello o di un ordine che non c\'è non si scrivono', fun
     });
 });
 
+check('un ordine evaso e pagato ha le note bloccate: niente matita, niente finestra, il salvataggio è rifiutato', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(5.0);
+        Order::update(['internal_note' => 'prima', 'payment_status' => 'paid'], $ordine);
+        $aperto = schedaHtml($ordine);
+        $finestraAperta = OrderNoteResource::modal((array) Order::findById($ordine), '');
+
+        Order::update(['fulfillment_status' => 'fulfilled'], $ordine);
+        $chiuso = schedaHtml($ordine);
+        $finestraChiusa = OrderNoteResource::modal((array) Order::findById($ordine), '');
+        $esito = OrderNoteResource::run($ordine, ['internal_note' => 'dopo']);
+
+        return str_contains($aperto, 'bi-pencil') && !str_contains($aperto, 'bi-lock') && $finestraAperta !== ''
+            && str_contains($chiuso, 'bi-lock') && !str_contains($chiuso, 'bi-pencil') && $finestraChiusa === ''
+            && $esito['ok'] === false && str_contains($esito['message'], 'evaso e pagato')
+            && ((array) Order::findById($ordine))['internal_note'] === 'prima';
+    });
+});
+
 /** Esegue il corpo con la posta chiusa: le azioni scrivono al cliente. */
 function senzaPosta(callable $corpo): mixed
 {

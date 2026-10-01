@@ -199,7 +199,8 @@ check('la scheda non ripete il titolo «Ordine» nell\'intestazione', function (
 
 check('il cliente è un link alla sua scheda solo se l\'ordine ne ha uno', fn () =>
     OrderResource::customerUrl(['customer_id' => 0]) === ''
-    && str_contains(OrderResource::customerUrl(['customer_id' => 7]), '/7/edit')
+    && str_contains(OrderResource::customerUrl(['customer_id' => 7]), '/clienti/7/')
+    && !str_contains(OrderResource::customerUrl(['customer_id' => 7]), '/edit')
 );
 
 check('la scheda è in sola lettura: nessun campo da compilare', function () use ($testoDi) {

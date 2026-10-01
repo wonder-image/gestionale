@@ -13,3 +13,7 @@
 - [x] 3.1 Righe d'ordine: nome completo (`ProductNames::full()`) e foto copiata sulla riga (`image`)
 - [x] 3.2 Scheda: *Totali* e poi *Riepilogo IVA* in alto a destra
 - [x] 3.3 `price()` al posto di `money()` (core e gestionale)
+- [x] 4.1 Note bloccate se l'ordine è evaso e pagato (lucchetto, salvataggio rifiutato)
+- [x] 4.2 Cliente cliccabile → scheda cliente con: prodotti nel carrello, ordini, coupon assegnati (predisposti: la frase, i coupon sono G7), tutti i suoi dati, statistiche
+- [x] Dati demo: Anna Verdi come cliente con i suoi ordini; l'ospite resta senza scheda
+- [ ] Prova nel browser (serve il login); push, CI della PR #3, merge e pulizia

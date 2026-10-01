@@ -12,7 +12,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 
 /**
- * Quattro schede di prova: due clienti e due fornitori.
+ * Cinque schede di prova: tre clienti e due fornitori.
  *
  * Servono a vedere gli elenchi pieni e a provare i casi che contano davvero —
  * un privato senza partita IVA, un'azienda con fatturazione elettronica, e un
@@ -41,7 +41,7 @@ final class ContactsDemo
     {
         DemoData::register(
             self::KEY,
-            'Anagrafiche: due clienti e due fornitori',
+            'Anagrafiche: tre clienti e due fornitori',
             static fn (): int => self::create(),
             static fn (): int => self::clear()
         );
@@ -66,6 +66,22 @@ final class ContactsDemo
             'cap' => '20121',
             'street' => 'Via Manzoni',
             'number' => '12',
+            'is_customer' => 'true',
+        ]);
+
+        $created += self::contact('verdi', [
+            'type' => 'private',
+            'name' => 'Anna',
+            'surname' => 'Verdi',
+            'email' => 'anna.verdi@example.com',
+            'phone_prefix' => '+39',
+            'phone' => '3487654321',
+            'country' => 'IT',
+            'province' => 'RM',
+            'city' => 'Roma',
+            'cap' => '00100',
+            'street' => 'Via del Corso',
+            'number' => '10',
             'is_customer' => 'true',
         ]);
 

@@ -433,23 +433,7 @@ final class OrderResource extends GestionaleResource
     {
         $id = (int) ($order['customer_id'] ?? 0);
 
-        if ($id <= 0) {
-            return '';
-        }
-
-        $fallback = '/backend/'.CustomerResource::path().'/'.$id.'/edit/';
-
-        if (!function_exists('__r')) {
-            return $fallback;
-        }
-
-        try {
-            $named = (string) __r('backend.resource.'.CustomerResource::slug().'.edit', ['id' => $id]);
-        } catch (Throwable) {
-            return $fallback;
-        }
-
-        return $named !== '' ? $named : $fallback;
+        return $id > 0 ? CustomerResource::viewUrl($id) : '';
     }
 
     /**
@@ -460,10 +444,12 @@ final class OrderResource extends GestionaleResource
      */
     protected static function headerHtml(array $order, array $metodi): string
     {
-        $dato = static fn (string $etichetta, string $html, string $modifica = ''): string => '<div class="col-12 col-sm-6 mb-3">'
+        $dato = static fn (string $etichetta, string $html, string $modifica = ''): string => '<div class="col-12 col-sm-4 mb-3">'
             .'<div class="small text-muted">'.static::escape($etichetta).$modifica.'</div><div>'.($html !== '' ? $html : '<span class="text-muted">—</span>').'</div></div>';
         // La matita accanto a una nota apre la finestra delle note.
-        $matita = static fn (string $nota): string => ' <a href="#" class="text-muted ms-1" title="Modifica la '.static::escape(strtolower($nota)).'" aria-label="Modifica la '.static::escape(strtolower($nota)).'"'
+        $bloccate = OrderNoteResource::isLocked($order);
+        $lucchetto = ' <i class="bi bi-lock text-muted ms-1" title="'.static::escape(OrderNoteResource::LOCKED_TEXT).'" aria-label="'.static::escape(OrderNoteResource::LOCKED_TEXT).'"></i>';
+        $matita = static fn (string $nota): string => $bloccate ? $lucchetto : ' <a href="#" class="text-muted ms-1" title="Modifica la '.static::escape(strtolower($nota)).'" aria-label="Modifica la '.static::escape(strtolower($nota)).'"'
             .' onclick="window.bootstrap.Modal.getOrCreateInstance(document.getElementById('.static::escape((string) json_encode(OrderNoteResource::MODAL_ID)).')).show(); return false;">'
             .'<i class="bi bi-pencil"></i></a>';
         $testo = static fn (string $v): string => trim($v) !== '' ? static::escape($v) : '';

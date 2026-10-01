@@ -106,6 +106,21 @@ versionamento semantico.
   (`ProductNames::full()`: articolo e opzione) e l'**indirizzo della foto** che
   aveva al momento dell'ordine (colonna `image`); le righe già esistenti ne
   sono prive e la tabella ripiega sulla foto del catalogo.
+  Le *note* di un ordine evaso e pagato sono bloccate: lucchetto al posto
+  della matita, e il salvataggio le rifiuta anche se la richiesta arriva a
+  mano. Il cliente nella scheda ordine è un link alla **scheda cliente**.
+- Scheda cliente (sola lettura, `view` della Resource *Clienti*; il nome
+  nell'elenco la apre, il pulsante *Modifica* porta al form): *Statistiche*
+  (ordini, speso, scontrino medio, primo e ultimo ordine, da pagare, carrello),
+  *Ordini* (tabella del core, con i tre stati), *Prodotti nel carrello*,
+  *Coupon assegnati* (per ora solo la frase: i coupon non esistono ancora) e
+  *Tutti i suoi dati* (anagrafica, fatturazione, indirizzi di consegna,
+  metodo di accesso, note). Senza la funzionalità «orders» restano coupon e
+  dati. Le statistiche stanno in `Support\Contacts\CustomerStats` (non contano
+  gli ordini annullati o rimborsati per intero né i carrelli) e il disegno in
+  `Support\Contacts\CustomerSheet`. I fornitori non hanno scheda: il nome apre
+  la modifica. Dati di prova: nuova cliente *Anna Verdi* con i suoi ordini; solo
+  l'ospite resta senza scheda.
 - `Support\Catalog\ProductPhotos`: la foto di un articolo (opzione, colore,
   poi modello), usata dalle giacenze e dalle righe dell'ordine.
   *Metodi di pagamento* e *Conti di pagamento* in Set Up, per l'`admin`.

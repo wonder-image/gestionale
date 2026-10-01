@@ -16,6 +16,11 @@ final class SupplierResource extends CustomerResource
 {
     public static string $feature = 'purchasing';
 
+    public static function hasSheet(): bool
+    {
+        return false;
+    }
+
     public static function roleColumn(): string
     {
         return 'is_supplier';

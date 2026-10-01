@@ -157,7 +157,7 @@ final class OrderSheet
                 .'<td class="text-end">'.self::money($valore).'</td></tr>';
         }
 
-        return '<table class="table table-sm mb-0" style="max-width: 24rem; font-variant-numeric: tabular-nums"><tbody>'.$righe.'</tbody></table>';
+        return '<table class="table table-sm mb-0" style="font-variant-numeric: tabular-nums"><tbody>'.$righe.'</tbody></table>';
     }
 
     /** Lo stato di un pagamento come etichetta colorata. */

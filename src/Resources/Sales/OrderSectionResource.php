@@ -79,16 +79,53 @@ abstract class OrderSectionResource extends GestionaleResource
      */
     public static function embed(int $orderId): string
     {
-        $vuoto = '<p class="text-muted mb-0">'.static::escape(static::emptyText()).'</p>';
+        if ($orderId <= 0) {
+            return static::emptyHtml(static::emptyText());
+        }
 
-        if ($orderId <= 0 || !static::featureActive() || static::rowsOf(static::$model, ['order_id' => $orderId]) === []) {
+        return static::embedWhere('`order_id` = '.$orderId);
+    }
+
+    /**
+     * La stessa tabella per le righe di più ordini — i carrelli di un cliente,
+     * per esempio. Una lista vuota è la frase vuota.
+     *
+     * @param list<int> $orderIds
+     */
+    public static function embedMany(array $orderIds, ?string $empty = null): string
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $orderIds), static fn (int $id): bool => $id > 0)));
+
+        if ($ids === []) {
+            return static::emptyHtml($empty ?? static::emptyText());
+        }
+
+        return static::embedWhere('`order_id` IN ('.implode(',', $ids).')', $empty);
+    }
+
+    /**
+     * La tabella delle righe che soddisfano la condizione, o la frase se non
+     * ce n'è nessuna. La condizione la scrive la Resource, mai l'utente: gli
+     * id arrivano già interi.
+     */
+    protected static function embedWhere(string $condition, ?string $empty = null): string
+    {
+        $vuoto = static::emptyHtml($empty ?? static::emptyText());
+
+        if (!static::featureActive()) {
             return $vuoto;
         }
 
         try {
+            $prima = static::$model::find("({$condition}) AND `deleted` = 'false'", 1);
+
+            if (!is_array($prima) || !isset($prima['id'])) {
+                return $vuoto;
+            }
+
             $tabella = static::backendTable([], static::tableLayoutSchema());
             $tabella->length(50);
-            $tabella->query('`order_id` = '.$orderId." AND `deleted` = 'false'");
+            $tabella->query("({$condition}) AND `deleted` = 'false'");
             $tabella->queryOrder(static::sortColumn(), static::sortDirection());
             $html = (string) $tabella->generate(false);
         } catch (Throwable) {
@@ -96,5 +133,10 @@ abstract class OrderSectionResource extends GestionaleResource
         }
 
         return $html !== '' ? $html : $vuoto;
+    }
+
+    private static function emptyHtml(string $text): string
+    {
+        return '<p class="text-muted mb-0">'.static::escape($text).'</p>';
     }
 }

@@ -11,15 +11,25 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Throwable;
+use Wonder\Elements\Components\Accordion;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
+use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Resources\Sales\CustomerOrderTableResource;
+use Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerStats;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Sql\Transaction;
@@ -79,6 +89,7 @@ class CustomerResource extends GestionaleResource
     {
         return [
             'email' => 'Email',
+            'auth_method' => 'Accesso',
             'roles' => 'Ruolo',
             'is_customer' => 'Ruolo',
             'is_supplier' => 'Fornitore',
@@ -197,7 +208,7 @@ class CustomerResource extends GestionaleResource
         return [
             TableColumn::key('name')
                 ->text()
-                ->link('edit')
+                ->link(static::hasSheet() ? 'view' : 'edit')
                 ->formatter(static fn (array $row): string => static::escape(
                     Contacts::displayName($row)
                 )),
@@ -207,22 +218,176 @@ class CustomerResource extends GestionaleResource
                 ->text()
                 ->size('little')
                 ->formatter(static fn (array $row): string => static::escape(Contacts::roles($row))),
+            TableColumn::key('auth_method')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::escape(static::authMethod($row))),
             TableColumn::key('active')
                 ->booleanBadge()
                 ->badgeOn('Attiva', 'bi-check-circle', 'success')
                 ->badgeOff('Non attiva', 'bi-pause-circle', 'secondary')
                 ->size('little'),
-            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+            TableColumn::key('actions')->button()->actions(static::hasSheet() ? ['view', 'edit', 'delete'] : ['edit', 'delete']),
         ];
+    }
+
+    public static function tableLayoutSchema(): TableLayoutSchema
+    {
+        return parent::tableLayoutSchema()->select(
+            "(SELECT GROUP_CONCAT(DISTINCT af.provider ORDER BY af.provider SEPARATOR ',')
+                FROM auth_federated af
+                WHERE af.user_id = gst_contacts.user_id AND af.deleted = 'false') AS auth_providers,
+             EXISTS(SELECT 1 FROM `user` u
+                WHERE u.id = gst_contacts.user_id
+                  AND u.deleted = 'false'
+                  AND COALESCE(u.password, '') <> '') AS has_local_password"
+        );
+    }
+
+    /**
+     * La scheda in sola lettura, con ordini, carrello e statistiche: è del
+     * cliente. Chi guarda i fornitori si apre direttamente sulla modifica.
+     */
+    public static function hasSheet(): bool
+    {
+        return true;
     }
 
     public static function pageSchema(): PageSchema
     {
-        return parent::pageSchema()->titles([
+        $pages = parent::pageSchema()->titles([
             'list' => static::titleLabel(),
             'create' => 'Aggiungi '.static::textSchema()['label'],
             'edit' => 'Modifica '.static::textSchema()['label'],
+            'view' => 'Scheda '.static::textSchema()['label'],
         ]);
+
+        if (!static::hasSheet()) {
+            return $pages;
+        }
+
+        // Stesso schema dell'articolo: si guarda in lettura, e la modifica sta
+        // dietro al bottone «Modifica» in testata.
+        return $pages
+            ->enable(['view'])
+            ->view('show', Gestionale::viewPath('pages/customer-show.php'))
+            ->actions('view', static fn (array $item): array => [[
+                'label' => 'Modifica',
+                'icon' => 'bi-pencil',
+                'class' => 'btn-warning btn-sm',
+                'href' => static::editUrlFor((int) ($item['id'] ?? 0)),
+            ]]);
+    }
+
+    /** L'indirizzo della scheda in lettura; il ripiego è il percorso. */
+    public static function viewUrl(int $id): string
+    {
+        return static::namedUrl('view', '/backend/'.static::path().'/'.$id.'/', $id);
+    }
+
+    /** L'indirizzo della modifica. */
+    public static function editUrlFor(int $id): string
+    {
+        return static::namedUrl('edit', '/backend/'.static::path().'/'.$id.'/edit/', $id);
+    }
+
+    private static function namedUrl(string $action, string $fallback, int $id): string
+    {
+        if (!function_exists('__r')) {
+            return $fallback;
+        }
+
+        try {
+            $named = (string) __r('backend.resource.'.static::slug().'.'.$action, ['id' => $id]);
+        } catch (Throwable) {
+            return $fallback;
+        }
+
+        return $named !== '' ? $named : $fallback;
+    }
+
+    /** Il titolo della scheda: il nome del cliente. */
+    public static function pageTitle(array $contact): string
+    {
+        return Contacts::displayName($contact);
+    }
+
+    /**
+     * La scheda del cliente: statistiche, ordini, carrello, coupon e tutti i
+     * suoi dati. Ordini, carrello e statistiche seguono la funzionalità
+     * «orders»: spenta, restano i dati e i coupon.
+     */
+    public static function showLayoutSchema(array $contact): Container
+    {
+        $id = (int) ($contact['id'] ?? 0);
+        $userId = (int) ($contact['user_id'] ?? 0);
+        $vendite = Gestionale::feature('orders');
+
+        $accordion = static fn (string $titolo, string $html, bool $aperto = false): Accordion => $aperto
+            ? Accordion::make($titolo)->expanded()->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12)
+            : Accordion::make($titolo)->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12);
+
+        $componenti = [];
+
+        if ($vendite) {
+            $mine = '`customer_id` = '.$id.($userId > 0 ? ' OR `user_id` = '.$userId : '');
+            $ordini = static::rowsOf(Order::class, $mine);
+            $carrelli = array_values(array_map(
+                static fn (array $o): int => (int) $o['id'],
+                array_filter($ordini, static fn (array $o): bool => (string) ($o['stage'] ?? '') === 'cart')
+            ));
+            $righe = $carrelli === [] ? [] : static::rowsOf(OrderItem::class, '`order_id` IN ('.implode(',', $carrelli).')');
+            $stats = CustomerStats::of($ordini, $righe);
+
+            $componenti[] = (new Card)->components([
+                SectionTitle::make('Statistiche')
+                    ->tooltip('Gli ordini annullati o rimborsati per intero non si contano fra gli speso. Il carrello è quello ancora aperto.')
+                    ->columnSpan(12),
+                RichText::make(CustomerSheet::stats($stats))->tag('div')->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+
+            $componenti[] = $accordion('Ordini', CustomerOrderTableResource::embedForCustomer($id, $userId), true);
+            $componenti[] = $accordion('Prodotti nel carrello', OrderItemTableResource::embedMany($carrelli, 'Nessun prodotto nel carrello.'));
+        }
+
+        $componenti[] = $accordion('Coupon assegnati', '<p class="text-muted mb-0">'.static::escape(CustomerSheet::couponsEmpty()).'</p>');
+        $componenti[] = $accordion('Tutti i suoi dati', CustomerSheet::details(
+            $contact,
+            static::rowsOf(ContactAddress::class, ['contact_id' => $id], 'position'),
+            static::authMethod(static::withAccount($contact))
+        ), !$vendite);
+
+        return (new Container)->components($componenti)->columns(12);
+    }
+
+    /**
+     * La scheda con i metodi di accesso del suo account, letti qui perché
+     * l'elenco li prende con una sottoquery e la scheda no.
+     *
+     * @return array<string, mixed>
+     */
+    protected static function withAccount(array $contact): array
+    {
+        $userId = (int) ($contact['user_id'] ?? 0);
+
+        if ($userId <= 0) {
+            return $contact;
+        }
+
+        try {
+            $providers = (array) sqlSelect('auth_federated', ['user_id' => $userId, 'deleted' => 'false'])->row;
+            $user = (array) sqlSelect('user', ['id' => $userId, 'deleted' => 'false'], 1)->row;
+        } catch (Throwable) {
+            return $contact;
+        }
+
+        $contact['auth_providers'] = implode(',', array_filter(array_map(
+            static fn ($row): string => is_array($row) ? (string) ($row['provider'] ?? '') : '',
+            $providers
+        )));
+        $contact['has_local_password'] = trim((string) ($user['password'] ?? '')) !== '';
+
+        return $contact;
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -399,6 +564,30 @@ class CustomerResource extends GestionaleResource
     protected static function defaultRoleChoice(): string
     {
         return static::roleColumn() === 'is_supplier' ? 'supplier' : 'customer';
+    }
+
+    /** Metodi con cui il cliente può autenticarsi, mostrati nella rubrica. */
+    public static function authMethod(array $row): string
+    {
+        if ((int) ($row['user_id'] ?? 0) <= 0) {
+            return 'Nessun account';
+        }
+
+        $providers = array_values(array_filter(array_map(
+            static fn (string $provider): string => match (strtolower(trim($provider))) {
+                'google' => 'Google',
+                'apple' => 'Apple',
+                default => ucfirst(strtolower(trim($provider))),
+            },
+            explode(',', (string) ($row['auth_providers'] ?? ''))
+        )));
+        $local = filter_var($row['has_local_password'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if ($local) {
+            array_unshift($providers, 'Email e password');
+        }
+
+        return $providers === [] ? 'Account senza metodo di accesso' : implode(' + ', $providers);
     }
 
     /** Il ruolo già salvato, per quando il campo non è stato stampato. */
