@@ -40,6 +40,16 @@ check('la tabella elenca le righe col loro massimo, e il nome del prodotto non �
         && str_contains($html, 'name="lines[11][reason]"') && str_contains($html, 'name="lines[11][restock]"');
 });
 
+check('la tabella mostra la personalizzazione sotto il nome, escapata', function () {
+    $html = OrderReturnResource::linesHtml([[
+        'order_item_id' => 21, 'name' => 'Penna', 'ordered' => 1.0, 'returned' => 0.0, 'max' => 1.0,
+        'customization' => [['customization_id' => 1, 'label' => 'Incisione', 'value' => '<i>Marco</i>', 'option_id' => 0, 'surcharge' => '5.00']],
+    ]]);
+
+    return str_contains($html, 'Incisione: &lt;i&gt;Marco&lt;/i&gt;') && !str_contains($html, '<i>Marco')
+        && !str_contains(OrderReturnResource::linesHtml([['order_item_id' => 22, 'name' => 'Penna', 'ordered' => 1.0, 'returned' => 0.0, 'max' => 1.0]]), 'Incisione');
+});
+
 check('una riga già resa per intero è grigia e senza campi', function () use ($righe) {
     $html = OrderReturnResource::linesHtml($righe);
 

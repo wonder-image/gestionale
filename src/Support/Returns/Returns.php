@@ -9,6 +9,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnStatusLog;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -60,7 +61,9 @@ final class Returns
     /**
      * Le righe prodotto di un ordine con quanto se ne può ancora rendere.
      *
-     * @return list<array{order_item_id: int, name: string, ordered: float, returned: float, max: float}>
+     * `customization` è la lista decodificata dei campi (vuota se la riga non è personalizzata).
+     *
+     * @return list<array{order_item_id: int, name: string, ordered: float, returned: float, max: float, customization: list<array<string, mixed>>}>
      */
     public static function lines(int $orderId): array
     {
@@ -76,6 +79,7 @@ final class Returns
                 'ordered' => $ordered,
                 'returned' => $returned,
                 'max' => ReturnRules::returnable($ordered, $returned),
+                'customization' => Customizations::decode($item['customization'] ?? ''),
             ];
         }
 

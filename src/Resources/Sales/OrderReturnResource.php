@@ -20,6 +20,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Returns\ReturnRules;
@@ -184,7 +185,7 @@ final class OrderReturnResource extends NavigationOnlyResource
             $id = (int) $line['order_item_id'];
             $max = (float) $line['max'];
             $nome = OrderSheet::esc((string) $line['name']);
-            $celle = '<td>'.$nome.'</td><td class="text-end">'.static::pieces((float) $line['ordered']).'</td><td class="text-end">'.static::pieces((float) $line['returned']).'</td>';
+            $celle = '<td>'.$nome.static::customizationLines($line).'</td><td class="text-end">'.static::pieces((float) $line['ordered']).'</td><td class="text-end">'.static::pieces((float) $line['returned']).'</td>';
 
             if ($max <= 0) {
                 $righe .= '<tr class="text-muted">'.$celle.'<td colspan="3"><span class="fst-italic">Già reso per intero</span></td></tr>';
@@ -208,6 +209,18 @@ final class OrderReturnResource extends NavigationOnlyResource
             .'<th>Prodotto</th><th class="text-end">Ordinati</th><th class="text-end">Già resi</th>'
             .'<th>Quantità</th><th>Motivo</th><th class="text-center">Rientra a magazzino</th>'
             .'</tr></thead><tbody>'.$righe.'</tbody></table></div>';
+    }
+
+    /** Le personalizzazioni della riga sotto il nome, escapate una volta. */
+    private static function customizationLines(array $line): string
+    {
+        $html = '';
+
+        foreach (Customizations::lines($line) as $riga) {
+            $html .= '<div class="text-muted small">'.OrderSheet::esc($riga).'</div>';
+        }
+
+        return $html;
     }
 
     /**

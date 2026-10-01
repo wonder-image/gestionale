@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
@@ -126,6 +127,11 @@ final class OrderItemTableResource extends OrderSectionResource
 
         if ($sku !== '') {
             $html .= '<div class="text-muted small">'.static::escapeStored($sku).'</div>';
+        }
+
+        // `lines()` ridà testo semplice (già decodificato): si escapa una volta, qui.
+        foreach (Customizations::lines($row) as $riga) {
+            $html .= '<div class="text-muted small">'.static::escape($riga).'</div>';
         }
 
         return $html;

@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
@@ -88,6 +89,19 @@ function conReso(callable $corpo): mixed
         return $corpo();
     });
 }
+
+check('le righe rendibili riportano la personalizzazione decodificata', function () {
+    return prova(static function (): bool {
+        [$ordine, $riga] = ordineVenduto();
+        $campi = [['customization_id' => 1, 'label' => 'Incisione', 'value' => 'Café & co', 'option_id' => 0, 'surcharge' => '5.00']];
+        OrderItem::update(['customization' => Customizations::encode($campi)], $riga);
+
+        $righe = Returns::lines($ordine);
+
+        return count($righe) === 1 && $righe[0]['customization'] === Customizations::decode(Customizations::encode($campi))
+            && $righe[0]['customization'][0]['value'] === 'Café & co';
+    });
+});
 
 check('un reso con ricarico rimette la merce in magazzino e lascia il suo segno', function () {
     return conReso(static function (): bool {

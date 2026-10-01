@@ -14,6 +14,7 @@ require __DIR__.'/supporto/compra.php';
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderEmail;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
@@ -137,6 +138,28 @@ check('le istruzioni di pagamento stanno solo nella ricevuta e nel promemoria', 
         }
 
         return $dentro === ['received' => true, 'reminder' => true, 'confirmed' => false, 'cancelled' => false];
+    });
+});
+
+check('la personalizzazione sta sotto il nome in entrambe le email, con la & escapata una volta sola', function () {
+    return prova(static function (): bool {
+        $ordine = (array) Order::findById(ordineConRiga());
+        $righe = [[
+            'sku' => 'TST-MAIL', 'name' => 'Crema da prova', 'quantity' => '1.000', 'line_total' => '25.00',
+            'customization' => Customizations::encode([['customization_id' => 1, 'label' => 'Incisione', 'value' => 'Marco & Luca', 'option_id' => 0, 'surcharge' => '5.00']]),
+        ]];
+
+        foreach (['received', 'merchant_new'] as $chiave) {
+            $corpo = OrderEmail::compose($chiave, $ordine, $righe)['body'];
+
+            if (!str_contains($corpo, 'Incisione: Marco &amp; Luca') || str_contains($corpo, '&amp;amp;')) {
+                return false;
+            }
+        }
+
+        $senza = OrderEmail::compose('received', $ordine, [['name' => 'Crema', 'quantity' => '1.000', 'line_total' => '1.00']])['body'];
+
+        return !str_contains($senza, 'text-muted');
     });
 });
 

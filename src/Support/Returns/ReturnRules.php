@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Returns;
 
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
+
 /**
  * Le regole del reso che non hanno bisogno del database: quanto si può
  * rendere, cosa rientra a magazzino di norma, come si legge una quantità.
@@ -21,6 +23,18 @@ final class ReturnRules
 
     /** Gli stati d'ordine su cui un reso ha senso. */
     private const ORDER_STATUSES = ['confirmed', 'processing', 'completed'];
+
+    /**
+     * Il reso online (dal sito, senza il commerciante) è per la merce
+     * di serie: una riga personalizzata è fatta su misura e non si rimanda
+     * indietro da sola. Resta possibile registrarla dal backend.
+     *
+     * @param array<string, mixed> $item una riga d'ordine
+     */
+    public static function onlineReturnable(array $item): bool
+    {
+        return Customizations::decode($item['customization'] ?? '') === [];
+    }
 
     /** Merce rotta non torna in vendita: la spunta parte spenta. */
     public static function defaultRestock(string $reason): bool

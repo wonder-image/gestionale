@@ -19,7 +19,12 @@
         <?php foreach ($items as $item) { ?>
             <tr>
                 <td><?= $e($item['sku'] ?? '') ?></td>
-                <td><?= $e($item['name'] ?? '') ?></td>
+                <td>
+                    <?= $e($item['name'] ?? '') ?>
+                    <?php foreach (Wonder\Plugin\Gestionale\Support\Catalog\Customizations::lines($item) as $line) { ?>
+                        <div class="text-muted small"><?= $e($line) ?></div>
+                    <?php } ?>
+                </td>
                 <td align="right"><?= $e($qty($item['quantity'] ?? 0)) ?></td>
                 <td align="right"><?= $e($money($item['line_total'] ?? 0)) ?> &euro;</td>
             </tr>
