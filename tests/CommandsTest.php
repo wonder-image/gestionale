@@ -54,6 +54,18 @@ check('i dati di prova si dichiarano con chiave, titolo e due funzioni', functio
         && is_callable($registro['prova']['clear'] ?? null);
 });
 
+check('i dati di prova si cancellano dall\'ultimo registrato al primo: chi dipende da altro se ne va prima', function () {
+    foreach (['contatti', 'catalogo', 'ordini'] as $chiave) {
+        DemoData::register($chiave, $chiave, static fn (): int => 0, static fn (): int => 0);
+    }
+
+    $ordine = array_keys(DemoData::inClearOrder());
+    $inCreazione = array_keys(DemoData::all());
+    DemoData::reset();
+
+    return $ordine === ['ordini', 'catalogo', 'contatti'] && $inCreazione === ['contatti', 'catalogo', 'ordini'];
+});
+
 check('le note dei dati di prova si leggono una volta sola', function () {
     DemoData::note('Resta al suo posto 1 dato di prova ancora in uso: categoria «Accessori».');
     DemoData::note('   ');

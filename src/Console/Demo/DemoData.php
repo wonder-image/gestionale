@@ -39,6 +39,19 @@ final class DemoData
         return self::$registry;
     }
 
+    /**
+     * Il registro rovesciato: l'ordine in cui si cancella.
+     *
+     * Chi è registrato dopo dipende da chi c'è prima — gli ordini vendono gli
+     * articoli del catalogo — e deve andarsene per primo.
+     *
+     * @return array<string, array{title: string, create: callable, clear: callable}>
+     */
+    public static function inClearOrder(): array
+    {
+        return array_reverse(self::$registry, true);
+    }
+
     /** Una nota per chi lancia il comando; le vuote non contano. */
     public static function note(string $text): void
     {
