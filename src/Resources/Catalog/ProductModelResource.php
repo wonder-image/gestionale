@@ -31,6 +31,8 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
+use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
@@ -129,6 +131,9 @@ class ProductModelResource extends GestionaleResource
 
     /** L'id del bottone «Nuova caratteristica»: lo script della scheda lo cerca. */
     protected const TECHNICAL_BUTTON = 'wi-technical-new';
+
+    /** L'id del bottone «Nuova personalizzazione»: lo script del riquadro lo cerca. */
+    public const CUSTOMIZATION_BUTTON = 'wi-customization-new';
 
     /**
      * L'id della finestra «Giacenza» della griglia, con più sedi (P103): il
@@ -317,6 +322,35 @@ class ProductModelResource extends GestionaleResource
         // opzioni sono colonne della griglia.
         array_push($fields, ...static::supplierInputs($modelId ?? 0, 'product_'));
 
+        // Le personalizzazioni dell'articolo (G5): una sola lista per tutte le
+        // sue varianti. Spenta la funzionalità il campo non c'è, e salvare
+        // l'articolo non tocca i collegamenti.
+        if (Gestionale::feature('customizations')) {
+            $fields[] = FormField::key('customizations')
+                ->repeater([
+                    RepeaterColumn::key('id')->hidden(),
+                    RepeaterColumn::key('customization_id')
+                        ->select(static::customizationOptions((int) ($modelId ?? 0)))
+                        ->label('Personalizzazione')
+                        ->columnFill(),
+                    RepeaterColumn::key('is_required')
+                        ->select(['false' => 'No', 'true' => 'Sì'])
+                        ->label('Obbligatoria')
+                        ->columnSpan(3),
+                ])
+                ->relation(
+                    RepeaterRelation::make(ProductModelCustomization::$table, 'product_model_id')
+                        ->model(ProductModelCustomization::class)
+                        ->positionKey('position')
+                        ->softDelete(false)
+                )
+                ->nested()
+                ->repeaterSortable()
+                ->repeaterStartEmpty()
+                ->repeaterAddLabel('Aggiungi personalizzazione')
+                ->label('');
+        }
+
         return $fields;
     }
 
@@ -474,6 +508,10 @@ class ProductModelResource extends GestionaleResource
         ];
 
         $cards[] = static::technicalSheetCard();
+
+        if (Gestionale::feature('customizations')) {
+            $cards[] = static::customizationsCard();
+        }
 
         // La finestra «Giacenza» della griglia (P103) e il suo script: una
         // sola per la pagina, qui e non nel riquadro delle opzioni, che senza
@@ -2250,6 +2288,24 @@ class ProductModelResource extends GestionaleResource
         string $action = 'store',
         string $context = 'backend'
     ): array {
+        // Una personalizzazione si collega una volta sola: senza scelta o già
+        // vista, la riga non conta.
+        if ($inputName === 'customizations') {
+            $viste = [];
+
+            return array_values(array_filter($rows, static function ($row) use (&$viste): bool {
+                $id = is_array($row) ? trim((string) ($row['customization_id'] ?? '')) : '';
+
+                if ($id === '' || isset($viste[$id])) {
+                    return false;
+                }
+
+                $viste[$id] = true;
+
+                return true;
+            }));
+        }
+
         if ($inputName !== 'products') {
             return $rows;
         }
@@ -3139,6 +3195,12 @@ class ProductModelResource extends GestionaleResource
             );
             ProductSuppliers::dropFor($productIds);
             Thresholds::dropFor($productIds);
+
+            // I collegamenti alle personalizzazioni, anche a funzionalità
+            // spenta: la chiave esterna non lascerebbe eliminare l'articolo.
+            foreach (static::rowsOf(ProductModelCustomization::class, ['product_model_id' => $modelId, 'deleted' => ['true', 'false']]) as $link) {
+                ProductModelCustomization::delete((int) $link['id']);
+            }
 
             // Anche le opzioni tolte dalla griglia, prima delle varianti: una
             // riga nel cestino tiene ferma la sua variante come le altre.
@@ -4778,6 +4840,137 @@ HTML)->tag('div');
         }
 
         return $ids;
+    }
+
+    /**
+     * Le personalizzazioni che si possono scegliere per l'articolo: quelle
+     * attive per nome, e le disattivate che l'articolo ha già collegate, con
+     * la scritta (altrimenti il collegamento sparirebbe dalla lista senza che
+     * nessuno l'abbia tolto).
+     *
+     * @return array<string, string>
+     */
+    public static function customizationOptions(int $modelId): array
+    {
+        $collegate = [];
+
+        if ($modelId > 0) {
+            foreach (static::rowsOf(ProductModelCustomization::class, ['product_model_id' => $modelId]) as $link) {
+                $collegate[(int) $link['customization_id']] = true;
+            }
+        }
+
+        $voci = ['' => '—'];
+
+        foreach (static::rowsOf(Customization::class, [], 'name') as $row) {
+            $id = (int) $row['id'];
+            $nome = (string) ($row['name'] ?? '');
+
+            if (($row['active'] ?? 'true') === 'true') {
+                $voci[(string) $id] = $nome;
+            } elseif (isset($collegate[$id])) {
+                $voci[(string) $id] = $nome.' (disattivata)';
+            }
+        }
+
+        return $voci;
+    }
+
+    /**
+     * Il riquadro «Personalizzazioni»: la lista e, sotto, «Nuova
+     * personalizzazione», che ne crea una al volo senza lasciare la scheda.
+     */
+    protected static function customizationsCard(): object
+    {
+        return static::foldable(
+            'Personalizzazioni',
+            [
+                static::getInput('customizations'),
+                QuickCreateButton::make(CustomizationResource::class)
+                    ->text('Nuova personalizzazione')
+                    ->label('name')
+                    ->size('sm')
+                    ->id(static::CUSTOMIZATION_BUTTON)
+                    ->columnSpan(12),
+                static::customizationScript()->columnSpan(12),
+            ],
+            'Campi che il cliente compila comprando questo articolo, per tutte le sue varianti. Il sovrapprezzo si somma al prezzo.'
+        );
+    }
+
+    /**
+     * Alla nascita di una personalizzazione dal bottone la mette in tutti gli
+     * elenchi del riquadro — e nel modello del repeater, da cui nascono le
+     * righe nuove — e la sceglie nell'ultima riga ancora vuota.
+     *
+     * Il nome arriva da chi vende: si scrive come testo, mai come HTML.
+     */
+    protected static function customizationScript(): RichText
+    {
+        $risorsa = json_encode(CustomizationResource::slug());
+
+        return RichText::make(<<<HTML
+<script>
+    (function () {
+        if (window.wiCustomizationsReady) {
+            return;
+        }
+
+        window.wiCustomizationsReady = true;
+
+        var RISORSA = {$risorsa};
+
+        function aggiungi(select, id, nome) {
+            var voce = document.createElement('option');
+
+            voce.value = String(id);
+            voce.textContent = nome;
+            select.appendChild(voce);
+        }
+
+        document.addEventListener('wi:quick-create:created', function (evento) {
+            var dettaglio = evento.detail || {};
+
+            if (dettaglio.family !== 'button' || dettaglio.resource !== RISORSA) {
+                return;
+            }
+
+            var riga = dettaglio.item || {};
+            var id = parseInt(dettaglio.id || riga.id, 10);
+            var nome = String(riga.name || dettaglio.label || '');
+
+            if (!(id > 0)) {
+                return;
+            }
+
+            var selettore = 'select[name$="[customization_id]"], select[name$="customization_id"]';
+            var elenchi = Array.prototype.slice.call(document.querySelectorAll(selettore));
+
+            // Il modello del repeater: dentro un <template> i select stanno nel
+            // suo contenuto, e `querySelectorAll` del documento non ci arriva.
+            Array.prototype.slice.call(document.querySelectorAll('template')).forEach(function (modello) {
+                Array.prototype.slice.call(modello.content.querySelectorAll(selettore)).forEach(function (select) {
+                    aggiungi(select, id, nome);
+                });
+            });
+
+            elenchi.forEach(function (select) {
+                aggiungi(select, id, nome);
+            });
+
+            var vuoti = elenchi.filter(function (select) {
+                return select.value === '' && !select.closest('template');
+            });
+            var ultimo = vuoti[vuoti.length - 1];
+
+            if (ultimo) {
+                ultimo.value = String(id);
+                ultimo.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+        });
+    })();
+</script>
+HTML)->tag('div');
     }
 
     /**

@@ -2997,4 +2997,73 @@ check('la guida delle opzioni sta accanto al titolo, non sotto', function () {
         && str_contains($html, 'text-end');
 });
 
+// ---- Personalizzazioni (G5, piano 1) ----
+
+$riquadroPersonalizzazioni = static function (object $scheda): ?object {
+    foreach ($scheda::formLayoutSchema()->components[0]->components ?? [] as $candidato) {
+        $titolo = $candidato->components[0] ?? null;
+
+        if ($titolo instanceof SectionTitle && $titolo->getText() === 'Personalizzazioni') {
+            return $candidato;
+        }
+    }
+
+    return null;
+};
+
+check('senza la funzionalità non c\'è né il campo né il riquadro «Personalizzazioni»', function () use ($forza, $campi, $schedaAperta, $riquadroPersonalizzazioni, $riquadri) {
+    $forza(['customizations' => false]);
+
+    try {
+        return !isset($campi()['customizations'])
+            && $riquadroPersonalizzazioni($schedaAperta) === null
+            && !in_array('Personalizzazioni', $riquadri(0), true);
+    } finally {
+        $forza(null);
+    }
+});
+
+check('con la funzionalità il campo c\'è, senza cancellazione logica e con la posizione', function () use ($forza, $campi) {
+    $forza(['customizations' => true]);
+
+    try {
+        $campo = $campi()['customizations'] ?? null;
+        $relazione = $campo === null ? null : (ProductModelResource::repeaterRelations()['customizations']['relation'] ?? null);
+
+        return $campo !== null
+            && $relazione instanceof RepeaterRelation
+            && $relazione->softDelete === false
+            && $relazione->positionKey === 'position';
+    } finally {
+        $forza(null);
+    }
+});
+
+check('il riquadro «Personalizzazioni» viene dopo «Scheda tecnica» e il suo script cita la Resource giusta', function () use ($forza, $schedaAperta, $riquadri, $riquadroPersonalizzazioni, $testoScheda) {
+    $forza(['customizations' => true]);
+
+    try {
+        $titoli = $riquadri(0);
+        $testo = $testoScheda($riquadroPersonalizzazioni($schedaAperta) ?? (object) []);
+        $slug = \Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource::slug();
+
+        return array_search('Personalizzazioni', $titoli, true) === array_search('Scheda tecnica', $titoli, true) + 1
+            && str_contains($testo, 'wi:quick-create:created')
+            && str_contains($testo, json_encode($slug))
+            && str_contains($testo, 'textContent')
+            && !str_contains($testo, 'innerHTML = ');
+    } finally {
+        $forza(null);
+    }
+});
+
+check('le righe delle personalizzazioni senza scelta o con una già vista si scartano', function () {
+    $righe = [['customization_id' => '3'], ['customization_id' => ''], ['customization_id' => '3'], ['customization_id' => '5']];
+    $ridate = ProductModelResource::prepareRepeaterRows('customizations', $righe);
+    $altre = [['x' => 1], ['x' => 1]];
+
+    return array_column($ridate, 'customization_id') === ['3', '5']
+        && ProductModelResource::prepareRepeaterRows('altro', $altre) === $altre;
+});
+
 summary();
