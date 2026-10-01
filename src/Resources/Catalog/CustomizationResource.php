@@ -381,7 +381,7 @@ class CustomizationResource extends GestionaleResource
         }
     }
 
-    /** Le opzioni se ne vanno con la personalizzazione: la chiave esterna non lascerebbe eliminarla. */
+    /** Opzioni e collegamenti nel cestino se ne vanno con la personalizzazione: la chiave esterna non lascerebbe eliminarla. */
     public static function deleteRecord(int|string $id): object
     {
         $id = (int) $id;
@@ -391,8 +391,13 @@ class CustomizationResource extends GestionaleResource
         $result = null;
 
         Transaction::run(static function () use ($id, &$result): void {
-            foreach (static::rowsOf(CustomizationOption::class, ['customization_id' => $id]) as $option) {
-                CustomizationOption::delete((int) $option['id']);
+            // Anche quelle nel cestino: la chiave esterna le vede comunque. I
+            // collegamenti rimasti sono tutti nel cestino (`assertDeletable`
+            // ha rifiutato quelli vivi).
+            foreach ([CustomizationOption::class, ProductModelCustomization::class] as $model) {
+                foreach (static::rowsOf($model, ['customization_id' => $id, 'deleted' => ['true', 'false']]) as $row) {
+                    $model::delete((int) $row['id']);
+                }
             }
 
             $result = Customization::delete($id);

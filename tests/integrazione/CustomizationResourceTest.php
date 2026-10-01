@@ -13,6 +13,7 @@ require __DIR__.'/supporto/compra.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Sql\Transaction;
@@ -176,7 +177,7 @@ check('eliminare una personalizzazione su un articolo dice quanti la usano', fun
         collegaPersonalizzazione(modelloDi(articoloConGiacenza(1, 'PZ-R-'.uniqid())), $id);
         $messaggio = errore(static fn () => CustomizationResource::deleteRecord($id));
 
-        return str_contains($messaggio, '1') && is_array(Customization::find(['id' => $id], 1))
+        return str_contains($messaggio, 'ad articoli (1)') && is_array(Customization::find(['id' => $id], 1))
             && CustomizationResource::usage($id) === 1;
     });
 });
@@ -188,6 +189,21 @@ check('una mai usata sparisce con le sue opzioni, senza errori di chiave', funct
         $riga = Customization::find(['id' => $id, 'deleted' => ['true', 'false']], 1);
 
         return $chiave === '' && (!is_array($riga) || $riga === []) && opzioniDi($id) === [];
+    });
+});
+
+check('una mai usata sparisce anche con opzioni e collegamenti nel cestino, senza errori di chiave', function () use ($scelta, $rosso, $oro) {
+    return prova(static function () use ($scelta, $rosso, $oro): bool {
+        $id = salva($scelta, [$rosso, $oro]);
+        $opzione = opzioniDi($id)[0];
+        CustomizationOption::query()->Update(CustomizationOption::$table, ['deleted' => 'true'], 'id', (int) $opzione['id']);
+        $collegamento = collegaPersonalizzazione(modelloDi(articoloConGiacenza(1, 'PZ-C-'.uniqid())), $id);
+        ProductModelCustomization::query()->Update(ProductModelCustomization::$table, ['deleted' => 'true'], 'id', $collegamento);
+        $chiave = errore(static fn () => CustomizationResource::deleteRecord($id));
+        $riga = Customization::find(['id' => $id, 'deleted' => ['true', 'false']], 1);
+
+        return CustomizationResource::usage($id) === 0
+            && $chiave === '' && (!is_array($riga) || $riga === []) && opzioniDi($id) === [];
     });
 });
 
