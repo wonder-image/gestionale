@@ -121,13 +121,12 @@ final class OrderReturnTableResource extends OrderSectionResource
 
         $orderId = (int) ($row['order_id'] ?? 0);
         $torna = StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '');
-        $back = OrderResource::detailUrl($orderId, $torna !== '' ? $torna : null);
         $form = static fn (string $action, string $label, string $class): string => '<form class="d-inline" method="post" action="'
             .static::escape(OrderReturnResource::submitUrl()).'">'
             .'<input type="hidden" name="action" value="'.$action.'">'
             .'<input type="hidden" name="return_id" value="'.(int) ($row['id'] ?? 0).'">'
             .'<input type="hidden" name="order_id" value="'.$orderId.'">'
-            .'<input type="hidden" name="back" value="'.static::escape($back).'">'
+            .'<input type="hidden" name="back" value="'.static::escape($torna).'">'
             .'<button type="submit" class="btn btn-sm '.$class.'">'.$label.'</button></form>';
 
         return $form('complete', 'Chiudi', 'btn-outline-success').' '.$form('cancel', 'Annulla', 'btn-outline-danger');

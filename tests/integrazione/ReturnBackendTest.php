@@ -202,18 +202,50 @@ check('la scheda offre «Registra reso» solo con la funzionalità accesa e prim
     });
 });
 
-check('il pulsante apre la pagina dell\'ordine, con il ritorno alla scheda', function () {
+check('il pulsante apre la pagina dell\'ordine e porta con sé il ritorno all\'elenco, non alla scheda', function () {
     return prova(static function (): bool {
         accendiFunzionalita(['orders', 'returns']);
         [$ordine] = ordineVenduto(3);
-
-        foreach (OrderResource::actionsFor((array) Order::findById($ordine)) as $p) {
-            if ($p['label'] === 'Registra reso') {
-                return str_contains((string) $p['href'], '?ordine='.$ordine.'&torna=') && !str_contains((string) $p['href'], '#');
+        $href = static function () use ($ordine): string {
+            foreach (OrderResource::actionsFor((array) Order::findById($ordine)) as $p) {
+                if ($p['label'] === 'Registra reso') {
+                    return (string) $p['href'];
+                }
             }
-        }
 
-        return false;
+            return '';
+        };
+
+        unset($_GET['torna']);
+        $senza = $href();
+        $_GET['torna'] = '/backend/ordini/?page=2';
+        $con = $href();
+        unset($_GET['torna']);
+
+        // Il ritorno è l'elenco: la scheda lo aggiunge da sé alla fine, e un
+        // ritorno che fosse già la scheda si annida a ogni azione.
+        return str_contains($senza, '?ordine='.$ordine) && !str_contains($senza, 'torna=') && !str_contains($senza, '#')
+            && str_contains($con, '&torna='.rawurlencode('/backend/ordini/?page=2'))
+            && !str_contains($con, rawurlencode(OrderResource::detailUrl($ordine)));
+    });
+});
+
+check('Chiudi e Annulla dalla tabella tornano all\'elenco, non a una scheda dentro la scheda', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'returns']);
+        [$ordine, $riga] = ordineVenduto(3);
+        OrderReturnResource::run($ordine, moduloReso($riga, '1', 'changed_mind', ''), 1);
+        $reso = resiDi($ordine)[0];
+        $azioni = array_values(array_filter(
+            OrderReturnTableResource::tableSchema(),
+            static fn ($c): bool => (string) $c->name === 'actions'
+        ))[0]->schema['formatter'];
+        $_GET['torna'] = '/backend/ordini/?page=2';
+        $html = $azioni($reso);
+        unset($_GET['torna']);
+
+        return str_contains($html, 'name="back" value="/backend/ordini/?page=2"')
+            && !str_contains($html, OrderResource::detailUrl($ordine));
     });
 });
 

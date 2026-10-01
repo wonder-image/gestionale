@@ -196,7 +196,7 @@ final class OrderResource extends GestionaleResource
         return $pulsanti;
     }
 
-    /** «Registra reso» porta a una pagina con le righe da compilare: il ritorno è la scheda. @return array<string, string> */
+    /** «Registra reso» porta a una pagina con le righe da compilare: porta con sé il ritorno all'elenco, e la scheda lo rimette da sé. @return array<string, string> */
     private static function registerReturnButton(array $order): array
     {
         $id = (int) ($order['id'] ?? 0);
@@ -206,7 +206,7 @@ final class OrderResource extends GestionaleResource
             'label' => 'Registra reso',
             'icon' => 'bi-arrow-return-left',
             'class' => 'btn-outline-secondary btn-sm',
-            'href' => OrderReturnResource::urlFor($id, static::detailUrl($id, $torna !== '' ? $torna : null)),
+            'href' => OrderReturnResource::urlFor($id, $torna),
         ];
     }
 

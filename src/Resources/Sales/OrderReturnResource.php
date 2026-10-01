@@ -157,7 +157,7 @@ final class OrderReturnResource extends NavigationOnlyResource
         }
 
         if (!ReturnRules::eligibleOrder($ordine, ['returns' => Gestionale::feature('returns')])) {
-            return '<span class="text-danger">Su quest\'ordine non si può registrare un reso: serve un ordine confermato, in evasione o chiuso, con i resi attivi.</span>';
+            return '<span class="text-danger">Su quest\'ordine non si può registrare un reso: serve un ordine confermato, in lavorazione o completato, con i resi attivi.</span>';
         }
 
         return static::linesHtml(Returns::lines($orderId))

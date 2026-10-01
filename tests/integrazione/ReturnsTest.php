@@ -18,6 +18,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Sql\Transaction;
@@ -279,6 +280,28 @@ check('le righe dell\'ordine dicono ordinato, già reso e massimo; un reso annul
         return count($righe) === 1 && $righe[0]['order_item_id'] === $riga
             && $righe[0]['ordered'] === 3.0 && $righe[0]['returned'] === 1.0 && $righe[0]['max'] === 2.0
             && $righe[0]['name'] === 'Crema da prova';
+    });
+});
+
+check('annullare un ordine con un reso fa rientrare solo la merce non ancora resa', function () {
+    return conReso(static function (): bool {
+        [$ordine, $riga, $prodotto] = ordineVenduto(3);
+        Returns::register($ordine, [riga($riga, '2')]);
+        $dopoReso = Levels::of($prodotto)['quantity'];
+        Lifecycle::cancel($ordine, ['source' => 'user']);
+
+        return Levels::of($prodotto)['quantity'] === $dopoReso + 1;
+    });
+});
+
+check('annullare un ordine con un reso di merce rotta non rimette a scaffale i pezzi resi', function () {
+    return conReso(static function (): bool {
+        [$ordine, $riga, $prodotto] = ordineVenduto(3);
+        Returns::register($ordine, [riga($riga, '2', 'damaged')]);
+        $dopoReso = Levels::of($prodotto)['quantity'];
+        Lifecycle::cancel($ordine, ['source' => 'user']);
+
+        return Levels::of($prodotto)['quantity'] === $dopoReso + 1;
     });
 });
 

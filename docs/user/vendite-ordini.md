@@ -72,7 +72,7 @@ si trova l'ordine. Ognuno apre una finestra che dice **prima** cosa farà.
 | **Segna evaso** | confermato, non ancora evaso | Segna l'ordine come evaso. Il magazzino **non cambia**: la merce era già uscita alla conferma. |
 | **Registra pagamento** | c'è ancora da incassare | Apre la finestra del pagamento ([vedi Pagamenti](vendite-pagamenti.md)). |
 | **Registra reso** | ordine confermato o chiuso, con i resi attivi | Porta alla pagina del reso ([vedi Resi](vendite-resi.md)). |
-| **Annulla** | in attesa o confermato | Annulla l'ordine. Se era in attesa **libera** i pezzi prenotati; se era confermato li **rimette in magazzino**. |
+| **Annulla** | in attesa o confermato | Annulla l'ordine. Se era in attesa **libera** i pezzi prenotati; se era confermato li **rimette in magazzino**, tranne quelli già resi con un reso (sono già rientrati, o erano rotti). |
 
 > **Il denaro già incassato non si rimborsa da qui.** Se annulli un ordine
 > pagato, la finestra ti ricorda quanto c'è da restituire: il rimborso lo

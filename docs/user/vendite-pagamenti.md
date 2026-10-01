@@ -59,7 +59,7 @@ Se metti **zero** non scade niente. Col contrassegno e il ritiro in negozio non
 c'è scadenza: la merce esce alla conferma.
 
 Il controllo gira da solo **ogni ora**; lo vedi nello **Storico** dell'ordine,
-con origine *Sistema*.
+scritto da solo, senza un utente accanto.
 
 ## Cosa vede il cliente
 

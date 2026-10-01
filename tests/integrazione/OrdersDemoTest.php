@@ -34,6 +34,7 @@ use Wonder\Plugin\Gestionale\Seeding\Demo;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Plugin\Gestionale\Seeding\OrdersDemo;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
+use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Sql\Transaction;
@@ -120,6 +121,20 @@ try {
         $esito['reso_movimenti'] = count($righe(StockMovement::class, "reference_type = 'sales_return' AND reference_id = {$resoId} AND type = 'return'"));
         $esito['resi_altri'] = count($righe(SalesReturn::class, "order_id <> {$evasoId} AND code LIKE 'ret\\_demo-%'"));
 
+        // Un reso fatto a mano dal commerciante sull'ordine di prova, con la merce che rientra:
+        // l'ordine se ne va, e il reso con lui, senza giacenza doppia né chiavi esterne.
+        $esito['reso_a_mano'] = 0;
+
+        foreach (Returns::lines($evasoId) as $riga) {
+            if ($riga['max'] > 0) {
+                $esito['reso_a_mano'] = Returns::register($evasoId, [
+                    ['order_item_id' => $riga['order_item_id'], 'quantity' => '1', 'reason' => 'changed_mind'],
+                ])['return_id'];
+
+                break;
+            }
+        }
+
         // Un reso vero, su un ordine vero: la pulizia non lo tocca.
         $ordineVero = ordineDiProva(10.0);
         $esito['reso_vero'] = (int) (SalesReturn::create([
@@ -164,6 +179,9 @@ try {
         $esito['resti']['resi_righe'] = $agganciate(SalesReturnItem::class, 'sales_return_id', [$resoId]);
         $esito['resti']['resi_log'] = $agganciate(SalesReturnStatusLog::class, 'sales_return_id', [$resoId]);
         $esito['resti']['resi_movimenti'] = count($righe(StockMovement::class, "reference_type = 'sales_return' AND reference_id = {$resoId}"));
+        $esito['resti']['reso_a_mano'] = count($righe(SalesReturn::class, 'id = '.(int) $esito['reso_a_mano']))
+            + $agganciate(SalesReturnItem::class, 'sales_return_id', [(int) $esito['reso_a_mano']])
+            + count($righe(StockMovement::class, "reference_type = 'sales_return' AND reference_id = ".(int) $esito['reso_a_mano']));
         $esito['reso_vero_resta'] = SalesReturn::findById((int) $esito['reso_vero']) !== null;
 
         // Il catalogo che segue non trova chiavi esterne.
@@ -271,6 +289,10 @@ check('gli altri ordini di prova non hanno resi', fn () => ($esito['resi_altri']
 check('clear toglie anche il reso: righe, storia e movimenti', fn () =>
     ($esito['resti']['resi'] ?? 1) === 0 && ($esito['resti']['resi_righe'] ?? 1) === 0
     && ($esito['resti']['resi_log'] ?? 1) === 0 && ($esito['resti']['resi_movimenti'] ?? 1) === 0
+);
+
+check('un reso fatto a mano su un ordine di prova se ne va con l\'ordine', fn () =>
+    ($esito['reso_a_mano'] ?? 0) > 0 && ($esito['resti']['reso_a_mano'] ?? 1) === 0 && ($esito['errore'] ?? 'no') === ''
 );
 
 check('clear non tocca il reso di un ordine vero', fn () => ($esito['reso_vero_resta'] ?? false) === true);

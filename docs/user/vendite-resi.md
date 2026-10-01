@@ -42,7 +42,7 @@ pezzi sono rientrati.
 ## Cosa succede in magazzino
 
 Per ogni riga con la spunta accesa la giacenza **sale** nella sede scelta e
-nei **Movimenti** compare una riga *Reso* con il numero del reso, cliccabile.
+nei **Movimenti** compare una riga *Reso*, legata a quel reso.
 Le righe senza spunta non toccano la giacenza: restano scritte sul reso, e
 basta.
 

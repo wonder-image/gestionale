@@ -339,7 +339,7 @@ final class OrdersDemo
         Transaction::run(static function () use ($id, $order): void {
             $status = (string) ($order['status'] ?? '');
 
-            // Il reso di prova ha già rimesso a scaffale una parte: si restituisce solo il resto.
+            // I resi hanno già rimesso a scaffale una parte: si restituisce solo il resto.
             $back = self::restocked($id);
 
             if (in_array($status, ['confirmed', 'processing', 'completed'], true)) {
@@ -371,12 +371,9 @@ final class OrdersDemo
                 sqlDelete(PaymentStatusLog::$table, 'payment_id = '.(int) $payment['id']);
             }
 
-            // Resi di prova: la merce rientrata se ne va con il suo reso, prima delle righe d'ordine.
+            // I resi dell'ordine, di prova o fatti a mano: l'ordine se ne va e i resi con lui,
+            // con la merce rientrata, prima delle righe d'ordine a cui sono legati.
             foreach (self::rows(SalesReturn::find(['order_id' => $id])) as $return) {
-                if (!DemoCode::is((string) ($return['code'] ?? ''))) {
-                    continue;
-                }
-
                 $returnId = (int) $return['id'];
 
                 sqlDelete(StockMovement::$table, "reference_type = 'sales_return' AND reference_id = ".$returnId);
@@ -396,7 +393,7 @@ final class OrdersDemo
     }
 
     /**
-     * I pezzi rientrati a magazzino con i resi di prova di quell'ordine, per riga.
+     * I pezzi rientrati a magazzino con i resi di quell'ordine, per riga.
      *
      * @return array<int, float>
      */
@@ -405,10 +402,6 @@ final class OrdersDemo
         $out = [];
 
         foreach (self::rows(SalesReturn::find(['order_id' => $orderId])) as $return) {
-            if (!DemoCode::is((string) ($return['code'] ?? ''))) {
-                continue;
-            }
-
             foreach (self::rows(SalesReturnItem::find(['sales_return_id' => (int) $return['id'], 'restock' => 'true'])) as $item) {
                 $out[(int) $item['order_item_id']] = ($out[(int) $item['order_item_id']] ?? 0.0) + (float) $item['quantity'];
             }

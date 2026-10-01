@@ -23,8 +23,8 @@ use Wonder\Sql\Transaction;
  * Il reso nasce `received` — la merce è già in mano al commerciante — e il
  * rientro a magazzino passa da `Allocation::returnGoods()`, riga per riga, solo
  * per quelle con la spunta. Il rimborso del denaro non è qui: lo fa il gateway.
- * Tutto dentro una transazione e con l'ordine bloccato: due invii dello stesso
- * modulo si mettono in fila, e il secondo trova la quantità già resa.
+ * Tutto dentro una transazione e con l'ordine bloccato: due invii contemporanei
+ * si mettono in fila e il secondo non può rendere più di quanto resta.
  */
 final class Returns
 {

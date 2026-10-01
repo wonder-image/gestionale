@@ -19,7 +19,7 @@ comando la cambia a mano: chiamano il servizio.
 
 `Allocation` non scrive mai la giacenza per conto suo: passa da `Stock::apply()`.
 Per questo chi legge i movimenti trova sempre il motivo (`sale`,
-`sales_return`, …) e l'ordine o il reso che li ha causati.
+`return`, …) e l'ordine o il reso che li ha causati (`reference_type` `order` o `sales_return`).
 
 ## Il percorso di un ordine
 
@@ -44,14 +44,16 @@ Per questo chi legge i movimenti trova sempre il motivo (`sale`,
 ## Il reso
 
 `Returns::register($ordine, $righe, $opzioni)` fa tutto dentro una transazione,
-con l'ordine bloccato (`FOR UPDATE`): due invii dello stesso modulo si mettono
-in fila e il secondo trova la quantità già resa.
+con l'ordine bloccato (`FOR UPDATE`): due invii contemporanei si mettono in
+fila e il secondo non può rendere più di quanto resta. Non c'è un controllo
+sull'invio ripetuto: due invii uguali di una quantità parziale sono due resi.
 
 - Il reso nasce `received`: la merce è già in mano al commerciante.
 - `ReturnRules` (pura, senza database) decide se l'ordine può avere un reso, il
   massimo rendibile per riga e se il motivo propone il ricarico a magazzino.
-- Per le righe con la spunta «Rimetti a magazzino» il rientro passa da
-  `Allocation::returnGoods()`: un movimento `sales_return` sulla sede scelta.
+- Per le righe con la spunta «Rientra a magazzino» il rientro passa da
+  `Allocation::returnGoods()`: un movimento `return` sulla sede scelta, col
+  reso come documento di riferimento.
 - `complete()` chiude un reso ricevuto. `cancel()` lo annulla, ma **solo se
   nessuna riga è rientrata**: altrimenti `return.already_restocked` rimanda alla
   rettifica in Magazzino.
@@ -86,6 +88,9 @@ vedi [Errori e log](errori.md).
 
 ## Trappole già pagate
 
+- `Lifecycle::cancel()` rimette a magazzino solo la merce non ancora resa
+  (`quantità − Returns::returned()`): quella resa è già rientrata col reso, o
+  era rotta e non va a scaffale.
 - `Lifecycle::confirm()` su un ordine già confermato non rifà niente e non
   riscarica la merce: ripassare da un webhook è sicuro.
 - `Ledger::sync()` non scrive né logga se lo stato non cambia: un webhook

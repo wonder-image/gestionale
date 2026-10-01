@@ -93,7 +93,7 @@
                 "invalid_iban": "L'IBAN non è valido: servono da 15 a 34 tra lettere e cifre, senza altri segni."
             },
             "return": {
-                "order_not_returnable": "Su quest'ordine non si può registrare un reso: serve un ordine confermato, evaso o chiuso, con i resi attivi.",
+                "order_not_returnable": "Su quest'ordine non si può registrare un reso: serve un ordine confermato, in lavorazione o completato, con i resi attivi.",
                 "nothing_selected": "Scrivi la quantità di almeno una riga: non c'è niente da rendere.",
                 "line_not_returnable": "Una delle righe non è un prodotto di quest'ordine: ricarica la pagina e riprova.",
                 "over_quantity": "Di {{product}} se ne possono rendere al massimo {{max}}: il resto è già stato reso.",
