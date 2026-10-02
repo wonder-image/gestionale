@@ -109,6 +109,14 @@ check('la riga tiene tutte le colonne di 4.7', function () use ($colonne) {
     return array_diff($attese, array_keys($colonne(OrderItem::class))) === [];
 });
 
+check('la riga figlia ricorda l\'opzione scelta e vale zero se è un componente fisso', function () use ($colonne) {
+    $colonna = $colonne(OrderItem::class)['bundle_option_id'] ?? null;
+
+    return $colonna !== null
+        && (string) $colonna->getSchema('default') === '0'
+        && empty($colonna->getSchema('foreign_table'));
+});
+
 check('i tipi di riga e le sorgenti del prezzo sono quelli della spec', fn () =>
     OrderItem::TYPES === ['product', 'custom', 'text', 'shipping', 'fee']
     && OrderItem::PRICE_SOURCES === ['price_list', 'campaign', 'sale_price', 'base', 'manual']
