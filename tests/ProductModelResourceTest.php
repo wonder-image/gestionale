@@ -29,6 +29,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
+use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -2027,6 +2028,22 @@ check('«Nuova caratteristica» apre il modal degli attributi', function () use 
         && $config['layout'] instanceof Closure;
 });
 
+check('«Nuova personalizzazione» chiede nome e sovrapprezzo, non tipo e stato', function () use ($dentroScheda, $forza) {
+    $forza(['customizations' => true]);
+    $card = (new ReflectionMethod(ProductModelResource::class, 'customizationsCard'))->invoke(null);
+    $bottoni = $dentroScheda($card, QuickCreateButton::class);
+    $config = $bottoni[0]?->quickCreateConfig() ?? [];
+    $layout = $config['layout'] ?? null;
+    $nomi = $layout instanceof Closure
+        ? array_map(static fn ($campo) => (string) $campo->name, (array) $layout()->components)
+        : [];
+    $forza(null);
+
+    return count($bottoni) === 1
+        && $config['resource'] === CustomizationResource::class
+        && $nomi === ['name', 'surcharge'];
+});
+
 check('una caratteristica a elenco si spunta a pillole, con il «+» per un valore nuovo', function () use ($schedaTecnica, $dentroScheda) {
     $campo = $dentroScheda($schedaTecnica::vediScheda(), 'attribute_31')[0] ?? null;
     $rapido = (array) (($campo?->get('context')['quick_create'] ?? []) ?: []);
@@ -3039,14 +3056,14 @@ check('con la funzionalità il campo c\'è, senza cancellazione logica e con la 
     }
 });
 
-check('la lista delle personalizzazioni ha il sovrapprezzo per articolo accanto a «Obbligatoria»', function () use ($forza, $campi) {
+check('la lista delle personalizzazioni ha solo la scelta e «Obbligatoria»: il sovrapprezzo non si cambia per articolo', function () use ($forza, $campi) {
     $forza(['customizations' => true]);
 
     try {
         $schema = (new \ReflectionProperty(\Wonder\App\ResourceSchema\Input::class, 'schema'))->getValue($campi()['customizations']);
         $nomi = array_map(static fn ($colonna): string => (string) $colonna->name, (array) ($schema['context']['columns'] ?? []));
 
-        return $nomi === ['id', 'customization_id', 'is_required', 'surcharge'];
+        return $nomi === ['id', 'customization_id', 'is_required'];
     } finally {
         $forza(null);
     }
@@ -3077,28 +3094,6 @@ check('le righe delle personalizzazioni senza scelta o con una già vista si sca
 
     return array_column($ridate, 'customization_id') === ['3', '5']
         && ProductModelResource::prepareRepeaterRows('altro', $altre) === $altre;
-});
-
-check('il sovrapprezzo vuoto di un articolo resta vuoto, e zero resta zero', function () {
-    $righe = ProductModelResource::prepareRepeaterRows('customizations', [
-        ['customization_id' => '3', 'surcharge' => ''],
-        ['customization_id' => '4', 'surcharge' => '0'],
-        ['customization_id' => '5', 'surcharge' => '2,5'],
-        ['customization_id' => '6'],
-        ['customization_id' => '7', 'surcharge' => 'abc'],
-    ]);
-
-    return array_column($righe, 'surcharge') === [null, '0.00', '2.50', null, null];
-});
-
-check('un sovrapprezzo negativo su un articolo si rifiuta', function () {
-    try {
-        ProductModelResource::prepareRepeaterRows('customizations', [['customization_id' => '3', 'surcharge' => '-1']]);
-    } catch (\Wonder\Plugin\Gestionale\Support\Errors\UserError $e) {
-        return $e->key() === 'customization.surcharge';
-    }
-
-    return false;
 });
 
 summary();

@@ -39,17 +39,20 @@ decimali: con 2 decimali, «12,5» diventa «12,50».
 
 Nel modulo, a sinistra c'è quello che legge il cliente (nome interno, stato,
 etichetta e testo d'aiuto) e, per una *Scelta*, le opzioni. A destra i
-**Dettagli**: il tipo, i caratteri o i decimali, il sovrapprezzo.
+**Dettagli**: il tipo, i caratteri o i decimali e, per un testo o un numero, il
+sovrapprezzo.
 
 ## Il sovrapprezzo
 
-Ogni personalizzazione ha un sovrapprezzo, e ogni opzione di una scelta ne ha
-uno suo. **Si sommano**: se *Colore del filo* costa 1,00 € e *Oro* costa 2,50 €,
-chi sceglie l'oro paga 3,50 € in più, per ogni pezzo. Lascia 0 dove non costa
+Un **testo** o un **numero** ha il suo sovrapprezzo: chi lo compila paga quella
+cifra in più, per ogni pezzo. Una **scelta** non ne ha: il prezzo lo fanno le
+sue opzioni, ognuna con il suo (il campo nemmeno compare, e se cambi il tipo in
+«Scelta» quello scritto prima si azzera). Se *Colore del filo* ha l'opzione
+*Oro* a 2,50 €, chi la sceglie paga 2,50 € in più. Lascia 0 dove non costa
 niente. Non può essere negativo.
 
-Su ogni articolo puoi **cambiare il sovrapprezzo**: vedi sotto, in «Come si
-collega a un articolo».
+Il sovrapprezzo è sempre quello della personalizzazione: per ora non si cambia
+articolo per articolo.
 
 Il sovrapprezzo lo calcola sempre il gestionale: quello che arriva dal sito non
 viene creduto.
@@ -69,20 +72,19 @@ Disattivare è la via giusta quando non la vuoi più vendere.
 
 ## Perché una personalizzazione in uso non si elimina
 
-Se è collegata ad almeno un articolo, il gestionale rifiuta e dice **a quanti**.
-Toglila prima dagli articoli, oppure disattivala. Una mai usata si elimina
+Nell'elenco, l'icona della cartella dice se la personalizzazione è **usata** da
+qualche articolo (piena) o **non usata** (vuota). Se è usata il pulsante
+«Elimina» non c'è, e se arrivi lo stesso a chiederlo il gestionale rifiuta e
+dice **a quanti** articoli. Toglila prima dagli articoli, oppure disattivala. Una mai usata si elimina
 insieme alle sue opzioni, senza altro da fare.
 
 ## Come si collega a un articolo
 
 Dalla scheda dell'articolo, nel riquadro **Personalizzazioni**: scegli quelle
-che prevede e, per ognuna, se è **obbligatoria** e quanto costa **su questo
-articolo**. La casella *Sovrapprezzo* vuota («Come da scheda») usa quello della
-personalizzazione; se la riempi, vale **solo per questo articolo** al posto di
-quello della scheda, anche con 0 (gratis su questo articolo). Per una scelta
-cambia la parte base: il sovrapprezzo di ogni opzione si somma sempre. Se la personalizzazione che ti
-serve non c'è ancora, **«Nuova personalizzazione…»** ne crea una al volo: un
-testo da 100 caratteri, senza sovrapprezzo, che poi rifinisci dalla sua pagina.
+che prevede e, per ognuna, se è **obbligatoria**. Se la personalizzazione che ti
+serve non c'è ancora, **«Nuova personalizzazione…»** ne crea una al volo: scrivi
+il nome e, se serve, il **sovrapprezzo**; nasce come testo da 100 caratteri, che
+poi rifinisci dalla sua pagina.
 
 Il cliente la compila nella pagina dell'articolo e la ritrova nel carrello, nel
 riepilogo dell'ordine e nelle email.

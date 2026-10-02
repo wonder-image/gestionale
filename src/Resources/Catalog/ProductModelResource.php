@@ -337,13 +337,6 @@ class ProductModelResource extends GestionaleResource
                         ->select(['false' => 'No', 'true' => 'Sì'])
                         ->label('Obbligatoria')
                         ->columnSpan(2),
-                    // Vuoto: vale il sovrapprezzo della personalizzazione.
-                    RepeaterColumn::key('surcharge')
-                        ->price()
-                        ->decimal(2)
-                        ->label('Sovrapprezzo')
-                        ->placeholder('Come da scheda')
-                        ->columnSpan(3),
                 ])
                 ->relation(
                     RepeaterRelation::make(ProductModelCustomization::$table, 'product_model_id')
@@ -2296,11 +2289,10 @@ class ProductModelResource extends GestionaleResource
         string $context = 'backend'
     ): array {
         // Una personalizzazione si collega una volta sola: senza scelta o già
-        // vista, la riga non conta. Il sovrapprezzo dell'articolo vuoto resta
-        // vuoto (vale quello della personalizzazione), non diventa zero.
+        // vista, la riga non conta.
         if ($inputName === 'customizations') {
             $viste = [];
-            $righe = array_values(array_filter($rows, static function ($row) use (&$viste): bool {
+            return array_values(array_filter($rows, static function ($row) use (&$viste): bool {
                 $id = is_array($row) ? trim((string) ($row['customization_id'] ?? '')) : '';
 
                 if ($id === '' || isset($viste[$id])) {
@@ -2311,18 +2303,6 @@ class ProductModelResource extends GestionaleResource
 
                 return true;
             }));
-
-            foreach ($righe as $i => $riga) {
-                $sovrapprezzo = Numbers::fromForm($riga['surcharge'] ?? null);
-
-                if ($sovrapprezzo !== null && (float) $sovrapprezzo < 0) {
-                    throw UserError::make('customization.surcharge');
-                }
-
-                $righe[$i]['surcharge'] = $sovrapprezzo === null ? null : number_format((float) $sovrapprezzo, 2, '.', '');
-            }
-
-            return $righe;
         }
 
         if ($inputName !== 'products') {
@@ -4908,12 +4888,15 @@ HTML)->tag('div');
                 QuickCreateButton::make(CustomizationResource::class)
                     ->text('Nuova personalizzazione')
                     ->label('name')
+                    ->layout(static fn (): Container => (new Container)
+                        ->columns(12)
+                        ->components(CustomizationResource::quickCreateFields()))
                     ->size('sm')
                     ->id(static::CUSTOMIZATION_BUTTON)
                     ->columnSpan(12),
                 static::customizationScript()->columnSpan(12),
             ],
-            'Campi che il cliente compila comprando questo articolo, per tutte le sue varianti. Il sovrapprezzo si somma al prezzo.'
+            'Campi che il cliente compila comprando questo articolo, per tutte le sue varianti. Il sovrapprezzo, che si imposta dalla personalizzazione, si somma al prezzo.'
         );
     }
 

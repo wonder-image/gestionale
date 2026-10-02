@@ -10,6 +10,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
@@ -114,24 +115,84 @@ check('le opzioni sono un repeater che cancella davvero e tiene l\'ordine', func
         && $relazione->positionKey === 'position';
 });
 
-check('l\'API accetta solo lo store e solo il nome', function () {
+check('l\'API accetta solo lo store, con nome e sovrapprezzo', function () {
     $schema = CustomizationResource::apiSchema()->toArray();
 
     return ($schema['routes']['store'] ?? false) === true
         && ($schema['routes']['index'] ?? true) === false
         && ($schema['routes']['destroy'] ?? true) === false
-        && ($schema['fields']['store'] ?? []) === ['name'];
+        && ($schema['fields']['store'] ?? []) === ['name', 'surcharge'];
 });
 
-check('quickCreateValues dà un testo da 100 caratteri, gratis e attivo', function () {
-    $valori = CustomizationResource::quickCreateValues(['name' => ' Incisione ', 'surcharge' => '99', 'kind' => 'choice']);
+check('quickCreateValues dà un testo da 100 caratteri e attivo, col sovrapprezzo scritto', function () {
+    $valori = CustomizationResource::quickCreateValues(['name' => ' Incisione ', 'surcharge' => '2,5', 'kind' => 'choice']);
 
     return $valori['name'] === 'Incisione'
         && $valori['label'] === 'Incisione'
         && $valori['kind'] === 'text'
         && (int) $valori['max_length'] === 100
-        && $valori['surcharge'] === '0.00'
+        && $valori['surcharge'] === '2.50'
         && $valori['active'] === 'true';
+});
+
+check('quickCreateValues senza sovrapprezzo è gratis', function () {
+    return CustomizationResource::quickCreateValues(['name' => 'X'])['surcharge'] === '0.00'
+        && CustomizationResource::quickCreateValues(['name' => 'X', 'surcharge' => ' '])['surcharge'] === '0.00';
+});
+
+check('quickCreateValues rifiuta un sovrapprezzo negativo o che non è un numero', function () {
+    foreach (['-1', 'abc'] as $importo) {
+        try {
+            CustomizationResource::quickCreateValues(['name' => 'X', 'surcharge' => $importo]);
+
+            return false;
+        } catch (UserError $e) {
+            if ($e->key() !== 'customization.surcharge') {
+                return false;
+            }
+        }
+    }
+
+    return true;
+});
+
+check('il modal «Nuova personalizzazione» chiede nome e sovrapprezzo', function () {
+    $campi = CustomizationResource::quickCreateFields();
+
+    return array_map(static fn ($c) => (string) $c->name, $campi) === ['name', 'surcharge'];
+});
+
+check('il sovrapprezzo si nasconde quando il tipo è scelta', function () {
+    return CustomizationResource::getInput('surcharge')->conditionalAttributes() === [
+        'data-hidden-when' => 'kind',
+        'data-hidden-when-values' => 'choice',
+    ];
+});
+
+check('una scelta si salva sempre senza sovrapprezzo, anche se ne arriva uno', function () {
+    $_POST = ['options' => [['label' => 'Rosso', 'surcharge' => '0'], ['label' => 'Blu', 'surcharge' => '2']]];
+    $valori = CustomizationResource::mutateRequestValues(['name' => 'Colore', 'kind' => 'choice', 'surcharge' => '5'], 'update', 'backend', ['id' => 3]);
+    $_POST = [];
+
+    return $valori['surcharge'] === '0.00';
+});
+
+check('l\'elenco mostra se la personalizzazione è usata e nasconde l\'elimina se lo è', function () {
+    $colonne = [];
+
+    foreach (CustomizationResource::tableSchema() as $colonna) {
+        $colonne[] = $colonna;
+    }
+
+    $chiavi = array_map(static fn ($c) => (string) $c->name, $colonne);
+    $posizione = array_search('usage', $chiavi, true);
+    $schema = $posizione === false ? [] : ($colonne[$posizione]->toArray()['function'] ?? []);
+
+    return $posizione !== false
+        && $posizione < array_search('actions', $chiavi, true)
+        && ($schema['name'] ?? '') === 'empty'
+        && ($schema['tables'] ?? []) === [ProductModelCustomization::$table]
+        && ($schema['column'] ?? '') === 'customization_id';
 });
 
 check('quickCreateValues senza nome dice di scriverlo', function () {

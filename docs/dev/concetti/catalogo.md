@@ -968,16 +968,23 @@ Un campo che il cliente compila comprando: un **testo** (l'incisione), un
 |---|---|
 | `gst_customizations` | la definizione: nome, etichetta, aiuto, `kind` (`text`, `number` o `choice`), `max_length` (solo testo), `decimals` (solo numero, da 0 a 6), sovrapprezzo, `active` |
 | `gst_customization_options` | le opzioni di una scelta, ciascuna col suo sovrapprezzo |
-| `gst_product_model_customizations` | il collegamento all'**articolo** (non alla variante), con `is_required`, la posizione e un `surcharge` facoltativo che, se c'è (anche zero), sostituisce su quell'articolo il sovrapprezzo della personalizzazione |
+| `gst_product_model_customizations` | il collegamento all'**articolo** (non alla variante), con `is_required`, la posizione e un `surcharge` facoltativo che, se c'è (anche zero), sostituisce su quell'articolo il sovrapprezzo della personalizzazione (lo strato dati lo supporta, ma la scheda dell'articolo oggi **non lo espone**: resta `NULL`) |
 
-Il sovrapprezzo di una scelta è quello della personalizzazione **più** quello
-dell'opzione; quello della personalizzazione lo sostituisce, su un articolo, il
+Una **scelta** non ha un sovrapprezzo suo: la risorsa lo salva sempre a `0.00`
+(il campo è nascosto con `hiddenWhen('kind', 'choice')`) e il prezzo lo fanno le
+opzioni. Per le altre, quello della personalizzazione lo sostituisce, su un
+articolo, il
 `surcharge` del collegamento (`Customizations::effectiveSurcharge()`, che
 `forModel()` applica: chi legge da lì vede già il valore giusto). Un **numero**
 si legge come lo scrive una persona («1.250,5» o «12,5», senza segno né unità),
 si controlla sui `decimals` e si salva già formattato con la virgola e i suoi
 decimali: `valuesOf()` lo ridà a `check()` e il valore resta lo stesso. Una personalizzazione collegata a qualche articolo non si
 elimina (`customization.in_use`): si disattiva, e sparisce dalla vendita.
+Nell'elenco la colonna `usage` è l'`isEmpty` del core (funzione `empty` su
+`gst_product_model_customizations.customization_id`): l'icona della cartella e,
+se è usata, niente pulsante «Elimina»; `assertDeletable()` resta la guardia sul
+server. Il modal «Nuova personalizzazione» e lo store API accettano `name` e
+`surcharge` (vuoto = zero, virgola ammessa, negativo = `customization.surcharge`).
 Scollegare o disattivare non tocca le righe già vendute, che portano con sé una
 copia di quello che il cliente ha scritto.
 
