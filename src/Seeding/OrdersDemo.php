@@ -19,11 +19,13 @@ use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
+use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
 use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
+use Wonder\Plugin\Gestionale\Support\Orders\OrderLines;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
@@ -33,7 +35,9 @@ use Wonder\Sql\Transaction;
 
 /**
  * Dati di prova delle vendite: **sette ordini**, uno per ogni faccia che
- * l'elenco e la scheda devono saper mostrare.
+ * l'elenco e la scheda devono saper mostrare, e **quattro ordini di
+ * multiprodotti** (in attesa, confermato, annullato, evaso con un reso della
+ * confezione) che nascono solo a funzionalità `bundles` accesa.
  *
  * Nascono dal flusso vero — carrello, `Checkout::place()`, `Lifecycle` e
  * `Ledger` — e non da righe scritte a mano: così prenotazioni, scarichi,
@@ -62,6 +66,11 @@ final class OrdersDemo
         'pagamento-parziale' => ['method' => 'bank-transfer', 'end' => 'partial', 'days' => 3],
         'ospite' => ['method' => 'stripe', 'end' => 'paid', 'days' => 2, 'guest' => true],
         'azienda' => ['method' => 'bank-transfer', 'end' => 'paid', 'days' => 6, 'company' => true],
+        // I multiprodotti di CatalogDemo: la madre e le figlie con le scelte del cliente (la prima opzione di ogni gruppo).
+        'cesto-in-attesa' => ['method' => 'bank-transfer', 'end' => 'pending', 'days' => 1, 'bundle' => 'cesto-componibile'],
+        'cesto-confermato' => ['method' => 'stripe', 'end' => 'paid', 'days' => 2, 'bundle' => 'cesto-completo'],
+        'cesto-annullato' => ['method' => 'bank-transfer', 'end' => 'cancelled', 'days' => 4, 'bundle' => 'cesto-degustazione'],
+        'cesto-evaso' => ['method' => 'stripe', 'end' => 'fulfilled', 'days' => 8, 'bundle' => 'cesto-degustazione'],
     ];
 
     public static function register(): void
@@ -77,9 +86,10 @@ final class OrdersDemo
     /** @return int ordini creati */
     public static function create(): int
     {
+        $bundles = Gestionale::feature('bundles');
         $missing = array_filter(
             array_keys(self::ORDERS),
-            static fn (string $ref): bool => self::find($ref) === []
+            static fn (string $ref): bool => ($bundles || empty(self::ORDERS[$ref]['bundle'])) && self::find($ref) === []
         );
 
         if ($missing === []) {
@@ -103,6 +113,13 @@ final class OrdersDemo
         try {
             foreach (self::ORDERS as $ref => $plan) {
                 if (!in_array($ref, $missing, true)) {
+                    continue;
+                }
+
+                if (!empty($plan['bundle'])) {
+                    $created += self::place($ref, $plan, self::bundle((string) $plan['bundle']), $turn);
+                    $turn++;
+
                     continue;
                 }
 
@@ -149,11 +166,17 @@ final class OrdersDemo
      * Un ordine, dal carrello alla fine che gli spetta.
      *
      * @param array<string, mixed> $plan
-     * @param array{id: int, price: float} $product
+     * @param array{id: int, price?: float, choices?: list<int>} $product
      */
     private static function place(string $ref, array $plan, array $product, int $turn): int
     {
         $method = self::method((string) $plan['method']);
+
+        if (empty($product['id'])) {
+            DemoData::note('Il multiprodotto «'.$plan['bundle'].'» non c\'è: l\'ordine «'.$ref.'» non è stato creato (crea prima il catalogo).');
+
+            return 0;
+        }
 
         if ($method === []) {
             DemoData::note('Nessun metodo di pagamento attivo per il sito: l\'ordine «'.$ref.'» non è stato creato.');
@@ -171,10 +194,13 @@ final class OrdersDemo
             'email' => $email,
         ])['id'];
 
+        $bundle = !empty($plan['bundle']);
+
         Cart::add($cartId, [
             'product_id' => $product['id'],
-            'quantity' => 1 + ($turn % 3),
-            'customization' => $turn % 2 === 0 ? self::engraving((int) $product['id']) : [],
+            'quantity' => $bundle ? 1 : 1 + ($turn % 3),
+            'customization' => !$bundle && $turn % 2 === 0 ? self::engraving((int) $product['id']) : [],
+            'choices' => $product['choices'] ?? [],
         ]);
 
         // Il codice col segno: serve a riconoscere l'ordine alla pulizia.
@@ -199,7 +225,7 @@ final class OrdersDemo
 
         match ((string) $plan['end']) {
             'paid' => Lifecycle::confirm($orderId, ['payment' => true, 'notify' => false, 'source' => 'system']),
-            'fulfilled' => self::fulfilled($orderId),
+            'fulfilled' => self::fulfilled($orderId, $ref),
             'cancelled' => Lifecycle::cancel($orderId, ['reason' => 'Ordine di prova annullato', 'notify' => false, 'merchant_notice' => false, 'source' => 'system']),
             'partial' => self::partial($orderId, (float) $placed['total']),
             default => null,
@@ -236,18 +262,45 @@ final class OrdersDemo
         return [];
     }
 
-    private static function fulfilled(int $orderId): void
+    private static function fulfilled(int $orderId, string $ref): void
     {
         Lifecycle::confirm($orderId, ['payment' => true, 'notify' => false, 'source' => 'system']);
         Lifecycle::fulfill($orderId, 'fulfilled', ['notify' => false, 'source' => 'system']);
 
         if (Gestionale::feature('returns')) {
-            self::returned($orderId);
+            self::returned($orderId, $ref);
         }
     }
 
+    /**
+     * Il multiprodotto di prova: il suo prodotto e la prima opzione di ogni gruppo.
+     *
+     * @return array{id: int, choices: list<int>}|array{}
+     */
+    private static function bundle(string $ref): array
+    {
+        $model = ProductModel::find(['code' => DemoCode::forModel(ProductModel::class, $ref), 'deleted' => 'false'], 1);
+        $product = is_array($model) && isset($model['id'])
+            ? Product::find(['product_model_id' => (int) $model['id'], 'deleted' => 'false'], 1)
+            : null;
+
+        if (!is_array($product) || !isset($product['id'])) {
+            return [];
+        }
+
+        $choices = [];
+
+        foreach (Bundles::forModel((int) $model['id'])['groups'] as $group) {
+            if ($group['options'] !== []) {
+                $choices[] = (int) $group['options'][0]['id'];
+            }
+        }
+
+        return ['id' => (int) $product['id'], 'choices' => $choices];
+    }
+
     /** Un pezzo della prima riga è tornato indietro: reso ricevuto e rientrato a magazzino. */
-    private static function returned(int $orderId): void
+    private static function returned(int $orderId, string $ref): void
     {
         $item = OrderItem::find(['order_id' => $orderId, 'type' => 'product', 'deleted' => 'false'], 1);
 
@@ -255,12 +308,26 @@ final class OrdersDemo
             return;
         }
 
-        $done = Returns::register($orderId, [
-            ['order_item_id' => (int) $item['id'], 'quantity' => 1, 'reason' => 'changed_mind'],
-        ], ['internal_note' => 'Reso di prova', 'source' => 'system']);
+        $all = self::rows(OrderItem::find(['order_id' => $orderId, 'deleted' => 'false']));
+        $kids = OrderLines::children($all, (int) $item['id']);
+
+        // Una confezione torna intera: la madre e i componenti, di cui il primo è «difettoso» e non rientra.
+        $line = $kids === []
+            ? ['order_item_id' => (int) $item['id'], 'quantity' => 1, 'reason' => 'changed_mind']
+            : [
+                'order_item_id' => (int) $item['id'],
+                'quantity' => 1,
+                'reason' => 'defective',
+                'children_restock' => array_combine(
+                    array_map(static fn (array $kid): int => (int) $kid['id'], $kids),
+                    array_map(static fn (int $i): bool => $i > 0, array_keys($kids))
+                ),
+            ];
+
+        $done = Returns::register($orderId, [$line], ['internal_note' => 'Reso di prova', 'source' => 'system']);
 
         // Il codice col segno: serve a riconoscere il reso alla pulizia.
-        SalesReturn::update(['code' => DemoCode::forModel(SalesReturn::class, 'evaso')], $done['return_id']);
+        SalesReturn::update(['code' => DemoCode::forModel(SalesReturn::class, $ref)], $done['return_id']);
     }
 
     /** Confermato, con metà del denaro arrivato. */
@@ -384,7 +451,8 @@ final class OrdersDemo
             $back = self::restocked($id);
 
             if (in_array($status, ['confirmed', 'processing', 'completed'], true)) {
-                foreach (self::rows(OrderItem::find(['order_id' => $id, 'deleted' => 'false'])) as $item) {
+                // La madre di una confezione non ha mai toccato il magazzino: tornano le figlie.
+                foreach (OrderLines::goods(self::rows(OrderItem::find(['order_id' => $id, 'deleted' => 'false']))) as $item) {
                     if ((int) ($item['product_id'] ?? 0) <= 0 || (string) $item['type'] !== 'product') {
                         continue;
                     }

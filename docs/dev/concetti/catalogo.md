@@ -1022,6 +1022,63 @@ chiaro. `lines($riga)` ne fa le righe «Etichetta: valore» per le schede e le
 email; `signature()` è l'impronta con cui il carrello capisce se due righe
 sono la stessa.
 
+## Multiprodotto
+
+Un articolo che ne contiene altri: la riga d'ordine è **una**, i prodotti che
+escono dal magazzino sono quelli che contiene. Si accende con la funzionalità
+`bundles` e il tipo si sceglie dalla scheda dell'articolo (`product_models.type`
+= `bundle`, con `bundle_mode` `fixed` | `choice` | `mixed` e
+`show_components_value`). Un multiprodotto **non ha giacenza**: non si scrive
+mai su di lui, e giacenze, movimenti e avvisi di scorta guardano solo i
+`simple`.
+
+| Tabella | Cos'è |
+|---|---|
+| `gst_bundle_components` | i componenti **fissi**: `product_model_id`, `product_id`, `quantity`, `position` |
+| `gst_bundle_groups` | i gruppi a scelta: nome, `min_choices`, `max_choices`, `position` |
+| `gst_bundle_group_options` | le opzioni di un gruppo: `bundle_group_id`, `product_id`, `surcharge`, `position` |
+
+Chi aggiorna deve lanciare `php forge update`: tre tabelle e tre colonne nuove.
+Un componente è un **prodotto** (la riga vendibile, non l'articolo) e non può
+essere a sua volta un multiprodotto (`bundle.nested`).
+
+### Il contratto per la vetrina
+
+`Bundles::forModel($modelId)` è l'unica lettura che la vetrina (E1b) deve
+usare: ridà `mode`, `show_value`, i `components` (`id`, `product_id`, `name`,
+`quantity`) e i `groups` (`id`, `name`, `min`, `max`, `options` con `id`,
+`product_id`, `name`, `surcharge`), nell'ordine in cui si mostrano e solo le
+righe non cancellate. I nomi sono in chiaro: chi li stampa li escapa. Il form
+manda al carrello `choices => [id delle opzioni]` (vedi [Vendite](vendite.md));
+non manda mai un prezzo.
+
+`Bundles::available($modelId)` dice quante confezioni si vendono (dal
+`Levels::of()` di ogni componente, già al netto delle prenotazioni; un prodotto
+spento vale zero) e `componentsValue($modelId)` il valore dei componenti
+comprati uno per uno. Sono funzioni di lettura: non guardano l'interruttore.
+
+### Validare: `resolve()`
+
+`Bundles::resolve($productId, $idOpzioni)` controlla le scelte contro la
+composizione di oggi e ridà `['modelId', 'children' => [...], 'surcharge']`,
+dove ogni figlia è `product_id`, `quantity`, `bundle_option_id` (0 per un
+fisso). Gli errori sono `UserError` del gruppo `bundle`: `not_bundle`,
+`unknown_option`, `too_few`, `too_many`, `component_unavailable`, più quelli
+della composizione (`no_components`, `no_groups`, `group_range`, …). Un fisso
+o un'opzione il cui prodotto è spento o cancellato **non si vende**.
+`resolve()` non guarda l'interruttore: chi ha già una confezione nel carrello
+la tiene anche a funzionalità spenta; è `Cart::add()` che rifiuta le nuove con
+`bundle.feature_off`.
+
+### Cosa non si elimina
+
+`Bundles::usedBy($productId)` ridà i nomi dei multiprodotti che usano un
+prodotto, come fisso o come opzione. Con quella lista non vuota
+`assertDeletable()` (modello e prodotto) e lo spegnimento rifiutano con
+`bundle.in_use` (`UserError::refusal()`, perché l'elenco intercetta
+`RuntimeException`). Eliminare il multiprodotto porta via componenti, gruppi e
+opzioni, anche a funzionalità spenta: la chiave esterna non guarda le funzionalità.
+
 ## Niente colonne SEO
 
 Titolo e descrizione per i motori di ricerca li compone l'ecommerce da come è
@@ -1042,6 +1099,14 @@ la griglia deve reggere:
 | Maglietta girocollo | tutti e tre gli attributi: dodici righe, e una riga si legge "S / Gomma" |
 | Felpa con cappuccio | tre colori per quattro taglie: la griglia raggruppata, senza costruirla a mano |
 | Calzini a costine | nessun colore: la griglia resta piatta, senza testate |
+
+Con la funzionalità `bundles` ci sono anche **tre multiprodotti** («cesti», in
+*Accessori*), uno per modo di comporsi: *Cesto degustazione* (fisso, mostra il
+valore dei componenti), *Cesto componibile* (a scelta) e *Cesto completo*
+(misto). Si creano sempre, a funzionalità accesa o no; usano solo prodotti di
+prova che hanno merce, e non hanno foto né giacenza. Un componente di prova che
+un multiprodotto vero usa ancora **resta** alla pulizia, con la sua giacenza, e
+il comando lo dice.
 
 Ci sono anche due personalizzazioni, entrambe facoltative: l'*Incisione* (testo,
 20 caratteri, +5 €) sulla maglietta e la *Confezione regalo* (Rossa o Blu, +3 €)

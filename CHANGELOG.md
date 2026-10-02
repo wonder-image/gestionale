@@ -165,6 +165,18 @@ versionamento semantico.
   (online escluso). `gestionale:demo` crea «Incisione» e «Confezione regalo» e mette
   l'incisione su metà degli ordini di prova. Chi aggiorna esegua `php forge update`
   per le tre tabelle nuove.
+- Multiprodotto (funzionalità `bundles`): un articolo che ne contiene altri, in tre
+  modi (fisso, a scelta del cliente, misto) con gruppi di scelta, minimo e massimo e
+  sovrapprezzo per opzione. Tipo e composizione nella scheda dell'articolo, valore
+  dei componenti facoltativo, disponibilità dal componente più scarso. `Bundles`
+  (composizione, `resolve()`, `available()`, `usedBy()`), `OrderLines` (madre e
+  figlie), `Cart::add()` con `choices` e righe figlie che il server riscrive, scheda
+  dell'ordine ed email con i componenti sotto la confezione, reso della confezione
+  con il «rientra a magazzino» di ogni componente. Un prodotto usato da un
+  multiprodotto non si elimina né si spegne (`bundle.in_use`). `gestionale:demo`
+  crea tre cesti e, con la funzionalità accesa, quattro ordini (uno con un reso).
+  Chi aggiorna deve lanciare `php forge update`: tre tabelle e tre colonne nuove
+  su `gst_product_models`.
 
 ### Corretto
 

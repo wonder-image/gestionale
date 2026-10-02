@@ -7,6 +7,9 @@ use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
+use Wonder\Plugin\Gestionale\Models\Catalog\BundleComponent;
+use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroup;
+use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroupOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
@@ -23,6 +26,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
+use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
@@ -157,6 +161,38 @@ final class CatalogDemo
     /** Le righe vere usate al posto di quelle di prova, per la nota finale. @var list<string> */
     private static array $reused = [];
 
+    /**
+     * I tre multiprodotti di prova. I componenti sono articoli di prova, per
+     * riferimento e posizione fra le loro opzioni in vendita: mai l'ultima, che
+     * nasce sotto scorta e non si può vendere a pacchi.
+     *
+     * Una voce: nome, codice articolo, modalità, prezzo, se mostra il valore dei
+     * componenti, componenti fissi `[articolo, posizione, quantità]` e gruppi di
+     * scelta `[nome, minimo, massimo, [articolo, posizione, sovrapprezzo]…]`.
+     */
+    private const BUNDLES = [
+        'cesto-degustazione' => [
+            'name' => 'Cesto degustazione', 'sku' => 'CES-1', 'mode' => 'fixed', 'price' => '69.00', 'show_value' => true,
+            'components' => [['maglietta-girocollo', 0, 1], ['calzini-a-costine', 0, 2], ['felpa-con-cappuccio', 0, 1]],
+            'groups' => [],
+        ],
+        'cesto-componibile' => [
+            'name' => 'Cesto componibile', 'sku' => 'CES-2', 'mode' => 'choice', 'price' => '39.00', 'show_value' => false,
+            'components' => [],
+            'groups' => [
+                ['Vino', 1, 1, [['calzini-a-costine', 1, '0.00'], ['felpa-con-cappuccio', 1, '4.00']]],
+                ['Dolce', 0, 2, [['maglietta-girocollo', 1, '0.00'], ['maglietta-girocollo', 2, '0.00'], ['maglietta-girocollo', 3, '0.00']]],
+            ],
+        ],
+        'cesto-completo' => [
+            'name' => 'Cesto completo', 'sku' => 'CES-3', 'mode' => 'mixed', 'price' => '79.00', 'show_value' => false,
+            'components' => [['felpa-con-cappuccio', 2, 1]],
+            'groups' => [
+                ['Vino', 1, 1, [['calzini-a-costine', 1, '0.00'], ['felpa-con-cappuccio', 3, '4.00']]],
+            ],
+        ],
+    ];
+
     public static function register(): void
     {
         DemoData::register(
@@ -193,6 +229,7 @@ final class CatalogDemo
         $created += self::models();
         $created += self::suppliers();
         $created += self::customizations();
+        $created += self::bundles();
 
         DemoData::note(DemoCode::reusedNote(array_values(array_unique(self::$reused))));
         self::$reused = [];
@@ -251,6 +288,151 @@ final class CatalogDemo
         $created += self::linkCustomization('felpa-con-cappuccio', 'confezione-regalo', 'Confezione regalo');
 
         return $created;
+    }
+
+    /**
+     * I multiprodotti di prova: uno fisso, uno a scelta e uno misto. Nascono
+     * dopo gli articoli, che sono i loro componenti; rifare i dati di prova non
+     * tocca quelli che ci sono già.
+     *
+     * @return int righe create
+     */
+    private static function bundles(): int
+    {
+        $created = 0;
+
+        foreach (self::BUNDLES as $ref => $bundle) {
+            $created += self::bundle($ref, $bundle);
+        }
+
+        return $created;
+    }
+
+    /**
+     * Un multiprodotto di prova, con la sua composizione.
+     *
+     * @param array<string, mixed> $bundle una voce di `BUNDLES`
+     * @return int righe create
+     */
+    private static function bundle(string $ref, array $bundle): int
+    {
+        if (self::modelId($ref) > 0) {
+            return 0;
+        }
+
+        // I componenti sono articoli di prova: se manca uno, il multiprodotto
+        // non nasce a metà.
+        $pieces = [];
+
+        foreach ($bundle['components'] as [$model, $position, $quantity]) {
+            $pieces[] = [self::productOf($model, $position), $quantity];
+        }
+
+        $groups = [];
+
+        foreach ($bundle['groups'] as [$name, $min, $max, $options]) {
+            $groups[] = [$name, $min, $max, array_map(
+                static fn (array $option): array => [self::productOf($option[0], $option[1]), $option[2]],
+                $options
+            )];
+        }
+
+        $ids = array_merge(
+            array_column($pieces, 0),
+            ...array_map(static fn (array $group): array => array_column($group[3], 0), $groups)
+        );
+
+        if (in_array(0, $ids, true)) {
+            return 0;
+        }
+
+        $result = ProductModel::create([
+            'code' => DemoCode::forModel(ProductModel::class, $ref),
+            'name' => $bundle['name'],
+            'slug' => Slug::unique($bundle['name'], ProductModel::class),
+            'sku' => $bundle['sku'],
+            'tax_category_id' => self::ordinaryTaxCategoryId(),
+            'unit' => 'pz',
+            'type' => 'bundle',
+            'bundle_mode' => $bundle['mode'],
+            'show_components_value' => $bundle['show_value'] ? 'true' : 'false',
+            'returnable' => 'true',
+            'requires_shipping' => 'true',
+            'visible' => 'true',
+            'visible_online' => 'true',
+            'position' => 1,
+        ]);
+
+        if (empty($result->success)) {
+            return 0;
+        }
+
+        $modelId = (int) ($result->insert_id ?? 0);
+        $created = 1;
+
+        $skeleton = Skeleton::forModel($modelId, $bundle['name'], $bundle['sku']);
+        $created += 2;
+
+        // Il prezzo sta sull'unica opzione in vendita, che è la confezione.
+        Product::update(['price' => $bundle['price']], (int) $skeleton['product_id']);
+
+        $category = self::idOf(Category::class, 'accessori', 'Accessori');
+
+        if ($category > 0) {
+            ProductModelCategory::create([
+                'product_model_id' => $modelId,
+                'category_id' => $category,
+                'is_main' => 'true',
+                'position' => 1,
+            ]);
+            $created++;
+        }
+
+        foreach ($pieces as $index => [$productId, $quantity]) {
+            $created += !empty(BundleComponent::create([
+                'product_model_id' => $modelId,
+                'product_id' => $productId,
+                'quantity' => $quantity,
+                'position' => $index + 1,
+            ])->success) ? 1 : 0;
+        }
+
+        foreach ($groups as $index => [$name, $min, $max, $options]) {
+            $group = BundleGroup::create([
+                'product_model_id' => $modelId,
+                'name' => $name,
+                'min_choices' => $min,
+                'max_choices' => $max,
+                'position' => $index + 1,
+            ]);
+            $groupId = (int) ($group->insert_id ?? 0);
+            $created += $groupId > 0 ? 1 : 0;
+
+            foreach ($options as $position => [$productId, $surcharge]) {
+                $created += $groupId > 0 && !empty(BundleGroupOption::create([
+                    'bundle_group_id' => $groupId,
+                    'product_id' => $productId,
+                    'surcharge' => $surcharge,
+                    'position' => $position + 1,
+                ])->success) ? 1 : 0;
+            }
+        }
+
+        return $created;
+    }
+
+    /**
+     * L'opzione in vendita di un articolo di prova, per posizione.
+     *
+     * @return int `0` se l'articolo o l'opzione non ci sono
+     */
+    private static function productOf(string $modelRef, int $position): int
+    {
+        $products = self::rowsOfModel(Product::class, self::modelId($modelRef));
+
+        usort($products, static fn (array $a, array $b): int => (int) $a['id'] <=> (int) $b['id']);
+
+        return (int) ($products[$position]['id'] ?? 0);
     }
 
     /** Collega la personalizzazione all'articolo, facoltativa, se il collegamento non c'è già. */
@@ -934,8 +1116,21 @@ final class CatalogDemo
 
         // Prima gli articoli: portano via prodotti, varianti, collegamenti e
         // foto, e sono loro a tenere occupati attributi e categorie.
-        foreach (self::ours(ProductModel::class) as $row) {
+        // I multiprodotti per primi: portano via le loro tre tabelle, e solo
+        // dopo i loro componenti smettono di essere «in uso».
+        $models = self::ours(ProductModel::class);
+        usort($models, static fn (array $a, array $b): int => (($b['type'] ?? '') === 'bundle') <=> (($a['type'] ?? '') === 'bundle'));
+
+        foreach ($models as $row) {
             $modelId = (int) $row['id'];
+
+            // Un componente che un multiprodotto vero usa ancora resta, con la
+            // sua giacenza: la storia di magazzino non si tocca.
+            if (self::inBundle($modelId)) {
+                $kept[] = DemoCode::label(ProductModel::class, (string) ($row['name'] ?? ''));
+                continue;
+            }
+
             // Quello che se ne va con l'articolo si conta prima: dopo non c'è
             // più niente da contare, e «tolte 19, create 49» non si spiega.
             $sotto = self::countOf(ProductVariant::class, $modelId)
@@ -1113,6 +1308,18 @@ final class CatalogDemo
         );
 
         return is_array($row) && $row !== [];
+    }
+
+    /** Un'opzione in vendita di questo articolo è componente o scelta di un multiprodotto? */
+    private static function inBundle(int $modelId): bool
+    {
+        foreach (self::rowsOfModel(Product::class, $modelId) as $product) {
+            if (Bundles::usedBy((int) $product['id']) !== []) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Una cancellazione riuscita? Un errore del database conta come un no. */

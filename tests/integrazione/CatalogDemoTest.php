@@ -15,6 +15,9 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
+use Wonder\Plugin\Gestionale\Models\Catalog\BundleComponent;
+use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroup;
+use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroupOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\Package;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
@@ -30,6 +33,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
 use Wonder\Plugin\Gestionale\Seeding\ContactsDemo;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
+use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
@@ -94,6 +98,7 @@ $tutte = [
     ProductModel::class, ProductVariant::class, Product::class, ProductImage::class,
     Package::class,
     Customization::class, CustomizationOption::class, ProductModelCustomization::class,
+    BundleComponent::class, BundleGroup::class, BundleGroupOption::class,
 ];
 $stato = static fn (): array => array_map($conta, $tutte);
 $prima = $stato();
@@ -169,7 +174,7 @@ try {
 
         $creati = CatalogDemo::create();
 
-        check('crea tassonomie, attributi e quattro articoli', function () use ($creati, $stato, $prima) {
+        check('crea tassonomie, attributi, quattro articoli e tre multiprodotti', function () use ($creati, $stato, $prima) {
             $dopo = $stato();
 
             return $creati > 15
@@ -178,7 +183,7 @@ try {
                 && $dopo[2] === $prima[2] + 2      // tag
                 && $dopo[3] === $prima[3] + 5      // attributi, scheda tecnica compresa
                 && $dopo[4] === $prima[4] + 12     // valori
-                && $dopo[5] === $prima[5] + 4      // articoli
+                && $dopo[5] === $prima[5] + 7      // articoli: quattro semplici e tre multiprodotti
                 // Una foto per articolo, più quella di un colore e quella di
                 // una singola opzione in vendita.
                 && $dopo[8] === $prima[8] + 6
@@ -594,6 +599,40 @@ try {
                 && $a[0]['is_required'] === 'false' && $b[0]['is_required'] === 'false';
         });
 
+        check('crea tre multiprodotti: fisso, a scelta e misto, con la composizione attesa', function () use ($idDi, $righe) {
+            $fisso = Bundles::forModel($idDi(ProductModel::class, 'cesto-degustazione'));
+            $scelta = Bundles::forModel($idDi(ProductModel::class, 'cesto-componibile'));
+            $misto = Bundles::forModel($idDi(ProductModel::class, 'cesto-completo'));
+            $gruppo = static fn (array $b, int $i): array => $b['groups'][$i] ?? ['name' => '', 'min' => -1, 'max' => -1, 'options' => []];
+            $extra = static fn (array $g): array => array_column($g['options'], 'surcharge');
+
+            return $fisso['mode'] === 'fixed' && $fisso['show_value'] === true && $fisso['groups'] === []
+                && array_column($fisso['components'], 'quantity') === [1.0, 2.0, 1.0]
+                && $scelta['mode'] === 'choice' && $scelta['show_value'] === false && $scelta['components'] === []
+                && count($scelta['groups']) === 2
+                && $gruppo($scelta, 0)['name'] === 'Vino' && $gruppo($scelta, 0)['min'] === 1 && $gruppo($scelta, 0)['max'] === 1
+                && $extra($gruppo($scelta, 0)) === ['0.00', '4.00']
+                && $gruppo($scelta, 1)['name'] === 'Dolce' && $gruppo($scelta, 1)['min'] === 0 && $gruppo($scelta, 1)['max'] === 2
+                && $extra($gruppo($scelta, 1)) === ['0.00', '0.00', '0.00']
+                && $misto['mode'] === 'mixed' && $misto['show_value'] === false
+                && $misto['components'] !== [] && $misto['groups'] !== [];
+        });
+
+        check('i multiprodotti di prova sono del tipo giusto, hanno un prezzo e si possono vendere', function () use ($idDi, $righe) {
+            foreach (['cesto-degustazione', 'cesto-componibile', 'cesto-completo'] as $ref) {
+                $modelId = $idDi(ProductModel::class, $ref);
+                $modello = ProductModel::findById($modelId);
+                $prodotti = $righe(Product::class, ['product_model_id' => $modelId]);
+
+                if (($modello['type'] ?? '') !== 'bundle' || count($prodotti) !== 1
+                    || (float) $prodotti[0]['price'] <= 0 || Bundles::available($modelId) <= 0) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+
         check('una seconda esecuzione non duplica niente', fn () => CatalogDemo::create() === 0);
 
         check('la pulizia toglie solo le righe di prova', function () use ($stato, $prima) {
@@ -705,6 +744,47 @@ try {
             DemoData::notes();
 
             return $ok && $demo(Customization::class, 'incisione') === [];
+        });
+
+        check('un componente di prova che un multiprodotto vero usa ancora resta, con la sua giacenza, e il comando lo dice', function () use ($demo, $idDi, $righe) {
+            CatalogDemo::create();
+            $cappello = $idDi(ProductModel::class, 'cappello-di-lana');
+            $prodotto = (int) ($righe(Product::class, ['product_model_id' => $cappello])[0]['id'] ?? 0);
+            $prima = Levels::of($prodotto)['available'];
+            $vero = ProductModel::create([
+                'code' => Code::make(ProductModel::class, Codes::MODEL),
+                'name' => 'Multiprodotto vero col cappello',
+                'slug' => Slug::make('multiprodotto-vero-'.uniqid()),
+                'sku' => 'VERO-BND',
+                'unit' => 'pz',
+                'type' => 'bundle',
+                'bundle_mode' => 'fixed',
+                'visible' => 'false',
+                'position' => 1,
+            ]);
+            $veroId = (int) ($vero->insert_id ?? 0);
+            $componente = (int) (BundleComponent::create([
+                'product_model_id' => $veroId, 'product_id' => $prodotto, 'quantity' => 1, 'position' => 1,
+            ])->insert_id ?? 0);
+
+            DemoData::notes();
+            CatalogDemo::clear();
+            $note = implode("\n", DemoData::notes());
+
+            $ok = $cappello > 0 && $prodotto > 0 && $componente > 0
+                && $demo(ProductModel::class, 'cappello-di-lana') !== []
+                && Levels::of($prodotto)['available'] === $prima
+                && $demo(ProductModel::class, 'cesto-degustazione') === []
+                && $demo(ProductModel::class, 'cesto-componibile') === []
+                && $demo(ProductModel::class, 'maglietta-girocollo') === []
+                && str_contains($note, 'articolo «Cappello Di Lana»');
+
+            // Tolto il componente vero, la pulizia porta via anche il cappello.
+            BundleComponent::delete($componente);
+            CatalogDemo::clear();
+            DemoData::notes();
+
+            return $ok && $demo(ProductModel::class, 'cappello-di-lana') === [];
         });
 
         check('la pulizia toglie anche i vecchi dati «Prova …»', function () {
