@@ -29,6 +29,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
+use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -2025,6 +2026,22 @@ check('«Nuova caratteristica» apre il modal degli attributi', function () use 
         && $config['button'] === 'Nuova caratteristica'
         && $config['label'] === 'name'
         && $config['layout'] instanceof Closure;
+});
+
+check('«Nuova personalizzazione» chiede nome e sovrapprezzo, non tipo e stato', function () use ($dentroScheda, $forza) {
+    $forza(['customizations' => true]);
+    $card = (new ReflectionMethod(ProductModelResource::class, 'customizationsCard'))->invoke(null);
+    $bottoni = $dentroScheda($card, QuickCreateButton::class);
+    $config = $bottoni[0]?->quickCreateConfig() ?? [];
+    $layout = $config['layout'] ?? null;
+    $nomi = $layout instanceof Closure
+        ? array_map(static fn ($campo) => (string) $campo->name, (array) $layout()->components)
+        : [];
+    $forza(null);
+
+    return count($bottoni) === 1
+        && $config['resource'] === CustomizationResource::class
+        && $nomi === ['name', 'surcharge'];
 });
 
 check('una caratteristica a elenco si spunta a pillole, con il «+» per un valore nuovo', function () use ($schedaTecnica, $dentroScheda) {

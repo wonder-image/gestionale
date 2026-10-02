@@ -4888,6 +4888,9 @@ HTML)->tag('div');
                 QuickCreateButton::make(CustomizationResource::class)
                     ->text('Nuova personalizzazione')
                     ->label('name')
+                    ->layout(static fn (): Container => (new Container)
+                        ->columns(12)
+                        ->components(CustomizationResource::quickCreateFields()))
                     ->size('sm')
                     ->id(static::CUSTOMIZATION_BUTTON)
                     ->columnSpan(12),
