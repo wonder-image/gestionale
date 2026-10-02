@@ -3096,4 +3096,88 @@ check('le righe delle personalizzazioni senza scelta o con una già vista si sca
         && ProductModelResource::prepareRepeaterRows('altro', $altre) === $altre;
 });
 
+check('senza «bundles» la scheda non ha né il tipo né la composizione, e la colonna larga non cambia', function () use ($campi, $forza) {
+    $forza(['bundles' => false]);
+
+    try {
+        $nomi = array_keys($campi());
+        $colonna = (new ReflectionMethod(ProductModelResource::class, 'mainColumn'))->invoke(null, 0);
+    } finally {
+        $forza(null);
+    }
+
+    return array_intersect(['type', 'bundle_mode', 'show_components_value', 'bundle_components', 'bundle_groups'], $nomi) === []
+        && !str_contains(print_r(array_map(static fn ($p): string => get_class($p), $colonna), true), 'Modal');
+});
+
+check('con «bundles» il tipo ha due scelte e la composizione ha i suoi quattro campi', function () use ($campi, $forza) {
+    $forza(['bundles' => true]);
+
+    try {
+        $c = $campi();
+    } finally {
+        $forza(null);
+    }
+
+    $tipo = $c['type'] ?? null;
+    $componenti = array_map(static fn ($x): string => (string) $x->name, (array) ($c['bundle_components']?->get('context')['columns'] ?? []));
+    $gruppi = array_map(static fn ($x): string => (string) $x->name, (array) ($c['bundle_groups']?->get('context')['columns'] ?? []));
+
+    return $tipo !== null
+        && array_keys((array) ($tipo->get('options') ?? [])) === ['simple', 'bundle']
+        && isset($c['bundle_mode'], $c['show_components_value'])
+        && $componenti === ['id', 'product_id', 'quantity']
+        && $gruppi === ['id', 'name', 'min', 'max', 'options', 'options_button']
+        // Senza relazione: le righe le scrive `saveBundle()`.
+        && !isset(ProductModelResource::repeaterRelations()['bundle_components'])
+        && !isset(ProductModelResource::repeaterRelations()['bundle_groups']);
+});
+
+check('con «bundles» la scheda ha il riquadro Composizione, la finestra delle opzioni e il tipo che nasconde giacenza e codici', function () use ($forza) {
+    $forza(['bundles' => true]);
+
+    try {
+        $colonna = (new ReflectionMethod(ProductModelResource::class, 'mainColumn'))->invoke(null, 0);
+    } finally {
+        $forza(null);
+    }
+
+    $cerca = static function (array $pezzi, callable $cond) use (&$cerca): bool {
+        foreach ($pezzi as $pezzo) {
+            if ($cond($pezzo) || (isset($pezzo->components) && $cerca((array) $pezzo->components, $cond))) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+    $regola = static function ($pezzo): array {
+        $attributi = $pezzo instanceof Input
+            ? $pezzo->conditionalAttributes()
+            : (array) ($pezzo->getSchema('attributes') ?? []);
+
+        return array_filter($attributi, static fn ($k): bool => str_contains((string) $k, '-when'), ARRAY_FILTER_USE_KEY);
+    };
+    $nascosto = static fn ($pezzo): bool => ($regola($pezzo)['data-hidden-when'] ?? '') === 'type'
+        && ($regola($pezzo)['data-hidden-when-values'] ?? '') === 'bundle';
+    $composizione = static fn ($pezzo): bool => ($regola($pezzo)['data-visible-when'] ?? '') === 'type'
+        && ($regola($pezzo)['data-visible-when-values'] ?? '') === 'bundle';
+
+    return $cerca($colonna, $composizione)
+        && $cerca($colonna, static fn ($p): bool => $p instanceof Modal && (string) ($p->getSchema('id') ?? '') === 'wi-bundle-options')
+        && $cerca($colonna, static fn ($p): bool => $p instanceof RichText && str_contains((string) $p->getText(), 'wi-bundle-options'))
+        && $cerca($colonna, $nascosto);
+});
+
+check('il tipo e la composizione non finiscono nelle colonne dell\'articolo tra le righe da scartare', function () {
+    $v = (new ReflectionMethod(ProductModelResource::class, 'withoutExtras'))->invoke(null, [
+        'name' => 'X', 'type' => 'bundle', 'bundle_mode' => 'fixed',
+        'bundle_components' => [['product_id' => '1']], 'bundle_groups' => [['name' => 'g']],
+        'categories' => [], 'main_category' => '', 'tags' => [], 'product_ean' => '', 'product_price' => '',
+    ]);
+
+    return !array_key_exists('bundle_components', $v) && !array_key_exists('bundle_groups', $v)
+        && ($v['type'] ?? '') === 'bundle' && ($v['bundle_mode'] ?? '') === 'fixed';
+});
+
 summary();

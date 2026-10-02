@@ -58,6 +58,46 @@ final class Bundles
     }
 
     /**
+     * I prodotti della composizione, controllati prima di scriverli: devono
+     * esistere e non essere cancellati, e non possono essere a loro volta
+     * multiprodotti. Un prodotto solo spento passa: chi modifica una scheda
+     * non deve essere fermato da un componente messo a riposo.
+     *
+     * Come `assertComposition`, guarda solo i riquadri che la modalità tiene.
+     *
+     * @param list<array{product_id: int, quantity: float|int|string}> $components
+     * @param list<array{name: string, min: int, max: int, options: list<array{product_id: int, surcharge: float|int|string}>}> $groups
+     *
+     * @throws UserError
+     */
+    public static function assertProducts(string $mode, array $components, array $groups): void
+    {
+        $ids = [];
+
+        if ($mode !== 'choice') {
+            array_push($ids, ...array_column($components, 'product_id'));
+        }
+
+        if ($mode !== 'fixed') {
+            foreach ($groups as $group) {
+                array_push($ids, ...array_column($group['options'], 'product_id'));
+            }
+        }
+
+        foreach (array_unique(array_map('intval', $ids)) as $id) {
+            $product = self::product($id);
+
+            if ($product === null || ($product['deleted'] ?? 'false') === 'true') {
+                throw UserError::make('bundle.component_unavailable', ['name' => self::nameOf($id)]);
+            }
+
+            if (self::isBundle($id)) {
+                throw UserError::make('bundle.nested', ['name' => self::nameOf($id)]);
+            }
+        }
+    }
+
+    /**
      * Le scelte di chi compra, controllate sui gruppi dell'articolo.
      *
      * Gli id arrivano come numeri o come stringhe e contano una volta sola.

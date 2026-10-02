@@ -30,6 +30,9 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
+use Wonder\Plugin\Gestionale\Models\Catalog\BundleComponent;
+use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroup;
+use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroupOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
@@ -47,6 +50,7 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\PackageResource;
 use Wonder\Plugin\Gestionale\Resources\Tax\TaxCategoryResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
+use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Combinations;
@@ -73,6 +77,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\LocationRows;
 use Wonder\Plugin\Gestionale\Support\Stock\LocationStock;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
+use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\Stocktake;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
@@ -147,6 +152,9 @@ class ProductModelResource extends GestionaleResource
      * scheda dell'opzione, e lo script la cerca.
      */
     protected const SUPPLIERS_MODAL = 'wi-product-suppliers';
+
+    /** La finestra delle opzioni di un gruppo di scelta (G5). */
+    protected const BUNDLE_OPTIONS_MODAL = 'wi-bundle-options';
 
     /**
      * Quante righe ha la finestra «Fornitori», al massimo: lo stesso
@@ -351,7 +359,79 @@ class ProductModelResource extends GestionaleResource
                 ->label('');
         }
 
+        if (Gestionale::feature('bundles')) {
+            array_push($fields, ...static::bundleFields((int) ($modelId ?? 0)));
+        }
+
         return $fields;
+    }
+
+    /**
+     * I campi del multiprodotto: il tipo, come si compone, i componenti e i
+     * gruppi di scelta. Spenta la funzionalità non esistono, e salvare
+     * l'articolo non li tocca.
+     *
+     * I due elenchi non hanno una relazione: le righe le compone e le legge
+     * la scheda (`withBundleFormValues`), le scrive `saveBundle()`. Le
+     * opzioni di un gruppo stanno in un JSON nascosto che la finestra
+     * riscrive, come i fornitori.
+     *
+     * @return list<Input>
+     */
+    protected static function bundleFields(int $modelId): array
+    {
+        $prodotti = ['' => '—'] + static::bundleOptionProducts($modelId);
+
+        $tipo = FormField::key('type')
+            ->select(['simple' => 'Articolo singolo', 'bundle' => 'Multiprodotto'])
+            ->value('simple')
+            ->label('Tipo');
+
+        // Il tipo si sceglie alla nascita: dopo, i componenti e la giacenza
+        // non si scambiano da una casella.
+        if ($modelId > 0) {
+            $tipo = $tipo->readonly()->disabled();
+        }
+
+        return [
+            $tipo,
+            FormField::key('bundle_mode')
+                ->select(['fixed' => 'Fissa', 'choice' => 'A scelta del cliente', 'mixed' => 'Fissa e a scelta'])
+                ->value('fixed')
+                ->label('Come si compone'),
+            FormField::key('show_components_value')
+                ->toggle()
+                ->label('Mostra il valore dei componenti'),
+            FormField::key('bundle_components')
+                ->repeater([
+                    RepeaterColumn::key('id')->hidden(),
+                    RepeaterColumn::key('product_id')->select($prodotti)->label('Prodotto')->columnFill(),
+                    RepeaterColumn::key('quantity')->number()->decimal(3)->label('Quantità')->columnSpan(3),
+                ])
+                ->nested()
+                ->repeaterSortable()
+                ->repeaterStartEmpty()
+                ->repeaterAddLabel('Aggiungi componente')
+                ->label(''),
+            FormField::key('bundle_groups')
+                ->repeater([
+                    RepeaterColumn::key('id')->hidden(),
+                    RepeaterColumn::key('name')->text()->label('Gruppo')->columnFill(),
+                    RepeaterColumn::key('min')->number()->decimal(0)->label('Da')->columnSpan(1),
+                    RepeaterColumn::key('max')->number()->decimal(0)->label('A')->columnSpan(1),
+                    RepeaterColumn::key('options')->hidden(),
+                    RepeaterColumn::key('options_button')
+                        ->button('Opzioni')
+                        ->opensModal(static::BUNDLE_OPTIONS_MODAL)
+                        ->emptyCaption('Nessuna opzione')
+                        ->columnSpan(3),
+                ])
+                ->nested()
+                ->repeaterSortable()
+                ->repeaterStartEmpty()
+                ->repeaterAddLabel('Aggiungi gruppo')
+                ->label(''),
+        ];
     }
 
     /**
@@ -403,6 +483,19 @@ class ProductModelResource extends GestionaleResource
 
         $domanda = static::getInput('has_variants')->columnSpan(12);
 
+        // Un multiprodotto non ha varianti: il suo prezzo e la sua
+        // composizione bastano.
+        $nascondiMulti = static fn (object $c): object => Gestionale::feature('bundles')
+            ? $c->hiddenWhen('type', 'bundle')
+            : $c;
+
+        // Quello che ha già la sua condizione (le varianti) e il tipo deve
+        // nasconderlo lo stesso sta in un contenitore: un elemento ha una
+        // regola sola. Senza la funzionalità il contenitore non serve.
+        $senzaMulti = static fn (array $componenti, int $span = 12): array => Gestionale::feature('bundles')
+            ? [(new Container)->components($componenti)->columns(12)->columnSpan($span)->hiddenWhen('type', 'bundle')]
+            : $componenti;
+
         if ($bloccato) {
             $domanda = $domanda->readonly()->disabled();
         }
@@ -415,6 +508,8 @@ class ProductModelResource extends GestionaleResource
         if ($senzaOpzioni) {
             $domanda = FormField::key('has_variants')->hidden()->value('false');
         }
+
+        $domanda = $nascondiMulti($domanda);
 
         // Con più sedi giacenza e scorta minima stanno nel riquadro
         // «Magazzino», sede per sede (P102): qui restano prezzo e codici.
@@ -445,7 +540,8 @@ class ProductModelResource extends GestionaleResource
                             .($sedi ? ' Giacenza e scorta minima stanno nel riquadro «Magazzino», sede per sede.' : '')
                             .($senzaOpzioni ? ' Per vendere colori o taglie serve un attributo con uso «Opzione da scegliere» o «Opzione con foto proprie», e dei valori: si crea in Catalogo → Attributi.' : ''))
                     ->columnSpan(12),
-                static::getInput('name')->columnSpan(9),
+                static::getInput('name')->columnSpan(Gestionale::feature('bundles') ? 6 : 9),
+                ...(Gestionale::feature('bundles') ? [static::getInput('type')->columnSpan(3)] : []),
                 static::getInput('visible')->columnSpan(3),
                 // Niente titolo «Descrizione»: le etichette dei due campi lo
                 // dicono già.
@@ -465,14 +561,20 @@ class ProductModelResource extends GestionaleResource
                 // compare da nessuna parte. In creazione c'è già: chi crea
                 // l'articolo ha la merce davanti. Con più sedi la casella non
                 // c'è: i pezzi si scrivono sede per sede, nel riquadro sotto.
-                ...($sedi ? [] : [static::getInput('product_stock')->columnSpan(4)]),
+                // La giacenza di un multiprodotto è quella dei suoi componenti:
+                // la casella sta in un contenitore che il tipo nasconde,
+                // perché la sua condizione, quella delle varianti, è già
+                // sua.
+                ...($sedi ? [] : (Gestionale::feature('bundles')
+                    ? $senzaMulti([static::getInput('product_stock')->columnSpan(12)], 4)
+                    : [static::getInput('product_stock')->columnSpan(4)])),
                 // Codici, scorta minima e fornitori sotto il prezzo, chiusi
                 // come le informazioni avanzate delle righe della griglia:
                 // servono di rado. Con le varianti spariscono insieme al
                 // prezzo — ognuna ha i suoi nella griglia — ma lo SKU resta
                 // nel modulo, solo nascosto, e continua a proporre quelli
                 // delle righe.
-                Accordion::make('Compila le informazioni avanzate')
+                ...$senzaMulti([Accordion::make('Compila le informazioni avanzate')
                     ->link()
                     ->columns(12)
                     ->columnSpan(12)
@@ -489,17 +591,20 @@ class ProductModelResource extends GestionaleResource
                             static::getInput('product_suppliers'),
                             static::getInput('product_suppliers_button')->columnSpan(12),
                         ] : []),
-                    ]),
+                    ])]),
                 // In creazione non c'è ancora niente da rettificare; con più
                 // sedi il link sta nel riquadro «Magazzino».
-                ...($modelId > 0 && !$sedi ? [
+                ...($modelId > 0 && !$sedi ? $senzaMulti([
                     RichText::make(static::adjustLink($modelId))
                         ->columnSpan(12)
                         ->hiddenWhen('has_variants', 'true'),
-                ] : []),
+                ]) : []),
             ])->columns(12)->columnSpan(12),
             // Con più sedi le righe per sede, subito dopo i codici (P102).
-            ...($sedi ? [static::stockCard($modelId)] : []),
+            ...($sedi ? $senzaMulti([static::stockCard($modelId)]) : []),
+            // La composizione di un multiprodotto, al posto di giacenza e
+            // opzioni: due riquadri che il tipo apre e chiude.
+            ...(Gestionale::feature('bundles') ? [static::bundleCard()] : []),
             // Subito sotto la domanda «ha varianti?»: chi risponde sì trova
             // qui le opzioni. In due terzi di
             // schermo la griglia ci sta: le righe raggruppate hanno tre
@@ -528,6 +633,12 @@ class ProductModelResource extends GestionaleResource
             $cards[] = static::suppliersScript($modelId);
         }
 
+        // La finestra delle opzioni di un gruppo: una per la pagina.
+        if (Gestionale::feature('bundles')) {
+            $cards[] = static::bundleOptionsModal();
+            $cards[] = static::bundleOptionsScript($modelId);
+        }
+
         return $cards;
     }
 
@@ -540,6 +651,295 @@ class ProductModelResource extends GestionaleResource
      * avvisare. Con le varianti sparisce insieme al prezzo: ogni opzione ha le
      * sue sedi nella griglia, dietro il bottone «Giacenza».
      */
+    /**
+     * Il riquadro «Composizione»: la modalità, il valore dei componenti e
+     * i due elenchi, ognuno aperto dalla modalità che lo vuole.
+     */
+    protected static function bundleCard(): object
+    {
+        return (new Card)->components([
+            SectionTitle::make('Composizione')
+                ->tooltip('Fissa: i pezzi che stanno sempre nella confezione, con la quantità di ognuno. A scelta: gruppi di prodotti da cui chi compra sceglie «da» «a» quanti; ogni opzione può avere un sovrapprezzo. Fissa e a scelta le fa tutte e due. Il prezzo qui sopra è quello della confezione; la giacenza è quella dei componenti, e la confezione ne vale quante ne reggono.')
+                ->columnSpan(12),
+            static::getInput('bundle_mode')->columnSpan(8),
+            static::getInput('show_components_value')->columnSpan(4),
+            (new Container)->columns(12)->columnSpan(12)->visibleWhen('bundle_mode', ['fixed', 'mixed'])->components([
+                SectionTitle::make('Componenti fissi')->columnSpan(12),
+                static::getInput('bundle_components')->columnSpan(12),
+            ]),
+            (new Container)->columns(12)->columnSpan(12)->visibleWhen('bundle_mode', ['choice', 'mixed'])->components([
+                SectionTitle::make('Gruppi di scelta')
+                    ->tooltip('«Da» e «A» sono quante opzioni chi compra deve scegliere, al meno e al più: «A» non può superare le opzioni del gruppo.')
+                    ->columnSpan(12),
+                static::getInput('bundle_groups')->columnSpan(12),
+            ]),
+        ])->columns(12)->columnSpan(12)->visibleWhen('type', 'bundle');
+    }
+
+    /**
+     * La finestra delle opzioni di un gruppo: una riga per prodotto, con il
+     * suo sovrapprezzo. Le righe le disegna lo script (`bundleOptionsScript`)
+     * dal JSON del gruppo che l'ha aperta; non hanno `name`, quindi il form
+     * non le manda: quello che conta è il JSON.
+     */
+    protected static function bundleOptionsModal(): Modal
+    {
+        return Modal::make('Opzioni del gruppo')
+            ->id(static::BUNDLE_OPTIONS_MODAL)
+            ->size('lg')
+            ->columns(12)
+            ->components([
+                RichText::make(
+                    '<div class="alert alert-danger small" data-wi-bundle-error role="alert" hidden></div>'
+                    .'<div class="row g-2 small text-body-secondary mb-1"><div class="col-8">Prodotto</div><div class="col-3">Sovrapprezzo</div><div class="col-1"></div></div>'
+                    .'<div data-wi-bundle-rows></div>'
+                )->tag('div')->columnSpan(12),
+            ])
+            ->footer([
+                Button::make('Aggiungi opzione')->variant('secondary')->outline()->attr('data-wi-bundle-add', 'true'),
+                Button::make('Annulla')->variant('secondary')->attr('data-bs-dismiss', 'modal'),
+                Button::make('Salva')->attr('data-wi-bundle-save', 'true'),
+            ]);
+    }
+
+    /**
+     * Il codice della finestra delle opzioni.
+     *
+     * All'apertura legge il JSON del gruppo che l'ha aperta e disegna una
+     * riga per opzione; «Salva» riscrive il JSON nel campo nascosto di quel
+     * gruppo — con gli id che c'erano, per non perdere le opzioni già
+     * comprate — e il riassunto accanto al bottone. I controlli veri li fa il
+     * server al salvataggio della scheda; qui solo i prodotti doppi o
+     * mancanti, che sono quelli che una persona si accorge subito di aver
+     * scritto male.
+     */
+    protected static function bundleOptionsScript(int $modelId): RichText
+    {
+        $voci = [];
+
+        foreach (static::bundleOptionProducts($modelId) as $id => $nome) {
+            $voci[] = ['id' => (int) $id, 'name' => $nome];
+        }
+
+        $messaggi = [
+            'missing' => UserError::make('bundle.component_unavailable', ['name' => '—'])->getMessage(),
+            'duplicate' => UserError::make('bundle.duplicate_product')->getMessage(),
+        ];
+
+        $json = static fn (array $valore): string => static::escape(json_encode(
+            $valore,
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
+        ));
+
+        return RichText::make(
+            '<div class="wi-bundle-options"'
+            .' data-wi-bundle-products="'.$json($voci).'"'
+            .' data-wi-bundle-messages="'.$json($messaggi).'"></div>'
+            .<<<'HTML'
+<script>
+    (function () {
+        if (window.wiBundleOptionsReady) {
+            return;
+        }
+
+        window.wiBundleOptionsReady = true;
+
+        var FINESTRA = 'wi-bundle-options';
+        // Il campo nascosto e il bottone del gruppo che ha aperto la finestra.
+        var aperta = null;
+
+        function dato(nome, vuoto) {
+            var radice = document.querySelector('.wi-bundle-options');
+
+            try {
+                var valore = JSON.parse(radice ? radice.getAttribute(nome) || '' : '');
+
+                return valore === null || valore === undefined ? vuoto : valore;
+            } catch (errore) {
+                return vuoto;
+            }
+        }
+
+        function testo(valore) {
+            var nodo = document.createElement('span');
+
+            nodo.textContent = String(valore);
+
+            return nodo.innerHTML;
+        }
+
+        function righe(finestra) {
+            return Array.prototype.slice.call(finestra.querySelectorAll('[data-wi-bundle-line]'));
+        }
+
+        function aggiungi(finestra, voce) {
+            var prodotti = dato('data-wi-bundle-products', []);
+            var elenco = '<option value="">—</option>' + prodotti.map(function (prodotto) {
+                var scelto = voce && String(voce.product_id) === String(prodotto.id) ? ' selected' : '';
+
+                return '<option value="' + prodotto.id + '"' + scelto + '>' + testo(prodotto.name) + '</option>';
+            }).join('');
+            var sovrapprezzo = voce && voce.surcharge !== undefined && voce.surcharge !== '' ? String(voce.surcharge).replace('.', ',') : '';
+            var linea = document.createElement('div');
+
+            linea.className = 'row g-2 mb-2 align-items-center';
+            linea.setAttribute('data-wi-bundle-line', voce && voce.id ? String(voce.id) : '0');
+            linea.innerHTML = '<div class="col-8"><select class="form-select form-select-sm" data-wi-bundle-product>' + elenco + '</select></div>'
+                + '<div class="col-3"><input type="text" inputmode="decimal" class="form-control form-control-sm" data-wi-bundle-surcharge value="' + testo(sovrapprezzo) + '"></div>'
+                + '<div class="col-1"><button type="button" class="btn btn-sm btn-outline-secondary" data-wi-bundle-remove title="Togli l\'opzione" aria-label="Togli l\'opzione"><i class="bi bi-x-lg"></i></button></div>';
+
+            finestra.querySelector('[data-wi-bundle-rows]').appendChild(linea);
+        }
+
+        function avviso(finestra, frase) {
+            var posto = finestra.querySelector('[data-wi-bundle-error]');
+
+            if (posto) {
+                posto.textContent = frase;
+                posto.hidden = frase === '';
+            }
+        }
+
+        function leggi(finestra) {
+            var elenco = [];
+            var visti = {};
+            var errore = '';
+            var testi = dato('data-wi-bundle-messages', {});
+
+            righe(finestra).forEach(function (linea) {
+                var prodotto = linea.querySelector('[data-wi-bundle-product]').value;
+                var valore = linea.querySelector('[data-wi-bundle-surcharge]').value.replace(/[^0-9.,-]/g, '');
+
+                if (valore.indexOf(',') !== -1) {
+                    valore = valore.replace(/\./g, '').replace(',', '.');
+                }
+
+                if (prodotto === '') {
+                    errore = errore || String(testi.missing || 'Scegli il prodotto di ogni riga.');
+
+                    return;
+                }
+
+                if (visti[prodotto]) {
+                    errore = errore || String(testi.duplicate || 'Lo stesso prodotto non si scrive due volte.');
+
+                    return;
+                }
+
+                visti[prodotto] = true;
+                elenco.push({
+                    id: parseInt(linea.getAttribute('data-wi-bundle-line'), 10) || 0,
+                    product_id: parseInt(prodotto, 10),
+                    surcharge: valore === '' || isNaN(Number(valore)) ? '0.00' : Number(valore).toFixed(2)
+                });
+            });
+
+            return { elenco: elenco, errore: errore };
+        }
+
+        function riassunto(quante) {
+            return quante === 0 ? '' : (quante === 1 ? '1 opzione' : quante + ' opzioni');
+        }
+
+        function scrivi(campo, bottone, elenco) {
+            campo.value = JSON.stringify(elenco);
+            campo.dispatchEvent(new Event('change', { bubbles: true }));
+
+            var posto = bottone && bottone.parentElement ? bottone.parentElement.querySelector('[data-wi-button-caption]') : null;
+
+            if (posto) {
+                posto.textContent = riassunto(elenco.length) || 'Nessuna opzione';
+            }
+        }
+
+        document.addEventListener('show.bs.modal', function (evento) {
+            var finestra = evento.target;
+            var bottone = evento.relatedTarget || null;
+
+            if (!finestra || finestra.id !== FINESTRA) {
+                return;
+            }
+
+            var riga = bottone && bottone.closest ? bottone.closest('.wi-repeater-row') : null;
+            var campo = riga ? riga.querySelector('input[name$="[options]"]') : null;
+            var nome = riga ? riga.querySelector('input[name$="[name]"]') : null;
+            var titolo = finestra.querySelector('[data-wi-modal-title]');
+            var presenti = [];
+
+            aperta = campo ? { bottone: bottone, campo: campo } : null;
+
+            try {
+                presenti = JSON.parse(campo && campo.value ? campo.value : '[]') || [];
+            } catch (errore) {
+                presenti = [];
+            }
+
+            if (titolo) {
+                titolo.textContent = nome && nome.value.trim() !== '' ? 'Opzioni · ' + nome.value.trim() : 'Opzioni del gruppo';
+            }
+
+            finestra.querySelector('[data-wi-bundle-rows]').innerHTML = '';
+            avviso(finestra, '');
+            (Array.isArray(presenti) && presenti.length > 0 ? presenti : [null]).forEach(function (voce) {
+                aggiungi(finestra, voce);
+            });
+        });
+
+        document.addEventListener('click', function (evento) {
+            var bersaglio = evento.target && evento.target.closest ? evento.target : null;
+
+            if (!bersaglio) {
+                return;
+            }
+
+            var finestra = bersaglio.closest('#' + FINESTRA);
+
+            if (!finestra) {
+                return;
+            }
+
+            if (bersaglio.closest('[data-wi-bundle-add]')) {
+                evento.preventDefault();
+                aggiungi(finestra, null);
+
+                return;
+            }
+
+            var togli = bersaglio.closest('[data-wi-bundle-remove]');
+
+            if (togli) {
+                evento.preventDefault();
+                togli.closest('[data-wi-bundle-line]').remove();
+
+                return;
+            }
+
+            if (!bersaglio.closest('[data-wi-bundle-save]')) {
+                return;
+            }
+
+            evento.preventDefault();
+
+            var letto = leggi(finestra);
+
+            if (letto.errore !== '' || !aperta) {
+                avviso(finestra, letto.errore);
+
+                return;
+            }
+
+            scrivi(aperta.campo, aperta.bottone, letto.elenco);
+
+            if (window.bootstrap && window.bootstrap.Modal) {
+                window.bootstrap.Modal.getOrCreateInstance(finestra).hide();
+            }
+        });
+    })();
+</script>
+HTML
+        )->tag('div');
+    }
+
     protected static function stockCard(int $modelId): Card
     {
         $soglia = Gestionale::feature('low_stock_alerts');
@@ -1133,6 +1533,34 @@ class ProductModelResource extends GestionaleResource
         $values['has_variants'] = ($values['has_variants'] ?? 'false') === 'true' ? 'true' : 'false';
         $values['axes_order'] = static::axesFromPost((array) $_POST);
 
+        // Il tipo si sceglie alla creazione e non cambia più: un multiprodotto
+        // non ha giacenza né varianti, e un articolo che le ha non diventa una
+        // confezione da un campo. Senza la funzionalità nasce sempre singolo.
+        $multiprodotto = $action === 'store'
+            ? Gestionale::feature('bundles') && ($values['type'] ?? '') === 'bundle'
+            : ($oldValues['type'] ?? 'simple') === 'bundle';
+
+        if ($action === 'store') {
+            $values['type'] = $multiprodotto ? 'bundle' : 'simple';
+        } else {
+            unset($values['type']);
+        }
+
+        if ($multiprodotto) {
+            // La scheda tace sui pannelli nascosti, ma i loro campi arrivano:
+            // di un multiprodotto non si guardano.
+            $values['has_variants'] = 'false';
+            $modo = (string) ($values['bundle_mode'] ?? $oldValues['bundle_mode'] ?? '');
+
+            // Prima di toccare qualunque cosa: composizione e prodotti, con la
+            // frase di chi sbaglia.
+            static::bundleComposition((array) $_POST, $modo);
+            $values['bundle_mode'] = $modo;
+            $values['show_components_value'] = ($values['show_components_value'] ?? 'false') === 'true' ? 'true' : 'false';
+        } else {
+            unset($values['bundle_mode'], $values['show_components_value']);
+        }
+
         // Il tipo fiscale non arriva mai vuoto: il campo nascosto di chi ne
         // ha uno solo, o un articolo nato prima del predefinito, prende quello.
         if (array_key_exists('tax_category_id', $values) && (int) $values['tax_category_id'] <= 0) {
@@ -1159,6 +1587,13 @@ class ProductModelResource extends GestionaleResource
         }
 
         static::assertSomeVersionLeft($id);
+
+        // Un multiprodotto non ha giacenza, scorta minima, sedi né fornitori:
+        // i loro pannelli sono nascosti e quello che mandano non vale.
+        if ($multiprodotto) {
+            return static::withoutExtras($values);
+        }
+
         static::assertStockWritable($id, $values['has_variants'] === 'true');
 
         // La scorta minima si controlla adesso, come la giacenza: dopo
@@ -1950,7 +2385,11 @@ class ProductModelResource extends GestionaleResource
         }
 
         return [
-            static::getInput('allow_backorder')->columnSpan(12),
+            // Un multiprodotto non ha ordini a fornitore suoi: il campo lo
+            // tace il tipo.
+            (Gestionale::feature('bundles')
+                ? static::getInput('allow_backorder')->hiddenWhen('type', 'bundle')
+                : static::getInput('allow_backorder'))->columnSpan(12),
             static::getInput('backorder_lead_days')
                 ->visibleWhen('allow_backorder', 'true')
                 ->columnSpan(12),
@@ -2124,6 +2563,371 @@ class ProductModelResource extends GestionaleResource
         static::saveExtras((int) $id, (array) $_POST, '', (array) $_FILES);
     }
 
+    /** Questo articolo è un multiprodotto? */
+    public static function isBundleModel(int $modelId): bool
+    {
+        $model = $modelId > 0 ? ProductModel::findById($modelId) : null;
+
+        return is_array($model) && isset($model['id']) && ($model['type'] ?? 'simple') === 'bundle';
+    }
+
+    /**
+     * I prodotti che una composizione può contenere: attivi, non cancellati e
+     * non multiprodotti, per nome. Un componente già scelto e poi spento resta
+     * nell'elenco, segnato, o la riga perderebbe il prodotto al salvataggio.
+     *
+     * @return array<int, string>
+     */
+    public static function bundleOptionProducts(int $modelId = 0): array
+    {
+        $scelti = [];
+
+        if ($modelId > 0) {
+            $forma = Bundles::forModel($modelId);
+
+            foreach ($forma['components'] as $componente) {
+                $scelti[(int) $componente['product_id']] = true;
+            }
+
+            foreach ($forma['groups'] as $gruppo) {
+                foreach ($gruppo['options'] as $opzione) {
+                    $scelti[(int) $opzione['product_id']] = true;
+                }
+            }
+        }
+
+        $prodotti = static::rowsOf(Product::class, [], 'id');
+        $nomi = ProductNames::models($prodotti);
+        $voci = [];
+
+        foreach ($prodotti as $prodotto) {
+            $id = (int) $prodotto['id'];
+            $attivo = ($prodotto['active'] ?? 'false') === 'true';
+
+            if ((!$attivo && !isset($scelti[$id])) || Bundles::isBundle($id)) {
+                continue;
+            }
+
+            $nome = ProductNames::full($prodotto, $nomi);
+            $voci[$id] = $attivo ? $nome : $nome.' (disattivato)';
+        }
+
+        asort($voci, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return $voci;
+    }
+
+    /**
+     * La composizione che la scheda manda, letta e controllata.
+     *
+     * Dei due riquadri si legge solo quello che la modalità tiene: i campi di
+     * quello nascosto arrivano lo stesso e non contano.
+     *
+     * @return array{components: list<array<string, mixed>>, groups: list<array<string, mixed>>}
+     *
+     * @throws UserError
+     */
+    public static function bundleComposition(array $post, string $mode): array
+    {
+        if (!in_array($mode, Bundles::MODES, true)) {
+            throw UserError::make('bundle.unknown_mode');
+        }
+
+        $componenti = $mode !== 'choice' ? static::postedBundleComponents($post) : [];
+        $gruppi = $mode !== 'fixed' ? static::postedBundleGroups($post) : [];
+
+        Bundles::assertComposition($mode, $componenti, $gruppi);
+        Bundles::assertProducts($mode, $componenti, $gruppi);
+
+        return ['components' => $componenti, 'groups' => $gruppi];
+    }
+
+    /** @return list<array{id: int, product_id: int, quantity: float}> */
+    protected static function postedBundleComponents(array $post): array
+    {
+        $righe = [];
+
+        foreach ((array) ($post['bundle_components'] ?? []) as $riga) {
+            // Una riga aggiunta e lasciata senza prodotto non è una scelta.
+            if (!is_array($riga) || (int) ($riga['product_id'] ?? 0) <= 0) {
+                continue;
+            }
+
+            $righe[] = [
+                'id' => (int) ($riga['id'] ?? 0),
+                'product_id' => (int) $riga['product_id'],
+                'quantity' => static::bundleNumber($riga['quantity'] ?? ''),
+            ];
+        }
+
+        return $righe;
+    }
+
+    /** @return list<array{id: int, name: string, min: int, max: int, options: list<array<string, mixed>>}> */
+    protected static function postedBundleGroups(array $post): array
+    {
+        $righe = [];
+
+        foreach ((array) ($post['bundle_groups'] ?? []) as $riga) {
+            if (!is_array($riga)) {
+                continue;
+            }
+
+            $opzioni = static::postedBundleOptions($riga['options'] ?? '');
+            $nome = trim((string) ($riga['name'] ?? ''));
+
+            // Un gruppo aggiunto e lasciato vuoto non è un gruppo.
+            if ($nome === '' && $opzioni === []) {
+                continue;
+            }
+
+            $righe[] = [
+                'id' => (int) ($riga['id'] ?? 0),
+                'name' => $nome,
+                'min' => (int) ($riga['min'] ?? 0),
+                'max' => (int) ($riga['max'] ?? 0),
+                'options' => $opzioni,
+            ];
+        }
+
+        return $righe;
+    }
+
+    /**
+     * Le opzioni di un gruppo, dal JSON che la finestra scrive.
+     *
+     * @return list<array{id: int, product_id: int, surcharge: float}>
+     *
+     * @throws UserError
+     */
+    protected static function postedBundleOptions(mixed $json): array
+    {
+        $testo = trim((string) $json);
+
+        if ($testo === '') {
+            return [];
+        }
+
+        $righe = json_decode($testo, true);
+
+        if (!is_array($righe) || !array_is_list($righe)) {
+            throw UserError::make('bundle.options_invalid');
+        }
+
+        $opzioni = [];
+
+        foreach ($righe as $riga) {
+            if (!is_array($riga)) {
+                throw UserError::make('bundle.options_invalid');
+            }
+
+            if ((int) ($riga['product_id'] ?? 0) <= 0) {
+                continue;
+            }
+
+            $opzioni[] = [
+                'id' => (int) ($riga['id'] ?? 0),
+                'product_id' => (int) $riga['product_id'],
+                'surcharge' => static::bundleNumber($riga['surcharge'] ?? ''),
+            ];
+        }
+
+        return $opzioni;
+    }
+
+    /** Un numero scritto da una persona: «1,5» e «1.5» sono lo stesso, vuoto è zero. */
+    protected static function bundleNumber(mixed $valore): float
+    {
+        return (float) str_replace(',', '.', trim((string) $valore));
+    }
+
+    /**
+     * Scrive la composizione di un multiprodotto: i componenti e i gruppi
+     * con le loro opzioni, come li dice la modalità.
+     *
+     * Le righe che c'erano si riconoscono per id e tengono il loro: un ordine
+     * già fatto punta alle opzioni. Quello che la scheda non manda più si
+     * elimina; quello che non cambia non si riscrive. La modalità cambiata
+     * toglie davvero l'altro riquadro, non lo nasconde.
+     */
+    protected static function saveBundle(int $modelId, array $post): void
+    {
+        $modello = ProductModel::findById($modelId);
+        $modo = (string) ($modello['bundle_mode'] ?? '');
+        $composizione = static::bundleComposition($post, $modo);
+
+        static::syncBundleRows(
+            BundleComponent::class,
+            ['product_model_id' => $modelId],
+            array_map(static fn (array $riga): array => [
+                'id' => $riga['id'],
+                'data' => [
+                    'product_id' => $riga['product_id'],
+                    'quantity' => number_format($riga['quantity'], 3, '.', ''),
+                ],
+            ], $composizione['components'])
+        );
+
+        // I gruppi, e per ognuno le sue opzioni: quelle dei gruppi tolti se
+        // ne vanno prima, la chiave esterna non lascerebbe togliere il gruppo.
+        $esistenti = static::bundleRows(BundleGroup::class, ['product_model_id' => $modelId]);
+        $posti = array_flip(array_map(static fn (array $riga): int => (int) $riga['id'], $composizione['groups']));
+
+        foreach ($esistenti as $gruppo) {
+            if (!isset($posti[(int) $gruppo['id']])) {
+                static::syncBundleRows(BundleGroupOption::class, ['bundle_group_id' => (int) $gruppo['id']], []);
+            }
+        }
+
+        $ids = static::syncBundleRows(
+            BundleGroup::class,
+            ['product_model_id' => $modelId],
+            array_map(static fn (array $riga): array => [
+                'id' => $riga['id'],
+                'data' => ['name' => $riga['name'], 'min_choices' => $riga['min'], 'max_choices' => $riga['max']],
+            ], $composizione['groups'])
+        );
+
+        foreach ($composizione['groups'] as $indice => $gruppo) {
+            static::syncBundleRows(
+                BundleGroupOption::class,
+                ['bundle_group_id' => $ids[$indice]],
+                array_map(static fn (array $riga): array => [
+                    'id' => $riga['id'],
+                    'data' => [
+                        'product_id' => $riga['product_id'],
+                        'surcharge' => number_format($riga['surcharge'], 2, '.', ''),
+                    ],
+                ], $gruppo['options'])
+            );
+        }
+    }
+
+    /**
+     * Rimette in riga un elenco di righe figlie: le conosciute per id si
+     * aggiornano solo se cambiano, le nuove si scrivono, le altre si
+     * eliminano. Torna gli id, nell'ordine in cui sono arrivate.
+     *
+     * @param class-string $classe
+     * @param array<string, int> $padre colonna e id del padre
+     * @param list<array{id: int, data: array<string, mixed>}> $righe
+     * @return list<int>
+     */
+    protected static function syncBundleRows(string $classe, array $padre, array $righe): array
+    {
+        $esistenti = [];
+
+        foreach (static::bundleRows($classe, $padre) as $riga) {
+            $esistenti[(int) $riga['id']] = $riga;
+        }
+
+        $ids = [];
+        $tenuti = [];
+
+        foreach ($righe as $indice => $riga) {
+            $dati = $riga['data'] + ['position' => $indice + 1];
+            $id = (int) $riga['id'];
+
+            if ($id > 0 && isset($esistenti[$id]) && !isset($tenuti[$id])) {
+                $tenuti[$id] = true;
+                $ids[] = $id;
+
+                if (static::bundleRowChanged($esistenti[$id], $dati)) {
+                    $classe::update($dati + ['deleted' => 'false'], $id);
+                }
+
+                continue;
+            }
+
+            $ids[] = (int) ($classe::create($dati + $padre)->insert_id ?? 0);
+        }
+
+        foreach ($esistenti as $id => $riga) {
+            if (!isset($tenuti[$id])) {
+                $classe::delete($id);
+            }
+        }
+
+        return $ids;
+    }
+
+    /** @param array<string, mixed> $riga @param array<string, mixed> $dati */
+    protected static function bundleRowChanged(array $riga, array $dati): bool
+    {
+        if (($riga['deleted'] ?? 'false') === 'true') {
+            return true;
+        }
+
+        foreach ($dati as $colonna => $valore) {
+            $prima = $riga[$colonna] ?? null;
+
+            if (is_numeric($valore) && is_numeric($prima) ? abs((float) $prima - (float) $valore) > 0.0000001 : (string) $prima !== (string) $valore) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Tutte le righe figlie, anche quelle nel cestino: vanno rimesse in riga
+     * o tolte come le altre.
+     *
+     * @param class-string $classe
+     * @return list<array<string, mixed>>
+     */
+    protected static function bundleRows(string $classe, array $padre): array
+    {
+        return static::rowsOf($classe, $padre + ['deleted' => ['true', 'false']], 'position');
+    }
+
+    /**
+     * La composizione per riempire il form: le righe dei due elenchi, e per
+     * ogni gruppo il JSON delle sue opzioni con il riassunto del bottone.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    protected static function withBundleFormValues(int $modelId, array $values): array
+    {
+        $forma = Bundles::forModel($modelId);
+
+        $values['bundle_components'] = array_map(static fn (array $riga): array => [
+            'id' => (string) $riga['id'],
+            'product_id' => (string) $riga['product_id'],
+            'quantity' => static::rawNumber((float) $riga['quantity']),
+        ], $forma['components']);
+
+        $values['bundle_groups'] = array_map(static function (array $gruppo): array {
+            $opzioni = array_map(static fn (array $riga): array => [
+                'id' => $riga['id'],
+                'product_id' => $riga['product_id'],
+                'surcharge' => $riga['surcharge'],
+            ], $gruppo['options']);
+
+            return [
+                'id' => (string) $gruppo['id'],
+                'name' => $gruppo['name'],
+                'min' => (string) $gruppo['min'],
+                'max' => (string) $gruppo['max'],
+                'options' => json_encode($opzioni, JSON_UNESCAPED_UNICODE),
+                'options_button' => static::bundleOptionsCaption(count($opzioni)),
+            ];
+        }, $forma['groups']);
+
+        return $values;
+    }
+
+    /** Il riassunto accanto al bottone «Opzioni». */
+    protected static function bundleOptionsCaption(int $quante): string
+    {
+        return match (true) {
+            $quante === 0 => '',
+            $quante === 1 => '1 opzione',
+            default => $quante.' opzioni',
+        };
+    }
+
     /**
      * Righe legate al modello: categorie, tag, attributi e prodotto unico.
      *
@@ -2147,6 +2951,17 @@ class ProductModelResource extends GestionaleResource
             static::saveCategories($modelId, $post);
             static::saveTags($modelId, $post);
             static::saveModelAttributes($modelId, $post);
+
+            // Un multiprodotto ha un prodotto solo, senza magazzino proprio:
+            // il prezzo, la composizione e le foto, e basta.
+            if (static::isBundleModel($modelId)) {
+                static::savePrices($modelId, $post, $fallbackSku);
+                static::saveBundle($modelId, $post);
+                static::saveImages($modelId, $post, $files, static::saveGroupImages($modelId, $post, $files));
+                static::realignNames($modelId);
+
+                return;
+            }
 
             // Il riquadro delle opzioni è nascosto, non tolto: le sue caselle
             // arrivano comunque. Chi ha detto di non avere varianti non deve
@@ -2932,6 +3747,10 @@ class ProductModelResource extends GestionaleResource
             return static::withFormSupplierButtons(static::withFormStockButtons($values));
         }
 
+        if (static::isBundleModel($modelId)) {
+            $values = static::withBundleFormValues($modelId, $values);
+        }
+
         $values['categories'] = array_map('strval', static::categoryIds($modelId));
         $values['main_category'] = (string) (static::mainCategoryId($modelId) ?: '');
 
@@ -3194,6 +4013,15 @@ class ProductModelResource extends GestionaleResource
             );
             ProductSuppliers::dropFor($productIds);
             Thresholds::dropFor($productIds);
+
+            // La composizione di un multiprodotto, anche a funzionalità spenta:
+            // le opzioni prima dei gruppi, la chiave esterna le lega.
+            foreach (static::bundleRows(BundleGroup::class, ['product_model_id' => $modelId]) as $gruppo) {
+                static::syncBundleRows(BundleGroupOption::class, ['bundle_group_id' => (int) $gruppo['id']], []);
+                BundleGroup::delete((int) $gruppo['id']);
+            }
+
+            static::syncBundleRows(BundleComponent::class, ['product_model_id' => $modelId], []);
 
             // I collegamenti alle personalizzazioni, anche a funzionalità
             // spenta: la chiave esterna non lascerebbe eliminare l'articolo.
@@ -7721,6 +8549,9 @@ HTML
             // Sono delle opzioni: le scrive `saveBackorders()`.
             $values['allow_backorder'],
             $values['backorder_lead_days'],
+            // La composizione di un multiprodotto: la scrive `saveBundle()`.
+            $values['bundle_components'],
+            $values['bundle_groups'],
         );
 
         foreach (array_keys($values) as $key) {

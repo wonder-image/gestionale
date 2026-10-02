@@ -136,6 +136,8 @@
                 "too_many": "«{{name}}»: scegli al massimo {{max}}.",
                 "not_bundle": "Questo articolo non è un multiprodotto.",
                 "component_unavailable": "«{{name}}» non è più in vendita, e la confezione non si può comporre.",
+                "nested": "«{{name}}» è già un multiprodotto, e un multiprodotto non entra in un altro.",
+                "options_invalid": "Le opzioni di un gruppo non sono leggibili: riaprile e salva di nuovo.",
                 "feature_off": "I multiprodotti sono spenti: attiva la funzionalità per venderli.",
                 "in_use": "«{{name}}» fa parte di multiprodotti ({{bundles}}): toglilo prima dalla loro composizione."
             }
