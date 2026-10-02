@@ -33,6 +33,7 @@ use Wonder\Plugin\Gestionale\Seeding\ContactsDemo;
 use Wonder\Plugin\Gestionale\Seeding\Demo;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Plugin\Gestionale\Seeding\OrdersDemo;
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
@@ -79,7 +80,7 @@ $esito = [];
 try {
     Transaction::run(static function () use (&$esito, $righe, $ordine, $agganciate, $sempre): void {
         // Si parte dal pulito: la transazione rimette tutto com'era.
-        accendiFunzionalita(['orders', 'returns']);
+        accendiFunzionalita(['orders', 'returns', 'customizations']);
         OrdersDemo::clear();
         CatalogDemo::clear();
         ContactsDemo::clear();
@@ -110,6 +111,13 @@ try {
 
         $esito['numeri'] = array_map(static fn (array $o): string => (string) ($o['order_number'] ?? ''), $esito['ordini']);
         $esito['conteggio'] = count($righe(Order::class, "code LIKE 'ord\\_demo-%' AND deleted = 'false'"));
+
+        // Le righe con una personalizzazione: cosa ha scritto il cliente e quanto costa.
+        $idOrdini = array_values(array_map(static fn (array $o): int => (int) ($o['id'] ?? 0), $esito['ordini']));
+        $esito['personalizzate'] = array_values(array_filter(
+            $righe(OrderItem::class, 'order_id IN ('.implode(',', $idOrdini).") AND type = 'product' AND deleted = 'false'"),
+            static fn (array $riga): bool => Customizations::decode($riga['customization'] ?? '') !== []
+        ));
 
         // Il reso di prova, sull'ordine evaso: com'è finito e cosa ha mosso.
         $evasoId = (int) ($esito['ordini']['evaso']['id'] ?? 0);
@@ -295,14 +303,25 @@ check('un reso fatto a mano su un ordine di prova se ne va con l\'ordine', fn ()
     ($esito['reso_a_mano'] ?? 0) > 0 && ($esito['resti']['reso_a_mano'] ?? 1) === 0 && ($esito['errore'] ?? 'no') === ''
 );
 
+check('con le personalizzazioni accese una riga ha l\'incisione «Auguri» a 5.00', function () use ($esito) {
+    $righe = $esito['personalizzate'] ?? [];
+
+    return $righe !== []
+        && count(array_filter($righe, static fn (array $r): bool =>
+            Customizations::lines($r) === ['Incisione: Auguri'] && $r['customization_surcharge'] === '5.00')) === count($righe);
+});
+
 check('clear non tocca il reso di un ordine vero', fn () => ($esito['reso_vero_resta'] ?? false) === true);
 
 // Con «returns» spenta la demo non fa resi.
 $senzaResi = null;
+$senzaPersonalizzazioni = null;
 
 try {
-    Transaction::run(static function () use (&$senzaResi, $righe, $ordine): void {
+    Transaction::run(static function () use (&$senzaResi, &$senzaPersonalizzazioni, $righe, $ordine): void {
         accendiFunzionalita(['orders']);
+        // Spente per davvero: il sito di prova può averle accese.
+        spegniFunzionalita(['customizations']);
         sqlModify(Feature::$table, ['enabled' => 'false'], 'feature_key', 'returns');
         Wonder\Plugin\Gestionale\Gestionale::reset();
         OrdersDemo::clear();
@@ -313,6 +332,8 @@ try {
         OrdersDemo::create();
         $evaso = (int) ($ordine('evaso')['id'] ?? 0);
         $senzaResi = count($righe(SalesReturn::class, "order_id = {$evaso}"));
+        $idDemo = array_map(static fn (array $o): int => (int) $o['id'], $righe(Order::class, "code LIKE 'ord\\_demo-%' AND deleted = 'false'"));
+        $senzaPersonalizzazioni = $idDemo === [] ? -1 : count($righe(OrderItem::class, 'order_id IN ('.implode(',', $idDemo).") AND customization <> ''"));
 
         throw new Annulla();
     });
@@ -323,5 +344,7 @@ try {
 }
 
 check('con i resi spenti l\'ordine evaso non ne ha', fn () => $senzaResi === 0);
+
+check('con le personalizzazioni spente nessuna riga ne ha una', fn () => $senzaPersonalizzazioni === 0);
 
 summary();

@@ -55,6 +55,19 @@
                 "quick_type": "Da qui nascono solo caratteristiche Testo o Numero. Elenchi, Colori, Fantasie e Icone si creano da Catalogo → Attributi, perché hanno valori e immagini da preparare.",
                 "quick_unit": "Scegli un'unità di misura dall'elenco, o nessuna."
             },
+            "customization": {
+                "required": "Compila questo campo.",
+                "too_long": "Al massimo {{max}} caratteri.",
+                "bad_option": "Scegli una delle opzioni proposte.",
+                "unknown": "Questo campo non appartiene all'articolo.",
+                "unavailable": "«{{name}}» chiede una personalizzazione che al momento non si può scegliere.",
+                "max_length": "Scrivi quanti caratteri si possono usare, da 1 a 1000.",
+                "few_options": "Una scelta ha bisogno di almeno due opzioni.",
+                "surcharge": "Il sovrapprezzo non può essere negativo.",
+                "kind": "Scegli se è un testo o una scelta.",
+                "in_use": "È collegata ad articoli ({{count}}) e non si elimina: disattivala, e non si propone più.",
+                "quick_name": "Scrivi il nome della personalizzazione."
+            },
             "product": {
                 "sku_taken": "Questo SKU è già in catalogo, su un altro articolo o su un'altra opzione in vendita: cambialo.",
                 "ean_invalid": "L'EAN deve avere 8 o 13 cifre.",

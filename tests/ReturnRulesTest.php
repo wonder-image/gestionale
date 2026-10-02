@@ -6,6 +6,7 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Returns\ReturnRules;
 
 check('la merce rotta o difettosa non torna in vendita, il resto sì', fn () =>
@@ -64,6 +65,16 @@ check('ogni motivo ha la sua etichetta', function () {
     }
 
     return count(ReturnRules::REASON_LABELS) === count(SalesReturnItem::REASONS);
+});
+
+check('il reso online esclude una riga personalizzata: la merce su misura non si rimanda', function () {
+    $campi = [['customization_id' => 1, 'label' => 'Incisione', 'value' => 'Marco', 'option_id' => 0, 'surcharge' => '5.00']];
+
+    return ReturnRules::onlineReturnable([]) === true
+        && ReturnRules::onlineReturnable(['customization' => '']) === true
+        && ReturnRules::onlineReturnable(['customization' => []]) === true
+        && ReturnRules::onlineReturnable(['customization' => Customizations::encode($campi)]) === false
+        && ReturnRules::onlineReturnable(['customization' => $campi]) === false;
 });
 
 summary();

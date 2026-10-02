@@ -156,6 +156,15 @@ versionamento semantico.
   accesa) e lo toglie restituendo al magazzino solo quel che non era già rientrato.
 - Guide: tre pagine per il commerciante (*Ordini*, *Pagamenti*, *Resi*, sezione
   *Vendite*) e *Vendite: ordini, pagamenti e resi* per gli sviluppatori.
+- Personalizzazioni (funzionalità `customizations`, richiede `orders`): campi che il
+  cliente compila comprando, di testo o a scelta, con sovrapprezzo. Pagina *Catalogo →
+  Personalizzazioni* con le opzioni, riquadro *Personalizzazioni* nella scheda
+  dell'articolo con «Nuova personalizzazione» al volo, `Customizations` (controllo,
+  sovrapprezzo, codifica per latin1), `Cart::add()` che le controlla e le prezza dal
+  server e fa uscire la riga se l'anagrafica cambia, righe d'ordine, email e reso
+  (online escluso). `gestionale:demo` crea «Incisione» e «Confezione regalo» e mette
+  l'incisione su metà degli ordini di prova. Chi aggiorna esegua `php forge update`
+  per le tre tabelle nuove.
 
 ### Corretto
 

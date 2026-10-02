@@ -12,6 +12,7 @@
 
 * [Marchi, categorie e tag](catalogo-tassonomie.md)
 * [Attributi](catalogo-attributi.md)
+* [Personalizzazioni](catalogo-personalizzazioni.md)
 * [I prodotti](catalogo-prodotti.md)
 * [Le foto degli articoli](catalogo-immagini.md)
 

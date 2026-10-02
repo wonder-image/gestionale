@@ -6,6 +6,7 @@ use InvalidArgumentException;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
+use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\Package;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
@@ -61,6 +62,7 @@ final class DemoCode
         Tag::class => 'tag',
         Attribute::class => 'attributo',
         Package::class => 'imballaggio',
+        Customization::class => 'personalizzazione',
         ProductModel::class => 'articolo',
         Contact::class => 'scheda',
     ];

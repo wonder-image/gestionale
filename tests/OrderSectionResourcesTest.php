@@ -13,6 +13,7 @@ use Wonder\Plugin\Gestionale\Resources\Sales\OrderHistoryTableResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentTableResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderReturnTableResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 
 /**
@@ -90,6 +91,24 @@ check('Righe: il nome porta lo SKU sotto, escapato; la riga di sola nota è in c
     return str_contains($prodotto, '&lt;b&gt;Maglia&lt;/b&gt;') && !str_contains($prodotto, '<b>Maglia')
         && str_contains($prodotto, 'MG-1')
         && str_contains($nota, 'fst-italic') && str_contains($nota, 'Ritiro in sede');
+});
+
+check('Righe: la personalizzazione sta sotto lo SKU, escapata una volta sola; senza, l\'HTML è quello di prima', function () {
+    $nome = array_values(array_filter(
+        OrderItemTableResource::tableSchema(),
+        static fn ($c): bool => (string) $c->name === 'name'
+    ))[0]->schema['formatter'];
+    $base = ['type' => 'product', 'name' => 'Maglia', 'sku' => 'MG-1'];
+
+    $con = $nome($base + ['customization' => Customizations::encode([['customization_id' => 1, 'label' => 'Incisione', 'value' => '<b>Marco</b> & co', 'option_id' => 0, 'surcharge' => '5.00']])]);
+    $senza = $nome($base);
+
+    return str_contains($con, 'Incisione: &lt;b&gt;Marco&lt;/b&gt; &amp; co')
+        && !str_contains($con, '<b>Marco')
+        && !str_contains($con, '&amp;amp;')
+        && strpos($con, 'MG-1') < strpos($con, 'Incisione:')
+        && $senza === $nome($base + ['customization' => ''])
+        && !str_contains($senza, 'Incisione');
 });
 
 check('Righe: il nome come sta nel database (con le entità) si legge una volta sola, senza doppio escape', function () {

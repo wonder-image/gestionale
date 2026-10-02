@@ -41,6 +41,34 @@ Per questo chi legge i movimenti trova sempre il motivo (`sale`,
    `0 * * * *`): manda il promemoria agli ordini che aspettano il pagamento e
    annulla quelli scaduti, secondo `order_payment_wait_days`.
 
+### Le personalizzazioni sulla riga
+
+`Cart::add($carrello, ['product_id' => …, 'quantity' => …, 'customization' => [id => valore]])`.
+Con `customizations` accesa il carrello passa i valori da
+`Customizations::resolve()`: un valore sbagliato o una obbligatoria mancante
+lanciano `UserError` (`field()` è l'id della personalizzazione). Con la
+funzionalità spenta i valori si ignorano, e un articolo con una personalizzazione
+obbligatoria non si aggiunge (`customization.unavailable`).
+
+- **Il sovrapprezzo lo calcola il server.** `customization_surcharge` che
+  arriva dalla pagina non si legge più; la riga salva `customization`
+  (stringa ASCII) e il sovrapprezzo, che entra nel prezzo di `LinePrice`.
+- Due righe dello stesso articolo si fondono solo se hanno la stessa
+  personalizzazione (`Customizations::signature()`), anche nel `merge()`.
+- `Cart::contents()['items'][]['customization']` è una **lista** già decodificata
+  (`label`, `value`, `option_id`, `surcharge`), mai la stringa del database:
+  chi ha bisogno della colonna passa da `Customizations::decode()`.
+- `recalculate()` ripassa ogni riga personalizzata contro l'anagrafica di oggi:
+  riprezza se il sovrapprezzo è cambiato e riscrive le etichette; se la
+  personalizzazione è stata disattivata, scollegata, l'opzione cancellata o è
+  comparsa una obbligatoria, **la riga esce** e il suo nome va in `removed`,
+  come per un articolo non più vendibile.
+- Dopo l'ordine la riga è una copia: schede, email ed elenco resi mostrano
+  `Customizations::lines()` sotto il nome. Un'incisione non si rimette in
+  vendita: `ReturnRules::onlineReturnable($riga)` dice **no** a una riga
+  personalizzata, ed è quello che E1c deve consultare per il reso fatto dal
+  cliente. Il reso registrato dal commerciante (`Returns::register()`) non cambia.
+
 ## Il reso
 
 `Returns::register($ordine, $righe, $opzioni)` fa tutto dentro una transazione,
@@ -75,7 +103,8 @@ vedi [Errori e log](errori.md).
 
 - `php forge gestionale:demo` crea ordini in tutti gli stati, pagamenti e, con
   `returns` accesa, un reso di 1 pezzo (`changed_mind`) sull'ordine evaso;
-  `--fresh` li toglie e li rifà. Il `purge` restituisce al magazzino solo la
+  `--fresh` li toglie e li rifà (con `customizations` accesa, uno su due
+  porta l'incisione «Auguri»). Il `purge` restituisce al magazzino solo la
   merce che il reso non aveva già rimesso.
 - Nei test d'integrazione, `tests/integrazione/supporto/compra.php` offre
   `articoloConGiacenza()`, `ordineDiProva()`, `resoDiProva()` e

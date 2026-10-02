@@ -8,6 +8,7 @@ require __DIR__ . '/harness.php';
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
+use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\Package;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
@@ -167,6 +168,12 @@ check('le note dicono quante righe e quali', fn () =>
         === 'Restano al loro posto 2 dati di prova ancora in uso: categoria «Accessori», marchio «Maglificio Aurora».'
     && str_contains(DemoCode::reusedNote([DemoCode::label(Tag::class, 'Saldi')]), '1 dato già presente')
     && DemoCode::label(Tag::class, 'Novit&agrave;') === 'tag «Novità»'
+);
+
+check('le personalizzazioni hanno il loro nome e il loro prefisso', fn () =>
+    DemoCode::label(Customization::class, 'Incisione') === 'personalizzazione «Incisione»'
+    && DemoCode::prefixOf(Customization::class) === 'cus_'
+    && DemoCode::forModel(Customization::class, 'incisione') === 'cus_demo-incisione'
 );
 
 check('lo slug libero salta quelli presi, anche dalle righe cancellate', function () {

@@ -22,6 +22,9 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
+use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
@@ -90,6 +93,7 @@ $tutte = [
     Brand::class, Category::class, Tag::class, Attribute::class, AttributeValue::class,
     ProductModel::class, ProductVariant::class, Product::class, ProductImage::class,
     Package::class,
+    Customization::class, CustomizationOption::class, ProductModelCustomization::class,
 ];
 $stato = static fn (): array => array_map($conta, $tutte);
 $prima = $stato();
@@ -138,6 +142,7 @@ try {
             Tag::class => ['Novità', 'Saldi'],
             Attribute::class => ['Colore', 'Taglia', 'Materiale', 'Composizione', 'Lavaggio'],
             Package::class => ['Busta imbottita', 'Scatola media'],
+            Customization::class => ['Incisione', 'Confezione regalo'],
         ];
 
         // Lo stesso per le righe col vecchio nome che qualcosa di vero usa
@@ -563,6 +568,32 @@ try {
                 && str_starts_with((string) ($marchio['slug'] ?? ''), 'maglificio-aurora');
         });
 
+
+        check('crea due personalizzazioni: l\'incisione e la confezione con due opzioni', function () use ($demo, $idDi, $righe) {
+            $incisione = $demo(Customization::class, 'incisione');
+            $confezione = $demo(Customization::class, 'confezione-regalo');
+            $opzioni = $righe(CustomizationOption::class, ['customization_id' => (int) ($confezione['id'] ?? 0)]);
+            $etichette = array_map(static fn (array $o): string => (string) $o['label'], $opzioni);
+
+            return $incisione !== [] && $confezione !== []
+                && $incisione['kind'] === 'text' && (int) $incisione['max_length'] === 20
+                && $incisione['surcharge'] === '5.00' && $incisione['label'] === 'Incisione'
+                && $incisione['help_text'] === 'Fino a 20 caratteri'
+                && $confezione['kind'] === 'choice' && $confezione['surcharge'] === '3.00'
+                && $etichette === ['Rossa', 'Blu']
+                && array_unique(array_map(static fn (array $o): string => (string) $o['surcharge'], $opzioni)) === ['0.00'];
+        });
+
+        check('le personalizzazioni sono collegate, facoltative, a due articoli di prova', function () use ($demo, $idDi, $righe) {
+            $a = $righe(ProductModelCustomization::class, ['customization_id' => $idDi(Customization::class, 'incisione')]);
+            $b = $righe(ProductModelCustomization::class, ['customization_id' => $idDi(Customization::class, 'confezione-regalo')]);
+
+            return count($a) === 1 && count($b) === 1
+                && (int) $a[0]['product_model_id'] === $idDi(ProductModel::class, 'maglietta-girocollo')
+                && (int) $b[0]['product_model_id'] === $idDi(ProductModel::class, 'felpa-con-cappuccio')
+                && $a[0]['is_required'] === 'false' && $b[0]['is_required'] === 'false';
+        });
+
         check('una seconda esecuzione non duplica niente', fn () => CatalogDemo::create() === 0);
 
         check('la pulizia toglie solo le righe di prova', function () use ($stato, $prima) {
@@ -635,6 +666,45 @@ try {
             DemoData::notes();
 
             return $ok && $demo(Category::class, 'abbigliamento') === [];
+        });
+
+        check('una personalizzazione di prova che un articolo vero usa ancora resta, e il comando lo dice', function () use ($demo, $idDi, $righe) {
+            CatalogDemo::create();
+            $incisione = $idDi(Customization::class, 'incisione');
+            $vero = ProductModel::create([
+                'code' => Code::make(ProductModel::class, Codes::MODEL),
+                'name' => 'Articolo vero con incisione',
+                'slug' => Slug::make('articolo-vero-con-incisione-'.uniqid()),
+                'sku' => 'VERO-INC',
+                'unit' => 'pz',
+                'type' => 'simple',
+                'visible' => 'false',
+                'position' => 1,
+            ]);
+            $veroId = (int) ($vero->insert_id ?? 0);
+            ProductModelCustomization::create([
+                'product_model_id' => $veroId, 'customization_id' => $incisione, 'is_required' => 'false', 'position' => 1,
+            ]);
+
+            DemoData::notes();
+            CatalogDemo::clear();
+            $note = implode("\n", DemoData::notes());
+
+            $ok = $veroId > 0 && $incisione > 0
+                && (int) ($demo(Customization::class, 'incisione')['id'] ?? 0) === $incisione
+                && $demo(Customization::class, 'confezione-regalo') === []
+                && $righe(CustomizationOption::class, ['customization_id' => $idDi(Customization::class, 'confezione-regalo')]) === []
+                && str_contains($note, 'personalizzazione «Incisione»');
+
+            // Tolto il collegamento vero, la pulizia porta via anche l'incisione.
+            foreach ($righe(ProductModelCustomization::class, ['customization_id' => $incisione]) as $link) {
+                ProductModelCustomization::delete((int) $link['id']);
+            }
+
+            CatalogDemo::clear();
+            DemoData::notes();
+
+            return $ok && $demo(Customization::class, 'incisione') === [];
         });
 
         check('la pulizia toglie anche i vecchi dati «Prova …»', function () {
