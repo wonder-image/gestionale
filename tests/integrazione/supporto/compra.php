@@ -3,6 +3,9 @@
 /** Le cose da comprare e da vendere che servono alle prove: articoli, ordini, resi. */
 
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Catalog\BundleComponent;
+use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroup;
+use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroupOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -174,4 +177,59 @@ function collegaPersonalizzazione(int $modello, int $personalizzazione, bool $ob
     ]);
 
     return (int) ($collegamento->insert_id ?? 0);
+}
+
+/**
+ * Un multiprodotto di prova; ridà l'id del suo prodotto (il modello si trova
+ * con `modelloDi()`).
+ *
+ * @param list<array{product_id:int, quantity:float|int|string}> $componenti
+ * @param list<array{name:string, min:int, max:int, options:list<array{product_id:int, surcharge?:float|int|string}>}> $gruppi
+ */
+function multiprodottoDiProva(string $mode, array $componenti, array $gruppi): int
+{
+    $sku = 'BND-'.strtoupper(substr(uniqid(), -6));
+    $modello = ProductModel::create([
+        'code' => Code::make(ProductModel::class, Codes::MODEL),
+        'name' => 'Confezione '.$sku,
+        'slug' => Slug::make('confezione-'.uniqid()),
+        'sku' => $sku,
+        'unit' => 'pz',
+        'type' => 'bundle',
+        'bundle_mode' => $mode,
+        'visible' => 'true',
+        'position' => 1,
+    ]);
+    $modelId = (int) ($modello->insert_id ?? 0);
+    $productId = Skeleton::forModel($modelId, 'Confezione', $sku)['product_id'];
+
+    foreach (array_values($componenti) as $i => $componente) {
+        BundleComponent::create([
+            'product_model_id' => $modelId,
+            'product_id' => $componente['product_id'],
+            'quantity' => $componente['quantity'],
+            'position' => $i + 1,
+        ]);
+    }
+
+    foreach (array_values($gruppi) as $i => $gruppo) {
+        $gruppoId = (int) (BundleGroup::create([
+            'product_model_id' => $modelId,
+            'name' => $gruppo['name'],
+            'min_choices' => $gruppo['min'],
+            'max_choices' => $gruppo['max'],
+            'position' => $i + 1,
+        ])->insert_id ?? 0);
+
+        foreach (array_values($gruppo['options']) as $j => $opzione) {
+            BundleGroupOption::create([
+                'bundle_group_id' => $gruppoId,
+                'product_id' => $opzione['product_id'],
+                'surcharge' => number_format((float) ($opzione['surcharge'] ?? 0), 2, '.', ''),
+                'position' => $j + 1,
+            ]);
+        }
+    }
+
+    return $productId;
 }
