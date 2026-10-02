@@ -11,6 +11,7 @@ require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
@@ -557,6 +558,45 @@ check('una confezione nel carrello prenota solo le figlie, mai la madre', functi
             && (int) sqlCount(StockReservation::$table, 'order_item_id IN ('.implode(',', $figlie).')') === 2
             && Levels::of($madre)['available'] === 9.0;
     });
+});
+
+check('una confezione messa nel carrello con Cart::add prenota solo le figlie e le figlie non fanno un riepilogo IVA a parte', function () {
+    $esito = prova(static function (): array {
+        accendiFunzionalita(['orders', 'bundles']);
+        $sku = substr((string) microtime(true), -6);
+        $a = articoloConGiacenza(20, 'TST-CHK-A'.$sku);
+        $b = articoloConGiacenza(20, 'TST-CHK-B'.$sku);
+        $prodotto = multiprodottoDiProva('fixed', [['product_id' => $a, 'quantity' => 2], ['product_id' => $b, 'quantity' => 1]], []);
+        Wonder\Plugin\Gestionale\Models\Catalog\Product::update(['price' => '25.00'], $prodotto);
+        $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        $dentro = Cart::add($carrello, ['product_id' => $prodotto, 'quantity' => 3]);
+        $madre = (int) $dentro['items'][0]['id'];
+        $figlie = array_map(static fn (array $f): int => (int) $f['id'], $dentro['items'][0]['children']);
+
+        $ordine = senzaPosta(static fn (): array => Checkout::place(
+            $carrello,
+            datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE))
+        ));
+        $riepiloghi = OrderTaxSummary::find(['order_id' => $carrello, 'deleted' => 'false']);
+        $riepiloghi = isset($riepiloghi['id']) ? [$riepiloghi] : array_values((array) $riepiloghi);
+
+        return [
+            'reserved' => $ordine['reserved'],
+            'sulla_madre' => (int) sqlCount(StockReservation::$table, "order_item_id = {$madre}"),
+            'sulle_figlie' => (int) sqlCount(StockReservation::$table, 'order_item_id IN ('.implode(',', $figlie).')'),
+            'a' => Levels::of($a)['available'],
+            'b' => Levels::of($b)['available'],
+            'riepiloghi' => count($riepiloghi),
+            'totale' => (string) Order::findById($carrello)['total'],
+        ];
+    });
+    Gestionale::reset();
+
+    return $esito['reserved'] === 2
+        && $esito['sulla_madre'] === 0 && $esito['sulle_figlie'] === 2
+        && $esito['a'] === 14.0 && $esito['b'] === 17.0
+        && $esito['riepiloghi'] === 1
+        && $esito['totale'] === '75.00';
 });
 
 summary();

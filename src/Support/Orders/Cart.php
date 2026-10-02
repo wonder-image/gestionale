@@ -10,6 +10,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
+use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
@@ -100,8 +101,10 @@ final class Cart
      *
      * `customization` è `id della personalizzazione => testo o id dell'opzione`:
      * il sovrapprezzo lo decide il server dall'anagrafica, mai il client.
+     * Per un multiprodotto `choices` sono gli id delle opzioni scelte: la madre
+     * porta il prezzo e le figlie, a prezzo zero, i componenti da scaricare.
      *
-     * @param array{product_id: int, quantity?: float, customization?: array<int|string, mixed>} $line
+     * @param array{product_id: int, quantity?: float, customization?: array<int|string, mixed>, choices?: array<int|string, mixed>} $line
      * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>}
      */
     public static function add(int $cartId, array $line): array
@@ -117,16 +120,36 @@ final class Cart
             $productId = (int) ($line['product_id'] ?? 0);
             $product = self::product($productId);
             $resolved = self::resolveCustomization($product, (array) ($line['customization'] ?? []));
-            $existing = self::itemLike($cartId, $productId, Customizations::signature($resolved['fields']));
+            $bundle = null;
+
+            if (Bundles::isBundle($productId)) {
+                if (!Gestionale::feature('bundles')) {
+                    throw UserError::make('bundle.feature_off');
+                }
+
+                $bundle = Bundles::resolve($productId, (array) ($line['choices'] ?? []));
+            }
+
+            $existing = self::itemLike(
+                $cartId,
+                $productId,
+                Customizations::signature($resolved['fields']),
+                self::bundleKey($bundle['children'] ?? [])
+            );
             $wanted = round($quantity + (float) ($existing['quantity'] ?? 0), 3);
 
-            self::assertAvailable($product, $wanted);
+            // Il multiprodotto non ha giacenza sua: contano i pezzi dei componenti.
+            if ($bundle !== null) {
+                self::assertPacks($bundle['children'], $wanted);
+            } else {
+                self::assertAvailable($product, $wanted);
+            }
 
             if (is_array($existing)) {
                 OrderItem::update(['quantity' => self::number($wanted)], (int) $existing['id']);
             } else {
                 $model = ProductModel::findById((int) $product['product_model_id']);
-                OrderItem::create([
+                $created = OrderItem::create([
                     'order_id' => $cartId,
                     'type' => 'product',
                     'product_id' => $productId,
@@ -140,6 +163,13 @@ final class Cart
                     'customization' => Customizations::encode($resolved['fields']),
                     'customization_surcharge' => $resolved['surcharge'],
                 ]);
+
+                // Le figlie nascono con la madre: il ricalcolo le rifà dalle
+                // scelte che trova scritte, e senza figlie non ne troverebbe.
+                if ($bundle !== null) {
+                    $mother = OrderItem::findById((int) ($created->insert_id ?? 0));
+                    self::writeChildren($cartId, is_array($mother) ? $mother : [], $bundle['children'], $wanted);
+                }
             }
 
             unset($cart);
@@ -169,18 +199,55 @@ final class Cart
             $removed = [];
             $computed = [];
             $rewritten = [];
+            $packs = [];
+            $all = self::items($cartId);
+            $mothers = [];
 
-            foreach (self::items($cartId) as $item) {
+            foreach ($all as $row) {
+                if ((int) ($row['parent_item_id'] ?? 0) === 0) {
+                    $mothers[(int) $row['id']] = true;
+                }
+            }
+
+            foreach ($all as $item) {
+                // Le figlie non si prezzano né pesano: le riscrive la loro madre.
+                if ((int) ($item['parent_item_id'] ?? 0) > 0) {
+                    if (!isset($mothers[(int) $item['parent_item_id']])) {
+                        OrderItem::delete((int) $item['id']);
+                    }
+
+                    continue;
+                }
+
                 $productId = (int) ($item['product_id'] ?? 0);
                 $product = $productId > 0 ? Product::findById($productId) : null;
 
                 if ((string) $item['type'] === 'product'
                     && (!is_array($product) || ($product['active'] ?? 'false') !== 'true')) {
-                    OrderItem::delete((int) $item['id']);
+                    self::dropWithChildren($cartId, $item);
                     $removed[] = (string) $item['name'];
 
                     continue;
                 }
+
+                // Una confezione già nel carrello si rifà dall'anagrafica: se
+                // non è più vendibile così esce intera, madre e figlie. Con la
+                // funzionalità spenta resta com'è, come le personalizzate.
+                $bundle = null;
+
+                if ((string) $item['type'] === 'product' && Bundles::isBundle($productId)
+                    && Gestionale::feature('bundles')) {
+                    try {
+                        $bundle = Bundles::resolve($productId, self::optionIds($all, (int) $item['id']));
+                    } catch (UserError) {
+                        self::dropWithChildren($cartId, $item);
+                        $removed[] = (string) $item['name'];
+
+                        continue;
+                    }
+                }
+
+                $fieldsSurcharge = null;
 
                 // Con la funzionalità spenta le righe già personalizzate restano
                 // come sono: il sovrapprezzo scritto è quello che il cliente ha
@@ -195,12 +262,13 @@ final class Cart
                         // L'anagrafica è cambiata sotto il carrello (personalizzazione
                         // spenta, opzione tolta, obbligo nuovo): la riga non è più
                         // vendibile così, e chi chiama lo trova in `removed`.
-                        OrderItem::delete((int) $item['id']);
+                        self::dropWithChildren($cartId, $item);
                         $removed[] = (string) $item['name'];
 
                         continue;
                     }
 
+                    $fieldsSurcharge = (float) $resolved['surcharge'];
                     $item['customization_surcharge'] = $resolved['surcharge'];
                     // Le etichette cambiate in anagrafica si copiano finché la
                     // riga sta nel carrello; dopo l'ordine non si toccano più.
@@ -208,6 +276,14 @@ final class Cart
                         'customization' => Customizations::encode($resolved['fields']),
                         'customization_surcharge' => $resolved['surcharge'],
                     ];
+                }
+
+                if ($bundle !== null) {
+                    $fieldsSurcharge ??= array_sum(array_column(Customizations::decode($item['customization'] ?? ''), 'surcharge'));
+                    $surcharge = self::money((float) $fieldsSurcharge + (float) $bundle['surcharge']);
+                    $item['customization_surcharge'] = $surcharge;
+                    $rewritten[(int) $item['id']]['customization_surcharge'] = $surcharge;
+                    $packs[] = ['item' => $item, 'children' => $bundle['children']];
                 }
 
                 $price = LinePrice::of([
@@ -263,6 +339,14 @@ final class Cart
                 ] + ($rewritten[(int) $line['id']] ?? []), (int) $line['id']);
             }
 
+            foreach ($packs as $pack) {
+                self::writeChildren($cartId, $pack['item'], $pack['children'], (float) $pack['item']['quantity']);
+            }
+
+            if ($packs !== []) {
+                self::renumber($cartId);
+            }
+
             Order::update([
                 'products_total' => $totals['products_total'],
                 'discount_total' => $totals['discount_total'],
@@ -291,14 +375,20 @@ final class Cart
             $item = self::item($cartId, $itemId);
             $quantity = round($quantity, 3);
 
+            self::assertNotChild($item);
+
             if ($quantity <= 0) {
-                OrderItem::delete($itemId);
+                self::dropWithChildren($cartId, $item);
 
                 return self::recalculate($cartId);
             }
 
-            if ((int) ($item['product_id'] ?? 0) > 0) {
-                self::assertAvailable(self::product((int) $item['product_id']), $quantity);
+            $productId = (int) ($item['product_id'] ?? 0);
+
+            if ($productId > 0 && Bundles::isBundle($productId)) {
+                self::assertBundleQuantity($cartId, $item, $quantity);
+            } elseif ($productId > 0) {
+                self::assertAvailable(self::product($productId), $quantity);
             }
 
             OrderItem::update(['quantity' => self::number($quantity)], $itemId);
@@ -316,8 +406,9 @@ final class Cart
     {
         return Transaction::run(static function () use ($cartId, $itemId): array {
             self::cart($cartId);
-            self::item($cartId, $itemId);
-            OrderItem::delete($itemId);
+            $item = self::item($cartId, $itemId);
+            self::assertNotChild($item);
+            self::dropWithChildren($cartId, $item);
 
             return self::recalculate($cartId);
         });
@@ -342,12 +433,22 @@ final class Cart
             self::cart($targetCartId);
             self::cart($guestCartId);
 
-            foreach (self::items($guestCartId) as $item) {
+            $guest = self::items($guestCartId);
+            $moved = false;
+
+            foreach ($guest as $item) {
+                if ((int) ($item['parent_item_id'] ?? 0) > 0) {
+                    continue;
+                }
+
                 $productId = (int) ($item['product_id'] ?? 0);
                 $signature = Customizations::signature(Customizations::decode($item['customization'] ?? ''));
-                $existing = self::itemLike($targetCartId, $productId, $signature);
+                $kids = self::childrenOf($guest, (int) $item['id']);
+                $existing = self::itemLike($targetCartId, $productId, $signature, self::bundleKey($kids));
                 $wanted = round((float) $item['quantity'] + (float) ($existing['quantity'] ?? 0), 3);
-                $wanted = self::capped($productId, $wanted);
+                $wanted = $kids === []
+                    ? self::capped($productId, $wanted)
+                    : self::cappedPacks(self::perPack($item, $kids), $wanted);
 
                 if ($wanted <= 0) {
                     continue;
@@ -364,6 +465,16 @@ final class Cart
                     'position' => self::nextPosition($targetCartId),
                     'quantity' => self::number($wanted),
                 ], (int) $item['id']);
+
+                // La confezione si sposta con le sue figlie.
+                foreach ($kids as $kid) {
+                    OrderItem::update(['order_id' => $targetCartId], (int) $kid['id']);
+                    $moved = true;
+                }
+            }
+
+            if ($moved) {
+                self::renumber($targetCartId);
             }
 
             // Le righe sommate a una già presente, o azzerate dalla giacenza, sono
@@ -390,14 +501,23 @@ final class Cart
     public static function contents(int $cartId): array
     {
         $order = Order::findById($cartId);
+        $all = self::items($cartId);
+        $decode = static function (array $item): array {
+            $item['customization'] = Customizations::decode($item['customization'] ?? '');
+
+            return $item;
+        };
+        $top = array_values(array_filter($all, static fn (array $item): bool => (int) ($item['parent_item_id'] ?? 0) === 0));
+        usort($top, static fn (array $a, array $b): int => [(int) $a['position'], (int) $a['id']] <=> [(int) $b['position'], (int) $b['id']]);
 
         return [
             'order' => is_array($order) ? $order : [],
-            'items' => array_map(static function (array $item): array {
-                $item['customization'] = Customizations::decode($item['customization'] ?? '');
+            'items' => array_map(static function (array $item) use ($all, $decode): array {
+                $item = $decode($item);
+                $item['children'] = array_map($decode, self::childrenOf($all, (int) $item['id']));
 
                 return $item;
-            }, self::items($cartId)),
+            }, $top),
         ];
     }
 
@@ -498,25 +618,289 @@ final class Cart
         $available = Levels::of((int) $product['id'])['available'];
 
         if ($wanted > $available) {
-            throw UserError::make('cart.not_enough_stock', [
-                'name' => (string) $product['name'],
-                'available' => rtrim(rtrim(number_format(max(0.0, $available), 3, ',', ''), '0'), ','),
-            ]);
+            throw self::stockError((string) $product['name'], $available);
+        }
+    }
+
+    private static function stockError(string $name, float $available): UserError
+    {
+        return UserError::make('cart.not_enough_stock', [
+            'name' => $name,
+            'available' => rtrim(rtrim(number_format(max(0.0, $available), 3, ',', ''), '0'), ','),
+        ]);
+    }
+
+    /**
+     * Le confezioni chieste stanno nei pezzi dei componenti? Si guarda ogni
+     * prodotto, e il primo che manca dà il nome nell'errore.
+     *
+     * @param list<array{product_id: int, quantity: float, bundle_option_id: int}> $children per una confezione
+     */
+    private static function assertPacks(array $children, float $packs): void
+    {
+        $components = [];
+        $chosen = [];
+
+        foreach ($children as $child) {
+            if ((int) $child['bundle_option_id'] > 0) {
+                $chosen[] = ['product_id' => (int) $child['product_id']];
+            } else {
+                $components[] = ['product_id' => (int) $child['product_id'], 'quantity' => (float) $child['quantity']];
+            }
+        }
+
+        $pieces = Bundles::pieces($components, $chosen, $packs);
+        $levels = Levels::forProducts(array_keys($pieces));
+        $available = [];
+        $backorder = [];
+        $products = [];
+
+        foreach (array_keys($pieces) as $id) {
+            $product = Product::findById($id);
+            $products[$id] = is_array($product) ? $product : [];
+            $backorder[$id] = is_array($product) && Stock::allowsBackorder($product);
+            $available[$id] = (float) ($levels[$id]['available'] ?? 0.0);
+        }
+
+        $short = Bundles::shortfall($pieces, $available, $backorder);
+
+        if ($short !== null) {
+            $product = $products[$short['product_id']];
+
+            throw self::stockError(
+                $product === [] ? '' : ProductNames::full($product, ProductNames::models([$product])),
+                $short['available']
+            );
+        }
+    }
+
+    /** Una riga figlia la gestisce la sua madre: da sola non si cambia né si toglie. */
+    private static function assertNotChild(array $item): void
+    {
+        if ((int) ($item['parent_item_id'] ?? 0) > 0) {
+            throw UserError::make('cart.child_line');
+        }
+    }
+
+    /**
+     * Cambiare le confezioni: con la funzionalità accesa si controlla la
+     * giacenza dei componenti sulla composizione di adesso; spenta, le figlie
+     * si scalano in proporzione perché il magazzino non resti indietro.
+     *
+     * @param array<string, mixed> $item
+     */
+    private static function assertBundleQuantity(int $cartId, array $item, float $quantity): void
+    {
+        if (Gestionale::feature('bundles')) {
+            $bundle = Bundles::resolve((int) $item['product_id'], self::optionIds(self::items($cartId), (int) $item['id']));
+            self::assertPacks($bundle['children'], $quantity);
+
+            return;
+        }
+
+        $ratio = $quantity / max((float) $item['quantity'], 0.001);
+
+        foreach (self::childrenOf(self::items($cartId), (int) $item['id']) as $kid) {
+            OrderItem::update(['quantity' => self::number(round((float) $kid['quantity'] * $ratio, 3))], (int) $kid['id']);
+        }
+    }
+
+    /**
+     * Toglie una riga e, se è una madre, le sue figlie.
+     *
+     * @param array<string, mixed> $item
+     */
+    private static function dropWithChildren(int $cartId, array $item): void
+    {
+        foreach (self::childrenOf(self::items($cartId), (int) $item['id']) as $kid) {
+            OrderItem::delete((int) $kid['id']);
+        }
+
+        OrderItem::delete((int) $item['id']);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $all
+     * @return list<array<string, mixed>>
+     */
+    private static function childrenOf(array $all, int $motherId): array
+    {
+        $kids = array_values(array_filter(
+            $all,
+            static fn (array $row): bool => (int) ($row['parent_item_id'] ?? 0) === $motherId && $motherId > 0
+        ));
+        usort($kids, static fn (array $a, array $b): int => (int) $a['id'] <=> (int) $b['id']);
+
+        return $kids;
+    }
+
+    /**
+     * Le opzioni scelte di una madre, lette dalle sue figlie.
+     *
+     * @param list<array<string, mixed>> $all
+     * @return list<int>
+     */
+    private static function optionIds(array $all, int $motherId): array
+    {
+        return array_values(array_filter(array_map(
+            static fn (array $kid): int => (int) ($kid['bundle_option_id'] ?? 0),
+            self::childrenOf($all, $motherId)
+        )));
+    }
+
+    /**
+     * L'impronta delle scelte: due confezioni con le stesse opzioni, in
+     * qualunque ordine, sono la stessa riga.
+     *
+     * @param list<array<string, mixed>> $children figlie, di una confezione o di una riga
+     */
+    private static function bundleKey(array $children): string
+    {
+        $ids = array_values(array_filter(array_map(
+            static fn (array $child): int => (int) ($child['bundle_option_id'] ?? 0),
+            $children
+        )));
+        sort($ids);
+
+        return implode(',', $ids);
+    }
+
+    /**
+     * I pezzi per una confezione, dalle figlie scritte nel carrello.
+     *
+     * @param array<string, mixed>       $mother
+     * @param list<array<string, mixed>> $kids
+     * @return list<array{product_id: int, quantity: float, bundle_option_id: int}>
+     */
+    private static function perPack(array $mother, array $kids): array
+    {
+        $packs = max((float) $mother['quantity'], 0.001);
+
+        return array_map(static fn (array $kid): array => [
+            'product_id' => (int) $kid['product_id'],
+            'quantity' => (float) $kid['quantity'] / $packs,
+            'bundle_option_id' => (int) $kid['bundle_option_id'],
+        ], $kids);
+    }
+
+    /**
+     * Le confezioni chieste, tagliate a quelle che i componenti permettono.
+     *
+     * @param list<array{product_id: int, quantity: float, bundle_option_id: int}> $perPack
+     */
+    private static function cappedPacks(array $perPack, float $wanted): float
+    {
+        foreach ($perPack as $child) {
+            $pieces = (float) $child['quantity'];
+
+            if ($pieces > 0) {
+                $wanted = min($wanted, floor(self::capped((int) $child['product_id'], $wanted * $pieces) / $pieces * 1000) / 1000);
+            }
+        }
+
+        return $wanted;
+    }
+
+    /**
+     * Scrive le figlie di una madre: quelle che ci sono si aggiornano, le
+     * mancanti si creano, quelle che non servono più si tolgono. Il prezzo è
+     * sempre zero: il cliente paga la madre, le figlie muovono solo la merce.
+     *
+     * @param array<string, mixed>                                                  $mother
+     * @param list<array{product_id: int, quantity: float, bundle_option_id: int}> $children per una confezione
+     */
+    private static function writeChildren(int $cartId, array $mother, array $children, float $packs): void
+    {
+        $current = [];
+
+        foreach (self::childrenOf(self::items($cartId), (int) $mother['id']) as $row) {
+            $current[(int) $row['product_id'].'/'.(int) $row['bundle_option_id']] = $row;
+        }
+
+        $zero = [
+            'unit_price' => '0.00',
+            'list_price' => '0.00',
+            'line_total' => '0.00',
+            'tax_id' => 0,
+            'tax_rate' => '0.00',
+            'tax_nature' => '',
+        ];
+
+        foreach ($children as $child) {
+            $key = (int) $child['product_id'].'/'.(int) $child['bundle_option_id'];
+            $quantity = self::number(round((float) $child['quantity'] * $packs, 3));
+
+            if (isset($current[$key])) {
+                OrderItem::update(['quantity' => $quantity] + $zero, (int) $current[$key]['id']);
+                unset($current[$key]);
+
+                continue;
+            }
+
+            $product = Product::findById((int) $child['product_id']);
+
+            if (!is_array($product)) {
+                continue;
+            }
+
+            $model = ProductModel::findById((int) $product['product_model_id']);
+            OrderItem::create([
+                'order_id' => $cartId,
+                'type' => 'product',
+                'product_id' => (int) $child['product_id'],
+                'parent_item_id' => (int) $mother['id'],
+                'bundle_option_id' => (int) $child['bundle_option_id'],
+                'position' => self::nextPosition($cartId),
+                'sku' => (string) $product['sku'],
+                'name' => ProductNames::full($product, ProductNames::models([$product])),
+                'image' => ProductPhotos::forProduct((int) $child['product_id']),
+                'unit' => (string) (is_array($model) ? ($model['unit'] ?? 'pz') : 'pz'),
+                'quantity' => $quantity,
+                'tax_category_id' => (int) ($mother['tax_category_id'] ?? 0),
+            ] + $zero);
+        }
+
+        foreach ($current as $stale) {
+            OrderItem::delete((int) $stale['id']);
+        }
+    }
+
+    /** Rimette le posizioni in fila: ogni madre seguita dalle sue figlie. */
+    private static function renumber(int $cartId): void
+    {
+        $all = self::items($cartId);
+        $top = array_values(array_filter($all, static fn (array $row): bool => (int) ($row['parent_item_id'] ?? 0) === 0));
+        usort($top, static fn (array $a, array $b): int => [(int) $a['position'], (int) $a['id']] <=> [(int) $b['position'], (int) $b['id']]);
+        $position = 1;
+
+        foreach ($top as $row) {
+            foreach ([$row, ...self::childrenOf($all, (int) $row['id'])] as $line) {
+                if ((int) $line['position'] !== $position) {
+                    OrderItem::update(['position' => $position], (int) $line['id']);
+                }
+
+                $position++;
+            }
         }
     }
 
     /**
      * La riga uguale a quella che sta entrando, se c'è: stesso articolo e
-     * stessi valori di personalizzazione, qualunque ne sia l'ordine.
+     * stessi valori di personalizzazione e stesse opzioni del multiprodotto,
+     * qualunque ne sia l'ordine. Le figlie non contano: sono di una madre.
      *
      * @return array<string, mixed>|null
      */
-    private static function itemLike(int $cartId, int $productId, string $signature): ?array
+    private static function itemLike(int $cartId, int $productId, string $signature, string $bundleKey = ''): ?array
     {
-        foreach (self::items($cartId) as $item) {
+        $all = self::items($cartId);
+
+        foreach ($all as $item) {
             if ((string) $item['type'] === 'product'
+                && (int) ($item['parent_item_id'] ?? 0) === 0
                 && (int) $item['product_id'] === $productId
-                && Customizations::signature(Customizations::decode($item['customization'] ?? '')) === $signature) {
+                && Customizations::signature(Customizations::decode($item['customization'] ?? '')) === $signature
+                && self::bundleKey(self::childrenOf($all, (int) $item['id'])) === $bundleKey) {
                 return $item;
             }
         }
