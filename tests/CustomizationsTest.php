@@ -210,4 +210,111 @@ check('l\'errore sa il suo campo, e senza campo vale zero', function () {
         && UserError::make('customization.required')->withField(7)->field() === 7;
 });
 
+$numero = static fn (int $id, array $extra = []): array => $def($id, 'number', $extra + ['decimals' => 2]);
+
+check('un numero si scrive con la virgola e vale con i suoi decimali', function () use ($numero) {
+    foreach (['12,5', '12.5', ' 12,50 ', '12,500'] as $scritto) {
+        $r = Customizations::check([$numero(1, ['decimals' => 3])], [1 => $scritto]);
+
+        if ($r['fields'][0]['value'] !== '12,500') {
+            return false;
+        }
+    }
+
+    $r = Customizations::check([$numero(1)], [1 => '1250.5']);
+
+    return $r['fields'][0]['value'] === '1250,50';
+});
+
+check('un numero porta il sovrapprezzo fisso della personalizzazione', function () use ($numero) {
+    $r = Customizations::check([$numero(1, ['surcharge' => '4.00'])], [1 => '10']);
+
+    return $r['surcharge'] === '4.00' && $r['fields'][0]['surcharge'] === '4.00' && $r['fields'][0]['option_id'] === 0;
+});
+
+check('un numero senza decimali è un intero e rifiuta la virgola', function () use ($numero, $rifiuto) {
+    $d = $numero(3, ['decimals' => 0]);
+    $ok = Customizations::check([$d], [3 => '42']);
+    $e = $rifiuto(fn () => Customizations::check([$d], [3 => '4,5']));
+
+    return $ok['fields'][0]['value'] === '42'
+        && $e?->key() === 'customization.whole_number'
+        && $e->field() === 3;
+});
+
+check('troppi decimali si rifiutano', function () use ($numero, $rifiuto) {
+    $d = $numero(1, ['decimals' => 2]);
+    $e = $rifiuto(fn () => Customizations::check([$d], [1 => '1,234']));
+
+    return $e?->key() === 'customization.too_many_decimals'
+        && str_contains($e->getMessage(), '2');
+});
+
+check('quello che non è un numero positivo si rifiuta', function () use ($numero, $rifiuto) {
+    foreach (['abc', '1e5', '-3', '--3', '1,2,3', '0x1A', '12 cm'] as $scritto) {
+        if ($rifiuto(fn () => Customizations::check([$numero(1)], [1 => $scritto]))?->key() !== 'customization.not_number') {
+            return false;
+        }
+    }
+
+    return true;
+});
+
+check('un numero troppo lungo si rifiuta', function () use ($numero, $rifiuto) {
+    return $rifiuto(fn () => Customizations::check([$numero(1)], [1 => str_repeat('9', 20)]))?->key() === 'customization.not_number';
+});
+
+check('un numero vuoto non entra, e se è obbligatorio si rifiuta', function () use ($numero, $rifiuto) {
+    $facoltativo = Customizations::check([$numero(1)], [1 => '  ']);
+    $e = $rifiuto(fn () => Customizations::check([$numero(2, ['required' => true])], []));
+
+    return $facoltativo['fields'] === [] && $e?->key() === 'customization.required';
+});
+
+check('un numero già salvato si ricontrolla uguale e dà la stessa firma', function () use ($numero) {
+    $d = $numero(1);
+    $primo = Customizations::check([$d], [1 => '1250,5']);
+    $di_nuovo = Customizations::check([$d], Customizations::valuesOf($primo['fields']));
+    $altro = Customizations::check([$d], [1 => '1250.50']);
+
+    return $di_nuovo['fields'] === $primo['fields']
+        && Customizations::signature($primo['fields']) === Customizations::signature($altro['fields']);
+});
+
+check('sotto il nome un numero si legge come un testo', function () use ($numero) {
+    $r = Customizations::check([$numero(1, ['label' => 'Larghezza'])], [1 => '12.5']);
+
+    return Customizations::lines(['customization' => Customizations::encode($r['fields'])]) === ['Larghezza: 12,50'];
+});
+
+check('un numero ha bisogno di decimali da 0 a 6, e non di caratteri', function () use ($rifiuto) {
+    $prova = static fn ($n) => $rifiuto(fn () => Customizations::assertDefinition(['kind' => 'number', 'decimals' => $n, 'surcharge' => '0'], []));
+
+    return $prova(0) === null && $prova('2') === null && $prova(6) === null
+        && $prova(7)?->key() === 'customization.decimals'
+        && $prova(-1)?->key() === 'customization.decimals'
+        && $prova('')?->key() === 'customization.decimals'
+        && $prova('1,5')?->key() === 'customization.decimals'
+        && $prova('abc')?->key() === 'customization.decimals';
+});
+
+check('un numero non guarda i caratteri massimi', function () use ($rifiuto) {
+    return $rifiuto(fn () => Customizations::assertDefinition(['kind' => 'number', 'decimals' => 1, 'max_length' => '', 'surcharge' => '0'], [])) === null;
+});
+
+check('un sovrapprezzo negativo su un numero si rifiuta', function () use ($rifiuto) {
+    return $rifiuto(fn () => Customizations::assertDefinition(['kind' => 'number', 'decimals' => 1, 'surcharge' => '-2'], []))?->key() === 'customization.surcharge';
+});
+
+check('il sovrapprezzo per articolo vale se c\'è, anche zero, e se manca vale quello della personalizzazione', function () {
+    $una = static fn (?string $suPiuArticoli): string => Customizations::effectiveSurcharge('5.00', $suPiuArticoli);
+
+    return $una(null) === '5.00'
+        && $una('') === '5.00'
+        && $una('0') === '0.00'
+        && $una('0.00') === '0.00'
+        && $una('2,5') === '2.50'
+        && $una('7.50') === '7.50';
+});
+
 summary();

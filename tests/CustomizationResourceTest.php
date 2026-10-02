@@ -57,22 +57,50 @@ check('la pagina sta in Catalogo, dopo gli attributi, dietro la funzionalità', 
 check('il form ha i campi nell\'ordine giusto, con le larghezze del disegno', function () use ($riquadri, $larghezze) {
     $cards = $riquadri();
 
-    return count($cards) === 2
-        && $larghezze($cards[0]) === [
-            'name' => 6, 'label' => 6, 'help_text' => 12,
-            'kind' => 3, 'max_length' => 3, 'surcharge' => 3, 'active' => 3,
-        ];
+    return count($cards) === 3
+        && $larghezze($cards[0]) === ['name' => 6, 'active' => 6, 'label' => 12, 'help_text' => 12]
+        && $larghezze($cards[1]) === ['options' => 12]
+        && $larghezze($cards[2]) === ['kind' => 12, 'max_length' => 12, 'decimals' => 12, 'surcharge' => 12];
 });
 
-check('i caratteri massimi si vedono solo con il testo e le opzioni solo con la scelta', function () use ($riquadri) {
+check('il form ha a sinistra la personalizzazione e le opzioni, a destra i dettagli', function () {
+    $form = CustomizationResource::formLayoutSchema();
+    $titoli = [];
+
+    foreach ($form->components as $contenitore) {
+        $span = ((array) $contenitore->columnSpan)['default'] ?? null;
+
+        foreach ($contenitore->components as $card) {
+            foreach ($card->components as $dentro) {
+                if ($dentro instanceof SectionTitle) {
+                    $titoli[$span][] = $dentro->getText();
+                }
+            }
+        }
+    }
+
+    return array_keys($titoli) === [8, 4]
+        && $titoli[4] === ['Dettagli']
+        && count($titoli[8]) === 2;
+});
+
+check('i caratteri massimi si vedono solo con il testo, i decimali solo con il numero e le opzioni solo con la scelta', function () use ($riquadri) {
     $cards = $riquadri();
 
     return CustomizationResource::getInput('max_length')->conditionalAttributes() === [
             'data-visible-when' => 'kind',
             'data-visible-when-values' => 'text',
         ]
+        && CustomizationResource::getInput('decimals')->conditionalAttributes() === [
+            'data-visible-when' => 'kind',
+            'data-visible-when-values' => 'number',
+        ]
         && $cards[1]->getAttr('data-visible-when') === 'kind'
         && $cards[1]->getAttr('data-visible-when-values') === 'choice';
+});
+
+check('il tipo offre testo, numero e scelta', function () {
+    return array_keys(CustomizationResource::kinds()) === ['text', 'number', 'choice'];
 });
 
 check('le opzioni sono un repeater che cancella davvero e tiene l\'ordine', function () {
@@ -173,6 +201,63 @@ check('passando da scelta a testo le opzioni postate si svuotano', function () {
     $_POST = [];
 
     return $dopo === [];
+});
+
+check('un numero si salva con i suoi decimali, senza caratteri e senza opzioni', function () {
+    $_POST = ['options' => [['label' => 'Rosso', 'surcharge' => '0'], ['label' => 'Blu', 'surcharge' => '0']]];
+    $valori = CustomizationResource::mutateRequestValues(
+        ['name' => 'Larghezza', 'kind' => 'number', 'max_length' => '100', 'decimals' => '2', 'surcharge' => '1,50'],
+        'update',
+        'backend',
+        ['id' => 3]
+    );
+    $dopo = $_POST['options'] ?? null;
+    $_POST = [];
+
+    return $dopo === []
+        && $valori['decimals'] === 2
+        && $valori['max_length'] === 100
+        && $valori['surcharge'] === '1.50';
+});
+
+check('un testo o una scelta non portano decimali', function () {
+    $_POST = [];
+    $testo = CustomizationResource::mutateRequestValues(
+        ['name' => 'Incisione', 'kind' => 'text', 'max_length' => '20', 'decimals' => '3', 'surcharge' => '0'],
+        'update',
+        'backend',
+        ['id' => 3]
+    );
+
+    return $testo['decimals'] === 0;
+});
+
+check('un numero con decimali sbagliati non si salva', function () {
+    $_POST = [];
+
+    try {
+        CustomizationResource::mutateRequestValues(['name' => 'L', 'kind' => 'number', 'decimals' => '9', 'surcharge' => '0'], 'update', 'backend', ['id' => 3]);
+    } catch (UserError $e) {
+        return $e->key() === 'customization.decimals';
+    }
+
+    return false;
+});
+
+check('un numero con i decimali lasciati vuoti si salva con zero decimali', function () {
+    $_POST = [];
+    $valori = CustomizationResource::mutateRequestValues(
+        ['name' => 'Pezzi', 'kind' => 'number', 'max_length' => '', 'decimals' => '', 'surcharge' => '0'],
+        'update',
+        'backend',
+        ['id' => 3]
+    );
+
+    return $valori['decimals'] === 0;
+});
+
+check('quickCreateValues parte senza decimali', function () {
+    return CustomizationResource::quickCreateValues(['name' => 'X'])['decimals'] === 0;
 });
 
 check('lo store API non crea opzioni nemmeno se la richiesta le porta', function () {

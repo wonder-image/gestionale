@@ -960,18 +960,23 @@ Il testo sta in `lang/it/gestionale.json` sotto `gestionale.errors`.
 
 ## Personalizzazioni
 
-Un campo che il cliente compila comprando: un **testo** (l'incisione) o una
-**scelta** fra opzioni (la confezione). Si accende con la funzionalità
+Un campo che il cliente compila comprando: un **testo** (l'incisione), un
+**numero** (la larghezza) o una **scelta** fra opzioni (la confezione). Si accende con la funzionalità
 `customizations` (richiede `orders`) e si gestisce da *Catalogo → Personalizzazioni*.
 
 | Tabella | Cos'è |
 |---|---|
-| `gst_customizations` | la definizione: nome, etichetta, aiuto, `kind` (`text` o `choice`), `max_length` (solo testo), sovrapprezzo, `active` |
+| `gst_customizations` | la definizione: nome, etichetta, aiuto, `kind` (`text`, `number` o `choice`), `max_length` (solo testo), `decimals` (solo numero, da 0 a 6), sovrapprezzo, `active` |
 | `gst_customization_options` | le opzioni di una scelta, ciascuna col suo sovrapprezzo |
-| `gst_product_model_customizations` | il collegamento all'**articolo** (non alla variante), con `is_required` e la posizione |
+| `gst_product_model_customizations` | il collegamento all'**articolo** (non alla variante), con `is_required`, la posizione e un `surcharge` facoltativo che, se c'è (anche zero), sostituisce su quell'articolo il sovrapprezzo della personalizzazione |
 
 Il sovrapprezzo di una scelta è quello della personalizzazione **più** quello
-dell'opzione. Una personalizzazione collegata a qualche articolo non si
+dell'opzione; quello della personalizzazione lo sostituisce, su un articolo, il
+`surcharge` del collegamento (`Customizations::effectiveSurcharge()`, che
+`forModel()` applica: chi legge da lì vede già il valore giusto). Un **numero**
+si legge come lo scrive una persona («1.250,5» o «12,5», senza segno né unità),
+si controlla sui `decimals` e si salva già formattato con la virgola e i suoi
+decimali: `valuesOf()` lo ridà a `check()` e il valore resta lo stesso. Una personalizzazione collegata a qualche articolo non si
 elimina (`customization.in_use`): si disattiva, e sparisce dalla vendita.
 Scollegare o disattivare non tocca le righe già vendute, che portano con sé una
 copia di quello che il cliente ha scritto.
@@ -981,7 +986,7 @@ copia di quello che il cliente ha scritto.
 `Customizations::forModel($modelId)` è l'unica lettura che la vetrina (E1b) deve
 usare: ridà, in ordine, solo le personalizzazioni **attive** collegate
 all'articolo, ciascuna con `id`, `name`, `label`, `help_text`, `kind`,
-`max_length`, `surcharge`, `required` e le `options` (`id`, `label`,
+`max_length`, `decimals`, `surcharge`, `required` e le `options` (`id`, `label`,
 `surcharge`). I testi sono già in chiaro: chi li stampa li escapa.
 
 Il form della vetrina manda al carrello i valori come
@@ -993,7 +998,7 @@ Il form della vetrina manda al carrello i valori come
 `Customizations::resolve($modelId, $valori)` controlla i valori contro la
 definizione di oggi e ridà `['fields' => [...], 'surcharge' => '5.00']`. Gli
 errori sono `UserError` del gruppo `customization` (`required`, `too_long`,
-`bad_option`, `unknown`); **`$e->field()` è l'id della personalizzazione**:
+`not_number`, `too_many_decimals`, `whole_number`, `bad_option`, `unknown`); **`$e->field()` è l'id della personalizzazione**:
 la vetrina lo usa per mettere la frase sotto il campo giusto. Testo e opzioni
 si ripuliscono: i caratteri di controllo (tranne l'a capo) e gli spazi ai
 lati escono, e un testo vuoto su un campo facoltativo non diventa un valore.

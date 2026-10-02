@@ -3039,6 +3039,19 @@ check('con la funzionalità il campo c\'è, senza cancellazione logica e con la 
     }
 });
 
+check('la lista delle personalizzazioni ha il sovrapprezzo per articolo accanto a «Obbligatoria»', function () use ($forza, $campi) {
+    $forza(['customizations' => true]);
+
+    try {
+        $schema = (new \ReflectionProperty(\Wonder\App\ResourceSchema\Input::class, 'schema'))->getValue($campi()['customizations']);
+        $nomi = array_map(static fn ($colonna): string => (string) $colonna->name, (array) ($schema['context']['columns'] ?? []));
+
+        return $nomi === ['id', 'customization_id', 'is_required', 'surcharge'];
+    } finally {
+        $forza(null);
+    }
+});
+
 check('il riquadro «Personalizzazioni» viene dopo «Scheda tecnica» e il suo script cita la Resource giusta', function () use ($forza, $schedaAperta, $riquadri, $riquadroPersonalizzazioni, $testoScheda) {
     $forza(['customizations' => true]);
 
@@ -3064,6 +3077,28 @@ check('le righe delle personalizzazioni senza scelta o con una già vista si sca
 
     return array_column($ridate, 'customization_id') === ['3', '5']
         && ProductModelResource::prepareRepeaterRows('altro', $altre) === $altre;
+});
+
+check('il sovrapprezzo vuoto di un articolo resta vuoto, e zero resta zero', function () {
+    $righe = ProductModelResource::prepareRepeaterRows('customizations', [
+        ['customization_id' => '3', 'surcharge' => ''],
+        ['customization_id' => '4', 'surcharge' => '0'],
+        ['customization_id' => '5', 'surcharge' => '2,5'],
+        ['customization_id' => '6'],
+        ['customization_id' => '7', 'surcharge' => 'abc'],
+    ]);
+
+    return array_column($righe, 'surcharge') === [null, '0.00', '2.50', null, null];
+});
+
+check('un sovrapprezzo negativo su un articolo si rifiuta', function () {
+    try {
+        ProductModelResource::prepareRepeaterRows('customizations', [['customization_id' => '3', 'surcharge' => '-1']]);
+    } catch (\Wonder\Plugin\Gestionale\Support\Errors\UserError $e) {
+        return $e->key() === 'customization.surcharge';
+    }
+
+    return false;
 });
 
 summary();
