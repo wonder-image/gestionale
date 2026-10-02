@@ -3262,4 +3262,82 @@ check('il tipo e la composizione non finiscono nelle colonne dell\'articolo tra 
         && ($v['type'] ?? '') === 'bundle' && ($v['bundle_mode'] ?? '') === 'fixed';
 });
 
+check('l\'elenco dei prodotti ha ricerca, Stato (Pubblicato/Bozza), Marchio e Categoria, e con «bundles» anche il Tipo', function () use ($forza) {
+    $chiavi = static function (array $layout): array {
+        $out = [];
+
+        foreach ((array) ($layout['custom_filters'] ?? []) as $f) {
+            $out[(string) $f['label']] = $f;
+        }
+
+        return $out;
+    };
+
+    $forza(['bundles' => false]);
+    $senza = ProductModelResource::tableLayoutSchema()->toArray();
+    $forza(['bundles' => true]);
+    $con = ProductModelResource::tableLayoutSchema()->toArray();
+    $forza(null);
+
+    $filtri = $chiavi($con);
+    $stato = $filtri['Stato']['array'] ?? [];
+
+    return ($con['filters']['search']['enabled'] ?? false) === true
+        && array_keys($chiavi($senza)) === ['Stato', 'Marchio', 'Categoria']
+        && array_keys($filtri) === ['Stato', 'Marchio', 'Categoria', 'Tipo']
+        && ($filtri['Stato']['column'] ?? '') === 'visible'
+        && $stato === ['' => 'Tutti', 'true' => 'Pubblicato', 'false' => 'Bozza']
+        && ($filtri['Tipo']['array'] ?? []) === ['' => 'Tutti', 'simple' => 'Prodotto', 'bundle' => 'Multiprodotto'];
+});
+
+check('lo stato nell\'elenco si legge Pubblicato/Bozza, non Visibile/Nascosto', function () {
+    foreach (ProductModelResource::tableSchema() as $colonna) {
+        $dati = $colonna->toArray();
+
+        if (($dati['name'] ?? $dati['key'] ?? '') !== 'visible') {
+            continue;
+        }
+
+        $badge = (array) ($dati['badge'] ?? []);
+
+        return ($badge['on']['text'] ?? '') === 'Pubblicato'
+            && ($badge['off']['text'] ?? '') === 'Bozza'
+            && ($badge['clickable'] ?? false) === true;
+    }
+
+    return false;
+});
+
+check('il marchio e la categoria filtrano gli articoli, la categoria con le sue sottocategorie', function () {
+    $righe = [
+        ['id' => 1, 'parent_id' => 0, 'position' => 1],
+        ['id' => 2, 'parent_id' => 1, 'position' => 1],
+        ['id' => 3, 'parent_id' => 2, 'position' => 1],
+        ['id' => 9, 'parent_id' => 0, 'position' => 2],
+    ];
+    $categoria = ProductModelResource::categoryCondition(['1'], $righe);
+    $vuoto = ProductModelResource::categoryCondition([''], $righe);
+    $marchio = ProductModelResource::brandCondition(['259', 'x']);
+
+    return str_contains($categoria, 'IN (1,2,3)')
+        && !str_contains($categoria, '9')
+        && $vuoto === ''
+        && str_contains($marchio, '`brand_id` IN (259)')
+        && ProductModelResource::brandCondition(['']) === '';
+});
+
+check('l\'elenco delle opzioni non eredita i bottoni né i filtri dell\'elenco degli articoli', function () use ($forza) {
+    $forza(['bundles' => true]);
+    $layout = ProductResource::tableLayoutSchema()->toArray();
+    $forza(null);
+
+    return (array) ($layout['buttons_custom'] ?? []) === [] && (array) ($layout['custom_filters'] ?? []) === [];
+});
+
+check('la scheda in lettura mette il nome dell\'articolo nel titolo della pagina', function () {
+    $vista = (string) file_get_contents(__DIR__ . '/../view/pages/product-model-show.php');
+
+    return str_contains($vista, "'TITLE' => \$nome");
+});
+
 summary();

@@ -179,6 +179,12 @@ versionamento semantico.
   crea tre cesti e, con la funzionalità accesa, quattro ordini (uno con un reso).
   Chi aggiorna deve lanciare `php forge update`: tre tabelle e tre colonne nuove
   su `gst_product_models`.
+- Elenco e scheda degli articoli: stato **Pubblicato**/**Bozza** (non più
+  visibile/nascosto), filtri per stato, marchio, categoria (con le sottocategorie)
+  e, con `bundles`, tipo. La scheda in lettura ha per titolo il nome dell'articolo,
+  non ha i bottoni di aggiunta in «Opzioni in vendita» e, per un multiprodotto,
+  mostra il badge e il riquadro «Composizione» con la tipologia, i «Componenti» e i
+  «Gruppi di scelta».
 
 ### Corretto
 

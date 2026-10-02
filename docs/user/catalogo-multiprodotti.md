@@ -37,6 +37,15 @@ aprono dal pulsante *Opzioni* della riga del gruppo.
 Il sovrapprezzo non può essere negativo, e lo stesso prodotto non può comparire
 due volte nello stesso elenco. Un multiprodotto **non può contenerne un altro**.
 
+## Nella scheda in lettura
+
+Il nome del multiprodotto apre la scheda in lettura, col **badge
+Multiprodotto** accanto al nome e un riquadro **Composizione** che dice la
+**tipologia** (fissa, a scelta, fissa e a scelta), i **Componenti** con la
+quantità di ciascuno e i **Gruppi di scelta** con quanti se ne scelgono e il
+sovrapprezzo di ogni opzione. I componenti compaiono solo se la confezione ne ha
+di fissi, i gruppi solo se ne ha.
+
 ## Il valore dei componenti
 
 Con **Mostra il valore dei componenti** acceso, la scheda dice anche quanto
