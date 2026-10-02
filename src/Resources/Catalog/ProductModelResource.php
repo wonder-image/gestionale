@@ -336,6 +336,13 @@ class ProductModelResource extends GestionaleResource
                     RepeaterColumn::key('is_required')
                         ->select(['false' => 'No', 'true' => 'Sì'])
                         ->label('Obbligatoria')
+                        ->columnSpan(2),
+                    // Vuoto: vale il sovrapprezzo della personalizzazione.
+                    RepeaterColumn::key('surcharge')
+                        ->price()
+                        ->decimal(2)
+                        ->label('Sovrapprezzo')
+                        ->placeholder('Come da scheda')
                         ->columnSpan(3),
                 ])
                 ->relation(
@@ -2289,11 +2296,11 @@ class ProductModelResource extends GestionaleResource
         string $context = 'backend'
     ): array {
         // Una personalizzazione si collega una volta sola: senza scelta o già
-        // vista, la riga non conta.
+        // vista, la riga non conta. Il sovrapprezzo dell'articolo vuoto resta
+        // vuoto (vale quello della personalizzazione), non diventa zero.
         if ($inputName === 'customizations') {
             $viste = [];
-
-            return array_values(array_filter($rows, static function ($row) use (&$viste): bool {
+            $righe = array_values(array_filter($rows, static function ($row) use (&$viste): bool {
                 $id = is_array($row) ? trim((string) ($row['customization_id'] ?? '')) : '';
 
                 if ($id === '' || isset($viste[$id])) {
@@ -2304,6 +2311,18 @@ class ProductModelResource extends GestionaleResource
 
                 return true;
             }));
+
+            foreach ($righe as $i => $riga) {
+                $sovrapprezzo = Numbers::fromForm($riga['surcharge'] ?? null);
+
+                if ($sovrapprezzo !== null && (float) $sovrapprezzo < 0) {
+                    throw UserError::make('customization.surcharge');
+                }
+
+                $righe[$i]['surcharge'] = $sovrapprezzo === null ? null : number_format((float) $sovrapprezzo, 2, '.', '');
+            }
+
+            return $righe;
         }
 
         if ($inputName !== 'products') {
@@ -4885,7 +4904,7 @@ HTML)->tag('div');
         return static::foldable(
             'Personalizzazioni',
             [
-                static::getInput('customizations'),
+                static::getInput('customizations')->columnSpan(12),
                 QuickCreateButton::make(CustomizationResource::class)
                     ->text('Nuova personalizzazione')
                     ->label('name')

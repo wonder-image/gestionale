@@ -144,6 +144,7 @@ function personalizzazioneDiProva(array $valori = [], array $opzioni = []): int
         'help_text' => '',
         'kind' => $opzioni === [] ? 'text' : 'choice',
         'max_length' => 20,
+        'decimals' => 0,
         'surcharge' => '0.00',
         'active' => 'true',
         'position' => 1,
@@ -163,9 +164,9 @@ function personalizzazioneDiProva(array $valori = [], array $opzioni = []): int
 }
 
 /** Collega una personalizzazione a un modello; ridà l'id del collegamento. */
-function collegaPersonalizzazione(int $modello, int $personalizzazione, bool $obbligatoria = false, int $posizione = 1): int
+function collegaPersonalizzazione(int $modello, int $personalizzazione, bool $obbligatoria = false, int $posizione = 1, ?string $sovrapprezzo = null): int
 {
-    $collegamento = ProductModelCustomization::create([
+    $collegamento = ProductModelCustomization::create(($sovrapprezzo === null ? [] : ['surcharge' => $sovrapprezzo]) + [
         'product_model_id' => $modello,
         'customization_id' => $personalizzazione,
         'is_required' => $obbligatoria ? 'true' : 'false',

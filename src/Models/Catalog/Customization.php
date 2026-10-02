@@ -10,10 +10,10 @@ use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
 
 /**
- * Un campo che il cliente compila comprando: un testo (l'incisione) o una
- * scelta fra opzioni (la confezione).
+ * Un campo che il cliente compila comprando: un testo (l'incisione), un
+ * numero (la larghezza) o una scelta fra opzioni (la confezione).
  *
- * `max_length` vale solo per `text`; le opzioni di una `choice` stanno in
+ * `max_length` vale solo per `text`, `decimals` solo per `number`; le opzioni di una `choice` stanno in
  * `gst_customization_options`. Il sovrapprezzo di una scelta è quello della
  * personalizzazione più quello dell'opzione. Il collegamento agli articoli sta
  * in `gst_product_model_customizations`.
@@ -38,8 +38,9 @@ final class Customization extends Model
             Column::key('name'),
             Column::key('label'),
             Column::key('help_text')->type('TEXT'),
-            Column::key('kind')->enum(['text', 'choice'])->default('text'),
+            Column::key('kind')->enum(['text', 'number', 'choice'])->default('text'),
             Column::key('max_length')->int(),
+            Column::key('decimals')->int(),
             Columns::decimal('surcharge', '12,2'),
             Column::key('active')->enum(['true', 'false'])->default('true'),
             Column::key('position')->int(),
@@ -55,6 +56,7 @@ final class Customization extends Model
             Field::key('help_text')->text(),
             Field::key('kind')->text()->sanitize(false),
             Field::key('max_length')->number()->decimals(0),
+            Field::key('decimals')->number()->decimals(0),
             Field::key('surcharge')->number()->decimals(2),
             Field::key('active')->text()->sanitize(false),
             Field::key('position')->number()->decimals(0),

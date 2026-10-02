@@ -47,9 +47,9 @@ check('le personalizzazioni non viaggiano con il deploy', fn () =>
 
 check('ogni tabella ha le sue colonne', function () use ($colonne) {
     $attese = [
-        Customization::class => ['code', 'name', 'label', 'help_text', 'kind', 'max_length', 'surcharge', 'active', 'position'],
+        Customization::class => ['code', 'name', 'label', 'help_text', 'kind', 'max_length', 'decimals', 'surcharge', 'active', 'position'],
         CustomizationOption::class => ['customization_id', 'label', 'surcharge', 'position'],
-        ProductModelCustomization::class => ['product_model_id', 'customization_id', 'is_required', 'position'],
+        ProductModelCustomization::class => ['product_model_id', 'customization_id', 'is_required', 'surcharge', 'position'],
     ];
 
     foreach ($attese as $model => $nomi) {
@@ -65,10 +65,18 @@ check('ogni tabella ha le sue colonne', function () use ($colonne) {
     return true;
 });
 
-check('il tipo è testo o scelta e parte da testo', function () use ($colonne) {
+check('il tipo è testo, numero o scelta e parte da testo', function () use ($colonne) {
     $kind = $colonne(Customization::class)['kind'];
 
-    return $kind->getSchema('enum') === ['text', 'choice'] && $kind->getSchema('default') === 'text';
+    return $kind->getSchema('enum') === ['text', 'number', 'choice'] && $kind->getSchema('default') === 'text';
+});
+
+check('il sovrapprezzo per articolo può mancare: vuoto vale quello della personalizzazione', function () use ($colonne) {
+    $colonna = $colonne(ProductModelCustomization::class)['surcharge'];
+
+    return $colonna->getSchema('type') === 'DECIMAL'
+        && $colonna->getSchema('length') === '12,2'
+        && $colonna->getSchema('null') !== false;
 });
 
 check('attiva parte da vera e obbligatoria da falsa', function () use ($colonne) {

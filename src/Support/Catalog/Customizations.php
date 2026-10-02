@@ -27,13 +27,16 @@ use Wonder\Plugin\Gestionale\Support\Numbers;
  */
 final class Customizations
 {
-    public const KINDS = ['text', 'choice'];
+    public const KINDS = ['text', 'number', 'choice'];
+
+    /** I decimali che un numero può avere. */
+    public const MAX_DECIMALS = 6;
 
     /**
      * Le personalizzazioni attive di un articolo, nell'ordine in cui il cliente
      * le vede.
      *
-     * @return list<array{id:int, name:string, label:string, help_text:string, kind:string, max_length:int, surcharge:string, required:bool, options:list<array{id:int, label:string, surcharge:string}>}>
+     * @return list<array{id:int, name:string, label:string, help_text:string, kind:string, max_length:int, decimals:int, surcharge:string, required:bool, options:list<array{id:int, label:string, surcharge:string}>}>
      */
     public static function forModel(int $modelId): array
     {
@@ -74,7 +77,8 @@ final class Customizations
                 'help_text' => self::plain($row['help_text'] ?? ''),
                 'kind' => (string) $row['kind'],
                 'max_length' => (int) ($row['max_length'] ?? 0),
-                'surcharge' => self::money($row['surcharge'] ?? 0),
+                'decimals' => (int) ($row['decimals'] ?? 0),
+                'surcharge' => self::effectiveSurcharge($row['surcharge'] ?? 0, $link['surcharge'] ?? null),
                 'required' => ($link['is_required'] ?? 'false') === 'true',
                 'options' => $options,
             ];
@@ -123,9 +127,11 @@ final class Customizations
 
         foreach ($byId as $id => $definition) {
             $raw = $values[$id] ?? $values[(string) $id] ?? '';
-            $field = ($definition['kind'] ?? 'text') === 'choice'
-                ? self::checkChoice($definition, $raw)
-                : self::checkText($definition, $raw);
+            $field = match ($definition['kind'] ?? 'text') {
+                'choice' => self::checkChoice($definition, $raw),
+                'number' => self::checkNumber($definition, $raw),
+                default => self::checkText($definition, $raw),
+            };
 
             if ($field === null) {
                 if (!empty($definition['required'])) {
@@ -160,6 +166,16 @@ final class Customizations
 
         if (self::negative($values['surcharge'] ?? 0)) {
             throw UserError::make('customization.surcharge');
+        }
+
+        if ($kind === 'number') {
+            $decimals = $values['decimals'] ?? '';
+
+            if (!is_numeric($decimals) || (float) $decimals != (int) $decimals || (int) $decimals < 0 || (int) $decimals > self::MAX_DECIMALS) {
+                throw UserError::make('customization.decimals');
+            }
+
+            return;
         }
 
         if ($kind === 'text') {
@@ -337,6 +353,46 @@ final class Customizations
     }
 
     /** @return array<string, mixed>|null */
+    private static function checkNumber(array $definition, mixed $raw): ?array
+    {
+        $id = (int) $definition['id'];
+        $decimals = max(0, min(self::MAX_DECIMALS, (int) ($definition['decimals'] ?? 0)));
+        $text = is_scalar($raw) ? preg_replace('/[\s\x{a0}\x{202f}]+/u', '', (string) $raw) : '';
+
+        if ($text === '' || $text === null) {
+            return null;
+        }
+
+        // Come si scrive in Italia: «1.250,5» o «1250,5»; il punto da solo è
+        // il decimale. `Numbers::fromForm` toglierebbe un'unità in coda
+        // («12 cm»): qui chi compra deve scrivere un numero e basta.
+        $written = str_replace(',', '.', str_contains($text, ',') ? str_replace('.', '', $text) : $text);
+
+        // Solo cifre e un punto: niente segno, esponente o esadecimale. Con
+        // più di quindici cifre un float non le tiene tutte.
+        if (!preg_match('/^\d+(\.\d+)?$/', $written) || strlen(str_replace('.', '', $written)) > 15) {
+            throw UserError::make('customization.not_number')->withField($id);
+        }
+
+        $fraction = strlen(rtrim(explode('.', $written)[1] ?? '', '0'));
+
+        if ($fraction > $decimals) {
+            throw ($decimals === 0
+                ? UserError::make('customization.whole_number')
+                : UserError::make('customization.too_many_decimals', ['max' => $decimals])
+            )->withField($id);
+        }
+
+        return [
+            'customization_id' => $id,
+            'label' => (string) $definition['label'],
+            'value' => number_format((float) $written, $decimals, ',', ''),
+            'option_id' => 0,
+            'surcharge' => self::money($definition['surcharge'] ?? 0),
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
     private static function checkChoice(array $definition, mixed $raw): ?array
     {
         $id = is_scalar($raw) ? (int) $raw : 0;
@@ -374,6 +430,18 @@ final class Customizations
     private static function plain(mixed $stored): string
     {
         return html_entity_decode((string) $stored, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    /**
+     * Il sovrapprezzo che vale su un articolo: quello scritto sul suo
+     * collegamento, anche se è zero, o — se è vuoto — quello della
+     * personalizzazione.
+     */
+    public static function effectiveSurcharge(mixed $own, mixed $onModel): string
+    {
+        $override = Numbers::fromForm($onModel);
+
+        return self::money($override ?? Numbers::fromForm($own) ?? 0);
     }
 
     private static function money(mixed $amount): string

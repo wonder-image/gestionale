@@ -32,8 +32,9 @@ use Wonder\Sql\Transaction;
  * delle sue opzioni in vendita.
  *
  * Si scrivono una volta qui e si collegano agli articoli dalla loro scheda.
- * Un **testo** lo scrive il cliente (con un massimo di caratteri), una
- * **scelta** la fa fra le opzioni preparate qui. Il sovrapprezzo della
+ * Un **testo** lo scrive il cliente (con un massimo di caratteri), un
+ * **numero** con i decimali stabiliti qui, una **scelta** la fa fra le
+ * opzioni preparate qui. Il sovrapprezzo della
  * personalizzazione e quello dell'opzione scelta si sommano.
  *
  * Una personalizzazione già su qualche articolo non si elimina: si
@@ -87,6 +88,7 @@ class CustomizationResource extends GestionaleResource
             'help_text' => 'Testo d\'aiuto',
             'kind' => 'Tipo',
             'max_length' => 'Caratteri massimi',
+            'decimals' => 'Decimali',
             'surcharge' => 'Sovrapprezzo',
             'active' => 'Stato',
         ];
@@ -95,7 +97,7 @@ class CustomizationResource extends GestionaleResource
     /** @return array<string, string> */
     public static function kinds(): array
     {
-        return ['text' => 'Testo', 'choice' => 'Scelta'];
+        return ['text' => 'Testo', 'number' => 'Numero', 'choice' => 'Scelta'];
     }
 
     public static function formSchema(): array
@@ -115,6 +117,11 @@ class CustomizationResource extends GestionaleResource
                 ->value('100')
                 ->label('Caratteri massimi')
                 ->visibleWhen('kind', 'text'),
+            FormField::key('decimals')
+                ->select(['0' => '0', '1' => '1', '2' => '2', '3' => '3', '4' => '4', '5' => '5', '6' => '6'])
+                ->value('0')
+                ->label('Decimali')
+                ->visibleWhen('kind', 'number'),
             FormField::key('surcharge')->price()->decimal(2)->value('0.00')->label('Sovrapprezzo'),
             FormField::key('active')
                 ->select(['true' => 'Attiva', 'false' => 'Disattivata'])
@@ -146,33 +153,47 @@ class CustomizationResource extends GestionaleResource
         ];
     }
 
+    /**
+     * A sinistra quello che il cliente legge — nome, etichetta, testo d'aiuto
+     * — e sotto, quando il tipo è «Scelta», le opzioni. A destra, stretta, i
+     * «Dettagli»: tipo, caratteri o decimali, sovrapprezzo.
+     */
     public static function formLayoutSchema(): ?Form
     {
-        $cards = [
-            (new Card)->components([
-                SectionTitle::make('Personalizzazione')
-                    ->tooltip('Il nome interno lo vedi solo tu; l\'etichetta è quella che legge il cliente (se la lasci vuota vale il nome). Un testo lo scrive il cliente, con un massimo di caratteri; una scelta la fa fra le opzioni preparate qui sotto. Il sovrapprezzo si aggiunge al prezzo dell\'articolo, e a quello dell\'opzione scelta. Una personalizzazione disattivata esce dai carrelli: chi l\'aveva già nel carrello deve toglierla per procedere.')
-                    ->columnSpan(12),
-                static::getInput('name')->columnSpan(6),
-                static::getInput('label')->columnSpan(6),
-                static::getInput('help_text')->columnSpan(12),
-                static::getInput('kind')->columnSpan(3),
-                static::getInput('max_length')->columnSpan(3),
-                static::getInput('surcharge')->columnSpan(3),
-                static::getInput('active')->columnSpan(3),
-            ])->columns(12)->columnSpan(12),
-            // Il riquadro segue il tipo mentre lo si sceglie, senza salvare.
-            (new Card)->components([
-                SectionTitle::make('Opzioni')
-                    ->tooltip('Almeno due. L\'ordine è quello che vedrà il cliente. Il sovrapprezzo di un\'opzione si somma a quello della personalizzazione. Eliminare un\'opzione non cambia gli ordini già fatti: le righe d\'ordine ricordano cosa era stato scelto.')
-                    ->columnSpan(12),
-                static::getInput('options')->columnSpan(12),
-            ])->columns(12)->columnSpan(12)->visibleWhen('kind', 'choice'),
-        ];
+        $main = (new Card)->components([
+            SectionTitle::make('Personalizzazione')
+                ->tooltip('Il nome interno lo vedi solo tu; l\'etichetta è quella che legge il cliente (se la lasci vuota vale il nome). Una personalizzazione disattivata esce dai carrelli: chi l\'aveva già nel carrello deve toglierla per procedere.')
+                ->columnSpan(12),
+            static::getInput('name')->columnSpan(6),
+            static::getInput('active')->columnSpan(6),
+            static::getInput('label')->columnSpan(12),
+            static::getInput('help_text')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
 
+        // Il riquadro segue il tipo mentre lo si sceglie, senza salvare.
+        $options = (new Card)->components([
+            SectionTitle::make('Opzioni')
+                ->tooltip('Almeno due. L\'ordine è quello che vedrà il cliente. Il sovrapprezzo di un\'opzione si somma a quello della personalizzazione. Eliminare un\'opzione non cambia gli ordini già fatti: le righe d\'ordine ricordano cosa era stato scelto.')
+                ->columnSpan(12),
+            static::getInput('options')->columnSpan(12),
+        ])->columns(12)->columnSpan(12)->visibleWhen('kind', 'choice');
+
+        $details = (new Card)->components([
+            SectionTitle::make('Dettagli')
+                ->tooltip('Un testo lo scrive il cliente, con un massimo di caratteri; un numero lo scrive con i decimali che dici qui; una scelta la fa fra le opzioni preparate sotto. Il sovrapprezzo si aggiunge al prezzo dell\'articolo, e a quello dell\'opzione scelta: su ogni articolo lo puoi cambiare dalla sua scheda.')
+                ->columnSpan(12),
+            static::getInput('kind')->columnSpan(12),
+            static::getInput('max_length')->columnSpan(12),
+            static::getInput('decimals')->columnSpan(12),
+            static::getInput('surcharge')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+
+        // `columns(12)` anche sul Form: la larghezza di un figlio si calcola
+        // sulle colonne del padre.
         return (new Form)->components([
-            (new Container)->components($cards)->columns(12)->columnSpan(12),
-        ]);
+            (new Container)->components([$main, $options])->columns(12)->columnSpan(8),
+            (new Container)->components([$details])->columns(12)->columnSpan(4),
+        ])->columns(12);
     }
 
     public static function tableSchema(): array
@@ -273,6 +294,7 @@ class CustomizationResource extends GestionaleResource
             'help_text' => '',
             'kind' => 'text',
             'max_length' => static::QUICK_MAX_LENGTH,
+            'decimals' => 0,
             'surcharge' => '0.00',
             'active' => 'true',
         ];
@@ -293,6 +315,11 @@ class CustomizationResource extends GestionaleResource
         } else {
             $options = Repeater::rowsFromRequest('options', (array) $_POST);
 
+            // Lo zero non si ristampa nel campo, e un campo vuoto vuol dire zero.
+            if (trim((string) ($values['decimals'] ?? '')) === '') {
+                $values['decimals'] = '0';
+            }
+
             Customizations::assertDefinition($values, $options);
 
             // Il controllo ha accettato vuoto e virgola: si scrive sempre un decimale.
@@ -304,14 +331,19 @@ class CustomizationResource extends GestionaleResource
                 }
             }
 
-            // Un testo non ha opzioni: passando da scelta a testo quelle
-            // postate (il riquadro è solo nascosto) non devono restare.
-            if (($values['kind'] ?? '') === 'text') {
+            // Un testo o un numero non hanno opzioni: passando da scelta a uno
+            // di loro quelle postate (il riquadro è solo nascosto) non devono
+            // restare.
+            if (($values['kind'] ?? '') !== 'choice') {
                 $_POST['options'] = [];
-            } else {
-                // Il campo nascosto può arrivare vuoto: la colonna è un intero.
-                $values['max_length'] = is_numeric($values['max_length'] ?? null) ? (int) $values['max_length'] : 0;
             }
+
+            // Un campo nascosto può arrivare vuoto: le colonne sono interi, e
+            // quello che non vale per il tipo si azzera.
+            $isText = ($values['kind'] ?? '') === 'text';
+            $isNumber = ($values['kind'] ?? '') === 'number';
+            $values['max_length'] = $isText || is_numeric($values['max_length'] ?? null) ? (int) $values['max_length'] : 0;
+            $values['decimals'] = $isNumber ? (int) $values['decimals'] : 0;
         }
 
         if ($action === 'store') {

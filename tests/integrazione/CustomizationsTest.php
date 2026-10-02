@@ -143,4 +143,52 @@ check('un articolo senza collegamenti non ha personalizzazioni', function () {
     });
 });
 
+check('il sovrapprezzo scritto sull\'articolo sostituisce quello della personalizzazione, anche se è zero', function () {
+    return prova(static function (): bool {
+        $a = modelloDi(articoloConGiacenza(1, 'PZ-S1-'.uniqid()));
+        $b = modelloDi(articoloConGiacenza(1, 'PZ-S2-'.uniqid()));
+        $c = modelloDi(articoloConGiacenza(1, 'PZ-S3-'.uniqid()));
+        $incisione = personalizzazioneDiProva(['name' => 'Incisione', 'surcharge' => '5.00']);
+        collegaPersonalizzazione($a, $incisione);
+        collegaPersonalizzazione($b, $incisione, false, 1, '12.00');
+        collegaPersonalizzazione($c, $incisione, false, 1, '0.00');
+
+        return Customizations::forModel($a)[0]['surcharge'] === '5.00'
+            && Customizations::forModel($b)[0]['surcharge'] === '12.00'
+            && Customizations::forModel($c)[0]['surcharge'] === '0.00'
+            && Customizations::resolve($b, [$incisione => 'Marco'])['surcharge'] === '12.00'
+            && Customizations::resolve($c, [$incisione => 'Marco'])['surcharge'] === '0.00';
+    });
+});
+
+check('su una scelta il sovrapprezzo dell\'articolo prende il posto di quello base, e le opzioni si sommano', function () {
+    return prova(static function (): bool {
+        $modello = modelloDi(articoloConGiacenza(1, 'PZ-S4-'.uniqid()));
+        $scelta = personalizzazioneDiProva(['name' => 'Confezione', 'surcharge' => '3.00'], [
+            ['label' => 'Carta', 'surcharge' => 0],
+            ['label' => 'Scatola', 'surcharge' => 2],
+        ]);
+        collegaPersonalizzazione($modello, $scelta, false, 1, '1.00');
+        $opzione = Customizations::forModel($modello)[0]['options'][1]['id'];
+
+        return Customizations::resolve($modello, [$scelta => $opzione])['surcharge'] === '3.00';
+    });
+});
+
+check('un numero si salva e si ridà con i suoi decimali e le sue regole', function () {
+    return prova(static function (): bool {
+        $modello = modelloDi(articoloConGiacenza(1, 'PZ-N-'.uniqid()));
+        $larghezza = personalizzazioneDiProva(['name' => 'Larghezza', 'kind' => 'number', 'max_length' => 0, 'decimals' => 2, 'surcharge' => '1.50']);
+        collegaPersonalizzazione($modello, $larghezza);
+
+        $definizione = Customizations::forModel($modello)[0];
+        $esito = Customizations::resolve($modello, [$larghezza => '12,5']);
+
+        return $definizione['kind'] === 'number'
+            && $definizione['decimals'] === 2
+            && $esito['fields'][0]['value'] === '12,50'
+            && $esito['surcharge'] === '1.50';
+    });
+});
+
 summary();
