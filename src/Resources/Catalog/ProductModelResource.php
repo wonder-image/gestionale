@@ -393,7 +393,7 @@ class ProductModelResource extends GestionaleResource
         return [
             $tipo,
             FormField::key('bundle_mode')
-                ->select(['fixed' => 'Fissa', 'choice' => 'A scelta del cliente', 'mixed' => 'Fissa e a scelta'])
+                ->select(static::bundleModes())
                 ->value('fixed')
                 ->label('Come si compone'),
             FormField::key('show_components_value')
@@ -1085,8 +1085,15 @@ HTML
                 ->text()
                 ->size('little')
                 ->formatter(static fn (array $row): string => (string) static::productCount((int) ($row['id'] ?? 0))),
-            TableColumn::key('visible')->visibleBadge()->size('little'),
-            TableColumn::key('actions')->button()->actions(['view', 'edit', 'visible', 'delete']),
+            // Le stesse due parole della scheda e del modulo: un articolo o sta
+            // nel negozio o è ancora in lavorazione.
+            TableColumn::key('visible')
+                ->booleanBadge()
+                ->badgeOn('Pubblicato', 'bi bi-eye', 'success', 'Metti in bozza')
+                ->badgeOff('Bozza', 'bi bi-eye-slash', 'secondary', 'Pubblica')
+                ->badgeClickable()
+                ->size('little'),
+            TableColumn::key('actions')->button()->actions(['view', 'edit', 'delete']),
         ];
     }
 
@@ -1174,7 +1181,12 @@ HTML
      */
     public static function tableLayoutSchema(): TableLayoutSchema
     {
-        $layout = parent::tableLayoutSchema();
+        $layout = parent::tableLayoutSchema()
+            ->filterSearch()
+            ->searchFields(['name', 'sku'])
+            ->filterCustom('Stato', 'visible', ['' => 'Tutti', 'true' => 'Pubblicato', 'false' => 'Bozza'])
+            ->filterQuery('Marchio', 'marchio', static::brandFilterOptions(), static fn (array $values): string => static::brandCondition($values))
+            ->filterQuery('Categoria', 'categoria', static::categoryFilterOptions(), static fn (array $values): string => static::categoryCondition($values));
 
         if (!Gestionale::feature('bundles')) {
             return $layout;
@@ -1183,11 +1195,73 @@ HTML
         $nuovo = static::createUrlFor();
 
         return $layout
+            ->filterCustom('Tipo', 'type', ['' => 'Tutti', 'simple' => 'Prodotto', 'bundle' => 'Multiprodotto'])
             ->hideButtonAdd()
             ->buttonsCustom([
                 Button::to($nuovo, '+ Aggiungi Prodotto')->variant('dark'),
                 Button::to($nuovo.'?type=bundle', '+ Aggiungi Multiprodotto')->variant('dark'),
             ]);
+    }
+
+    /** @return array<string, string> */
+    protected static function brandFilterOptions(): array
+    {
+        return ['' => 'Tutti'] + array_diff_key(static::brandOptions(), ['' => '']);
+    }
+
+    /** @return array<string, string> le categorie indentate, come nella scheda */
+    protected static function categoryFilterOptions(): array
+    {
+        $options = CategoryTree::options(static::rowsOf(Category::class, [], 'position'));
+        unset($options['']);
+
+        return ['' => 'Tutte'] + $options;
+    }
+
+    /**
+     * Gli articoli di questi marchi.
+     *
+     * @param list<string> $values
+     */
+    public static function brandCondition(array $values): string
+    {
+        $ids = static::filterIds($values);
+
+        return $ids === [] ? '' : '`'.ProductModel::$table.'`.`brand_id` IN ('.implode(',', $ids).')';
+    }
+
+    /**
+     * Gli articoli in queste categorie o in una loro sottocategoria, a
+     * qualunque profondità.
+     *
+     * @param list<string> $values
+     * @param list<array<string, mixed>>|null $rows le categorie; `null` le legge
+     */
+    public static function categoryCondition(array $values, ?array $rows = null): string
+    {
+        $rows ??= static::rowsOf(Category::class, [], 'position');
+        $ids = [];
+
+        foreach (static::filterIds($values) as $id) {
+            $ids = [...$ids, $id, ...CategoryTree::descendants($rows, $id)];
+        }
+
+        $ids = array_values(array_unique($ids));
+
+        return $ids === [] ? '' : '`'.ProductModel::$table.'`.`id` IN (SELECT c.product_model_id FROM `'.ProductModelCategory::$table.'` c'
+            .' WHERE c.category_id IN ('.implode(',', $ids).") AND c.deleted = 'false')";
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<int>
+     */
+    private static function filterIds(array $values): array
+    {
+        return array_values(array_unique(array_filter(
+            array_map('intval', $values),
+            static fn (int $id): bool => $id > 0
+        )));
     }
 
     /** L'indirizzo della pagina per creare un articolo. */
@@ -1282,11 +1356,12 @@ HTML
     {
         $nome = trim((string) ($item['name'] ?? ''));
         $opzioni = static::productCount($modelId);
+        $badge = static::showBundleBadge($modelId);
 
         return [
             (new Card)->components([
                 SectionTitle::make('Prodotto')->columnSpan(12),
-                RichText::make('<h5 class="mb-0">'.static::escape($nome !== '' ? $nome : 'Senza nome').'</h5>')
+                RichText::make('<h5 class="mb-0">'.static::escape($nome !== '' ? $nome : 'Senza nome').($badge !== '' ? ' '.$badge : '').'</h5>')
                     ->tag('div')
                     ->columnSpan(12),
                 static::showRow('SKU', (string) ($item['sku'] ?? ''))->columnSpan(4),
@@ -1296,6 +1371,7 @@ HTML
                 static::showRow('Opzioni', $opzioni > 0 ? (string) $opzioni : '')->columnSpan(4),
                 static::showRow('Descrizione breve', (string) ($item['short_description'] ?? ''))->columnSpan(12),
             ])->columns(12)->columnSpan(12),
+            ...static::showCompositionCard($modelId),
             (new Card)->components([
                 SectionTitle::make('Opzioni in vendita')
                     ->tooltip('Le righe che si vendono davvero, con il loro codice e il loro prezzo. Lo stato si cambia da qui con un click; il resto dai tre puntini, nella scheda dell\'opzione.')
@@ -1307,6 +1383,102 @@ HTML
                 RichText::make(static::optionsTable($modelId))->tag('div')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];
+    }
+
+    /**
+     * Il badge «Multiprodotto» per la scheda in lettura: senza database la
+     * scheda si legge lo stesso, solo senza il badge.
+     */
+    protected static function showBundleBadge(int $modelId): string
+    {
+        try {
+            return static::bundleBadge($modelId);
+        } catch (Throwable) {
+            return '';
+        }
+    }
+
+    /**
+     * Le tre forme di un multiprodotto, con le parole del modulo e della
+     * scheda in lettura.
+     *
+     * @return array<string, string>
+     */
+    public static function bundleModes(): array
+    {
+        return ['fixed' => 'Fissa', 'choice' => 'A scelta del cliente', 'mixed' => 'Fissa e a scelta'];
+    }
+
+    /**
+     * Il riquadro «Composizione» della scheda in lettura: solo per un
+     * multiprodotto, con la tipologia e le due liste che la tipologia
+     * prevede — i componenti che entrano sempre, i gruppi fra cui sceglie
+     * il cliente.
+     *
+     * @return list<object>
+     */
+    protected static function showCompositionCard(int $modelId): array
+    {
+        try {
+            $forma = static::isBundleModel($modelId) ? Bundles::forModel($modelId) : null;
+        } catch (Throwable) {
+            $forma = null;
+        }
+
+        if ($forma === null) {
+            return [];
+        }
+
+        $modo = $forma['mode'];
+        $righe = [
+            SectionTitle::make('Composizione')
+                ->tooltip('Cosa contiene il multiprodotto. La composizione si cambia dalla modifica.')
+                ->columnSpan(12),
+            static::showRow('Tipologia', static::bundleModes()[$modo] ?? '')->columnSpan(12),
+        ];
+
+        if (in_array($modo, ['fixed', 'mixed'], true)) {
+            $voci = array_map(
+                static fn (array $c): string => '<li>'.static::escape($c['name']).' <span class="text-muted">× '.static::escape(static::quantityText($c['quantity'])).'</span></li>',
+                $forma['components']
+            );
+
+            $righe[] = static::showRow(
+                'Componenti',
+                $voci === [] ? '' : '<ul class="mb-0 ps-3">'.implode('', $voci).'</ul>',
+                true
+            )->columnSpan(12);
+        }
+
+        if (in_array($modo, ['choice', 'mixed'], true)) {
+            $gruppi = array_map(static function (array $g): string {
+                $opzioni = array_map(
+                    static fn (array $o): string => '<li>'.static::escape($o['name'])
+                        .((float) $o['surcharge'] > 0 ? ' <span class="text-muted">+ '.static::escape(static::euro((float) $o['surcharge'])).'</span>' : '').'</li>',
+                    $g['options']
+                );
+
+                return '<div class="mb-2"><strong>'.static::escape($g['name']).'</strong>'
+                    .' <span class="text-muted">— '.static::escape(static::choicesText($g['min'], $g['max'])).'</span>'
+                    .($opzioni === [] ? '' : '<ul class="mb-0 ps-3">'.implode('', $opzioni).'</ul>').'</div>';
+            }, $forma['groups']);
+
+            $righe[] = static::showRow('Gruppi di scelta', implode('', $gruppi), true)->columnSpan(12);
+        }
+
+        return [(new Card)->components($righe)->columns(12)->columnSpan(12)];
+    }
+
+    /** Una quantità senza gli zeri che non servono: `2`, `0,5`. */
+    private static function quantityText(float $quantity): string
+    {
+        return str_replace('.', ',', rtrim(rtrim(number_format($quantity, 3, '.', ''), '0'), '.'));
+    }
+
+    /** «Sceglie 1», «Sceglie da 1 a 2»: quanto può prendere il cliente da un gruppo. */
+    private static function choicesText(int $min, int $max): string
+    {
+        return $min === $max ? 'sceglie '.$min : 'sceglie da '.$min.' a '.$max;
     }
 
     /**

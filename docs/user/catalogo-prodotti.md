@@ -47,12 +47,23 @@ quante opzioni ha. Il prezzo è quello che si paga — dove c'è lo sconto trovi
 pieno barrato accanto allo scontato, e quando le opzioni costano diverso è
 scritto *da 19,90 €*.
 
-Il nome apre la **scheda in lettura**: si guarda e basta, senza il rischio di
-cambiare qualcosa mentre si controlla. Ci trovi la foto, il prezzo, le
-descrizioni, dove sta l'articolo e l'elenco delle sue **opzioni in vendita**,
-con codice, prezzo e stato. Due cose si cambiano anche da qui, con un click:
-lo **stato** dell'articolo, nel riquadro a destra, e quello di ogni opzione,
-nella sua riga. Per tutto il resto c'è **Modifica**, in alto.
+Lo **stato** è **Pubblicato** (l'articolo si vede nel negozio) oppure **Bozza**
+(lo prepari e non si vede). Un click sul badge lo cambia, senza aprire
+l'articolo.
+
+Con **Filtri** restringi l'elenco per **stato**, **marchio** e **categoria**
+(scegliendo una categoria entrano anche le sue sottocategorie); se hai i
+multiprodotti c'è anche **Tipo**, per vedere solo i prodotti o solo i
+multiprodotti. **Cerca** trova per nome e per SKU.
+
+Il nome apre la **scheda in lettura**, che ha per titolo il nome dell'articolo:
+si guarda e basta, senza il rischio di cambiare qualcosa mentre si controlla. Ci
+trovi la foto, il prezzo, le descrizioni, dove sta l'articolo e l'elenco delle
+sue **opzioni in vendita**, con codice, prezzo e stato; in quel riquadro non ci
+sono i bottoni per aggiungerne, perché si aggiungono da **Modifica**. Due cose
+si cambiano anche da qui, con un click: lo **stato** dell'articolo, nel
+riquadro a destra, e quello di ogni opzione, nella sua riga. Per tutto il resto
+c'è **Modifica**, in alto.
 
 ## Com'è fatta la scheda
 

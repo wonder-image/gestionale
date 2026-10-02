@@ -8,6 +8,7 @@ use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
+use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\TableColumn;
@@ -821,6 +822,17 @@ HTML;
                 ->size('little'),
             TableColumn::key('actions')->button()->actions(['edit']),
         ];
+    }
+
+    /**
+     * L'elenco delle opzioni è quello di serie: i bottoni «Aggiungi» e i
+     * filtri dell'elenco degli articoli non sono suoi — un'opzione nasce
+     * nella scheda del suo prodotto, e le sue colonne non sono quelle
+     * dell'articolo.
+     */
+    public static function tableLayoutSchema(): TableLayoutSchema
+    {
+        return static::tableLayout();
     }
 
     public static function pageSchema(): PageSchema

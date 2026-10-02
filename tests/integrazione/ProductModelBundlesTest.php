@@ -10,6 +10,7 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
+require __DIR__.'/supporto/layout.php';
 
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\BundleComponent;
@@ -642,6 +643,57 @@ check('a funzionalità spenta un multiprodotto esistente si salva lo stesso e la
             && $modello['name'] === 'Cesto Rinominato'
             && $modello['type'] === 'bundle' && $modello['bundle_mode'] === 'fixed' && $modello['show_components_value'] === 'true'
             && count($dopo) === 1 && (int) $dopo[0]['id'] === (int) $prima[0]['id'];
+    });
+});
+
+/** La scheda in lettura di un articolo, come la stampa la pagina. */
+function schedaInLettura(int $id): string
+{
+    return layoutHtml(ProductModelResource::showLayoutSchema(ProductModel::findById($id)));
+}
+
+check('la scheda in lettura di un multiprodotto misto ha il badge, la tipologia, i componenti e i gruppi di scelta', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'bundles']);
+        $a = pezzo('SA');
+        $b = pezzo('SB');
+        $id = creaScheda(richiesta('mixed', [['product_id' => (string) $a, 'quantity' => '2']], [[
+            'name' => 'Extra a scelta', 'min' => '0', 'max' => '1', 'options' => [['product_id' => $b, 'surcharge' => '1.5']],
+        ]]));
+        $html = schedaInLettura($id);
+
+        return str_contains($html, 'Multiprodotto')
+            && str_contains($html, 'Composizione')
+            && str_contains($html, 'Tipologia') && str_contains($html, 'Fissa e a scelta')
+            && str_contains($html, 'Componenti') && str_contains($html, '× 2')
+            && str_contains($html, 'Gruppi di scelta') && stripos($html, 'Extra a scelta') !== false
+            && str_contains($html, 'sceglie da 0 a 1') && str_contains($html, '+ 1,50');
+    });
+});
+
+check('la scheda in lettura di un fisso ha i componenti e non i gruppi, un a scelta i gruppi e non i componenti', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'bundles']);
+        $a = pezzo('FA');
+        $b = pezzo('FB');
+        $fisso = schedaInLettura(creaScheda(richiesta('fixed', [['product_id' => (string) $a, 'quantity' => '1']], [])));
+        $scelta = schedaInLettura(creaScheda(richiesta('choice', [], [[
+            'name' => 'Il gusto', 'min' => '1', 'max' => '1', 'options' => [['product_id' => $b, 'surcharge' => '0']],
+        ]])));
+
+        return str_contains($fisso, 'Fissa') && str_contains($fisso, 'Componenti') && !str_contains($fisso, 'Gruppi di scelta')
+            && str_contains($scelta, 'A scelta del cliente') && str_contains($scelta, 'Gruppi di scelta')
+            && str_contains($scelta, 'sceglie 1') && !str_contains($scelta, 'Componenti');
+    });
+});
+
+check('la scheda in lettura di un prodotto semplice non ha né il badge né la composizione, e le opzioni non hanno bottoni di aggiunta', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'bundles']);
+        $html = schedaInLettura(modelloDi(pezzo('SE')));
+
+        return !str_contains($html, 'Multiprodotto') && !str_contains($html, 'Composizione')
+            && !str_contains($html, 'Aggiungi');
     });
 });
 

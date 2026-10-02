@@ -14,7 +14,11 @@ use Wonder\Backend\Support\ResourceFormLayoutRenderer;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\View\View;
 
-View::layout('backend.show');
+// Il titolo della pagina è il nome dell'articolo, non «Scheda prodotto»: chi
+// ha aperto la scheda sa già cos'è, vuole sapere di chi.
+$nome = trim((string) (($ITEM ?? [])['name'] ?? ''));
+
+View::layout('backend.show', $nome !== '' ? ['TITLE' => $nome] : []);
 
 echo ResourceFormLayoutRenderer::renderLayout(
     ProductModelResource::showLayoutSchema((array) ($ITEM ?? []))
