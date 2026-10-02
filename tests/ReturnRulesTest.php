@@ -42,6 +42,13 @@ check('zero, negativo, testo e vuoto non sono quantità', fn () =>
     && ReturnRules::quantityFrom('1,2,3') === null
 );
 
+check('la quantità di un componente segue le confezioni rese, a tre decimali', fn () =>
+    ReturnRules::childQuantity(2.0, 1.0) === 2.0
+    && ReturnRules::childQuantity(0.5, 3.0) === 1.5
+    && ReturnRules::childQuantity(1.0, 0.0) === 0.0
+    && ReturnRules::childQuantity(0.333, 1.0) === 0.333
+);
+
 check('un reso si registra solo su un ordine vero, vivo e con la funzionalità accesa', function () {
     $on = ['returns' => true];
     $ordine = static fn (string $s, string $stage = 'order'): array => ['stage' => $stage, 'status' => $s];

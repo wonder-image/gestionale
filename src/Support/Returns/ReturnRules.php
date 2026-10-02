@@ -21,6 +21,9 @@ final class ReturnRules
         'other' => 'Altro',
     ];
 
+    /** Il motivo da cui parte la scelta: il più comune, quello che di norma rientra. */
+    public const DEFAULT_REASON = 'changed_mind';
+
     /** Gli stati d'ordine su cui un reso ha senso. */
     private const ORDER_STATUSES = ['confirmed', 'processing', 'completed'];
 
@@ -46,6 +49,12 @@ final class ReturnRules
     public static function returnable(float $ordered, float $alreadyReturned): float
     {
         return max(0.0, round($ordered - $alreadyReturned, 3));
+    }
+
+    /** Quanto di un componente torna con le confezioni rese: i pezzi per confezione per le confezioni. */
+    public static function childQuantity(float $perUnit, float $returnedPacks): float
+    {
+        return round($perUnit * $returnedPacks, 3);
     }
 
     /** `2`, `2,5`, `2.5`: la quantità di una persona; null se non è maggiore di zero. */

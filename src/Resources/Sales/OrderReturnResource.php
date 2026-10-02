@@ -17,6 +17,7 @@ use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
@@ -40,9 +41,6 @@ final class OrderReturnResource extends NavigationOnlyResource
 {
     /** Come le altre Resource del gestionale: la pagina vale con la funzionalità accesa. */
     public static string $feature = 'returns';
-
-    /** Il motivo scelto di partenza: il più comune, quello che di norma rientra. */
-    private const DEFAULT_REASON = 'changed_mind';
 
     public static function path(): string
     {
@@ -188,19 +186,26 @@ final class OrderReturnResource extends NavigationOnlyResource
             $celle = '<td>'.$nome.static::customizationLines($line).'</td><td class="text-end">'.static::pieces((float) $line['ordered']).'</td><td class="text-end">'.static::pieces((float) $line['returned']).'</td>';
 
             if ($max <= 0) {
-                $righe .= '<tr class="text-muted">'.$celle.'<td colspan="3"><span class="fst-italic">Già reso per intero</span></td></tr>';
+                $righe .= '<tr class="text-muted">'.$celle.'<td colspan="3"><span class="fst-italic">Già reso per intero</span></td></tr>'
+                    .static::childrenRows($id, (float) $line['ordered'], (array) ($line['children'] ?? []), 0.0);
 
                 continue;
             }
 
             $sparito = false;
+            $figlie = (array) ($line['children'] ?? []);
             $righe .= '<tr>'.$celle
                 .'<td><input class="form-control form-control-sm" type="number" step="any" min="0" max="'.static::pieces($max, '.').'" name="lines['.$id.'][quantity]" placeholder="0" aria-label="Quantità resa di '.$nome.'"></td>'
                 .'<td><select class="form-select form-select-sm" name="lines['.$id.'][reason]" aria-label="Motivo del reso di '.$nome.'" '
-                .'onchange="var c=this.closest(\'tr\').querySelector(\'input[type=checkbox]\');c.checked=this.selectedOptions[0].dataset.restock===\'1\'">'
+                .($figlie === []
+                    ? 'onchange="var c=this.closest(\'tr\').querySelector(\'input[type=checkbox]\');c.checked=this.selectedOptions[0].dataset.restock===\'1\'">'
+                    : 'data-wi-children="'.$id.'" onchange="var r=this.selectedOptions[0].dataset.restock===\'1\';document.querySelectorAll(\'input[data-wi-child-of=&quot;'.$id.'&quot;]\').forEach(function(c){c.checked=r})">')
                 .static::reasonOptions().'</select></td>'
-                .'<td class="text-center"><input type="hidden" name="lines['.$id.'][restock]" value="">'
-                .'<input class="form-check-input" type="checkbox" name="lines['.$id.'][restock]" value="on"'.(ReturnRules::defaultRestock(self::DEFAULT_REASON) ? ' checked' : '').' aria-label="Rientra a magazzino: '.$nome.'"></td></tr>';
+                .($figlie === []
+                    ? '<td class="text-center"><input type="hidden" name="lines['.$id.'][restock]" value="">'
+                        .'<input class="form-check-input" type="checkbox" name="lines['.$id.'][restock]" value="on"'.(ReturnRules::defaultRestock(ReturnRules::DEFAULT_REASON) ? ' checked' : '').' aria-label="Rientra a magazzino: '.$nome.'"></td></tr>'
+                    : '<td class="text-muted small text-center">per componente</td></tr>')
+                .static::childrenRows($id, (float) $line['ordered'], $figlie, $max);
         }
 
         $avviso = $sparito ? '<p class="text-muted mb-2">Niente da rendere: ogni prodotto è già stato reso per intero.</p>' : '';
@@ -209,6 +214,57 @@ final class OrderReturnResource extends NavigationOnlyResource
             .'<th>Prodotto</th><th class="text-end">Ordinati</th><th class="text-end">Già resi</th>'
             .'<th>Quantità</th><th>Motivo</th><th class="text-center">Rientra a magazzino</th>'
             .'</tr></thead><tbody>'.$righe.'</tbody></table></div>';
+    }
+
+    /**
+     * Le righe dei componenti sotto una confezione: quanti ne contiene l'ordine,
+     * quanti sono già resi e la spunta «rientra» di ciascuno. Il motivo scelto
+     * sulla riga della confezione le accende o le spegne tutte.
+     *
+     * @param list<array{order_item_id: int, name: string, per_unit: float, returned: float, restock_default: bool}> $children
+     */
+    private static function childrenRows(int $motherId, float $ordered, array $children, float $max): string
+    {
+        $html = '';
+
+        foreach ($children as $child) {
+            $childId = (int) $child['order_item_id'];
+            $nome = OrderSheet::esc((string) $child['name']);
+            $celle = '<td class="ps-4 text-muted small">&#8627; '.$nome.'</td><td class="text-end small">'.static::pieces((float) $child['per_unit'] * $ordered)
+                .'</td><td class="text-end small">'.static::pieces((float) $child['returned']).'</td>';
+
+            if ($max <= 0) {
+                $html .= '<tr class="text-muted">'.$celle.'<td colspan="3"></td></tr>';
+
+                continue;
+            }
+
+            $name = 'lines['.$motherId.'][children_restock]['.$childId.']';
+            $html .= '<tr>'.$celle.'<td colspan="2"></td><td class="text-center"><input type="hidden" name="'.$name.'" value="">'
+                .'<input class="form-check-input" type="checkbox" name="'.$name.'" value="on" data-wi-child-of="'.$motherId.'"'
+                .(!empty($child['restock_default']) ? ' checked' : '').' aria-label="Rientra a magazzino: '.$nome.'"></td></tr>';
+        }
+
+        return $html;
+    }
+
+    /**
+     * Le caselle dei componenti come arrivano dal modulo: la spunta assente o
+     * vuota vuol dire «non rientra». Chiavi che non sono un id si scartano.
+     *
+     * @return array<int, bool>
+     */
+    public static function childrenRestockFrom(mixed $boxes): array
+    {
+        $restock = [];
+
+        foreach (is_array($boxes) ? $boxes : [] as $childId => $value) {
+            if ((int) $childId > 0) {
+                $restock[(int) $childId] = (string) $value !== '';
+            }
+        }
+
+        return $restock;
     }
 
     /** Le personalizzazioni della riga sotto il nome, escapate una volta. */
@@ -253,7 +309,7 @@ final class OrderReturnResource extends NavigationOnlyResource
      * pagina. Una quantità vuota è una riga non resa; la spunta assente dal
      * modulo vuol dire «non rientra», la chiave mancante «come dice il motivo».
      *
-     * @param array<string, mixed> $values lines[order_item_id][quantity|reason|restock], location_id, internal_note
+     * @param array<string, mixed> $values lines[order_item_id][quantity|reason|restock|children_restock[id]], location_id, internal_note
      * @return array{ok: bool, message: string}
      */
     public static function run(int $orderId, array $values, int $userId): array
@@ -278,6 +334,7 @@ final class OrderReturnResource extends NavigationOnlyResource
                 'quantity' => $campi['quantity'] ?? '',
                 'reason' => (string) ($campi['reason'] ?? ''),
                 'restock' => array_key_exists('restock', $campi) ? (string) $campi['restock'] !== '' : null,
+                'children_restock' => static::childrenRestockFrom($campi['children_restock'] ?? []),
             ];
         }
 
@@ -294,10 +351,22 @@ final class OrderReturnResource extends NavigationOnlyResource
 
         $totale = 0.0;
         $rientrati = 0.0;
+        $voci = static::itemsOf($esito['return_id']);
+        $madri = [];
 
-        foreach (static::itemsOf($esito['return_id']) as $item) {
-            $totale += (float) $item['quantity'];
-            $rientrati += (string) $item['restock'] === 'true' ? (float) $item['quantity'] : 0.0;
+        foreach ($voci as $voce) {
+            $riga = OrderItem::findById((int) ($voce['order_item_id'] ?? 0));
+            $madri[(int) (is_array($riga) ? ($riga['parent_item_id'] ?? 0) : 0)] = true;
+        }
+
+        // Di una confezione contano i pezzi dei componenti, non la riga che li raccoglie.
+        foreach ($voci as $voce) {
+            if (isset($madri[(int) $voce['order_item_id']])) {
+                continue;
+            }
+
+            $totale += (float) $voce['quantity'];
+            $rientrati += (string) $voce['restock'] === 'true' ? (float) $voce['quantity'] : 0.0;
         }
 
         return ['ok' => true, 'message' => 'Registrato il reso '.$esito['number'].' di '.static::piecesText($totale)
@@ -398,7 +467,7 @@ final class OrderReturnResource extends NavigationOnlyResource
 
         foreach (ReturnRules::REASON_LABELS as $reason => $label) {
             $html .= '<option value="'.$reason.'" data-restock="'.(ReturnRules::defaultRestock($reason) ? '1' : '0').'"'
-                .($reason === self::DEFAULT_REASON ? ' selected' : '').'>'.OrderSheet::esc($label).'</option>';
+                .($reason === ReturnRules::DEFAULT_REASON ? ' selected' : '').'>'.OrderSheet::esc($label).'</option>';
         }
 
         return $html;
