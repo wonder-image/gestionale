@@ -907,4 +907,50 @@ check('multiprodotto: l\'unione somma le confezioni uguali e porta le figlie del
 });
 
 
+check('multiprodotto: con la funzionalità spenta il sovrapprezzo dell\'opzione non sparisce al ricalcolo', function () {
+    $x = provaConfezione(static function (): array {
+        $s = confezione('mixed');
+        Cart::add($s['cart'], ['product_id' => $s['bundle'], 'choices' => [$s['options'][1]]]);
+        spegniFunzionalita(['bundles']);
+
+        return ['resta' => Cart::recalculate($s['cart'])];
+    });
+    $madre = $x['resta']['items'][0] ?? [];
+
+    return (string) ($madre['unit_price'] ?? '') === '27.50'
+        && (string) ($madre['customization_surcharge'] ?? '') === '2.50'
+        && count($madre['children'] ?? []) === 2;
+});
+
+check('multiprodotto: l\'unione taglia a confezioni intere, mai a mezze', function () {
+    $x = provaConfezione(static function (): array {
+        $s = confezione('fixed', 5.0);
+        $ospite = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        Cart::add($ospite, ['product_id' => $s['bundle'], 'quantity' => 2]);
+        Cart::add($s['cart'], ['product_id' => $s['bundle'], 'quantity' => 1]);
+
+        return ['unito' => Cart::merge($ospite, $s['cart'])] + $s;
+    });
+    $madre = $x['unito']['items'][0] ?? [];
+
+    return (float) ($madre['quantity'] ?? 0) === 2.0
+        && pezziFiglie($madre) === [$x['a'] => 4.0, $x['b'] => 2.0];
+});
+
+check('multiprodotto: con la funzionalità spenta l\'unione porta le figlie con la madre', function () {
+    $x = provaConfezione(static function (): array {
+        $s = confezione('fixed');
+        $ospite = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        Cart::add($ospite, ['product_id' => $s['bundle'], 'quantity' => 2]);
+        Cart::add($s['cart'], ['product_id' => $s['bundle'], 'quantity' => 1]);
+        spegniFunzionalita(['bundles']);
+
+        return ['unito' => Cart::merge($ospite, $s['cart'])] + $s;
+    });
+    $madre = $x['unito']['items'][0] ?? [];
+
+    return (float) ($madre['quantity'] ?? 0) === 3.0
+        && pezziFiglie($madre) === [$x['a'] => 6.0, $x['b'] => 3.0];
+});
+
 summary();

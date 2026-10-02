@@ -620,4 +620,29 @@ check('l\'elenco delle giacenze non mostra le righe di un multiprodotto, e sì q
     });
 });
 
+check('a funzionalità spenta un multiprodotto esistente si salva lo stesso e la composizione resta', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'bundles']);
+        $a = pezzo('OA');
+        $id = creaScheda(richiesta('fixed', [['product_id' => (string) $a, 'quantity' => '2']], [], ['show_components_value' => 'true']));
+        $prima = righe(BundleComponent::class, ['product_model_id' => $id]);
+        spegniFunzionalita(['bundles']);
+
+        // Con la funzionalità spenta il form non mostra la composizione: i
+        // suoi campi non arrivano, e il resto della scheda si salva.
+        $post = richiesta('fixed', [], [], ['name' => 'Cesto rinominato']);
+        unset($post['bundle_components'], $post['bundle_groups'], $post['bundle_mode'], $post['show_components_value'], $post['type']);
+        $errore = rifiuto(static function () use ($id, $post): void {
+            aggiornaScheda($id, $post);
+        });
+        $dopo = righe(BundleComponent::class, ['product_model_id' => $id]);
+        $modello = ProductModel::findById($id);
+
+        return $errore === ''
+            && $modello['name'] === 'Cesto Rinominato'
+            && $modello['type'] === 'bundle' && $modello['bundle_mode'] === 'fixed' && $modello['show_components_value'] === 'true'
+            && count($dopo) === 1 && (int) $dopo[0]['id'] === (int) $prima[0]['id'];
+    });
+});
+
 summary();

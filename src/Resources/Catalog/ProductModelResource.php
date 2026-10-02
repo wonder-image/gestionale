@@ -1571,13 +1571,20 @@ HTML
             // La scheda tace sui pannelli nascosti, ma i loro campi arrivano:
             // di un multiprodotto non si guardano.
             $values['has_variants'] = 'false';
-            $modo = (string) ($values['bundle_mode'] ?? $oldValues['bundle_mode'] ?? '');
 
-            // Prima di toccare qualunque cosa: composizione e prodotti, con la
-            // frase di chi sbaglia.
-            static::bundleComposition((array) $_POST, $modo);
-            $values['bundle_mode'] = $modo;
-            $values['show_components_value'] = ($values['show_components_value'] ?? 'false') === 'true' ? 'true' : 'false';
+            if (Gestionale::feature('bundles')) {
+                $modo = (string) ($values['bundle_mode'] ?? $oldValues['bundle_mode'] ?? '');
+
+                // Prima di toccare qualunque cosa: composizione e prodotti, con
+                // la frase di chi sbaglia.
+                static::bundleComposition((array) $_POST, $modo);
+                $values['bundle_mode'] = $modo;
+                $values['show_components_value'] = ($values['show_components_value'] ?? 'false') === 'true' ? 'true' : 'false';
+            } else {
+                // A funzionalità spenta il form non mostra la composizione: i
+                // suoi campi non arrivano e quello che c'è non si tocca.
+                unset($values['bundle_mode'], $values['show_components_value']);
+            }
         } else {
             unset($values['bundle_mode'], $values['show_components_value']);
         }
@@ -2978,7 +2985,11 @@ HTML
             // il prezzo, la composizione e le foto, e basta.
             if (static::isBundleModel($modelId)) {
                 static::savePrices($modelId, $post, $fallbackSku);
-                static::saveBundle($modelId, $post);
+
+                if (Gestionale::feature('bundles')) {
+                    static::saveBundle($modelId, $post);
+                }
+
                 static::saveImages($modelId, $post, $files, static::saveGroupImages($modelId, $post, $files));
                 static::realignNames($modelId);
 

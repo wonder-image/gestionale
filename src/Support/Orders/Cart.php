@@ -248,6 +248,7 @@ final class Cart
                 }
 
                 $fieldsSurcharge = null;
+                $written = $item['customization_surcharge'] ?? 0;
 
                 // Con la funzionalità spenta le righe già personalizzate restano
                 // come sono: il sovrapprezzo scritto è quello che il cliente ha
@@ -270,11 +271,20 @@ final class Cart
 
                     $fieldsSurcharge = (float) $resolved['surcharge'];
                     $item['customization_surcharge'] = $resolved['surcharge'];
+
+                    // Una confezione con la funzionalità spenta non si rifà dalle
+                    // opzioni, ma il loro sovrapprezzo è già nel prezzo scritto:
+                    // si tiene la parte che non viene dalle personalizzazioni.
+                    if ((string) $item['type'] === 'product' && Bundles::isBundle($productId) && !Gestionale::feature('bundles')) {
+                        $kept = max(0.0, (float) $written - array_sum(array_column(Customizations::decode($item['customization'] ?? ''), 'surcharge')));
+                        $item['customization_surcharge'] = self::money($fieldsSurcharge + $kept);
+                    }
+
                     // Le etichette cambiate in anagrafica si copiano finché la
                     // riga sta nel carrello; dopo l'ordine non si toccano più.
                     $rewritten[(int) $item['id']] = [
                         'customization' => Customizations::encode($resolved['fields']),
-                        'customization_surcharge' => $resolved['surcharge'],
+                        'customization_surcharge' => $item['customization_surcharge'],
                     ];
                 }
 
@@ -456,6 +466,12 @@ final class Cart
 
                 if (is_array($existing)) {
                     OrderItem::update(['quantity' => self::number($wanted)], (int) $existing['id']);
+
+                    // A funzionalità spenta `recalculate` non rifà le figlie: se la
+                    // madre cresce senza di loro il magazzino scala meno del venduto.
+                    if ($kids !== [] && !Gestionale::feature('bundles')) {
+                        self::scaleChildren($targetCartId, $existing, $wanted);
+                    }
 
                     continue;
                 }
@@ -698,6 +714,16 @@ final class Cart
             return;
         }
 
+        self::scaleChildren($cartId, $item, $quantity);
+    }
+
+    /**
+     * Le figlie di una madre seguono la sua quantità, in proporzione.
+     *
+     * @param array<string, mixed> $item la madre, con la quantità che aveva
+     */
+    private static function scaleChildren(int $cartId, array $item, float $quantity): void
+    {
         $ratio = $quantity / max((float) $item['quantity'], 0.001);
 
         foreach (self::childrenOf(self::items($cartId), (int) $item['id']) as $kid) {
@@ -784,21 +810,28 @@ final class Cart
     }
 
     /**
-     * Le confezioni chieste, tagliate a quelle che i componenti permettono.
+     * Le confezioni chieste, tagliate a quelle intere che i componenti
+     * permettono. Ogni prodotto si guarda per quanto serve in tutto, anche
+     * se sta tra i fissi e tra le opzioni.
      *
      * @param list<array{product_id: int, quantity: float, bundle_option_id: int}> $perPack
      */
     private static function cappedPacks(array $perPack, float $wanted): float
     {
-        foreach ($perPack as $child) {
-            $pieces = (float) $child['quantity'];
+        $need = [];
 
+        foreach ($perPack as $child) {
+            $id = (int) $child['product_id'];
+            $need[$id] = ($need[$id] ?? 0.0) + (float) $child['quantity'];
+        }
+
+        foreach ($need as $id => $pieces) {
             if ($pieces > 0) {
-                $wanted = min($wanted, floor(self::capped((int) $child['product_id'], $wanted * $pieces) / $pieces * 1000) / 1000);
+                $wanted = min($wanted, floor(round(self::capped($id, $wanted * $pieces) / $pieces, 6)));
             }
         }
 
-        return $wanted;
+        return max(0.0, $wanted);
     }
 
     /**
