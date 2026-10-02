@@ -74,8 +74,8 @@ class CustomizationResource extends GestionaleResource
             'last' => 'ultime',
             'all' => 'tutte',
             'article' => 'le',
-            'full' => 'attiva',
-            'empty' => 'disattivata',
+            'full' => 'usata',
+            'empty' => 'non usata',
             'this' => 'questa',
         ];
     }
@@ -122,7 +122,13 @@ class CustomizationResource extends GestionaleResource
                 ->value('0')
                 ->label('Decimali')
                 ->visibleWhen('kind', 'number'),
-            FormField::key('surcharge')->price()->decimal(2)->value('0.00')->label('Sovrapprezzo'),
+            FormField::key('surcharge')
+                ->price()
+                ->decimal(2)
+                ->value('0.00')
+                ->label('Sovrapprezzo')
+                // Su una scelta il prezzo lo fanno le opzioni.
+                ->hiddenWhen('kind', 'choice'),
             FormField::key('active')
                 ->select(['true' => 'Attiva', 'false' => 'Disattivata'])
                 ->value('true')
@@ -180,7 +186,7 @@ class CustomizationResource extends GestionaleResource
 
         $details = (new Card)->components([
             SectionTitle::make('Dettagli')
-                ->tooltip('Un testo lo scrive il cliente, con un massimo di caratteri; un numero lo scrive con i decimali che dici qui; una scelta la fa fra le opzioni preparate sotto. Il sovrapprezzo si aggiunge al prezzo dell\'articolo, e a quello dell\'opzione scelta: su ogni articolo lo puoi cambiare dalla sua scheda.')
+                ->tooltip('Un testo lo scrive il cliente, con un massimo di caratteri; un numero lo scrive con i decimali che dici qui; una scelta la fa fra le opzioni preparate sotto. Il sovrapprezzo di un testo o di un numero si aggiunge al prezzo dell\'articolo; una scelta non ne ha, lo hanno le sue opzioni.')
                 ->columnSpan(12),
             static::getInput('kind')->columnSpan(12),
             static::getInput('max_length')->columnSpan(12),
@@ -207,11 +213,14 @@ class CustomizationResource extends GestionaleResource
                     static::kinds()[(string) ($row['kind'] ?? '')] ?? ''
                 )),
             TableColumn::key('surcharge')->price()->size('little'),
+            // L'icona del core: cartella piena se un articolo la usa, e in quel
+            // caso niente «Elimina» (assertDeletable() resta la guardia vera).
             TableColumn::key('usage')
-                ->text()
-                ->size('little')
-                ->label('Articoli')
-                ->formatter(static fn (array $row): string => (string) static::usage((int) ($row['id'] ?? 0))),
+                ->schema('function', [
+                    'name' => 'empty',
+                    'tables' => [ProductModelCustomization::$table],
+                    'column' => 'customization_id',
+                ]),
             TableColumn::key('active')
                 ->booleanBadge()
                 ->badgeOn('Attiva', 'bi-check-circle', 'success')
@@ -239,14 +248,14 @@ class CustomizationResource extends GestionaleResource
 
     /**
      * Solo lo store, per «Nuova personalizzazione» della scheda dell'articolo:
-     * chi vende scrive il nome, il resto lo decide il server (vedi
+     * chi vende scrive nome e sovrapprezzo, il resto lo decide il server (vedi
      * quickCreateValues()).
      */
     public static function apiSchema(): ApiSchema
     {
         return ApiSchema::for(static::class)
             ->only(['store'])
-            ->fields('store', ['name']);
+            ->fields('store', ['name', 'surcharge']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -260,7 +269,7 @@ class CustomizationResource extends GestionaleResource
 
     /**
      * I campi del modal «Nuova personalizzazione» della scheda articolo: solo
-     * il nome.
+     * il nome e il sovrapprezzo.
      *
      * @return list<\Wonder\App\ResourceSchema\Input>
      */
@@ -268,13 +277,14 @@ class CustomizationResource extends GestionaleResource
     {
         return [
             FormField::key('name')->text()->label('Nome')->required()->columnSpan(12),
+            FormField::key('surcharge')->price()->decimal(2)->value('0.00')->label('Sovrapprezzo')->columnSpan(12),
         ];
     }
 
     /**
-     * Quello che lo store API accetta: il nome. Il resto lo decide il server —
-     * un testo da {@see QUICK_MAX_LENGTH} caratteri, senza sovrapprezzo,
-     * attivo —, qualunque cosa porti la richiesta: le opzioni di una scelta
+     * Quello che lo store API accetta: nome e sovrapprezzo (vuoto vale zero,
+     * la virgola si legge come in un form, negativo no). Il resto lo decide il
+     * server — un testo da {@see QUICK_MAX_LENGTH} caratteri, attivo —, qualunque cosa porti la richiesta: le opzioni di una scelta
      * si preparano dalla pagina della personalizzazione.
      *
      * @param array<string, mixed> $values
@@ -288,6 +298,20 @@ class CustomizationResource extends GestionaleResource
             throw UserError::make('customization.quick_name');
         }
 
+        $surcharge = $values['surcharge'] ?? null;
+
+        if ($surcharge === null || (is_string($surcharge) && trim($surcharge) === '')) {
+            $surcharge = '0.00';
+        } else {
+            $surcharge = is_scalar($surcharge) ? Numbers::fromForm($surcharge) : null;
+
+            if ($surcharge === null || (float) $surcharge < 0) {
+                throw UserError::make('customization.surcharge');
+            }
+
+            $surcharge = number_format((float) $surcharge, 2, '.', '');
+        }
+
         return [
             'name' => $name,
             'label' => $name,
@@ -295,7 +319,7 @@ class CustomizationResource extends GestionaleResource
             'kind' => 'text',
             'max_length' => static::QUICK_MAX_LENGTH,
             'decimals' => 0,
-            'surcharge' => '0.00',
+            'surcharge' => $surcharge,
             'active' => 'true',
         ];
     }
@@ -323,7 +347,10 @@ class CustomizationResource extends GestionaleResource
             Customizations::assertDefinition($values, $options);
 
             // Il controllo ha accettato vuoto e virgola: si scrive sempre un decimale.
-            $values['surcharge'] = Numbers::fromForm($values['surcharge'] ?? null) ?? '0.00';
+            // Una scelta non ha il suo: il prezzo lo fanno le opzioni.
+            $values['surcharge'] = ($values['kind'] ?? '') === 'choice'
+                ? '0.00'
+                : Numbers::fromForm($values['surcharge'] ?? null) ?? '0.00';
 
             foreach ((array) ($_POST['options'] ?? []) as $key => $row) {
                 if (is_array($row)) {
