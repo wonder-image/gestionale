@@ -100,7 +100,7 @@ final class OrderActions
     /**
      * La frase della finestra: cosa succede al magazzino e al denaro.
      *
-     * I pezzi si contano dalle righe `product`. Se l'ordine ha incassato
+     * I pezzi si contano dalle righe `product` vendute (una confezione da 2 sono 2, non 2 più le figlie). Se l'ordine ha incassato
      * qualcosa, chi chiama mette l'importo in `paid_total`.
      *
      * @param array<string, mixed> $order
@@ -110,7 +110,7 @@ final class OrderActions
     {
         $pezzi = 0.0;
 
-        foreach ($items as $item) {
+        foreach (OrderLines::sold($items) as $item) {
             if ((string) ($item['type'] ?? '') === 'product') {
                 $pezzi += (float) ($item['quantity'] ?? 0);
             }

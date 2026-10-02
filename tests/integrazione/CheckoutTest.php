@@ -14,6 +14,7 @@ require __DIR__.'/supporto/compra.php';
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -523,6 +524,38 @@ check('confermare senza riferimento, a mano, chiude il pagamento aperto senza fa
             && (int) $righe[0]['id'] === $esito['payment_id']
             && $righe[0]['status'] === 'paid'
             && (string) Order::findById($carrello)['payment_status'] === 'paid';
+    });
+});
+
+check('una confezione nel carrello prenota solo le figlie, mai la madre', function () {
+    return prova(static function (): bool {
+        $madre = articoloConGiacenza(9, 'TST-CHK-M'.substr((string) microtime(true), -6));
+        Wonder\Plugin\Gestionale\Models\Catalog\Product::update(['price' => '25.00'], $madre);
+        $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        $rigaMadre = (int) (OrderItem::create([
+            'order_id' => $carrello, 'type' => 'product', 'product_id' => $madre, 'position' => 1,
+            'name' => 'Confezione', 'quantity' => '2.000', 'unit_price' => '25.00', 'line_total' => '50.00',
+        ])->insert_id ?? 0);
+        $figlie = [];
+
+        foreach ([1, 2] as $n) {
+            $prodotto = articoloConGiacenza(20, 'TST-CHK-F'.$n.substr((string) microtime(true), -5));
+            $figlie[] = (int) (OrderItem::create([
+                'order_id' => $carrello, 'type' => 'product', 'product_id' => $prodotto, 'position' => 1 + $n,
+                'parent_item_id' => $rigaMadre, 'name' => 'Componente '.$n, 'quantity' => '2.000',
+                'unit_price' => '0.00', 'line_total' => '0.00',
+            ])->insert_id ?? 0);
+        }
+
+        $esito = senzaPosta(static fn (): array => Checkout::place(
+            $carrello,
+            datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE))
+        ));
+
+        return $esito['reserved'] === 2
+            && (int) sqlCount(StockReservation::$table, "order_item_id = {$rigaMadre}") === 0
+            && (int) sqlCount(StockReservation::$table, 'order_item_id IN ('.implode(',', $figlie).')') === 2
+            && Levels::of($madre)['available'] === 9.0;
     });
 });
 

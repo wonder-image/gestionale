@@ -14,6 +14,7 @@ require __DIR__.'/supporto/compra.php';
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
+use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
@@ -21,6 +22,7 @@ use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -71,6 +73,37 @@ function ordinePrenotato(float $pezzi = 5, float $quantita = 2, float $totale = 
     ]);
 
     return [$ordine, $prodotto];
+}
+
+/**
+ * Un ordine in attesa con una confezione: una madre da 2 pezzi e due figlie,
+ * con la merce delle sole figlie prenotata.
+ *
+ * @return array{order: int, mother: int, children: list<array{item: int, product: int}>}
+ */
+function ordineConfezione(): array
+{
+    $madre = articoloConGiacenza(9, 'TST-CONF-M'.substr((string) microtime(true), -6));
+    $ordine = ordineDiProva(50.0);
+    Order::update(['email' => 'cliente@example.com', 'ordered_at' => date('Y-m-d H:i:s')], $ordine);
+    $rigaMadre = (int) (OrderItem::create([
+        'order_id' => $ordine, 'type' => 'product', 'product_id' => $madre, 'position' => 1,
+        'name' => 'Confezione', 'quantity' => '2.000', 'unit_price' => '25.00', 'line_total' => '50.00',
+    ])->insert_id ?? 0);
+    $figlie = [];
+
+    foreach ([1 => 4.0, 2 => 2.0] as $posizione => $quantita) {
+        $prodotto = articoloConGiacenza(20, 'TST-CONF-F'.$posizione.substr((string) microtime(true), -5));
+        $riga = (int) (OrderItem::create([
+            'order_id' => $ordine, 'type' => 'product', 'product_id' => $prodotto, 'position' => 1 + $posizione,
+            'parent_item_id' => $rigaMadre, 'name' => 'Componente '.$posizione,
+            'quantity' => number_format($quantita, 3, '.', ''), 'unit_price' => '0.00', 'line_total' => '0.00',
+        ])->insert_id ?? 0);
+        Allocation::reserve(['product_id' => $prodotto, 'quantity' => $quantita, 'order_id' => $ordine, 'order_item_id' => $riga]);
+        $figlie[] = ['item' => $riga, 'product' => $prodotto];
+    }
+
+    return ['order' => $ordine, 'mother' => $madre, 'children' => $figlie];
 }
 
 /** Le email non devono uscire dalla prova. */
@@ -297,6 +330,39 @@ check('il pagamento che arriva prima dell\'evasione non chiude l\'ordine', funct
         Ledger::register(['order_id' => $ordine, 'amount' => 50.0]);
 
         return Order::findById($ordine)['status'] === 'confirmed';
+    });
+});
+
+check('la conferma di una confezione scarica le figlie e non la madre', function () {
+    return prova(static function (): bool {
+        $c = ordineConfezione();
+        $madre = Levels::of($c['mother'])['quantity'];
+        $prime = array_map(static fn (array $f): float => Levels::of($f['product'])['quantity'], $c['children']);
+
+        $esito = senzaPosta(static fn (): array => Lifecycle::confirm($c['order'], ['payment' => false]));
+
+        return $esito['committed'] === 2
+            && Levels::of($c['mother'])['quantity'] === $madre
+            && Levels::of($c['children'][0]['product'])['quantity'] === round($prime[0] - 4, 3)
+            && Levels::of($c['children'][1]['product'])['quantity'] === round($prime[1] - 2, 3);
+    });
+});
+
+check('annullare una confezione dopo il reso di una figlia rimette quantità meno reso', function () {
+    return prova(static function (): bool {
+        $c = ordineConfezione();
+        senzaPosta(static fn (): array => Lifecycle::confirm($c['order'], ['payment' => false]));
+        $reso = resoDiProva($c['order'], Locations::mainId());
+        SalesReturnItem::create(['sales_return_id' => $reso, 'order_item_id' => $c['children'][0]['item'], 'quantity' => '1.000']);
+        $madre = Levels::of($c['mother'])['quantity'];
+        $prima = array_map(static fn (array $f): float => Levels::of($f['product'])['quantity'], $c['children']);
+
+        $esito = senzaPosta(static fn (): array => Lifecycle::cancel($c['order']));
+
+        return $esito['restored'] === 2
+            && Levels::of($c['mother'])['quantity'] === $madre
+            && Levels::of($c['children'][0]['product'])['quantity'] === round($prima[0] + 3, 3)
+            && Levels::of($c['children'][1]['product'])['quantity'] === round($prima[1] + 2, 3);
     });
 });
 

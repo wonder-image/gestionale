@@ -61,7 +61,7 @@ final class Checkout
             $order = $recalculated['order'];
             $items = $recalculated['items'];
 
-            if (self::goods($items) === []) {
+            if (OrderLines::goods($items) === []) {
                 throw UserError::make('order.empty_cart');
             }
 
@@ -69,7 +69,7 @@ final class Checkout
             $expires = PaymentTiming::reservationExpiry($timing);
             $reserved = 0;
 
-            foreach (self::goods($items) as $item) {
+            foreach (OrderLines::goods($items) as $item) {
                 Allocation::reserve([
                     'product_id' => (int) $item['product_id'],
                     'quantity' => (float) $item['quantity'],
@@ -368,22 +368,6 @@ final class Checkout
                 'nature' => $summary['nature'],
             ]);
         }
-    }
-
-    /**
-     * Le righe che hanno merce dietro: quelle da prenotare.
-     *
-     * @param list<array<string, mixed>> $items
-     * @return list<array<string, mixed>>
-     */
-    private static function goods(array $items): array
-    {
-        return array_values(array_filter(
-            $items,
-            static fn (array $item): bool => (string) $item['type'] === 'product'
-                && (int) ($item['product_id'] ?? 0) > 0
-                && (float) $item['quantity'] > 0
-        ));
     }
 
     /** @return list<array<string, mixed>> */
