@@ -983,8 +983,10 @@ elimina (`customization.in_use`): si disattiva, e sparisce dalla vendita.
 Nell'elenco la colonna `usage` è l'`isEmpty` del core (funzione `empty` su
 `gst_product_model_customizations.customization_id`): l'icona della cartella e,
 se è usata, niente pulsante «Elimina»; `assertDeletable()` resta la guardia sul
-server. Il modal «Nuova personalizzazione» e lo store API accettano `name` e
-`surcharge` (vuoto = zero, virgola ammessa, negativo = `customization.surcharge`).
+server. Il modal «Nuova personalizzazione» e lo store API accettano `name`, `kind`
+(`text` o `number`; ogni altro valore è un testo: una scelta ha bisogno delle sue
+opzioni e si fa dalla sua pagina) e `surcharge` (vuoto = zero, virgola ammessa,
+negativo = `customization.surcharge`).
 Scollegare o disattivare non tocca le righe già vendute, che portano con sé una
 copia di quello che il cliente ha scritto.
 

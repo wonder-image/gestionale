@@ -121,7 +121,7 @@ check('l\'API accetta solo lo store, con nome e sovrapprezzo', function () {
     return ($schema['routes']['store'] ?? false) === true
         && ($schema['routes']['index'] ?? true) === false
         && ($schema['routes']['destroy'] ?? true) === false
-        && ($schema['fields']['store'] ?? []) === ['name', 'surcharge'];
+        && ($schema['fields']['store'] ?? []) === ['name', 'kind', 'surcharge'];
 });
 
 check('quickCreateValues dà un testo da 100 caratteri e attivo, col sovrapprezzo scritto', function () {
@@ -133,6 +133,29 @@ check('quickCreateValues dà un testo da 100 caratteri e attivo, col sovrapprezz
         && (int) $valori['max_length'] === 100
         && $valori['surcharge'] === '2.50'
         && $valori['active'] === 'true';
+});
+
+check('quickCreateValues con tipo Numero scrive un numero senza decimali, senza tipo o con uno ignoto un testo', function () {
+    $numero = CustomizationResource::quickCreateValues(['name' => 'X', 'kind' => 'number']);
+    $ignoto = CustomizationResource::quickCreateValues(['name' => 'X', 'kind' => 'zzz']);
+
+    return $numero['kind'] === 'number'
+        && (int) $numero['decimals'] === 0
+        && $ignoto['kind'] === 'text'
+        && (int) $ignoto['max_length'] === 100;
+});
+
+check('il modal offre Testo e Numero: una scelta ha bisogno delle sue opzioni e si fa dalla sua pagina', function () {
+    $campi = CustomizationResource::quickCreateFields();
+    $tipo = null;
+    foreach ($campi as $campo) {
+        if ((string) $campo->name === 'kind') {
+            $tipo = $campo;
+        }
+    }
+
+    return $tipo !== null
+        && array_keys((array) ($tipo->get('options') ?? [])) === ['text', 'number'];
 });
 
 check('quickCreateValues senza sovrapprezzo è gratis', function () {
@@ -156,10 +179,10 @@ check('quickCreateValues rifiuta un sovrapprezzo negativo o che non è un numero
     return true;
 });
 
-check('il modal «Nuova personalizzazione» chiede nome e sovrapprezzo', function () {
+check('il modal «Nuova personalizzazione» chiede nome, tipo e sovrapprezzo', function () {
     $campi = CustomizationResource::quickCreateFields();
 
-    return array_map(static fn ($c) => (string) $c->name, $campi) === ['name', 'surcharge'];
+    return array_map(static fn ($c) => (string) $c->name, $campi) === ['name', 'kind', 'surcharge'];
 });
 
 check('il sovrapprezzo si nasconde quando il tipo è scelta', function () {

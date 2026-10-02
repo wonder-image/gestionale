@@ -9,6 +9,7 @@ use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
+use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\RepeaterRelation;
@@ -383,16 +384,11 @@ class ProductModelResource extends GestionaleResource
     {
         $prodotti = ['' => '—'] + static::bundleOptionProducts($modelId);
 
+        // Il tipo lo sceglie il bottone dell'elenco, non un campo: la scheda
+        // lo porta con sé nascosto, e dopo la nascita non si scambia più.
         $tipo = FormField::key('type')
-            ->select(['simple' => 'Articolo singolo', 'bundle' => 'Multiprodotto'])
-            ->value('simple')
-            ->label('Tipo');
-
-        // Il tipo si sceglie alla nascita: dopo, i componenti e la giacenza
-        // non si scambiano da una casella.
-        if ($modelId > 0) {
-            $tipo = $tipo->readonly()->disabled();
-        }
+            ->hidden()
+            ->value(static::sheetIsBundle($modelId) ? 'bundle' : 'simple');
 
         return [
             $tipo,
@@ -484,18 +480,11 @@ class ProductModelResource extends GestionaleResource
 
         $domanda = static::getInput('has_variants')->columnSpan(12);
 
-        // Un multiprodotto non ha varianti: il suo prezzo e la sua
-        // composizione bastano.
-        $nascondiMulti = static fn (object $c): object => Gestionale::feature('bundles')
-            ? $c->hiddenWhen('type', 'bundle')
-            : $c;
-
-        // Quello che ha già la sua condizione (le varianti) e il tipo deve
-        // nasconderlo lo stesso sta in un contenitore: un elemento ha una
-        // regola sola. Senza la funzionalità il contenitore non serve.
-        $senzaMulti = static fn (array $componenti, int $span = 12): array => Gestionale::feature('bundles')
-            ? [(new Container)->components($componenti)->columns(12)->columnSpan($span)->hiddenWhen('type', 'bundle')]
-            : $componenti;
+        // Un multiprodotto non ha varianti, giacenza né codici suoi: il
+        // prezzo e la composizione bastano, e la scheda nata dal bottone
+        // «Aggiungi Multiprodotto» non li porta.
+        $multi = static::sheetIsBundle($modelId);
+        $senzaMulti = static fn (array $componenti): array => $multi ? [] : $componenti;
 
         if ($bloccato) {
             $domanda = $domanda->readonly()->disabled();
@@ -510,7 +499,9 @@ class ProductModelResource extends GestionaleResource
             $domanda = FormField::key('has_variants')->hidden()->value('false');
         }
 
-        $domanda = $nascondiMulti($domanda);
+        if ($multi) {
+            $domanda = FormField::key('has_variants')->hidden()->value('false');
+        }
 
         // Con più sedi giacenza e scorta minima stanno nel riquadro
         // «Magazzino», sede per sede (P102): qui restano prezzo e codici.
@@ -541,8 +532,8 @@ class ProductModelResource extends GestionaleResource
                             .($sedi ? ' Giacenza e scorta minima stanno nel riquadro «Magazzino», sede per sede.' : '')
                             .($senzaOpzioni ? ' Per vendere colori o taglie serve un attributo con uso «Opzione da scegliere» o «Opzione con foto proprie», e dei valori: si crea in Catalogo → Attributi.' : ''))
                     ->columnSpan(12),
-                static::getInput('name')->columnSpan(Gestionale::feature('bundles') ? 6 : 9),
-                ...(Gestionale::feature('bundles') ? [static::getInput('type')->columnSpan(3)] : []),
+                static::getInput('name')->columnSpan(9),
+                ...(Gestionale::feature('bundles') ? [static::getInput('type')] : []),
                 static::getInput('visible')->columnSpan(3),
                 // Niente titolo «Descrizione»: le etichette dei due campi lo
                 // dicono già.
@@ -566,9 +557,7 @@ class ProductModelResource extends GestionaleResource
                 // la casella sta in un contenitore che il tipo nasconde,
                 // perché la sua condizione, quella delle varianti, è già
                 // sua.
-                ...($sedi ? [] : (Gestionale::feature('bundles')
-                    ? $senzaMulti([static::getInput('product_stock')->columnSpan(12)], 4)
-                    : [static::getInput('product_stock')->columnSpan(4)])),
+                ...($sedi ? [] : $senzaMulti([static::getInput('product_stock')->columnSpan(4)])),
                 // Codici, scorta minima e fornitori sotto il prezzo, chiusi
                 // come le informazioni avanzate delle righe della griglia:
                 // servono di rado. Con le varianti spariscono insieme al
@@ -605,7 +594,7 @@ class ProductModelResource extends GestionaleResource
             ...($sedi ? $senzaMulti([static::stockCard($modelId)]) : []),
             // La composizione di un multiprodotto, al posto di giacenza e
             // opzioni: due riquadri che il tipo apre e chiude.
-            ...(Gestionale::feature('bundles') ? [static::bundleCard()] : []),
+            ...($multi ? [static::bundleCard()] : []),
             // Subito sotto la domanda «ha varianti?»: chi risponde sì trova
             // qui le opzioni. In due terzi di
             // schermo la griglia ci sta: le righe raggruppate hanno tre
@@ -674,7 +663,7 @@ class ProductModelResource extends GestionaleResource
                     ->columnSpan(12),
                 static::getInput('bundle_groups')->columnSpan(12),
             ]),
-        ])->columns(12)->columnSpan(12)->visibleWhen('type', 'bundle');
+        ])->columns(12)->columnSpan(12);
     }
 
     /**
@@ -1176,6 +1165,47 @@ HTML
         }
 
         return '';
+    }
+
+    /**
+     * Con i multiprodotti l'elenco ha due bottoni al posto dell'«Aggiungi» di
+     * serie: la scheda nasce di un tipo, e il tipo viaggia nell'indirizzo
+     * (`?type=bundle`) invece di stare in un campo da scegliere.
+     */
+    public static function tableLayoutSchema(): TableLayoutSchema
+    {
+        $layout = parent::tableLayoutSchema();
+
+        if (!Gestionale::feature('bundles')) {
+            return $layout;
+        }
+
+        $nuovo = static::createUrlFor();
+
+        return $layout
+            ->hideButtonAdd()
+            ->buttonsCustom([
+                Button::to($nuovo, '+ Aggiungi Prodotto')->variant('dark'),
+                Button::to($nuovo.'?type=bundle', '+ Aggiungi Multiprodotto')->variant('dark'),
+            ]);
+    }
+
+    /** L'indirizzo della pagina per creare un articolo. */
+    public static function createUrlFor(): string
+    {
+        $fallback = '/backend/'.static::path().'/create/';
+
+        if (!function_exists('__r')) {
+            return $fallback;
+        }
+
+        try {
+            $named = (string) __r('backend.resource.'.static::slug().'.create');
+        } catch (Throwable) {
+            return $fallback;
+        }
+
+        return $named !== '' ? $named : $fallback;
     }
 
     public static function pageSchema(): PageSchema
@@ -2414,14 +2444,16 @@ HTML
         }
 
         return [
-            // Un multiprodotto non ha ordini a fornitore suoi: il campo lo
-            // tace il tipo.
-            (Gestionale::feature('bundles')
-                ? static::getInput('allow_backorder')->hiddenWhen('type', 'bundle')
-                : static::getInput('allow_backorder'))->columnSpan(12),
-            static::getInput('backorder_lead_days')
-                ->visibleWhen('allow_backorder', 'true')
-                ->columnSpan(12),
+            // Un multiprodotto non ha ordini a fornitore suoi: i campi non
+            // ci sono nella sua scheda.
+            ...(static::sheetIsBundle((int) (static::currentId() ?? 0))
+                ? []
+                : [
+                    static::getInput('allow_backorder')->columnSpan(12),
+                    static::getInput('backorder_lead_days')
+                        ->visibleWhen('allow_backorder', 'true')
+                        ->columnSpan(12),
+                ]),
         ];
     }
 
@@ -2590,6 +2622,25 @@ HTML
     public static function afterUpdate(int|string $id, object $result, array $values = []): void
     {
         static::saveExtras((int) $id, (array) $_POST, '', (array) $_FILES);
+    }
+
+    /**
+     * Questa scheda è di un multiprodotto? Un articolo già nato lo dice la
+     * sua riga; uno da creare, il bottone premuto nell'elenco (`?type=bundle`,
+     * riletto dal campo nascosto se la pagina si ridisegna dopo un errore).
+     * Senza la funzionalità, o con un valore ignoto, è un prodotto.
+     */
+    public static function sheetIsBundle(int $modelId = 0): bool
+    {
+        if (!Gestionale::feature('bundles')) {
+            return false;
+        }
+
+        if ($modelId > 0) {
+            return static::isBundleModel($modelId);
+        }
+
+        return (string) ($_GET['type'] ?? $_POST['type'] ?? '') === 'bundle';
     }
 
     /** Questo articolo è un multiprodotto? */

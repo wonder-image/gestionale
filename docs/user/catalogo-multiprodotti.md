@@ -4,9 +4,9 @@ icon: box-open
 
 # Multiprodotti
 
-> **Da attivare.** Funzionalità *Multiprodotto*. Finché è spenta non vedi il
-> tipo nella scheda dell'articolo; i multiprodotti già creati e gli ordini già
-> fatti restano come sono.
+> **Da attivare.** Funzionalità *Multiprodotto*. Finché è spenta nella lista
+> degli articoli trovi un solo bottone, «Aggiungi Prodotto»; i multiprodotti già
+> creati e gli ordini già fatti restano come sono.
 
 ## A cosa servono
 
@@ -16,8 +16,9 @@ un prezzo solo; il magazzino invece scarica **i prodotti che ci stanno
 dentro**. Il multiprodotto in sé non ha giacenza: quanti ne puoi vendere lo
 dicono i suoi componenti.
 
-Si crea dalla scheda dell'articolo, scegliendo **Multiprodotto** al posto di
-*Articolo singolo*. Il prezzo lo scrivi tu, come per ogni articolo.
+Si crea dalla lista degli articoli, col bottone **+ Aggiungi Multiprodotto**
+(accanto a *+ Aggiungi Prodotto*, che apre l'articolo singolo). Il tipo si
+sceglie lì e non si cambia più. Il prezzo lo scrivi tu, come per ogni articolo.
 
 ## Fissa, a scelta o mista
 

@@ -255,7 +255,7 @@ class CustomizationResource extends GestionaleResource
     {
         return ApiSchema::for(static::class)
             ->only(['store'])
-            ->fields('store', ['name', 'surcharge']);
+            ->fields('store', ['name', 'kind', 'surcharge']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -268,8 +268,9 @@ class CustomizationResource extends GestionaleResource
     }
 
     /**
-     * I campi del modal «Nuova personalizzazione» della scheda articolo: solo
-     * il nome e il sovrapprezzo.
+     * I campi del modal «Nuova personalizzazione» della scheda articolo: il
+     * nome, il tipo — testo o numero: una scelta ha bisogno delle sue
+     * opzioni e si fa dalla sua pagina — e il sovrapprezzo.
      *
      * @return list<\Wonder\App\ResourceSchema\Input>
      */
@@ -277,15 +278,23 @@ class CustomizationResource extends GestionaleResource
     {
         return [
             FormField::key('name')->text()->label('Nome')->required()->columnSpan(12),
+            FormField::key('kind')
+                ->select(array_diff_key(static::kinds(), ['choice' => true]))
+                ->value('text')
+                ->label('Tipo')
+                ->required()
+                ->columnSpan(12),
             FormField::key('surcharge')->price()->decimal(2)->value('0.00')->label('Sovrapprezzo')->columnSpan(12),
         ];
     }
 
     /**
-     * Quello che lo store API accetta: nome e sovrapprezzo (vuoto vale zero,
-     * la virgola si legge come in un form, negativo no). Il resto lo decide il
-     * server — un testo da {@see QUICK_MAX_LENGTH} caratteri, attivo —, qualunque cosa porti la richiesta: le opzioni di una scelta
-     * si preparano dalla pagina della personalizzazione.
+     * Quello che lo store API accetta: nome, tipo e sovrapprezzo (vuoto vale
+     * zero, la virgola si legge come in un form, negativo no). Il tipo è un
+     * numero se lo dice la richiesta, altrimenti un testo da
+     * {@see QUICK_MAX_LENGTH} caratteri: le opzioni di una scelta si
+     * preparano dalla pagina della personalizzazione. Il resto lo decide il
+     * server — attivo, zero decimali —, qualunque cosa porti la richiesta.
      *
      * @param array<string, mixed> $values
      * @return array<string, mixed>
@@ -298,6 +307,7 @@ class CustomizationResource extends GestionaleResource
             throw UserError::make('customization.quick_name');
         }
 
+        $kind = ($values['kind'] ?? null) === 'number' ? 'number' : 'text';
         $surcharge = $values['surcharge'] ?? null;
 
         if ($surcharge === null || (is_string($surcharge) && trim($surcharge) === '')) {
@@ -316,8 +326,8 @@ class CustomizationResource extends GestionaleResource
             'name' => $name,
             'label' => $name,
             'help_text' => '',
-            'kind' => 'text',
-            'max_length' => static::QUICK_MAX_LENGTH,
+            'kind' => $kind,
+            'max_length' => $kind === 'text' ? static::QUICK_MAX_LENGTH : 0,
             'decimals' => 0,
             'surcharge' => $surcharge,
             'active' => 'true',
