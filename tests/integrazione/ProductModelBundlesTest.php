@@ -17,7 +17,10 @@ use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroup;
 use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroupOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockLevelResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
@@ -468,6 +471,152 @@ check('lo stesso rifiuto vale in modifica, prima di toccare la composizione salv
 
         return $dato === 'bundle.zero_quantity'
             && (float) righe(BundleComponent::class, ['product_model_id' => $id])[0]['quantity'] === 1.0;
+    });
+});
+
+/** Il testo del rifiuto di una guardia che lancia un `RuntimeException` (`UserError::refusal`). */
+function rifiutoTesto(callable $corpo): string
+{
+    try {
+        $corpo();
+    } catch (RuntimeException $errore) {
+        return $errore->getMessage();
+    }
+
+    return '';
+}
+
+/** Un prodotto usato in tre multiprodotti: fisso in uno, opzione in un altro, fisso e opzione nel terzo. */
+function prodottoInUso(): array
+{
+    $x = pezzo('IU');
+    $y = pezzo('IV');
+    $fisso = multiprodottoDiProva('fixed', [['product_id' => $x, 'quantity' => 1]], []);
+    $scelta = multiprodottoDiProva('choice', [], [['name' => 'G', 'min' => 1, 'max' => 1, 'options' => [['product_id' => $x], ['product_id' => $y]]]]);
+    $misto = multiprodottoDiProva('mixed', [['product_id' => $x, 'quantity' => 1]], [['name' => 'G', 'min' => 1, 'max' => 1, 'options' => [['product_id' => $x], ['product_id' => $y]]]]);
+    $nomi = array_map(static fn (int $id): string => (string) ProductModel::findById(modelloDi($id))['name'], [$fisso, $scelta, $misto]);
+
+    return [$x, $y, $nomi];
+}
+
+check('un prodotto usato in un multiprodotto non si elimina, né da articolo né da versione, e il rifiuto dice quali', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'bundles']);
+        [$x, $y, $nomi] = prodottoInUso();
+        $daModello = rifiutoTesto(static fn () => ProductModelResource::assertDeletable(modelloDi($x)));
+        $daVersione = rifiutoTesto(static fn () => ProductResource::assertDeletable($x));
+
+        foreach ([$daModello, $daVersione] as $testo) {
+            if ($testo === '') {
+                return false;
+            }
+
+            foreach ($nomi as $nome) {
+                if (substr_count($testo, $nome) !== 1) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    });
+});
+
+check('un prodotto non usato si elimina come prima', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'bundles']);
+        $libero = pezzo('LB');
+        // Con un movimento (la giacenza iniziale) il rifiuto è quello di sempre, non il nuovo.
+        $testo = rifiutoTesto(static fn () => ProductResource::assertDeletable($libero));
+
+        return str_contains($testo, 'movimenti') && !str_contains($testo, 'multiprodotti');
+    });
+});
+
+check('spegnere un prodotto usato in un multiprodotto è rifiutato, e il prodotto resta attivo', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'bundles']);
+        [$x] = prodottoInUso();
+        $libero = pezzo('SP');
+        $riga = (array) Product::findById($x);
+        $testo = rifiutoTesto(static fn () => ProductResource::mutateRequestValues(['active' => 'false'], 'update', 'backend', $riga));
+        $ok = str_contains($testo, 'multiprodotti') && (string) Product::findById($x)['active'] === 'true';
+
+        // Accenderlo (o salvarlo ancora attivo) non si ferma; uno non usato si spegne.
+        ProductResource::mutateRequestValues(['active' => 'true'], 'update', 'backend', $riga);
+        $values = ProductResource::mutateRequestValues(['active' => 'false'], 'update', 'backend', (array) Product::findById($libero));
+
+        return $ok && ($values['active'] ?? '') === 'false';
+    });
+});
+
+check('dalla griglia delle opzioni non si toglie né si ferma una versione usata in un multiprodotto', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'bundles']);
+        [$x] = prodottoInUso();
+        $modello = modelloDi($x);
+        $altro = pezzo('GR');
+        $_POST = ['products' => ['k1' => ['id' => (string) $x, 'active' => 'false']]];
+        $fermata = rifiutoTesto(static fn () => ProductModelResource::assertVersionsKept($modello));
+        $_POST = ['products' => ['k2' => ['id' => (string) $altro, 'active' => 'true']]];
+        $tolta = rifiutoTesto(static fn () => ProductModelResource::assertVersionsKept($modello));
+        $_POST = ['products' => ['k1' => ['id' => (string) $x, 'active' => 'true']]];
+        $intatta = rifiutoTesto(static fn () => ProductModelResource::assertVersionsKept($modello));
+        $_POST = [];
+        $senzaGriglia = rifiutoTesto(static fn () => ProductModelResource::assertVersionsKept($modello));
+
+        return str_contains($fermata, 'multiprodotti') && str_contains($tolta, 'multiprodotti')
+            && $intatta === '' && $senzaGriglia === '';
+    });
+});
+
+check('eliminare un multiprodotto non venduto porta via componenti, gruppi e opzioni, anche a funzionalità spenta', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'bundles']);
+        $x = pezzo('DL');
+        $y = pezzo('DM');
+        $multi = multiprodottoDiProva('mixed', [['product_id' => $x, 'quantity' => 1]], [['name' => 'G', 'min' => 1, 'max' => 1, 'options' => [['product_id' => $y]]]]);
+        $modello = modelloDi($multi);
+        $gruppi = righe(BundleGroup::class, ['product_model_id' => $modello]);
+        spegniFunzionalita(['bundles']);
+
+        ProductModelResource::deleteRecord($modello);
+
+        return count($gruppi) === 1
+            && righe(BundleComponent::class, ['product_model_id' => $modello]) === []
+            && righe(BundleGroup::class, ['product_model_id' => $modello]) === []
+            && righe(BundleGroupOption::class, ['bundle_group_id' => (int) $gruppi[0]['id']]) === []
+            && empty(ProductModel::findById($modello));
+    });
+});
+
+check('un multiprodotto già in un ordine non si elimina; un prodotto semplice si comporta come prima', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'bundles']);
+        $x = pezzo('OR');
+        $multi = multiprodottoDiProva('fixed', [['product_id' => $x, 'quantity' => 1]], []);
+        $ordine = ordineDiProva(30.0);
+        OrderItem::create(['order_id' => $ordine, 'type' => 'product', 'position' => 1, 'product_id' => $multi, 'name' => 'Confezione', 'quantity' => '1.000', 'unit_price' => '30.00', 'line_total' => '30.00']);
+        $testo = rifiutoTesto(static fn () => ProductModelResource::assertDeletable(modelloDi($multi)));
+        $libero = multiprodottoDiProva('fixed', [['product_id' => $x, 'quantity' => 1]], []);
+        $nonVenduto = rifiutoTesto(static fn () => ProductModelResource::assertDeletable(modelloDi($libero)));
+
+        return str_contains($testo, 'ordini') && $nonVenduto === '';
+    });
+});
+
+check('l\'elenco delle giacenze non mostra le righe di un multiprodotto, e sì quelle dei pezzi', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'bundles']);
+        $pezzo = pezzo('GA');
+        $confezione = creaScheda(richiesta('fixed', [['product_id' => (string) $pezzo, 'quantity' => '1']], []));
+        $confezioneProdotto = (int) righe(Product::class, ['product_model_id' => $confezione])[0]['id'];
+
+        $trovate = Product::find('WHERE '.StockLevelResource::querySchema()['condition']);
+        $trovate = !is_array($trovate) ? [] : (isset($trovate['id']) ? [$trovate] : $trovate);
+        $visti = array_map(static fn (array $riga): int => (int) $riga['id'], $trovate);
+
+        return in_array($pezzo, $visti, true) && !in_array($confezioneProdotto, $visti, true);
     });
 });
 

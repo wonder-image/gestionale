@@ -36,6 +36,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroupOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
@@ -1083,7 +1084,10 @@ HTML
                 ->size('little')
                 ->formatter(static fn (array $row): string => static::firstImage((int) ($row['id'] ?? 0)))
                 ->link('view'),
-            TableColumn::key('name')->text()->link('view'),
+            TableColumn::key('name')
+                ->text()
+                ->formatter(static fn (array $row): string => static::nameCell($row))
+                ->link('view'),
             TableColumn::key('sku')->text(),
             TableColumn::key('price')
                 ->text()
@@ -1095,6 +1099,23 @@ HTML
             TableColumn::key('visible')->visibleBadge()->size('little'),
             TableColumn::key('actions')->button()->actions(['view', 'edit', 'visible', 'delete']),
         ];
+    }
+
+    /** Il nome nell'elenco, col badge dei multiprodotti accanto. */
+    public static function nameCell(array $row): string
+    {
+        $nome = static::escapeStored((string) ($row['name'] ?? ''));
+        $badge = static::bundleBadge((int) ($row['id'] ?? 0));
+
+        return $badge === '' ? $nome : $nome.' '.$badge;
+    }
+
+    /** «Multiprodotto» per un articolo composto, niente per un semplice. */
+    public static function bundleBadge(int $modelId): string
+    {
+        return static::isBundleModel($modelId)
+            ? '<span class="badge text-bg-light">'.static::escape('Multiprodotto').'</span>'
+            : '';
     }
 
     /**
@@ -1587,6 +1608,7 @@ HTML
         }
 
         static::assertSomeVersionLeft($id);
+        static::assertVersionsKept($id);
 
         // Un multiprodotto non ha giacenza, scorta minima, sedi né fornitori:
         // i loro pannelli sono nascosti e quello che mandano non vale.
@@ -3987,10 +4009,57 @@ HTML
     public static function assertDeletable(int|string $id): void
     {
         foreach (static::allProducts((int) $id) as $product) {
+            Bundles::assertNotUsed($product);
+
             if (StockHistory::hasMovements((int) $product['id'])) {
                 // `refusal()` e non `make()`: chi cancella dall'elenco
                 // intercetta `RuntimeException` (vedi `UserError`).
                 throw UserError::refusal('product.has_movements');
+            }
+        }
+
+        // Un multiprodotto non ha movimenti suoi (li hanno i componenti): se è
+        // già in un ordine, quell'ordine parla di lui e non si lascia solo.
+        foreach (static::allProducts((int) $id) as $product) {
+            if (Bundles::isBundle((int) $product['id']) && static::soldInOrders((int) $product['id'])) {
+                throw UserError::refusal('product.in_orders');
+            }
+        }
+    }
+
+    private static function soldInOrders(int $productId): bool
+    {
+        $row = OrderItem::find(['product_id' => $productId, 'deleted' => 'false'], 1);
+
+        return is_array($row) && $row !== [];
+    }
+
+    /**
+     * Dalla griglia delle opzioni non si toglie e non si ferma una versione
+     * che sta dentro un multiprodotto. La griglia c'è solo quando le versioni
+     * sono più d'una: senza, non c'è niente da guardare.
+     */
+    public static function assertVersionsKept(int $modelId): void
+    {
+        if ($modelId <= 0 || !isset($_POST['products'])) {
+            return;
+        }
+
+        $arrivate = [];
+
+        foreach (static::postedRows((array) $_POST) as $riga) {
+            $productId = (int) ($riga['id'] ?? 0);
+
+            if ($productId > 0) {
+                $arrivate[$productId] = $riga;
+            }
+        }
+
+        foreach (static::products($modelId) as $product) {
+            $riga = $arrivate[(int) $product['id']] ?? null;
+
+            if ($riga === null || ($riga['active'] ?? 'true') === 'false') {
+                Bundles::assertNotUsed($product);
             }
         }
     }

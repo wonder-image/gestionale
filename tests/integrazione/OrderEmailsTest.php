@@ -221,4 +221,26 @@ check('senza indirizzo non si manda niente e non si esplode', function () {
     });
 });
 
+check('una confezione porta i suoi componenti sotto la madre, indentati e senza prezzo, in entrambe le email', function () {
+    $madre = ['id' => 5, 'sku' => 'CF-1', 'name' => 'Confezione', 'parent_item_id' => 0, 'bundle_option_id' => 0, 'quantity' => '1.000', 'unit_price' => '30.00', 'line_total' => '30.00'];
+    $fissa = ['id' => 6, 'sku' => 'CR-1', 'name' => 'Crema & Sapone', 'parent_item_id' => 5, 'bundle_option_id' => 0, 'quantity' => '1.000', 'unit_price' => '0.00', 'line_total' => '0.00'];
+    $scelta = ['id' => 7, 'sku' => 'VR-1', 'name' => '<b>Vino</b>', 'parent_item_id' => 5, 'bundle_option_id' => 9, 'quantity' => '1.000', 'unit_price' => '0.00', 'line_total' => '0.00'];
+    $ordine = ['order_number' => '2026/1', 'total' => '30.00', 'ordered_at' => '2026-10-02 10:00:00'];
+
+    foreach (['received', 'merchant_new'] as $chiave) {
+        $corpo = OrderEmail::compose($chiave, $ordine, [$madre, $fissa, $scelta])['body'];
+        $posMadre = strpos($corpo, 'Confezione');
+        $posFissa = strpos($corpo, 'Crema &amp; Sapone');
+
+        if ($posMadre === false || $posFissa === false || $posFissa < $posMadre
+            || substr_count($corpo, 'Crema &amp; Sapone') !== 1 || str_contains($corpo, '&amp;amp;')
+            || !str_contains($corpo, '&lt;b&gt;Vino&lt;/b&gt;') || str_contains($corpo, '<b>Vino')
+            || preg_match('/(?<![0-9])0,00/', $corpo) === 1 || !str_contains($corpo, 'padding-left')) {
+            return false;
+        }
+    }
+
+    return true;
+});
+
 summary();

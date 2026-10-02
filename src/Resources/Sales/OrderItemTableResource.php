@@ -70,7 +70,8 @@ final class OrderItemTableResource extends OrderSectionResource
                 ->formatter(static fn (array $row): string => static::onlyIfPriced($row, static::escape(OrderSheet::number($row['quantity'] ?? 0)))),
             TableColumn::key('unit_price')
                 ->price()
-                ->size('little'),
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::priceCell($row, 'unit_price')),
             TableColumn::key('discount_value')
                 ->text()
                 ->size('little')
@@ -81,7 +82,8 @@ final class OrderItemTableResource extends OrderSectionResource
                 ->formatter(static fn (array $row): string => static::onlyIfPriced($row, static::escape(OrderSheet::number($row['tax_rate'] ?? 0)).'%')),
             TableColumn::key('line_total')
                 ->price()
-                ->size('little'),
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::priceCell($row, 'line_total')),
         ];
     }
 
@@ -121,6 +123,16 @@ final class OrderItemTableResource extends OrderSectionResource
         $sku = trim((string) ($row['sku'] ?? ''));
         $html = $nome;
 
+        // Una figlia di confezione: rientrata sotto la madre; il gruppo non si
+        // conserva, quindi per una scelta «Scelta: » e il nome del prodotto.
+        if (static::isChild($row)) {
+            $html = (int) ($row['bundle_option_id'] ?? 0) > 0
+                ? static::escape('Scelta: ').$nome
+                : $nome;
+
+            return '<div class="ms-3 text-muted">'.$html.'</div>';
+        }
+
         if ($tipo !== 'product') {
             $html .= ' <span class="badge text-bg-light">'.static::escape(OrderSheet::itemType($tipo)).'</span>';
         }
@@ -137,9 +149,27 @@ final class OrderItemTableResource extends OrderSectionResource
         return $html;
     }
 
-    /** Una riga di sola nota non ha quantità, sconto né aliquota. */
+    /** Una riga di sola nota o una figlia di confezione non ha quantità, sconto né aliquota. */
     private static function onlyIfPriced(array $row, string $html): string
     {
-        return (string) ($row['type'] ?? 'product') === 'text' ? '' : $html;
+        return (string) ($row['type'] ?? 'product') === 'text' || static::isChild($row) ? '' : $html;
+    }
+
+    /** Un importo come lo scrive la colonna «price» del core; vuoto per una figlia. */
+    private static function priceCell(array $row, string $key): string
+    {
+        $value = $row[$key] ?? null;
+
+        if (static::isChild($row) || !is_numeric($value)) {
+            return '';
+        }
+
+        return '<span class="d-block text-end" style="font-variant-numeric: tabular-nums">'
+            .number_format((float) $value, 2, ',', '.').' €</span>';
+    }
+
+    private static function isChild(array $row): bool
+    {
+        return (int) ($row['parent_item_id'] ?? 0) > 0;
     }
 }

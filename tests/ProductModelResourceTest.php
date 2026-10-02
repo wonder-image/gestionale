@@ -2756,6 +2756,30 @@ check('le foto del colore stanno nella testata anche col secondo attributo', fun
     return $scheda::colorPhotosInGroups(3168) === true;
 });
 
+check('l\'elenco segna i multiprodotti con un badge accanto al nome, e solo loro', function () {
+    $scheda = new class extends ProductModelResource {
+        public static array $multi = [];
+
+        public static function isBundleModel(int $modelId): bool
+        {
+            return in_array($modelId, static::$multi, true);
+        }
+    };
+
+    $scheda::$multi = [7];
+
+    $badge = $scheda::bundleBadge(7);
+    $semplice = $scheda::bundleBadge(8);
+    $cella = $scheda::nameCell(['id' => 7, 'name' => 'Box &amp; <b>regalo</b>']);
+    $cellaSemplice = $scheda::nameCell(['id' => 8, 'name' => 'Vino']);
+
+    return str_contains($badge, 'Multiprodotto')
+        && $semplice === ''
+        && str_contains($cella, 'Box &amp; &lt;b&gt;regalo&lt;/b&gt;')
+        && str_contains($cella, 'Multiprodotto')
+        && $cellaSemplice === 'Vino';
+});
+
 check('il prezzo dell\'elenco porta l\'euro, e barra il pieno quando c\'è lo sconto', function () {
     $scheda = new class extends ProductModelResource {
         public static array $finti = [];

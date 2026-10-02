@@ -506,6 +506,29 @@ final class Bundles
         return $names;
     }
 
+    /**
+     * Un prodotto che fa parte di un multiprodotto non si elimina né si ferma:
+     * la confezione resterebbe senza un pezzo.
+     *
+     * Rifiuta con `refusal()` e non con `make()`: chi cancella dall'elenco
+     * intercetta `RuntimeException` (vedi `UserError`).
+     *
+     * @param array<string, mixed> $product
+     */
+    public static function assertNotUsed(array $product): void
+    {
+        $bundles = self::usedBy((int) ($product['id'] ?? 0));
+
+        if ($bundles === []) {
+            return;
+        }
+
+        throw UserError::refusal('bundle.in_use', [
+            'name' => ProductNames::full($product, ProductNames::models([$product])),
+            'bundles' => implode(', ', $bundles),
+        ]);
+    }
+
     /** @param list<array<string, mixed>> $components */
     private static function assertComponents(array $components): void
     {
