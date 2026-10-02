@@ -24,6 +24,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockMovementResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
+use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Ean;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
@@ -938,6 +939,13 @@ HTML;
         $sku = trim((string) ($values['sku'] ?? ''));
         $ean = trim((string) ($values['ean'] ?? ''));
 
+        // Fermare un'opzione che è dentro un multiprodotto lo lascerebbe senza
+        // un pezzo: lo si dice prima di scrivere qualunque cosa. Vale per la
+        // scheda come per la pillola dell'elenco.
+        if ($id > 0 && ($values['active'] ?? null) === 'false' && ($oldValues['active'] ?? 'true') !== 'false') {
+            Bundles::assertNotUsed($oldValues);
+        }
+
         if ($sku !== '' && !Sku::isFree(Product::class, $sku, $id > 0 ? $id : null)) {
             throw UserError::make('product.sku_taken');
         }
@@ -1164,6 +1172,12 @@ HTML;
      */
     public static function assertDeletable(int|string $id): void
     {
+        $product = Product::findById((int) $id);
+
+        if (is_array($product) && isset($product['id'])) {
+            Bundles::assertNotUsed($product);
+        }
+
         if (StockHistory::hasMovements((int) $id)) {
             throw UserError::refusal('product.has_movements');
         }

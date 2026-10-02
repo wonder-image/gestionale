@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Contacts;
 
+use Wonder\Plugin\Gestionale\Support\Orders\OrderLines;
+
 /**
  * Qualche numero semplice su un cliente, per la sua scheda.
  *
@@ -67,8 +69,8 @@ final class CustomerStats
             $stats['average'] = round($stats['spent'] / $stats['orders'], 2);
         }
 
-        foreach ($cartRows as $row) {
-            if (!is_array($row) || (string) ($row['type'] ?? 'product') === 'text') {
+        foreach (OrderLines::sold($cartRows) as $row) {
+            if ((string) ($row['type'] ?? 'product') === 'text') {
                 continue;
             }
 

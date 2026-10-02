@@ -78,6 +78,17 @@ check('il tipo è un elenco chiuso che nasce semplice', function () use ($colonn
         && $tipo->getSchema('default') === 'simple';
 });
 
+check('il multiprodotto ha la modalità di composizione e il valore dei componenti', function () use ($colonne, $campo) {
+    $modo = $colonne(ProductModel::class)['bundle_mode'];
+    $valore = $colonne(ProductModel::class)['show_components_value'];
+
+    return $modo->getSchema('enum') === ['fixed', 'choice', 'mixed']
+        && $valore->getSchema('enum') === ['true', 'false']
+        && $valore->getSchema('default') === 'false'
+        && $campo(ProductModel::class, 'bundle_mode') !== null
+        && $campo(ProductModel::class, 'show_components_value') !== null;
+});
+
 check('l\'unità di misura nasce a pezzi', function () use ($colonne) {
     return $colonne(ProductModel::class)['unit']->getSchema('default') === 'pz';
 });

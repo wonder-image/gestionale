@@ -18,6 +18,7 @@ use Wonder\Elements\Components\Accordion;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\Link;
+use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\QuickCreateButton;
 use Wonder\Elements\Components\RichText;
@@ -2028,7 +2029,7 @@ check('«Nuova caratteristica» apre il modal degli attributi', function () use 
         && $config['layout'] instanceof Closure;
 });
 
-check('«Nuova personalizzazione» chiede nome e sovrapprezzo, non tipo e stato', function () use ($dentroScheda, $forza) {
+check('«Nuova personalizzazione» chiede nome, tipo e sovrapprezzo, non lo stato', function () use ($dentroScheda, $forza) {
     $forza(['customizations' => true]);
     $card = (new ReflectionMethod(ProductModelResource::class, 'customizationsCard'))->invoke(null);
     $bottoni = $dentroScheda($card, QuickCreateButton::class);
@@ -2041,7 +2042,7 @@ check('«Nuova personalizzazione» chiede nome e sovrapprezzo, non tipo e stato'
 
     return count($bottoni) === 1
         && $config['resource'] === CustomizationResource::class
-        && $nomi === ['name', 'surcharge'];
+        && $nomi === ['name', 'kind', 'surcharge'];
 });
 
 check('una caratteristica a elenco si spunta a pillole, con il «+» per un valore nuovo', function () use ($schedaTecnica, $dentroScheda) {
@@ -2756,6 +2757,30 @@ check('le foto del colore stanno nella testata anche col secondo attributo', fun
     return $scheda::colorPhotosInGroups(3168) === true;
 });
 
+check('l\'elenco segna i multiprodotti con un badge accanto al nome, e solo loro', function () {
+    $scheda = new class extends ProductModelResource {
+        public static array $multi = [];
+
+        public static function isBundleModel(int $modelId): bool
+        {
+            return in_array($modelId, static::$multi, true);
+        }
+    };
+
+    $scheda::$multi = [7];
+
+    $badge = $scheda::bundleBadge(7);
+    $semplice = $scheda::bundleBadge(8);
+    $cella = $scheda::nameCell(['id' => 7, 'name' => 'Box &amp; <b>regalo</b>']);
+    $cellaSemplice = $scheda::nameCell(['id' => 8, 'name' => 'Vino']);
+
+    return str_contains($badge, 'Multiprodotto')
+        && $semplice === ''
+        && str_contains($cella, 'Box &amp; &lt;b&gt;regalo&lt;/b&gt;')
+        && str_contains($cella, 'Multiprodotto')
+        && $cellaSemplice === 'Vino';
+});
+
 check('il prezzo dell\'elenco porta l\'euro, e barra il pieno quando c\'è lo sconto', function () {
     $scheda = new class extends ProductModelResource {
         public static array $finti = [];
@@ -3094,6 +3119,147 @@ check('le righe delle personalizzazioni senza scelta o con una già vista si sca
 
     return array_column($ridate, 'customization_id') === ['3', '5']
         && ProductModelResource::prepareRepeaterRows('altro', $altre) === $altre;
+});
+
+check('senza «bundles» la scheda non ha né il tipo né la composizione, e la colonna larga non cambia', function () use ($campi, $forza) {
+    $forza(['bundles' => false]);
+
+    try {
+        $nomi = array_keys($campi());
+        $colonna = (new ReflectionMethod(ProductModelResource::class, 'mainColumn'))->invoke(null, 0);
+    } finally {
+        $forza(null);
+    }
+
+    return array_intersect(['type', 'bundle_mode', 'show_components_value', 'bundle_components', 'bundle_groups'], $nomi) === []
+        && !str_contains(print_r(array_map(static fn ($p): string => get_class($p), $colonna), true), 'Modal');
+});
+
+check('con «bundles» il tipo è un campo nascosto che dice «bundle» col bottone Multiprodotto, e la composizione ha i suoi quattro campi', function () use ($campi, $forza) {
+    $forza(['bundles' => true]);
+    $_GET['type'] = 'bundle';
+
+    try {
+        $c = $campi();
+    } finally {
+        unset($_GET['type']);
+        $forza(null);
+    }
+
+    $tipo = $c['type'] ?? null;
+    $componenti = array_map(static fn ($x): string => (string) $x->name, (array) ($c['bundle_components']?->get('context')['columns'] ?? []));
+    $gruppi = array_map(static fn ($x): string => (string) $x->name, (array) ($c['bundle_groups']?->get('context')['columns'] ?? []));
+
+    return $tipo instanceof InputHidden
+        && (string) $tipo->get('value') === 'bundle'
+        && isset($c['bundle_mode'], $c['show_components_value'])
+        && $componenti === ['id', 'product_id', 'quantity']
+        && $gruppi === ['id', 'name', 'min', 'max', 'options', 'options_button']
+        // Senza relazione: le righe le scrive `saveBundle()`.
+        && !isset(ProductModelResource::repeaterRelations()['bundle_components'])
+        && !isset(ProductModelResource::repeaterRelations()['bundle_groups']);
+});
+
+$coloraScheda = static function (?string $tipo, bool $bundles = true) use ($forza): array {
+    $forza(['bundles' => $bundles]);
+
+    if ($tipo !== null) {
+        $_GET['type'] = $tipo;
+    }
+
+    try {
+        return (new ReflectionMethod(ProductModelResource::class, 'mainColumn'))->invoke(null, 0);
+    } finally {
+        unset($_GET['type']);
+        $forza(null);
+    }
+};
+$cercaPezzo = static function (array $pezzi, callable $cond) use (&$cercaPezzo): bool {
+    foreach ($pezzi as $pezzo) {
+        if ($cond($pezzo) || (isset($pezzo->components) && $cercaPezzo((array) $pezzo->components, $cond))) {
+            return true;
+        }
+    }
+
+    return false;
+};
+$regolaPezzo = static function ($pezzo): array {
+    $attributi = $pezzo instanceof Input
+        ? $pezzo->conditionalAttributes()
+        : (array) ($pezzo->getSchema('attributes') ?? []);
+
+    return array_filter($attributi, static fn ($k): bool => str_contains((string) $k, '-when'), ARRAY_FILTER_USE_KEY);
+};
+
+check('col bottone Multiprodotto la scheda ha la composizione e la finestra delle opzioni, senza giacenza né codici', function () use ($coloraScheda, $cercaPezzo, $regolaPezzo) {
+    $colonna = $coloraScheda('bundle');
+    $composizione = static fn ($p): bool => $p instanceof Card && $cercaPezzo([$p], static fn ($x): bool => $x instanceof Input && (string) $x->name === 'bundle_mode');
+    $conTipo = static fn ($p): bool => ($regolaPezzo($p)['data-hidden-when'] ?? '') === 'type'
+        || ($regolaPezzo($p)['data-visible-when'] ?? '') === 'type';
+
+    return $cercaPezzo($colonna, $composizione)
+        && $cercaPezzo($colonna, static fn ($p): bool => $p instanceof Modal && (string) ($p->getSchema('id') ?? '') === 'wi-bundle-options')
+        && $cercaPezzo($colonna, static fn ($p): bool => $p instanceof RichText && str_contains((string) $p->getText(), 'wi-bundle-options'))
+        && !$cercaPezzo($colonna, static fn ($p): bool => $p instanceof Input && in_array((string) $p->name, ['product_stock', 'sku', 'product_ean'], true))
+        && !$cercaPezzo($colonna, $conTipo);
+});
+
+check('senza parametro, con un valore ignoto o a «bundles» spenta la scheda è quella di un prodotto', function () use ($coloraScheda, $cercaPezzo) {
+    $conComposizione = static fn (array $colonna): bool => $cercaPezzo($colonna, static fn ($p): bool => $p instanceof Input && (string) $p->name === 'bundle_mode');
+    $conCodici = static fn (array $colonna): bool => $cercaPezzo($colonna, static fn ($p): bool => $p instanceof Input && (string) $p->name === 'sku');
+
+    return !$conComposizione($coloraScheda(null)) && $conCodici($coloraScheda(null))
+        && !$conComposizione($coloraScheda('zzz')) && $conCodici($coloraScheda('zzz'))
+        && !$conComposizione($coloraScheda('bundle', false)) && $conCodici($coloraScheda('bundle', false));
+});
+
+check('sheetIsBundle: il parametro vale solo con «bundles» accesa, e il campo nascosto lo riporta dopo un errore', function () use ($forza) {
+    $forza(['bundles' => true]);
+    $_POST['type'] = 'bundle';
+    $dopoErrore = ProductModelResource::sheetIsBundle(0);
+    unset($_POST['type']);
+    $forza(['bundles' => false]);
+    $_GET['type'] = 'bundle';
+    $spenta = ProductModelResource::sheetIsBundle(0);
+    unset($_GET['type']);
+    $forza(null);
+
+    return $dopoErrore === true && $spenta === false;
+});
+
+check('con «bundles» l\'elenco ha «+ Aggiungi Prodotto» e «+ Aggiungi Multiprodotto», senza lo «Aggiungi» di serie', function () use ($forza) {
+    $forza(['bundles' => true]);
+    $layout = ProductModelResource::tableLayoutSchema()->toArray();
+    $forza(null);
+
+    $bottoni = (array) ($layout['buttons_custom'] ?? []);
+    $href = static fn ($b): string => (string) (((array) $b->getSchema('attributes'))['href'] ?? '');
+
+    return ($layout['button_add']['enabled'] ?? true) === false
+        && count($bottoni) === 2
+        && $bottoni[0]->getLabel() === '+ Aggiungi Prodotto'
+        && !str_contains($href($bottoni[0]), 'type=')
+        && $bottoni[1]->getLabel() === '+ Aggiungi Multiprodotto'
+        && str_ends_with($href($bottoni[1]), '?type=bundle');
+});
+
+check('senza «bundles» l\'elenco ha un solo bottone, quello di serie', function () use ($forza) {
+    $forza(['bundles' => false]);
+    $layout = ProductModelResource::tableLayoutSchema()->toArray();
+    $forza(null);
+
+    return ($layout['button_add']['enabled'] ?? false) === true && (array) ($layout['buttons_custom'] ?? []) === [];
+});
+
+check('il tipo e la composizione non finiscono nelle colonne dell\'articolo tra le righe da scartare', function () {
+    $v = (new ReflectionMethod(ProductModelResource::class, 'withoutExtras'))->invoke(null, [
+        'name' => 'X', 'type' => 'bundle', 'bundle_mode' => 'fixed',
+        'bundle_components' => [['product_id' => '1']], 'bundle_groups' => [['name' => 'g']],
+        'categories' => [], 'main_category' => '', 'tags' => [], 'product_ean' => '', 'product_price' => '',
+    ]);
+
+    return !array_key_exists('bundle_components', $v) && !array_key_exists('bundle_groups', $v)
+        && ($v['type'] ?? '') === 'bundle' && ($v['bundle_mode'] ?? '') === 'fixed';
 });
 
 summary();

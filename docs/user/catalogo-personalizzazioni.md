@@ -83,8 +83,10 @@ insieme alle sue opzioni, senza altro da fare.
 Dalla scheda dell'articolo, nel riquadro **Personalizzazioni**: scegli quelle
 che prevede e, per ognuna, se è **obbligatoria**. Se la personalizzazione che ti
 serve non c'è ancora, **«Nuova personalizzazione…»** ne crea una al volo: scrivi
-il nome e, se serve, il **sovrapprezzo**; nasce come testo da 100 caratteri, che
-poi rifinisci dalla sua pagina.
+il nome, scegli il **tipo** (testo o numero) e, se serve, il **sovrapprezzo**; un testo
+nasce da 100 caratteri, un numero senza decimali, e poi li rifinisci dalla sua
+pagina. Una scelta con le sue opzioni si prepara invece dalla pagina delle
+personalizzazioni.
 
 Il cliente la compila nella pagina dell'articolo e la ritrova nel carrello, nel
 riepilogo dell'ordine e nelle email.

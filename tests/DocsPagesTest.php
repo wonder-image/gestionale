@@ -127,6 +127,11 @@ check('la guida degli avvisi di scorta è nel SUMMARY', fn () =>
     in_array('magazzino/magazzino-avvisi', $pagine('user'), true)
 );
 
+check('la guida dei multiprodotti è nel SUMMARY e le funzionalità la nominano', fn () =>
+    in_array('catalogo/catalogo-multiprodotti', $pagine('user'), true)
+    && is_file(dirname(__DIR__).'/docs/user/catalogo-multiprodotti.md')
+);
+
 check('i link fra le pagine delle guide portano a file che esistono', function (): bool {
     // Un link a una pagina rinominata non si vede finché qualcuno non ci
     // clicca: GitBook lo pubblica lo stesso.

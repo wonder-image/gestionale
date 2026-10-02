@@ -34,6 +34,7 @@ use Wonder\Plugin\Gestionale\Seeding\Demo;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Plugin\Gestionale\Seeding\OrdersDemo;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
+use Wonder\Plugin\Gestionale\Support\Orders\OrderLines;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
@@ -81,6 +82,9 @@ try {
     Transaction::run(static function () use (&$esito, $righe, $ordine, $agganciate, $sempre): void {
         // Si parte dal pulito: la transazione rimette tutto com'era.
         accendiFunzionalita(['orders', 'returns', 'customizations']);
+        // Spenti per davvero: il sito di prova può averli accesi, e gli ordini
+        // restano i sette di sempre.
+        spegniFunzionalita(['bundles']);
         OrdersDemo::clear();
         CatalogDemo::clear();
         ContactsDemo::clear();
@@ -111,6 +115,7 @@ try {
 
         $esito['numeri'] = array_map(static fn (array $o): string => (string) ($o['order_number'] ?? ''), $esito['ordini']);
         $esito['conteggio'] = count($righe(Order::class, "code LIKE 'ord\\_demo-%' AND deleted = 'false'"));
+        $esito['cesti'] = count($righe(Order::class, "code LIKE 'ord\\_demo-cesto%' AND deleted = 'false'"));
 
         // Le righe con una personalizzazione: cosa ha scritto il cliente e quanto costa.
         $idOrdini = array_values(array_map(static fn (array $o): int => (int) ($o['id'] ?? 0), $esito['ordini']));
@@ -312,6 +317,129 @@ check('con le personalizzazioni accese una riga ha l\'incisione «Auguri» a 5.0
 });
 
 check('clear non tocca il reso di un ordine vero', fn () => ($esito['reso_vero_resta'] ?? false) === true);
+
+check('con i multiprodotti spenti nessun ordine «cesto»', fn () => ($esito['cesti'] ?? -1) === 0);
+
+// Con i multiprodotti accesi: quattro ordini in più, con le figlie, e un reso della confezione.
+$cesti = [];
+
+try {
+    Transaction::run(static function () use (&$cesti, $righe, $ordine, $agganciate): void {
+        accendiFunzionalita(['orders', 'returns', 'bundles']);
+        OrdersDemo::clear();
+        CatalogDemo::clear();
+        ContactsDemo::clear();
+        ContactsDemo::create();
+        CatalogDemo::create();
+        DemoData::notes();
+
+        $tutti = array_map(static fn (array $p): int => (int) $p['id'], $righe(Product::class, "deleted = 'false'"));
+        $cesti['prima'] = Levels::forProducts($tutti);
+        $cesti['create'] = OrdersDemo::create();
+        $cesti['secondo'] = OrdersDemo::create();
+        $cesti['ordini'] = [];
+
+        foreach (['cesto-in-attesa', 'cesto-confermato', 'cesto-annullato', 'cesto-evaso'] as $ref) {
+            $o = $ordine($ref);
+            $id = (int) ($o['id'] ?? 0);
+            $righeOrdine = $righe(OrderItem::class, "order_id = {$id} AND deleted = 'false'");
+            $madri = array_values(array_filter($righeOrdine, static fn (array $r): bool => OrderLines::children($righeOrdine, (int) $r['id']) !== []));
+            $cesti['ordini'][$ref] = [
+                'ordine' => $o,
+                'madri' => count($madri),
+                'figlie' => $madri === [] ? [] : OrderLines::children($righeOrdine, (int) $madri[0]['id']),
+                'madre' => $madri[0] ?? [],
+                'vendite' => array_map(
+                    static fn (array $m): int => (int) $m['product_id'],
+                    $righe(StockMovement::class, "reference_type = 'order' AND reference_id = {$id} AND type = 'sale'")
+                ),
+            ];
+        }
+
+        // Il reso della confezione: una riga per la madre e una per componente.
+        $evaso = $cesti['ordini']['cesto-evaso'];
+        $resi = $righe(SalesReturn::class, 'order_id = '.(int) ($evaso['ordine']['id'] ?? 0)." AND deleted = 'false'");
+        $resoId = (int) ($resi[0]['id'] ?? 0);
+        $idFiglie = array_map(static fn (array $f): int => (int) $f['id'], $evaso['figlie']);
+        $cesti['resi'] = count($resi);
+        $cesti['reso_codice'] = (string) ($resi[0]['code'] ?? '');
+        $cesti['reso_figlie'] = array_values(array_filter(
+            $righe(SalesReturnItem::class, "sales_return_id = {$resoId}"),
+            static fn (array $r): bool => in_array((int) $r['order_item_id'], $idFiglie, true)
+        ));
+        $cesti['reso_madre'] = array_values(array_filter(
+            $righe(SalesReturnItem::class, "sales_return_id = {$resoId}"),
+            static fn (array $r): bool => (int) $r['order_item_id'] === (int) ($evaso['madre']['id'] ?? 0)
+        ));
+
+        $idDemo = array_map(static fn (array $o): int => (int) $o['id'], $righe(Order::class, "code LIKE 'ord\\_demo-%' AND deleted = 'false'"));
+        $cesti['tolti'] = OrdersDemo::clear();
+        $cesti['resti'] = $agganciate(OrderItem::class, 'order_id', $idDemo)
+            + $agganciate(SalesReturnItem::class, 'sales_return_id', [$resoId])
+            + count($righe(StockMovement::class, "reference_type = 'sales_return' AND reference_id = {$resoId}"));
+        $cesti['dopo'] = Levels::forProducts($tutti);
+
+        try {
+            $cesti['catalogo'] = CatalogDemo::clear();
+            $cesti['errore'] = '';
+        } catch (Throwable $e) {
+            $cesti['errore'] = $e->getMessage();
+        }
+
+        throw new Annulla();
+    });
+} catch (Annulla) {
+} finally {
+    Wonder\Plugin\Gestionale\Gestionale::reset();
+    $foto->ripristina();
+}
+
+$c = $cesti['ordini'] ?? [];
+
+check('con i multiprodotti accesi nascono quattro ordini in più, e un secondo giro non ne duplica', fn () =>
+    ($cesti['create'] ?? 0) === 11 && ($cesti['secondo'] ?? -1) === 0
+);
+
+check('ogni ordine «cesto» ha una madre con le figlie, che portano i componenti', fn () =>
+    count($c) === 4 && min(array_map(static fn (array $x): int => $x['madri'], $c)) === 1
+    && min(array_map(static fn (array $x): int => count($x['figlie']), $c)) >= 2
+);
+
+check('gli ordini «cesto» sono in attesa, confermato, annullato ed evaso', fn () =>
+    ($c['cesto-in-attesa']['ordine']['status'] ?? '') === 'pending'
+    && ($c['cesto-confermato']['ordine']['status'] ?? '') === 'confirmed'
+    && ($c['cesto-annullato']['ordine']['status'] ?? '') === 'cancelled'
+    && ($c['cesto-evaso']['ordine']['status'] ?? '') === 'completed'
+);
+
+check('il confermato scarica i componenti e mai la confezione', function () use ($c) {
+    $scaricati = $c['cesto-confermato']['vendite'] ?? [];
+    $figlie = array_map(static fn (array $f): int => (int) $f['product_id'], $c['cesto-confermato']['figlie'] ?? []);
+    $madre = (int) ($c['cesto-confermato']['madre']['product_id'] ?? 0);
+
+    return $scaricati !== [] && $madre > 0 && !in_array($madre, $scaricati, true)
+        && array_diff($scaricati, $figlie) === [];
+});
+
+check('l\'ordine a scelta porta le scelte del cliente: figlie con un\'opzione di gruppo', function () use ($c) {
+    $figlie = $c['cesto-confermato']['figlie'] ?? [];
+
+    return $figlie !== [] && count(array_filter($figlie, static fn (array $f): bool => (int) $f['bundle_option_id'] > 0)) >= 1;
+});
+
+check('il reso della confezione ha una figlia che non rientra («difettoso») e una che rientra', function () use ($cesti) {
+    $restock = array_map(static fn (array $r): string => (string) $r['restock'], $cesti['reso_figlie'] ?? []);
+
+    return ($cesti['resi'] ?? 0) === 1 && DemoCode::is((string) ($cesti['reso_codice'] ?? ''))
+        && in_array('false', $restock, true) && in_array('true', $restock, true)
+        && count($cesti['reso_madre'] ?? []) === 1;
+});
+
+check('clear toglie anche gli ordini «cesto»: niente righe né resi, giacenza di prima, nessuna chiave esterna', fn () =>
+    ($cesti['tolti'] ?? 0) >= 11 && ($cesti['resti'] ?? 1) === 0
+    && ($cesti['prima'] ?? null) !== [] && ($cesti['prima'] ?? null) == ($cesti['dopo'] ?? 'x')
+    && ($cesti['errore'] ?? 'no') === '' && ($cesti['catalogo'] ?? 0) > 0
+);
 
 // Con «returns» spenta la demo non fa resi.
 $senzaResi = null;

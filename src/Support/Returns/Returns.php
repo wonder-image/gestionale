@@ -13,6 +13,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Orders\OrderLines;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
@@ -59,19 +60,33 @@ final class Returns
     }
 
     /**
-     * Le righe prodotto di un ordine con quanto se ne può ancora rendere.
+     * Le righe prodotto di primo livello di un ordine con quanto se ne può ancora rendere.
      *
      * `customization` è la lista decodificata dei campi (vuota se la riga non è personalizzata).
+     * Una confezione porta i suoi componenti in `children`: `per_unit` è quanti pezzi ne
+     * contiene ogni confezione, `restock_default` se di norma rientra (col motivo di partenza).
      *
-     * @return list<array{order_item_id: int, name: string, ordered: float, returned: float, max: float, customization: list<array<string, mixed>>}>
+     * @return list<array{order_item_id: int, name: string, ordered: float, returned: float, max: float, customization: list<array<string, mixed>>, children: list<array{order_item_id: int, name: string, per_unit: float, returned: float, restock_default: bool}>}>
      */
     public static function lines(int $orderId): array
     {
+        $items = self::productItems($orderId);
         $lines = [];
 
-        foreach (self::productItems($orderId) as $item) {
+        foreach (OrderLines::sold($items) as $item) {
             $ordered = round((float) $item['quantity'], 3);
             $returned = self::returned((int) $item['id']);
+            $children = [];
+
+            foreach (OrderLines::children($items, (int) $item['id']) as $child) {
+                $children[] = [
+                    'order_item_id' => (int) $child['id'],
+                    'name' => (string) $child['name'],
+                    'per_unit' => self::perUnit($child, $item),
+                    'returned' => self::returned((int) $child['id']),
+                    'restock_default' => ReturnRules::defaultRestock(ReturnRules::DEFAULT_REASON),
+                ];
+            }
 
             $lines[] = [
                 'order_item_id' => (int) $item['id'],
@@ -80,6 +95,7 @@ final class Returns
                 'returned' => $returned,
                 'max' => ReturnRules::returnable($ordered, $returned),
                 'customization' => Customizations::decode($item['customization'] ?? ''),
+                'children' => $children,
             ];
         }
 
@@ -89,8 +105,9 @@ final class Returns
     /**
      * Registra un reso.
      *
-     * @param list<array{order_item_id: int, quantity: mixed, reason: string, restock?: ?bool, note?: string}> $lines
-     *     quantità vuota o zero = riga non resa; `restock` null = quello proposto dal motivo
+     * @param list<array{order_item_id: int, quantity: mixed, reason: string, restock?: ?bool, children_restock?: array<int, ?bool>, note?: string}> $lines
+     *     quantità vuota o zero = riga non resa; `restock` null = quello proposto dal motivo;
+     *     su una confezione `children_restock` dice, per componente, se rientra (null o assente = come dice il motivo)
      * @param array{location_id?: int, customer_note?: string, internal_note?: string, source?: string, user_id?: int} $options
      * @return array{return_id: int, number: string, restocked: int, kept: int}
      */
@@ -107,13 +124,14 @@ final class Returns
                 throw UserError::make('return.order_not_returnable');
             }
 
+            $all = self::productItems($orderId);
             $items = [];
 
-            foreach (self::productItems($orderId) as $item) {
+            foreach (OrderLines::sold($all) as $item) {
                 $items[(int) $item['id']] = $item;
             }
 
-            $wanted = self::wanted($lines, $items);
+            $wanted = self::wanted($lines, $items, $all);
 
             if ($wanted === []) {
                 throw UserError::make('return.nothing_selected');
@@ -144,28 +162,44 @@ final class Returns
 
             foreach ($wanted as $want) {
                 $item = $items[$want['order_item_id']];
+                $goods = $want['children'] === []
+                    ? [['order_item_id' => $want['order_item_id'], 'product_id' => (int) $item['product_id'], 'quantity' => $want['quantity'], 'restock' => $want['restock']]]
+                    : $want['children'];
 
                 SalesReturnItem::create([
                     'sales_return_id' => $returnId,
                     'order_item_id' => $want['order_item_id'],
                     'quantity' => number_format($want['quantity'], 3, '.', ''),
                     'reason' => $want['reason'],
-                    'restock' => $want['restock'] ? 'true' : 'false',
+                    'restock' => $want['children'] === [] && $want['restock'] ? 'true' : 'false',
                     'note' => $want['note'],
                 ]);
 
-                $done = Allocation::returnGoods([
-                    'product_id' => (int) $item['product_id'],
-                    'quantity' => $want['quantity'],
-                    'location_id' => $locationId,
-                    'sales_return_id' => $returnId,
-                    'restock' => $want['restock'],
-                    'source' => $source,
-                    'user_id' => $userId,
-                    'note' => 'Reso '.$number,
-                ]);
+                foreach ($goods as $good) {
+                    if ($want['children'] !== []) {
+                        SalesReturnItem::create([
+                            'sales_return_id' => $returnId,
+                            'order_item_id' => $good['order_item_id'],
+                            'quantity' => number_format($good['quantity'], 3, '.', ''),
+                            'reason' => $want['reason'],
+                            'restock' => $good['restock'] ? 'true' : 'false',
+                            'note' => '',
+                        ]);
+                    }
 
-                $done['restocked'] ? $restocked++ : $kept++;
+                    $done = Allocation::returnGoods([
+                        'product_id' => $good['product_id'],
+                        'quantity' => $good['quantity'],
+                        'location_id' => $locationId,
+                        'sales_return_id' => $returnId,
+                        'restock' => $good['restock'],
+                        'source' => $source,
+                        'user_id' => $userId,
+                        'note' => 'Reso '.$number,
+                    ]);
+
+                    $done['restocked'] ? $restocked++ : $kept++;
+                }
             }
 
             self::log($returnId, '', 'received', $source, $userId);
@@ -215,13 +249,15 @@ final class Returns
 
     /**
      * Le righe chieste, controllate: una sola voce per riga d'ordine, motivo
-     * valido, quantità entro il massimo.
+     * valido, quantità entro il massimo. Una confezione porta i suoi componenti,
+     * ciascuno con la quantità che segue le confezioni rese e la sua spunta.
      *
      * @param list<array<string, mixed>> $lines
-     * @param array<int, array<string, mixed>> $items le righe prodotto dell'ordine, per id
-     * @return list<array{order_item_id: int, quantity: float, reason: string, restock: bool, note: string}>
+     * @param array<int, array<string, mixed>> $items le righe di primo livello dell'ordine, per id
+     * @param list<array<string, mixed>> $all tutte le righe prodotto, figlie comprese
+     * @return list<array{order_item_id: int, quantity: float, reason: string, restock: bool, note: string, children: list<array{order_item_id: int, product_id: int, per_unit: float, restock: bool, quantity: float}>}>
      */
-    private static function wanted(array $lines, array $items): array
+    private static function wanted(array $lines, array $items, array $all): array
     {
         $wanted = [];
 
@@ -251,17 +287,22 @@ final class Returns
             }
 
             $restock = ($line['restock'] ?? null) === null ? ReturnRules::defaultRestock($reason) : (bool) $line['restock'];
+            $children = self::childrenWanted($items[$itemId], $all, $reason, (array) ($line['children_restock'] ?? []));
 
             if (isset($wanted[$itemId])) {
                 $wanted[$itemId]['quantity'] = round($wanted[$itemId]['quantity'] + $quantity, 3);
                 $wanted[$itemId]['restock'] = $wanted[$itemId]['restock'] && $restock;
+
+                foreach ($children as $childId => $child) {
+                    $wanted[$itemId]['children'][$childId]['restock'] = $wanted[$itemId]['children'][$childId]['restock'] && $child['restock'];
+                }
 
                 continue;
             }
 
             $wanted[$itemId] = [
                 'order_item_id' => $itemId, 'quantity' => $quantity, 'reason' => $reason,
-                'restock' => $restock, 'note' => trim((string) ($line['note'] ?? '')),
+                'restock' => $restock, 'note' => trim((string) ($line['note'] ?? '')), 'children' => $children,
             ];
         }
 
@@ -274,9 +315,57 @@ final class Returns
                     'max' => rtrim(rtrim(number_format($max, 3, ',', ''), '0'), ','),
                 ]);
             }
+
+            foreach ($want['children'] as $childId => $child) {
+                $wanted[$itemId]['children'][$childId]['quantity'] = ReturnRules::childQuantity($child['per_unit'], $want['quantity']);
+            }
+
+            $wanted[$itemId]['children'] = array_values($wanted[$itemId]['children']);
         }
 
         return array_values($wanted);
+    }
+
+    /**
+     * I componenti di una confezione chiesta: la spunta di ciascuno è quella
+     * detta a mano, o quella del motivo.
+     *
+     * @param array<string, mixed> $mother
+     * @param list<array<string, mixed>> $all
+     * @param array<int|string, mixed> $choices
+     * @return array<int, array{order_item_id: int, product_id: int, per_unit: float, restock: bool, quantity: float}>
+     */
+    private static function childrenWanted(array $mother, array $all, string $reason, array $choices): array
+    {
+        $children = [];
+
+        foreach (OrderLines::children($all, (int) $mother['id']) as $child) {
+            $childId = (int) $child['id'];
+            $explicit = $choices[$childId] ?? null;
+
+            $children[$childId] = [
+                'order_item_id' => $childId,
+                'product_id' => (int) $child['product_id'],
+                'per_unit' => self::perUnit($child, $mother),
+                'restock' => $explicit === null ? ReturnRules::defaultRestock($reason) : (bool) $explicit,
+                'quantity' => 0.0,
+            ];
+        }
+
+        return $children;
+    }
+
+    /**
+     * Quanti pezzi del componente stanno in una confezione.
+     *
+     * @param array<string, mixed> $child
+     * @param array<string, mixed> $mother
+     */
+    private static function perUnit(array $child, array $mother): float
+    {
+        $packs = (float) $mother['quantity'];
+
+        return $packs > 0 ? round((float) $child['quantity'] / $packs, 6) : 0.0;
     }
 
     /** @return list<array<string, mixed>> */

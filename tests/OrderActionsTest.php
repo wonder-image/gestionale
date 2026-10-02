@@ -40,6 +40,16 @@ check('i pezzi si contano dalle righe prodotto, al singolare e al plurale', func
         && OrderActions::summary('confirm', $ordine('pending'), []) === 'Conferma l\'ordine e scarica 0 pezzi.';
 });
 
+check('una confezione da 2 conta 2 pezzi, non 2 più quelli delle figlie', function () use ($ordine) {
+    $righe = [
+        ['id' => 1, 'type' => 'product', 'quantity' => '2.000', 'parent_item_id' => 0],
+        ['id' => 2, 'type' => 'product', 'quantity' => '4.000', 'parent_item_id' => 1],
+        ['id' => 3, 'type' => 'product', 'quantity' => '2.000', 'parent_item_id' => 1],
+    ];
+
+    return OrderActions::summary('confirm', $ordine('pending'), $righe) === 'Conferma l\'ordine e scarica 2 pezzi.';
+});
+
 check('annullare dice cosa succede alla merce, in attesa o confermato', function () use ($ordine) {
     $tre = [['type' => 'product', 'quantity' => '3.000']];
     $uno = [['type' => 'product', 'quantity' => '1.000']];

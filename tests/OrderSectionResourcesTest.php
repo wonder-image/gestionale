@@ -205,4 +205,37 @@ check('la foto: un\'immagine non ancora pronta non si mostra', function () {
     return ProductPhotos::pick([$non], 0, 1) === '';
 });
 
+$colonna = static fn (string $nome): Closure => array_values(array_filter(
+    OrderItemTableResource::tableSchema(),
+    static fn ($c): bool => (string) $c->name === $nome
+))[0]->schema['formatter'];
+
+check('Righe: una figlia di confezione è rientrata, senza prezzo, quantità né totale; «Scelta: » solo per le opzioni', function () use ($colonna) {
+    $nome = $colonna('name');
+    $madre = ['id' => 5, 'type' => 'product', 'name' => 'Confezione', 'sku' => 'CF-1', 'parent_item_id' => 0, 'bundle_option_id' => 0, 'quantity' => '2.000', 'unit_price' => '30.00', 'line_total' => '60.00', 'tax_rate' => '22.00'];
+    $fissa = ['id' => 6, 'type' => 'product', 'name' => '<b>Crema</b> & co', 'sku' => 'CR-1', 'parent_item_id' => 5, 'bundle_option_id' => 0, 'quantity' => '2.000', 'unit_price' => '0.00', 'line_total' => '0.00', 'tax_rate' => '22.00'];
+    $scelta = ['id' => 7, 'type' => 'product', 'name' => 'Vino rosso', 'sku' => 'VR-1', 'parent_item_id' => 5, 'bundle_option_id' => 9, 'quantity' => '2.000', 'unit_price' => '0.00', 'line_total' => '0.00', 'tax_rate' => '22.00'];
+
+    $htmlFissa = $nome($fissa);
+    $htmlScelta = $nome($scelta);
+
+    return str_contains($htmlFissa, 'ms-3') && str_contains($htmlFissa, '&lt;b&gt;Crema&lt;/b&gt;') && !str_contains($htmlFissa, '<b>Crema')
+        && !str_contains($htmlFissa, 'Scelta:') && !str_contains($htmlFissa, '&amp;amp;')
+        && str_contains($htmlScelta, 'Scelta: Vino rosso') && str_contains($htmlScelta, 'ms-3')
+        && !str_contains($nome($madre), 'ms-3') && !str_contains($nome($madre), 'Scelta:')
+        && $colonna('quantity')($scelta) === '' && $colonna('discount_value')($scelta) === '' && $colonna('tax_rate')($scelta) === ''
+        && $colonna('unit_price')($scelta) === '' && $colonna('line_total')($scelta) === ''
+        && str_contains($colonna('unit_price')($madre), '30,00 €') && str_contains($colonna('line_total')($madre), '60,00 €')
+        && str_contains($colonna('quantity')($madre), '2');
+});
+
+check('Righe: una riga di prima, senza figlie né confezioni, ha le celle di sempre', function () use ($colonna) {
+    $riga = ['type' => 'product', 'name' => 'Maglia', 'sku' => 'MG-1', 'quantity' => '1.000', 'unit_price' => '10.50', 'line_total' => '10.50', 'tax_rate' => '22.00'];
+
+    return !str_contains($colonna('name')($riga), 'ms-3')
+        && str_contains($colonna('unit_price')($riga), '10,50 €')
+        && str_contains($colonna('line_total')($riga), '10,50 €')
+        && $colonna('quantity')($riga) === '1';
+});
+
 summary();

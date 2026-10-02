@@ -69,6 +69,44 @@ obbligatoria non si aggiunge (`customization.unavailable`).
   personalizzata, ed è quello che E1c deve consultare per il reso fatto dal
   cliente. Il reso registrato dal commerciante (`Returns::register()`) non cambia.
 
+### Le confezioni (multiprodotti)
+
+`Cart::add($carrello, ['product_id' => …, 'choices' => [id opzione, …]])`. Con
+`bundles` spenta un multiprodotto non si aggiunge (`bundle.feature_off`); le
+scelte passano da `Bundles::resolve()`, e un valore sbagliato lancia `UserError`.
+
+- **Una madre e tante figlie.** La madre è la riga che si vende, col prezzo
+  (base + sovrapprezzo delle opzioni, `LinePrice`). Ogni componente è una riga
+  figlia a prezzo zero con `parent_item_id` che punta alla madre e, per le
+  parti scelte, `bundle_option_id`; la quantità della figlia è
+  `quantity` del componente per i pezzi della madre.
+- **`OrderLines` decide chi è chi**: `flat()` (la lista col `parent_item_id`),
+  `goods()` (le righe con merce dietro: **la madre non c'è**), `sold()` (le
+  righe comprate: tutte tranne le figlie) e `children()`. Prenotare, scaricare
+  e rimettere a scaffale parte sempre da `goods()`: **la madre non entra mai in
+  `Allocation`**, perché non ha giacenza. Chi scrive nuovo codice sulle righe
+  non filtra a mano: passa di lì.
+- `Cart::contents()['items'][]['children']` è la lista annidata delle figlie
+  (le stesse chiavi della madre, con `bundle_option_id`); le figlie hanno prezzo
+  zero, quindi i totali non cambiano.
+- Due righe uguali si fondono solo se hanno le stesse scelte; cambiare la
+  quantità della madre riscrive le figlie, e `assertPacks()` controlla che i
+  componenti bastino.
+- **`recalculate()` ripassa le confezioni** contro l'anagrafica di oggi: se un
+  componente è spento o un'opzione non c'è più, **la riga esce** (madre e figlie)
+  e il nome va in `removed`. Dopo l'ordine le righe sono una copia.
+
+### Il reso di una confezione
+
+`Returns::register()` vuole, per una confezione, **una riga per la madre**
+(quantità, motivo) e, in `children_restock`, un `id figlia => bool|null` per dire
+quali componenti rientrano (assente o `null` = come dice il motivo; per
+`damaged` e `defective` non rientrano). Il reso scrive una riga per la madre e
+una per ogni componente, ciascuna col suo «rientra a magazzino»; la quantità
+massima è quella della madre, e il rientro passa da `Allocation::returnGoods()`
+sulle sole figlie. La pulizia dei dati di prova (`OrdersDemo`) restituisce la
+merce di `OrderLines::goods()`, mai quella della madre.
+
 ## Il reso
 
 `Returns::register($ordine, $righe, $opzioni)` fa tutto dentro una transazione,

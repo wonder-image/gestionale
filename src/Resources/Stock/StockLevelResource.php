@@ -9,6 +9,7 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Sql\Query;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
@@ -146,6 +147,22 @@ final class StockLevelResource extends GestionaleResource
         ]);
 
         return $columns;
+    }
+
+    /**
+     * Le versioni che hanno una giacenza: un multiprodotto non ne ha, la sua
+     * disponibilità viene dai componenti, e una riga a zero in elenco
+     * farebbe credere che sia finito.
+     */
+    public static function querySchema(): array
+    {
+        $schema = parent::querySchema();
+        $base = Query::Conditions($schema['condition'] ?? [], false);
+        $semplici = '`'.Product::$table.'`.`product_model_id` NOT IN (SELECT b.id FROM `'.ProductModel::$table."` b WHERE b.type = 'bundle')";
+
+        $schema['condition'] = ($base !== '' ? $base.' AND ' : '').$semplici;
+
+        return $schema;
     }
 
     public static function tableLayoutSchema(): TableLayoutSchema

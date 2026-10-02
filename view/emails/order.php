@@ -23,6 +23,14 @@
 <?php if ($items !== []) { ?>
     <table cellpadding="6" cellspacing="0" border="0">
         <?php foreach ($items as $item) { ?>
+            <?php if ((int) ($item['parent_item_id'] ?? 0) > 0) { ?>
+                <tr>
+                    <td style="padding-left: 24px"><?= $e(((int) ($item['bundle_option_id'] ?? 0) > 0 ? 'Scelta: ' : '').($item['name'] ?? '')) ?></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                <?php continue; ?>
+            <?php } ?>
             <tr>
                 <td>
                     <?= $e($item['name'] ?? '') ?>

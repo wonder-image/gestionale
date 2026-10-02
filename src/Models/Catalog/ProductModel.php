@@ -16,8 +16,10 @@ use Wonder\Sql\TableSchema as Column;
  * vende e sta a magazzino). Un articolo senza varianti è comunque un modello
  * con una variante e un prodotto: il pannello semplicemente non la nomina.
  *
- * `type` c'è già ma in G2a vale solo `simple`: il multiprodotto (`bundle`)
- * arriva in G5, e aggiungere la colonna dopo vorrebbe dire rifare la scheda.
+ * `type` è `simple` o `bundle` (multiprodotto, G5). Un multiprodotto ha
+ * sempre un solo prodotto, senza giacenza: ne descrivono la composizione
+ * `BundleComponent` (fissi) e `BundleGroup` con le sue `BundleGroupOption`
+ * (a scelta del cliente), secondo `bundle_mode`.
  *
  * Lo SKU **non** ha un indice unico: il framework scrive stringhe vuote e non
  * NULL, quindi due modelli senza SKU si scontrerebbero. L'unicità la controlla
@@ -43,6 +45,11 @@ final class ProductModel extends Model
             Column::key('brand_id')->int()->foreign(Brand::$table),
             Column::key('tax_category_id')->int()->foreign(TaxCategory::$table),
             Column::key('type')->enum(['simple', 'bundle'])->default('simple'),
+            // Solo per un multiprodotto: prodotti fissi, scelti dal cliente o
+            // entrambi. Vuoto per un articolo semplice.
+            Column::key('bundle_mode')->enum(['fixed', 'choice', 'mixed'])->null(),
+            // Se la vetrina può mostrare il valore dei componenti (E1b).
+            Column::key('show_components_value')->enum(['true', 'false'])->default('false'),
             Column::key('sku')->length(100),
             Column::key('unit')->length(10)->default('pz'),
             // Senza chiave esterna: vuoto vale zero, e vuol dire "la scatola
@@ -81,6 +88,8 @@ final class ProductModel extends Model
             Field::key('brand_id')->number()->decimals(0),
             Field::key('tax_category_id')->number()->decimals(0),
             Field::key('type')->text()->sanitize(false),
+            Field::key('bundle_mode')->text()->sanitize(false),
+            Field::key('show_components_value')->text()->sanitize(false),
             Field::key('sku')->text(),
             Field::key('unit')->text(),
             Field::key('package_id')->number()->decimals(0),

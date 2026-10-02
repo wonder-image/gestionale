@@ -30,7 +30,8 @@
                 "not_a_cart": "Questo ordine non è più un carrello e non si può modificare.",
                 "product_unavailable": "Questo articolo non è più in vendita.",
                 "not_enough_stock": "Di «{{name}}» restano {{available}} pezzi.",
-                "item_not_found": "Questa riga non è nel tuo carrello."
+                "item_not_found": "Questa riga non è nel tuo carrello.",
+                "child_line": "Questa riga fa parte di un multiprodotto: cambia o togli il multiprodotto, non il suo componente."
             },
             "payment": {
                 "zero_amount": "Un pagamento deve avere un importo maggiore di zero.",
@@ -79,6 +80,7 @@
                 "one_page_option": "Un articolo può avere un solo attributo «Opzione con foto proprie»: togli le spunte di uno dei due.",
                 "no_versions": "Un articolo deve avere almeno un'opzione in vendita.",
                 "has_movements": "Questo articolo ha movimenti di magazzino e non si elimina: mettilo su «Nascosto» se non lo vendi più.",
+                "in_orders": "Questo multiprodotto è già in degli ordini e non si elimina: mettilo su «Nascosto» se non lo vendi più.",
                 "stock_negative": "La giacenza non può essere un numero negativo: scrivi quanti pezzi ci sono davvero.",
                 "min_stock_invalid": "La scorta minima è un numero di pezzi, zero o più: con zero non arriva nessun avviso.",
                 "backorder_lead_days_invalid": "I giorni di attesa vanno da 0 a 365.",
@@ -120,6 +122,25 @@
                 "cannot_cancel": "Solo un reso ricevuto si può annullare.",
                 "already_restocked": "La merce di questo reso è già rientrata a magazzino: per correggere la giacenza usa una rettifica in Magazzino.",
                 "invalid_quantity": "La quantità di {{product}} non è valida: scrivi un numero maggiore di zero, oppure lascia la casella vuota."
+            },
+            "bundle": {
+                "unknown_mode": "Scegli se il multiprodotto è fisso, a scelta o misto.",
+                "no_components": "Aggiungi almeno un prodotto alla composizione.",
+                "no_groups": "Aggiungi almeno un gruppo di scelta.",
+                "zero_quantity": "La quantità di ogni prodotto deve essere maggiore di zero.",
+                "duplicate_product": "Lo stesso prodotto compare due volte nello stesso elenco.",
+                "group_range": "Nel gruppo «{{name}}» il minimo e il massimo non tornano: il minimo parte da 0, il massimo da 1, il minimo non supera il massimo e il massimo non supera le opzioni.",
+                "group_name": "Scrivi il nome del gruppo.",
+                "negative_surcharge": "Il sovrapprezzo non può essere negativo.",
+                "unknown_option": "Una delle scelte non appartiene a questo multiprodotto.",
+                "too_few": "«{{name}}»: scegli almeno {{min}}.",
+                "too_many": "«{{name}}»: scegli al massimo {{max}}.",
+                "not_bundle": "Questo articolo non è un multiprodotto.",
+                "component_unavailable": "«{{name}}» non è più in vendita, e la confezione non si può comporre.",
+                "nested": "«{{name}}» è già un multiprodotto, e un multiprodotto non entra in un altro.",
+                "options_invalid": "Le opzioni di un gruppo non sono leggibili: riaprile e salva di nuovo.",
+                "feature_off": "I multiprodotti sono spenti: attiva la funzionalità per venderli.",
+                "in_use": "«{{name}}» fa parte di multiprodotti ({{bundles}}): toglilo prima dalla loro composizione."
             }
         },
         "emails": {

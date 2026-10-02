@@ -159,12 +159,26 @@ versionamento semantico.
 - Personalizzazioni (funzionalità `customizations`, richiede `orders`): campi che il
   cliente compila comprando, di testo o a scelta, con sovrapprezzo. Pagina *Catalogo →
   Personalizzazioni* con le opzioni, riquadro *Personalizzazioni* nella scheda
-  dell'articolo con «Nuova personalizzazione» al volo, `Customizations` (controllo,
+  dell'articolo con «Nuova personalizzazione» al volo (nome, tipo Testo o Numero,
+  sovrapprezzo), `Customizations` (controllo,
   sovrapprezzo, codifica per latin1), `Cart::add()` che le controlla e le prezza dal
   server e fa uscire la riga se l'anagrafica cambia, righe d'ordine, email e reso
   (online escluso). `gestionale:demo` crea «Incisione» e «Confezione regalo» e mette
   l'incisione su metà degli ordini di prova. Chi aggiorna esegua `php forge update`
   per le tre tabelle nuove.
+- Multiprodotto (funzionalità `bundles`): un articolo che ne contiene altri, in tre
+  modi (fisso, a scelta del cliente, misto) con gruppi di scelta, minimo e massimo e
+  sovrapprezzo per opzione. Nella lista degli articoli due bottoni («Aggiungi Prodotto»,
+  «Aggiungi Multiprodotto») scelgono il tipo; composizione nella scheda, valore
+  dei componenti facoltativo, disponibilità dal componente più scarso. `Bundles`
+  (composizione, `resolve()`, `available()`, `usedBy()`), `OrderLines` (madre e
+  figlie), `Cart::add()` con `choices` e righe figlie che il server riscrive, scheda
+  dell'ordine ed email con i componenti sotto la confezione, reso della confezione
+  con il «rientra a magazzino» di ogni componente. Un prodotto usato da un
+  multiprodotto non si elimina né si spegne (`bundle.in_use`). `gestionale:demo`
+  crea tre cesti e, con la funzionalità accesa, quattro ordini (uno con un reso).
+  Chi aggiorna deve lanciare `php forge update`: tre tabelle e tre colonne nuove
+  su `gst_product_models`.
 
 ### Corretto
 

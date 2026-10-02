@@ -50,6 +50,43 @@ check('la tabella mostra la personalizzazione sotto il nome, escapata', function
         && !str_contains(OrderReturnResource::linesHtml([['order_item_id' => 22, 'name' => 'Penna', 'ordered' => 1.0, 'returned' => 0.0, 'max' => 1.0]]), 'Incisione');
 });
 
+check('una confezione ha la riga madre con la quantità e una riga per componente con la sua casella', function () {
+    $html = OrderReturnResource::linesHtml([[
+        'order_item_id' => 31, 'name' => 'Confezione', 'ordered' => 3.0, 'returned' => 1.0, 'max' => 2.0, 'customization' => [],
+        'children' => [
+            ['order_item_id' => 32, 'name' => '<u>Crema</u>', 'per_unit' => 1.0, 'returned' => 1.0, 'restock_default' => true],
+            ['order_item_id' => 33, 'name' => 'Sapone', 'per_unit' => 2.0, 'returned' => 2.0, 'restock_default' => true],
+        ],
+    ]]);
+
+    return str_contains($html, 'name="lines[31][quantity]"') && str_contains($html, 'name="lines[31][reason]"')
+        && !str_contains($html, 'name="lines[31][restock]"')
+        && !str_contains($html, 'name="lines[32][quantity]"')
+        && preg_match('/name="lines\[31\]\[children_restock\]\[32\]"[^>]*\schecked/', $html) === 1
+        && str_contains($html, 'name="lines[31][children_restock][33]"')
+        && str_contains($html, 'name="lines[31][children_restock][32]" value=""')
+        && str_contains($html, '&lt;u&gt;Crema&lt;/u&gt;') && !str_contains($html, '<u>Crema');
+});
+
+check('le caselle dei componenti seguono il motivo scelto sulla riga madre', function () {
+    $html = OrderReturnResource::linesHtml([[
+        'order_item_id' => 41, 'name' => 'Confezione', 'ordered' => 1.0, 'returned' => 0.0, 'max' => 1.0, 'customization' => [],
+        'children' => [['order_item_id' => 42, 'name' => 'Crema', 'per_unit' => 1.0, 'returned' => 0.0, 'restock_default' => true]],
+    ]]);
+
+    return str_contains($html, 'data-wi-children="41"') && str_contains($html, 'data-wi-child-of="41"');
+});
+
+check('«run» legge dalle caselle dei componenti chi rientra e chi no', function () {
+    $letto = OrderReturnResource::childrenRestockFrom([
+        '32' => '', '33' => 'on', '34' => '',
+    ]);
+
+    return $letto === [32 => false, 33 => true, 34 => false]
+        && OrderReturnResource::childrenRestockFrom(['x' => 'on']) === []
+        && OrderReturnResource::childrenRestockFrom('niente') === [];
+});
+
 check('una riga già resa per intero è grigia e senza campi', function () use ($righe) {
     $html = OrderReturnResource::linesHtml($righe);
 

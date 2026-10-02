@@ -73,4 +73,14 @@ check('il carrello vale la somma delle sue righe, e le note non contano', functi
     return $s['cart_value'] === 25.5 && $s['cart_items'] === 3;
 });
 
+check('nel carrello una confezione da 2 conta 2 pezzi e il suo valore, senza le figlie', function () {
+    $s = CustomerStats::of([], [
+        ['id' => 1, 'type' => 'product', 'quantity' => '2.000', 'line_total' => '50.00', 'parent_item_id' => 0],
+        ['id' => 2, 'type' => 'product', 'quantity' => '4.000', 'line_total' => '0.00', 'parent_item_id' => 1],
+        ['id' => 3, 'type' => 'product', 'quantity' => '2.000', 'line_total' => '0.00', 'parent_item_id' => 1],
+    ]);
+
+    return $s['cart_items'] === 2 && $s['cart_value'] === 50.0;
+});
+
 summary();

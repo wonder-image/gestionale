@@ -48,6 +48,9 @@ final class OrderItem extends Model
             Column::key('type')->enum(static::TYPES)->default('product'),
             Column::key('product_id')->int()->default(0),
             Column::key('parent_item_id')->int()->default(0),
+            // Su una riga figlia: l'opzione di gruppo scelta dal cliente
+            // (`gst_bundle_group_options`), zero per un componente fisso.
+            Column::key('bundle_option_id')->int()->default(0),
             Column::key('position')->int()->default(0),
             // Copia del prodotto
             Column::key('sku')->length(100),
@@ -87,6 +90,7 @@ final class OrderItem extends Model
             Field::key('type')->text()->sanitize(false),
             Field::key('product_id')->number()->decimals(0),
             Field::key('parent_item_id')->number()->decimals(0),
+            Field::key('bundle_option_id')->number()->decimals(0),
             Field::key('position')->number()->decimals(0),
             Field::key('sku')->text(),
             // Niente `sanitizeFirst()`: "XL" deve restare "XL".

@@ -86,11 +86,7 @@ final class Lifecycle
 
             $committed = 0;
 
-            foreach (self::items($orderId) as $item) {
-                if ((int) ($item['product_id'] ?? 0) <= 0) {
-                    continue;
-                }
-
+            foreach (OrderLines::goods(self::items($orderId)) as $item) {
                 Allocation::commit([
                     'product_id' => (int) $item['product_id'],
                     'quantity' => (float) $item['quantity'],
@@ -175,11 +171,7 @@ final class Lifecycle
             $source = (string) ($options['source'] ?? 'system');
 
             if (in_array($status, self::COMMITTED, true)) {
-                foreach (self::items($orderId) as $item) {
-                    if ((int) ($item['product_id'] ?? 0) <= 0) {
-                        continue;
-                    }
-
+                foreach (OrderLines::goods(self::items($orderId)) as $item) {
                     // Quel che un reso ha già reso non si rimette due volte: se è
                     // rientrato lo ha fatto il reso, se era rotto non va a scaffale.
                     $daRimettere = round((float) $item['quantity'] - Returns::returned((int) $item['id']), 3);
