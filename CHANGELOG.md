@@ -185,6 +185,13 @@ versionamento semantico.
   non ha i bottoni di aggiunta in «Opzioni in vendita» e, per un multiprodotto,
   mostra il badge e il riquadro «Composizione» con la tipologia, i «Componenti» e i
   «Gruppi di scelta».
+- Campagne di sconto (`discount_campaigns`, G6 piano 1): sconto in percentuale o
+  in importo su categorie, tag, marchi o articoli per un periodo e per canale,
+  con prezzo applicato dal carrello (`price_source = 'campaign'`, `discount_campaign_id`
+  sulla riga), pagina *Promozioni → Campagne di sconto* con anteprima dei
+  prodotti coinvolti e avviso di sovrapposizione, tre campagne di prova
+  (`PromotionsDemo`) e guide. Chi aggiorna deve lanciare `php forge update`: cinque
+  tabelle nuove e una colonna su `gst_order_items`.
 
 ### Corretto
 
