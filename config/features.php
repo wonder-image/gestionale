@@ -3,6 +3,9 @@
 /**
  * Catalogo delle funzionalità del gestionale (3.4 della spec di architettura).
  * Il database conserva solo lo stato: nome, area e dipendenze stanno qui.
+ *
+ * `created => false` segna una funzionalità prevista ma non ancora costruita:
+ * il pannello la mostra in sola lettura. Si toglie la riga quando esce.
  */
 return [
     'orders' => [
@@ -17,6 +20,7 @@ return [
         'area' => 'Vendite',
         'requires' => ['orders'],
         'release' => 'G9',
+        'created' => false,
     ],
     'returns' => [
         'name' => 'Resi',
@@ -31,12 +35,14 @@ return [
         'area' => 'Vendite',
         'requires' => ['orders'],
         'release' => 'G9',
+        'created' => false,
     ],
     'subscriptions' => [
         'name' => 'Abbonamenti',
         'description' => 'Piani, rinnovi e cambio piano.',
         'area' => 'Vendite',
         'release' => 'G10',
+        'created' => false,
     ],
     'bundles' => [
         'name' => 'Multiprodotto',
@@ -56,6 +62,7 @@ return [
         'description' => 'Etichette con codice a barre e prezzo in PDF.',
         'area' => 'Catalogo',
         'release' => 'futura',
+        'created' => false,
     ],
     'multi_location' => [
         'name' => 'Più sedi',
@@ -74,6 +81,7 @@ return [
         'description' => 'Lotto e data di scadenza su carichi e scarichi.',
         'area' => 'Magazzino',
         'release' => 'G3',
+        'created' => false,
     ],
     'low_stock_alerts' => [
         'name' => 'Avvisi di scorta minima',
@@ -94,6 +102,7 @@ return [
         'area' => 'Listini',
         'requires' => ['orders'],
         'release' => 'G6',
+        'created' => false,
     ],
     'discount_campaigns' => [
         'name' => 'Sconto massivo',
@@ -114,6 +123,7 @@ return [
         'description' => 'Fatture, invio SDI, coda, stati e notifiche.',
         'area' => 'Fatturazione',
         'release' => 'G8',
+        'created' => false,
     ],
     'deferred_invoicing' => [
         'name' => 'Fattura differita',
@@ -121,6 +131,7 @@ return [
         'area' => 'Fatturazione',
         'requires' => ['delivery_notes', 'e_invoicing'],
         'release' => 'G9',
+        'created' => false,
     ],
     'shipping' => [
         'name' => 'Spedizioni',
@@ -128,6 +139,7 @@ return [
         'area' => 'Spedizioni',
         'requires' => ['orders'],
         'release' => 'G7',
+        'created' => false,
     ],
     'carriers' => [
         'name' => 'Corrieri',
@@ -135,6 +147,7 @@ return [
         'area' => 'Spedizioni',
         'requires' => ['shipping'],
         'release' => 'futura',
+        'created' => false,
     ],
     'online_sales' => [
         'name' => 'Vendita online',

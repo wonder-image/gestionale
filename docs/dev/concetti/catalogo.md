@@ -264,6 +264,11 @@ il resto è nei dettagli avanzati, e a 1600 px ci sta; le sette caselle che
 andavano a capo, e avevano spinto il riquadro sotto le due colonne, non ci sono
 più.
 
+La domanda «ha varianti?» **si fa sempre**, anche se non esiste ancora nessun
+attributo da cui far nascere opzioni: `optionsCard()` allora non mette il
+selettore ma un avviso («si crea in Catalogo → Attributi»), e la griglia resta,
+perché con le varianti accese il prezzo si scrive riga per riga.
+
 Sotto l'ultimo attributo c'è `optionsPicker()`: un dropdown Bootstrap con il
 bottone largo quanto il riquadro (`w-100`), scritto a mano in un `RichText`
 perché il `Dropdown` del core non allarga toggle e menu. Le voci

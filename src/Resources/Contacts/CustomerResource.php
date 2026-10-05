@@ -30,6 +30,7 @@ use Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerStats;
+use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Sql\Transaction;
@@ -212,16 +213,10 @@ class CustomerResource extends GestionaleResource
                 ->formatter(static fn (array $row): string => static::escape(
                     Contacts::displayName($row)
                 )),
-            TableColumn::key('email')->text(),
-            TableColumn::key('city')->text(),
-            TableColumn::key('is_customer')
-                ->text()
-                ->size('little')
-                ->formatter(static fn (array $row): string => static::escape(Contacts::roles($row))),
-            TableColumn::key('auth_method')
-                ->text()
-                ->size('little')
-                ->formatter(static fn (array $row): string => static::escape(static::authMethod($row))),
+            TableColumn::key('email')->text()
+                ->hiddenDevice('mobile'),
+            TableColumn::key('city')->text()
+                ->hiddenDevice('mobile'),
             TableColumn::key('active')
                 ->booleanBadge()
                 ->badgeOn('Attiva', 'bi-check-circle', 'success')
@@ -233,12 +228,13 @@ class CustomerResource extends GestionaleResource
 
     public static function tableLayoutSchema(): TableLayoutSchema
     {
+        $contactTable = Contact::$table;
         return parent::tableLayoutSchema()->select(
             "(SELECT GROUP_CONCAT(DISTINCT af.provider ORDER BY af.provider SEPARATOR ',')
                 FROM auth_federated af
-                WHERE af.user_id = gst_contacts.user_id AND af.deleted = 'false') AS auth_providers,
+                WHERE af.user_id = {$contactTable}.user_id AND af.deleted = 'false') AS auth_providers,
              EXISTS(SELECT 1 FROM `user` u
-                WHERE u.id = gst_contacts.user_id
+                WHERE u.id = {$contactTable}.user_id
                   AND u.deleted = 'false'
                   AND COALESCE(u.password, '') <> '') AS has_local_password"
         );
@@ -436,7 +432,7 @@ class CustomerResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('anagrafiche', 'Anagrafiche', 'bi-people', 500, ['admin', 'administrator'])
+            ->section('anagrafiche', 'Anagrafiche', 'bi-people', 320, ['admin', 'administrator'])
             ->title(static::titleLabel())
             ->order(10)
             ->authority(['admin', 'administrator'])
@@ -474,6 +470,11 @@ class CustomerResource extends GestionaleResource
         string $mode,
         string $context = 'backend'
     ): array {
+        // Una scheda nuova parte con il prefisso di chi la sta compilando.
+        if ($mode !== 'edit' && trim((string) ($values['phone_prefix'] ?? '')) === '') {
+            $values['phone_prefix'] = VisitorCountry::phonePrefix();
+        }
+
         if (!Gestionale::feature('purchasing')) {
             return $values;
         }
@@ -651,17 +652,19 @@ class CustomerResource extends GestionaleResource
         return FormField::key('addresses')
             ->repeater([
                 RepeaterColumn::key('id')->hidden(),
-                RepeaterColumn::key('label')->text()->label('Etichetta')->columnSpan(2),
-                RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(2),
-                RepeaterColumn::key('surname')->text()->label('Cognome')->columnSpan(2),
-                RepeaterColumn::key('street')->text()->label('Via')->columnSpan(2),
-                RepeaterColumn::key('number')->text()->label('N.')->columnSpan(1),
-                RepeaterColumn::key('cap')->text()->label('CAP')->columnSpan(1),
-                RepeaterColumn::key('city')->text()->label('Città')->columnSpan(1),
+                RepeaterColumn::key('label')->text()->label('Etichetta')->columnSpan(3),
+                RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(3),
+                RepeaterColumn::key('surname')->text()->label('Cognome')->columnSpan(3),
                 RepeaterColumn::key('is_default')
                     ->select(['false' => 'No', 'true' => 'Sì'])
                     ->label('Predefinito')
-                    ->columnSpan(1),
+                    ->columnSpan(3),
+                RepeaterColumn::key('street')->text()->label('Via')->columnSpan(5),
+                RepeaterColumn::key('number')->text()->label('N.')->columnSpan(1),
+                RepeaterColumn::key('cap')->text()->label('CAP')->columnSpan(2),
+                RepeaterColumn::key('city')->text()->label('Città')->columnSpan(4),
+                RepeaterColumn::key('country')->country('province')->value('IT')->label('Paese')->columnSpan(6),
+                RepeaterColumn::key('province')->states('IT')->label('Provincia')->columnSpan(6),
             ])
             ->relation(
                 RepeaterRelation::make(ContactAddress::$table, 'contact_id')

@@ -51,7 +51,7 @@ check('opzione e fornitore sono obbligatori e legati alle loro tabelle', functio
     $c = $colonne();
 
     return $c['product_id']->getSchema('foreign_table') === 'gst_products'
-        && $c['supplier_id']->getSchema('foreign_table') === 'gst_contacts'
+        && $c['supplier_id']->getSchema('foreign_table') === 'contacts'
         && $c['product_id']->getSchema('null') === false
         && $c['supplier_id']->getSchema('null') === false;
 });

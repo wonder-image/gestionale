@@ -112,7 +112,7 @@ check('ogni Resource parte da una base del modulo o del core', function () use (
     return true;
 });
 
-check('ogni Model del modulo usa il prefisso gst_', function () {
+check('solo i Model proprietari del modulo usano il prefisso gst_', function () {
     $fuori = [];
 
     foreach (glob(dirname(__DIR__).'/src/Models/*/*.php') ?: [] as $file) {
@@ -124,7 +124,16 @@ check('ogni Model del modulo usa il prefisso gst_', function () {
             continue;
         }
 
-        if (!str_starts_with($classe::$table, 'gst_')) {
+        $shared = [
+            'Wonder\\Plugin\\Gestionale\\Models\\Contacts\\Contact' => \Wonder\App\Models\Contacts\Contact::class,
+            'Wonder\\Plugin\\Gestionale\\Models\\Contacts\\ContactAddress' => \Wonder\App\Models\Contacts\ContactAddress::class,
+            'Wonder\\Plugin\\Gestionale\\Models\\System\\ExternalReference' => \Wonder\App\Models\System\ExternalReference::class,
+        ];
+        if (isset($shared[$classe])) {
+            if ($classe::$table !== $shared[$classe]::$table) {
+                $fuori[] = $classe::$table;
+            }
+        } elseif (!str_starts_with($classe::$table, 'gst_')) {
             $fuori[] = $classe::$table;
         }
     }

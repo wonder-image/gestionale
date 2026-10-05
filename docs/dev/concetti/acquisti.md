@@ -30,7 +30,7 @@ un'opzione è quello che ha scritto. `gst_product_model_suppliers`, il modello
 | Colonna | Note |
 |---|---|
 | `product_id` | l'opzione, chiave esterna su `gst_products` |
-| `supplier_id` | la scheda della rubrica, chiave esterna su `gst_contacts` |
+| `supplier_id` | la scheda della rubrica, chiave esterna su `contacts` del core |
 | `supplier_sku` | il codice con cui il fornitore lo chiama, fino a 100 caratteri |
 | `cost` | `DECIMAL(12,4)` dichiarato con `Columns::decimal()`; `NULL` vuol dire «non lo so» |
 | `position` | l'ordine delle righe nella finestra |

@@ -6,6 +6,22 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource;
+use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
+
+// Fuori dall'app le funzioni dei paesi non esistono: ne bastano di minime perché i select si costruiscano.
+if (!function_exists('countries')) {
+    function countries(): array { return ['IT' => 'Italia', 'FR' => 'France']; }
+}
+if (!function_exists('states')) {
+    function states(string $country): array { return $country === 'IT' ? ['BG' => 'Bergamo', 'MI' => 'Milano'] : []; }
+}
+if (!function_exists('phonePrefix')) {
+    function phonePrefix(): array { return ['+39' => '+39', '+33' => '+33']; }
+}
+
+if (!function_exists('countryPhonePrefix')) {
+    function countryPhonePrefix($iso2): string { return ['IT' => '39', 'ES' => '+34'][strtoupper($iso2)] ?? ''; }
+}
 
 $valido = ['street' => 'Via Roma', 'cap' => '20100', 'city' => 'Milano', 'country' => 'it'];
 
@@ -19,6 +35,12 @@ check('clean tiene solo i campi noti, toglie gli spazi e mette il paese in maius
 
     return $clean['street'] === 'Via Roma' && $clean['country'] === 'IT'
         && !array_key_exists('id', $clean) && !array_key_exists('contact_id', $clean) && !array_key_exists('deleted', $clean);
+});
+
+check('il prefisso ha sempre il «+», come l\'elenco dei prefissi: i dati vecchi lo perdono', function () use ($valido) {
+    return ContactAddressResource::clean([...$valido, 'phone_prefix' => '39'])['phone_prefix'] === '+39'
+        && ContactAddressResource::clean([...$valido, 'phone_prefix' => '+39'])['phone_prefix'] === '+39'
+        && ContactAddressResource::clean($valido)['phone_prefix'] === '';
 });
 
 check('senza paese è IT; il predefinito è «true» solo se arriva «true»', function () use ($valido) {
@@ -63,8 +85,15 @@ check('il pulsante di aggiunta non porta dati: la finestra si apre vuota', fn ()
 check('la finestra: aggiungi/modifica con tutti i campi, in una form sola', function () {
     $html = ContactAddressResource::modals(12);
 
+    // Paese, provincia e prefisso sono i select del core, non campi di testo.
+    $select = ['country', 'province', 'phone_prefix'];
+
     foreach (ContactAddressResource::FIELDS as $campo => $lunghezza) {
-        if (preg_match('/<input(?=[^>]*name="'.$campo.'")(?=[^>]*maxlength="'.$lunghezza.'")[^>]*>/', $html) !== 1) {
+        $trovato = in_array($campo, $select, true)
+            ? preg_match('/<select(?=[^>]*name="'.$campo.'")[^>]*>/', $html) === 1 && !preg_match('/<input(?=[^>]*name="'.$campo.'")[^>]*>/', $html)
+            : preg_match('/<input(?=[^>]*name="'.$campo.'")(?=[^>]*maxlength="'.$lunghezza.'")[^>]*>/', $html) === 1;
+
+        if (!$trovato) {
             return false;
         }
     }
@@ -93,6 +122,29 @@ check('«Rendi predefinito» è una form che manda action=default', function () 
 
     return str_contains($html, 'name="action" value="default"') && str_contains($html, 'name="address_id" value="7"')
         && str_contains($html, 'name="contact_id" value="12"');
+});
+
+check('il prefisso predefinito è quello del paese del visitatore, con il «+»; da una rete locale resta IT', function () {
+    unset($_SESSION['gestionale_visitor_country']);
+    $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+    $locale = VisitorCountry::code() === 'IT' && VisitorCountry::phonePrefix() === '+39';
+
+    $_SESSION['gestionale_visitor_country'] = 'ES';
+    $spagna = VisitorCountry::phonePrefix() === '+34';
+
+    $_SESSION['gestionale_visitor_country'] = 'ZZ';
+    $ignoto = VisitorCountry::phonePrefix() === '';
+    unset($_SESSION['gestionale_visitor_country']);
+
+    return $locale && $spagna && $ignoto;
+});
+
+check('la finestra riempie il prefisso di un indirizzo nuovo con quello del visitatore', function () {
+    $_SESSION['gestionale_visitor_country'] = 'ES';
+    $html = ContactAddressResource::modals(12);
+    unset($_SESSION['gestionale_visitor_country']);
+
+    return str_contains($html, 'PREFIX="+34"');
 });
 
 summary();

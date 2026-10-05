@@ -48,7 +48,7 @@ final class CustomerSheet
         $html = '';
 
         foreach ($caselle as [$etichetta, $valore]) {
-            $html .= '<div class="col-6 col-md-4 col-xl"><div class="border rounded p-3 h-100">'
+            $html .= '<div class="col-3 col-md-2 col-xl"><div class="border rounded p-3 h-100">'
                 .'<div class="small text-muted">'.OrderSheet::esc($etichetta).'</div>'
                 .'<div class="fs-5 fw-semibold" style="font-variant-numeric: tabular-nums">'.$valore.'</div></div></div>';
         }

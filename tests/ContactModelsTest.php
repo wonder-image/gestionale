@@ -29,9 +29,9 @@ $campo = static function (string $model, string $key): ?object {
     return null;
 };
 
-check('le due tabelle hanno il prefisso del gestionale', fn () =>
-    Contact::$table === 'gst_contacts'
-    && ContactAddress::$table === 'gst_contact_addresses'
+check('le due tabelle condivise usano i nomi del core', fn () =>
+    Contact::$table === 'contacts'
+    && ContactAddress::$table === 'contact_addresses'
 );
 
 check('la rubrica non viaggia con il deploy', fn () =>
@@ -91,7 +91,7 @@ check('listino e pagamento nascono come colonne, senza chiave esterna', function
 check('l\'indirizzo di consegna sa a chi appartiene', function () use ($colonne) {
     $c = $colonne(ContactAddress::class);
 
-    return ($c['contact_id'] ?? null)?->getSchema('foreign_table') === 'gst_contacts';
+    return ($c['contact_id'] ?? null)?->getSchema('foreign_table') === 'contacts';
 });
 
 check('un indirizzo di consegna ha destinatario, telefono ed etichetta', function () use ($colonne) {

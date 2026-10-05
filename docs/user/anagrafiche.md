@@ -84,3 +84,12 @@ toglilo prima dai fornitori di quegli articoli e di quelle opzioni.
 ## Nella home
 
 Il riquadro **Anagrafiche** dice quante schede ci sono e porta ai due elenchi.
+# Storage condiviso
+
+I modelli di contatto, indirizzo di consegna e riferimento esterno sono ora
+forniti da `wonder-image/app`. I namespace del gestionale restano compatibili
+e aggiungono le opzioni commerciali del contatto. Le tabelle condivise sono
+`contacts`, `contact_addresses`, `external_references`: Forge update rinomina
+i precedenti nomi `gst_*` prima di allineare gli schemi, conservando ID, dati
+e collegamenti. Aggiornare app e gestionale insieme. Se entrambi i nomi sono
+già presenti la migrazione si ferma, senza cancellazioni automatiche.

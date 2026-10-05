@@ -87,7 +87,7 @@ check('senza gli acquisti il ruolo non si chiede', function () use ($campi, $for
 check('gli indirizzi di consegna sono un repeater sulla loro tabella', function () use ($campi) {
     $relazione = ((array) ($campi()['addresses']?->get('context') ?? []))['relation'] ?? null;
 
-    return $relazione !== null && $relazione->table === 'gst_contact_addresses';
+    return $relazione !== null && $relazione->table === 'contact_addresses';
 });
 
 try {

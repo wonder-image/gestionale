@@ -69,8 +69,9 @@ final class FeatureResource extends NavigationOnlyResource
                     ->value($feature['enabled'] ? 'true' : 'false');
 
                 // Sola lettura fuori dal locale; una funzionalità il cui modulo
-                // non è abilitato non si può sbloccare.
-                if ($readonly || !$feature['available']) {
+                // non è abilitato, o che non è ancora stata costruita, non si
+                // può sbloccare.
+                if ($readonly || !$feature['available'] || !$feature['created']) {
                     $field->disabled();
                 }
 
@@ -131,9 +132,14 @@ final class FeatureResource extends NavigationOnlyResource
     {
         $requested = [];
 
-        foreach (array_keys(FeatureCatalog::all()) as $key) {
-            // L'interruttore staccato manda comunque "false" (campo nascosto).
-            $requested[$key] = ($values[$key] ?? 'false') === 'true';
+        $state = FeaturePanel::state();
+
+        foreach (FeatureCatalog::all() as $key => $feature) {
+            // L'interruttore staccato manda comunque "false" (campo nascosto):
+            // una funzionalità non ancora costruita non si tocca, resta com'è.
+            $requested[$key] = $feature['created']
+                ? ($values[$key] ?? 'false') === 'true'
+                : ($state[$key] ?? false);
         }
 
         $user = LegacyGlobals::get('USER');
@@ -155,6 +161,10 @@ final class FeatureResource extends NavigationOnlyResource
 
         if ($feature['requires'] !== []) {
             $parts[] = 'Richiede: '.implode(', ', $feature['requires']).'.';
+        }
+
+        if (!$feature['created']) {
+            $parts[] = 'Non ancora disponibile.';
         }
 
         if (!$feature['available']) {

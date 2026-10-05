@@ -10,6 +10,7 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\CategoryResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\PackageResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\App\ResourceSchema\Inputs\InputHidden;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Tax\TaxCategoryResource;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxCategories;
 
@@ -57,7 +58,14 @@ $quickCreate = static function (): array {
 };
 
 check('marchio, categorie e imballaggio hanno il "+"', function () use ($quickCreate) {
-    $con = $quickCreate();
+    // L'imballaggio c'è solo con le spedizioni accese.
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, ['shipping' => true]);
+
+    try {
+        $con = $quickCreate();
+    } finally {
+        (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, null);
+    }
 
     return ($con['brand_id']['resource'] ?? '') === BrandResource::class
         && ($con['categories']['resource'] ?? '') === CategoryResource::class

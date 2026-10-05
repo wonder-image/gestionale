@@ -94,12 +94,14 @@ final class OrderResource extends GestionaleResource
             TableColumn::key('order_number')->text()->size('little')->sortable()->link('view'),
             TableColumn::key('customer')
                 ->text()
-                ->formatter(static fn (array $row): string => static::escape(static::customerName($row))),
+                ->formatter(static fn (array $row): string => static::escape(static::customerName($row)))
+                ->hiddenDevice('mobile'),
             TableColumn::key('total')->price()->size('little')->sortable(),
             TableColumn::key('ordered_at')
                 ->date()
                 ->sortable()
-                ->size('medium'),
+                ->size('medium')
+                ->hiddenDevice('mobile'),
             TableColumn::key('status')
                 ->text()
                 ->size('little')
@@ -299,7 +301,7 @@ final class OrderResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('vendite', 'Vendite', 'bi-receipt', 350, ['admin', 'administrator'])
+            ->section('vendite', 'Vendite', 'bi-receipt', 300, ['admin', 'administrator'])
             ->title('Ordini')
             ->order(10)
             ->authority(['admin', 'administrator'])

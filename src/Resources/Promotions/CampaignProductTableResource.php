@@ -100,11 +100,11 @@ final class CampaignProductTableResource extends GestionaleResource
                 ->formatter(static fn (array $row): string => static::nameCell($row)),
             TableColumn::key('price')
                 ->text()
-                ->size('little')
+                ->size('medium')
                 ->formatter(static fn (array $row): string => static::priceCell((string) ($row['price'] ?? ''), false)),
             TableColumn::key('campaign_price')
                 ->text()
-                ->size('little')
+                ->size('medium')
                 ->formatter(static fn (array $row): string => static::priceCell(static::afterPrice($row), true)),
         ];
     }
@@ -121,7 +121,7 @@ final class CampaignProductTableResource extends GestionaleResource
             ->cleanHeader()
             ->select(static::select())
             ->filterSearch()
-            ->filterLimit(false)
+            ->filterLimit(true)
             ->searchFields(['name', 'sku', ProductModel::$table.'.name']);
     }
 
