@@ -23,6 +23,8 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
+use Wonder\Plugin\Gestionale\Models\Shipping\Shipment;
+use Wonder\Plugin\Gestionale\Resources\Shipping\ShipmentResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
@@ -173,7 +175,7 @@ final class OrderResource extends GestionaleResource
     {
         $pulsanti = [];
 
-        $azioni = OrderActions::available($order, ['returns' => Gestionale::feature('returns')]);
+        $azioni = OrderActions::available($order, static::actionFeatures());
         $incassa = OrderActions::canRegisterPayment($order);
         $rende = OrderActions::canRegisterReturn($order, ['returns' => Gestionale::feature('returns')]);
 
@@ -199,6 +201,12 @@ final class OrderResource extends GestionaleResource
         $rende && $pulsanti[] = static::registerReturnButton($order);
 
         return $pulsanti;
+    }
+
+    /** Le funzionalità che cambiano le azioni offerte. @return array<string, bool> */
+    private static function actionFeatures(): array
+    {
+        return ['returns' => Gestionale::feature('returns'), 'shipping' => Gestionale::feature('shipping')];
     }
 
     /** «Registra reso» porta a una pagina con le righe da compilare: porta con sé il ritorno all'elenco, e la scheda lo rimette da sé. @return array<string, string> */
@@ -243,13 +251,20 @@ final class OrderResource extends GestionaleResource
         $per = ['order_id' => (int) ($order['id'] ?? 0)];
         $back = StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '');
 
-        return static::actionModals(
+        $html = static::actionModals(
             $order,
             static::rowsOf(OrderItem::class, $per, 'position'),
             static::rowsOf(Payment::class, $per, 'id'),
             $back,
             OrderPaymentResource::activeMethods()
         );
+
+        // «Segna spedita» ha una finestra per ogni spedizione dell'ordine.
+        if (Gestionale::feature('shipping')) {
+            $html .= ShipmentResource::modals(static::rowsOf(Shipment::class, $per, 'id'), $back);
+        }
+
+        return $html;
     }
 
     /**
@@ -264,7 +279,7 @@ final class OrderResource extends GestionaleResource
      */
     public static function actionModals(array $order, array $items, array $payments, string $back, array $methods = []): string
     {
-        $azioni = OrderActions::available($order, ['returns' => Gestionale::feature('returns')]);
+        $azioni = OrderActions::available($order, static::actionFeatures());
         $incassa = OrderActions::canRegisterPayment($order);
 
         if ($azioni === [] && !$incassa) {
@@ -276,6 +291,12 @@ final class OrderResource extends GestionaleResource
         $html = '';
 
         foreach ($azioni as $azione) {
+            if ($azione === OrderActions::CREATE_SHIPMENT) {
+                $html .= ShipmentResource::createModal($order, $back);
+
+                continue;
+            }
+
             $html .= Modal::make(trim(OrderActions::label($azione).' l\'ordine '.trim((string) ($order['order_number'] ?? ''))))
                 ->id(static::actionModalId($azione))
                 ->form(OrderActionResource::submitUrl(), hidden: [
@@ -434,6 +455,10 @@ final class OrderResource extends GestionaleResource
 
         if (Gestionale::feature('returns')) {
             $componenti[] = $tabella('Resi', OrderReturnTableResource::embed($id));
+        }
+
+        if (Gestionale::feature('shipping')) {
+            $componenti[] = $tabella('Spedizioni', OrderShipmentTableResource::embed($id), true);
         }
 
         $componenti[] = $tabella('Storico', OrderHistoryTableResource::embed($id));

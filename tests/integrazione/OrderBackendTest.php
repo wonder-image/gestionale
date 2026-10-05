@@ -387,6 +387,8 @@ check('Segna evaso su un ordine non confermato: il rifiuto è una frase', functi
 check('Segna evaso su un ordine confermato lo porta a evaso', function () {
     return prova(static function (): bool {
         [$ordine] = ordineConRiga();
+        // «Segna evaso» a mano vale con le spedizioni spente: accese, si evade spedendo.
+        spegniFunzionalita(['shipping']);
         senzaPosta(static fn (): array => OrderActionResource::run('confirm', $ordine, 7));
 
         $esito = senzaPosta(static fn (): array => OrderActionResource::run('fulfill', $ordine, 7));
@@ -472,6 +474,7 @@ check('Registra pagamento: metà è pagato in parte, l\'altra metà salda', func
 check('Registra pagamento sull\'ordine già evaso lo chiude', function () {
     return prova(static function (): bool {
         [$ordine] = ordineConRiga();
+        spegniFunzionalita(['shipping']);
         senzaPosta(static fn (): array => OrderActionResource::run('confirm', $ordine, 7));
         senzaPosta(static fn (): array => OrderActionResource::run('fulfill', $ordine, 7));
 

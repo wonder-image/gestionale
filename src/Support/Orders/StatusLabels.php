@@ -39,6 +39,20 @@ final class StatusLabels
         'fulfilled' => ['Evaso', 'success'],
     ];
 
+    private const SHIPMENT = [
+        'pending' => ['In attesa', 'warning'],
+        'label_created' => ['Etichetta creata', 'info'],
+        'in_transit' => ['In viaggio', 'primary'],
+        'out_for_delivery' => ['In consegna', 'primary'],
+        'delivered' => ['Consegnata', 'success'],
+        'failed_attempt' => ['Consegna fallita', 'danger'],
+        'exception' => ['Problema', 'danger'],
+        'returned' => ['Tornata al mittente', 'secondary'],
+        'cancelled' => ['Annullata', 'secondary'],
+        'ready_for_pickup' => ['Pronta per il ritiro', 'info'],
+        'picked_up' => ['Ritirata', 'success'],
+    ];
+
     /** @return array{label: string, color: string} */
     public static function order(string $status): array
     {
@@ -57,13 +71,20 @@ final class StatusLabels
         return self::pick(self::FULFILLMENT, $status);
     }
 
-    /** L'etichetta colorata, pronta per una cella. `$kind`: `order`, `payment`, `fulfillment`. */
+    /** @return array{label: string, color: string} */
+    public static function shipment(string $status): array
+    {
+        return self::pick(self::SHIPMENT, $status);
+    }
+
+    /** L'etichetta colorata, pronta per una cella. `$kind`: `order`, `payment`, `fulfillment`, `shipment`. */
     public static function badge(string $kind, string $value): string
     {
         $entry = match ($kind) {
             'order' => self::order($value),
             'payment' => self::payment($value),
             'fulfillment' => self::fulfillment($value),
+            'shipment' => self::shipment($value),
             default => ['label' => $value, 'color' => 'secondary'],
         };
 

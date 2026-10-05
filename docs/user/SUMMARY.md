@@ -32,6 +32,7 @@
 ## Spedizioni
 
 * [Corrieri, zone e listini](spedizioni-listini.md)
+* [Spedire un ordine](spedizioni-spedire.md)
 
 ## Canali di vendita
 
