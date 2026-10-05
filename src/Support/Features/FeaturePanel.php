@@ -70,10 +70,11 @@ final class FeaturePanel
     public static function save(array $requested, int $userId): array
     {
         $catalog = FeatureCatalog::all();
+        $created = self::ensureRows(array_keys($catalog));
         $current = self::state();
         $result = FeatureRules::apply($catalog, $current, $requested);
         $rows = array_column(self::rows(), null, 'feature_key');
-        $changed = false;
+        $changed = $created;
 
         foreach ($result['state'] as $key => $enabled) {
             $row = $rows[$key] ?? null;
@@ -112,6 +113,34 @@ final class FeaturePanel
             'unlocked' => self::names($catalog, $result['unlocked']),
             'locked' => self::names($catalog, $result['locked']),
         ];
+    }
+
+    /**
+     * Rimette le righe che mancano: una funzionalità del catalogo senza riga in
+     * `gst_features` (database nato prima di lei, o riga cancellata a mano) non
+     * si potrebbe accendere. Una riga eliminata con la stessa chiave si
+     * recupera, spenta, invece di farne una seconda. Restituisce se ha scritto.
+     *
+     * @param list<string> $keys
+     */
+    private static function ensureRows(array $keys): bool
+    {
+        $present = array_column(self::rows(), 'feature_key');
+        $changed = false;
+
+        foreach (array_diff($keys, $present) as $key) {
+            $old = Feature::find(['feature_key' => $key, 'deleted' => 'true'], 1);
+
+            if (is_array($old) && isset($old['id'])) {
+                sqlModify(Feature::$table, ['enabled' => 'false', 'deleted' => 'false'], 'id', (int) $old['id']);
+            } else {
+                sqlInsert(Feature::$table, ['feature_key' => $key, 'enabled' => 'false']);
+            }
+
+            $changed = true;
+        }
+
+        return $changed;
     }
 
     /** @return list<array<string, mixed>> */
