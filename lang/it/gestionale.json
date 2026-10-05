@@ -175,7 +175,20 @@
                 "reason_method": "Non è attivo o non è offerto per questo canale",
                 "reason_zone": "Non spedisce verso questa destinazione",
                 "reason_weight": "Non copre il peso della merce",
-                "reason_nothing": "Non c'è nulla da spedire"
+                "reason_nothing": "Non c'è nulla da spedire",
+                "rate_no_brackets": "Il listino «{{zone}}» non ha nessuno scaglione di prezzo: scrivine almeno uno, oppure spegni il listino.",
+                "bracket_duplicate": "Il listino «{{zone}}» ha due scaglioni con lo stesso peso massimo.",
+                "bracket_weight": "Nel listino «{{zone}}» ogni scaglione di prezzo ha un peso massimo maggiore di zero.",
+                "bracket_amount": "Nel listino «{{zone}}» ogni scaglione ha un importo, e non è negativo.",
+                "excess_duplicate": "Il listino «{{zone}}» ha più di una tariffa al kg: ne basta una.",
+                "rate_negative": "Nel listino «{{zone}}» i valori (maggiorazione, minimo, soglie, contrassegno, divisore, arrotondamento) non possono essere negativi.",
+                "markup_out_of_range": "Nel listino «{{zone}}» il margine non può scendere sotto −100 %: il prezzo andrebbe sotto zero.",
+                "zone_no_areas": "Scrivi almeno un'area: un paese, e se serve una provincia.",
+                "area_duplicate": "L'area {{area}} è scritta due volte nella stessa zona.",
+                "carrier_in_use": "Questo corriere è su {{count}} metodi di spedizione: spegnilo invece di eliminarlo, oppure toglilo dai metodi.",
+                "zone_in_use": "Questa zona ha {{count}} listini accesi: toglila dai metodi di spedizione o spegni i listini, poi eliminala.",
+                "method_in_use": "Questo metodo è su {{count}} ordini o carrelli: spegnilo invece di eliminarlo.",
+                "area_country": "Il paese di un'area è una sigla di due lettere, per esempio IT. «{{country}}» non lo è."
             }
         },
         "emails": {
