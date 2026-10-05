@@ -18,6 +18,7 @@ use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Pricing\LinePrice;
 use Wonder\Plugin\Gestionale\Support\Pricing\OrderTotals;
+use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
@@ -196,6 +197,8 @@ final class Cart
             $fallback = (int) ($settings['fallback_tax_id'] ?? 0);
             $country = strtoupper(trim((string) ($cart['billing_country'] ?? ''))) ?: 'IT';
             $customerType = trim((string) ($cart['billing_pi'] ?? '')) !== '' ? 'business' : 'private';
+            $now = date('Y-m-d H:i:s');
+            $channel = (string) ($cart['channel'] ?? 'online');
             $removed = [];
             $computed = [];
             $rewritten = [];
@@ -296,6 +299,13 @@ final class Cart
                     $packs[] = ['item' => $item, 'children' => $bundle['children']];
                 }
 
+                // La campagna dà il prezzo solo alle righe di prodotto a prezzo
+                // automatico: il prezzo a mano non si tocca, le figlie non si prezzano.
+                $campaign = $productId > 0 && (string) $item['type'] === 'product'
+                    && (string) $item['price_source'] !== 'manual'
+                    ? Campaigns::forProduct($productId, $now, $channel)
+                    : null;
+
                 $price = LinePrice::of([
                     'quantity' => $item['quantity'] ?? 0,
                     'price' => is_array($product) ? ($product['price'] ?? 0) : ($item['list_price'] ?? 0),
@@ -303,10 +313,15 @@ final class Cart
                     'manual_unit_price' => (string) $item['price_source'] === 'manual'
                         ? ($item['unit_price'] ?? '')
                         : '',
+                    'campaign_price' => $campaign !== null ? number_format($campaign['price'], 2, '.', '') : '',
                     'discount_type' => $item['discount_type'] ?? 'none',
                     'discount_value' => $item['discount_value'] ?? 0,
                     'customization_surcharge' => $item['customization_surcharge'] ?? 0,
                 ]);
+
+                // Il prezzo di campagna vale solo se ha vinto davvero: con uno sconto
+                // di riga a mano la riga è «manual» e la campagna non c'entra.
+                $campaignId = $campaign !== null && $price['price_source'] === 'campaign' ? $campaign['campaign_id'] : 0;
 
                 $taxId = TaxResolver::resolve(
                     $rules,
@@ -324,6 +339,7 @@ final class Cart
                     'tax_id' => $taxId,
                     'tax_rate' => is_array($tax) ? (float) ($tax['rate'] ?? 0) : 0.0,
                     'tax_nature' => is_array($tax) ? (string) ($tax['nature'] ?? '') : '',
+                    'discount_campaign_id' => $campaignId,
                 ] + $price : [];
             }
 
@@ -338,6 +354,7 @@ final class Cart
                     'list_price' => $line['list_price'],
                     'unit_price' => $line['unit_price'],
                     'price_source' => $line['price_source'],
+                    'discount_campaign_id' => (int) ($line['discount_campaign_id'] ?? 0),
                     'discount_type' => $line['discount_type'],
                     'discount_value' => $line['discount_value'],
                     'order_discount_amount' => $line['order_discount_amount'],
