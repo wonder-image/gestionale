@@ -12,6 +12,7 @@ use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
@@ -22,6 +23,7 @@ use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
+use Wonder\Plugin\Gestionale\Support\Promotions\PromotionSheet;
 use Wonder\Plugin\Gestionale\Support\Promotions\ScopeForm;
 use Wonder\Sql\Transaction;
 
@@ -39,6 +41,7 @@ use Wonder\Sql\Transaction;
  */
 class CouponResource extends GestionaleResource
 {
+    use PromotionSheet;
     use ScopeForm;
 
     public static string $feature = 'coupons';
@@ -143,8 +146,6 @@ class CouponResource extends GestionaleResource
 
     public static function formLayoutSchema(): ?Form
     {
-        $id = static::currentId() ?? 0;
-
         $main = (new Card)->components([
             SectionTitle::make('Coupon')
                 ->tooltip('Il codice non distingue maiuscole e minuscole ed è unico, anche rispetto ai coupon eliminati. Dal primo all\'ultimo giorno scelti, estremi compresi; un limite a zero vuol dire senza limite.')
@@ -199,15 +200,6 @@ class CouponResource extends GestionaleResource
 
         $left = [$main, $rules, $scope];
 
-        if ($id > 0) {
-            $left[] = (new Card)->components([
-                SectionTitle::make('Utilizzi')
-                    ->tooltip('Gli ordini che hanno usato il coupon. «Rilasciato» vuol dire che l\'ordine è stato annullato o è scaduto e l\'utilizzo non conta più.')
-                    ->columnSpan(12),
-                RichText::make(static::redemptionsHtml($id))->columnSpan(12),
-            ])->columns(12)->columnSpan(12);
-        }
-
         return (new Form)->components([
             (new Container)->components($left)->columns(12)->columnSpan(8),
             (new Container)->components($side)->columns(12)->columnSpan(4),
@@ -219,7 +211,7 @@ class CouponResource extends GestionaleResource
         $now = static fn (): string => date('Y-m-d H:i:s');
 
         return [
-            TableColumn::key('code')->text()->link('edit'),
+            TableColumn::key('code')->text()->link('view'),
             TableColumn::key('name')->text(),
             TableColumn::key('discount_value')
                 ->text()
@@ -243,22 +235,102 @@ class CouponResource extends GestionaleResource
 
                     return '<span class="badge text-bg-'.$class.'">'.static::escape(static::statusLabel($row, $now())).'</span>';
                 }),
-            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+            TableColumn::key('actions')->button()->actions(['view', 'edit', 'delete']),
         ];
     }
 
     public static function pageSchema(): PageSchema
     {
         return parent::pageSchema()
-            ->disable(['view'])
+            // Il coupon si apre in lettura: dettagli e utilizzi stanno nella
+            // scheda, la modifica è dietro al bottone «Modifica».
+            ->enable(['view'])
             ->titles([
                 'list' => 'Coupon',
                 'create' => 'Nuovo coupon',
+                'view' => 'Coupon',
                 'edit' => 'Modifica coupon',
             ])
-            // Appena salvato si torna alla modifica: lì stanno gli utilizzi.
-            ->redirect('store', 'edit')
-            ->redirect('update', 'edit');
+            ->view('show', Gestionale::viewPath('pages/coupon-show.php'))
+            ->actions('view', static fn (array $item): array => [[
+                'label' => 'Modifica',
+                'icon' => 'bi-pencil',
+                'class' => 'btn-warning btn-sm',
+                'href' => static::editUrlFor((int) ($item['id'] ?? 0)),
+            ]]);
+    }
+
+    /**
+     * La scheda in lettura: come il form, due colonne (otto e quattro), con in
+     * più gli utilizzi, che nel form non stanno.
+     */
+    public static function showLayoutSchema(array $row): Container
+    {
+        $id = (int) ($row['id'] ?? 0);
+        $now = date('Y-m-d H:i:s');
+        $status = Campaigns::status($row + ['active' => 'false'], $now);
+        $class = ['running' => 'success', 'scheduled' => 'primary', 'ended' => 'secondary', 'inactive' => 'light'][$status] ?? 'light';
+        $name = trim((string) ($row['name'] ?? ''));
+        $yes = static fn (string $key): string => ($row[$key] ?? 'false') === 'true' ? 'Sì' : 'No';
+        $limit = static fn (string $key): string => (int) ($row[$key] ?? 0) > 0 ? (string) (int) $row[$key] : 'Senza limite';
+        $minimum = (float) ($row['min_order_amount'] ?? 0);
+
+        $main = (new Card)->components([
+            SectionTitle::make('Coupon')->columnSpan(12),
+            RichText::make('<h5 class="mb-0">'.static::escape((string) ($row['code'] ?? '')).' '
+                .'<span class="badge text-bg-'.$class.' align-middle">'.static::escape(static::statusLabel($row + ['active' => 'false'], $now)).'</span></h5>')
+                ->tag('div')
+                ->columnSpan(12),
+            static::sheetRow('Nome', $name)->columnSpan(6),
+            static::sheetRow('Sconto', static::discountLabel($row))->columnSpan(6),
+            static::sheetRow('Periodo', static::periodLabel($row))->columnSpan(6),
+            static::sheetRow('Utilizzi', static::usageLabel(Coupons::usedCount($id), $row))->columnSpan(6),
+        ])->columns(12)->columnSpan(12);
+
+        $rules = (new Card)->components([
+            SectionTitle::make('Regole')->columnSpan(12),
+            static::sheetRow('Spesa minima', $minimum > 0 ? number_format($minimum, 2, ',', '.').' €' : '')->columnSpan(6),
+            static::sheetRow('Utilizzi massimi', $limit('usage_limit'))->columnSpan(6),
+            static::sheetRow('Utilizzi per cliente', $limit('usage_limit_per_customer'))->columnSpan(6),
+            static::sheetRow('Solo sul primo ordine', $yes('first_order_only'))->columnSpan(6),
+            static::sheetRow('Non sui prodotti già scontati', $yes('exclude_discounted_products'))->columnSpan(6),
+        ])->columns(12)->columnSpan(12);
+
+        $customers = array_map(
+            static fn (array $link): string => static::escape(static::customerName((int) $link['customer_id'], '')),
+            static::rowsOf(CouponCustomer::class, ['coupon_id' => $id])
+        );
+        $scope = (new Card)->components([
+            SectionTitle::make('Prodotti e clienti')->columnSpan(12),
+            static::sheetRow('Prodotti', static::scopeHtml('coupon', $id), true)->columnSpan(12),
+            static::sheetRow('Clienti riservati', implode(', ', $customers), true)->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+
+        $redemptions = (new Card)->components([
+            SectionTitle::make('Utilizzi')
+                ->tooltip('Gli ordini che hanno usato il coupon. «Rilasciato» vuol dire che l\'ordine è stato annullato o è scaduto e l\'utilizzo non conta più.')
+                ->columnSpan(12),
+            RichText::make(static::redemptionsHtml($id))->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+
+        $side = [
+            (new Card)->components([
+                SectionTitle::make('Dove vale')->columnSpan(12),
+                RichText::make(static::channelsHtml($row))->tag('div')->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+        ];
+
+        if (trim((string) ($row['note'] ?? '')) !== '') {
+            $side[] = (new Card)->components([
+                SectionTitle::make('Note')->columnSpan(12),
+                static::sheetRow('', (string) $row['note'])->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        return (new Container)->components([
+            (new Container)->components([$main, $rules, $scope, $redemptions])->columns(12)->columnSpan(8),
+            (new Container)->components($side)->columns(12)->columnSpan(4),
+        ])->columns(12);
     }
 
     public static function permissionSchema(): PermissionSchema

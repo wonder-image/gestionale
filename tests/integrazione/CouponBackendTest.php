@@ -10,6 +10,7 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
+require __DIR__.'/supporto/layout.php';
 
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
@@ -301,6 +302,52 @@ check('un id che non esiste o un tipo cambiato a mano non rompono la pagina', fu
 
         return is_array(CouponResource::mutateFormValues(['id' => 99999999, 'starts_at' => '0000-00-00 00:00:00'], 'edit'))
             && CouponResource::redemptionsHtml(0) !== '';
+    });
+});
+
+check('la scheda mostra dettagli, regole, canali, clienti riservati e utilizzi', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'coupons']);
+        $cliente = clienteDiProva();
+        $id = salva(richiesta([
+            'code' => 'Scheda10', 'usage_limit' => '5', 'min_order_amount' => '20',
+            'first_order_only' => 'true', 'customers' => [(string) $cliente],
+        ]));
+        $ordine = ordineDiProva(10.0);
+        CouponRedemption::create([
+            'coupon_id' => $id, 'order_id' => $ordine, 'customer_id' => $cliente, 'email' => 'x@example.com',
+            'discount_amount' => '5.00', 'redeemed_at' => '2026-10-02 09:00:00',
+        ]);
+        $html = layoutHtml(CouponResource::showLayoutSchema((array) Coupon::find(['id' => $id], 1)));
+
+        return str_contains($html, 'Scheda10') && str_contains($html, '10 %')
+            && str_contains($html, 'dal 01/10/2026 al 31/10/2026') && str_contains($html, '1 / 5')
+            && str_contains($html, '20,00') && str_contains($html, 'Tutto il catalogo')
+            && str_contains($html, 'Rossi') && str_contains($html, '5,00 €')
+            && str_contains($html, 'Sito') && str_contains($html, 'Ufficio') && str_contains($html, 'Cassa');
+    });
+});
+
+check('la scheda di un coupon con selezione elenca categorie e articoli esclusi, e sempre il motivo dello stato', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'coupons']);
+        $id = salva(richiesta(['code' => 'Sel10', 'applies_to_all' => 'false', 'active' => 'false']));
+        $html = layoutHtml(CouponResource::showLayoutSchema((array) Coupon::find(['id' => $id], 1)));
+
+        return str_contains($html, 'Solo la selezione') && str_contains($html, 'Disattivato')
+            && str_contains($html, 'Nessun utilizzo');
+    });
+});
+
+check('il form di modifica non porta più la tabella degli utilizzi', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'coupons']);
+        $id = salva(richiesta());
+        $_GET['id'] = $id;
+        $html = layoutHtml(CouponResource::formLayoutSchema());
+        unset($_GET['id']);
+
+        return !str_contains($html, 'Nessun utilizzo') && !str_contains($html, 'Rilasciato');
     });
 });
 

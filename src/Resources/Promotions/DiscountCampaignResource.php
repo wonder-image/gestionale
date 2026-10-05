@@ -13,11 +13,13 @@ use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaign;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
+use Wonder\Plugin\Gestionale\Support\Promotions\PromotionSheet;
 use Wonder\Plugin\Gestionale\Support\Promotions\ScopeForm;
 
 /**
@@ -29,15 +31,17 @@ use Wonder\Plugin\Gestionale\Support\Promotions\ScopeForm;
  * è quello dei coupon (`ScopeForm`) e sta nelle tabelle dei ponti; si
  * riscrive per intero a ogni salvataggio.
  *
- * Dopo il salvataggio si torna alla modifica: lì sta l'**anteprima** (quanti
- * prodotti prende la campagna e tre esempi di prezzo prima e dopo) e, se
- * un'altra campagna attiva copre gli stessi prodotti negli stessi giorni, un
- * **avviso** che non blocca niente — il calcolo sceglie comunque lo sconto
- * maggiore.
+ * La campagna si apre in una **scheda di lettura** (`showLayoutSchema`): lì
+ * stanno l'**anteprima** (quanti prodotti prende la campagna e tre esempi di
+ * prezzo prima e dopo) e, se un'altra campagna attiva copre gli stessi
+ * prodotti negli stessi giorni, un **avviso** che non blocca niente — il
+ * calcolo sceglie comunque lo sconto maggiore. La modifica è dietro al
+ * bottone «Modifica».
  */
 class DiscountCampaignResource extends GestionaleResource
 {
     use ScopeForm;
+    use PromotionSheet;
 
     public static string $feature = 'discount_campaigns';
     public static string $model = DiscountCampaign::class;
@@ -125,8 +129,6 @@ class DiscountCampaignResource extends GestionaleResource
 
     public static function formLayoutSchema(): ?Form
     {
-        $id = static::currentId() ?? 0;
-
         $main = (new Card)->components([
             SectionTitle::make('Campagna')
                 ->tooltip('Dal primo all\'ultimo giorno scelti, estremi compresi. Senza «Fino al» la campagna non finisce. Se più campagne coprono lo stesso prodotto vince lo sconto maggiore. Un prezzo scritto a mano sulla riga d\'ordine vince su tutto.')
@@ -169,21 +171,6 @@ class DiscountCampaignResource extends GestionaleResource
 
         $left = [$main, $scope];
 
-        if ($id > 0) {
-            $notice = static::overlapNotice($id);
-
-            if ($notice !== '') {
-                array_unshift($left, Alert::make($notice, 'warning')->columnSpan(12));
-            }
-
-            $left[] = (new Card)->components([
-                SectionTitle::make('Anteprima')
-                    ->tooltip('Quanti prodotti prende la campagna così com\'è salvata e tre esempi di prezzo. Dopo ogni modifica si salva per rivederla.')
-                    ->columnSpan(12),
-                RichText::make(static::previewHtml($id))->columnSpan(12),
-            ])->columns(12)->columnSpan(12);
-        }
-
         return (new Form)->components([
             (new Container)->components($left)->columns(12)->columnSpan(8),
             (new Container)->components($side)->columns(12)->columnSpan(4),
@@ -195,7 +182,7 @@ class DiscountCampaignResource extends GestionaleResource
         $now = static fn (): string => date('Y-m-d H:i:s');
 
         return [
-            TableColumn::key('name')->text()->link('edit'),
+            TableColumn::key('name')->text()->link('view'),
             TableColumn::key('discount_value')
                 ->text()
                 ->size('little')
@@ -216,23 +203,91 @@ class DiscountCampaignResource extends GestionaleResource
 
                     return '<span class="badge text-bg-'.$class.'">'.static::escape(static::statusLabel($row, $now())).'</span>';
                 }),
-            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+            TableColumn::key('actions')->button()->actions(['view', 'edit', 'delete']),
         ];
     }
 
     public static function pageSchema(): PageSchema
     {
         return parent::pageSchema()
-            ->disable(['view'])
+            // La campagna si apre in lettura: anteprima e avviso stanno nella
+            // scheda, la modifica è dietro al bottone «Modifica».
+            ->enable(['view'])
             ->titles([
                 'list' => 'Campagne di sconto',
                 'create' => 'Nuova campagna',
+                'view' => 'Campagna',
                 'edit' => 'Modifica campagna',
             ])
-            // Appena salvata si torna alla modifica: lì stanno l'anteprima e
-            // l'avviso di sovrapposizione.
-            ->redirect('store', 'edit')
-            ->redirect('update', 'edit');
+            ->view('show', Gestionale::viewPath('pages/campaign-show.php'))
+            ->actions('view', static fn (array $item): array => [[
+                'label' => 'Modifica',
+                'icon' => 'bi-pencil',
+                'class' => 'btn-warning btn-sm',
+                'href' => static::editUrlFor((int) ($item['id'] ?? 0)),
+            ]]);
+    }
+
+    /**
+     * La scheda in lettura: come il form, due colonne (otto e quattro), con in
+     * più l'anteprima e l'avviso di sovrapposizione, che nel form non stanno.
+     */
+    public static function showLayoutSchema(array $row): Container
+    {
+        $id = (int) ($row['id'] ?? 0);
+        $now = date('Y-m-d H:i:s');
+        $status = Campaigns::status($row + ['active' => 'false'], $now);
+        $class = ['running' => 'success', 'scheduled' => 'primary', 'ended' => 'secondary', 'inactive' => 'light'][$status] ?? 'light';
+        $yes = static fn (string $key): string => ($row[$key] ?? 'false') === 'true' ? 'Sì' : 'No';
+
+        $main = (new Card)->components([
+            SectionTitle::make('Campagna')->columnSpan(12),
+            RichText::make('<h5 class="mb-0">'.static::escape(trim((string) ($row['name'] ?? ''))).' '
+                .'<span class="badge text-bg-'.$class.' align-middle">'.static::escape(static::statusLabel($row + ['active' => 'false'], $now)).'</span></h5>')
+                ->tag('div')
+                ->columnSpan(12),
+            static::sheetRow('Sconto', static::discountLabel($row))->columnSpan(6),
+            static::sheetRow('Periodo', static::periodLabel($row))->columnSpan(6),
+            static::sheetRow('Non sui prodotti già scontati', $yes('exclude_sale_products'))->columnSpan(6),
+        ])->columns(12)->columnSpan(12);
+
+        $scope = (new Card)->components([
+            SectionTitle::make('Prodotti')->columnSpan(12),
+            static::sheetRow('Prodotti', static::scopeHtml('campaign', $id), true)->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+
+        $preview = (new Card)->components([
+            SectionTitle::make('Anteprima')
+                ->tooltip('Quanti prodotti prende la campagna così com\'è salvata e tre esempi di prezzo.')
+                ->columnSpan(12),
+            RichText::make(static::previewHtml($id))->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+
+        $left = [$main, $scope, $preview];
+        $notice = static::overlapNotice($id);
+
+        if ($notice !== '') {
+            array_unshift($left, (new Container)->components([Alert::make($notice, 'warning')])->columnSpan(12));
+        }
+
+        $side = [
+            (new Card)->components([
+                SectionTitle::make('Dove vale')->columnSpan(12),
+                RichText::make(static::channelsHtml($row))->tag('div')->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+        ];
+
+        if (trim((string) ($row['note'] ?? '')) !== '') {
+            $side[] = (new Card)->components([
+                SectionTitle::make('Note')->columnSpan(12),
+                static::sheetRow('', (string) $row['note'])->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        return (new Container)->components([
+            (new Container)->components($left)->columns(12)->columnSpan(8),
+            (new Container)->components($side)->columns(12)->columnSpan(4),
+        ])->columns(12);
     }
 
     public static function permissionSchema(): PermissionSchema

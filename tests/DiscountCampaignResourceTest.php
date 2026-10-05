@@ -127,4 +127,45 @@ check('«Tutto il catalogo» si legge dalla richiesta, e un valore storto vale �
         && DiscountCampaignResource::readScope([])['all'] === false;
 });
 
+check('la campagna si apre in una scheda di lettura, con «Modifica» in testata', function () {
+    $pagine = DiscountCampaignResource::pageSchema()->toArray();
+    $azioni = $pagine['actions']['view'] ?? null;
+    $pulsanti = is_callable($azioni) ? $azioni(['id' => 7]) : (array) $azioni;
+
+    return !empty($pagine['pages']['view'])
+        && str_ends_with((string) ($pagine['views']['show'] ?? ''), 'pages/campaign-show.php')
+        && ($pulsanti[0]['label'] ?? '') === 'Modifica'
+        && str_contains((string) ($pulsanti[0]['href'] ?? ''), '7');
+});
+
+check('l\'elenco porta alla scheda: il nome la apre e «Visualizza» sta tra le azioni', function () {
+    $colonne = [];
+
+    foreach (DiscountCampaignResource::tableSchema() as $colonna) {
+        $colonne[(string) $colonna->name] = $colonna;
+    }
+
+    $nome = (new ReflectionProperty($colonne['name'], 'schema'))->getValue($colonne['name']);
+    $azioni = (new ReflectionProperty($colonne['actions'], 'schema'))->getValue($colonne['actions']);
+
+    return str_contains(json_encode($nome), 'view') && array_key_exists('view', (array) ($azioni['actions'] ?? []));
+});
+
+check('la scheda ha dettagli, prodotti, anteprima e, di lato, dove vale', function () {
+    $layout = DiscountCampaignResource::showLayoutSchema(['id' => 0, 'name' => 'Saldi', 'discount_type' => 'percent', 'discount_value' => '20.00', 'note' => 'Autunno']);
+    $titoli = [];
+    $scendi = function (array $componenti) use (&$scendi, &$titoli): void {
+        foreach ($componenti as $c) {
+            if ($c instanceof Wonder\Elements\Components\Container) {
+                $scendi($c->components);
+            } elseif (($c->components[0] ?? null) instanceof Wonder\Elements\Components\SectionTitle) {
+                $titoli[] = (string) (new ReflectionProperty($c->components[0], 'text'))->getValue($c->components[0]);
+            }
+        }
+    };
+    $scendi($layout->components);
+
+    return $titoli === ['Campagna', 'Prodotti', 'Anteprima', 'Dove vale', 'Note'];
+});
+
 summary();

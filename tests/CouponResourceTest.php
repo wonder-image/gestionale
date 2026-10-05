@@ -76,4 +76,45 @@ check('gli utilizzi si leggono «usati / limite», «∞» senza limite', functi
         && CouponResource::usageLabel(3, ['usage_limit' => '0']) === '3 / ∞';
 });
 
+check('il coupon si apre in una scheda di lettura, con «Modifica» in testata', function () {
+    $pagine = CouponResource::pageSchema()->toArray();
+    $azioni = $pagine['actions']['view'] ?? null;
+    $pulsanti = is_callable($azioni) ? $azioni(['id' => 7]) : (array) $azioni;
+
+    return !empty($pagine['pages']['view'])
+        && str_ends_with((string) ($pagine['views']['show'] ?? ''), 'pages/coupon-show.php')
+        && ($pulsanti[0]['label'] ?? '') === 'Modifica'
+        && str_contains((string) ($pulsanti[0]['href'] ?? ''), '7');
+});
+
+check('l\'elenco porta alla scheda: il codice la apre e «Visualizza» sta tra le azioni', function () {
+    $colonne = [];
+
+    foreach (CouponResource::tableSchema() as $colonna) {
+        $colonne[(string) $colonna->name] = $colonna;
+    }
+
+    $codice = (new ReflectionProperty($colonne['code'], 'schema'))->getValue($colonne['code']);
+    $azioni = (new ReflectionProperty($colonne['actions'], 'schema'))->getValue($colonne['actions']);
+
+    return str_contains(json_encode($codice), 'view') && array_key_exists('view', (array) ($azioni['actions'] ?? []));
+});
+
+check('la scheda ha dettagli, regole, prodotti e clienti, utilizzi e, di lato, dove vale', function () {
+    $layout = CouponResource::showLayoutSchema(['id' => 0, 'code' => 'ESTATE10', 'discount_type' => 'percent', 'discount_value' => '10.00', 'note' => 'Per la newsletter']);
+    $titoli = [];
+    $scendi = function (array $componenti) use (&$scendi, &$titoli): void {
+        foreach ($componenti as $c) {
+            if ($c instanceof Wonder\Elements\Components\Container) {
+                $scendi($c->components);
+            } elseif (($c->components[0] ?? null) instanceof Wonder\Elements\Components\SectionTitle) {
+                $titoli[] = (string) (new ReflectionProperty($c->components[0], 'text'))->getValue($c->components[0]);
+            }
+        }
+    };
+    $scendi($layout->components);
+
+    return $titoli === ['Coupon', 'Regole', 'Prodotti e clienti', 'Utilizzi', 'Dove vale', 'Note'];
+});
+
 summary();

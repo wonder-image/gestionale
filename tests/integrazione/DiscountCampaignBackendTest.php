@@ -10,6 +10,7 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
+require __DIR__.'/supporto/layout.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -268,5 +269,36 @@ check('un id che non esiste o un tipo cambiato a mano non rompono la pagina', fu
             && DiscountCampaignResource::previewHtml(99999999) === ''
             && DiscountCampaign::find(['id' => $strano], 1)['discount_type'] === 'percent'
             && is_array(DiscountCampaignResource::mutateFormValues(['id' => 99999999, 'starts_at' => '0000-00-00 00:00:00'], 'edit'));
+    });
+});
+
+check('la scheda mostra dettagli, selezione, anteprima, avviso di sovrapposizione e canali', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'discount_campaigns']);
+        [, $modello] = articoloAPrezzo('50.00');
+        $prima = salva(richiesta(['name' => 'Prima campagna', 'applies_to_all' => 'false', 'models' => [(string) $modello]]));
+        $seconda = salva(richiesta(['name' => 'Seconda campagna', 'discount_value' => '30', 'applies_to_all' => 'false', 'models' => [(string) $modello]]));
+        $html = layoutHtml(DiscountCampaignResource::showLayoutSchema((array) DiscountCampaign::find(['id' => $seconda], 1)));
+
+        return str_contains($html, 'Seconda campagna') && str_contains($html, '30 %')
+            && str_contains($html, 'Solo la selezione')
+            && str_contains($html, '<strong>1</strong> prodotto') && str_contains($html, '35,00 €')
+            && str_contains($html, 'Prima campagna')
+            && str_contains($html, 'Sito') && str_contains($html, 'Ufficio') && str_contains($html, 'Cassa')
+            && $prima > 0;
+    });
+});
+
+check('il form di modifica non porta più né l\'anteprima né l\'avviso', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'discount_campaigns']);
+        [, $modello] = articoloAPrezzo('50.00');
+        salva(richiesta(['name' => 'Prima campagna', 'applies_to_all' => 'false', 'models' => [(string) $modello]]));
+        $id = salva(richiesta(['name' => 'Seconda campagna', 'applies_to_all' => 'false', 'models' => [(string) $modello]]));
+        $_GET['id'] = $id;
+        $html = layoutHtml(DiscountCampaignResource::formLayoutSchema());
+        unset($_GET['id']);
+
+        return !str_contains($html, 'Anteprima') && !str_contains($html, 'negli stessi giorni');
     });
 });
