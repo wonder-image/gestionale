@@ -141,6 +141,12 @@
                 "options_invalid": "Le opzioni di un gruppo non sono leggibili: riaprile e salva di nuovo.",
                 "feature_off": "I multiprodotti sono spenti: attiva la funzionalità per venderli.",
                 "in_use": "«{{name}}» fa parte di multiprodotti ({{bundles}}): toglilo prima dalla loro composizione."
+            },
+            "campaign": {
+                "ends_before_starts": "La campagna non può finire prima di cominciare.",
+                "percent_out_of_range": "La percentuale di sconto deve essere maggiore di 0 e al massimo 100.",
+                "amount_negative": "L'importo dello sconto deve essere maggiore di zero.",
+                "scope_empty": "Scegli a quali prodotti si applica la campagna, oppure «tutto il catalogo»."
             }
         },
         "emails": {
