@@ -58,6 +58,9 @@ trait ScopeForm
         ];
     }
 
+    /** I campi del selettore: non sono colonne, si salvano nei ponti. */
+    public const FIELDS = ['categories', 'tags', 'brands', 'models', 'excluded_models'];
+
     /**
      * Il selettore scritto nella richiesta: id interi positivi, senza doppioni.
      * Un valore che non è una lista, o un tipo storto, vale «nessuno».

@@ -383,7 +383,8 @@ class DiscountCampaignResource extends GestionaleResource
 
         Campaigns::validate($values + ['scope' => static::readScope((array) $_POST)]);
 
-        return $values;
+        // Il selettore non è una colonna: si salva nei ponti.
+        return array_diff_key($values, array_flip(static::FIELDS));
     }
 
     /** Riempie il form con il selettore salvato e le date senza ora. */

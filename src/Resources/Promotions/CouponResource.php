@@ -429,7 +429,8 @@ class CouponResource extends GestionaleResource
             (int) ($oldValues['id'] ?? 0)
         );
 
-        return $values;
+        // Selettore e clienti riservati non sono colonne: si salvano a parte.
+        return array_diff_key($values, array_flip([...static::FIELDS, 'customers']));
     }
 
     /** Riempie il form con il selettore, i clienti riservati e le date senza ora. */

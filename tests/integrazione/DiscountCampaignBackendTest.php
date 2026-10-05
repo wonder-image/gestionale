@@ -80,10 +80,10 @@ function categoriaDiProva(string $nome): int
 function salva(array $post, ?int $id = null): int
 {
     $_POST = $post;
-    // Il controller passa agli hook solo i campi che sono colonne; il selettore resta in `$_POST`.
-    $post = array_diff_key($post, array_flip(['categories', 'tags', 'brands', 'models', 'excluded_models']));
     $vecchia = $id !== null ? DiscountCampaign::find(['id' => $id], 1) : null;
     $valori = DiscountCampaignResource::mutateRequestValues($post, $id === null ? 'store' : 'update', 'backend', $vecchia);
+    // Come il controller: i valori passano dallo schema della Resource, che ha anche i campi del selettore.
+    $valori = \Wonder\App\Table::key(DiscountCampaignResource::prepareSchemaName())->prepareFor(DiscountCampaignResource::modelTable(), $valori, $vecchia ?: null);
 
     if ($id === null) {
         $risultato = DiscountCampaign::query()->Insert(DiscountCampaign::$table, $valori + [
@@ -227,8 +227,8 @@ check('l\'avviso di sovrapposizione compare e il salvataggio riesce', function (
         $avviso = DiscountCampaignResource::overlapNotice($seconda);
         $solo = DiscountCampaignResource::overlapNotice($prima) !== '';
 
-        return str_contains($avviso, 'Prima campagna') && $solo
-            && DiscountCampaign::find(['id' => $seconda], 1)['name'] === 'Seconda campagna';
+        return str_contains($avviso, 'Prima Campagna') && $solo
+            && DiscountCampaign::find(['id' => $seconda], 1)['name'] === 'Seconda Campagna';
     });
 });
 
@@ -280,10 +280,10 @@ check('la scheda mostra dettagli, selezione, anteprima, avviso di sovrapposizion
         $seconda = salva(richiesta(['name' => 'Seconda campagna', 'discount_value' => '30', 'applies_to_all' => 'false', 'models' => [(string) $modello]]));
         $html = layoutHtml(DiscountCampaignResource::showLayoutSchema((array) DiscountCampaign::find(['id' => $seconda], 1)));
 
-        return str_contains($html, 'Seconda campagna') && str_contains($html, '30 %')
+        return str_contains($html, 'Seconda Campagna') && str_contains($html, '30 %')
             && str_contains($html, 'Solo la selezione')
             && str_contains($html, '<strong>1</strong> prodotto') && str_contains($html, '35,00 €')
-            && str_contains($html, 'Prima campagna')
+            && str_contains($html, 'Prima Campagna')
             && str_contains($html, 'Sito') && str_contains($html, 'Ufficio') && str_contains($html, 'Cassa')
             && $prima > 0;
     });
@@ -306,6 +306,8 @@ check('il form di modifica non porta più né l\'anteprima né l\'avviso', funct
 check('con il solo sito acceso il form della campagna non ha i toggle dei canali; con ufficio acceso sì, ma senza la cassa', function () {
     return prova(static function (): bool {
         accendiFunzionalita(['orders', 'discount_campaigns']);
+        // Il sito di prova può avere canali accesi a mano: si parte da nessuno.
+        spegniFunzionalita(['online_sales', 'office_sales', 'pos']);
         $solo = layoutHtml(DiscountCampaignResource::formLayoutSchema());
 
         accendiFunzionalita(['online_sales', 'office_sales']);
@@ -320,6 +322,8 @@ check('con il solo sito acceso il form della campagna non ha i toggle dei canali
 check('con un solo canale il salvataggio della campagna non tocca gli altri e l\'unico attivo vale «sì»', function () {
     return prova(static function (): bool {
         accendiFunzionalita(['orders', 'discount_campaigns']);
+        // Il sito di prova può avere canali accesi a mano: si parte da nessuno.
+        spegniFunzionalita(['online_sales', 'office_sales', 'pos']);
         $senzaCanali = array_diff_key(richiesta(), array_flip(['applies_online', 'applies_office', 'applies_pos']));
 
         $nuova = salva($senzaCanali);

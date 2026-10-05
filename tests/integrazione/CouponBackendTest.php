@@ -66,10 +66,10 @@ function clienteDiProva(): int
 function salva(array $post, ?int $id = null): int
 {
     $_POST = $post;
-    // Il controller passa agli hook solo i campi che sono colonne.
-    $post = array_diff_key($post, array_flip(['categories', 'tags', 'brands', 'models', 'excluded_models', 'customers']));
     $vecchio = $id !== null ? Coupon::find(['id' => $id], 1) : null;
     $valori = CouponResource::mutateRequestValues($post, $id === null ? 'store' : 'update', 'backend', $vecchio);
+    // Come il controller: i valori passano dallo schema della Resource, che ha anche i campi del selettore.
+    $valori = \Wonder\App\Table::key(CouponResource::prepareSchemaName())->prepareFor(CouponResource::modelTable(), $valori, $vecchio ?: null);
 
     if ($id === null) {
         $risultato = Coupon::query()->Insert(Coupon::$table, $valori);
@@ -223,7 +223,7 @@ check('un coupon si può risalvare con il suo stesso codice', function () {
         $id = salva(richiesta(['code' => 'Estate10']));
 
         return errore(static fn () => salva(richiesta(['code' => 'ESTATE10', 'name' => 'Nuovo nome']), $id)) === ''
-            && Coupon::find(['id' => $id], 1)['name'] === 'Nuovo nome';
+            && Coupon::find(['id' => $id], 1)['name'] === 'Nuovo Nome';
     });
 });
 
@@ -354,6 +354,8 @@ check('il form di modifica non porta più la tabella degli utilizzi', function (
 check('con il solo sito acceso il form non ha i toggle dei canali; con ufficio acceso sì, ma senza la cassa', function () {
     return prova(static function (): bool {
         accendiFunzionalita(['orders', 'coupons']);
+        // Il sito di prova può avere canali accesi a mano: si parte da nessuno.
+        spegniFunzionalita(['online_sales', 'office_sales', 'pos']);
         $solo = layoutHtml(CouponResource::formLayoutSchema());
 
         accendiFunzionalita(['online_sales', 'office_sales']);
@@ -368,6 +370,8 @@ check('con il solo sito acceso il form non ha i toggle dei canali; con ufficio a
 check('con un solo canale il salvataggio non tocca gli altri e l\'unico attivo vale «sì»', function () {
     return prova(static function (): bool {
         accendiFunzionalita(['orders', 'coupons']);
+        // Il sito di prova può avere canali accesi a mano: si parte da nessuno.
+        spegniFunzionalita(['online_sales', 'office_sales', 'pos']);
         $senzaCanali = array_diff_key(richiesta(), array_flip(['applies_online', 'applies_office', 'applies_pos']));
 
         // Nuovo: il sito sì, gli altri no.
@@ -387,6 +391,8 @@ check('con un solo canale il salvataggio non tocca gli altri e l\'unico attivo v
 check('un coupon nuovo parte con i canali accesi a «sì»', function () {
     return prova(static function (): bool {
         accendiFunzionalita(['orders', 'coupons', 'office_sales']);
+        // Il sito di prova può avere altri canali accesi a mano: qui conta solo l'ufficio.
+        spegniFunzionalita(['online_sales', 'pos']);
         $valori = [];
 
         foreach (CouponResource::formSchema() as $campo) {
