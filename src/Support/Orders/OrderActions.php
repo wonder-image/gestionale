@@ -92,6 +92,12 @@ final class OrderActions
         return self::CLASSES[$action] ?? '';
     }
 
+    /** La variante del pulsante pieno che conferma l'azione nella sua finestra: `success`, `primary`, `danger`. */
+    public static function variant(string $action): string
+    {
+        return str_replace(['btn-outline-', 'btn-'], '', self::buttonClass($action)) ?: 'primary';
+    }
+
     public static function icon(string $action): string
     {
         return self::ICONS[$action] ?? '';

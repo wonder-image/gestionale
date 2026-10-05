@@ -4,10 +4,13 @@ namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
 use Throwable;
 use Wonder\App\Resources\Support\NavigationOnlyResource;
+use Wonder\App\ResourceSchema\FormField;
+use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\Backend\Support\FlashAlert;
+use Wonder\Elements\Components\Modal;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
@@ -113,31 +116,25 @@ final class OrderNoteResource extends NavigationOnlyResource
             return '';
         }
 
-        $id = static::MODAL_ID;
-        $esc = static fn (string $v): string => OrderSheet::esc($v);
-        $titolo = trim('Note: ordine '.trim((string) ($order['order_number'] ?? '')));
-        $aiuto = 'La nota interna la vedi solo tu e chi lavora sugli ordini. La nota sul documento si stampa sulla fattura.';
-        $campo = static fn (string $nome, string $etichetta, string $valore): string => '<div class="col-12">'
-            .'<label class="form-label" for="'.$id.'-'.$nome.'">'.$etichetta.'</label>'
-            .'<textarea class="form-control" id="'.$id.'-'.$nome.'" name="'.$nome.'" rows="4" maxlength="'.static::MAX.'">'
-            .OrderSheet::esc($valore).'</textarea></div>';
+        $nota = static fn (string $nome, string $etichetta): Input => FormField::key($nome)
+            ->textarea()
+            ->label($etichetta)
+            ->value((string) ($order[$nome] ?? ''))
+            ->attribute('maxlength="'.static::MAX.'" rows="4"')
+            ->columnSpan(12);
 
-        return '<div class="modal fade" id="'.$id.'" tabindex="-1" aria-hidden="true">'
-            .'<div class="modal-dialog modal-dialog-centered"><div class="modal-content">'
-            .'<form method="post" action="'.$esc(static::submitUrl()).'">'
-            .'<div class="modal-header"><h5 class="modal-title">'.$esc($titolo)
-            .' <i class="bi bi-info-circle text-muted fs-6 ms-1" title="'.$esc($aiuto).'"></i></h5>'
-            .'<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>'
-            .'<div class="modal-body"><div class="row g-3">'
-            .$campo('internal_note', 'Nota interna', (string) ($order['internal_note'] ?? ''))
-            .$campo('document_note', 'Nota sul documento', (string) ($order['document_note'] ?? ''))
-            .'</div></div>'
-            .'<div class="modal-footer">'
-            .'<input type="hidden" name="order_id" value="'.(int) ($order['id'] ?? 0).'">'
-            .'<input type="hidden" name="back" value="'.$esc($back).'">'
-            .'<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Indietro</button>'
-            .'<button type="submit" class="btn btn-primary">Salva</button>'
-            .'</div></form></div></div></div>';
+        return Modal::make(trim('Note: ordine '.trim((string) ($order['order_number'] ?? ''))))
+            ->id(static::MODAL_ID)
+            ->help('La nota interna la vedi solo tu e chi lavora sugli ordini. La nota sul documento si stampa sulla fattura.')
+            ->form(static::submitUrl(), hidden: ['order_id' => (int) ($order['id'] ?? 0), 'back' => $back])
+            ->columns(12)
+            ->components([
+                $nota('internal_note', 'Nota interna'),
+                $nota('document_note', 'Nota sul documento'),
+            ])
+            ->cancel('Indietro')
+            ->submit('Salva')
+            ->render('bootstrap');
     }
 
     /**
