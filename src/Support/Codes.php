@@ -51,6 +51,11 @@ final class Codes
     public const INVOICE = 'inv_';
     public const SHIPMENT = 'shp_';
 
+    // Spedizioni
+    public const CARRIER = 'car_';
+    public const SHIPPING_METHOD = 'shm_';
+    public const SHIPPING_ZONE = 'shz_';
+
     // Abbonamenti, listini e sconti
     public const SUBSCRIPTION = 'sub_';
     public const PLAN = 'pln_';
