@@ -13,6 +13,7 @@ use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
+use Wonder\Plugin\Gestionale\Support\Shipping\Shipping;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxTotals;
@@ -343,16 +344,24 @@ final class Checkout
             OrderItem::delete((int) $old['id']);
         }
 
+        // Il contrassegno che si paga al corriere costa quanto dice il listino
+        // di spedizione scelto: se ne ha uno, sostituisce la commissione del
+        // metodo di pagamento.
+        $cod = (string) ($method['timing'] ?? '') === PaymentTiming::ON_DELIVERY
+            && (string) ($method['available_for'] ?? 'all') !== 'pickup'
+            ? Shipping::codFee($orderId)
+            : 0.0;
+
         $type = (string) ($method['fee_type'] ?? 'none');
         $value = round((float) ($method['fee_value'] ?? 0), 2);
 
-        if ($type === 'none' || $value <= 0) {
+        if ($cod <= 0 && ($type === 'none' || $value <= 0)) {
             return;
         }
 
         $order = Order::findById($orderId);
         $base = (float) (is_array($order) ? ($order['products_total'] ?? 0) : 0);
-        $amount = $type === 'percent' ? round($base * min($value, 100.0) / 100, 2) : $value;
+        $amount = $cod > 0 ? $cod : ($type === 'percent' ? round($base * min($value, 100.0) / 100, 2) : $value);
 
         if ($amount <= 0) {
             return;

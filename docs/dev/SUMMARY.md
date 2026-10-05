@@ -15,6 +15,7 @@
 * [Fornitori e costi d'acquisto](concetti/acquisti.md)
 * [Vendite: ordini, pagamenti e resi](concetti/vendite.md)
 * [Promozioni: campagne di sconto](concetti/promozioni.md)
+* [Spedizioni: zone, listini e calcolo](concetti/spedizioni.md)
 * [Codici, numerazione e log degli stati](concetti/documenti.md)
 * [IVA, impostazioni e sedi](concetti/iva-e-impostazioni.md)
 * [Errori e log](concetti/errori.md)

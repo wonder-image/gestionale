@@ -29,6 +29,10 @@
 * [Pagamenti e scadenze](vendite-pagamenti.md)
 * [Resi](vendite-resi.md)
 
+## Spedizioni
+
+* [Corrieri, zone e listini](spedizioni-listini.md)
+
 ## Canali di vendita
 
 * [Canali di vendita](canali-di-vendita.md)
