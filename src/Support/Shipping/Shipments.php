@@ -7,6 +7,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
+use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
 use Wonder\Plugin\Gestionale\Models\Shipping\Shipment;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShipmentItem;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShipmentStatusLog;
@@ -121,6 +122,298 @@ final class Shipments
     }
 
     /**
+     * Fa partire una spedizione: vettore, tracking e data, poi `in_transit`.
+     *
+     * Con un vettore che ha un modello di link il tracking è obbligatorio: il
+     * cliente lo usa per seguire il pacco. Da `pending` o `label_created`;
+     * una spedizione già partita resta com'è (nessuna scrittura).
+     *
+     * @param array{carrier_id?: int, tracking_number?: string, shipped_at?: string, source?: string, user_id?: int} $data
+     * @throws UserError
+     */
+    public static function ship(int $shipmentId, array $data = []): void
+    {
+        self::guardFeature();
+
+        Transaction::run(static function () use ($shipmentId, $data): void {
+            $orderId = self::orderOf($shipmentId);
+            $order = self::lockOrder($orderId);
+
+            if ((string) $order['stage'] !== 'order' || !in_array((string) $order['status'], Lifecycle::COMMITTED, true)) {
+                throw UserError::make('shipment.order_not_open');
+            }
+
+            $shipment = self::lock($shipmentId);
+
+            if ((string) $shipment['type'] !== 'delivery') {
+                throw UserError::make('shipment.bad_transition');
+            }
+
+            if ((string) $shipment['status'] === 'in_transit') {
+                return;
+            }
+
+            if (!in_array('in_transit', ShipmentFlow::allowed('delivery', (string) $shipment['status']), true)) {
+                throw UserError::make('shipment.bad_transition');
+            }
+
+            $values = self::shippingValues($shipment, $data);
+            $values['status'] = 'in_transit';
+
+            self::write($shipment, $values, 'in_transit', $data);
+            self::syncOrder($orderId, $data);
+        });
+    }
+
+    /**
+     * Porta una spedizione allo stato dato, se la strada è consentita.
+     *
+     * `in_transit` da `pending`/`label_created` passa da `ship()` (serve il
+     * tracking), `cancelled` da `cancel()`. Gli stati intermedi si possono
+     * saltare in avanti; `delivered` scrive `delivered_at`.
+     *
+     * @param array{source?: string, user_id?: int, carrier_id?: int, tracking_number?: string, shipped_at?: string} $options
+     * @throws UserError
+     */
+    public static function advance(int $shipmentId, string $to, array $options = []): void
+    {
+        self::guardFeature();
+
+        Transaction::run(static function () use ($shipmentId, $to, $options): void {
+            $orderId = self::orderOf($shipmentId);
+            $order = self::lockOrder($orderId);
+            $shipment = self::lock($shipmentId);
+            $from = (string) $shipment['status'];
+
+            if ($from === $to) {
+                return;
+            }
+
+            if (!in_array($to, ShipmentFlow::allowed((string) $shipment['type'], $from), true)) {
+                throw UserError::make('shipment.bad_transition');
+            }
+
+            if ($to === 'cancelled') {
+                self::cancel($shipmentId, $options);
+
+                return;
+            }
+
+            if ((string) $shipment['type'] === 'delivery' && in_array($from, ['pending', 'label_created'], true)) {
+                // Dal magazzino al cliente passa dal «partita»: servono vettore e tracking.
+                self::ship($shipmentId, $options);
+                $shipment = self::lock($shipmentId);
+                $from = (string) $shipment['status'];
+
+                if ($from === $to) {
+                    return;
+                }
+            }
+
+            $values = ['status' => $to];
+
+            if ($to === 'delivered') {
+                $values['delivered_at'] = date('Y-m-d H:i:s');
+            }
+
+            self::write($shipment, $values, $to, $options);
+            self::syncOrder((int) $order['id'], $options);
+        });
+    }
+
+    /**
+     * Annulla una spedizione non ancora partita: la merce torna spedibile.
+     *
+     * @param array{source?: string, user_id?: int} $options
+     * @throws UserError
+     */
+    public static function cancel(int $shipmentId, array $options = []): void
+    {
+        self::guardFeature();
+
+        Transaction::run(static function () use ($shipmentId, $options): void {
+            $orderId = self::orderOf($shipmentId);
+            self::lockOrder($orderId);
+            $shipment = self::lock($shipmentId);
+
+            if ((string) $shipment['status'] === 'cancelled') {
+                return;
+            }
+
+            if (!in_array('cancelled', ShipmentFlow::allowed((string) $shipment['type'], (string) $shipment['status']), true)) {
+                throw UserError::make('shipment.bad_transition');
+            }
+
+            self::write($shipment, ['status' => 'cancelled'], 'cancelled', $options);
+            self::syncOrder($orderId, $options);
+        });
+    }
+
+    /**
+     * Ricalcola l'evasione dell'ordine dalle spedizioni che contano e la
+     * passa a `Lifecycle::fulfill` solo se cambia: la chiusura automatica e la
+     * storia dell'ordine restano quelle di sempre.
+     *
+     * @param array{source?: string, user_id?: int} $options
+     */
+    public static function syncOrder(int $orderId, array $options = []): void
+    {
+        Transaction::run(static function () use ($orderId, $options): void {
+            $order = Order::findForUpdate(['id' => $orderId], 1);
+
+            if (!is_array($order) || $order === []) {
+                return;
+            }
+
+            $ordered = ShippableLines::remaining(self::describe(self::items($orderId)), []);
+            $counted = self::assigned($orderId, false, true);
+            $lines = [];
+
+            foreach ($ordered as $itemId => $quantity) {
+                $lines[] = ['ordered' => $quantity, 'shipped' => $counted[$itemId] ?? 0.0];
+            }
+
+            $target = ShipmentFlow::fulfillment(
+                (string) $order['fulfillment_status'],
+                $lines,
+                self::pickupReady($orderId)
+            );
+
+            if ($target !== (string) $order['fulfillment_status']) {
+                Lifecycle::fulfill($orderId, $target, [
+                    'source' => (string) ($options['source'] ?? 'user'),
+                    'user_id' => (int) ($options['user_id'] ?? 0),
+                ]);
+            }
+        });
+    }
+
+    private static function guardFeature(): void
+    {
+        if (!Gestionale::feature('shipping')) {
+            throw UserError::make('shipment.feature_off');
+        }
+    }
+
+    /** L'ordine di una spedizione (lettura senza blocco, serve per bloccare nell'ordine giusto). */
+    private static function orderOf(int $shipmentId): int
+    {
+        $shipment = $shipmentId > 0 ? Shipment::findById($shipmentId) : null;
+
+        if (!is_array($shipment) || $shipment === [] || (string) ($shipment['deleted'] ?? 'false') === 'true') {
+            throw UserError::make('shipment.not_found');
+        }
+
+        return (int) $shipment['order_id'];
+    }
+
+    /** @return array<string, mixed> */
+    private static function lockOrder(int $orderId): array
+    {
+        $order = Order::findForUpdate(['id' => $orderId], 1);
+
+        if (!is_array($order) || $order === []) {
+            throw UserError::make('order.not_found');
+        }
+
+        return $order;
+    }
+
+    /** @return array<string, mixed> */
+    private static function lock(int $shipmentId): array
+    {
+        $shipment = Shipment::findForUpdate(['id' => $shipmentId], 1);
+
+        if (!is_array($shipment) || $shipment === []) {
+            throw UserError::make('shipment.not_found');
+        }
+
+        return $shipment;
+    }
+
+    /**
+     * Vettore, tracking, link e data di partenza: quelli dati, altrimenti
+     * quelli già sulla spedizione.
+     *
+     * @param array<string, mixed> $shipment
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     * @throws UserError
+     */
+    private static function shippingValues(array $shipment, array $data): array
+    {
+        $carrierId = array_key_exists('carrier_id', $data) && (int) $data['carrier_id'] > 0
+            ? (int) $data['carrier_id']
+            : (int) $shipment['carrier_id'];
+        $carrier = $carrierId > 0 ? Carrier::findById($carrierId) : null;
+
+        if (!is_array($carrier) || $carrier === []) {
+            $carrier = null;
+            $carrierId = 0;
+        }
+
+        $tracking = array_key_exists('tracking_number', $data)
+            ? trim((string) $data['tracking_number'])
+            : trim((string) $shipment['tracking_number']);
+        $url = $carrier !== null ? Carriers::trackingUrl($carrier, $tracking) : '';
+
+        if ($carrier !== null && trim((string) ($carrier['tracking_url_template'] ?? '')) !== '' && $tracking === '') {
+            throw UserError::make('shipment.tracking_required');
+        }
+
+        $when = trim((string) ($data['shipped_at'] ?? ''));
+
+        if ($when === '') {
+            $shippedAt = date('Y-m-d H:i:s');
+        } else {
+            $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $when) ?: \DateTimeImmutable::createFromFormat('!d/m/Y', $when);
+
+            if ($date === false || ($date->format('Y-m-d') !== $when && $date->format('d/m/Y') !== $when)) {
+                throw UserError::make('shipment.bad_date');
+            }
+
+            $shippedAt = $date->format('Y-m-d') . ' 00:00:00';
+        }
+
+        return [
+            'carrier_id' => $carrierId,
+            'tracking_number' => $tracking,
+            'tracking_url' => $url,
+            'shipped_at' => $shippedAt,
+        ];
+    }
+
+    /**
+     * Scrive i valori e la riga di storico del passaggio di stato.
+     *
+     * @param array<string, mixed> $shipment la riga com'era
+     * @param array<string, mixed> $values
+     * @param array<string, mixed> $options
+     */
+    private static function write(array $shipment, array $values, string $to, array $options): void
+    {
+        Shipment::update($values, (int) $shipment['id']);
+
+        StatusLogger::record(
+            ShipmentStatusLog::class,
+            (int) $shipment['id'],
+            'status',
+            (string) $shipment['status'],
+            $to,
+            (string) ($options['source'] ?? 'user'),
+            (int) ($options['user_id'] ?? 0) ?: null
+        );
+    }
+
+    /** C'è un ritiro pronto che aspetta il cliente? */
+    private static function pickupReady(int $orderId): bool
+    {
+        $rows = self::rows(Shipment::find(['order_id' => $orderId, 'type' => 'pickup', 'status' => 'ready_for_pickup', 'deleted' => 'false']));
+
+        return $rows !== [];
+    }
+
+    /**
      * Le quantità chieste, pulite: le righe vuote o a zero si tolgono.
      *
      * @param array<int, mixed> $quantities
@@ -179,10 +472,11 @@ final class Shipments
 
     /**
      * Le quantità già in spedizioni che occupano la merce, per riga d'ordine.
+     * Con `$onlyCounted` solo quelle che contano come evase.
      *
      * @return array<int, float>
      */
-    private static function assigned(int $orderId, bool $lock = false): array
+    private static function assigned(int $orderId, bool $lock = false, bool $onlyCounted = false): array
     {
         $where = ['order_id' => $orderId, 'deleted' => 'false'];
         $shipments = self::rows($lock ? Shipment::findForUpdate($where) : Shipment::find($where));
@@ -190,6 +484,10 @@ final class Shipments
 
         foreach ($shipments as $shipment) {
             if (in_array((string) $shipment['status'], self::RELEASED, true)) {
+                continue;
+            }
+
+            if ($onlyCounted && !self::counts($shipment)) {
                 continue;
             }
 
@@ -202,6 +500,16 @@ final class Shipments
         }
 
         return $assigned;
+    }
+
+    /** Una spedizione conta come evasa solo da `in_transit` in poi (un ritiro, da `picked_up`). */
+    private static function counts(array $shipment): bool
+    {
+        return in_array(
+            (string) $shipment['status'],
+            (string) $shipment['type'] === 'pickup' ? ShipmentFlow::PICKUP_COUNTED : ShipmentFlow::DELIVERY_COUNTED,
+            true
+        );
     }
 
     /** @return list<array<string, mixed>> */

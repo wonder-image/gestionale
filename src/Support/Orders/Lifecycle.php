@@ -25,7 +25,8 @@ use Wonder\Sql\Transaction;
  * L'evasione è l'eccezione che conferma la regola: `fulfill()` scrive
  * `fulfillment_status` e non tocca il magazzino, perché la merce è già uscita
  * alla conferma. Sta qui perché il cambio va nella storia dell'ordine e perché
- * può essere il pezzo che mancava per chiudere.
+ * può essere il pezzo che mancava per chiudere. Con la funzionalità `shipping`
+ * accesa a chiamarla è `Shipments`, che deriva l'evasione dalle spedizioni.
  *
  * Tutto è idempotente. Un webhook che ripassa, un operatore che clicca due
  * volte, il giro dello scheduler che incontra un ordine già chiuso: la seconda

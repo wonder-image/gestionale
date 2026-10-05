@@ -194,7 +194,11 @@
                 "feature_off": "Le spedizioni non sono attive: accendile dalle funzionalità.",
                 "order_not_open": "Questo ordine non si spedisce: deve essere confermato e con consegna a domicilio.",
                 "nothing_to_ship": "Scegli almeno un articolo da spedire, con una quantità maggiore di zero.",
-                "over_quantity": "Non puoi spedire più di quanto resta da spedire, né articoli che non fanno parte di questo ordine o che non si spediscono."
+                "over_quantity": "Non puoi spedire più di quanto resta da spedire, né articoli che non fanno parte di questo ordine o che non si spediscono.",
+                "not_found": "Questa spedizione non esiste.",
+                "bad_transition": "Da questo stato la spedizione non può passare a quello richiesto.",
+                "tracking_required": "Con questo corriere serve il numero di tracking: il cliente lo usa per seguire il pacco.",
+                "bad_date": "La data di spedizione non è valida: scrivila come giorno, mese e anno."
             }
         },
         "emails": {
