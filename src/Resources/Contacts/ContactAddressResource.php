@@ -4,10 +4,14 @@ namespace Wonder\Plugin\Gestionale\Resources\Contacts;
 
 use Throwable;
 use Wonder\App\Resources\Support\NavigationOnlyResource;
+use Wonder\App\ResourceSchema\FormField;
+use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\Backend\Support\FlashAlert;
+use Wonder\Elements\Components\Modal;
+use Wonder\Http\Csrf;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
@@ -24,9 +28,6 @@ final class ContactAddressResource extends NavigationOnlyResource
 {
     /** La finestra che aggiunge e modifica; la scheda la apre dai pulsanti. */
     public const MODAL_ID = 'wi-indirizzo';
-
-    /** La finestra che chiede conferma prima di eliminare. */
-    public const DELETE_MODAL_ID = 'wi-indirizzo-elimina';
 
     /** I campi che la finestra manda, con la lunghezza massima di ciascuno. */
     public const FIELDS = [
@@ -245,16 +246,26 @@ final class ContactAddressResource extends NavigationOnlyResource
     }
 
     /**
-     * Il pulsante che apre la conferma di eliminazione.
+     * Il pulsante che elimina: una form sola, che la lib fa confermare prima
+     * di inviare (`data-wi-confirm*`).
      *
      * @param array<string, mixed> $address
      */
     public static function deleteButton(string $label, string $class, array $address): string
     {
-        $dati = ['id' => (int) ($address['id'] ?? 0), 'label' => trim((string) ($address['label'] ?? ''))];
+        $nome = trim((string) ($address['label'] ?? ''));
 
-        return '<button type="button" class="btn '.OrderSheet::esc($class).'" data-bs-toggle="modal" data-bs-target="#'.static::DELETE_MODAL_ID.'"'
-            .' data-wi-address="'.OrderSheet::esc((string) json_encode($dati, JSON_UNESCAPED_UNICODE)).'">'.$label.'</button>';
+        return static::postForm(
+            ['action' => 'delete', 'contact_id' => (int) ($address['contact_id'] ?? 0), 'address_id' => (int) ($address['id'] ?? 0)],
+            $label,
+            $class,
+            [
+                'data-wi-confirm' => $nome !== '' ? 'Confermi l\'eliminazione dell\'indirizzo «'.$nome.'»?' : 'Confermi l\'eliminazione di questo indirizzo?',
+                'data-wi-confirm-title' => 'Elimina indirizzo',
+                'data-wi-confirm-ok' => 'Elimina',
+                'data-wi-confirm-variant' => 'danger',
+            ]
+        );
     }
 
     /**
@@ -263,94 +274,90 @@ final class ContactAddressResource extends NavigationOnlyResource
      */
     public static function defaultForm(int $contactId, int $addressId, string $label, string $class): string
     {
-        return '<form method="post" action="'.OrderSheet::esc(static::submitUrl()).'" class="d-inline">'
-            .'<input type="hidden" name="action" value="default">'
-            .'<input type="hidden" name="contact_id" value="'.$contactId.'">'
-            .'<input type="hidden" name="address_id" value="'.$addressId.'">'
-            .'<button type="submit" class="btn '.OrderSheet::esc($class).'">'.$label.'</button></form>';
+        return static::postForm(['action' => 'default', 'contact_id' => $contactId, 'address_id' => $addressId], $label, $class);
     }
 
     /**
-     * Le due finestre della scheda: aggiungi/modifica ed elimina. Si
-     * riempiono dai `data-wi-address` del pulsante che le apre.
+     * Una form di un solo pulsante. L'etichetta è markup nostro (un'icona, due
+     * parole), per questo non passa da `Button`, che la escaperebbe.
+     *
+     * @param array<string, int|string> $hidden
+     * @param array<string, string> $attributes
+     */
+    private static function postForm(array $hidden, string $label, string $class, array $attributes = []): string
+    {
+        $html = '<form method="post" action="'.OrderSheet::esc(static::submitUrl()).'" class="d-inline"';
+
+        foreach ($attributes as $nome => $valore) {
+            $html .= ' '.$nome.'="'.OrderSheet::esc($valore).'"';
+        }
+
+        $html .= '>'.Csrf::fieldFor('post');
+
+        foreach ($hidden as $nome => $valore) {
+            $html .= '<input type="hidden" name="'.$nome.'" value="'.OrderSheet::esc((string) $valore).'">';
+        }
+
+        return $html.'<button type="submit" class="btn '.OrderSheet::esc($class).'">'.$label.'</button></form>';
+    }
+
+    /**
+     * La finestra della scheda: aggiunge e modifica. Si riempie dai
+     * `data-wi-address` del pulsante che la apre.
      */
     public static function modals(int $contactId): string
     {
-        $esc = static fn (string $v): string => OrderSheet::esc($v);
-        $url = $esc(static::submitUrl());
-        $id = static::MODAL_ID;
-        $nascosti = '<input type="hidden" name="contact_id" value="'.$contactId.'">';
-        $campo = static fn (string $nome, string $etichetta, int $col, string $extra = ''): string => '<div class="col-'.$col.'">'
-            .'<label class="form-label" for="'.$id.'-'.$nome.'">'.$etichetta.'</label>'
-            .'<input type="text" class="form-control" id="'.$id.'-'.$nome.'" name="'.$nome.'" maxlength="'.static::FIELDS[$nome].'" '.$extra.'></div>';
-        $aiuto = static fn (string $testo): string => ' <i class="bi bi-info-circle text-muted" title="'.$esc($testo).'"></i>';
+        $campo = static fn (string $nome, string $etichetta, int $col): Input => FormField::key($nome)
+            ->text()
+            ->label($etichetta)
+            ->maxLength(static::FIELDS[$nome])
+            ->columnSpan($col);
 
-        $form = '<div class="modal fade" id="'.$id.'" tabindex="-1" aria-hidden="true">'
-            .'<div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">'
-            .'<form method="post" action="'.$url.'">'
-            .'<div class="modal-header"><h5 class="modal-title" data-wi-title>Aggiungi indirizzo</h5>'
-            .'<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>'
-            .'<div class="modal-body"><div class="row g-3">'
-            .$campo('label', 'Etichetta'.$aiuto('Per riconoscerlo: Casa, Ufficio, Magazzino. Si vede solo qui.'), 12)
-            .$campo('name', 'Nome'.$aiuto('Chi ritira: spesso non è il titolare della scheda.'), 6)
-            .$campo('surname', 'Cognome', 6)
-            .$campo('street', 'Via', 8)
-            .$campo('number', 'Civico', 4)
-            .$campo('more', 'Scala, interno, citofono', 12)
-            .$campo('cap', 'CAP', 4)
-            .$campo('city', 'Città', 8)
-            .$campo('province', 'Provincia', 6)
-            .$campo('country', 'Paese'.$aiuto('Il codice di due lettere: IT, FR, DE.'), 6, 'style="text-transform:uppercase"')
-            .$campo('phone_prefix', 'Prefisso', 4)
-            .$campo('phone', 'Telefono', 8)
-            .'<div class="col-12"><div class="form-check">'
-            .'<input type="checkbox" class="form-check-input" id="'.$id.'-is_default" name="is_default" value="true">'
-            .'<label class="form-check-label" for="'.$id.'-is_default">Indirizzo predefinito'
-            .$aiuto('Uno solo per scheda: scegliendo questo, l\'altro smette di esserlo.').'</label></div></div>'
-            .'</div></div>'
-            .'<div class="modal-footer">'.$nascosti
-            .'<input type="hidden" name="action" value="save"><input type="hidden" name="address_id" value="0">'
-            .'<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Indietro</button>'
-            .'<button type="submit" class="btn btn-primary">Salva</button>'
-            .'</div></form></div></div></div>';
-
-        $did = static::DELETE_MODAL_ID;
-        $elimina = '<div class="modal fade" id="'.$did.'" tabindex="-1" aria-hidden="true">'
-            .'<div class="modal-dialog modal-dialog-centered"><div class="modal-content">'
-            .'<form method="post" action="'.$url.'">'
-            .'<div class="modal-header"><h5 class="modal-title">Elimina indirizzo</h5>'
-            .'<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>'
-            .'<div class="modal-body"><p class="mb-0" data-wi-text>Confermi l\'eliminazione di questo indirizzo?</p></div>'
-            .'<div class="modal-footer">'.$nascosti
-            .'<input type="hidden" name="action" value="delete"><input type="hidden" name="address_id" value="0">'
-            .'<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Indietro</button>'
-            .'<button type="submit" class="btn btn-danger">Elimina</button>'
-            .'</div></form></div></div></div>';
-
-        return $form.$elimina.static::script();
+        return Modal::make('Aggiungi indirizzo')
+            ->id(static::MODAL_ID)
+            ->size('lg')
+            ->help('L\'etichetta serve a riconoscerlo (Casa, Ufficio, Magazzino) e si vede solo qui. Nome e cognome sono di chi ritira: spesso non è il titolare della scheda. Il paese è il codice di due lettere: IT, FR, DE. Il predefinito è uno solo per scheda: scegliendo questo, l\'altro smette di esserlo.')
+            ->form(static::submitUrl(), hidden: ['contact_id' => $contactId, 'action' => 'save', 'address_id' => 0])
+            ->columns(12)
+            ->components([
+                $campo('label', 'Etichetta', 12),
+                $campo('name', 'Nome', 6),
+                $campo('surname', 'Cognome', 6),
+                $campo('street', 'Via', 8),
+                $campo('number', 'Civico', 4),
+                $campo('more', 'Scala, interno, citofono', 12),
+                $campo('cap', 'CAP', 4),
+                $campo('city', 'Città', 8),
+                $campo('province', 'Provincia', 6),
+                $campo('country', 'Paese', 6)->attribute('style="text-transform:uppercase"'),
+                $campo('phone_prefix', 'Prefisso', 4),
+                $campo('phone', 'Telefono', 8),
+                FormField::key('is_default')->checkbox()->label('Indirizzo predefinito')->attribute('value="true"')->columnSpan(12),
+            ])
+            ->cancel('Indietro')
+            ->submit('Salva')
+            ->render('bootstrap').static::script();
     }
 
     /**
-     * Riempie le finestre quando si aprono. Si aggancia al documento, perché
+     * Riempie la finestra quando si apre. Si aggancia al documento, perché
      * Bootstrap può caricarsi dopo questa pagina: gli eventi `show.bs.modal`
-     * salgono fin lì.
+     * salgono fin lì. Il campo vero è quello non nascosto: la spunta ha
+     * accanto un `hidden` con lo stesso nome.
      */
     private static function script(): string
     {
         $campi = (string) json_encode(array_merge(array_keys(static::FIELDS), ['is_default']));
 
         return '<script>(function(){'
-            .'var FIELDS='.$campi.',FORM='.json_encode(static::MODAL_ID).',DEL='.json_encode(static::DELETE_MODAL_ID).';'
+            .'var FIELDS='.$campi.',FORM='.json_encode(static::MODAL_ID).';'
             .'function dati(e){try{return JSON.parse((e.relatedTarget&&e.relatedTarget.getAttribute("data-wi-address"))||"{}")||{}}catch(x){return {}}}'
             .'document.addEventListener("show.bs.modal",function(e){'
-            .'var m=e.target,d=dati(e);if(!m||!m.id){return}'
-            .'if(m.id===FORM){'
-            .'FIELDS.forEach(function(k){var i=m.querySelector("[name="+k+"]");if(!i){return}'
+            .'var m=e.target,d=dati(e);if(!m||m.id!==FORM){return}'
+            .'FIELDS.forEach(function(k){var i=m.querySelector("[name="+k+"]:not([type=hidden])");if(!i){return}'
             .'if(i.type==="checkbox"){i.checked=d[k]==="true"}else{i.value=d[k]!==undefined?d[k]:(k==="country"?"IT":"")}});'
             .'m.querySelector("[name=address_id]").value=d.id||0;'
-            .'m.querySelector("[data-wi-title]").textContent=d.id?"Modifica indirizzo":"Aggiungi indirizzo";}'
-            .'if(m.id===DEL){m.querySelector("[name=address_id]").value=d.id||0;'
-            .'m.querySelector("[data-wi-text]").textContent=d.label?"Confermi l\'eliminazione dell\'indirizzo «"+d.label+"»?":"Confermi l\'eliminazione di questo indirizzo?";}'
+            .'m.querySelector("[data-wi-modal-title]").textContent=d.id?"Modifica indirizzo":"Aggiungi indirizzo";'
             .'});})();</script>';
     }
 

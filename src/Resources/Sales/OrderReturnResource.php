@@ -291,15 +291,17 @@ final class OrderReturnResource extends NavigationOnlyResource
             return '';
         }
 
-        $opzioni = '';
+        $opzioni = [];
 
         foreach ($locations as $location) {
-            $id = (int) $location['id'];
-            $opzioni .= '<option value="'.$id.'"'.($id === $selected ? ' selected' : '').'>'.OrderSheet::esc((string) $location['label']).'</option>';
+            $opzioni[(int) $location['id']] = (string) $location['label'];
         }
 
-        return '<div class="mb-3"><label class="form-label" for="wi-reso-sede">Sede in cui rientra la merce</label>'
-            .'<select class="form-select" id="wi-reso-sede" name="location_id">'.$opzioni.'</select></div>';
+        return '<div class="mb-3">'.FormField::key('location_id')
+            ->select($opzioni)
+            ->label('Sede in cui rientra la merce')
+            ->value((string) ($selected > 0 ? $selected : array_key_first($opzioni)))
+            ->render('bootstrap').'</div>';
     }
 
     /**

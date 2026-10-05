@@ -183,7 +183,7 @@ Gli attributi di livello `model` stanno nel riquadro *Scheda tecnica* di
 - **La × svuota, non nasconde e basta**: un campo nascosto viene postato lo
   stesso. Toglierla azzera le caselle (anche AutoNumeric) e al salvataggio
   `ProductAttributes::save()` cancella la riga. Con un valore chiede conferma
-  con `window.wiRepeaterConfirmDelete()`, con `window.confirm()` di riserva.
+  con `window.wi.confirm()`, la conferma della lib (mai `window.confirm()`).
   La × va nel wrapper del campo (`.form-floating` o
   `.wi-container-checkbox`), cercato fuori dai `.modal`: quando lo script gira
   il modal di «Aggiungi valore» di un elenco è ancora dentro il blocco — lo
@@ -269,8 +269,7 @@ bottone largo quanto il riquadro (`w-100`), scritto a mano in un `RichText`
 perché il `Dropdown` del core non allarga toggle e menu. Le voci
 (`data-wi-option-add`) si nascondono quando l'attributo è già acceso, e il
 bottone sparisce al terzo. La **×** di un attributo non in uso passa da
-`window.wiRepeaterConfirmDelete()` (la finestra del repeater, che nella pagina
-c'è già), con `window.confirm()` di riserva.
+`window.wi.confirm()`, la conferma della lib (mai `window.confirm()`).
 
 | Quando | Cosa si vede |
 |---|---|

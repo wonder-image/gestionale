@@ -137,7 +137,7 @@ check('gli indirizzi sono card, una per indirizzo, con i pulsanti e le finestre'
 
         return str_contains($html, 'Magazzino') && str_contains($html, 'Ufficio') && str_contains($html, 'Via delle Industrie 8')
             && str_contains($html, 'data-bs-target="#'.ContactAddressResource::MODAL_ID.'"')
-            && str_contains($html, 'data-bs-target="#'.ContactAddressResource::DELETE_MODAL_ID.'"')
+            && str_contains($html, 'data-wi-confirm-title="Elimina indirizzo"')
             && !str_contains($html, 'Nessun indirizzo di consegna');
     });
 });

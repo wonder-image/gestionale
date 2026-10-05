@@ -967,9 +967,12 @@ check('i campi obbligatori della finestra armano la spunta del backend', functio
     // Il backend tiene spento «Salva» finché un campo obbligatorio è vuoto, e
     // riaccende ascoltando i campi con «data-wi-check». Senza, il bottone
     // della finestra resterebbe spento per sempre.
-    return str_contains($html, 'name="mode" data-wi-check="true"')
-        && str_contains($html, 'name="quantity" data-wi-check="true"')
-        && str_contains($html, 'name="reason" data-wi-check="true"')
+    $armato = static fn (string $tag, string $nome): bool => preg_match(
+        '/<'.$tag.'(?=[^>]*name="'.$nome.'")(?=[^>]*data-wi-check="true")(?=[^>]* required)[^>]*>/',
+        $html
+    ) === 1;
+
+    return $armato('select', 'mode') && $armato('input', 'quantity') && $armato('select', 'reason')
         && str_contains($html, 'typeof check');
 });
 

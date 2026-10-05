@@ -15,6 +15,7 @@ use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\Support\Repeater;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
@@ -609,12 +610,8 @@ class ProductResource extends ProductModelResource
         }
 
         // La rettifica non porta via dalla scheda: apre la finestra (P119).
-        $parts[] = '<button type="button" class="btn btn-sm btn-outline-primary" onclick="'
-            .static::escape(
-                'window.bootstrap && window.bootstrap.Modal'
-                .".getOrCreateInstance(document.getElementById('".static::ADJUST_MODAL."')).show();"
-            )
-            .'"><i class="bi bi-pencil-square me-1"></i>Rettifica</button>';
+        $parts[] = '<button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#'
+            .static::ADJUST_MODAL.'"><i class="bi bi-pencil-square me-1"></i>Rettifica</button>';
 
         return implode(' · ', $parts);
     }
@@ -690,44 +687,23 @@ class ProductResource extends ProductModelResource
             return '';
         }
 
-        $id = static::ADJUST_MODAL;
-        $azione = static::escape(StockAdjustmentResource::submitUrl());
-        $azioni = '';
+        // I campi sono quelli della pagina della rettifica: una definizione
+        // sola, due posti in cui si compila.
+        $finestra = Modal::make('Rettifica la giacenza')
+            ->id(static::ADJUST_MODAL)
+            ->form(StockAdjustmentResource::submitUrl(), hidden: ['product_id' => $productId, 'back' => $back])
+            ->columns(12)
+            ->components([
+                StockAdjustmentResource::getInput('mode')->columnSpan(4),
+                StockAdjustmentResource::getInput('quantity')->columnSpan(4),
+                StockAdjustmentResource::getInput('reason')->columnSpan(4),
+                StockAdjustmentResource::getInput('note')->attribute('rows="2"')->columnSpan(12),
+            ])
+            ->cancel('Annulla')
+            ->submit('Salva la rettifica')
+            ->render('bootstrap');
 
-        foreach (Adjustment::ACTIONS as $chiave => $nome) {
-            $azioni .= '<option value="'.static::escape((string) $chiave).'">'.static::escape($nome).'</option>';
-        }
-
-        $causali = '';
-
-        foreach (Reasons::all() as $chiave => $nome) {
-            $causali .= '<option value="'.static::escape((string) $chiave).'"'
-                .((string) $chiave === Reasons::DEFAULT ? ' selected' : '').'>'
-                .static::escape((string) $nome).'</option>';
-        }
-
-        return '<template data-wi-stock-adjust="'.$id.'">'
-            .'<div class="modal fade" id="'.$id.'" tabindex="-1" aria-hidden="true">'
-            .'<div class="modal-dialog modal-dialog-centered"><div class="modal-content">'
-            .'<form method="post" action="'.$azione.'">'
-            .'<div class="modal-header"><h5 class="modal-title">Rettifica la giacenza</h5>'
-            .'<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>'
-            .'<div class="modal-body"><div class="row g-3">'
-            .'<div class="col-4"><label class="form-label" for="'.$id.'-mode">Azione</label>'
-            .'<select class="form-select" id="'.$id.'-mode" name="mode" data-wi-check="true" required>'.$azioni.'</select></div>'
-            .'<div class="col-4"><label class="form-label" for="'.$id.'-quantity">Quantità</label>'
-            .'<input class="form-control" id="'.$id.'-quantity" type="number" step="0.001" min="0" name="quantity" data-wi-check="true" required></div>'
-            .'<div class="col-4"><label class="form-label" for="'.$id.'-reason">Causale</label>'
-            .'<select class="form-select" id="'.$id.'-reason" name="reason" data-wi-check="true" required>'.$causali.'</select></div>'
-            .'<div class="col-12"><label class="form-label" for="'.$id.'-note">Nota</label>'
-            .'<textarea class="form-control" id="'.$id.'-note" name="note" rows="2"></textarea></div>'
-            .'</div></div>'
-            .'<div class="modal-footer">'
-            .'<input type="hidden" name="product_id" value="'.$productId.'">'
-            .'<input type="hidden" name="back" value="'.static::escape($back).'">'
-            .'<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>'
-            .'<button type="submit" class="btn btn-primary">Salva la rettifica</button>'
-            .'</div></form></div></div></div></template>'
+        return '<template data-wi-stock-adjust="'.static::ADJUST_MODAL.'">'.$finestra.'</template>'
             .static::stockAdjustScript();
     }
 

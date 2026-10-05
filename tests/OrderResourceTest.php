@@ -272,7 +272,7 @@ check('la finestra del pagamento posta a Registra pagamento con ordine e ritorno
         && str_contains($html, 'name="amount"') && str_contains($html, 'value="60,00"')
         && str_contains($html, '<option value="2" selected>Contanti</option>')
         && str_contains($html, '<option value="1">Bonifico</option>')
-        && str_contains($html, 'name="paid_at"') && str_contains($html, 'value="'.date('Y-m-d').'"')
+        && str_contains($html, 'name="paid_at"') && str_contains($html, 'value="'.date('d/m/Y').'"')
         && str_contains($html, 'name="reference"')
         && str_contains($html, '2026/0009');
 });

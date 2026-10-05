@@ -60,19 +60,32 @@ check('il pulsante di aggiunta non porta dati: la finestra si apre vuota', fn ()
     str_contains(ContactAddressResource::openButton('Aggiungi', 'btn-sm'), 'data-wi-address="[]"')
 );
 
-check('le finestre: aggiungi/modifica con tutti i campi e conferma di eliminazione, ciascuna con la sua form', function () {
+check('la finestra: aggiungi/modifica con tutti i campi, in una form sola', function () {
     $html = ContactAddressResource::modals(12);
 
-    foreach (array_keys(ContactAddressResource::FIELDS) as $campo) {
-        if (!str_contains($html, 'name="'.$campo.'"')) {
+    foreach (ContactAddressResource::FIELDS as $campo => $lunghezza) {
+        if (preg_match('/<input(?=[^>]*name="'.$campo.'")(?=[^>]*maxlength="'.$lunghezza.'")[^>]*>/', $html) !== 1) {
             return false;
         }
     }
 
-    return str_contains($html, 'id="'.ContactAddressResource::MODAL_ID.'"') && str_contains($html, 'id="'.ContactAddressResource::DELETE_MODAL_ID.'"')
-        && substr_count($html, '<form method="post"') === 2 && substr_count($html, 'name="contact_id" value="12"') === 2
-        && str_contains($html, 'name="action" value="save"') && str_contains($html, 'name="action" value="delete"')
-        && str_contains($html, 'name="is_default"') && !str_contains($html, ' required');
+    return str_contains($html, 'id="'.ContactAddressResource::MODAL_ID.'"')
+        && substr_count($html, '<form') === 1 && str_contains($html, 'method="post"')
+        && preg_match('/<input type="hidden" name="contact_id" value="12"/', $html) === 1
+        && preg_match('/<input type="hidden" name="action" value="save"/', $html) === 1
+        && preg_match('/<input type="hidden" name="address_id" value="0"/', $html) === 1
+        && preg_match('/<input(?=[^>]*type="checkbox")(?=[^>]*name="is_default")(?=[^>]*value="true")[^>]*>/', $html) === 1
+        && !str_contains($html, ' required');
+});
+
+check('l\'eliminazione è una form che la lib fa confermare, senza finestra propria', function () {
+    $html = ContactAddressResource::deleteButton('<i class="bi bi-trash"></i>', 'btn-sm', ['id' => 7, 'contact_id' => 12, 'label' => 'Casa "mia" <b>X</b>']);
+
+    return str_contains($html, 'name="action" value="delete"') && str_contains($html, 'name="address_id" value="7"')
+        && str_contains($html, 'name="contact_id" value="12"')
+        && str_contains($html, 'data-wi-confirm="Confermi l&#039;eliminazione dell&#039;indirizzo «Casa &quot;mia&quot; &lt;b&gt;X&lt;/b&gt;»?"')
+        && str_contains($html, 'data-wi-confirm-ok="Elimina"') && str_contains($html, 'data-wi-confirm-variant="danger"')
+        && str_contains($html, '<i class="bi bi-trash"></i>') && !str_contains($html, 'data-bs-toggle');
 });
 
 check('«Rendi predefinito» è una form che manda action=default', function () {

@@ -2114,10 +2114,10 @@ check('togliere una caratteristica la svuota, perché nascosta si salverebbe lo 
         && str_contains($testo, 'casella.checked = false')
         && str_contains($testo, "casella.value = ''")
         // Un blocco vuoto se ne va subito; la conferma solo se c'era scritto
-        // qualcosa, con il modal del repeater o, senza, quello del browser.
+        // qualcosa, con la finestra della lib (`wi.confirm`), mai quella del browser.
         && str_contains($testo, 'if (!scritto(nodo))')
-        && strpos($testo, 'if (!scritto(nodo))') < strpos($testo, 'wiRepeaterConfirmDelete')
-        && str_contains($testo, 'window.confirm(');
+        && strpos($testo, 'if (!scritto(nodo))') < strpos($testo, 'window.wi.confirm(conferma)')
+        && !str_contains($testo, 'window.confirm(');
 });
 
 check('senza caratteristiche il menu propone solo quella nuova', function () use ($schedaAperta, $dentroScheda, $testoScheda) {
@@ -2479,10 +2479,10 @@ check('togliere un attributo chiede conferma', function () use ($schedaAperta) {
     $html = $schedaAperta::vediSelettore();
 
     // Un clic storto non deve portarsi via le spunte e le righe nuove.
-    return str_contains($html, 'wiRepeaterConfirmDelete')
+    return str_contains($html, 'window.wi.confirm(conferma)')
         && str_contains($html, "title: \"Togliere l'attributo \" + titolo(nodo) + '?'")
-        && str_contains($html, "confirmLabel: 'Togli'")
-        && str_contains($html, 'window.confirm(');
+        && str_contains($html, "ok: 'Togli'") && str_contains($html, "variant: 'danger'")
+        && !str_contains($html, 'window.confirm(');
 });
 
 check('ogni blocco di opzione porta la maniglia che lo accende', function () use ($schedaAperta) {

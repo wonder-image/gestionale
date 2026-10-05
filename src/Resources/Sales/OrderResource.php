@@ -14,6 +14,7 @@ use Wonder\Elements\Components\Accordion;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
+use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Gestionale;
@@ -269,27 +270,22 @@ final class OrderResource extends GestionaleResource
 
         $sums = PaymentStatus::sums($payments);
         $order['paid_total'] = max(0.0, round($sums['paid'] - $sums['refunded'], 2));
-        $url = static::escape(OrderActionResource::submitUrl());
         $html = '';
 
         foreach ($azioni as $azione) {
-            $id = static::actionModalId($azione);
-            $titolo = OrderActions::label($azione).' l\'ordine '.trim((string) ($order['order_number'] ?? ''));
-
-            $html .= '<div class="modal fade" id="'.static::escape($id).'" tabindex="-1" aria-hidden="true">'
-                .'<div class="modal-dialog modal-dialog-centered"><div class="modal-content">'
-                .'<form method="post" action="'.$url.'">'
-                .'<div class="modal-header"><h5 class="modal-title">'.static::escape(trim($titolo)).'</h5>'
-                .'<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>'
-                .'<div class="modal-body"><p class="mb-0">'.static::escape(OrderActions::summary($azione, $order, $items)).'</p></div>'
-                .'<div class="modal-footer">'
-                .'<input type="hidden" name="order_id" value="'.(int) ($order['id'] ?? 0).'">'
-                .'<input type="hidden" name="action" value="'.static::escape($azione).'">'
-                .'<input type="hidden" name="torna" value="'.static::escape($back).'">'
-                .'<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Indietro</button>'
-                .'<button type="submit" class="btn '.static::escape(OrderActions::buttonClass($azione)).'">'
-                .static::escape(OrderActions::label($azione)).'</button>'
-                .'</div></form></div></div></div>';
+            $html .= Modal::make(trim(OrderActions::label($azione).' l\'ordine '.trim((string) ($order['order_number'] ?? ''))))
+                ->id(static::actionModalId($azione))
+                ->form(OrderActionResource::submitUrl(), hidden: [
+                    'order_id' => (int) ($order['id'] ?? 0),
+                    'action' => $azione,
+                    'torna' => $back,
+                ])
+                ->components([
+                    RichText::make(static::escape(OrderActions::summary($azione, $order, $items)))->class('mb-0'),
+                ])
+                ->cancel('Indietro')
+                ->submit(OrderActions::label($azione), OrderActions::variant($azione))
+                ->render('bootstrap');
         }
 
         if ($incassa) {
@@ -469,7 +465,7 @@ final class OrderResource extends GestionaleResource
         $bloccate = OrderNoteResource::isLocked($order);
         $lucchetto = ' <i class="bi bi-lock text-muted ms-1" title="'.static::escape(OrderNoteResource::LOCKED_TEXT).'" aria-label="'.static::escape(OrderNoteResource::LOCKED_TEXT).'"></i>';
         $matita = static fn (string $nota): string => $bloccate ? $lucchetto : ' <a href="#" class="text-muted ms-1" title="Modifica la '.static::escape(strtolower($nota)).'" aria-label="Modifica la '.static::escape(strtolower($nota)).'"'
-            .' onclick="window.bootstrap.Modal.getOrCreateInstance(document.getElementById('.static::escape((string) json_encode(OrderNoteResource::MODAL_ID)).')).show(); return false;">'
+            .' role="button" data-bs-toggle="modal" data-bs-target="#'.OrderNoteResource::MODAL_ID.'">'
             .'<i class="bi bi-pencil"></i></a>';
         $nota = static fn (string $v): string => trim($v) !== '' ? nl2br(static::escape($v)) : '';
         $canali = ['online' => 'Online', 'office' => 'Ufficio', 'pos' => 'Cassa'];

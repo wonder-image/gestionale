@@ -12,6 +12,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\Backend\Support\FlashAlert;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
@@ -37,6 +38,9 @@ final class OrderPaymentResource extends NavigationOnlyResource
 {
     /** L'id della finestra che la scheda dell'ordine apre dal pulsante. */
     public const MODAL_ID = 'wi-ordine-pagamento';
+
+    /** L'aiuto accanto al titolo, uguale nella pagina e nella finestra. */
+    private const HELP = 'L\'importo è quanto resta da incassare: scrivine meno per un acconto. La data è quella dell\'arrivo del denaro, non di oggi, se lo registri in ritardo. Il riferimento è il numero di CRO o di operazione, facoltativo.';
 
     public static function path(): string
     {
@@ -94,47 +98,30 @@ final class OrderPaymentResource extends NavigationOnlyResource
      */
     public static function modal(array $order, array $payments, array $methods, string $back): string
     {
-        $id = static::MODAL_ID;
-        $orderId = (int) ($order['id'] ?? 0);
         $totale = (float) ($order['total'] ?? 0);
         $residuo = static::balanceOf($order, $payments);
         $predefinito = (int) ($order['payment_method_id'] ?? 0);
         $scelto = isset($methods[$predefinito]) ? $predefinito : (int) (array_key_first($methods) ?? 0);
-        $opzioni = '';
-
-        foreach ($methods as $metodoId => $nome) {
-            $opzioni .= '<option value="'.(int) $metodoId.'"'.((int) $metodoId === $scelto ? ' selected' : '').'>'.OrderSheet::esc($nome).'</option>';
-        }
-
-        $aiuto = 'L\'importo è quanto resta da incassare: scrivine meno per un acconto. La data è quella dell\'arrivo del denaro, non di oggi, se lo registri in ritardo. Il riferimento è il numero di CRO o di operazione, facoltativo.';
-        $titolo = trim('Registra pagamento: ordine '.trim((string) ($order['order_number'] ?? '')));
-
-        return '<div class="modal fade" id="'.$id.'" tabindex="-1" aria-hidden="true">'
-            .'<div class="modal-dialog modal-dialog-centered"><div class="modal-content">'
-            .'<form method="post" action="'.OrderSheet::esc(static::submitUrl()).'">'
-            .'<div class="modal-header"><h5 class="modal-title">'.OrderSheet::esc($titolo)
-            .' <i class="bi bi-info-circle text-muted fs-6 ms-1" title="'.OrderSheet::esc($aiuto).'"></i></h5>'
-            .'<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button></div>'
-            .'<div class="modal-body"><p class="small mb-3">'
-            .'<b>Totale</b> '.OrderSheet::esc(OrderSheet::money($totale))
+        $riepilogo = '<b>Totale</b> '.OrderSheet::esc(OrderSheet::money($totale))
             .' · <b>Già incassato</b> '.OrderSheet::esc(OrderSheet::money(round($totale - $residuo, 2)))
-            .' · <b>Residuo</b> '.OrderSheet::esc(OrderSheet::money($residuo)).'</p>'
-            .'<div class="row g-3">'
-            .'<div class="col-6"><label class="form-label" for="'.$id.'-amount">Importo (€)</label>'
-            .'<input class="form-control" id="'.$id.'-amount" type="text" inputmode="decimal" name="amount" value="'.OrderSheet::esc(static::moneyField($residuo)).'" data-wi-check="true" required></div>'
-            .'<div class="col-6"><label class="form-label" for="'.$id.'-paid_at">Data</label>'
-            .'<input class="form-control" id="'.$id.'-paid_at" type="date" name="paid_at" value="'.date('Y-m-d').'" data-wi-check="true" required></div>'
-            .'<div class="col-6"><label class="form-label" for="'.$id.'-method">Metodo</label>'
-            .'<select class="form-select" id="'.$id.'-method" name="payment_method_id">'.$opzioni.'</select></div>'
-            .'<div class="col-6"><label class="form-label" for="'.$id.'-reference">Riferimento</label>'
-            .'<input class="form-control" id="'.$id.'-reference" type="text" name="reference"></div>'
-            .'</div></div>'
-            .'<div class="modal-footer">'
-            .'<input type="hidden" name="order_id" value="'.$orderId.'">'
-            .'<input type="hidden" name="back" value="'.OrderSheet::esc($back).'">'
-            .'<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Indietro</button>'
-            .'<button type="submit" class="btn btn-success">Registra</button>'
-            .'</div></form></div></div></div>';
+            .' · <b>Residuo</b> '.OrderSheet::esc(OrderSheet::money($residuo));
+
+        return Modal::make(trim('Registra pagamento: ordine '.trim((string) ($order['order_number'] ?? ''))))
+            ->id(static::MODAL_ID)
+            ->help(static::HELP)
+            ->form(static::submitUrl(), hidden: ['order_id' => (int) ($order['id'] ?? 0), 'back' => $back])
+            ->columns(12)
+            ->components([
+                RichText::make($riepilogo)->class('small mb-0')->columnSpan(12),
+                FormField::key('amount')->text()->label('Importo (€)')->value(static::moneyField($residuo))
+                    ->attribute('inputmode="decimal"')->required()->columnSpan(6),
+                FormField::key('paid_at')->dateInput()->label('Data')->value(date('d/m/Y'))->required()->columnSpan(6),
+                FormField::key('payment_method_id')->select($methods)->label('Metodo')->value((string) $scelto)->columnSpan(6),
+                FormField::key('reference')->text()->label('Riferimento')->columnSpan(6),
+            ])
+            ->cancel('Indietro')
+            ->submit('Registra', 'success')
+            ->render('bootstrap');
     }
 
     /** I metodi di pagamento attivi, per id: la scelta della finestra. @return array<int, string> */
@@ -200,7 +187,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make(static::titleFor($ordine))
-                        ->tooltip('L\'importo è quanto resta da incassare: scrivine meno per un acconto. La data è quella dell\'arrivo del denaro, non di oggi, se lo registri in ritardo. Il riferimento è il numero di CRO o di operazione, facoltativo.')
+                        ->tooltip(static::HELP)
                         ->columnSpan(12),
                     RichText::make(static::summaryLine($ordine))->columnSpan(12),
                     static::getInput('amount')->columnSpan(3),

@@ -4760,18 +4760,16 @@ HTML
                     text: spuntati > 0
                         ? 'Spariscono le spunte di ' + nome(nodo) + ' e le righe che hanno aggiunto alla griglia.'
                         : 'Il blocco si chiude: lo riapri da «Aggiungi un attributo».',
-                    cancelLabel: 'Annulla',
-                    confirmLabel: 'Togli',
-                    confirmClass: 'btn btn-danger',
+                    cancel: 'Annulla',
+                    ok: 'Togli',
+                    variant: 'danger',
                 };
-
-                // La finestra è quella del repeater, che sta nella stessa
-                // pagina; senza, la conferma del browser.
-                if (typeof window.wiRepeaterConfirmDelete === 'function') {
-                    window.wiRepeaterConfirmDelete(togli, conferma);
-                } else if (window.confirm(conferma.title + ' ' + conferma.text)) {
-                    togli();
-                }
+                // La finestra è quella della lib, la stessa di `data-wi-confirm`.
+                window.wi.confirm(conferma).then(function (si) {
+                    if (si) {
+                        togli();
+                    }
+                });
             });
 
             pillole.appendChild(bottone);
@@ -6447,16 +6445,20 @@ HTML)->tag('div');
                 var conferma = {
                     title: 'Togliere ' + nome(nodo) + '?',
                     text: "Quello che c'è scritto si cancella quando salvi l'articolo.",
-                    cancelLabel: 'Annulla',
-                    confirmLabel: 'Togli',
-                    confirmClass: 'btn btn-danger',
+                    cancel: 'Annulla',
+                    ok: 'Togli',
+                    variant: 'danger',
                 };
 
-                if (typeof window.wiRepeaterConfirmDelete === 'function') {
-                    window.wiRepeaterConfirmDelete(togli, conferma);
-                } else if (window.confirm(conferma.title + ' ' + conferma.text)) {
-                    togli();
-                }
+                window.wi.confirm(conferma).then(function (si) {
+
+                    if (si) {
+
+                        togli();
+
+                    }
+
+                });
             });
 
             dove.classList.add('position-relative');

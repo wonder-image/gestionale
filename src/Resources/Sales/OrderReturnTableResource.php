@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
 use Throwable;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\Elements\Components\Button;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
@@ -121,15 +122,23 @@ final class OrderReturnTableResource extends OrderSectionResource
 
         $orderId = (int) ($row['order_id'] ?? 0);
         $torna = StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '');
-        $form = static fn (string $action, string $label, string $class): string => '<form class="d-inline" method="post" action="'
-            .static::escape(OrderReturnResource::submitUrl()).'">'
-            .'<input type="hidden" name="action" value="'.$action.'">'
-            .'<input type="hidden" name="return_id" value="'.(int) ($row['id'] ?? 0).'">'
-            .'<input type="hidden" name="order_id" value="'.$orderId.'">'
-            .'<input type="hidden" name="back" value="'.static::escape($torna).'">'
-            .'<button type="submit" class="btn btn-sm '.$class.'">'.$label.'</button></form>';
+        $pulsante = static fn (string $action, string $label, string $variant): Button => Button::post(OrderReturnResource::submitUrl(), $label)
+            ->hidden([
+                'action' => $action,
+                'return_id' => (int) ($row['id'] ?? 0),
+                'order_id' => $orderId,
+                'back' => $torna,
+            ])
+            ->variant($variant)
+            ->outline()
+            ->size('sm')
+            ->schema('inline', true)
+            ->formAttributes(['class' => 'd-inline']);
 
-        return $form('complete', 'Chiudi', 'btn-outline-success').' '.$form('cancel', 'Annulla', 'btn-outline-danger');
+        return $pulsante('complete', 'Chiudi', 'success')->render('bootstrap').' '
+            .$pulsante('cancel', 'Annulla', 'danger')
+                ->confirm('Confermi l\'annullamento di questo reso?', title: 'Annulla reso', ok: 'Annulla reso', variant: 'danger')
+                ->render('bootstrap');
     }
 
     protected static function emptyText(): string
