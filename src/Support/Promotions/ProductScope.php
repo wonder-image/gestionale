@@ -25,7 +25,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignTag;
 final class ProductScope
 {
     /** @var array<string, array{model: class-string, key: string, categories: class-string, tags: class-string, brands: class-string, product_models: class-string}> */
-    private const OWNERS = [
+    public const OWNERS = [
         'campaign' => [
             'model' => DiscountCampaign::class,
             'key' => 'discount_campaign_id',

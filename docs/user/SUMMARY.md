@@ -29,6 +29,10 @@
 * [Pagamenti e scadenze](vendite-pagamenti.md)
 * [Resi](vendite-resi.md)
 
+## Promozioni
+
+* [Campagne di sconto](promozioni-campagne.md)
+
 ## Anagrafiche
 
 * [Clienti e fornitori](anagrafiche.md)
