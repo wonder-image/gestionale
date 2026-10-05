@@ -108,8 +108,8 @@ check('una scheda non attiva si legge «Non attiva»', fn () =>
     str_contains(resa(CustomerSheet::data([...$azienda, 'active' => 'false'], '—')), 'Non attiva')
 );
 
-check('i coupon: finché non esistono la frase lo dice', fn () =>
-    str_contains(CustomerSheet::couponsEmpty(), 'coupon')
+check('i coupon: un cliente senza coupon o non valido ha una lista vuota', fn () =>
+    CustomerSheet::coupons(0) === []
 );
 
 summary();

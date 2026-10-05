@@ -369,7 +369,7 @@ class CustomerResource extends GestionaleResource
         return (new Container)->components([
             (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components($sinistra),
             (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components($destra),
-            $accordion('Coupon assegnati', '<p class="text-muted mb-0">'.static::escape(CustomerSheet::couponsEmpty()).'</p>'),
+            $accordion('Coupon assegnati', CustomerSheet::couponsTable(CustomerSheet::coupons($id))),
         ])->columns(12);
     }
 

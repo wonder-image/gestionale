@@ -15,6 +15,9 @@ require __DIR__.'/supporto/layout.php';
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
+use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
@@ -23,6 +26,7 @@ use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\CustomerOrderTableResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -304,6 +308,119 @@ check('nella scheda ordine il cliente è un link alla scheda cliente', function 
 check('un ordine senza cliente non ha il link', function () {
     return prova(static function (): bool {
         return OrderResource::customerUrl((array) Order::findById(ordineDiProva(10.0))) === '';
+    });
+});
+
+/** Un coupon riservato ai clienti dati. */
+function couponRiservato(array $clienti, array $valori = []): int
+{
+    $id = (int) (Coupon::create([
+        'code' => 'R'.strtoupper(substr(uniqid(), -8)), 'name' => 'Riservato', 'discount_type' => 'percent', 'discount_value' => '10.00',
+        'applies_to_all' => 'true', 'applies_online' => 'true', 'active' => 'true', ...$valori,
+    ])->insert_id ?? 0);
+
+    foreach ($clienti as $cliente) {
+        CouponCustomer::create(['coupon_id' => $id, 'customer_id' => $cliente]);
+    }
+
+    return $id;
+}
+
+check('coupons(): i coupon riservati al cliente, con sconto, stato e utilizzi suoi', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['coupons']);
+        $cliente = clienteDiProva();
+        $a = couponRiservato([$cliente], ['code' => 'BENVENUTO', 'usage_limit_per_customer' => '3']);
+        $b = couponRiservato([$cliente], ['discount_type' => 'free_shipping', 'discount_value' => '0.00', 'active' => 'false']);
+        $ordine = ordineDiProva(10.0);
+        CouponRedemption::create(['coupon_id' => $a, 'order_id' => $ordine, 'customer_id' => $cliente, 'email' => 'a@example.com', 'discount_amount' => '1.00', 'redeemed_at' => date('Y-m-d H:i:s')]);
+        CouponRedemption::create(['coupon_id' => $a, 'order_id' => $ordine, 'customer_id' => $cliente, 'email' => 'a@example.com', 'discount_amount' => '1.00', 'redeemed_at' => date('Y-m-d H:i:s'), 'released_at' => date('Y-m-d H:i:s')]);
+        CouponRedemption::create(['coupon_id' => $a, 'order_id' => $ordine, 'customer_id' => $cliente + 999, 'email' => 'b@example.com', 'discount_amount' => '1.00', 'redeemed_at' => date('Y-m-d H:i:s')]);
+
+        $righe = CustomerSheet::coupons($cliente);
+        $per = array_column($righe, null, 'code');
+        $codiceB = (string) (Coupon::findById($b)['code'] ?? '');
+
+        return count($righe) === 2
+            && ($per['BENVENUTO']['discount'] ?? '') === '10 %'
+            && ($per['BENVENUTO']['used'] ?? '') === '1 / 3'
+            && ($per['BENVENUTO']['state'] ?? '') === 'In corso'
+            && ($per['BENVENUTO']['period'] ?? '') === 'sempre'
+            && ($per[$codiceB]['discount'] ?? '') === 'Spedizione gratuita'
+            && ($per[$codiceB]['state'] ?? '') === 'Disattivato'
+            && ($per[$codiceB]['used'] ?? '') === '0';
+    });
+});
+
+check('coupons(): senza coupon assegnati è vuoto', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['coupons']);
+
+        return CustomerSheet::coupons(clienteDiProva()) === [];
+    });
+});
+
+check('coupons(): il coupon di un altro cliente e quello di tutti non compaiono', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['coupons']);
+        $cliente = clienteDiProva();
+        couponRiservato([$cliente + 999]);
+        couponRiservato([]);
+
+        return CustomerSheet::coupons($cliente) === [];
+    });
+});
+
+check('coupons(): un coupon cancellato non compare', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['coupons']);
+        $cliente = clienteDiProva();
+        $coupon = couponRiservato([$cliente]);
+        Coupon::query()->Update(Coupon::$table, ['deleted' => 'true'], 'id', $coupon);
+
+        return CustomerSheet::coupons($cliente) === [];
+    });
+});
+
+check('coupons(): con la funzionalità spenta è vuoto', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['coupons']);
+        $cliente = clienteDiProva();
+        couponRiservato([$cliente]);
+        spegniFunzionalita(['coupons']);
+
+        return CustomerSheet::coupons($cliente) === [];
+    });
+});
+
+check('la scheda cliente elenca i coupon riservati in una tabella', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['coupons']);
+        $cliente = clienteDiProva();
+        couponRiservato([$cliente], ['code' => 'CIAO10']);
+        $html = schedaClienteHtml($cliente);
+
+        return str_contains($html, 'CIAO10') && str_contains($html, '10 %') && str_contains($html, 'In corso')
+            && !str_contains($html, 'Nessun coupon assegnato');
+    });
+});
+
+check('la scheda cliente senza coupon lo dice', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['coupons']);
+
+        return str_contains(schedaClienteHtml(clienteDiProva()), 'Nessun coupon assegnato a questo cliente.');
+    });
+});
+
+check('nella scheda cliente il codice del coupon è escapato', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['coupons']);
+        $cliente = clienteDiProva();
+        couponRiservato([$cliente], ['code' => '<b>X</b>']);
+        $html = schedaClienteHtml($cliente);
+
+        return str_contains($html, '&lt;b&gt;X&lt;/b&gt;') && !str_contains($html, '<b>X</b>');
     });
 });
 
