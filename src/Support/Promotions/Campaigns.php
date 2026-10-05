@@ -95,36 +95,38 @@ final class Campaigns
     }
 
     /**
-     * Quanti prodotti copre una campagna ancora da salvare e tre esempi.
+     * Quanti prodotti prende una campagna e quali, con il prezzo prima e dopo.
      *
      * `$draft` ha i campi della campagna (`discount_type`, `discount_value`,
-     * `exclude_sale_products`) e `scope`, il selettore.
+     * `exclude_sale_products`) e `scope`, il selettore. `after` è vuoto per un
+     * prodotto che la campagna prende ma su cui non cambia il prezzo (per
+     * esempio, già in saldo con `exclude_sale_products`).
      *
-     * @return array{count: int, examples: list<array{name: string, before: string, after: string}>}
+     * @return array{count: int, products: list<array{id: int, model_id: int, variant_id: int, name: string, sku: string, before: string, after: string}>}
      */
-    public static function preview(array $draft, string $now, int $examples = 3): array
+    public static function preview(array $draft, string $now): array
     {
-        $count = 0;
-        $shown = [];
+        $products = [];
 
-        foreach (ProductScope::catalog() as $product) {
+        foreach (ProductScope::catalog() as $id => $product) {
             if (!ScopeMatcher::matches((array) ($draft['scope'] ?? []), $product['facts'])) {
                 continue;
             }
 
-            $count++;
             $price = CampaignPrice::best([self::candidate($draft, 0)], $product['price'], $product['sale_price']);
 
-            if ($price !== null && count($shown) < $examples) {
-                $shown[] = [
-                    'name' => $product['name'],
-                    'before' => number_format($product['price'], 2, '.', ''),
-                    'after' => number_format($price['price'], 2, '.', ''),
-                ];
-            }
+            $products[] = [
+                'id' => (int) $id,
+                'model_id' => $product['facts']['model_id'],
+                'variant_id' => $product['variant_id'],
+                'name' => $product['name'],
+                'sku' => $product['sku'],
+                'before' => number_format($product['price'], 2, '.', ''),
+                'after' => $price === null ? '' : number_format($price['price'], 2, '.', ''),
+            ];
         }
 
-        return ['count' => $count, 'examples' => $shown];
+        return ['count' => count($products), 'products' => $products];
     }
 
     /**

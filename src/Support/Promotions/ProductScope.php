@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignBrand;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignCategory;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignProductModel;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignTag;
+use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 
 /**
  * Legge dal database «a chi si applica» una campagna (o un coupon) e i fatti
@@ -109,7 +110,9 @@ final class ProductScope
      * all'anteprima e alle sovrapposizioni, che altrimenti farebbero una
      * serie di domande per ogni prodotto.
      *
-     * @return array<int, array{name: string, price: float, sale_price: float, facts: array{categories: list<int>, tags: list<int>, brand_id: int, model_id: int}}>
+     * `name` è il nome per intero («Maglia — Blu / M»), `sku` il codice della versione.
+     *
+     * @return array<int, array{name: string, sku: string, variant_id: int, price: float, sale_price: float, facts: array{categories: list<int>, tags: list<int>, brand_id: int, model_id: int}}>
      */
     public static function catalog(): array
     {
@@ -123,12 +126,16 @@ final class ProductScope
         $categories = self::groupBy(self::rows(ProductModelCategory::all()), 'product_model_id', 'category_id');
         $tags = self::groupBy(self::rows(ProductModelTag::all()), 'product_model_id', 'tag_id');
         $catalog = [];
+        $products = self::rows(Product::find(['active' => 'true']));
+        $names = ProductNames::models($products);
 
-        foreach (self::rows(Product::find(['active' => 'true'])) as $row) {
+        foreach ($products as $row) {
             $modelId = (int) ($row['product_model_id'] ?? 0);
 
             $catalog[(int) $row['id']] = [
-                'name' => (string) ($row['name'] ?? ''),
+                'name' => ProductNames::full($row, $names),
+                'sku' => trim((string) ($row['sku'] ?? '')),
+                'variant_id' => (int) ($row['product_variant_id'] ?? 0),
                 'price' => (float) ($row['price'] ?? 0),
                 'sale_price' => (float) ($row['sale_price'] ?? 0),
                 'facts' => [

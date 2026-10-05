@@ -14,6 +14,7 @@ require __DIR__.'/supporto/layout.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaign;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignCategory;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignProductModel;
@@ -246,6 +247,23 @@ check('senza sovrapposizioni l\'avviso non c\'è, e l\'anteprima conta i prodott
             && str_contains($anteprima, '50,00 €')
             && str_contains($anteprima, '40,00 €')
             && conta(DiscountCampaign::class) === $righe;
+    });
+});
+
+check('l\'anteprima elenca i prodotti con il nome per intero, lo SKU e la ricerca', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'discount_campaigns']);
+        [$prodotto, $modello] = articoloAPrezzo('50.00');
+        ProductModel::update(['name' => 'Maglia'], $modello);
+        Product::update(['name' => 'Blu / M', 'sku' => 'MAGLIA-BLU-M'], $prodotto);
+        $id = salva(richiesta(['applies_to_all' => 'false', 'models' => [(string) $modello]]));
+
+        $anteprima = DiscountCampaignResource::previewHtml($id);
+
+        return str_contains($anteprima, 'Maglia — Blu / M')
+            && str_contains($anteprima, 'MAGLIA-BLU-M')
+            && str_contains($anteprima, 'data-preview-search')
+            && str_contains($anteprima, '<s class="text-muted">50,00 €</s>');
     });
 });
 

@@ -241,10 +241,10 @@ check('l\'anteprima conta i prodotti coperti e mostra fino a tre esempi', functi
         $nessuno = Campaigns::preview(['scope' => ['brands' => [$marchioId + 9999]]] + $bozza, ORA);
 
         return $anteprima['count'] === 4
-            && count($anteprima['examples']) === 3
-            && $anteprima['examples'][0]['before'] === '50.00'
-            && $anteprima['examples'][0]['after'] === '40.00'
-            && $nessuno['count'] === 0 && $nessuno['examples'] === [];
+            && count($anteprima['products']) === 4
+            && $anteprima['products'][0]['before'] === '50.00'
+            && $anteprima['products'][0]['after'] === '40.00'
+            && $nessuno['count'] === 0 && $nessuno['products'] === [];
     });
 });
 
