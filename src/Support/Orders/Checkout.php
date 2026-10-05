@@ -12,6 +12,7 @@ use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
+use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxTotals;
@@ -44,7 +45,61 @@ final class Checkout
      */
     public static function place(int $cartId, array $data): array
     {
-        $result = Transaction::run(static function () use ($cartId, $data): array {
+        try {
+            $result = self::create($cartId, $data);
+        } catch (UserError $error) {
+            // Un coupon che non regge più al checkout non deve restare sul
+            // carrello: l'ordine non è nato (la transazione è tornata indietro,
+            // anche il distacco fatto dal ricalcolo) e il cliente riprova senza.
+            if (str_starts_with($error->key(), 'coupon.')) {
+                self::dropCoupon($cartId);
+            }
+
+            throw $error;
+        }
+
+        // Da qui l'ordine esiste ed è a posto: quello che segue non lo deve
+        // disfare. Se la conferma cade, l'ordine resta in attesa e si può
+        // confermare da capo; il commerciante lo deve sapere comunque.
+        //
+        // Il contrassegno e il ritiro si pagano alla consegna: l'ordine è
+        // buono così com'è e la merce può uscire subito. `confirm()` manda la
+        // sua email di conferma, quindi qui basta avvisare il commerciante.
+        try {
+            if ($result['timing'] === PaymentTiming::ON_DELIVERY) {
+                $confirmed = Lifecycle::confirm($result['order_id'], [
+                    'payment' => false,
+                    'source' => (string) ($data['source'] ?? 'user'),
+                    'user_id' => (int) ($data['user_id'] ?? 0),
+                ]);
+                $result['status'] = $confirmed['status'];
+            } else {
+                OrderNotifier::send('received', $result['order_id']);
+            }
+        } catch (Throwable $error) {
+            Errors::internal($error, 'checkout.after_place', ['order_id' => $result['order_id']]);
+        }
+
+        try {
+            OrderNotifier::send('merchant_new', $result['order_id']);
+        } catch (Throwable $error) {
+            Errors::internal($error, 'checkout.merchant_notice', ['order_id' => $result['order_id']]);
+        }
+
+        unset($result['timing']);
+
+        return $result;
+    }
+
+    /**
+     * La transazione che fa nascere l'ordine.
+     *
+     * @param array<string, mixed> $data
+     * @return array{order_id: int, order_number: string, payment_id: int, total: string, reserved: int, timing: string, status: string}
+     */
+    private static function create(int $cartId, array $data): array
+    {
+        return Transaction::run(static function () use ($cartId, $data): array {
             $cart = Order::findForUpdate(['id' => $cartId], 1);
 
             if (!is_array($cart) || $cart === [] || (string) $cart['stage'] !== 'cart') {
@@ -64,6 +119,11 @@ final class Checkout
             if (OrderLines::goods($items) === []) {
                 throw UserError::make('order.empty_cart');
             }
+
+            // L'utilizzo del coupon si prende qui, a dati di checkout scritti e
+            // con la riga del coupon bloccata: chi arriva secondo conta gli usi
+            // dopo il primo.
+            Coupons::redeem($cartId, $recalculated);
 
             $timing = PaymentTiming::of((int) $method['id']);
             $expires = PaymentTiming::reservationExpiry($timing);
@@ -123,38 +183,16 @@ final class Checkout
                 'status' => 'pending',
             ];
         });
+    }
 
-        // Da qui l'ordine esiste ed è a posto: quello che segue non lo deve
-        // disfare. Se la conferma cade, l'ordine resta in attesa e si può
-        // confermare da capo; il commerciante lo deve sapere comunque.
-        //
-        // Il contrassegno e il ritiro si pagano alla consegna: l'ordine è
-        // buono così com'è e la merce può uscire subito. `confirm()` manda la
-        // sua email di conferma, quindi qui basta avvisare il commerciante.
+    /** Toglie il coupon dal carrello, fuori dalla transazione che è fallita; un guasto qui non copre l'errore vero. */
+    private static function dropCoupon(int $cartId): void
+    {
         try {
-            if ($result['timing'] === PaymentTiming::ON_DELIVERY) {
-                $confirmed = Lifecycle::confirm($result['order_id'], [
-                    'payment' => false,
-                    'source' => (string) ($data['source'] ?? 'user'),
-                    'user_id' => (int) ($data['user_id'] ?? 0),
-                ]);
-                $result['status'] = $confirmed['status'];
-            } else {
-                OrderNotifier::send('received', $result['order_id']);
-            }
+            Coupons::remove($cartId);
         } catch (Throwable $error) {
-            Errors::internal($error, 'checkout.after_place', ['order_id' => $result['order_id']]);
+            Errors::internal($error, 'checkout.coupon_remove', ['order_id' => $cartId]);
         }
-
-        try {
-            OrderNotifier::send('merchant_new', $result['order_id']);
-        } catch (Throwable $error) {
-            Errors::internal($error, 'checkout.merchant_notice', ['order_id' => $result['order_id']]);
-        }
-
-        unset($result['timing']);
-
-        return $result;
     }
 
     /**

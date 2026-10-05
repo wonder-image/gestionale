@@ -8,6 +8,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
+use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
@@ -202,6 +203,8 @@ final class Lifecycle
             }
 
             Order::update(['status' => 'cancelled', 'cancelled_at' => date('Y-m-d H:i:s')], $orderId);
+            // L'ordine annullato non consuma più il coupon: l'uso torna disponibile.
+            Coupons::release($orderId);
             StatusLogger::record(
                 OrderStatusLog::class,
                 $orderId,

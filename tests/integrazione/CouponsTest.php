@@ -12,12 +12,21 @@ require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
+use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
+use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
+use Wonder\Plugin\Gestionale\Support\Orders\Expiry;
+use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
+use Wonder\Plugin\Gestionale\Support\Orders\PaymentTiming;
+use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Sql\Transaction;
 
@@ -350,6 +359,267 @@ check('ogni motivo di rifiuto ha la sua frase in italiano', function () {
     }
 
     return true;
+});
+
+/* ------------------------------------------------- utilizzi (Task 5) -- */
+
+/** I dati del checkout di un cliente: cliente 0 = ospite, riconosciuto dall'email. */
+function datiCheckout(string $email = 'cliente@example.com', int $cliente = 0): array
+{
+    $metodo = (int) (PaymentMethod::create([
+        'code' => 'tst_'.uniqid(),
+        'name' => 'Prova',
+        'provider' => 'stripe',
+        'timing' => PaymentTiming::IMMEDIATE,
+        'fee_type' => 'none',
+        'fee_value' => '0.00',
+        'available_for' => 'all',
+        'active' => 'true',
+        'position' => 1,
+        'instructions' => 'Istruzioni di prova',
+    ])->insert_id ?? 0);
+
+    return [
+        'email' => $email,
+        'customer_id' => $cliente,
+        'payment_method_id' => $metodo,
+        'fulfillment_type' => 'shipping',
+        'billing' => [
+            'country' => 'IT', 'province' => 'MI', 'city' => 'Milano', 'cap' => '20100',
+            'street' => 'Via Prova', 'number' => '1', 'name' => 'Mario', 'surname' => 'Rossi',
+        ],
+    ];
+}
+
+/** Fa girare il corpo senza posta vera. */
+function senzaPosta(callable $corpo): mixed
+{
+    Mailer::useTransport(static fn (): bool => true);
+
+    try {
+        return $corpo();
+    } finally {
+        Mailer::useTransport(null);
+    }
+}
+
+/** Il checkout senza posta vera. */
+function ordina(int $carrello, array $dati): array
+{
+    return senzaPosta(static fn (): array => Checkout::place($carrello, $dati));
+}
+
+/** Gli utilizzi di un coupon, tutti. */
+function utilizzi(int $coupon): array
+{
+    $trovati = CouponRedemption::find(['coupon_id' => $coupon]);
+
+    return !is_array($trovati) || $trovati === [] ? [] : (isset($trovati['id']) ? [$trovati] : array_values($trovati));
+}
+
+/** Un secondo carrello con lo stesso articolo (2 pezzi, 100 €), del cliente dato. */
+function altroCarrello(array $s, int $cliente = 0): int
+{
+    $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid(), 'customer_id' => $cliente])['id'];
+    Cart::add($carrello, ['product_id' => $s['product'], 'quantity' => 2]);
+
+    return $carrello;
+}
+
+check('place con coupon scrive l\'ordine, l\'utilizzo e lo sconto uguale', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon();
+        Coupons::apply($s['cart'], $c['code']);
+
+        $esito = ordina($s['cart'], datiCheckout());
+        $ordine = riga($esito['order_id']);
+        $usi = utilizzi($c['id']);
+
+        return $ordine['stage'] === 'order'
+            && (int) $ordine['coupon_id'] === $c['id']
+            && (string) $ordine['coupon_code'] === $c['code']
+            && (float) $ordine['discount_total'] === 10.0
+            && count($usi) === 1
+            && (int) $usi[0]['order_id'] === $esito['order_id']
+            && (float) $usi[0]['discount_amount'] === 10.0
+            && trim((string) $usi[0]['email']) === 'cliente@example.com'
+            && trim((string) $usi[0]['redeemed_at']) !== ''
+            && (string) ($usi[0]['released_at'] ?? '') === '';
+    });
+});
+
+check('con la spedizione gratuita l\'utilizzo vale il risparmio sulla spedizione', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon(['discount_type' => 'free_shipping', 'discount_value' => '0.00']);
+        OrderItem::create([
+            'order_id' => $s['cart'], 'type' => 'shipping', 'position' => 9, 'name' => 'Corriere',
+            'quantity' => '1.000', 'list_price' => '7.00', 'unit_price' => '7.00', 'line_total' => '7.00',
+        ]);
+        Coupons::apply($s['cart'], $c['code']);
+
+        $esito = ordina($s['cart'], datiCheckout());
+        $usi = utilizzi($c['id']);
+
+        return count($usi) === 1 && (float) $usi[0]['discount_amount'] === 7.0
+            && (int) riga($esito['order_id'])['coupon_id'] === $c['id'];
+    });
+});
+
+check('un ordine senza coupon non scrive utilizzi', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon();
+        $esito = ordina($s['cart'], datiCheckout());
+
+        return utilizzi($c['id']) === [] && (int) riga($esito['order_id'])['coupon_id'] === 0;
+    });
+});
+
+check('usage_limit 1: il secondo ordine è rifiutato, il coupon esce dal carrello e non nasce niente', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon(['usage_limit' => 1]);
+        $altro = altroCarrello($s);
+        Coupons::apply($s['cart'], $c['code']);
+        Coupons::apply($altro, $c['code']);
+
+        ordina($s['cart'], datiCheckout());
+        $prime = (int) sqlCount(StockReservation::$table, "product_id = {$s['product']} AND deleted = 'false'");
+        $motivo = errore(static fn () => ordina($altro, datiCheckout('altro@example.com')));
+        $carrello = riga($altro);
+
+        return $motivo === 'coupon.exhausted'
+            && (string) $carrello['stage'] === 'cart'
+            && (int) $carrello['coupon_id'] === 0
+            && (float) $carrello['discount_total'] === 0.0
+            && count(utilizzi($c['id'])) === 1
+            && (int) sqlCount(StockReservation::$table, "product_id = {$s['product']} AND deleted = 'false'") === $prime;
+    });
+});
+
+check('un ospite che ha già usato il coupon con la stessa email è rifiutato al checkout', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon(['usage_limit_per_customer' => 1]);
+        $altro = altroCarrello($s);
+        Coupons::apply($s['cart'], $c['code']);
+        Coupons::apply($altro, $c['code']);
+
+        ordina($s['cart'], datiCheckout('Ospite@Example.com'));
+        $motivo = errore(static fn () => ordina($altro, datiCheckout('ospite@example.com')));
+
+        return $motivo === 'coupon.already_used' && count(utilizzi($c['id'])) === 1
+            && (int) riga($altro)['coupon_id'] === 0;
+    });
+});
+
+check('first_order_only: chi ha già ordinato è rifiutato al checkout anche se all\'applicazione era ignoto', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $senzaCoupon = altroCarrello($s);
+        ordina($senzaCoupon, datiCheckout('veterano@example.com'));
+
+        $c = coupon(['first_order_only' => 'true']);
+        Coupons::apply($s['cart'], $c['code']);
+        $motivo = errore(static fn () => ordina($s['cart'], datiCheckout('veterano@example.com')));
+
+        return $motivo === 'coupon.not_first_order'
+            && (string) riga($s['cart'])['stage'] === 'cart'
+            && utilizzi($c['id']) === [];
+    });
+});
+
+check('l\'annullo rilascia l\'utilizzo e il coupon torna usabile; annullare di nuovo non cambia niente', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon(['usage_limit' => 1]);
+        $altro = altroCarrello($s);
+        Coupons::apply($s['cart'], $c['code']);
+        $esito = ordina($s['cart'], datiCheckout());
+
+        $piena = errore(static fn () => Coupons::apply($altro, $c['code'])) === 'coupon.exhausted';
+
+        senzaPosta(static fn () => Lifecycle::cancel($esito['order_id'], ['notify' => false]));
+        $primo = utilizzi($c['id']);
+        $rilasciato = (string) ($primo[0]['released_at'] ?? '');
+        Lifecycle::cancel($esito['order_id'], ['notify' => false]);
+        $dopo = utilizzi($c['id']);
+
+        $torna = errore(static fn () => Coupons::apply($altro, $c['code'])) === '';
+
+        return $piena && count($primo) === 1 && $rilasciato !== '' && !str_starts_with($rilasciato, '0000')
+            && (string) $dopo[0]['released_at'] === $rilasciato
+            && $torna;
+    });
+});
+
+check('la scadenza dell\'ordine in attesa rilascia l\'utilizzo', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon();
+        Coupons::apply($s['cart'], $c['code']);
+        $esito = ordina($s['cart'], datiCheckout());
+
+        senzaPosta(static fn () => Expiry::run(date('Y-m-d H:i:s', strtotime('+60 days'))));
+        $usi = utilizzi($c['id']);
+
+        return (string) riga($esito['order_id'])['status'] === 'cancelled'
+            && count($usi) === 1 && trim((string) ($usi[0]['released_at'] ?? '')) !== '';
+    });
+});
+
+check('un reso non rilascia l\'utilizzo', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'coupons', 'returns']);
+        $s = scenario();
+        $c = coupon();
+        Coupons::apply($s['cart'], $c['code']);
+        $esito = ordina($s['cart'], datiCheckout());
+        Order::update(['status' => 'confirmed'], $esito['order_id']);
+        $voce = OrderItem::find(['order_id' => $esito['order_id'], 'type' => 'product', 'deleted' => 'false'], 1);
+
+        Returns::register($esito['order_id'], [[
+            'order_item_id' => (int) $voce['id'], 'quantity' => '1', 'reason' => 'changed_mind', 'restock' => null,
+        ]]);
+        $usi = utilizzi($c['id']);
+
+        return count($usi) === 1 && trim((string) ($usi[0]['released_at'] ?? '')) === '';
+    });
+});
+
+check('un checkout che fallisce per altro non lascia utilizzi e il coupon resta sul carrello', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon();
+        Coupons::apply($s['cart'], $c['code']);
+        $dati = datiCheckout();
+        $dati['billing']['city'] = '';
+
+        $motivo = errore(static fn () => ordina($s['cart'], $dati));
+
+        return $motivo !== '' && !str_starts_with($motivo, 'coupon.')
+            && utilizzi($c['id']) === []
+            && (int) riga($s['cart'])['coupon_id'] === $c['id']
+            && (string) riga($s['cart'])['stage'] === 'cart';
+    });
+});
+
+check('con la funzionalità spenta al checkout il coupon non resta sull\'ordine né si consuma', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon();
+        Coupons::apply($s['cart'], $c['code']);
+        spegniFunzionalita(['coupons']);
+
+        $esito = ordina($s['cart'], datiCheckout());
+        accendiFunzionalita(['coupons']);
+
+        return utilizzi($c['id']) === []
+            && (int) riga($esito['order_id'])['coupon_id'] === 0
+            && (float) riga($esito['order_id'])['discount_total'] === 0.0;
+    });
 });
 
 summary();

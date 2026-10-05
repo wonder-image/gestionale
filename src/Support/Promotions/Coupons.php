@@ -88,10 +88,14 @@ final class Coupons
      * Il coupon sul carrello com'è adesso, valutato sulle righe scritte.
      * Serve ad `apply`; il ricalcolo usa `context`, che ha le righe fresche.
      *
+     * Con `$lock` gli usi si contano con letture che bloccano (`FOR UPDATE`) e
+     * vedono l'ultimo dato salvato, non quello della fotografia della
+     * transazione: serve a `redeem`, dove due checkout contano insieme.
+     *
      * @param array<string, mixed> $coupon
      * @return array<string, mixed> il risultato di `CouponRules::check`
      */
-    public static function evaluate(int $cartId, array $coupon, string $now): array
+    public static function evaluate(int $cartId, array $coupon, string $now, bool $lock = false): array
     {
         $lines = [];
 
@@ -103,7 +107,104 @@ final class Coupons
 
         $cart = Order::findById($cartId);
 
-        return CouponRules::check(self::withFacts($coupon, is_array($cart) ? $cart : []), self::cartFacts(is_array($cart) ? $cart : [], $lines), $now);
+        return CouponRules::check(self::withFacts($coupon, is_array($cart) ? $cart : [], $lock), self::cartFacts(is_array($cart) ? $cart : [], $lines), $now);
+    }
+
+    /**
+     * Prende l'utilizzo del coupon dell'ordine: va chiamata **dentro** la
+     * transazione di `Checkout::place`, dopo il ricalcolo con i dati veri del
+     * checkout (email, cliente) già scritti sulla riga.
+     *
+     * Il coupon si legge con `FOR UPDATE`: due checkout sullo stesso coupon
+     * passano uno alla volta, e il secondo conta gli usi dopo il commit del
+     * primo. Le regole si rivalutano da capo; se non reggono, o se il
+     * ricalcolo aveva già tolto il coupon (`coupon_dropped`), si lancia
+     * l'errore del motivo e la transazione torna indietro: nessun ordine,
+     * nessun utilizzo. Con la funzionalità spenta il coupon non vale e si
+     * stacca dall'ordine, che non lo ha scontato.
+     *
+     * @param array<string, mixed> $recalculated il ritorno di `Cart::recalculate`
+     */
+    public static function redeem(int $orderId, array $recalculated): void
+    {
+        $dropped = (string) ($recalculated['coupon_dropped'] ?? '');
+
+        if ($dropped !== '') {
+            throw self::reject($dropped);
+        }
+
+        $order = Order::findById($orderId);
+        $couponId = is_array($order) ? (int) ($order['coupon_id'] ?? 0) : 0;
+
+        if ($couponId <= 0) {
+            return;
+        }
+
+        if (!Gestionale::feature('coupons')) {
+            self::detach($orderId);
+
+            return;
+        }
+
+        $coupon = Coupon::findForUpdate(['id' => $couponId, 'deleted' => 'false'], 1);
+
+        if (!is_array($coupon) || (int) ($coupon['id'] ?? 0) <= 0) {
+            throw self::reject('unknown');
+        }
+
+        $result = self::evaluate($orderId, $coupon, date('Y-m-d H:i:s'), true);
+
+        if (!$result['ok']) {
+            throw self::reject($result['reason']);
+        }
+
+        CouponRedemption::create([
+            'coupon_id' => $couponId,
+            'order_id' => $orderId,
+            'customer_id' => (int) ($order['customer_id'] ?? 0),
+            'email' => trim((string) ($order['email'] ?? '')),
+            'discount_amount' => number_format(self::saved($orderId, $coupon, $order), 2, '.', ''),
+            'redeemed_at' => date('Y-m-d H:i:s'),
+        ]);
+        Order::update(['coupon_id' => $couponId, 'coupon_code' => (string) $coupon['code']], $orderId);
+    }
+
+    /**
+     * Rimette a disposizione gli utilizzi dell'ordine (annullo, scadenza):
+     * `released_at` prende l'ora di adesso, una volta sola. Un reso non passa
+     * di qui — la merce che torna non restituisce lo sconto già dato.
+     */
+    public static function release(int $orderId): void
+    {
+        $now = date('Y-m-d H:i:s');
+
+        foreach (self::rows(CouponRedemption::find(['order_id' => $orderId])) as $row) {
+            if (self::empty((string) ($row['released_at'] ?? ''))) {
+                CouponRedemption::update(['released_at' => $now], (int) $row['id']);
+            }
+        }
+    }
+
+    /**
+     * Quello che il coupon ha tolto: lo sconto sulla merce, o — per la
+     * spedizione gratuita — quello che la spedizione sarebbe costata.
+     *
+     * @param array<string, mixed> $coupon
+     * @param array<string, mixed> $order
+     */
+    private static function saved(int $orderId, array $coupon, array $order): float
+    {
+        if ((string) $coupon['discount_type'] !== 'free_shipping') {
+            return round((float) ($order['discount_total'] ?? 0), 2);
+        }
+
+        $saved = 0.0;
+
+        foreach (self::rows(OrderItem::find(['order_id' => $orderId, 'type' => 'shipping', 'deleted' => 'false'])) as $item) {
+            $saved += max(0.0, round((float) $item['list_price'] * (float) $item['quantity'] - (float) $item['line_total'], 2));
+        }
+
+        return round($saved, 2);
     }
 
     /**
@@ -186,13 +287,13 @@ final class Coupons
      * @param array<string, mixed> $cart
      * @return array<string, mixed>
      */
-    private static function withFacts(array $coupon, array $cart): array
+    private static function withFacts(array $coupon, array $cart, bool $lock = false): array
     {
         $id = (int) $coupon['id'];
         $customerId = (int) ($cart['customer_id'] ?? 0);
         $email = mb_strtolower(trim((string) ($cart['email'] ?? '')));
         $used = array_filter(
-            self::rows(CouponRedemption::find(['coupon_id' => $id])),
+            self::rows($lock ? CouponRedemption::findForUpdate(['coupon_id' => $id]) : CouponRedemption::find(['coupon_id' => $id])),
             static fn (array $row): bool => self::empty((string) ($row['released_at'] ?? ''))
         );
 
