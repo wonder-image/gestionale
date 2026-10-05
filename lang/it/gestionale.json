@@ -170,7 +170,12 @@
                 "customer_unknown": "Uno dei clienti scelti non esiste più."
             },
             "shipping": {
-                "no_method_for_destination": "Non spediamo verso questa destinazione."
+                "no_method_for_destination": "Non spediamo verso questa destinazione.",
+                "not_available": "Il metodo di spedizione «{{method}}» non si può usare per questo ordine: {{reason}}.",
+                "reason_method": "Non è attivo o non è offerto per questo canale",
+                "reason_zone": "Non spedisce verso questa destinazione",
+                "reason_weight": "Non copre il peso della merce",
+                "reason_nothing": "Non c'è nulla da spedire"
             }
         },
         "emails": {
