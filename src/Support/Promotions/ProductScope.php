@@ -7,6 +7,11 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
+use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponBrand;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponCategory;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponProductModel;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponTag;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaign;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignBrand;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignCategory;
@@ -33,6 +38,14 @@ final class ProductScope
             'tags' => DiscountCampaignTag::class,
             'brands' => DiscountCampaignBrand::class,
             'product_models' => DiscountCampaignProductModel::class,
+        ],
+        'coupon' => [
+            'model' => Coupon::class,
+            'key' => 'coupon_id',
+            'categories' => CouponCategory::class,
+            'tags' => CouponTag::class,
+            'brands' => CouponBrand::class,
+            'product_models' => CouponProductModel::class,
         ],
     ];
 

@@ -147,6 +147,20 @@
                 "percent_out_of_range": "La percentuale di sconto deve essere maggiore di 0 e al massimo 100.",
                 "amount_negative": "L'importo dello sconto deve essere maggiore di zero.",
                 "scope_empty": "Scegli a quali prodotti si applica la campagna, oppure «tutto il catalogo»."
+            },
+            "coupon": {
+                "unknown": "Questo codice sconto non esiste.",
+                "inactive": "Questo codice sconto non è attivo.",
+                "not_started": "Questo codice sconto non è ancora valido.",
+                "expired": "Questo codice sconto è scaduto.",
+                "min_order": "Il carrello non raggiunge la spesa minima richiesta da questo codice sconto.",
+                "exhausted": "Questo codice sconto è stato usato il numero massimo di volte.",
+                "already_used": "Hai già usato questo codice sconto.",
+                "not_first_order": "Questo codice sconto vale solo sul primo ordine.",
+                "not_yours": "Questo codice sconto non è disponibile per il tuo account.",
+                "no_eligible_products": "Nessun prodotto nel carrello rientra in questo codice sconto.",
+                "has_manual_discount": "Su questo carrello c'è già uno sconto: non si somma a un codice.",
+                "channel": "Questo codice sconto non vale per questo canale di vendita."
             }
         },
         "emails": {
