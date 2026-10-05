@@ -150,8 +150,7 @@ final class ShippingMethodResource extends GestionaleResource
                         ->decimal(3)
                         ->suffix(' kg')
                         ->label('Peso massimo')
-                        ->columnSpan(3)
-                        ->visibleWhen('type', 'price'),
+                        ->columnSpan(3),
                     RepeaterColumn::key('amount')->price()->decimal(2)->label('Importo')->columnFill(),
                 ])
                 ->nested()

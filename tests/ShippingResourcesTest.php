@@ -78,6 +78,15 @@ check('nelle aree della zona paese e provincia sono due select, la provincia sce
         && ($colonne[2] ?? null) instanceof InputStates;
 });
 
+check('nella tabella degli scaglioni il peso massimo si vede sempre: il core non risolve le regole di visibilità nei repeater annidati', function () {
+    $campi = (new ReflectionMethod(ShippingMethodResource::class, 'rateFields'))->invoke(null, 1);
+    $scaglioni = array_values(array_filter($campi, static fn ($input): bool => (string) $input->name === 'rate_1_brackets'))[0];
+    $colonne = (new ReflectionProperty($scaglioni, 'schema'))->getValue($scaglioni)['context']['columns'];
+    $peso = array_values(array_filter($colonne, static fn ($colonna): bool => (string) $colonna->name === 'max_weight'))[0];
+
+    return $peso->conditionalAttributes() === [];
+});
+
 check('il metodo ha i suoi campi, e nessun riquadro di listino se non ci sono zone', function () use ($campi) {
     $attesi = ['name', 'description', 'carrier_id', 'provider_service_code', 'applies_online', 'applies_office', 'active'];
 

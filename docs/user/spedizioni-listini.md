@@ -51,7 +51,8 @@ Una tabella di righe:
 * **Prezzo fino a**: «fino a 5 kg: 8,50 €», «fino a 20 kg: 15 €». Il carrello
   paga lo scaglione più basso che copre il suo peso. Li puoi scrivere in
   qualunque ordine; due scaglioni con lo stesso peso non sono ammessi.
-* **Tariffa al kg oltre**: per i pesi sopra l'ultimo scaglione. Con «Tutto il
+* **Tariffa al kg oltre**: per i pesi sopra l'ultimo scaglione (il peso massimo
+  su questa riga non conta: lascialo vuoto). Con «Tutto il
   peso» la tariffa si applica a tutto il peso; con «Solo l'eccedenza» si paga
   l'ultimo scaglione per intero più la tariffa sui soli kg oltre. **Senza**
   tariffa al kg, un carrello più pesante dell'ultimo scaglione non può usare quel
