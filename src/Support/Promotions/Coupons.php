@@ -298,12 +298,11 @@ final class Coupons
             static fn (array $row): bool => self::empty((string) ($row['released_at'] ?? ''))
         );
 
+        // Una persona è il suo account **o** la sua email: chi ha usato il codice da ospite non lo
+        // riusa registrandosi con la stessa email.
         $mine = array_filter($used, static function (array $row) use ($customerId, $email): bool {
-            if ($customerId > 0) {
-                return (int) ($row['customer_id'] ?? 0) === $customerId;
-            }
-
-            return $email !== '' && mb_strtolower(trim((string) ($row['email'] ?? ''))) === $email;
+            return ($customerId > 0 && (int) ($row['customer_id'] ?? 0) === $customerId)
+                || ($email !== '' && mb_strtolower(trim((string) ($row['email'] ?? ''))) === $email);
         });
 
         return $coupon + [
@@ -321,20 +320,20 @@ final class Coupons
     /** Chi ha già un ordine vero (non annullato, non il carrello di adesso). */
     private static function hasPreviousOrders(int $cartId, int $customerId, string $email): bool
     {
-        $where = $customerId > 0
-            ? ['customer_id' => $customerId, 'deleted' => 'false']
-            : ($email !== '' ? ['email' => $email, 'deleted' => 'false'] : null);
+        // L'account o l'email: un ordine fatto da ospite con questa email conta anche per il cliente registrato.
+        $wheres = array_filter([
+            $customerId > 0 ? ['customer_id' => $customerId, 'deleted' => 'false'] : null,
+            $email !== '' ? ['email' => $email, 'deleted' => 'false'] : null,
+        ]);
 
-        if ($where === null) {
-            return false;
-        }
-
-        foreach (self::rows(Order::find($where)) as $order) {
-            if ((int) $order['id'] !== $cartId
-                && (string) $order['stage'] !== 'cart'
-                && in_array((string) $order['status'], Order::LIVE_STATUSES, true)
-                && (string) $order['status'] !== 'cancelled') {
-                return true;
+        foreach ($wheres as $where) {
+            foreach (self::rows(Order::find($where)) as $order) {
+                if ((int) $order['id'] !== $cartId
+                    && (string) $order['stage'] !== 'cart'
+                    && in_array((string) $order['status'], Order::LIVE_STATUSES, true)
+                    && (string) $order['status'] !== 'cancelled') {
+                    return true;
+                }
             }
         }
 

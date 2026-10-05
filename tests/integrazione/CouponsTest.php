@@ -232,6 +232,29 @@ check('l\'ospite è riconosciuto dall\'email per il limite per cliente', functio
     });
 });
 
+check('il limite per cliente vale anche tra ospite e cliente registrato con la stessa email', function () {
+    return prova(static function (): bool {
+        $s = scenario(720);
+        Order::update(['email' => 'Mario@Example.com'], $s['cart']);
+        $c = coupon(['usage_limit_per_customer' => 1]);
+        usa($c['id'], 0, 'mario@example.com');
+
+        return errore(static fn () => Coupons::apply($s['cart'], $c['code'])) === 'coupon.already_used';
+    });
+});
+
+check('solo il primo ordine vale anche tra ospite e cliente registrato con la stessa email', function () {
+    return prova(static function (): bool {
+        $s = scenario(720);
+        Order::update(['email' => 'mario@example.com'], $s['cart']);
+        $c = coupon(['first_order_only' => 'true']);
+        $ospite = ordineDiProva(10.0);
+        Order::update(['customer_id' => 0, 'email' => 'Mario@Example.com'], $ospite);
+
+        return errore(static fn () => Coupons::apply($s['cart'], $c['code'])) === 'coupon.not_first_order';
+    });
+});
+
 check('solo il primo ordine: chi ha già un ordine si rifiuta, un ordine annullato non conta', function () {
     return prova(static function (): bool {
         $s = scenario(720);
