@@ -17,8 +17,10 @@ Si gestiscono in **Promozioni → Coupon**.
 
 ## Il modulo
 
-* **Codice**: non distingue maiuscole e minuscole (`ESTATE10` e `estate10` sono
-  lo stesso coupon) ed è **unico**, anche rispetto ai coupon che hai eliminato.
+* **Codice**: si salva sempre **in maiuscolo e senza spazi** (scrivere
+  `estate 10` dà `ESTATE10`), è **unico**, anche rispetto ai coupon che hai
+  eliminato, e **dopo la creazione non si cambia**: per un altro codice crea un
+  altro coupon. Il cliente può digitarlo come vuole, maiuscole e spazi compresi.
 * **Tipo di sconto**: percentuale (da 0,01 a 100), importo in euro oppure
   spedizione gratuita. Con la spedizione gratuita il campo «Sconto» sparisce.
 * **Dal / Fino al**: estremi **compresi**. Senza «Fino al» il coupon non

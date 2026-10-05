@@ -32,7 +32,7 @@ final class Coupons
     /** Il coupon con quel codice, senza badare a maiuscole e spazi; `null` se non c'è o è cancellato. */
     public static function find(string $code): ?array
     {
-        $code = trim($code);
+        $code = (string) preg_replace('/\s+/u', '', $code);
 
         if ($code === '') {
             return null;

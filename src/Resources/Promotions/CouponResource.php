@@ -109,7 +109,8 @@ class CouponResource extends GestionaleResource
     public static function formSchema(): array
     {
         return [
-            FormField::key('code')->text()->label('Codice')->required(),
+            // Il codice è scritto sugli ordini e dato ai clienti: dopo la creazione non si cambia.
+            FormField::key('code')->text()->label('Codice')->required()->disabled(static::currentId() !== null),
             FormField::key('name')->text()->label('Nome'),
             // Il credito ha un'altra strada: qui non si sceglie.
             FormField::key('discount_type')
@@ -149,7 +150,7 @@ class CouponResource extends GestionaleResource
     {
         $main = (new Card)->components([
             SectionTitle::make('Coupon')
-                ->tooltip('Il codice non distingue maiuscole e minuscole ed è unico, anche rispetto ai coupon eliminati. Dal primo all\'ultimo giorno scelti, estremi compresi; un limite a zero vuol dire senza limite.')
+                ->tooltip('Il codice si scrive in maiuscolo e senza spazi, è unico anche rispetto ai coupon eliminati e dopo la creazione non si cambia. Dal primo all\'ultimo giorno scelti, estremi compresi; un limite a zero vuol dire senza limite.')
                 ->columnSpan(12),
             static::getInput('code')->columnSpan(6),
             static::getInput('name')->columnSpan(6),
@@ -413,7 +414,11 @@ class CouponResource extends GestionaleResource
         ?array $oldValues = null
     ): array {
         $values = Channels::keepHidden($values, $oldValues);
-        $values['code'] = trim((string) ($values['code'] ?? ''));
+        // Il codice non si cambia una volta creato (il campo, spento, non arriva nemmeno);
+        // alla creazione si scrive in maiuscolo e senza spazi.
+        $values['code'] = $action === 'update' && $oldValues !== null
+            ? (string) ($oldValues['code'] ?? '')
+            : mb_strtoupper((string) preg_replace('/\s+/u', '', (string) ($values['code'] ?? '')));
         $values['discount_type'] = (string) ($values['discount_type'] ?? '');
         $values['starts_at'] = static::momentOf($values['starts_at'] ?? '', '00:00:00');
         $values['ends_at'] = static::momentOf($values['ends_at'] ?? '', '23:59:59');

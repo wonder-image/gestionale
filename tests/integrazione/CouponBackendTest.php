@@ -149,14 +149,14 @@ check('salvare un coupon scrive la riga, le date piene, i ponti e i clienti rise
         $cliente = clienteDiProva();
 
         $id = salva(richiesta([
-            'code' => '  Estate10  ', 'applies_to_all' => 'false', 'models' => [(string) $modello], 'customers' => [(string) $cliente],
+            'code' => '  Estate 10  ', 'applies_to_all' => 'false', 'models' => [(string) $modello], 'customers' => [(string) $cliente],
             'usage_limit' => '5', 'min_order_amount' => '20,50',
         ]));
 
         $riga = Coupon::find(['id' => $id], 1);
         $riservati = righe(CouponCustomer::class, $id);
 
-        return $riga['code'] === 'Estate10'
+        return $riga['code'] === 'ESTATE10'
             && $riga['starts_at'] === '2026-10-01 00:00:00'
             && $riga['ends_at'] === '2026-10-31 23:59:59'
             && $riga['usage_limit'] === '5'
@@ -227,6 +227,18 @@ check('un coupon si può risalvare con il suo stesso codice', function () {
     });
 });
 
+check('il codice non si cambia una volta creato, nemmeno a mano', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'coupons']);
+        $id = salva(richiesta(['code' => 'Estate10']));
+        salva(richiesta(['code' => 'Altro 20', 'name' => 'Rinominato']), $id);
+        $riga = Coupon::find(['id' => $id], 1);
+
+        return $riga['code'] === 'ESTATE10' && $riga['name'] === 'Rinominato'
+            && Coupons::find(' estate 10 ') !== null;
+    });
+});
+
 check('il codice di un coupon eliminato non si riusa', function () {
     return prova(static function (): bool {
         accendiFunzionalita(['orders', 'coupons']);
@@ -292,7 +304,7 @@ check('eliminare un coupon lo toglie dall\'elenco e il codice non si applica pi�
         Coupon::query()->Update(Coupon::$table, ['deleted' => 'true'], 'id', $id);
 
         return $prima && Coupons::find('Addio10') === null
-            && (Coupon::find(['id' => $id, 'deleted' => 'true'], 1)['code'] ?? '') === 'Addio10';
+            && (Coupon::find(['id' => $id, 'deleted' => 'true'], 1)['code'] ?? '') === 'ADDIO10';
     });
 });
 
@@ -320,7 +332,7 @@ check('la scheda mostra dettagli, regole, canali, clienti riservati e utilizzi',
         ]);
         $html = layoutHtml(CouponResource::showLayoutSchema((array) Coupon::find(['id' => $id], 1)));
 
-        return str_contains($html, 'Scheda10') && str_contains($html, '10 %')
+        return str_contains($html, 'SCHEDA10') && str_contains($html, '10 %')
             && str_contains($html, 'dal 01/10/2026 al 31/10/2026') && str_contains($html, '1 / 5')
             && str_contains($html, '20,00') && str_contains($html, 'Tutto il catalogo')
             && str_contains($html, 'Rossi') && str_contains($html, '5,00 €')
