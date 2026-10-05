@@ -33,7 +33,9 @@ Si gestiscono in **Promozioni → Coupon**.
 * **Solo sul primo ordine**: non vale per chi ha già ordinato.
 * **Non sui prodotti già scontati**: lascia stare i prodotti con una campagna o
   un'offerta.
-* **Dove vale**: Sito, Ufficio, Cassa.
+* **Dove vale**: Sito, Ufficio, Cassa. Compaiono solo i canali che hai acceso in
+  *Funzionalità → Canali di vendita* (vedi [Canali di vendita](canali-di-vendita.md)):
+  con un solo canale acceso la sezione non c'è e il coupon vale per quello.
 
 ## Quali prodotti e quali clienti
 
@@ -48,9 +50,12 @@ Un utilizzo si conta **quando l'ordine viene creato**, non quando viene pagato.
 Se l'ordine viene annullato o scade senza pagamento, l'utilizzo **torna
 disponibile** (sulla riga compare «Rilasciato»). Un reso non lo restituisce.
 
-Sotto il modulo trovi la tabella degli utilizzi: ordine (con il link), cliente,
-sconto, data e se è stato rilasciato. Nell'elenco la colonna «Utilizzi» mostra
-quelli ancora validi sul limite (`3 / 10`, `3 / ∞` senza limite).
+Li vedi nella **scheda del coupon**: dall'elenco clicchi sul codice (o sulla
+lente) e si apre una pagina di sola lettura con i dettagli del coupon e la
+tabella degli utilizzi: ordine (con il link), cliente, sconto, data e se è
+stato rilasciato. Per cambiarlo, «Modifica» in alto. Nell'elenco la colonna
+«Utilizzi» mostra quelli ancora validi sul limite (`3 / 10`, `3 / ∞` senza
+limite).
 
 ## Cose da sapere
 

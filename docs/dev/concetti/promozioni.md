@@ -89,6 +89,25 @@ da spenta `Coupons::apply` lancia `coupon.inactive`, la pagina sparisce e i dati
   ordine usano quella.
 * **Stato** (programmato, in corso, finito) è `Campaigns::status`, lo stesso delle campagne.
 
+## Le schede di lettura
+
+Coupon e campagne hanno una pagina `view` (`showLayoutSchema` della Resource, resa dalla view
+`coupon-show` / `campaign-show` con il layout `backend.show`): dettagli, ambito, canali e, per
+i coupon, la tabella degli utilizzi; per le campagne l'anteprima e l'avviso di sovrapposizione.
+Il form di modifica ha solo i campi. Le parti condivise (riga di dettaglio, canali, ambito,
+link di modifica) stanno in `PromotionSheet`.
+
+## Canali di vendita
+
+`Support\Sales\Channels` legge le funzionalità `online_sales`, `office_sales` e `pos` e dice
+quali canali sono accesi: `active()`, `choose()` (più di uno: i form chiedono «Dove vale»),
+`defaults()` (i valori dei nuovi record: `true` sui canali accesi, `false` sugli altri) e
+`keepHidden()`, che con un solo canale scrive sempre le tre colonne `applies_*`. Senza canali
+sbloccati vale solo `online`. Lo usano `CouponResource`, `DiscountCampaignResource` e
+`PaymentMethodResource`; il motore (`CouponRules`, `Campaigns`) legge ancora le colonne
+`applies_*` e non conosce le funzionalità. `pos` è `created => false`: non si accende dal
+pannello finché la cassa non è costruita.
+
 ## Dati di prova
 
 `php forge gestionale:demo` crea con `PromotionsDemo` tre campagne, una per stato:

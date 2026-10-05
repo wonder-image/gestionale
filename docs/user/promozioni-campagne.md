@@ -27,6 +27,8 @@ Si gestiscono in **Promozioni → Campagne di sconto**.
 * **Non sui prodotti già scontati**: se un prodotto ha già un prezzo
   scontato, la campagna lo lascia com'è.
 * **Dove vale**: Sito, Ufficio, Cassa. Il sito applica la campagna nel carrello.
+  Compaiono solo i canali accesi in *Funzionalità → Canali di vendita* (vedi
+  [Canali di vendita](canali-di-vendita.md)).
 
 ## Quali prodotti
 
@@ -49,7 +51,9 @@ Lo stato non si scrive: lo ricava il gestionale da interruttore e date.
 
 ## Anteprima e avviso
 
-Dopo ogni salvataggio torni alla modifica, e lì trovi:
+Anteprima e avviso stanno nella **scheda della campagna**, la pagina di sola
+lettura che si apre dall'elenco (clic sul nome, o sulla lente); per cambiare
+qualcosa c'è «Modifica». Dopo ogni salvataggio torni alla scheda, e lì trovi:
 
 * **Anteprima**: quanti prodotti prende la campagna e tre esempi, col prezzo
   prima e dopo. Riguarda la campagna **come è salvata**: per vedere l'effetto

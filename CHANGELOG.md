@@ -200,6 +200,15 @@ versionamento semantico.
   tabella degli utilizzi, coupon sulla scheda dell'ordine e sulla scheda cliente, cinque
   coupon e tre ordini di prova (`PromotionsDemo`, `OrdersDemo`) e guide. Chi aggiorna deve
   lanciare `php forge update`.
+- Schede di lettura per coupon e campagne: dall'elenco si apre una pagina con i dettagli, i
+  canali, l'ambito e (coupon) gli utilizzi o (campagne) anteprima e avviso di sovrapposizione;
+  il form di modifica ha solo i campi.
+- Canali di vendita: tre funzionalità (`online_sales`, `office_sales`, `pos`, quest'ultima
+  ancora non accendibile) nell'area *Canali di vendita*. Coupon, campagne e metodi di pagamento
+  mostrano «Dove vale» solo con più di un canale acceso e fanno nascere i nuovi record sui
+  canali accesi; senza canali sbloccati vale solo il sito. Il motore non cambia. Chi aggiorna
+  deve lanciare `php forge update` (due righe nuove in `gst_features`); la funzionalità `pos`
+  si chiamava «Banco».
 
 ### Corretto
 
