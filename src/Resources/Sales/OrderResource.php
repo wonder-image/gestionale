@@ -298,7 +298,7 @@ final class OrderResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('vendite', 'Vendite', 'bi-receipt', 350, ['admin', 'administrator'])
+            ->section('vendite', 'Vendite', 'bi-receipt', 300, ['admin', 'administrator'])
             ->title('Ordini')
             ->order(10)
             ->authority(['admin', 'administrator'])

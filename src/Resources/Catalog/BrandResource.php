@@ -148,7 +148,7 @@ final class BrandResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('catalogo', 'Catalogo', 'bi-box-seam', 300, ['admin', 'administrator'])
+            ->section('catalogo', 'Catalogo', 'bi-box-seam', 340, ['admin', 'administrator'])
             ->inSection('catalogo')
             ->title('Marchi')
             ->order(40)

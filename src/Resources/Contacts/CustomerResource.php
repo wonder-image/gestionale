@@ -437,7 +437,7 @@ class CustomerResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('anagrafiche', 'Anagrafiche', 'bi-people', 500, ['admin', 'administrator'])
+            ->section('anagrafiche', 'Anagrafiche', 'bi-people', 320, ['admin', 'administrator'])
             ->title(static::titleLabel())
             ->order(10)
             ->authority(['admin', 'administrator'])
