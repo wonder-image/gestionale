@@ -302,3 +302,34 @@ check('il form di modifica non porta più né l\'anteprima né l\'avviso', funct
         return !str_contains($html, 'Anteprima') && !str_contains($html, 'negli stessi giorni');
     });
 });
+
+check('con il solo sito acceso il form della campagna non ha i toggle dei canali; con ufficio acceso sì, ma senza la cassa', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'discount_campaigns']);
+        $solo = layoutHtml(DiscountCampaignResource::formLayoutSchema());
+
+        accendiFunzionalita(['online_sales', 'office_sales']);
+        $due = layoutHtml(DiscountCampaignResource::formLayoutSchema());
+
+        return !str_contains($solo, 'Dove vale') && !str_contains($solo, 'applies_office')
+            && str_contains($due, 'Dove vale') && str_contains($due, 'applies_online')
+            && str_contains($due, 'applies_office') && !str_contains($due, 'applies_pos');
+    });
+});
+
+check('con un solo canale il salvataggio della campagna non tocca gli altri e l\'unico attivo vale «sì»', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'discount_campaigns']);
+        $senzaCanali = array_diff_key(richiesta(), array_flip(['applies_online', 'applies_office', 'applies_pos']));
+
+        $nuova = salva($senzaCanali);
+        $riga = (array) DiscountCampaign::find(['id' => $nuova], 1);
+
+        DiscountCampaign::update(['applies_office' => 'true'], $nuova);
+        salva(array_merge($senzaCanali, ['name' => 'Cambiata']), $nuova);
+        $dopo = (array) DiscountCampaign::find(['id' => $nuova], 1);
+
+        return $riga['applies_online'] === 'true' && $riga['applies_office'] === 'false' && $riga['applies_pos'] === 'false'
+            && $dopo['applies_online'] === 'true' && $dopo['applies_office'] === 'true' && $dopo['name'] === 'Cambiata';
+    });
+});

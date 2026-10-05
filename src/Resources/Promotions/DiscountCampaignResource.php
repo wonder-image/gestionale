@@ -21,6 +21,7 @@ use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
 use Wonder\Plugin\Gestionale\Support\Promotions\PromotionSheet;
 use Wonder\Plugin\Gestionale\Support\Promotions\ScopeForm;
+use Wonder\Plugin\Gestionale\Support\Sales\Channels;
 
 /**
  * «Campagne di sconto»: un prezzo che cambia da solo, in un periodo, per
@@ -119,9 +120,9 @@ class DiscountCampaignResource extends GestionaleResource
                 ->toggle()
                 ->value('false')
                 ->label('Non sui prodotti già scontati'),
-            FormField::key('applies_online')->toggle()->value('true')->label('Sito'),
-            FormField::key('applies_office')->toggle()->value('false')->label('Ufficio'),
-            FormField::key('applies_pos')->toggle()->value('false')->label('Cassa'),
+            FormField::key('applies_online')->toggle()->value(Channels::defaults()['applies_online'])->label('Sito'),
+            FormField::key('applies_office')->toggle()->value(Channels::defaults()['applies_office'])->label('Ufficio'),
+            FormField::key('applies_pos')->toggle()->value(Channels::defaults()['applies_pos'])->label('Cassa'),
             ...static::scopeFields(),
             FormField::key('note')->textarea()->label('Note'),
         ];
@@ -154,15 +155,23 @@ class DiscountCampaignResource extends GestionaleResource
             static::getInput('excluded_models')->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
-        $side = [
-            (new Card)->components([
+        $side = [];
+
+        // «Dove vale» c'è solo se il sito ha più di un canale acceso.
+        if (Channels::choose()) {
+            $side[] = (new Card)->components([
                 SectionTitle::make('Dove vale')
                     ->tooltip('Il sito applica la campagna al carrello. Ufficio e Cassa la usano per gli ordini fatti dal gestionale e dalla cassa.')
                     ->columnSpan(12),
-                static::getInput('applies_online')->columnSpan(12),
-                static::getInput('applies_office')->columnSpan(12),
-                static::getInput('applies_pos')->columnSpan(12),
-            ])->columns(12)->columnSpan(12),
+                ...array_map(
+                    static fn (string $channel) => static::getInput(Channels::column($channel))->columnSpan(12),
+                    Channels::active()
+                ),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        $side = [
+            ...$side,
             (new Card)->components([
                 SectionTitle::make('Note')->columnSpan(12),
                 static::getInput('note')->columnSpan(12),
@@ -366,6 +375,7 @@ class DiscountCampaignResource extends GestionaleResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        $values = Channels::keepHidden($values, $oldValues);
         $values['discount_type'] = ($values['discount_type'] ?? '') === 'amount' ? 'amount' : 'percent';
         $values['discount_value'] = Numbers::fromForm($values['discount_value'] ?? null) ?? '';
         $values['starts_at'] = static::momentOf($values['starts_at'] ?? '', '00:00:00');

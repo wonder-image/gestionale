@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Positions;
+use Wonder\Plugin\Gestionale\Support\Sales\Channels;
 
 /**
  * «Metodi di pagamento»: come si paga nel negozio — bonifico, carta, contanti
@@ -123,9 +124,9 @@ final class PaymentMethodResource extends GestionaleResource
             FormField::key('fee_type')->select(static::feeTypes())->value('none')->label('Commissione'),
             FormField::key('fee_value')->number()->decimal(2)->value('0')->label('Valore'),
             FormField::key('available_for')->select(static::availableFor())->value('all')->label('Disponibile per'),
-            FormField::key('applies_online')->select($siNo)->value('true')->label('Online'),
-            FormField::key('applies_office')->select($siNo)->value('true')->label('In ufficio'),
-            FormField::key('applies_pos')->select($siNo)->value('false')->label('Al banco'),
+            FormField::key('applies_online')->select($siNo)->value(Channels::defaults()['applies_online'])->label('Online'),
+            FormField::key('applies_office')->select($siNo)->value(Channels::defaults()['applies_office'])->label('In ufficio'),
+            FormField::key('applies_pos')->select($siNo)->value(Channels::defaults()['applies_pos'])->label('Al banco'),
             FormField::key('instructions')->textarea()->label('Istruzioni'),
             FormField::key('sdi_code')->text()->label('Codice SDI'),
             FormField::key('active')->select(['true' => 'Attivo', 'false' => 'Non attivo'])->value('true')->label('Stato'),
@@ -154,9 +155,11 @@ final class PaymentMethodResource extends GestionaleResource
                     static::getInput('available_for')->columnSpan(4),
                     static::getInput('fee_type')->columnSpan(4),
                     static::getInput('fee_value')->columnSpan(4),
-                    static::getInput('applies_online')->columnSpan(4),
-                    static::getInput('applies_office')->columnSpan(4),
-                    static::getInput('applies_pos')->columnSpan(4),
+                    // I canali si scelgono solo se ce n'è più di uno acceso.
+                    ...(Channels::choose() ? array_map(
+                        static fn (string $channel) => static::getInput(Channels::column($channel))->columnSpan(4),
+                        Channels::active()
+                    ) : []),
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
                     SectionTitle::make('Istruzioni e fattura')
@@ -223,6 +226,8 @@ final class PaymentMethodResource extends GestionaleResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        $values = Channels::keepHidden($values, $oldValues);
+
         if ($action === 'store') {
             $values['position'] = Positions::next(PaymentMethod::$table);
         } else {

@@ -25,6 +25,7 @@ use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Promotions\PromotionSheet;
 use Wonder\Plugin\Gestionale\Support\Promotions\ScopeForm;
+use Wonder\Plugin\Gestionale\Support\Sales\Channels;
 use Wonder\Sql\Transaction;
 
 /**
@@ -133,9 +134,9 @@ class CouponResource extends GestionaleResource
                 ->value('true')
                 ->label('Interruttore')
                 ->required(),
-            FormField::key('applies_online')->toggle()->value('true')->label('Sito'),
-            FormField::key('applies_office')->toggle()->value('false')->label('Ufficio'),
-            FormField::key('applies_pos')->toggle()->value('false')->label('Cassa'),
+            FormField::key('applies_online')->toggle()->value(Channels::defaults()['applies_online'])->label('Sito'),
+            FormField::key('applies_office')->toggle()->value(Channels::defaults()['applies_office'])->label('Ufficio'),
+            FormField::key('applies_pos')->toggle()->value(Channels::defaults()['applies_pos'])->label('Cassa'),
             ...static::scopeFields(),
             FormField::key('customers')
                 ->selectSearch(static::customerOptions(), true)
@@ -183,15 +184,23 @@ class CouponResource extends GestionaleResource
             static::getInput('customers')->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
-        $side = [
-            (new Card)->components([
+        $side = [];
+
+        // «Dove vale» c'è solo se il sito ha più di un canale acceso.
+        if (Channels::choose()) {
+            $side[] = (new Card)->components([
                 SectionTitle::make('Dove vale')
                     ->tooltip('Il sito applica il coupon al carrello. Ufficio e Cassa lo usano per gli ordini fatti dal gestionale e dalla cassa.')
                     ->columnSpan(12),
-                static::getInput('applies_online')->columnSpan(12),
-                static::getInput('applies_office')->columnSpan(12),
-                static::getInput('applies_pos')->columnSpan(12),
-            ])->columns(12)->columnSpan(12),
+                ...array_map(
+                    static fn (string $channel) => static::getInput(Channels::column($channel))->columnSpan(12),
+                    Channels::active()
+                ),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        $side = [
+            ...$side,
             (new Card)->components([
                 SectionTitle::make('Note')->columnSpan(12),
                 static::getInput('note')->columnSpan(12),
@@ -403,6 +412,7 @@ class CouponResource extends GestionaleResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        $values = Channels::keepHidden($values, $oldValues);
         $values['code'] = trim((string) ($values['code'] ?? ''));
         $values['discount_type'] = (string) ($values['discount_type'] ?? '');
         $values['starts_at'] = static::momentOf($values['starts_at'] ?? '', '00:00:00');

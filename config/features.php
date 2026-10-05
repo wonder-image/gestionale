@@ -136,11 +136,26 @@ return [
         'requires' => ['shipping'],
         'release' => 'futura',
     ],
+    'online_sales' => [
+        'name' => 'Vendita online',
+        'description' => 'Il sito vende: coupon, campagne e metodi di pagamento valgono per il sito.',
+        'area' => 'Canali di vendita',
+        'requires' => ['orders'],
+        'release' => 'G6',
+    ],
+    'office_sales' => [
+        'name' => 'Vendita in ufficio',
+        'description' => 'Gli ordini si fanno dal gestionale: coupon, campagne e metodi di pagamento valgono anche per l\'ufficio.',
+        'area' => 'Canali di vendita',
+        'requires' => ['orders'],
+        'release' => 'G6',
+    ],
     'pos' => [
-        'name' => 'Banco',
+        'name' => 'Vendita in cassa',
         'description' => 'Vendita in sede con documento commerciale e corrispettivi.',
-        'area' => 'Banco',
+        'area' => 'Canali di vendita',
         'requires' => ['orders'],
         'release' => 'futura',
+        'created' => false,
     ],
 ];

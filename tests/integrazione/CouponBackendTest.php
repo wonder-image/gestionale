@@ -351,4 +351,50 @@ check('il form di modifica non porta più la tabella degli utilizzi', function (
     });
 });
 
+check('con il solo sito acceso il form non ha i toggle dei canali; con ufficio acceso sì, ma senza la cassa', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'coupons']);
+        $solo = layoutHtml(CouponResource::formLayoutSchema());
+
+        accendiFunzionalita(['online_sales', 'office_sales']);
+        $due = layoutHtml(CouponResource::formLayoutSchema());
+
+        return !str_contains($solo, 'Dove vale') && !str_contains($solo, 'applies_office')
+            && str_contains($due, 'Dove vale') && str_contains($due, 'applies_online')
+            && str_contains($due, 'applies_office') && !str_contains($due, 'applies_pos');
+    });
+});
+
+check('con un solo canale il salvataggio non tocca gli altri e l\'unico attivo vale «sì»', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'coupons']);
+        $senzaCanali = array_diff_key(richiesta(), array_flip(['applies_online', 'applies_office', 'applies_pos']));
+
+        // Nuovo: il sito sì, gli altri no.
+        $nuovo = salva($senzaCanali);
+        $riga = (array) Coupon::find(['id' => $nuovo], 1);
+
+        // Vecchio coupon che valeva anche in ufficio: la modifica lo lascia così.
+        Coupon::update(['applies_office' => 'true'], $nuovo);
+        salva(array_merge($senzaCanali, ['name' => 'Cambiato']), $nuovo);
+        $dopo = (array) Coupon::find(['id' => $nuovo], 1);
+
+        return $riga['applies_online'] === 'true' && $riga['applies_office'] === 'false' && $riga['applies_pos'] === 'false'
+            && $dopo['applies_online'] === 'true' && $dopo['applies_office'] === 'true' && $dopo['name'] === 'Cambiato';
+    });
+});
+
+check('un coupon nuovo parte con i canali accesi a «sì»', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'coupons', 'office_sales']);
+        $valori = [];
+
+        foreach (CouponResource::formSchema() as $campo) {
+            $valori[(string) $campo->name] = (new ReflectionProperty($campo, 'schema'))->getValue($campo)['value'] ?? null;
+        }
+
+        return $valori['applies_online'] === 'false' && $valori['applies_office'] === 'true' && $valori['applies_pos'] === 'false';
+    });
+});
+
 summary();
