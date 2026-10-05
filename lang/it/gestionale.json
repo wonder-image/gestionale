@@ -168,6 +168,9 @@
                 "ends_before_starts": "Il coupon non può finire prima di cominciare.",
                 "type_not_allowed": "Questo tipo di coupon non si crea da qui.",
                 "customer_unknown": "Uno dei clienti scelti non esiste più."
+            },
+            "shipping": {
+                "no_method_for_destination": "Non spediamo verso questa destinazione."
             }
         },
         "emails": {
