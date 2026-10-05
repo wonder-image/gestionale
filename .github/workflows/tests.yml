@@ -2,22 +2,23 @@ name: Test
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
   unitari:
     name: Unitari e convenzioni
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout del modulo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: gestionale
 
       # Il modulo vive accanto al core: il repository è pubblico.
       - name: Checkout di wonder-image/app
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: wonder-image/app
           path: app
