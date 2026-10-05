@@ -32,6 +32,7 @@
 ## Promozioni
 
 * [Campagne di sconto](promozioni-campagne.md)
+* [Coupon](promozioni-coupon.md)
 
 ## Anagrafiche
 

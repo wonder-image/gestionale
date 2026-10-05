@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Promotions;
 
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
@@ -393,5 +394,79 @@ final class Coupons
         }
 
         return array_key_exists('id', $found) ? [$found] : array_values(array_filter($found, 'is_array'));
+    }
+
+    /**
+     * Quante volte il coupon è stato usato: gli utilizzi non rilasciati (un
+     * ordine annullato o scaduto restituisce il suo).
+     */
+    public static function usedCount(int $couponId): int
+    {
+        if ($couponId <= 0) {
+            return 0;
+        }
+
+        return count(array_filter(
+            self::rows(CouponRedemption::find(['coupon_id' => $couponId])),
+            static fn (array $row): bool => self::empty((string) ($row['released_at'] ?? ''))
+        ));
+    }
+
+    /**
+     * Rifiuta un coupon che non sta in piedi, prima di scrivere qualsiasi cosa:
+     * codice mancante o già preso (anche da un coupon eliminato, il codice è
+     * unico per sempre), tipo che a mano non si sceglie, percentuale fuori da
+     * 0-100, importo non positivo, date capovolte, clienti riservati che non
+     * esistono. La spedizione gratuita non ha valore da controllare.
+     *
+     * @param array<string, mixed> $draft code, discount_type, discount_value, starts_at, ends_at, customers
+     */
+    public static function validate(array $draft, int $exceptId = 0): void
+    {
+        $code = trim((string) ($draft['code'] ?? ''));
+
+        if ($code === '') {
+            throw UserError::make('coupon.code_required');
+        }
+
+        // Il codice è unico anche tra gli eliminati: si cerca in tutti e due i gruppi.
+        foreach (['false', 'true'] as $deleted) {
+            foreach (self::rows(Coupon::find(['code' => $code, 'deleted' => $deleted])) as $taken) {
+                if ((int) $taken['id'] !== $exceptId && mb_strtolower((string) $taken['code']) === mb_strtolower($code)) {
+                    throw UserError::make('coupon.code_taken');
+                }
+            }
+        }
+
+        $type = (string) ($draft['discount_type'] ?? '');
+
+        if (!in_array($type, ['percent', 'amount', 'free_shipping'], true)) {
+            throw UserError::make('coupon.type_not_allowed');
+        }
+
+        $value = (float) ($draft['discount_value'] ?? 0);
+
+        if ($type === 'percent' && ($value <= 0.0 || $value > 100.0)) {
+            throw UserError::make('coupon.percent_out_of_range');
+        }
+
+        if ($type === 'amount' && $value <= 0.0) {
+            throw UserError::make('coupon.amount_not_positive');
+        }
+
+        $starts = trim((string) ($draft['starts_at'] ?? ''));
+        $ends = trim((string) ($draft['ends_at'] ?? ''));
+
+        if ($starts !== '' && $ends !== '' && $ends < $starts) {
+            throw UserError::make('coupon.ends_before_starts');
+        }
+
+        foreach ((array) ($draft['customers'] ?? []) as $customerId) {
+            $found = Contact::find(['id' => (int) $customerId, 'is_customer' => 'true', 'deleted' => 'false'], 1);
+
+            if (!is_array($found) || (int) ($found['id'] ?? 0) <= 0) {
+                throw UserError::make('coupon.customer_unknown');
+            }
+        }
     }
 }

@@ -160,7 +160,14 @@
                 "not_yours": "Questo codice sconto non è disponibile per il tuo account.",
                 "no_eligible_products": "Nessun prodotto nel carrello rientra in questo codice sconto.",
                 "has_manual_discount": "Su questo carrello c'è già uno sconto: non si somma a un codice.",
-                "channel": "Questo codice sconto non vale per questo canale di vendita."
+                "channel": "Questo codice sconto non vale per questo canale di vendita.",
+                "code_required": "Scrivi il codice del coupon.",
+                "code_taken": "Esiste già un coupon con questo codice (anche eliminato): scegline un altro.",
+                "percent_out_of_range": "La percentuale di sconto deve essere maggiore di 0 e al massimo 100.",
+                "amount_not_positive": "L'importo dello sconto deve essere maggiore di zero.",
+                "ends_before_starts": "Il coupon non può finire prima di cominciare.",
+                "type_not_allowed": "Questo tipo di coupon non si crea da qui.",
+                "customer_unknown": "Uno dei clienti scelti non esiste più."
             }
         },
         "emails": {
