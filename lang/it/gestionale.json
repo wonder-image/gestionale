@@ -189,6 +189,12 @@
                 "zone_in_use": "Questa zona ha {{count}} listini accesi: toglila dai metodi di spedizione o spegni i listini, poi eliminala.",
                 "method_in_use": "Questo metodo è su {{count}} ordini o carrelli: spegnilo invece di eliminarlo.",
                 "area_country": "Il paese di un'area è una sigla di due lettere, per esempio IT. «{{country}}» non lo è."
+            },
+            "shipment": {
+                "feature_off": "Le spedizioni non sono attive: accendile dalle funzionalità.",
+                "order_not_open": "Questo ordine non si spedisce: deve essere confermato e con consegna a domicilio.",
+                "nothing_to_ship": "Scegli almeno un articolo da spedire, con una quantità maggiore di zero.",
+                "over_quantity": "Non puoi spedire più di quanto resta da spedire, né articoli che non fanno parte di questo ordine o che non si spediscono."
             }
         },
         "emails": {

@@ -8,6 +8,7 @@
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRate;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRateBracket;
@@ -103,4 +104,25 @@ function carrello(array $righe, array $ordine = []): int
     Order::update($ordine + ['shipping_country' => 'IT', 'shipping_province' => 'MI', 'shipping_city' => 'Milano'], $cart);
 
     return $cart;
+}
+
+/**
+ * Un ordine confermato da spedire, con le righe date ([articolo, quantità]).
+ *
+ * @return array{0: int, 1: list<int>} l'id dell'ordine e gli id delle sue righe, nell'ordine dato
+ */
+function ordineDaSpedire(array $righe, array $ordine = []): array
+{
+    $id = carrello($righe);
+    Order::update($ordine + [
+        'stage' => 'order',
+        'status' => 'confirmed',
+        'fulfillment_type' => 'shipping',
+    ], $id);
+
+    $trovate = OrderItem::find(['order_id' => $id, 'deleted' => 'false']);
+    $trovate = !is_array($trovate) || $trovate === [] ? [] : (array_key_exists('id', $trovate) ? [$trovate] : array_values(array_filter($trovate, 'is_array')));
+    usort($trovate, static fn (array $a, array $b): int => (int) $a['id'] <=> (int) $b['id']);
+
+    return [$id, array_map(static fn (array $riga): int => (int) $riga['id'], $trovate)];
 }

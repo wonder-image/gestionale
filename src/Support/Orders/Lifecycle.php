@@ -38,7 +38,7 @@ final class Lifecycle
     private const CONFIRMABLE = ['draft', 'pending'];
 
     /** Quelli in cui la merce è già uscita di magazzino. */
-    private const COMMITTED = ['confirmed', 'processing'];
+    public const COMMITTED = ['confirmed', 'processing'];
 
     /**
      * Il pagamento risulta, la merce esce, il cliente lo sa.
