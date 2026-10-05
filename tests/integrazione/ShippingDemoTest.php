@@ -246,10 +246,19 @@ check('gli articoli di prova da spedire senza peso lo prendono, gli altri no', f
     $modelli = idDiProva(ProductModel::class, 'mod');
     $senza = static fn (): int => count(righe(Product::class, "deleted = 'false' AND (weight IS NULL OR weight = 0) AND product_model_id IN (".$modelli.')'));
 
+    // Il sito di prova può avere già i pesi dati da una demo: si parte da articoli senza peso.
+    $articoli = righe(Product::class, "deleted = 'false' AND product_model_id IN (".$modelli.')');
+    foreach ($articoli as $articolo) {
+        Product::update(['weight' => null], (int) $articolo['id']);
+    }
+    $pesato = (int) $articoli[0]['id'];
+    Product::update(['weight' => '2.500'], $pesato);
+
     $primo = $senza();
     ShippingDemo::create();
+    $rimasto = righe(Product::class, 'id = '.$pesato)[0]['weight'];
 
-    return $primo > 0 && $senza() === 0;
+    return $primo > 0 && $senza() === 0 && abs((float) $rimasto - 2.5) < 0.0001;
 }));
 
 summary();

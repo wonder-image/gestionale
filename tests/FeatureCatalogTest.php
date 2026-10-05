@@ -100,7 +100,8 @@ check('nel catalogo vero quelle già costruite non sono segnate come future', fu
     return $catalogo['orders']['created'] === true
         && $catalogo['returns']['created'] === true
         && $catalogo['bundles']['created'] === true
-        && $catalogo['shipping']['created'] === false;
+        && $catalogo['shipping']['created'] === true
+        && $catalogo['carriers']['created'] === false;
 });
 
 summary();

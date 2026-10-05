@@ -139,7 +139,6 @@ return [
         'area' => 'Spedizioni',
         'requires' => ['orders'],
         'release' => 'G7',
-        'created' => false,
     ],
     'carriers' => [
         'name' => 'Corrieri',
