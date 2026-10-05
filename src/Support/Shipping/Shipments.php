@@ -333,6 +333,13 @@ final class Shipments
                 return '';
             }
 
+            // Un ritiro si prepara e si consegna solo per un ordine ancora aperto; una consegna già
+            // partita si registra anche a ordine chiuso, e quella ferma passa da `shipInside`.
+            if ((string) $shipment['type'] === 'pickup'
+                && ((string) $order['stage'] !== 'order' || !in_array((string) $order['status'], Lifecycle::COMMITTED, true))) {
+                throw UserError::make('shipment.order_not_open');
+            }
+
             $mail = '';
 
             if ((string) $shipment['type'] === 'delivery' && in_array($from, ['pending', 'label_created'], true)) {

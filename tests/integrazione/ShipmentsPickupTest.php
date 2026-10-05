@@ -169,6 +169,30 @@ check('un ordine annullato o in bozza non ha un ritiro', fn () => prova(static f
     return $esiti === ['shipment.order_not_open', 'shipment.order_not_open'];
 }));
 
+check('con l\'ordine annullato dopo la creazione il ritiro non diventa pronto e non scrive al cliente', fn () => prova(static function (): bool {
+    accendiFunzionalita(['orders', 'shipping']);
+    [$ordine] = ordineDaRitirare([[articolo(1.0), 1]], null, ['email' => 'cliente@example.com']);
+    $id = Shipments::createPickup($ordine);
+    Order::update(['status' => 'cancelled'], $ordine);
+    $partite = 0;
+    \Wonder\Plugin\Gestionale\Support\Mail\Mailer::useTransport(static function () use (&$partite): bool {
+        $partite++;
+
+        return true;
+    });
+
+    try {
+        $esito = rifiuto(fn () => Shipments::ready($id));
+    } finally {
+        \Wonder\Plugin\Gestionale\Support\Mail\Mailer::useTransport(null);
+    }
+
+    Shipments::cancel($id);
+
+    return $esito === 'shipment.order_not_open' && $partite === 0
+        && righe(Shipment::class, 'id = '.$id)[0]['status'] === 'cancelled';
+}));
+
 check('un solo ritiro vivo per ordine: dopo l\'annullamento se ne può fare un altro', fn () => prova(static function (): bool {
     accendiFunzionalita(['orders', 'shipping']);
     [$ordine] = ordineDaRitirare([[articolo(1.0), 2]]);
