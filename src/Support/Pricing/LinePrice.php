@@ -102,10 +102,11 @@ final class LinePrice
             return ['price_list', $priceList];
         }
 
-        $campaign = static::money($input['campaign_price'] ?? 0);
+        $campaign = trim((string) ($input['campaign_price'] ?? ''));
 
-        if ($campaign > 0.0) {
-            return ['campaign', $campaign];
+        // Come il prezzo a mano: una campagna a zero è un omaggio, non l'assenza di campagna.
+        if ($campaign !== '' && is_numeric($campaign)) {
+            return ['campaign', static::money($campaign)];
         }
 
         $sale = static::money($input['sale_price'] ?? 0);
