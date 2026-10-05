@@ -13,6 +13,8 @@ require __DIR__.'/supporto/compra.php';
 require __DIR__.'/supporto/layout.php';
 
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
@@ -65,6 +67,15 @@ check('un ordine senza nomi si riconosce dall\'email', function () {
     });
 });
 
+/** Un coupon qualunque, perché gli utilizzi hanno la chiave esterna. */
+function couponDiProva(): int
+{
+    return (int) (Coupon::create([
+        'code' => 'X'.strtoupper(substr(uniqid(), -8)), 'name' => 'Prova', 'discount_type' => 'percent', 'discount_value' => '10.00',
+        'applies_to_all' => 'true', 'applies_online' => 'true', 'active' => 'true',
+    ])->insert_id ?? 0);
+}
+
 /** Tutto l'HTML della scheda, per cercarci dentro. */
 function schedaHtml(int $ordine): string
 {
@@ -84,6 +95,41 @@ check('la scheda mostra numero, cliente, totale e riepilogo IVA; il nome è esca
         return str_contains($html, '2025/777') && str_contains($html, '122,00 €')
             && str_contains($html, '22%') && str_contains($html, '&lt;b&gt;x&lt;/b&gt;')
             && !str_contains($html, '<b>x</b>');
+    });
+});
+
+check('la scheda mostra il coupon con il codice escapato e quanto ha fatto risparmiare; senza coupon la riga non c\'è', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(50.0);
+        $senza = schedaHtml($ordine);
+
+        $coupon = couponDiProva();
+        Order::update(['coupon_id' => $coupon, 'coupon_code' => '<b>ESTATE</b>', 'discount_total' => '5.00'], $ordine);
+        CouponRedemption::create([
+            'coupon_id' => $coupon, 'order_id' => $ordine, 'customer_id' => 0, 'email' => 'a@example.com',
+            'discount_amount' => '5.00', 'redeemed_at' => date('Y-m-d H:i:s'),
+        ]);
+        $con = schedaHtml($ordine);
+
+        return !str_contains($senza, 'Coupon')
+            && str_contains($con, 'Coupon') && str_contains($con, '&lt;b&gt;ESTATE&lt;/b&gt;')
+            && !str_contains($con, '<b>ESTATE</b>') && str_contains($con, '5,00 €');
+    });
+});
+
+check('la riga del coupon c\'è anche a funzionalità spenta: è storia', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(50.0);
+        $coupon = couponDiProva();
+        Order::update(['coupon_id' => $coupon, 'coupon_code' => 'ESTATE'], $ordine);
+        CouponRedemption::create([
+            'coupon_id' => $coupon, 'order_id' => $ordine, 'customer_id' => 0, 'email' => 'a@example.com',
+            'discount_amount' => '4.00', 'redeemed_at' => date('Y-m-d H:i:s'),
+        ]);
+        spegniFunzionalita(['coupons']);
+        $html = schedaHtml($ordine);
+
+        return str_contains($html, 'ESTATE') && str_contains($html, '4,00 €');
     });
 });
 
