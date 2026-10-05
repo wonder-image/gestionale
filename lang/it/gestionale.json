@@ -198,7 +198,10 @@
                 "not_found": "Questa spedizione non esiste.",
                 "bad_transition": "Da questo stato la spedizione non può passare a quello richiesto.",
                 "tracking_required": "Con questo corriere serve il numero di tracking: il cliente lo usa per seguire il pacco.",
-                "bad_date": "La data di spedizione non è valida: scrivila come giorno, mese e anno."
+                "bad_date": "La data di spedizione non è valida: scrivila come giorno, mese e anno.",
+                "not_pickup_point": "La sede scelta per questo ordine non è un punto di ritiro attivo.",
+                "location_closed": "La sede di ritiro è chiusa in questo momento.",
+                "pickup_exists": "Questo ordine ha già un ritiro in corso."
             }
         },
         "emails": {

@@ -2,9 +2,11 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Shipping;
 
+use Wonder\App\Support\SocietyLocations;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
@@ -163,6 +165,120 @@ final class Shipments
             self::write($shipment, $values, 'in_transit', $data);
             self::syncOrder($orderId, $data);
         });
+    }
+
+    /**
+     * Crea il ritiro in sede di un ordine: una spedizione `pickup` in attesa con
+     * tutto quello che resta da consegnare.
+     *
+     * La sede è quella dell'ordine e deve essere attiva, di ritiro e aperta;
+     * di ritiri vivi ce n'è uno solo per ordine (uno annullato non conta).
+     *
+     * @param array{note?: string, source?: string, user_id?: int} $options
+     * @return int l'id della spedizione
+     * @throws UserError
+     */
+    public static function createPickup(int $orderId, array $options = []): int
+    {
+        self::guardFeature();
+
+        return Transaction::run(static function () use ($orderId, $options): int {
+            $order = self::lockOrder($orderId);
+
+            if ((string) $order['stage'] !== 'order'
+                || !in_array((string) $order['status'], Lifecycle::COMMITTED, true)
+                || (string) $order['fulfillment_type'] !== 'pickup') {
+                throw UserError::make('shipment.order_not_open');
+            }
+
+            $locationId = (int) ($order['location_id'] ?? 0);
+            $location = $locationId > 0 ? Location::findById($locationId) : null;
+
+            if (!is_array($location) || $location === []
+                || (string) ($location['deleted'] ?? 'false') === 'true'
+                || (string) $location['active'] !== 'true'
+                || (string) $location['is_pickup_point'] !== 'true') {
+                throw UserError::make('shipment.not_pickup_point');
+            }
+
+            $place = SocietyLocations::find((int) $location['society_location_id']);
+
+            if ($place === null || !SocietyLocations::isOpen($place)) {
+                throw UserError::make('shipment.location_closed');
+            }
+
+            // Prima il blocco delle righe, poi il conto di quanto è già assegnato.
+            $items = self::items($orderId, true);
+            $assigned = self::assigned($orderId, true);
+
+            foreach (self::rows(Shipment::find(['order_id' => $orderId, 'type' => 'pickup', 'deleted' => 'false'])) as $existing) {
+                if ((string) $existing['status'] !== 'cancelled') {
+                    throw UserError::make('shipment.pickup_exists');
+                }
+            }
+
+            $remaining = array_filter(
+                ShippableLines::remaining(self::describe($items), $assigned),
+                static fn (float $quantity): bool => $quantity > 0.0005
+            );
+
+            if ($remaining === []) {
+                throw UserError::make('shipment.nothing_to_ship');
+            }
+
+            $shipmentId = (int) (Shipment::create([
+                'code' => Code::make(Shipment::class, Codes::SHIPMENT),
+                'order_id' => $orderId,
+                'type' => 'pickup',
+                'status' => 'pending',
+                'location_id' => $locationId,
+                'note' => trim((string) ($options['note'] ?? '')),
+            ])->insert_id ?? 0);
+
+            foreach ($remaining as $itemId => $quantity) {
+                ShipmentItem::create([
+                    'shipment_id' => $shipmentId,
+                    'order_item_id' => $itemId,
+                    'quantity' => number_format($quantity, 3, '.', ''),
+                ]);
+            }
+
+            StatusLogger::record(
+                ShipmentStatusLog::class,
+                $shipmentId,
+                'status',
+                '',
+                'pending',
+                (string) ($options['source'] ?? 'user'),
+                (int) ($options['user_id'] ?? 0) ?: null
+            );
+
+            return $shipmentId;
+        });
+    }
+
+    /**
+     * Il ritiro è pronto: il cliente può passare. L'ordine diventa
+     * `ready_for_pickup`.
+     *
+     * @param array{source?: string, user_id?: int} $options
+     * @throws UserError
+     */
+    public static function ready(int $shipmentId, array $options = []): void
+    {
+        // Il punto d'innesto dell'email «pronto per il ritiro» è nel task 5.
+        self::advance($shipmentId, 'ready_for_pickup', $options);
+    }
+
+    /**
+     * Il cliente ha ritirato: la merce è evasa, e con l'ordine pagato si chiude.
+     *
+     * @param array{source?: string, user_id?: int} $options
+     * @throws UserError
+     */
+    public static function pickedUp(int $shipmentId, array $options = []): void
+    {
+        self::advance($shipmentId, 'picked_up', $options);
     }
 
     /**
