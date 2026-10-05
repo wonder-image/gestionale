@@ -51,6 +51,17 @@ $forza = static function (?array $stato): void {
     (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
 };
 
+/** Esegue `$prova` con le funzionalità date accese, poi rilegge lo stato vero. */
+$con = static function (array $stato, callable $prova) use ($forza) {
+    $forza($stato);
+
+    try {
+        return $prova();
+    } finally {
+        $forza(null);
+    }
+};
+
 check('la pagina dei prodotti sta nel catalogo', fn () =>
     ProductModelResource::$model === ProductModel::class
     && ProductModelResource::path() === 'app/gestionale/prodotti'
@@ -310,7 +321,7 @@ check('finché una riga resta, si salva', function () {
     return true;
 });
 
-check('senza attributi da cui nascono opzioni la domanda sulle varianti non si fa', function () {
+check('la domanda sulle varianti si fa anche senza attributi da cui nascono opzioni', function () {
     $trova = static function ($nodo, string $nome) use (&$trova) {
         if ($nodo instanceof \Wonder\App\ResourceSchema\Input && $nodo->name === $nome) {
             return $nodo;
@@ -334,9 +345,15 @@ check('senza attributi da cui nascono opzioni la domanda sulle varianti non si f
         }
     };
 
-    return $trova($senza::formLayoutSchema(), 'has_variants') instanceof \Wonder\App\ResourceSchema\Inputs\InputHidden
-        && ($domanda = $trova($con::formLayoutSchema(), 'has_variants')) !== null
-        && !($domanda instanceof \Wonder\App\ResourceSchema\Inputs\InputHidden);
+    foreach ([$senza, $con] as $scheda) {
+        $domanda = $trova($scheda::formLayoutSchema(), 'has_variants');
+
+        if ($domanda === null || $domanda instanceof \Wonder\App\ResourceSchema\Inputs\InputHidden) {
+            return false;
+        }
+    }
+
+    return true;
 });
 
 check('dopo il salvataggio si atterra sulla scheda', function () {
@@ -577,7 +594,7 @@ check('il tipo fiscale ha un riquadro tutto suo', function () use ($riquadro) {
         && (string) ($dentro[0]->getSchema()['tooltip'] ?? '') !== '';
 });
 
-check('«Come si vende» ha tre interruttori con una riga che li spiega', function () use ($riquadro, $campi) {
+check('«Come si vende» ha tre interruttori con una riga che li spiega', fn () => $con(['returns' => true, 'shipping' => true], function () use ($riquadro, $campi) {
     $nomi = array_values(array_filter(array_map(
         static fn ($pezzo) => property_exists($pezzo, 'name') ? (string) $pezzo->name : '',
         $riquadro(1, 'Come si vende')
@@ -602,9 +619,29 @@ check('«Come si vende» ha tre interruttori con una riga che li spiega', functi
 
     return $nomi === ['visible_online', 'returnable', 'requires_shipping', 'package_id']
         && $etichette === ['Acquistabile online', 'Accetta resi', 'Da spedire'];
-});
+}));
 
-check('l\'imballaggio sta sotto «Da spedire» e compare solo se si spedisce', function () use ($riquadro) {
+check('senza «returns» e «shipping» «Come si vende» non offre resi, spedizione né imballaggio', fn () => $con([], function () use ($riquadro, $campi) {
+    $nomi = array_values(array_filter(array_map(
+        static fn ($pezzo) => property_exists($pezzo, 'name') ? (string) $pezzo->name : '',
+        $riquadro(1, 'Come si vende')
+    )));
+    $chiavi = array_keys($campi());
+
+    return $nomi === ['visible_online']
+        && array_intersect(['returnable', 'requires_shipping', 'package_id'], $chiavi) === [];
+}));
+
+check('con «returns» ma senza «shipping» resta solo «Accetta resi»', fn () => $con(['returns' => true], function () use ($riquadro) {
+    $nomi = array_values(array_filter(array_map(
+        static fn ($pezzo) => property_exists($pezzo, 'name') ? (string) $pezzo->name : '',
+        $riquadro(1, 'Come si vende')
+    )));
+
+    return $nomi === ['visible_online', 'returnable'];
+}));
+
+check('l\'imballaggio sta sotto «Da spedire» e compare solo se si spedisce', fn () => $con(['shipping' => true], function () use ($riquadro) {
     $imballaggio = null;
 
     foreach ($riquadro(1, 'Come si vende') as $pezzo) {
@@ -620,10 +657,10 @@ check('l\'imballaggio sta sotto «Da spedire» e compare solo se si spedisce', f
             'data-visible-when' => 'requires_shipping',
             'data-visible-when-values' => 'true',
         ];
-});
+}));
 
 check('con «backorders» «Come si vende» chiede anche la vendita senza giacenza', function () use ($riquadro, $campi, $forza) {
-    $forza(['backorders' => true]);
+    $forza(['backorders' => true, 'returns' => true, 'shipping' => true]);
 
     try {
         $nomi = array_values(array_filter(array_map(
@@ -2205,7 +2242,7 @@ check('un elenco si rilegge come lista, testo e numero come la prima riga', func
         && $schedaTecnica::vediValore(32, []) === '';
 });
 
-check('la scheda chiede l\'imballaggio, e le misure sono del prodotto', function () use ($campi) {
+check('la scheda chiede l\'imballaggio, e le misure sono del prodotto', fn () => $con(['shipping' => true], function () use ($campi) {
     $chiavi = array_keys($campi());
 
     // «Spedito» non c'è più: era una frase calcolata che diceva prodotto +
@@ -2213,7 +2250,7 @@ check('la scheda chiede l\'imballaggio, e le misure sono del prodotto', function
     return in_array('package_id', $chiavi, true)
         && in_array('circumference', $chiavi, true)
         && !in_array('shipping_weight', $chiavi, true);
-});
+}));
 
 check('le foto si caricano dove appartengono', function () use ($schedaAperta) {
     // Un'area per l'articolo, e una per ogni colore quando ce n'è più d'uno.

@@ -18,6 +18,8 @@ use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Pricing\LinePrice;
 use Wonder\Plugin\Gestionale\Support\Pricing\OrderTotals;
+use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
+use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
@@ -105,7 +107,7 @@ final class Cart
      * porta il prezzo e le figlie, a prezzo zero, i componenti da scaricare.
      *
      * @param array{product_id: int, quantity?: float, customization?: array<int|string, mixed>, choices?: array<int|string, mixed>} $line
-     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>}
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string}
      */
     public static function add(int $cartId, array $line): array
     {
@@ -184,8 +186,11 @@ final class Cart
      * Le righe di un prodotto che non c'è più — cancellato o spento mentre
      * stava nel carrello — escono, e chi chiama le trova elencate in
      * `removed`: sparire in silenzio vorrebbe dire un totale che cala da solo.
+     * Lo stesso vale per un coupon che non vale più: esce dal carrello e il
+     * motivo (una chiave di `gestionale.errors.coupon`) sta in `coupon_dropped`,
+     * vuoto se non è successo niente.
      *
-     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>}
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string}
      */
     public static function recalculate(int $cartId): array
     {
@@ -196,6 +201,8 @@ final class Cart
             $fallback = (int) ($settings['fallback_tax_id'] ?? 0);
             $country = strtoupper(trim((string) ($cart['billing_country'] ?? ''))) ?: 'IT';
             $customerType = trim((string) ($cart['billing_pi'] ?? '')) !== '' ? 'business' : 'private';
+            $now = date('Y-m-d H:i:s');
+            $channel = (string) ($cart['channel'] ?? 'online');
             $removed = [];
             $computed = [];
             $rewritten = [];
@@ -296,6 +303,13 @@ final class Cart
                     $packs[] = ['item' => $item, 'children' => $bundle['children']];
                 }
 
+                // La campagna dà il prezzo solo alle righe di prodotto a prezzo
+                // automatico: il prezzo a mano non si tocca, le figlie non si prezzano.
+                $campaign = $productId > 0 && (string) $item['type'] === 'product'
+                    && (string) $item['price_source'] !== 'manual'
+                    ? Campaigns::forProduct($productId, $now, $channel)
+                    : null;
+
                 $price = LinePrice::of([
                     'quantity' => $item['quantity'] ?? 0,
                     'price' => is_array($product) ? ($product['price'] ?? 0) : ($item['list_price'] ?? 0),
@@ -303,10 +317,15 @@ final class Cart
                     'manual_unit_price' => (string) $item['price_source'] === 'manual'
                         ? ($item['unit_price'] ?? '')
                         : '',
+                    'campaign_price' => $campaign !== null ? number_format($campaign['price'], 2, '.', '') : '',
                     'discount_type' => $item['discount_type'] ?? 'none',
                     'discount_value' => $item['discount_value'] ?? 0,
                     'customization_surcharge' => $item['customization_surcharge'] ?? 0,
                 ]);
+
+                // Il prezzo di campagna vale solo se ha vinto davvero: con uno sconto
+                // di riga a mano la riga è «manual» e la campagna non c'entra.
+                $campaignId = $campaign !== null && $price['price_source'] === 'campaign' ? $campaign['campaign_id'] : 0;
 
                 $taxId = TaxResolver::resolve(
                     $rules,
@@ -320,24 +339,44 @@ final class Cart
                 $computed[] = $item['id'] ? [
                     'id' => (int) $item['id'],
                     'type' => (string) $item['type'],
+                    'product_id' => $productId,
                     'weight' => is_array($product) ? (float) ($product['weight'] ?? 0) : 0.0,
                     'tax_id' => $taxId,
                     'tax_rate' => is_array($tax) ? (float) ($tax['rate'] ?? 0) : 0.0,
                     'tax_nature' => is_array($tax) ? (string) ($tax['nature'] ?? '') : '',
+                    'discount_campaign_id' => $campaignId,
                 ] + $price : [];
             }
 
-            $totals = OrderTotals::of($computed, [
+            // Il coupon si rivaluta a ogni ricalcolo: se non vale più esce dal
+            // carrello e il motivo arriva a chi chiama. Lo sconto scritto a mano
+            // sulla testata non si somma mai: tra i due vince il manuale.
+            $coupon = Coupons::context($cartId, $computed, $now);
+            $dropped = (string) ($coupon['dropped'] ?? '');
+            $context = [
                 'prices_include_tax' => (string) ($cart['prices_include_tax'] ?? 'true') === 'true',
                 'discount_type' => (string) ($cart['manual_discount_type'] ?? 'none'),
                 'discount_value' => (float) ($cart['manual_discount_value'] ?? 0),
-            ]);
+            ];
+
+            if ($coupon !== [] && $dropped === '') {
+                $context['discount_type'] = $coupon['discount_type'];
+                $context['discount_value'] = $coupon['discount_value'];
+                $context['free_shipping'] = $coupon['free_shipping'];
+
+                foreach ($computed as $index => $line) {
+                    $computed[$index]['discountable'] = (bool) ($coupon['discountable'][(int) $line['id']] ?? false);
+                }
+            }
+
+            $totals = OrderTotals::of($computed, $context);
 
             foreach ($totals['lines'] as $line) {
                 OrderItem::update([
                     'list_price' => $line['list_price'],
                     'unit_price' => $line['unit_price'],
                     'price_source' => $line['price_source'],
+                    'discount_campaign_id' => (int) ($line['discount_campaign_id'] ?? 0),
                     'discount_type' => $line['discount_type'],
                     'discount_value' => $line['discount_value'],
                     'order_discount_amount' => $line['order_discount_amount'],
@@ -369,14 +408,14 @@ final class Cart
                 'last_activity_at' => date('Y-m-d H:i:s'),
             ], $cartId);
 
-            return self::contents($cartId) + ['removed' => $removed];
+            return self::contents($cartId) + ['removed' => $removed, 'coupon_dropped' => $dropped];
         });
     }
 
     /**
      * Cambia la quantità di una riga. Zero vuol dire toglierla.
      *
-     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>}
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string}
      */
     public static function setQuantity(int $cartId, int $itemId, float $quantity): array
     {
@@ -410,7 +449,7 @@ final class Cart
     /**
      * Toglie una riga dal carrello.
      *
-     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>}
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string}
      */
     public static function remove(int $cartId, int $itemId): array
     {
@@ -431,7 +470,7 @@ final class Cart
      * due, con tre sul banco, fanno tre. Scriverne quattro sposterebbe il
      * rifiuto al checkout, dove il cliente ha già messo l'indirizzo.
      *
-     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>}
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string}
      */
     public static function merge(int $guestCartId, int $targetCartId): array
     {

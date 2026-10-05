@@ -74,7 +74,7 @@ qualcosa che nessuno sa leggere.
 
 ## Riferimenti esterni
 
-`gst_external_references` tiene il nome delle nostre entità dentro i sistemi
+`external_references` (tabella condivisa del core) tiene il nome delle nostre entità dentro i sistemi
 esterni (Fatture in Cloud, Stripe, corrieri), diviso per ambiente `live` e
 `test`.
 

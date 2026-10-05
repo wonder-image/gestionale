@@ -12,14 +12,16 @@ final class Demo
 {
     /**
      * Le anagrafiche prima del catalogo: gli articoli di prova comprano dai
-     * fornitori di prova, e al primo giro devono già esserci. Gli ordini per
-     * ultimi: vendono gli articoli del catalogo.
+     * fornitori di prova, e al primo giro devono già esserci. Le campagne
+     * dopo il catalogo, di cui usano le tassonomie. Gli ordini per ultimi:
+     * vendono gli articoli del catalogo.
      *
      * @var list<class-string>
      */
     private const PROVIDERS = [
         ContactsDemo::class,
         CatalogDemo::class,
+        PromotionsDemo::class,
         OrdersDemo::class,
     ];
 

@@ -54,7 +54,9 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Fattura differita | Fatturazione | Fattura riepilogativa dei DDT del periodo. | DDT, Fatturazione elettronica |
 | Spedizioni | Spedizioni | Listini per zona e peso, spedizioni e tracking manuali, ritiro in sede. | Ordini |
 | Corrieri | Spedizioni | Etichette e tracking dal corriere. | Spedizioni |
-| Banco | Banco | Vendita in sede con documento commerciale e corrispettivi. | Ordini |
+| Vendita online | Canali di vendita | Il sito vende: coupon, campagne e metodi di pagamento valgono per il sito. | Ordini |
+| Vendita in ufficio | Canali di vendita | Gli ordini si fanno dal gestionale: coupon, campagne e metodi di pagamento valgono anche per l'ufficio. | Ordini |
+| Vendita in cassa | Canali di vendita | Vendita in sede con documento commerciale e corrispettivi. | Ordini |
 <!-- funzionalita:fine -->
 
 ## Cosa accendono oggi Acquisti e Vendita senza giacenza

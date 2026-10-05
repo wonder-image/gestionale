@@ -38,6 +38,7 @@ final class FeaturePanel
                 'module' => $feature['module'],
                 // Un modulo non abilitato blocca l'interruttore: la riga si
                 // vedrebbe sbloccata senza esserlo davvero.
+                'created' => $feature['created'],
                 'available' => $feature['module'] === '' || in_array($feature['module'], $modules, true),
             ];
         }

@@ -85,4 +85,22 @@ check('il catalogo del pacchetto è valido e contiene le funzionalità della spe
     return array_diff($attese, array_keys($catalogo)) === [];
 });
 
+check('una funzionalità è costruita salvo `created => false`', function () {
+    $catalogo = FeatureCatalog::fromArray([
+        'a' => ['name' => 'A', 'area' => 'X'],
+        'b' => ['name' => 'B', 'area' => 'X', 'created' => false],
+    ]);
+
+    return $catalogo['a']['created'] === true && $catalogo['b']['created'] === false;
+});
+
+check('nel catalogo vero quelle già costruite non sono segnate come future', function () {
+    $catalogo = FeatureCatalog::all();
+
+    return $catalogo['orders']['created'] === true
+        && $catalogo['returns']['created'] === true
+        && $catalogo['bundles']['created'] === true
+        && $catalogo['shipping']['created'] === false;
+});
+
 summary();

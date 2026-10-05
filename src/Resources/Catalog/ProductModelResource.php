@@ -277,26 +277,15 @@ class ProductModelResource extends GestionaleResource
             // La scrive la stella dell'albero.
             FormField::key('main_category')->hidden(),
             FormField::key('tags')->selectSearch(static::tagOptions(), true)->label('Tag'),
-            FormField::key('package_id')
-                ->select(Packages::options())
-                ->label('Imballaggio')
-                ->quickCreate(PackageResource::class),
             FormField::key('weight')->number()->decimal(3)->label('Peso (kg)'),
             FormField::key('length')->number()->decimal(2)->label('Lunghezza (cm)'),
             FormField::key('width')->number()->decimal(2)->label('Larghezza (cm)'),
             FormField::key('height')->number()->decimal(2)->label('Altezza (cm)'),
             FormField::key('circumference')->number()->decimal(2)->label('Circonferenza (cm)'),
-            FormField::key('returnable')
-                ->toggle()
-                ->value('true')
-                ->label('Accetta resi')
-                ->description('Il cliente può restituirlo dopo l\'acquisto.'),
-            FormField::key('requires_shipping')
-                ->toggle()
-                ->value('true')
-                ->label('Da spedire')
-                ->description('Spento per servizi, buoni regalo e prodotti digitali.'),
         ];
+
+        // Solo con `returns` e `shipping`: senza, i loro campi non esistono.
+        array_push($fields, ...static::returnFields(), ...static::shippingFields());
 
         // Solo con `backorders`: senza, i due campi non esistono.
         array_push($fields, ...static::backorderFields());
@@ -490,14 +479,10 @@ class ProductModelResource extends GestionaleResource
             $domanda = $domanda->readonly()->disabled();
         }
 
-        // Senza attributi da cui far nascere opzioni, «sì» porterebbe a un
-        // riquadro vuoto: la domanda non si fa. Un articolo che ha già le
-        // varianti la tiene, o non potrebbe più tornare indietro.
-        $senzaOpzioni = !$conVarianti && static::optionAttributes() === [];
-
-        if ($senzaOpzioni) {
-            $domanda = FormField::key('has_variants')->hidden()->value('false');
-        }
+        // La domanda si fa sempre, anche senza attributi da cui far nascere
+        // opzioni: chi risponde «sì» trova nel riquadro la griglia e l'avviso
+        // su dove si crea l'attributo.
+        $senzaOpzioni = static::optionAttributes() === [];
 
         if ($multi) {
             $domanda = FormField::key('has_variants')->hidden()->value('false');
@@ -960,9 +945,11 @@ HTML
     {
         $blocchi = static::optionBlocks();
 
-        if ($blocchi === []) {
-            return [];
-        }
+        // Senza attributi non c'è niente da spuntare: al posto del selettore
+        // un avviso, e la griglia resta, perché il prezzo si scrive lì.
+        $selettore = $blocchi === []
+            ? RichText::make('<p class="small text-body-secondary mb-0">Non c\'è ancora nessun attributo da cui far nascere opzioni: per vendere colori o taglie ne serve uno con uso «Opzione da scegliere» o «Opzione con foto proprie», e dei valori. Si crea in Catalogo → Attributi.</p>')
+            : static::optionsPicker($modelId);
 
         return [
             (new Card)->components([
@@ -975,7 +962,7 @@ HTML
                 (new Container)->components($blocchi)->columns(12)->columnSpan(12),
                 // Il bottone sta sotto l'ultimo attributo, largo quanto il
                 // riquadro: l'attributo nuovo compare proprio lì sopra.
-                static::optionsPicker($modelId)->columnSpan(12),
+                $selettore->columnSpan(12),
                 static::getInput('products')->columnSpan(12),
                 static::optionsGridScript($modelId)->columnSpan(12),
             ])->columns(12)->columnSpan(12)
@@ -1010,16 +997,11 @@ HTML
             // dopo due parole. Con `backorders` se ne aggiunge un quarto.
             (new Card)->components([
                 SectionTitle::make('Come si vende')
-                    ->tooltip('Una bozza non si vede da nessuna parte, nemmeno se è acquistabile online: lo stato si sceglie accanto al nome. La scatola in cui parte si sceglie sotto «Da spedire»; le misure del prodotto, in fondo, servono a sapere se ci sta.')
+                    ->tooltip('Una bozza non si vede da nessuna parte, nemmeno se è acquistabile online: lo stato si sceglie accanto al nome.'.(Gestionale::feature('shipping') ? ' La scatola in cui parte si sceglie sotto «Da spedire»; le misure del prodotto, in fondo, servono a sapere se ci sta.' : ''))
                     ->columnSpan(12),
                 static::getInput('visible_online')->columnSpan(12),
-                static::getInput('returnable')->columnSpan(12),
-                static::getInput('requires_shipping')->columnSpan(12),
-                // La scatola segue l'interruttore sopra, senza ricaricare:
-                // un articolo che non si spedisce non ha niente da dire qui.
-                static::getInput('package_id')
-                    ->visibleWhen('requires_shipping', 'true')
-                    ->columnSpan(12),
+                ...static::returnInputs(),
+                ...static::shippingInputs(),
                 ...static::backorderInputs(),
             ])->columns(12)->columnSpan(12),
 
@@ -2600,6 +2582,77 @@ HTML
                 ->integer()
                 ->suffix(' giorni')
                 ->label('Giorni di attesa'),
+        ];
+    }
+
+    /**
+     * «Accetta resi»: esiste solo con la funzionalità `returns`.
+     *
+     * @return list<object>
+     */
+    protected static function returnFields(): array
+    {
+        if (!Gestionale::feature('returns')) {
+            return [];
+        }
+
+        return [
+            FormField::key('returnable')
+                ->toggle()
+                ->value('true')
+                ->label('Accetta resi')
+                ->description('Il cliente può restituirlo dopo l\'acquisto.'),
+        ];
+    }
+
+    /** @return list<object> */
+    protected static function returnInputs(): array
+    {
+        return Gestionale::feature('returns')
+            ? [static::getInput('returnable')->columnSpan(12)]
+            : [];
+    }
+
+    /**
+     * «Da spedire» e l'imballaggio: esistono solo con la funzionalità
+     * `shipping`. Senza, l'articolo resta com'era: né l'interruttore né la
+     * scatola arrivano nel post, e il salvataggio non li tocca.
+     *
+     * @return list<object>
+     */
+    protected static function shippingFields(): array
+    {
+        if (!Gestionale::feature('shipping')) {
+            return [];
+        }
+
+        return [
+            FormField::key('package_id')
+                ->select(Packages::options())
+                ->label('Imballaggio')
+                ->quickCreate(PackageResource::class),
+            FormField::key('requires_shipping')
+                ->toggle()
+                ->value('true')
+                ->label('Da spedire')
+                ->description('Spento per servizi, buoni regalo e prodotti digitali.'),
+        ];
+    }
+
+    /** @return list<object> */
+    protected static function shippingInputs(): array
+    {
+        if (!Gestionale::feature('shipping')) {
+            return [];
+        }
+
+        return [
+            static::getInput('requires_shipping')->columnSpan(12),
+            // La scatola segue l'interruttore sopra, senza ricaricare:
+            // un articolo che non si spedisce non ha niente da dire qui.
+            static::getInput('package_id')
+                ->visibleWhen('requires_shipping', 'true')
+                ->columnSpan(12),
         ];
     }
 

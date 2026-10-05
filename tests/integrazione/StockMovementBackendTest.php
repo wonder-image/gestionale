@@ -8,6 +8,7 @@ $GLOBALS['ROOT'] = SITE;
 
 require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
+require __DIR__.'/supporto/dns-fixture.php';
 // I filtri disegnano i menu con `select()` del backend, che fuori dal backend non
 // c'è e che non si può caricare (ridefinisce `check()` dell'harness): ne basta una
 // che restituisca un segnaposto, qui conta che la tabella si costruisca.

@@ -257,4 +257,75 @@ check('lo sconto di una riga non supera mai il totale della riga', function () u
     return $somma === 0.98 && $totali['discount_total'] === '0.98';
 });
 
+check('una riga con discountable falso non riceve quota dello sconto', function () use ($riga) {
+    $totali = OrderTotals::of(
+        [$riga(60, 22, ['discountable' => true]), $riga(40, 22, ['discountable' => false])],
+        ['discount_type' => 'percent', 'discount_value' => 50]
+    );
+
+    return $totali['discount_total'] === '30.00'
+        && $totali['lines'][0]['order_discount_amount'] === '30.00'
+        && $totali['lines'][1]['order_discount_amount'] === '0.00';
+});
+
+check('la spedizione gratuita azzera la riga e riporta il risparmio', function () use ($riga) {
+    $totali = OrderTotals::of(
+        [$riga(100), ['type' => 'shipping', 'unit_price' => '7.90', 'list_price' => '7.90', 'line_total' => '7.90', 'tax_rate' => 22, 'quantity' => '1.000']],
+        ['free_shipping' => true]
+    );
+    $spedizione = $totali['lines'][1];
+
+    return $totali['shipping_saved'] === '7.90'
+        && $totali['shipping_total'] === '0.00'
+        && $spedizione['line_total'] === '0.00'
+        && $spedizione['unit_price'] === '0.00'
+        && $spedizione['list_price'] === '7.90'
+        && $totali['total'] === '100.00';
+});
+
+check('senza spedizione o senza coupon il risparmio è zero', function () use ($riga) {
+    $senzaRiga = OrderTotals::of([$riga(100)], ['free_shipping' => true]);
+    $senzaCoupon = OrderTotals::of(
+        [$riga(100), ['type' => 'shipping', 'line_total' => '7.90', 'tax_rate' => 22]]
+    );
+
+    return $senzaRiga['shipping_saved'] === '0.00'
+        && $senzaCoupon['shipping_saved'] === '0.00'
+        && $senzaCoupon['shipping_total'] === '7.90';
+});
+
+check('la spedizione azzerata non cambia lo sconto sulla merce', function () use ($riga) {
+    $contesto = ['discount_type' => 'amount', 'discount_value' => 10];
+    $righe = [$riga(100), ['type' => 'shipping', 'line_total' => '7.90', 'tax_rate' => 22]];
+
+    $con = OrderTotals::of($righe, $contesto + ['free_shipping' => true]);
+    $senza = OrderTotals::of($righe, $contesto);
+
+    return $con['discount_total'] === '10.00'
+        && $con['discount_total'] === $senza['discount_total']
+        && $con['total'] === '90.00'
+        && $senza['total'] === '97.90';
+});
+
+check('lo sconto su righe adatte e non adatte somma esattamente il valore', function () use ($riga) {
+    $totali = OrderTotals::of(
+        [
+            $riga(33.33, 22, ['discountable' => true]),
+            $riga(33.33, 22, ['discountable' => true]),
+            $riga(33.33, 22, ['discountable' => true]),
+            $riga(20, 22, ['discountable' => false]),
+        ],
+        ['discount_type' => 'amount', 'discount_value' => 10]
+    );
+    $somma = 0.0;
+
+    foreach ($totali['lines'] as $linea) {
+        $somma = round($somma + (float) $linea['order_discount_amount'], 2);
+    }
+
+    return $somma === 10.0
+        && $totali['discount_total'] === '10.00'
+        && $totali['lines'][3]['order_discount_amount'] === '0.00';
+});
+
 summary();

@@ -185,6 +185,30 @@ versionamento semantico.
   non ha i bottoni di aggiunta in «Opzioni in vendita» e, per un multiprodotto,
   mostra il badge e il riquadro «Composizione» con la tipologia, i «Componenti» e i
   «Gruppi di scelta».
+- Campagne di sconto (`discount_campaigns`, G6 piano 1): sconto in percentuale o
+  in importo su categorie, tag, marchi o articoli per un periodo e per canale,
+  con prezzo applicato dal carrello (`price_source = 'campaign'`, `discount_campaign_id`
+  sulla riga), pagina *Promozioni → Campagne di sconto* con anteprima dei
+  prodotti coinvolti e avviso di sovrapposizione, tre campagne di prova
+  (`PromotionsDemo`) e guide. Chi aggiorna deve lanciare `php forge update`: cinque
+  tabelle nuove e una colonna su `gst_order_items`.
+- Coupon (`coupons`, G6 piano 2): codice in percentuale, importo o spedizione gratuita,
+  con spesa minima, limiti totali e per cliente, solo primo ordine, clienti riservati e lo
+  stesso selettore dei prodotti delle campagne. Il carrello ricontrolla il codice a ogni
+  ricalcolo; gli utilizzi si contano alla creazione dell'ordine (anche con due processi
+  insieme) e si liberano all'annullo o alla scadenza. Pagina *Promozioni → Coupon* con la
+  tabella degli utilizzi, coupon sulla scheda dell'ordine e sulla scheda cliente, cinque
+  coupon e tre ordini di prova (`PromotionsDemo`, `OrdersDemo`) e guide. Chi aggiorna deve
+  lanciare `php forge update`.
+- Schede di lettura per coupon e campagne: dall'elenco si apre una pagina con i dettagli, i
+  canali, l'ambito e (coupon) gli utilizzi o (campagne) anteprima e avviso di sovrapposizione;
+  il form di modifica ha solo i campi.
+- Canali di vendita: tre funzionalità (`online_sales`, `office_sales`, `pos`, quest'ultima
+  ancora non accendibile) nell'area *Canali di vendita*. Coupon, campagne e metodi di pagamento
+  mostrano «Dove vale» solo con più di un canale acceso e fanno nascere i nuovi record sui
+  canali accesi; senza canali sbloccati vale solo il sito. Il motore non cambia. Chi aggiorna
+  deve lanciare `php forge update` (due righe nuove in `gst_features`); la funzionalità `pos`
+  si chiamava «Banco».
 
 ### Corretto
 

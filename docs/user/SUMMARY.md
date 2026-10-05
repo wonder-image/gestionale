@@ -29,6 +29,15 @@
 * [Pagamenti e scadenze](vendite-pagamenti.md)
 * [Resi](vendite-resi.md)
 
+## Canali di vendita
+
+* [Canali di vendita](canali-di-vendita.md)
+
+## Promozioni
+
+* [Campagne di sconto](promozioni-campagne.md)
+* [Coupon](promozioni-coupon.md)
+
 ## Anagrafiche
 
 * [Clienti e fornitori](anagrafiche.md)

@@ -40,7 +40,8 @@ Si configurano in *Set Up → Pagamenti*:
 
 * **Metodi di pagamento** — carta, bonifico, contrassegno… Per ognuno scegli
   **Quando arriva il denaro** (subito, più tardi, alla consegna), per chi è
-  **Disponibile** e se è **Online**.
+  **Disponibile** e se è **Online**. Le scelte sui canali (sito, ufficio, cassa)
+  compaiono solo se hai acceso più di un [canale di vendita](canali-di-vendita.md).
 * **Conti di pagamento** — dove arriva il denaro (le coordinate del bonifico,
   per esempio).
 

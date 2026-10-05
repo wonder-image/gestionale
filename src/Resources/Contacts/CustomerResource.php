@@ -213,16 +213,10 @@ class CustomerResource extends GestionaleResource
                 ->formatter(static fn (array $row): string => static::escape(
                     Contacts::displayName($row)
                 )),
-            TableColumn::key('email')->text(),
-            TableColumn::key('city')->text(),
-            TableColumn::key('is_customer')
-                ->text()
-                ->size('little')
-                ->formatter(static fn (array $row): string => static::escape(Contacts::roles($row))),
-            TableColumn::key('auth_method')
-                ->text()
-                ->size('little')
-                ->formatter(static fn (array $row): string => static::escape(static::authMethod($row))),
+            TableColumn::key('email')->text()
+                ->hiddenDevice('mobile'),
+            TableColumn::key('city')->text()
+                ->hiddenDevice('mobile'),
             TableColumn::key('active')
                 ->booleanBadge()
                 ->badgeOn('Attiva', 'bi-check-circle', 'success')
@@ -234,12 +228,13 @@ class CustomerResource extends GestionaleResource
 
     public static function tableLayoutSchema(): TableLayoutSchema
     {
+        $contactTable = Contact::$table;
         return parent::tableLayoutSchema()->select(
             "(SELECT GROUP_CONCAT(DISTINCT af.provider ORDER BY af.provider SEPARATOR ',')
                 FROM auth_federated af
-                WHERE af.user_id = gst_contacts.user_id AND af.deleted = 'false') AS auth_providers,
+                WHERE af.user_id = {$contactTable}.user_id AND af.deleted = 'false') AS auth_providers,
              EXISTS(SELECT 1 FROM `user` u
-                WHERE u.id = gst_contacts.user_id
+                WHERE u.id = {$contactTable}.user_id
                   AND u.deleted = 'false'
                   AND COALESCE(u.password, '') <> '') AS has_local_password"
         );
@@ -370,7 +365,7 @@ class CustomerResource extends GestionaleResource
         return (new Container)->components([
             (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components($sinistra),
             (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components($destra),
-            $accordion('Coupon assegnati', '<p class="text-muted mb-0">'.static::escape(CustomerSheet::couponsEmpty()).'</p>'),
+            $accordion('Coupon assegnati', CustomerSheet::couponsTable(CustomerSheet::coupons($id))),
         ])->columns(12);
     }
 

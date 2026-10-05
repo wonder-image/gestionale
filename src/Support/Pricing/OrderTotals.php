@@ -20,6 +20,10 @@ use Wonder\Plugin\Gestionale\Support\Tax\TaxTotals;
  *
  * Spedizione, commissioni e righe di testo non si scontano: il coupon vale
  * sulla merce. Entrano però nei riepiloghi IVA, ognuna con la sua aliquota.
+ * Un coupon di spedizione gratuita non sconta la merce: con la chiave di
+ * contesto `free_shipping` la riga di spedizione scende a zero (il prezzo di
+ * listino resta, per mostrare cosa si è risparmiato) e il risparmio esce in
+ * `shipping_saved`.
  *
  * Classe pura: l'unica cosa che chiama è `Tax\TaxTotals`, che è pura anche lei.
  * Le aliquote arrivano già risolte da `Tax\TaxResolver`.
@@ -32,11 +36,12 @@ final class OrderTotals
     /**
      * @param list<array<string, mixed>> $lines
      * @param array<string, mixed> $context
-     * @return array{products_total: string, discount_total: string, shipping_total: string, fees_total: string, taxable_total: string, tax_total: string, total: string, total_weight: string, tax_summaries: list<array{rate: float, nature: string, taxable: float, tax: float, total: float}>, lines: list<array<string, mixed>>}
+     * @return array{products_total: string, discount_total: string, shipping_total: string, fees_total: string, taxable_total: string, tax_total: string, total: string, total_weight: string, shipping_saved: string, tax_summaries: list<array{rate: float, nature: string, taxable: float, tax: float, total: float}>, lines: list<array<string, mixed>>}
      */
     public static function of(array $lines, array $context = []): array
     {
         $lines = array_values(array_filter($lines, 'is_array'));
+        [$lines, $shippingSaved] = static::freeShipping($lines, $context);
         $pricesIncludeTax = !array_key_exists('prices_include_tax', $context)
             || filter_var($context['prices_include_tax'], FILTER_VALIDATE_BOOL);
 
@@ -106,9 +111,39 @@ final class OrderTotals
             'tax_total' => static::asMoney($tax),
             'total' => static::asMoney(round($taxable + $tax, 2)),
             'total_weight' => number_format(round(max(0.0, $weight), 3), 3, '.', ''),
+            'shipping_saved' => static::asMoney($shippingSaved),
             'tax_summaries' => $summaries,
             'lines' => $result,
         ];
+    }
+
+    /**
+     * Con la spedizione gratuita le righe di spedizione costano zero; ridà le
+     * righe e quanto si è risparmiato.
+     *
+     * @param list<array<string, mixed>> $lines
+     * @param array<string, mixed> $context
+     * @return array{0: list<array<string, mixed>>, 1: float}
+     */
+    private static function freeShipping(array $lines, array $context): array
+    {
+        if (!filter_var($context['free_shipping'] ?? false, FILTER_VALIDATE_BOOL)) {
+            return [$lines, 0.0];
+        }
+
+        $saved = 0.0;
+
+        foreach ($lines as $index => $line) {
+            if (static::type($line) !== 'shipping') {
+                continue;
+            }
+
+            $saved += max(0.0, static::money($line['line_total'] ?? 0));
+            $lines[$index]['unit_price'] = '0.00';
+            $lines[$index]['line_total'] = '0.00';
+        }
+
+        return [$lines, round($saved, 2)];
     }
 
     /**

@@ -138,4 +138,34 @@ check('l\'IBAN malformato si rifiuta, quello vuoto no', function () {
     return PaymentAccountResource::normalizeIban('') === '';
 });
 
+check('il form offre i canali solo se ce n\'è più di uno acceso, e i metodi nuovi partono dal sito', function () {
+    $nomi = [];
+    $scendi = function (array $componenti) use (&$scendi, &$nomi): void {
+        foreach ($componenti as $c) {
+            if (isset($c->name)) {
+                $nomi[] = (string) $c->name;
+            }
+
+            if (isset($c->components) && is_array($c->components)) {
+                $scendi($c->components);
+            }
+        }
+    };
+    $scendi(PaymentMethodResource::formLayoutSchema()->components);
+
+    $valori = PaymentMethodResource::mutateRequestValues(['name' => 'Bonifico'], 'store');
+
+    return !in_array('applies_online', $nomi, true) && !in_array('applies_office', $nomi, true) && !in_array('applies_pos', $nomi, true)
+        && in_array('available_for', $nomi, true)
+        && $valori['applies_online'] === 'true' && $valori['applies_office'] === 'false' && $valori['applies_pos'] === 'false';
+});
+
+check('salvando un metodo, i canali che il form non mostra restano com\'erano', function () {
+    $vecchio = ['applies_online' => 'true', 'applies_office' => 'true', 'applies_pos' => 'false'];
+    $valori = PaymentMethodResource::mutateRequestValues(['name' => 'Bonifico'], 'update', 'backend', $vecchio);
+
+    return $valori['applies_office'] === 'true' && $valori['applies_pos'] === 'false' && $valori['applies_online'] === 'true'
+        && !array_key_exists('position', $valori);
+});
+
 summary();

@@ -21,6 +21,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
@@ -93,12 +94,14 @@ final class OrderResource extends GestionaleResource
             TableColumn::key('order_number')->text()->size('little')->sortable()->link('view'),
             TableColumn::key('customer')
                 ->text()
-                ->formatter(static fn (array $row): string => static::escape(static::customerName($row))),
+                ->formatter(static fn (array $row): string => static::escape(static::customerName($row)))
+                ->hiddenDevice('mobile'),
             TableColumn::key('total')->price()->size('little')->sortable(),
             TableColumn::key('ordered_at')
                 ->date()
                 ->sortable()
-                ->size('medium'),
+                ->size('medium')
+                ->hiddenDevice('mobile'),
             TableColumn::key('status')
                 ->text()
                 ->size('little')
@@ -421,7 +424,7 @@ final class OrderResource extends GestionaleResource
                 (new Card)->components(static::headerItems($order, $metodi))->columns(12)->columnSpan(12),
             ]),
             (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components([
-                $riquadro('Totali', OrderSheet::totals($order)),
+                $riquadro('Totali', OrderSheet::totals($order, static::rowsOf(CouponRedemption::class, ['order_id' => $id])[0] ?? null)),
                 $riquadro('Riepilogo IVA', OrderSheet::taxSummary(static::rowsOf(OrderTaxSummary::class, ['order_id' => $id])),
                     'L\'imposta si calcola sul totale imponibile di ogni aliquota, non riga per riga.'),
             ]),

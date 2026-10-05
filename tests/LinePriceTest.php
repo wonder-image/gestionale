@@ -206,4 +206,34 @@ check('senza tipo di sconto la riga non sconta niente e non lamenta niente', fun
         && $riga['line_total'] === '10.00';
 });
 
+check('una campagna a zero è un omaggio, non «nessuna campagna»', function () {
+    $riga = LinePrice::of(['price' => 10, 'campaign_price' => '0']);
+
+    return $riga['price_source'] === 'campaign'
+        && $riga['unit_price'] === '0.00'
+        && $riga['line_total'] === '0.00';
+});
+
+check('una campagna vuota o assente non c\'è: vince il prezzo scontato o il base', function () {
+    $vuota = LinePrice::of(['price' => 10, 'sale_price' => 7.5, 'campaign_price' => '']);
+    $assente = LinePrice::of(['price' => 10, 'sale_price' => 7.5]);
+    $base = LinePrice::of(['price' => 10, 'campaign_price' => '']);
+
+    return $vuota['price_source'] === 'sale_price'
+        && $assente['price_source'] === 'sale_price'
+        && $base['price_source'] === 'base';
+});
+
+check('il prezzo a mano batte anche una campagna a omaggio', function () {
+    $riga = LinePrice::of(['price' => 10, 'campaign_price' => '0', 'manual_unit_price' => '8']);
+
+    return $riga['price_source'] === 'manual' && $riga['unit_price'] === '8.00';
+});
+
+check('un omaggio di campagna tiene il sovrapprezzo di personalizzazione', function () {
+    $riga = LinePrice::of(['price' => 10, 'campaign_price' => '0', 'customization_surcharge' => 2]);
+
+    return $riga['unit_price'] === '2.00';
+});
+
 summary();

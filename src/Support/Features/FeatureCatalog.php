@@ -14,7 +14,7 @@ final class FeatureCatalog
     /**
      * @param array<string, array<string, mixed>> $package
      * @param array<string, array<string, mixed>> $extra voci aggiunte dal sito
-     * @return array<string, array{key: string, name: string, description: string, area: string, requires: list<string>, module: string, release: string}>
+     * @return array<string, array{key: string, name: string, description: string, area: string, requires: list<string>, module: string, release: string, created: bool}>
      */
     public static function fromArray(array $package, array $extra = []): array
     {
@@ -43,6 +43,8 @@ final class FeatureCatalog
                     )),
                     'module' => trim((string) ($feature['module'] ?? '')),
                     'release' => trim((string) ($feature['release'] ?? '')),
+                    // Costruita, salvo `created => false`.
+                    'created' => ($feature['created'] ?? true) !== false,
                 ];
             }
         }

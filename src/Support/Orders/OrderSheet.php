@@ -135,26 +135,41 @@ final class OrderSheet
         return self::table(['Aliquota', 'Imponibile', 'Imposta', 'Totale'], $righe, [1, 2, 3]);
     }
 
-    /** I totali: sconto, spedizione e costi compaiono solo se sono diversi da zero. */
-    public static function totals(array $order): string
+    /**
+     * I totali: sconto, spedizione e costi compaiono solo se sono diversi da zero.
+     * Se l'ordine ha usato un coupon, subito dopo compare una riga informativa col
+     * codice e quanto ha fatto risparmiare (merce o spedizione): non entra nei
+     * totali, che sono già calcolati. `$redemption` è la riga di
+     * `gst_coupon_redemptions` dell'ordine, se c'è. I dati restano visibili
+     * anche a funzionalità spenta: sono storia.
+     *
+     * @param array<string, mixed>|null $redemption
+     */
+    public static function totals(array $order, ?array $redemption = null): string
     {
-        $voci = [['Prodotti', $order['products_total'] ?? 0, false]];
+        $voci = [['Prodotti', $order['products_total'] ?? 0, false, false]];
 
         foreach ([['Sconto', 'discount_total'], ['Spedizione', 'shipping_total'], ['Costi', 'fees_total']] as [$nome, $campo]) {
             if (abs((float) ($order[$campo] ?? 0)) > 0.004) {
-                $voci[] = [$nome, $order[$campo], false];
+                $voci[] = [$nome, $order[$campo], false, false];
             }
         }
 
-        $voci[] = ['Imponibile', $order['taxable_total'] ?? 0, false];
-        $voci[] = ['IVA', $order['tax_total'] ?? 0, false];
-        $voci[] = ['Totale', $order['total'] ?? 0, true];
+        $codice = trim((string) ($order['coupon_code'] ?? ''));
+
+        if ($codice !== '') {
+            $voci[] = ['Coupon '.$codice, 'risparmio '.self::money($redemption['discount_amount'] ?? 0), false, true];
+        }
+
+        $voci[] = ['Imponibile', $order['taxable_total'] ?? 0, false, false];
+        $voci[] = ['IVA', $order['tax_total'] ?? 0, false, false];
+        $voci[] = ['Totale', $order['total'] ?? 0, true, false];
 
         $righe = '';
 
-        foreach ($voci as [$nome, $valore, $forte]) {
-            $righe .= '<tr'.($forte ? ' class="fw-bold"' : '').'><td>'.self::esc($nome).'</td>'
-                .'<td class="text-end">'.self::money($valore).'</td></tr>';
+        foreach ($voci as [$nome, $valore, $forte, $nota]) {
+            $righe .= '<tr'.($forte ? ' class="fw-bold"' : '').($nota ? ' class="text-muted"' : '').'><td>'.self::esc($nome).'</td>'
+                .'<td class="text-end">'.($nota ? self::esc($valore) : self::money($valore)).'</td></tr>';
         }
 
         return '<table class="table table-sm mb-0" style="font-variant-numeric: tabular-nums"><tbody>'.$righe.'</tbody></table>';
