@@ -5,6 +5,8 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\App\ResourceSchema\Inputs\InputCountry;
+use Wonder\App\ResourceSchema\Inputs\InputStates;
 use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZone;
@@ -65,6 +67,15 @@ check('il corriere ha nome, dati aziendali, link di tracking, attivo e ordine', 
 
 check('la zona ha il nome e la tabella delle aree', function () use ($campi) {
     return array_diff(['name', 'areas'], $campi(ShippingZoneResource::class)) === [];
+});
+
+check('nelle aree della zona paese e provincia sono due select, la provincia sceglie dal paese', function () {
+    $input = ShippingZoneResource::getInput('areas');
+    // Le colonne, nell'ordine dichiarato: id, paese, provincia.
+    $colonne = (new ReflectionProperty($input, 'schema'))->getValue($input)['context']['columns'];
+
+    return ($colonne[1] ?? null) instanceof InputCountry
+        && ($colonne[2] ?? null) instanceof InputStates;
 });
 
 check('il metodo ha i suoi campi, e nessun riquadro di listino se non ci sono zone', function () use ($campi) {

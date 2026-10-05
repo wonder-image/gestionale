@@ -40,6 +40,9 @@ function prova(callable $corpo): mixed
 
     try {
         Transaction::run(static function () use ($corpo, &$esito): void {
+            // Le righe di spedizione di questi test le scrive la prova: il modulo delle spedizioni,
+            // se è acceso sul sito, le toglierebbe a ogni ricalcolo.
+            spegniFunzionalita(['shipping']);
             $esito = $corpo();
 
             throw new Annulla();

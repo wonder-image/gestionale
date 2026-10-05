@@ -85,8 +85,8 @@ final class ShippingZoneResource extends GestionaleResource
             FormField::key('areas')
                 ->repeater([
                     RepeaterColumn::key('id')->hidden(),
-                    RepeaterColumn::key('country')->text()->label('Paese')->columnSpan(4),
-                    RepeaterColumn::key('province')->text()->label('Provincia')->columnFill(),
+                    RepeaterColumn::key('country')->country('province')->value('IT')->label('Paese')->columnSpan(6),
+                    RepeaterColumn::key('province')->states('IT')->label('Provincia')->columnSpan(6),
                 ])
                 ->relation(
                     RepeaterRelation::make(ShippingZoneArea::$table, 'shipping_zone_id')
@@ -129,7 +129,7 @@ final class ShippingZoneResource extends GestionaleResource
 
         $components[] = (new Card)->components([
             SectionTitle::make('Aree')
-                ->tooltip('Il paese è la sigla di due lettere (IT, FR, DE…). La provincia è facoltativa, per esempio «CA» o «SS» per isolare la Sardegna: senza provincia l\'area vale per tutto il paese. Una provincia con la sua zona batte il paese.')
+                ->tooltip('La provincia è facoltativa, per esempio Cagliari o Sassari per isolare la Sardegna: senza provincia l\'area vale per tutto il paese. Una provincia con la sua zona batte il paese.')
                 ->columnSpan(12),
             static::getInput('areas')->columnSpan(12),
         ])->columns(12)->columnSpan(12);

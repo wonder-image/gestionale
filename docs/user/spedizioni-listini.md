@@ -28,12 +28,12 @@ Un corriere su un metodo non si elimina: spegnilo, oppure toglilo dai metodi.
 
 ## Zone
 
-Una zona è una tabella di **aree**: un paese (sigla a due lettere, `IT`) e, se
-vuoi, una provincia (`CA`). Lasciare la provincia vuota vuol dire «tutto il
-paese».
+Una zona è una tabella di **aree**: un paese e, se vuoi, una provincia, che
+scegli da due elenchi (la provincia dipende dal paese). Lasciare la provincia
+vuota vuol dire «tutto il paese».
 
-* La zona più **specifica** vince: «Isole» con `IT` + `CA` batte «Italia» con
-  `IT` per un indirizzo a Cagliari.
+* La zona più **specifica** vince: «Isole» con Italia + Cagliari batte «Italia»
+  con tutta Italia per un indirizzo a Cagliari.
 * A pari specificità vince la zona più in alto nell'elenco.
 * Se due zone hanno la stessa area, sopra il modulo compare un avviso.
 * Una zona con listini accesi non si elimina: prima toglila dai metodi.
