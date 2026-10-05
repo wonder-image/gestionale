@@ -27,6 +27,13 @@ Una spedizione in attesa si spedisce dal suo pulsante **Segna spedita**: se non
 hai ancora scritto corriere e tracking, te li chiede in quel momento. Al cliente
 parte un'email con il link per seguire il pacco.
 
+### Perché «Segna evaso» non c'è più
+
+Con le spedizioni accese l'evasione dell'ordine segue le spedizioni: non c'è un
+pulsante per dichiararlo evaso a mano, altrimenti ordine e pacchi direbbero cose
+diverse. Fanno eccezione gli ordini senza consegna né ritiro (per esempio un servizio):
+lì «Segna evaso» resta. Spegnendo la funzionalità torna per tutti.
+
 ## Spedizioni parziali
 
 Crea una spedizione per il primo pacco, con le quantità che partono: l'ordine
@@ -43,9 +50,10 @@ Non puoi spedire più di quanto è stato ordinato.
 
 ## Ritiro in sede
 
-Per gli ordini con ritiro il pulsante è **Pronto per il ritiro**: il cliente
-riceve un'email con nome e indirizzo della sede. Quando passa a prendere la
-merce premi **Ritirato**. Il magazzino non cambia: la merce è già uscita alla
+Per gli ordini con ritiro i passaggi sono tre: la spedizione di ritiro nasce
+**in attesa** quando premi **Pronto per il ritiro**; il cliente riceve subito
+un'email con nome e indirizzo della sede; quando passa a prendere la merce premi
+**Ritirato**. La sede deve essere attiva, di ritiro e aperta in quel momento. Il magazzino non cambia: la merce è già uscita alla
 conferma dell'ordine.
 
 ## Le spedizioni, tutte insieme

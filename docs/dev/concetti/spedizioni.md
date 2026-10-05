@@ -7,7 +7,7 @@ icon: truck
 Il prezzo della spedizione dipende da **dove** va il pacco (la zona) e da
 **quanto pesa**. Si accende con la funzionalità `shipping`; da spenta nessuna
 riga di spedizione si scrive e il carrello non propone niente, ma i dati restano.
-Le guide dei commercianti stanno in [`docs/user/spedizioni-listini.md`](../../user/spedizioni-listini.md).
+Le guide dei commercianti stanno in [`docs/user/spedizioni-listini.md`](../../user/spedizioni-listini.md) e [`docs/user/spedizioni-spedire.md`](../../user/spedizioni-spedire.md).
 
 ## Chi fa cosa
 
@@ -71,6 +71,55 @@ riga e di campagna e **prima** dello sconto del coupon.
 4. Il link di tracciamento si compone con `Carrier.tracking_url_template`
    sostituendo `{tracking}`.
 
+## Spedizioni sugli ordini e ritiro
+
+Le spedizioni vere stanno in `gst_shipments` (una per pacco, o una per ritiro) con
+`gst_shipment_items` (le righe e le quantità) e `gst_shipment_status_log`. L'**unica
+porta** che le scrive è `Shipments`; il resto del modulo legge.
+
+| Metodo | Cosa fa |
+| --- | --- |
+| `remaining($orderId)` | riga d'ordine → quantità ancora da assegnare (ordinato meno spedizioni vive) |
+| `create($orderId, [riga => qtà], $opzioni)` | consegna `pending`; rifiuta quantità oltre il residuo (`shipment.over_quantity`) |
+| `ship($id, $dati)` | `in_transit`, `shipped_at`, vettore e tracking; **idempotente** (una seconda chiamata non scrive né manda email); il tracking è obbligatorio se il corriere ha il link (`shipment.tracking_required`) |
+| `advance($id, $stato)` | gli altri passaggi; un salto in avanti da `pending` passa da `ship` |
+| `cancel($id)` | solo prima della partenza; la merce torna spedibile |
+| `createPickup($ordine)` · `ready($id)` · `pickedUp($id)` | il ritiro: tre passaggi, sede attiva, di ritiro e aperta |
+| `syncOrder($ordine)` | ricalcola l'evasione e la passa a `Lifecycle::fulfill` solo se cambia |
+
+**Il flusso degli stati** sta in `ShipmentFlow`, pura: in avanti si può saltare, indietro
+no; una consegna già partita non si annulla (si segna fallita, in eccezione o resa).
+`ShipmentFlow::fulfillment()` ricava `fulfillment_status` dalle quantità: `unfulfilled`,
+`partially_fulfilled`, `fulfilled` (o `ready_for_pickup` per un ritiro pronto). Nessuno
+scrive l'evasione a mano: con `shipping` accesa `OrderActionResource::fulfill` rifiuta gli
+ordini con consegna o ritiro, e il solo scrittore dello stato resta `Lifecycle`.
+
+**Il blocco.** Creare una spedizione prende `Order → Shipment → ShipmentItem` in
+quest'ordine, con `SELECT … FOR UPDATE` sulle righe dell'ordine *prima* di contare le
+quantità già assegnate: due operatori che spediscono l'ultimo pezzo insieme si mettono
+in fila e il secondo riceve `shipment.over_quantity`. Chi scrive altre operazioni deve
+rispettare lo stesso ordine di blocco, o si rischia lo stallo.
+
+**Email.** `ship` e `ready` mandano `shipped` e `ready_for_pickup` tramite
+`OrderNotifier`, a transazione chiusa e mai in modo da far fallire l'operazione. Il link
+si compone da `Shipment.tracking_url`.
+
+**Come deve usarle E1c.** Nell'area cliente: leggere lo stato dell'ordine
+(`fulfillment_status`) e, per ogni spedizione viva, `status`, `tracking_number` e
+`tracking_url` (già composto, con il tracking `rawurlencode`d); mostrare il link solo se
+non è vuoto e passarlo sempre per `escape()`, con `rel="noopener"`. Il frontend non
+scrive mai spedizioni: chiama solo le letture.
+
+**Pagine.** `ShipmentResource` (*Spedizioni → Spedizioni*, elenco e scheda di lettura),
+`OrderShipmentTableResource` (il blocco *Spedizioni* della scheda ordine), le sei
+azioni in `OrderActions`/`OrderActionResource`, i riquadri `ShipmentsToCheckWidget`
+(`exception` e `failed_attempt`) e `ShippedNotDeliveredWidget` (partite da più di
+`ShipmentAlerts::STALE_DAYS` = 7 giorni e non consegnate). Spente con la funzionalità; i
+dati restano.
+
+**Termine dei resi.** `shipped_at` è già il dato da usare, ma oggi il modulo non ha un
+termine del reso da spostare: quando arriverà partirà da lì.
+
 ## Dati di prova
 
 `ShippingDemo` (registrata in `Demo`, dopo `CatalogDemo`) crea le zone Italia,
@@ -78,3 +127,9 @@ Isole (CA SS NU OR PA CT ME) e UE (FR DE ES AT BE), un corriere, i metodi
 Standard ed Espresso con i loro listini e, solo se mancano, il peso dei pochi
 articoli di prova da spedire. `gestionale:demo --clear` toglie ciò che non è
 usato da ordini o listini veri e dice cosa è rimasto.
+
+`ShipmentsDemo` (dopo `OrdersDemo`) spedisce gli ordini di prova col flusso vero: una
+consegnata, una parziale in viaggio, una in attesa e una in eccezione (e una in viaggio
+sull'ordine del coupon, a coupon accesi). Serve `shipping` acceso; il ritiro di prova non
+c'è perché chiede una sede di ritiro aperta nelle impostazioni del sito. `--clear` toglie gli
+ordini di prova che hanno spedizioni, con righe e storico.

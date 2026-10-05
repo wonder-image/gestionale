@@ -18,6 +18,9 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnStatusLog;
+use Wonder\Plugin\Gestionale\Models\Shipping\Shipment;
+use Wonder\Plugin\Gestionale\Models\Shipping\ShipmentItem;
+use Wonder\Plugin\Gestionale\Models\Shipping\ShipmentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
@@ -165,7 +168,7 @@ final class OrdersDemo
         $removed = 0;
 
         foreach (self::demoOrders() as $order) {
-            self::purge($order);
+            self::remove($order);
             $removed++;
         }
 
@@ -221,7 +224,7 @@ final class OrdersDemo
                 Coupons::apply($cartId, (string) $plan['coupon']);
             } catch (UserError $error) {
                 // Il coupon non c'è o non vale per questo carrello: niente ordine, e il carrello non resta.
-                self::purge((array) Order::findById($cartId));
+                self::remove((array) Order::findById($cartId));
                 DemoData::note('L\'ordine «'.$ref.'» non è stato creato: il coupon «'.$plan['coupon'].'» non si applica ('.$error->key().'). Crea prima i coupon di prova.');
 
                 return 0;
@@ -462,7 +465,7 @@ final class OrdersDemo
      *
      * @param array<string, mixed> $order
      */
-    private static function purge(array $order): void
+    public static function remove(array $order): void
     {
         $id = (int) $order['id'];
 
@@ -511,6 +514,15 @@ final class OrdersDemo
                 sqlDelete(SalesReturnStatusLog::$table, 'sales_return_id = '.$returnId);
                 sqlDelete(SalesReturnItem::$table, 'sales_return_id = '.$returnId);
                 sqlDelete(SalesReturn::$table, 'id = '.$returnId);
+            }
+
+            // Le spedizioni dell'ordine, con righe e storia.
+            foreach (self::rows(Shipment::find(['order_id' => $id])) as $shipment) {
+                $shipmentId = (int) $shipment['id'];
+
+                sqlDelete(ShipmentStatusLog::$table, 'shipment_id = '.$shipmentId);
+                sqlDelete(ShipmentItem::$table, 'shipment_id = '.$shipmentId);
+                sqlDelete(Shipment::$table, 'id = '.$shipmentId);
             }
 
             sqlDelete(StockMovement::$table, "reference_type = 'order' AND reference_id = ".$id);

@@ -14,8 +14,8 @@ final class Demo
      * Le anagrafiche prima del catalogo: gli articoli di prova comprano dai
      * fornitori di prova, e al primo giro devono già esserci. Le spedizioni
      * e le campagne dopo il catalogo: le prime danno il peso agli articoli di
-     * prova, le seconde usano le tassonomie. Gli ordini per ultimi: vendono
-     * gli articoli del catalogo.
+     * prova, le seconde usano le tassonomie. Gli ordini poi: vendono
+     * gli articoli del catalogo. Le spedizioni degli ordini per ultime.
      *
      * @var list<class-string>
      */
@@ -25,6 +25,7 @@ final class Demo
         ShippingDemo::class,
         PromotionsDemo::class,
         OrdersDemo::class,
+        ShipmentsDemo::class,
     ];
 
     public static function registerAll(): void

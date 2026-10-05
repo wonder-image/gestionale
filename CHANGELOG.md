@@ -218,6 +218,17 @@ versionamento semantico.
   e contrassegno in `Checkout`, pagine *Spedizioni → Corrieri / Zone / Metodi*, dati di prova
   (`ShippingDemo`) e guide. Chi aggiorna deve lanciare `php forge update`.
 
+- Spedizioni sugli ordini (`shipping`, G7 piano 2): spedizioni vere con le loro righe, anche
+  parziali (mai più di quanto ordinato), tracking e link del corriere, stati di consegna
+  (`pending`, `in_transit`, `delivered`, `exception`…), ritiro in sede (*Pronto per il ritiro*,
+  *Ritirato*) e `Shipments` come unica porta; l'evasione dell'ordine si ricava dalle quantità
+  spedite e con le spedizioni accese «Segna evaso» resta solo per gli ordini senza consegna né
+  ritiro; email al cliente di *spedito* e *pronto per il ritiro*; pagina *Spedizioni →
+  Spedizioni* con elenco filtrabile e scheda, blocco *Spedizioni* e sei azioni nella scheda
+  ordine, due riquadri nella bacheca (*Spedizioni da controllare*, *Spedite e non consegnate*
+  da più di 7 giorni), spedizioni di prova (`ShipmentsDemo`) e guide. Chi aggiorna deve
+  lanciare `php forge update`.
+
 ### Corretto
 
 - *Registra reso* dava errore 500: `Returns::returned()` chiedeva il blocco delle
