@@ -122,8 +122,35 @@ final class Shipping
         return self::resolveLine($cart, $computed)['dropped'];
     }
 
-    /** @return array{line: ?array, dropped: string} */
-    private static function resolveLine(array $cart, array $computed): array
+    /**
+     * Il costo di contrassegno del listino scelto per la destinazione del
+     * carrello: `Checkout` lo mette al posto della commissione del metodo di
+     * pagamento. Zero se non c'è un listino o non si spedisce.
+     */
+    public static function codFee(int $cartId): float
+    {
+        $cart = self::order($cartId);
+        $methodId = (int) ($cart['shipping_method_id'] ?? 0);
+
+        if (!Gestionale::feature('shipping')
+            || (string) ($cart['fulfillment_type'] ?? 'shipping') !== 'shipping'
+            || $methodId <= 0) {
+            return 0.0;
+        }
+
+        [$country, $province] = self::destination($cart);
+        $zone = ShippingZones::resolve($country, $province);
+        $rate = $zone !== null ? self::rate($methodId, $zone) : null;
+
+        return $rate === null ? 0.0 : max(0.0, round((float) ($rate['cod_fee'] ?? 0), 2));
+    }
+
+    /**
+     * `line()` e `dropped()` insieme, per chi li vuole tutti e due con un solo calcolo.
+     *
+     * @return array{line: ?array{name: string, amount: string, tax_id: int, free: bool}, dropped: string}
+     */
+    public static function resolveLine(array $cart, array $computed): array
     {
         $none = ['line' => null, 'dropped' => ''];
         $methodId = (int) ($cart['shipping_method_id'] ?? 0);
@@ -249,11 +276,7 @@ final class Shipping
             return 'shipping.reason_zone';
         }
 
-        $rate = self::rows(ShippingRate::find([
-            'shipping_method_id' => (int) $method['id'],
-            'shipping_zone_id' => $context['zone'],
-            'active' => 'true',
-        ]))[0] ?? null;
+        $rate = self::rate((int) $method['id'], $context['zone']);
 
         if ($rate === null) {
             return 'shipping.reason_zone';
@@ -269,6 +292,16 @@ final class Shipping
         }
 
         return ['price' => number_format($price['amount'], 2, '.', ''), 'free' => $price['free']];
+    }
+
+    /** Il listino attivo del metodo per la zona, senza ricadere sul paese. */
+    private static function rate(int $methodId, int $zone): ?array
+    {
+        return self::rows(ShippingRate::find([
+            'shipping_method_id' => $methodId,
+            'shipping_zone_id' => $zone,
+            'active' => 'true',
+        ]))[0] ?? null;
     }
 
     private static function refusal(array $method, string $reason): UserError
@@ -323,10 +356,14 @@ final class Shipping
         return is_array($order) && isset($order['id']) ? $order : [];
     }
 
-    /** I prodotti del carrello dopo gli sconti, come li ha scritti l'ultimo ricalcolo. */
+    /**
+     * I prodotti del carrello a prezzo di riga, come li ha scritti l'ultimo
+     * ricalcolo: senza lo sconto del coupon o a mano sulla testata, che per la
+     * soglia gratuita non conta, come dentro `line()`.
+     */
     private static function storedTotal(array $cart): float
     {
-        return max(0.0, round((float) ($cart['products_total'] ?? 0) - (float) ($cart['discount_total'] ?? 0), 2));
+        return max(0.0, round((float) ($cart['products_total'] ?? 0), 2));
     }
 
     /** @return list<array<string, mixed>> */

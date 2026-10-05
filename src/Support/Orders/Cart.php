@@ -20,6 +20,7 @@ use Wonder\Plugin\Gestionale\Support\Pricing\LinePrice;
 use Wonder\Plugin\Gestionale\Support\Pricing\OrderTotals;
 use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
+use Wonder\Plugin\Gestionale\Support\Shipping\Shipping;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
@@ -107,7 +108,7 @@ final class Cart
      * porta il prezzo e le figlie, a prezzo zero, i componenti da scaricare.
      *
      * @param array{product_id: int, quantity?: float, customization?: array<int|string, mixed>, choices?: array<int|string, mixed>} $line
-     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string}
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string, shipping_dropped: string, shipping_saved: string}
      */
     public static function add(int $cartId, array $line): array
     {
@@ -190,7 +191,13 @@ final class Cart
      * motivo (una chiave di `gestionale.errors.coupon`) sta in `coupon_dropped`,
      * vuoto se non è successo niente.
      *
-     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string}
+     * Con la funzionalità `shipping` accesa la riga di spedizione si rifà da
+     * capo a ogni ricalcolo dal listino del metodo scelto; se il metodo non
+     * copre più la destinazione la riga esce e la frase sta in
+     * `shipping_dropped`. `shipping_saved` è quanto ha tolto un coupon di
+     * spedizione gratuita.
+     *
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string, shipping_dropped: string, shipping_saved: string}
      */
     public static function recalculate(int $cartId): array
     {
@@ -216,7 +223,15 @@ final class Cart
                 }
             }
 
+            $shipping = Gestionale::feature('shipping');
+
             foreach ($all as $item) {
+                // La spedizione calcolata si rifà dopo, quando i prodotti sono
+                // prezzati: quella a mano si prezza come ogni altra riga.
+                if ($shipping && (string) $item['type'] === 'shipping' && (string) $item['price_source'] !== 'manual') {
+                    continue;
+                }
+
                 // Le figlie non si prezzano né pesano: le riscrive la loro madre.
                 if ((int) ($item['parent_item_id'] ?? 0) > 0) {
                     if (!isset($mothers[(int) $item['parent_item_id']])) {
@@ -348,6 +363,8 @@ final class Cart
                 ] + $price : [];
             }
 
+            $shippingDropped = $shipping ? self::writeShipping($cart, $all, $computed, $fallback) : '';
+
             // Il coupon si rivaluta a ogni ricalcolo: se non vale più esce dal
             // carrello e il motivo arriva a chi chiama. Lo sconto scritto a mano
             // sulla testata non si somma mai: tra i due vince il manuale.
@@ -408,14 +425,88 @@ final class Cart
                 'last_activity_at' => date('Y-m-d H:i:s'),
             ], $cartId);
 
-            return self::contents($cartId) + ['removed' => $removed, 'coupon_dropped' => $dropped];
+            return self::contents($cartId) + [
+                'removed' => $removed,
+                'coupon_dropped' => $dropped,
+                'shipping_dropped' => $shippingDropped,
+                'shipping_saved' => $totals['shipping_saved'],
+            ];
         });
+    }
+
+    /**
+     * Scrive la riga di spedizione calcolata e la mette tra le righe da
+     * totalizzare; ridà la frase di `shipping_dropped`.
+     *
+     * Una sola riga, `base`, in fondo ai prodotti: se esiste si aggiorna, se il
+     * metodo non c'è più o non copre la destinazione, o si ritira, esce. Una
+     * riga `manual` messa dall'ufficio non si tocca e toglie il posto a quella
+     * calcolata. Il totale per la soglia gratuita sono i prodotti a prezzo di
+     * riga: lo sconto del coupon si ripartisce dopo, in `OrderTotals`, e non
+     * ne fa parte.
+     *
+     * @param array<string, mixed> $cart
+     * @param list<array<string, mixed>> $all
+     * @param list<array<string, mixed>> $computed
+     */
+    private static function writeShipping(array $cart, array $all, array &$computed, int $fallback): string
+    {
+        $stored = array_values(array_filter($all, static fn (array $row): bool => (string) $row['type'] === 'shipping'));
+        $calculated = array_values(array_filter($stored, static fn (array $row): bool => (string) $row['price_source'] !== 'manual'));
+        $manual = count($stored) > count($calculated);
+        $resolved = $manual ? ['line' => null, 'dropped' => ''] : Shipping::resolveLine($cart, $computed);
+        $line = $resolved['line'];
+
+        if ($line === null) {
+            foreach ($calculated as $row) {
+                OrderItem::delete((int) $row['id']);
+            }
+
+            return $resolved['dropped'];
+        }
+
+        $keep = array_shift($calculated);
+
+        foreach ($calculated as $extra) {
+            OrderItem::delete((int) $extra['id']);
+        }
+
+        $id = (int) ($keep['id'] ?? 0);
+
+        if ($id === 0) {
+            $id = (int) (OrderItem::create([
+                'order_id' => (int) $cart['id'],
+                'type' => 'shipping',
+                'position' => 800,
+                'name' => $line['name'],
+                'quantity' => '1.000',
+                'price_source' => 'base',
+                'tax_category_id' => 0,
+            ])->insert_id ?? 0);
+        } elseif ((string) $keep['name'] !== $line['name']) {
+            OrderItem::update(['name' => $line['name']], $id);
+        }
+
+        $taxId = $line['tax_id'] > 0 ? $line['tax_id'] : $fallback;
+        $tax = $taxId > 0 ? Tax::findById($taxId) : null;
+        $computed[] = [
+            'id' => $id,
+            'type' => 'shipping',
+            'product_id' => 0,
+            'weight' => 0.0,
+            'tax_id' => $taxId,
+            'tax_rate' => is_array($tax) ? (float) ($tax['rate'] ?? 0) : 0.0,
+            'tax_nature' => is_array($tax) ? (string) ($tax['nature'] ?? '') : '',
+            'discount_campaign_id' => 0,
+        ] + LinePrice::of(['quantity' => 1, 'price' => $line['amount']]);
+
+        return '';
     }
 
     /**
      * Cambia la quantità di una riga. Zero vuol dire toglierla.
      *
-     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string}
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string, shipping_dropped: string, shipping_saved: string}
      */
     public static function setQuantity(int $cartId, int $itemId, float $quantity): array
     {
@@ -449,7 +540,7 @@ final class Cart
     /**
      * Toglie una riga dal carrello.
      *
-     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string}
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string, shipping_dropped: string, shipping_saved: string}
      */
     public static function remove(int $cartId, int $itemId): array
     {
@@ -470,7 +561,7 @@ final class Cart
      * due, con tre sul banco, fanno tre. Scriverne quattro sposterebbe il
      * rifiuto al checkout, dove il cliente ha già messo l'indirizzo.
      *
-     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string}
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string, shipping_dropped: string, shipping_saved: string}
      */
     public static function merge(int $guestCartId, int $targetCartId): array
     {

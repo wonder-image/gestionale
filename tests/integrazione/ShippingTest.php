@@ -10,6 +10,7 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
+require __DIR__.'/supporto/spedizioni.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
@@ -46,94 +47,6 @@ function prova(callable $corpo): mixed
     }
 
     return $esito;
-}
-
-/** Una zona con le sue aree: ogni area è [paese, provincia]. */
-function zona(string $nome, array $aree): int
-{
-    $id = (int) (ShippingZone::create([
-        'code' => Code::make(ShippingZone::class, Codes::SHIPPING_ZONE),
-        'name' => $nome,
-        'position' => 1,
-    ])->insert_id ?? 0);
-
-    foreach ($aree as [$paese, $provincia]) {
-        ShippingZoneArea::create(['shipping_zone_id' => $id, 'country' => $paese, 'province' => $provincia]);
-    }
-
-    return $id;
-}
-
-function metodo(string $nome, array $valori = []): int
-{
-    return (int) (ShippingMethod::create($valori + [
-        'code' => Code::make(ShippingMethod::class, Codes::SHIPPING_METHOD),
-        'name' => $nome,
-        'description' => 'Da 24 a 48 ore',
-        'carrier_id' => 0,
-        'applies_online' => 'true',
-        'applies_office' => 'true',
-        'active' => 'true',
-        'position' => 1,
-    ])->insert_id ?? 0);
-}
-
-/** Un listino a scaglioni: ogni scaglione è [peso massimo, importo]. */
-function listino(int $metodo, int $zona, array $scaglioni, array $valori = []): int
-{
-    $id = (int) (ShippingRate::create($valori + [
-        'shipping_method_id' => $metodo,
-        'shipping_zone_id' => $zona,
-        'excess_mode' => 'total_weight',
-        'fuel_surcharge_percent' => '0.00',
-        'markup_percent' => '0.00',
-        'min_price' => '0.00',
-        'cod_fee' => '0.00',
-        'active' => 'true',
-    ])->insert_id ?? 0);
-
-    foreach ($scaglioni as $posizione => [$massimo, $importo]) {
-        ShippingRateBracket::create([
-            'shipping_rate_id' => $id,
-            'type' => 'price',
-            'max_weight' => number_format($massimo, 3, '.', ''),
-            'amount' => number_format($importo, 2, '.', ''),
-            'position' => $posizione + 1,
-        ]);
-    }
-
-    return $id;
-}
-
-/** Un articolo con peso, misure e prezzo. */
-function articolo(float $peso, float $prezzo = 10.0, array $misure = [0, 0, 0], string $spedibile = 'true'): int
-{
-    $prodotto = articoloConGiacenza(50, 'SPD-'.uniqid());
-    Product::update([
-        'price' => number_format($prezzo, 2, '.', ''),
-        'weight' => number_format($peso, 3, '.', ''),
-        'length' => number_format($misure[0], 2, '.', ''),
-        'width' => number_format($misure[1], 2, '.', ''),
-        'height' => number_format($misure[2], 2, '.', ''),
-    ], $prodotto);
-    ProductModel::update(['requires_shipping' => $spedibile], modelloDi($prodotto));
-
-    return $prodotto;
-}
-
-/** Un carrello con le righe date ([articolo, quantità]) e la destinazione. */
-function carrello(array $righe, array $ordine = []): int
-{
-    accendiFunzionalita(['orders', 'shipping']);
-    $cart = (int) Cart::open(['cart_token' => 'tok-'.uniqid(), 'channel' => $ordine['channel'] ?? 'online'])['id'];
-
-    foreach ($righe as [$prodotto, $quantita]) {
-        Cart::add($cart, ['product_id' => $prodotto, 'quantity' => $quantita]);
-    }
-
-    Order::update($ordine + ['shipping_country' => 'IT', 'shipping_province' => 'MI', 'shipping_city' => 'Milano'], $cart);
-
-    return $cart;
 }
 
 /** I nomi dei metodi offerti, nell'ordine. */
