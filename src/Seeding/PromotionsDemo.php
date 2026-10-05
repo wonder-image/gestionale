@@ -6,6 +6,10 @@ use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
+use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaign;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignBrand;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignCategory;
@@ -13,8 +17,10 @@ use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignTag;
 use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
 
 /**
- * Le campagne di sconto di prova: tre, una per ogni stato che il commerciante
- * deve imparare a riconoscere.
+ * Le promozioni di prova: tre campagne di sconto e cinque coupon.
+ *
+ * Le campagne, una per ogni stato che il commerciante deve imparare a
+ * riconoscere.
  *
  * - **in corso**: 20 % sulla categoria «Magliette e felpe»;
  * - **programmata**: 5 € sui prodotti col tag «Saldi», parte fra qualche giorno;
@@ -25,19 +31,32 @@ use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
  * lo dice. Le date sono relative a oggi, così ogni campagna resta nel suo stato
  * quando i dati di prova si rifanno.
  *
- * La pulizia cancella davvero le campagne col segno e i loro ponti: nessuna
- * riga vera le usa, e non resta niente di orfano.
+ * I coupon sono cinque, uno per tipo di regola: **percentuale**, **importo**
+ * (con spesa minima), **spedizione gratuita**, **riservato** a un cliente di
+ * prova e **primo ordine**. Il codice è quello che il cliente digita, quindi
+ * non porta il segno degli altri dati di prova: si riconoscono dal prefisso
+ * `DEMO-` *e* dalla nota «Dato di prova», così un coupon vero che per caso
+ * inizia per `DEMO-` non viene mai toccato. Il riservato ha bisogno della
+ * scheda di prova «Anna Verdi»: se non c'è non si fa e il comando lo dice.
+ * Gli ordini di `OrdersDemo` li usano.
+ *
+ * La pulizia cancella davvero campagne e coupon col segno, i loro ponti, i
+ * clienti riservati e gli utilizzi: nessuna riga vera li usa, e non resta
+ * niente di orfano.
  */
 final class PromotionsDemo
 {
     /** Chiave nel registro dei dati di prova. */
     public const KEY = 'campagne-sconto';
 
+    /** Il testo che segna come «di prova» la nota di un coupon. */
+    private const COUPON_NOTE = 'Dato di prova';
+
     public static function register(): void
     {
         DemoData::register(
             self::KEY,
-            'Campagne di sconto: una in corso, una programmata, una finita',
+            'Campagne di sconto (in corso, programmata, finita) e cinque coupon',
             static fn (): int => self::create(),
             static fn (): int => self::clear()
         );
@@ -87,7 +106,7 @@ final class PromotionsDemo
             DemoData::note('Campagne non create, manca la tassonomia di prova: '.implode(', ', $missing).'.');
         }
 
-        return $created;
+        return $created + self::createCoupons();
     }
 
     /** @return int righe tolte */
@@ -107,6 +126,20 @@ final class PromotionsDemo
             }
 
             DiscountCampaign::delete($id);
+            $removed++;
+        }
+
+        foreach (self::ourCoupons() as $row) {
+            $id = (int) $row['id'];
+
+            // Utilizzi e clienti non hanno un `deleted` che conti: si tolgono per davvero, insieme.
+            foreach (['product_models', 'brands', 'tags', 'categories'] as $part) {
+                sqlDelete(ProductScope::OWNERS['coupon'][$part]::$table, 'coupon_id = '.$id);
+            }
+
+            sqlDelete(CouponRedemption::$table, 'coupon_id = '.$id);
+            sqlDelete(CouponCustomer::$table, 'coupon_id = '.$id);
+            Coupon::delete($id);
             $removed++;
         }
 
@@ -167,6 +200,147 @@ final class PromotionsDemo
                 'target' => [DiscountCampaignBrand::class, 'brand_id', Brand::class, 'maglificio-aurora'],
             ],
         ];
+    }
+
+    /** @return int righe create */
+    private static function createCoupons(): int
+    {
+        $created = 0;
+
+        foreach (self::coupons() as $values) {
+            $code = (string) $values['code'];
+            $existing = self::couponByCode($code);
+
+            if ($existing !== null) {
+                if (!self::isOurs($existing)) {
+                    DemoData::note('Coupon «'.$code.'» non creato: il codice è già di un coupon vero.');
+                } elseif ((string) ($existing['deleted'] ?? 'false') === 'true') {
+                    // Cancellato dal backend: il codice è unico, si rimette in vita.
+                    Coupon::query()->Update(Coupon::$table, ['deleted' => 'false'], 'id', (int) $existing['id']);
+                    $created++;
+                }
+
+                continue;
+            }
+
+            $customer = (string) ($values['customer'] ?? '');
+            unset($values['customer']);
+            $customerId = 0;
+
+            if ($customer !== '') {
+                $row = Contact::find(['code' => DemoCode::forModel(Contact::class, $customer), 'deleted' => 'false'], 1);
+                $customerId = is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+
+                if ($customerId <= 0) {
+                    DemoData::note('Coupon «'.$code.'» non creato: manca la scheda cliente di prova «'.$customer.'».');
+                    continue;
+                }
+            }
+
+            $result = Coupon::create($values);
+            $id = !empty($result->success) ? (int) ($result->insert_id ?? 0) : 0;
+
+            if ($id <= 0) {
+                continue;
+            }
+
+            $created++;
+
+            if ($customerId > 0) {
+                CouponCustomer::create(['coupon_id' => $id, 'customer_id' => $customerId]);
+                $created++;
+            }
+        }
+
+        return $created;
+    }
+
+    /**
+     * I cinque coupon. Sempre validi (dal mese scorso a fra sei mesi) e per
+     * il canale online; il cliente riservato è un riferimento di `ContactsDemo`.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function coupons(): array
+    {
+        $common = [
+            'applies_to_all' => 'true',
+            'exclude_discounted_products' => 'false',
+            'first_order_only' => 'false',
+            'applies_online' => 'true',
+            'applies_office' => 'false',
+            'applies_pos' => 'false',
+            'active' => 'true',
+            'starts_at' => date('Y-m-d', strtotime('-30 days')).' 00:00:00',
+            'ends_at' => date('Y-m-d', strtotime('+180 days')).' 23:59:59',
+        ];
+
+        return [
+            $common + [
+                'code' => 'DEMO-PERCENTUALE10', 'name' => 'Dieci per cento su tutto',
+                'discount_type' => 'percent', 'discount_value' => '10.00', 'note' => self::COUPON_NOTE.': percentuale.',
+            ],
+            $common + [
+                'code' => 'DEMO-IMPORTO5', 'name' => 'Cinque euro sopra i trenta',
+                'discount_type' => 'amount', 'discount_value' => '5.00', 'min_order_amount' => '30.00',
+                'usage_limit' => '50', 'note' => self::COUPON_NOTE.': importo con spesa minima.',
+            ],
+            $common + [
+                'code' => 'DEMO-SPEDIZIONE', 'name' => 'Spedizione gratuita sopra i cinquanta',
+                'discount_type' => 'free_shipping', 'discount_value' => '0.00', 'min_order_amount' => '50.00',
+                'note' => self::COUPON_NOTE.': spedizione gratuita.',
+            ],
+            $common + [
+                'code' => 'DEMO-ANNA15', 'name' => 'Quindici per cento per Anna',
+                'discount_type' => 'percent', 'discount_value' => '15.00', 'usage_limit_per_customer' => '3',
+                'customer' => 'verdi', 'note' => self::COUPON_NOTE.': riservato a un cliente.',
+            ],
+            [...$common, 'first_order_only' => 'true'] + [
+                'code' => 'DEMO-PRIMO', 'name' => 'Benvenuto: dieci per cento sul primo ordine',
+                'discount_type' => 'percent', 'discount_value' => '10.00', 'usage_limit_per_customer' => '1',
+                'note' => self::COUPON_NOTE.': primo ordine.',
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed>|null il coupon con quel codice, anche cancellato */
+    private static function couponByCode(string $code): ?array
+    {
+        foreach (['false', 'true'] as $deleted) {
+            $row = Coupon::find(['code' => $code, 'deleted' => $deleted], 1);
+
+            if (is_array($row) && (int) ($row['id'] ?? 0) > 0) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param array<string, mixed> $coupon */
+    private static function isOurs(array $coupon): bool
+    {
+        return str_starts_with((string) ($coupon['code'] ?? ''), 'DEMO-')
+            && str_starts_with((string) ($coupon['note'] ?? ''), self::COUPON_NOTE);
+    }
+
+    /**
+     * I coupon di prova, anche quelli cancellati dal backend: il codice è
+     * unico e una riga nascosta bloccherebbe comunque il ricrearla.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function ourCoupons(): array
+    {
+        $rows = Coupon::find("code LIKE 'DEMO-%' AND (deleted = 'false' OR deleted = 'true')");
+
+        if (!is_array($rows) || $rows === []) {
+            return [];
+        }
+
+        $rows = array_key_exists('id', $rows) ? [$rows] : array_values(array_filter($rows, 'is_array'));
+
+        return array_values(array_filter($rows, static fn (array $row): bool => self::isOurs($row)));
     }
 
     /** L'id della tassonomia di prova con quel riferimento, `0` se non c'è. */

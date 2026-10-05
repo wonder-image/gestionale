@@ -84,7 +84,7 @@ try {
         accendiFunzionalita(['orders', 'returns', 'customizations']);
         // Spenti per davvero: il sito di prova può averli accesi, e gli ordini
         // restano i sette di sempre.
-        spegniFunzionalita(['bundles']);
+        spegniFunzionalita(['bundles', 'coupons']);
         OrdersDemo::clear();
         CatalogDemo::clear();
         ContactsDemo::clear();
@@ -326,6 +326,7 @@ $cesti = [];
 try {
     Transaction::run(static function () use (&$cesti, $righe, $ordine, $agganciate): void {
         accendiFunzionalita(['orders', 'returns', 'bundles']);
+        spegniFunzionalita(['coupons']);
         OrdersDemo::clear();
         CatalogDemo::clear();
         ContactsDemo::clear();
@@ -448,6 +449,7 @@ $senzaPersonalizzazioni = null;
 try {
     Transaction::run(static function () use (&$senzaResi, &$senzaPersonalizzazioni, $righe, $ordine): void {
         accendiFunzionalita(['orders']);
+        spegniFunzionalita(['coupons']);
         // Spente per davvero: il sito di prova può averle accese.
         spegniFunzionalita(['customizations']);
         sqlModify(Feature::$table, ['enabled' => 'false'], 'feature_key', 'returns');

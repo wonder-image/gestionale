@@ -2,7 +2,7 @@
 icon: percent
 ---
 
-# Promozioni: campagne di sconto
+# Promozioni: campagne di sconto e coupon
 
 Una **campagna** abbassa il prezzo di un gruppo di prodotti per un periodo.
 Non è uno sconto sulla riga e non è un coupon: nessuno la digita, il carrello la
@@ -37,8 +37,8 @@ Una campagna sceglie i prodotti per **tutto il catalogo**, **categorie** (con le
 sottocategorie), **tag**, **marchi** o **articoli**, più un elenco di articoli
 **esclusi**. I ponti stanno in `gst_discount_campaign_*`; `ProductScope::OWNERS`
 dice, per ciascun proprietario del selettore, quale Model tiene la testata e
-quali i ponti. Il coupon (piano 2) userà lo stesso selettore aggiungendo la sua
-voce, senza duplicare niente.
+quali i ponti. Il coupon usa lo stesso selettore con la sua voce
+(`ProductScope::OWNERS['coupon']`, ponti con chiave `coupon_id`), senza duplicare niente.
 
 ## Dal carrello alla riga
 
@@ -66,9 +66,43 @@ La vetrina non fa conti e non conosce il selettore.
 4. `Cart::recalculate()` la chiama solo per le righe che non hanno un prezzo a
    mano.
 
+## Coupon
+
+Il **coupon** è un codice che il cliente digita. Si accende con la funzionalità `coupons`;
+da spenta `Coupons::apply` lancia `coupon.inactive`, la pagina sparisce e i dati restano.
+
+* **`CouponRules::check`** è pura (niente database, niente eccezioni, l'ora la passa chi chiama):
+  i controlli hanno un ordine fisso e il primo che fallisce vince — attivo, canale, date,
+  sconto manuale sulla testata, cliente riservato, utilizzi totali, per cliente, primo ordine,
+  prodotti adatti, spesa minima. Il motivo è la chiave di `gestionale.errors.coupon`.
+* **`Coupons`** è l'unica porta verso il database: `find`, `apply`/`remove` sul carrello,
+  `evaluate` (chiamata da `Cart::recalculate`, che a ogni ricalcolo riverifica il codice e lo
+  toglie se non regge), `redeem` e `release`. Lo sconto è ripartito sulle righe adatte in
+  proporzione (`order_discount_amount`); la spedizione gratuita azzera la spedizione.
+* **Utilizzi**: `redeem` gira **dentro la transazione di `Checkout::place`**, legge il coupon
+  con `findForUpdate`, rivaluta le regole con i dati veri del checkout (email, cliente) e scrive
+  la riga di `gst_coupon_redemptions`. Due processi sull'ultimo utilizzo: passa uno solo. Se
+  `redeem` fallisce per un motivo del coupon, fuori dalla transazione il coupon esce dal
+  carrello e nessun ordine nasce. `release` (da `Lifecycle::cancel`, quindi anche dalla scadenza)
+  mette `released_at`; è idempotente. Un reso non rilascia.
+* **Cliente**: l'account o, da ospite, l'email dell'ordine. Il limite per cliente e il primo
+  ordine usano quella.
+* **Stato** (programmato, in corso, finito) è `Campaigns::status`, lo stesso delle campagne.
+
 ## Dati di prova
 
 `php forge gestionale:demo` crea con `PromotionsDemo` tre campagne, una per stato:
 20 % su «Magliette e felpe» (in corso), 5 € sul tag «Saldi» (programmata), 10 % sul
-marchio «Maglificio Aurora» (finita il mese scorso). Si appoggiano alle tassonomie
-di `CatalogDemo`; con `--fresh` si tolgono, con i loro ponti.
+marchio «Maglificio Aurora» (finita il mese scorso), e cinque coupon: `DEMO-PERCENTUALE10`,
+`DEMO-IMPORTO5` (spesa minima 30 €), `DEMO-SPEDIZIONE`, `DEMO-ANNA15` (riservato alla scheda di
+prova «Anna Verdi») e `DEMO-PRIMO` (solo primo ordine). Si appoggiano alle tassonomie e
+ai clienti di prova; con `--fresh` si tolgono, con ponti, clienti riservati e utilizzi.
+Il codice del coupon lo digita il cliente e non può portare il segno degli altri dati di
+prova: si riconosce dal prefisso `DEMO-` **e** dalla nota «Dato di prova», quindi un coupon
+vero che inizia per `DEMO-` non viene mai toccato.
+
+Con la funzionalità `coupons` accesa `OrdersDemo` crea anche tre ordini con coupon
+(`coupon-pagato`, `coupon-riservato`, `coupon-annullato`): il coupon si applica al carrello
+con `Coupons::apply` prima di `Checkout::place`, e l'ordine annullato ha l'utilizzo rilasciato.
+Con `coupons` spenta questi ordini non nascono.
+

@@ -7,6 +7,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog;
@@ -21,12 +22,14 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
 use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderLines;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
+use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
@@ -71,6 +74,10 @@ final class OrdersDemo
         'cesto-confermato' => ['method' => 'stripe', 'end' => 'paid', 'days' => 2, 'bundle' => 'cesto-completo'],
         'cesto-annullato' => ['method' => 'bank-transfer', 'end' => 'cancelled', 'days' => 4, 'bundle' => 'cesto-degustazione'],
         'cesto-evaso' => ['method' => 'stripe', 'end' => 'fulfilled', 'days' => 8, 'bundle' => 'cesto-degustazione'],
+        // I coupon di PromotionsDemo, a funzionalità `coupons` accesa: uno su tutto, uno riservato, uno annullato (l'utilizzo si libera).
+        'coupon-pagato' => ['method' => 'stripe', 'end' => 'paid', 'days' => 2, 'guest' => true, 'coupon' => 'DEMO-PERCENTUALE10'],
+        'coupon-riservato' => ['method' => 'stripe', 'end' => 'paid', 'days' => 3, 'coupon' => 'DEMO-ANNA15'],
+        'coupon-annullato' => ['method' => 'bank-transfer', 'end' => 'cancelled', 'days' => 4, 'coupon' => 'DEMO-PERCENTUALE10'],
     ];
 
     public static function register(): void
@@ -87,9 +94,12 @@ final class OrdersDemo
     public static function create(): int
     {
         $bundles = Gestionale::feature('bundles');
+        $coupons = Gestionale::feature('coupons');
         $missing = array_filter(
             array_keys(self::ORDERS),
-            static fn (string $ref): bool => ($bundles || empty(self::ORDERS[$ref]['bundle'])) && self::find($ref) === []
+            static fn (string $ref): bool => ($bundles || empty(self::ORDERS[$ref]['bundle']))
+                && ($coupons || empty(self::ORDERS[$ref]['coupon']))
+                && self::find($ref) === []
         );
 
         if ($missing === []) {
@@ -205,6 +215,18 @@ final class OrdersDemo
 
         // Il codice col segno: serve a riconoscere l'ordine alla pulizia.
         Order::update(['code' => DemoCode::forModel(Order::class, $ref)], $cartId);
+
+        if (!empty($plan['coupon'])) {
+            try {
+                Coupons::apply($cartId, (string) $plan['coupon']);
+            } catch (UserError $error) {
+                // Il coupon non c'è o non vale per questo carrello: niente ordine, e il carrello non resta.
+                self::purge((array) Order::findById($cartId));
+                DemoData::note('L\'ordine «'.$ref.'» non è stato creato: il coupon «'.$plan['coupon'].'» non si applica ('.$error->key().'). Crea prima i coupon di prova.');
+
+                return 0;
+            }
+        }
 
         $billing = !empty($plan['company'])
             ? ['business_name' => 'Rossi Abbigliamento Srl', 'name' => 'Marco', 'surname' => 'Rossi', 'pi' => '00743110157',
@@ -493,6 +515,7 @@ final class OrdersDemo
 
             sqlDelete(StockMovement::$table, "reference_type = 'order' AND reference_id = ".$id);
             sqlDelete(StockReservation::$table, 'order_id = '.$id);
+            sqlDelete(CouponRedemption::$table, 'order_id = '.$id);
             sqlDelete(Payment::$table, 'order_id = '.$id);
             sqlDelete(OrderStatusLog::$table, 'order_id = '.$id);
             sqlDelete(OrderTaxSummary::$table, 'order_id = '.$id);

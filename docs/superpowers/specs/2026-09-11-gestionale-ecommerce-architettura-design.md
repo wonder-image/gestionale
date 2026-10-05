@@ -918,7 +918,7 @@ insieme al prodotto.
 - **Spesa minima** calcolata sulle righe a cui il coupon si applica.
 - **Solo primo ordine** (`first_order_only`): es. coupon di benvenuto della
   newsletter.
-- **Utilizzi** contati alla conferma dell'ordine; se l'ordine viene annullato,
+- **Utilizzi** contati alla creazione dell'ordine (come la prenotazione della merce; deciso in G6); se l'ordine viene annullato o scade,
   utilizzo e residuo tornano disponibili.
 - **Limite per cliente, primo ordine e buono a scalare** riconoscono il cliente
   dall'account o, nel checkout da ospite, dall'email (5.1).
