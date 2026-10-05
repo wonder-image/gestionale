@@ -18,6 +18,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaign;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignCategory;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignProductModel;
+use Wonder\Plugin\Gestionale\Resources\Promotions\CampaignProductTableResource;
 use Wonder\Plugin\Gestionale\Resources\Promotions\DiscountCampaignResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
@@ -244,13 +245,12 @@ check('senza sovrapposizioni l\'avviso non c\'è, e l\'anteprima conta i prodott
 
         return DiscountCampaignResource::overlapNotice($id) === ''
             && str_contains($anteprima, '<strong>1</strong> prodotto')
-            && str_contains($anteprima, '50,00 €')
-            && str_contains($anteprima, '40,00 €')
+            && str_contains($anteprima, 'gst_products__table')
             && conta(DiscountCampaign::class) === $righe;
     });
 });
 
-check('l\'anteprima elenca i prodotti con il nome per intero, lo SKU e la ricerca', function () {
+check('l\'anteprima è una tabella del core: cerca per nome o SKU e ogni riga ha nome per intero, SKU e prezzi', function () {
     return prova(static function (): bool {
         accendiFunzionalita(['orders', 'discount_campaigns']);
         [$prodotto, $modello] = articoloAPrezzo('50.00');
@@ -259,11 +259,23 @@ check('l\'anteprima elenca i prodotti con il nome per intero, lo SKU e la ricerc
         $id = salva(richiesta(['applies_to_all' => 'false', 'models' => [(string) $modello]]));
 
         $anteprima = DiscountCampaignResource::previewHtml($id);
+        $colonne = [];
 
-        return str_contains($anteprima, 'Maglia — Blu / M')
-            && str_contains($anteprima, 'MAGLIA-BLU-M')
-            && str_contains($anteprima, 'data-preview-search')
-            && str_contains($anteprima, '<s class="text-muted">50,00 €</s>');
+        foreach (CampaignProductTableResource::tableSchema() as $colonna) {
+            $colonne[(string) $colonna->name] = $colonna->schema['formatter'] ?? null;
+        }
+
+        // Le righe le chiede l'API a ogni pagina: il formatter parte dalla riga e dall'id della campagna nella query.
+        $riga = (array) Product::find(['id' => $prodotto], 1) + ['model_name' => 'Maglia', 'campaign_id' => $id];
+
+        return str_contains($anteprima, 'gst_products__table')
+            && str_contains($anteprima, 'gst_products__search_input')
+            && str_contains($anteprima, 'Con la campagna')
+            && array_keys($colonne) === ['photo', 'model_name', 'price', 'campaign_price']
+            && str_contains($colonne['model_name']($riga), 'Maglia — Blu / M')
+            && str_contains($colonne['model_name']($riga), 'MAGLIA-BLU-M')
+            && str_contains($colonne['price']($riga), '50,00 €')
+            && str_contains($colonne['campaign_price']($riga), '40,00 €');
     });
 });
 
@@ -300,7 +312,7 @@ check('la scheda mostra dettagli, selezione, anteprima, avviso di sovrapposizion
 
         return str_contains($html, 'Seconda Campagna') && str_contains($html, '30 %')
             && str_contains($html, 'Solo la selezione')
-            && str_contains($html, '<strong>1</strong> prodotto') && str_contains($html, '35,00 €')
+            && str_contains($html, '<strong>1</strong> prodotto') && str_contains($html, 'gst_products__table')
             && str_contains($html, 'Prima Campagna')
             && str_contains($html, 'Sito') && str_contains($html, 'Ufficio') && str_contains($html, 'Cassa')
             && $prima > 0;

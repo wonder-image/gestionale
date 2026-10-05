@@ -55,11 +55,12 @@ Anteprima e avviso stanno nella **scheda della campagna**, la pagina di sola
 lettura che si apre dall'elenco (clic sul nome, o sulla lente); per cambiare
 qualcosa c'è «Modifica». Dopo ogni salvataggio torni alla scheda, e lì trovi:
 
-* **Anteprima**: quanti prodotti prende la campagna e l'elenco di tutti, come
-  le righe di un ordine: foto, nome per intero (articolo — opzione) con lo SKU
-  sotto, prezzo prima e dopo. La casella **Cerca** filtra per nome o SKU.
-  Riguarda la campagna **come è salvata**: per vedere l'effetto
-  di una modifica si salva (può restare disattivata).
+* **Anteprima**: quanti prodotti prende la campagna e, sotto, l'elenco di
+  tutti, in una tabella come quella delle righe di un ordine: foto, nome per
+  intero (articolo — opzione) con lo SKU sotto, prezzo di prima e prezzo con la
+  campagna. La casella **Cerca** filtra per nome o SKU, il nome si può
+  ordinare e l'elenco va a pagine. Riguarda la campagna **come è salvata**:
+  per vedere l'effetto di una modifica si salva (può restare disattivata).
 * **Avviso di sovrapposizione**: se un'altra campagna attiva copre gli stessi
   prodotti negli stessi giorni compare un avviso con i nomi. Non blocca
   niente.

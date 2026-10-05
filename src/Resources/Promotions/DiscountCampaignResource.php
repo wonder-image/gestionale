@@ -16,7 +16,6 @@ use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaign;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
-use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
@@ -34,8 +33,8 @@ use Wonder\Plugin\Gestionale\Support\Sales\Channels;
  * riscrive per intero a ogni salvataggio.
  *
  * La campagna si apre in una **scheda di lettura** (`showLayoutSchema`): lì
- * stanno l'**anteprima** (tutti i prodotti che la campagna prende, con nome
- * per intero, SKU e prezzo prima e dopo, e una casella per cercare) e, se un'altra campagna attiva copre gli stessi
+ * stanno l'**anteprima** (tutti i prodotti che la campagna prende, in una
+ * tabella del core con nome per intero, SKU, prezzo prima e dopo e la ricerca) e, se un'altra campagna attiva copre gli stessi
  * prodotti negli stessi giorni, un **avviso** che non blocca niente — il
  * calcolo sceglie comunque lo sconto maggiore. La modifica è dietro al
  * bottone «Modifica».
@@ -443,9 +442,9 @@ class DiscountCampaignResource extends GestionaleResource
     }
 
     /**
-     * I prodotti che la campagna salvata prende, come le righe di un ordine:
-     * foto, nome per intero con lo SKU sotto, prezzo di prima e di dopo. Una
-     * casella cerca per nome o SKU; la lista scorre dentro il suo riquadro.
+     * I prodotti che la campagna salvata prende: quanti sono e, sotto, la
+     * tabella del core (`CampaignProductTableResource`) con foto, nome per
+     * intero, SKU, prezzo di prima e di dopo, la ricerca e le pagine.
      */
     public static function previewHtml(int $id): string
     {
@@ -456,50 +455,9 @@ class DiscountCampaignResource extends GestionaleResource
         }
 
         $preview = Campaigns::preview($row + ['scope' => ProductScope::of('campaign', $id)], date('Y-m-d H:i:s'));
-        $html = '<p class="mb-2"><strong>'.(int) $preview['count'].'</strong> '.($preview['count'] === 1 ? 'prodotto' : 'prodotti').'.</p>';
 
-        if ($preview['products'] === []) {
-            return $html;
-        }
-
-        $box = 'campaign-preview-'.$id;
-        $rows = '';
-
-        foreach ($preview['products'] as $product) {
-            $photo = ProductPhotos::forModel($product['model_id'], $product['variant_id'], $product['id']);
-            $name = static::escapeStored($product['name']);
-            $sku = static::escapeStored($product['sku']);
-            $price = static::escape(number_format((float) $product['before'], 2, ',', '.')).' €';
-
-            if ($product['after'] !== '') {
-                $price = '<s class="text-muted">'.$price.'</s> <strong>'
-                    .static::escape(number_format((float) $product['after'], 2, ',', '.')).' €</strong>';
-            }
-
-            $rows .= '<tr data-search="'.static::escape(mb_strtolower(html_entity_decode($product['name'].' '.$product['sku'], ENT_QUOTES | ENT_HTML5, 'UTF-8'))).'">'
-                .'<td style="width:56px">'.($photo !== ''
-                    ? '<img src="'.static::escape($photo).'" alt="" class="rounded" style="width:40px;height:40px;object-fit:cover">'
-                    : '').'</td>'
-                .'<td>'.$name.($sku !== '' ? '<div class="text-muted small">'.$sku.'</div>' : '').'</td>'
-                .'<td class="text-end text-nowrap" style="font-variant-numeric: tabular-nums">'.$price.'</td>'
-                .'</tr>';
-        }
-
-        return $html
-            .'<input type="search" class="form-control form-control-sm mb-2" placeholder="Cerca per nome o SKU" aria-label="Cerca nei prodotti" data-preview-search="'.$box.'">'
-            .'<div id="'.$box.'" style="max-height:420px;overflow:auto"><table class="table table-sm align-middle mb-0"><tbody>'.$rows.'</tbody></table>'
-            .'<p class="text-muted small my-2 d-none" data-preview-empty>Nessun prodotto corrisponde.</p></div>'
-            .'<script>(function () {'
-            .'var campo = document.querySelector(\'[data-preview-search="'.$box.'"]\'), box = document.getElementById(\''.$box.'\');'
-            .'if (!campo || !box) { return; }'
-            .'campo.addEventListener(\'input\', function () {'
-            .'var q = campo.value.trim().toLowerCase(), visibili = 0;'
-            .'box.querySelectorAll(\'tr[data-search]\').forEach(function (r) {'
-            .'var si = r.getAttribute(\'data-search\').indexOf(q) !== -1; r.classList.toggle(\'d-none\', !si); if (si) { visibili++; }'
-            .'});'
-            .'box.querySelector(\'[data-preview-empty]\').classList.toggle(\'d-none\', visibili > 0);'
-            .'});'
-            .'})();</script>';
+        return '<p class="mb-2"><strong>'.(int) $preview['count'].'</strong> '.($preview['count'] === 1 ? 'prodotto' : 'prodotti').'.</p>'
+            .($preview['products'] === [] ? '' : CampaignProductTableResource::embed($id, array_column($preview['products'], 'id')));
     }
 
     /** @return array<string, mixed>|null */

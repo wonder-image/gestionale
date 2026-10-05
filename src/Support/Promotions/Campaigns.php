@@ -113,8 +113,6 @@ final class Campaigns
                 continue;
             }
 
-            $price = CampaignPrice::best([self::candidate($draft, 0)], $product['price'], $product['sale_price']);
-
             $products[] = [
                 'id' => (int) $id,
                 'model_id' => $product['facts']['model_id'],
@@ -122,11 +120,23 @@ final class Campaigns
                 'name' => $product['name'],
                 'sku' => $product['sku'],
                 'before' => number_format($product['price'], 2, '.', ''),
-                'after' => $price === null ? '' : number_format($price['price'], 2, '.', ''),
+                'after' => self::previewPrice($draft, $product['price'], $product['sale_price']),
             ];
         }
 
         return ['count' => count($products), 'products' => $products];
+    }
+
+    /**
+     * Il prezzo di un prodotto con questa campagna, come `Y.mm`; vuoto se la
+     * campagna lo prende ma non cambia il prezzo (per esempio, già in saldo
+     * con `exclude_sale_products`). Serve all'anteprima e alla sua tabella.
+     */
+    public static function previewPrice(array $draft, float $price, float $salePrice): string
+    {
+        $best = CampaignPrice::best([self::candidate($draft, 0)], $price, $salePrice);
+
+        return $best === null ? '' : number_format($best['price'], 2, '.', '');
     }
 
     /**
