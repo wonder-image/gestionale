@@ -30,6 +30,7 @@ use Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerStats;
+use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Sql\Transaction;
@@ -474,6 +475,11 @@ class CustomerResource extends GestionaleResource
         string $mode,
         string $context = 'backend'
     ): array {
+        // Una scheda nuova parte con il prefisso di chi la sta compilando.
+        if ($mode !== 'edit' && trim((string) ($values['phone_prefix'] ?? '')) === '') {
+            $values['phone_prefix'] = VisitorCountry::phonePrefix();
+        }
+
         if (!Gestionale::feature('purchasing')) {
             return $values;
         }
@@ -651,17 +657,19 @@ class CustomerResource extends GestionaleResource
         return FormField::key('addresses')
             ->repeater([
                 RepeaterColumn::key('id')->hidden(),
-                RepeaterColumn::key('label')->text()->label('Etichetta')->columnSpan(2),
-                RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(2),
-                RepeaterColumn::key('surname')->text()->label('Cognome')->columnSpan(2),
-                RepeaterColumn::key('street')->text()->label('Via')->columnSpan(2),
-                RepeaterColumn::key('number')->text()->label('N.')->columnSpan(1),
-                RepeaterColumn::key('cap')->text()->label('CAP')->columnSpan(1),
-                RepeaterColumn::key('city')->text()->label('Città')->columnSpan(1),
+                RepeaterColumn::key('label')->text()->label('Etichetta')->columnSpan(3),
+                RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(3),
+                RepeaterColumn::key('surname')->text()->label('Cognome')->columnSpan(3),
                 RepeaterColumn::key('is_default')
                     ->select(['false' => 'No', 'true' => 'Sì'])
                     ->label('Predefinito')
-                    ->columnSpan(1),
+                    ->columnSpan(3),
+                RepeaterColumn::key('street')->text()->label('Via')->columnSpan(5),
+                RepeaterColumn::key('number')->text()->label('N.')->columnSpan(1),
+                RepeaterColumn::key('cap')->text()->label('CAP')->columnSpan(2),
+                RepeaterColumn::key('city')->text()->label('Città')->columnSpan(4),
+                RepeaterColumn::key('country')->country('province')->value('IT')->label('Paese')->columnSpan(6),
+                RepeaterColumn::key('province')->states('IT')->label('Provincia')->columnSpan(6),
             ])
             ->relation(
                 RepeaterRelation::make(ContactAddress::$table, 'contact_id')

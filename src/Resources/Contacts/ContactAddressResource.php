@@ -14,6 +14,7 @@ use Wonder\Elements\Components\Modal;
 use Wonder\Http\Csrf;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
+use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
 /**
@@ -98,7 +99,7 @@ final class ContactAddressResource extends NavigationOnlyResource
 
     /**
      * I valori della finestra, puliti: solo i campi noti, senza spazi ai
-     * bordi, il paese in maiuscolo e `IT` se manca, il predefinito sì o no.
+     * bordi, il prefisso col «+», il paese in maiuscolo e `IT` se manca, il predefinito sì o no.
      *
      * @param array<string, mixed> $values
      * @return array<string, string>
@@ -109,6 +110,11 @@ final class ContactAddressResource extends NavigationOnlyResource
 
         foreach (array_keys(static::FIELDS) as $campo) {
             $clean[$campo] = trim((string) ($values[$campo] ?? ''));
+        }
+
+        // L'elenco dei prefissi ha il «+» davanti: i dati più vecchi no.
+        if ($clean['phone_prefix'] !== '') {
+            $clean['phone_prefix'] = '+'.ltrim($clean['phone_prefix'], '+');
         }
 
         $clean['country'] = strtoupper($clean['country']) !== '' ? strtoupper($clean['country']) : 'IT';
@@ -313,10 +319,14 @@ final class ContactAddressResource extends NavigationOnlyResource
             ->maxLength(static::FIELDS[$nome])
             ->columnSpan($col);
 
+        // Paese, provincia e prefisso sono i campi del core: il paese ricarica le
+        // province, il prefisso è l'elenco internazionale.
+        $core = ContactAddress::address()->formSchema('IT');
+
         return Modal::make('Aggiungi indirizzo')
             ->id(static::MODAL_ID)
             ->size('lg')
-            ->help('L\'etichetta serve a riconoscerlo (Casa, Ufficio, Magazzino) e si vede solo qui. Nome e cognome sono di chi ritira: spesso non è il titolare della scheda. Il paese è il codice di due lettere: IT, FR, DE. Il predefinito è uno solo per scheda: scegliendo questo, l\'altro smette di esserlo.')
+            ->help('L\'etichetta serve a riconoscerlo (Casa, Ufficio, Magazzino) e si vede solo qui. Nome e cognome sono di chi ritira: spesso non è il titolare della scheda. Il predefinito è uno solo per scheda: scegliendo questo, l\'altro smette di esserlo.')
             ->form(static::submitUrl(), hidden: ['contact_id' => $contactId, 'action' => 'save', 'address_id' => 0])
             ->columns(12)
             ->components([
@@ -328,9 +338,9 @@ final class ContactAddressResource extends NavigationOnlyResource
                 $campo('more', 'Scala, interno, citofono', 12),
                 $campo('cap', 'CAP', 4),
                 $campo('city', 'Città', 8),
-                $campo('province', 'Provincia', 6),
-                $campo('country', 'Paese', 6)->attribute('style="text-transform:uppercase"'),
-                $campo('phone_prefix', 'Prefisso', 4),
+                $core['country']->label('Paese')->columnSpan(6),
+                $core['province']->label('Provincia')->columnSpan(6),
+                $core['phone_prefix']->label('Prefisso')->columnSpan(4),
                 $campo('phone', 'Telefono', 8),
                 FormField::key('is_default')->checkbox()->label('Indirizzo predefinito')->attribute('value="true"')->columnSpan(12),
             ])
@@ -343,19 +353,26 @@ final class ContactAddressResource extends NavigationOnlyResource
      * Riempie la finestra quando si apre. Si aggancia al documento, perché
      * Bootstrap può caricarsi dopo questa pagina: gli eventi `show.bs.modal`
      * salgono fin lì. Il campo vero è quello non nascosto: la spunta ha
-     * accanto un `hidden` con lo stesso nome.
+     * accanto un `hidden` con lo stesso nome. Paese e prefisso sono select di
+     * ricerca (select2): vanno avvisati del cambio, e la provincia la imposta
+     * `searchStates` della lib, che aspetta le province del paese.
      */
     private static function script(): string
     {
         $campi = (string) json_encode(array_merge(array_keys(static::FIELDS), ['is_default']));
 
         return '<script>(function(){'
-            .'var FIELDS='.$campi.',FORM='.json_encode(static::MODAL_ID).';'
+            .'var FIELDS='.$campi.',FORM='.json_encode(static::MODAL_ID).',PREFIX='.json_encode(VisitorCountry::phonePrefix()).';'
             .'function dati(e){try{return JSON.parse((e.relatedTarget&&e.relatedTarget.getAttribute("data-wi-address"))||"{}")||{}}catch(x){return {}}}'
             .'document.addEventListener("show.bs.modal",function(e){'
             .'var m=e.target,d=dati(e);if(!m||m.id!==FORM){return}'
-            .'FIELDS.forEach(function(k){var i=m.querySelector("[name="+k+"]:not([type=hidden])");if(!i){return}'
-            .'if(i.type==="checkbox"){i.checked=d[k]==="true"}else{i.value=d[k]!==undefined?d[k]:(k==="country"?"IT":"")}});'
+            .'var $=window.jQuery;'
+            .'FIELDS.forEach(function(k){var i=m.querySelector("[name="+k+"]:not([type=hidden])");if(!i||k==="province"){return}'
+            .'if(i.type==="checkbox"){i.checked=d[k]==="true";return}'
+            .'i.value=d[k]!==undefined?d[k]:(k==="country"?"IT":(k==="phone_prefix"?PREFIX:""));'
+            .'if(i.tagName==="SELECT"&&$){$(i).trigger("change")}});'
+            .'var c=m.querySelector("[name=country]"),p=m.querySelector("[name=province]");'
+            .'if(c&&p&&typeof searchStates==="function"){searchStates(c,d.province||"");if($){$(p).trigger("change")}}'
             .'m.querySelector("[name=address_id]").value=d.id||0;'
             .'m.querySelector("[data-wi-modal-title]").textContent=d.id?"Modifica indirizzo":"Aggiungi indirizzo";'
             .'});})();</script>';
