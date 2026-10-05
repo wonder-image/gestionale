@@ -210,6 +210,14 @@ versionamento semantico.
   deve lanciare `php forge update` (due righe nuove in `gst_features`); la funzionalità `pos`
   si chiamava «Banco».
 
+- Spedizioni, listini e calcolo (`shipping`, G7 piano 1): corrieri col link di tracking,
+  zone per paese e provincia, metodi con un listino per zona (scaglioni di peso, tariffa al
+  kg oltre l'ultimo, peso volumetrico, carburante, margine, arrotondamento, minimo, gratis
+  sopra un importo o sotto un peso, costo di contrassegno), `Shipping` come unica porta
+  (`options`, `quote`, `line`, `codFee`), riga di spedizione calcolata in `Cart::recalculate`
+  e contrassegno in `Checkout`, pagine *Spedizioni → Corrieri / Zone / Metodi*, dati di prova
+  (`ShippingDemo`) e guide. Chi aggiorna deve lanciare `php forge update`.
+
 ### Corretto
 
 - *Registra reso* dava errore 500: `Returns::returned()` chiedeva il blocco delle
