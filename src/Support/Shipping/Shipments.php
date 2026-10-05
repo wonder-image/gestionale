@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Shipping;
 
+use Throwable;
 use Wonder\App\Support\SocietyLocations;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -18,6 +19,7 @@ use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
+use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Sql\Transaction;
 
@@ -137,34 +139,50 @@ final class Shipments
     {
         self::guardFeature();
 
-        Transaction::run(static function () use ($shipmentId, $data): void {
-            $orderId = self::orderOf($shipmentId);
-            $order = self::lockOrder($orderId);
+        $changed = Transaction::run(static fn (): bool => self::shipInside($shipmentId, $data));
 
-            if ((string) $order['stage'] !== 'order' || !in_array((string) $order['status'], Lifecycle::COMMITTED, true)) {
-                throw UserError::make('shipment.order_not_open');
-            }
+        if ($changed) {
+            self::notify($shipmentId, 'shipped');
+        }
+    }
 
-            $shipment = self::lock($shipmentId);
+    /**
+     * Il lavoro di `ship` dentro la transazione, senza l'email: la chiama anche
+     * `advance`, che manda la sua una volta sola a transazione chiusa.
+     *
+     * @param array<string, mixed> $data
+     * @return bool vero se la spedizione è partita adesso
+     */
+    private static function shipInside(int $shipmentId, array $data): bool
+    {
+        $orderId = self::orderOf($shipmentId);
+        $order = self::lockOrder($orderId);
 
-            if ((string) $shipment['type'] !== 'delivery') {
-                throw UserError::make('shipment.bad_transition');
-            }
+        if ((string) $order['stage'] !== 'order' || !in_array((string) $order['status'], Lifecycle::COMMITTED, true)) {
+            throw UserError::make('shipment.order_not_open');
+        }
 
-            if ((string) $shipment['status'] === 'in_transit') {
-                return;
-            }
+        $shipment = self::lock($shipmentId);
 
-            if (!in_array('in_transit', ShipmentFlow::allowed('delivery', (string) $shipment['status']), true)) {
-                throw UserError::make('shipment.bad_transition');
-            }
+        if ((string) $shipment['type'] !== 'delivery') {
+            throw UserError::make('shipment.bad_transition');
+        }
 
-            $values = self::shippingValues($shipment, $data);
-            $values['status'] = 'in_transit';
+        if ((string) $shipment['status'] === 'in_transit') {
+            return false;
+        }
 
-            self::write($shipment, $values, 'in_transit', $data);
-            self::syncOrder($orderId, $data);
-        });
+        if (!in_array('in_transit', ShipmentFlow::allowed('delivery', (string) $shipment['status']), true)) {
+            throw UserError::make('shipment.bad_transition');
+        }
+
+        $values = self::shippingValues($shipment, $data);
+        $values['status'] = 'in_transit';
+
+        self::write($shipment, $values, 'in_transit', $data);
+        self::syncOrder($orderId, $data);
+
+        return true;
     }
 
     /**
@@ -266,7 +284,6 @@ final class Shipments
      */
     public static function ready(int $shipmentId, array $options = []): void
     {
-        // Il punto d'innesto dell'email «pronto per il ritiro» è nel task 5.
         self::advance($shipmentId, 'ready_for_pickup', $options);
     }
 
@@ -295,14 +312,15 @@ final class Shipments
     {
         self::guardFeature();
 
-        Transaction::run(static function () use ($shipmentId, $to, $options): void {
+        // L'email dice quale sia: parte a transazione chiusa, una volta sola.
+        $mail = Transaction::run(static function () use ($shipmentId, $to, $options): string {
             $orderId = self::orderOf($shipmentId);
             $order = self::lockOrder($orderId);
             $shipment = self::lock($shipmentId);
             $from = (string) $shipment['status'];
 
             if ($from === $to) {
-                return;
+                return '';
             }
 
             if (!in_array($to, ShipmentFlow::allowed((string) $shipment['type'], $from), true)) {
@@ -312,17 +330,19 @@ final class Shipments
             if ($to === 'cancelled') {
                 self::cancel($shipmentId, $options);
 
-                return;
+                return '';
             }
+
+            $mail = '';
 
             if ((string) $shipment['type'] === 'delivery' && in_array($from, ['pending', 'label_created'], true)) {
                 // Dal magazzino al cliente passa dal «partita»: servono vettore e tracking.
-                self::ship($shipmentId, $options);
+                $mail = self::shipInside($shipmentId, $options) ? 'shipped' : '';
                 $shipment = self::lock($shipmentId);
                 $from = (string) $shipment['status'];
 
                 if ($from === $to) {
-                    return;
+                    return $mail;
                 }
             }
 
@@ -334,7 +354,13 @@ final class Shipments
 
             self::write($shipment, $values, $to, $options);
             self::syncOrder((int) $order['id'], $options);
+
+            return $to === 'ready_for_pickup' ? 'ready_for_pickup' : $mail;
         });
+
+        if ($mail !== '') {
+            self::notify($shipmentId, $mail);
+        }
     }
 
     /**
@@ -402,6 +428,61 @@ final class Shipments
                 ]);
             }
         });
+    }
+
+    /**
+     * Scrive al cliente che la spedizione è partita o il ritiro è pronto.
+     *
+     * Non lancia mai: la merce si è già mossa, e un'email che non parte (niente
+     * indirizzo, posta che rifiuta) la registra `Mailer` come per ogni altra.
+     */
+    private static function notify(int $shipmentId, string $key): void
+    {
+        try {
+            $shipment = Shipment::findById($shipmentId);
+
+            if (!is_array($shipment) || $shipment === []) {
+                return;
+            }
+
+            $extra = [];
+
+            if ($key === 'shipped') {
+                $carrier = (int) ($shipment['carrier_id'] ?? 0) > 0 ? Carrier::findById((int) $shipment['carrier_id']) : null;
+                $extra = [
+                    'carrier' => is_array($carrier) ? (string) ($carrier['name'] ?? '') : '',
+                    'tracking' => (string) ($shipment['tracking_number'] ?? ''),
+                    'url' => (string) ($shipment['tracking_url'] ?? ''),
+                ];
+            } else {
+                $extra = ['location' => self::placeOf((int) ($shipment['location_id'] ?? 0))];
+            }
+
+            OrderNotifier::send($key, (int) $shipment['order_id'], $extra);
+        } catch (Throwable) {
+            // Vedi sopra: l'esito della posta non decide l'esito della spedizione.
+        }
+    }
+
+    /** «Nome, via numero, cap città» della sede di ritiro, quel che c'è. */
+    private static function placeOf(int $locationId): string
+    {
+        $location = $locationId > 0 ? Location::findById($locationId) : null;
+        $place = is_array($location) && $location !== []
+            ? SocietyLocations::find((int) $location['society_location_id'])
+            : null;
+
+        if (!is_object($place)) {
+            return '';
+        }
+
+        $parts = [
+            trim((string) ($place->label ?? '')),
+            trim(trim((string) ($place->street ?? '')).' '.trim((string) ($place->number ?? ''))),
+            trim(trim((string) ($place->cap ?? '')).' '.trim((string) ($place->city ?? ''))),
+        ];
+
+        return implode(', ', array_filter($parts, static fn (string $part): bool => $part !== ''));
     }
 
     private static function guardFeature(): void

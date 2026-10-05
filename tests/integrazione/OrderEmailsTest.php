@@ -243,4 +243,51 @@ check('una confezione porta i suoi componenti sotto la madre, indentati e senza 
     return true;
 });
 
+check('l\'email di spedito porta vettore, tracking e link, e il link è un solo anchor', function () {
+    $ordine = ['order_number' => '2026/7', 'total' => '30.00', 'ordered_at' => '2026-10-02 10:00:00'];
+    $email = OrderEmail::compose('shipped', $ordine, [], [
+        'carrier' => 'BRT', 'tracking' => 'AB123', 'url' => 'https://tracking.esempio.it/?c=AB123',
+    ]);
+
+    return str_contains($email['subject'], '2026/7')
+        && str_contains($email['body'], 'BRT')
+        && str_contains($email['body'], 'AB123')
+        && substr_count($email['body'], '<a href="https://tracking.esempio.it/?c=AB123">') === 1
+        && !str_contains($email['body'], ':tracking') && !str_contains($email['body'], ':carrier');
+});
+
+check('l\'email di spedito senza link non ha anchor né segnaposto rimasti', function () {
+    $ordine = ['order_number' => '2026/7', 'total' => '30.00', 'ordered_at' => '2026-10-02 10:00:00'];
+    $email = OrderEmail::compose('shipped', $ordine, [], ['carrier' => 'Corriere', 'tracking' => '', 'url' => '']);
+
+    return !str_contains($email['body'], '<a ')
+        && !str_contains($email['body'], ':url') && !str_contains($email['body'], ':tracking')
+        && !str_contains($email['body'], 'Numero di tracking');
+});
+
+check('tracking e vettore con tag e virgolette non scrivono dentro l\'email', function () {
+    $ordine = ['order_number' => '2026/7', 'total' => '30.00', 'ordered_at' => '2026-10-02 10:00:00'];
+    $email = OrderEmail::compose('shipped', $ordine, [], [
+        'carrier' => '<b>Vettore</b>', 'tracking' => '"><script>alert(1)</script>', 'url' => 'https://x.it/?t="><script>',
+    ]);
+
+    return !str_contains($email['body'], '<script>') && !str_contains($email['body'], '<b>Vettore')
+        && str_contains($email['body'], '&lt;script&gt;');
+});
+
+check('l\'email di pronto per il ritiro dice dove andare', function () {
+    $ordine = ['order_number' => '2026/8', 'total' => '30.00', 'ordered_at' => '2026-10-02 10:00:00'];
+    $email = OrderEmail::compose('ready_for_pickup', $ordine, [], ['location' => 'Negozio <Centro>, Via Roma 1, 24100 Bergamo']);
+
+    return str_contains($email['subject'], '2026/8')
+        && str_contains($email['body'], 'Negozio &lt;Centro&gt;, Via Roma 1, 24100 Bergamo')
+        && !str_contains($email['body'], '<Centro>') && !str_contains($email['body'], ':location');
+});
+
+check('spedito e pronto per il ritiro vanno al cliente, non al commerciante', function () {
+    return in_array('shipped', OrderEmail::KEYS, true) && in_array('ready_for_pickup', OrderEmail::KEYS, true)
+        && !in_array('shipped', OrderEmail::MERCHANT_KEYS, true) && !in_array('ready_for_pickup', OrderEmail::MERCHANT_KEYS, true)
+        && !in_array('shipped', OrderEmail::INSTRUCTION_KEYS, true);
+});
+
 summary();

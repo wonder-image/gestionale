@@ -6,6 +6,7 @@
  *
  * @var string $title
  * @var string $intro
+ * @var list<string> $details
  * @var string $instructions
  * @var array<string, mixed> $order
  * @var list<array<string, mixed>> $items
@@ -17,6 +18,9 @@
 ?>
 <h2><?= $e($title) ?></h2>
 <p><?= $e($intro) ?></p>
+<?php foreach ($details as $line) { ?>
+    <p><?= $e($line) ?></p>
+<?php } ?>
 <?php if (trim($instructions) !== '') { ?>
     <p><strong><?= $e($instructions) ?></strong></p>
 <?php } ?>

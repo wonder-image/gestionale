@@ -226,6 +226,19 @@
                     "title": "Ordine annullato",
                     "intro": "L'ordine :number è stato annullato. Se avevi già pagato, ti restituiamo l'importo."
                 },
+                "shipped": {
+                    "subject": "L'ordine :number è in viaggio",
+                    "title": "Il tuo ordine è partito",
+                    "intro": "Abbiamo affidato al corriere l'ordine :number. Se hai ordinato più articoli, il resto può arrivare con un'altra spedizione.",
+                    "carrier_line": "Corriere: :carrier",
+                    "tracking_line": "Numero di tracking: :tracking"
+                },
+                "ready_for_pickup": {
+                    "subject": "L'ordine :number è pronto per il ritiro",
+                    "title": "Il tuo ordine ti aspetta",
+                    "intro": "L'ordine :number è pronto: puoi passare a ritirarlo.",
+                    "location_line": "Dove: :location"
+                },
                 "merchant_new": {
                     "subject": "Nuovo ordine :number",
                     "title": "È arrivato un ordine",
