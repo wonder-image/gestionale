@@ -72,7 +72,8 @@ stessi nomi dei dati (`fulfillment_type`, `shipping_method_id`, `location_id`,
    (`cart.not_a_cart`).
 2. **Ripulisce le scelte che non valgono più**, invece di rifiutarle:
    - consegna che non esiste o ritiro senza sedi disponibili → `shipping`;
-   - con il ritiro, sede che non è una sede di ritiro attiva e aperta → nessuna sede;
+   - con il ritiro, sede che non è una sede di ritiro disponibile (attiva, di ritiro,
+     con la sede della società dietro) → nessuna sede;
      se ce n'è una sola, la sceglie;
    - metodo di pagamento non attivo, non offerto online o non ammesso per la
      consegna (`available_for`) → nessun metodo.
@@ -91,7 +92,7 @@ order:            totali del carrello (products_total, discount_total, shipping_
 items:            le righe, come Cart::contents
 fulfillment:      { type, choices: [shipping, pickup?] }   pickup solo con sedi di ritiro disponibili
 shipping_methods: Shipping::options + selected            vuoto con il ritiro o con `shipping` spenta
-pickup_locations: [{ id, name, address }] + selected      sedi attive, di ritiro, aperte
+pickup_locations: [{ id, name, address }] + selected      sedi di ritiro disponibili
 payment_methods:  [{ id, name, provider, manual, instructions }] + selected   ammessi per la consegna
 coupon:           { code, dropped }                        dropped = chiave del motivo, se è caduto
 notices:          [shipping_dropped, coupon_dropped, …] come chiavi di traduzione
@@ -103,7 +104,7 @@ manda email: l'ordine nasce solo con `place`.
 
 **`Checkout::place` controlla due cose in più**, perché adesso il cliente le sceglie:
 
-- **ritiro:** la sede deve essere una sede di ritiro attiva e aperta
+- **ritiro:** la sede deve essere una sede di ritiro disponibile
   (`order.pickup_location_unavailable`), con la stessa regola di `Shipments`;
 - **spedizione online:** con la funzionalità `shipping` accesa, consegna `shipping`,
   canale `online` e righe da spedire, serve un metodo che copra la destinazione
@@ -111,8 +112,11 @@ manda email: l'ordine nasce solo con `place`.
   `order.shipping_unavailable`). Gli ordini dell'ufficio e della demo restano come
   oggi.
 
-Le due regole sulle sedi (attiva, di ritiro, aperta) vanno in un posto solo, usato da
-`preview`, `place` e `Shipments`.
+La regola delle sedi di ritiro (attiva, di ritiro, non eliminata, con la sede della
+società dietro) va in un posto solo, usato da `preview`, `place` e `Shipments`.
+**L'orario non conta al checkout:** «aperta» in `SocietyLocations::isOpen` vuol dire
+aperta *adesso*, e chi ordina la sera ritira domani. L'orario resta un controllo di
+`Shipments::createPickup`, quando la merce è pronta.
 
 ### 3. Piano 2 — Modulo `ecommerce`: la pagina
 
@@ -175,7 +179,8 @@ gestionale.
   dice l'avviso.
 - **Coupon che cade** (spesa minima, prodotti esclusi): lo toglie il ricalcolo; il
   motivo arriva in `coupon.dropped`.
-- **Sede che chiude** tra l'anteprima e l'invio: `place` rifiuta.
+- **Sede che chiude** (spenta o tolta dai punti di ritiro) tra l'anteprima e l'invio:
+  `place` rifiuta.
 - **Due schede aperte** sullo stesso carrello: vince l'ultima anteprima; `place`
   ricalcola comunque con i dati del modulo inviato.
 
@@ -184,8 +189,8 @@ senza email; riga di spedizione che compare scegliendo un metodo e sparisce camb
 paese verso una zona non coperta; preselezione dell'unico metodo; commissione che si
 sostituisce cambiando pagamento, `cod_fee` col contrassegno; ritiro senza riga di
 spedizione e con pagamenti filtrati; sede non di ritiro ignorata; coupon caduto;
-nessuna prenotazione, nessun numero. Per `place`: ritiro con sede chiusa o non di
-ritiro rifiutato; ordine online senza metodo rifiutato con `shipping` accesa e
+nessuna prenotazione, nessun numero. Per `place`: ritiro con sede spenta o non di
+ritiro rifiutato, e accettato fuori orario; ordine online senza metodo rifiutato con `shipping` accesa e
 accettato con `shipping` spenta.
 
 *Test del modulo (Piano 2):* controller con l'anteprima (JSON con i campi attesi,
