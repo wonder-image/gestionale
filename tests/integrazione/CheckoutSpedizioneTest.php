@@ -319,4 +319,128 @@ check('l\'anteprima di un ordine o di niente si rifiuta', fn () => prova(static 
         && rifiuto(fn () => Checkout::preview(0, [])) === 'cart.not_a_cart';
 }));
 
+/** Il checkout, senza spedire posta: col bonifico e l'indirizzo di Milano se non si dice altro. */
+function compra(int $cart, array $dati): array
+{
+    Mailer::useTransport(static fn (): bool => true);
+
+    try {
+        return Checkout::place($cart, $dati + [
+            'email' => 'cliente@example.com',
+            'payment_method_id' => pagamento(PaymentTiming::DEFERRED),
+            'fulfillment_type' => 'shipping',
+            'billing' => milano() + ['name' => 'Mario', 'surname' => 'Rossi'],
+        ]);
+    } finally {
+        Mailer::useTransport(null);
+    }
+}
+
+function restaCarrello(int $cart): bool
+{
+    return (string) Order::findById($cart)['stage'] === 'cart'
+        && (int) sqlCount(StockReservation::$table, "order_id = {$cart} AND deleted = 'false'") === 0;
+}
+
+check('il ritiro in una sede che non è di ritiro, spenta o nessuna si rifiuta e il carrello resta', fn () => prova(static function (): bool {
+    foreach ([sede(false), sede(true, true, 'false'), 0] as $sedeId) {
+        $cart = carrello([[articolo(2.0, 10.0), 1]]);
+
+        if (rifiuto(fn () => compra($cart, ['fulfillment_type' => 'pickup', 'location_id' => $sedeId])) !== 'order.pickup_location_unavailable'
+            || !restaCarrello($cart)) {
+            return false;
+        }
+    }
+
+    return true;
+}));
+
+check('il ritiro in una sede fuori orario passa e prenota la merce di quella sede', fn () => prova(static function (): bool {
+    $sede = sede(true, false);
+    $prodotto = articolo(2.0, 10.0);
+    giacenzaIn($prodotto, $sede, 5);
+    $cart = carrello([[$prodotto, 1]]);
+
+    $esito = compra($cart, ['fulfillment_type' => 'pickup', 'location_id' => $sede]);
+    $prenotazioni = righe(StockReservation::class, "order_id = {$cart} AND deleted = 'false'");
+
+    return $esito['status'] === 'pending'
+        && count($prenotazioni) === 1
+        && (int) $prenotazioni[0]['location_id'] === $sede;
+}));
+
+check('il ritiro in una sede senza la merce si ferma e il carrello resta', fn () => prova(static function (): bool {
+    $sede = sede();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+
+    return rifiuto(fn () => compra($cart, ['fulfillment_type' => 'pickup', 'location_id' => $sede])) !== ''
+        && restaCarrello($cart);
+}));
+
+check('una spedizione senza metodo si rifiuta; col metodo passa con la sua riga', fn () => prova(static function (): bool {
+    $metodo = standard();
+    $senza = carrello([[articolo(2.0, 10.0), 1]]);
+    $con = carrello([[articolo(2.0, 10.0), 1]]);
+
+    $rifiuto = rifiuto(fn () => compra($senza, []));
+    $esito = compra($con, ['shipping_method_id' => $metodo]);
+
+    return $rifiuto === 'order.shipping_method_required'
+        && restaCarrello($senza)
+        && $esito['status'] === 'pending'
+        && count(righeDi($con, 'shipping')) === 1;
+}));
+
+check('una spedizione dove nessun metodo arriva si rifiuta', fn () => prova(static function (): bool {
+    $metodo = standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+
+    return rifiuto(fn () => compra($cart, ['shipping_method_id' => $metodo, 'shipping' => parigi()])) === 'order.shipping_unavailable'
+        && restaCarrello($cart);
+}));
+
+check('con le spedizioni spente si compra senza metodo', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    spegniFunzionalita(['shipping']);
+
+    return compra($cart, [])['status'] === 'pending';
+}));
+
+check('un carrello di soli servizi non offre metodi e si compra senza', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(0.0, 10.0, [0, 0, 0], 'false'), 1]]);
+
+    $anteprima = Checkout::preview($cart, ['shipping' => milano()]);
+
+    return $anteprima['shipping_methods'] === ['options' => [], 'selected' => 0]
+        && compra($cart, [])['status'] === 'pending';
+}));
+
+check('un ordine fatto dal sistema non chiede il metodo', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+
+    return compra($cart, ['source' => 'system'])['status'] === 'pending';
+}));
+
+check('con due schede aperte vale il modulo inviato', fn () => prova(static function (): bool {
+    $metodo = standard();
+    $espresso = metodo('Espresso');
+    listino($espresso, zona('Italia Espresso', [['IT', '']]), [[20, 20.0]]);
+    $sede = sede();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+
+    // L'altra scheda sceglie l'espresso, poi il ritiro.
+    Checkout::preview($cart, ['shipping_method_id' => $espresso, 'shipping' => milano()]);
+    Checkout::preview($cart, ['fulfillment_type' => 'pickup', 'location_id' => $sede]);
+    compra($cart, ['shipping_method_id' => $metodo]);
+    $riga = Order::findById($cart);
+
+    return (string) $riga['fulfillment_type'] === 'shipping'
+        && (int) $riga['shipping_method_id'] === $metodo
+        && (int) $riga['location_id'] === 0
+        && (float) $riga['shipping_total'] === 8.0;
+}));
+
 summary();

@@ -70,6 +70,17 @@ final class Shipping
     }
 
     /**
+     * Il carrello ha almeno una riga da spedire? Non guarda la funzionalità né
+     * la destinazione: un carrello di soli servizi risponde no.
+     */
+    public static function shippable(int $cartId): bool
+    {
+        $cart = self::order($cartId);
+
+        return $cart !== [] && self::context($cart, self::itemsOf($cartId), 0.0)['lines'] !== [];
+    }
+
+    /**
      * Il prezzo di un metodo per il carrello.
      *
      * @return array{price: string, free: bool}

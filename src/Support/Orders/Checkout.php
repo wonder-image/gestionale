@@ -193,7 +193,7 @@ final class Checkout
             $dropped = $first['coupon_dropped'] !== '' ? $first['coupon_dropped'] : $second['coupon_dropped'];
             $notices = [];
 
-            foreach ([$first['shipping_dropped'], $second['shipping_dropped'], $dropped !== '' ? UserError::make('coupon.'.$dropped)->getMessage() : ''] as $notice) {
+            foreach ([$first['shipping_dropped'], $second['shipping_dropped'], $dropped !== '' ? UserError::make("coupon.{$dropped}")->getMessage() : ''] as $notice) {
                 if ($notice !== '' && !in_array($notice, $notices, true)) {
                     $notices[] = $notice;
                 }
@@ -251,6 +251,8 @@ final class Checkout
             if (OrderLines::goods($items) === []) {
                 throw UserError::make('order.empty_cart');
             }
+
+            self::checkDelivery($cartId, $type, $order, (string) ($data['source'] ?? 'user'));
 
             // L'utilizzo del coupon si prende qui, a dati di checkout scritti e
             // con la riga del coupon bloccata: chi arriva secondo conta gli usi
@@ -435,6 +437,50 @@ final class Checkout
             if (trim((string) ($address[$key] ?? '')) === '') {
                 throw UserError::make('order.address_incomplete');
             }
+        }
+    }
+
+    /**
+     * Il ritiro vuole una sede di ritiro; la spedizione dal sito vuole un
+     * metodo che arrivi all'indirizzo. Si guarda l'ordine già ricalcolato,
+     * cioè quello che il cliente ha appena inviato: un'anteprima aperta in
+     * un'altra scheda non conta più.
+     *
+     * Con le spedizioni spente non si controlla niente. Il metodo si chiede
+     * solo al cliente online e solo se c'è qualcosa da spedire: un ordine
+     * fatto dal sistema o di soli servizi passa senza.
+     *
+     * @param array<string, mixed> $order
+     */
+    private static function checkDelivery(int $cartId, string $type, array $order, string $source): void
+    {
+        if (!Gestionale::feature('shipping')) {
+            return;
+        }
+
+        if ($type === 'pickup') {
+            if (PickupPoints::find((int) ($order['location_id'] ?? 0)) === null) {
+                throw UserError::make('order.pickup_location_unavailable');
+            }
+
+            return;
+        }
+
+        if ($type !== 'shipping'
+            || (string) ($order['channel'] ?? 'online') !== 'online'
+            || $source !== 'user'
+            || !Shipping::shippable($cartId)) {
+            return;
+        }
+
+        $available = array_column(Shipping::options($cartId), 'method_id');
+
+        if ($available === []) {
+            throw UserError::make('order.shipping_unavailable');
+        }
+
+        if (!in_array((int) ($order['shipping_method_id'] ?? 0), $available, true)) {
+            throw UserError::make('order.shipping_method_required');
         }
     }
 

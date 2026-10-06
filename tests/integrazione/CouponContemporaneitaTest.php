@@ -118,6 +118,8 @@ check('l\'ultimo utilizzo di un coupon lo prende uno solo dei due checkout', fun
     accendiFunzionalita(['orders', 'coupons']);
 
     $prodotto = articoloConGiacenza(10, 'TST-CPGARA-'.substr((string) microtime(true), -6));
+    // Un articolo da non spedire: la gara è sul coupon, non sul metodo di spedizione.
+    ProductModel::update(['requires_shipping' => 'false'], modelloDi($prodotto));
     Product::update(['price' => '50.00', 'sale_price' => '0.00'], $prodotto);
     $spazzatura['prodotti'][] = $prodotto;
 
