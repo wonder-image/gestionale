@@ -386,4 +386,72 @@ check('la fonte e l\'utente passati a ship finiscono nello storico dell\'ordine 
         && (int) $spedizioneLog[1]['user_id'] === 9 && $spedizioneLog[1]['source'] === 'system';
 }));
 
+check('il corriere e il tracking si cambiano dopo, senza toccare lo stato né la data di partenza', fn () => prova(static function (): bool {
+    accendiFunzionalita(['orders', 'shipping']);
+    [$ordine, [$riga]] = ordineDaSpedire([[articolo(1.0), 1]]);
+    $primo = vettore();
+    $id = Shipments::create($ordine, [$riga => 1]);
+    Shipments::ship($id, ['carrier_id' => $primo, 'tracking_number' => 'AA1', 'shipped_at' => '2026-01-10']);
+    $secondo = vettore('https://altro.esempio.it/?n={tracking}');
+    Shipments::update($id, ['carrier_id' => $secondo, 'tracking_number' => 'BB2']);
+    $s = Shipment::findById($id);
+
+    return (int) $s['carrier_id'] === $secondo && $s['tracking_number'] === 'BB2'
+        && $s['tracking_url'] === 'https://altro.esempio.it/?n=BB2'
+        && $s['status'] === 'in_transit' && str_starts_with((string) $s['shipped_at'], '2026-01-10')
+        && count(storicoSpedizione($id)) === 2;
+}));
+
+check('su una spedizione in attesa il tracking si può aggiungere dopo: serve solo per farla partire', fn () => prova(static function (): bool {
+    accendiFunzionalita(['orders', 'shipping']);
+    [$ordine, [$riga]] = ordineDaSpedire([[articolo(1.0), 1]]);
+    $v = vettore();
+    $id = Shipments::create($ordine, [$riga => 1]);
+    Shipments::update($id, ['carrier_id' => $v]);
+    $scelto = (int) Shipment::findById($id)['carrier_id'];
+    $senza = rifiuto(fn () => Shipments::update($id, ['status' => 'in_transit']));
+    $ferma = Shipment::findById($id)['status'] === 'pending';
+    Shipments::update($id, ['status' => 'in_transit', 'tracking_number' => 'CC3']);
+    $s = Shipment::findById($id);
+
+    return $scelto === $v && $senza === 'shipment.tracking_required' && $ferma
+        && $s['status'] === 'in_transit' && $s['tracking_url'] === 'https://tracking.esempio.it/?codice=CC3';
+}));
+
+check('una spedizione già partita non perde il tracking: con un corriere che ne ha bisogno non si svuota', fn () => prova(static function (): bool {
+    accendiFunzionalita(['orders', 'shipping']);
+    [$ordine, [$riga]] = ordineDaSpedire([[articolo(1.0), 1]]);
+    $id = Shipments::create($ordine, [$riga => 1]);
+    Shipments::ship($id, ['carrier_id' => vettore(), 'tracking_number' => 'AA1']);
+    $senza = rifiuto(fn () => Shipments::update($id, ['tracking_number' => '']));
+
+    return $senza === 'shipment.tracking_required' && Shipment::findById($id)['tracking_number'] === 'AA1';
+}));
+
+check('update cambia anche lo stato, con le regole di sempre, e sta tutto o niente', fn () => prova(static function (): bool {
+    accendiFunzionalita(['orders', 'shipping']);
+    [$ordine, [$riga]] = ordineDaSpedire([[articolo(1.0), 1]]);
+    $v = vettore();
+    $id = Shipments::create($ordine, [$riga => 1]);
+    Shipments::ship($id, ['carrier_id' => $v, 'tracking_number' => 'AA1']);
+    $indietro = rifiuto(fn () => Shipments::update($id, ['status' => 'pending', 'tracking_number' => 'ZZ9']));
+    $intatto = Shipment::findById($id)['tracking_number'] === 'AA1';
+    Shipments::update($id, ['status' => 'delivered', 'tracking_number' => 'AA2']);
+    $s = Shipment::findById($id);
+
+    return $indietro === 'shipment.bad_transition' && $intatto
+        && $s['status'] === 'delivered' && $s['tracking_number'] === 'AA2'
+        && statoOrdine($ordine)['fulfillment_status'] === 'fulfilled';
+}));
+
+check('update non cambia il corriere di un ritiro né di una spedizione annullata', fn () => prova(static function (): bool {
+    accendiFunzionalita(['orders', 'shipping']);
+    [$ordine, [$riga]] = ordineDaSpedire([[articolo(1.0), 1]]);
+    $id = Shipments::create($ordine, [$riga => 1]);
+    Shipments::cancel($id);
+    $annullata = rifiuto(fn () => Shipments::update($id, ['carrier_id' => vettore()]));
+
+    return $annullata === 'shipment.bad_transition';
+}));
+
 summary();

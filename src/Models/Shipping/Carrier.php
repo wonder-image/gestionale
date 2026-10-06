@@ -43,7 +43,7 @@ final class Carrier extends Model
     {
         return [
             Field::key('code')->text()->uniqueCode(Codes::CARRIER),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(false),
             Field::key('tracking_url_template')->text()->sanitize(false),
             Field::key('provider')->text()->sanitize(false),
             Field::key('active')->text()->sanitize(false),

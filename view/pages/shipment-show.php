@@ -22,4 +22,13 @@ echo ResourceFormLayoutRenderer::renderLayout(ShipmentResource::showLayoutSchema
 // Le finestre stanno fuori dal disegno: il layout non contiene campi.
 echo ShipmentResource::modalsFor($spedizione);
 
+// Dal menu ⋯ dell'elenco («Cambia stato», «Tracking e corriere») si arriva qui con la finestra già aperta.
+if (($_GET['apri'] ?? '') === 'modifica') {
+    $finestra = json_encode(ShipmentResource::editModalId((int) ($spedizione['id'] ?? 0)));
+    echo '<script>window.addEventListener("load", function () {'
+        .'var el = document.getElementById('.$finestra.');'
+        .'if (el && window.bootstrap && bootstrap.Modal) { bootstrap.Modal.getOrCreateInstance(el).show(); }'
+        .'});</script>';
+}
+
 View::end();

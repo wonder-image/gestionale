@@ -99,8 +99,8 @@ final class OrderActionResource extends NavigationOnlyResource
      * pagamento», e il contrassegno scarica comunque la merce.
      *
      * `$values` porta i campi delle finestre: `qty` (riga => quantità),
-     * `carrier_id`, `tracking_number`, `after` (`ship` = segna subito spedita)
-     * e `shipment_id`. Una spedizione indicata deve essere di quest'ordine.
+     * `carrier_id`, `tracking_number`, `status` (il nuovo stato di una spedizione),
+     * `after` (`ship` = segna subito spedita) e `shipment_id`. Una spedizione indicata deve essere di quest'ordine.
      *
      * @param array<string, mixed> $values
      * @return array{ok: bool, message: string}
@@ -128,6 +128,7 @@ final class OrderActionResource extends NavigationOnlyResource
                 OrderActions::SHIP => static::ship($orderId, $name, $source, $values),
                 OrderActions::DELIVER => static::deliver($orderId, $name, $source, $values),
                 OrderActions::CANCEL_SHIPMENT => static::cancelShipment($orderId, $name, $source, $values),
+                OrderActions::UPDATE_SHIPMENT => static::updateShipment($orderId, $name, $source, $values),
                 OrderActions::READY => static::ready($orderId, $name, $source, $values),
                 OrderActions::PICKED_UP => static::pickedUp($orderId, $name, $source, $values),
                 default => ['ok' => false, 'message' => 'Azione non riconosciuta.'],
@@ -247,6 +248,7 @@ final class OrderActionResource extends NavigationOnlyResource
             'tracking_number' => is_scalar($values['tracking_number'] ?? null) ? trim((string) $values['tracking_number']) : '',
             'after' => (string) ($values['after'] ?? ''),
             'shipment_id' => (int) ($values['shipment_id'] ?? 0),
+            'status' => is_scalar($values['status'] ?? null) ? trim((string) $values['status']) : '',
         ];
     }
 
@@ -360,6 +362,36 @@ final class OrderActionResource extends NavigationOnlyResource
         Shipments::cancel((int) $shipment['id'], $source);
 
         return ['ok' => true, 'message' => 'Spedizione annullata: le quantità tornano da spedire per '.$name.'.'];
+    }
+
+    /**
+     * «Modifica spedizione»: corriere, tracking e stato in un colpo solo. I
+     * campi lasciati vuoti non cambiano; lo stato passa dalle regole di sempre.
+     *
+     * @param array{source: string, user_id: int} $source @param array<string, mixed> $values
+     */
+    private static function updateShipment(int $orderId, string $name, array $source, array $values): array
+    {
+        if (($stop = static::guardShipping()) !== null) {
+            return $stop;
+        }
+
+        $shipment = static::shipmentOf($orderId, $values);
+
+        if ($shipment === null) {
+            return ['ok' => false, 'message' => 'Spedizione non trovata.'];
+        }
+
+        $data = $source + ['status' => (string) ($values['status'] ?? '')];
+
+        if ((string) $shipment['type'] === 'delivery') {
+            $data['carrier_id'] = (int) ($values['carrier_id'] ?? 0);
+            $data['tracking_number'] = (string) ($values['tracking_number'] ?? '');
+        }
+
+        Shipments::update((int) $shipment['id'], $data);
+
+        return ['ok' => true, 'message' => 'La spedizione di '.$name.' è aggiornata.'];
     }
 
     /**

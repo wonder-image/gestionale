@@ -24,21 +24,25 @@ final class OrderActions
     public const SHIP = 'ship';
     public const DELIVER = 'deliver';
     public const CANCEL_SHIPMENT = 'cancel_shipment';
+    public const UPDATE_SHIPMENT = 'update_shipment';
 
     private const LABELS = [
         self::CONFIRM => 'Conferma', self::FULFILL => 'Segna evaso', self::CANCEL => 'Annulla',
         self::CREATE_SHIPMENT => 'Crea spedizione', self::READY => 'Pronto per il ritiro', self::PICKED_UP => 'Ritirato',
         self::SHIP => 'Segna spedita', self::DELIVER => 'Segna consegnata', self::CANCEL_SHIPMENT => 'Annulla spedizione',
+        self::UPDATE_SHIPMENT => 'Modifica spedizione',
     ];
     private const CLASSES = [
         self::CONFIRM => 'btn-success', self::FULFILL => 'btn-primary', self::CANCEL => 'btn-outline-danger',
         self::CREATE_SHIPMENT => 'btn-primary', self::READY => 'btn-primary', self::PICKED_UP => 'btn-success',
         self::SHIP => 'btn-primary', self::DELIVER => 'btn-success', self::CANCEL_SHIPMENT => 'btn-outline-danger',
+        self::UPDATE_SHIPMENT => 'btn-outline-primary',
     ];
     private const ICONS = [
         self::CONFIRM => 'bi-check2-circle', self::FULFILL => 'bi-box-seam', self::CANCEL => 'bi-x-circle',
         self::CREATE_SHIPMENT => 'bi-box-seam', self::READY => 'bi-bag-check', self::PICKED_UP => 'bi-check2-circle',
         self::SHIP => 'bi-truck', self::DELIVER => 'bi-check2-circle', self::CANCEL_SHIPMENT => 'bi-x-circle',
+        self::UPDATE_SHIPMENT => 'bi-pencil',
     ];
 
     /**
@@ -127,6 +131,25 @@ final class OrderActions
             'in_transit', 'out_for_delivery', 'failed_attempt', 'exception' => [self::DELIVER],
             default => [],
         };
+    }
+
+    /**
+     * «Modifica spedizione» (stato, corriere, tracking) vale finché c'è
+     * qualcosa da cambiare: una consegna anche già consegnata, perché il
+     * corriere o il numero si possono correggere; non una annullata o resa, né
+     * un ritiro già ritirato o annullato.
+     *
+     * @param array<string, mixed> $shipment
+     */
+    public static function canEditShipment(array $shipment): bool
+    {
+        $stato = (string) ($shipment['status'] ?? '');
+
+        if ((string) ($shipment['type'] ?? 'delivery') === 'pickup') {
+            return in_array($stato, ['pending', 'ready_for_pickup'], true);
+        }
+
+        return $stato !== '' && !in_array($stato, ['cancelled', 'returned'], true);
     }
 
     /**

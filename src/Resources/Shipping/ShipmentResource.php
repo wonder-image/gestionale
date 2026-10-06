@@ -33,6 +33,7 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Orders\StatusLabels;
 use Wonder\Plugin\Gestionale\Support\Shipping\Carriers;
 use Wonder\Plugin\Gestionale\Support\Shipping\ShipmentAlerts;
+use Wonder\Plugin\Gestionale\Support\Shipping\ShipmentFlow;
 use Wonder\Plugin\Gestionale\Support\Shipping\Shipments;
 
 /**
@@ -122,8 +123,52 @@ final class ShipmentResource extends GestionaleResource
                 ->size('medium')
                 ->hiddenDevice('mobile')
                 ->formatter(static fn (array $row): string => static::escape(OrderSheet::date((string) ($row['shipped_at'] ?? '')))),
-            TableColumn::key('actions')->button()->actions(['view']),
+            TableColumn::key('actions')->button()->actions([
+                'view',
+                'stato' => [
+                    'label' => 'Cambia stato',
+                    'href' => static::editUrlTemplate(),
+                    'filter' => ['row' => ['status' => static::changeableStatuses()]],
+                ],
+                'tracking' => [
+                    'label' => 'Tracking e corriere',
+                    'href' => static::editUrlTemplate(),
+                    'filter' => ['row' => ['type' => 'delivery', 'status' => static::editableDeliveryStatuses()]],
+                ],
+            ]),
         ];
+    }
+
+    /**
+     * Dove portano «Cambia stato» e «Tracking e corriere» del menu ⋯: la
+     * scheda della riga, con la finestra di modifica già aperta (`{id}` lo
+     * riempie il core con la riga).
+     */
+    private static function editUrlTemplate(): string
+    {
+        $segnaposto = 2147483000;
+        $url = static::detailUrl($segnaposto);
+
+        return str_replace((string) $segnaposto, '{id}', $url).(str_contains($url, '?') ? '&' : '?').'apri=modifica';
+    }
+
+    /** Gli stati da cui una spedizione può ancora andare avanti. @return list<string> */
+    private static function changeableStatuses(): array
+    {
+        return array_values(array_filter(
+            Shipment::statuses(),
+            static fn (string $stato): bool => ShipmentFlow::allowed('delivery', $stato) !== [] || ShipmentFlow::allowed('pickup', $stato) !== []
+        ));
+    }
+
+    /** Gli stati di una consegna in cui corriere e tracking si possono ancora cambiare. @return list<string> */
+    private static function editableDeliveryStatuses(): array
+    {
+        return array_values(array_filter(
+            Shipment::statuses(),
+            static fn (string $stato): bool => OrderActions::canEditShipment(['type' => 'delivery', 'status' => $stato])
+                && in_array($stato, Shipment::DELIVERY_STATUSES, true)
+        ));
     }
 
     public static function tableLayoutSchema(): TableLayoutSchema
@@ -139,7 +184,12 @@ final class ShipmentResource extends GestionaleResource
             ->results()
             ->hideButtonAdd()
             ->filterSearch()
-            ->searchFields(['code', 'tracking_number'])
+            ->searchFields(['code', 'tracking_number', [
+                'table' => Order::$table,
+                'local_key' => 'order_id',
+                'foreign_key' => 'id',
+                'columns' => ['order_number'],
+            ]])
             ->filterCustom('Stato', 'status', $stati)
             ->filterCustom('Tipo', 'type', ['' => 'Tutti', 'delivery' => 'Consegna', 'pickup' => 'Ritiro'])
             ->filterCustom('Corriere', 'carrier_id', ['' => 'Tutti'] + static::carrierOptions())
@@ -317,6 +367,11 @@ final class ShipmentResource extends GestionaleResource
         return 'wi-spedizione-spedisci-'.$shipmentId;
     }
 
+    public static function editModalId(int $shipmentId): string
+    {
+        return 'wi-spedizione-modifica-'.$shipmentId;
+    }
+
     /**
      * I pulsanti di una spedizione secondo il suo stato: «Segna spedita» apre
      * la sua finestra (corriere e tracking), gli altri sono piccoli moduli che
@@ -362,6 +417,11 @@ final class ShipmentResource extends GestionaleResource
             $html[] = $pulsante->render('bootstrap');
         }
 
+        if (OrderActions::canEditShipment($shipment)) {
+            $html[] = '<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#'
+                .static::escape(static::editModalId($id)).'">'.static::escape(OrderActions::label(OrderActions::UPDATE_SHIPMENT)).'</button>';
+        }
+
         return implode(' ', $html);
     }
 
@@ -377,6 +437,11 @@ final class ShipmentResource extends GestionaleResource
         $corrieri = null;
 
         foreach ($shipments as $shipment) {
+            if (OrderActions::canEditShipment($shipment)) {
+                $corrieri ??= static::carrierOptions();
+                $html .= static::editModal($shipment, $corrieri, $back);
+            }
+
             if (!in_array(OrderActions::SHIP, OrderActions::shipmentActions($shipment), true)) {
                 continue;
             }
@@ -405,6 +470,48 @@ final class ShipmentResource extends GestionaleResource
         }
 
         return $html;
+    }
+
+    /**
+     * La finestra «Modifica spedizione»: lo stato (quello di adesso e quelli
+     * dove può andare), e per una consegna anche corriere e tracking. Il
+     * corriere si sceglie spesso dopo, per chi costa meno.
+     *
+     * @param array<string, mixed> $shipment
+     * @param array<int, string> $corrieri
+     */
+    private static function editModal(array $shipment, array $corrieri, string $back): string
+    {
+        $id = (int) ($shipment['id'] ?? 0);
+        $attuale = (string) ($shipment['status'] ?? '');
+        $stati = [$attuale => StatusLabels::shipment($attuale)['label']];
+
+        foreach (ShipmentFlow::allowed((string) ($shipment['type'] ?? 'delivery'), $attuale) as $stato) {
+            $stati[$stato] = StatusLabels::shipment($stato)['label'];
+        }
+
+        $campi = [FormField::key('status')->select($stati)->label('Stato')->value($attuale)->columnSpan(12)];
+
+        if ((string) ($shipment['type'] ?? 'delivery') === 'delivery') {
+            $campi[] = FormField::key('carrier_id')->select(['0' => 'Scegli il corriere'] + $corrieri)
+                ->label('Corriere')->value((string) ((int) ($shipment['carrier_id'] ?? 0)))->columnSpan(6);
+            $campi[] = FormField::key('tracking_number')->text()->label('Tracking')
+                ->value(html_entity_decode((string) ($shipment['tracking_number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'))->columnSpan(6);
+        }
+
+        return Modal::make(trim('Modifica spedizione: '.html_entity_decode((string) ($shipment['code'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')))
+            ->id(static::editModalId($id))
+            ->form(OrderActionResource::submitUrl(), hidden: [
+                'order_id' => (int) ($shipment['order_id'] ?? 0),
+                'shipment_id' => $id,
+                'action' => OrderActions::UPDATE_SHIPMENT,
+                'torna' => $back,
+            ])
+            ->columns(12)
+            ->components($campi)
+            ->cancel('Indietro')
+            ->submit('Salva', 'primary')
+            ->render('bootstrap');
     }
 
     /**

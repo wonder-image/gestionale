@@ -193,4 +193,51 @@ check('con la funzionalità spenta i riquadri non leggono niente e non disegnano
 
 check('il numero di giorni è sette, costante del modulo', fn () => ShipmentAlerts::STALE_DAYS === 7);
 
+check('l\'elenco si cerca anche per numero d\'ordine, oltre che per codice e tracking', function () {
+    $campi = (array) (ShipmentResource::tableLayoutSchema()->toArray()['search_fields'] ?? []);
+    $relazione = null;
+
+    foreach ($campi as $campo) {
+        if (is_array($campo)) {
+            $relazione = $campo;
+        }
+    }
+
+    return in_array('code', $campi, true) && in_array('tracking_number', $campi, true)
+        && is_array($relazione)
+        && ($relazione['local_key'] ?? '') === 'order_id' && ($relazione['foreign_key'] ?? '') === 'id'
+        && ($relazione['columns'] ?? []) === ['order_number'];
+});
+
+check('il menu ⋯ della riga porta a «Cambia stato» e «Tracking e corriere» della scheda', function () {
+    foreach (ShipmentResource::tableSchema() as $colonna) {
+        if ((string) $colonna->name !== 'actions') {
+            continue;
+        }
+
+        $azioni = (array) $colonna->getSchema('actions');
+        $stato = (array) ($azioni['stato'] ?? []);
+        $tracking = (array) ($azioni['tracking'] ?? []);
+
+        return ($stato['label'] ?? '') === 'Cambia stato'
+            && ($tracking['label'] ?? '') === 'Tracking e corriere'
+            && str_contains((string) ($stato['href'] ?? ''), '{id}') && str_contains((string) ($stato['href'] ?? ''), 'apri=modifica')
+            && str_contains((string) ($tracking['href'] ?? ''), '{id}') && str_contains((string) ($tracking['href'] ?? ''), 'apri=modifica')
+            && ($stato['filter']['row']['status'] ?? []) === ['pending', 'label_created', 'in_transit', 'out_for_delivery', 'failed_attempt', 'exception', 'ready_for_pickup']
+            && ($tracking['filter']['row']['type'] ?? '') === 'delivery'
+            && !in_array('cancelled', (array) ($tracking['filter']['row']['status'] ?? []), true);
+    }
+
+    return false;
+});
+
+check('modificare la spedizione vale finché ha ancora qualcosa da dire: non per le chiuse o annullate', function () {
+    $puo = static fn (string $tipo, string $stato): bool => OrderActions::canEditShipment(['type' => $tipo, 'status' => $stato]);
+
+    return $puo('delivery', 'pending') && $puo('delivery', 'in_transit') && $puo('delivery', 'delivered')
+        && !$puo('delivery', 'cancelled') && !$puo('delivery', 'returned')
+        && $puo('pickup', 'pending') && $puo('pickup', 'ready_for_pickup')
+        && !$puo('pickup', 'picked_up') && !$puo('pickup', 'cancelled');
+});
+
 summary();

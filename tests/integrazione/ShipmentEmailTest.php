@@ -104,7 +104,7 @@ check('ship manda al cliente l\'email di spedito con tracking, vettore e link', 
         && $mail[0]['to'] === 'cliente@example.com'
         && str_contains($mail[0]['subject'], date('Y').'/77')
         && str_contains($mail[0]['body'], 'AB 12')
-        && str_contains($mail[0]['body'], 'Corriere &lt;Di&gt; Prova')
+        && str_contains($mail[0]['body'], 'Corriere &lt;di&gt; prova')
         && str_contains($mail[0]['body'], 'https://tracking.esempio.it/?codice=AB%2012');
 }));
 

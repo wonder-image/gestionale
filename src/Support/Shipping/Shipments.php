@@ -313,61 +313,129 @@ final class Shipments
         self::guardFeature();
 
         // L'email dice quale sia: parte a transazione chiusa, una volta sola.
-        $mail = Transaction::run(static function () use ($shipmentId, $to, $options): string {
-            $orderId = self::orderOf($shipmentId);
-            $order = self::lockOrder($orderId);
+        $mail = Transaction::run(static fn (): string => self::advanceInside($shipmentId, $to, $options));
+
+        if ($mail !== '') {
+            self::notify($shipmentId, $mail);
+        }
+    }
+
+    /**
+     * Il lavoro di `advance` dentro la transazione, senza l'email: la chiama
+     * anche `update`.
+     *
+     * @param array<string, mixed> $options
+     * @return string la chiave dell'email da mandare a transazione chiusa, o vuoto
+     * @throws UserError
+     */
+    private static function advanceInside(int $shipmentId, string $to, array $options): string
+    {
+        $orderId = self::orderOf($shipmentId);
+        $order = self::lockOrder($orderId);
+        $shipment = self::lock($shipmentId);
+        $from = (string) $shipment['status'];
+
+        if ($from === $to) {
+            return '';
+        }
+
+        if (!in_array($to, ShipmentFlow::allowed((string) $shipment['type'], $from), true)) {
+            throw UserError::make('shipment.bad_transition');
+        }
+
+        if ($to === 'cancelled') {
+            self::cancel($shipmentId, $options);
+
+            return '';
+        }
+
+        // Un ritiro si prepara e si consegna solo per un ordine ancora aperto; una consegna già
+        // partita si registra anche a ordine chiuso, e quella ferma passa da `shipInside`.
+        if ((string) $shipment['type'] === 'pickup'
+            && ((string) $order['stage'] !== 'order' || !in_array((string) $order['status'], Lifecycle::COMMITTED, true))) {
+            throw UserError::make('shipment.order_not_open');
+        }
+
+        $mail = '';
+
+        if ((string) $shipment['type'] === 'delivery' && in_array($from, ['pending', 'label_created'], true)) {
+            // Dal magazzino al cliente passa dal «partita»: servono vettore e tracking.
+            $mail = self::shipInside($shipmentId, $options) ? 'shipped' : '';
             $shipment = self::lock($shipmentId);
             $from = (string) $shipment['status'];
 
             if ($from === $to) {
-                return '';
+                return $mail;
+            }
+        }
+
+        $values = ['status' => $to];
+
+        if ($to === 'delivered') {
+            $values['delivered_at'] = date('Y-m-d H:i:s');
+        }
+
+        self::write($shipment, $values, $to, $options);
+        self::syncOrder((int) $order['id'], $options);
+
+        return $to === 'ready_for_pickup' ? 'ready_for_pickup' : $mail;
+    }
+
+    /**
+     * Cambia corriere e tracking (e, se serve, lo stato) di una spedizione già
+     * creata: ai clienti il corriere si sceglie spesso dopo, per chi costa meno.
+     *
+     * Vale per le consegne non annullate né rese. Con un corriere che ha il
+     * link di tracking il numero serve sempre, tranne finché la spedizione
+     * aspetta di partire. `status`, se dato, passa dalle regole di `advance`.
+     * Tutto o niente: se lo stato è rifiutato non resta scritto nemmeno il
+     * corriere. La data di partenza non cambia.
+     *
+     * @param array{carrier_id?: int, tracking_number?: string, status?: string, source?: string, user_id?: int} $data
+     * @throws UserError
+     */
+    public static function update(int $shipmentId, array $data = []): void
+    {
+        self::guardFeature();
+
+        $mail = Transaction::run(static function () use ($shipmentId, $data): string {
+            $orderId = self::orderOf($shipmentId);
+            self::lockOrder($orderId);
+            $shipment = self::lock($shipmentId);
+            $to = trim((string) ($data['status'] ?? ''));
+
+            if (array_key_exists('carrier_id', $data) || array_key_exists('tracking_number', $data)) {
+                self::updateShipping($shipment, $data);
             }
 
-            if (!in_array($to, ShipmentFlow::allowed((string) $shipment['type'], $from), true)) {
-                throw UserError::make('shipment.bad_transition');
-            }
-
-            if ($to === 'cancelled') {
-                self::cancel($shipmentId, $options);
-
-                return '';
-            }
-
-            // Un ritiro si prepara e si consegna solo per un ordine ancora aperto; una consegna già
-            // partita si registra anche a ordine chiuso, e quella ferma passa da `shipInside`.
-            if ((string) $shipment['type'] === 'pickup'
-                && ((string) $order['stage'] !== 'order' || !in_array((string) $order['status'], Lifecycle::COMMITTED, true))) {
-                throw UserError::make('shipment.order_not_open');
-            }
-
-            $mail = '';
-
-            if ((string) $shipment['type'] === 'delivery' && in_array($from, ['pending', 'label_created'], true)) {
-                // Dal magazzino al cliente passa dal «partita»: servono vettore e tracking.
-                $mail = self::shipInside($shipmentId, $options) ? 'shipped' : '';
-                $shipment = self::lock($shipmentId);
-                $from = (string) $shipment['status'];
-
-                if ($from === $to) {
-                    return $mail;
-                }
-            }
-
-            $values = ['status' => $to];
-
-            if ($to === 'delivered') {
-                $values['delivered_at'] = date('Y-m-d H:i:s');
-            }
-
-            self::write($shipment, $values, $to, $options);
-            self::syncOrder((int) $order['id'], $options);
-
-            return $to === 'ready_for_pickup' ? 'ready_for_pickup' : $mail;
+            return $to !== '' ? self::advanceInside($shipmentId, $to, $data) : '';
         });
 
         if ($mail !== '') {
             self::notify($shipmentId, $mail);
         }
+    }
+
+    /**
+     * Scrive corriere, tracking e link; non tocca stato né data di partenza.
+     *
+     * @param array<string, mixed> $shipment la riga bloccata
+     * @param array<string, mixed> $data
+     * @throws UserError
+     */
+    private static function updateShipping(array $shipment, array $data): void
+    {
+        $status = (string) $shipment['status'];
+
+        if ((string) $shipment['type'] !== 'delivery' || in_array($status, ['cancelled', 'returned'], true)) {
+            throw UserError::make('shipment.bad_transition');
+        }
+
+        $waiting = in_array($status, ['pending', 'label_created'], true);
+        $values = self::shippingValues($shipment, $data, !$waiting);
+        unset($values['shipped_at']);
+
+        Shipment::update($values, (int) $shipment['id']);
     }
 
     /**
@@ -544,7 +612,7 @@ final class Shipments
      * @return array<string, mixed>
      * @throws UserError
      */
-    private static function shippingValues(array $shipment, array $data): array
+    private static function shippingValues(array $shipment, array $data, bool $trackingRequired = true): array
     {
         $carrierId = array_key_exists('carrier_id', $data) && (int) $data['carrier_id'] > 0
             ? (int) $data['carrier_id']
@@ -561,7 +629,7 @@ final class Shipments
             : trim((string) $shipment['tracking_number']);
         $url = $carrier !== null ? Carriers::trackingUrl($carrier, $tracking) : '';
 
-        if ($carrier !== null && trim((string) ($carrier['tracking_url_template'] ?? '')) !== '' && $tracking === '') {
+        if ($trackingRequired && $carrier !== null && trim((string) ($carrier['tracking_url_template'] ?? '')) !== '' && $tracking === '') {
             throw UserError::make('shipment.tracking_required');
         }
 

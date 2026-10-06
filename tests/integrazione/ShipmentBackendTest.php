@@ -352,4 +352,44 @@ check('le azioni di una spedizione in viaggio: solo «Segna consegnata»', fn ()
     return str_contains($html, 'Segna consegnata') && !str_contains($html, 'Annulla spedizione');
 }));
 
+check('«Modifica spedizione» cambia corriere, tracking e stato dalla porta delle azioni', fn () => prova(static function (): bool {
+    accendiFunzionalita(['orders', 'shipping']);
+    [$ordine, [$a]] = ordineDaSpedire([[articolo(1.0), 1]]);
+    azione('create_shipment', $ordine, ['qty' => [$a => 1]]);
+    $id = (int) spedizioniDi($ordine)[0]['id'];
+    $v = vettore();
+    $scelto = azione('update_shipment', $ordine, ['shipment_id' => $id, 'carrier_id' => $v, 'tracking_number' => '', 'status' => '']);
+    $senza = azione('update_shipment', $ordine, ['shipment_id' => $id, 'carrier_id' => $v, 'tracking_number' => '', 'status' => 'in_transit']);
+    $parte = azione('update_shipment', $ordine, ['shipment_id' => $id, 'carrier_id' => $v, 'tracking_number' => 'QQ7', 'status' => 'in_transit']);
+    $s = Shipment::findById($id);
+
+    return $scelto['ok'] === true && $senza['ok'] === false && str_contains($senza['message'], 'tracking')
+        && $parte['ok'] === true && $s['status'] === 'in_transit' && $s['tracking_number'] === 'QQ7' && (int) $s['carrier_id'] === $v;
+}));
+
+check('«Modifica spedizione» non tocca una spedizione di un altro ordine', fn () => prova(static function (): bool {
+    accendiFunzionalita(['orders', 'shipping']);
+    [$ordine, [$a]] = ordineDaSpedire([[articolo(1.0), 1]]);
+    [$altro] = ordineDaSpedire([[articolo(1.0), 1]]);
+    azione('create_shipment', $ordine, ['qty' => [$a => 1]]);
+    $id = (int) spedizioniDi($ordine)[0]['id'];
+    $esito = azione('update_shipment', $altro, ['shipment_id' => $id, 'carrier_id' => vettore(), 'tracking_number' => 'X1']);
+
+    return $esito['ok'] === false && (int) Shipment::findById($id)['carrier_id'] === 0;
+}));
+
+check('la scheda offre «Modifica» e la sua finestra con stato, corriere e tracking', fn () => prova(static function (): bool {
+    accendiFunzionalita(['orders', 'shipping']);
+    [$ordine, [$a]] = ordineDaSpedire([[articolo(1.0), 1]]);
+    azione('create_shipment', $ordine, ['qty' => [$a => 1], 'carrier_id' => vettore(), 'tracking_number' => 'K1', 'after' => 'ship']);
+    $s = spedizioniDi($ordine)[0];
+    $pulsanti = ShipmentResource::actionsHtml($s, '');
+    $finestra = ShipmentResource::modalsFor($s);
+
+    return str_contains($pulsanti, ShipmentResource::editModalId((int) $s['id']))
+        && str_contains($finestra, 'name="status"') && str_contains($finestra, 'name="carrier_id"') && str_contains($finestra, 'name="tracking_number"')
+        && str_contains($finestra, 'value="update_shipment"')
+        && str_contains($finestra, 'value="K1"');
+}));
+
 summary();
