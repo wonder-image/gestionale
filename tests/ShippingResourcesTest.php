@@ -202,6 +202,33 @@ $errore = static function (array $rates): string {
     return '';
 };
 
+check('readRates legge il tipo di prezzo: a scaglioni se non detto, fisso con il suo importo', function () {
+    $rates = RateForm::readRates([
+        'rate_1_on' => 'true',
+        'rate_2_on' => 'true', 'rate_2_price_type' => 'fixed', 'rate_2_fixed_price' => '7,50',
+        'rate_3_on' => 'true', 'rate_3_price_type' => 'boh', 'rate_3_fixed_price' => ['x'],
+    ]);
+
+    return $rates[1]['price_type'] === 'brackets' && $rates[1]['fixed_price'] === null
+        && $rates[2]['price_type'] === 'fixed' && $rates[2]['fixed_price'] === '7.50'
+        && $rates[3]['price_type'] === 'brackets';
+});
+
+check('un listino a prezzo fisso non vuole scaglioni ma vuole l\'importo', function () use ($listino, $errore) {
+    $fisso = static fn (array $in = []): array => $listino($in + ['price_type' => 'fixed', 'fixed_price' => '7.50', 'brackets' => []]);
+
+    return $errore([1 => $fisso()]) === ''
+        && $errore([1 => $fisso(['fixed_price' => '0'])]) === ''
+        && $errore([1 => $fisso(['fixed_price' => null])]) === 'shipping.fixed_price_missing'
+        && $errore([1 => $fisso(['fixed_price' => '-1'])]) === 'shipping.rate_negative';
+});
+
+check('un listino a prezzo fisso non si ferma sui campi a scaglioni nascosti', function () use ($listino, $errore) {
+    return $errore([1 => $listino([
+        'price_type' => 'fixed', 'fixed_price' => '5', 'brackets' => [], 'markup_percent' => '-500', 'min_price' => '-3',
+    ])]) === '';
+});
+
 check('un listino a posto passa, anche con il margine che porta sotto zero', function () use ($listino, $errore) {
     return $errore([1 => $listino()]) === ''
         && $errore([1 => $listino(['markup_percent' => '-100'])]) === ''
@@ -254,7 +281,7 @@ check('le frasi della validazione esistono in italiano', function () {
     $frasi = $json['gestionale']['errors']['shipping'] ?? [];
 
     foreach ([
-        'rate_no_brackets', 'bracket_duplicate', 'bracket_weight', 'bracket_amount', 'excess_duplicate',
+        'rate_no_brackets', 'fixed_price_missing', 'bracket_duplicate', 'bracket_weight', 'bracket_amount', 'excess_duplicate',
         'rate_negative', 'markup_out_of_range', 'zone_no_areas', 'area_duplicate', 'area_country',
     ] as $chiave) {
         if (trim((string) ($frasi[$chiave] ?? '')) === '') {

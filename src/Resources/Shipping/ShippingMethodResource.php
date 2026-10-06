@@ -114,31 +114,41 @@ final class ShippingMethodResource extends GestionaleResource
     }
 
     /**
-     * I campi del listino di una zona. Tutti, tranne l'interruttore, si vedono
-     * solo a listino acceso.
+     * I campi del listino di una zona. Il layout li mette in un contenitore
+     * che si vede solo a listino acceso; qui restano le regole sul tipo di
+     * prezzo: a scaglioni (a peso) o fisso, che non ha gli altri campi.
      *
      * @return list<object>
      */
     protected static function rateFields(int $zone): array
     {
         $name = static fn (string $field): string => 'rate_'.$zone.'_'.$field;
-        $on = static fn (object $input): object => $input->visibleWhen('rate_'.$zone.'_on', 'true');
+        $tiered = static fn (object $input): object => $input->visibleWhen('rate_'.$zone.'_price_type', 'brackets');
 
         return [
             FormField::key($name('on'))->toggle()->value('false')->label('Spedisce verso questa zona'),
-            $on(FormField::key($name('excess_mode'))
+            FormField::key($name('price_type'))
+                ->select(['brackets' => 'A scaglioni di peso', 'fixed' => 'Fisso'])
+                ->value('brackets')
+                ->label('Prezzo'),
+            FormField::key($name('fixed_price'))
+                ->price()
+                ->decimal(2)
+                ->label('Prezzo fisso')
+                ->visibleWhen($name('price_type'), 'fixed'),
+            $tiered(FormField::key($name('excess_mode'))
                 ->select(['total_weight' => 'Tutto il peso', 'excess_only' => 'Solo l\'eccedenza'])
                 ->value('total_weight')
                 ->label('Oltre lo scaglione più alto, la tariffa al kg si applica a')),
-            $on(FormField::key($name('volumetric_divisor'))->number()->integer()->label('Divisore volumetrico')),
-            $on(FormField::key($name('fuel_surcharge_percent'))->number()->decimal(2)->suffix(' %')->value('0')->label('Maggiorazione carburante')),
-            $on(FormField::key($name('markup_percent'))->number()->decimal(2)->suffix(' %')->value('0')->label('Margine')),
-            $on(FormField::key($name('rounding_step'))->price()->decimal(2)->label('Arrotonda al')),
-            $on(FormField::key($name('min_price'))->price()->decimal(2)->value('0')->label('Prezzo minimo')),
-            $on(FormField::key($name('free_over_amount'))->price()->decimal(2)->label('Gratis sopra')),
-            $on(FormField::key($name('free_under_weight'))->number()->decimal(3)->suffix(' kg')->label('Gratis fino a')),
-            $on(FormField::key($name('cod_fee'))->price()->decimal(2)->value('0')->label('Commissione contrassegno')),
-            $on(FormField::key($name('brackets'))
+            $tiered(FormField::key($name('volumetric_divisor'))->number()->integer()->label('Divisore volumetrico')),
+            $tiered(FormField::key($name('fuel_surcharge_percent'))->number()->decimal(2)->suffix(' %')->value('0')->label('Maggiorazione carburante')),
+            $tiered(FormField::key($name('markup_percent'))->number()->decimal(2)->suffix(' %')->value('0')->label('Margine')),
+            $tiered(FormField::key($name('rounding_step'))->price()->decimal(2)->label('Arrotonda al')),
+            $tiered(FormField::key($name('min_price'))->price()->decimal(2)->value('0')->label('Prezzo minimo')),
+            $tiered(FormField::key($name('free_over_amount'))->price()->decimal(2)->label('Gratis sopra')),
+            $tiered(FormField::key($name('free_under_weight'))->number()->decimal(3)->suffix(' kg')->label('Gratis fino a')),
+            FormField::key($name('cod_fee'))->price()->decimal(2)->value('0')->label('Commissione contrassegno'),
+            $tiered(FormField::key($name('brackets'))
                 ->repeater([
                     RepeaterColumn::key('type')
                         ->select(['price' => 'Prezzo fino a', 'excess' => 'Tariffa al kg oltre'])
@@ -203,19 +213,23 @@ final class ShippingMethodResource extends GestionaleResource
 
             $left[] = (new Card)->components([
                 SectionTitle::make((string) ($zone['name'] ?? ''))
-                    ->tooltip('Il listino di questa zona. Il prezzo è quello dello scaglione che copre il peso del carrello; oltre l\'ultimo vale la tariffa al kg. Poi si aggiungono carburante e margine, si arrotonda e si applica il minimo. Il peso conta il maggiore tra reale e volumetrico (lunghezza × larghezza × altezza ÷ divisore). Con «Gratis sopra» la spedizione è gratuita sopra quell\'importo di prodotti, con «Gratis fino a» sotto quel peso. Spento, il listino resta salvato.')
+                    ->tooltip('Il listino di questa zona. Il prezzo è fisso (uno solo, qualunque sia il peso) oppure a scaglioni di peso. A scaglioni è quello dello scaglione che copre il peso del carrello; oltre l\'ultimo vale la tariffa al kg. Poi si aggiungono carburante e margine, si arrotonda e si applica il minimo. Il peso conta il maggiore tra reale e volumetrico (lunghezza × larghezza × altezza ÷ divisore). Con «Gratis sopra» la spedizione è gratuita sopra quell\'importo di prodotti, con «Gratis fino a» sotto quel peso. Spento, il listino resta salvato.')
                     ->columnSpan(12),
                 static::getInput($name('on'))->columnSpan(12),
-                static::getInput($name('brackets'))->columnSpan(12),
-                static::getInput($name('excess_mode'))->columnSpan(12),
-                static::getInput($name('min_price'))->columnSpan(3),
-                static::getInput($name('rounding_step'))->columnSpan(3),
-                static::getInput($name('fuel_surcharge_percent'))->columnSpan(3),
-                static::getInput($name('markup_percent'))->columnSpan(3),
-                static::getInput($name('free_over_amount'))->columnSpan(3),
-                static::getInput($name('free_under_weight'))->columnSpan(3),
-                static::getInput($name('cod_fee'))->columnSpan(3),
-                static::getInput($name('volumetric_divisor'))->columnSpan(3),
+                (new Container)->components([
+                    static::getInput($name('price_type'))->columnSpan(4),
+                    static::getInput($name('fixed_price'))->columnSpan(3),
+                    static::getInput($name('cod_fee'))->columnSpan(3),
+                    static::getInput($name('brackets'))->columnSpan(12),
+                    static::getInput($name('excess_mode'))->columnSpan(12),
+                    static::getInput($name('min_price'))->columnSpan(3),
+                    static::getInput($name('rounding_step'))->columnSpan(3),
+                    static::getInput($name('fuel_surcharge_percent'))->columnSpan(3),
+                    static::getInput($name('markup_percent'))->columnSpan(3),
+                    static::getInput($name('free_over_amount'))->columnSpan(3),
+                    static::getInput($name('free_under_weight'))->columnSpan(3),
+                    static::getInput($name('volumetric_divisor'))->columnSpan(3),
+                ])->columns(12)->columnSpan(12)->visibleWhen($name('on'), 'true'),
             ])->columns(12)->columnSpan(12);
         }
 

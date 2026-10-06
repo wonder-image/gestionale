@@ -99,6 +99,24 @@ check('saveRates scrive il listino e gli scaglioni, loadRates li rimette nei cam
         && $scaglioni[2]['type'] === 'excess' && (float) $scaglioni[2]['amount'] === 1.2;
 }));
 
+check('il prezzo fisso si salva e si rilegge, e i campi a scaglioni restano per quando si torna indietro', fn () => prova(static function (): bool {
+    $zona = zona('Italia', [['IT', '']]);
+    $metodo = metodo('Standard');
+
+    RateForm::saveRates($metodo, RateForm::readRates(richiesta($zona, ['markup_percent' => '10'])));
+    RateForm::saveRates($metodo, RateForm::readRates(richiesta($zona, ['price_type' => 'fixed', 'fixed_price' => '6,90', 'markup_percent' => '10'])));
+    $fisso = RateForm::loadRates($metodo);
+
+    RateForm::saveRates($metodo, RateForm::readRates(richiesta($zona, ['price_type' => 'brackets', 'markup_percent' => '10'])));
+    $indietro = RateForm::loadRates($metodo);
+
+    return $fisso['rate_'.$zona.'_price_type'] === 'fixed'
+        && (float) $fisso['rate_'.$zona.'_fixed_price'] === 6.9
+        && (float) $fisso['rate_'.$zona.'_markup_percent'] === 10.0
+        && $indietro['rate_'.$zona.'_price_type'] === 'brackets'
+        && count($indietro['rate_'.$zona.'_brackets']) === 3;
+}));
+
 check('riscrivendo il listino si aggiorna lo stesso record e le caselle vuote svuotano le colonne', fn () => prova(static function (): bool {
     $zona = zona('Italia', [['IT', '']]);
     $metodo = metodo('Standard');

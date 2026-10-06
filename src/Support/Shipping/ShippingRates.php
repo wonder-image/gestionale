@@ -15,6 +15,9 @@ namespace Wonder\Plugin\Gestionale\Support\Shipping;
  * 5. gratuita se il totale dei prodotti **supera** `free_over_amount` e/o il peso
  *    è **sotto** `free_under_weight`; con tutte e due impostate valgono tutte e due.
  *
+ * Un listino `fixed` (`price_type`) è un prezzo unico, senza peso: vale
+ * `fixed_price` così com'è, senza i passi 1-5.
+ *
  * Si arrotonda alla fine di ogni passo, mai a catena su float grezzi. Classe
  * pura: niente database, niente `date()`, niente eccezioni; un listino che non
  * copre il peso dà `null`. I valori possono arrivare come stringhe dal
@@ -31,6 +34,12 @@ final class ShippingRates
      */
     public static function price(array $rate, array $brackets, float $weight, float $productsTotal): ?array
     {
+        if (($rate['price_type'] ?? 'brackets') === 'fixed') {
+            $fixed = static::optional($rate['fixed_price'] ?? null);
+
+            return $fixed === null ? null : ['amount' => max(round($fixed, 2), 0.0), 'free' => false];
+        }
+
         $amount = static::base($rate, $brackets, round($weight, 3));
 
         if ($amount === null) {
