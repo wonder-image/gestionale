@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Models\Shipping\ShipmentStatusLog;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
@@ -209,19 +210,14 @@ final class Shipments
                 throw UserError::make('shipment.order_not_open');
             }
 
-            $locationId = (int) ($order['location_id'] ?? 0);
-            $location = $locationId > 0 ? Location::findById($locationId) : null;
+            $point = PickupPoints::find((int) ($order['location_id'] ?? 0));
 
-            if (!is_array($location) || $location === []
-                || (string) ($location['deleted'] ?? 'false') === 'true'
-                || (string) $location['active'] !== 'true'
-                || (string) $location['is_pickup_point'] !== 'true') {
+            if ($point === null) {
                 throw UserError::make('shipment.not_pickup_point');
             }
 
-            $place = SocietyLocations::find((int) $location['society_location_id']);
-
-            if ($place === null || !SocietyLocations::isOpen($place)) {
+            // L'orario conta qui, quando la merce è pronta, non al checkout.
+            if (!SocietyLocations::isOpen($point['place'])) {
                 throw UserError::make('shipment.location_closed');
             }
 
@@ -249,7 +245,7 @@ final class Shipments
                 'order_id' => $orderId,
                 'type' => 'pickup',
                 'status' => 'pending',
-                'location_id' => $locationId,
+                'location_id' => (int) $point['location']['id'],
                 'note' => trim((string) ($options['note'] ?? '')),
             ])->insert_id ?? 0);
 
