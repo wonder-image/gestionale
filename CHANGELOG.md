@@ -226,8 +226,13 @@ versionamento semantico.
   ritiro; email al cliente di *spedito* e *pronto per il ritiro*; pagina *Spedizioni →
   Spedizioni* con elenco filtrabile e scheda, blocco *Spedizioni* e sei azioni nella scheda
   ordine, due riquadri nella bacheca (*Spedizioni da controllare*, *Spedite e non consegnate*
-  da più di 7 giorni), spedizioni di prova (`ShipmentsDemo`) e guide. Chi aggiorna deve
-  lanciare `php forge update`.
+  da più di 7 giorni), spedizioni di prova (`ShipmentsDemo`) e guide. Corriere, tracking e
+  stato si cambiano anche dopo (*Modifica spedizione*, dai tre puntini dell'elenco o dalla
+  scheda), l'elenco si cerca per numero d'ordine, il listino può essere a **prezzo fisso**
+  (`price_type`, `fixed_price`: colonne nuove), sei corrieri di serie (Poste Italiane, DHL,
+  GLS, UPS, Bartolini, FedEx) e le pagine Metodi, Zone e Corrieri passano nel *Set-up*,
+  *Spedizioni* nelle *Vendite*. Il nome del corriere non cambia più le maiuscole (DHL resta
+  DHL). Chi aggiorna deve lanciare `php forge update`.
 
 ### Corretto
 

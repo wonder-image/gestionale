@@ -10,7 +10,7 @@ icon: truck
 ## Come funziona
 
 Il prezzo della spedizione dipende da **dove va** il pacco e da **quanto pesa**.
-Lo scrivi in tre pagine, sotto **Spedizioni**:
+Lo scrivi in tre pagine del **Set-up**:
 
 * **Corrieri**: chi consegna (BRT, GLS, SDA…) e il link per seguire il pacco.
 * **Zone**: gruppi di destinazioni («Italia», «Isole», «Unione Europea»).
@@ -25,6 +25,9 @@ propone i metodi che hanno un listino per quella zona, ognuno col suo prezzo.
 Il nome, il **link di tracking** e lo stato. Nel link scrivi `{tracking}` dove
 va il numero di spedizione: `https://tracking.esempio.it/?codice={tracking}`.
 Un corriere su un metodo non si elimina: spegnilo, oppure toglilo dai metodi.
+
+Trovi già pronti **Poste Italiane, DHL, GLS, UPS, Bartolini e FedEx**, col link per
+seguire il pacco: li puoi spegnere, modificare o togliere come gli altri.
 
 ## Zone
 
@@ -43,6 +46,15 @@ vuota vuol dire «tutto il paese».
 Nel metodo scrivi nome, tempi di consegna (che il cliente vede), corriere e
 codice del servizio. Sotto c'è **un riquadro per ogni zona**: accendi
 «Spedisce verso questa zona» e compili il listino.
+
+### Prezzo a scaglioni o fisso
+
+Per ogni zona scegli come si paga:
+
+* **A scaglioni**: il prezzo dipende dal peso, come descritto qui sotto.
+* **Fisso**: un solo prezzo, qualunque sia il peso. Scrivi la cifra e basta: prezzo
+  minimo, arrotondamento, maggiorazione, margine, «gratis fino a» e dimensione volumetrica
+  non servono e non compaiono.
 
 ### Scaglioni di peso
 

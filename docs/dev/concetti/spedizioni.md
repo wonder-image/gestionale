@@ -24,6 +24,12 @@ la prende da `Shipping`, che lancia `UserError` con le chiavi `shipping.*`.
 
 ## Il calcolo di un prezzo
 
+Un listino è `price_type = brackets` (a scaglioni di peso, come sotto) oppure
+`fixed`: un prezzo unico in `fixed_price`, che non guarda il peso e salta tutti i
+passi qui sotto (niente minimo, arrotondamento, maggiorazione, margine, gratis,
+volumetrico: il form non li mostra e `RateForm` non li scrive). Un listino `fixed`
+senza prezzo è un errore del form (`fixed_price_missing`).
+
 Scaglione del peso → carburante (%) → margine (%) → arrotondamento per eccesso al
 passo → minimo → gratis se i prodotti superano `free_over_amount` o il peso sta
 sotto `free_under_weight`. Con `excess_mode = excess_only` oltre l'ultimo
@@ -83,6 +89,7 @@ porta** che le scrive è `Shipments`; il resto del modulo legge.
 | `create($orderId, [riga => qtà], $opzioni)` | consegna `pending`; rifiuta quantità oltre il residuo (`shipment.over_quantity`) |
 | `ship($id, $dati)` | `in_transit`, `shipped_at`, vettore e tracking; **idempotente** (una seconda chiamata non scrive né manda email); il tracking è obbligatorio se il corriere ha il link (`shipment.tracking_required`) |
 | `advance($id, $stato)` | gli altri passaggi; un salto in avanti da `pending` passa da `ship` |
+| `update($id, $dati)` | corriere, tracking e stato **anche dopo**, in un'unica transazione (tutto o niente): per le consegne non annullate né rese; il tracking può mancare finché è `pending` o `label_created`; non tocca `shipped_at` e non scrive lo storico degli stati |
 | `cancel($id)` | solo prima della partenza; la merce torna spedibile |
 | `createPickup($ordine)` · `ready($id)` · `pickedUp($id)` | il ritiro: tre passaggi, sede attiva, di ritiro e aperta |
 | `syncOrder($ordine)` | ricalcola l'evasione e la passa a `Lifecycle::fulfill` solo se cambia |
@@ -110,7 +117,20 @@ si compone da `Shipment.tracking_url`.
 non è vuoto e passarlo sempre per `escape()`, con `rel="noopener"`. Il frontend non
 scrive mai spedizioni: chiama solo le letture.
 
-**Pagine.** `ShipmentResource` (*Spedizioni → Spedizioni*, elenco e scheda di lettura),
+**Cambiare il corriere dopo.** Spesso il corriere si sceglie a pacco pronto, in base a chi
+costa meno: `update_shipment` (*Modifica spedizione*, `OrderActions::canEditShipment`)
+cambia corriere, tracking e stato dalla scheda della spedizione; passa da `Shipments::update`
+come tutte le altre azioni da `OrderActionResource::run()`. Dai tre puntini dell'elenco le voci
+*Cambia stato* e *Tracking e corriere* aprono la scheda con la finestra già aperta
+(`?apri=modifica`): il core non apre finestre da una voce del menu.
+
+**Corrieri di serie.** `Defaults::carriers()` semina POSTE ITALIANE, DHL, GLS, UPS, BARTOLINI
+e FEDEX col solo nome e il link di tracking (`{tracking}` in coda), senza toccare quelli già
+presenti o cambiati a mano. Sito, logo e i dati dell'API di DHL (chiavi, server,
+`/shipments`) non hanno ancora colonne: servono quando si collegheranno i tracking via API.
+
+**Pagine.** `ShipmentResource` (*Vendite → Spedizioni*, elenco, ricercabile anche per numero ordine, e scheda di lettura),
+`CarrierResource`, `ShippingZoneResource` e `ShippingMethodResource` stanno nel *Set-up*,
 `OrderShipmentTableResource` (il blocco *Spedizioni* della scheda ordine), le sei
 azioni in `OrderActions`/`OrderActionResource`, i riquadri `ShipmentsToCheckWidget`
 (`exception` e `failed_attempt`) e `ShippedNotDeliveredWidget` (partite da più di

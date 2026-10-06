@@ -41,6 +41,14 @@ diventa *parzialmente evaso*. Poi crea la seconda col resto: quando tutto è
 partito l'ordine è *evaso*, e si chiude da solo se è anche pagato.
 Non puoi spedire più di quanto è stato ordinato.
 
+## Cambiare corriere, tracking o stato
+
+Il corriere si può scegliere anche dopo, per esempio quando decidi chi costa meno a
+pacco pronto. Dalla scheda della spedizione premi **Modifica spedizione**: puoi cambiare
+corriere, tracking e stato. Finché la spedizione è in attesa il tracking può restare vuoto;
+una spedizione annullata o resa non si modifica. Dall'elenco, nei tre puntini in fondo alla
+riga, **Cambia stato** e **Tracking e corriere** aprono la stessa finestra.
+
 ## Dopo la partenza
 
 * **Segna consegnata** quando il pacco arriva.
@@ -58,8 +66,8 @@ conferma dell'ordine.
 
 ## Le spedizioni, tutte insieme
 
-La pagina **Spedizioni** elenca ogni spedizione e si filtra per stato, tipo,
-corriere e situazione. Dalla scheda di una spedizione vedi le righe, il tracking
+La pagina **Vendite → Spedizioni** elenca ogni spedizione, col numero d'ordine, e si
+filtra per stato, tipo, corriere e situazione; la cerchi anche per numero d'ordine. Dalla scheda di una spedizione vedi le righe, il tracking
 e lo storico dei passaggi.
 
 ## I due riquadri della bacheca
