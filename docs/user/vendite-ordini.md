@@ -80,3 +80,14 @@ si trova l'ordine. Ognuno apre una finestra che dice **prima** cosa farà.
 
 Un'azione ripetuta per sbaglio (due clic, la pagina aperta due volte) non fa
 danni: la seconda volta non scarica né rimette niente.
+
+## Il checkout del sito
+
+Mentre il cliente compila, il riepilogo a lato si aggiorna: spese di spedizione,
+commissione del pagamento e sconto del coupon. Se c'è un solo metodo di spedizione
+per l'indirizzo, o una sola sede di ritiro, viene scelto da solo. Un coupon che non
+vale più, o un metodo che non arriva al nuovo indirizzo, sparisce con un avviso.
+
+All'invio l'ordine si ferma se il ritiro è in una sede che non è (più) di ritiro o
+se la spedizione non ha un metodo che arrivi all'indirizzo. Gli ordini di soli
+servizi e quelli con le spedizioni spente non chiedono il metodo.
