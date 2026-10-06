@@ -29,7 +29,8 @@ function zona(string $nome, array $aree): int
     $id = (int) (ShippingZone::create([
         'code' => Code::make(ShippingZone::class, Codes::SHIPPING_ZONE),
         'name' => $nome,
-        'position' => 1,
+        // Posizione 0: a pari area vince la zona di prova su quelle già nel sito.
+        'position' => 0,
     ])->insert_id ?? 0);
 
     foreach ($aree as [$paese, $provincia]) {
