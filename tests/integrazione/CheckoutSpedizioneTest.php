@@ -373,7 +373,7 @@ check('il ritiro in una sede senza la merce si ferma e il carrello resta', fn ()
     $sede = sede();
     $cart = carrello([[articolo(2.0, 10.0), 1]]);
 
-    return rifiuto(fn () => compra($cart, ['fulfillment_type' => 'pickup', 'location_id' => $sede])) !== ''
+    return rifiuto(fn () => compra($cart, ['fulfillment_type' => 'pickup', 'location_id' => $sede])) === 'stock.insufficient'
         && restaCarrello($cart);
 }));
 
@@ -441,6 +441,33 @@ check('con due schede aperte vale il modulo inviato', fn () => prova(static func
         && (int) $riga['shipping_method_id'] === $metodo
         && (int) $riga['location_id'] === 0
         && (float) $riga['shipping_total'] === 8.0;
+}));
+
+check('il negozio vero (source ecommerce) senza metodo si ferma come un cliente', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+
+    return rifiuto(fn () => compra($cart, ['source' => 'ecommerce'])) === 'order.shipping_method_required'
+        && restaCarrello($cart);
+}));
+
+check('«nessuna consegna» non scavalca il metodo per una merce da spedire', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+
+    return rifiuto(fn () => compra($cart, ['fulfillment_type' => 'none'])) === 'order.shipping_method_required'
+        && restaCarrello($cart);
+}));
+
+check('una spedizione non porta con sé la sede rimasta nel modulo', fn () => prova(static function (): bool {
+    $metodo = standard();
+    $sede = sede();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+
+    // La sede di ritiro non ha la merce: la spedizione parte comunque dal magazzino principale.
+    compra($cart, ['shipping_method_id' => $metodo, 'location_id' => $sede]);
+
+    return (int) Order::findById($cart)['location_id'] === 0;
 }));
 
 summary();

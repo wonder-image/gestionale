@@ -466,9 +466,12 @@ final class Checkout
             return;
         }
 
-        if ($type !== 'shipping'
+        // «Nessuna consegna» non è una via di fuga: con merce da spedire vale
+        // quanto una spedizione. Gli ordini del sistema e delle importazioni
+        // non hanno un cliente a cui chiedere il metodo.
+        if (!in_array($type, ['shipping', 'none'], true)
             || (string) ($order['channel'] ?? 'online') !== 'online'
-            || $source !== 'user'
+            || in_array($source, ['system', 'import'], true)
             || !Shipping::shippable($cartId)) {
             return;
         }
@@ -557,7 +560,8 @@ final class Checkout
             'customer_id' => (int) ($data['customer_id'] ?? 0),
             'payment_method_id' => (int) $method['id'],
             'shipping_method_id' => (int) ($data['shipping_method_id'] ?? 0),
-            'location_id' => (int) ($data['location_id'] ?? 0),
+            // La sede conta solo per il ritiro: una rimasta nel modulo non sposta la merce.
+            'location_id' => $type === 'pickup' ? (int) ($data['location_id'] ?? 0) : 0,
             'customer_note' => (string) ($data['customer_note'] ?? ''),
             'last_activity_at' => date('Y-m-d H:i:s'),
         ];
