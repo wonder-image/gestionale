@@ -10,6 +10,7 @@ use Wonder\Plugin\Custom\Fattura\Valori\Natura;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
@@ -43,6 +44,7 @@ final class Defaults implements ModuleDefaults
         self::settings($rows);
         self::location($rows);
         self::paymentMethods($rows);
+        self::carriers($rows);
     }
 
     /** Una riga bloccata per ogni funzionalità del catalogo. */
@@ -278,6 +280,37 @@ final class Defaults implements ModuleDefaults
                 'position' => 3,
             ],
         ]);
+    }
+
+    /**
+     * I sei corrieri più usati in Italia, col link per seguire il pacco: il
+     * numero di tracking prende il posto di `{tracking}`. Sono voci come le
+     * altre: si spengono, si cambiano o si tolgono dal pannello.
+     */
+    private static function carriers(DefaultRows $rows): void
+    {
+        $links = [
+            ['poste-italiane', 'Poste Italiane', 'https://www.poste.it/cerca/index.html#/risultati-spedizioni/'],
+            ['dhl', 'DHL', 'https://www.dhl.com/it-en/home/tracking.html?tracking-id='],
+            ['gls', 'GLS', 'https://gls-group.com/IT/it/servizi-online/ricerca-spedizioni.html?match='],
+            ['ups', 'UPS', 'https://www.ups.com/track?loc=it_IT&requester=QUIC&tracknum='],
+            ['bartolini', 'Bartolini', 'https://services.brt.it/it/tracking?OP=N&CD='],
+            ['fedex', 'FedEx', 'https://www.fedex.com/fedextrack/?action=track&trackingnumber='],
+        ];
+        $carriers = [];
+
+        foreach ($links as $position => [$code, $name, $page]) {
+            $carriers[] = [
+                'code' => $code,
+                'name' => $name,
+                'tracking_url_template' => $page.'{tracking}',
+                'provider' => 'manual',
+                'active' => 'true',
+                'position' => $position + 1,
+            ];
+        }
+
+        $rows->ensure(Carrier::class, 'code', $carriers);
     }
 
     private static function ordinaryTaxId(): int
