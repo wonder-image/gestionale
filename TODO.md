@@ -254,6 +254,10 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [ ] E1b Vetrina, catalogo pubblico e scheda prodotto — legge G2, apribile senza G4
   - [ ] E1c Carrello, checkout con Stripe, ordini e resi nell'area cliente, email, condizioni di vendita — **dopo G4**
     - [x] D5 checkout con spedizione, ritiro e coupon — [spec](docs/superpowers/specs/2026-10-06-checkout-con-spedizione-design.md); piano 1 gestionale ([piano](docs/superpowers/plans/2026-10-06-anteprima-del-checkout.md)) fatto: `Checkout::preview`, controlli di `place`, `PickupPoints`; piano 2 ecommerce ([piano](docs/superpowers/plans/2026-10-06-pagina-del-checkout.md)) fatto: rotte `summary` e `coupon`, `CheckoutForm`, `CheckoutSummary`, pagina a due colonne, `checkout.js`. **Resta la prova nel browser dell'utente su `ecommerce.test`**: spedizione in Italia e nelle isole, zona non coperta, ritiro, coupon applicato e tolto, bonifico e contrassegno
+    - [ ] Checkout a passi (Carrello, Spedizione, Pagamento) e acquisto da ospite — [spec](docs/superpowers/specs/2026-10-06-checkout-a-passi-design.md)
+      - [x] Piano 1 [componenti](docs/superpowers/plans/2026-10-06-checkout-a-passi-1-componenti.md) **fatto** (2026-10-06): in lib `.wi-choice`, `.wi-steps`, `.wi-thumb`; in app `Choice`, `ChoiceGroup`, `Steps` nei due temi. Rami `checkout-a-passi-componenti` in lib e app, **non ancora spinti né uniti**. Otto minor rimandati (accessibilità di `Steps`, stato «scelto» e `hidden` su `d-block` nel tema Bootstrap): elenco nella risposta finale della sessione
+      - [ ] Piano 2 Passi (pagine Carrello, Spedizione, Pagamento; rilascio della lib ed `extra.wonder.lib`)
+      - [ ] Piano 3 Ospite (account creato senza password, ordine su un account esistente)
 - [ ] Rilascio `1.0.0` di gestionale ed ecommerce
 - [ ] Sito del cliente sopra `boilerplates/ecommerce-site`: tema, contenuti, prodotti veri, Stripe in produzione, collaudo
 
