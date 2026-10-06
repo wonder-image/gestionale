@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Models\Payments;
 use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -18,8 +19,16 @@ use Wonder\Sql\TableSchema as Column;
  * con spedizione, il pagamento al ritiro solo con ritiro. `sdi_code` è il
  * codice della fattura elettronica (MP01–MP23).
  *
- * Configurazione di `admin` con il codice parlante (`bank-transfer`), portata
- * in produzione dal deploy.
+ * `provider` è il tipo: bonifico, contanti, o il gateway che incassa (Stripe,
+ * PayPal, Nexi). Bonifico e contanti si incassano a mano: sul pagamento
+ * registrato il fornitore resta `manual` (`ledgerProvider()`). `manual` non si
+ * offre più nel form, ma resta nella colonna per le righe scritte prima che il
+ * tipo si dividesse in due: `forge update` le riscrive.
+ *
+ * Il codice lo genera il framework (`pme_k3x9d2a`); i tre metodi di serie
+ * tengono il loro codice parlante (`bank-transfer`, `cash`, `stripe`), che il
+ * sito usa per ritrovarli. Configurazione di `admin`, portata in produzione dal
+ * deploy.
  */
 final class PaymentMethod extends Model
 {
@@ -27,10 +36,20 @@ final class PaymentMethod extends Model
     public static string $folder = 'gestionale/payments';
     public static string $icon = 'bi bi-credit-card';
 
-    public const FEE_TYPES = ['none', 'amount', 'percent'];
+    public const FEE_TYPES = ['none', 'amount', 'percent', 'amount_percent'];
     public const AVAILABLE_FOR = ['all', 'shipping', 'pickup'];
-    public const PROVIDERS = ['manual', 'stripe', 'paypal', 'nexi'];
+    public const PROVIDERS = ['bank_transfer', 'cash', 'stripe', 'paypal', 'nexi'];
+    /** I tipi che si incassano a mano, senza gateway. */
+    public const MANUAL_PROVIDERS = ['bank_transfer', 'cash'];
     public const TIMINGS = ['immediate', 'deferred', 'on_delivery'];
+
+    /** Il fornitore da scrivere sul pagamento: a mano per bonifico e contanti, il gateway negli altri casi. */
+    public static function ledgerProvider(string $provider): string
+    {
+        return $provider === '' || $provider === 'manual' || in_array($provider, static::MANUAL_PROVIDERS, true)
+            ? 'manual'
+            : $provider;
+    }
 
     public static function syncSchema(): ?SyncSchema
     {
@@ -40,11 +59,10 @@ final class PaymentMethod extends Model
     public static function tableSchema(): array
     {
         return [
-            Column::key('code')->length(100)->null(false)->unique(),
-            ...static::sqlColumnsFromDataSchema(['fee_value']),
+            ...static::sqlColumnsFromDataSchema(['code', 'fee_value', 'fee_percent']),
             Column::key('name'),
             Column::key('sdi_code')->length(10),
-            Column::key('provider')->enum(static::PROVIDERS)->default('manual'),
+            Column::key('provider')->enum([...static::PROVIDERS, 'manual'])->default('bank_transfer'),
             // Quando arriva il denaro: subito (carta), fra giorni (bonifico),
             // alla consegna (contrassegno, ritiro). Decide quanto resta
             // impegnata la merce e se l'ordine si conferma senza incasso.
@@ -66,14 +84,16 @@ final class PaymentMethod extends Model
     public static function dataSchema(): array
     {
         return [
-            Field::key('code')->text()->slug()->readonlyOnUpdate()->immutableOnUpdate(),
+            Field::key('code')->text()->uniqueCode(Codes::PAYMENT_METHOD),
             Field::key('name')->text()->sanitizeFirst(),
             Field::key('sdi_code')->text()->sanitize(false),
             Field::key('provider')->text()->sanitize(false),
             Field::key('timing')->text()->sanitize(false),
             Field::key('payment_account_id')->number()->decimals(0),
             Field::key('fee_type')->text()->sanitize(false),
+            // Importo fisso in euro, e percentuale sull'importo dei prodotti.
             Field::key('fee_value')->number()->decimals(2),
+            Field::key('fee_percent')->number()->decimals(2),
             Field::key('available_for')->text()->sanitize(false),
             Field::key('applies_online')->text()->sanitize(false),
             Field::key('applies_office')->text()->sanitize(false),

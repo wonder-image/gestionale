@@ -12,6 +12,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Custom\Fattura\Valori\Pagamento;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
@@ -70,13 +71,14 @@ final class PaymentMethodResource extends GestionaleResource
             'timing' => 'Quando arriva il denaro',
             'payment_account_id' => 'Conto',
             'fee_type' => 'Commissione',
-            'fee_value' => 'Valore',
+            'fee_value' => 'Importo (€)',
+            'fee_percent' => 'Percentuale (%)',
             'available_for' => 'Disponibile per',
             'applies_online' => 'Online',
             'applies_office' => 'In ufficio',
             'applies_pos' => 'Al banco',
             'instructions' => 'Istruzioni',
-            'sdi_code' => 'Codice SDI',
+            'sdi_code' => 'Modalità di pagamento in fattura',
             'active' => 'Stato',
         ];
     }
@@ -84,25 +86,56 @@ final class PaymentMethodResource extends GestionaleResource
     /** @return array<string, string> */
     public static function providers(): array
     {
-        return ['manual' => 'A mano (bonifico, contanti)', 'stripe' => 'Stripe', 'paypal' => 'PayPal', 'nexi' => 'Nexi'];
+        return [
+            'bank_transfer' => 'Bonifico bancario',
+            'cash' => 'Contanti',
+            'stripe' => 'Stripe',
+            'paypal' => 'PayPal',
+            'nexi' => 'Nexi',
+        ];
     }
 
     /** @return array<string, string> */
     public static function timings(): array
     {
-        return ['immediate' => 'Subito', 'deferred' => 'A termine', 'on_delivery' => 'Alla consegna'];
+        return [
+            'immediate' => 'Subito, al momento dell\'ordine',
+            'deferred' => 'Dopo l\'ordine, entro qualche giorno',
+            'on_delivery' => 'Alla consegna o al ritiro',
+        ];
     }
 
     /** @return array<string, string> */
     public static function feeTypes(): array
     {
-        return ['none' => 'Nessuna', 'amount' => 'Importo fisso', 'percent' => 'Percentuale'];
+        return [
+            'none' => 'Nessuna',
+            'amount' => 'Importo fisso',
+            'percent' => 'Percentuale',
+            'amount_percent' => 'Importo fisso + percentuale',
+        ];
     }
 
     /** @return array<string, string> */
     public static function availableFor(): array
     {
         return ['all' => 'Tutte le consegne', 'shipping' => 'Solo spedizione', 'pickup' => 'Solo ritiro'];
+    }
+
+    /**
+     * Le modalità di pagamento della fattura elettronica, «MP05 - Bonifico».
+     *
+     * @return array<string, string>
+     */
+    public static function sdiCodes(): array
+    {
+        $codes = ['' => 'Non indicata'];
+
+        foreach (Pagamento::Valori as $code => $name) {
+            $codes[$code] = $code.' - '.$name;
+        }
+
+        return $codes;
     }
 
     public static function formSchema(): array
@@ -116,19 +149,19 @@ final class PaymentMethodResource extends GestionaleResource
         $siNo = ['true' => 'Sì', 'false' => 'No'];
 
         return [
-            FormField::key('code')->text()->label('Codice')->required(),
             FormField::key('name')->text()->label('Nome')->required(),
-            FormField::key('provider')->select(static::providers())->value('manual')->label('Tipo'),
-            FormField::key('timing')->select(static::timings())->value('immediate')->label('Quando arriva il denaro'),
-            FormField::key('payment_account_id')->select($conti)->value('0')->label('Conto'),
+            FormField::key('provider')->select(static::providers())->value('bank_transfer')->label('Tipo'),
+            FormField::key('timing')->select(static::timings())->value('deferred')->label('Quando arriva il denaro'),
+            FormField::key('payment_account_id')->select($conti)->value('0')->label('Conto')->visibleWhen('provider', 'bank_transfer'),
             FormField::key('fee_type')->select(static::feeTypes())->value('none')->label('Commissione'),
-            FormField::key('fee_value')->number()->decimal(2)->value('0')->label('Valore'),
+            FormField::key('fee_value')->number()->decimal(2)->value('0')->label('Importo (€)')->visibleWhen('fee_type', ['amount', 'amount_percent']),
+            FormField::key('fee_percent')->number()->decimal(2)->value('0')->label('Percentuale (%)')->visibleWhen('fee_type', ['percent', 'amount_percent']),
             FormField::key('available_for')->select(static::availableFor())->value('all')->label('Disponibile per'),
             FormField::key('applies_online')->select($siNo)->value(Channels::defaults()['applies_online'])->label('Online'),
             FormField::key('applies_office')->select($siNo)->value(Channels::defaults()['applies_office'])->label('In ufficio'),
             FormField::key('applies_pos')->select($siNo)->value(Channels::defaults()['applies_pos'])->label('Al banco'),
             FormField::key('instructions')->textarea()->label('Istruzioni'),
-            FormField::key('sdi_code')->text()->label('Codice SDI'),
+            FormField::key('sdi_code')->select(static::sdiCodes())->value('')->label('Modalità di pagamento in fattura'),
             FormField::key('active')->select(['true' => 'Attivo', 'false' => 'Non attivo'])->value('true')->label('Stato'),
         ];
     }
@@ -139,22 +172,22 @@ final class PaymentMethodResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Metodo')
-                        ->tooltip('Il codice si scrive una volta e non cambia più, per esempio «bonifico». Il tipo «A mano» vale per bonifico e contanti: l\'incasso lo registri tu dalla scheda dell\'ordine. Un metodo non attivo non si propone più, ma resta sugli ordini che lo hanno usato.')
+                        ->tooltip('Bonifico e contanti li incassi tu: lo registri dalla scheda dell\'ordine. Stripe, PayPal e Nexi incassano da soli. «Quando arriva il denaro» decide quanto aspetta la merce: «Subito» è la carta, e la merce resta prenotata pochi minuti; «Dopo l\'ordine, entro qualche giorno» è il bonifico, e la merce resta prenotata per i giorni di attesa delle Impostazioni, poi l\'ordine si annulla; «Alla consegna o al ritiro» è il contrassegno o il pagamento in negozio, e la merce non scade. Il conto serve al bonifico: finisce nell\'email al cliente. Un metodo non attivo non si propone più, ma resta sugli ordini che lo hanno usato.')
                         ->columnSpan(12),
-                    static::getInput('code')->columnSpan(3),
                     static::getInput('name')->columnSpan(5),
-                    static::getInput('active')->columnSpan(4),
                     static::getInput('provider')->columnSpan(4),
-                    static::getInput('timing')->columnSpan(4),
-                    static::getInput('payment_account_id')->columnSpan(4),
+                    static::getInput('active')->columnSpan(3),
+                    static::getInput('timing')->columnSpan(6),
+                    static::getInput('payment_account_id')->columnSpan(6),
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
                     SectionTitle::make('Dove e quanto')
-                        ->tooltip('La commissione diventa una riga dell\'ordine, con l\'aliquota della spedizione. Con «Solo ritiro» il metodo si offre solo a chi ritira in sede, con «Solo spedizione» solo a chi si fa spedire.')
+                        ->tooltip('La commissione diventa una riga dell\'ordine, con l\'aliquota della spedizione. Può essere un importo fisso, una percentuale sul totale dei prodotti, o tutte e due (per esempio 0,25 € + 1,4 %). Con «Solo ritiro» il metodo si offre solo a chi ritira in sede, con «Solo spedizione» solo a chi si fa spedire.')
                         ->columnSpan(12),
-                    static::getInput('available_for')->columnSpan(4),
-                    static::getInput('fee_type')->columnSpan(4),
-                    static::getInput('fee_value')->columnSpan(4),
+                    static::getInput('available_for')->columnSpan(3),
+                    static::getInput('fee_type')->columnSpan(3),
+                    static::getInput('fee_value')->columnSpan(3),
+                    static::getInput('fee_percent')->columnSpan(3),
                     // I canali si scelgono solo se ce n'è più di uno acceso.
                     ...(Channels::choose() ? array_map(
                         static fn (string $channel) => static::getInput(Channels::column($channel))->columnSpan(4),
@@ -163,10 +196,10 @@ final class PaymentMethodResource extends GestionaleResource
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
                     SectionTitle::make('Istruzioni e fattura')
-                        ->tooltip('Le istruzioni arrivano al cliente nell\'email dell\'ordine. Per il bonifico non scrivere l\'IBAN: lo compone l\'email dal conto scelto. Il codice SDI è quello della fattura elettronica (MP01–MP23).')
+                        ->tooltip('Le istruzioni arrivano al cliente nell\'email dell\'ordine. Per il bonifico non scrivere l\'IBAN: lo compone l\'email dal conto scelto. La modalità di pagamento è quella che la fattura elettronica porta con sé (codici MP01–MP23).')
                         ->columnSpan(12),
-                    static::getInput('instructions')->columnSpan(9),
-                    static::getInput('sdi_code')->columnSpan(3),
+                    static::getInput('instructions')->columnSpan(7),
+                    static::getInput('sdi_code')->columnSpan(5),
                 ])->columns(12)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ]);
@@ -176,7 +209,6 @@ final class PaymentMethodResource extends GestionaleResource
     {
         return [
             TableColumn::key('name')->text()->link('edit'),
-            TableColumn::key('code')->text(),
             TableColumn::key('provider')->text()->formatter(static fn (array $row): string => static::escape(static::providers()[(string) ($row['provider'] ?? '')] ?? '—')),
             TableColumn::key('timing')->text()->formatter(static fn (array $row): string => static::escape(static::timings()[(string) ($row['timing'] ?? '')] ?? '—')),
             TableColumn::key('active')
@@ -227,6 +259,24 @@ final class PaymentMethodResource extends GestionaleResource
         ?array $oldValues = null
     ): array {
         $values = Channels::keepHidden($values, $oldValues);
+
+        // Quello che il form nasconde non resta a metà: il conto serve al
+        // bonifico, e la commissione che non c'è non ha cifre.
+        if (array_key_exists('provider', $values) && (string) $values['provider'] !== 'bank_transfer') {
+            $values['payment_account_id'] = '0';
+        }
+
+        if (array_key_exists('fee_type', $values)) {
+            $type = (string) $values['fee_type'];
+
+            if (!in_array($type, ['amount', 'amount_percent'], true)) {
+                $values['fee_value'] = '0';
+            }
+
+            if (!in_array($type, ['percent', 'amount_percent'], true)) {
+                $values['fee_percent'] = '0';
+            }
+        }
 
         if ($action === 'store') {
             $values['position'] = Positions::next(PaymentMethod::$table);

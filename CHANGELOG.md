@@ -238,6 +238,15 @@ versionamento semantico.
   fisso scompaiono gli scaglioni e i campi a peso; al posto dell'interruttore «Spedisce verso
   questa zona» c'è **+ Aggiungi zona**, con **Nuova zona…** per crearla lì (nome e prima area)
   e **Togli zona** per toglierla senza perdere il listino.
+- Pagamenti, ritocchi alle schede: il tipo del metodo è *Bonifico bancario*, *Contanti*, *Stripe*,
+  *PayPal* o *Nexi* (il vecchio «A mano» si divide in due: i siti già installati si sistemano da
+  soli); il codice del metodo e del conto lo crea il sistema (`pme_…`, `pac_…`) e non si scrive
+  più; la commissione ha un nuovo tipo *Importo fisso + percentuale* e importo e percentuale
+  compaiono solo quando servono (`fee_percent`: colonna nuova; `fee_value` è ora sempre l'importo
+  fisso, la vecchia percentuale passa a `fee_percent`); la modalità di pagamento della fattura si
+  sceglie da `Pagamento::Valori`, «MP05 - Bonifico»; il conto si sceglie solo per il bonifico; il
+  conto ha l'**Intestatario** (`holder`: colonna nuova); «Quando arriva il denaro» ha etichette
+  più chiare e una spiegazione. Chi aggiorna deve lanciare `php forge update`.
 
 ### Corretto
 

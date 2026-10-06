@@ -38,12 +38,33 @@ solo (**Completato**).
 
 Si configurano in *Set Up → Pagamenti*:
 
-* **Metodi di pagamento** — carta, bonifico, contrassegno… Per ognuno scegli
-  **Quando arriva il denaro** (subito, più tardi, alla consegna), per chi è
-  **Disponibile** e se è **Online**. Le scelte sui canali (sito, ufficio, cassa)
-  compaiono solo se hai acceso più di un [canale di vendita](canali-di-vendita.md).
-* **Conti di pagamento** — dove arriva il denaro (le coordinate del bonifico,
-  per esempio).
+* **Metodi di pagamento** — bonifico, contanti, carta… Per ognuno scegli il **Tipo**
+  (*Bonifico bancario*, *Contanti*, *Stripe*, *PayPal*, *Nexi*), **Quando arriva il denaro**, per
+  chi è **Disponibile** e la **Commissione**. Le scelte sui canali (sito, ufficio, cassa)
+  compaiono solo se hai acceso più di un [canale di vendita](canali-di-vendita.md). Il codice del
+  metodo lo crea il sistema.
+* **Conti di pagamento** — dove arriva il denaro: **Intestatario**, banca, IBAN e BIC finiscono
+  nell'email del bonifico. Il conto si sceglie solo nei metodi di tipo *Bonifico bancario*.
+
+### Quando arriva il denaro
+
+* **Subito, al momento dell'ordine** — la carta: il cliente paga mentre ordina. La merce resta
+  prenotata pochi minuti (vedi sotto).
+* **Dopo l'ordine, entro qualche giorno** — il bonifico: l'ordine nasce in attesa e il cliente
+  paga dopo. La merce resta prenotata per i giorni di attesa; a metà parte un promemoria e alla
+  fine l'ordine si annulla.
+* **Alla consegna o al ritiro** — il contrassegno o il pagamento in negozio: la merce non scade.
+
+### La commissione
+
+*Nessuna*, un **importo fisso**, una **percentuale** sul totale dei prodotti, oppure **importo
+fisso + percentuale** (per esempio 0,25 € + 1,4 %). Compaiono solo i campi che servono. Diventa
+una riga dell'ordine.
+
+### La modalità di pagamento in fattura
+
+Si sceglie dall'elenco della fattura elettronica, nella forma «MP05 - Bonifico». Bonifico,
+contanti e carta sono già abbinati.
 
 ## L'attesa e la scadenza
 

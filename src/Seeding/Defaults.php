@@ -245,7 +245,8 @@ final class Defaults implements ModuleDefaults
             [
                 'code' => 'bank-transfer',
                 'name' => 'Bonifico bancario',
-                'provider' => 'manual',
+                'provider' => 'bank_transfer',
+                'sdi_code' => 'MP05',
                 'timing' => 'deferred',
                 'instructions' => 'Fai il bonifico indicando il numero dell\'ordine nella causale: preparerai l\'ordine all\'arrivo del denaro.',
                 'applies_online' => 'true',
@@ -257,7 +258,8 @@ final class Defaults implements ModuleDefaults
             [
                 'code' => 'cash',
                 'name' => 'Contanti al ritiro',
-                'provider' => 'manual',
+                'provider' => 'cash',
+                'sdi_code' => 'MP01',
                 'timing' => 'on_delivery',
                 'available_for' => 'pickup',
                 'instructions' => 'Paghi in contanti quando ritiri l\'ordine in sede.',
@@ -271,6 +273,7 @@ final class Defaults implements ModuleDefaults
                 'code' => 'stripe',
                 'name' => 'Carta di credito',
                 'provider' => 'stripe',
+                'sdi_code' => 'MP08',
                 'timing' => 'immediate',
                 'stripe_payment_method_types' => 'card',
                 'applies_online' => 'true',
@@ -280,6 +283,42 @@ final class Defaults implements ModuleDefaults
                 'position' => 3,
             ],
         ]);
+
+        self::legacyPaymentMethods();
+    }
+
+    /**
+     * I metodi scritti prima che il tipo si dividesse in bonifico e contanti
+     * (`manual`) e prima che la percentuale avesse il suo campo (stava in
+     * `fee_value`): si riscrivono una volta e basta, perché dopo non c'è più
+     * niente da riscrivere. Le scelte fatte a mano non si toccano.
+     */
+    private static function legacyPaymentMethods(): void
+    {
+        foreach ((array) sqlSelect(PaymentMethod::$table, null)->row as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $changes = [];
+
+            if ((string) ($row['provider'] ?? '') === 'manual') {
+                $changes['provider'] = (string) ($row['code'] ?? '') === 'cash' || (string) ($row['timing'] ?? '') === 'on_delivery'
+                    ? 'cash'
+                    : 'bank_transfer';
+            }
+
+            if ((string) ($row['fee_type'] ?? '') === 'percent'
+                && (float) ($row['fee_percent'] ?? 0) <= 0
+                && (float) ($row['fee_value'] ?? 0) > 0) {
+                $changes['fee_percent'] = $row['fee_value'];
+                $changes['fee_value'] = '0.00';
+            }
+
+            if ($changes !== []) {
+                PaymentMethod::update($changes, (int) $row['id']);
+            }
+        }
     }
 
     /**

@@ -160,8 +160,8 @@ try {
             $m = $metodi();
 
             return array_keys($m) === ['bank-transfer', 'cash', 'stripe']
-                && ($m['bank-transfer']['timing'] ?? '') === 'deferred' && ($m['bank-transfer']['provider'] ?? '') === 'manual'
-                && ($m['cash']['timing'] ?? '') === 'on_delivery' && ($m['cash']['provider'] ?? '') === 'manual'
+                && ($m['bank-transfer']['timing'] ?? '') === 'deferred' && ($m['bank-transfer']['provider'] ?? '') === 'bank_transfer'
+                && ($m['cash']['timing'] ?? '') === 'on_delivery' && ($m['cash']['provider'] ?? '') === 'cash'
                 && ($m['cash']['available_for'] ?? '') === 'pickup'
                 && ($m['stripe']['timing'] ?? '') === 'immediate' && ($m['stripe']['provider'] ?? '') === 'stripe';
         });
@@ -186,6 +186,21 @@ try {
             return count($m) === 3
                 && ($m['bank-transfer']['active'] ?? '') === 'false'
                 && ($m['stripe']['active'] ?? '') === 'true';
+        });
+
+        // Un sito aggiornato ha ancora il tipo «manual» e la percentuale in fee_value.
+        PaymentMethod::update(['provider' => 'manual', 'fee_type' => 'percent', 'fee_value' => '1.50', 'fee_percent' => '0.00'], (int) $metodi()['bank-transfer']['id']);
+        PaymentMethod::update(['provider' => 'manual'], (int) $metodi()['cash']['id']);
+
+        Defaults::seed(new DefaultRows());
+
+        check('i metodi di un sito aggiornato si sistemano da soli', function () use ($metodi) {
+            $m = $metodi();
+
+            return ($m['bank-transfer']['provider'] ?? '') === 'bank_transfer'
+                && (float) ($m['bank-transfer']['fee_percent'] ?? 0) === 1.5
+                && (float) ($m['bank-transfer']['fee_value'] ?? 0) === 0.0
+                && ($m['cash']['provider'] ?? '') === 'cash';
         });
 
         Defaults::seed(new DefaultRows());

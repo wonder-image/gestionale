@@ -51,6 +51,10 @@ final class Codes
     public const INVOICE = 'inv_';
     public const SHIPMENT = 'shp_';
 
+    // Pagamenti (configurazione)
+    public const PAYMENT_METHOD = 'pme_';
+    public const PAYMENT_ACCOUNT = 'pac_';
+
     // Spedizioni
     public const CARRIER = 'car_';
     public const SHIPPING_METHOD = 'shm_';

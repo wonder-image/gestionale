@@ -353,7 +353,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
             'customer_id' => (int) ($ordine['customer_id'] ?? 0),
             'payment_method_id' => (int) ($metodo['id'] ?? $ordine['payment_method_id'] ?? 0),
             'currency' => (string) ($ordine['currency'] ?? 'EUR'),
-            'provider' => (string) ($metodo['provider'] ?? 'manual'),
+            'provider' => PaymentMethod::ledgerProvider((string) ($metodo['provider'] ?? '')),
             'provider_reference' => trim((string) ($values['reference'] ?? '')),
             'paid_at' => static::dateFrom($values['paid_at'] ?? ''),
             'source' => 'user',

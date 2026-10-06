@@ -59,8 +59,8 @@ final class PaymentAccountResource extends GestionaleResource
     public static function labelSchema(): array
     {
         return [
-            'code' => 'Codice',
             'name' => 'Nome',
+            'holder' => 'Intestatario',
             'bank_name' => 'Banca',
             'iban' => 'IBAN',
             'bic' => 'BIC',
@@ -71,8 +71,8 @@ final class PaymentAccountResource extends GestionaleResource
     public static function formSchema(): array
     {
         return [
-            FormField::key('code')->text()->label('Codice')->required(),
             FormField::key('name')->text()->label('Nome')->required(),
+            FormField::key('holder')->text()->label('Intestatario'),
             FormField::key('bank_name')->text()->label('Banca'),
             FormField::key('iban')->text()->label('IBAN'),
             FormField::key('bic')->text()->label('BIC'),
@@ -89,11 +89,11 @@ final class PaymentAccountResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Conto')
-                        ->tooltip('Il codice si scrive una volta e non cambia più, per esempio «banca-principale». L\'IBAN si può scrivere con gli spazi: si salva compatto e in maiuscolo. Un conto non attivo non si propone più, ma resta sui metodi che lo usano.')
+                        ->tooltip('Il nome serve a te, per riconoscere il conto (per esempio «Banca principale»). L\'intestatario è a chi è intestato il conto: compare, con banca e IBAN, nell\'email del bonifico. L\'IBAN si può scrivere con gli spazi: si salva compatto e in maiuscolo. Un conto non attivo non si propone più, ma resta sui metodi che lo usano.')
                         ->columnSpan(12),
-                    static::getInput('code')->columnSpan(3),
                     static::getInput('name')->columnSpan(5),
-                    static::getInput('active')->columnSpan(4),
+                    static::getInput('holder')->columnSpan(4),
+                    static::getInput('active')->columnSpan(3),
                     static::getInput('bank_name')->columnSpan(4),
                     static::getInput('iban')->columnSpan(5),
                     static::getInput('bic')->columnSpan(3),
@@ -106,6 +106,7 @@ final class PaymentAccountResource extends GestionaleResource
     {
         return [
             TableColumn::key('name')->text()->link('edit'),
+            TableColumn::key('holder')->text(),
             TableColumn::key('bank_name')->text(),
             TableColumn::key('iban')->text(),
             TableColumn::key('active')
