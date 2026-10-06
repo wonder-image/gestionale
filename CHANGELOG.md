@@ -251,6 +251,12 @@ versionamento semantico.
   sceglie da `Pagamento::Valori`, «MP05 - Bonifico»; il conto si sceglie solo per il bonifico; il
   conto ha l'**Intestatario** (`holder`: colonna nuova); «Quando arriva il denaro» ha etichette
   più chiare e una spiegazione. Chi aggiorna deve lanciare `php forge update`.
+- Checkout con spedizione: `Checkout::preview()` scrive le scelte del cliente sul
+  carrello e risponde con totali, metodi di spedizione, sedi di ritiro e pagamenti;
+  `Checkout::place()` rifiuta il ritiro senza sede di ritiro
+  (`order.pickup_location_unavailable`) e la spedizione dal sito senza metodo
+  (`order.shipping_method_required`, `order.shipping_unavailable`). Le sedi di ritiro
+  stanno in `PickupPoints`, usato anche dalle spedizioni.
 
 ### Corretto
 

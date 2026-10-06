@@ -23,7 +23,10 @@
                 "empty_cart": "Il carrello è vuoto.",
                 "payment_method_unavailable": "Questo metodo di pagamento non è disponibile.",
                 "invalid_details": "Alcuni dati dell'ordine non sono validi: {{fields}}. Controllali e riprova.",
-                "address_incomplete": "Per la spedizione servono almeno la città e l'indirizzo."
+                "address_incomplete": "Per la spedizione servono almeno la città e l'indirizzo.",
+                "pickup_location_unavailable": "La sede di ritiro scelta non è disponibile: scegline un'altra.",
+                "shipping_method_required": "Scegli come spedire l'ordine.",
+                "shipping_unavailable": "Non spediamo all'indirizzo indicato: cambialo o scegli il ritiro in sede."
             },
             "cart": {
                 "not_opened": "Non è stato possibile aprire il carrello. Riprova.",

@@ -21,6 +21,7 @@ use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZoneArea;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
+use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 
 /** Una zona con le sue aree: ogni area è [paese, provincia]. */
 function zona(string $nome, array $aree): int
@@ -183,4 +184,16 @@ function ordineDaRitirare(array $righeOrdine, ?int $sedeId = null, array $ordine
     ]);
 
     return [$id, $righeId];
+}
+
+/** Mette dei pezzi di un articolo in una sede. */
+function giacenzaIn(int $prodotto, int $sede, float $pezzi): void
+{
+    Stock::apply([
+        'product_id' => $prodotto,
+        'location_id' => $sede,
+        'quantity' => $pezzi,
+        'type' => 'purchase',
+        'reason' => 'initial_stock',
+    ]);
 }

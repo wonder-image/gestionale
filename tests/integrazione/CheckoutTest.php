@@ -36,6 +36,8 @@ function prova(callable $corpo): mixed
 
     try {
         Transaction::run(static function () use ($corpo, &$esito): void {
+            // Qui si prova il checkout senza spedizione: la sede e il metodo hanno i loro test.
+            spegniFunzionalita(['shipping']);
             $esito = $corpo();
 
             throw new Annulla();

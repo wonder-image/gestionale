@@ -253,6 +253,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [~] E1a Guscio — [spec](docs/superpowers/specs/2026-09-29-negozio-online-guscio-design.md) approvata il 2026-09-29, tre piani: pacchetto e collegamento a `ecommerce-site` (**fatto**: repository privato `wonder-image/ecommerce`, due moduli validi sul sito di prova), i tre layout sottili con le view sigillate e gli slot, account dei clienti sul permesso `frontend.client` del core. **Non dipende da G4: aperto ora, in parallelo**
   - [ ] E1b Vetrina, catalogo pubblico e scheda prodotto — legge G2, apribile senza G4
   - [ ] E1c Carrello, checkout con Stripe, ordini e resi nell'area cliente, email, condizioni di vendita — **dopo G4**
+    - [~] D5 checkout con spedizione, ritiro e coupon — [spec](docs/superpowers/specs/2026-10-06-checkout-con-spedizione-design.md); piano 1 gestionale ([piano](docs/superpowers/plans/2026-10-06-anteprima-del-checkout.md)) fatto: `Checkout::preview`, controlli di `place`, `PickupPoints`; piano 2 ecommerce (rotte `summary` e `coupon`, `checkout.js`) da scrivere
 - [ ] Rilascio `1.0.0` di gestionale ed ecommerce
 - [ ] Sito del cliente sopra `boilerplates/ecommerce-site`: tema, contenuti, prodotti veri, Stripe in produzione, collaudo
 

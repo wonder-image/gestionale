@@ -291,13 +291,13 @@ check('con la funzionalità spenta il ritiro non si crea', fn () => prova(static
 }));
 
 /** Un listino con il contrassegno a 3,50 € e un carrello che lo sceglie. */
-function carrelloConContrassegno(string $modo, int $sedeId): int
+function carrelloConContrassegno(string $modo, int $sedeId, ?int $prodotto = null): int
 {
     accendiFunzionalita(['orders', 'shipping']);
     $it = zona('Italia', [['IT', '']]);
     $metodo = metodo('Standard');
     listino($metodo, $it, [[5, 8.0], [20, 15.0]], ['cod_fee' => '3.50']);
-    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    $cart = carrello([[$prodotto ?? articolo(2.0, 10.0), 1]]);
     Order::update(['shipping_method_id' => $metodo, 'fulfillment_type' => $modo, 'location_id' => $sedeId], $cart);
 
     return $cart;
@@ -339,10 +339,12 @@ function contrassegno(int $cart, string $modo, int $sedeId): int
 }
 
 check('con la consegna il contrassegno porta la commissione del listino, con il ritiro no e senza riga di spedizione', fn () => prova(static function (): bool {
-    // Il checkout non sceglie la sede del ritiro: la merce esce dalla principale.
-    $sedeId = 0;
-    $consegna = contrassegno(carrelloConContrassegno('shipping', $sedeId), 'shipping', $sedeId);
-    $ritiro = contrassegno(carrelloConContrassegno('pickup', $sedeId), 'pickup', $sedeId);
+    $consegna = contrassegno(carrelloConContrassegno('shipping', 0), 'shipping', 0);
+    // Il ritiro vuole una sede di ritiro con la merce.
+    $sede = sede();
+    $prodotto = articolo(2.0, 10.0);
+    giacenzaIn($prodotto, $sede, 5);
+    $ritiro = contrassegno(carrelloConContrassegno('pickup', $sede, $prodotto), 'pickup', $sede);
     $commissioni = static fn (int $ordine, string $tipo): array => righe(OrderItem::class, "order_id = {$ordine} AND type = '{$tipo}' AND deleted = 'false'");
 
     return count($commissioni($consegna, 'fee')) === 1
