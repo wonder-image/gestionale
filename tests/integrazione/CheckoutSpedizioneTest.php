@@ -470,4 +470,31 @@ check('una spedizione non porta con sé la sede rimasta nel modulo', fn () => pr
     return (int) Order::findById($cart)['location_id'] === 0;
 }));
 
+check('l\'anteprima scrive email e telefono sul carrello', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    $p = Checkout::preview($cart, ['shipping' => milano(), 'email' => 'c@example.com', 'phone' => '333 1234567']);
+    $ordine = Order::findById($cart);
+
+    return $p['invalid'] === [] && $ordine['email'] === 'c@example.com' && $ordine['phone'] === '333 1234567';
+}));
+
+check('un\'email non valida non si scrive e torna in invalid, il telefono sì', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    $p = Checkout::preview($cart, ['shipping' => milano(), 'email' => 'non-una-email', 'phone' => '333 1234567']);
+    $ordine = Order::findById($cart);
+
+    return $p['invalid'] === ['email'] && (string) $ordine['email'] === '' && $ordine['phone'] === '333 1234567';
+}));
+
+check('un\'email vuota non cancella quella già sul carrello', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    Checkout::preview($cart, ['shipping' => milano(), 'email' => 'c@example.com']);
+    Checkout::preview($cart, ['shipping' => milano(), 'email' => '']);
+
+    return Order::findById($cart)['email'] === 'c@example.com';
+}));
+
 summary();

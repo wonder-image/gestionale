@@ -100,8 +100,9 @@ final class Checkout
      * Scrive sul carrello le scelte fatte fin qui — consegna, sede, metodo di
      * spedizione, pagamento, indirizzi — e toglie quelle che non valgono più;
      * poi ricalcola e dice cosa si può ancora scegliere. Non prenota, non
-     * numera, non consuma il coupon e non chiede l'email: quello lo fa
-     * `place()`, che riscrive tutto con il modulo inviato.
+     * numera e non consuma il coupon. Scrive email e telefono se arrivano,
+     * ma non li chiede: li esige `place()`, che riscrive tutto con il modulo
+     * inviato.
      *
      * Un campo che il modello rifiuta non ferma niente: torna in `invalid` e
      * gli altri si scrivono lo stesso.
@@ -161,13 +162,19 @@ final class Checkout
                 }
             }
 
+            // Il contatto si salva al passo Spedizione; place() poi lo esige.
+            $contact = array_filter([
+                'email' => trim((string) ($data['email'] ?? '')),
+                'phone' => trim((string) ($data['phone'] ?? '')),
+            ], static fn (string $value): bool => $value !== '');
+
             $invalid = self::writeLoosely($cartId, [
                 'fulfillment_type' => $type,
                 'location_id' => $locationId,
                 'shipping_method_id' => $type === 'shipping' && $shipping ? (int) $data['shipping_method_id'] : 0,
                 'payment_method_id' => $payment === null ? 0 : (int) $payment['id'],
                 'last_activity_at' => date('Y-m-d H:i:s'),
-            ] + self::addresses($data));
+            ] + $contact + self::addresses($data));
 
             // Il primo ricalcolo toglie il metodo che non copre più
             // l'indirizzo; poi, se ne resta uno solo, si sceglie da sé.
