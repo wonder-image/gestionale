@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Shipping;
 
+use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
@@ -104,6 +105,29 @@ final class ShippingZoneResource extends GestionaleResource
         ];
     }
 
+    /**
+     * I campi della finestra «Nuova zona…» del metodo di spedizione: nome e
+     * una prima area. Altre aree si aggiungono poi dalla pagina Zone.
+     *
+     * @return list<object>
+     */
+    public static function quickCreateFields(): array
+    {
+        return [
+            FormField::key('name')->text()->label('Nome')->required()->columnSpan(12),
+            FormField::key('country')->country('province')->value('IT')->label('Paese')->required()->columnSpan(6),
+            FormField::key('province')->states('IT')->label('Provincia')->columnSpan(6),
+        ];
+    }
+
+    /** Solo `store`, per «Nuova zona…» nella scheda del metodo di spedizione. */
+    public static function apiSchema(): ApiSchema
+    {
+        return ApiSchema::for(static::class)
+            ->only(['store'])
+            ->fields('store', ['name', 'country', 'province']);
+    }
+
     public static function formLayoutSchema(): ?Form
     {
         $id = static::currentId() ?? 0;
@@ -170,8 +194,9 @@ final class ShippingZoneResource extends GestionaleResource
     {
         return parent::navigationSchema()
             ->inSection('set-up')
+            ->group('spedizioni', 'Spedizioni', 70, ['admin', 'administrator'])
             ->title('Zone di spedizione')
-            ->order(50)
+            ->order(20)
             ->authority(['admin', 'administrator']);
     }
 
@@ -206,6 +231,17 @@ final class ShippingZoneResource extends GestionaleResource
         ?array $oldValues = null
     ): array {
         $seen = [];
+
+        // Dalla finestra «Nuova zona…» arriva un paese e una provincia soli:
+        // diventano la prima area, come se il repeater l'avesse mandata.
+        if ($context === 'api' && isset($values['country'])) {
+            $_POST['areas'] = [[
+                'country' => (string) $values['country'],
+                'province' => (string) ($values['province'] ?? ''),
+            ]];
+        }
+
+        unset($values['country'], $values['province']);
 
         foreach ((array) ($_POST['areas'] ?? []) as $key => $row) {
             if (!is_array($row)) {

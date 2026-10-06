@@ -12,6 +12,8 @@ use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Elements\Components\Alert;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\QuickCreateButton;
+use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
@@ -39,6 +41,9 @@ use Wonder\Sql\Transaction;
  */
 final class ShippingMethodResource extends GestionaleResource
 {
+    /** L'id del bottone vero di «Nuova zona…»: lo preme la voce del menu. */
+    public const ZONE_BUTTON = 'wi-shipping-zone-new';
+
     public static string $feature = 'shipping';
     public static string $model = ShippingMethod::class;
     public static string $orderColumn = 'position';
@@ -126,7 +131,8 @@ final class ShippingMethodResource extends GestionaleResource
         $tiered = static fn (object $input): object => $input->visibleWhen('rate_'.$zone.'_price_type', 'brackets');
 
         return [
-            FormField::key($name('on'))->toggle()->value('false')->label('Spedisce verso questa zona'),
+            // Nascosto: lo accende «Aggiungi zona» e lo spegne «Togli zona».
+            FormField::key($name('on'))->hidden()->value('false'),
             FormField::key($name('price_type'))
                 ->select(['brackets' => 'A scaglioni di peso', 'fixed' => 'Fisso'])
                 ->value('brackets')
@@ -201,37 +207,11 @@ final class ShippingMethodResource extends GestionaleResource
             static::getInput('provider_service_code')->columnSpan(6),
         ])->columns(12)->columnSpan(12);
 
-        if ($zones === []) {
-            $left[] = (new Container)->components([
-                Alert::make('Non c\'è ancora nessuna zona: creane una dalla pagina «Zone», poi torna qui a scrivere i listini.', 'info'),
-            ])->columnSpan(12);
-        }
-
         foreach ($zones as $zone) {
-            $id = (int) $zone['id'];
-            $name = static fn (string $field): string => 'rate_'.$id.'_'.$field;
-
-            $left[] = (new Card)->components([
-                SectionTitle::make((string) ($zone['name'] ?? ''))
-                    ->tooltip('Il listino di questa zona. Il prezzo è fisso (uno solo, qualunque sia il peso) oppure a scaglioni di peso. A scaglioni è quello dello scaglione che copre il peso del carrello; oltre l\'ultimo vale la tariffa al kg. Poi si aggiungono carburante e margine, si arrotonda e si applica il minimo. Il peso conta il maggiore tra reale e volumetrico (lunghezza × larghezza × altezza ÷ divisore). Con «Gratis sopra» la spedizione è gratuita sopra quell\'importo di prodotti, con «Gratis fino a» sotto quel peso. Spento, il listino resta salvato.')
-                    ->columnSpan(12),
-                static::getInput($name('on'))->columnSpan(12),
-                (new Container)->components([
-                    static::getInput($name('price_type'))->columnSpan(4),
-                    static::getInput($name('fixed_price'))->columnSpan(3),
-                    static::getInput($name('cod_fee'))->columnSpan(3),
-                    static::getInput($name('brackets'))->columnSpan(12),
-                    static::getInput($name('excess_mode'))->columnSpan(12),
-                    static::getInput($name('min_price'))->columnSpan(3),
-                    static::getInput($name('rounding_step'))->columnSpan(3),
-                    static::getInput($name('fuel_surcharge_percent'))->columnSpan(3),
-                    static::getInput($name('markup_percent'))->columnSpan(3),
-                    static::getInput($name('free_over_amount'))->columnSpan(3),
-                    static::getInput($name('free_under_weight'))->columnSpan(3),
-                    static::getInput($name('volumetric_divisor'))->columnSpan(3),
-                ])->columns(12)->columnSpan(12)->visibleWhen($name('on'), 'true'),
-            ])->columns(12)->columnSpan(12);
+            $left[] = static::zoneBlock($zone);
         }
+
+        $left[] = static::zonePicker($zones);
 
         $side = [];
 
@@ -252,6 +232,321 @@ final class ShippingMethodResource extends GestionaleResource
             (new Container)->components($left)->columns(12)->columnSpan(8),
             (new Container)->components($side)->columns(12)->columnSpan(4),
         ])->columns(12);
+    }
+
+    /**
+     * Il riquadro del listino di una zona. Si vede solo se il metodo spedisce
+     * verso quella zona: lo decide il campo nascosto `rate_<zona>_on`, che lo
+     * script del menu «Aggiungi zona» accende e spegne. Spento il listino
+     * resta salvato, e riaggiungendo la zona si ritrovano i suoi valori.
+     *
+     * @param array<string, mixed> $zone
+     */
+    protected static function zoneBlock(array $zone): Container
+    {
+        $id = (int) $zone['id'];
+        $title = (string) ($zone['name'] ?? '');
+        $name = static fn (string $field): string => 'rate_'.$id.'_'.$field;
+
+        $card = (new Card)->components([
+            SectionTitle::make($title)
+                ->tooltip('Il listino di questa zona. Il prezzo è fisso (uno solo, qualunque sia il peso) oppure a scaglioni di peso. A scaglioni è quello dello scaglione che copre il peso del carrello; oltre l\'ultimo vale la tariffa al kg. Poi si aggiungono carburante e margine, si arrotonda e si applica il minimo. Il peso conta il maggiore tra reale e volumetrico (lunghezza × larghezza × altezza ÷ divisore). Con «Gratis sopra» la spedizione è gratuita sopra quell\'importo di prodotti, con «Gratis fino a» sotto quel peso. «Togli zona» spegne il listino senza cancellarlo.')
+                ->columnSpan(9),
+            RichText::make(
+                '<button type="button" class="btn btn-sm btn-link text-body-secondary p-0" data-wi-zone-remove="'.$id.'">'
+                .'<i class="bi bi-x-lg me-1"></i>Togli zona</button>'
+            )->tag('div')->class('text-end')->columnSpan(3),
+            static::getInput($name('on'))->columnSpan(12),
+            static::getInput($name('price_type'))->columnSpan(4),
+            (new Container)->components([
+                static::getInput($name('fixed_price'))->columnSpan(12),
+            ])->columns(12)->columnSpan(3)->visibleWhen($name('price_type'), 'fixed'),
+            static::getInput($name('cod_fee'))->columnSpan(3),
+            // Col prezzo fisso gli scaglioni e tutto ciò che ne dipende spariscono.
+            (new Container)->components([
+                static::getInput($name('brackets'))->columnSpan(12),
+                static::getInput($name('excess_mode'))->columnSpan(12),
+                static::getInput($name('min_price'))->columnSpan(3),
+                static::getInput($name('rounding_step'))->columnSpan(3),
+                static::getInput($name('fuel_surcharge_percent'))->columnSpan(3),
+                static::getInput($name('markup_percent'))->columnSpan(3),
+                static::getInput($name('free_over_amount'))->columnSpan(3),
+                static::getInput($name('free_under_weight'))->columnSpan(3),
+                static::getInput($name('volumetric_divisor'))->columnSpan(3),
+            ])->columns(12)->columnSpan(12)->visibleWhen($name('price_type'), 'brackets'),
+        ])->columns(12)->columnSpan(12);
+
+        return (new Container)
+            ->components([$card])
+            ->attr('data-wi-zone', (string) $id)
+            ->attr('data-wi-zone-name', $title)
+            ->columns(12)
+            ->columnSpan(12);
+    }
+
+    /** Set-up → Zone di spedizione, dove si preparano le zone con più aree. */
+    protected static function zonesUrl(): string
+    {
+        if (function_exists('__r')) {
+            try {
+                $url = (string) __r('backend.resource.'.ShippingZoneResource::slug().'.list');
+
+                if ($url !== '') {
+                    return $url;
+                }
+            } catch (Throwable) {
+                // Rotta non registrata (test, comandi): resta il percorso.
+            }
+        }
+
+        return '/backend/'.ShippingZoneResource::path().'/';
+    }
+
+    /**
+     * «Aggiungi zona»: il menu delle zone che il metodo non serve ancora e, in
+     * fondo, «Nuova zona…», che apre la finestra della zona. Come la scheda
+     * tecnica del prodotto: la zona nata da qui si aggiunge al metodo subito.
+     *
+     * @param list<array<string, mixed>> $zones
+     */
+    protected static function zonePicker(array $zones): Container
+    {
+        $items = '';
+
+        foreach ($zones as $zone) {
+            $items .= '<li><button type="button" class="dropdown-item" data-wi-zone-add="'.(int) $zone['id'].'">'
+                .static::escape((string) ($zone['name'] ?? '')).'</button></li>';
+        }
+
+        $list = static::escape(static::zonesUrl());
+        $resource = json_encode(ShippingZoneResource::slug());
+        $button = json_encode(static::ZONE_BUTTON);
+
+        $picker = RichText::make(<<<HTML
+<p class="text-body-secondary wi-zone-empty">Il metodo non spedisce ancora verso nessuna zona: aggiungine una.</p>
+<div class="dropdown wi-zone-picker">
+    <button type="button" class="btn btn-outline-secondary w-100 wi-zone-choose" style="border-style:dashed" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-plus-lg me-1"></i>Aggiungi zona
+    </button>
+    <ul class="dropdown-menu w-100">
+        {$items}
+        <li class="wi-zone-divider"><hr class="dropdown-divider"></li>
+        <li><button type="button" class="dropdown-item" data-wi-zone-new="true"><i class="bi bi-plus-lg me-1"></i>Nuova zona…</button></li>
+        <li><span class="dropdown-item-text small text-body-secondary">Una zona con più aree si prepara in <a href="{$list}">Set-up → Zone di spedizione</a>.</span></li>
+    </ul>
+</div>
+<script>
+    window.wiShippingZones = window.wiShippingZones || (function () {
+        var RISORSA = {$resource};
+        var BOTTONE = {$button};
+
+        // La colonna della griglia che contiene il nodo: è quella che si
+        // nasconde o si sposta.
+        function colonna(nodo) {
+            while (nodo && nodo.parentElement && !nodo.parentElement.classList.contains('row')) {
+                nodo = nodo.parentElement;
+            }
+
+            return nodo;
+        }
+
+        function blocchi() {
+            return Array.prototype.slice.call(document.querySelectorAll('[data-wi-zone]'));
+        }
+
+        function campoAcceso(nodo) {
+            return nodo.querySelector('[name="rate_' + nodo.getAttribute('data-wi-zone') + '_on"]');
+        }
+
+        function acceso(nodo) {
+            var campo = campoAcceso(nodo);
+
+            return !!campo && campo.value === 'true';
+        }
+
+        // Il divisore del menu serve solo se sopra c'è una zona da scegliere,
+        // e la frase «nessuna zona» solo se non se ne vede nessuna.
+        function riordina() {
+            var restano = Array.prototype.slice.call(document.querySelectorAll('[data-wi-zone-add]'))
+                .some(function (voce) { return !voce.parentElement.classList.contains('d-none'); });
+            var divisore = document.querySelector('.wi-zone-divider');
+            var vuoto = document.querySelector('.wi-zone-empty');
+
+            if (divisore) {
+                divisore.classList.toggle('d-none', !restano);
+            }
+
+            if (vuoto) {
+                vuoto.classList.toggle('d-none', blocchi().some(acceso));
+            }
+        }
+
+        // Una zona accesa si vede e sparisce dal menu; spenta, il contrario.
+        function imposta(nodo, on) {
+            var campo = campoAcceso(nodo);
+
+            if (campo) {
+                campo.value = on ? 'true' : 'false';
+            }
+
+            colonna(nodo).classList.toggle('d-none', !on);
+
+            var voce = document.querySelector('[data-wi-zone-add="' + nodo.getAttribute('data-wi-zone') + '"]');
+
+            if (voce) {
+                voce.parentElement.classList.toggle('d-none', on);
+            }
+
+            riordina();
+        }
+
+        function aggiungi(id) {
+            var nodo = document.querySelector('[data-wi-zone="' + id + '"]');
+
+            if (!nodo) {
+                return;
+            }
+
+            imposta(nodo, true);
+
+            // Il riquadro nuovo è la cosa da guardare: il cursore va sul suo primo campo.
+            var prima = nodo.querySelector('select, input:not([type="hidden"])');
+
+            colonna(nodo).scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+            if (prima) {
+                prima.focus({ preventScroll: true });
+            }
+        }
+
+        document.addEventListener('click', function (evento) {
+            var bersaglio = evento.target && evento.target.closest
+                ? evento.target.closest('[data-wi-zone-add], [data-wi-zone-new], [data-wi-zone-remove]')
+                : null;
+
+            if (!bersaglio) {
+                return;
+            }
+
+            if (bersaglio.hasAttribute('data-wi-zone-new')) {
+                var bottone = document.getElementById(BOTTONE);
+
+                if (bottone) {
+                    bottone.click();
+                }
+
+                return;
+            }
+
+            if (bersaglio.hasAttribute('data-wi-zone-remove')) {
+                var nodo = document.querySelector('[data-wi-zone="' + bersaglio.getAttribute('data-wi-zone-remove') + '"]');
+
+                if (nodo) {
+                    imposta(nodo, false);
+
+                    var scelta = document.querySelector('.wi-zone-choose');
+
+                    if (scelta) {
+                        scelta.focus({ preventScroll: true });
+                    }
+                }
+
+                return;
+            }
+
+            aggiungi(bersaglio.getAttribute('data-wi-zone-add'));
+        });
+
+        // La zona nata dalla finestra non ha ancora il suo riquadro in pagina:
+        // si legge dalla stessa pagina, che ora la conosce, e si porta qui
+        // senza ricaricare, per non perdere quello che si sta scrivendo.
+        document.addEventListener('wi:quick-create:created', function (evento) {
+            var dettaglio = evento.detail || {};
+
+            if (dettaglio.family !== 'button' || dettaglio.resource !== RISORSA) {
+                return;
+            }
+
+            var riga = dettaglio.item || {};
+            var id = parseInt(dettaglio.id || riga.id, 10);
+
+            if (!(id > 0) || document.querySelector('[data-wi-zone="' + id + '"]')) {
+                return;
+            }
+
+            var titolo = String(riga.name || dettaglio.label || '');
+
+            fetch(window.location.href, { credentials: 'same-origin' })
+                .then(function (risposta) { return risposta.text(); })
+                .then(function (html) {
+                    var pagina = new DOMParser().parseFromString(html, 'text/html');
+                    var dentro = pagina.querySelector('[data-wi-zone="' + id + '"]');
+                    var picker = document.querySelector('.wi-zone-picker');
+
+                    if (!dentro || !picker) {
+                        return;
+                    }
+
+                    var colonnaNuova = document.importNode(colonna(dentro), true);
+                    var dove = colonna(picker);
+
+                    dove.parentElement.insertBefore(colonnaNuova, dove);
+
+                    // Gli script di un nodo importato non girano da soli.
+                    colonnaNuova.querySelectorAll('script').forEach(function (vecchio) {
+                        var nuovo = document.createElement('script');
+                        nuovo.text = vecchio.textContent;
+                        vecchio.parentNode.replaceChild(nuovo, vecchio);
+                    });
+
+                    // La sua voce nel menu, per quando la si toglie.
+                    var divisore = document.querySelector('.wi-zone-divider');
+
+                    if (divisore) {
+                        var voce = document.createElement('li');
+                        var tasto = document.createElement('button');
+                        tasto.type = 'button';
+                        tasto.className = 'dropdown-item';
+                        tasto.setAttribute('data-wi-zone-add', String(id));
+                        tasto.textContent = titolo;
+                        voce.appendChild(tasto);
+                        divisore.parentElement.insertBefore(voce, divisore);
+                    }
+
+                    if (typeof setAutonumeric === 'function') {
+                        setAutonumeric(colonnaNuova);
+                    }
+
+                    if (typeof setConditional === 'function') {
+                        setConditional(colonnaNuova);
+                    }
+
+                    aggiungi(id);
+                });
+        });
+
+        blocchi().forEach(function (nodo) { imposta(nodo, acceso(nodo)); });
+        riordina();
+
+        return true;
+    })();
+</script>
+HTML)->tag('div');
+
+        return (new Container)->components([
+            $picker->columnSpan(12),
+            // Il bottone vero della finestra: lo apre la voce del menu, e il
+            // suo script ne nasconde la colonna.
+            QuickCreateButton::make(ShippingZoneResource::class)
+                ->text('Nuova zona')
+                ->label('name')
+                ->layout(static fn (): Container => (new Container)
+                    ->columns(12)
+                    ->components(ShippingZoneResource::quickCreateFields()))
+                ->size('sm')
+                ->id(static::ZONE_BUTTON)
+                ->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
     }
 
     public static function tableSchema(): array
@@ -293,8 +588,9 @@ final class ShippingMethodResource extends GestionaleResource
     {
         return parent::navigationSchema()
             ->inSection('set-up')
+            ->group('spedizioni', 'Spedizioni', 70, ['admin', 'administrator'])
             ->title('Metodi di spedizione')
-            ->order(40)
+            ->order(10)
             ->authority(['admin', 'administrator']);
     }
 

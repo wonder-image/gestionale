@@ -10,6 +10,7 @@ use Wonder\App\ResourceSchema\Inputs\InputStates;
 use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZone;
+use Wonder\Plugin\Gestionale\Resources\Catalog\PackageResource;
 use Wonder\Plugin\Gestionale\Resources\Shipping\CarrierResource;
 use Wonder\Plugin\Gestionale\Resources\Shipping\ShippingMethodResource;
 use Wonder\Plugin\Gestionale\Resources\Shipping\ShippingZoneResource;
@@ -43,6 +44,44 @@ check('le tre pagine stanno sotto Spedizioni, dietro la funzionalità, solo per 
     }
 
     return true;
+});
+
+check('in Set-up le quattro pagine stanno nel menu a tendina «Spedizioni»: metodi, zone, corrieri, imballaggi', function () {
+    $attese = [
+        ShippingMethodResource::class => 'Metodi di spedizione',
+        ShippingZoneResource::class => 'Zone di spedizione',
+        CarrierResource::class => 'Corrieri',
+        PackageResource::class => 'Imballaggi',
+    ];
+    $ordine = [];
+
+    foreach ($attese as $resource => $titolo) {
+        $menu = $resource::navigationSchema()->toArray();
+
+        if (($menu['section_key'] ?? '') !== 'set-up'
+            || ($menu['group_key'] ?? '') !== 'spedizioni'
+            || ($menu['group']['title'] ?? '') !== 'Spedizioni'
+            || ($menu['title'] ?? '') !== $titolo) {
+            return false;
+        }
+
+        $ordine[$titolo] = (int) ($menu['order'] ?? 0);
+    }
+
+    $voci = array_keys($ordine);
+    asort($ordine);
+
+    return array_keys($ordine) === $voci;
+});
+
+check('la zona si crea anche dalla finestra «Nuova zona…»: nome, paese e provincia, solo lo store', function () {
+    $schema = ShippingZoneResource::apiSchema()->toArray();
+    $nomi = array_map(static fn ($input): string => (string) $input->name, ShippingZoneResource::quickCreateFields());
+
+    return ($schema['routes']['store'] ?? false) === true
+        && ($schema['fields']['store'] ?? null) === ['name', 'country', 'province']
+        && array_keys(array_filter((array) $schema['routes'])) === ['store']
+        && $nomi === ['name', 'country', 'province'];
 });
 
 check('con la funzionalità spenta le pagine non ci sono e il menu le nasconde', function () {

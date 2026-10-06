@@ -186,9 +186,9 @@ final class PackageResource extends GestionaleResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('set-up')
-            ->inGroup('gestionale')
+            ->group('spedizioni', 'Spedizioni', 70, ['admin', 'administrator'])
             ->title('Imballaggi')
-            ->order(30)
+            ->order(40)
             ->authority(['admin']);
     }
 

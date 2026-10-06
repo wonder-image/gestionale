@@ -10,12 +10,13 @@ icon: truck
 ## Come funziona
 
 Il prezzo della spedizione dipende da **dove va** il pacco e da **quanto pesa**.
-Lo scrivi in tre pagine del **Set-up**:
+Lo scrivi nel **Set-up**, alla voce **Spedizioni**, che si apre su quattro pagine:
 
-* **Corrieri**: chi consegna (BRT, GLS, SDA…) e il link per seguire il pacco.
-* **Zone**: gruppi di destinazioni («Italia», «Isole», «Unione Europea»).
-* **Metodi**: ciò che il cliente sceglie («Standard», «Espresso»). Ogni metodo
+* **Metodi di spedizione**: ciò che il cliente sceglie («Standard», «Espresso»). Ogni metodo
   ha **un listino per ogni zona** in cui spedisce.
+* **Zone di spedizione**: gruppi di destinazioni («Italia», «Isole», «Unione Europea»).
+* **Corrieri**: chi consegna (BRT, GLS, SDA…) e il link per seguire il pacco.
+* **Imballaggi**: gli scatoloni che usi.
 
 Il cliente indica la destinazione nel carrello; il sito trova la sua zona e
 propone i metodi che hanno un listino per quella zona, ognuno col suo prezzo.
@@ -44,17 +45,21 @@ vuota vuol dire «tutto il paese».
 ## Metodi e listini
 
 Nel metodo scrivi nome, tempi di consegna (che il cliente vede), corriere e
-codice del servizio. Sotto c'è **un riquadro per ogni zona**: accendi
-«Spedisce verso questa zona» e compili il listino.
+codice del servizio. Sotto c'è **un riquadro per ogni zona in cui il metodo spedisce**.
+Per aggiungerne uno premi **+ Aggiungi zona** e scegli la zona dall'elenco: compare il suo
+riquadro, da compilare. Se la zona non c'è ancora, scegli **Nuova zona…**: si apre una
+finestra dove scrivi il nome e la prima area (paese ed, eventualmente, provincia), e la zona
+nasce lì, già pronta per il listino. Altre aree le aggiungi poi dalla pagina *Zone di spedizione*.
+**Togli zona**, in alto a destra del riquadro, smette di spedire verso quella zona.
 
 ### Prezzo a scaglioni o fisso
 
 Per ogni zona scegli come si paga:
 
 * **A scaglioni**: il prezzo dipende dal peso, come descritto qui sotto.
-* **Fisso**: un solo prezzo, qualunque sia il peso. Scrivi la cifra e basta: prezzo
-  minimo, arrotondamento, maggiorazione, margine, «gratis fino a» e dimensione volumetrica
-  non servono e non compaiono.
+* **Fisso**: un solo prezzo, qualunque sia il peso. Scrivi la cifra e basta: gli scaglioni,
+  il prezzo minimo, l'arrotondamento, la maggiorazione, il margine, «gratis fino a» e il
+  divisore volumetrico non servono e non compaiono.
 
 ### Scaglioni di peso
 
@@ -109,7 +114,7 @@ dall'ufficio (vedi [Canali di vendita](canali-di-vendita.md)).
 
 ## Spegnere, togliere, eliminare
 
-* Spegnere «Spedisce verso questa zona» **non cancella** il listino: resta
-  salvato e, riaccendendolo, ritrovi i suoi valori.
+* «Togli zona» **non cancella** il listino: resta salvato e, rimettendo la zona con
+  «+ Aggiungi zona», ritrovi i suoi valori.
 * Un metodo già su un ordine non si elimina: mettilo su «Non attivo» e non si
   propone più.

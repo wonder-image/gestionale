@@ -129,8 +129,9 @@ final class CarrierResource extends GestionaleResource
     {
         return parent::navigationSchema()
             ->inSection('set-up')
+            ->group('spedizioni', 'Spedizioni', 70, ['admin', 'administrator'])
             ->title('Corrieri')
-            ->order(60)
+            ->order(30)
             ->authority(['admin', 'administrator']);
     }
 

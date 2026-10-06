@@ -124,13 +124,25 @@ come tutte le altre azioni da `OrderActionResource::run()`. Dai tre puntini dell
 *Cambia stato* e *Tracking e corriere* aprono la scheda con la finestra già aperta
 (`?apri=modifica`): il core non apre finestre da una voce del menu.
 
+**Scheda del metodo.** Un blocco per ogni zona con listino acceso (`rate_<zona>_on = true`),
+costruito da `ShippingMethodResource::zoneBlock()`; le altre zone stanno nel menu
+«+ Aggiungi zona» (`zonePicker()`), che accende il campo nascosto `rate_<zona>_on` e mostra
+il blocco; «Togli zona» lo rispegne senza cancellare il listino. «Nuova zona…» apre il
+`QuickCreateButton` di `ShippingZoneResource` (`apiSchema()` solo `store`, campi
+`quickCreateFields()`: nome, paese, provincia): `mutateRequestValues()` trasforma paese e
+provincia nella prima riga di `areas` in `$_POST`, che `syncRepeaterRelations` scrive. A
+prezzo fisso gli scaglioni e i campi che dipendono dal peso stanno in un `Container`
+`visibleWhen('rate_<zona>_price_type', 'brackets')`.
+
 **Corrieri di serie.** `Defaults::carriers()` semina POSTE ITALIANE, DHL, GLS, UPS, BARTOLINI
 e FEDEX col solo nome e il link di tracking (`{tracking}` in coda), senza toccare quelli già
 presenti o cambiati a mano. Sito, logo e i dati dell'API di DHL (chiavi, server,
 `/shipments`) non hanno ancora colonne: servono quando si collegheranno i tracking via API.
 
 **Pagine.** `ShipmentResource` (*Vendite → Spedizioni*, elenco, ricercabile anche per numero ordine, e scheda di lettura),
-`CarrierResource`, `ShippingZoneResource` e `ShippingMethodResource` stanno nel *Set-up*,
+`ShippingMethodResource`, `ShippingZoneResource`, `CarrierResource` e `PackageResource`
+(*Metodi di spedizione*, *Zone di spedizione*, *Corrieri*, *Imballaggi*, in quest'ordine) stanno
+nel gruppo *Spedizioni* del *Set-up* (`group('spedizioni', …, 70)`),
 `OrderShipmentTableResource` (il blocco *Spedizioni* della scheda ordine), le sei
 azioni in `OrderActions`/`OrderActionResource`, i riquadri `ShipmentsToCheckWidget`
 (`exception` e `failed_attempt`) e `ShippedNotDeliveredWidget` (partite da più di

@@ -11,6 +11,7 @@ require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
 require __DIR__.'/supporto/spedizioni.php';
+require __DIR__.'/supporto/layout.php';
 
 use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
@@ -176,6 +177,35 @@ check('il form del metodo ha un riquadro di campi per ogni zona', fn () => prova
         && in_array('rate_'.$zona.'_brackets', $nomi, true)
         && in_array('rate_'.$zona.'_cod_fee', $nomi, true)
         && ShippingMethodResource::formLayoutSchema() !== null;
+}));
+
+check('la scheda del metodo ha «Aggiungi zona» e un riquadro per zona, con «Nuova zona…» in fondo', fn () => prova(static function (): bool {
+    $zona = zona('Italia', [['IT', '']]);
+    $html = layoutHtml(ShippingMethodResource::formLayoutSchema());
+
+    return str_contains($html, 'data-wi-zone="'.$zona.'"')
+        && str_contains($html, 'data-wi-zone-add="'.$zona.'"')
+        && str_contains($html, 'data-wi-zone-remove="'.$zona.'"')
+        && str_contains($html, 'Aggiungi zona')
+        && str_contains($html, 'Nuova zona…')
+        // Non c'è più l'interruttore: la zona si accende dal menu.
+        && !str_contains($html, 'Spedisce verso questa zona')
+        && preg_match('/<input[^>]*type="hidden"[^>]*name="rate_'.$zona.'_on"/', $html) === 1;
+}));
+
+check('col prezzo fisso gli scaglioni stanno in un contenitore che si vede solo a scaglioni', fn () => prova(static function (): bool {
+    $zona = zona('Italia', [['IT', '']]);
+    $html = layoutHtml(ShippingMethodResource::formLayoutSchema());
+    $contenitore = '<div data-visible-when="rate_'.$zona.'_price_type" data-visible-when-values="brackets" data-wi-conditional-container="true" class="row g-3">';
+    $inizio = strpos($html, $contenitore);
+    $scaglioni = strpos($html, 'rate_'.$zona.'_brackets');
+    $minimo = strpos($html, 'name="rate_'.$zona.'_min_price"');
+    $fisso = strpos($html, 'name="rate_'.$zona.'_fixed_price"');
+
+    // Il contenitore apre prima della tabella degli scaglioni e degli altri campi a peso;
+    // il prezzo fisso e il tipo di prezzo restano fuori, sopra.
+    return $inizio !== false && $scaglioni !== false && $minimo !== false && $fisso !== false
+        && $inizio < $scaglioni && $inizio < $minimo && $fisso < $inizio;
 }));
 
 check('il salvataggio del metodo ferma un listino che non sta in piedi, con la frase', fn () => prova(static function (): bool {

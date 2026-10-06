@@ -233,6 +233,11 @@ versionamento semantico.
   GLS, UPS, Bartolini, FedEx) e le pagine Metodi, Zone e Corrieri passano nel *Set-up*,
   *Spedizioni* nelle *Vendite*. Il nome del corriere non cambia più le maiuscole (DHL resta
   DHL). Chi aggiorna deve lanciare `php forge update`.
+- Spedizioni, ritocchi alla scheda del metodo: nel *Set-up* le pagine stanno nel gruppo
+  *Spedizioni* (Metodi di spedizione, Zone di spedizione, Corrieri, Imballaggi); a prezzo
+  fisso scompaiono gli scaglioni e i campi a peso; al posto dell'interruttore «Spedisce verso
+  questa zona» c'è **+ Aggiungi zona**, con **Nuova zona…** per crearla lì (nome e prima area)
+  e **Togli zona** per toglierla senza perdere il listino.
 
 ### Corretto
 
