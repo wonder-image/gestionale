@@ -60,7 +60,11 @@ final class RateForm
 
             $zone = (int) $m[1];
             $field = static fn (string $name): mixed => $post['rate_'.$zone.'_'.$name] ?? null;
-            $rate = ['excess_mode' => $field('excess_mode') === 'excess_only' ? 'excess_only' : 'total_weight'];
+            $rate = [
+                'price_type' => $field('price_type') === 'fixed' ? 'fixed' : 'brackets',
+                'fixed_price' => Numbers::fromForm($field('fixed_price')),
+                'excess_mode' => $field('excess_mode') === 'excess_only' ? 'excess_only' : 'total_weight',
+            ];
 
             foreach (self::OPTIONAL as $name) {
                 $rate[$name] = Numbers::fromForm($field($name));
@@ -137,6 +141,22 @@ final class RateForm
     {
         foreach ($rates as $zone => $rate) {
             $with = ['zone' => $zoneNames[$zone] ?? '#'.$zone];
+
+            // A prezzo fisso contano solo l'importo e il contrassegno: gli altri
+            // campi restano salvati ma nel form sono nascosti e non si controllano.
+            if (($rate['price_type'] ?? 'brackets') === 'fixed') {
+                if (($rate['fixed_price'] ?? null) === null) {
+                    throw UserError::make('shipping.fixed_price_missing', $with);
+                }
+
+                foreach (['fixed_price', 'cod_fee'] as $name) {
+                    if ((float) ($rate[$name] ?? 0) < 0) {
+                        throw UserError::make('shipping.rate_negative', $with);
+                    }
+                }
+
+                continue;
+            }
 
             foreach (self::NON_NEGATIVE as $name) {
                 if (($rate[$name] ?? null) !== null && (float) $rate[$name] < 0) {
@@ -216,6 +236,8 @@ final class RateForm
                 }
 
                 $values = [
+                    'price_type' => $rate['price_type'] ?? 'brackets',
+                    'fixed_price' => $rate['fixed_price'] ?? null,
                     'excess_mode' => $rate['excess_mode'],
                     'active' => 'true',
                 ];
@@ -268,6 +290,8 @@ final class RateForm
         foreach (static::rows(ShippingRate::find(['shipping_method_id' => $methodId])) as $row) {
             $zone = (int) $row['shipping_zone_id'];
             $values['rate_'.$zone.'_on'] = ($row['active'] ?? 'true') === 'true' ? 'true' : 'false';
+            $values['rate_'.$zone.'_price_type'] = (string) ($row['price_type'] ?? 'brackets');
+            $values['rate_'.$zone.'_fixed_price'] = $row['fixed_price'] ?? null;
             $values['rate_'.$zone.'_excess_mode'] = (string) ($row['excess_mode'] ?? 'total_weight');
 
             foreach ([...self::OPTIONAL, ...self::DEFAULTED] as $name) {

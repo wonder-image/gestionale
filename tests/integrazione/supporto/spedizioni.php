@@ -5,9 +5,14 @@
  * tutto quello che scrivono.
  */
 
+use Wonder\App\Models\Config\SocietyLocation;
+use Wonder\App\Models\Config\SocietyLocationHour;
+use Wonder\App\Support\SocietyLocations;
+use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRate;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRateBracket;
@@ -103,4 +108,79 @@ function carrello(array $righe, array $ordine = []): int
     Order::update($ordine + ['shipping_country' => 'IT', 'shipping_province' => 'MI', 'shipping_city' => 'Milano'], $cart);
 
     return $cart;
+}
+
+/**
+ * Un ordine confermato da spedire, con le righe date ([articolo, quantità]).
+ *
+ * @return array{0: int, 1: list<int>} l'id dell'ordine e gli id delle sue righe, nell'ordine dato
+ */
+function ordineDaSpedire(array $righe, array $ordine = []): array
+{
+    $id = carrello($righe);
+    Order::update($ordine + [
+        'stage' => 'order',
+        'status' => 'confirmed',
+        'fulfillment_type' => 'shipping',
+    ], $id);
+
+    $trovate = OrderItem::find(['order_id' => $id, 'deleted' => 'false']);
+    $trovate = !is_array($trovate) || $trovate === [] ? [] : (array_key_exists('id', $trovate) ? [$trovate] : array_values(array_filter($trovate, 'is_array')));
+    usort($trovate, static fn (array $a, array $b): int => (int) $a['id'] <=> (int) $b['id']);
+
+    return [$id, array_map(static fn (array $riga): int => (int) $riga['id'], $trovate)];
+}
+
+/**
+ * Una sede di prova: la riga del core, i suoi orari (sempre aperta o mai) e la
+ * riga del gestionale. Si butta con la transazione della prova.
+ *
+ * @param array<string, string> $indirizzo campi di indirizzo della sede (`street`, `number`, `cap`, `city`)
+ * @return int l'id della riga di `gst_locations`
+ */
+function sede(bool $ritiro = true, bool $aperta = true, string $attiva = 'true', array $indirizzo = []): int
+{
+    // L'indirizzo va dato alla creazione: un aggiornamento parziale non passa la validazione.
+    $core = (int) (SocietyLocation::create($indirizzo + [
+        'label' => 'Prova ritiro',
+        'slug' => 'prova-ritiro-'.uniqid(),
+        'position' => 9002,
+        'visible' => 'true',
+    ])->insert_id ?? 0);
+
+    if ($aperta) {
+        // Un orario con l'apertura e senza chiusura vale «sempre aperto».
+        SocietyLocationHour::create([
+            'society_location_id' => $core,
+            'hours_type' => 'regular',
+            'open_day' => 'Mon',
+            'open_time' => '00:00',
+            'close_time' => '',
+            'position' => 1,
+        ]);
+    }
+
+    SocietyLocations::reset();
+
+    return (int) (Location::create([
+        'society_location_id' => $core,
+        'has_stock' => 'true',
+        'is_pickup_point' => $ritiro ? 'true' : 'false',
+        'active' => $attiva,
+    ])->insert_id ?? 0);
+}
+
+/**
+ * Un ordine confermato da ritirare, con le righe date ([articolo, quantità]).
+ *
+ * @return array{0: int, 1: list<int>}
+ */
+function ordineDaRitirare(array $righeOrdine, ?int $sedeId = null, array $ordine = []): array
+{
+    [$id, $righeId] = ordineDaSpedire($righeOrdine, $ordine + [
+        'fulfillment_type' => 'pickup',
+        'location_id' => $sedeId ?? sede(),
+    ]);
+
+    return [$id, $righeId];
 }

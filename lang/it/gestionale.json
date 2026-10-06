@@ -177,6 +177,7 @@
                 "reason_weight": "Non copre il peso della merce",
                 "reason_nothing": "Non c'è nulla da spedire",
                 "rate_no_brackets": "Il listino «{{zone}}» non ha nessuno scaglione di prezzo: scrivine almeno uno, oppure spegni il listino.",
+                "fixed_price_missing": "Il listino «{{zone}}» è a prezzo fisso ma non ha l'importo: scrivilo, oppure spegni il listino.",
                 "bracket_duplicate": "Il listino «{{zone}}» ha due scaglioni con lo stesso peso massimo.",
                 "bracket_weight": "Nel listino «{{zone}}» ogni scaglione di prezzo ha un peso massimo maggiore di zero.",
                 "bracket_amount": "Nel listino «{{zone}}» ogni scaglione ha un importo, e non è negativo.",
@@ -189,6 +190,19 @@
                 "zone_in_use": "Questa zona ha {{count}} listini accesi: toglila dai metodi di spedizione o spegni i listini, poi eliminala.",
                 "method_in_use": "Questo metodo è su {{count}} ordini o carrelli: spegnilo invece di eliminarlo.",
                 "area_country": "Il paese di un'area è una sigla di due lettere, per esempio IT. «{{country}}» non lo è."
+            },
+            "shipment": {
+                "feature_off": "Le spedizioni non sono attive: accendile dalle funzionalità.",
+                "order_not_open": "Questo ordine non si spedisce: deve essere confermato e con consegna a domicilio.",
+                "nothing_to_ship": "Scegli almeno un articolo da spedire, con una quantità maggiore di zero.",
+                "over_quantity": "Non puoi spedire più di quanto resta da spedire, né articoli che non fanno parte di questo ordine o che non si spediscono.",
+                "not_found": "Questa spedizione non esiste.",
+                "bad_transition": "Da questo stato la spedizione non può passare a quello richiesto.",
+                "tracking_required": "Con questo corriere serve il numero di tracking: il cliente lo usa per seguire il pacco.",
+                "bad_date": "La data di spedizione non è valida: scrivila come giorno, mese e anno.",
+                "not_pickup_point": "La sede scelta per questo ordine non è un punto di ritiro attivo.",
+                "location_closed": "La sede di ritiro è chiusa in questo momento.",
+                "pickup_exists": "Questo ordine ha già un ritiro in corso."
             }
         },
         "emails": {
@@ -212,6 +226,19 @@
                     "subject": "Ordine :number annullato",
                     "title": "Ordine annullato",
                     "intro": "L'ordine :number è stato annullato. Se avevi già pagato, ti restituiamo l'importo."
+                },
+                "shipped": {
+                    "subject": "L'ordine :number è in viaggio",
+                    "title": "Il tuo ordine è partito",
+                    "intro": "Abbiamo affidato al corriere l'ordine :number. Se hai ordinato più articoli, il resto può arrivare con un'altra spedizione.",
+                    "carrier_line": "Corriere: :carrier",
+                    "tracking_line": "Numero di tracking: :tracking"
+                },
+                "ready_for_pickup": {
+                    "subject": "L'ordine :number è pronto per il ritiro",
+                    "title": "Il tuo ordine ti aspetta",
+                    "intro": "L'ordine :number è pronto: puoi passare a ritirarlo.",
+                    "location_line": "Dove: :location"
                 },
                 "merchant_new": {
                     "subject": "Nuovo ordine :number",

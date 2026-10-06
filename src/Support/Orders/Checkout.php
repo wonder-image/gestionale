@@ -167,7 +167,7 @@ final class Checkout
                 'payment_method_id' => (int) $method['id'],
                 'payment_account_id' => (int) ($method['payment_account_id'] ?? 0),
                 'currency' => (string) ($order['currency'] ?? 'EUR'),
-                'provider' => (string) ($method['provider'] ?? 'manual'),
+                'provider' => PaymentMethod::ledgerProvider((string) ($method['provider'] ?? '')),
                 'source' => (string) ($data['source'] ?? 'user'),
                 'user_id' => (int) ($data['user_id'] ?? 0),
             ]);
@@ -353,15 +353,16 @@ final class Checkout
             : 0.0;
 
         $type = (string) ($method['fee_type'] ?? 'none');
-        $value = round((float) ($method['fee_value'] ?? 0), 2);
+        $fixed = in_array($type, ['amount', 'amount_percent'], true) ? round((float) ($method['fee_value'] ?? 0), 2) : 0.0;
+        $percent = in_array($type, ['percent', 'amount_percent'], true) ? min(round((float) ($method['fee_percent'] ?? 0), 2), 100.0) : 0.0;
 
-        if ($cod <= 0 && ($type === 'none' || $value <= 0)) {
+        if ($cod <= 0 && $fixed <= 0 && $percent <= 0) {
             return;
         }
 
         $order = Order::findById($orderId);
         $base = (float) (is_array($order) ? ($order['products_total'] ?? 0) : 0);
-        $amount = $cod > 0 ? $cod : ($type === 'percent' ? round($base * min($value, 100.0) / 100, 2) : $value);
+        $amount = $cod > 0 ? $cod : round($fixed + $base * $percent / 100, 2);
 
         if ($amount <= 0) {
             return;

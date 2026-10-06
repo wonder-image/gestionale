@@ -18,6 +18,9 @@ use Wonder\Sql\TableSchema as Column;
  * Il margine può essere negativo. Carburante, margine, minimo e contrassegno
  * a zero non fanno niente.
  *
+ * `price_type` è `brackets` (a scaglioni di peso) o `fixed` (un prezzo unico,
+ * `fixed_price`, che non guarda il peso e non ha gli altri campi di prezzo).
+ *
  * Non si sincronizza: è lavoro del commerciante.
  */
 final class ShippingRate extends Model
@@ -36,6 +39,8 @@ final class ShippingRate extends Model
         return [
             Column::key('shipping_method_id')->int()->null(false)->foreign(ShippingMethod::$table),
             Column::key('shipping_zone_id')->int()->null(false)->foreign(ShippingZone::$table),
+            Column::key('price_type')->enum(['brackets', 'fixed'])->default('brackets'),
+            Columns::decimal('fixed_price', '12,2'),
             Column::key('volumetric_divisor')->int(),
             Column::key('excess_mode')->enum(['total_weight', 'excess_only'])->default('total_weight'),
             Columns::decimal('fuel_surcharge_percent', '7,2')->default('0'),
@@ -62,6 +67,8 @@ final class ShippingRate extends Model
         return [
             Field::key('shipping_method_id')->number()->decimals(0),
             Field::key('shipping_zone_id')->number()->decimals(0),
+            Field::key('price_type')->text()->sanitize(false),
+            Field::key('fixed_price')->number()->decimals(2),
             Field::key('volumetric_divisor')->number()->decimals(0),
             Field::key('excess_mode')->text()->sanitize(false),
             Field::key('fuel_surcharge_percent')->number()->decimals(2),

@@ -164,4 +164,28 @@ check('la gratuità non nasconde un peso che il listino non copre', fn () =>
     ShippingRates::price($listino(['free_over_amount' => 10]), $tre, 50.0, 500.0) === null
 );
 
+// — prezzo fisso —
+
+check('il prezzo fisso non guarda il peso e non ha scaglioni', fn () =>
+    $importo(ShippingRates::price($listino(['price_type' => 'fixed', 'fixed_price' => '7.50']), [], 42.0, 0.0)) === 7.5
+    && $importo(ShippingRates::price($listino(['price_type' => 'fixed', 'fixed_price' => '7.50']), $tre, 0.0, 0.0)) === 7.5
+);
+
+check('il prezzo fisso ignora carburante, margine, arrotondamento, minimo e gratuità', fn () =>
+    ShippingRates::price($listino([
+        'price_type' => 'fixed', 'fixed_price' => '7.50',
+        'fuel_surcharge_percent' => 10, 'markup_percent' => 20, 'rounding_step' => 5,
+        'min_price' => 20, 'free_over_amount' => 1, 'free_under_weight' => 100,
+    ]), [], 3.0, 500.0) === ['amount' => 7.5, 'free' => false]
+);
+
+check('il prezzo fisso senza importo non copre niente', fn () =>
+    ShippingRates::price($listino(['price_type' => 'fixed', 'fixed_price' => null]), [], 1.0, 0.0) === null
+);
+
+check('un listino senza price_type resta a scaglioni', fn () =>
+    $importo(ShippingRates::price($listino(), $tre, 3.0, 0.0)) === 10.0
+    && $importo(ShippingRates::price($listino(['price_type' => 'brackets']), $tre, 3.0, 0.0)) === 10.0
+);
+
 summary();

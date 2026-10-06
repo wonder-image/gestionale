@@ -63,10 +63,11 @@ function metodoDiProva(string $timing, string $feeType = 'none', float $feeValue
     $metodo = PaymentMethod::create([
         'code' => 'tst_'.uniqid(),
         'name' => 'Prova '.$timing,
-        'provider' => $timing === PaymentTiming::IMMEDIATE ? 'stripe' : 'manual',
+        'provider' => $timing === PaymentTiming::IMMEDIATE ? 'stripe' : ($timing === PaymentTiming::ON_DELIVERY ? 'cash' : 'bank_transfer'),
         'timing' => $timing,
         'fee_type' => $feeType,
-        'fee_value' => number_format($feeValue, 2, '.', ''),
+        'fee_value' => $feeType === 'amount' ? number_format($feeValue, 2, '.', '') : '0.00',
+        'fee_percent' => $feeType === 'percent' ? number_format($feeValue, 2, '.', '') : '0.00',
         'available_for' => 'all',
         'active' => 'true',
         'position' => 1,

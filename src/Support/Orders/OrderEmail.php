@@ -6,12 +6,13 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
 
 /**
- * Oggetto e corpo delle sei email di un ordine.
+ * Oggetto e corpo delle otto email di un ordine.
  *
- * Quattro al cliente — ricevuto, confermato, promemoria, annullato — e due al
- * commerciante — ordine nuovo, ordine annullato per mancato pagamento. Sei
- * momenti, due viste: quello che cambia è il titolo e la frase, che stanno nel
- * file di lingua e si correggono senza toccare il codice.
+ * Sei al cliente — ricevuto, confermato, promemoria, annullato, spedito, pronto
+ * per il ritiro — e due al commerciante — ordine nuovo, ordine annullato per
+ * mancato pagamento. Otto momenti, due viste: quello che cambia è il titolo e
+ * la frase, che stanno nel file di lingua e si correggono senza toccare il
+ * codice.
  *
  * Classe pura: prende array, restituisce stringhe. Non legge il database e non
  * manda niente — di quello si occupa `OrderNotifier`.
@@ -21,7 +22,13 @@ final class OrderEmail
     public const CUSTOMER_VIEW = 'emails/order.php';
     public const MERCHANT_VIEW = 'emails/order-merchant.php';
 
-    public const KEYS = ['received', 'confirmed', 'reminder', 'cancelled', 'merchant_new', 'merchant_cancelled'];
+    public const KEYS = [
+        'received', 'confirmed', 'reminder', 'cancelled', 'shipped', 'ready_for_pickup',
+        'merchant_new', 'merchant_cancelled',
+    ];
+
+    /** Le righe di dettaglio sotto la frase, in ordine: parte del file di lingua → segnaposto. */
+    private const DETAILS = ['carrier_line' => ':carrier', 'tracking_line' => ':tracking', 'location_line' => ':location'];
 
     /** Le sole in cui ha senso dire come si paga: dopo, o senza, sarebbero rumore. */
     public const INSTRUCTION_KEYS = ['received', 'reminder'];
@@ -32,7 +39,7 @@ final class OrderEmail
     /**
      * @param array<string, mixed> $order riga di `gst_orders`
      * @param list<array<string, mixed>> $items righe di `gst_order_items`
-     * @param array{instructions?: string, deadline?: string, method?: string, url?: string} $extra
+     * @param array{instructions?: string, deadline?: string, method?: string, url?: string, carrier?: string, tracking?: string, location?: string} $extra
      * @return array{subject: string, body: string}
      */
     public static function compose(string $key, array $order, array $items, array $extra = []): array
@@ -45,6 +52,10 @@ final class OrderEmail
             ':total' => self::money($order['total'] ?? 0).' €',
             ':deadline' => self::date((string) ($extra['deadline'] ?? '')),
             ':method' => (string) ($extra['method'] ?? ''),
+            ':carrier' => trim((string) ($extra['carrier'] ?? '')),
+            ':tracking' => trim((string) ($extra['tracking'] ?? '')),
+            ':location' => trim((string) ($extra['location'] ?? '')),
+            ':url' => '',
         ];
 
         return [
@@ -52,6 +63,7 @@ final class OrderEmail
             'body' => self::render($merchant ? self::MERCHANT_VIEW : self::CUSTOMER_VIEW, [
                 'title' => self::text($key, 'title', $values),
                 'intro' => self::text($key, 'intro', $values),
+                'details' => self::details($key, $values),
                 'instructions' => in_array($key, self::INSTRUCTION_KEYS, true) ? (string) ($extra['instructions'] ?? '') : '',
                 'order' => $order,
                 'items' => $items,
@@ -61,6 +73,32 @@ final class OrderEmail
                 'qty' => static fn (mixed $v): string => self::quantity((float) $v),
             ]),
         ];
+    }
+
+    /**
+     * Le righe sotto la frase («Corriere: BRT»): solo quelle di cui si ha il
+     * dato, così senza tracking non resta un «Numero di tracking:» vuoto.
+     *
+     * @param array<string, string> $values
+     * @return list<string>
+     */
+    private static function details(string $key, array $values): array
+    {
+        $lines = [];
+
+        foreach (self::DETAILS as $part => $placeholder) {
+            if ($values[$placeholder] === '') {
+                continue;
+            }
+
+            $line = self::text($key, $part, $values);
+
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+
+        return $lines;
     }
 
     /** Il testo dal file di lingua, con i segnaposto sostituiti. */

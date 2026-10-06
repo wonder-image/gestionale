@@ -262,15 +262,16 @@ check('un ordine già fatto non cambia se il listino cambia dopo', fn () => prov
 }));
 
 /** Un metodo di pagamento di prova col contrassegno o altro, con la sua commissione. */
-function pagamento(string $timing, string $feeType = 'none', float $feeValue = 0): int
+function pagamento(string $timing, string $feeType = 'none', float $feeValue = 0, float $feePercent = 0): int
 {
     return (int) (PaymentMethod::create([
         'code' => 'tst_'.uniqid(),
         'name' => 'Prova '.$timing,
-        'provider' => 'manual',
+        'provider' => $timing === 'on_delivery' ? 'cash' : 'bank_transfer',
         'timing' => $timing,
         'fee_type' => $feeType,
-        'fee_value' => number_format($feeValue, 2, '.', ''),
+        'fee_value' => in_array($feeType, ['amount', 'amount_percent'], true) ? number_format($feeValue, 2, '.', '') : '0.00',
+        'fee_percent' => $feeType === 'percent' ? number_format($feeValue, 2, '.', '') : ($feeType === 'amount_percent' ? number_format($feePercent, 2, '.', '') : '0.00'),
         'available_for' => 'all',
         'active' => 'true',
         'position' => 1,
@@ -327,6 +328,20 @@ check('il contrassegno col cod_fee ma senza commissione propria mette comunque i
     $fee = incassa($cart, pagamento(PaymentTiming::ON_DELIVERY), $metodo);
 
     return $fee !== null && (string) $fee['line_total'] === '4.00';
+}));
+
+check('importo fisso + percentuale: la commissione è la somma dei due', fn () => prova(static function (): bool {
+    [$cart, $metodo] = carrelloConMetodo([[articolo(2.0, 10.0), 1]], [[5, 8.0]]);
+    $fee = incassa($cart, pagamento(PaymentTiming::DEFERRED, 'amount_percent', 1.5, 2.0), $metodo);
+
+    return $fee !== null && (string) $fee['line_total'] === '1.70';
+}));
+
+check('con commissione fissa la percentuale avanzata non conta', fn () => prova(static function (): bool {
+    [$cart, $metodo] = carrelloConMetodo([[articolo(2.0, 10.0), 1]], [[5, 8.0]]);
+    $fee = incassa($cart, pagamento(PaymentTiming::DEFERRED, 'amount', 1.5, 2.0), $metodo);
+
+    return $fee !== null && (string) $fee['line_total'] === '1.50';
 }));
 
 summary();

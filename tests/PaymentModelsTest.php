@@ -45,9 +45,10 @@ check('i pagamenti restano nel loro ambiente, metodi e conti viaggiano', functio
         && $conti !== null && $conti->keepIds && $conti->localOnly;
 });
 
-check('il pagamento ha il suo prefisso, il metodo il codice parlante', function () use ($campo, $colonne) {
+check('il pagamento, il metodo e il conto hanno il loro prefisso', function () use ($campo, $colonne) {
     return ($campo(Payment::class, 'code')?->getSchema('unique_code')['prefix'] ?? null) === Codes::PAYMENT
-        && ($campo(PaymentMethod::class, 'code')?->getSchema('unique_code') ?? null) === null
+        && ($campo(PaymentMethod::class, 'code')?->getSchema('unique_code')['prefix'] ?? null) === Codes::PAYMENT_METHOD
+        && ($campo(PaymentAccount::class, 'code')?->getSchema('unique_code')['prefix'] ?? null) === Codes::PAYMENT_ACCOUNT
         && $colonne(PaymentMethod::class)['code']->getSchema('unique') === true;
 });
 
@@ -78,15 +79,15 @@ check('la notifica doppia del gateway non passa due volte, il rimborso sì', fun
 check('il metodo di pagamento tiene tutte le colonne di 4.8', function () use ($colonne) {
     $attese = [
         'code', 'name', 'sdi_code', 'provider', 'payment_account_id',
-        'fee_type', 'fee_value', 'available_for', 'applies_online', 'applies_office',
+        'fee_type', 'fee_value', 'fee_percent', 'available_for', 'applies_online', 'applies_office',
         'applies_pos', 'instructions', 'stripe_payment_method_types', 'active', 'position',
     ];
 
     return array_diff($attese, array_keys($colonne(PaymentMethod::class))) === [];
 });
 
-check('il conto tiene banca e IBAN', function () use ($colonne) {
-    $attese = ['code', 'name', 'bank_name', 'iban', 'bic', 'active'];
+check('il conto tiene intestatario, banca e IBAN', function () use ($colonne) {
+    $attese = ['code', 'name', 'holder', 'bank_name', 'iban', 'bic', 'active'];
 
     return array_diff($attese, array_keys($colonne(PaymentAccount::class))) === [];
 });
@@ -110,7 +111,8 @@ check('le colonne che valgono zero non hanno chiave esterna', function () use ($
 
 check('gli importi tengono due decimali', function () use ($campo) {
     return (int) ($campo(Payment::class, 'amount')?->getSchema('decimals') ?? 0) === 2
-        && (int) ($campo(PaymentMethod::class, 'fee_value')?->getSchema('decimals') ?? 0) === 2;
+        && (int) ($campo(PaymentMethod::class, 'fee_value')?->getSchema('decimals') ?? 0) === 2
+        && (int) ($campo(PaymentMethod::class, 'fee_percent')?->getSchema('decimals') ?? 0) === 2;
 });
 
 check('il pagamento si ritrova per ordine e per scadenza', function () {

@@ -16,6 +16,7 @@ use Wonder\Plugin\Custom\Fattura\Valori\AliquoteIva;
 use Wonder\Plugin\Custom\Fattura\Valori\Natura;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Models\System\FeatureLog;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
@@ -159,8 +160,8 @@ try {
             $m = $metodi();
 
             return array_keys($m) === ['bank-transfer', 'cash', 'stripe']
-                && ($m['bank-transfer']['timing'] ?? '') === 'deferred' && ($m['bank-transfer']['provider'] ?? '') === 'manual'
-                && ($m['cash']['timing'] ?? '') === 'on_delivery' && ($m['cash']['provider'] ?? '') === 'manual'
+                && ($m['bank-transfer']['timing'] ?? '') === 'deferred' && ($m['bank-transfer']['provider'] ?? '') === 'bank_transfer'
+                && ($m['cash']['timing'] ?? '') === 'on_delivery' && ($m['cash']['provider'] ?? '') === 'cash'
                 && ($m['cash']['available_for'] ?? '') === 'pickup'
                 && ($m['stripe']['timing'] ?? '') === 'immediate' && ($m['stripe']['provider'] ?? '') === 'stripe';
         });
@@ -187,7 +188,62 @@ try {
                 && ($m['stripe']['active'] ?? '') === 'true';
         });
 
+        // Un sito aggiornato ha ancora il tipo «manual» e la percentuale in fee_value.
+        PaymentMethod::update(['provider' => 'manual', 'fee_type' => 'percent', 'fee_value' => '1.50', 'fee_percent' => '0.00'], (int) $metodi()['bank-transfer']['id']);
+        PaymentMethod::update(['provider' => 'manual'], (int) $metodi()['cash']['id']);
+
         Defaults::seed(new DefaultRows());
+
+        check('i metodi di un sito aggiornato si sistemano da soli', function () use ($metodi) {
+            $m = $metodi();
+
+            return ($m['bank-transfer']['provider'] ?? '') === 'bank_transfer'
+                && (float) ($m['bank-transfer']['fee_percent'] ?? 0) === 1.5
+                && (float) ($m['bank-transfer']['fee_value'] ?? 0) === 0.0
+                && ($m['cash']['provider'] ?? '') === 'cash';
+        });
+
+        Defaults::seed(new DefaultRows());
+
+        $corrieri = static function (): array {
+            $righe = array_values(array_filter((array) sqlSelect(Carrier::$table, null)->row, 'is_array'));
+
+            return array_column($righe, null, 'code');
+        };
+
+        check('nascono i sei corrieri più comuni, col link per seguire il pacco', function () use ($corrieri) {
+            $c = $corrieri();
+            $attesi = [
+                'poste-italiane' => ['Poste Italiane', 'https://www.poste.it/cerca/index.html#/risultati-spedizioni/{tracking}'],
+                'dhl' => ['DHL', 'https://www.dhl.com/it-en/home/tracking.html?tracking-id={tracking}'],
+                'gls' => ['GLS', 'https://gls-group.com/IT/it/servizi-online/ricerca-spedizioni.html?match={tracking}'],
+                'ups' => ['UPS', 'https://www.ups.com/track?loc=it_IT&requester=QUIC&tracknum={tracking}'],
+                'bartolini' => ['Bartolini', 'https://services.brt.it/it/tracking?OP=N&CD={tracking}'],
+                'fedex' => ['FedEx', 'https://www.fedex.com/fedextrack/?action=track&trackingnumber={tracking}'],
+            ];
+
+            foreach ($attesi as $codice => [$nome, $link]) {
+                $riga = $c[$codice] ?? [];
+
+                if (html_entity_decode((string) ($riga['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8') !== $nome
+                    || html_entity_decode((string) ($riga['tracking_url_template'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8') !== $link
+                    || ($riga['active'] ?? '') !== 'true' || ($riga['provider'] ?? '') !== 'manual') {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+
+        $dopoCorrieri = count($corrieri());
+        Carrier::update(['name' => 'Il mio GLS', 'active' => 'false'], (int) $corrieri()['gls']['id']);
+        Defaults::seed(new DefaultRows());
+
+        check('il rilancio non duplica i corrieri e non rimette a posto quelli cambiati a mano', fn () =>
+            count($corrieri()) === $dopoCorrieri
+            && html_entity_decode((string) ($corrieri()['gls']['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8') === 'Il mio GLS'
+            && ($corrieri()['gls']['active'] ?? '') === 'false'
+        );
 
         check('una seconda esecuzione non duplica niente', fn () =>
             count($righe()) === count($dopo)

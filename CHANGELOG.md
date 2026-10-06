@@ -218,6 +218,40 @@ versionamento semantico.
   e contrassegno in `Checkout`, pagine *Spedizioni → Corrieri / Zone / Metodi*, dati di prova
   (`ShippingDemo`) e guide. Chi aggiorna deve lanciare `php forge update`.
 
+- Spedizioni sugli ordini (`shipping`, G7 piano 2): spedizioni vere con le loro righe, anche
+  parziali (mai più di quanto ordinato), tracking e link del corriere, stati di consegna
+  (`pending`, `in_transit`, `delivered`, `exception`…), ritiro in sede (*Pronto per il ritiro*,
+  *Ritirato*) e `Shipments` come unica porta; l'evasione dell'ordine si ricava dalle quantità
+  spedite e con le spedizioni accese «Segna evaso» resta solo per gli ordini senza consegna né
+  ritiro; email al cliente di *spedito* e *pronto per il ritiro*; pagina *Spedizioni →
+  Spedizioni* con elenco filtrabile e scheda, blocco *Spedizioni* e sei azioni nella scheda
+  ordine, due riquadri nella bacheca (*Spedizioni da controllare*, *Spedite e non consegnate*
+  da più di 7 giorni), spedizioni di prova (`ShipmentsDemo`) e guide. Corriere, tracking e
+  stato si cambiano anche dopo (*Modifica spedizione*, dai tre puntini dell'elenco o dalla
+  scheda), l'elenco si cerca per numero d'ordine, il listino può essere a **prezzo fisso**
+  (`price_type`, `fixed_price`: colonne nuove), sei corrieri di serie (Poste Italiane, DHL,
+  GLS, UPS, Bartolini, FedEx) e le pagine Metodi, Zone e Corrieri passano nel *Set-up*,
+  *Spedizioni* nelle *Vendite*. Il nome del corriere non cambia più le maiuscole (DHL resta
+  DHL). Chi aggiorna deve lanciare `php forge update`.
+- Spedizioni, ritocchi alla scheda del metodo: nel *Set-up* le pagine stanno nel gruppo
+  *Spedizioni* (Metodi di spedizione, Zone di spedizione, Corrieri, Imballaggi); a prezzo
+  fisso scompaiono gli scaglioni e i campi a peso; al posto dell'interruttore «Spedisce verso
+  questa zona» c'è **+ Aggiungi zona**, con **Nuova zona…** per crearla lì (nome e prima area)
+  e **Togli zona** per toglierla senza perdere il listino.
+- Spedizioni, ancora sulla scheda del metodo: tutte le zone stanno in un'unica card «Zone», con
+  «+ Aggiungi zona» in fondo e senza il bottone «Nuova zona» fuori dalla card; «Togli zona» chiede
+  conferma; una zona appena aggiunta parte a prezzo fisso; il «Codice del servizio» non c'è più
+  nel modulo (la colonna resta).
+- Pagamenti, ritocchi alle schede: il tipo del metodo è *Bonifico bancario*, *Contanti*, *Stripe*,
+  *PayPal* o *Nexi* (il vecchio «A mano» si divide in due: i siti già installati si sistemano da
+  soli); il codice del metodo e del conto lo crea il sistema (`pme_…`, `pac_…`) e non si scrive
+  più; la commissione ha un nuovo tipo *Importo fisso + percentuale* e importo e percentuale
+  compaiono solo quando servono (`fee_percent`: colonna nuova; `fee_value` è ora sempre l'importo
+  fisso, la vecchia percentuale passa a `fee_percent`); la modalità di pagamento della fattura si
+  sceglie da `Pagamento::Valori`, «MP05 - Bonifico»; il conto si sceglie solo per il bonifico; il
+  conto ha l'**Intestatario** (`holder`: colonna nuova); «Quando arriva il denaro» ha etichette
+  più chiare e una spiegazione. Chi aggiorna deve lanciare `php forge update`.
+
 ### Corretto
 
 - *Registra reso* dava errore 500: `Returns::returned()` chiedeva il blocco delle

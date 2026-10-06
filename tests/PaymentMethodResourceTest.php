@@ -93,8 +93,8 @@ check('ogni campo del form è una colonna del Model: nessun campo fantasma', fun
     return true;
 });
 
-check('ogni colonna ha il suo campo, tranne la posizione, che mette il backend, e i tipi di Stripe', function () use ($risorse, $campi, $colonne) {
-    $esenti = ['id', 'creation', 'last_modified', 'deleted', 'position', 'stripe_payment_method_types'];
+check('ogni colonna ha il suo campo, tranne il codice e la posizione, che mette il backend, e i tipi di Stripe', function () use ($risorse, $campi, $colonne) {
+    $esenti = ['id', 'creation', 'last_modified', 'deleted', 'position', 'code', 'stripe_payment_method_types'];
 
     foreach ($risorse as $resource => $model) {
         foreach ($colonne($model) as $colonna) {
@@ -116,9 +116,11 @@ check('il tipo e il «quando» offrono le chiavi del Model', fn () =>
     && $opzioni(PaymentMethodResource::class, 'available_for') === PaymentMethod::AVAILABLE_FOR
 );
 
-check('il codice si scrive: è un campo del form, non si inventa', fn () =>
-    in_array('code', $campi(PaymentMethodResource::class), true) && in_array('code', $campi(PaymentAccountResource::class), true)
+check('il codice lo crea il sistema: non è un campo del form', fn () =>
+    !in_array('code', $campi(PaymentMethodResource::class), true) && !in_array('code', $campi(PaymentAccountResource::class), true)
 );
+
+check('il conto ha l\'intestatario', fn () => in_array('holder', $campi(PaymentAccountResource::class), true));
 
 check('l\'IBAN si normalizza: spazi tolti, maiuscole', fn () =>
     PaymentAccountResource::normalizeIban(' it60 x054 2811 1010 0000 0123 456 ') === 'IT60X0542811101000000123456'
@@ -167,5 +169,54 @@ check('salvando un metodo, i canali che il form non mostra restano com\'erano', 
     return $valori['applies_office'] === 'true' && $valori['applies_pos'] === 'false' && $valori['applies_online'] === 'true'
         && !array_key_exists('position', $valori);
 });
+
+check('il codice della fattura si sceglie da un elenco: «Codice - Nome»', function () use ($opzioni) {
+    $codici = PaymentMethodResource::sdiCodes();
+
+    return $opzioni(PaymentMethodResource::class, 'sdi_code') === array_keys($codici)
+        && ($codici['MP05'] ?? '') === 'MP05 - '.\Wonder\Plugin\Custom\Fattura\Valori\Pagamento::Valori['MP05']
+        && ($codici['MP01'] ?? '') === 'MP01 - '.\Wonder\Plugin\Custom\Fattura\Valori\Pagamento::Valori['MP01']
+        && ($codici[''] ?? null) !== null;
+});
+
+check('bonifico e contanti sono due tipi, e il tipo manuale non si offre più', fn () =>
+    array_keys(PaymentMethodResource::providers()) === PaymentMethod::PROVIDERS
+    && in_array('bank_transfer', PaymentMethod::PROVIDERS, true)
+    && in_array('cash', PaymentMethod::PROVIDERS, true)
+    && !in_array('manual', PaymentMethod::PROVIDERS, true)
+);
+
+check('la commissione ha le sue cifre solo quando il tipo le usa', function () {
+    $salva = static fn (string $tipo): array => PaymentMethodResource::mutateRequestValues(
+        ['name' => 'X', 'fee_type' => $tipo, 'fee_value' => '1.50', 'fee_percent' => '2.00'],
+        'update'
+    );
+
+    $nessuna = $salva('none');
+    $fisso = $salva('amount');
+    $percento = $salva('percent');
+    $entrambe = $salva('amount_percent');
+
+    return $nessuna['fee_value'] === '0' && $nessuna['fee_percent'] === '0'
+        && $fisso['fee_value'] === '1.50' && $fisso['fee_percent'] === '0'
+        && $percento['fee_value'] === '0' && $percento['fee_percent'] === '2.00'
+        && $entrambe['fee_value'] === '1.50' && $entrambe['fee_percent'] === '2.00';
+});
+
+check('il conto serve solo al bonifico', function () {
+    $bonifico = PaymentMethodResource::mutateRequestValues(['name' => 'X', 'provider' => 'bank_transfer', 'payment_account_id' => '3'], 'update');
+    $contanti = PaymentMethodResource::mutateRequestValues(['name' => 'X', 'provider' => 'cash', 'payment_account_id' => '3'], 'update');
+
+    return $bonifico['payment_account_id'] === '3' && $contanti['payment_account_id'] === '0';
+});
+
+check('il tipo di pagamento dice come si scrive nel registro dei pagamenti', fn () =>
+    PaymentMethod::ledgerProvider('bank_transfer') === 'manual'
+    && PaymentMethod::ledgerProvider('cash') === 'manual'
+    && PaymentMethod::ledgerProvider('manual') === 'manual'
+    && PaymentMethod::ledgerProvider('stripe') === 'stripe'
+    && PaymentMethod::ledgerProvider('paypal') === 'paypal'
+    && PaymentMethod::ledgerProvider('nexi') === 'nexi'
+);
 
 summary();

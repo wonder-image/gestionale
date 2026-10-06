@@ -79,6 +79,17 @@ check('options elenca solo i metodi coperti, con il prezzo giusto per il peso', 
         && $opzioni[0]['carrier_id'] === 0;
 }));
 
+check('un metodo a prezzo fisso costa uguale, qualunque sia il peso e il volume', fn () => prova(static function (): bool {
+    $it = zona('Italia', [['IT', '']]);
+    $fisso = metodo('Fisso', ['position' => 1]);
+    listino($fisso, $it, [], ['price_type' => 'fixed', 'fixed_price' => '6.90', 'volumetric_divisor' => 5000, 'min_price' => '50.00']);
+    $leggero = Shipping::options(carrello([[articolo(0.2), 1]]));
+    $pesante = Shipping::options(carrello([[articolo(80.0, 10.0, [100, 100, 100]), 3]]));
+
+    return count($leggero) === 1 && $leggero[0]['price'] === '6.90'
+        && count($pesante) === 1 && $pesante[0]['price'] === '6.90';
+}));
+
 check('un metodo senza listino per la zona non compare', fn () => prova(static function (): bool {
     $it = zona('Italia', [['IT', '']]);
     $de = zona('Germania', [['DE', '']]);

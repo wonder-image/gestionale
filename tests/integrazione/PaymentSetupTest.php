@@ -42,7 +42,7 @@ function nuovoMetodo(string $codice, int $conto = 0): int
     $riga = PaymentMethod::create([
         'code' => $codice.'-'.uniqid(),
         'name' => 'Metodo di prova',
-        'provider' => 'manual',
+        'provider' => 'bank_transfer',
         'timing' => 'deferred',
         'payment_account_id' => $conto,
     ]);
@@ -140,6 +140,15 @@ check('la posizione di un metodo nuovo la mette il backend, in fondo', function 
         $modifica = PaymentMethodResource::mutateRequestValues(['name' => 'Nuovo', 'position' => 99], 'update');
 
         return (int) ($valori['position'] ?? 0) === $ultima + 1 && !isset($modifica['position']);
+    });
+});
+
+check('il conto salva l\'intestatario', function () {
+    return prova(static function (): bool {
+        $conto = PaymentAccount::create(['name' => 'Conto con intestatario', 'holder' => 'Mario Rossi S.r.l.']);
+        $riga = PaymentAccount::findById((int) ($conto->insert_id ?? 0));
+
+        return html_entity_decode((string) ($riga['holder'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8') === 'Mario Rossi S.r.l.';
     });
 });
 
