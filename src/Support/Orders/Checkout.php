@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Orders;
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
@@ -11,6 +12,7 @@ use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Shipping\Shipping;
@@ -90,6 +92,135 @@ final class Checkout
         unset($result['timing']);
 
         return $result;
+    }
+
+    /**
+     * Il riepilogo del checkout mentre il cliente compila.
+     *
+     * Scrive sul carrello le scelte fatte fin qui — consegna, sede, metodo di
+     * spedizione, pagamento, indirizzi — e toglie quelle che non valgono più;
+     * poi ricalcola e dice cosa si può ancora scegliere. Non prenota, non
+     * numera, non consuma il coupon e non chiede l'email: quello lo fa
+     * `place()`, che riscrive tutto con il modulo inviato.
+     *
+     * Un campo che il modello rifiuta non ferma niente: torna in `invalid` e
+     * gli altri si scrivono lo stesso.
+     *
+     * @param array<string, mixed> $data
+     * @return array{
+     *     order: array{products_total: string, discount_total: string, shipping_total: string, fees_total: string, total: string, currency: string},
+     *     items: list<array<string, mixed>>,
+     *     fulfillment: array{type: string, choices: list<string>},
+     *     shipping_methods: array{options: list<array<string, mixed>>, selected: int},
+     *     pickup_locations: array{options: list<array{id: int, name: string, address: string}>, selected: int},
+     *     payment_methods: array{options: list<array{id: int, name: string, provider: string, manual: bool, instructions: string}>, selected: int},
+     *     coupon: array{code: string, dropped: string},
+     *     notices: list<string>,
+     *     invalid: list<string>
+     * }
+     */
+    public static function preview(int $cartId, array $data): array
+    {
+        return Transaction::run(static function () use ($cartId, $data): array {
+            $cart = Order::findForUpdate(['id' => $cartId], 1);
+
+            if (!is_array($cart) || $cart === [] || (string) $cart['stage'] !== 'cart') {
+                throw UserError::make('cart.not_a_cart');
+            }
+
+            // Quello che il modulo non manda resta com'è sul carrello.
+            $data += [
+                'fulfillment_type' => (string) ($cart['fulfillment_type'] ?? 'shipping'),
+                'shipping_method_id' => (int) ($cart['shipping_method_id'] ?? 0),
+                'location_id' => (int) ($cart['location_id'] ?? 0),
+                'payment_method_id' => (int) ($cart['payment_method_id'] ?? 0),
+            ];
+
+            $shipping = Gestionale::feature('shipping');
+            $points = $shipping ? PickupPoints::all() : [];
+            $type = (string) $data['fulfillment_type'];
+
+            if (!in_array($type, ['shipping', 'pickup'], true) || ($type === 'pickup' && $points === [])) {
+                $type = 'shipping';
+            }
+
+            $locationId = 0;
+
+            if ($type === 'pickup') {
+                $ids = array_column($points, 'id');
+                $wanted = (int) $data['location_id'];
+                $locationId = in_array($wanted, $ids, true) ? $wanted : (count($ids) === 1 ? $ids[0] : 0);
+            }
+
+            $payments = self::paymentMethods($type);
+            $payment = null;
+
+            foreach ($payments as $candidate) {
+                if ((int) $candidate['id'] === (int) $data['payment_method_id']) {
+                    $payment = $candidate;
+                }
+            }
+
+            $invalid = self::writeLoosely($cartId, [
+                'fulfillment_type' => $type,
+                'location_id' => $locationId,
+                'shipping_method_id' => $type === 'shipping' && $shipping ? (int) $data['shipping_method_id'] : 0,
+                'payment_method_id' => $payment === null ? 0 : (int) $payment['id'],
+                'last_activity_at' => date('Y-m-d H:i:s'),
+            ] + self::addresses($data));
+
+            // Il primo ricalcolo toglie il metodo che non copre più
+            // l'indirizzo; poi, se ne resta uno solo, si sceglie da sé.
+            $first = Cart::recalculate($cartId);
+            $methodId = (int) ($first['order']['shipping_method_id'] ?? 0);
+            $options = $type === 'shipping' ? Shipping::options($cartId) : [];
+
+            if ($type === 'shipping') {
+                $available = array_column($options, 'method_id');
+                $chosen = in_array($methodId, $available, true) ? $methodId : (count($available) === 1 ? $available[0] : 0);
+
+                if ($chosen !== $methodId) {
+                    Order::update(['shipping_method_id' => $chosen], $cartId);
+                    $methodId = $chosen;
+                }
+            }
+
+            // La commissione dipende dal metodo di spedizione (contrassegno) e
+            // dai prodotti: va dopo, e poi un secondo ricalcolo la somma.
+            self::applyFee($cartId, $payment);
+            $second = Cart::recalculate($cartId);
+            $order = $second['order'];
+            $dropped = $first['coupon_dropped'] !== '' ? $first['coupon_dropped'] : $second['coupon_dropped'];
+            $notices = [];
+
+            foreach ([$first['shipping_dropped'], $second['shipping_dropped'], $dropped !== '' ? UserError::make('coupon.'.$dropped)->getMessage() : ''] as $notice) {
+                if ($notice !== '' && !in_array($notice, $notices, true)) {
+                    $notices[] = $notice;
+                }
+            }
+
+            return [
+                'order' => [
+                    'products_total' => (string) ($order['products_total'] ?? '0.00'),
+                    'discount_total' => (string) ($order['discount_total'] ?? '0.00'),
+                    'shipping_total' => (string) ($order['shipping_total'] ?? '0.00'),
+                    'fees_total' => (string) ($order['fees_total'] ?? '0.00'),
+                    'total' => (string) ($order['total'] ?? '0.00'),
+                    'currency' => (string) ($order['currency'] ?? 'EUR'),
+                ],
+                'items' => $second['items'],
+                'fulfillment' => ['type' => $type, 'choices' => $points === [] ? ['shipping'] : ['shipping', 'pickup']],
+                'shipping_methods' => ['options' => $options, 'selected' => $type === 'shipping' ? $methodId : 0],
+                'pickup_locations' => ['options' => $points, 'selected' => $locationId],
+                'payment_methods' => [
+                    'options' => array_map(self::paymentChoice(...), $payments),
+                    'selected' => $payment === null ? 0 : (int) $payment['id'],
+                ],
+                'coupon' => ['code' => (string) ($order['coupon_code'] ?? ''), 'dropped' => $dropped],
+                'notices' => $notices,
+                'invalid' => $invalid,
+            ];
+        });
     }
 
     /**
@@ -199,29 +330,71 @@ final class Checkout
     /**
      * Il metodo di pagamento, se si può ancora usare per questa consegna.
      *
-     * Deve essere attivo, offerto sul sito e ammesso per la consegna scelta:
-     * il contrassegno di una spedizione non si usa per un ritiro, e un metodo
-     * che il commerciante ha lasciato solo per il banco non compare online.
-     *
      * @return array<string, mixed>
      */
     private static function method(int $methodId, string $fulfillment): array
     {
         $method = $methodId > 0 ? PaymentMethod::findById($methodId) : null;
 
-        if (!is_array($method) || $method === []
-            || ($method['active'] ?? 'false') !== 'true'
-            || ($method['applies_online'] ?? 'true') !== 'true') {
-            throw UserError::make('order.payment_method_unavailable');
-        }
-
-        $for = (string) ($method['available_for'] ?? 'all');
-
-        if ($for !== 'all' && $fulfillment !== 'none' && $for !== $fulfillment) {
+        if (!is_array($method) || $method === [] || !self::allowed($method, $fulfillment)) {
             throw UserError::make('order.payment_method_unavailable');
         }
 
         return $method;
+    }
+
+    /**
+     * Deve essere attivo, offerto sul sito e ammesso per la consegna scelta:
+     * il contrassegno di una spedizione non si usa per un ritiro, e un metodo
+     * che il commerciante ha lasciato solo per il banco non compare online.
+     *
+     * @param array<string, mixed> $method
+     */
+    private static function allowed(array $method, string $fulfillment): bool
+    {
+        $for = (string) ($method['available_for'] ?? 'all');
+
+        return ($method['active'] ?? 'false') === 'true'
+            && ($method['deleted'] ?? 'false') !== 'true'
+            && ($method['applies_online'] ?? 'true') === 'true'
+            && ($for === 'all' || $fulfillment === 'none' || $for === $fulfillment);
+    }
+
+    /**
+     * I metodi di pagamento che il cliente può scegliere, in ordine di posizione.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function paymentMethods(string $fulfillment): array
+    {
+        $methods = array_values(array_filter(
+            self::rows(PaymentMethod::find(['active' => 'true'])),
+            static fn (array $method): bool => self::allowed($method, $fulfillment)
+        ));
+
+        usort($methods, static fn (array $a, array $b): int => [(int) ($a['position'] ?? 0), (int) $a['id']] <=> [(int) ($b['position'] ?? 0), (int) $b['id']]);
+
+        return $methods;
+    }
+
+    /**
+     * La voce del metodo per il modulo: `manual` dice al sito che non c'è un
+     * gateway da aprire (bonifico, contanti).
+     *
+     * @param array<string, mixed> $method
+     * @return array{id: int, name: string, provider: string, manual: bool, instructions: string}
+     */
+    private static function paymentChoice(array $method): array
+    {
+        $provider = (string) ($method['provider'] ?? '');
+
+        return [
+            'id' => (int) $method['id'],
+            'name' => (string) ($method['name'] ?? ''),
+            'provider' => $provider,
+            'manual' => PaymentMethod::ledgerProvider($provider) === 'manual',
+            'instructions' => (string) ($method['instructions'] ?? ''),
+        ];
     }
 
     /** @param array<string, mixed> $data */
@@ -284,6 +457,38 @@ final class Checkout
     }
 
     /**
+     * Scrive quello che il modello accetta e restituisce i campi rifiutati:
+     * in anteprima un dato sbagliato non deve buttare via gli altri.
+     *
+     * @param array<string, string|int> $fields
+     * @return list<string>
+     */
+    private static function writeLoosely(int $orderId, array $fields): array
+    {
+        $result = Order::update($fields, $orderId);
+
+        if (($result->success ?? false) === true) {
+            return [];
+        }
+
+        $invalid = [];
+
+        foreach (is_array($result->response ?? null) ? $result->response : [] as $field => $check) {
+            if ((is_array($check) || is_object($check)) && (((array) $check)['valid'] ?? true) === false) {
+                $invalid[] = (string) $field;
+            }
+        }
+
+        $rest = array_diff_key($fields, array_flip($invalid));
+
+        if ($rest !== []) {
+            self::write($orderId, $rest);
+        }
+
+        return array_values($invalid);
+    }
+
+    /**
      * I dati che il cliente ha scritto, pronti per la riga dell'ordine.
      *
      * @param array<string, mixed> $data
@@ -313,6 +518,21 @@ final class Checkout
 
         $fields['fulfillment_type'] = $type;
 
+        // I campi dell'ordine vengono prima: un `shipping[method_id]` nel
+        // modulo non deve poter riscrivere `shipping_method_id`.
+        return $fields + self::addresses($data);
+    }
+
+    /**
+     * Gli indirizzi del modulo come campi dell'ordine (`billing_city`, …).
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, string>
+     */
+    private static function addresses(array $data): array
+    {
+        $fields = [];
+
         foreach (['billing', 'shipping'] as $group) {
             $address = $data[$group] ?? [];
 
@@ -336,12 +556,16 @@ final class Checkout
      * Una sola: se il cliente torna indietro e cambia metodo, quella di prima
      * se ne va invece di sommarsi.
      *
-     * @param array<string, mixed> $method
+     * @param array<string, mixed>|null $method null quando non c'è ancora un metodo: si toglie e basta
      */
-    private static function applyFee(int $orderId, array $method): void
+    private static function applyFee(int $orderId, ?array $method): void
     {
         foreach (self::rows(OrderItem::find(['order_id' => $orderId, 'type' => 'fee', 'deleted' => 'false'])) as $old) {
             OrderItem::delete((int) $old['id']);
+        }
+
+        if ($method === null) {
+            return;
         }
 
         // Il contrassegno che si paga al corriere costa quanto dice il listino
