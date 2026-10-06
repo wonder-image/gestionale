@@ -124,15 +124,22 @@ come tutte le altre azioni da `OrderActionResource::run()`. Dai tre puntini dell
 *Cambia stato* e *Tracking e corriere* aprono la scheda con la finestra già aperta
 (`?apri=modifica`): il core non apre finestre da una voce del menu.
 
-**Scheda del metodo.** Un blocco per ogni zona con listino acceso (`rate_<zona>_on = true`),
-costruito da `ShippingMethodResource::zoneBlock()`; le altre zone stanno nel menu
+**Scheda del metodo.** Tutte le zone stanno in un'unica card «Zone» (`zonesCard()`): un blocco
+per ogni zona con listino acceso (`rate_<zona>_on = true`), costruito da
+`ShippingMethodResource::zoneBlock()` (un `Container`, non una `Card`), e in fondo
 «+ Aggiungi zona» (`zonePicker()`), che accende il campo nascosto `rate_<zona>_on` e mostra
-il blocco; «Togli zona» lo rispegne senza cancellare il listino. «Nuova zona…» apre il
-`QuickCreateButton` di `ShippingZoneResource` (`apiSchema()` solo `store`, campi
-`quickCreateFields()`: nome, paese, provincia): `mutateRequestValues()` trasforma paese e
-provincia nella prima riga di `areas` in `$_POST`, che `syncRepeaterRelations` scrive. A
-prezzo fisso gli scaglioni e i campi che dipendono dal peso stanno in un `Container`
-`visibleWhen('rate_<zona>_price_type', 'brackets')`.
+il blocco. «Togli zona» lo rispegne senza cancellare il listino, ma prima passa dalla
+conferma dichiarativa del core (`data-wi-confirm*` sul pulsante: il suo ascolto in cattura
+rilancia il clic solo dopo il «Togli», e l'ascolto dello script scatta allora). Una zona senza
+listino salvato parte a **prezzo fisso** (valore del campo `rate_<zona>_price_type`); un
+listino già salvato tiene il suo tipo. Il metodo non ha un campo per il codice del servizio:
+la colonna `provider_service_code` resta nel modello, per i collegamenti API dei corrieri.
+«Nuova zona…» apre il `QuickCreateButton` di `ShippingZoneResource` (`apiSchema()` solo
+`store`, campi `quickCreateFields()`: nome, paese, provincia), che sta nella card ma con la
+colonna nascosta dallo script (deve restare nel DOM: la voce del menu ne clicca l'`id`):
+`mutateRequestValues()` trasforma paese e provincia nella prima riga di `areas` in `$_POST`,
+che `syncRepeaterRelations` scrive. A prezzo fisso gli scaglioni e i campi che dipendono dal
+peso stanno in un `Container` `visibleWhen('rate_<zona>_price_type', 'brackets')`.
 
 **Corrieri di serie.** `Defaults::carriers()` semina POSTE ITALIANE, DHL, GLS, UPS, BARTOLINI
 e FEDEX col solo nome e il link di tracking (`{tracking}` in coda), senza toccare quelli già

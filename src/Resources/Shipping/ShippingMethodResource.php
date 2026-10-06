@@ -85,7 +85,6 @@ final class ShippingMethodResource extends GestionaleResource
             'name' => 'Nome',
             'description' => 'Tempi di consegna',
             'carrier_id' => 'Corriere',
-            'provider_service_code' => 'Codice del servizio',
             'applies_online' => 'Sito',
             'applies_office' => 'Ufficio',
             'active' => 'Stato',
@@ -102,7 +101,6 @@ final class ShippingMethodResource extends GestionaleResource
                 ->select(['0' => '—'] + array_map('strval', static::carrierOptions()))
                 ->value('0')
                 ->label('Corriere'),
-            FormField::key('provider_service_code')->text()->label('Codice del servizio'),
             FormField::key('applies_online')->toggle()->value(Channels::defaults()['applies_online'])->label('Sito'),
             FormField::key('applies_office')->toggle()->value(Channels::defaults()['applies_office'])->label('Ufficio'),
             FormField::key('active')
@@ -134,8 +132,8 @@ final class ShippingMethodResource extends GestionaleResource
             // Nascosto: lo accende «Aggiungi zona» e lo spegne «Togli zona».
             FormField::key($name('on'))->hidden()->value('false'),
             FormField::key($name('price_type'))
-                ->select(['brackets' => 'A scaglioni di peso', 'fixed' => 'Fisso'])
-                ->value('brackets')
+                ->select(['fixed' => 'Fisso', 'brackets' => 'A scaglioni di peso'])
+                ->value('fixed')
                 ->label('Prezzo'),
             FormField::key($name('fixed_price'))
                 ->price()
@@ -198,20 +196,15 @@ final class ShippingMethodResource extends GestionaleResource
 
         $left[] = (new Card)->components([
             SectionTitle::make('Metodo')
-                ->tooltip('Il nome e i tempi li vede il cliente («Standard», «2-3 giorni lavorativi»). Il codice del servizio è quello del corriere, per te. Un metodo non attivo non si propone più.')
+                ->tooltip('Il nome e i tempi li vede il cliente («Standard», «2-3 giorni lavorativi»). Un metodo non attivo non si propone più.')
                 ->columnSpan(12),
             static::getInput('name')->columnSpan(5),
             static::getInput('description')->columnSpan(4),
             static::getInput('active')->columnSpan(3),
-            static::getInput('carrier_id')->columnSpan(6),
-            static::getInput('provider_service_code')->columnSpan(6),
+            static::getInput('carrier_id')->columnSpan(5),
         ])->columns(12)->columnSpan(12);
 
-        foreach ($zones as $zone) {
-            $left[] = static::zoneBlock($zone);
-        }
-
-        $left[] = static::zonePicker($zones);
+        $left[] = static::zonesCard($zones);
 
         $side = [];
 
@@ -248,40 +241,63 @@ final class ShippingMethodResource extends GestionaleResource
         $title = (string) ($zone['name'] ?? '');
         $name = static fn (string $field): string => 'rate_'.$id.'_'.$field;
 
-        $card = (new Card)->components([
-            SectionTitle::make($title)
-                ->tooltip('Il listino di questa zona. Il prezzo è fisso (uno solo, qualunque sia il peso) oppure a scaglioni di peso. A scaglioni è quello dello scaglione che copre il peso del carrello; oltre l\'ultimo vale la tariffa al kg. Poi si aggiungono carburante e margine, si arrotonda e si applica il minimo. Il peso conta il maggiore tra reale e volumetrico (lunghezza × larghezza × altezza ÷ divisore). Con «Gratis sopra» la spedizione è gratuita sopra quell\'importo di prodotti, con «Gratis fino a» sotto quel peso. «Togli zona» spegne il listino senza cancellarlo.')
-                ->columnSpan(9),
-            RichText::make(
-                '<button type="button" class="btn btn-sm btn-link text-body-secondary p-0" data-wi-zone-remove="'.$id.'">'
-                .'<i class="bi bi-x-lg me-1"></i>Togli zona</button>'
-            )->tag('div')->class('text-end')->columnSpan(3),
-            static::getInput($name('on'))->columnSpan(12),
-            static::getInput($name('price_type'))->columnSpan(4),
-            (new Container)->components([
-                static::getInput($name('fixed_price'))->columnSpan(12),
-            ])->columns(12)->columnSpan(3)->visibleWhen($name('price_type'), 'fixed'),
-            static::getInput($name('cod_fee'))->columnSpan(3),
-            // Col prezzo fisso gli scaglioni e tutto ciò che ne dipende spariscono.
-            (new Container)->components([
-                static::getInput($name('brackets'))->columnSpan(12),
-                static::getInput($name('excess_mode'))->columnSpan(12),
-                static::getInput($name('min_price'))->columnSpan(3),
-                static::getInput($name('rounding_step'))->columnSpan(3),
-                static::getInput($name('fuel_surcharge_percent'))->columnSpan(3),
-                static::getInput($name('markup_percent'))->columnSpan(3),
-                static::getInput($name('free_over_amount'))->columnSpan(3),
-                static::getInput($name('free_under_weight'))->columnSpan(3),
-                static::getInput($name('volumetric_divisor'))->columnSpan(3),
-            ])->columns(12)->columnSpan(12)->visibleWhen($name('price_type'), 'brackets'),
-        ])->columns(12)->columnSpan(12);
+        $remove = '<button type="button" class="btn btn-sm btn-link text-body-secondary p-0" data-wi-zone-remove="'.$id.'"'
+            .' data-wi-confirm="'.static::escape('Il metodo non spedirà più verso «'.$title.'». Il listino resta salvato: se rimetti la zona lo ritrovi.').'"'
+            .' data-wi-confirm-title="Togli zona" data-wi-confirm-ok="Togli" data-wi-confirm-cancel="Annulla" data-wi-confirm-variant="danger">'
+            .'<i class="bi bi-x-lg me-1"></i>Togli zona</button>';
 
         return (new Container)
-            ->components([$card])
+            ->components([
+                SectionTitle::make($title)->columnSpan(9),
+                RichText::make($remove)->tag('div')->class('text-end')->columnSpan(3),
+                static::getInput($name('on'))->columnSpan(12),
+                static::getInput($name('price_type'))->columnSpan(4),
+                (new Container)->components([
+                    static::getInput($name('fixed_price'))->columnSpan(12),
+                ])->columns(12)->columnSpan(3)->visibleWhen($name('price_type'), 'fixed'),
+                static::getInput($name('cod_fee'))->columnSpan(3),
+                // Col prezzo fisso gli scaglioni e tutto ciò che ne dipende spariscono.
+                (new Container)->components([
+                    static::getInput($name('brackets'))->columnSpan(12),
+                    static::getInput($name('excess_mode'))->columnSpan(12),
+                    static::getInput($name('min_price'))->columnSpan(3),
+                    static::getInput($name('rounding_step'))->columnSpan(3),
+                    static::getInput($name('fuel_surcharge_percent'))->columnSpan(3),
+                    static::getInput($name('markup_percent'))->columnSpan(3),
+                    static::getInput($name('free_over_amount'))->columnSpan(3),
+                    static::getInput($name('free_under_weight'))->columnSpan(3),
+                    static::getInput($name('volumetric_divisor'))->columnSpan(3),
+                ])->columns(12)->columnSpan(12)->visibleWhen($name('price_type'), 'brackets'),
+            ])
             ->attr('data-wi-zone', (string) $id)
             ->attr('data-wi-zone-name', $title)
+            ->class('border-top pt-3')
             ->columns(12)
             ->columnSpan(12);
+    }
+
+    /**
+     * L'unica card «Zone»: i listini delle zone che il metodo serve e, in
+     * fondo, «+ Aggiungi zona». Il bottone vero della finestra «Nuova zona…» sta
+     * prima del menu e resta nascosto: lo apre la voce del menu.
+     *
+     * @param list<array<string, mixed>> $zones
+     */
+    protected static function zonesCard(array $zones): Card
+    {
+        $components = [
+            SectionTitle::make('Zone')
+                ->tooltip('Un listino per ogni zona in cui il metodo spedisce. Il prezzo è fisso (uno solo, qualunque sia il peso) oppure a scaglioni di peso. A scaglioni è quello dello scaglione che copre il peso del carrello; oltre l\'ultimo vale la tariffa al kg. Poi si aggiungono carburante e margine, si arrotonda e si applica il minimo. Il peso conta il maggiore tra reale e volumetrico (lunghezza × larghezza × altezza ÷ divisore). Con «Gratis sopra» la spedizione è gratuita sopra quell\'importo di prodotti, con «Gratis fino a» sotto quel peso. «Togli zona» spegne il listino senza cancellarlo.')
+                ->columnSpan(12),
+        ];
+
+        foreach ($zones as $zone) {
+            $components[] = static::zoneBlock($zone);
+        }
+
+        array_push($components, ...static::zonePicker($zones));
+
+        return (new Card)->components($components)->columns(12)->columnSpan(12);
     }
 
     /** Set-up → Zone di spedizione, dove si preparano le zone con più aree. */
@@ -308,8 +324,9 @@ final class ShippingMethodResource extends GestionaleResource
      * tecnica del prodotto: la zona nata da qui si aggiunge al metodo subito.
      *
      * @param list<array<string, mixed>> $zones
+     * @return list<object>
      */
-    protected static function zonePicker(array $zones): Container
+    protected static function zonePicker(array $zones): array
     {
         $items = '';
 
@@ -525,6 +542,12 @@ final class ShippingMethodResource extends GestionaleResource
                 });
         });
 
+        var bottoneZona = document.getElementById(BOTTONE);
+
+        if (bottoneZona) {
+            colonna(bottoneZona).classList.add('d-none');
+        }
+
         blocchi().forEach(function (nodo) { imposta(nodo, acceso(nodo)); });
         riordina();
 
@@ -533,10 +556,9 @@ final class ShippingMethodResource extends GestionaleResource
 </script>
 HTML)->tag('div');
 
-        return (new Container)->components([
-            $picker->columnSpan(12),
-            // Il bottone vero della finestra: lo apre la voce del menu, e il
-            // suo script ne nasconde la colonna.
+        return [
+            // Il bottone vero della finestra: lo apre la voce del menu, e lo
+            // script ne nasconde la colonna. Sta prima dello script.
             QuickCreateButton::make(ShippingZoneResource::class)
                 ->text('Nuova zona')
                 ->label('name')
@@ -546,7 +568,8 @@ HTML)->tag('div');
                 ->size('sm')
                 ->id(static::ZONE_BUTTON)
                 ->columnSpan(12),
-        ])->columns(12)->columnSpan(12);
+            $picker->columnSpan(12),
+        ];
     }
 
     public static function tableSchema(): array

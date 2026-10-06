@@ -44,13 +44,15 @@ vuota vuol dire «tutto il paese».
 
 ## Metodi e listini
 
-Nel metodo scrivi nome, tempi di consegna (che il cliente vede), corriere e
-codice del servizio. Sotto c'è **un riquadro per ogni zona in cui il metodo spedisce**.
-Per aggiungerne uno premi **+ Aggiungi zona** e scegli la zona dall'elenco: compare il suo
-riquadro, da compilare. Se la zona non c'è ancora, scegli **Nuova zona…**: si apre una
-finestra dove scrivi il nome e la prima area (paese ed, eventualmente, provincia), e la zona
-nasce lì, già pronta per il listino. Altre aree le aggiungi poi dalla pagina *Zone di spedizione*.
-**Togli zona**, in alto a destra del riquadro, smette di spedire verso quella zona.
+Nel metodo scrivi nome, tempi di consegna (che il cliente vede) e corriere. Sotto c'è
+la card **Zone**, con **un listino per ogni zona in cui il metodo spedisce**.
+Per aggiungerne uno premi **+ Aggiungi zona**, in fondo alla card, e scegli la zona dall'elenco:
+compare il suo listino, già a **prezzo fisso**, da compilare. Se la zona non c'è ancora, scegli
+**Nuova zona…**: si apre una finestra dove scrivi il nome e la prima area (paese ed,
+eventualmente, provincia), e la zona nasce lì, già pronta per il listino. Altre aree le
+aggiungi poi dalla pagina *Zone di spedizione*.
+**Togli zona**, in alto a destra del listino, smette di spedire verso quella zona: te lo chiede
+prima di farlo.
 
 ### Prezzo a scaglioni o fisso
 

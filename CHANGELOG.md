@@ -238,6 +238,10 @@ versionamento semantico.
   fisso scompaiono gli scaglioni e i campi a peso; al posto dell'interruttore «Spedisce verso
   questa zona» c'è **+ Aggiungi zona**, con **Nuova zona…** per crearla lì (nome e prima area)
   e **Togli zona** per toglierla senza perdere il listino.
+- Spedizioni, ancora sulla scheda del metodo: tutte le zone stanno in un'unica card «Zone», con
+  «+ Aggiungi zona» in fondo e senza il bottone «Nuova zona» fuori dalla card; «Togli zona» chiede
+  conferma; una zona appena aggiunta parte a prezzo fisso; il «Codice del servizio» non c'è più
+  nel modulo (la colonna resta).
 - Pagamenti, ritocchi alle schede: il tipo del metodo è *Bonifico bancario*, *Contanti*, *Stripe*,
   *PayPal* o *Nexi* (il vecchio «A mano» si divide in due: i siti già installati si sistemano da
   soli); il codice del metodo e del conto lo crea il sistema (`pme_…`, `pac_…`) e non si scrive

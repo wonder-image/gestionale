@@ -127,7 +127,7 @@ check('nella tabella degli scaglioni il peso massimo si vede sempre: il core non
 });
 
 check('il metodo ha i suoi campi, e nessun riquadro di listino se non ci sono zone', function () use ($campi) {
-    $attesi = ['name', 'description', 'carrier_id', 'provider_service_code', 'applies_online', 'applies_office', 'active'];
+    $attesi = ['name', 'description', 'carrier_id', 'applies_online', 'applies_office', 'active'];
 
     // Senza database non ci sono zone: niente campi `rate_*`.
     return array_diff($attesi, $campi(ShippingMethodResource::class)) === []

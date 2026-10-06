@@ -193,6 +193,51 @@ check('la scheda del metodo ha «Aggiungi zona» e un riquadro per zona, con «N
         && preg_match('/<input[^>]*type="hidden"[^>]*name="rate_'.$zona.'_on"/', $html) === 1;
 }));
 
+check('le zone stanno tutte in un\'unica card «Zone», con «+ Aggiungi zona» dentro', fn () => prova(static function (): bool {
+    $a = zona('Italia', [['IT', '']]);
+    $b = zona('Isole', [['IT', 'CA']]);
+    $html = layoutHtml(ShippingMethodResource::formLayoutSchema());
+    $titolo = strpos($html, '>Zone<');
+    $primo = strpos($html, 'data-wi-zone="'.$a.'"');
+    $secondo = strpos($html, 'data-wi-zone="'.$b.'"');
+    $menu = strpos($html, 'wi-zone-choose');
+    $bottone = strpos($html, 'id="'.ShippingMethodResource::ZONE_BUTTON.'"');
+    $dentro = ($titolo !== false && $menu !== false) ? substr($html, $titolo, $menu - $titolo) : '';
+
+    return $titolo !== false && $primo !== false && $secondo !== false && $menu !== false
+        && $titolo < $primo && $primo < $secondo && $secondo < $menu
+        // Il bottone vero della finestra sta nella card, prima del menu, ed è nascosto dallo script.
+        && ($bottone === false || $bottone < $menu)
+        && str_contains($html, "colonna(bottoneZona).classList.add('d-none')")
+        // Tra il titolo «Zone» e il menu non si apre nessun'altra card: i blocchi sono tutti lì dentro.
+        && !str_contains($dentro, '<div class="card border">')
+        && substr_count($dentro, 'data-wi-zone-remove=') >= 2;
+}));
+
+check('«Togli zona» chiede conferma, e la scheda non ha più il codice del servizio', fn () => prova(static function (): bool {
+    $zona = zona('Italia', [['IT', '']]);
+    $html = layoutHtml(ShippingMethodResource::formLayoutSchema());
+    $pulsante = preg_match('/<button[^>]*data-wi-zone-remove="'.$zona.'"[^>]*>/', $html, $m) === 1 ? $m[0] : '';
+    $nomi = array_map(static fn ($i): string => (string) $i->name, ShippingMethodResource::formSchema());
+
+    return $pulsante !== ''
+        && str_contains($pulsante, 'data-wi-confirm="')
+        && str_contains($pulsante, 'data-wi-confirm-variant="danger"')
+        && str_contains($pulsante, 'data-wi-confirm-ok="Togli"')
+        && !in_array('provider_service_code', $nomi, true)
+        && !str_contains($html, 'Codice del servizio');
+}));
+
+check('una zona nuova parte a prezzo fisso, e un listino già salvato tiene il suo tipo', fn () => prova(static function (): bool {
+    $zona = zona('Italia', [['IT', '']]);
+    $html = layoutHtml(ShippingMethodResource::formLayoutSchema());
+    $inizio = (int) strpos($html, 'name="rate_'.$zona.'_price_type"');
+    $select = substr($html, $inizio, 400);
+
+    return preg_match('/<option value="fixed" selected>/', $select) === 1
+        && preg_match('/<option value="brackets" selected>/', $select) !== 1;
+}));
+
 check('col prezzo fisso gli scaglioni stanno in un contenitore che si vede solo a scaglioni', fn () => prova(static function (): bool {
     $zona = zona('Italia', [['IT', '']]);
     $html = layoutHtml(ShippingMethodResource::formLayoutSchema());
