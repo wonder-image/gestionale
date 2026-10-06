@@ -173,9 +173,9 @@ final class ShipmentResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return parent::navigationSchema()
-            ->inSection('spedizioni')
+            ->inSection('vendite')
             ->title('Spedizioni')
-            ->order(5)
+            ->order(20)
             ->authority(['admin', 'administrator']);
     }
 

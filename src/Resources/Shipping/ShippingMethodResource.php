@@ -278,9 +278,9 @@ final class ShippingMethodResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return parent::navigationSchema()
-            ->section('spedizioni', 'Spedizioni', 'bi-truck', 380, ['admin', 'administrator'])
-            ->title('Metodi')
-            ->order(10)
+            ->inSection('set-up')
+            ->title('Metodi di spedizione')
+            ->order(40)
             ->authority(['admin', 'administrator']);
     }
 

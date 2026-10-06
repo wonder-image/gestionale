@@ -23,13 +23,13 @@ $ordine = static fn (string $evasione = 'unfulfilled', string $tipo = 'shipping'
 ];
 $conSpedizioni = ['shipping' => true];
 
-check('la pagina Spedizioni sta nella sezione Spedizioni, dietro la funzionalità, solo per l\'admin', function () {
+check('la pagina Spedizioni sta nella sezione Vendite, dietro la funzionalità, solo per l\'admin', function () {
     $menu = ShipmentResource::navigationSchema()->toArray();
 
     return ShipmentResource::$feature === 'shipping'
         && ShipmentResource::$model === Shipment::class
         && ShipmentResource::path() === 'app/gestionale/spedizioni'
-        && ($menu['section_key'] ?? '') === 'spedizioni'
+        && ($menu['section_key'] ?? '') === 'vendite'
         && ($menu['authority'] ?? []) === ['admin', 'administrator']
         && str_starts_with(ShipmentResource::$docsPage, 'spedizioni/');
 });

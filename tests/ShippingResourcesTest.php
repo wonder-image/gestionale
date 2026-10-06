@@ -35,7 +35,7 @@ check('le tre pagine stanno sotto Spedizioni, dietro la funzionalità, solo per 
         if ($resource::$feature !== 'shipping'
             || $resource::$model !== $model
             || $resource::path() !== $path
-            || ($menu['section_key'] ?? '') !== 'spedizioni'
+            || ($menu['section_key'] ?? '') !== 'set-up'
             || ($menu['authority'] ?? []) !== ['admin', 'administrator']
             || str_starts_with($resource::$docsPage, 'spedizioni/') === false) {
             return false;

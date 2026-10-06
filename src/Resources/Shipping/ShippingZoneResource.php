@@ -169,9 +169,9 @@ final class ShippingZoneResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return parent::navigationSchema()
-            ->inSection('spedizioni')
-            ->title('Zone')
-            ->order(20)
+            ->inSection('set-up')
+            ->title('Zone di spedizione')
+            ->order(50)
             ->authority(['admin', 'administrator']);
     }
 
