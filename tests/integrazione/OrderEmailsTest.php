@@ -290,4 +290,30 @@ check('spedito e pronto per il ritiro vanno al cliente, non al commerciante', fu
         && !in_array('shipped', OrderEmail::INSTRUCTION_KEYS, true);
 });
 
+check('il link per scegliere la password sta solo nelle email ricevuto e confermato', function () {
+    return prova(static function (): bool {
+        $ordine = (array) Order::findById(ordineConRiga());
+        $righe = [['name' => 'Crema da prova', 'quantity' => '2.000', 'line_total' => '50.00']];
+        $extra = ['account_url' => '/account/password-restore/?token=abc'];
+        $assoluto = OrderEmail::absoluteUrl('/account/password-restore/?token=abc');
+        $dentro = [];
+
+        foreach (['received', 'confirmed', 'shipped', 'merchant_new'] as $chiave) {
+            $corpo = OrderEmail::compose($chiave, $ordine, $righe, $extra)['body'];
+            $dentro[$chiave] = str_contains($corpo, 'Crea la tua password') && str_contains($corpo, htmlspecialchars($assoluto, ENT_QUOTES, 'UTF-8'));
+        }
+
+        return $dentro === ['received' => true, 'confirmed' => true, 'shipped' => false, 'merchant_new' => false];
+    });
+});
+
+check('senza link nessun blocco per la password', function () {
+    return prova(static function (): bool {
+        $ordine = (array) Order::findById(ordineConRiga());
+        $corpo = OrderEmail::compose('received', $ordine, [])['body'];
+
+        return !str_contains($corpo, 'Crea la tua password');
+    });
+});
+
 summary();

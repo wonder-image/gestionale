@@ -39,7 +39,7 @@ final class OrderEmail
     /**
      * @param array<string, mixed> $order riga di `gst_orders`
      * @param list<array<string, mixed>> $items righe di `gst_order_items`
-     * @param array{instructions?: string, deadline?: string, method?: string, url?: string, carrier?: string, tracking?: string, location?: string} $extra
+     * @param array{instructions?: string, deadline?: string, method?: string, url?: string, account_url?: string, carrier?: string, tracking?: string, location?: string} $extra
      * @return array{subject: string, body: string}
      */
     public static function compose(string $key, array $order, array $items, array $extra = []): array
@@ -68,6 +68,10 @@ final class OrderEmail
                 'order' => $order,
                 'items' => $items,
                 'url' => self::absoluteUrl((string) ($extra['url'] ?? '')),
+                // L'ospite sceglie la password dal link: solo nelle email che riceve all'ordine.
+                'account_url' => in_array($key, ['received', 'confirmed'], true) ? self::absoluteUrl((string) ($extra['account_url'] ?? '')) : '',
+                'account_title' => self::text('account', 'title', []),
+                'account_button' => self::text('account', 'button', []),
                 'e' => static fn (mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'),
                 'money' => static fn (mixed $v): string => self::money($v),
                 'qty' => static fn (mixed $v): string => self::quantity((float) $v),
