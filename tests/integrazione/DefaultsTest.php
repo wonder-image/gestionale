@@ -189,8 +189,9 @@ try {
         });
 
         // Un sito aggiornato ha ancora il tipo «manual» e la percentuale in fee_value.
-        PaymentMethod::update(['provider' => 'manual', 'fee_type' => 'percent', 'fee_value' => '1.50', 'fee_percent' => '0.00'], (int) $metodi()['bank-transfer']['id']);
-        PaymentMethod::update(['provider' => 'manual'], (int) $metodi()['cash']['id']);
+        PaymentMethod::update(['provider' => 'manual', 'fee_type' => 'percent', 'fee_value' => '1.50', 'fee_percent' => '0.00', 'icons' => ''], (int) $metodi()['bank-transfer']['id']);
+        PaymentMethod::update(['provider' => 'manual', 'icons' => ''], (int) $metodi()['cash']['id']);
+        PaymentMethod::update(['icons' => ''], (int) $metodi()['stripe']['id']);
 
         Defaults::seed(new DefaultRows());
 
@@ -200,7 +201,10 @@ try {
             return ($m['bank-transfer']['provider'] ?? '') === 'bank_transfer'
                 && (float) ($m['bank-transfer']['fee_percent'] ?? 0) === 1.5
                 && (float) ($m['bank-transfer']['fee_value'] ?? 0) === 0.0
-                && ($m['cash']['provider'] ?? '') === 'cash';
+                && ($m['cash']['provider'] ?? '') === 'cash'
+                && ($m['bank-transfer']['icons'] ?? '') === 'genericbank'
+                && ($m['cash']['icons'] ?? '') === 'cash'
+                && ($m['stripe']['icons'] ?? '') === 'visa,master,maestro,american_express,google_pay,apple_pay';
         });
 
         Defaults::seed(new DefaultRows());

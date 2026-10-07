@@ -315,6 +315,12 @@ final class Defaults implements ModuleDefaults
                 $changes['fee_value'] = '0.00';
             }
 
+            // I metodi nati prima delle icone prendono quelle del loro tipo.
+            if (trim((string) ($row['icons'] ?? '')) === '') {
+                $icons = implode(',', PaymentMethod::defaultIcons((string) ($changes['provider'] ?? $row['provider'] ?? '')));
+                $changes['icons'] = $icons === '' ? 'none' : $icons;
+            }
+
             if ($changes !== []) {
                 PaymentMethod::update($changes, (int) $row['id']);
             }

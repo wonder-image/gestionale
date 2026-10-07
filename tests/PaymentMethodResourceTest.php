@@ -219,4 +219,31 @@ check('il tipo di pagamento dice come si scrive nel registro dei pagamenti', fn 
     && PaymentMethod::ledgerProvider('nexi') === 'nexi'
 );
 
+check('le icone si salvano come elenco pulito; vuote all\'inserimento prendono quelle del tipo', function () {
+    $scelte = PaymentMethodResource::mutateRequestValues(['name' => 'X', 'icons' => ['visa', 'paypal', 'visa', 'bitcoin']], 'update');
+    $nuovo = PaymentMethodResource::mutateRequestValues(['name' => 'Bonifico', 'provider' => 'bank_transfer', 'icons' => []], 'store');
+    $tolte = PaymentMethodResource::mutateRequestValues(['name' => 'X', 'icons' => []], 'update');
+
+    return $scelte['icons'] === 'visa,paypal'
+        && $nuovo['icons'] === 'genericbank'
+        && $tolte['icons'] === 'none';
+});
+
+check('il form rilegge le icone come elenco e scarta quelle sconosciute', function () {
+    $form = PaymentMethodResource::mutateFormValues(['icons' => 'visa,<x>,paypal'], 'edit');
+    $vuoto = PaymentMethodResource::mutateFormValues(['icons' => 'none'], 'edit');
+
+    return $form['icons'] === ['visa', 'paypal'] && $vuoto['icons'] === [];
+});
+
+check('ogni tipo ha le sue icone di partenza, tutte nel catalogo', function () {
+    $tutte = array_merge(...array_map([PaymentMethod::class, 'defaultIcons'], PaymentMethod::PROVIDERS));
+
+    return count(PaymentMethod::ICONS) === 14
+        && PaymentMethod::defaultIcons('stripe') === ['visa', 'master', 'maestro', 'american_express', 'google_pay', 'apple_pay']
+        && PaymentMethod::defaultIcons('cash') === ['cash']
+        && PaymentMethod::defaultIcons('sconosciuto') === []
+        && array_diff($tutte, array_keys(PaymentMethod::ICONS)) === [];
+});
+
 summary();
