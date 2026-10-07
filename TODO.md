@@ -258,6 +258,10 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
       - [x] Piano 1 [componenti](docs/superpowers/plans/2026-10-06-checkout-a-passi-1-componenti.md) **fatto** (2026-10-06): in lib `.wi-choice`, `.wi-steps`, `.wi-thumb`; in app `Choice`, `ChoiceGroup`, `Steps` nei due temi. Rami `checkout-a-passi-componenti` in lib e app, **non ancora spinti né uniti**. Otto minor rimandati (accessibilità di `Steps`, stato «scelto» e `hidden` su `d-block` nel tema Bootstrap): elenco nella risposta finale della sessione
       - [ ] Piano 2 Passi (pagine Carrello, Spedizione, Pagamento; rilascio della lib ed `extra.wonder.lib`)
       - [ ] Piano 3 Ospite (account creato senza password, ordine su un account esistente)
+    - [ ] Checkout a pagina unica (sostituisce i tre passi) — [spec](docs/superpowers/specs/2026-10-07-checkout-pagina-unica-design.md)
+      - [x] Piano 1 [componenti e font](docs/superpowers/plans/2026-10-07-checkout-pagina-unica-1-componenti.md) **fatto** (2026-10-07): `Choice` con icona, loghi, pannello selezionabile e varianti segmented/list; `Wonder\View\WebFonts` con 9 font in `resources/assets/font/web/`. Uniti in `main` **in locale** in app (merge 256859e0) e lib (9b0364e), **non ancora spinti**; `dist` della lib da rilasciare. Per il piano 2: `hidden` su un intero `.wi-choice` non lo nasconde, togliere o clonare le scelte. Minor rimandati: varianti Bootstrap non unite e pannello sempre visibile, ultimo segmento 1px corto, spazio sopra il pannello
+      - [ ] Piano 2 Pagina unica (gestionale ed ecommerce, ramo `e1c-checkout-a-passi`; prima committare a parte le modifiche locali dell'utente in ecommerce)
+      - [ ] Piano 3 Ospite
 - [ ] Rilascio `1.0.0` di gestionale ed ecommerce
 - [ ] Sito del cliente sopra `boilerplates/ecommerce-site`: tema, contenuti, prodotti veri, Stripe in produzione, collaudo
 
