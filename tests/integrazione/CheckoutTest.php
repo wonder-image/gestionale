@@ -667,4 +667,23 @@ check('customer_email porta solo il link, non sostituisce le istruzioni del paga
     });
 });
 
+check('place dice se l\'email al cliente è partita, col bonifico e col contrassegno', function () {
+    return prova(static function (): bool {
+        $esiti = [];
+        foreach ([PaymentTiming::DEFERRED, PaymentTiming::ON_DELIVERY] as $momento) {
+            foreach ([true, false] as $consegnata) {
+                [$carrello] = carrelloPronto();
+                Mailer::useTransport(static fn (string $to): bool => $to === 'cliente@example.com' ? $consegnata : true);
+                try {
+                    $esiti[] = Checkout::place($carrello, datiCheckout(metodoDiProva($momento)))['customer_email_sent'] ?? null;
+                } finally {
+                    Mailer::useTransport(null);
+                }
+            }
+        }
+
+        return $esiti === [true, false, true, false];
+    });
+});
+
 summary();

@@ -13,6 +13,7 @@ use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
+use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
@@ -45,7 +46,7 @@ final class Checkout
 {
     /**
      * @param array<string, mixed> $data con `customer_email` (`array{account_url?: string}`) per l'email al cliente
-     * @return array{order_id: int, order_number: string, payment_id: int, total: string, reserved: int, status: string}
+     * @return array{order_id: int, order_number: string, payment_id: int, total: string, reserved: int, status: string, customer_email_sent: bool}
      */
     public static function place(int $cartId, array $data): array
     {
@@ -76,17 +77,25 @@ final class Checkout
             'is_string'
         );
 
+        // `customer_email_sent` dice al chiamante se l'email al cliente è partita.
+        $result['customer_email_sent'] = false;
+
         try {
+            $key = 'received';
             if ($result['timing'] === PaymentTiming::ON_DELIVERY) {
+                // La conferma la manda qui, non `confirm()`, per saperne l'esito.
                 $confirmed = Lifecycle::confirm($result['order_id'], [
                     'payment' => false,
                     'source' => (string) ($data['source'] ?? 'user'),
                     'user_id' => (int) ($data['user_id'] ?? 0),
-                    'email_extra' => $customerEmail,
+                    'notify' => false,
                 ]);
                 $result['status'] = $confirmed['status'];
-            } else {
-                OrderNotifier::send('received', $result['order_id'], $customerEmail);
+                $key = $confirmed['changed'] ? 'confirmed' : '';
+            }
+            if ($key !== '') {
+                $sent = OrderNotifier::send($key, $result['order_id'], $customerEmail);
+                $result['customer_email_sent'] = ($sent['status'] ?? '') === Mailer::SENT;
             }
         } catch (Throwable $error) {
             Errors::internal($error, 'checkout.after_place', ['order_id' => $result['order_id']]);
