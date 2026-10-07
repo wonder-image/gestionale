@@ -16,6 +16,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
+use Wonder\View\WebFonts;
 
 /**
  * "Impostazioni" del commerciante, nella sezione Gestionale: una riga sola,
@@ -53,6 +54,10 @@ final class MerchantSettingResource extends SingletonResource
         return [
             'merchant_notification_emails' => 'Email di chi riceve le notifiche',
             'low_stock_emails' => 'Destinatari degli avvisi',
+            'font_auth' => 'Font accesso',
+            'font_account' => 'Font account',
+            'font_checkout' => 'Font checkout',
+            'font_cart' => 'Font carrello',
         ];
     }
 
@@ -64,6 +69,12 @@ final class MerchantSettingResource extends SingletonResource
 
         if (Gestionale::feature('low_stock_alerts')) {
             $fields[] = FormField::key('low_stock_emails')->text()->label('Destinatari degli avvisi');
+        }
+
+        if (Gestionale::feature('online_sales')) {
+            foreach (['auth' => 'Font accesso', 'account' => 'Font account', 'checkout' => 'Font checkout', 'cart' => 'Font carrello'] as $area => $label) {
+                $fields[] = FormField::key('font_'.$area)->select(['' => 'Come il sito'] + WebFonts::all())->label($label);
+            }
         }
 
         return $fields;
@@ -89,6 +100,18 @@ final class MerchantSettingResource extends SingletonResource
             ])->columns(12)->columnSpan(12);
         }
 
+        if (Gestionale::feature('online_sales')) {
+            $cards[] = (new Card)->components([
+                SectionTitle::make('Negozio online')
+                    ->tooltip('Il font delle pagine di accesso, account, checkout e carrello. «Come il sito» usa quello del tema.')
+                    ->columnSpan(12),
+                static::getInput('font_auth')->columnSpan(6),
+                static::getInput('font_account')->columnSpan(6),
+                static::getInput('font_checkout')->columnSpan(6),
+                static::getInput('font_cart')->columnSpan(6),
+            ])->columns(12)->columnSpan(12);
+        }
+
         return (new Form)->components([
             (new Container)->components($cards)->columns(12)->columnSpan(12),
         ]);
@@ -104,6 +127,13 @@ final class MerchantSettingResource extends SingletonResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        foreach (['auth', 'account', 'checkout', 'cart'] as $area) {
+            if (array_key_exists('font_'.$area, $values)) {
+                $font = strtolower(trim((string) $values['font_'.$area]));
+                $values['font_'.$area] = WebFonts::has($font) ? $font : '';
+            }
+        }
+
         if (!array_key_exists('low_stock_emails', $values)) {
             return $values;
         }

@@ -157,6 +157,24 @@ check('le due impostazioni hanno un\'etichetta in italiano', function () {
         && trim((string) ($etichette['order_payment_wait_days'] ?? '')) !== '';
 });
 
+check('il commerciante sceglie il font di accesso, account, checkout e carrello', function () use ($colonne) {
+    $c = $colonne(MerchantSetting::class);
+    $schema = [];
+    foreach (MerchantSetting::tableSchema() as $column) {
+        $schema[(string) $column->name] = $column->schema;
+    }
+
+    return in_array('font_auth', $c, true) && in_array('font_account', $c, true)
+        && in_array('font_cart', $c, true) && in_array('font_checkout', $c, true)
+        && ($schema['font_checkout']['default'] ?? null) === 'inter';
+});
+
+check('un font sconosciuto si salva vuoto, uno noto resta', function () {
+    $v = MerchantSettingResource::mutateRequestValues(['font_checkout' => 'comic', 'font_auth' => 'inter', 'font_cart' => ''], 'update');
+
+    return $v['font_checkout'] === '' && $v['font_auth'] === 'inter' && $v['font_cart'] === '';
+});
+
 $forza(null);
 
 summary();
