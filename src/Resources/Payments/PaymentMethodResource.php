@@ -78,6 +78,7 @@ final class PaymentMethodResource extends GestionaleResource
             'applies_office' => 'In ufficio',
             'applies_pos' => 'Al banco',
             'instructions' => 'Istruzioni',
+            'icons' => 'Icone',
             'sdi_code' => 'Modalità di pagamento in fattura',
             'active' => 'Stato',
         ];
@@ -161,6 +162,7 @@ final class PaymentMethodResource extends GestionaleResource
             FormField::key('applies_office')->select($siNo)->value(Channels::defaults()['applies_office'])->label('In ufficio'),
             FormField::key('applies_pos')->select($siNo)->value(Channels::defaults()['applies_pos'])->label('Al banco'),
             FormField::key('instructions')->textarea()->label('Istruzioni'),
+            FormField::key('icons')->selectSearch(PaymentMethod::ICONS, true)->label('Icone'),
             FormField::key('sdi_code')->select(static::sdiCodes())->value('')->label('Modalità di pagamento in fattura'),
             FormField::key('active')->select(['true' => 'Attivo', 'false' => 'Non attivo'])->value('true')->label('Stato'),
         ];
@@ -196,8 +198,9 @@ final class PaymentMethodResource extends GestionaleResource
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
                     SectionTitle::make('Istruzioni e fattura')
-                        ->tooltip('Le istruzioni arrivano al cliente nell\'email dell\'ordine. Per il bonifico non scrivere l\'IBAN: lo compone l\'email dal conto scelto. La modalità di pagamento è quella che la fattura elettronica porta con sé (codici MP01–MP23).')
+                        ->tooltip('Le icone sono i loghi mostrati accanto al metodo nel checkout. Le istruzioni arrivano al cliente nell\'email dell\'ordine. Per il bonifico non scrivere l\'IBAN: lo compone l\'email dal conto scelto. La modalità di pagamento è quella che la fattura elettronica porta con sé (codici MP01–MP23).')
                         ->columnSpan(12),
+                    static::getInput('icons')->columnSpan(12),
                     static::getInput('instructions')->columnSpan(7),
                     static::getInput('sdi_code')->columnSpan(5),
                 ])->columns(12)->columnSpan(12),
@@ -260,6 +263,15 @@ final class PaymentMethodResource extends GestionaleResource
     ): array {
         $values = Channels::keepHidden($values, $oldValues);
 
+        // Vuote all'inserimento: quelle del tipo. Tolte a mano: «none», così non tornano.
+        if (array_key_exists('icons', $values) || $action === 'store' || array_key_exists('provider', $values)) {
+            $icons = PaymentMethod::iconsOf(implode(',', array_map('strval', (array) ($values['icons'] ?? []))));
+            if ($icons === [] && $action === 'store') {
+                $icons = PaymentMethod::defaultIcons((string) ($values['provider'] ?? ''));
+            }
+            $values['icons'] = $icons === [] ? 'none' : implode(',', $icons);
+        }
+
         // Quello che il form nasconde non resta a metà: il conto serve al
         // bonifico, e la commissione che non c'è non ha cifre.
         if (array_key_exists('provider', $values) && (string) $values['provider'] !== 'bank_transfer') {
@@ -283,6 +295,13 @@ final class PaymentMethodResource extends GestionaleResource
         } else {
             unset($values['position']);
         }
+
+        return $values;
+    }
+
+    public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
+    {
+        $values['icons'] = PaymentMethod::iconsOf((string) ($values['icons'] ?? ''));
 
         return $values;
     }

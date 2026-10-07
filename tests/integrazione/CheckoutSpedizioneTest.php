@@ -203,6 +203,19 @@ check('la commissione segue il pagamento: 2 € col bonifico, 3,50 € col contr
         && righeDi($cart, 'fee') === [];
 }));
 
+check('ogni pagamento dell\'anteprima porta la commissione che si paga: contrassegno dal listino, percentuale fino al 100%', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    $bonifico = pagamento(PaymentTiming::DEFERRED, ['fee_type' => 'percent', 'fee_percent' => '150']);
+    $contrassegno = pagamento(PaymentTiming::ON_DELIVERY, ['fee_type' => 'amount', 'fee_value' => '1.00']);
+    $p = Checkout::preview($cart, ['shipping' => milano(), 'payment_method_id' => $bonifico]);
+    $voci = array_column((array) $p['payment_methods']['options'], null, 'id');
+
+    return ($voci[$bonifico]['fee'] ?? null) === 10.0
+        && ($voci[$contrassegno]['fee'] ?? null) === 3.5
+        && (float) $p['order']['fees_total'] === 10.0;
+}));
+
 check('col ritiro la sola sede si sceglie da sola, la spedizione sparisce e i pagamenti si filtrano', fn () => prova(static function (): bool {
     standard();
     $sede = sede();
@@ -225,6 +238,21 @@ check('col ritiro la sola sede si sceglie da sola, la spedizione sparisce e i pa
         && (int) $riga['location_id'] === $sede
         && (int) $riga['shipping_method_id'] === 0
         && (int) $riga['payment_method_id'] === 0;
+}));
+
+check('l\'anteprima mostra solo i pagamenti collegati, con icone e commissione', fn () => prova(static function (): bool {
+    $metodo = metodo('Standard');
+    listino($metodo, zona('Italia', [['IT', '']]), [[5, 8.0]]);
+    $stripe = pagamento(PaymentTiming::IMMEDIATE);
+    $bonifico = pagamento(PaymentTiming::DEFERRED, ['icons' => 'genericbank,<x>', 'fee_type' => 'amount', 'fee_value' => '1.50']);
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    $p = Checkout::preview($cart, ['shipping_country' => 'IT', 'shipping_method_id' => $metodo]);
+    $voci = array_column((array) $p['payment_methods']['options'], null, 'id');
+
+    return !isset($voci[$stripe]) && isset($voci[$bonifico])
+        && $voci[$bonifico]['icons'] === ['genericbank']
+        && $voci[$bonifico]['fee_type'] === 'amount'
+        && $voci[$bonifico]['fee_value'] === 1.5;
 }));
 
 check('con più sedi vale quella scelta se è di ritiro, altrimenti nessuna', fn () => prova(static function (): bool {
@@ -468,6 +496,33 @@ check('una spedizione non porta con sé la sede rimasta nel modulo', fn () => pr
     compra($cart, ['shipping_method_id' => $metodo, 'location_id' => $sede]);
 
     return (int) Order::findById($cart)['location_id'] === 0;
+}));
+
+check('l\'anteprima scrive email e telefono sul carrello', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    $p = Checkout::preview($cart, ['shipping' => milano(), 'email' => 'c@example.com', 'phone' => '333 1234567']);
+    $ordine = Order::findById($cart);
+
+    return $p['invalid'] === [] && $ordine['email'] === 'c@example.com' && $ordine['phone'] === '333 1234567';
+}));
+
+check('un\'email non valida non si scrive e torna in invalid, il telefono sì', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    $p = Checkout::preview($cart, ['shipping' => milano(), 'email' => 'non-una-email', 'phone' => '333 1234567']);
+    $ordine = Order::findById($cart);
+
+    return $p['invalid'] === ['email'] && (string) $ordine['email'] === '' && $ordine['phone'] === '333 1234567';
+}));
+
+check('un\'email vuota non cancella quella già sul carrello', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    Checkout::preview($cart, ['shipping' => milano(), 'email' => 'c@example.com']);
+    Checkout::preview($cart, ['shipping' => milano(), 'email' => '']);
+
+    return Order::findById($cart)['email'] === 'c@example.com';
 }));
 
 summary();
