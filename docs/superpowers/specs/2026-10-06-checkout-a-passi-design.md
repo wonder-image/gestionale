@@ -1,7 +1,7 @@
 # E1c — Checkout a passi: Carrello, Spedizione, Pagamento e ospite
 
 - **Sotto-progetto:** seguito di D5 in `packages/ecommerce/TODO.md`, parte di E1c
-- **Stato:** disegno approvato il 2026-10-06 (una pagina per passo, generata dal server; tre piani)
+- **Stato:** sostituita il 2026-10-07 da [checkout a pagina unica](2026-10-07-checkout-pagina-unica-design.md); restano validi §4, §6 e §7
 - **Sostituisce:** la forma «una pagina sola» di
   [checkout con spedizione](2026-10-06-checkout-con-spedizione-design.md). Restano valide
   l'anteprima del gestionale (`Checkout::preview`), le rotte JSON `summary` e `coupon` e il
