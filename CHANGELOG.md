@@ -257,6 +257,8 @@ versionamento semantico.
   (`order.pickup_location_unavailable`) e la spedizione dal sito senza metodo
   (`order.shipping_method_required`, `order.shipping_unavailable`). Le sedi di ritiro
   stanno in `PickupPoints`, usato anche dalle spedizioni.
+- Icone dei metodi di pagamento; font del negozio online nelle impostazioni del
+  commerciante; l'anteprima del checkout mostra solo i provider collegati.
 
 ### Corretto
 
