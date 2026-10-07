@@ -14,6 +14,7 @@ use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
+use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Shipping\Shipping;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
@@ -107,6 +108,8 @@ final class Checkout
      * Un campo che il modello rifiuta non ferma niente: torna in `invalid` e
      * gli altri si scrivono lo stesso.
      *
+     * `payment_methods` offre solo i provider collegati (`PaymentProviders::connected`).
+     *
      * @param array<string, mixed> $data
      * @return array{
      *     order: array{products_total: string, discount_total: string, shipping_total: string, fees_total: string, total: string, currency: string},
@@ -114,7 +117,7 @@ final class Checkout
      *     fulfillment: array{type: string, choices: list<string>},
      *     shipping_methods: array{options: list<array<string, mixed>>, selected: int},
      *     pickup_locations: array{options: list<array{id: int, name: string, address: string}>, selected: int},
-     *     payment_methods: array{options: list<array{id: int, name: string, provider: string, manual: bool, instructions: string}>, selected: int},
+     *     payment_methods: array{options: list<array{id: int, name: string, provider: string, manual: bool, instructions: string, icons: list<string>, fee_type: string, fee_value: float, fee_percent: float}>, selected: int},
      *     coupon: array{code: string, dropped: string},
      *     notices: list<string>,
      *     invalid: list<string>
@@ -370,7 +373,8 @@ final class Checkout
     }
 
     /**
-     * I metodi di pagamento che il cliente può scegliere, in ordine di posizione.
+     * I metodi di pagamento che il cliente può scegliere, in ordine di posizione:
+     * solo i provider collegati (`PaymentProviders::connected`).
      *
      * @return list<array<string, mixed>>
      */
@@ -379,6 +383,7 @@ final class Checkout
         $methods = array_values(array_filter(
             self::rows(PaymentMethod::find(['active' => 'true'])),
             static fn (array $method): bool => self::allowed($method, $fulfillment)
+                && PaymentProviders::connected((string) ($method['provider'] ?? ''))
         ));
 
         usort($methods, static fn (array $a, array $b): int => [(int) ($a['position'] ?? 0), (int) $a['id']] <=> [(int) ($b['position'] ?? 0), (int) $b['id']]);
@@ -391,7 +396,7 @@ final class Checkout
      * gateway da aprire (bonifico, contanti).
      *
      * @param array<string, mixed> $method
-     * @return array{id: int, name: string, provider: string, manual: bool, instructions: string}
+     * @return array{id: int, name: string, provider: string, manual: bool, instructions: string, icons: list<string>, fee_type: string, fee_value: float, fee_percent: float}
      */
     private static function paymentChoice(array $method): array
     {
@@ -403,6 +408,10 @@ final class Checkout
             'provider' => $provider,
             'manual' => PaymentMethod::ledgerProvider($provider) === 'manual',
             'instructions' => (string) ($method['instructions'] ?? ''),
+            'icons' => PaymentMethod::iconsOf((string) ($method['icons'] ?? '')),
+            'fee_type' => (string) ($method['fee_type'] ?? 'none'),
+            'fee_value' => (float) ($method['fee_value'] ?? 0),
+            'fee_percent' => (float) ($method['fee_percent'] ?? 0),
         ];
     }
 

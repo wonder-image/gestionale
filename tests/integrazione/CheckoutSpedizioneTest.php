@@ -227,6 +227,21 @@ check('col ritiro la sola sede si sceglie da sola, la spedizione sparisce e i pa
         && (int) $riga['payment_method_id'] === 0;
 }));
 
+check('l\'anteprima mostra solo i pagamenti collegati, con icone e commissione', fn () => prova(static function (): bool {
+    $metodo = metodo('Standard');
+    listino($metodo, zona('Italia', [['IT', '']]), [[5, 8.0]]);
+    $stripe = pagamento(PaymentTiming::IMMEDIATE);
+    $bonifico = pagamento(PaymentTiming::DEFERRED, ['icons' => 'genericbank,<x>', 'fee_type' => 'amount', 'fee_value' => '1.50']);
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    $p = Checkout::preview($cart, ['shipping_country' => 'IT', 'shipping_method_id' => $metodo]);
+    $voci = array_column((array) $p['payment_methods']['options'], null, 'id');
+
+    return !isset($voci[$stripe]) && isset($voci[$bonifico])
+        && $voci[$bonifico]['icons'] === ['genericbank']
+        && $voci[$bonifico]['fee_type'] === 'amount'
+        && $voci[$bonifico]['fee_value'] === 1.5;
+}));
+
 check('con più sedi vale quella scelta se è di ritiro, altrimenti nessuna', fn () => prova(static function (): bool {
     sede();
     $seconda = sede();
