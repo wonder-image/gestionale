@@ -223,7 +223,7 @@ final class Checkout
                 'shipping_methods' => ['options' => $options, 'selected' => $type === 'shipping' ? $methodId : 0],
                 'pickup_locations' => ['options' => $points, 'selected' => $locationId],
                 'payment_methods' => [
-                    'options' => array_map(self::paymentChoice(...), $payments),
+                    'options' => array_map(static fn (array $method): array => self::paymentChoice($method, $cartId), $payments),
                     'selected' => $payment === null ? 0 : (int) $payment['id'],
                 ],
                 'coupon' => ['code' => (string) ($order['coupon_code'] ?? ''), 'dropped' => $dropped],
@@ -394,11 +394,13 @@ final class Checkout
     /**
      * La voce del metodo per il modulo: `manual` dice al sito che non c'è un
      * gateway da aprire (bonifico, contanti).
+     * `fee` è la commissione che si pagherebbe scegliendolo (contrassegno
+     * compreso), calcolata come quando si applica.
      *
      * @param array<string, mixed> $method
-     * @return array{id: int, name: string, provider: string, manual: bool, instructions: string, icons: list<string>, fee_type: string, fee_value: float, fee_percent: float}
+     * @return array{id: int, name: string, provider: string, manual: bool, instructions: string, icons: list<string>, fee_type: string, fee_value: float, fee_percent: float, fee: float}
      */
-    private static function paymentChoice(array $method): array
+    private static function paymentChoice(array $method, int $orderId): array
     {
         $provider = (string) ($method['provider'] ?? '');
 
@@ -412,6 +414,7 @@ final class Checkout
             'fee_type' => (string) ($method['fee_type'] ?? 'none'),
             'fee_value' => (float) ($method['fee_value'] ?? 0),
             'fee_percent' => (float) ($method['fee_percent'] ?? 0),
+            'fee' => self::feeAmount($orderId, $method),
         ];
     }
 
@@ -617,6 +620,39 @@ final class Checkout
     }
 
     /**
+     * Quanto costa pagare l'ordine con questo metodo.
+     *
+     * @param array<string, mixed> $method
+     */
+    private static function feeAmount(int $orderId, array $method): float
+    {
+        // Il contrassegno che si paga al corriere costa quanto dice il listino
+        // di spedizione scelto: se ne ha uno, sostituisce la commissione del
+        // metodo di pagamento.
+        $cod = (string) ($method['timing'] ?? '') === PaymentTiming::ON_DELIVERY
+            && (string) ($method['available_for'] ?? 'all') !== 'pickup'
+            ? Shipping::codFee($orderId)
+            : 0.0;
+
+        if ($cod > 0) {
+            return $cod;
+        }
+
+        $type = (string) ($method['fee_type'] ?? 'none');
+        $fixed = in_array($type, ['amount', 'amount_percent'], true) ? round((float) ($method['fee_value'] ?? 0), 2) : 0.0;
+        $percent = in_array($type, ['percent', 'amount_percent'], true) ? min(round((float) ($method['fee_percent'] ?? 0), 2), 100.0) : 0.0;
+
+        if ($fixed <= 0 && $percent <= 0) {
+            return 0.0;
+        }
+
+        $order = Order::findById($orderId);
+        $base = (float) (is_array($order) ? ($order['products_total'] ?? 0) : 0);
+
+        return max(0.0, round($fixed + $base * $percent / 100, 2));
+    }
+
+    /**
      * La commissione del metodo, come riga dell'ordine.
      *
      * Una sola: se il cliente torna indietro e cambia metodo, quella di prima
@@ -630,29 +666,7 @@ final class Checkout
             OrderItem::delete((int) $old['id']);
         }
 
-        if ($method === null) {
-            return;
-        }
-
-        // Il contrassegno che si paga al corriere costa quanto dice il listino
-        // di spedizione scelto: se ne ha uno, sostituisce la commissione del
-        // metodo di pagamento.
-        $cod = (string) ($method['timing'] ?? '') === PaymentTiming::ON_DELIVERY
-            && (string) ($method['available_for'] ?? 'all') !== 'pickup'
-            ? Shipping::codFee($orderId)
-            : 0.0;
-
-        $type = (string) ($method['fee_type'] ?? 'none');
-        $fixed = in_array($type, ['amount', 'amount_percent'], true) ? round((float) ($method['fee_value'] ?? 0), 2) : 0.0;
-        $percent = in_array($type, ['percent', 'amount_percent'], true) ? min(round((float) ($method['fee_percent'] ?? 0), 2), 100.0) : 0.0;
-
-        if ($cod <= 0 && $fixed <= 0 && $percent <= 0) {
-            return;
-        }
-
-        $order = Order::findById($orderId);
-        $base = (float) (is_array($order) ? ($order['products_total'] ?? 0) : 0);
-        $amount = $cod > 0 ? $cod : round($fixed + $base * $percent / 100, 2);
+        $amount = $method === null ? 0.0 : self::feeAmount($orderId, $method);
 
         if ($amount <= 0) {
             return;

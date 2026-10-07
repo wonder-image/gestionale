@@ -203,6 +203,19 @@ check('la commissione segue il pagamento: 2 € col bonifico, 3,50 € col contr
         && righeDi($cart, 'fee') === [];
 }));
 
+check('ogni pagamento dell\'anteprima porta la commissione che si paga: contrassegno dal listino, percentuale fino al 100%', fn () => prova(static function (): bool {
+    standard();
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    $bonifico = pagamento(PaymentTiming::DEFERRED, ['fee_type' => 'percent', 'fee_percent' => '150']);
+    $contrassegno = pagamento(PaymentTiming::ON_DELIVERY, ['fee_type' => 'amount', 'fee_value' => '1.00']);
+    $p = Checkout::preview($cart, ['shipping' => milano(), 'payment_method_id' => $bonifico]);
+    $voci = array_column((array) $p['payment_methods']['options'], null, 'id');
+
+    return ($voci[$bonifico]['fee'] ?? null) === 10.0
+        && ($voci[$contrassegno]['fee'] ?? null) === 3.5
+        && (float) $p['order']['fees_total'] === 10.0;
+}));
+
 check('col ritiro la sola sede si sceglie da sola, la spedizione sparisce e i pagamenti si filtrano', fn () => prova(static function (): bool {
     standard();
     $sede = sede();
