@@ -602,4 +602,69 @@ check('una confezione messa nel carrello con Cart::add prenota solo le figlie e 
         && $esito['totale'] === '75.00';
 });
 
+/**
+ * Le email partite durante il corpo, per destinatario.
+ *
+ * @return array<string, string>
+ */
+function postaPerDestinatario(callable $corpo): array
+{
+    $posta = [];
+    Mailer::useTransport(static function (string $to, string $subject, string $body) use (&$posta): bool {
+        $posta[$to] = ($posta[$to] ?? '').$body;
+
+        return true;
+    });
+
+    try {
+        $corpo();
+    } finally {
+        Mailer::useTransport(null);
+    }
+
+    return $posta;
+}
+
+check('col bonifico il link per la password va nell\'email di ordine ricevuto, solo al cliente', function () {
+    return prova(static function (): bool {
+        Wonder\Plugin\Gestionale\Models\System\MerchantSetting::update(
+            ['merchant_notification_emails' => 'negozio@example.com'],
+            (int) (Wonder\Plugin\Gestionale\Models\System\MerchantSetting::current()['id'] ?? 1)
+        );
+        [$carrello] = carrelloPronto();
+        $dati = datiCheckout(metodoDiProva(PaymentTiming::DEFERRED)) + ['customer_email' => ['account_url' => '/account/password-restore/?token=ospite1']];
+
+        $posta = postaPerDestinatario(static fn () => Checkout::place($carrello, $dati));
+        $altri = array_diff_key($posta, ['cliente@example.com' => true]);
+
+        return str_contains($posta['cliente@example.com'] ?? '', 'token=ospite1')
+            && isset($altri['negozio@example.com'])
+            && !str_contains(implode(' ', $altri), 'token=ospite1');
+    });
+});
+
+check('col contrassegno il link per la password va nell\'email di conferma', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        $dati = datiCheckout(metodoDiProva(PaymentTiming::ON_DELIVERY)) + ['customer_email' => ['account_url' => '/account/password-restore/?token=ospite2']];
+
+        $posta = postaPerDestinatario(static fn () => Checkout::place($carrello, $dati));
+
+        return str_contains($posta['cliente@example.com'] ?? '', 'token=ospite2')
+            && str_contains($posta['cliente@example.com'] ?? '', 'Crea la tua password');
+    });
+});
+
+check('customer_email porta solo il link, non sostituisce le istruzioni del pagamento', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        $dati = datiCheckout(metodoDiProva(PaymentTiming::DEFERRED)) + ['customer_email' => ['instructions' => 'ISTRUZIONI FALSE']];
+
+        $posta = postaPerDestinatario(static fn () => Checkout::place($carrello, $dati));
+
+        return ($posta['cliente@example.com'] ?? '') !== ''
+            && !str_contains(implode(' ', $posta), 'ISTRUZIONI FALSE');
+    });
+});
+
 summary();

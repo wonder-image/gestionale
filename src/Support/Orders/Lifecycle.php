@@ -44,7 +44,7 @@ final class Lifecycle
     /**
      * Il pagamento risulta, la merce esce, il cliente lo sa.
      *
-     * @param array{payment?: bool|null, provider?: string, provider_reference?: string, amount?: float, source?: string, user_id?: int, notify?: bool} $options
+     * @param array{payment?: bool|null, provider?: string, provider_reference?: string, amount?: float, source?: string, user_id?: int, notify?: bool, email_extra?: array<string, string>} $options
      * @return array{order_id: int, status: string, payment_status: string, committed: int, changed: bool}
      */
     public static function confirm(int $orderId, array $options = []): array
@@ -127,7 +127,7 @@ final class Lifecycle
         if ($result['changed'] && ($options['notify'] ?? true)) {
             // Fuori dalla transazione: la posta è lenta e non deve tenere
             // aperto un blocco sulle righe di magazzino.
-            OrderNotifier::send('confirmed', $orderId);
+            OrderNotifier::send('confirmed', $orderId, (array) ($options['email_extra'] ?? []));
         }
 
         return $result;

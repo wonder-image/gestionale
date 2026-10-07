@@ -44,7 +44,7 @@ use Wonder\Sql\Transaction;
 final class Checkout
 {
     /**
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $data con `customer_email` (`array{account_url?: string}`) per l'email al cliente
      * @return array{order_id: int, order_number: string, payment_id: int, total: string, reserved: int, status: string}
      */
     public static function place(int $cartId, array $data): array
@@ -69,16 +69,24 @@ final class Checkout
         // Il contrassegno e il ritiro si pagano alla consegna: l'ordine è
         // buono così com'è e la merce può uscire subito. `confirm()` manda la
         // sua email di conferma, quindi qui basta avvisare il commerciante.
+        // Il link per la password dell'ospite viaggia con l'email al cliente;
+        // nient'altro, così il chiamante non riscrive le istruzioni del pagamento.
+        $customerEmail = array_filter(
+            array_intersect_key((array) ($data['customer_email'] ?? []), ['account_url' => true]),
+            'is_string'
+        );
+
         try {
             if ($result['timing'] === PaymentTiming::ON_DELIVERY) {
                 $confirmed = Lifecycle::confirm($result['order_id'], [
                     'payment' => false,
                     'source' => (string) ($data['source'] ?? 'user'),
                     'user_id' => (int) ($data['user_id'] ?? 0),
+                    'email_extra' => $customerEmail,
                 ]);
                 $result['status'] = $confirmed['status'];
             } else {
-                OrderNotifier::send('received', $result['order_id']);
+                OrderNotifier::send('received', $result['order_id'], $customerEmail);
             }
         } catch (Throwable $error) {
             Errors::internal($error, 'checkout.after_place', ['order_id' => $result['order_id']]);

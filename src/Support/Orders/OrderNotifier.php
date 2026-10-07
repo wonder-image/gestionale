@@ -23,7 +23,7 @@ final class OrderNotifier
     public const NOT_FOUND = 'not_found';
 
     /**
-     * @param array{instructions?: string, deadline?: string, url?: string, carrier?: string, tracking?: string, location?: string} $extra
+     * @param array{instructions?: string, deadline?: string, url?: string, account_url?: string, carrier?: string, tracking?: string, location?: string} $extra
      * @return array{status: string, to: list<string>, sent: list<string>, failed: list<string>}
      */
     public static function send(string $key, int $orderId, array $extra = []): array
