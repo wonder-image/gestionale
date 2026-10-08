@@ -20,7 +20,7 @@ use Wonder\View\WebFonts;
 
 /**
  * "Impostazioni" del commerciante, nella sezione Gestionale: una riga sola,
- * di `administrator`.
+ * di `administrator`; la apre anche `admin`, che vede tutto.
  *
  * Qui stanno le scelte di chi usa il gestionale tutti i giorni, e restano
  * nell'ambiente dove si lavora: un deploy non le riporta indietro. In G1 c'è
@@ -176,7 +176,7 @@ final class MerchantSettingResource extends SingletonResource
     public static function permissionSchema(): PermissionSchema
     {
         return PermissionSchema::for(static::class)
-            ->backend(['list', 'edit', 'update'], ['administrator']);
+            ->backend(['list', 'edit', 'update'], ['admin', 'administrator']);
     }
 
     public static function apiSchema(): ApiSchema
@@ -191,6 +191,6 @@ final class MerchantSettingResource extends SingletonResource
             ->inSection('gestionale')
             ->title('Impostazioni')
             ->order(900)
-            ->authority(['administrator']);
+            ->authority(['admin', 'administrator']);
     }
 }

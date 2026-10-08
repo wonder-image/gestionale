@@ -47,7 +47,7 @@ check('il commerciante ha i suoi destinatari delle notifiche', fn () =>
     in_array('merchant_notification_emails', $colonne(MerchantSetting::class), true)
 );
 
-check('le due pagine hanno padrone diverso', function () {
+check('le tecniche sono solo di admin; quelle del commerciante anche di admin, che vede tutto', function () {
     $tecniche = SettingResource::permissionSchema()->toArray();
     $commerciante = MerchantSettingResource::permissionSchema()->toArray();
 
@@ -58,12 +58,12 @@ check('le due pagine hanno padrone diverso', function () {
     }
 
     foreach ($commerciante['backend'] ?? [] as $authorities) {
-        if ($authorities !== [] && $authorities !== ['administrator']) {
+        if ($authorities !== [] && $authorities !== ['admin', 'administrator']) {
             return false;
         }
     }
 
-    return true;
+    return (MerchantSettingResource::navigationSchema()->toArray()['authority'] ?? []) === ['admin', 'administrator'];
 });
 
 check('le tecniche stanno in Set Up, quelle del commerciante nel gestionale', fn () =>
