@@ -12,6 +12,10 @@ use Wonder\Sql\TableSchema as Column;
  * Impostazioni tecniche e fiscali: una riga sola, scritta da `admin` in locale
  * e portata in produzione dal deploy.
  *
+ * Fa eccezione `merchant_notification_emails`, chi riceve le email degli
+ * ordini: non viaggia col deploy, perché ogni ambiente ha i suoi destinatari,
+ * e si cambia anche in produzione.
+ *
  * Qui stanno le scelte che si fanno una volta con il commercialista o in fase
  * di installazione. Quello che il commerciante cambia ogni giorno sta in
  * `MerchantSetting`: è la regola di 8.2, e ogni sotto-progetto aggiunge le sue
@@ -25,7 +29,7 @@ final class Setting extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return SyncSchema::singleton()->localOnly();
+        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails']);
     }
 
     public static function tableSchema(): array
@@ -47,6 +51,7 @@ final class Setting extends Model
             Column::key('order_payment_wait_days')->int()->default(7),
             Column::key('fiscal_confirmed_at')->datetime(),
             Column::key('developer_error_emails')->type('TEXT'),
+            Column::key('merchant_notification_emails')->type('TEXT'),
         ];
     }
 
@@ -67,6 +72,7 @@ final class Setting extends Model
             Field::key('order_payment_wait_days')->number()->decimals(0),
             Field::key('fiscal_confirmed_at')->date(),
             Field::key('developer_error_emails')->text(),
+            Field::key('merchant_notification_emails')->text(),
         ];
     }
 

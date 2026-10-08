@@ -462,9 +462,9 @@ check('il ritiro non chiede l\'indirizzo', function () {
 check('se la conferma del contrassegno cade, l\'ordine resta e il commerciante lo sa', function () {
     return prova(static function (): bool {
         Wonder\Plugin\Gestionale\Extensions\Extensions::use([SabotaLaConferma::class]);
-        Wonder\Plugin\Gestionale\Models\System\MerchantSetting::update(
+        Wonder\Plugin\Gestionale\Models\System\Setting::update(
             ['merchant_notification_emails' => 'negozio@example.com'],
-            (int) (Wonder\Plugin\Gestionale\Models\System\MerchantSetting::current()['id'] ?? 1)
+            (int) (Wonder\Plugin\Gestionale\Models\System\Setting::current()['id'] ?? 1)
         );
         $partite = [];
         Mailer::useTransport(static function (string $to) use (&$partite): bool {
@@ -627,9 +627,9 @@ function postaPerDestinatario(callable $corpo): array
 
 check('col bonifico il link per la password va nell\'email di ordine ricevuto, solo al cliente', function () {
     return prova(static function (): bool {
-        Wonder\Plugin\Gestionale\Models\System\MerchantSetting::update(
+        Wonder\Plugin\Gestionale\Models\System\Setting::update(
             ['merchant_notification_emails' => 'negozio@example.com'],
-            (int) (Wonder\Plugin\Gestionale\Models\System\MerchantSetting::current()['id'] ?? 1)
+            (int) (Wonder\Plugin\Gestionale\Models\System\Setting::current()['id'] ?? 1)
         );
         [$carrello] = carrelloPronto();
         $dati = datiCheckout(metodoDiProva(PaymentTiming::DEFERRED)) + ['customer_email' => ['account_url' => '/account/password-restore/?token=ospite1']];

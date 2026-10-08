@@ -13,7 +13,7 @@ require __DIR__.'/supporto/compra.php';
 
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
-use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderEmail;
@@ -246,10 +246,10 @@ check('l\'email al cliente parte e arriva al suo indirizzo', function () {
     });
 });
 
-check('l\'email al commerciante va ai destinatari delle notifiche', function () {
+check('l\'email al commerciante va alle email per gli ordini', function () {
     return prova(static function (): bool {
-        $riga = MerchantSetting::current();
-        MerchantSetting::update(
+        $riga = Setting::current();
+        Setting::update(
             ['merchant_notification_emails' => 'uno@example.test, due@example.test'],
             (int) ($riga['id'] ?? 1)
         );

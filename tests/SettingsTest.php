@@ -43,9 +43,46 @@ check('le colonne fiscali e dei documenti di G1 ci sono tutte', function () use 
     return array_diff($attese, $colonne(Setting::class)) === [];
 });
 
-check('il commerciante ha i suoi destinatari delle notifiche', fn () =>
-    in_array('merchant_notification_emails', $colonne(MerchantSetting::class), true)
+check('le email per gli ordini stanno in Set Up, vicino a quelle degli errori', function () use ($colonne) {
+    $campi = array_map(static fn ($field): string => (string) $field->name, SettingResource::formSchema());
+
+    return in_array('merchant_notification_emails', $colonne(Setting::class), true)
+        && !in_array('merchant_notification_emails', $colonne(MerchantSetting::class), true)
+        && in_array('merchant_notification_emails', $campi, true)
+        && !in_array('merchant_notification_emails', array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema()), true);
+});
+
+check('le email per gli ordini restano nel loro ambiente e si cambiano anche in produzione', fn () =>
+    in_array('merchant_notification_emails', Setting::syncSchema()->excludeColumns, true)
+    && SettingResource::editableWhenReadonly() === ['merchant_notification_emails']
 );
+
+check('ogni campo email dice quali email riceve', function () {
+    $etichette = SettingResource::labelSchema();
+
+    return stripos((string) ($etichette['merchant_notification_emails'] ?? ''), 'ordini') !== false
+        && stripos((string) ($etichette['developer_error_emails'] ?? ''), 'errori') !== false;
+});
+
+check('le email per gli ordini e per gli errori si salvano pulite', function () {
+    $valori = SettingResource::mutateRequestValues([
+        'merchant_notification_emails' => 'a@x.it; A@x.it  b@y.it',
+        'developer_error_emails' => ' dev@x.it ',
+    ], 'update');
+
+    return $valori['merchant_notification_emails'] === 'a@x.it, b@y.it'
+        && $valori['developer_error_emails'] === 'dev@x.it';
+});
+
+check('un indirizzo per gli ordini scritto male si rifiuta, nominandolo', function () {
+    try {
+        SettingResource::mutateRequestValues(['merchant_notification_emails' => 'a@x.it, anna.x.it'], 'update');
+    } catch (InvalidArgumentException $errore) {
+        return str_contains($errore->getMessage(), 'anna.x.it');
+    }
+
+    return false;
+});
 
 check('le tecniche sono solo di admin; quelle del commerciante anche di admin, che vede tutto', function () {
     $tecniche = SettingResource::permissionSchema()->toArray();

@@ -207,12 +207,11 @@ final class Defaults implements ModuleDefaults
                 'stamp_duty_auto' => 'true',
                 'fiscal_confirmed_at' => '',
                 'developer_error_emails' => '',
+                'merchant_notification_emails' => self::societyEmail(),
             ]);
         }
 
-        $rows->ensureSingleton(MerchantSetting::class, [
-            'merchant_notification_emails' => self::societyEmail(),
-        ]);
+        $rows->ensureSingleton(MerchantSetting::class, []);
     }
 
     /** La sede predefinita del core diventa il primo magazzino. */

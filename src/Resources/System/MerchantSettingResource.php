@@ -23,9 +23,9 @@ use Wonder\View\WebFonts;
  * di `administrator`; la apre anche `admin`, che vede tutto.
  *
  * Qui stanno le scelte di chi usa il gestionale tutti i giorni, e restano
- * nell'ambiente dove si lavora: un deploy non le riporta indietro. In G1 c'è
- * solo dove arrivano le notifiche del negozio; ogni sotto-progetto aggiunge le
- * sue.
+ * nell'ambiente dove si lavora: un deploy non le riporta indietro. Ogni
+ * sotto-progetto aggiunge le sue; le email degli ordini stanno invece con
+ * quelle degli errori, nelle Impostazioni di Set Up.
  */
 final class MerchantSettingResource extends SingletonResource
 {
@@ -52,7 +52,6 @@ final class MerchantSettingResource extends SingletonResource
     public static function labelSchema(): array
     {
         return [
-            'merchant_notification_emails' => 'Email di chi riceve le notifiche',
             'low_stock_emails' => 'Destinatari degli avvisi',
             'font_auth' => 'Font accesso',
             'font_account' => 'Font account',
@@ -64,9 +63,7 @@ final class MerchantSettingResource extends SingletonResource
 
     public static function formSchema(): array
     {
-        $fields = [
-            FormField::key('merchant_notification_emails')->text()->label('Email di chi riceve le notifiche'),
-        ];
+        $fields = [];
 
         if (Gestionale::feature('low_stock_alerts')) {
             $fields[] = FormField::key('low_stock_emails')->text()->label('Destinatari degli avvisi');
@@ -84,14 +81,7 @@ final class MerchantSettingResource extends SingletonResource
 
     public static function formLayoutSchema(): ?Form
     {
-        $cards = [
-            (new Card)->components([
-                SectionTitle::make('Notifiche')
-                    ->tooltip('Più indirizzi separati da virgola. Arrivano le notifiche che riguardano il negozio; i guasti tecnici vanno a chi ti segue.')
-                    ->columnSpan(12),
-                static::getInput('merchant_notification_emails')->columnSpan(12),
-            ])->columns(12)->columnSpan(12),
-        ];
+        $cards = [];
 
         if (Gestionale::feature('low_stock_alerts')) {
             $cards[] = (new Card)->components([

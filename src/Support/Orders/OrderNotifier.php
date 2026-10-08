@@ -6,7 +6,7 @@ use Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
-use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 
@@ -82,7 +82,7 @@ final class OrderNotifier
     {
         if (in_array($key, OrderEmail::MERCHANT_KEYS, true)) {
             return Recipients::parse(
-                (string) (MerchantSetting::current()['merchant_notification_emails'] ?? '')
+                (string) (Setting::current()['merchant_notification_emails'] ?? '')
             )['valid'];
         }
 
