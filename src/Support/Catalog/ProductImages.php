@@ -84,6 +84,28 @@ final class ProductImages
     }
 
     /**
+     * L'inizio del nome di un file caricato: dice di chi è la foto.
+     *
+     * `maglietta-girocollo-`, `maglietta-girocollo-blu-`,
+     * `maglietta-girocollo-blu-s-cotone-`: il core ci attacca le sue tre
+     * lettere a caso. L'opzione si chiama «Blu / S / Cotone», ma il colore
+     * c'è già: se il suo slug comincia con quello della variante, lo si toglie.
+     */
+    public static function filePrefix(string $modelSlug, string $variantSlug = '', string $optionName = ''): string
+    {
+        $variantSlug = trim($variantSlug);
+        $option = trim($optionName) !== '' ? Slug::base($optionName) : '';
+
+        if ($variantSlug !== '' && str_starts_with($option, $variantSlug.'-')) {
+            $option = substr($option, strlen($variantSlug) + 1);
+        }
+
+        $parts = array_filter([trim($modelSlug), $variantSlug, $option], static fn (string $part): bool => $part !== '');
+
+        return $parts === [] ? '' : implode('-', $parts).'-';
+    }
+
+    /**
      * Il nome del file.
      *
      * L'upload del core scrive un JSON con l'elenco dei nomi, anche quando il

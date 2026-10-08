@@ -3937,6 +3937,9 @@ HTML
         array $file,
         int $posizione
     ): void {
+        $campo = static fn (string $classe, int $id, string $colonna): string =>
+            $id > 0 ? (string) (static::rowsOf($classe, ['id' => $id])[0][$colonna] ?? '') : '';
+
         $riga = [
             'product_model_id' => $modelId,
             'product_variant_id' => $variantId > 0 ? $variantId : null,
@@ -3947,6 +3950,13 @@ HTML
             // Le misure per il sito le farà la coda, come per ogni altra foto.
             'status' => 'pending',
             'attempts' => 0,
+            // Non è una colonna: il core lo mette al posto di `{file_prefix}`
+            // nel nome del file, che così dice di chi è la foto.
+            'file_prefix' => ProductImages::filePrefix(
+                $campo(ProductModel::class, $modelId, 'slug'),
+                $campo(ProductVariant::class, $variantId, 'slug'),
+                $campo(Product::class, (int) $productId, 'name')
+            ),
         ];
 
         $precedente = LegacyGlobals::get('NAME');

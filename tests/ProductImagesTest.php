@@ -133,4 +133,24 @@ check('la foto di un\'opzione non vale per il colore né per l\'articolo', funct
         && array_column(ProductImages::for($images, null), 'id') === [1];
 });
 
+check('il nome del file dice di chi è la foto: modello, variante, opzione', function () {
+    return ProductImages::filePrefix('maglietta-girocollo') === 'maglietta-girocollo-'
+        && ProductImages::filePrefix('maglietta-girocollo', 'blu') === 'maglietta-girocollo-blu-'
+        && ProductImages::filePrefix('maglietta-girocollo', 'blu', 'Blu / S / Cotone') === 'maglietta-girocollo-blu-s-cotone-'
+        // Un nome scritto a mano non comincia col colore: resta intero.
+        && ProductImages::filePrefix('maglietta-girocollo', 'blu', 'Maglia leggera') === 'maglietta-girocollo-blu-maglia-leggera-'
+        // Lo scheletro non ha slug: la foto si chiama come quelle del modello.
+        && ProductImages::filePrefix('maglietta-girocollo', '', '') === 'maglietta-girocollo-'
+        && ProductImages::filePrefix('') === '';
+});
+
+check('il campo e la scheda usano il prefisso nel nome del file', function () {
+    $root = dirname(__DIR__);
+    $model = (string) file_get_contents($root.'/src/Models/Catalog/ProductImage.php');
+    $resource = (string) file_get_contents($root.'/src/Resources/Catalog/ProductModelResource.php');
+
+    return str_contains($model, "->name('{file_prefix}{rand}')")
+        && str_contains($resource, "'file_prefix' => ProductImages::filePrefix(");
+});
+
 summary();
