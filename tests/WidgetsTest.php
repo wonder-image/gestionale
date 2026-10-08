@@ -217,8 +217,8 @@ check('a chi non apre le Impostazioni l\'avviso dice dove sono, senza link', fun
         && !str_contains($senza, 'Aggiungi i destinatari');
 });
 
-check('le Impostazioni le apre il commerciante, non chi installa', function () {
-    // Le autorità ammesse sono quelle della pagina: a `admin` il link darebbe il Login.
+check('le Impostazioni le aprono il commerciante e admin, che vede tutto', function () {
+    // Le autorità ammesse sono quelle della pagina: a chi non le ha il link darebbe il Login.
     $puo = new ReflectionMethod(LowStockWidget::class, 'canEditRecipients');
     $prima = LegacyGlobals::get('USER');
 
@@ -226,14 +226,14 @@ check('le Impostazioni le apre il commerciante, non chi installa', function () {
         LegacyGlobals::set('USER', (object) ['authority' => ['administrator']]);
         $commerciante = $puo->invoke(null);
         LegacyGlobals::set('USER', (object) ['authority' => ['admin']]);
-        $installatore = $puo->invoke(null);
+        $admin = $puo->invoke(null);
         LegacyGlobals::set('USER', null);
         $nessuno = $puo->invoke(null);
     } finally {
         LegacyGlobals::set('USER', $prima);
     }
 
-    return $commerciante === true && $installatore === false && $nessuno === false;
+    return $commerciante === true && $admin === true && $nessuno === false;
 });
 
 check('i nomi dei prodotti non possono iniettare markup', function () use ($sottoScorta) {
