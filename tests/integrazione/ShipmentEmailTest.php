@@ -1,7 +1,7 @@
 <?php
 /** php tests/integrazione/ShipmentEmailTest.php */
 
-const SITE = '/Users/andreamarinoni/Developer/boilerplates/ecommerce-site';
+define('SITE', getenv('WI_TEST_SITE') ?: '/Users/andreamarinoni/Developer/boilerplates/ecommerce-site');
 
 chdir(SITE);
 $GLOBALS['ROOT'] = SITE;

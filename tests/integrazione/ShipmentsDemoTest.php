@@ -2,7 +2,7 @@
 /** php tests/integrazione/ShipmentsDemoTest.php */
 declare(strict_types=1);
 
-const SITE = '/Users/andreamarinoni/Developer/boilerplates/ecommerce-site';
+define('SITE', getenv('WI_TEST_SITE') ?: '/Users/andreamarinoni/Developer/boilerplates/ecommerce-site');
 
 chdir(SITE);
 $GLOBALS['ROOT'] = SITE;

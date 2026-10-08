@@ -14,6 +14,10 @@ use Wonder\Plugin\Gestionale\Support\Stock\Adjustment;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 
+// Indirizzo e host del sito di prova: i test non lo contattano, ma devono coincidere tra loro.
+define('TEST_URL', getenv('WI_TEST_URL') ?: 'https://ecommerce.test');
+define('TEST_HOST', (string) parse_url(TEST_URL, PHP_URL_HOST));
+
 $campi = static function (string $resource): array {
     $keys = [];
 
@@ -106,29 +110,29 @@ check('la strada del ritorno accetta solo indirizzi di questo sito', function ()
     // Un `torna=https://altrove.example` sarebbe un redirect aperto. Le rotte
     // del core però tornano indirizzi assoluti di **questo** sito, e quelli
     // devono passare.
-    $_SERVER['HTTP_HOST'] = 'ecommerce.test';
+    $_SERVER['HTTP_HOST'] = TEST_HOST;
 
     return StockAdjustmentResource::backUrlFrom('https://altrove.example/x') === ''
         && StockAdjustmentResource::backUrlFrom('//altrove.example') === ''
         && StockAdjustmentResource::backUrlFrom('/backend/app/gestionale/giacenze/?p=2')
             === '/backend/app/gestionale/giacenze/?p=2'
-        && StockAdjustmentResource::backUrlFrom('https://ecommerce.test/backend/app/gestionale/giacenze/?cerca=TSH')
+        && StockAdjustmentResource::backUrlFrom(TEST_URL.'/backend/app/gestionale/giacenze/?cerca=TSH')
             === '/backend/app/gestionale/giacenze/?cerca=TSH';
 });
 
 check('la strada del ritorno non si fa aggirare da barre storte o spazi', function () {
     // I browser leggono "\" come "/" e saltano tab e a capo: `/\altrove`
     // e `/<tab>/altrove` sono `//altrove`, cioè un altro sito.
-    $_SERVER['HTTP_HOST'] = 'ecommerce.test';
+    $_SERVER['HTTP_HOST'] = TEST_HOST;
 
     return StockAdjustmentResource::backUrlFrom('/\\altrove.example') === ''
-        && StockAdjustmentResource::backUrlFrom('https://ecommerce.test//altrove.example') === ''
-        && StockAdjustmentResource::backUrlFrom('https://ecommerce.test/\\altrove.example') === ''
+        && StockAdjustmentResource::backUrlFrom(TEST_URL.'//altrove.example') === ''
+        && StockAdjustmentResource::backUrlFrom(TEST_URL.'/\\altrove.example') === ''
         && StockAdjustmentResource::backUrlFrom("/\t/altrove.example") === ''
         && StockAdjustmentResource::backUrlFrom("/\n/altrove.example") === ''
         && StockAdjustmentResource::backUrlFrom('/backend/app/gestionale/giacenze/?p=2')
             === '/backend/app/gestionale/giacenze/?p=2'
-        && StockAdjustmentResource::backUrlFrom('https://ecommerce.test/backend/app/gestionale/giacenze/?cerca=TSH&sotto=1')
+        && StockAdjustmentResource::backUrlFrom(TEST_URL.'/backend/app/gestionale/giacenze/?cerca=TSH&sotto=1')
             === '/backend/app/gestionale/giacenze/?cerca=TSH&sotto=1';
 });
 
@@ -159,7 +163,7 @@ check('niente carichi né scarichi da qui: senza "Aggiungi" e senza API', functi
 check('la rettifica porta con sé l\'opzione e il ritorno', function () {
     $_GET['versione'] = '9';
     $_GET['torna'] = '/backend/app/gestionale/giacenze/?p=2';
-    $_SERVER['HTTP_HOST'] = 'ecommerce.test';
+    $_SERVER['HTTP_HOST'] = TEST_HOST;
 
     $campi = [];
 

@@ -7,7 +7,7 @@ $failed = [];
 $files = glob(__DIR__.'/*Test.php') ?: [];
 
 // I test d'integrazione girano solo dove c'è il sito di prova con il suo database.
-if (is_dir('/Users/andreamarinoni/Developer/boilerplates/ecommerce-site')) {
+if (is_dir(getenv('WI_TEST_SITE') ?: '/Users/andreamarinoni/Developer/boilerplates/ecommerce-site')) {
     $files = array_merge($files, glob(__DIR__.'/integrazione/*Test.php') ?: []);
 } else {
     echo "Sito di prova assente: test d'integrazione saltati.\n";
