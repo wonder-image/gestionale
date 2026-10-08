@@ -197,7 +197,10 @@ check('le due impostazioni hanno un\'etichetta in italiano', function () {
 check('font e ordini senza account non stanno più nelle impostazioni del commerciante', function () use ($colonne, $forza) {
     $forza(['online_sales' => true, 'low_stock_alerts' => true]);
     $campi = array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema());
-    $via = ['font_auth', 'font_account', 'font_cart', 'font_checkout', 'checkout_guest'];
+    $via = [
+        'font_auth', 'font_account', 'font_cart', 'font_checkout', 'checkout_guest',
+        'font_auth_id', 'font_account_id', 'font_cart_id', 'font_checkout_id',
+    ];
 
     return array_intersect($via, $colonne(MerchantSetting::class)) === []
         && array_intersect($via, $campi) === []
