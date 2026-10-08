@@ -412,6 +412,34 @@ final class Coupons
     }
 
     /**
+     * I coupon riservati al cliente, con gli utilizzi suoi non rilasciati. Li
+     * usano la scheda del backend e il pannello del cliente.
+     *
+     * @return list<array{coupon: array<string, mixed>, used: int}>
+     */
+    public static function reserved(int $customerId): array
+    {
+        if ($customerId <= 0 || !Gestionale::feature('coupons')) {
+            return [];
+        }
+
+        $reserved = [];
+        foreach (self::rows(CouponCustomer::find(['customer_id' => $customerId])) as $link) {
+            $coupon = Coupon::find(['id' => (int) $link['coupon_id']], 1);
+            if (!is_array($coupon) || !isset($coupon['id'])) {
+                continue;
+            }
+            $used = count(array_filter(
+                self::rows(CouponRedemption::find(['coupon_id' => (int) $coupon['id'], 'customer_id' => $customerId])),
+                static fn (array $row): bool => self::empty((string) ($row['released_at'] ?? ''))
+            ));
+            $reserved[] = ['coupon' => $coupon, 'used' => $used];
+        }
+
+        return $reserved;
+    }
+
+    /**
      * Rifiuta un coupon che non sta in piedi, prima di scrivere qualsiasi cosa:
      * codice mancante o già preso (anche da un coupon eliminato, il codice è
      * unico per sempre), tipo che a mano non si sceglie, percentuale fuori da
