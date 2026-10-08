@@ -21,11 +21,12 @@ check('due valori uguali nello stesso modello: il secondo per posizione prende -
     ]) === [10 => 'blu', 11 => 'blu-2']
 );
 
-check('chi ha già uno slug giusto lo tiene: niente scambi tra blu e blu-2', fn () =>
+check('gli slug vecchi non contano: si rifanno tutti per posizione', fn () =>
     VariantSlugs::compute([
         ['id' => 10, 'label' => 'Blu', 'slug' => 'blu-2'],
         ['id' => 11, 'label' => 'Blu', 'slug' => 'blu'],
-    ]) === [10 => 'blu-2', 11 => 'blu']
+        ['id' => 12, 'label' => 'Rosso', 'slug' => 'rosso-51167'],
+    ]) === [10 => 'blu', 11 => 'blu-2', 12 => 'rosso']
 );
 
 check('lo scheletro senza valore resta vuoto, i simboli diventano variante', fn () =>

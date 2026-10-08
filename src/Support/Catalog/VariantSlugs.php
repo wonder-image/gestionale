@@ -17,8 +17,9 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 final class VariantSlugs
 {
     /**
-     * Chi ha già uno slug giusto lo tiene, così il comando non sposta
-     * indirizzi buoni; gli altri prendono il primo libero, per posizione.
+     * Gli slug si rifanno tutti dal valore, per posizione: quelli vecchi non
+     * contano, così il risultato dipende solo da valori e ordine e un secondo
+     * giro non cambia nulla.
      *
      * @param list<array{id: int, label: string, slug: string}> $variants per posizione
      * @param list<string> $reserved slug già presi (le varianti cancellate)
@@ -27,32 +28,17 @@ final class VariantSlugs
     public static function compute(array $variants, array $reserved = []): array
     {
         $taken = array_fill_keys(array_filter($reserved), true);
-        $bases = [];
-        $slugs = [];
-
-        foreach ($variants as $variant) {
-            $id = (int) $variant['id'];
-            $bases[$id] = self::baseFor((string) $variant['label']);
-            $current = (string) $variant['slug'];
-
-            if ($bases[$id] !== '' && $current !== '' && !isset($taken[$current])
-                && preg_match('/^'.preg_quote($bases[$id], '/').'(-\d+)?$/', $current) === 1) {
-                $slugs[$id] = $current;
-                $taken[$current] = true;
-            }
-        }
-
         $result = [];
 
         foreach ($variants as $variant) {
-            $id = (int) $variant['id'];
+            $base = self::baseFor((string) $variant['label']);
+            $slug = $base === '' ? '' : Slug::firstFree($base, static fn (string $slug): bool => isset($taken[$slug]));
 
-            if (!isset($slugs[$id]) && $bases[$id] !== '') {
-                $slugs[$id] = Slug::firstFree($bases[$id], static fn (string $slug): bool => isset($taken[$slug]));
-                $taken[$slugs[$id]] = true;
+            if ($slug !== '') {
+                $taken[$slug] = true;
             }
 
-            $result[$id] = $slugs[$id] ?? '';
+            $result[(int) $variant['id']] = $slug;
         }
 
         return $result;
