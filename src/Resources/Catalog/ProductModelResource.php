@@ -83,6 +83,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\Stocktake;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
+use Wonder\Plugin\Gestionale\Support\Stock\StockBadge;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
 use Wonder\Plugin\Gestionale\Support\Stock\Thresholds;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxCategories;
@@ -205,6 +206,8 @@ class ProductModelResource extends GestionaleResource
             'sku' => 'SKU',
             'price' => 'Prezzo',
             'versions' => 'Opzioni',
+            'available' => 'D.tà',
+            'type' => 'Tipo',
             'unit' => 'Unità di misura',
             'visible' => 'Stato',
             'visible_online' => 'In vetrina',
@@ -1049,7 +1052,36 @@ HTML
 
     public static function tableSchema(): array
     {
-        return [
+        $azioni = ['view', 'edit'];
+        $sito = static::siteUrl();
+
+        // Il negozio è dell'ecommerce: senza la sua pagina la voce non c'è,
+        // e il gestionale non dipende da lui. Il core sostituisce `{slug}`
+        // con lo slug della riga, e nasconde la voce sulle righe che non
+        // stanno in vetrina.
+        if ($sito !== '') {
+            $azioni['site'] = [
+                'label' => 'Vedi sul sito',
+                'href' => $sito,
+                'target' => '_blank',
+                'filter' => ['row' => ['visible' => 'true', 'visible_online' => 'true']],
+            ];
+        }
+
+        $azioni[] = 'delete';
+
+        $colonne = [];
+
+        // Prodotto o multiprodotto: senza i multiprodotti sarebbe sempre la
+        // stessa icona.
+        if (Gestionale::feature('bundles')) {
+            $colonne[] = TableColumn::key('type')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::typeCell($row));
+        }
+
+        return array_merge($colonne, [
             TableColumn::key('photo')
                 ->image()
                 ->size('little')
@@ -1059,10 +1091,13 @@ HTML
                 ->text()
                 ->formatter(static fn (array $row): string => static::nameCell($row))
                 ->link('view'),
-            TableColumn::key('sku')->text(),
             TableColumn::key('price')
                 ->text()
                 ->formatter(static fn (array $row): string => static::priceCell((int) ($row['id'] ?? 0))),
+            TableColumn::key('available')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::availableCell($row)),
             TableColumn::key('versions')
                 ->text()
                 ->size('little')
@@ -1075,17 +1110,29 @@ HTML
                 ->badgeOff('Bozza', 'bi bi-eye-slash', 'secondary', 'Pubblica')
                 ->badgeClickable()
                 ->size('little'),
-            TableColumn::key('actions')->button()->actions(['view', 'edit', 'delete']),
-        ];
+            TableColumn::key('actions')->button()->actions($azioni),
+        ]);
     }
 
-    /** Il nome nell'elenco, col badge dei multiprodotti accanto. */
+    /** L'icona del tipo, con la parola nel tooltip. */
+    public static function typeCell(array $row): string
+    {
+        [$icona, $parola] = ($row['type'] ?? 'simple') === 'bundle'
+            ? ['bi-boxes', 'Multiprodotto']
+            : ['bi-box', 'Prodotto'];
+
+        return '<i class="bi '.$icona.' text-muted" data-bs-toggle="tooltip" data-bs-title="'.static::escape($parola).'"></i>';
+    }
+
+    /** Il nome nell'elenco, con lo SKU sotto quando c'è. */
     public static function nameCell(array $row): string
     {
         $nome = static::escapeStored((string) ($row['name'] ?? ''));
-        $badge = static::bundleBadge((int) ($row['id'] ?? 0));
+        $sku = trim((string) ($row['sku'] ?? ''));
 
-        return $badge === '' ? $nome : $nome.' '.$badge;
+        return $sku === ''
+            ? $nome
+            : $nome.'<br><small class="text-muted">'.static::escape($sku).'</small>';
     }
 
     /** «Multiprodotto» per un articolo composto, niente per un semplice. */
@@ -1093,6 +1140,56 @@ HTML
     {
         return static::isBundleModel($modelId)
             ? '<span class="badge text-bg-light">'.static::escape('Multiprodotto').'</span>'
+            : '';
+    }
+
+    /** Il badge della disponibilità dell'articolo. */
+    public static function availableCell(array $row): string
+    {
+        $stock = static::stockOf((int) ($row['id'] ?? 0), ($row['type'] ?? 'simple') === 'bundle');
+
+        return StockBadge::html($stock['available'], $stock['low'], $stock['unlimited']);
+    }
+
+    /**
+     * Quanto se ne vende adesso: la somma delle opzioni di un prodotto, le
+     * confezioni componibili di un multiprodotto.
+     *
+     * @return array{available: float, low: bool, unlimited: bool}
+     */
+    public static function stockOf(int $modelId, bool $bundle): array
+    {
+        try {
+            if ($bundle) {
+                return StockBadge::forBundle($modelId);
+            }
+
+            $ids = array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), static::products($modelId));
+
+            return StockBadge::total(StockBadge::forProducts($ids));
+        } catch (Throwable) {
+            return ['available' => 0.0, 'low' => false, 'unlimited' => false];
+        }
+    }
+
+    /**
+     * L'indirizzo della pagina dell'articolo nel negozio, con `{slug}` al
+     * posto dello slug; vuoto senza ecommerce.
+     */
+    public static function siteUrl(): string
+    {
+        if (!function_exists('__r')) {
+            return '';
+        }
+
+        try {
+            $url = (string) __r('ecommerce.catalog.product', ['slug' => 'wi-slug-segnaposto']);
+        } catch (Throwable) {
+            return '';
+        }
+
+        return str_contains($url, 'wi-slug-segnaposto')
+            ? str_replace('wi-slug-segnaposto', '{slug}', $url)
             : '';
     }
 
@@ -1412,6 +1509,7 @@ HTML
         }
 
         $modo = $forma['mode'];
+        $badge = static::compositionBadges($forma);
         $righe = [
             SectionTitle::make('Composizione')
                 ->tooltip('Cosa contiene il multiprodotto. La composizione si cambia dalla modifica.')
@@ -1421,7 +1519,8 @@ HTML
 
         if (in_array($modo, ['fixed', 'mixed'], true)) {
             $voci = array_map(
-                static fn (array $c): string => '<li>'.static::escape($c['name']).' <span class="text-muted">× '.static::escape(static::quantityText($c['quantity'])).'</span></li>',
+                static fn (array $c): string => '<li>'.static::escape($c['name']).' <span class="text-muted">× '.static::escape(static::quantityText($c['quantity'])).'</span>'
+                    .($badge[(int) $c['product_id']] ?? '').'</li>',
                 $forma['components']
             );
 
@@ -1433,10 +1532,11 @@ HTML
         }
 
         if (in_array($modo, ['choice', 'mixed'], true)) {
-            $gruppi = array_map(static function (array $g): string {
+            $gruppi = array_map(static function (array $g) use ($badge): string {
                 $opzioni = array_map(
                     static fn (array $o): string => '<li>'.static::escape($o['name'])
-                        .((float) $o['surcharge'] > 0 ? ' <span class="text-muted">+ '.static::escape(static::euro((float) $o['surcharge'])).'</span>' : '').'</li>',
+                        .((float) $o['surcharge'] > 0 ? ' <span class="text-muted">+ '.static::escape(static::euro((float) $o['surcharge'])).'</span>' : '')
+                        .($badge[(int) $o['product_id']] ?? '').'</li>',
                     $g['options']
                 );
 
@@ -1449,6 +1549,33 @@ HTML
         }
 
         return [(new Card)->components($righe)->columns(12)->columnSpan(12)];
+    }
+
+    /**
+     * Il badge della disponibilità di ogni pezzo della composizione, per id
+     * del prodotto, già con lo spazio davanti.
+     *
+     * @param array{components: list<array{product_id: int}>, groups: list<array{options: list<array{product_id: int}>}>} $forma
+     * @return array<int, string>
+     */
+    protected static function compositionBadges(array $forma): array
+    {
+        $ids = array_column($forma['components'], 'product_id');
+
+        foreach ($forma['groups'] as $gruppo) {
+            array_push($ids, ...array_column($gruppo['options'], 'product_id'));
+        }
+
+        try {
+            $livelli = StockBadge::forProducts($ids);
+        } catch (Throwable) {
+            return [];
+        }
+
+        return array_map(
+            static fn (array $livello): string => ' '.StockBadge::html($livello['available'], $livello['low']),
+            $livelli
+        );
     }
 
     /** Una quantità senza gli zeri che non servono: `2`, `0,5`. */
@@ -1533,7 +1660,7 @@ HTML
      */
     public static function optionsColumns(): array
     {
-        return ['name', 'sku', 'price', 'active', 'actions'];
+        return ['name', 'sku', 'price', 'available', 'active', 'actions'];
     }
 
     /**
