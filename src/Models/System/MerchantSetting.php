@@ -43,6 +43,7 @@ final class MerchantSetting extends Model
             Column::key('font_account')->length(40),
             Column::key('font_cart')->length(40),
             Column::key('font_checkout')->length(40)->default('inter'),
+            Column::key('checkout_guest')->enum(['true', 'false'])->default('false'),
         ];
     }
 
@@ -55,6 +56,7 @@ final class MerchantSetting extends Model
             Field::key('font_account')->text()->sanitize(false),
             Field::key('font_cart')->text()->sanitize(false),
             Field::key('font_checkout')->text()->sanitize(false),
+            Field::key('checkout_guest')->text()->sanitize(false),
         ];
     }
 

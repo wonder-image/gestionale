@@ -175,6 +175,19 @@ check('un font sconosciuto si salva vuoto, uno noto resta', function () {
     return $v['font_checkout'] === '' && $v['font_auth'] === 'inter' && $v['font_cart'] === '';
 });
 
+check('il commerciante accende il checkout dell\'ospite dalle impostazioni, spento per default', function () use ($colonne) {
+    $schema = [];
+    foreach (MerchantSetting::tableSchema() as $column) {
+        $schema[(string) $column->name] = $column->schema;
+    }
+
+    return in_array('checkout_guest', $colonne(MerchantSetting::class), true)
+        && ($schema['checkout_guest']['default'] ?? null) === 'false'
+        && MerchantSettingResource::mutateRequestValues(['checkout_guest' => 'true'], 'update')['checkout_guest'] === 'true'
+        && MerchantSettingResource::mutateRequestValues(['checkout_guest' => 'on'], 'update')['checkout_guest'] === 'false'
+        && MerchantSettingResource::mutateRequestValues(['checkout_guest' => ''], 'update')['checkout_guest'] === 'false';
+});
+
 $forza(null);
 
 summary();

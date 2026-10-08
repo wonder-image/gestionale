@@ -58,6 +58,7 @@ final class MerchantSettingResource extends SingletonResource
             'font_account' => 'Font account',
             'font_checkout' => 'Font checkout',
             'font_cart' => 'Font carrello',
+            'checkout_guest' => 'Ordini senza account',
         ];
     }
 
@@ -75,6 +76,7 @@ final class MerchantSettingResource extends SingletonResource
             foreach (['auth' => 'Font accesso', 'account' => 'Font account', 'checkout' => 'Font checkout', 'cart' => 'Font carrello'] as $area => $label) {
                 $fields[] = FormField::key('font_'.$area)->select(['' => 'Come il sito'] + WebFonts::all())->label($label);
             }
+            $fields[] = FormField::key('checkout_guest')->toggle()->value('false')->label('Ordini senza account');
         }
 
         return $fields;
@@ -109,6 +111,10 @@ final class MerchantSettingResource extends SingletonResource
                 static::getInput('font_account')->columnSpan(6),
                 static::getInput('font_checkout')->columnSpan(6),
                 static::getInput('font_cart')->columnSpan(6),
+                SectionTitle::make('Ordini senza account')
+                    ->tooltip('Chi non ha un account ordina con la sola email: l\'account nasce senza password e l\'email dell\'ordine porta il link per sceglierla. Spento, il checkout chiede di accedere o registrarsi.')
+                    ->columnSpan(12),
+                static::getInput('checkout_guest')->columnSpan(12),
             ])->columns(12)->columnSpan(12);
         }
 
@@ -132,6 +138,10 @@ final class MerchantSettingResource extends SingletonResource
                 $font = strtolower(trim((string) $values['font_'.$area]));
                 $values['font_'.$area] = WebFonts::has($font) ? $font : '';
             }
+        }
+
+        if (array_key_exists('checkout_guest', $values)) {
+            $values['checkout_guest'] = (string) $values['checkout_guest'] === 'true' ? 'true' : 'false';
         }
 
         if (!array_key_exists('low_stock_emails', $values)) {
