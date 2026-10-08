@@ -43,31 +43,71 @@ final class Slug
      */
     public static function unique(string $name, string $modelClass, string $column = 'slug'): string
     {
-        $base = str_replace('_', '-', TextSlug::make($name));
-        $base = trim((string) preg_replace('/-+/', '-', $base), '-');
-
-        if ($base === '') {
-            $base = self::make($name);
-        }
+        $base = self::base($name);
 
         if ($base === '') {
             return '';
         }
 
+        return self::firstFree($base, static fn (string $slug): bool => self::taken($modelClass, [$column => $slug]));
+    }
+
+    /**
+     * Uno slug libero solo tra le righe di `$scope`: lo slug della variante
+     * è unico nel suo modello, non nella tabella (`blu`, poi `blu-2`). Se il
+     * nome è fatto solo di simboli parte da `variante`, così la riga resta
+     * raggiungibile. Conta anche le righe cancellate, come `unique()`.
+     *
+     * @param class-string<\Wonder\App\Model> $modelClass
+     * @param array<string, mixed> $scope
+     */
+    public static function uniqueWithin(string $name, string $modelClass, array $scope, string $column = 'slug'): string
+    {
+        if (trim($name) === '') {
+            return '';
+        }
+
+        $base = self::base($name);
+
+        if ($base === '') {
+            $base = 'variante';
+        }
+
+        return self::firstFree($base, static fn (string $slug): bool => self::taken($modelClass, [$column => $slug] + $scope));
+    }
+
+    /** Lo slug che scriverebbe il Model: `Blu Notte` → `blu-notte`. */
+    public static function base(string $name): string
+    {
+        $name = html_entity_decode($name, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $base = str_replace('_', '-', TextSlug::make($name));
+        $base = trim((string) preg_replace('/-+/', '-', $base), '-');
+
+        return $base !== '' ? $base : self::make($name);
+    }
+
+    /**
+     * `base`, e se è preso `base-2`, `base-3`…
+     *
+     * @param callable(string): bool $taken
+     */
+    public static function firstFree(string $base, callable $taken): string
+    {
         $slug = $base;
 
-        for ($n = 2; $n < 1000 && self::taken($modelClass, $column, $slug); $n++) {
+        for ($n = 2; $n < 1000 && $taken($slug); $n++) {
             $slug = $base.'-'.$n;
         }
 
         return $slug;
     }
 
-    private static function taken(string $modelClass, string $column, string $slug): bool
+    /** @param array<string, mixed> $where */
+    private static function taken(string $modelClass, array $where): bool
     {
         foreach (['false', 'true'] as $deleted) {
             try {
-                $row = $modelClass::find([$column => $slug, 'deleted' => $deleted], 1);
+                $row = $modelClass::find($where + ['deleted' => $deleted], 1);
             } catch (Throwable) {
                 // Senza database non c'è niente con cui scontrarsi.
                 return false;
