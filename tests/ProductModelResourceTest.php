@@ -35,6 +35,7 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
+use Wonder\Plugin\Gestionale\Support\Stock\StockBadge;
 
 $campi = static function (): array {
     $campi = [];
@@ -2794,28 +2795,48 @@ check('le foto del colore stanno nella testata anche col secondo attributo', fun
     return $scheda::colorPhotosInGroups(3168) === true;
 });
 
-check('l\'elenco segna i multiprodotti con un badge accanto al nome, e solo loro', function () {
-    $scheda = new class extends ProductModelResource {
-        public static array $multi = [];
+check('l\'elenco dice con un\'icona se l\'articolo è un prodotto o un multiprodotto', function () {
+    $multi = ProductModelResource::typeCell(['id' => 7, 'type' => 'bundle']);
+    $semplice = ProductModelResource::typeCell(['id' => 8, 'type' => 'simple']);
+    $vecchio = ProductModelResource::typeCell(['id' => 9]);
 
-        public static function isBundleModel(int $modelId): bool
+    return str_contains($multi, 'bi-boxes') && str_contains($multi, 'data-bs-title="Multiprodotto"')
+        && str_contains($semplice, 'bi-box') && !str_contains($semplice, 'bi-boxes')
+        && str_contains($semplice, 'data-bs-title="Prodotto"')
+        && $vecchio === $semplice;
+});
+
+check('lo SKU sta sotto il nome, se c\'è, e il badge dei multiprodotti non c\'è più', function () {
+    $cella = ProductModelResource::nameCell(['id' => 7, 'type' => 'bundle', 'name' => 'Box &amp; <b>regalo</b>', 'sku' => 'BOX-<1>']);
+    $senzaSku = ProductModelResource::nameCell(['id' => 8, 'name' => 'Vino', 'sku' => '  ']);
+
+    return str_contains($cella, 'Box &amp; &lt;b&gt;regalo&lt;/b&gt;')
+        && str_contains($cella, 'BOX-&lt;1&gt;')
+        && str_contains($cella, 'text-muted')
+        && !str_contains($cella, 'Multiprodotto')
+        && $senzaSku === 'Vino';
+});
+
+check('la disponibilità dell\'elenco somma le opzioni di un prodotto e conta le confezioni di un multiprodotto', function () {
+    $scheda = new class extends ProductModelResource {
+        public static array $chiesti = [];
+
+        public static function stockOf(int $modelId, bool $bundle): array
         {
-            return in_array($modelId, static::$multi, true);
+            static::$chiesti[] = [$modelId, $bundle];
+
+            return $bundle
+                ? ['available' => StockBadge::UNLIMITED, 'low' => false, 'unlimited' => true]
+                : ['available' => 3.0, 'low' => true, 'unlimited' => false];
         }
     };
 
-    $scheda::$multi = [7];
+    $semplice = $scheda::availableCell(['id' => 8, 'type' => 'simple']);
+    $multi = $scheda::availableCell(['id' => 7, 'type' => 'bundle']);
 
-    $badge = $scheda::bundleBadge(7);
-    $semplice = $scheda::bundleBadge(8);
-    $cella = $scheda::nameCell(['id' => 7, 'name' => 'Box &amp; <b>regalo</b>']);
-    $cellaSemplice = $scheda::nameCell(['id' => 8, 'name' => 'Vino']);
-
-    return str_contains($badge, 'Multiprodotto')
-        && $semplice === ''
-        && str_contains($cella, 'Box &amp; &lt;b&gt;regalo&lt;/b&gt;')
-        && str_contains($cella, 'Multiprodotto')
-        && $cellaSemplice === 'Vino';
+    return $scheda::$chiesti === [[8, false], [7, true]]
+        && str_contains($semplice, 'text-bg-warning') && str_contains($semplice, '>3<')
+        && str_contains($multi, '∞');
 });
 
 check('il prezzo dell\'elenco porta l\'euro, e barra il pieno quando c\'è lo sconto', function () {
@@ -2864,21 +2885,47 @@ check('il «da» guarda quello che si paga davvero', function () {
     return $scheda::priceCell(1) === 'da 14,90 €';
 });
 
-check('l\'elenco non porta più il marchio, e lo SKU non è stretto', function () {
-    $nomi = [];
-    $strette = [];
+check('l\'elenco: icona, foto, nome, prezzo, D.tà, opzioni, stato; niente marchio né SKU a parte', function () use ($forza) {
+    $nomi = static function (): array {
+        return array_map(static fn ($colonna): string => (string) $colonna->name, ProductModelResource::tableSchema());
+    };
 
-    foreach (ProductModelResource::tableSchema() as $colonna) {
-        $nomi[] = (string) $colonna->name;
+    $forza(['bundles' => true]);
+    $con = $nomi();
+    $forza(['bundles' => false]);
+    $senza = $nomi();
+    $forza(null);
 
-        if (($colonna->schema['size'] ?? '') === 'little') {
-            $strette[] = (string) $colonna->name;
+    return $con === ['type', 'photo', 'name', 'price', 'available', 'versions', 'visible', 'actions']
+        && $senza === ['photo', 'name', 'price', 'available', 'versions', 'visible', 'actions']
+        && ProductModelResource::labelSchema()['available'] === 'D.tà';
+});
+
+check('«Vedi sul sito» compare nei tre puntini solo se l\'articolo è pubblicato e il negozio c\'è', function () {
+    $azioni = static function (string $classe): array {
+        foreach ($classe::tableSchema() as $colonna) {
+            if ((string) $colonna->name === 'actions') {
+                return (array) ($colonna->schema['actions'] ?? []);
+            }
         }
-    }
 
-    return !in_array('brand_id', $nomi, true)
-        && in_array('sku', $nomi, true)
-        && !in_array('sku', $strette, true);
+        return [];
+    };
+
+    $conNegozio = new class extends ProductModelResource {
+        public static function siteUrl(): string
+        {
+            return '/prodotto/{slug}/';
+        }
+    };
+
+    $sito = $azioni($conNegozio::class)['site'] ?? [];
+
+    return !isset($azioni(ProductModelResource::class)['site'])
+        && ($sito['label'] ?? '') === 'Vedi sul sito'
+        && ($sito['href'] ?? '') === '/prodotto/{slug}/'
+        && ($sito['target'] ?? '') === '_blank'
+        && ($sito['filter']['row'] ?? []) === ['visible' => 'true', 'visible_online' => 'true'];
 });
 
 // ── Il sedicesimo giro: la scheda in lettura (P123, P124, P125) ─────────────
@@ -2999,7 +3046,7 @@ check('le opzioni della scheda sono le colonne che ProductResource dichiara', fu
 
     $scelte = ProductModelResource::optionsColumns();
 
-    return $scelte === ['name', 'sku', 'price', 'active', 'actions']
+    return $scelte === ['name', 'sku', 'price', 'available', 'active', 'actions']
         && array_diff($scelte, $dichiarate) === [];
 });
 

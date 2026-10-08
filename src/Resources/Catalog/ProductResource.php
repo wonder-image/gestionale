@@ -41,6 +41,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\LocationRows;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\LocationStock;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
+use Wonder\Plugin\Gestionale\Support\Stock\StockBadge;
 use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
 use Wonder\Plugin\Gestionale\Support\Stock\Thresholds;
 
@@ -123,6 +124,7 @@ class ProductResource extends ProductModelResource
             'ean' => 'EAN',
             'mpn' => 'MPN',
             'price' => 'Prezzo',
+            'available' => 'D.tà',
             'sale_price' => 'Prezzo scontato',
             'active' => 'Stato',
             'name' => 'Opzione',
@@ -785,6 +787,10 @@ HTML;
                 )),
             TableColumn::key('sku')->text(),
             TableColumn::key('price')->price()->size('medium'),
+            TableColumn::key('available')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::optionAvailableCell($row)),
             // Le stesse due parole dell'articolo: un'opzione o sta nel
             // negozio o è ancora in lavorazione, e chi legge la scheda non
             // deve tradurre «attiva» in «pubblicata». La pillola si clicca
@@ -798,6 +804,28 @@ HTML;
                 ->size('little'),
             TableColumn::key('actions')->button()->actions(['edit']),
         ];
+    }
+
+    /**
+     * Il badge della disponibilità dell'opzione, come nell'elenco degli
+     * articoli. L'opzione di un multiprodotto non ha giacenza sua: conta le
+     * confezioni che i pezzi permettono.
+     */
+    public static function optionAvailableCell(array $row): string
+    {
+        $productId = (int) ($row['id'] ?? 0);
+
+        try {
+            $stock = Bundles::isBundle($productId)
+                ? StockBadge::forBundle((int) ($row['product_model_id'] ?? 0))
+                : (StockBadge::forProducts([$productId])[$productId] ?? null);
+        } catch (Throwable) {
+            $stock = null;
+        }
+
+        $stock ??= ['available' => 0.0, 'low' => false];
+
+        return StockBadge::html($stock['available'], $stock['low'], $stock['unlimited'] ?? false);
     }
 
     /**
