@@ -181,9 +181,11 @@ ecommerce/http/  view/  lang/  config/
 
 - **Pagine complete e componenti** su `wonder-image/lib`: catalogo, scheda
   prodotto, carrello, checkout, area cliente con ordini, indirizzi, resi e
-  abbonamenti; API JSON per le parti dinamiche. Login, registrazione e area
-  cliente sono dell'ecommerce: il core ha pagine account solo per il backend e
-  `new-site` non ne fornisce.
+  abbonamenti; API JSON per le parti dinamiche. Login, registrazione e pannello
+  account del cliente sono del core e si attivano a richiesta (`AuthRoutes`,
+  `AccountRoutes`); ordini, coupon, resi e abbonamenti sono sezioni che
+  l'ecommerce aggiunge al pannello (aggiornato il 2026-10-08, vedi
+  `2026-10-08-pannello-account-design.md`).
 - **Modulo, non boilerplate:** la logica resta nel pacchetto e si aggiorna con
   `composer update` (checkout, pagamenti e webhook, prenotazione delle giacenze,
   sconti e listini, creazione dell'ordine, area cliente). La libertà grafica passa
