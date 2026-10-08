@@ -180,18 +180,19 @@ ecommerce/http/  view/  lang/  config/
 ### 2.3 Frontend dell'ecommerce (D6, D11, D12, D62)
 
 - **Pagine complete e componenti** su `wonder-image/lib`: catalogo, scheda
-  prodotto, carrello, checkout, area cliente con ordini, indirizzi, resi e
-  abbonamenti; API JSON per le parti dinamiche. Login, registrazione e pannello
-  account del cliente sono del core e si attivano a richiesta (`AuthRoutes`,
-  `AccountRoutes`); ordini, coupon, resi e abbonamenti sono sezioni che
-  l'ecommerce aggiunge al pannello (aggiornato il 2026-10-08, vedi
+  prodotto, carrello, checkout e area cliente; API JSON per le parti dinamiche.
+  Login, registrazione e pannello account del cliente (dati personali, indirizzi,
+  fatturazione) sono del core e si attivano a richiesta (`AuthRoutes`,
+  `AccountRoutes`). I moduli si agganciano al pannello con `AccountExtension`:
+  l'ecommerce vi aggiunge metodi di pagamento, ordini, coupon, resi e abbonamenti
+  come sezioni sue (aggiornato il 2026-10-08, vedi
   `2026-10-08-pannello-account-design.md`).
 - **Modulo, non boilerplate:** la logica resta nel pacchetto e si aggiorna con
   `composer update` (checkout, pagamenti e webhook, prenotazione delle giacenze,
   sconti e listini, creazione dell'ordine, area cliente). La libertà grafica passa
   dal publish delle view pubblicabili (capitolo 7).
-- **View sigillate (D62):** carrello, checkout, area cliente e pagine di
-  autenticazione **non** si pubblicano: devono restare aggiornabili con
+- **View sigillate (D62):** carrello, checkout, area cliente (il pannello account
+  del core) e pagine di autenticazione **non** si pubblicano: devono restare aggiornabili con
   `composer update` senza intoppi. Si personalizzano con il tema di
   `wonder-image/lib`, i testi dei `lang/`, gli slot di markup (capitolo 7) e gli
   hook. Header, footer e i componenti che il sito innesta in essi restano del sito e
