@@ -13,12 +13,14 @@ use Wonder\Plugin\Gestionale\Console\DemoCommand;
 use Wonder\Plugin\Gestionale\Console\FeaturesDocCommand;
 use Wonder\Plugin\Gestionale\Console\ImagesCommand;
 use Wonder\Plugin\Gestionale\Console\StockAlertsCommand;
+use Wonder\Plugin\Gestionale\Console\VariantSlugsCommand;
 
 check('i comandi del modulo sono comandi di forge', fn () =>
     is_subclass_of(DemoCommand::class, Command::class)
     && is_subclass_of(FeaturesDocCommand::class, Command::class)
     && is_subclass_of(ImagesCommand::class, Command::class)
     && is_subclass_of(StockAlertsCommand::class, Command::class)
+    && is_subclass_of(VariantSlugsCommand::class, Command::class)
 );
 
 check('i nomi sono quelli dichiarati nel manifest', function () {
@@ -29,16 +31,24 @@ check('i nomi sono quelli dichiarati nel manifest', function () {
         && in_array(FeaturesDocCommand::class, $dichiarati, true)
         && in_array(ImagesCommand::class, $dichiarati, true)
         && in_array(StockAlertsCommand::class, $dichiarati, true)
+        && in_array(VariantSlugsCommand::class, $dichiarati, true)
         && (new DemoCommand)->getName() === 'gestionale:demo'
         && (new FeaturesDocCommand)->getName() === 'gestionale:features-doc'
         && (new ImagesCommand)->getName() === 'gestionale:images'
-        && (new StockAlertsCommand)->getName() === 'gestionale:stock-alerts';
+        && (new StockAlertsCommand)->getName() === 'gestionale:stock-alerts'
+        && (new VariantSlugsCommand)->getName() === 'gestionale:variant-slugs';
 });
 
 check('la coda delle immagini si può chiamare a blocchi', function () {
     $opzione = (new ImagesCommand)->getDefinition()->getOption('limit');
 
     return $opzione->isValueRequired() && (int) $opzione->getDefault() === 20;
+});
+
+check('gli slug delle varianti si possono prima solo elencare', function () {
+    $opzione = (new VariantSlugsCommand)->getDefinition()->getOption('dry-run');
+
+    return !$opzione->acceptValue();
 });
 
 check('in G1 non ci sono ancora dati di prova da creare', fn () => DemoData::all() === []);

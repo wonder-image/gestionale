@@ -29,6 +29,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Catalog\VariantSlugs;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
@@ -153,6 +154,47 @@ try {
             sort($nomi);
 
             return $nomi === ['Blu', 'Rosso'];
+        });
+
+        check('le varianti prendono lo slug dal loro valore, unico nel modello', function () use ($modelId) {
+            $slug = array_column(ProductModelResource::variants($modelId), 'slug');
+            sort($slug);
+
+            return $slug === ['blu', 'rosso'];
+        });
+
+        check('con gli slug già giusti il comando non ha niente da fare', fn () =>
+            VariantSlugs::plan($modelId) === []
+        );
+
+        check('il comando rifà gli slug in stile vecchio, e la seconda volta non cambia nulla', function () use ($modelId) {
+            foreach (ProductModelResource::variants($modelId) as $variante) {
+                ProductVariant::update(['slug' => 'vecchio-'.$variante['id']], (int) $variante['id']);
+            }
+
+            $scritte = VariantSlugs::apply(VariantSlugs::plan($modelId));
+            $slug = array_column(ProductModelResource::variants($modelId), 'slug');
+            sort($slug);
+
+            return $scritte === 2 && $slug === ['blu', 'rosso'] && VariantSlugs::plan($modelId) === [];
+        });
+
+        check('lo scheletro nasce senza slug: non ha una pagina sua', function () {
+            $altro = ProductModel::create([
+                'code' => Code::make(ProductModel::class, Codes::MODEL),
+                'name' => 'Prova scheletro',
+                'slug' => Slug::make('prova-scheletro-'.uniqid()),
+                'sku' => 'SCH-1',
+                'unit' => 'pz',
+                'type' => 'simple',
+                'visible' => 'true',
+                'visible_online' => 'true',
+                'position' => 1,
+            ]);
+            $creato = Skeleton::forModel((int) ($altro->insert_id ?? 0), 'Prova scheletro', 'SCH-1');
+            $variante = ProductVariant::find(['id' => $creato['variant_id']], 1);
+
+            return is_array($variante) && (string) ($variante['slug'] ?? '') === '';
         });
 
         check('ogni prodotto ha lo SKU proposto', function () use ($modelId) {

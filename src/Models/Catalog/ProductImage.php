@@ -84,7 +84,7 @@ final class ProductImage extends Model
             ->extensions(['png', 'jpg', 'jpeg', 'webp', 'mp4'])
             ->maxSize(8)
             ->maxFile(1)
-            ->name('{rand}')
+            ->name('{file_prefix}{rand}')
             ->deferResize();
     }
 

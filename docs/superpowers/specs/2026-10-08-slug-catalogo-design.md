@@ -67,7 +67,7 @@ Criteri di riuscita:
 - **Comando `gestionale:variant-slugs`** (`src/Console/VariantSlugsCommand.php`,
   registrato in `module.json`): applica `VariantSlugs` a tutti i modelli.
   - `--dry-run` elenca i cambi senza scriverli.
-  - È idempotente: lanciato una seconda volta non cambia nulla.
+  - Gli slug vecchi non contano: si rifanno tutti, quindi è idempotente (lanciato una seconda volta non cambia nulla).
   - È l'unico punto che riscrive uno slug già salvato.
 
 ### 3.2 Ecommerce
