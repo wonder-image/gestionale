@@ -248,7 +248,7 @@ final class Defaults implements ModuleDefaults
                 'provider' => 'bank_transfer',
                 'sdi_code' => 'MP05',
                 'timing' => 'deferred',
-                'instructions' => 'Fai il bonifico indicando il numero dell\'ordine nella causale: preparerai l\'ordine all\'arrivo del denaro.',
+                'instructions' => 'Fai il bonifico indicando il numero dell\'ordine nella causale: prepareremo l\'ordine all\'arrivo del denaro.',
                 'applies_online' => 'true',
                 'applies_office' => 'true',
                 'applies_pos' => 'false',

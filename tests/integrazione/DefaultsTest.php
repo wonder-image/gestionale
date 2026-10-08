@@ -166,6 +166,12 @@ try {
                 && ($m['stripe']['timing'] ?? '') === 'immediate' && ($m['stripe']['provider'] ?? '') === 'stripe';
         });
 
+        check('le istruzioni del bonifico parlano col noi del negozio', function () use ($metodi) {
+            $testo = (string) ($metodi()['bank-transfer']['instructions'] ?? '');
+
+            return str_contains($testo, 'prepareremo') && !str_contains($testo, 'preparerai');
+        });
+
         check('Stripe nasce spento finché non c\'è la chiave, gli altri due accesi', function () use ($metodi) {
             $m = $metodi();
 
