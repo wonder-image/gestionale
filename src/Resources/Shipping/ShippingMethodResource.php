@@ -149,7 +149,7 @@ final class ShippingMethodResource extends GestionaleResource
             $tiered(FormField::key($name('markup_percent'))->number()->decimal(2)->suffix(' %')->value('0')->label('Margine')),
             $tiered(FormField::key($name('rounding_step'))->price()->decimal(2)->label('Arrotonda al')),
             $tiered(FormField::key($name('min_price'))->price()->decimal(2)->value('0')->label('Prezzo minimo')),
-            $tiered(FormField::key($name('free_over_amount'))->price()->decimal(2)->label('Gratis sopra')),
+            FormField::key($name('free_over_amount'))->price()->decimal(2)->label('Gratis sopra'),
             $tiered(FormField::key($name('free_under_weight'))->number()->decimal(3)->suffix(' kg')->label('Gratis fino a')),
             FormField::key($name('cod_fee'))->price()->decimal(2)->value('0')->label('Commissione contrassegno'),
             $tiered(FormField::key($name('brackets'))
@@ -251,11 +251,12 @@ final class ShippingMethodResource extends GestionaleResource
                 SectionTitle::make($title)->columnSpan(9),
                 RichText::make($remove)->tag('div')->class('text-end')->columnSpan(3),
                 static::getInput($name('on'))->columnSpan(12),
-                static::getInput($name('price_type'))->columnSpan(4),
+                static::getInput($name('price_type'))->columnSpan(3),
                 (new Container)->components([
                     static::getInput($name('fixed_price'))->columnSpan(12),
                 ])->columns(12)->columnSpan(3)->visibleWhen($name('price_type'), 'fixed'),
                 static::getInput($name('cod_fee'))->columnSpan(3),
+                static::getInput($name('free_over_amount'))->columnSpan(3),
                 // Col prezzo fisso gli scaglioni e tutto ciò che ne dipende spariscono.
                 (new Container)->components([
                     static::getInput($name('brackets'))->columnSpan(12),
@@ -264,7 +265,6 @@ final class ShippingMethodResource extends GestionaleResource
                     static::getInput($name('rounding_step'))->columnSpan(3),
                     static::getInput($name('fuel_surcharge_percent'))->columnSpan(3),
                     static::getInput($name('markup_percent'))->columnSpan(3),
-                    static::getInput($name('free_over_amount'))->columnSpan(3),
                     static::getInput($name('free_under_weight'))->columnSpan(3),
                     static::getInput($name('volumetric_divisor'))->columnSpan(3),
                 ])->columns(12)->columnSpan(12)->visibleWhen($name('price_type'), 'brackets'),
@@ -587,7 +587,12 @@ HTML)->tag('div');
                 ->badgeOn('Attivo', 'bi-check-circle', 'success')
                 ->badgeOff('Non attivo', 'bi-dash-circle', 'secondary')
                 ->size('little'),
-            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+            TableColumn::key('actions')->button()->actions([
+                'edit',
+                // L'etichetta segue lo stato della riga; il core inverte la colonna.
+                'active' => ['label' => ['true' => 'Disattiva', 'false' => 'Attiva'], 'request' => 'boolean'],
+                'delete',
+            ]),
         ];
     }
 

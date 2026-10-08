@@ -19,7 +19,8 @@ use Wonder\Sql\TableSchema as Column;
  * a zero non fanno niente.
  *
  * `price_type` è `brackets` (a scaglioni di peso) o `fixed` (un prezzo unico,
- * `fixed_price`, che non guarda il peso e non ha gli altri campi di prezzo).
+ * `fixed_price`, che non guarda il peso; degli altri campi di prezzo vale solo
+ * `free_over_amount`).
  *
  * Non si sincronizza: è lavoro del commerciante.
  */

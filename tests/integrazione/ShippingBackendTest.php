@@ -253,6 +253,33 @@ check('col prezzo fisso gli scaglioni stanno in un contenitore che si vede solo 
         && $inizio < $scaglioni && $inizio < $minimo && $fisso < $inizio;
 }));
 
+check('«Gratis sopra» si vede anche col prezzo fisso: sta fuori dal contenitore a scaglioni', fn () => prova(static function (): bool {
+    $zona = zona('Italia', [['IT', '']]);
+    $html = layoutHtml(ShippingMethodResource::formLayoutSchema());
+    $contenitore = strpos($html, '<div data-visible-when="rate_'.$zona.'_price_type" data-visible-when-values="brackets" data-wi-conditional-container="true" class="row g-3">');
+    $gratis = strpos($html, 'name="rate_'.$zona.'_free_over_amount"');
+    $campo = $gratis === false ? '' : substr($html, (int) strrpos(substr($html, 0, $gratis), '<div'), 300);
+
+    return $contenitore !== false && $gratis !== false && $gratis < $contenitore
+        && !str_contains($campo, 'data-visible-when-values="brackets"');
+}));
+
+check('col prezzo fisso «Gratis sopra» si salva e un valore negativo si ferma', fn () => prova(static function (): bool {
+    $zona = zona('Italia', [['IT', '']]);
+    $metodo = metodo('Standard');
+
+    RateForm::saveRates($metodo, RateForm::readRates(richiesta($zona, ['price_type' => 'fixed', 'fixed_price' => '6,90', 'free_over_amount' => '49,90'])));
+    $valori = RateForm::loadRates($metodo);
+
+    try {
+        RateForm::validate(RateForm::readRates(richiesta($zona, ['price_type' => 'fixed', 'fixed_price' => '6,90', 'free_over_amount' => '-1'])));
+    } catch (UserError $e) {
+        return (float) $valori['rate_'.$zona.'_free_over_amount'] === 49.9 && $e->key() === 'shipping.rate_negative';
+    }
+
+    return false;
+}));
+
 check('il salvataggio del metodo ferma un listino che non sta in piedi, con la frase', fn () => prova(static function (): bool {
     $zona = zona('Italia', [['IT', '']]);
     $_POST = richiesta($zona, [], [['type' => 'price', 'max_weight' => '5', 'amount' => '-3']]);

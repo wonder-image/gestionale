@@ -142,14 +142,14 @@ final class RateForm
         foreach ($rates as $zone => $rate) {
             $with = ['zone' => $zoneNames[$zone] ?? '#'.$zone];
 
-            // A prezzo fisso contano solo l'importo e il contrassegno: gli altri
-            // campi restano salvati ma nel form sono nascosti e non si controllano.
+            // A prezzo fisso contano solo l'importo, il contrassegno e «Gratis sopra»:
+            // gli altri campi restano salvati ma nel form sono nascosti e non si controllano.
             if (($rate['price_type'] ?? 'brackets') === 'fixed') {
                 if (($rate['fixed_price'] ?? null) === null) {
                     throw UserError::make('shipping.fixed_price_missing', $with);
                 }
 
-                foreach (['fixed_price', 'cod_fee'] as $name) {
+                foreach (['fixed_price', 'cod_fee', 'free_over_amount'] as $name) {
                     if ((float) ($rate[$name] ?? 0) < 0) {
                         throw UserError::make('shipping.rate_negative', $with);
                     }
