@@ -225,6 +225,24 @@ check('il commerciante accende il checkout dell\'ospite dalle impostazioni, spen
         && MerchantSettingResource::mutateRequestValues(['checkout_guest' => ''], 'update')['checkout_guest'] === 'false';
 });
 
+$moduli = static function (?array $accesi): void {
+    (new ReflectionProperty(Gestionale::class, 'modules'))->setValue(null, $accesi);
+};
+
+check('font e ordini senza account si vedono col modulo ecommerce acceso, anche senza la vendita online', function () use ($forza, $moduli) {
+    $campi = static fn (): array => array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema());
+    $forza(['online_sales' => false]);
+
+    $moduli(['gestionale', 'ecommerce']);
+    $con = $campi();
+    $moduli(['gestionale']);
+    $senza = $campi();
+    $moduli(null);
+
+    return in_array('font_checkout', $con, true) && in_array('checkout_guest', $con, true)
+        && !in_array('font_checkout', $senza, true) && !in_array('checkout_guest', $senza, true);
+});
+
 $forza(null);
 
 summary();

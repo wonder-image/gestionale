@@ -69,7 +69,7 @@ final class MerchantSettingResource extends SingletonResource
             $fields[] = FormField::key('low_stock_emails')->text()->label('Destinatari degli avvisi');
         }
 
-        if (Gestionale::feature('online_sales')) {
+        if (self::onlineShop()) {
             foreach (['auth' => 'Font accesso', 'account' => 'Font account', 'checkout' => 'Font checkout', 'cart' => 'Font carrello'] as $area => $label) {
                 $fields[] = FormField::key('font_'.$area)->select(['' => 'Come il sito'] + WebFonts::all())->label($label);
             }
@@ -92,7 +92,7 @@ final class MerchantSettingResource extends SingletonResource
             ])->columns(12)->columnSpan(12);
         }
 
-        if (Gestionale::feature('online_sales')) {
+        if (self::onlineShop()) {
             $cards[] = (new Card)->components([
                 SectionTitle::make('Negozio online')
                     ->tooltip('Il font delle pagine di accesso, account, checkout e carrello. «Come il sito» usa quello del tema.')
@@ -111,6 +111,16 @@ final class MerchantSettingResource extends SingletonResource
         return (new Form)->components([
             (new Container)->components($cards)->columns(12)->columnSpan(12),
         ]);
+    }
+
+    /**
+     * Font e ordini senza account valgono per le pagine del negozio: si vedono
+     * con la vendita online o col modulo ecommerce acceso, che ha il suo
+     * checkout anche quando la funzionalità è spenta.
+     */
+    private static function onlineShop(): bool
+    {
+        return Gestionale::feature('online_sales') || Gestionale::module('ecommerce');
     }
 
     /**
