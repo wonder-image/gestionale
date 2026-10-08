@@ -119,8 +119,8 @@ check('due volte lo stesso articolo fanno una riga sola', function () {
     });
 });
 
-check('più pezzi di quanti ce ne sono: rifiutato, e dice quanti restano', function () {
-    return prova(static function (): string {
+check('più pezzi di quanti ce ne sono: rifiutato, e dice di quale prodotto e quanti restano', function () {
+    $messaggio = prova(static function (): string {
         $prodotto = articoloConGiacenza(3, 'TST-CART-'.substr((string) microtime(true), -6));
         $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
 
@@ -131,7 +131,10 @@ check('più pezzi di quanti ce ne sono: rifiutato, e dice quanti restano', funct
         }
 
         return 'nessun rifiuto';
-    }) !== 'nessun rifiuto';
+    });
+
+    // Il nome del prodotto sta nel modello: la riga del prodotto da sola non lo ha.
+    return stripos($messaggio, '«Prova vendite') !== false && str_contains($messaggio, '3');
 });
 
 check('quantità zero: rifiutata', function () {
