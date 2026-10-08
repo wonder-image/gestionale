@@ -6,6 +6,7 @@ use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Shipping\ShippingSync;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -14,7 +15,7 @@ use Wonder\Sql\TableSchema as Column;
  * link diventa il numero di spedizione. `provider` oggi è sempre `manual`:
  * i corrieri collegati sono una funzionalità futura.
  *
- * Non si sincronizza: è lavoro del commerciante.
+ * Viaggia col deploy solo con l'interruttore delle spedizioni (`ShippingSync`).
  */
 final class Carrier extends Model
 {
@@ -24,7 +25,7 @@ final class Carrier extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return null;
+        return ShippingSync::schema();
     }
 
     public static function tableSchema(): array

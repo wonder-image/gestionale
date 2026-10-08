@@ -13,7 +13,7 @@ require __DIR__.'/supporto/compra.php';
 
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
-use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderEmail;
@@ -141,6 +141,59 @@ check('le istruzioni di pagamento stanno solo nella ricevuta e nel promemoria', 
     });
 });
 
+check('il bonifico porta in ricevuta e promemoria intestatario, banca, IBAN, BIC e causale col numero', function () {
+    return prova(static function (): bool {
+        $ordine = ordineConRiga();
+        $conto = Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount::create([
+            'name' => 'Conto di prova',
+            'holder' => 'Negozio & Figli Srl',
+            'bank_name' => 'Banca di Prova',
+            'iban' => 'IT60X0542811101000000123456',
+            'bic' => 'BPPIITRRXXX',
+            'active' => 'true',
+        ]);
+        $metodo = Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod::create([
+            'code' => 'tst_'.uniqid(),
+            'name' => 'Bonifico di prova',
+            'provider' => 'bank_transfer',
+            'payment_account_id' => (int) ($conto->insert_id ?? 0),
+            'timing' => 'deferred',
+            'active' => 'true',
+            'position' => 1,
+        ]);
+        Order::update(['payment_method_id' => (int) ($metodo->insert_id ?? 0)], $ordine);
+        $numero = (string) Order::findById($ordine)['order_number'];
+
+        $corpi = [];
+        Mailer::useTransport(static function (string $to, string $subject, string $body) use (&$corpi): bool {
+            $corpi[] = $body;
+
+            return true;
+        });
+
+        try {
+            $esiti = [];
+
+            foreach (['received', 'reminder', 'confirmed'] as $chiave) {
+                $corpi = [];
+                OrderNotifier::send($chiave, $ordine);
+                $esiti[$chiave] = implode(' ', $corpi);
+            }
+        } finally {
+            Mailer::useTransport(null);
+        }
+
+        $completa = static fn (string $corpo): bool => str_contains($corpo, 'Negozio &amp; Figli Srl')
+            && stripos($corpo, 'Banca di Prova') !== false
+            && str_contains($corpo, 'IT60 X054 2811 1010 0000 0123 456')
+            && str_contains($corpo, 'BPPIITRRXXX')
+            && str_contains($corpo, 'Ordine '.$numero);
+
+        return $completa($esiti['received']) && $completa($esiti['reminder'])
+            && !str_contains($esiti['confirmed'], 'IT60');
+    });
+});
+
 check('la personalizzazione sta sotto il nome in entrambe le email, con la & escapata una volta sola', function () {
     return prova(static function (): bool {
         $ordine = (array) Order::findById(ordineConRiga());
@@ -193,10 +246,10 @@ check('l\'email al cliente parte e arriva al suo indirizzo', function () {
     });
 });
 
-check('l\'email al commerciante va ai destinatari delle notifiche', function () {
+check('l\'email al commerciante va alle email per gli ordini', function () {
     return prova(static function (): bool {
-        $riga = MerchantSetting::current();
-        MerchantSetting::update(
+        $riga = Setting::current();
+        Setting::update(
             ['merchant_notification_emails' => 'uno@example.test, due@example.test'],
             (int) ($riga['id'] ?? 1)
         );
@@ -288,6 +341,32 @@ check('spedito e pronto per il ritiro vanno al cliente, non al commerciante', fu
     return in_array('shipped', OrderEmail::KEYS, true) && in_array('ready_for_pickup', OrderEmail::KEYS, true)
         && !in_array('shipped', OrderEmail::MERCHANT_KEYS, true) && !in_array('ready_for_pickup', OrderEmail::MERCHANT_KEYS, true)
         && !in_array('shipped', OrderEmail::INSTRUCTION_KEYS, true);
+});
+
+check('il link per scegliere la password sta solo nelle email ricevuto e confermato', function () {
+    return prova(static function (): bool {
+        $ordine = (array) Order::findById(ordineConRiga());
+        $righe = [['name' => 'Crema da prova', 'quantity' => '2.000', 'line_total' => '50.00']];
+        $extra = ['account_url' => '/account/password-restore/?token=abc'];
+        $assoluto = OrderEmail::absoluteUrl('/account/password-restore/?token=abc');
+        $dentro = [];
+
+        foreach (['received', 'confirmed', 'shipped', 'merchant_new'] as $chiave) {
+            $corpo = OrderEmail::compose($chiave, $ordine, $righe, $extra)['body'];
+            $dentro[$chiave] = str_contains($corpo, 'Crea la tua password') && str_contains($corpo, htmlspecialchars($assoluto, ENT_QUOTES, 'UTF-8'));
+        }
+
+        return $dentro === ['received' => true, 'confirmed' => true, 'shipped' => false, 'merchant_new' => false];
+    });
+});
+
+check('senza link nessun blocco per la password', function () {
+    return prova(static function (): bool {
+        $ordine = (array) Order::findById(ordineConRiga());
+        $corpo = OrderEmail::compose('received', $ordine, [])['body'];
+
+        return !str_contains($corpo, 'Crea la tua password');
+    });
 });
 
 summary();

@@ -12,6 +12,7 @@ use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRateBracket;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZone;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZoneArea;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Shipping\ShippingSync;
 
 $colonne = static function (string $model): array {
     $colonne = [];
@@ -52,9 +53,19 @@ check('le tabelle hanno il prefisso del gestionale e la loro cartella', fn () =>
     && Carrier::$folder === 'gestionale/models'
 );
 
-check('i listini sono lavoro del commerciante: non viaggiano con il deploy', function () use ($tutti) {
+check('con l\'interruttore acceso zone, metodi e listini viaggiano col deploy e in produzione si leggono soltanto', function () {
+    $schema = ShippingSync::schemaFor(true);
+
+    return $schema !== null && !$schema->singleton && $schema->keepIds && $schema->localOnly;
+});
+
+check('con l\'interruttore spento restano lavoro del commerciante', fn () => ShippingSync::schemaFor(false) === null);
+
+check('senza database l\'interruttore vale acceso, come la colonna', fn () => ShippingSync::enabled() === true);
+
+check('i sei modelli seguono l\'interruttore', function () use ($tutti) {
     foreach ($tutti as $model) {
-        if ($model::syncSchema() !== null) {
+        if ($model::syncSchema() != ShippingSync::schema()) {
             return false;
         }
     }

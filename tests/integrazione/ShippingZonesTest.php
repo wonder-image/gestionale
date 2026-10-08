@@ -29,6 +29,8 @@ function prova(callable $corpo): mixed
         Transaction::run(static function () use ($corpo, &$esito): void {
             // Il sito di prova può avere i dati demo: i test partono da zone vuote.
             \Wonder\Plugin\Gestionale\Seeding\ShippingDemo::clear();
+            // …e anche zone vere (per esempio «Italia»): si nascondono, poi la transazione le rimette.
+            ShippingZone::query()->Update(ShippingZone::$table, ['deleted' => 'true'], 'deleted', 'false');
             $esito = $corpo();
 
             throw new Annulla();

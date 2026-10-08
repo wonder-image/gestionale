@@ -462,9 +462,9 @@ check('il ritiro non chiede l\'indirizzo', function () {
 check('se la conferma del contrassegno cade, l\'ordine resta e il commerciante lo sa', function () {
     return prova(static function (): bool {
         Wonder\Plugin\Gestionale\Extensions\Extensions::use([SabotaLaConferma::class]);
-        Wonder\Plugin\Gestionale\Models\System\MerchantSetting::update(
+        Wonder\Plugin\Gestionale\Models\System\Setting::update(
             ['merchant_notification_emails' => 'negozio@example.com'],
-            (int) (Wonder\Plugin\Gestionale\Models\System\MerchantSetting::current()['id'] ?? 1)
+            (int) (Wonder\Plugin\Gestionale\Models\System\Setting::current()['id'] ?? 1)
         );
         $partite = [];
         Mailer::useTransport(static function (string $to) use (&$partite): bool {
@@ -600,6 +600,90 @@ check('una confezione messa nel carrello con Cart::add prenota solo le figlie e 
         && $esito['a'] === 14.0 && $esito['b'] === 17.0
         && $esito['riepiloghi'] === 1
         && $esito['totale'] === '75.00';
+});
+
+/**
+ * Le email partite durante il corpo, per destinatario.
+ *
+ * @return array<string, string>
+ */
+function postaPerDestinatario(callable $corpo): array
+{
+    $posta = [];
+    Mailer::useTransport(static function (string $to, string $subject, string $body) use (&$posta): bool {
+        $posta[$to] = ($posta[$to] ?? '').$body;
+
+        return true;
+    });
+
+    try {
+        $corpo();
+    } finally {
+        Mailer::useTransport(null);
+    }
+
+    return $posta;
+}
+
+check('col bonifico il link per la password va nell\'email di ordine ricevuto, solo al cliente', function () {
+    return prova(static function (): bool {
+        Wonder\Plugin\Gestionale\Models\System\Setting::update(
+            ['merchant_notification_emails' => 'negozio@example.com'],
+            (int) (Wonder\Plugin\Gestionale\Models\System\Setting::current()['id'] ?? 1)
+        );
+        [$carrello] = carrelloPronto();
+        $dati = datiCheckout(metodoDiProva(PaymentTiming::DEFERRED)) + ['customer_email' => ['account_url' => '/account/password-restore/?token=ospite1']];
+
+        $posta = postaPerDestinatario(static fn () => Checkout::place($carrello, $dati));
+        $altri = array_diff_key($posta, ['cliente@example.com' => true]);
+
+        return str_contains($posta['cliente@example.com'] ?? '', 'token=ospite1')
+            && isset($altri['negozio@example.com'])
+            && !str_contains(implode(' ', $altri), 'token=ospite1');
+    });
+});
+
+check('col contrassegno il link per la password va nell\'email di conferma', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        $dati = datiCheckout(metodoDiProva(PaymentTiming::ON_DELIVERY)) + ['customer_email' => ['account_url' => '/account/password-restore/?token=ospite2']];
+
+        $posta = postaPerDestinatario(static fn () => Checkout::place($carrello, $dati));
+
+        return str_contains($posta['cliente@example.com'] ?? '', 'token=ospite2')
+            && str_contains($posta['cliente@example.com'] ?? '', 'Crea la tua password');
+    });
+});
+
+check('customer_email porta solo il link, non sostituisce le istruzioni del pagamento', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        $dati = datiCheckout(metodoDiProva(PaymentTiming::DEFERRED)) + ['customer_email' => ['instructions' => 'ISTRUZIONI FALSE']];
+
+        $posta = postaPerDestinatario(static fn () => Checkout::place($carrello, $dati));
+
+        return ($posta['cliente@example.com'] ?? '') !== ''
+            && !str_contains(implode(' ', $posta), 'ISTRUZIONI FALSE');
+    });
+});
+
+check('place dice se l\'email al cliente è partita, col bonifico e col contrassegno', function () {
+    return prova(static function (): bool {
+        $esiti = [];
+        foreach ([PaymentTiming::DEFERRED, PaymentTiming::ON_DELIVERY] as $momento) {
+            foreach ([true, false] as $consegnata) {
+                [$carrello] = carrelloPronto();
+                Mailer::useTransport(static fn (string $to): bool => $to === 'cliente@example.com' ? $consegnata : true);
+                try {
+                    $esiti[] = Checkout::place($carrello, datiCheckout(metodoDiProva($momento)))['customer_email_sent'] ?? null;
+                } finally {
+                    Mailer::useTransport(null);
+                }
+            }
+        }
+
+        return $esiti === [true, false, true, false];
+    });
 });
 
 summary();

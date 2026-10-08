@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Models\System;
 use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Extensions\SettingsSections;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Sql\TableSchema as Column;
 
@@ -12,10 +13,15 @@ use Wonder\Sql\TableSchema as Column;
  * Impostazioni tecniche e fiscali: una riga sola, scritta da `admin` in locale
  * e portata in produzione dal deploy.
  *
+ * Fa eccezione `merchant_notification_emails`, chi riceve le email degli
+ * ordini: non viaggia col deploy, perché ogni ambiente ha i suoi destinatari,
+ * e si cambia anche in produzione.
+ *
  * Qui stanno le scelte che si fanno una volta con il commercialista o in fase
  * di installazione. Quello che il commerciante cambia ogni giorno sta in
  * `MerchantSetting`: è la regola di 8.2, e ogni sotto-progetto aggiunge le sue
- * colonne alla riga giusta.
+ * colonne alla riga giusta. I moduli accesi aggiungono le loro coi riquadri di
+ * `SettingsSections`.
  */
 final class Setting extends Model
 {
@@ -25,12 +31,12 @@ final class Setting extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return SyncSchema::singleton()->localOnly();
+        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails']);
     }
 
     public static function tableSchema(): array
     {
-        return [
+        $columns = [
             Column::key('invoice_provider')->length(50),
             Column::key('tax_regime')->length(10)->default('RF01'),
             Column::key('vat_collectability')->length(5)->default('I'),
@@ -45,14 +51,23 @@ final class Setting extends Model
             // ancora pagato e quanti giorni si aspetta il bonifico.
             Column::key('order_reservation_minutes')->int()->default(30),
             Column::key('order_payment_wait_days')->int()->default(7),
+            // Corrieri, metodi, zone e listini viaggiano col deploy (ShippingSync).
+            Column::key('shipping_sync')->enum(['true', 'false'])->default('true'),
             Column::key('fiscal_confirmed_at')->datetime(),
             Column::key('developer_error_emails')->type('TEXT'),
+            Column::key('merchant_notification_emails')->type('TEXT'),
         ];
+
+        foreach (SettingsSections::all() as $section) {
+            array_push($columns, ...$section->columns());
+        }
+
+        return $columns;
     }
 
     public static function dataSchema(): array
     {
-        return [
+        $fields = [
             Field::key('invoice_provider')->text()->sanitize(false),
             Field::key('tax_regime')->text()->sanitize(false),
             Field::key('vat_collectability')->text()->sanitize(false),
@@ -65,9 +80,17 @@ final class Setting extends Model
             Field::key('stamp_duty_auto')->text()->sanitize(false),
             Field::key('order_reservation_minutes')->number()->decimals(0),
             Field::key('order_payment_wait_days')->number()->decimals(0),
+            Field::key('shipping_sync')->text()->sanitize(false),
             Field::key('fiscal_confirmed_at')->date(),
             Field::key('developer_error_emails')->text(),
+            Field::key('merchant_notification_emails')->text(),
         ];
+
+        foreach (SettingsSections::all() as $section) {
+            array_push($fields, ...$section->data());
+        }
+
+        return $fields;
     }
 
     /** La riga unica delle impostazioni, array vuoto se non c'è ancora. */

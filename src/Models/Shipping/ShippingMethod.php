@@ -6,6 +6,7 @@ use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Shipping\ShippingSync;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -17,7 +18,7 @@ use Wonder\Sql\TableSchema as Column;
  * una chiave esterna. `applies_online` e `applies_office` dicono per quali
  * canali il metodo è offerto.
  *
- * Non si sincronizza: è lavoro del commerciante.
+ * Viaggia col deploy solo con l'interruttore delle spedizioni (`ShippingSync`).
  */
 final class ShippingMethod extends Model
 {
@@ -27,7 +28,7 @@ final class ShippingMethod extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return null;
+        return ShippingSync::schema();
     }
 
     public static function tableSchema(): array

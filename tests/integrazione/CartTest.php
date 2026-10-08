@@ -119,8 +119,8 @@ check('due volte lo stesso articolo fanno una riga sola', function () {
     });
 });
 
-check('più pezzi di quanti ce ne sono: rifiutato, e dice quanti restano', function () {
-    return prova(static function (): string {
+check('più pezzi di quanti ce ne sono: rifiutato, e dice di quale prodotto e quanti restano', function () {
+    $messaggio = prova(static function (): string {
         $prodotto = articoloConGiacenza(3, 'TST-CART-'.substr((string) microtime(true), -6));
         $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
 
@@ -131,7 +131,10 @@ check('più pezzi di quanti ce ne sono: rifiutato, e dice quanti restano', funct
         }
 
         return 'nessun rifiuto';
-    }) !== 'nessun rifiuto';
+    });
+
+    // Il nome del prodotto sta nel modello: la riga del prodotto da sola non lo ha.
+    return stripos($messaggio, '«Prova vendite') !== false && str_contains($messaggio, '3');
 });
 
 check('quantità zero: rifiutata', function () {
@@ -512,7 +515,7 @@ check('funzionalità spenta: la riga personalizzata tiene il suo sovrapprezzo', 
         && ($riga['customization'][0]['value'] ?? '') === 'Marco';
 });
 
-check('funzionalità spenta: i valori sono ignorati e un\'obbligatoria rifiuta', function () {
+check('funzionalità spenta: i valori sono ignorati e un\'obbligatoria rifiuta col nome del prodotto', function () {
     $esito = prova(static function (): array {
         [$prodotto, $modello, $carrello] = articoloPersonalizzabile();
         $incisione = personalizzazioneDiProva(['surcharge' => '5.00']);
@@ -524,14 +527,16 @@ check('funzionalità spenta: i valori sono ignorati e un\'obbligatoria rifiuta',
         $obbligatoria = personalizzazioneDiProva();
         collegaPersonalizzazione($modello, $obbligatoria, true, 2);
         $chiave = '';
+        $messaggio = '';
 
         try {
             Cart::add($carrello, ['product_id' => $prodotto]);
         } catch (UserError $e) {
             $chiave = $e->key();
+            $messaggio = $e->getMessage();
         }
 
-        return ['senza' => $senza['items'], 'chiave' => $chiave];
+        return ['senza' => $senza['items'], 'chiave' => $chiave, 'messaggio' => $messaggio];
     });
     Gestionale::reset();
     $riga = $esito['senza'][0] ?? [];
@@ -539,7 +544,9 @@ check('funzionalità spenta: i valori sono ignorati e un\'obbligatoria rifiuta',
     return count($esito['senza']) === 1
         && $riga['customization'] === []
         && (string) $riga['customization_surcharge'] === '0.00'
-        && $esito['chiave'] === 'customization.unavailable';
+        && $esito['chiave'] === 'customization.unavailable'
+        // Il nome sta nel modello: la riga del prodotto da sola non lo ha.
+        && stripos($esito['messaggio'], '«Prova vendite') !== false;
 });
 
 check('l\'unione sa distinguere le personalizzazioni: uguali si sommano, diverse restano due', function () {

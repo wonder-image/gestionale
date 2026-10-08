@@ -39,7 +39,7 @@ final class OrderEmail
     /**
      * @param array<string, mixed> $order riga di `gst_orders`
      * @param list<array<string, mixed>> $items righe di `gst_order_items`
-     * @param array{instructions?: string, deadline?: string, method?: string, url?: string, carrier?: string, tracking?: string, location?: string} $extra
+     * @param array{instructions?: string, bank?: array<string, mixed>, deadline?: string, method?: string, url?: string, account_url?: string, carrier?: string, tracking?: string, location?: string} $extra
      * @return array{subject: string, body: string}
      */
     public static function compose(string $key, array $order, array $items, array $extra = []): array
@@ -65,9 +65,15 @@ final class OrderEmail
                 'intro' => self::text($key, 'intro', $values),
                 'details' => self::details($key, $values),
                 'instructions' => in_array($key, self::INSTRUCTION_KEYS, true) ? (string) ($extra['instructions'] ?? '') : '',
+                'bank_title' => self::text('bank', 'title', []),
+                'bank' => in_array($key, self::INSTRUCTION_KEYS, true) ? self::bank((array) ($extra['bank'] ?? []), $values) : [],
                 'order' => $order,
                 'items' => $items,
                 'url' => self::absoluteUrl((string) ($extra['url'] ?? '')),
+                // L'ospite sceglie la password dal link: solo nelle email che riceve all'ordine.
+                'account_url' => in_array($key, ['received', 'confirmed'], true) ? self::absoluteUrl((string) ($extra['account_url'] ?? '')) : '',
+                'account_title' => self::text('account', 'title', []),
+                'account_button' => self::text('account', 'button', []),
                 'e' => static fn (mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'),
                 'money' => static fn (mixed $v): string => self::money($v),
                 'qty' => static fn (mixed $v): string => self::quantity((float) $v),
@@ -95,6 +101,41 @@ final class OrderEmail
 
             if ($line !== '') {
                 $lines[] = $line;
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Le righe del bonifico («IBAN: IT60 X054 …»), solo quelle di cui si ha il
+     * dato. La causale porta il numero d'ordine: è come il commerciante
+     * riconosce il pagamento sull'estratto conto.
+     *
+     * @param array<string, mixed> $account riga di `gst_payment_accounts`
+     * @param array<string, string> $values
+     * @return list<array{label: string, value: string}>
+     */
+    private static function bank(array $account, array $values): array
+    {
+        $iban = strtoupper(preg_replace('/\s+/', '', (string) ($account['iban'] ?? '')) ?? '');
+
+        if ($iban === '') {
+            return [];
+        }
+
+        $fields = [
+            'holder' => trim((string) ($account['holder'] ?? '')),
+            'bank_name' => trim((string) ($account['bank_name'] ?? '')),
+            'iban' => trim(chunk_split($iban, 4, ' ')),
+            'bic' => strtoupper(trim((string) ($account['bic'] ?? ''))),
+            'reference' => self::text('bank', 'reference_value', $values),
+        ];
+        $lines = [];
+
+        foreach ($fields as $field => $value) {
+            if ($value !== '') {
+                $lines[] = ['label' => self::text('bank', $field, []), 'value' => $value];
             }
         }
 

@@ -11,13 +11,20 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
+use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
+use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRate;
+use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZone;
+use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZoneArea;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureCatalog;
+use Wonder\Plugin\Gestionale\Support\Shipping\ShippingZones;
 
 /**
  * Righe precaricate del gestionale, create da `forge update` in locale.
@@ -45,6 +52,7 @@ final class Defaults implements ModuleDefaults
         self::location($rows);
         self::paymentMethods($rows);
         self::carriers($rows);
+        self::shipping($rows);
     }
 
     /** Una riga bloccata per ogni funzionalità del catalogo. */
@@ -207,12 +215,11 @@ final class Defaults implements ModuleDefaults
                 'stamp_duty_auto' => 'true',
                 'fiscal_confirmed_at' => '',
                 'developer_error_emails' => '',
+                'merchant_notification_emails' => self::societyEmail(),
             ]);
         }
 
-        $rows->ensureSingleton(MerchantSetting::class, [
-            'merchant_notification_emails' => self::societyEmail(),
-        ]);
+        $rows->ensureSingleton(MerchantSetting::class, []);
     }
 
     /** La sede predefinita del core diventa il primo magazzino. */
@@ -248,7 +255,7 @@ final class Defaults implements ModuleDefaults
                 'provider' => 'bank_transfer',
                 'sdi_code' => 'MP05',
                 'timing' => 'deferred',
-                'instructions' => 'Fai il bonifico indicando il numero dell\'ordine nella causale: preparerai l\'ordine all\'arrivo del denaro.',
+                'instructions' => 'Fai il bonifico indicando il numero dell\'ordine nella causale: prepareremo l\'ordine all\'arrivo del denaro.',
                 'applies_online' => 'true',
                 'applies_office' => 'true',
                 'applies_pos' => 'false',
@@ -356,6 +363,72 @@ final class Defaults implements ModuleDefaults
         }
 
         $rows->ensure(Carrier::class, 'code', $carriers);
+    }
+
+    /**
+     * «Spedizione Standard» attiva, con la zona Italia a 10 euro: solo al primo
+     * avvio, cioè quando non c'è nessun metodo, nemmeno cancellato. Spenta o
+     * cancellata dopo, non torna. Una zona che copre già l'Italia si usa.
+     */
+    private static function shipping(DefaultRows $rows): void
+    {
+        if (sqlSelect(ShippingMethod::$table, null, 1)->exists) {
+            return;
+        }
+
+        $created = 0;
+        $zone = ShippingZones::resolve('IT', '') ?? 0;
+
+        if ($zone === 0) {
+            $zone = self::insertId(ShippingZone::create([
+                'code' => Code::make(ShippingZone::class, Codes::SHIPPING_ZONE),
+                'name' => 'Italia',
+                'position' => 1,
+            ]));
+
+            if ($zone === 0) {
+                return;
+            }
+
+            ShippingZoneArea::create(['shipping_zone_id' => $zone, 'country' => 'IT', 'province' => '']);
+            $created += 2;
+        }
+
+        $method = self::insertId(ShippingMethod::create([
+            'code' => Code::make(ShippingMethod::class, Codes::SHIPPING_METHOD),
+            'name' => 'Spedizione Standard',
+            'description' => '',
+            'applies_online' => 'true',
+            'applies_office' => 'true',
+            'active' => 'true',
+            'position' => 1,
+        ]));
+
+        if ($method === 0) {
+            $rows->count($created);
+
+            return;
+        }
+
+        ShippingRate::create([
+            'shipping_method_id' => $method,
+            'shipping_zone_id' => $zone,
+            'price_type' => 'fixed',
+            'fixed_price' => '10.00',
+            'excess_mode' => 'total_weight',
+            'fuel_surcharge_percent' => '0.00',
+            'markup_percent' => '0.00',
+            'min_price' => '0.00',
+            'cod_fee' => '0.00',
+            'active' => 'true',
+        ]);
+
+        $rows->count($created + 2);
+    }
+
+    private static function insertId(object $result): int
+    {
+        return !empty($result->success) ? (int) ($result->insert_id ?? 0) : 0;
     }
 
     private static function ordinaryTaxId(): int

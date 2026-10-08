@@ -764,7 +764,7 @@ final class Cart
         $available = Levels::of((int) $product['id'])['available'];
 
         if ($wanted > $available) {
-            throw self::stockError((string) $product['name'], $available);
+            throw self::stockError(ProductNames::full($product, ProductNames::models([$product])), $available);
         }
     }
 
@@ -1093,7 +1093,7 @@ final class Cart
 
         foreach (Customizations::forModel($modelId) as $definition) {
             if ($definition['required']) {
-                throw UserError::make('customization.unavailable', ['name' => (string) $product['name']]);
+                throw UserError::make('customization.unavailable', ['name' => ProductNames::full($product, ProductNames::models([$product]))]);
             }
         }
 

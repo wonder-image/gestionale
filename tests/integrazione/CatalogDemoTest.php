@@ -33,6 +33,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
 use Wonder\Plugin\Gestionale\Seeding\ContactsDemo;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
+use Wonder\Plugin\Gestionale\Seeding\PromotionsDemo;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
@@ -110,6 +111,28 @@ $prima = $stato();
 $cartella = rtrim((string) ($GLOBALS['ROOT'] ?? ''), '/').'/assets/upload'.ProductImages::folder();
 $foto = Istantanea::di($cartella);
 
+/** Le righe di foto che puntano a un file che non c'è, come `#id → file`. */
+$fotoRotte = static function (): array {
+    $rotte = [];
+
+    foreach (ProductImage::find(['deleted' => 'false']) ?: [] as $riga) {
+        if (!is_array($riga)) {
+            continue;
+        }
+
+        $percorso = ProductImages::path($riga);
+
+        if ($percorso !== '' && !is_file($percorso)) {
+            $rotte[] = '#'.($riga['id'] ?? '?').' → '.basename($percorso);
+        }
+    }
+
+    return $rotte;
+};
+
+// Il sito può avere già righe senza file: conta solo quello che rompe il test.
+$fotoRottePrima = $fotoRotte();
+
 // Gli avvisi di scorta nascono solo a funzionalità accesa: si accende qui,
 // così l'opzione sotto soglia fa il suo avviso qualunque sia il sito.
 $funzionalita = new ReflectionProperty(Gestionale::class, 'features');
@@ -119,7 +142,9 @@ $funzionalita->setValue(null, [...Gestionale::features(), 'low_stock_alerts' => 
 try {
     Transaction::run(static function () use ($conta, $stato, $righe, $idDi, $demo, $tutte, $fornitoreId): void {
         // Il sito può avere già i dati di prova: si parte dal pulito, e la
-        // transazione rimette tutto com'era.
+        // transazione rimette tutto com'era. Prima le promozioni: le campagne
+        // di prova puntano a marchio, tag e categoria di prova, e li terrebbero.
+        PromotionsDemo::clear();
         CatalogDemo::clear();
 
         // I fornitori degli articoli di prova sono schede della rubrica di
@@ -817,20 +842,8 @@ check('dopo l\'annullamento il catalogo è come prima', fn () => $stato() === $p
 // Qui e non alla fine del processo, perché il check qui sotto guarda il disco.
 $foto->ripristina();
 
-check('il sito resta con foto vere sul disco', function () {
-    $rotte = [];
-
-    foreach (ProductImage::find(['deleted' => 'false']) ?: [] as $riga) {
-        if (!is_array($riga)) {
-            continue;
-        }
-
-        $percorso = ProductImages::path($riga);
-
-        if ($percorso !== '' && !is_file($percorso)) {
-            $rotte[] = '#'.($riga['id'] ?? '?').' → '.basename($percorso);
-        }
-    }
+check('il sito resta con foto vere sul disco', function () use ($fotoRotte, $fotoRottePrima) {
+    $rotte = array_values(array_diff($fotoRotte(), $fotoRottePrima));
 
     if ($rotte !== []) {
         // Dire quali: una riga che punta a un file sparito non si trova a

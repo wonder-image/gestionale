@@ -146,6 +146,19 @@ check('le tabelle elencano nome e stato', function () {
     return true;
 });
 
+check('nei tre puntini dei metodi c\'è «Attiva/Disattiva», che cambia la colonna active', function () {
+    $azioni = [];
+
+    foreach (ShippingMethodResource::tableSchema() as $colonna) {
+        if ($colonna->name === 'actions') {
+            $azioni = (array) ($colonna->schema['actions'] ?? []);
+        }
+    }
+
+    return ($azioni['active'] ?? null) === ['label' => ['true' => 'Disattiva', 'false' => 'Attiva'], 'request' => 'boolean']
+        && array_keys($azioni) === ['edit', 'active', 'delete'];
+});
+
 check('readRates legge solo le zone accese e normalizza i numeri', function () {
     $post = [
         'rate_3_on' => 'true',

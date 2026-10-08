@@ -4,7 +4,8 @@ icon: sliders
 
 # Le impostazioni del negozio
 
-> **Inclusa.** La trovi nella sezione Gestionale del menu.
+> **Da attivare.** Funzionalità *Avvisi di scorta minima*: oggi la pagina ha solo
+> i loro destinatari, e finché è spenta non la vedi nel menu.
 
 ## A cosa serve
 
@@ -13,21 +14,17 @@ chiedere niente a nessuno.
 
 Le impostazioni tecniche e fiscali stanno invece in un'altra pagina, curata da
 chi ti segue: servono a far funzionare documenti e IVA, e non è il caso di
-toccarle da soli.
+toccarle da soli. Lì stanno anche le **email per gli ordini**, gli indirizzi che
+ricevono l'avviso di ogni ordine nuovo o annullato, e, se vendi online, il
+**font** delle pagine di accesso, account, checkout e carrello e gli **ordini
+senza account** (chi non è registrato ordina con la sola email): per cambiarli
+chiedi a chi ti segue. I guasti tecnici vanno direttamente a chi ti segue, senza
+disturbarti.
 
 ## Cosa contiene oggi
 
-**Email di chi riceve le notifiche.** Gli indirizzi a cui arrivano le notifiche
-che riguardano il negozio, per esempio una spedizione che non si aggiorna. Più
-indirizzi si separano con una virgola.
-
-Se lasci il campo vuoto, le notifiche restano solo nel riquadro **Da
-controllare** della home.
-
-I guasti tecnici non passano di qui: arrivano a chi ti segue, senza disturbarti.
-
 **Destinatari degli avvisi.** Chi riceve l'email dei prodotti sotto la scorta
-minima; il campo c'è se hai gli [avvisi di scorta minima](magazzino-avvisi.md).
+minima ([avvisi di scorta minima](magazzino-avvisi.md)).
 Più indirizzi si separano con una virgola. Se uno è scritto male il salvataggio
 si ferma e ti dice quale.
 

@@ -16,16 +16,17 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
-use Wonder\View\WebFonts;
 
 /**
  * "Impostazioni" del commerciante, nella sezione Gestionale: una riga sola,
- * di `administrator`.
+ * di `administrator`; la apre anche `admin`, che vede tutto.
  *
  * Qui stanno le scelte di chi usa il gestionale tutti i giorni, e restano
- * nell'ambiente dove si lavora: un deploy non le riporta indietro. In G1 c'è
- * solo dove arrivano le notifiche del negozio; ogni sotto-progetto aggiunge le
- * sue.
+ * nell'ambiente dove si lavora: un deploy non le riporta indietro. Ogni
+ * sotto-progetto aggiunge le sue; le email degli ordini stanno invece con
+ * quelle degli errori, nelle Impostazioni di Set Up, e lì il modulo ecommerce
+ * porta font e ordini senza account. Senza gli avvisi di scorta la pagina è
+ * vuota e non sta nel menu.
  */
 final class MerchantSettingResource extends SingletonResource
 {
@@ -52,29 +53,16 @@ final class MerchantSettingResource extends SingletonResource
     public static function labelSchema(): array
     {
         return [
-            'merchant_notification_emails' => 'Email di chi riceve le notifiche',
             'low_stock_emails' => 'Destinatari degli avvisi',
-            'font_auth' => 'Font accesso',
-            'font_account' => 'Font account',
-            'font_checkout' => 'Font checkout',
-            'font_cart' => 'Font carrello',
         ];
     }
 
     public static function formSchema(): array
     {
-        $fields = [
-            FormField::key('merchant_notification_emails')->text()->label('Email di chi riceve le notifiche'),
-        ];
+        $fields = [];
 
         if (Gestionale::feature('low_stock_alerts')) {
             $fields[] = FormField::key('low_stock_emails')->text()->label('Destinatari degli avvisi');
-        }
-
-        if (Gestionale::feature('online_sales')) {
-            foreach (['auth' => 'Font accesso', 'account' => 'Font account', 'checkout' => 'Font checkout', 'cart' => 'Font carrello'] as $area => $label) {
-                $fields[] = FormField::key('font_'.$area)->select(['' => 'Come il sito'] + WebFonts::all())->label($label);
-            }
         }
 
         return $fields;
@@ -82,14 +70,7 @@ final class MerchantSettingResource extends SingletonResource
 
     public static function formLayoutSchema(): ?Form
     {
-        $cards = [
-            (new Card)->components([
-                SectionTitle::make('Notifiche')
-                    ->tooltip('Più indirizzi separati da virgola. Arrivano le notifiche che riguardano il negozio; i guasti tecnici vanno a chi ti segue.')
-                    ->columnSpan(12),
-                static::getInput('merchant_notification_emails')->columnSpan(12),
-            ])->columns(12)->columnSpan(12),
-        ];
+        $cards = [];
 
         if (Gestionale::feature('low_stock_alerts')) {
             $cards[] = (new Card)->components([
@@ -97,18 +78,6 @@ final class MerchantSettingResource extends SingletonResource
                     ->tooltip('Chi riceve l\'email dei prodotti sotto la scorta minima: più indirizzi separati da virgola. Vuoto, l\'email non parte e gli avvisi aspettano.')
                     ->columnSpan(12),
                 static::getInput('low_stock_emails')->columnSpan(12),
-            ])->columns(12)->columnSpan(12);
-        }
-
-        if (Gestionale::feature('online_sales')) {
-            $cards[] = (new Card)->components([
-                SectionTitle::make('Negozio online')
-                    ->tooltip('Il font delle pagine di accesso, account, checkout e carrello. «Come il sito» usa quello del tema.')
-                    ->columnSpan(12),
-                static::getInput('font_auth')->columnSpan(6),
-                static::getInput('font_account')->columnSpan(6),
-                static::getInput('font_checkout')->columnSpan(6),
-                static::getInput('font_cart')->columnSpan(6),
             ])->columns(12)->columnSpan(12);
         }
 
@@ -127,13 +96,6 @@ final class MerchantSettingResource extends SingletonResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
-        foreach (['auth', 'account', 'checkout', 'cart'] as $area) {
-            if (array_key_exists('font_'.$area, $values)) {
-                $font = strtolower(trim((string) $values['font_'.$area]));
-                $values['font_'.$area] = WebFonts::has($font) ? $font : '';
-            }
-        }
-
         if (!array_key_exists('low_stock_emails', $values)) {
             return $values;
         }
@@ -166,7 +128,7 @@ final class MerchantSettingResource extends SingletonResource
     public static function permissionSchema(): PermissionSchema
     {
         return PermissionSchema::for(static::class)
-            ->backend(['list', 'edit', 'update'], ['administrator']);
+            ->backend(['list', 'edit', 'update'], ['admin', 'administrator']);
     }
 
     public static function apiSchema(): ApiSchema
@@ -181,6 +143,7 @@ final class MerchantSettingResource extends SingletonResource
             ->inSection('gestionale')
             ->title('Impostazioni')
             ->order(900)
-            ->authority(['administrator']);
+            ->authority(['admin', 'administrator'])
+            ->enabled(Gestionale::feature('low_stock_alerts'));
     }
 }

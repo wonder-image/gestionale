@@ -17,6 +17,11 @@ use Wonder\Plugin\Custom\Fattura\Valori\Natura;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
+use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
+use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRate;
+use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRateBracket;
+use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZone;
+use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZoneArea;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Models\System\FeatureLog;
 use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
@@ -62,6 +67,12 @@ try {
         sqlDelete(Tax::$table);
         sqlDelete(MerchantSetting::$table);
         sqlDelete(PaymentMethod::$table);
+        // La spedizione predefinita nasce solo dove non c'è nessun metodo.
+        sqlDelete(ShippingRateBracket::$table);
+        sqlDelete(ShippingRate::$table);
+        sqlDelete(ShippingZoneArea::$table);
+        sqlDelete(ShippingZone::$table);
+        sqlDelete(ShippingMethod::$table);
 
         Defaults::seed(new DefaultRows());
         $dopo = $righe();
@@ -166,6 +177,12 @@ try {
                 && ($m['stripe']['timing'] ?? '') === 'immediate' && ($m['stripe']['provider'] ?? '') === 'stripe';
         });
 
+        check('le istruzioni del bonifico parlano col noi del negozio', function () use ($metodi) {
+            $testo = (string) ($metodi()['bank-transfer']['instructions'] ?? '');
+
+            return str_contains($testo, 'prepareremo') && !str_contains($testo, 'preparerai');
+        });
+
         check('Stripe nasce spento finché non c\'è la chiave, gli altri due accesi', function () use ($metodi) {
             $m = $metodi();
 
@@ -247,6 +264,77 @@ try {
             count($corrieri()) === $dopoCorrieri
             && html_entity_decode((string) ($corrieri()['gls']['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8') === 'Il mio GLS'
             && ($corrieri()['gls']['active'] ?? '') === 'false'
+        );
+
+        // Tutte le righe di una tabella, anche quelle cancellate.
+        $tutte = static function (string $tabella): array {
+            $righe = (array) sqlSelect($tabella, null)->row;
+
+            return array_key_exists('id', $righe) ? [$righe] : array_values(array_filter($righe, 'is_array'));
+        };
+        $testo = static fn (array $riga, string $chiave): string =>
+            html_entity_decode((string) ($riga[$chiave] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        check('nasce «Spedizione Standard», attiva, con la zona Italia a 10 euro', function () use ($tutte, $testo) {
+            $metodi = $tutte(ShippingMethod::$table);
+            $zone = $tutte(ShippingZone::$table);
+            $aree = $tutte(ShippingZoneArea::$table);
+            $listini = $tutte(ShippingRate::$table);
+            $metodo = $metodi[0] ?? [];
+            $zona = $zone[0] ?? [];
+            $listino = $listini[0] ?? [];
+
+            return count($metodi) === 1 && count($zone) === 1 && count($aree) === 1 && count($listini) === 1
+                && $testo($metodo, 'name') === 'Spedizione Standard'
+                && ($metodo['active'] ?? '') === 'true'
+                && ($metodo['applies_online'] ?? '') === 'true'
+                && ($metodo['applies_office'] ?? '') === 'true'
+                && str_starts_with((string) ($metodo['code'] ?? ''), 'shm_')
+                && $testo($zona, 'name') === 'Italia'
+                && str_starts_with((string) ($zona['code'] ?? ''), 'shz_')
+                && (int) ($aree[0]['shipping_zone_id'] ?? 0) === (int) $zona['id']
+                && ($aree[0]['country'] ?? '') === 'IT'
+                && (string) ($aree[0]['province'] ?? '') === ''
+                && (int) ($listino['shipping_method_id'] ?? 0) === (int) $metodo['id']
+                && (int) ($listino['shipping_zone_id'] ?? 0) === (int) $zona['id']
+                && ($listino['price_type'] ?? '') === 'fixed'
+                && (float) ($listino['fixed_price'] ?? 0) === 10.0
+                && ($listino['active'] ?? '') === 'true';
+        });
+
+        $standard = (int) ($tutte(ShippingMethod::$table)[0]['id'] ?? 0);
+        ShippingMethod::update(['active' => 'false'], $standard);
+        Defaults::seed(new DefaultRows());
+
+        check('spenta a mano resta spenta e non si duplica', fn () =>
+            count($tutte(ShippingMethod::$table)) === 1
+            && count($tutte(ShippingZone::$table)) === 1
+            && count($tutte(ShippingRate::$table)) === 1
+            && ($tutte(ShippingMethod::$table)[0]['active'] ?? '') === 'false'
+        );
+
+        ShippingMethod::query()->Update(ShippingMethod::$table, ['deleted' => 'true'], 'id', $standard);
+        Defaults::seed(new DefaultRows());
+
+        check('cancellata non torna', fn () =>
+            count($tutte(ShippingMethod::$table)) === 1
+            && ($tutte(ShippingMethod::$table)[0]['deleted'] ?? '') === 'true'
+        );
+
+        // Una zona che copre già l'Italia si usa, invece di farne un'altra.
+        sqlDelete(ShippingRateBracket::$table);
+        sqlDelete(ShippingRate::$table);
+        sqlDelete(ShippingZoneArea::$table);
+        sqlDelete(ShippingZone::$table);
+        sqlDelete(ShippingMethod::$table);
+        $mia = (int) (ShippingZone::create(['code' => 'shz_mia', 'name' => 'La mia Italia', 'position' => 3])->insert_id ?? 0);
+        ShippingZoneArea::create(['shipping_zone_id' => $mia, 'country' => 'IT', 'province' => '']);
+        Defaults::seed(new DefaultRows());
+
+        check('con una zona per l\'Italia già fatta, il listino va su quella', fn () =>
+            $mia > 0
+            && count($tutte(ShippingZone::$table)) === 1
+            && (int) ($tutte(ShippingRate::$table)[0]['shipping_zone_id'] ?? 0) === $mia
         );
 
         check('una seconda esecuzione non duplica niente', fn () =>

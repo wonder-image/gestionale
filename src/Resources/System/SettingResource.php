@@ -16,17 +16,25 @@ use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Custom\Fattura\Valori\EsigibilitaIva;
 use Wonder\Plugin\Custom\Fattura\Valori\RegimiFiscali;
+use Wonder\Plugin\Gestionale\Extensions\SettingsSections;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 
 /**
  * "Impostazioni" tecniche in Set Up: una riga sola, di `admin`.
  *
- * Tre riquadri: Fiscale (regime, esigibilità, prezzi, aliquote di ripiego),
- * Documenti (sezionale e bollo) ed Errori (dove arrivano le email allo
- * sviluppatore). Il salvataggio segna `fiscal_confirmed_at`: i Primi passi
- * hanno bisogno di sapere che una persona ha guardato i valori precaricati.
+ * Quattro riquadri: Fiscale (regime, esigibilità, prezzi, aliquote di
+ * ripiego), Documenti (sezionale e bollo), Vendite ed Email (chi riceve le
+ * email degli ordini e chi quelle degli errori tecnici). Fra Vendite ed Email
+ * stanno quelli dei moduli accesi (`SettingsSections`). Il salvataggio segna
+ * `fiscal_confirmed_at`: i Primi passi hanno bisogno di sapere che una persona
+ * ha guardato i valori precaricati.
+ *
+ * In produzione la pagina è in sola lettura, tranne le email degli ordini: non
+ * arrivano dal deploy e si cambiano dove si vende.
  */
 final class SettingResource extends SingletonResource
 {
@@ -49,7 +57,7 @@ final class SettingResource extends SingletonResource
 
     public static function labelSchema(): array
     {
-        return [
+        $labels = [
             'tax_regime' => 'Regime fiscale',
             'vat_collectability' => 'Esigibilità IVA',
             'transmitter_country' => 'Paese del trasmittente',
@@ -61,15 +69,23 @@ final class SettingResource extends SingletonResource
             'invoice_numeration' => 'Sezionale delle fatture',
             'stamp_duty_auto' => 'Bollo automatico',
             'fiscal_confirmed_at' => 'Confermate il',
-            'developer_error_emails' => 'Email dello sviluppatore',
+            'merchant_notification_emails' => 'Email per gli ordini',
+            'developer_error_emails' => 'Email per gli errori tecnici',
             'order_reservation_minutes' => 'Minuti di prenotazione',
             'order_payment_wait_days' => 'Giorni di attesa del pagamento',
+            'shipping_sync' => 'Spedizioni col deploy',
         ];
+
+        foreach (SettingsSections::all() as $section) {
+            $labels += $section->labels();
+        }
+
+        return $labels;
     }
 
     public static function formSchema(): array
     {
-        return [
+        $fields = [
             FormField::key('tax_regime')->select(RegimiFiscali::Valori)->value('RF01')->label('Regime fiscale')->required(),
             FormField::key('vat_collectability')->select(EsigibilitaIva::Valori)->value('I')->label('Esigibilità IVA')->required(),
             FormField::key('transmitter_country')->country()->value('IT')->label('Paese del trasmittente'),
@@ -89,14 +105,28 @@ final class SettingResource extends SingletonResource
                 ->select(['true' => 'Sì', 'false' => 'No'])
                 ->value('true')
                 ->label('Bollo automatico'),
-            FormField::key('developer_error_emails')->text()->label('Email dello sviluppatore'),
+            FormField::key('merchant_notification_emails')->text()->label('Email per gli ordini'),
+            FormField::key('developer_error_emails')->text()->label('Email per gli errori tecnici'),
             FormField::key('order_reservation_minutes')->number()->decimal(0)->value(30)->label('Minuti di prenotazione')->required(),
             FormField::key('order_payment_wait_days')->number()->decimal(0)->value(7)->label('Giorni di attesa del pagamento')->required(),
+            FormField::key('shipping_sync')
+                ->select(['true' => 'Sì', 'false' => 'No'])
+                ->value('true')
+                ->label('Spedizioni col deploy'),
         ];
+
+        foreach (SettingsSections::all() as $section) {
+            array_push($fields, ...$section->fields());
+        }
+
+        return $fields;
     }
 
     public static function formLayoutSchema(): ?Form
     {
+        $input = static fn (string $key): object => static::getInput($key);
+        $modules = array_map(static fn ($section) => $section->card($input), SettingsSections::all());
+
         return (new Form)->components([
             (new Container)->components([
                 (new Card)->components([
@@ -121,17 +151,21 @@ final class SettingResource extends SingletonResource
 
                 (new Card)->components([
                     SectionTitle::make('Vendite')
-                        ->tooltip('Quanto resta impegnata la merce di un ordine non ancora pagato, e per quanti giorni si aspetta il bonifico prima di annullare.')
+                        ->tooltip('Quanto resta impegnata la merce di un ordine non ancora pagato, e per quanti giorni si aspetta il bonifico prima di annullare. «Spedizioni col deploy»: con Sì corrieri, metodi, zone e listini partono da qui e in produzione si leggono soltanto; con No li gestisce il commerciante in produzione.')
                         ->columnSpan(12),
-                    static::getInput('order_reservation_minutes')->columnSpan(6),
-                    static::getInput('order_payment_wait_days')->columnSpan(6),
+                    static::getInput('order_reservation_minutes')->columnSpan(4),
+                    static::getInput('order_payment_wait_days')->columnSpan(4),
+                    static::getInput('shipping_sync')->columnSpan(4),
                 ])->columns(12)->columnSpan(12),
 
+                ...$modules,
+
                 (new Card)->components([
-                    SectionTitle::make('Errori')
-                        ->tooltip('Più indirizzi separati da virgola. Al commerciante scrivono le sue impostazioni.')
+                    SectionTitle::make('Email')
+                        ->tooltip('Più indirizzi separati da virgola. «Per gli ordini» riceve l\'avviso di ogni ordine nuovo e di ogni ordine annullato: di solito il negozio. «Per gli errori tecnici» riceve i guasti dei servizi esterni (pagamenti, corrieri, fatture elettroniche) e quelli del codice: chi sviluppa il sito.')
                         ->columnSpan(12),
-                    static::getInput('developer_error_emails')->columnSpan(12),
+                    static::getInput('merchant_notification_emails')->columnSpan(6),
+                    static::getInput('developer_error_emails')->columnSpan(6),
                 ])->columns(12)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ]);
@@ -143,6 +177,12 @@ final class SettingResource extends SingletonResource
         $url = Gestionale::docsUrl('impostazioni/tecniche');
 
         return $url === '' ? $schema : $schema->docs($url);
+    }
+
+    /** Le email degli ordini restano di chi vende: in produzione si cambiano lo stesso. */
+    public static function editableWhenReadonly(): array
+    {
+        return ['merchant_notification_emails'];
     }
 
     public static function permissionSchema(): PermissionSchema
@@ -166,13 +206,36 @@ final class SettingResource extends SingletonResource
             ->authority(['admin']);
     }
 
-    /** La prima conferma di una persona vale per i Primi passi e non si riscrive. */
+    /**
+     * La prima conferma di una persona vale per i Primi passi e non si
+     * riscrive. Gli indirizzi si salvano puliti: uno storto si rifiuta adesso,
+     * nominandolo, invece di scoprirlo il giorno che l'email non arriva. I
+     * riquadri dei moduli puliscono i loro valori.
+     */
     public static function mutateRequestValues(
         array $values,
         string $action,
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        foreach (['merchant_notification_emails', 'developer_error_emails'] as $key) {
+            if (!array_key_exists($key, $values)) {
+                continue;
+            }
+
+            $parsed = Recipients::parse((string) $values[$key]);
+
+            if ($parsed['invalid'] !== []) {
+                throw UserError::make('settings.email_invalid', ['email' => $parsed['invalid'][0]]);
+            }
+
+            $values[$key] = Recipients::join($parsed['valid']);
+        }
+
+        foreach (SettingsSections::all() as $section) {
+            $values = $section->mutate($values);
+        }
+
         $confermata = trim((string) ($oldValues['fiscal_confirmed_at'] ?? ''));
 
         $values['fiscal_confirmed_at'] = $confermata !== '' && $confermata !== '0000-00-00 00:00:00'

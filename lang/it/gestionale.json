@@ -252,6 +252,19 @@
                     "subject": "Ordine :number annullato per mancato pagamento",
                     "title": "Ordine annullato",
                     "intro": "L'ordine :number è scaduto senza pagamento: la merce è tornata disponibile."
+                },
+                "account": {
+                    "title": "Crea la tua password per seguire i tuoi ordini",
+                    "button": "Scegli la password"
+                },
+                "bank": {
+                    "title": "Dati per il bonifico",
+                    "holder": "Intestatario",
+                    "bank_name": "Banca",
+                    "iban": "IBAN",
+                    "bic": "BIC/SWIFT",
+                    "reference": "Causale",
+                    "reference_value": "Ordine :number"
                 }
             }
         }

@@ -39,6 +39,10 @@ function prova(callable $corpo): mixed
 
     try {
         Transaction::run(static function () use ($corpo, &$esito): void {
+            // Zone e metodi veri del sito (per esempio «Italia» e «Spedizione
+            // Standard») si nascondono: la transazione poi li rimette.
+            ShippingZone::query()->Update(ShippingZone::$table, ['deleted' => 'true'], 'deleted', 'false');
+            ShippingMethod::query()->Update(ShippingMethod::$table, ['deleted' => 'true'], 'deleted', 'false');
             $esito = $corpo();
 
             throw new Annulla();

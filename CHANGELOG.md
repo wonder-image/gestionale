@@ -7,6 +7,10 @@ versionamento semantico.
 
 ### Aggiunto
 
+- Checkout dell'ospite: `Checkout::place` accetta `customer_email.account_url` e lo porta
+  nell'email al cliente (ricevuto, o confermato col pagamento alla consegna); l'email
+  mostra «Crea la tua password per seguire i tuoi ordini» con il pulsante. `place`
+  restituisce `customer_email_sent`, vero se l'email al cliente è partita.
 - Scheletro del modulo: manifest, entrypoint, configurazione, Resource base.
 - Test del modulo con harness proprio e `php tests/run.php`.
 - Funzionalità sbloccabili: catalogo nel codice, stato su database sincronizzato

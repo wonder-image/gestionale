@@ -6,6 +6,7 @@ use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Shipping\ShippingSync;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -13,7 +14,7 @@ use Wonder\Sql\TableSchema as Column;
  * listini. Le aree stanno in `ShippingZoneArea`. A pari specificità, vince la
  * zona con la `position` minore.
  *
- * Non si sincronizza: è lavoro del commerciante.
+ * Viaggia col deploy solo con l'interruttore delle spedizioni (`ShippingSync`).
  */
 final class ShippingZone extends Model
 {
@@ -23,7 +24,7 @@ final class ShippingZone extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return null;
+        return ShippingSync::schema();
     }
 
     public static function tableSchema(): array

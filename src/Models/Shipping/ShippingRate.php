@@ -6,6 +6,7 @@ use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Support\Columns;
+use Wonder\Plugin\Gestionale\Support\Shipping\ShippingSync;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -19,9 +20,10 @@ use Wonder\Sql\TableSchema as Column;
  * a zero non fanno niente.
  *
  * `price_type` è `brackets` (a scaglioni di peso) o `fixed` (un prezzo unico,
- * `fixed_price`, che non guarda il peso e non ha gli altri campi di prezzo).
+ * `fixed_price`, che non guarda il peso; degli altri campi di prezzo vale solo
+ * `free_over_amount`).
  *
- * Non si sincronizza: è lavoro del commerciante.
+ * Viaggia col deploy solo con l'interruttore delle spedizioni (`ShippingSync`).
  */
 final class ShippingRate extends Model
 {
@@ -31,7 +33,7 @@ final class ShippingRate extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return null;
+        return ShippingSync::schema();
     }
 
     public static function tableSchema(): array

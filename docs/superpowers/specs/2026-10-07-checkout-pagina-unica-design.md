@@ -268,18 +268,19 @@ Sul branch `checkout-a-passi-componenti` di `lib` e `app` (piano 1, non ancora u
   metodi nuovi. La migrazione compila i metodi esistenti con `icons` vuoto.
   I file SVG stanno in `ecommerce/resources/assets/payment-icons/`, con il `LICENSE` MIT di
   activemerchant.
-- **Font**: quattro colonne su `MerchantSetting` (`font_auth`, `font_account`,
-  `font_checkout`, `font_cart`), default `''` tranne `font_checkout` = `inter`. Nella pagina
-  Impostazioni, gruppo «Negozio online» (visibile con la vendita online), quattro menu a
+- **Font**: quattro colonne che il modulo ecommerce aggiunge alle Impostazioni di Set Up
+  (`font_auth_id`, `font_account_id`, `font_checkout_id`, `font_cart_id`), chiavi esterne
+  verso `css_font.id`, vuote di partenza. Nel riquadro «Negozio online», quattro menu a
   tendina «Font accesso», «Font account», «Font checkout», «Font carrello» con «Come il sito»
-  (valore vuoto) e i nomi di `WebFonts::all()`.
+  (NULL) e le righe visibili di `css_font`, per id. Gli id di `css_font` restano gli stessi
+  in ogni ambiente (`keepIds`); una riga cancellata riporta la scelta a «Come il sito».
 - **Pagamenti**: `PaymentProviders` (§7) e il filtro dei metodi nell'anteprima.
 
 ### 10. Dove si applica il font
 
 Un helper del modulo ecommerce, `StoreFont::style(string $area): string` con `$area` fra
-`auth`, `account`, `checkout`, `cart`, legge la colonna `font_<area>` e restituisce
-`<style>` con `WebFonts::css()`, oppure `''`. Lo stampano:
+`auth`, `account`, `checkout`, `cart`, legge la colonna `font_<area>_id`, cerca la riga
+visibile di `css_font` e restituisce `<style>` con le sue variabili, oppure `''`. Lo stampano:
 
 - il layout auth e il layout `ecommerce.account` (aree `auth` e `account`);
 - `ecommerce.checkout` (area `checkout`);
@@ -296,8 +297,8 @@ Un helper del modulo ecommerce, `StoreFont::style(string $area): string` con `$a
   campi non pertinenti (dati azienda di un privato, fatturazione con «Uguale»).
 - **Doppio invio**: il bottone si disattiva all'invio; `place` rifiuta un carrello che non è
   più `stage = cart`.
-- **Font sconosciuto** salvato in una colonna (per esempio tolto dal catalogo): vale come
-  «Come il sito».
+- **Font sconosciuto** salvato in una colonna (per esempio cancellato o nascosto in
+  `css_font`): vale come «Come il sito».
 - **Icona sconosciuta** in `icons`: si salta.
 
 ### 12. Prove

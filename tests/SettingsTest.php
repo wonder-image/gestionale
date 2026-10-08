@@ -43,11 +43,48 @@ check('le colonne fiscali e dei documenti di G1 ci sono tutte', function () use 
     return array_diff($attese, $colonne(Setting::class)) === [];
 });
 
-check('il commerciante ha i suoi destinatari delle notifiche', fn () =>
-    in_array('merchant_notification_emails', $colonne(MerchantSetting::class), true)
+check('le email per gli ordini stanno in Set Up, vicino a quelle degli errori', function () use ($colonne) {
+    $campi = array_map(static fn ($field): string => (string) $field->name, SettingResource::formSchema());
+
+    return in_array('merchant_notification_emails', $colonne(Setting::class), true)
+        && !in_array('merchant_notification_emails', $colonne(MerchantSetting::class), true)
+        && in_array('merchant_notification_emails', $campi, true)
+        && !in_array('merchant_notification_emails', array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema()), true);
+});
+
+check('le email per gli ordini restano nel loro ambiente e si cambiano anche in produzione', fn () =>
+    in_array('merchant_notification_emails', Setting::syncSchema()->excludeColumns, true)
+    && SettingResource::editableWhenReadonly() === ['merchant_notification_emails']
 );
 
-check('le due pagine hanno padrone diverso', function () {
+check('ogni campo email dice quali email riceve', function () {
+    $etichette = SettingResource::labelSchema();
+
+    return stripos((string) ($etichette['merchant_notification_emails'] ?? ''), 'ordini') !== false
+        && stripos((string) ($etichette['developer_error_emails'] ?? ''), 'errori') !== false;
+});
+
+check('le email per gli ordini e per gli errori si salvano pulite', function () {
+    $valori = SettingResource::mutateRequestValues([
+        'merchant_notification_emails' => 'a@x.it; A@x.it  b@y.it',
+        'developer_error_emails' => ' dev@x.it ',
+    ], 'update');
+
+    return $valori['merchant_notification_emails'] === 'a@x.it, b@y.it'
+        && $valori['developer_error_emails'] === 'dev@x.it';
+});
+
+check('un indirizzo per gli ordini scritto male si rifiuta, nominandolo', function () {
+    try {
+        SettingResource::mutateRequestValues(['merchant_notification_emails' => 'a@x.it, anna.x.it'], 'update');
+    } catch (InvalidArgumentException $errore) {
+        return str_contains($errore->getMessage(), 'anna.x.it');
+    }
+
+    return false;
+});
+
+check('le tecniche sono solo di admin; quelle del commerciante anche di admin, che vede tutto', function () {
     $tecniche = SettingResource::permissionSchema()->toArray();
     $commerciante = MerchantSettingResource::permissionSchema()->toArray();
 
@@ -58,12 +95,12 @@ check('le due pagine hanno padrone diverso', function () {
     }
 
     foreach ($commerciante['backend'] ?? [] as $authorities) {
-        if ($authorities !== [] && $authorities !== ['administrator']) {
+        if ($authorities !== [] && $authorities !== ['admin', 'administrator']) {
             return false;
         }
     }
 
-    return true;
+    return (MerchantSettingResource::navigationSchema()->toArray()['authority'] ?? []) === ['admin', 'administrator'];
 });
 
 check('le tecniche stanno in Set Up, quelle del commerciante nel gestionale', fn () =>
@@ -157,24 +194,49 @@ check('le due impostazioni hanno un\'etichetta in italiano', function () {
         && trim((string) ($etichette['order_payment_wait_days'] ?? '')) !== '';
 });
 
-check('il commerciante sceglie il font di accesso, account, checkout e carrello', function () use ($colonne) {
-    $c = $colonne(MerchantSetting::class);
-    $schema = [];
-    foreach (MerchantSetting::tableSchema() as $column) {
-        $schema[(string) $column->name] = $column->schema;
-    }
+check('font e ordini senza account non stanno più nelle impostazioni del commerciante', function () use ($colonne, $forza) {
+    $forza(['online_sales' => true, 'low_stock_alerts' => true]);
+    $campi = array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema());
+    $via = [
+        'font_auth', 'font_account', 'font_cart', 'font_checkout', 'checkout_guest',
+        'font_auth_id', 'font_account_id', 'font_cart_id', 'font_checkout_id',
+    ];
 
-    return in_array('font_auth', $c, true) && in_array('font_account', $c, true)
-        && in_array('font_cart', $c, true) && in_array('font_checkout', $c, true)
-        && ($schema['font_checkout']['default'] ?? null) === 'inter';
+    return array_intersect($via, $colonne(MerchantSetting::class)) === []
+        && array_intersect($via, $campi) === []
+        && array_diff_key(array_flip($via), MerchantSettingResource::labelSchema()) === array_flip($via);
 });
 
-check('un font sconosciuto si salva vuoto, uno noto resta', function () {
-    $v = MerchantSettingResource::mutateRequestValues(['font_checkout' => 'comic', 'font_auth' => 'inter', 'font_cart' => ''], 'update');
+check('la pagina del commerciante si vede nel menu solo con gli avvisi di scorta', function () use ($forza) {
+    $forza(['low_stock_alerts' => false]);
+    $spenta = MerchantSettingResource::navigationSchema()->toArray()['enabled'] ?? null;
+    $forza(['low_stock_alerts' => true]);
+    $accesa = MerchantSettingResource::navigationSchema()->toArray()['enabled'] ?? null;
 
-    return $v['font_checkout'] === '' && $v['font_auth'] === 'inter' && $v['font_cart'] === '';
+    return $spenta === false && $accesa === true;
 });
 
 $forza(null);
+
+check('l\'interruttore delle spedizioni col deploy c\'è ed è acceso di base', function () {
+    $colonne = [];
+
+    foreach (Setting::tableSchema() as $column) {
+        $colonne[(string) $column->name] = $column;
+    }
+
+    $dati = array_map(static fn ($field): string => (string) $field->key, Setting::dataSchema());
+
+    return isset($colonne['shipping_sync'])
+        && (string) $colonne['shipping_sync']->getSchema('default') === 'true'
+        && in_array('shipping_sync', $dati, true);
+});
+
+check('l\'interruttore delle spedizioni si cambia dal form, con la sua etichetta', function () {
+    $campi = array_map(static fn ($field): string => (string) $field->name, SettingResource::formSchema());
+
+    return in_array('shipping_sync', $campi, true)
+        && trim((string) (SettingResource::labelSchema()['shipping_sync'] ?? '')) !== '';
+});
 
 summary();
