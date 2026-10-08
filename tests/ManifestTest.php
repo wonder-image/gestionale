@@ -40,6 +40,7 @@ check('il modulo dichiara i suoi comandi e nessuna dipendenza', fn () =>
         'Wonder\\Plugin\\Gestionale\\Console\\ImagesCommand',
         'Wonder\\Plugin\\Gestionale\\Console\\FeaturesDocCommand',
         'Wonder\\Plugin\\Gestionale\\Console\\StockAlertsCommand',
+        'Wonder\\Plugin\\Gestionale\\Console\\VariantSlugsCommand',
     ]
     && (array) $manifest->get('dependencies.modules', []) === []
 );
