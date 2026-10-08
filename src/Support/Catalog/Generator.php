@@ -69,14 +69,18 @@ final class Generator
 
             if ($reuse !== null && $reuse['variant_id'] > 0) {
                 $variantId = $reuse['variant_id'];
-                ProductVariant::update(['name' => $variant['label']], $variantId);
+                // Lo scheletro non aveva uno slug: prende quello del suo valore.
+                ProductVariant::update([
+                    'name' => $variant['label'],
+                    'slug' => Slug::uniqueWithin($variant['label'], ProductVariant::class, ['product_model_id' => $modelId]),
+                ], $variantId);
                 $reuse['variant_id'] = 0;
             } else {
                 $created = ProductVariant::create([
                     'code' => Code::make(ProductVariant::class, Codes::VARIANT),
                     'product_model_id' => $modelId,
                     'name' => $variant['label'],
-                    'slug' => Slug::make($variant['label'].'-'.$modelId.'-'.$valueId),
+                    'slug' => Slug::uniqueWithin($variant['label'], ProductVariant::class, ['product_model_id' => $modelId]),
                     'position' => ++$position,
                     'visible' => 'true',
                 ]);

@@ -38,7 +38,7 @@ final class Skeleton
                 'code' => Code::make(ProductVariant::class, Codes::VARIANT),
                 'product_model_id' => $modelId,
                 'name' => $modelName,
-                'slug' => Slug::make($modelName.'-'.$modelId),
+                'slug' => '',
                 'position' => 1,
                 'visible' => 'true',
             ]);
