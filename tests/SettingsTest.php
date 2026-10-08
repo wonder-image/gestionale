@@ -218,4 +218,25 @@ check('la pagina del commerciante si vede nel menu solo con gli avvisi di scorta
 
 $forza(null);
 
+check('l\'interruttore delle spedizioni col deploy c\'è ed è acceso di base', function () {
+    $colonne = [];
+
+    foreach (Setting::tableSchema() as $column) {
+        $colonne[(string) $column->name] = $column;
+    }
+
+    $dati = array_map(static fn ($field): string => (string) $field->key, Setting::dataSchema());
+
+    return isset($colonne['shipping_sync'])
+        && (string) $colonne['shipping_sync']->getSchema('default') === 'true'
+        && in_array('shipping_sync', $dati, true);
+});
+
+check('l\'interruttore delle spedizioni si cambia dal form, con la sua etichetta', function () {
+    $campi = array_map(static fn ($field): string => (string) $field->name, SettingResource::formSchema());
+
+    return in_array('shipping_sync', $campi, true)
+        && trim((string) (SettingResource::labelSchema()['shipping_sync'] ?? '')) !== '';
+});
+
 summary();

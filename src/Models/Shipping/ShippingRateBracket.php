@@ -6,6 +6,7 @@ use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Support\Columns;
+use Wonder\Plugin\Gestionale\Support\Shipping\ShippingSync;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -21,7 +22,7 @@ final class ShippingRateBracket extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return null;
+        return ShippingSync::schema();
     }
 
     public static function tableSchema(): array

@@ -51,6 +51,8 @@ final class Setting extends Model
             // ancora pagato e quanti giorni si aspetta il bonifico.
             Column::key('order_reservation_minutes')->int()->default(30),
             Column::key('order_payment_wait_days')->int()->default(7),
+            // Corrieri, metodi, zone e listini viaggiano col deploy (ShippingSync).
+            Column::key('shipping_sync')->enum(['true', 'false'])->default('true'),
             Column::key('fiscal_confirmed_at')->datetime(),
             Column::key('developer_error_emails')->type('TEXT'),
             Column::key('merchant_notification_emails')->type('TEXT'),
@@ -78,6 +80,7 @@ final class Setting extends Model
             Field::key('stamp_duty_auto')->text()->sanitize(false),
             Field::key('order_reservation_minutes')->number()->decimals(0),
             Field::key('order_payment_wait_days')->number()->decimals(0),
+            Field::key('shipping_sync')->text()->sanitize(false),
             Field::key('fiscal_confirmed_at')->date(),
             Field::key('developer_error_emails')->text(),
             Field::key('merchant_notification_emails')->text(),

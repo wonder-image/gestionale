@@ -73,6 +73,7 @@ final class SettingResource extends SingletonResource
             'developer_error_emails' => 'Email per gli errori tecnici',
             'order_reservation_minutes' => 'Minuti di prenotazione',
             'order_payment_wait_days' => 'Giorni di attesa del pagamento',
+            'shipping_sync' => 'Spedizioni col deploy',
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -108,6 +109,10 @@ final class SettingResource extends SingletonResource
             FormField::key('developer_error_emails')->text()->label('Email per gli errori tecnici'),
             FormField::key('order_reservation_minutes')->number()->decimal(0)->value(30)->label('Minuti di prenotazione')->required(),
             FormField::key('order_payment_wait_days')->number()->decimal(0)->value(7)->label('Giorni di attesa del pagamento')->required(),
+            FormField::key('shipping_sync')
+                ->select(['true' => 'Sì', 'false' => 'No'])
+                ->value('true')
+                ->label('Spedizioni col deploy'),
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -146,10 +151,11 @@ final class SettingResource extends SingletonResource
 
                 (new Card)->components([
                     SectionTitle::make('Vendite')
-                        ->tooltip('Quanto resta impegnata la merce di un ordine non ancora pagato, e per quanti giorni si aspetta il bonifico prima di annullare.')
+                        ->tooltip('Quanto resta impegnata la merce di un ordine non ancora pagato, e per quanti giorni si aspetta il bonifico prima di annullare. «Spedizioni col deploy»: con Sì corrieri, metodi, zone e listini partono da qui e in produzione si leggono soltanto; con No li gestisce il commerciante in produzione.')
                         ->columnSpan(12),
-                    static::getInput('order_reservation_minutes')->columnSpan(6),
-                    static::getInput('order_payment_wait_days')->columnSpan(6),
+                    static::getInput('order_reservation_minutes')->columnSpan(4),
+                    static::getInput('order_payment_wait_days')->columnSpan(4),
+                    static::getInput('shipping_sync')->columnSpan(4),
                 ])->columns(12)->columnSpan(12),
 
                 ...$modules,
