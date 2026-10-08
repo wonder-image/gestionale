@@ -16,6 +16,7 @@ use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Custom\Fattura\Valori\EsigibilitaIva;
 use Wonder\Plugin\Custom\Fattura\Valori\RegimiFiscali;
+use Wonder\Plugin\Gestionale\Extensions\SettingsSections;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
@@ -27,7 +28,8 @@ use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
  *
  * Quattro riquadri: Fiscale (regime, esigibilità, prezzi, aliquote di
  * ripiego), Documenti (sezionale e bollo), Vendite ed Email (chi riceve le
- * email degli ordini e chi quelle degli errori tecnici). Il salvataggio segna
+ * email degli ordini e chi quelle degli errori tecnici). Fra Vendite ed Email
+ * stanno quelli dei moduli accesi (`SettingsSections`). Il salvataggio segna
  * `fiscal_confirmed_at`: i Primi passi hanno bisogno di sapere che una persona
  * ha guardato i valori precaricati.
  *
@@ -55,7 +57,7 @@ final class SettingResource extends SingletonResource
 
     public static function labelSchema(): array
     {
-        return [
+        $labels = [
             'tax_regime' => 'Regime fiscale',
             'vat_collectability' => 'Esigibilità IVA',
             'transmitter_country' => 'Paese del trasmittente',
@@ -72,11 +74,17 @@ final class SettingResource extends SingletonResource
             'order_reservation_minutes' => 'Minuti di prenotazione',
             'order_payment_wait_days' => 'Giorni di attesa del pagamento',
         ];
+
+        foreach (SettingsSections::all() as $section) {
+            $labels += $section->labels();
+        }
+
+        return $labels;
     }
 
     public static function formSchema(): array
     {
-        return [
+        $fields = [
             FormField::key('tax_regime')->select(RegimiFiscali::Valori)->value('RF01')->label('Regime fiscale')->required(),
             FormField::key('vat_collectability')->select(EsigibilitaIva::Valori)->value('I')->label('Esigibilità IVA')->required(),
             FormField::key('transmitter_country')->country()->value('IT')->label('Paese del trasmittente'),
@@ -101,10 +109,19 @@ final class SettingResource extends SingletonResource
             FormField::key('order_reservation_minutes')->number()->decimal(0)->value(30)->label('Minuti di prenotazione')->required(),
             FormField::key('order_payment_wait_days')->number()->decimal(0)->value(7)->label('Giorni di attesa del pagamento')->required(),
         ];
+
+        foreach (SettingsSections::all() as $section) {
+            array_push($fields, ...$section->fields());
+        }
+
+        return $fields;
     }
 
     public static function formLayoutSchema(): ?Form
     {
+        $input = static fn (string $key): object => static::getInput($key);
+        $modules = array_map(static fn ($section) => $section->card($input), SettingsSections::all());
+
         return (new Form)->components([
             (new Container)->components([
                 (new Card)->components([
@@ -134,6 +151,8 @@ final class SettingResource extends SingletonResource
                     static::getInput('order_reservation_minutes')->columnSpan(6),
                     static::getInput('order_payment_wait_days')->columnSpan(6),
                 ])->columns(12)->columnSpan(12),
+
+                ...$modules,
 
                 (new Card)->components([
                     SectionTitle::make('Email')
@@ -184,7 +203,8 @@ final class SettingResource extends SingletonResource
     /**
      * La prima conferma di una persona vale per i Primi passi e non si
      * riscrive. Gli indirizzi si salvano puliti: uno storto si rifiuta adesso,
-     * nominandolo, invece di scoprirlo il giorno che l'email non arriva.
+     * nominandolo, invece di scoprirlo il giorno che l'email non arriva. I
+     * riquadri dei moduli puliscono i loro valori.
      */
     public static function mutateRequestValues(
         array $values,
@@ -204,6 +224,10 @@ final class SettingResource extends SingletonResource
             }
 
             $values[$key] = Recipients::join($parsed['valid']);
+        }
+
+        foreach (SettingsSections::all() as $section) {
+            $values = $section->mutate($values);
         }
 
         $confermata = trim((string) ($oldValues['fiscal_confirmed_at'] ?? ''));

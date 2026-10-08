@@ -15,9 +15,6 @@ use Wonder\Sql\TableSchema as Column;
  *
  * `low_stock_emails` sono i destinatari dell'email dei prodotti sotto scorta
  * minima: vuoto, l'email non parte e gli avvisi aspettano.
- *
- * `font_*` sono i font del negozio online per area (chiavi di `WebFonts`);
- * vuoto vuol dire come il sito.
  */
 final class MerchantSetting extends Model
 {
@@ -34,11 +31,6 @@ final class MerchantSetting extends Model
     {
         return [
             Column::key('low_stock_emails')->type('TEXT'),
-            Column::key('font_auth')->length(40),
-            Column::key('font_account')->length(40),
-            Column::key('font_cart')->length(40),
-            Column::key('font_checkout')->length(40)->default('inter'),
-            Column::key('checkout_guest')->enum(['true', 'false'])->default('false'),
         ];
     }
 
@@ -46,11 +38,6 @@ final class MerchantSetting extends Model
     {
         return [
             Field::key('low_stock_emails')->text(),
-            Field::key('font_auth')->text()->sanitize(false),
-            Field::key('font_account')->text()->sanitize(false),
-            Field::key('font_cart')->text()->sanitize(false),
-            Field::key('font_checkout')->text()->sanitize(false),
-            Field::key('checkout_guest')->text()->sanitize(false),
         ];
     }
 

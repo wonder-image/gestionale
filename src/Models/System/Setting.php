@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Models\System;
 use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Extensions\SettingsSections;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Sql\TableSchema as Column;
 
@@ -19,7 +20,8 @@ use Wonder\Sql\TableSchema as Column;
  * Qui stanno le scelte che si fanno una volta con il commercialista o in fase
  * di installazione. Quello che il commerciante cambia ogni giorno sta in
  * `MerchantSetting`: è la regola di 8.2, e ogni sotto-progetto aggiunge le sue
- * colonne alla riga giusta.
+ * colonne alla riga giusta. I moduli accesi aggiungono le loro coi riquadri di
+ * `SettingsSections`.
  */
 final class Setting extends Model
 {
@@ -34,7 +36,7 @@ final class Setting extends Model
 
     public static function tableSchema(): array
     {
-        return [
+        $columns = [
             Column::key('invoice_provider')->length(50),
             Column::key('tax_regime')->length(10)->default('RF01'),
             Column::key('vat_collectability')->length(5)->default('I'),
@@ -53,11 +55,17 @@ final class Setting extends Model
             Column::key('developer_error_emails')->type('TEXT'),
             Column::key('merchant_notification_emails')->type('TEXT'),
         ];
+
+        foreach (SettingsSections::all() as $section) {
+            array_push($columns, ...$section->columns());
+        }
+
+        return $columns;
     }
 
     public static function dataSchema(): array
     {
-        return [
+        $fields = [
             Field::key('invoice_provider')->text()->sanitize(false),
             Field::key('tax_regime')->text()->sanitize(false),
             Field::key('vat_collectability')->text()->sanitize(false),
@@ -74,6 +82,12 @@ final class Setting extends Model
             Field::key('developer_error_emails')->text(),
             Field::key('merchant_notification_emails')->text(),
         ];
+
+        foreach (SettingsSections::all() as $section) {
+            array_push($fields, ...$section->data());
+        }
+
+        return $fields;
     }
 
     /** La riga unica delle impostazioni, array vuoto se non c'è ancora. */

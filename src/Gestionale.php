@@ -19,7 +19,6 @@ final class Gestionale implements ModuleInterface, ModuleTasks
 
     private static ?array $config = null;
     private static ?array $features = null;
-    private static ?array $modules = null;
 
     public static function root(): string
     {
@@ -101,6 +100,7 @@ final class Gestionale implements ModuleInterface, ModuleTasks
         }
 
         $unlocked = [];
+        $modules = [];
 
         try {
             foreach (Models\System\Feature::find(['deleted' => 'false']) ?: [] as $row) {
@@ -108,46 +108,24 @@ final class Gestionale implements ModuleInterface, ModuleTasks
                     $unlocked[(string) ($row['feature_key'] ?? '')] = ($row['enabled'] ?? 'false') === 'true';
                 }
             }
+
+            $modules = array_map(
+                static fn ($manifest): string => $manifest->slug(),
+                \Wonder\App\Module\Registry::enabled()
+            );
         } catch (\Throwable) {
             // Senza database (test degli schemi, comandi fuori dal sito) non
             // si sa cosa sia sbloccato: **tutto bloccato** è la risposta
             // giusta, perché è quella che non mostra niente per sbaglio.
             $unlocked = [];
+            $modules = [];
         }
 
         return self::$features = Support\Features\FeatureState::resolve(
             Support\Features\FeatureCatalog::all(),
             $unlocked,
-            self::modules()
+            array_values($modules)
         );
-    }
-
-    /** Se un modulo è acceso nel sito, per esempio `ecommerce`. */
-    public static function module(string $slug): bool
-    {
-        return in_array($slug, self::modules(), true);
-    }
-
-    /**
-     * I moduli accesi, letti una volta per richiesta; senza registro (test
-     * degli schemi, comandi fuori dal sito) nessuno.
-     *
-     * @return list<string>
-     */
-    private static function modules(): array
-    {
-        if (self::$modules !== null) {
-            return self::$modules;
-        }
-
-        try {
-            return self::$modules = array_values(array_map(
-                static fn ($manifest): string => $manifest->slug(),
-                \Wonder\App\Module\Registry::enabled()
-            ));
-        } catch (\Throwable) {
-            return self::$modules = [];
-        }
     }
 
     /** Stato di una funzionalità; una chiave sconosciuta è sempre bloccata. */
@@ -186,6 +164,5 @@ final class Gestionale implements ModuleInterface, ModuleTasks
     {
         self::$config = null;
         self::$features = null;
-        self::$modules = null;
     }
 }

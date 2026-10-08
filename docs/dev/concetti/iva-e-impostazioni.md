@@ -124,7 +124,9 @@ fatture.
 La regola è questa: la configurazione tecnica e fiscale, quella che si decide
 una volta con il commercialista, sta in `settings`; le scelte quotidiane del
 commerciante stanno nelle sue. Ogni sotto-progetto aggiunge le proprie colonne
-alla riga giusta.
+alla riga giusta. Un modulo aggiunge le sue a `settings` con un riquadro suo
+(vedi [Hook del sito](hook.md#riquadri-dei-moduli-nelle-impostazioni)): il
+modulo ecommerce porta così font del negozio e ordini senza account.
 
 Salvare la pagina fiscale scrive `fiscal_confirmed_at`: i valori precaricati
 vanno bene per partire, ma i Primi passi devono sapere che una persona li ha

@@ -194,53 +194,23 @@ check('le due impostazioni hanno un\'etichetta in italiano', function () {
         && trim((string) ($etichette['order_payment_wait_days'] ?? '')) !== '';
 });
 
-check('il commerciante sceglie il font di accesso, account, checkout e carrello', function () use ($colonne) {
-    $c = $colonne(MerchantSetting::class);
-    $schema = [];
-    foreach (MerchantSetting::tableSchema() as $column) {
-        $schema[(string) $column->name] = $column->schema;
-    }
+check('font e ordini senza account non stanno più nelle impostazioni del commerciante', function () use ($colonne, $forza) {
+    $forza(['online_sales' => true, 'low_stock_alerts' => true]);
+    $campi = array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema());
+    $via = ['font_auth', 'font_account', 'font_cart', 'font_checkout', 'checkout_guest'];
 
-    return in_array('font_auth', $c, true) && in_array('font_account', $c, true)
-        && in_array('font_cart', $c, true) && in_array('font_checkout', $c, true)
-        && ($schema['font_checkout']['default'] ?? null) === 'inter';
+    return array_intersect($via, $colonne(MerchantSetting::class)) === []
+        && array_intersect($via, $campi) === []
+        && array_diff_key(array_flip($via), MerchantSettingResource::labelSchema()) === array_flip($via);
 });
 
-check('un font sconosciuto si salva vuoto, uno noto resta', function () {
-    $v = MerchantSettingResource::mutateRequestValues(['font_checkout' => 'comic', 'font_auth' => 'inter', 'font_cart' => ''], 'update');
+check('la pagina del commerciante si vede nel menu solo con gli avvisi di scorta', function () use ($forza) {
+    $forza(['low_stock_alerts' => false]);
+    $spenta = MerchantSettingResource::navigationSchema()->toArray()['enabled'] ?? null;
+    $forza(['low_stock_alerts' => true]);
+    $accesa = MerchantSettingResource::navigationSchema()->toArray()['enabled'] ?? null;
 
-    return $v['font_checkout'] === '' && $v['font_auth'] === 'inter' && $v['font_cart'] === '';
-});
-
-check('il commerciante accende il checkout dell\'ospite dalle impostazioni, spento per default', function () use ($colonne) {
-    $schema = [];
-    foreach (MerchantSetting::tableSchema() as $column) {
-        $schema[(string) $column->name] = $column->schema;
-    }
-
-    return in_array('checkout_guest', $colonne(MerchantSetting::class), true)
-        && ($schema['checkout_guest']['default'] ?? null) === 'false'
-        && MerchantSettingResource::mutateRequestValues(['checkout_guest' => 'true'], 'update')['checkout_guest'] === 'true'
-        && MerchantSettingResource::mutateRequestValues(['checkout_guest' => 'on'], 'update')['checkout_guest'] === 'false'
-        && MerchantSettingResource::mutateRequestValues(['checkout_guest' => ''], 'update')['checkout_guest'] === 'false';
-});
-
-$moduli = static function (?array $accesi): void {
-    (new ReflectionProperty(Gestionale::class, 'modules'))->setValue(null, $accesi);
-};
-
-check('font e ordini senza account si vedono col modulo ecommerce acceso, anche senza la vendita online', function () use ($forza, $moduli) {
-    $campi = static fn (): array => array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema());
-    $forza(['online_sales' => false]);
-
-    $moduli(['gestionale', 'ecommerce']);
-    $con = $campi();
-    $moduli(['gestionale']);
-    $senza = $campi();
-    $moduli(null);
-
-    return in_array('font_checkout', $con, true) && in_array('checkout_guest', $con, true)
-        && !in_array('font_checkout', $senza, true) && !in_array('checkout_guest', $senza, true);
+    return $spenta === false && $accesa === true;
 });
 
 $forza(null);

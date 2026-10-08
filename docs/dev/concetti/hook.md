@@ -74,3 +74,35 @@ public function beforeEmailSend(string $key, array $message): array
   `UserError`.
 - `Extensions::run()` avvisa e basta; `Extensions::filter()` fa passare un
   valore da un'estensione all'altra.
+
+## Riquadri dei moduli nelle Impostazioni
+
+Un modulo aggiunge un riquadro alle Impostazioni di Set Up senza toccare il
+gestionale: il suo entrypoint (quello del `module.json`) implementa
+`ProvidesSettings` e dà una o più `SettingsSection`.
+
+```php
+final class Ecommerce implements ModuleInterface, ProvidesSettings
+{
+    public static function settingsSections(): iterable
+    {
+        yield new OnlineShopSettings();
+    }
+}
+```
+
+Una `SettingsSection` dice colonne (`columns()`) e dati (`data()`) che entrano
+nella riga di `gst_settings`, campi (`fields()`) ed etichette (`labels()`) della
+pagina, il riquadro (`card($input)`, dove `$input('chiave')` dà il campo) e la
+pulizia dei valori prima del salvataggio (`mutate()`, che li riceve tutti).
+
+- Il riquadro sta fra «Vendite» ed «Email», nell'ordine dei moduli accesi.
+- Le colonne viaggiano col deploy come le altre e in produzione si leggono e
+  basta, come il resto della pagina.
+- Spento il modulo, `forge update` toglie le sue colonne insieme ai valori.
+- Un modulo che si rompe dando i suoi riquadri ferma la pagina e `forge update`:
+  tacerlo vorrebbe dire togliere le sue colonne. Senza registro dei moduli
+  (test, comandi fuori dal sito) i riquadri non ci sono.
+- Nei test `SettingsSections::use([...])` forza i riquadri; `use(null)` torna a
+  leggerli dai moduli.
+
