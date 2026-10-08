@@ -141,6 +141,59 @@ check('le istruzioni di pagamento stanno solo nella ricevuta e nel promemoria', 
     });
 });
 
+check('il bonifico porta in ricevuta e promemoria intestatario, banca, IBAN, BIC e causale col numero', function () {
+    return prova(static function (): bool {
+        $ordine = ordineConRiga();
+        $conto = Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount::create([
+            'name' => 'Conto di prova',
+            'holder' => 'Negozio & Figli Srl',
+            'bank_name' => 'Banca di Prova',
+            'iban' => 'IT60X0542811101000000123456',
+            'bic' => 'BPPIITRRXXX',
+            'active' => 'true',
+        ]);
+        $metodo = Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod::create([
+            'code' => 'tst_'.uniqid(),
+            'name' => 'Bonifico di prova',
+            'provider' => 'bank_transfer',
+            'payment_account_id' => (int) ($conto->insert_id ?? 0),
+            'timing' => 'deferred',
+            'active' => 'true',
+            'position' => 1,
+        ]);
+        Order::update(['payment_method_id' => (int) ($metodo->insert_id ?? 0)], $ordine);
+        $numero = (string) Order::findById($ordine)['order_number'];
+
+        $corpi = [];
+        Mailer::useTransport(static function (string $to, string $subject, string $body) use (&$corpi): bool {
+            $corpi[] = $body;
+
+            return true;
+        });
+
+        try {
+            $esiti = [];
+
+            foreach (['received', 'reminder', 'confirmed'] as $chiave) {
+                $corpi = [];
+                OrderNotifier::send($chiave, $ordine);
+                $esiti[$chiave] = implode(' ', $corpi);
+            }
+        } finally {
+            Mailer::useTransport(null);
+        }
+
+        $completa = static fn (string $corpo): bool => str_contains($corpo, 'Negozio &amp; Figli Srl')
+            && stripos($corpo, 'Banca di Prova') !== false
+            && str_contains($corpo, 'IT60 X054 2811 1010 0000 0123 456')
+            && str_contains($corpo, 'BPPIITRRXXX')
+            && str_contains($corpo, 'Ordine '.$numero);
+
+        return $completa($esiti['received']) && $completa($esiti['reminder'])
+            && !str_contains($esiti['confirmed'], 'IT60');
+    });
+});
+
 check('la personalizzazione sta sotto il nome in entrambe le email, con la & escapata una volta sola', function () {
     return prova(static function (): bool {
         $ordine = (array) Order::findById(ordineConRiga());

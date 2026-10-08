@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Orders;
 
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
@@ -46,9 +47,31 @@ final class OrderNotifier
         $email = OrderEmail::compose($key, $order, self::items($orderId), $extra + [
             'method' => is_array($method) ? (string) ($method['name'] ?? '') : '',
             'instructions' => is_array($method) ? (string) ($method['instructions'] ?? '') : '',
+            'bank' => self::bankAccount($method),
         ]);
 
         return Mailer::send('order.'.$key, $to, $email['subject'], $email['body']);
+    }
+
+    /**
+     * Il conto su cui fare il bonifico: quello scelto nel metodo, altrimenti il
+     * primo conto attivo — chi ha un conto solo spesso non lo collega. Vuoto
+     * per gli altri metodi o se manca l'IBAN.
+     *
+     * @return array<string, mixed>
+     */
+    private static function bankAccount(mixed $method): array
+    {
+        if (!is_array($method) || (string) ($method['provider'] ?? '') !== 'bank_transfer') {
+            return [];
+        }
+
+        $id = (int) ($method['payment_account_id'] ?? 0);
+        $account = $id > 0
+            ? PaymentAccount::findById($id)
+            : PaymentAccount::find(['active' => 'true', 'deleted' => 'false'], 1);
+
+        return is_array($account) && trim((string) ($account['iban'] ?? '')) !== '' ? $account : [];
     }
 
     /**
