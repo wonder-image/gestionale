@@ -44,7 +44,9 @@ final class Lifecycle
     /**
      * Il pagamento risulta, la merce esce, il cliente lo sa.
      *
-     * @param array{payment?: bool|null, provider?: string, provider_reference?: string, amount?: float, source?: string, user_id?: int, notify?: bool, email_extra?: array<string, string>} $options
+     * `merchant_notice` (bool): dopo l'email «confermato» al cliente manda anche `merchant_new` al commerciante.
+     *
+     * @param array{payment?: bool|null, provider?: string, provider_reference?: string, amount?: float, source?: string, user_id?: int, notify?: bool, merchant_notice?: bool, email_extra?: array<string, string>} $options
      * @return array{order_id: int, status: string, payment_status: string, committed: int, changed: bool}
      */
     public static function confirm(int $orderId, array $options = []): array
@@ -128,6 +130,11 @@ final class Lifecycle
             // Fuori dalla transazione: la posta è lenta e non deve tenere
             // aperto un blocco sulle righe di magazzino.
             OrderNotifier::send('confirmed', $orderId, (array) ($options['email_extra'] ?? []));
+
+            if (($options['merchant_notice'] ?? false) === true) {
+                // L'ordine pagato online arriva al commerciante qui, non al checkout.
+                OrderNotifier::send('merchant_new', $orderId);
+            }
         }
 
         return $result;
