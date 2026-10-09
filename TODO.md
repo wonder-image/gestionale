@@ -279,7 +279,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - campo «Prefisso» del telefono tagliato nel componente del core;
     - `ExpiryTest` («a metà strada parte il promemoria») conta tutti gli ordini in attesa del sito: va ristretto all'ordine che crea;
     - la pagina Coupon mostra anche i coupon validi solo in negozio (`applies_online=false`) e i `store_credit`: è voluto (sono coupon del cliente), da cambiare se si vogliono solo quelli usabili online
-  - [ ] `boilerplates/ecommerce-site/custom/config/navigation.php:92` usa ancora `'route' => 'ecommerce.account.index'`: va rinominato in `account.index`. Ogni sito già creato va rinominato allo stesso modo, come dice la migrazione nel CHANGELOG dell'ecommerce (una voce che punta a `ecommerce.account.index` passa a `account.index`); era rinominato solo il sito di prova `ecommerce-site-account`, eliminato il 2026-10-09. Il vecchio nome non ha alias (non si risolve più). Non l'ha toccato la sessione del piano 2: il boilerplate è di un'altra sessione
+  - [x] `boilerplates/ecommerce-site/custom/config/navigation.php:92`: la voce account punta ad `account.index` (2026-10-09, commit e358590 su `main` del boilerplate). Ogni sito già creato va rinominato allo stesso modo, come dice la migrazione nel CHANGELOG dell'ecommerce (una voce che punta a `ecommerce.account.index` passa a `account.index`). Il vecchio nome non ha alias (non si risolve più): finché il `vendor` del sito punta a rami senza il pannello del core (oggi i worktree `pagamento-stripe`), l'icona account non compare nel menu
 - [ ] Rilascio `1.0.0` di gestionale ed ecommerce
 - [ ] Sito del cliente sopra `boilerplates/ecommerce-site`: tema, contenuti, prodotti veri, Stripe in produzione, collaudo
 
