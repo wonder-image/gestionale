@@ -3,12 +3,9 @@
 namespace Wonder\Plugin\Gestionale\Support\Contacts;
 
 use Wonder\Elements\Components\DataItem;
-use Wonder\Plugin\Gestionale\Gestionale;
-use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
-use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
-use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
+use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 
 /**
  * La scheda del cliente: statistiche in HTML, dati in `DataItem`.
@@ -155,37 +152,21 @@ final class CustomerSheet
      */
     public static function coupons(int $customerId): array
     {
-        if ($customerId <= 0 || !Gestionale::feature('coupons')) {
-            return [];
-        }
-
         $now = date('Y-m-d H:i:s');
-        $rows = [];
 
-        foreach (self::list(CouponCustomer::find(['customer_id' => $customerId])) as $link) {
-            $coupon = Coupon::find(['id' => (int) $link['coupon_id']], 1);
-
-            if (!is_array($coupon) || !isset($coupon['id'])) {
-                continue;
-            }
-
-            $used = count(array_filter(
-                self::list(CouponRedemption::find(['coupon_id' => (int) $coupon['id'], 'customer_id' => $customerId])),
-                static fn (array $row): bool => trim((string) ($row['released_at'] ?? '')) === '' || str_starts_with((string) $row['released_at'], '0000-00-00')
-            ));
+        return array_map(static function (array $reserved) use ($now): array {
+            $coupon = $reserved['coupon'];
             $limit = (int) ($coupon['usage_limit_per_customer'] ?? 0);
 
-            $rows[] = [
+            return [
                 'code' => (string) $coupon['code'],
                 'name' => (string) ($coupon['name'] ?? ''),
                 'discount' => CouponResource::discountLabel($coupon),
                 'period' => CouponResource::periodLabel($coupon),
-                'used' => $limit > 0 ? $used.' / '.$limit : (string) $used,
+                'used' => $limit > 0 ? $reserved['used'].' / '.$limit : (string) $reserved['used'],
                 'state' => CouponResource::statusLabel($coupon, $now),
             ];
-        }
-
-        return $rows;
+        }, Coupons::reserved($customerId));
     }
 
     /** La tabella dei coupon del cliente, o la frase se non ne ha. */
@@ -208,16 +189,6 @@ final class CustomerSheet
         return '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr>'
             .'<th>Codice</th><th>Sconto</th><th>Periodo</th><th>Usato</th><th>Stato</th>'
             .'</tr></thead><tbody>'.$body.'</tbody></table></div>';
-    }
-
-    /** @return list<array<string, mixed>> */
-    private static function list(mixed $found): array
-    {
-        if (!is_array($found) || $found === []) {
-            return [];
-        }
-
-        return array_key_exists('id', $found) ? [$found] : array_values(array_filter($found, 'is_array'));
     }
 
     /** Il giorno senza l'ora: `10/09/2026`; un trattino se manca. */

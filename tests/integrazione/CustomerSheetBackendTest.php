@@ -1,7 +1,7 @@
 <?php
 /** php tests/integrazione/CustomerSheetBackendTest.php */
 
-const SITE = '/Users/andreamarinoni/Developer/boilerplates/ecommerce-site';
+define('SITE', getenv('WI_TEST_SITE') ?: '/Users/andreamarinoni/Developer/boilerplates/ecommerce-site');
 
 chdir(SITE);
 $GLOBALS['ROOT'] = SITE;
@@ -349,6 +349,22 @@ check('coupons(): i coupon riservati al cliente, con sconto, stato e utilizzi su
             && ($per[$codiceB]['discount'] ?? '') === 'Spedizione gratuita'
             && ($per[$codiceB]['state'] ?? '') === 'Disattivato'
             && ($per[$codiceB]['used'] ?? '') === '0';
+    });
+});
+
+check('Coupons::reserved(): coupon riservati con gli usi non rilasciati del cliente', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['coupons']);
+        $cliente = clienteDiProva();
+        $a = couponRiservato([$cliente], ['code' => 'RISERVA', 'usage_limit_per_customer' => '3']);
+        couponRiservato([$cliente + 999]);
+        $ordine = ordineDiProva(10.0);
+        CouponRedemption::create(['coupon_id' => $a, 'order_id' => $ordine, 'customer_id' => $cliente, 'email' => 'a@example.com', 'discount_amount' => '1.00', 'redeemed_at' => date('Y-m-d H:i:s')]);
+        CouponRedemption::create(['coupon_id' => $a, 'order_id' => $ordine, 'customer_id' => $cliente, 'email' => 'a@example.com', 'discount_amount' => '1.00', 'redeemed_at' => date('Y-m-d H:i:s'), 'released_at' => date('Y-m-d H:i:s')]);
+        $righe = \Wonder\Plugin\Gestionale\Support\Promotions\Coupons::reserved($cliente);
+
+        return count($righe) === 1 && $righe[0]['coupon']['code'] === 'RISERVA' && $righe[0]['used'] === 1
+            && \Wonder\Plugin\Gestionale\Support\Promotions\Coupons::reserved(0) === [];
     });
 });
 

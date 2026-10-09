@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /** I pagamenti: incassi, rimborsi e lo stato che ne discende. */
 
-const SITE = '/Users/andreamarinoni/Developer/boilerplates/ecommerce-site';
+define('SITE', getenv('WI_TEST_SITE') ?: '/Users/andreamarinoni/Developer/boilerplates/ecommerce-site');
 
 chdir(SITE);
 $GLOBALS['ROOT'] = SITE;
