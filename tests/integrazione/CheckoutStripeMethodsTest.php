@@ -40,6 +40,8 @@ function prova(callable $corpo): mixed
         });
     } catch (Annulla) {
         // Voluto: i dati della prova non restano.
+    } finally {
+        PaymentProviders::reset();
     }
 
     return $esito;
@@ -67,14 +69,30 @@ function cacheMetodi(?array $valore): void
     Setting::update(['stripe_methods_cache' => $valore === null ? '' : json_encode($valore)], $id);
 }
 
-/** Stripe collegato (chiavi finte) con questi tipi in cache: nessuna chiamata di rete. */
-function stripeConTipi(array $tipi): void
+/**
+ * Stripe collegato (chiavi finte) con questi tipi in cache: nessuna chiamata
+ * di rete. Con `$scaduta` la cache è vecchia e una lettura partirebbe: il
+ * finto restituito le registra.
+ */
+function stripeConTipi(array $tipi, bool $scaduta = false): FakeStripeHttp
 {
-    FakeStripeHttp::install();
+    $http = FakeStripeHttp::install();
     StripeProvider::forget();
     PaymentProviders::reset();
     PaymentProviders::register(new StripeProvider(chiavi()));
-    cacheMetodi(['environment' => 'test', 'account' => 'acct_prova_test', 'types' => $tipi, 'fetched_at' => time()]);
+    cacheMetodi(['environment' => 'test', 'account' => 'acct_prova_test', 'types' => $tipi, 'fetched_at' => $scaduta ? time() - 3600 : time()]);
+
+    return $http;
+}
+
+function configurazioni(array $tipi): array
+{
+    $configurazione = ['id' => 'pmc_prova', 'object' => 'payment_method_configuration', 'active' => true, 'is_default' => true];
+    foreach ($tipi as $tipo) {
+        $configurazione[$tipo] = ['available' => true];
+    }
+
+    return ['object' => 'list', 'url' => '/v1/payment_method_configurations', 'has_more' => false, 'data' => [$configurazione]];
 }
 
 const TIPI = ['card', 'apple_pay', 'google_pay', 'link', 'klarna', 'sepa_debit'];
@@ -260,5 +278,87 @@ check('place su un metodo non Stripe ignora stripe_method_type', fn () => prova(
 }));
 
 PaymentProviders::reset();
+
+check('con un metodo non Stripe scelto in place, Stripe collegato non viene letto', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    $http = stripeConTipi(TIPI, true);
+    $esito = compra(metodoBonifico());
+
+    return $esito['status'] === 'pending' && $http->requests === [];
+}));
+
+check('se tra i metodi attivi non c\'è Stripe, il preview non legge Stripe', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    $http = stripeConTipi(TIPI, true);
+    $voci = anteprima(metodoBonifico())['payment_methods']['options'];
+
+    return count($voci) === 1 && $http->requests === [];
+}));
+
+check('un carrello che non c\'è si rifiuta senza leggere Stripe, in preview e in place', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    $http = stripeConTipi(TIPI, true);
+    $id = metodoStripe();
+
+    return rifiuto(fn () => Checkout::preview(0, ['payment_method_id' => $id])) === 'cart.not_a_cart'
+        && rifiuto(fn () => Checkout::place(0, ['payment_method_id' => $id])) === 'cart.not_a_cart'
+        && $http->requests === [];
+}));
+
+check('con Stripe tra i metodi attivi il preview legge i tipi una volta, a cache scaduta', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    $http = stripeConTipi(TIPI, true);
+    $http->queue(200, configurazioni(['card', 'klarna']));
+    $id = metodoStripe();
+    $tipi = array_column(array_filter(anteprima($id)['payment_methods']['options'], static fn (array $v): bool => $v['id'] === $id), 'stripe_method_type');
+
+    return $tipi === ['card', 'klarna']
+        && count($http->requests) === 1
+        && $http->path(0) === '/v1/payment_method_configurations';
+}));
+
+check('con Stripe scelto in place i tipi si leggono una volta, a cache scaduta', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    $http = stripeConTipi(TIPI, true);
+    $http->queue(200, configurazioni(['card', 'klarna']));
+    $esito = compra(metodoStripe(), ['stripe_method_type' => 'klarna']);
+
+    return providerMethod($esito) === 'klarna' && count($http->requests) === 1;
+}));
+
+check('un payment_method_id con il tipo attaccato non diventa l\'id in silenzio', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    stripeConTipi(TIPI);
+    $id = metodoStripe();
+    $cart = carrelloSenzaSpedizione();
+    $selected = Checkout::preview($cart, ['payment_method_id' => "{$id}:klarna"])['payment_methods']['selected'];
+    $rifiuto = rifiuto(fn () => Checkout::place($cart, [
+        'email' => 'cliente@example.com',
+        'payment_method_id' => "{$id}:klarna",
+        'fulfillment_type' => 'shipping',
+        'billing' => ['country' => 'IT', 'province' => 'MI', 'city' => 'Milano', 'cap' => '20100', 'street' => 'Via Prova', 'number' => '1', 'name' => 'Mario', 'surname' => 'Rossi'],
+    ]));
+    $resta = (string) Wonder\Plugin\Gestionale\Models\Sales\Order::findById($cart)['stage'] === 'cart';
+
+    return $rifiuto === 'order.payment_method_unavailable' && $selected === 0 && $resta;
+}));
+
+check('il client dei test non esce dalla rete: la carta sola, e un errore chiaro per il resto', fn () => prova(static function (): bool {
+    $senzaRete = StripeSenzaRete::install();
+    StripeProvider::forget();
+    cacheMetodi(null);
+    $tipi = (new StripeProvider(chiavi()))->activeTypes();
+    $errore = '';
+
+    try {
+        (new \Stripe\StripeClient(['api_key' => 'sk_test_prova']))->customers->create(['email' => 'cliente@example.com']);
+    } catch (\Stripe\Exception\ApiErrorException $e) {
+        $errore = $e->getMessage();
+    }
+
+    return $tipi === ['card']
+        && $senzaRete->requests[0] === 'GET /v1/payment_method_configurations'
+        && str_contains($errore, 'Test senza rete');
+}));
 
 summary();

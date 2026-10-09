@@ -52,8 +52,9 @@ final class Checkout
      */
     public static function place(int $cartId, array $data): array
     {
-        // I tipi accesi in Stripe si leggono qui, fuori dalla transazione.
-        $stripeTypes = self::stripeTypes();
+        // I tipi accesi in Stripe si leggono qui, fuori dalla transazione, e
+        // solo se il metodo scelto è Stripe.
+        $stripeTypes = self::stripeTypes($cartId, [self::paymentMethodId($data['payment_method_id'] ?? 0)]);
 
         try {
             $result = self::create($cartId, $data, $stripeTypes);
@@ -154,8 +155,9 @@ final class Checkout
      */
     public static function preview(int $cartId, array $data): array
     {
-        // Fuori dalla transazione: la chiamata a Stripe non deve tenere bloccato il carrello.
-        $stripeTypes = self::stripeTypes();
+        // Fuori dalla transazione: la chiamata a Stripe non deve tenere bloccato
+        // il carrello. Si legge solo se fra i metodi attivi ce n'è uno Stripe.
+        $stripeTypes = self::stripeTypes($cartId, null);
 
         return Transaction::run(static function () use ($cartId, $data, $stripeTypes): array {
             $cart = Order::findForUpdate(['id' => $cartId], 1);
@@ -192,7 +194,7 @@ final class Checkout
             $payment = null;
 
             foreach ($payments as $candidate) {
-                if ((int) $candidate['id'] === (int) $data['payment_method_id']) {
+                if ((int) $candidate['id'] === self::paymentMethodId($data['payment_method_id'])) {
                     $payment = $candidate;
                 }
             }
@@ -282,7 +284,7 @@ final class Checkout
             }
 
             $type = self::fulfillment($data);
-            $method = self::method((int) ($data['payment_method_id'] ?? 0), $type);
+            $method = self::method(self::paymentMethodId($data['payment_method_id'] ?? 0), $type);
             $stripeMethod = '';
 
             // Su Stripe la scelta (carta, Klarna…) deve essere una di quelle offerte.
@@ -443,13 +445,58 @@ final class Checkout
      * I tipi accesi nel conto Stripe, letti fuori dalla transazione: la
      * chiamata a Stripe non deve tenere bloccato il carrello.
      *
+     * Si legge solo quando serve: il carrello c'è, Stripe è collegato e fra i
+     * metodi in gioco ce n'è uno Stripe (`$methodIds`: quelli scelti, oppure
+     * `null` per tutti i metodi attivi, come nell'anteprima). Altrimenti
+     * `['card']`, che chi non usa Stripe non guarda.
+     *
+     * @param list<int>|null $methodIds
      * @return list<string>
      */
-    private static function stripeTypes(): array
+    private static function stripeTypes(int $cartId, ?array $methodIds): array
     {
         $provider = PaymentProviders::get('stripe');
 
-        return $provider instanceof StripeProvider && $provider->connected() ? $provider->activeTypes() : ['card'];
+        if (!$provider instanceof StripeProvider || !$provider->connected()) {
+            return ['card'];
+        }
+
+        $cart = Order::findById($cartId);
+
+        if (!is_array($cart) || $cart === [] || (string) ($cart['stage'] ?? '') !== 'cart') {
+            return ['card'];
+        }
+
+        $methods = $methodIds === null
+            ? self::rows(PaymentMethod::find(['active' => 'true']))
+            : array_filter(array_map(static fn (int $id): mixed => $id > 0 ? PaymentMethod::findById($id) : null, $methodIds), 'is_array');
+
+        foreach ($methods as $method) {
+            if (PaymentMethod::ledgerProvider((string) ($method['provider'] ?? '')) === 'stripe') {
+                return $provider->activeTypes();
+            }
+        }
+
+        return ['card'];
+    }
+
+    /**
+     * L'id del metodo di pagamento come lo manda il chiamante. Un valore che
+     * non è un numero intero (per esempio «891:klarna», che l'ecommerce deve
+     * spezzare prima) non diventa 891 in silenzio: vale -1, che nessun metodo
+     * ha.
+     */
+    private static function paymentMethodId(mixed $value): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if ($value === null || $value === '') {
+            return 0;
+        }
+
+        return is_string($value) && ctype_digit(trim($value)) ? (int) trim($value) : -1;
     }
 
     /**

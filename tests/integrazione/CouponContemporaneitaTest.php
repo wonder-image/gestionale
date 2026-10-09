@@ -19,6 +19,8 @@ $GLOBALS['ROOT'] = SITE;
 
 require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
+// Anche i processi figli (che non passano dall'harness) restano senza rete verso Stripe.
+require_once __DIR__.'/../supporto/StripeSenzaRete.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
