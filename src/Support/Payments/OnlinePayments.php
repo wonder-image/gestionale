@@ -21,6 +21,9 @@ use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
  */
 final class OnlinePayments
 {
+    /** @var array<int, true>|null gli ordini con un pagamento di prova, letti una volta per richiesta */
+    private static ?array $testOrders = null;
+
     /** L'ultima riga di pagamento online dell'ordine. @return array<string, mixed>|null */
     public static function payment(int $orderId): ?array
     {
@@ -38,9 +41,13 @@ final class OnlinePayments
             return false;
         }
 
-        $row = Payment::find(['order_id' => $orderId, 'environment' => 'test', 'deleted' => 'false'], 1);
+        if (self::$testOrders === null) {
+            $rows = Payment::find(['environment' => 'test', 'deleted' => 'false'], null, null, null, 'order_id');
+            $rows = is_array($rows) && isset($rows['order_id']) ? [$rows] : array_filter((array) $rows, 'is_array');
+            self::$testOrders = array_fill_keys(array_map(static fn (array $row): int => (int) $row['order_id'], $rows), true);
+        }
 
-        return is_array($row) && $row !== [];
+        return isset(self::$testOrders[$orderId]);
     }
 
     /**
@@ -69,6 +76,7 @@ final class OnlinePayments
 
         $start = $provider->start($order, $payment);
         Ledger::attach((int) $payment['id'], $provider->code(), $start->reference, $start->environment);
+        self::$testOrders = null;
 
         return $start;
     }

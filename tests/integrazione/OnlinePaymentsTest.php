@@ -228,6 +228,23 @@ check('inTest riconosce l\'ordine pagato con le chiavi di prova', fn () => prova
     return OnlinePayments::inTest($prova) && !OnlinePayments::inTest($vero) && !OnlinePayments::inTest(0);
 }));
 
+/** Le istruzioni mandate finora sulla connessione del gestionale. */
+function domande(): int
+{
+    return (int) (Order::query()->mysqli->query("SHOW SESSION STATUS LIKE 'Questions'")->fetch_row()[1] ?? 0);
+}
+
+check('inTest su una pagina di ordini legge i pagamenti di prova una volta sola', fn () => prova(static function (): bool {
+    [$prova] = ordineStripe();
+    OnlinePayments::start($prova);
+    OnlinePayments::inTest($prova);
+    $prima = domande();
+    $esiti = array_map(static fn (int $id): bool => OnlinePayments::inTest($id), range($prova, $prova + 29));
+
+    // Una per leggere il contatore.
+    return domande() - $prima <= 1 && $esiti[0] && !in_array(true, array_slice($esiti, 1), true);
+}));
+
 PaymentProviders::reset();
 check('succeeded rifiuta un incasso che non copre più il totale dell\'ordine', fn () => prova(static function (): bool {
     [$ordine, , $intento] = intentoLegato(50.0);
