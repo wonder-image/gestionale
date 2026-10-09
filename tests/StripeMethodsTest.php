@@ -27,6 +27,9 @@ check('le scelte: carta, poi gli altri in ordine alfabetico; Link sta nella barr
 check('Apple Pay e Google Pay non sono scelte; la carta c\'è sempre', fn () =>
     StripeMethods::choices(['apple_pay', 'google_pay', 'klarna']) === ['card', 'klarna'] && StripeMethods::choices([]) === ['card']);
 
+check('i metodi a voucher o a istruzioni (Multibanco…) non sono scelte: il pagamento resta in sospeso dopo il ritorno', fn () =>
+    StripeMethods::choices(['card', 'multibanco', 'customer_balance', 'oxxo', 'boleto', 'konbini', 'klarna']) === ['card', 'klarna']);
+
 check('nomi: la carta tiene quello della riga, gli sconosciuti diventano leggibili', fn () =>
     StripeMethods::name('card', 'Carta di credito') === 'Carta di credito'
     && StripeMethods::name('link', 'x') === 'Link'

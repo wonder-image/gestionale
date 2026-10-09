@@ -15,6 +15,9 @@ final class StripeMethods
     /** Vanno nella barra rapida, non fra le scelte del modulo. */
     private const WALLETS = ['apple_pay', 'google_pay', 'link'];
 
+    /** Si pagano dopo, con un riferimento o delle istruzioni: al ritorno l'intento è ancora aperto e il checkout lo annullerebbe. */
+    private const DELAYED = ['multibanco', 'customer_balance', 'oxxo', 'boleto', 'konbini'];
+
     /** Le icone che la carta mostra: solo i circuiti, gli altri metodi hanno la loro voce. */
     private const CARD_ICONS = ['visa', 'master', 'maestro', 'american_express', 'diners_club', 'discover', 'jcb', 'unionpay'];
 
@@ -30,7 +33,6 @@ final class StripeMethods
         'klarna' => 'Klarna',
         'link' => 'Link',
         'mobilepay' => 'MobilePay',
-        'multibanco' => 'Multibanco',
         'p24' => 'Przelewy24',
         'paypal' => 'PayPal',
         'revolut_pay' => 'Revolut Pay',
@@ -74,7 +76,7 @@ final class StripeMethods
      */
     public static function choices(array $types): array
     {
-        $others = array_values(array_diff($types, ['card'], self::WALLETS));
+        $others = array_values(array_diff($types, ['card'], self::WALLETS, self::DELAYED));
         sort($others);
 
         return array_merge(['card'], $others);
