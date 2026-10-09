@@ -802,7 +802,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-## Compito 6 (ecommerce): radio per scelta, niente barra in cima
+## Compito 6 (ecommerce): un radio per ogni scelta
 
 **File:**
 - Modifica: `src/Frontend/Checkout/CheckoutRules.php`, `src/Frontend/Checkout/CheckoutSummary.php`, `src/Frontend/Checkout/CheckoutController.php`, `view/pages/checkout/index.php`
