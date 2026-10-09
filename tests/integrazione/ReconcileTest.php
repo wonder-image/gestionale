@@ -246,6 +246,8 @@ check('con il fornitore non collegato non fa nulla', fn () => prova(static funct
     return $esito === ['payments' => 0, 'events' => 0] && stato($ordine) === 'pending';
 }));
 
+check('Reconcile non scrive SQL a mano: le condizioni passano dal core', static fn (): bool => !str_contains((string) file_get_contents(__DIR__.'/../../src/Support/Payments/Reconcile.php'), 'addslashes'));
+
 check('nessuna email vera: finiti i test la posta resta quella finta', static fn (): bool => (new ReflectionProperty(\Wonder\Plugin\Gestionale\Support\Mail\Mailer::class, 'transport'))->getValue() !== null);
 
 PaymentProviders::reset();

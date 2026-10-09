@@ -45,13 +45,19 @@ final class Reconcile
     {
         $code = $provider->code();
         $done = 0;
-        $rows = Payment::find(
-            "provider = '".addslashes($code)."' AND type = 'payment' AND status IN ('pending', 'failed')"
-            ." AND provider_reference <> '' AND environment = '".addslashes($provider->environment())."'"
-            ." AND deleted = 'false'"
-        );
+        $rows = Payment::find([
+            'provider' => $code,
+            'type' => 'payment',
+            'status' => ['pending', 'failed'],
+            'environment' => $provider->environment(),
+            'deleted' => 'false',
+        ]);
 
         foreach (self::rows($rows) as $payment) {
+            if ((string) $payment['provider_reference'] === '') {
+                continue;
+            }
+
             $orderId = (int) $payment['order_id'];
             $reference = (string) $payment['provider_reference'];
             $pending = (string) $payment['status'] === 'pending';
@@ -94,16 +100,20 @@ final class Reconcile
         $environment = $provider->environment();
         $received = date('Y-m-d H:i:s', strtotime($now) - self::GRACE);
         $done = 0;
-        $rows = ProviderEvent::find(
-            "provider = '".addslashes($code)."' AND environment = '".addslashes($environment)."' AND deleted = 'false'"
-            ." AND ((status = 'received' AND creation <= '".addslashes($received)."')"
-            ." OR (status = 'failed' AND attempts < ".ProviderEvents::MAX_ATTEMPTS.'))'
-        );
+        $rows = ProviderEvent::find([
+            'provider' => $code,
+            'environment' => $environment,
+            'status' => ['received', 'failed'],
+            'deleted' => 'false',
+        ]);
 
         foreach (self::rows($rows) as $row) {
             $eventId = (string) $row['event_id'];
+            $waiting = (string) $row['status'] === 'received'
+                ? (string) $row['creation'] > $received
+                : (int) $row['attempts'] >= ProviderEvents::MAX_ATTEMPTS || !self::due($row, $now);
 
-            if ((string) $row['status'] === 'failed' && !self::due($row, $now)) {
+            if ($waiting) {
                 continue;
             }
 
