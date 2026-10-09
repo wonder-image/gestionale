@@ -177,6 +177,110 @@ check('start: un intento in verifica non ne apre un altro', fn () => prova(stati
     }
 }));
 
+function configurazioni(array $tipi): array
+{
+    $configurazione = ['id' => 'pmc_prova', 'object' => 'payment_method_configuration', 'active' => true, 'is_default' => true];
+    foreach ($tipi as $tipo) {
+        $configurazione[$tipo] = ['available' => true];
+    }
+
+    return ['object' => 'list', 'url' => '/v1/payment_method_configurations', 'has_more' => false, 'data' => [$configurazione]];
+}
+
+function cacheMetodi(?array $valore): void
+{
+    $id = (int) \Wonder\Plugin\Gestionale\Models\System\Setting::current()['id'];
+    \Wonder\Plugin\Gestionale\Models\System\Setting::update(['stripe_methods_cache' => $valore === null ? '' : json_encode($valore)], $id);
+}
+
+check('senza cache i tipi si leggono da Stripe e si mettono in cache', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(null);
+    $http->queue(200, configurazioni(['card', 'klarna']));
+    $tipi = (new StripeProvider(chiavi()))->activeTypes();
+    $cache = json_decode((string) \Wonder\Plugin\Gestionale\Models\System\Setting::current()['stripe_methods_cache'], true);
+
+    return $tipi === ['card', 'klarna']
+        && $http->path(0) === '/v1/payment_method_configurations'
+        && $http->header(0, 'Stripe-Account') === 'acct_prova_test'
+        && $cache['environment'] === 'test' && $cache['account'] === 'acct_prova_test' && $cache['types'] === ['card', 'klarna'];
+}));
+
+check('cache valida: nessuna chiamata', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(['environment' => 'test', 'account' => 'acct_prova_test', 'types' => ['card', 'paypal'], 'fetched_at' => time() - 60]);
+
+    return (new StripeProvider(chiavi()))->activeTypes() === ['card', 'paypal'] && $http->requests === [];
+}));
+
+check('cache scaduta: si rilegge', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(['environment' => 'test', 'account' => 'acct_prova_test', 'types' => ['card', 'paypal'], 'fetched_at' => time() - 601]);
+    $http->queue(200, configurazioni(['card', 'klarna']));
+
+    return (new StripeProvider(chiavi()))->activeTypes() === ['card', 'klarna'] && count($http->requests) === 1;
+}));
+
+check('cache di un altro ambiente: non vale', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(['environment' => 'test', 'account' => 'acct_prova_test', 'types' => ['card', 'paypal'], 'fetched_at' => time()]);
+    $http->queue(200, configurazioni(['card']));
+    $tipi = (new StripeProvider(chiavi(['stripe_test' => false])))->activeTypes();
+
+    return $tipi === ['card'] && $http->header(0, 'Stripe-Account') === 'acct_prova_live';
+}));
+
+check('cache di un altro conto: non vale', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(['environment' => 'test', 'account' => 'acct_vecchio', 'types' => ['card', 'paypal'], 'fetched_at' => time()]);
+    $http->queue(200, configurazioni(['card', 'klarna']));
+
+    return (new StripeProvider(chiavi()))->activeTypes() === ['card', 'klarna'];
+}));
+
+check('chiamata fallita con cache scaduta: si usa la cache', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(['environment' => 'test', 'account' => 'acct_prova_test', 'types' => ['card', 'paypal'], 'fetched_at' => time() - 9999]);
+    $http->queue(500, ['error' => ['message' => 'giù']]);
+
+    return (new StripeProvider(chiavi()))->activeTypes() === ['card', 'paypal'];
+}));
+
+check('chiamata fallita senza cache: solo la carta', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(null);
+    $http->queue(500, ['error' => ['message' => 'giù']]);
+
+    return (new StripeProvider(chiavi()))->activeTypes() === ['card'];
+}));
+
+check('non collegato: solo la carta, senza chiamate', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(null);
+
+    return (new StripeProvider(chiavi(['stripe_test_key' => ''])))->activeTypes() === ['card'] && $http->requests === [];
+}));
+
+check('nella stessa richiesta Stripe si chiama una volta sola', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(null);
+    $http->queue(200, configurazioni(['card', 'klarna']));
+    $provider = new StripeProvider(chiavi());
+    $provider->activeTypes();
+    cacheMetodi(null);
+
+    return $provider->activeTypes() === ['card', 'klarna'] && count($http->requests) === 1;
+}));
+
 check('status traduce lo stato e porta importo, valuta e ordine', function () {
     $http = FakeStripeHttp::install();
     $http->queue(200, intento(['status' => 'succeeded', 'amount_received' => 1234]));

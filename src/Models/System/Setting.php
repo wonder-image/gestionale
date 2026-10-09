@@ -15,7 +15,8 @@ use Wonder\Sql\TableSchema as Column;
  *
  * Fa eccezione `merchant_notification_emails`, chi riceve le email degli
  * ordini: non viaggia col deploy, perché ogni ambiente ha i suoi destinatari,
- * e si cambia anche in produzione.
+ * e si cambia anche in produzione. Lo stesso vale per `stripe_methods_cache`,
+ * la lettura dei metodi del conto Stripe: è di quell'ambiente e quel conto.
  *
  * Qui stanno le scelte che si fanno una volta con il commercialista o in fase
  * di installazione. Quello che il commerciante cambia ogni giorno sta in
@@ -31,7 +32,7 @@ final class Setting extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails']);
+        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'stripe_methods_cache']);
     }
 
     public static function tableSchema(): array
@@ -56,6 +57,8 @@ final class Setting extends Model
             Column::key('fiscal_confirmed_at')->datetime(),
             Column::key('developer_error_emails')->type('TEXT'),
             Column::key('merchant_notification_emails')->type('TEXT'),
+            // Tipi di pagamento accesi nel conto Stripe, riletti ogni dieci minuti (§11b).
+            Column::key('stripe_methods_cache')->type('TEXT'),
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -84,6 +87,7 @@ final class Setting extends Model
             Field::key('fiscal_confirmed_at')->date(),
             Field::key('developer_error_emails')->text(),
             Field::key('merchant_notification_emails')->text(),
+            Field::key('stripe_methods_cache')->text()->sanitize(false),
         ];
 
         foreach (SettingsSections::all() as $section) {

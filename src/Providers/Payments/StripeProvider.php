@@ -6,7 +6,9 @@ use Throwable;
 use Wonder\App\Credentials;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Providers\ExternalReferences;
 use Wonder\Plugin\Stripe\PaymentIntent;
 
@@ -31,6 +33,12 @@ final class StripeProvider implements PaymentProvider
         'canceled' => PaymentState::CANCELED,
     ];
 
+    /** Quanto vale la lettura dei tipi accesi nel conto, in secondi. */
+    public const CACHE_SECONDS = 600;
+
+    /** @var array<string, list<string>> ambiente|conto → tipi, per la richiesta in corso */
+    private static array $types = [];
+
     public function __construct(private readonly ?object $api = null)
     {
     }
@@ -44,6 +52,12 @@ final class StripeProvider implements PaymentProvider
     public static function methodTypes(string $column): array
     {
         return array_values(array_filter(array_map('trim', explode(',', $column)), 'strlen'));
+    }
+
+    /** Svuota la memoria per richiesta dei tipi (la usano i test). */
+    public static function forget(): void
+    {
+        self::$types = [];
     }
 
     public function code(): string
@@ -111,6 +125,57 @@ final class StripeProvider implements PaymentProvider
         $intent = $intents->create($params, $attempt === 1 ? $code : $code.'-'.$attempt);
 
         return new PaymentStart((string) $intent->id, (string) $intent->client_secret, $environment);
+    }
+
+    /**
+     * I tipi di pagamento accesi nel conto collegato (§11b). Si legge Stripe
+     * al massimo ogni dieci minuti; se Stripe non risponde vale l'ultima
+     * lettura, e senza nessuna lettura resta la carta.
+     *
+     * @return list<string>
+     */
+    public function activeTypes(): array
+    {
+        if (!$this->connected()) {
+            return ['card'];
+        }
+
+        $environment = $this->environment();
+        $account = $this->keys($environment)['account'];
+        $memo = $environment.'|'.$account;
+
+        if (isset(self::$types[$memo])) {
+            return self::$types[$memo];
+        }
+
+        $settings = Setting::current();
+        $cache = json_decode((string) ($settings['stripe_methods_cache'] ?? ''), true);
+        $same = is_array($cache)
+            && ($cache['environment'] ?? '') === $environment
+            && ($cache['account'] ?? '') === $account
+            && is_array($cache['types'] ?? null);
+
+        if ($same && time() - (int) ($cache['fetched_at'] ?? 0) < self::CACHE_SECONDS) {
+            return self::$types[$memo] = array_values($cache['types']);
+        }
+
+        try {
+            $types = StripeMethods::typesFrom($this->intents($environment)->paymentMethodConfigurations());
+
+            Setting::update(['stripe_methods_cache' => json_encode([
+                'environment' => $environment,
+                'account' => $account,
+                'types' => $types,
+                'fetched_at' => time(),
+            ])], (int) ($settings['id'] ?? 0));
+        } catch (Throwable $error) {
+            // Stripe non risponde: vale l'ultima lettura dello stesso conto, o la carta.
+            // Nel messaggio non ci sono chiavi: Stripe le maschera.
+            Errors::report('stripe', 'payment_methods.read', $error, ['environment' => $environment]);
+            $types = $same ? array_values($cache['types']) : ['card'];
+        }
+
+        return self::$types[$memo] = $types;
     }
 
     public function status(string $reference): PaymentState
