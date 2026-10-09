@@ -178,7 +178,7 @@ class ProductResource extends ProductModelResource
         // legame va rimandato indietro lo stesso: `afterUpdate()` riscrive
         // quello che arriva, e un campo assente cancellerebbe il valore.
         foreach ($attributi['sales'] as $attribute) {
-            $fields[] = FormField::key('attribute_'.(int) $attribute['id'])->hidden();
+            $fields[] = FormField::key('attribute_' . (int) $attribute['id'])->hidden();
         }
 
         foreach ($attributi['technical'] as $attribute) {
@@ -373,7 +373,7 @@ class ProductResource extends ProductModelResource
             $nascosti = [];
 
             foreach ($attributi['sales'] as $attribute) {
-                $nascosti[] = static::getInput('attribute_'.(int) $attribute['id'])->columnSpan(12);
+                $nascosti[] = static::getInput('attribute_' . (int) $attribute['id'])->columnSpan(12);
             }
 
             $voci = static::salesOptions(
@@ -406,10 +406,10 @@ class ProductResource extends ProductModelResource
 
         if ($sedi) {
             $spiegazione = 'Una riga per sede: la giacenza scritta diventa una rettifica su quella sede, vuota non tocca niente. Per lasciare una causale e una nota c\'è la rettifica.'
-                .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso per quella sede, e con zero non arriva niente.' : '');
+                . ($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso per quella sede, e con zero non arriva niente.' : '');
         } else {
             $spiegazione = 'Qui la giacenza si legge. Si scrive nella riga della griglia delle opzioni in vendita, oppure con una rettifica quando serve lasciare una causale e una nota.'
-                .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso, e con zero non arriva niente.' : '');
+                . ($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso, e con zero non arriva niente.' : '');
         }
 
         $finestra = static::stockAdjustModal($productId, static::editUrlFor($productId));
@@ -560,11 +560,11 @@ class ProductResource extends ProductModelResource
         $html = '<dl class="row mb-0">';
 
         foreach ($voci as $voce) {
-            $html .= '<dt class="col-4 fw-normal text-body-secondary">'.static::escape($voce['name']).'</dt>'
-                .'<dd class="col-8 mb-1">'.static::escape($voce['value']).'</dd>';
+            $html .= '<dt class="col-4 fw-normal text-body-secondary">' . static::escape($voce['name']) . '</dt>'
+                . '<dd class="col-8 mb-1">' . static::escape($voce['value']) . '</dd>';
         }
 
-        return $html.'</dl>';
+        return $html . '</dl>';
     }
 
     /** Le caratteristiche della scheda tecnica dell'opzione: le sue, non quelle dell'articolo. */
@@ -604,16 +604,16 @@ class ProductResource extends ProductModelResource
         }
 
         $levels = Levels::of($productId);
-        $parts = ['<b>Giacenza:</b> '.static::escape(static::plainNumber($levels['quantity'])).' pezzi'];
+        $parts = ['<b>Giacenza:</b> ' . static::escape(static::plainNumber($levels['quantity'])) . ' pezzi'];
 
         if (Gestionale::feature('orders')) {
-            $parts[] = 'impegnati '.static::escape(static::plainNumber($levels['reserved']));
-            $parts[] = 'disponibili '.static::escape(static::plainNumber($levels['available']));
+            $parts[] = 'impegnati ' . static::escape(static::plainNumber($levels['reserved']));
+            $parts[] = 'disponibili ' . static::escape(static::plainNumber($levels['available']));
         }
 
         // La rettifica non porta via dalla scheda: apre la finestra (P119).
         $parts[] = '<button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#'
-            .static::ADJUST_MODAL.'"><i class="bi bi-pencil-square me-1"></i>Rettifica</button>';
+            . static::ADJUST_MODAL . '"><i class="bi bi-pencil-square me-1"></i>Rettifica</button>';
 
         return implode(' · ', $parts);
     }
@@ -664,7 +664,7 @@ class ProductResource extends ProductModelResource
             $tabella->filterLimit(false);
             $tabella->filterCustom(false);
             $tabella->length(5);
-            $tabella->query('`product_id` = '.$productId." AND `deleted` = 'false'");
+            $tabella->query('`product_id` = ' . $productId . " AND `deleted` = 'false'");
             $tabella->queryOrder('id', 'DESC');
 
             $html = (string) $tabella->generate(false);
@@ -705,8 +705,8 @@ class ProductResource extends ProductModelResource
             ->submit('Salva la rettifica')
             ->render('bootstrap');
 
-        return '<template data-wi-stock-adjust="'.static::ADJUST_MODAL.'">'.$finestra.'</template>'
-            .static::stockAdjustScript();
+        return '<template data-wi-stock-adjust="' . static::ADJUST_MODAL . '">' . $finestra . '</template>'
+            . static::stockAdjustScript();
     }
 
     /**
@@ -775,14 +775,14 @@ HTML;
                 ->link('edit')
                 // Le righe nate prima che il nome esistesse mostrano lo SKU:
                 // meglio un codice di una casella vuota.
-                ->formatter(static fn (array $row): string => static::escape(
+                ->formatter(static fn(array $row): string => static::escape(
                     trim((string) ($row['name'] ?? '')) !== ''
                         ? (string) $row['name']
                         : (string) ($row['sku'] ?? '')
                 )),
             TableColumn::key('product_model_id')
                 ->text()
-                ->formatter(static fn (array $row): string => static::escape(
+                ->formatter(static fn(array $row): string => static::escape(
                     static::modelNames()[(int) ($row['product_model_id'] ?? 0)] ?? '—'
                 )),
             TableColumn::key('sku')->text(),
@@ -790,7 +790,7 @@ HTML;
             TableColumn::key('available')
                 ->text()
                 ->size('little')
-                ->formatter(static fn (array $row): string => static::optionAvailableCell($row)),
+                ->formatter(static fn(array $row): string => static::optionAvailableCell($row)),
             // Le stesse due parole dell'articolo: un'opzione o sta nel
             // negozio o è ancora in lavorazione, e chi legge la scheda non
             // deve tradurre «attiva» in «pubblicata». La pillola si clicca
@@ -886,18 +886,18 @@ HTML;
      */
     public static function listUrlFor(int $modelId): string
     {
-        $base = '/backend/'.static::path();
+        $base = '/backend/' . static::path();
 
         if (function_exists('__r')) {
             try {
-                $named = (string) __r('backend.resource.'.static::slug().'.list');
+                $named = (string) __r('backend.resource.' . static::slug() . '.list');
                 $base = $named !== '' ? $named : $base;
             } catch (\Throwable) {
                 // Rotta non registrata: resta il percorso.
             }
         }
 
-        return $base.'?prodotto='.$modelId;
+        return $base . '?prodotto=' . $modelId;
     }
 
     /**
@@ -908,14 +908,14 @@ HTML;
      */
     public static function editUrlFor(int $productId): string
     {
-        $fallback = '/backend/'.static::path().'/'.$productId.'/edit/';
+        $fallback = '/backend/' . static::path() . '/' . $productId . '/edit/';
 
         if (!function_exists('__r')) {
             return $fallback;
         }
 
         try {
-            $named = (string) __r('backend.resource.'.static::slug().'.edit', ['id' => $productId]);
+            $named = (string) __r('backend.resource.' . static::slug() . '.edit', ['id' => $productId]);
         } catch (\Throwable) {
             return $fallback;
         }
@@ -1042,7 +1042,7 @@ HTML;
 
         foreach ($attributes as $attribute) {
             $attributeId = (int) $attribute['id'];
-            $input[$attributeId] = $_POST['attribute_'.$attributeId] ?? null;
+            $input[$attributeId] = $_POST['attribute_' . $attributeId] ?? null;
         }
 
         ProductAttributes::save('product', (int) $id, $attributes, $input);
@@ -1149,7 +1149,7 @@ HTML;
 
         foreach (Attributes::byLevel(static::attributes(), 'product') as $attribute) {
             $attributeId = (int) $attribute['id'];
-            $values['attribute_'.$attributeId] = static::attributeValue($attribute, $links[$attributeId] ?? null);
+            $values['attribute_' . $attributeId] = static::attributeValue($attribute, $links[$attributeId] ?? null);
         }
 
         // Soglie e righe per sede non sono colonne dell'opzione. Dopo un
@@ -1235,7 +1235,7 @@ HTML;
         $model = static::modelNames()[(int) ($product['product_model_id'] ?? 0)] ?? '';
         $variant = static::variantNames()[(int) ($product['product_variant_id'] ?? 0)] ?? '';
 
-        return trim($model.($variant === '' || $variant === $model ? '' : ' · '.$variant)) ?: 'Prodotto';
+        return trim($model . ($variant === '' || $variant === $model ? '' : ' · ' . $variant)) ?: 'Prodotto';
     }
 
     /** @return array<int, string> */
@@ -1271,9 +1271,7 @@ HTML;
     }
 
     /** Un'opzione non si crea da qui: non c'è niente da preparare. */
-    public static function afterStore(object $result, array $values = []): void
-    {
-    }
+    public static function afterStore(object $result, array $values = []): void {}
 
     protected static function attributeField(array $attribute): Input
     {
