@@ -147,6 +147,36 @@ check('un intento annullato lascia il posto a uno nuovo, con la chiave -2', fn (
         && $http->requests[1]['params']['metadata']['attempt'] === '2';
 }));
 
+check('start: un intento già incassato non ne apre un altro', fn () => prova(static function () use ($ordine, $pagamento): bool {
+    ExternalReferences::save('contact', 987654321, 'stripe', 'customer', 'cus_salvato', 'test');
+    $http = FakeStripeHttp::install();
+    $http->queue(200, intento(['id' => 'pi_vecchio', 'status' => 'succeeded', 'amount_received' => 1234]));
+    $http->queue(200, intento(['id' => 'pi_doppio']));
+
+    try {
+        (new StripeProvider(chiavi()))->start($ordine, ['provider_reference' => 'pi_vecchio'] + $pagamento);
+
+        return false;
+    } catch (RuntimeException) {
+        return count($http->requests) === 1 && $http->requests[0]['method'] === 'GET';
+    }
+}));
+
+check('start: un intento in verifica non ne apre un altro', fn () => prova(static function () use ($ordine, $pagamento): bool {
+    ExternalReferences::save('contact', 987654321, 'stripe', 'customer', 'cus_salvato', 'test');
+    $http = FakeStripeHttp::install();
+    $http->queue(200, intento(['id' => 'pi_vecchio', 'status' => 'processing']));
+    $http->queue(200, intento(['id' => 'pi_doppio']));
+
+    try {
+        (new StripeProvider(chiavi()))->start($ordine, ['provider_reference' => 'pi_vecchio'] + $pagamento);
+
+        return false;
+    } catch (RuntimeException) {
+        return count($http->requests) === 1 && $http->requests[0]['method'] === 'GET';
+    }
+}));
+
 check('status traduce lo stato e porta importo, valuta e ordine', function () {
     $http = FakeStripeHttp::install();
     $http->queue(200, intento(['status' => 'succeeded', 'amount_received' => 1234]));

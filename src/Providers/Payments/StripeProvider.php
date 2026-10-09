@@ -76,6 +76,11 @@ final class StripeProvider implements PaymentProvider
                 return new PaymentStart((string) $old->id, (string) $old->client_secret, $environment);
             }
 
+            // Già incassato o in verifica (SEPA): aprirne un altro farebbe pagare due volte.
+            if (in_array((string) $old->status, ['succeeded', 'processing'], true)) {
+                throw new \RuntimeException('Pagamento già incassato o in verifica: si attende la conferma di Stripe.');
+            }
+
             $attempt = (int) ($old->metadata['attempt'] ?? 1) + 1;
         }
 
