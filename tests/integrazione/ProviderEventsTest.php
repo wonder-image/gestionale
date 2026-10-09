@@ -89,6 +89,29 @@ try {
                 && (int) ($riga['attempts'] ?? 0) === ProviderEvents::MAX_ATTEMPTS;
         });
 
+        check('un evento ritentato aggiorna tipo e contenuto sulla stessa riga', function () use ($provider) {
+            $ritentato = 'evt_ritentato_'.bin2hex(random_bytes(3));
+            ProviderEvents::receive($provider, $ritentato, 'payment.processing', ['amount' => 1000]);
+            ProviderEvents::markFailed($provider, $ritentato, 'rete giù');
+            ProviderEvents::receive($provider, $ritentato, 'payment.succeeded', ['amount' => 2500]);
+            $riga = ProviderEvents::find($provider, $ritentato);
+
+            return ($riga['type'] ?? '') === 'payment.succeeded'
+                && str_contains((string) ($riga['payload'] ?? ''), '2500');
+        });
+
+        check('il client_secret non si salva nel contenuto dell\'evento', function () use ($provider) {
+            $segreto = 'evt_segreto_'.bin2hex(random_bytes(3));
+            ProviderEvents::receive($provider, $segreto, 'payment.succeeded', [
+                'data' => ['object' => ['id' => 'pi_x', 'client_secret' => 'pi_x_secret_prova', 'charges' => [['client_secret' => 'annidato_prova']]]],
+            ]);
+            $payload = (string) (ProviderEvents::find($provider, $segreto)['payload'] ?? '');
+
+            return str_contains($payload, 'pi_x')
+                && !str_contains($payload, 'pi_x_secret_prova')
+                && !str_contains($payload, 'annidato_prova');
+        });
+
         throw new Annulla();
     });
 } catch (Annulla) {

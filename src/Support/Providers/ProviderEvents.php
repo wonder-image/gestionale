@@ -28,8 +28,17 @@ final class ProviderEvents
 
         if ($existing !== null) {
             // Già elaborato: il rinvio non rifà il lavoro. Ricevuto o fallito:
-            // il rinvio è il nuovo tentativo, sulla stessa riga.
-            return (string) ($existing['status'] ?? '') !== 'processed';
+            // il rinvio è il nuovo tentativo, sulla stessa riga, col contenuto nuovo.
+            if ((string) ($existing['status'] ?? '') === 'processed') {
+                return false;
+            }
+
+            sqlModify(ProviderEvent::$table, [
+                'type' => trim($type),
+                'payload' => self::encode($payload),
+            ], 'id', (int) $existing['id']);
+
+            return true;
         }
 
         $result = sqlInsert(ProviderEvent::$table, [
@@ -37,7 +46,7 @@ final class ProviderEvents
             'environment' => self::environment($environment),
             'event_id' => trim($eventId),
             'type' => trim($type),
-            'payload' => (string) json_encode($payload, JSON_UNESCAPED_UNICODE),
+            'payload' => self::encode($payload),
             'status' => 'received',
             'attempts' => 0,
         ]);
@@ -105,5 +114,17 @@ final class ProviderEvents
         $environment = strtolower(trim($environment));
 
         return in_array($environment, ProviderEvent::ENVIRONMENTS, true) ? $environment : 'live';
+    }
+
+    /** Il contenuto da salvare, senza i `client_secret`: nel registro non servono. */
+    private static function encode(array $payload): string
+    {
+        $strip = static function (array $data) use (&$strip): array {
+            unset($data['client_secret']);
+
+            return array_map(static fn (mixed $value): mixed => is_array($value) ? $strip($value) : $value, $data);
+        };
+
+        return (string) json_encode($strip($payload), JSON_UNESCAPED_UNICODE);
     }
 }

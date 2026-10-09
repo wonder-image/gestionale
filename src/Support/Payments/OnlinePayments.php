@@ -103,6 +103,13 @@ final class OnlinePayments
             throw new PaymentMismatch("Intento {$reference}: {$amount} centesimi al posto di ".(int) round((float) $row['amount'] * 100).'.');
         }
 
+        // La riga può essere vecchia: l'incasso deve coprire ancora quanto resta dell'ordine.
+        $due = self::dueCents($order, (int) $row['id']);
+
+        if ($amount !== $due) {
+            throw new PaymentMismatch("Intento {$reference}: {$amount} centesimi, all'ordine ne restano {$due}.");
+        }
+
         $expected = (string) ($order['currency'] ?? '') ?: 'EUR';
 
         if (strtolower($currency) !== strtolower($expected)) {
@@ -217,5 +224,16 @@ final class OnlinePayments
         }
 
         return $written;
+    }
+
+    /** Il totale dell'ordine meno gli altri incassi già arrivati, al netto dei rimborsi, in centesimi. */
+    private static function dueCents(array $order, int $paymentId): int
+    {
+        $rows = Payment::find(['order_id' => (int) $order['id'], 'deleted' => 'false']);
+        $rows = isset($rows['id']) ? [$rows] : array_values(array_filter((array) $rows, 'is_array'));
+        $others = array_filter($rows, static fn (array $row): bool => (int) $row['id'] !== $paymentId);
+        $sums = PaymentStatus::sums($others);
+
+        return (int) round(((float) $order['total'] - $sums['paid'] + $sums['refunded']) * 100);
     }
 }

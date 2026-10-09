@@ -229,6 +229,32 @@ check('inTest riconosce l\'ordine pagato con le chiavi di prova', fn () => prova
 }));
 
 PaymentProviders::reset();
+check('succeeded rifiuta un incasso che non copre più il totale dell\'ordine', fn () => prova(static function (): bool {
+    [$ordine, , $intento] = intentoLegato(50.0);
+    destinatariCommerciante('');
+    // Il totale è cambiato dopo l'avvio del pagamento.
+    Order::update(['total' => '60.00'], $ordine);
+
+    try {
+        OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+    } catch (\Wonder\Plugin\Gestionale\Support\Payments\PaymentMismatch) {
+        return true;
+    }
+
+    return false;
+}));
+
+check('succeeded accetta il residuo quando parte dell\'ordine è già pagata', fn () => prova(static function (): bool {
+    $ordine = ordineDiProva(50.0);
+    destinatariCommerciante('');
+    Ledger::register(['order_id' => $ordine, 'amount' => 10.0, 'provider' => 'manual', 'source' => 'manual']);
+    $pagamento = Ledger::open(['order_id' => $ordine, 'amount' => 40.0, 'provider' => 'stripe'])['payment_id'];
+    $intento = 'pi_res_'.uniqid();
+    Ledger::attach($pagamento, 'stripe', $intento, 'test');
+
+    return (OnlinePayments::succeeded('stripe', $intento, 4000, 'eur', $ordine, 'webhook')['status'] ?? '') === 'confirmed';
+}));
+
 check('nessuna email vera: finiti i test la posta resta quella finta', static fn (): bool => (new ReflectionProperty(\Wonder\Plugin\Gestionale\Support\Mail\Mailer::class, 'transport'))->getValue() !== null);
 
 summary();
