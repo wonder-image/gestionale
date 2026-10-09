@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Support\Orders;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
@@ -42,6 +43,9 @@ use Wonder\Sql\Transaction;
  */
 final class Cart
 {
+    /** Le scelte del modulo di checkout che il carrello tiene, oltre agli indirizzi. */
+    private const FORM_KEYS = ['email', 'phone', 'fulfillment_type', 'shipping_method_id', 'location_id', 'payment_method_id', 'customer_note'];
+
     /**
      * Il carrello dell'ospite o del cliente: quello che c'è, o uno nuovo.
      *
@@ -636,6 +640,88 @@ final class Cart
             Order::delete($guestCartId);
 
             return self::recalculate($targetCartId);
+        });
+    }
+
+    /**
+     * Rimette nel carrello quello che c'era in un ordine non pagato: righe,
+     * scelte del modulo e coupon, per riprovare con un altro metodo.
+     *
+     * Le righe si copiano, non si spostano: l'ordine annullato resta nel
+     * gestionale com'era. Va chiamato dopo l'annullo, quando la merce
+     * prenotata è tornata libera; quello che nel frattempo manca si taglia
+     * alla giacenza, e un articolo che non si vende più esce con il nome in
+     * `removed`. Un coupon che non vale più resta fuori in silenzio: il
+     * cliente lo rivede vuoto nel riepilogo.
+     *
+     * @return array{order: array<string, mixed>, items: list<array<string, mixed>>, removed: list<string>, coupon_dropped: string, shipping_dropped: string, shipping_saved: string}
+     */
+    public static function restore(int $orderId, int $cartId): array
+    {
+        return Transaction::run(static function () use ($orderId, $cartId): array {
+            self::cart($cartId);
+            $order = $orderId > 0 ? Order::findById($orderId) : null;
+
+            if (!is_array($order) || $order === []) {
+                return self::recalculate($cartId);
+            }
+
+            $all = self::items($orderId);
+            $removed = [];
+
+            foreach ($all as $item) {
+                if ((int) ($item['parent_item_id'] ?? 0) > 0 || (string) ($item['type'] ?? '') !== 'product') {
+                    continue;
+                }
+
+                $productId = (int) ($item['product_id'] ?? 0);
+                $kids = self::childrenOf($all, (int) $item['id']);
+                $wanted = round((float) $item['quantity'], 3);
+                $wanted = $kids === []
+                    ? self::capped($productId, $wanted)
+                    : self::cappedPacks(self::perPack($item, $kids), $wanted);
+
+                try {
+                    if ($wanted <= 0) {
+                        throw UserError::make('cart.product_unavailable');
+                    }
+
+                    self::add($cartId, [
+                        'product_id' => $productId,
+                        'quantity' => $wanted,
+                        'customization' => Customizations::valuesOf(Customizations::decode($item['customization'] ?? '')),
+                        'choices' => self::optionIds($all, (int) $item['id']),
+                    ]);
+                } catch (UserError) {
+                    $removed[] = (string) $item['name'];
+                }
+            }
+
+            $form = array_merge(self::FORM_KEYS, Order::shippingAddress()->keys(), Order::billingAddress()->keys());
+            // Un campo vuoto non passa la validazione: resta com'è sul carrello.
+            $values = array_filter(
+                array_intersect_key($order, array_flip($form)),
+                static fn (mixed $value): bool => trim((string) $value) !== '' && (string) $value !== '0'
+            );
+
+            if ($values !== []) {
+                Order::update($values, $cartId);
+            }
+
+            $coupon = (int) ($order['coupon_id'] ?? 0) > 0 ? Coupon::findById((int) $order['coupon_id']) : null;
+
+            if (is_array($coupon) && trim((string) ($coupon['code'] ?? '')) !== '') {
+                try {
+                    Coupons::apply($cartId, (string) $coupon['code']);
+                } catch (UserError) {
+                    // Non vale più: il riepilogo lo mostra senza.
+                }
+            }
+
+            $result = self::recalculate($cartId);
+            $result['removed'] = array_values(array_merge($removed, $result['removed']));
+
+            return $result;
         });
     }
 
