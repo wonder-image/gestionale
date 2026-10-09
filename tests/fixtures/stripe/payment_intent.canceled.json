@@ -1,0 +1,18 @@
+{
+  "id": "evt_prova_canceled",
+  "object": "event",
+  "type": "payment_intent.canceled",
+  "livemode": false,
+  "data": {
+    "object": {
+      "id": "pi_prova",
+      "object": "payment_intent",
+      "amount": 5000,
+      "amount_received": 0,
+      "currency": "eur",
+      "status": "canceled",
+      "latest_charge": null,
+      "metadata": {"order_id": "0", "order_code": "", "payment_code": "", "attempt": "1"}
+    }
+  }
+}

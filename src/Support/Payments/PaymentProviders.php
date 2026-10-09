@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Payments;
 
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Providers\Payments\PaymentProvider;
+use Wonder\Plugin\Gestionale\Providers\Payments\StripeProvider;
 
 /**
  * I provider che il checkout online può usare davvero: i manuali sempre,
@@ -23,6 +24,12 @@ final class PaymentProviders
 
     public static function get(string $code): ?PaymentProvider
     {
+        // Stripe c'è sempre: se nessuno ha registrato un altro adapter (i test),
+        // si usa quello vero, con le credenziali del sito.
+        if (!isset(self::$providers[$code]) && $code === 'stripe') {
+            self::$providers[$code] = new StripeProvider();
+        }
+
         return self::$providers[$code] ?? null;
     }
 

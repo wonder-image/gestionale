@@ -1,0 +1,21 @@
+{
+  "id": "evt_prova_refunded",
+  "object": "event",
+  "type": "charge.refunded",
+  "livemode": false,
+  "data": {
+    "object": {
+      "id": "ch_prova",
+      "object": "charge",
+      "amount": 5000,
+      "amount_refunded": 2000,
+      "currency": "eur",
+      "payment_intent": "pi_prova",
+      "metadata": {"order_id": "0"},
+      "refunds": {
+        "object": "list",
+        "data": [{"id": "re_prova_1", "object": "refund", "amount": 2000, "status": "succeeded"}]
+      }
+    }
+  }
+}

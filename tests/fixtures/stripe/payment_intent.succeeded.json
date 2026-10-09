@@ -1,0 +1,18 @@
+{
+  "id": "evt_prova_succeeded",
+  "object": "event",
+  "type": "payment_intent.succeeded",
+  "livemode": false,
+  "data": {
+    "object": {
+      "id": "pi_prova",
+      "object": "payment_intent",
+      "amount": 5000,
+      "amount_received": 5000,
+      "currency": "eur",
+      "status": "succeeded",
+      "latest_charge": "ch_prova",
+      "metadata": {"order_id": "0", "order_code": "", "payment_code": "", "attempt": "1"}
+    }
+  }
+}
