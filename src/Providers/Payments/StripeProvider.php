@@ -82,11 +82,17 @@ final class StripeProvider implements PaymentProvider
         $code = (string) $payment['code'];
         $previous = trim((string) ($payment['provider_reference'] ?? ''));
         $attempt = 1;
+        $types = $this->intentTypes($order, $payment);
 
         if (str_starts_with($previous, 'pi_')) {
             $old = $intents->get($previous);
 
             if (in_array((string) $old->status, self::REUSABLE, true)) {
+                // La scelta può essere cambiata dopo un rifiuto: l'intento segue.
+                if ($types !== [] && self::sorted($types) !== self::sorted((array) ($old->payment_method_types ?? []))) {
+                    $old = $intents->update((string) $old->id, ['payment_method_types' => $types]);
+                }
+
                 return new PaymentStart((string) $old->id, (string) $old->client_secret, $environment);
             }
 
@@ -115,7 +121,6 @@ final class StripeProvider implements PaymentProvider
             $params['customer'] = $customer;
         }
 
-        $types = self::methodTypes((string) ($this->method($order)['stripe_payment_method_types'] ?? ''));
         if ($types !== []) {
             $params['payment_method_types'] = $types;
         } else {
@@ -301,6 +306,35 @@ final class StripeProvider implements PaymentProvider
         ExternalReferences::save('contact', $contactId, 'stripe', 'customer', (string) $customer->id, $environment);
 
         return (string) $customer->id;
+    }
+
+    /**
+     * I tipi dell'intento: quelli della scelta del cliente (§11b); senza
+     * scelta il CSV della riga, e se è vuoto decide Stripe (lista vuota).
+     *
+     * @return list<string>
+     */
+    private function intentTypes(array $order, array $payment): array
+    {
+        $choice = trim((string) ($payment['provider_method'] ?? ''));
+
+        if ($choice !== '') {
+            return StripeMethods::intentTypes($choice);
+        }
+
+        return self::methodTypes((string) ($this->method($order)['stripe_payment_method_types'] ?? ''));
+    }
+
+    /**
+     * @param list<string> $types
+     * @return list<string>
+     */
+    private static function sorted(array $types): array
+    {
+        $types = array_map('strval', $types);
+        sort($types);
+
+        return $types;
     }
 
     /** @return array<string, mixed> */

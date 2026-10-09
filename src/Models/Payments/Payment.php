@@ -54,6 +54,8 @@ final class Payment extends Model
             Column::key('status')->enum(static::STATUSES)->default('pending'),
             Column::key('provider')->enum(static::PROVIDERS)->default('manual'),
             Column::key('provider_reference')->length(191),
+            // Il metodo scelto dentro il gateway (con Stripe: card, klarna, link…).
+            Column::key('provider_method')->length(40),
             Column::key('environment')->enum(static::ENVIRONMENTS)->default('live'),
             Column::key('due_date')->date(),
             Column::key('paid_at')->datetime(),
@@ -90,6 +92,7 @@ final class Payment extends Model
             Field::key('status')->text()->sanitize(false),
             Field::key('provider')->text()->sanitize(false),
             Field::key('provider_reference')->text()->sanitize(false),
+            Field::key('provider_method')->text()->sanitize(false),
             Field::key('environment')->text()->sanitize(false),
             Field::key('due_date')->date(),
             Field::key('paid_at')->date(),

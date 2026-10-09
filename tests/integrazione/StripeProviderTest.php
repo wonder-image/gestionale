@@ -281,6 +281,82 @@ check('nella stessa richiesta Stripe si chiama una volta sola', fn () => prova(f
     return $provider->activeTypes() === ['card', 'klarna'] && count($http->requests) === 1;
 }));
 
+/** Avvia un pagamento con un Customer già salvato; restituisce l'avvio e il finto HTTP. */
+function avviaConScelta(array $campiPagamento, array $risposte): array
+{
+    global $ordine, $pagamento;
+    ExternalReferences::save('contact', 987654321, 'stripe', 'customer', 'cus_salvato', 'test');
+    $http = FakeStripeHttp::install();
+    foreach ($risposte as $risposta) {
+        $http->queue(200, $risposta);
+    }
+    $avvio = (new StripeProvider(chiavi()))->start($ordine, $campiPagamento + $pagamento);
+
+    return [$avvio, $http];
+}
+
+check('start con provider_method klarna: solo klarna', fn () => prova(static function (): bool {
+    [, $http] = avviaConScelta(['provider_method' => 'klarna'], [intento()]);
+    $parametri = $http->requests[0]['params'];
+
+    return $http->path(0) === '/v1/payment_intents'
+        && $parametri['payment_method_types'] === ['klarna']
+        && !isset($parametri['automatic_payment_methods']);
+}));
+
+check('start con provider_method card: solo la carta', fn () => prova(static function (): bool {
+    [, $http] = avviaConScelta(['provider_method' => 'card'], [intento()]);
+
+    return $http->requests[0]['params']['payment_method_types'] === ['card'];
+}));
+
+check('start con provider_method link: solo link', fn () => prova(static function (): bool {
+    [, $http] = avviaConScelta(['provider_method' => 'link'], [intento()]);
+
+    return $http->requests[0]['params']['payment_method_types'] === ['link'];
+}));
+
+check('start senza provider_method e senza CSV: decide Stripe', fn () => prova(static function (): bool {
+    [, $http] = avviaConScelta([], [intento()]);
+    $parametri = $http->requests[0]['params'];
+
+    return ($parametri['automatic_payment_methods']['enabled'] ?? '') === 'true'
+        && !isset($parametri['payment_method_types']);
+}));
+
+check('riuso con tipi diversi fa update dei tipi, non un secondo intento', fn () => prova(static function (): bool {
+    [$avvio, $http] = avviaConScelta(
+        ['provider_reference' => 'pi_vecchio', 'provider_method' => 'klarna'],
+        [intento(['id' => 'pi_vecchio', 'payment_method_types' => ['card']]), intento(['id' => 'pi_vecchio', 'client_secret' => 'pi_vecchio_secret', 'payment_method_types' => ['klarna']])]
+    );
+
+    return count($http->requests) === 2
+        && $http->requests[0]['method'] === 'GET'
+        && $http->requests[1]['method'] === 'POST'
+        && $http->path(1) === '/v1/payment_intents/pi_vecchio'
+        && $http->requests[1]['params']['payment_method_types'] === ['klarna']
+        && $avvio->reference === 'pi_vecchio'
+        && $avvio->clientSecret === 'pi_vecchio_secret';
+}));
+
+check('riuso con gli stessi tipi, in altro ordine: niente update', fn () => prova(static function (): bool {
+    [$avvio, $http] = avviaConScelta(
+        ['provider_reference' => 'pi_vecchio', 'provider_method' => 'card'],
+        [intento(['id' => 'pi_vecchio', 'payment_method_types' => ['card']])]
+    );
+
+    return count($http->requests) === 1 && $http->requests[0]['method'] === 'GET' && $avvio->reference === 'pi_vecchio';
+}));
+
+check('riuso senza scelta: l\'intento resta com\'è', fn () => prova(static function (): bool {
+    [$avvio, $http] = avviaConScelta(
+        ['provider_reference' => 'pi_vecchio'],
+        [intento(['id' => 'pi_vecchio', 'payment_method_types' => ['card', 'link']])]
+    );
+
+    return count($http->requests) === 1 && $http->requests[0]['method'] === 'GET' && $avvio->reference === 'pi_vecchio';
+}));
+
 check('status traduce lo stato e porta importo, valuta e ordine', function () {
     $http = FakeStripeHttp::install();
     $http->queue(200, intento(['status' => 'succeeded', 'amount_received' => 1234]));

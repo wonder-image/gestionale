@@ -282,6 +282,7 @@ final class Ledger
                 'currency' => (string) ($data['currency'] ?? 'EUR'),
                 'status' => $status,
                 'provider' => $provider,
+                'provider_method' => (string) ($data['provider_method'] ?? ''),
                 // Senza riferimento del gateway ci si firma con il proprio
                 // codice: l'indice unico vuole un valore diverso per riga.
                 'provider_reference' => $reference !== '' ? $reference : $code,
