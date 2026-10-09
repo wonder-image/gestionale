@@ -7,6 +7,8 @@
  * @var array<string, mixed> $order
  * @var list<array<string, mixed>> $items
  * @var string $url
+ * @var string $order_url
+ * @var string $order_button
  * @var callable(mixed): string $e
  * @var callable(mixed): string $money
  * @var callable(mixed): string $qty
@@ -41,6 +43,9 @@
     </table>
 <?php } ?>
 <p><strong>Totale: <?= $e($money($order['total'] ?? 0)) ?> &euro;</strong></p>
+<?php if (trim($order_url ?? '') !== '') { ?>
+    <p><a href="<?= $e($order_url) ?>" style="display: inline-block; padding: 10px 16px; background: #111; color: #fff; text-decoration: none; border-radius: 4px"><?= $e($order_button) ?></a></p>
+<?php } ?>
 <?php if (trim($url) !== '') { ?>
     <p><a href="<?= $e($url) ?>"><?= $e($url) ?></a></p>
 <?php } ?>

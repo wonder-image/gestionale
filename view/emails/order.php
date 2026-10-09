@@ -13,6 +13,8 @@
  * @var array<string, mixed> $order
  * @var list<array<string, mixed>> $items
  * @var string $url
+ * @var string $order_url
+ * @var string $order_button
  * @var string $account_url
  * @var string $account_title
  * @var string $account_button
@@ -65,6 +67,9 @@
     </table>
 <?php } ?>
 <p><strong>Totale: <?= $e($money($order['total'] ?? 0)) ?> &euro;</strong></p>
+<?php if (trim($order_url ?? '') !== '') { ?>
+    <p><a href="<?= $e($order_url) ?>" style="display: inline-block; padding: 10px 16px; background: #111; color: #fff; text-decoration: none; border-radius: 4px"><?= $e($order_button) ?></a></p>
+<?php } ?>
 <?php if (trim($account_url ?? '') !== '') { ?>
     <p><strong><?= $e($account_title) ?></strong></p>
     <p><a href="<?= $e($account_url) ?>" style="display: inline-block; padding: 10px 16px; background: #111; color: #fff; text-decoration: none; border-radius: 4px"><?= $e($account_button) ?></a></p>

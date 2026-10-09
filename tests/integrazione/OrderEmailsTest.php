@@ -16,6 +16,7 @@ use Wonder\Plugin\Gestionale\Extensions\ProvidesOrderEmailExtras;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
+use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderEmail;
@@ -429,6 +430,48 @@ check('un modulo che lancia si salta e gli altri danno i loro dati', function ()
     } finally {
         OrderEmailExtras::use(null);
     }
+});
+
+check('il link dell\'ordine diventa un bottone: «Vedi l\'ordine» al cliente, «Apri l\'ordine nel gestionale» al commerciante', function () {
+    return prova(static function (): bool {
+        $ordine = (array) Order::findById(ordineConRiga());
+        $cliente = OrderEmail::compose('shipped', $ordine, [], ['order_url' => '/account/ordini/ord_x/', 'url' => 'https://tracking.esempio.it/?c=1'])['body'];
+        $commerciante = OrderEmail::compose('merchant_new', $ordine, [], ['order_url' => '/backend/app/gestionale/ordini/5/'])['body'];
+        $senza = OrderEmail::compose('confirmed', $ordine, [])['body'];
+        $href = static fn (string $path): string => 'href="'.htmlspecialchars(OrderEmail::absoluteUrl($path), ENT_QUOTES, 'UTF-8').'"';
+
+        return str_contains($cliente, $href('/account/ordini/ord_x/')) && str_contains($cliente, 'Vedi l&#039;ordine')
+            && str_contains($cliente, 'https://tracking.esempio.it/?c=1')
+            && str_contains($commerciante, $href('/backend/app/gestionale/ordini/5/')) && str_contains($commerciante, 'Apri l&#039;ordine nel gestionale')
+            && !str_contains($senza, 'Vedi l&#039;ordine');
+    });
+});
+
+check('l\'email al commerciante porta il link alla scheda dell\'ordine nel backend', function () {
+    return prova(static function (): bool {
+        $riga = Setting::current();
+        Setting::update(['merchant_notification_emails' => 'uno@example.test'], (int) ($riga['id'] ?? 1));
+        $corpi = [];
+        Mailer::useTransport(static function (string $to, string $subject, string $body) use (&$corpi): bool {
+            $corpi[] = $body;
+
+            return true;
+        });
+
+        try {
+            $ordine = ordineConRiga();
+            OrderNotifier::send('merchant_new', $ordine);
+            OrderNotifier::send('confirmed', $ordine);
+        } finally {
+            Mailer::useTransport('trasportoDiFondo');
+        }
+
+        $scheda = htmlspecialchars(OrderEmail::absoluteUrl(OrderResource::detailUrl($ordine)), ENT_QUOTES, 'UTF-8');
+
+        return count($corpi) === 2
+            && str_contains($corpi[0], 'href="'.$scheda.'"')
+            && !str_contains($corpi[1], '/backend/');
+    });
 });
 
 summary();
