@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Orders;
 
+use Wonder\Plugin\Gestionale\Extensions\OrderEmailExtras;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
@@ -44,7 +45,7 @@ final class OrderNotifier
         $method = (int) ($order['payment_method_id'] ?? 0) > 0
             ? PaymentMethod::findById((int) $order['payment_method_id'])
             : null;
-        $email = OrderEmail::compose($key, $order, self::items($orderId), $extra + [
+        $email = OrderEmail::compose($key, $order, self::items($orderId), $extra + OrderEmailExtras::for($key, $order) + [
             'method' => is_array($method) ? (string) ($method['name'] ?? '') : '',
             'instructions' => is_array($method) ? (string) ($method['instructions'] ?? '') : '',
             'bank' => self::bankAccount($method),
