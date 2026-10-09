@@ -29,6 +29,7 @@ use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
+use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentStatus;
 use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
@@ -111,7 +112,10 @@ final class OrderResource extends GestionaleResource
             TableColumn::key('payment_status')
                 ->text()
                 ->size('little')
-                ->formatter(static fn (array $row): string => StatusLabels::badge('payment', (string) ($row['payment_status'] ?? ''))),
+                ->formatter(static fn (array $row): string => static::paymentBadge(
+                    (string) ($row['payment_status'] ?? ''),
+                    OnlinePayments::inTest((int) ($row['id'] ?? 0))
+                )),
             TableColumn::key('fulfillment_status')
                 ->text()
                 ->size('little')
@@ -474,6 +478,13 @@ final class OrderResource extends GestionaleResource
         return $id > 0 ? CustomerResource::viewUrl($id) : '';
     }
 
+    /** Il badge dello stato del pagamento, con «Prova» se i soldi non sono veri. */
+    public static function paymentBadge(string $status, bool $test): string
+    {
+        return StatusLabels::badge('payment', $status)
+            .($test ? '<span class="badge bg-warning text-dark ms-1">Prova</span>' : '');
+    }
+
     /**
      * L'intestazione: numero, data, canale, i tre stati, il cliente, gli
      * indirizzi, il metodo di pagamento e le note, un `DataItem` ciascuno.
@@ -504,7 +515,7 @@ final class OrderResource extends GestionaleResource
             $dato('Data', static::date((string) ($order['ordered_at'] ?? ''))),
             $dato('Canale', $canali[$canale] ?? $canale),
             $dato('Ordine', StatusLabels::badge('order', (string) ($order['status'] ?? '')), true),
-            $dato('Pagamento', StatusLabels::badge('payment', (string) ($order['payment_status'] ?? '')), true),
+            $dato('Pagamento', static::paymentBadge((string) ($order['payment_status'] ?? ''), OnlinePayments::inTest((int) ($order['id'] ?? 0))), true),
             $dato('Evasione', StatusLabels::badge('fulfillment', (string) ($order['fulfillment_status'] ?? '')), true),
             $dato('Cliente', static::customerLink($order), true),
             $dato('Email', (string) ($order['email'] ?? '')),

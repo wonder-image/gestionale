@@ -46,7 +46,7 @@ check('la scheda ha il pulsante che apre la finestra, accanto a ciascuna nota', 
     $r = new ReflectionMethod(OrderResource::class, 'headerItems');
     $html = implode('', array_map(
         static fn ($item): string => $item->render('bootstrap'),
-        $r->invoke(null, ['id' => 9, 'order_number' => '2025/001', 'internal_note' => 'x'], [])
+        $r->invoke(null, ['id' => 0, 'order_number' => '2025/001', 'internal_note' => 'x'], [])
     ));
 
     return substr_count($html, OrderNoteResource::MODAL_ID) >= 2 && str_contains($html, 'bi-pencil');

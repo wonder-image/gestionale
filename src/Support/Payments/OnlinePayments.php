@@ -31,6 +31,18 @@ final class OnlinePayments
         return $online === [] ? null : end($online);
     }
 
+    /** Se l'ordine ha un pagamento fatto con le chiavi di prova: soldi non veri. */
+    public static function inTest(int $orderId): bool
+    {
+        if ($orderId <= 0) {
+            return false;
+        }
+
+        $row = Payment::find(['order_id' => $orderId, 'environment' => 'test', 'deleted' => 'false'], 1);
+
+        return is_array($row) && $row !== [];
+    }
+
     /**
      * Crea o riusa l'intento dell'ordine e lo lega alla riga aperta al
      * checkout. Il riuso lo decide il fornitore, che vede lo stato dell'intento.

@@ -219,6 +219,15 @@ check('se Stripe non risponde l\'ordine si annulla lo stesso', fn () => prova(st
         && (Order::findById($ordine)['status'] ?? '') === 'cancelled';
 }));
 
+check('inTest riconosce l\'ordine pagato con le chiavi di prova', fn () => prova(static function (): bool {
+    [$prova] = ordineStripe();
+    OnlinePayments::start($prova);
+    $vero = ordineDiProva(20.0);
+    Ledger::open(['order_id' => $vero, 'amount' => 20.0, 'provider' => 'manual']);
+
+    return OnlinePayments::inTest($prova) && !OnlinePayments::inTest($vero) && !OnlinePayments::inTest(0);
+}));
+
 PaymentProviders::reset();
 check('nessuna email vera: finiti i test la posta resta quella finta', static fn (): bool => (new ReflectionProperty(\Wonder\Plugin\Gestionale\Support\Mail\Mailer::class, 'transport'))->getValue() !== null);
 

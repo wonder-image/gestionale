@@ -378,4 +378,10 @@ check('un importo senza virgola con i punti delle migliaia vale migliaia: 1.250 
     && OrderPaymentResource::amountFrom('12,50') === 12.5
 );
 
+check('il pagamento in prova porta il badge «Prova» accanto allo stato', fn () =>
+    str_contains(OrderResource::paymentBadge('paid', true), 'Pagato')
+    && str_contains(OrderResource::paymentBadge('paid', true), '>Prova</span>')
+    && !str_contains(OrderResource::paymentBadge('paid', false), 'Prova')
+);
+
 summary();
