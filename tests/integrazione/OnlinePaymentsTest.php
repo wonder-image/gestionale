@@ -15,6 +15,7 @@ require __DIR__ . '/supporto/posta.php';
 
 use Wonder\Sql\Transaction;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
+use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
@@ -168,6 +169,54 @@ check('succeeded due volte sullo stesso intento: una riga pagata, ordine conferm
         && count($righe) === 1
         && (int) $righe[0]['id'] === $pagamento
         && $righe[0]['status'] === 'paid';
+}));
+
+check('annullare l\'ordine annulla l\'intento e chiude la riga', fn () => prova(static function () use ($finto): bool {
+    [$ordine, $pagamento] = ordineStripe();
+    $avvio = OnlinePayments::start($ordine);
+    $esito = Lifecycle::cancel($ordine, ['notify' => false]);
+
+    return in_array($avvio->reference, $finto->cancelled, true)
+        && ($esito['status'] ?? '') === 'cancelled'
+        && !array_key_exists('intents', $esito)
+        && (Payment::findById($pagamento)['status'] ?? '') === 'failed';
+}));
+
+check('l\'intento dell\'altro ambiente non si tocca', fn () => prova(static function () use ($finto): bool {
+    [$ordine] = ordineStripe();
+    $avvio = OnlinePayments::start($ordine);
+    $finto->environment = 'live';
+
+    try {
+        Lifecycle::cancel($ordine, ['notify' => false]);
+    } finally {
+        $finto->environment = 'test';
+    }
+
+    return !in_array($avvio->reference, $finto->cancelled, true);
+}));
+
+check('una riga senza intento non chiama il fornitore', fn () => prova(static function () use ($finto): bool {
+    [$ordine] = ordineStripe();
+    $prima = count($finto->cancelled);
+    Lifecycle::cancel($ordine, ['notify' => false]);
+
+    return count($finto->cancelled) === $prima;
+}));
+
+check('se Stripe non risponde l\'ordine si annulla lo stesso', fn () => prova(static function () use ($finto): bool {
+    [$ordine] = ordineStripe();
+    OnlinePayments::start($ordine);
+    $finto->failCancel = true;
+
+    try {
+        $esito = Lifecycle::cancel($ordine, ['notify' => false]);
+    } finally {
+        $finto->failCancel = false;
+    }
+
+    return ($esito['changed'] ?? false) === true
+        && (Order::findById($ordine)['status'] ?? '') === 'cancelled';
 }));
 
 PaymentProviders::reset();

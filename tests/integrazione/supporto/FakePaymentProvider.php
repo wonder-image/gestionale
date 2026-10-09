@@ -26,6 +26,8 @@ final class FakePaymentProvider implements PaymentProvider
     /** @var list<string> */
     public array $cancelled = [];
 
+    public bool $failCancel = false;
+
     /** @var list<array{order: array, payment: array}> */
     public array $started = [];
 
@@ -71,6 +73,10 @@ final class FakePaymentProvider implements PaymentProvider
 
     public function cancel(string $reference): void
     {
+        if ($this->failCancel) {
+            throw new RuntimeException('Stripe non risponde');
+        }
+
         $this->cancelled[] = $reference;
     }
 }
