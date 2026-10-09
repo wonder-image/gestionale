@@ -281,6 +281,97 @@ check('nella stessa richiesta Stripe si chiama una volta sola', fn () => prova(f
     return $provider->activeTypes() === ['card', 'klarna'] && count($http->requests) === 1;
 }));
 
+/** Quante volte è stato segnalato un errore di quell'azione Stripe. */
+function segnalazioni(string $azione): int
+{
+    $righe = \Wonder\App\Models\System\ErrorReport::find(['service' => 'stripe', 'action' => $azione]);
+    $righe = is_array($righe) ? (isset($righe['id']) ? [$righe] : $righe) : [];
+
+    return array_sum(array_map(static fn ($riga): int => (int) ($riga['occurrences'] ?? 0), $righe));
+}
+
+function cacheLetta(): array
+{
+    return json_decode((string) \Wonder\Plugin\Gestionale\Models\System\Setting::current()['stripe_methods_cache'], true) ?: [];
+}
+
+check('lettura fallita: per un minuto non si richiama Stripe e non si segnala di nuovo', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    $scaduta = ['environment' => 'test', 'account' => 'acct_prova_test', 'types' => ['card', 'paypal'], 'fetched_at' => time() - 9999];
+    cacheMetodi($scaduta);
+    $http->queue(500, ['error' => ['message' => 'giù']]);
+    $prima = segnalazioni('payment_methods.read');
+    $primo = (new StripeProvider(chiavi()))->activeTypes();
+    $dopoPrimo = segnalazioni('payment_methods.read');
+    $cache = cacheLetta();
+
+    StripeProvider::forget();
+    $secondo = (new StripeProvider(chiavi()))->activeTypes();
+
+    return $primo === ['card', 'paypal'] && $secondo === ['card', 'paypal']
+        && count($http->requests) === 1
+        && $dopoPrimo === $prima + 1 && segnalazioni('payment_methods.read') === $dopoPrimo
+        && abs((int) ($cache['failed_at'] ?? 0) - time()) <= 5
+        && $cache['types'] === ['card', 'paypal'] && $cache['fetched_at'] === $scaduta['fetched_at'];
+}));
+
+check('lettura fallita senza cache: per un minuto resta la carta, senza chiamate', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(null);
+    $http->queue(500, ['error' => ['message' => 'giù']]);
+    $primo = (new StripeProvider(chiavi()))->activeTypes();
+    StripeProvider::forget();
+    $secondo = (new StripeProvider(chiavi()))->activeTypes();
+
+    return $primo === ['card'] && $secondo === ['card'] && count($http->requests) === 1;
+}));
+
+check('dopo un minuto dal fallimento si riprova', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(['environment' => 'test', 'account' => 'acct_prova_test', 'types' => ['card', 'paypal'], 'fetched_at' => time() - 9999, 'failed_at' => time() - 61]);
+    $http->queue(200, configurazioni(['card', 'klarna']));
+    $tipi = (new StripeProvider(chiavi()))->activeTypes();
+
+    return $tipi === ['card', 'klarna'] && count($http->requests) === 1;
+}));
+
+check('lettura riuscita: la cache si riscrive senza failed_at', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(['environment' => 'test', 'account' => 'acct_prova_test', 'types' => ['card'], 'fetched_at' => time() - 9999, 'failed_at' => time() - 61]);
+    $http->queue(200, configurazioni(['card', 'klarna']));
+    (new StripeProvider(chiavi()))->activeTypes();
+
+    return !array_key_exists('failed_at', cacheLetta()) && cacheLetta()['types'] === ['card', 'klarna'];
+}));
+
+check('un fallimento di un altro conto non blocca la lettura', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(['environment' => 'test', 'account' => 'acct_vecchio', 'types' => ['card'], 'fetched_at' => time() - 9999, 'failed_at' => time()]);
+    $http->queue(200, configurazioni(['card', 'klarna']));
+
+    return (new StripeProvider(chiavi()))->activeTypes() === ['card', 'klarna'] && count($http->requests) === 1;
+}));
+
+check('scrittura della cache fallita: i tipi appena letti si restituiscono lo stesso', fn () => prova(function () {
+    $http = FakeStripeHttp::install();
+    StripeProvider::forget();
+    cacheMetodi(null);
+    // Oltre i 64 KB della colonna TEXT: il database rifiuta la scrittura.
+    $tipi = array_map(static fn (int $i): string => 'tipo_prova_'.$i, range(1, 6000));
+    $http->queue(200, configurazioni(['card', ...$tipi]));
+    $prima = segnalazioni('payment_methods.cache');
+    $letti = (new StripeProvider(chiavi()))->activeTypes();
+
+    return $letti === ['card', ...$tipi]
+        && segnalazioni('payment_methods.cache') === $prima + 1
+        && segnalazioni('payment_methods.read') === 0;
+}));
+
 /** Avvia un pagamento con un Customer già salvato; restituisce l'avvio e il finto HTTP. */
 function avviaConScelta(array $campiPagamento, array $risposte): array
 {
