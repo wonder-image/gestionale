@@ -46,16 +46,16 @@ Criteri di riuscita:
 |------|-----------|
 | Integrazione | Payment Element ed Express Checkout Element in **modalità differita**: partono con importo e valuta, senza PaymentIntent. Il PaymentIntent nasce solo al «Paga», dopo `Checkout::place`. *Scartati:* PaymentIntent creato all'apertura del checkout (intenti orfani, e niente express dalla scheda prodotto); Stripe Checkout ospitato (lo esclude la D46). |
 | Conto | Stripe Connect, come già nel core: chiavi della piattaforma e conto collegato del sito (`stripe_id`). Gli addebiti sono diretti sul conto collegato e ogni chiamata porta `stripe_account`. Nel browser: chiave pubblica della piattaforma più `stripeAccount`. |
-| Webhook | Un endpoint per sito, creato sul conto collegato (`Accounts::webhook`), con il suo segreto salvato nelle credenziali. |
+| Webhook | Un endpoint Connect per ambiente, creato sulla piattaforma per i conti collegati (`Connect::webhook`), con il suo segreto salvato nelle credenziali dell'ambiente. La firma si prova con i due segreti: quello che la verifica dice l'ambiente dell'evento. |
 | Fonte della conferma | Il webhook. La pagina di ritorno e il riallineamento chiamano la stessa `Lifecycle::confirm`, che è idempotente. |
 | Eventi ripetuti | `ProviderEvents::receive` scarta solo gli eventi `processed`. Quelli `received` o `failed` si rielaborano. |
 | Errore nell'elaborazione | `markFailed` e risposta 500: Stripe rimanda l'evento con i suoi tempi (fino a 3 giorni). Il riallineamento orario fa da rete (§9). |
-| Importo | Il totale lo decide il server. Se differisce da quello mostrato al cliente, niente addebito e il riepilogo si aggiorna. Se un evento porta importo, valuta o ordine diversi da quelli attesi, l'ordine non si conferma e l'evento finisce in «Da controllare». |
+| Importo | Il totale lo decide il server. Se differisce da quello mostrato al cliente, niente addebito e il riepilogo si aggiorna. Gli importi si confrontano in centesimi. Se un evento porta importo, valuta o ordine diversi da quelli attesi, l'ordine non si conferma, l'evento resta `failed` senza altri tentativi e il commerciante riceve la segnalazione. |
 | Customer Stripe | Uno per scheda cliente e per ambiente, creato al primo pagamento Stripe (email, nome). L'id sta in `external_references` e i cambi successivi non si sincronizzano. |
 | Prodotti e coupon | Non vanno su Stripe. Il PaymentIntent porta solo il totale e i metadati. |
 | Tipi di pagamento | Da `stripe_payment_method_types` del metodo; se la colonna è vuota, quelli automatici del conto. Browser e server leggono la stessa fonte. |
 | Rimborsi | Fatti dalla dashboard di Stripe e registrati da `charge.refunded`. |
-| Email | Per gli ordini pagati con Stripe, al `place` non parte nulla. «Confermato» e l'avviso al commerciante partono alla conferma. |
+| Email | Per gli ordini pagati online, al `place` non parte nulla. «Confermato» e l'avviso al commerciante partono alla conferma. Il link per la password dell'ospite viaggia con «confermato» (`OrderEmailExtras`). |
 | Durata della prenotazione | `order_reservation_minutes`, impostata nel backend (predefinita 30). Il D6 non la cambia. |
 | Ambiente | Colonna `environment` (`live`, `test`) su `gst_payments`. Gli ordini pagati in test portano il bollino «Prova» nel backend. |
 | Express e fattura | L'express serve chi non chiede fattura, oppure il cliente con l'accesso che ha già i dati di fatturazione sulla scheda (§5.1 dell'architettura). |
@@ -77,39 +77,51 @@ Sicurezza (D14):
 I calcolati `stripe_publishable_key` e `stripe_webhook_key` seguono `stripe_test`,
 come `stripe_api_key` e `stripe_id`.
 
-**Bottone «Collega Stripe»** accanto all'onboarding, per l'ambiente scelto (test o
-produzione):
+**Bottone «Collega webhook»** nella pagina Sicurezza, uno per ambiente (test e
+produzione), accanto ai badge «Collega». Chiama la rotta
+`api.service.stripe.connect?account=test|production`, che:
 
-1. crea l'endpoint del webhook sul conto collegato con `Accounts::webhook(stripe_id,
-   url, eventi)`. L'url è quello di §6 e gli eventi sono quelli della tabella di §6;
-2. salva il `secret` restituito nella colonna dell'ambiente;
+1. crea l'endpoint Connect del webhook sulla piattaforma, per i conti collegati,
+   con `Connect::webhook(url)`. L'url è quello di §6 (`Route::url` della rotta
+   `api.gestionale.stripe.webhook`) e gli eventi sono `Connect::EVENTS`, cioè
+   quelli della tabella di §6;
+2. salva il `secret` restituito nella colonna dell'ambiente
+   (`Connect::secretColumn`);
 3. registra il dominio del sito per Apple Pay e gli altri wallet
-   (`paymentMethodDomains->create` con `stripe_account`). Questo passo serve al piano
-   2, ma il bottone lo fa già nel piano 1.
+   (`Connect::domain`, con `stripe_account`). Questo passo serve al piano 2, ma
+   il bottone lo fa già nel piano 1.
 
-Se lo si preme di nuovo, l'endpoint dell'ambiente si rifà: quello vecchio si
-cancella e il segreto si sostituisce. Un dominio già registrato non è un errore.
+Se lo si preme di nuovo, l'endpoint dell'ambiente si rifà: quello vecchio con lo
+stesso url si cancella e il segreto si sostituisce. Un dominio già registrato non
+è un errore.
 
-**Nuova classe** `Wonder\Plugin\Stripe\PaymentIntent`, sul modello di `Checkout`:
-`create(params, idempotencyKey)`, `get(id)`, `update(id, params)`, `cancel(id)`.
-Altre classi o metodi d'appoggio (dominio, cancellazione dell'endpoint) si
-aggiungono accanto a `Accounts`, con la stessa forma.
+**Nuove classi** nel core, a sé e con le chiavi di chi chiama:
+
+- `Wonder\Plugin\Stripe\PaymentIntent`: `create(params, idempotencyKey)`,
+  `get(id)`, `update(id, params)`, `cancel(id)`, `createCustomer(params,
+  idempotencyKey)`, `refundsOf(chargeId)`. Ogni chiamata porta `stripe_account`.
+- `Wonder\Plugin\Stripe\Connect`: `webhook(url)`, `domain(domain)`,
+  `environment(env, webhookUrl, domain)` (i tre passi qui sopra),
+  `secretColumn(env)`, `EVENTS`.
 
 ## 5. Contratto e adapter (gestionale)
 
 Cartella `src/Providers/Payments/`:
 
 - `PaymentProvider`, interfaccia:
-  - `code(): string`;
+  - `code(): string`, `environment(): string` (`live` o `test`), `connected(): bool`;
   - `start(array $order, array $payment): PaymentStart`. Crea o riusa l'intento di
     pagamento e restituisce `reference` (`pi_…`), `client_secret` ed `environment`;
-  - `status(string $reference): string`. Restituisce uno tra `succeeded`,
-    `processing`, `requires_payment_method`, `canceled`, `other`, più importo e
-    valuta;
-  - `event(string $rawBody, string $signature): ?array`. Verifica la firma e
-    restituisce l'evento normalizzato: id, tipo, ambiente, riferimento, importo,
-    valuta, id dell'ordine dai metadati, payload. Restituisce `null` se la firma non
-    è valida.
+  - `status(string $reference): PaymentState`: uno tra `succeeded`,
+    `processing`, `requires_payment_method`, `canceled`, `other`, più importo in
+    centesimi, valuta e id dell'ordine dai metadati;
+  - `event(string $raw, string $signature): ?PaymentEvent`. Verifica la firma e
+    restituisce l'evento normalizzato: id, tipo, ambiente, riferimento, importo in
+    centesimi, valuta, id dell'ordine dai metadati, rimborsi, carica, payload.
+    Restituisce `null` se la firma non è valida;
+  - `replay(array $payload, string $environment): ?PaymentEvent`: lo stesso
+    evento rifatto dal payload salvato, senza firma, per il riallineamento;
+  - `cancel(string $reference): void`: annulla un intento ancora aperto.
 - `StripeProvider`: l'adapter, che usa le classi Stripe del core.
 - `FakePaymentProvider` nei test: risponde con esiti scelti dal test.
 
@@ -127,19 +139,19 @@ Cartella `src/Providers/Payments/`:
 - **PaymentIntent:**
   - importo in centesimi dal pagamento in attesa, valuta dell'ordine;
   - `customer` e `description` con il codice dell'ordine;
-  - `metadata`: `order_id`, `order_code`, `payment_code`;
+  - `metadata`: `order_id`, `order_code`, `payment_code`, `attempt`;
   - `payment_method_types` oppure `automatic_payment_methods` secondo §3;
   - chiave di idempotenza: il codice `pay_…`.
 - **Riuso:** se il pagamento ha già un `pi_…` ancora `requires_payment_method`, lo
-  riusa. Se è annullato, ne crea uno nuovo con la chiave `pay_…-2`, `-3` e così
-  via.
+  riusa con lo stesso `client_secret`. Se è annullato, ne crea uno nuovo con
+  `attempt` più uno e la chiave `pay_…-2`, `-3` e così via.
 
 **Registro dei pagamenti:**
 
 - `Ledger::attach(int $paymentId, string $provider, string $reference, string
   $environment)` scrive `pi_…` e l'ambiente sulla riga in attesa. Da quel momento
-  `findByReference` la trova, e `Lifecycle::confirm` con lo stesso riferimento la
-  chiude invece di aprirne un'altra.
+  `Ledger::byReference` la trova, e `Lifecycle::confirm` con lo stesso riferimento
+  la chiude invece di aprirne un'altra.
 - Nuova colonna `gst_payments.environment` (`live`, `test`, predefinita `live`).
 
 ## 6. Webhook ed eventi
@@ -147,33 +159,45 @@ Cartella `src/Providers/Payments/`:
 Nuovo file `config/routes/route.api.php` nel gestionale, registrato come quello
 dell'ecommerce: POST `/api/gestionale/stripe/webhook/`.
 
-**Elaborazione:**
+**Elaborazione** (`PaymentEvents::handle`):
 
 1. Legge il corpo grezzo (`php://input`) e l'intestazione `Stripe-Signature`.
-2. Passa entrambi a `StripeProvider::event`. La firma si verifica con il segreto
-   dell'ambiente attivo e la tolleranza predefinita (5 minuti). Se non è valida,
-   risponde 400.
-3. Se `livemode` non corrisponde all'ambiente attivo, risponde 200 e non fa nulla.
+2. Passa entrambi a `StripeProvider::event`. La firma si prova prima con il
+   segreto dell'ambiente attivo e poi con quello dell'altro, con la tolleranza
+   predefinita (5 minuti); il segreto che la verifica dice l'ambiente. Se nessuno
+   la verifica, risponde 400.
+3. Se `livemode` non corrisponde a quell'ambiente, l'ambiente è incerto. Un evento
+   dell'altro ambiente o incerto riceve 200 e non fa nulla.
 4. `ProviderEvents::receive`. Se l'evento era già `processed`, risponde 200 e non
    fa nulla.
 5. Elabora l'evento secondo la tabella qui sotto, poi `markProcessed` e risposta
    200.
 6. Se c'è un errore: `markFailed` (che incrementa `attempts`), log in
-   `storage/logs/error/stripe.log` e risposta 500.
+   `storage/logs/error/stripe.log` e risposta 500. Un'incoerenza invece è
+   definitiva: `markFailed` finale, segnalazione al commerciante e risposta 200,
+   perché un rinvio non la cambierebbe.
 
-Niente sessione e niente CSRF: lì vale la firma.
+Niente sessione e niente CSRF: lì vale la firma. Gli effetti passano da
+`OnlinePayments`, che fa lo stesso lavoro per il webhook, la pagina di ritorno e
+il riallineamento.
 
 | Evento | Effetto |
 |--------|---------|
-| `payment_intent.succeeded` | Trova il pagamento con `findByReference`, oppure dai metadati. Controlla che `order_id`, importo e valuta corrispondano, poi chiama `Lifecycle::confirm($orderId, provider stripe, provider_reference pi_…, amount, source 'stripe')`. Se non corrispondono: l'evento finisce `failed` e in «Da controllare», e l'ordine non si conferma. |
-| `payment_intent.payment_failed` | `Ledger::fail` sul pagamento. L'ordine resta in attesa e il cliente può riprovare. |
-| `payment_intent.canceled` | `Ledger::fail` sul pagamento. |
-| `charge.refunded` | Per ogni rimborso nuovo della carica: `Ledger::refund` con l'id del rimborso (`re_…`) come riferimento, quindi idempotente. |
+| `payment_intent.succeeded` | `OnlinePayments::succeeded`: trova il pagamento con `Ledger::byReference`, controlla che ordine, centesimi e valuta corrispondano, registra l'incasso e chiama `Lifecycle::confirm` con l'avviso al commerciante (`source 'webhook'`). Se non corrispondono (`PaymentMismatch`): niente conferma, evento `failed` definitivo, segnalazione al commerciante. Se l'ordine è già annullato: l'incasso si registra comunque e il commerciante riceve l'avviso, perché il denaro va restituito a mano. |
+| `payment_intent.payment_failed` | `OnlinePayments::fail`: la riga passa a `failed`, l'ordine resta in attesa e l'intento resta riusabile, così il cliente riprova con lo stesso. Se poi riesce, `succeeded` chiude la stessa riga. |
+| `payment_intent.canceled` | `OnlinePayments::fail` sul pagamento. |
+| `charge.refunded` | Per ogni rimborso nuovo e riuscito della carica (quelli falliti o annullati si saltano): `Ledger::refund` con l'id del rimborso (`re_…`) come riferimento, quindi idempotente. |
 | Altri tipi | Registrati come `processed` senza effetto. |
 
 **`ProviderEvents::receive`** cambia: restituisce `false` solo se l'evento esiste
 già ed è `processed`. Se esiste `received` o `failed`, restituisce `true` e non
-inserisce una seconda riga.
+inserisce una seconda riga. `markFailed` con `final` porta `attempts` a
+`ProviderEvents::MAX_ATTEMPTS` (4): il riallineamento non lo riprova più.
+
+**Extra delle email.** `OrderEmailExtras` è un punto d'estensione del gestionale:
+alla conferma raccoglie i dati in più per «confermato». L'ecommerce lo usa per
+`account_url`, il link con cui l'ospite sceglie la password, che prima partiva con
+«ricevuto».
 
 ## 7. Pagamento nel checkout (ecommerce)
 
@@ -186,18 +210,23 @@ il metodo compare il Payment Element:
 
 Con `connected('stripe')` falso, il metodo non compare.
 
-**Al «Paga»**, solo se il metodo scelto è Stripe:
+**Al «Paga»**, solo se il metodo scelto è online:
 
 1. `elements.submit()`: se ci sono errori, si fermano lì.
 2. Il modulo parte in fetch verso `ecommerce.checkout.place` con `expected_total`,
-   chiedendo JSON. Valgono la stessa sessione e lo stesso CSRF di oggi.
+   chiedendo JSON. Valgono la stessa sessione e lo stesso CSRF di oggi. Senza
+   JavaScript un metodo online non si può usare: il server risponde con l'errore
+   `online_javascript`.
 3. Il server:
    - convalida come oggi;
-   - ricalcola il totale. Se è diverso da `expected_total`, risponde con l'errore
+   - ricalcola il totale. Se è diverso da `expected_total`, risponde 409 con
      «il totale è cambiato» e il riepilogo nuovo, senza creare né ordine né
      intento;
-   - esegue `Checkout::place`, che crea l'ordine in attesa, prenota la merce e apre
-     il pagamento `pay_…`;
+   - annulla l'ordine in attesa rimasto in sessione da un tentativo precedente
+     (`OnlinePayment::dropPending`), salvo che il denaro sia arrivato o in
+     verifica;
+   - esegue `Checkout::place`, che crea l'ordine in attesa, prenota la merce, apre
+     il pagamento `pay_…` e trasforma il carrello nell'ordine;
    - esegue `StripeProvider::start` e poi `Ledger::attach`;
    - risponde con `client_secret` e `return_url`.
 4. Il browser chiama `stripe.confirmPayment({elements, clientSecret, confirmParams:
@@ -206,71 +235,77 @@ Con `connected('stripe')` falso, il metodo non compare.
 
 **Nuovo tentativo sulla stessa pagina.**
 
-- In sessione resta `ecommerce_checkout_pending`: codice dell'ordine e impronta del
-  carrello (righe, quantità, coupon, spedizione, indirizzo).
-- Se al nuovo «Paga» l'impronta è la stessa e l'ordine è ancora in attesa, si
-  riusano ordine e intento.
-- Se l'impronta è cambiata, il vecchio ordine si annulla con `Lifecycle::cancel`
-  (la merce torna libera, senza email al cliente) e ne nasce uno nuovo.
+- In sessione resta `ecommerce_checkout_pending` con l'ordine nato al `place`.
+- Dopo che l'ordine è nato il modulo si blocca: si riprova con un'altra carta sullo
+  stesso intento (stesso `client_secret`), senza un nuovo `place`. Compare il link
+  «Annulla l'ordine», che lo annulla (POST `ecommerce.checkout.abandon`) e
+  riporta al carrello.
+- Ricaricando il checkout con un ordine in sessione si arriva alla pagina
+  «Paga ora» (§8).
 
 **Email.** `Checkout::place` non manda «ricevuto» né l'avviso al commerciante
-quando il metodo è Stripe. Alla conferma partono «confermato» e l'avviso al
-commerciante. `Lifecycle::confirm` riceve il comando di mandare l'avviso con
-un'opzione, che `Checkout` passa ai metodi Stripe.
-
-**Il carrello** si svuota solo all'esito `succeeded` o `processing` (§8), non al
-`place`.
+quando il metodo è online, e restituisce il fornitore. Alla conferma partono
+«confermato» e l'avviso al commerciante: `Lifecycle::confirm` riceve l'opzione
+`merchant_notice`.
 
 ## 8. Pagina di ritorno, «Paga ora» e ordini abbandonati
 
 **Pagina di ritorno** `ecommerce.checkout.return` (GET, con `payment_intent` nella
 query):
 
-- non si fida di `redirect_status`: rilegge l'intento con `StripeProvider::status`;
-- l'intento deve appartenere all'ordine in sessione, oppure all'ordine del link
-  sicuro (§«Paga ora»). Altrimenti risponde 404.
+- non si fida di `redirect_status`: rilegge l'intento con `StripeProvider::status`
+  (`OnlinePayment::settle`);
+- l'intento deve appartenere all'ordine in sessione. Altrimenti risponde 404.
 
 | Stato | Esito |
 |-------|-------|
-| `succeeded` | `Lifecycle::confirm` (idempotente: il webhook può arrivare prima o dopo), carrello svuotato, pagina «ordine completato» che esiste già. |
-| `processing` | Carrello svuotato, pagina «ordine completato» con il messaggio «pagamento in verifica». Conferma il webhook. |
-| `requires_payment_method` | Rifiuto, 3DS annullato o metodo a reindirizzamento abbandonato. Ritorno al checkout con «pagamento non riuscito, riprova» e lo stesso ordine in sessione. |
-| `canceled` o altro | Ritorno al checkout con «pagamento annullato». |
+| `succeeded` | `OnlinePayments::succeeded` (idempotente: il webhook può arrivare prima o dopo), sessione dimenticata, pagina «ordine completato» che esiste già. |
+| `processing` | Sessione dimenticata, pagina «ordine completato» con il messaggio «pagamento in verifica». Conferma il webhook. |
+| `requires_payment_method` | Rifiuto, 3DS annullato o metodo a reindirizzamento abbandonato. Pagina «Paga ora» con «pagamento non riuscito, riprova» e lo stesso ordine in sessione. |
+| `canceled` o altro | Pagina «Paga ora» con «pagamento annullato»: lì il cliente riprova con un intento nuovo o annulla l'ordine. |
 
-**«Paga ora».** Nella pagina dell'ordine, sia quella del link sicuro dell'ospite sia
-quella dell'area cliente, un ordine Stripe ancora in attesa mostra il bottone
-«Paga ora». Il bottone apre il Payment Element sull'intento del pagamento (con il
+**«Paga ora».** La pagina `ecommerce.checkout.pay` (`/checkout/pay/`) vale solo per
+l'ordine in sessione. Apre il Payment Element sull'intento del pagamento (con il
 `client_secret`, senza la modalità differita), oppure su uno nuovo se quello vecchio
-è annullato (§5). L'esito passa dalla stessa pagina di ritorno.
+è annullato (§5), e mostra «Annulla l'ordine». L'esito passa dalla stessa pagina
+di ritorno. «Paga ora» dal link sicuro dell'ospite e dall'area cliente resta fuori
+dal piano 1 e va nel TODO.
 
-**Ordine abbandonato.** Nessun cambio:
+**Ordine abbandonato.**
 
 - `Expiry` libera la merce dopo la durata della prenotazione impostata nel backend;
 - l'ordine resta in attesa e si annulla dopo `order_payment_wait_days`;
 - un pagamento che arriva dopo la scadenza della prenotazione si conferma
   comunque: con il denaro incassato, `Allocation::commit` scarica senza prenotazione
   e, se manca merce, segna la vendita in eccesso come oggi;
-- quando `Expiry` annulla un ordine con un intento Stripe ancora aperto, cancella
-  l'intento (`PaymentIntent::cancel`), così un pagamento tardivo non può più
-  arrivare.
+- `Lifecycle::cancel` annulla gli intenti ancora aperti dell'ordine
+  (`PaymentProvider::cancel`) dopo la transazione, così un pagamento tardivo non
+  può più arrivare. Vale per `Expiry`, per il commerciante e per `dropPending`; un
+  errore di Stripe non ferma l'annullo.
 
 ## 9. Riallineamento orario
 
 `StripeReconcileTask` in `src/Scheduler/`, ogni ora, accanto a `StockAlertsTask`.
 Il `NamedLock` del Worker evita le sovrapposizioni.
 
-1. **Pagamenti in attesa.** Prende i pagamenti `stripe` in attesa, dell'ambiente
-   attivo, con un `pi_…` e un ordine ancora in attesa. Per ognuno chiama
-   `StripeProvider::status`:
-   - `succeeded`: `Lifecycle::confirm`, con gli stessi controlli d'importo del
-     webhook;
-   - `canceled`: `Ledger::fail`;
+Nasce spento, come gli altri compiti; lo si accende insieme a `ExpiryTask`.
+
+1. **Pagamenti aperti.** Prende i pagamenti `stripe` `pending` o `failed` (una
+   carta rifiutata lascia l'intento riusabile, e il secondo tentativo riuscito può
+   perdere il webhook), dell'ambiente attivo, con un `pi_…` e un ordine ancora in
+   attesa. Per ognuno chiama `StripeProvider::status`:
+   - `succeeded`: `OnlinePayments::succeeded`, con gli stessi controlli d'importo
+     del webhook (`source 'cron'`). Un'incoerenza su una riga `pending` si segnala
+     al commerciante e la riga passa a `failed`; su una riga già `failed` va solo
+     nel log, così la segnalazione parte una volta;
+   - `canceled`: `OnlinePayments::fail`, solo se la riga è ancora `pending`;
    - altri stati: nulla.
 2. **Eventi rimasti indietro.** Prende gli eventi `stripe` dell'ambiente attivo in
-   stato `received` (più vecchi di 10 minuti) o `failed`, e li rielabora dal payload
-   salvato, che ha già passato la firma. Segue la scala del §9.3: 5 min, 30 min, 2 h
-   e 12 h dall'ultimo tentativo, secondo `attempts`, con la granularità del giro
-   orario. Al quarto fallimento l'evento non si riprova più e resta in «Da
+   stato `received` (più vecchi di 10 minuti) o `failed` non definitivi, e li
+   rifà dal payload salvato con `replay`, che ha già passato la firma. Segue la
+   scala del §9.3: 5 min, 30 min e 2 h dall'ultimo tentativo, secondo `attempts`,
+   con la granularità del giro orario. Al quarto fallimento
+   (`ProviderEvents::MAX_ATTEMPTS`) l'evento non si riprova più e resta in «Da
    controllare».
 
 Un errore su un pagamento o su un evento finisce nel log e non ferma gli altri,
@@ -283,10 +318,10 @@ Stripe.
 
 - `environment` su `gst_payments` e su `gst_provider_events` (che esiste già);
   `external_references` è già separato per ambiente;
-- il webhook ignora gli eventi dell'altro ambiente, e il riallineamento interroga
-  solo l'ambiente attivo;
-- nel backend un ordine con un pagamento `test` porta il bollino «Prova» in elenco
-  e nella scheda.
+- il webhook ignora gli eventi dell'altro ambiente o di ambiente incerto, e il
+  riallineamento interroga solo l'ambiente attivo;
+- nel backend un ordine con un pagamento `test` porta il bollino «Prova» accanto a
+  quello del pagamento, in elenco e nella scheda.
 
 **Sicurezza:**
 
@@ -295,8 +330,7 @@ Stripe.
   log né nelle risposte;
 - il webhook verifica la firma sul corpo grezzo e controlla importo, valuta e
   ordine prima di confermare;
-- la pagina di ritorno e «Paga ora» verificano che l'intento appartenga all'ordine
-  della sessione o del link sicuro;
+- la pagina di ritorno e «Paga ora» valgono solo per l'ordine della sessione;
 - `place` in fetch mantiene sessione, CSRF e limiti del modulo di oggi;
 - le chiavi vere non passano mai dalla chat né dal codice: le inserisce lo
   sviluppatore nel `.env` o nella pagina Sicurezza.
@@ -369,22 +403,24 @@ CSRF sono quelli del sito.
   - eventi Stripe veri salvati in `tests/fixtures/stripe/*.json` (riuscito, fallito,
     annullato, rimborso), firmati nel test con un segreto di prova;
   - casi: evento ripetuto; evento `failed` rielaborato; importo, valuta o ordine
-    sbagliati; ambiente sbagliato; firma non valida; `attach` più `confirm` che
-    chiude la stessa riga; riuso dell'intento; riallineamento con la scala dei
-    tempi; `Expiry` che cancella l'intento;
+    sbagliati (definitivi); ambiente sbagliato o incerto; firma non valida;
+    `attach` più `confirm` che chiude la stessa riga; riuso dell'intento;
+    riallineamento con la scala dei tempi; `Lifecycle::cancel` che annulla
+    l'intento;
   - `FakePaymentProvider` per i flussi senza rete.
-- **Ecommerce (piano 1):** `place` con `expected_total` diverso; secondo tentativo
-  con lo stesso carrello e con un carrello cambiato; email non inviate al `place`;
+- **Ecommerce (piano 1):** `place` con `expected_total` diverso; nuovo `place`
+  che annulla l'ordine in attesa rimasto in sessione; email non inviate al `place`;
   pagina di ritorno con ognuno degli stati e con un intento di un altro ordine;
-  «Paga ora».
+  «Paga ora» e «Annulla l'ordine».
 - **App (piano 1):** credenziali nuove da `.env` e da tabella; i calcolati seguono
   `stripe_test`.
 - **Piano 2:** normalizzazione della provincia; tariffe per indirizzo parziale;
   zona assente; carrello a parte della scheda prodotto che lascia intatto quello
   vero; express nascosto con la fattura richiesta e con gli ospiti spenti.
-- **E2E su `ecommerce.test` (D8)**, in modalità test con le carte di prova:
-  riuscito, rifiutato e poi riuscito, 3DS annullato. Le chiavi di test le inserisce
-  lo sviluppatore.
+- **E2E su `ecommerce.test` (D8)**, in modalità test con le carte di prova e la
+  Stripe CLI che inoltra gli eventi Connect: riuscito, rifiutato e poi riuscito,
+  3DS annullato e poi pagato da «Paga ora», ordine annullato. Le chiavi di test e
+  il segreto del webhook li inserisce lo sviluppatore.
 - **A mano:** Apple Pay su un dominio HTTPS registrato, secondo la checklist della
   guida (D56). Google Pay e Link si provano anche in locale con Chrome.
 
@@ -400,13 +436,15 @@ Il piano 2 parte solo dopo che il piano 1 è unito.
 ## 14. File toccati (indicativi)
 
 - **app:** `class/App/Credentials.php`, `class/App/Resources/Config/SecurityResource.php`,
-  `class/Plugin/Stripe/PaymentIntent.php` (nuovo), `class/Plugin/Stripe/Accounts.php`,
-  l'azione «Collega Stripe» accanto a `app/http/api/service/stripe/onboarding*.php`.
+  `class/Plugin/Stripe/PaymentIntent.php` e `Connect.php` (nuovi),
+  `app/http/api/service/stripe/connect.php` (nuovo) per «Collega webhook».
 - **gestionale:** `src/Providers/Payments/*` (nuovi), `src/Support/Payments/PaymentProviders.php`,
-  `src/Support/Providers/ProviderEvents.php`, `Ledger` (`attach`), modello dei
+  `src/Support/Providers/ProviderEvents.php`, `Ledger` (`attach`, `byReference`),
+  `OnlinePayments`, `PaymentEvents`, `OrderEmailExtras` (nuovi), modello dei
   pagamenti (`environment`), `Checkout` (email), `Lifecycle` (avviso al
-  commerciante alla conferma), `Expiry` (cancellazione dell'intento),
+  commerciante alla conferma, annullo degli intenti),
   `src/Scheduler/StripeReconcileTask.php` (nuovo), `config/routes/route.api.php`
   (nuovo), il bollino «Prova» nelle risorse degli ordini.
-- **ecommerce:** `CheckoutController` (fetch, ritorno, «Paga ora»), viste e JS del
-  checkout, pagina dell'ordine, `ExpressCheckout` e `route.api.php` (piano 2).
+- **ecommerce:** `OnlinePayment` (nuovo), `CheckoutController` (fetch, ritorno,
+  «Paga ora», annullo), viste e JS del checkout, `ExpressCheckout` e
+  `route.api.php` (piano 2).
