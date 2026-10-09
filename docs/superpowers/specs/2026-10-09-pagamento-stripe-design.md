@@ -233,14 +233,20 @@ Con `connected('stripe')` falso, il metodo non compare.
    {return_url}})`. Gli errori immediati, come la carta rifiutata, compaiono sotto
    il Payment Element.
 
-**Nuovo tentativo sulla stessa pagina.**
+**Rifiuto: il modulo si riapre.**
 
-- In sessione resta `ecommerce_checkout_pending` con l'ordine nato al `place`.
-- Dopo che l'ordine è nato il modulo si blocca: si riprova con un'altra carta sullo
-  stesso intento (stesso `client_secret`), senza un nuovo `place`. Compare il link
-  «Annulla l'ordine», che lo annulla (POST `ecommerce.checkout.abandon`) e
-  riporta al carrello, che è vuoto: le righe sono passate nell'ordine al `place`
-  e non tornano (rimetterle nel carrello va nel TODO).
+- In sessione resta `ecommerce_checkout_pending` con l'ordine nato al `place`, e
+  mentre si paga il modulo è bloccato.
+- Se Stripe rifiuta (carta, 3DS fallito), il browser chiama
+  `ecommerce.checkout.reopen` (POST, CSRF) e `OnlinePayment::reopen` annulla
+  l'ordine (`dropPending`, che annulla anche l'intento) e con `Cart::restore`
+  rimette nel carrello le righe, le scelte, gli indirizzi e il coupon. Le righe
+  che non tornano perché spente o finite le elenca un avviso.
+- Il modulo torna modificabile: il cliente cambia metodo, indirizzo o coupon, e il
+  prossimo «Paga» o «Ordina» crea un ordine nuovo. L'ordine annullato resta nel
+  backend. Se intanto il denaro è arrivato, si va alla pagina di ritorno.
+- Non c'è «Annulla l'ordine»: se il cliente se ne va, la scadenza delle
+  prenotazioni libera la merce (§8).
 - Ricaricando il checkout con un ordine in sessione si arriva alla pagina
   «Paga ora» (§8).
 
@@ -262,13 +268,14 @@ query):
 |-------|-------|
 | `succeeded` | `OnlinePayments::succeeded` (idempotente: il webhook può arrivare prima o dopo), sessione dimenticata, pagina «ordine completato» che esiste già. |
 | `processing` | Sessione dimenticata, pagina «ordine completato» con il messaggio «pagamento in verifica». Conferma il webhook. |
-| `requires_payment_method` | Rifiuto, 3DS annullato o metodo a reindirizzamento abbandonato. Pagina «Paga ora» con «pagamento non riuscito, riprova» e lo stesso ordine in sessione. |
-| `canceled` o altro | Pagina «Paga ora» con «pagamento annullato»: lì il cliente riprova con un intento nuovo o annulla l'ordine. |
+| `requires_payment_method` | Rifiuto, 3DS annullato o metodo a reindirizzamento abbandonato. Il modulo si riapre (§7): checkout con «pagamento non riuscito» e le righe di nuovo nel carrello. |
+| `canceled` o altro | Come sopra, con «pagamento annullato». |
 
 **«Paga ora».** La pagina `ecommerce.checkout.pay` (`/checkout/pay/`) vale solo per
 l'ordine in sessione. Apre il Payment Element sull'intento del pagamento (con il
 `client_secret`, senza la modalità differita), oppure su uno nuovo se quello vecchio
-è annullato (§5), e mostra «Annulla l'ordine». L'esito passa dalla stessa pagina
+è annullato (§5), e offre «Cambia metodo di pagamento», che riapre il modulo
+come dopo un rifiuto (§7). Serve solo se si ricarica a metà pagamento. L'esito passa dalla stessa pagina
 di ritorno. «Paga ora» dal link sicuro dell'ospite e dall'area cliente resta fuori
 dal piano 1 e va nel TODO.
 
@@ -412,7 +419,7 @@ CSRF sono quelli del sito.
 - **Ecommerce (piano 1):** `place` con `expected_total` diverso; nuovo `place`
   che annulla l'ordine in attesa rimasto in sessione; email non inviate al `place`;
   pagina di ritorno con ognuno degli stati e con un intento di un altro ordine;
-  «Paga ora» e «Annulla l'ordine».
+  «Paga ora» e la riapertura del modulo dopo un rifiuto.
 - **App (piano 1):** credenziali nuove da `.env` e da tabella; i calcolati seguono
   `stripe_test`.
 - **Piano 2:** normalizzazione della provincia; tariffe per indirizzo parziale;
