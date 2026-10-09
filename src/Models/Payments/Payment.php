@@ -32,6 +32,8 @@ final class Payment extends Model
     public const TYPES = ['payment', 'refund'];
     public const STATUSES = ['pending', 'paid', 'failed', 'cancelled'];
     public const PROVIDERS = ['stripe', 'paypal', 'nexi', 'manual'];
+    /** Test e produzione non si mescolano: un incasso di prova non è denaro. */
+    public const ENVIRONMENTS = ['live', 'test'];
 
     public static function syncSchema(): ?SyncSchema
     {
@@ -52,6 +54,7 @@ final class Payment extends Model
             Column::key('status')->enum(static::STATUSES)->default('pending'),
             Column::key('provider')->enum(static::PROVIDERS)->default('manual'),
             Column::key('provider_reference')->length(191),
+            Column::key('environment')->enum(static::ENVIRONMENTS)->default('live'),
             Column::key('due_date')->date(),
             Column::key('paid_at')->datetime(),
             Column::key('note')->type('TEXT'),
@@ -87,6 +90,7 @@ final class Payment extends Model
             Field::key('status')->text()->sanitize(false),
             Field::key('provider')->text()->sanitize(false),
             Field::key('provider_reference')->text()->sanitize(false),
+            Field::key('environment')->text()->sanitize(false),
             Field::key('due_date')->date(),
             Field::key('paid_at')->date(),
             Field::key('note')->text(),
