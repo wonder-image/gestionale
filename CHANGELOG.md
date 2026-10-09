@@ -7,6 +7,10 @@ versionamento semantico.
 
 ### Aggiunto
 
+- `Coupons::reserved(int $customerId)`: i coupon riservati al cliente, con i suoi
+  utilizzi non rilasciati (`list<array{coupon, used}>`). Vuoto con `id` minore o uguale
+  a 0 o con la funzionalità Coupon spenta. `CustomerSheet::coupons()` lo usa: la scheda
+  del backend e il pannello del cliente contano gli utilizzi allo stesso modo.
 - Checkout dell'ospite: `Checkout::place` accetta `customer_email.account_url` e lo porta
   nell'email al cliente (ricevuto, o confermato col pagamento alla consegna); l'email
   mostra «Crea la tua password per seguire i tuoi ordini» con il pulsante. `place`
