@@ -239,7 +239,8 @@ Con `connected('stripe')` falso, il metodo non compare.
 - Dopo che l'ordine è nato il modulo si blocca: si riprova con un'altra carta sullo
   stesso intento (stesso `client_secret`), senza un nuovo `place`. Compare il link
   «Annulla l'ordine», che lo annulla (POST `ecommerce.checkout.abandon`) e
-  riporta al carrello.
+  riporta al carrello, che è vuoto: le righe sono passate nell'ordine al `place`
+  e non tornano (rimetterle nel carrello va nel TODO).
 - Ricaricando il checkout con un ordine in sessione si arriva alla pagina
   «Paga ora» (§8).
 

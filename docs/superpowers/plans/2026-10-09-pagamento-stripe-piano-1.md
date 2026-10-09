@@ -6241,6 +6241,8 @@ In `TODO.md` del gestionale, sotto la voce `E1c Carrello, checkout con Stripe…
 ```markdown
     - [ ] Pagamento con Stripe — [spec](docs/superpowers/specs/2026-10-09-pagamento-stripe-design.md)
       - [x] Piano 1 [Payment Element](docs/superpowers/plans/2026-10-09-pagamento-stripe-piano-1.md) **fatto** (AAAA-MM-GG) in app, gestionale ed ecommerce, ramo `pagamento-stripe`, **non ancora unito né spinto**: credenziali pubbliche e segreti del webhook per ambiente, «Collega webhook», `StripeProvider`, registro dei pagamenti online, webhook, riallineamento orario, `place` in JSON, pagina «Paga ora», bollino «Prova». Provato su `ecommerce.test` con le carte di prova (riuscito, rifiutato e poi riuscito, 3DS, annullato)
+      - [ ] «Paga ora» dal link sicuro dell'ospite e dall'area cliente (§8 della spec: nel piano 1 vale solo per l'ordine in sessione)
+      - [ ] «Annulla l'ordine» nel checkout rimette le righe nel carrello (oggi torna vuoto)
       - [ ] Piano 2 Express Checkout (§11), dopo l'unione del piano 1
 ```
 
