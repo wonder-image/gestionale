@@ -261,4 +261,6 @@ check('la rotta del webhook è registrata e punta al suo file', static function 
 });
 
 PaymentProviders::reset();
+check('nessuna email vera: finiti i test la posta resta quella finta', static fn (): bool => (new ReflectionProperty(\Wonder\Plugin\Gestionale\Support\Mail\Mailer::class, 'transport'))->getValue() !== null);
+
 summary();

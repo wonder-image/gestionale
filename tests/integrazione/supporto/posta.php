@@ -17,6 +17,18 @@ final class PrefissoChiave extends GestionaleExtension
     }
 }
 
+/**
+ * La posta di fondo dei file che includono questo supporto: si butta via.
+ * Il database di prova ha indirizzi veri nelle impostazioni, e un test che
+ * conferma un ordine o segnala un pagamento non deve scrivere a nessuno.
+ */
+function postaDiFondo(): callable
+{
+    return static fn (): bool => true;
+}
+
+Mailer::useTransport(postaDiFondo());
+
 /** Gli indirizzi a cui il commerciante vuole gli avvisi (vuoto: nessuno). */
 function destinatariCommerciante(string $indirizzi): void
 {
@@ -41,7 +53,7 @@ function conPosta(callable $corpo): array
     try {
         $corpo();
     } finally {
-        Mailer::useTransport(null);
+        Mailer::useTransport(postaDiFondo());
         Extensions::use(null);
     }
 

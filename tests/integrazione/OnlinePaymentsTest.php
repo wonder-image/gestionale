@@ -171,4 +171,6 @@ check('succeeded due volte sullo stesso intento: una riga pagata, ordine conferm
 }));
 
 PaymentProviders::reset();
+check('nessuna email vera: finiti i test la posta resta quella finta', static fn (): bool => (new ReflectionProperty(\Wonder\Plugin\Gestionale\Support\Mail\Mailer::class, 'transport'))->getValue() !== null);
+
 summary();
