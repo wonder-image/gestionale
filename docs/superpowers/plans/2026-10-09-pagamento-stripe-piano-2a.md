@@ -2,9 +2,9 @@
 
 > **Per chi esegue:** SOTTO-SKILL OBBLIGATORIA: superpowers:subagent-driven-development (consigliata) oppure superpowers:executing-plans, un compito alla volta. I passi usano le caselle (`- [ ]`) per tenere il conto.
 
-**Obiettivo:** nel checkout «Carta di credito» resta solo carta. Sotto compare una scelta per ogni metodo acceso nel conto Stripe (Klarna, PayPal, Bancontact…), più una scelta «Apple Pay / Google Pay» che si vede solo se il dispositivo la supporta.
+**Obiettivo:** nel checkout «Carta di credito» resta solo carta. Sotto compare una scelta per ogni metodo acceso nel conto Stripe (Klarna, Link, PayPal, Bancontact…). Apple Pay e Google Pay non sono fra le scelte: andranno come bottoni separati nella barra rapida in cima (piano 2b), che qui non si tocca.
 
-**Architettura:** l'app legge le configurazioni dei metodi del conto collegato. Il gestionale ne ricava i tipi disponibili, con 10 minuti di cache in `gst_settings`. Da una riga Stripe di `gst_payment_methods` fa nascere più scelte, convalida la scelta in `place`, la salva su `gst_payments.provider_method` e apre l'intento con i soli tipi di quella scelta. L'ecommerce dà a ogni scelta il suo valore di radio (`id` oppure `id:tipo`). In `checkout.js` ogni scelta ha il suo gruppo `elements`: Payment Element per carta e metodi separati, Express Checkout Element per la scelta wallet.
+**Architettura:** l'app legge le configurazioni dei metodi del conto collegato. Il gestionale ne ricava i tipi disponibili, con 10 minuti di cache in `gst_settings`. Da una riga Stripe di `gst_payment_methods` fa nascere più scelte, convalida la scelta in `place`, la salva su `gst_payments.provider_method` e apre l'intento con i soli tipi di quella scelta. L'ecommerce dà a ogni scelta il suo valore di radio (`id` oppure `id:tipo`). In `checkout.js` ogni scelta Stripe ha il suo gruppo `elements` con un Payment Element limitato ai tipi della scelta.
 
 **Tecnologie:** PHP 8.2, stripe-php 19.4 (`$client->paymentMethodConfigurations->all()`), Stripe.js v3, JS senza build, test con `check()` di `tests/harness.php`.
 
@@ -21,11 +21,12 @@
 - Mai composer nel sito di prova.
 - TDD: ogni test si vede fallire prima di scrivere il codice.
 - Nessuna chiamata HTTP a Stripe dentro `Transaction::run`: i tipi si leggono prima di aprire la transazione e si passano dentro.
-- Valore del radio del pagamento: `"{id}"` per i metodi non Stripe e per la carta, `"{id}:{tipo}"` per le altre scelte Stripe (`"891:wallet"`, `"891:klarna"`). Lo spezza una sola funzione, `CheckoutRules::post`. Al carrello va sempre l'id nudo. `payment_methods.selected` dell'anteprima resta l'id del metodo.
+- Valore del radio del pagamento: `"{id}"` per i metodi non Stripe e per la carta, `"{id}:{tipo}"` per le altre scelte Stripe (`"891:klarna"`, `"891:link"`). Lo spezza una sola funzione, `CheckoutRules::post`. Al carrello va sempre l'id nudo. `payment_methods.selected` dell'anteprima resta l'id del metodo.
 - Su una riga Stripe un `stripe_method_type` vuoto vale `card` (modulo senza JS, chiamate vecchie). Un tipo che non è fra le scelte risponde `order.payment_method_unavailable`.
 - Il CSV `stripe_payment_method_types` non filtra più il checkout: vale solo per i pagamenti senza `provider_method` (§3).
 - Stringhe che i test statici dell'ecommerce fissano e che devono restare: `this.stripeBox(payload)`, `this.stripeBox(this.latest)`, `chosen?.provider === 'stripe'`, `"mode: 'payment'"`, `this.elements.update(`, `stripeAccount`, `await this.elements.submit()` prima di `await this.place()` prima di `await this.stripe.confirmPayment(`, `'total_changed'`, `new URL(this.placed.return_url, window.location.href)`, `if (!this.placed)`, `this.freeze()`, `closest('label')?.querySelector('[data-choice-panel]')`, `this.paymentElement.unmount()`, `this.paymentElement.mount(`, `[data-checkout-stripe-element]`, `create('payment', STRIPE_PAYMENT_ELEMENT)` esattamente 2 volte, `paySpinner(true, this.labels.processing)` esattamente 2 volte, `payAlert('')` esattamente 2 volte, `await this.reopen(` esattamente 2 volte, `'payment_method_types' =>` in `CheckoutSummary.php`. Se un compito deve cambiarne una, lo dice e cambia il test nello stesso commit.
-- Le traduzioni `ecommerce.checkout.express` e `ecommerce.checkout.or` restano: il piano 2b le riusa nel carrello.
+- La sezione `#rapido` della vista, `ExpressCheckout` (oggi `buttons()` restituisce `[]`) e le traduzioni `ecommerce.checkout.express` e `ecommerce.checkout.or` restano come sono: il piano 2b ci mette i bottoni Apple Pay, Google Pay e Link.
+- `apple_pay` e `google_pay` non diventano mai scelte del modulo, anche se accesi nel conto. `link` sì.
 - Nell'ecommerce altre chat cambiano viste e catalogo su `main`. Le modifiche si ancorano a simboli (`data-checkout-payments`, `stripeBox(`, `function place`), non a numeri di riga.
 - Basi delle suite: si annotano nel passo P3 e non devono scendere. In app gli unici rossi ammessi sono `tests/Docs/ApiReferenceTest.php` e `tests/scheduler-integration.php`.
 
@@ -34,8 +35,8 @@
 1. **Klarna (o un altro metodo) fuori dai limiti d'importo o di paese.** Il Payment Element con quel solo tipo emette `loaderror`: la scelta sparisce e torna selezionata la carta, senza messaggi rossi. → Compito 7, prova nel browser (Compito 8).
 2. **Cache scritta in un altro ambiente o per un altro conto.** Passando da test a live, i tipi di prova non devono comparire: la cache non vale e si rilegge. → Compito 3, test «cache di un altro ambiente» e «di un altro conto».
 3. **Riuso dell'intento con tipi diversi.** Il cliente paga con la carta, viene rifiutato, poi da «Paga ora» o dal modulo riaperto sceglie Klarna: l'intento `pi_` riusabile si aggiorna con `payment_method_types`, non se ne apre un secondo. → Compito 4, test «riuso con tipi diversi fa update» e «riuso con gli stessi tipi, in altro ordine, niente update».
-4. **Dispositivo senza Apple Pay né Google Pay (e Link spento).** La scelta wallet non si vede mai, e «Ordina» resta visibile sulle altre scelte. → Compito 7, prova nel browser.
-5. **Click sul bottone wallet con il modulo incompleto.** Il foglio di Apple/Google Pay non si apre: si vedono gli errori sotto i campi, come con «Ordina». → Compito 7 (`click` senza `event.resolve()` se `validate` fallisce).
+4. **Link da solo nel Payment Element.** Con `paymentMethodTypes: ['link']` l'elemento deve mostrare il campo email di Link; se non si carica (`loaderror`) la scelta sparisce e torna la carta. → Compito 7, prova nel browser.
+5. **Apple Pay e Google Pay accesi nel conto.** Non compaiono fra le scelte, e la carta non ne mostra le icone. → Compito 2 (`choices`, `icons`), Compito 5 (test 1), prova nel browser.
 
 ---
 
@@ -68,11 +69,10 @@
 |------|---------|---------|
 | `src/Frontend/Checkout/CheckoutRules.php` | 6 | `post` spezza `id:tipo` |
 | `src/Frontend/Checkout/CheckoutSummary.php` | 6 | passa `key`, `stripe_method_type`, `payment_method_types` del gestionale |
-| `src/Frontend/Checkout/CheckoutController.php` | 6 | passa `stripe_method_type` a `Checkout::place`; niente `express` |
-| `src/Frontend/Checkout/ExpressCheckout.php` | 6 | si toglie (il 2b fa i bottoni del carrello) |
-| `view/pages/checkout/index.php` | 6 | radio con `key`, niente `#rapido` |
+| `src/Frontend/Checkout/CheckoutController.php` | 6 | passa `stripe_method_type` a `Checkout::place` |
+| `view/pages/checkout/index.php` | 6 | radio con `key` |
 | `tests/CheckoutStripeTest.php`, `tests/CartCheckoutTest.php` | 6, 7 | |
-| `resources/assets/js/checkout.js` | 7 | gruppi `elements` per scelta, scelta wallet, `loaderror` |
+| `resources/assets/js/checkout.js` | 7 | gruppi `elements` per scelta, `loaderror` |
 
 ---
 
@@ -171,10 +171,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfacce:**
 - Produce (tutti `public static`):
   - `typesFrom(list<array> $configurations): list<string>` — tipi con `available === true` della configurazione `is_default && active`, altrimenti della prima `active`; nessuna attiva → `[]`. Ordine come arriva.
-  - `choices(list<string> $types): list<string>` — `'card'` sempre per primo; poi `'wallet'` se c'è almeno uno fra `apple_pay`, `google_pay`, `link`; poi gli altri tipi in ordine alfabetico, esclusi `card`, `apple_pay`, `google_pay`, `link`.
-  - `name(string $choice, string $cardName): string` — `card` → `$cardName`; `wallet` → `'Apple Pay / Google Pay'`; altrimenti dalla mappa `NAMES`, di riserva `ucfirst(str_replace('_', ' ', $choice))`.
-  - `icons(string $choice, list<string> $rowIcons): list<string>` — `card` → icone della riga senza `WALLET_ICONS`; `wallet` → `['apple_pay', 'google_pay']`; altrimenti `[$choice]` se è in `PaymentMethod::ICONS`, se no `['genericbank']` (l'icona generica).
-  - `intentTypes(string $choice, list<string> $types): list<string>` — `card` → `['card']`; `wallet` → `['card']` più `'link'` se `link` è in `$types`; altrimenti `[$choice]`.
+  - `choices(list<string> $types): list<string>` — `'card'` sempre per primo; poi gli altri tipi in ordine alfabetico, esclusi `card`, `apple_pay`, `google_pay` (quelli vanno nella barra rapida del 2b).
+  - `name(string $choice, string $cardName): string` — `card` → `$cardName`; altrimenti dalla mappa `NAMES`, di riserva `ucfirst(str_replace('_', ' ', $choice))`.
+  - `icons(string $choice, list<string> $rowIcons): list<string>` — `card` → icone della riga senza `NOT_CARD_ICONS` (`apple_pay`, `google_pay`, `klarna`, `paypal`); altrimenti `[$choice]` se è in `PaymentMethod::ICONS`, se no `['genericbank']` (l'icona generica).
+  - `intentTypes(string $choice): list<string>` — `[$choice]` (la carta dà `['card']`).
 
 - [ ] **Passo 1: test che fallisce.** `tests/StripeMethodsTest.php`:
 
@@ -202,30 +202,26 @@ check('senza predefinita attiva vale la prima attiva', fn () =>
 check('nessuna configurazione attiva: nessun tipo', fn () =>
     StripeMethods::typesFrom([['active' => false, 'is_default' => true, 'card' => ['available' => true]]]) === []);
 
-check('le scelte: carta, wallet, poi gli altri in ordine alfabetico', fn () =>
-    StripeMethods::choices(['sepa_debit', 'card', 'klarna', 'link', 'apple_pay']) === ['card', 'wallet', 'klarna', 'sepa_debit']);
+check('le scelte: carta, poi gli altri in ordine alfabetico, Link compreso', fn () =>
+    StripeMethods::choices(['sepa_debit', 'card', 'klarna', 'link']) === ['card', 'klarna', 'link', 'sepa_debit']);
 
-check('senza wallet né Link niente scelta wallet; la carta c\'è sempre', fn () =>
-    StripeMethods::choices(['klarna']) === ['card', 'klarna'] && StripeMethods::choices([]) === ['card']);
+check('Apple Pay e Google Pay non sono scelte; la carta c\'è sempre', fn () =>
+    StripeMethods::choices(['apple_pay', 'google_pay', 'klarna']) === ['card', 'klarna'] && StripeMethods::choices([]) === ['card']);
 
 check('nomi: la carta tiene quello della riga, gli sconosciuti diventano leggibili', fn () =>
     StripeMethods::name('card', 'Carta di credito') === 'Carta di credito'
-    && StripeMethods::name('wallet', 'x') === 'Apple Pay / Google Pay'
+    && StripeMethods::name('link', 'x') === 'Link'
     && StripeMethods::name('klarna', 'x') === 'Klarna'
     && StripeMethods::name('sepa_debit', 'x') === 'Addebito SEPA'
     && StripeMethods::name('nuovo_metodo', 'x') === 'Nuovo metodo');
 
-check('icone: la carta perde i wallet, gli sconosciuti hanno l\'icona generica', fn () =>
+check('icone: la carta perde wallet e metodi separati, gli sconosciuti hanno l\'icona generica', fn () =>
     StripeMethods::icons('card', ['visa', 'master', 'google_pay', 'apple_pay', 'klarna', 'paypal']) === ['visa', 'master']
-    && StripeMethods::icons('wallet', ['visa']) === ['apple_pay', 'google_pay']
     && StripeMethods::icons('klarna', []) === ['klarna']
     && StripeMethods::icons('bancontact', []) === ['genericbank']);
 
-check('tipi dell\'intento per ogni scelta', fn () =>
-    StripeMethods::intentTypes('card', ['card', 'link']) === ['card']
-    && StripeMethods::intentTypes('wallet', ['card', 'link']) === ['card', 'link']
-    && StripeMethods::intentTypes('wallet', ['card', 'apple_pay']) === ['card']
-    && StripeMethods::intentTypes('klarna', ['klarna']) === ['klarna']);
+check('tipi dell\'intento: solo quello della scelta', fn () =>
+    StripeMethods::intentTypes('card') === ['card'] && StripeMethods::intentTypes('klarna') === ['klarna']);
 
 summary();
 ```
@@ -244,17 +240,18 @@ namespace Wonder\Plugin\Gestionale\Providers\Payments;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 
 /**
- * Le scelte che un solo metodo Stripe offre nel checkout: la carta, i
- * wallet, e una scelta per ogni altro metodo acceso nel conto (§11b).
- * Qui non si chiama Stripe: si lavora sui tipi già letti.
+ * Le scelte che un solo metodo Stripe offre nel checkout: la carta e una
+ * scelta per ogni altro metodo acceso nel conto (§11b). Apple Pay e Google
+ * Pay stanno nella barra rapida (§11), non qui. Non si chiama Stripe: si
+ * lavora sui tipi già letti.
  */
 final class StripeMethods
 {
-    /** Stanno nella scelta wallet, non da soli. */
-    private const WALLETS = ['apple_pay', 'google_pay', 'link'];
+    /** Vanno nella barra rapida, non fra le scelte del modulo. */
+    private const WALLETS = ['apple_pay', 'google_pay'];
 
-    /** Le icone che la carta non mostra più: hanno la loro scelta. */
-    private const WALLET_ICONS = ['apple_pay', 'google_pay', 'klarna', 'paypal'];
+    /** Le icone che la carta non mostra: hanno un altro posto. */
+    private const NOT_CARD_ICONS = ['apple_pay', 'google_pay', 'klarna', 'paypal'];
 
     private const NAMES = [
         'affirm' => 'Affirm',
@@ -266,6 +263,7 @@ final class StripeMethods
         'eps' => 'EPS',
         'ideal' => 'iDEAL',
         'klarna' => 'Klarna',
+        'link' => 'Link',
         'mobilepay' => 'MobilePay',
         'multibanco' => 'Multibanco',
         'p24' => 'Przelewy24',
@@ -311,23 +309,16 @@ final class StripeMethods
      */
     public static function choices(array $types): array
     {
-        $choices = ['card'];
-
-        if (array_intersect($types, self::WALLETS) !== []) {
-            $choices[] = 'wallet';
-        }
-
         $others = array_values(array_diff($types, ['card'], self::WALLETS));
         sort($others);
 
-        return array_merge($choices, $others);
+        return array_merge(['card'], $others);
     }
 
     public static function name(string $choice, string $cardName): string
     {
         return match ($choice) {
             'card' => $cardName,
-            'wallet' => 'Apple Pay / Google Pay',
             default => self::NAMES[$choice] ?? ucfirst(str_replace('_', ' ', $choice)),
         };
     }
@@ -339,23 +330,15 @@ final class StripeMethods
     public static function icons(string $choice, array $rowIcons): array
     {
         return match ($choice) {
-            'card' => array_values(array_diff($rowIcons, self::WALLET_ICONS)),
-            'wallet' => ['apple_pay', 'google_pay'],
+            'card' => array_values(array_diff($rowIcons, self::NOT_CARD_ICONS)),
             default => isset(PaymentMethod::ICONS[$choice]) ? [$choice] : ['genericbank'],
         };
     }
 
-    /**
-     * @param list<string> $types i tipi disponibili nel conto
-     * @return list<string>
-     */
-    public static function intentTypes(string $choice, array $types): array
+    /** @return list<string> i tipi del PaymentIntent per questa scelta */
+    public static function intentTypes(string $choice): array
     {
-        return match ($choice) {
-            'card' => ['card'],
-            'wallet' => in_array('link', $types, true) ? ['card', 'link'] : ['card'],
-            default => [$choice],
-        };
+        return [$choice];
     }
 }
 ```
@@ -581,11 +564,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `tests/integrazione/StripeProviderTest.php`, `tests/integrazione/LedgerTest.php`
 
 **Interfacce:**
-- Consuma: `StripeMethods::intentTypes()`, `StripeProvider::activeTypes()`.
+- Consuma: `StripeMethods::intentTypes()`.
 - Produce: colonna `gst_payments.provider_method` (VARCHAR 40, vuota di default); `Ledger::open(['provider_method' => 'klarna', ...])` la scrive; `StripeProvider::start($order, $payment)` legge `$payment['provider_method']`.
 
 Tipi in `start`:
-- `provider_method` non vuoto → `StripeMethods::intentTypes($payment['provider_method'], $this->activeTypes())` in `payment_method_types`.
+- `provider_method` non vuoto → `StripeMethods::intentTypes($payment['provider_method'])` in `payment_method_types`.
 - vuoto → come oggi: CSV della riga, altrimenti `automatic_payment_methods`.
 - Riuso di un `pi_` in stato riusabile: se i tipi voluti non sono vuoti e, ordinati, differiscono da quelli ordinati di `$old->payment_method_types`, `$intents->update($old->id, ['payment_method_types' => $types])` e si restituisce l'intento aggiornato. Se i tipi voluti sono vuoti, l'intento resta com'è.
 
@@ -604,12 +587,10 @@ check('open scrive il metodo scelto dentro il gateway', fn () => prova(function 
 
 (Se `LedgerTest` non usa `prova()`, usa lo stesso modo di annullare i dati che usano i suoi test.)
 
-In `StripeProviderTest.php`. Prima di ogni test: `StripeProvider::forget()` e la cache dei tipi scritta con `cacheMetodi([... 'types' => ['card', 'klarna', 'link'], 'fetched_at' => time()])`, così `activeTypes()` non chiama Stripe. Le richieste HTTP da controllare sono quelle a `/v1/payment_intents`: trova l'indice con un ciclo su `$http->requests`, o usa il campo del corpo come fanno i test di `start` già presenti.
+In `StripeProviderTest.php`. Le richieste HTTP da controllare sono quelle a `/v1/payment_intents`: trova l'indice con un ciclo su `$http->requests`, o usa il campo del corpo come fanno i test di `start` già presenti.
 
 ```php
 check('start con provider_method klarna: solo klarna', fn () => prova(function () use ($http, $ordine, $pagamento) {
-    StripeProvider::forget();
-    cacheMetodi(['environment' => 'test', 'account' => 'acct_prova_test', 'types' => ['card', 'klarna', 'link'], 'fetched_at' => time()]);
     $http->requests = [];
     $http->queue(200, ['id' => 'cus_prova', 'object' => 'customer']); // solo se start crea il Customer: copia la coda dei test di start esistenti
     $http->queue(200, intento());
@@ -622,10 +603,11 @@ check('start con provider_method klarna: solo klarna', fn () => prova(function (
 
 Scrivi allo stesso modo, copiando la preparazione dal test sopra:
 - `provider_method` `card` → `['card']`;
-- `provider_method` `wallet` con `link` acceso → `['card', 'link']`;
+- `provider_method` `link` → `['link']`;
 - `provider_method` vuoto e CSV vuoto → `automatic_payment_methods[enabled]` presente, `payment_method_types` assente;
 - **riuso con tipi diversi:** `$pagamento['provider_reference'] = 'pi_vecchio'`, coda: GET `intento(['id' => 'pi_vecchio', 'payment_method_types' => ['card']])`, poi POST di update `intento(['id' => 'pi_vecchio', 'payment_method_types' => ['klarna']])`; con `provider_method` `klarna` → la seconda richiesta è `POST /v1/payment_intents/pi_vecchio` con `payment_method_types` `['klarna']`, nessuna `POST /v1/payment_intents` di creazione, e `PaymentStart->reference === 'pi_vecchio'`;
-- **riuso con gli stessi tipi in altro ordine:** GET `intento(['id' => 'pi_vecchio', 'payment_method_types' => ['link', 'card']])`, `provider_method` `wallet` → una sola richiesta (la GET), niente update.
+- **riuso con gli stessi tipi:** GET `intento(['id' => 'pi_vecchio', 'payment_method_types' => ['card']])`, `provider_method` `card` → una sola richiesta (la GET), niente update;
+- **riuso senza scelta:** GET `intento(['id' => 'pi_vecchio', 'payment_method_types' => ['card', 'link']])`, `provider_method` vuoto e CSV vuoto → nessun update.
 
 Le funzioni che decodificano il corpo e cercano la richiesta per percorso le ha già il file (guarda i test «start …» del piano 1): riusale, non scriverne di nuove se ci sono.
 
@@ -675,7 +657,7 @@ con i due aiuti privati:
         $choice = trim((string) ($payment['provider_method'] ?? ''));
 
         if ($choice !== '') {
-            return StripeMethods::intentTypes($choice, $this->activeTypes());
+            return StripeMethods::intentTypes($choice);
         }
 
         return self::methodTypes((string) ($this->method($order)['stripe_payment_method_types'] ?? ''));
@@ -716,7 +698,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Consuma: `StripeProvider::activeTypes()`, `StripeMethods::choices/name/icons/intentTypes`.
 - Produce, in ogni elemento di `preview()['payment_methods']['options']`, oltre ai campi di oggi:
   - `key: string` — `"{id}"` per i non Stripe e per la carta, `"{id}:{tipo}"` per le altre scelte Stripe;
-  - `stripe_method_type: string` — `''` per i non Stripe, altrimenti `card`, `wallet` o il tipo;
+  - `stripe_method_type: string` — `''` per i non Stripe, altrimenti `card` o il tipo (`klarna`, `link`…);
   - `payment_method_types: list<string>` — `StripeMethods::intentTypes(...)` per le scelte Stripe, `[]` per gli altri.
   - `name` e `icons` delle scelte Stripe vengono da `StripeMethods::name` e `StripeMethods::icons`.
 - `payment_methods.selected` resta l'id del metodo (int).
@@ -740,17 +722,17 @@ Comportamento:
     }
 ```
 
-- In `preview` le opzioni diventano una lista piatta: ogni riga non Stripe dà una voce; ogni riga Stripe dà una voce per ogni elemento di `StripeMethods::choices($stripeTypes)`, nell'ordine di `choices` (carta, wallet, altri in ordine alfabetico), tutte con lo stesso `id`, `fee`, `fee_type`, `fee_value`, `fee_percent`, `provider`, `manual`, `instructions` della riga.
+- In `preview` le opzioni diventano una lista piatta: ogni riga non Stripe dà una voce; ogni riga Stripe dà una voce per ogni elemento di `StripeMethods::choices($stripeTypes)`, nell'ordine di `choices` (carta, poi gli altri in ordine alfabetico), tutte con lo stesso `id`, `fee`, `fee_type`, `fee_value`, `fee_percent`, `provider`, `manual`, `instructions` della riga.
 - In `place`: `create` riceve `$stripeTypes` come terzo argomento. Dopo `$method = self::method(...)`, se `PaymentMethod::ledgerProvider($method['provider']) === 'stripe'`: `$type = trim((string) ($data['stripe_method_type'] ?? '')) ?: 'card'`; se `$type` non è in `StripeMethods::choices($stripeTypes)` → `throw UserError::make('order.payment_method_unavailable')`. `Ledger::open` riceve `'provider_method' => $type`. Per le righe non Stripe il campo si ignora e `provider_method` resta `''`.
 
 - [ ] **Passo 1: test che falliscono.** `tests/integrazione/CheckoutStripeMethodsTest.php`. Prendi l'intestazione (require, `prova()`, `use`) da `tests/integrazione/StripeProviderTest.php`, comprese `chiavi()` e `cacheMetodi()` (copiale: i file di test non si includono a vicenda). Per carrello e metodo segui `tests/integrazione/CheckoutSpedizioneTest.php`: come prepara un carrello pronto per `Checkout::preview`/`place`, come registra un provider con `PaymentProviders::register(...)` e come chiude con `PaymentProviders::reset()`. Il metodo Stripe di prova è una riga di `PaymentMethod` con `provider` `stripe`, attiva, `applies_online` `true`, icone `visa,master,google_pay,apple_pay,klarna`, creata dentro `prova()`.
 
-Test da scrivere (uno per riga, dentro `prova()`, con `StripeProvider::forget()`, `PaymentProviders::register(new StripeProvider(chiavi()))` e `cacheMetodi([... 'types' => ['card', 'apple_pay', 'link', 'klarna', 'sepa_debit'], 'fetched_at' => time()])`):
+Test da scrivere (uno per riga, dentro `prova()`, con `StripeProvider::forget()`, `PaymentProviders::register(new StripeProvider(chiavi()))` e `cacheMetodi([... 'types' => ['card', 'apple_pay', 'google_pay', 'link', 'klarna', 'sepa_debit'], 'fetched_at' => time()])`):
 
-1. **scelte nel preview:** le voci del metodo Stripe sono, in ordine, `stripe_method_type` `card`, `wallet`, `klarna`, `sepa_debit`; `key` `"{id}"`, `"{id}:wallet"`, `"{id}:klarna"`, `"{id}:sepa_debit"`; tutte con lo stesso `id`; la carta ha `name` uguale a quello della riga e icone senza `google_pay`, `apple_pay`, `klarna`; il wallet ha `payment_method_types` `['card', 'link']`; Klarna `['klarna']`.
+1. **scelte nel preview:** le voci del metodo Stripe sono, in ordine, `stripe_method_type` `card`, `klarna`, `link`, `sepa_debit` (niente `apple_pay` né `google_pay`); `key` `"{id}"`, `"{id}:klarna"`, `"{id}:link"`, `"{id}:sepa_debit"`; tutte con lo stesso `id`; la carta ha `name` uguale a quello della riga e icone senza `google_pay`, `apple_pay`, `klarna`; la carta ha `payment_method_types` `['card']`, Klarna `['klarna']`, Link `['link']` con `name` «Link».
 2. **i metodi non Stripe restano una voce sola**, con `key` `"{id}"`, `stripe_method_type` `''` e `payment_method_types` `[]` (usa un bonifico creato nel test).
 3. **`selected` resta l'id del metodo.**
-4. **place con un tipo non in elenco:** `stripe_method_type` `paypal` → `UserError` con chiave `order.payment_method_unavailable`.
+4. **place con un tipo non in elenco:** `stripe_method_type` `paypal` (spento) e `apple_pay` (acceso ma non è una scelta del modulo) → `UserError` con chiave `order.payment_method_unavailable`.
 5. **place senza tipo su Stripe:** nasce il pagamento con `provider_method` `card`.
 6. **place con `klarna`:** `provider_method` `klarna` sulla riga di `Payment` dell'ordine.
 7. **place su un metodo non Stripe con `stripe_method_type` `klarna`:** il campo si ignora, `provider_method` `''`.
@@ -792,7 +774,7 @@ Per vedere `UserError` usa lo stesso schema degli altri test che si aspettano un
                 ]) + [
                     'key' => $type === 'card' ? (string) $choice['id'] : $choice['id'].':'.$type,
                     'stripe_method_type' => $type,
-                    'payment_method_types' => StripeMethods::intentTypes($type, $stripeTypes),
+                    'payment_method_types' => StripeMethods::intentTypes($type),
                 ];
             }
         }
@@ -824,8 +806,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **File:**
 - Modifica: `src/Frontend/Checkout/CheckoutRules.php`, `src/Frontend/Checkout/CheckoutSummary.php`, `src/Frontend/Checkout/CheckoutController.php`, `view/pages/checkout/index.php`
-- Rimuovi: `src/Frontend/Checkout/ExpressCheckout.php`
-- Test: `tests/CheckoutStripeTest.php`, `tests/CartCheckoutTest.php`
+- Test: `tests/CheckoutStripeTest.php`
 
 **Interfacce:**
 - Consuma: le voci del Compito 5 (`key`, `stripe_method_type`, `payment_method_types`, `id`, `name`, `icons`).
@@ -845,20 +826,17 @@ check('i tipi della scelta arrivano dal gestionale, non dal CSV', fn () =>
     && !str_contains($summary, 'stripe_payment_method_types')
     && str_contains($controller, "'stripe_method_type' =>"));
 
-check('niente barra rapida in cima al checkout', fn () =>
-    !str_contains($view, 'id="rapido"') && !str_contains($controller, 'ExpressCheckout'));
 ```
 
-In `CartCheckoutTest.php` togli il controllo su `ExpressCheckout::buttons(...)` (riga con `ExpressCheckout::buttons(['total' => '10.00']) === []`): la classe non esiste più. Se `check(...)` contiene solo quello, togli l'intero `check`.
+`#rapido`, `ExpressCheckout` e il loro test in `CartCheckoutTest.php` non si toccano (Vincoli globali).
 
 - [ ] **Passo 2: vederli fallire.** `cd /Users/andreamarinoni/Developer/worktrees/stripe-express/ecommerce && WONDER_NO_MAIL=1 php tests/CheckoutStripeTest.php`.
 
 - [ ] **Passo 3: codice.**
   - `CheckoutRules`: nuovo `public static function splitPayment(mixed $value): array` → `[int $id, string $type]`; `'891:klarna'` → `[891, 'klarna']`; `'891'` → `[891, '']`; un id non numerico positivo → `[0, '']`; il tipo vale solo se è `[a-z0-9_]{1,40}`, altrimenti `''`. In `post()`, prima del `return`: se `payment_method_id` c'è, `[$post['payment_method_id'], $post['stripe_method_type']] = self::splitPayment($post['payment_method_id']);` (così il riepilogo e il carrello ricevono l'id nudo).
   - `CheckoutSummary::paymentDisplay`: `'payment_method_types' => $stripe ? array_values((array) ($option['payment_method_types'] ?? [])) : [],` al posto della lettura del CSV; togli gli `use` rimasti senza uso (`StripeProvider`, `PaymentMethod` se non serve più altrove nel file). Il PHPDoc di ritorno resta con `payment_method_types`.
-  - `CheckoutController::place`: in `CheckoutForm::data([...])` aggiungi `'stripe_method_type' => (string) ($post['stripe_method_type'] ?? ''),` accanto a `'payment_method_id'`, e controlla che `CheckoutForm::data` lo lasci passare (se filtra le chiavi, aggiungilo lì); in alternativa passalo direttamente nell'array di `Checkout::place($cartId, $data + [...])`. Togli `'express' => ExpressCheckout::buttons(...)` e il suo `use`.
-  - Elimina `src/Frontend/Checkout/ExpressCheckout.php` (`git rm`).
-  - `view/pages/checkout/index.php`: togli il blocco `<?php if ($express !== []): ?> … <?php endif; ?>` con `#rapido`; la closure `$payment` diventa:
+  - `CheckoutController::place`: in `CheckoutForm::data([...])` aggiungi `'stripe_method_type' => (string) ($post['stripe_method_type'] ?? ''),` accanto a `'payment_method_id'`, e controlla che `CheckoutForm::data` lo lasci passare (se filtra le chiavi, aggiungilo lì); in alternativa passalo direttamente nell'array di `Checkout::place($cartId, $data + [...])`.
+  - `view/pages/checkout/index.php`: la closure `$payment` diventa:
 
 ```php
 $payment = static fn (array $p): Choice => Choice::make('payment_method_id', (string) $p['key'])
@@ -867,8 +845,7 @@ $payment = static fn (array $p): Choice => Choice::make('payment_method_id', (st
     ->checked((int) $p['id'] === $paymentSelected && in_array((string) ($p['stripe_method_type'] ?? ''), ['', 'card'], true));
 ```
 
-  Se `Choice::make` accetta solo `int` come valore, guarda la sua firma nella lib: se è `int|string` va bene; se è `int`, annota il problema e usa il modo che la lib offre per un valore stringa (non cambiare la lib in questo piano). Se `$express` si usa ancora altrove nella vista, togli anche quelle righe.
-  - Le traduzioni `ecommerce.checkout.express` e `ecommerce.checkout.or` restano.
+  Se `Choice::make` accetta solo `int` come valore, guarda la sua firma nella lib: se è `int|string` va bene; se è `int`, annota il problema e usa il modo che la lib offre per un valore stringa (non cambiare la lib in questo piano).
 
 - [ ] **Passo 4: vederli passare**, poi la suite dell'ecommerce (`WONDER_NO_MAIL=1 php tests/run.php > file 2>&1; tail -3 file`).
 
@@ -876,16 +853,15 @@ $payment = static fn (array $p): Choice => Choice::make('payment_method_id', (st
 
 ```bash
 cd /Users/andreamarinoni/Developer/worktrees/stripe-express/ecommerce
-git rm src/Frontend/Checkout/ExpressCheckout.php
-git add src/Frontend/Checkout/CheckoutRules.php src/Frontend/Checkout/CheckoutSummary.php src/Frontend/Checkout/CheckoutController.php view/pages/checkout/index.php tests/CheckoutStripeTest.php tests/CartCheckoutTest.php
-git commit -m "Checkout: un radio per ogni scelta Stripe, niente barra rapida in cima
+git add src/Frontend/Checkout/CheckoutRules.php src/Frontend/Checkout/CheckoutSummary.php src/Frontend/Checkout/CheckoutController.php view/pages/checkout/index.php tests/CheckoutStripeTest.php
+git commit -m "Checkout: un radio per ogni scelta Stripe
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
 
-## Compito 7 (ecommerce): `checkout.js`, un gruppo `elements` per scelta e la scelta wallet
+## Compito 7 (ecommerce): `checkout.js`, un gruppo `elements` per scelta
 
 **File:**
 - Modifica: `resources/assets/js/checkout.js`
@@ -893,44 +869,24 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfacce:**
 - Consuma: opzioni con `key`, `stripe_method_type`, `payment_method_types`, `provider`; `payload.stripe` (`publishable_key`, `account`, `amount`, `currency`).
-- Produce: `this.groups` (oggetto `key → { elements, element, kind: 'payment'|'wallet', mounted }`); `this.elements` e `this.paymentElement` puntano sempre al gruppo della scelta corrente (così restano valide le stringhe fissate dai test).
+- Produce: `this.groups` (oggetto `key → { elements, element, container }`); `this.elements` e `this.paymentElement` puntano sempre al gruppo della scelta corrente (così restano valide le stringhe fissate dai test).
 
 Modifiche, ancorate ai metodi esistenti:
 
 1. **`payments(payload)`**: `value: o.key` al posto di `value: o.id`, e `selected` diventa la chiave della scelta da spuntare: quella del radio già spuntato se esiste ancora fra le opzioni, altrimenti la voce con `o.id === payload.payment_methods.selected` e `stripe_method_type` in `['', 'card']`. Così `choices()` confronta `input.value === String(options[i].value)` sulle chiavi e, con le stesse scelte, non ridisegna (i campi della carta non si ricaricano).
 2. **`chosenPayment(payload)`**: cerca per chiave: `checked ? options.find((o) => String(o.key) === checked.value)` ; senza radio spuntato, la voce di `selected` con `stripe_method_type` in `['', 'card']`.
-3. **`submit(payload)`**: usa `this.chosenPayment(payload)` al posto della ricerca per id. Inoltre nasconde i bottoni `[data-checkout-submit]` quando `chosen?.stripe_method_type === 'wallet'` (il bottone di pagamento è quello del wallet), e li rimostra altrimenti. Chiamalo anche dal `change` del radio del pagamento se oggi `bind()` non lo fa.
+3. **`submit(payload)`**: usa `this.chosenPayment(payload)` al posto della ricerca per id.
 4. **`stripeBox(payload)`**: resta il punto d'ingresso (`this.stripeBox(payload)` e `this.stripeBox(this.latest)` non cambiano). Nuovo comportamento:
    - `const stripeOptions = (payload.payment_methods.options || []).filter((o) => o.provider === 'stripe')`; se non ce ne sono, o mancano le chiavi, o `keys.amount <= 0`, nascondi il box e smonta come oggi.
-   - Stripe.js si carica appena c'è almeno una scelta Stripe (serve per sapere se mostrare la scelta wallet), non solo quando è scelta.
-   - Dopo il caricamento: se c'è una voce con `stripe_method_type === 'wallet'` e il suo gruppo non esiste, lo crei subito (vedi punto 6) e lo monti nel suo pannello; la voce resta nascosta (`label.hidden = true`) finché `ready` non dice che c'è almeno un bottone.
-   - Per la scelta corrente con `chosen?.provider === 'stripe'` e `kind` payment: se il gruppo non c'è, lo crei con `this.stripe.elements({ mode: 'payment', amount, currency, paymentMethodTypes: chosen.payment_method_types })` e `group.elements.create('payment', STRIPE_PAYMENT_ELEMENT)`; per le scelte diverse dalla carta aggiungi `group.element.on('loaderror', () => this.dropChoice(chosen.key))`.
+   - Stripe.js si carica come oggi, quando la scelta corrente è Stripe.
+   - Per la scelta corrente con `chosen?.provider === 'stripe'`: se il gruppo non c'è, lo crei con `this.stripe.elements({ mode: 'payment', amount, currency, paymentMethodTypes: chosen.payment_method_types })` e `group.elements.create('payment', STRIPE_PAYMENT_ELEMENT)`; per le scelte diverse dalla carta aggiungi `group.element.on('loaderror', () => this.dropChoice(chosen.key))`.
    - `this.elements = group.elements; this.paymentElement = group.element;` poi `this.stripeSlot(true)`.
    - Importi: per ogni gruppo esistente `group.elements.update({ amount, currency })`; per quello corrente la riga resta `this.elements.update(this.stripeOptions)` con `this.stripeOptions = { mode: 'payment', amount: keys.amount, currency: keys.currency }` (la stringa `mode: 'payment'` resta).
 5. **`stripeSlot(on)`**: oggi sposta un solo `[data-checkout-stripe-element]`. Ora ogni gruppo ha il suo contenitore: un `div` creato in JS (`document.createElement('div')`, con `dataset.checkoutStripeElement = key`) dentro il pannello della propria scelta (`radio.closest('label')?.querySelector('[data-choice-panel]')`). Montaggio una volta sola per gruppo (`this.paymentElement.mount(` sul contenitore la prima volta); se `choices()` ha ridisegnato le voci e il contenitore non è più nel DOM (`!container.isConnected`), `this.paymentElement.unmount()` e rimonta nel pannello nuovo. Il pannello della scelta corrente si mostra, gli altri si nascondono con `this.pane(...)`. In `choices()` e in `pane()` il filtro `[data-checkout-stripe-element]` deve riconoscere tutti i contenitori (`querySelectorAll`), non uno solo: aggiorna le due funzioni di conseguenza. Il vecchio `[data-checkout-stripe-element]` della vista può restare come primo contenitore della carta.
-6. **Scelta wallet (Express Checkout Element)**: costante nuova accanto a `STRIPE_PAYMENT_ELEMENT`:
-
-```js
-const STRIPE_WALLET_ELEMENT = {
-    paymentMethods: { applePay: 'auto', googlePay: 'auto', link: 'auto', paypal: 'never', klarna: 'never', amazonPay: 'never' },
-    emailRequired: false,
-    phoneNumberRequired: false,
-    shippingAddressRequired: false,
-    billingAddressRequired: false,
-};
-```
-
-   Il gruppo: `this.stripe.elements({ mode: 'payment', amount, currency, paymentMethodTypes: option.payment_method_types })`, `group.elements.create('expressCheckout', STRIPE_WALLET_ELEMENT)`, montato nel pannello della scelta wallet. Eventi:
-   - `ready`: `({ availablePaymentMethods }) =>` se nessun valore vero, la voce resta nascosta (e se era spuntata si spunta la carta, punto 7); altrimenti si mostra e il titolo diventa i nomi presenti uniti da « / » (`Apple Pay`, `Google Pay`, `Link`), scritti in `[data-choice-title]`.
-   - `click`: `(event) =>` se `!this.validate(event)` (passagli un oggetto con `preventDefault() {}`, perché l'evento di Stripe non è un submit) o il reCAPTCHA richiesto è vuoto o le condizioni obbligatorie non sono spuntate — gli stessi controlli sincroni di «Ordina»; guarda cosa fa oggi il submit prima di `payOnline` e riusa la stessa funzione — non chiamare `event.resolve()`; altrimenti `event.resolve()`.
-   - `confirm`: `(event) => this.payOnline(event)`.
-7. **`dropChoice(key)`**: nasconde la `label` della voce, e se era spuntata spunta la carta Stripe (voce con `stripe_method_type === 'card'`) e richiama `this.stripeBox(this.latest)`. Niente messaggi.
-8. **`payOnline(expressEvent = null)`**: la catena resta `await this.elements.submit()` → `await this.place()` → `await this.stripe.confirmPayment(` con `elements: this.elements`. Cambi:
-   - se `expressEvent` c'è, `this.elements`/`this.paymentElement` devono essere quelli del gruppo wallet (impostali all'inizio);
-   - se `place()` restituisce `null` (rifiuto, totale cambiato) e c'è `expressEvent`, `expressEvent.paymentFailed({ reason: 'fail' })` prima di uscire;
-   - il resto (spinner, `payAlert`, `reopen`, `freeze`, `if (!this.placed)`) non cambia.
-9. **Stato del modulo** (`ecommerce_checkout_form_state`): il radio ora vale la chiave, quindi la scelta Stripe si ricorda da sola. Controlla che il ripristino cerchi il radio per valore e non converta in numero; se converte, correggi.
-10. **`guardSubmit`**: resta `if (this.chosenPayment()?.provider === 'stripe')` → `payOnline()`. Con la scelta wallet i bottoni sono nascosti; se il modulo si invia lo stesso (Invio da tastiera), `payOnline()` senza evento: `elements.submit()` dell'Express Checkout risponde con errore, e quell'errore va mostrato come gli altri.
+6. **`dropChoice(key)`**: nasconde la `label` della voce, e se era spuntata spunta la carta Stripe (voce con `stripe_method_type === 'card'`) e richiama `this.stripeBox(this.latest)`. Niente messaggi.
+7. **`payOnline()`**: non cambia. Usa `this.elements` e `this.paymentElement`, che puntano al gruppo della scelta corrente.
+8. **Stato del modulo** (`ecommerce_checkout_form_state`): il radio ora vale la chiave, quindi la scelta Stripe si ricorda da sola. Controlla che il ripristino cerchi il radio per valore e non converta in numero; se converte, correggi.
+9. **`guardSubmit`**: resta `if (this.chosenPayment()?.provider === 'stripe')` → `payOnline()`.
 
 - [ ] **Passo 1: test che falliscono.** In `CheckoutStripeTest.php`:
 
@@ -941,20 +897,13 @@ check('ogni scelta Stripe ha il suo gruppo elements, con i soli tipi della scelt
     && str_contains($js, "'loaderror'")
     && str_contains($js, 'dropChoice('));
 
-check('la scelta wallet usa l\'Express Checkout Element e si mostra solo con un bottone disponibile', fn () =>
-    str_contains($js, "create('expressCheckout', STRIPE_WALLET_ELEMENT)")
-    && str_contains($js, "applePay: 'auto', googlePay: 'auto', link: 'auto'")
-    && str_contains($js, 'availablePaymentMethods')
-    && str_contains($js, 'event.resolve()')
-    && str_contains($js, 'paymentFailed('));
-
 check('il radio del pagamento vale la chiave della scelta', fn () =>
     str_contains($js, 'value: o.key') && !str_contains($js, 'value: o.id }'));
 ```
 
 - [ ] **Passo 2: vederli fallire.** `WONDER_NO_MAIL=1 php tests/CheckoutStripeTest.php`.
 
-- [ ] **Passo 3: codice**, punti 1–10. Poi `node --check resources/assets/js/checkout.js` (se `node` c'è) per la sintassi.
+- [ ] **Passo 3: codice**, punti 1–9. Poi `node --check resources/assets/js/checkout.js` (se `node` c'è) per la sintassi.
 
 - [ ] **Passo 4: vederli passare**, e con loro tutti i controlli già presenti in `CheckoutStripeTest.php` e `CheckoutPlaceJsonTest.php` (le stringhe dei Vincoli globali). Poi la suite dell'ecommerce.
 
@@ -962,7 +911,7 @@ check('il radio del pagamento vale la chiave della scelta', fn () =>
 
 ```bash
 git -C /Users/andreamarinoni/Developer/worktrees/stripe-express/ecommerce add resources/assets/js/checkout.js tests/CheckoutStripeTest.php
-git -C /Users/andreamarinoni/Developer/worktrees/stripe-express/ecommerce commit -m "Checkout: carta, wallet e metodi Stripe separati, ognuno col suo elemento
+git -C /Users/andreamarinoni/Developer/worktrees/stripe-express/ecommerce commit -m "Checkout: carta e metodi Stripe separati, ognuno col suo elemento
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -974,10 +923,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Passo 1: suite.** Le tre suite come in P3, con l'output nello scratchpad. Atteso: nessun rosso nuovo rispetto alle basi.
 
 - [ ] **Passo 2: prova nel browser** su https://ecommerce.test/checkout (navigazione e JS autorizzati; il login e il reCAPTCHA li fa l'utente, la carta di prova si può inserire). Dati del cliente fittizi con `@example.com`. Da guardare:
-  - sotto «Carta di credito» compaiono le scelte dei metodi accesi nel conto di prova, nell'ordine carta, wallet (se il browser lo supporta), poi alfabetico;
+  - sotto «Carta di credito» compaiono le scelte dei metodi accesi nel conto di prova, nell'ordine carta, poi alfabetico; Apple Pay e Google Pay non ci sono;
   - la carta mostra solo i circuiti; il Payment Element della carta non mostra wallet né Link;
   - scegliendo Klarna compare il Payment Element con solo Klarna; se Klarna non vale per l'importo o il paese, la scelta sparisce e torna la carta;
-  - con la scelta wallet «Ordina» sparisce e compare il bottone di Apple Pay o Google Pay; il click con il modulo incompleto mostra gli errori;
+  - scegliendo Link compare il campo email di Link (o la scelta sparisce se non si carica);
   - pagamento con la carta 4242 e con Klarna in test fino alla pagina di ritorno.
   Annota nel registro cosa hai visto per ognuno dei cinque «Punti da guardare».
 

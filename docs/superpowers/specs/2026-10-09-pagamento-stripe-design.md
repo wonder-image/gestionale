@@ -53,7 +53,7 @@ Criteri di riuscita:
 | Importo | Il totale lo decide il server. Se differisce da quello mostrato al cliente, niente addebito e il riepilogo si aggiorna. Gli importi si confrontano in centesimi. Se un evento porta importo, valuta o ordine diversi da quelli attesi, l'ordine non si conferma, l'evento resta `failed` senza altri tentativi e il commerciante riceve la segnalazione. |
 | Customer Stripe | Uno per scheda cliente e per ambiente, creato al primo pagamento Stripe (email, nome). L'id sta in `external_references` e i cambi successivi non si sincronizzano. |
 | Prodotti e coupon | Non vanno su Stripe. Il PaymentIntent porta solo il totale e i metadati. |
-| Tipi di pagamento | Nel checkout, dalla scelta del cliente (§11b): `card`, il wallet o un metodo acceso nel conto. Per i pagamenti senza scelta (righe vecchie, pagamenti creati dal backend), da `stripe_payment_method_types` del metodo; se la colonna è vuota, quelli automatici del conto. Browser e server leggono la stessa fonte. |
+| Tipi di pagamento | Nel checkout, dalla scelta del cliente (§11b): `card` o un altro metodo acceso nel conto; dalla barra rapida (§11), il tipo che il wallet comunica (`apple_pay`, `google_pay`, `link`). Per i pagamenti senza scelta (righe vecchie, pagamenti creati dal backend), da `stripe_payment_method_types` del metodo; se la colonna è vuota, quelli automatici del conto. Browser e server leggono la stessa fonte. |
 | Rimborsi | Fatti dalla dashboard di Stripe e registrati da `charge.refunded`. |
 | Email | Per gli ordini pagati online, al `place` non parte nulla. «Confermato» e l'avviso al commerciante partono alla conferma. Il link per la password dell'ospite viaggia con «confermato» (`OrderEmailExtras`). |
 | Durata della prenotazione | `order_reservation_minutes`, impostata nel backend (predefinita 30). Il D6 non la cambia. |
@@ -347,15 +347,15 @@ Stripe.
 
 **Dove compare:**
 
+- in cima al checkout, nella sezione `#rapido` (`ExpressCheckout::buttons()`),
+  sopra il modulo: chi la usa non compila nulla, i dati arrivano dal wallet;
 - nel carrello;
 - sulla scheda prodotto, sotto «Aggiungi al carrello».
 
-Nella pagina del checkout la barra in cima non c'è: i wallet stanno nella scelta
-«Apple Pay / Google Pay» sotto la carta (§11b), che usa i dati già scritti nel
-modulo. La sezione `#rapido` e `ExpressCheckout::buttons()` si tolgono.
-
-L'elemento mostra solo i wallet disponibili sul dispositivo: Apple Pay, Google
-Pay, Link e, se attivi nel conto, Klarna e Amazon Pay.
+L'elemento mostra bottoni separati, solo quelli disponibili sul dispositivo e
+accesi nel conto: Apple Pay, Google Pay e Link (`paymentMethods` ad `auto` per
+questi tre, `never` per gli altri, che hanno la loro scelta nel modulo, §11b).
+Apple Pay e Google Pay stanno solo qui, non fra le scelte del modulo.
 
 **Quando non compare:**
 
@@ -397,7 +397,9 @@ coupon.
      salvata. L'ospite crea o aggiorna la scheda per email, come in
      `GuestCheckout`.
    - Poi segue la sezione §7 dal punto 3: controllo del totale, `place`, `start`,
-     `attach`.
+     `attach`. Il pagamento si salva con `provider` `stripe` e `provider_method`
+     uguale a `event.expressPaymentType` (`apple_pay`, `google_pay`, `link`),
+     convalidato contro i tipi accesi nel conto.
    - Il browser chiama `confirmPayment` e arriva alla stessa pagina di ritorno.
    - Se il totale non torna, `event.paymentFailed` con un messaggio, e nessun
      addebito.
@@ -410,9 +412,10 @@ CSRF sono quelli del sito.
 
 ## 11b. Metodi Stripe separati sotto la carta (piano 2a)
 
-Richiesta del commerciante: Apple Pay, Google Pay, Klarna e gli altri non stanno
-dentro «Carta di credito», ma sotto, uno per scelta, e compaiono da soli secondo
-i metodi accesi nel conto Stripe.
+Richiesta del commerciante: Klarna, Link e gli altri non stanno dentro «Carta di
+credito», ma sotto, uno per scelta, e compaiono da soli secondo i metodi accesi
+nel conto Stripe. Apple Pay e Google Pay non sono fra le scelte: stanno nella
+barra rapida in cima (§11, piano 2b).
 
 **Una riga, più scelte.** Il metodo Stripe resta una sola riga di
 `gst_payment_methods` (nome, commissione, icone dei circuiti). Il checkout ne
@@ -422,8 +425,7 @@ ricava più scelte con lo stesso `payment_method_id` e un campo in più,
 | Scelta | `stripe_method_type` | Pannello | Tipi dell'intento |
 |---|---|---|---|
 | Nome del metodo (es. «Carta di credito») | `card` | Payment Element con solo `card`, icone dei circuiti senza i wallet | `['card']` |
-| «Apple Pay / Google Pay» | `wallet` | Express Checkout Element (Apple Pay, Google Pay, Link) | `['card']`, più `link` se acceso |
-| Una per ogni altro metodo acceso (Klarna, Satispay, PayPal, …) | il tipo Stripe (`klarna`, …) | Payment Element con solo quel tipo | `[tipo]` |
+| Una per ogni altro metodo acceso (Klarna, Link, Satispay, PayPal, …) | il tipo Stripe (`klarna`, `link`, …) | Payment Element con solo quel tipo | `[tipo]` |
 
 La commissione è quella della riga, uguale per tutte le scelte. Nel riepilogo
 l'ordine porta il nome della riga; il tipo scelto si legge sul pagamento.
@@ -441,26 +443,25 @@ l'ordine porta il nome della riga; il tipo scelto si legge sul pagamento.
   ambiente o conto: la cache non vale.
 - Se la chiamata fallisce si usa la cache scaduta; se non c'è nemmeno quella,
   compare solo la carta. Nessun errore al cliente.
-- Le scelte separate sono i tipi disponibili meno `card`, `apple_pay`,
-  `google_pay` e `link`. La scelta wallet c'è se è disponibile almeno uno fra
-  `apple_pay`, `google_pay` e `link`.
+- Le scelte separate sono i tipi disponibili meno `card`, `apple_pay` e
+  `google_pay`.
 - `stripe_payment_method_types` della riga non filtra più le scelte del checkout:
   vale solo per i pagamenti senza tipo scelto (§3).
 
 **Nomi e icone.** Una mappa tipo → nome («Klarna», «Satispay», «PayPal», «Bonifico
 SEPA», «Bancontact», «iDEAL», …), con `ucfirst` del tipo come riserva. Icona dalla
-cartella delle icone di pagamento quando c'è, altrimenti una generica. La scelta
-wallet prende nome e icone da ciò che il browser offre davvero (sotto).
+cartella delle icone di pagamento quando c'è, altrimenti una generica.
 
 **Server.**
 
-- `Checkout::preview` restituisce le scelte nell'ordine: carta, wallet, separate in
-  ordine alfabetico del nome.
+- `Checkout::preview` restituisce le scelte nell'ordine: carta, poi le separate in
+  ordine alfabetico del tipo.
 - `Checkout::place` convalida `stripe_method_type`: deve essere fra le scelte
   calcolate in quel momento, altrimenti 422 «metodo di pagamento non disponibile».
   Per le righe non Stripe il campo si ignora.
 - Il tipo si salva sul pagamento: colonna nuova `provider_method` (VARCHAR 40) su
-  `gst_payments`, passata a `Ledger::open`.
+  `gst_payments`, passata a `Ledger::open`. Un pagamento Stripe fatto dal modulo
+  ha quindi `provider` `stripe` e `provider_method` `card`, `klarna`, `link`…
 - `StripeProvider::start`: se `$payment['provider_method']` c'è, i tipi
   dell'intento vengono dalla tabella sopra; altrimenti dal CSV o automatici come
   oggi. Quando riusa un intento `pi_` e i tipi sono diversi, fa `update` dei
@@ -476,21 +477,6 @@ wallet prende nome e icone da ciò che il browser offre davvero (sotto).
 - **Separate:** Payment Element con `paymentMethodTypes: [tipo]`. Se l'elemento
   dà `loaderror` (per esempio Klarna fuori dai limiti d'importo), la scelta si
   nasconde e torna selezionata la carta.
-- **Wallet:** Express Checkout Element con `shippingAddressRequired`,
-  `emailRequired` e `billingAddressRequired` a false, `paymentMethods` con
-  `applePay`, `googlePay` e `link` ad `auto` e gli altri a `never`. La scelta
-  resta nascosta finché l'evento `ready` non dice quali bottoni ci sono; se
-  nessuno, resta nascosta. Il nome si compone da quelli presenti («Apple Pay»,
-  «Google Pay», «Link»).
-  - `click`: gli stessi controlli sincroni di «Ordina» (campi del modulo,
-    reCAPTCHA, condizioni). Se falliscono, niente `resolve` e il modulo mostra
-    gli errori. Altrimenti `event.resolve()`.
-  - `confirm`: la stessa catena di `payOnline` (`elements.submit` → `place` con
-    `expected_total` → `confirmPayment` con i dati di fatturazione del modulo).
-    Se `place` rifiuta, `event.paymentFailed()` e il messaggio del checkout come
-    oggi.
-  - Il bottone «Ordina» non serve per questa scelta e si nasconde finché è
-    selezionata.
 - `stripe_method_type` si ricorda nello stato del modulo
   (`ecommerce_checkout_form_state`), come gli altri campi.
 - Rifiuto e «Paga ora» restano quelli di §7–§8: il modulo si riapre con la scelta
@@ -517,9 +503,9 @@ wallet prende nome e icone da ciò che il browser offre davvero (sotto).
 - **Piano 2a:** elenco dei tipi dalla configurazione (default, `available`,
   configurazione non attiva); cache valida, scaduta, di un altro ambiente o conto;
   chiamata fallita con e senza cache; scelte nel `preview`; `place` con tipo non in
-  elenco (422); `provider_method` salvato; tipi dell'intento per carta, wallet,
+  elenco (422); `provider_method` salvato; tipi dell'intento per carta,
   separata e riga senza tipo; riuso dell'intento con tipi diversi (`update`).
-- **Piano 2b:** normalizzazione della provincia; tariffe per indirizzo parziale;
+- **Piano 2b:** `provider_method` dal `expressPaymentType`; normalizzazione della provincia; tariffe per indirizzo parziale;
   zona assente; carrello a parte della scheda prodotto che lascia intatto quello
   vero; express nascosto con la fattura richiesta e con gli ospiti spenti.
 - **E2E su `ecommerce.test` (D8)**, in modalità test con le carte di prova e la
@@ -534,7 +520,7 @@ wallet prende nome e icone da ciò che il browser offre davvero (sotto).
 1. **Piano 1, pagamento con il Payment Element:** §4–§10 e le prove di §12 senza
    express. Da solo basta a far pagare il primo negozio.
 2. **Piano 2a, metodi separati nel checkout:** §11b con le sue prove.
-3. **Piano 2b, Express Checkout fuori dal checkout:** §11 nel carrello e sulla
+3. **Piano 2b, Express Checkout:** §11 in cima al checkout, nel carrello e sulla
    scheda prodotto, con le sue prove.
 
 Il piano 2a parte dopo che il piano 1 è unito; il 2b dopo il 2a.
@@ -558,5 +544,6 @@ Il piano 2a parte dopo che il piano 1 è unito; il 2b dopo il 2a.
   configurazioni); gestionale `StripeProvider` (`activeTypes`, tipi in `start`),
   `StripeMethods` (nuovo: nomi, icone, scelte), `Setting`
   (`stripe_methods_cache`), `Payment` (`provider_method`), `Ledger::open`,
-  `Checkout` (`preview`, `place`); ecommerce `CheckoutSummary`, `CheckoutController::place`,
-  `view/pages/checkout/index.php`, `checkout.js`.
+  `Checkout` (`preview`, `place`); ecommerce `CheckoutRules`, `CheckoutSummary`,
+  `CheckoutController::place`, `view/pages/checkout/index.php`, `checkout.js`.
+  `#rapido` e `ExpressCheckout` restano come sono: li riempie il piano 2b.
