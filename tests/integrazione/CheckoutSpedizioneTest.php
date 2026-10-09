@@ -11,6 +11,7 @@ require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
 require __DIR__.'/supporto/spedizioni.php';
+require_once __DIR__.'/supporto/FakePaymentProvider.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
@@ -26,6 +27,7 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
 use Wonder\Plugin\Gestionale\Support\Orders\PaymentTiming;
+use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Sql\Transaction;
@@ -241,12 +243,17 @@ check('col ritiro la sola sede si sceglie da sola, la spedizione sparisce e i pa
 }));
 
 check('l\'anteprima mostra solo i pagamenti collegati, con icone e commissione', fn () => prova(static function (): bool {
+    // Stripe non collegato anche se il sito di prova ha le chiavi nel .env.
+    $scollegato = new FakePaymentProvider();
+    $scollegato->connected = false;
+    PaymentProviders::register($scollegato);
     $metodo = metodo('Standard');
     listino($metodo, zona('Italia', [['IT', '']]), [[5, 8.0]]);
     $stripe = pagamento(PaymentTiming::IMMEDIATE);
     $bonifico = pagamento(PaymentTiming::DEFERRED, ['icons' => 'genericbank,<x>', 'fee_type' => 'amount', 'fee_value' => '1.50']);
     $cart = carrello([[articolo(2.0, 10.0), 1]]);
     $p = Checkout::preview($cart, ['shipping_country' => 'IT', 'shipping_method_id' => $metodo]);
+    PaymentProviders::reset();
     $voci = array_column((array) $p['payment_methods']['options'], null, 'id');
 
     return !isset($voci[$stripe]) && isset($voci[$bonifico])
