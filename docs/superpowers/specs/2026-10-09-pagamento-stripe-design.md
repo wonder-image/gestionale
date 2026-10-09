@@ -412,10 +412,12 @@ CSRF sono quelli del sito.
 
 ## 11b. Metodi Stripe separati sotto la carta (piano 2a)
 
-Richiesta del commerciante: Klarna, Link e gli altri non stanno dentro «Carta di
+Richiesta del commerciante: Klarna e gli altri non stanno dentro «Carta di
 credito», ma sotto, uno per scelta, e compaiono da soli secondo i metodi accesi
-nel conto Stripe. Apple Pay e Google Pay non sono fra le scelte: stanno nella
-barra rapida in cima (§11, piano 2b).
+nel conto Stripe. Apple Pay, Google Pay e Link non sono fra le scelte: stanno
+nella barra rapida in cima (§11, piano 2b). Link non può stare da solo nel
+Payment Element (Stripe lo vuole insieme a `card`), e dentro la carta non lo
+vogliamo.
 
 **Una riga, più scelte.** Il metodo Stripe resta una sola riga di
 `gst_payment_methods` (nome, commissione, icone dei circuiti). Il checkout ne
@@ -425,7 +427,7 @@ ricava più scelte con lo stesso `payment_method_id` e un campo in più,
 | Scelta | `stripe_method_type` | Pannello | Tipi dell'intento |
 |---|---|---|---|
 | Nome del metodo (es. «Carta di credito») | `card` | Payment Element con solo `card`, icone dei circuiti senza i wallet | `['card']` |
-| Una per ogni altro metodo acceso (Klarna, Link, Satispay, PayPal, …) | il tipo Stripe (`klarna`, `link`, …) | Payment Element con solo quel tipo | `[tipo]` |
+| Una per ogni altro metodo acceso (Klarna, Satispay, PayPal, …) | il tipo Stripe (`klarna`, `paypal`, …) | Payment Element con solo quel tipo | `[tipo]` |
 
 La commissione è quella della riga, uguale per tutte le scelte. Nel riepilogo
 l'ordine porta il nome della riga; il tipo scelto si legge sul pagamento.

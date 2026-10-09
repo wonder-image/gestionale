@@ -197,18 +197,17 @@ check('il metodo Stripe dà una scelta per la carta e per ogni tipo acceso, senz
     $id = metodoStripe();
     $voci = array_values(array_filter(anteprima($id)['payment_methods']['options'], static fn (array $v): bool => $v['id'] === $id));
     PaymentProviders::reset();
-    [$carta, $klarna, $link, $sepa] = $voci + [null, null, null, null];
+    [$carta, $klarna, $sepa] = $voci + [null, null, null];
 
-    return count($voci) === 4
-        && array_column($voci, 'stripe_method_type') === ['card', 'klarna', 'link', 'sepa_debit']
-        && array_column($voci, 'key') === ["{$id}", "{$id}:klarna", "{$id}:link", "{$id}:sepa_debit"]
+    return count($voci) === 3
+        && array_column($voci, 'stripe_method_type') === ['card', 'klarna', 'sepa_debit']
+        && array_column($voci, 'key') === ["{$id}", "{$id}:klarna", "{$id}:sepa_debit"]
         && array_unique(array_column($voci, 'id')) === [$id]
         && $carta['name'] === (string) PaymentMethod::findById($id)['name']
         && $carta['icons'] === ['visa', 'master']
         && $carta['payment_method_types'] === ['card']
         && $klarna['payment_method_types'] === ['klarna']
-        && $link['payment_method_types'] === ['link']
-        && $link['name'] === 'Link';
+        && $sepa['name'] === 'Addebito SEPA';
 }));
 
 check('i metodi non Stripe restano una voce sola, con key, tipo vuoto e nessun tipo di intento', fn () => prova(static function (): bool {

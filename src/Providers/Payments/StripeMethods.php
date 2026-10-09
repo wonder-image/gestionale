@@ -6,14 +6,14 @@ use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 
 /**
  * Le scelte che un solo metodo Stripe offre nel checkout: la carta e una
- * scelta per ogni altro metodo acceso nel conto (§11b). Apple Pay e Google
- * Pay stanno nella barra rapida (§11), non qui. Non si chiama Stripe: si
+ * scelta per ogni altro metodo acceso nel conto (§11b). Apple Pay, Google
+ * Pay e Link stanno nella barra rapida (§11), non qui. Non si chiama Stripe: si
  * lavora sui tipi già letti.
  */
 final class StripeMethods
 {
     /** Vanno nella barra rapida, non fra le scelte del modulo. */
-    private const WALLETS = ['apple_pay', 'google_pay'];
+    private const WALLETS = ['apple_pay', 'google_pay', 'link'];
 
     /** Le icone che la carta non mostra: hanno un altro posto. */
     private const NOT_CARD_ICONS = ['apple_pay', 'google_pay', 'klarna', 'paypal'];

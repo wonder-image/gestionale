@@ -21,8 +21,8 @@ check('senza predefinita attiva vale la prima attiva', fn () =>
 check('nessuna configurazione attiva: nessun tipo', fn () =>
     StripeMethods::typesFrom([['active' => false, 'is_default' => true, 'card' => ['available' => true]]]) === []);
 
-check('le scelte: carta, poi gli altri in ordine alfabetico, Link compreso', fn () =>
-    StripeMethods::choices(['sepa_debit', 'card', 'klarna', 'link']) === ['card', 'klarna', 'link', 'sepa_debit']);
+check('le scelte: carta, poi gli altri in ordine alfabetico; Link sta nella barra rapida', fn () =>
+    StripeMethods::choices(['sepa_debit', 'card', 'klarna', 'link']) === ['card', 'klarna', 'sepa_debit']);
 
 check('Apple Pay e Google Pay non sono scelte; la carta c\'è sempre', fn () =>
     StripeMethods::choices(['apple_pay', 'google_pay', 'klarna']) === ['card', 'klarna'] && StripeMethods::choices([]) === ['card']);
