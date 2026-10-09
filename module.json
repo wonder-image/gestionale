@@ -25,7 +25,8 @@
         "tests": "tests"
     },
     "routes": {
-        "backend": "config/routes/route.backend.php"
+        "backend": "config/routes/route.backend.php",
+        "api": "config/routes/route.api.php"
     },
     "permissions": {
         "definitions": "config/permissions.php"
