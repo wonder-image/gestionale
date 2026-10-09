@@ -22,7 +22,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
  */
 $sezioni = [
     OrderItemTableResource::class => [OrderItem::class, 'ordine-righe', ['photo', 'name', 'quantity', 'unit_price', 'discount_value', 'tax_rate', 'line_total']],
-    OrderPaymentTableResource::class => [Payment::class, 'ordine-pagamenti', ['code', 'type', 'amount', 'status', 'paid_at', 'payment_method_id', 'provider_reference']],
+    OrderPaymentTableResource::class => [Payment::class, 'ordine-pagamenti', ['code', 'type', 'amount', 'status', 'paid_at', 'payment_method_id', 'provider', 'provider_reference']],
     OrderReturnTableResource::class => [SalesReturn::class, 'ordine-resi', ['number', 'status', 'requested_at', 'lines', 'actions']],
     OrderHistoryTableResource::class => [OrderStatusLog::class, 'ordine-storico', ['creation', 'field', 'from_value', 'to_value', 'source', 'user_id']],
 ];
@@ -237,5 +237,27 @@ check('Righe: una riga di prima, senza figlie né confezioni, ha le celle di sem
         && str_contains($colonna('line_total')($riga), '10,50 €')
         && $colonna('quantity')($riga) === '1';
 });
+
+check('Pagamenti: il metodo è quello scelto in Stripe (Klarna), e chi l\'ha gestito è il fornitore', function () {
+    $per = [];
+
+    foreach (OrderPaymentTableResource::tableSchema() as $c) {
+        $per[(string) $c->name] = $c;
+    }
+
+    $metodo = $per['payment_method_id']->schema['formatter'];
+    $gestore = $per['provider']->schema['formatter'];
+
+    return $metodo(['payment_method_id' => 0, 'provider_method' => 'klarna']) === 'Klarna'
+        && $gestore(['provider' => 'stripe']) === 'Stripe'
+        && $gestore(['provider' => 'manual']) === '—'
+        && OrderPaymentTableResource::labelSchema()['provider'] === 'Gestito da';
+});
+
+check('il nome del metodo: il tipo Stripe se non è la carta, altrimenti il nome del metodo', fn () =>
+    \Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod::choiceLabel('klarna', 'Carta di credito') === 'Klarna'
+    && \Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod::choiceLabel('card', 'Carta di credito') === 'Carta di credito'
+    && \Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod::choiceLabel('', 'Bonifico') === 'Bonifico'
+    && \Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod::choiceLabel('kakao_pay', 'Carta di credito') === 'Carta di credito');
 
 summary();

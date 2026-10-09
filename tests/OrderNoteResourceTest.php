@@ -59,4 +59,20 @@ check('le note si puliscono: a capo uniformi, spazi ai bordi, e una nota troppo 
     return $ok === "riga 1\nriga 2" && $troppo === null && OrderNoteResource::clean('') === '';
 });
 
+check('la scheda dice il metodo scelto in Stripe (Klarna) e chi ha gestito il pagamento (Stripe)', function () {
+    $r = new ReflectionMethod(OrderResource::class, 'headerItems');
+    $voci = static fn (array $payments): string => implode('', array_map(
+        static fn ($item): string => $item->render('bootstrap'),
+        $r->invoke(null, ['id' => 0, 'payment_method_id' => 891], [891 => 'Carta di credito'], $payments)
+    ));
+    $klarna = $voci([
+        ['type' => 'payment', 'provider' => 'stripe', 'provider_method' => 'klarna', 'status' => 'paid'],
+    ]);
+    $bonifico = $voci([]);
+
+    return str_contains($klarna, 'Klarna') && !str_contains($klarna, 'Carta di credito')
+        && str_contains($klarna, 'Gestito da') && str_contains($klarna, 'Stripe')
+        && str_contains($bonifico, 'Carta di credito') && !str_contains($bonifico, 'Gestito da');
+});
+
 summary();

@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Sales;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Resources\Payments\PaymentMethodResource;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
 /** I pagamenti dell'ordine: incassi e rimborsi. */
@@ -51,6 +52,7 @@ final class OrderPaymentTableResource extends OrderSectionResource
             'status' => 'Stato',
             'paid_at' => 'Data',
             'payment_method_id' => 'Metodo',
+            'provider' => 'Gestito da',
             'provider_reference' => 'Riferimento',
         ];
     }
@@ -77,7 +79,13 @@ final class OrderPaymentTableResource extends OrderSectionResource
                 ->formatter(static fn (array $row): string => static::escape(OrderSheet::date((string) ($row['paid_at'] ?? '')))),
             TableColumn::key('payment_method_id')
                 ->text()
-                ->formatter(static fn (array $row): string => static::orDash(static::methodName((int) ($row['payment_method_id'] ?? 0)))),
+                ->formatter(static fn (array $row): string => static::orDash(PaymentMethod::choiceLabel(
+                    (string) ($row['provider_method'] ?? ''),
+                    static::methodName((int) ($row['payment_method_id'] ?? 0))
+                ))),
+            TableColumn::key('provider')
+                ->text()
+                ->formatter(static fn (array $row): string => static::orDash(static::providerName((string) ($row['provider'] ?? '')))),
             TableColumn::key('provider_reference')
                 ->text()
                 ->formatter(static fn (array $row): string => static::orDash((string) ($row['provider_reference'] ?? ''))),
@@ -92,6 +100,12 @@ final class OrderPaymentTableResource extends OrderSectionResource
     private static function orDash(string $value): string
     {
         return trim($value) !== '' ? static::escape($value) : '—';
+    }
+
+    /** Chi ha gestito il pagamento: il gateway (Stripe…); vuoto se l'ha scritto una persona. */
+    public static function providerName(string $provider): string
+    {
+        return PaymentMethod::ledgerProvider($provider) === 'manual' ? '' : (PaymentMethodResource::providers()[$provider] ?? ucfirst($provider));
     }
 
     private static function methodName(int $id): string

@@ -102,6 +102,12 @@ final class PaymentMethod extends Model
         return array_values(array_unique(array_filter($keys, static fn (string $key): bool => isset(self::ICONS[$key]))));
     }
 
+    /** Il nome del metodo da mostrare: il tipo scelto in Stripe (Klarna, PayPal…) se non è la carta, altrimenti il nome del metodo. */
+    public static function choiceLabel(string $providerMethod, string $name): string
+    {
+        return $providerMethod !== 'card' && isset(self::ICONS[$providerMethod]) ? self::ICONS[$providerMethod] : $name;
+    }
+
     /** Il fornitore da scrivere sul pagamento: a mano per bonifico e contanti, il gateway negli altri casi. */
     public static function ledgerProvider(string $provider): string
     {
