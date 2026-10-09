@@ -7,13 +7,16 @@ use Wonder\Plugin\Gestionale\Models\System\ProviderEvent;
 /**
  * Registro degli eventi arrivati dai provider.
  *
- * `receive()` dice se l'evento è nuovo: quando torna `false` l'evento era già
- * arrivato e va ignorato, senza rifare il lavoro. È l'unico modo per
- * sopravvivere ai rinvii dei webhook.
+ * `receive()` dice se l'evento va elaborato: `false` solo quando l'avevamo già
+ * elaborato. Un evento ricevuto o fallito si riprende — il rinvio del provider
+ * è proprio il nuovo tentativo.
  */
 final class ProviderEvents
 {
-    /** Registra l'evento; `false` se l'avevamo già. */
+    /** Dopo quattro tentativi andati male l'evento resta a una persona. */
+    public const MAX_ATTEMPTS = 4;
+
+    /** Registra l'evento; `false` se l'avevamo già elaborato. */
     public static function receive(
         string $provider,
         string $eventId,
@@ -21,8 +24,12 @@ final class ProviderEvents
         array $payload,
         string $environment = 'live'
     ): bool {
-        if (self::find($provider, $eventId, $environment) !== null) {
-            return false;
+        $existing = self::find($provider, $eventId, $environment);
+
+        if ($existing !== null) {
+            // Già elaborato: il rinvio non rifà il lavoro. Ricevuto o fallito:
+            // il rinvio è il nuovo tentativo, sulla stessa riga.
+            return (string) ($existing['status'] ?? '') !== 'processed';
         }
 
         $result = sqlInsert(ProviderEvent::$table, [
@@ -54,12 +61,18 @@ final class ProviderEvents
         ], 'id', (int) $event['id'])->success);
     }
 
-    /** Tentativo andato male: si conta, così si vede chi insiste a fallire. */
+    /**
+     * Tentativo andato male: si conta, così si vede chi insiste a fallire.
+     *
+     * `$final` è per gli errori che riprovare non aggiusta (importo diverso,
+     * ordine sbagliato): l'evento arriva subito al massimo dei tentativi.
+     */
     public static function markFailed(
         string $provider,
         string $eventId,
         string $error,
-        string $environment = 'live'
+        string $environment = 'live',
+        bool $final = false
     ): bool {
         $event = self::find($provider, $eventId, $environment);
 
@@ -69,7 +82,7 @@ final class ProviderEvents
 
         return !empty(sqlModify(ProviderEvent::$table, [
             'status' => 'failed',
-            'attempts' => (int) ($event['attempts'] ?? 0) + 1,
+            'attempts' => $final ? self::MAX_ATTEMPTS : (int) ($event['attempts'] ?? 0) + 1,
             'error' => $error,
         ], 'id', (int) $event['id'])->success);
     }

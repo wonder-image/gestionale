@@ -32,9 +32,12 @@ try {
                 && str_contains((string) ($riga['payload'] ?? ''), 'amount');
         });
 
-        check('lo stesso evento non si registra due volte', fn () =>
-            ProviderEvents::receive($provider, $evento, 'payment.succeeded', ['amount' => 1000]) === false
-        );
+        check('un evento ricevuto e non ancora elaborato si riprende, senza una seconda riga', function () use ($provider, $evento) {
+            $prima = ProviderEvents::find($provider, $evento);
+
+            return ProviderEvents::receive($provider, $evento, 'payment.succeeded', ['amount' => 1000]) === true
+                && (int) (ProviderEvents::find($provider, $evento)['id'] ?? 0) === (int) ($prima['id'] ?? -1);
+        });
 
         check('lo stesso id in un altro ambiente è un altro evento', fn () =>
             ProviderEvents::receive($provider, $evento, 'payment.succeeded', [], 'test') === true
@@ -62,6 +65,29 @@ try {
         check('un evento mai arrivato non si chiude', fn () =>
             ProviderEvents::markProcessed($provider, 'evt_mai_visto') === false
         );
+
+        check('un evento elaborato non si riprende', fn () =>
+            ProviderEvents::receive($provider, $evento, 'payment.succeeded', []) === false
+        );
+
+        check('un evento fallito si riprende', function () use ($provider) {
+            $fallito = 'evt_fallito_'.bin2hex(random_bytes(3));
+            ProviderEvents::receive($provider, $fallito, 'payment.succeeded', []);
+            ProviderEvents::markFailed($provider, $fallito, 'rete giù');
+
+            return ProviderEvents::receive($provider, $fallito, 'payment.succeeded', []) === true
+                && (int) (ProviderEvents::find($provider, $fallito)['attempts'] ?? 0) === 1;
+        });
+
+        check('un fallimento definitivo porta i tentativi al massimo', function () use ($provider) {
+            $definitivo = 'evt_definitivo_'.bin2hex(random_bytes(3));
+            ProviderEvents::receive($provider, $definitivo, 'payment.succeeded', []);
+            ProviderEvents::markFailed($provider, $definitivo, 'importo diverso', 'live', true);
+            $riga = ProviderEvents::find($provider, $definitivo);
+
+            return ($riga['status'] ?? '') === 'failed'
+                && (int) ($riga['attempts'] ?? 0) === ProviderEvents::MAX_ATTEMPTS;
+        });
 
         throw new Annulla();
     });
