@@ -27,7 +27,7 @@ final class StockBadge
             return 'danger';
         }
 
-        return $low ? 'warning' : 'success';
+        return $low ? 'warning' : 'secondary';
     }
 
     /**
