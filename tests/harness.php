@@ -1,6 +1,12 @@
 <?php // tests/harness.php
 declare(strict_types=1);
 
+// I test girano sul database del sito di prova, con indirizzi veri:
+// `sendMail()` del core risponde sì e non spedisce niente.
+if (!defined('WONDER_NO_MAIL')) {
+    define('WONDER_NO_MAIL', true);
+}
+
 $GLOBALS['__tests'] = 0;
 $GLOBALS['__failures'] = 0;
 

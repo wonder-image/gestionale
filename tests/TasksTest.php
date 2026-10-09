@@ -10,6 +10,7 @@ use Wonder\App\Scheduler\Contracts\TaskInterface;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Scheduler\ImagesTask;
 use Wonder\Plugin\Gestionale\Scheduler\StockAlertsTask;
+use Wonder\Plugin\Gestionale\Scheduler\StripeReconcileTask;
 
 check('il modulo dichiara le sue attività al core', fn () =>
     is_subclass_of(Gestionale::class, ModuleTasks::class)
@@ -88,7 +89,23 @@ check('le attività hanno chiavi diverse', function () {
         $chiavi[] = $task->key();
     }
 
-    return $chiavi === array_values(array_unique($chiavi)) && count($chiavi) === 3;
+    return $chiavi === array_values(array_unique($chiavi)) && count($chiavi) === 4;
+});
+
+check('il riallineamento con Stripe è un\'attività del modulo, oraria e spenta', function () {
+    $trovata = null;
+
+    foreach (Gestionale::tasks() as $task) {
+        if ($task instanceof StripeReconcileTask) {
+            $trovata = $task;
+        }
+    }
+
+    return $trovata instanceof TaskInterface
+        && $trovata->key() === 'gestionale.stripe_reconcile'
+        && $trovata->expression() === '0 * * * *'
+        && $trovata->enabled() === false
+        && $trovata->timeout() > 0 && $trovata->timeout() <= 3600;
 });
 
 summary();

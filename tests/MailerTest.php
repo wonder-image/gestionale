@@ -223,4 +223,8 @@ $pulisci();
 Extensions::use(null);
 Mailer::reportUsing(null);
 
+check('i test accendono WONDER_NO_MAIL: sendMail del core non spedisce', static fn (): bool =>
+    defined('WONDER_NO_MAIL') && WONDER_NO_MAIL === true
+);
+
 summary();

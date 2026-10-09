@@ -39,7 +39,7 @@ final class OrderEmail
     /**
      * @param array<string, mixed> $order riga di `gst_orders`
      * @param list<array<string, mixed>> $items righe di `gst_order_items`
-     * @param array{instructions?: string, bank?: array<string, mixed>, deadline?: string, method?: string, url?: string, account_url?: string, carrier?: string, tracking?: string, location?: string} $extra
+     * @param array{instructions?: string, bank?: array<string, mixed>, deadline?: string, method?: string, url?: string, order_url?: string, account_url?: string, carrier?: string, tracking?: string, location?: string} $extra
      * @return array{subject: string, body: string}
      */
     public static function compose(string $key, array $order, array $items, array $extra = []): array
@@ -70,6 +70,9 @@ final class OrderEmail
                 'order' => $order,
                 'items' => $items,
                 'url' => self::absoluteUrl((string) ($extra['url'] ?? '')),
+                // La scheda dell'ordine: nell'account per il cliente, nel backend per il commerciante.
+                'order_url' => self::absoluteUrl((string) ($extra['order_url'] ?? '')),
+                'order_button' => self::text('link', $merchant ? 'merchant' : 'customer', []),
                 // L'ospite sceglie la password dal link: solo nelle email che riceve all'ordine.
                 'account_url' => in_array($key, ['received', 'confirmed'], true) ? self::absoluteUrl((string) ($extra['account_url'] ?? '')) : '',
                 'account_title' => self::text('account', 'title', []),

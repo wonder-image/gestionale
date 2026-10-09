@@ -6,8 +6,11 @@ use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
+use Throwable;
+use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
+use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
@@ -44,7 +47,9 @@ final class Lifecycle
     /**
      * Il pagamento risulta, la merce esce, il cliente lo sa.
      *
-     * @param array{payment?: bool|null, provider?: string, provider_reference?: string, amount?: float, source?: string, user_id?: int, notify?: bool, email_extra?: array<string, string>} $options
+     * `merchant_notice` (bool): dopo l'email «confermato» al cliente manda anche `merchant_new` al commerciante.
+     *
+     * @param array{payment?: bool|null, provider?: string, provider_reference?: string, amount?: float, source?: string, user_id?: int, notify?: bool, merchant_notice?: bool, email_extra?: array<string, string>} $options
      * @return array{order_id: int, status: string, payment_status: string, committed: int, changed: bool}
      */
     public static function confirm(int $orderId, array $options = []): array
@@ -128,6 +133,11 @@ final class Lifecycle
             // Fuori dalla transazione: la posta è lenta e non deve tenere
             // aperto un blocco sulle righe di magazzino.
             OrderNotifier::send('confirmed', $orderId, (array) ($options['email_extra'] ?? []));
+
+            if (($options['merchant_notice'] ?? false) === true) {
+                // L'ordine pagato online arriva al commerciante qui, non al checkout.
+                OrderNotifier::send('merchant_new', $orderId);
+            }
         }
 
         return $result;
@@ -197,9 +207,19 @@ final class Lifecycle
                 $released = Allocation::release(['order_id' => $orderId]);
             }
 
+            // Gli intenti ancora pagabili si annullano dopo, fuori dalla
+            // transazione: Stripe non aspetta il nostro commit.
+            $intents = [];
+
             foreach (self::payments($orderId) as $payment) {
-                if ((string) $payment['status'] === 'pending') {
+                $paymentStatus = (string) $payment['status'];
+
+                if ($paymentStatus === 'pending') {
                     Ledger::fail((int) $payment['id'], $reason !== '' ? $reason : 'Ordine annullato');
+                }
+
+                if (in_array($paymentStatus, ['pending', 'failed'], true) && ($intent = self::openIntent($payment)) !== null) {
+                    $intents[] = $intent;
                 }
             }
 
@@ -224,8 +244,22 @@ final class Lifecycle
                 'restored' => $restored,
                 'refundable' => self::money(self::paid($orderId)),
                 'changed' => true,
+                'intents' => $intents,
             ];
         });
+
+        $intents = $result['intents'] ?? [];
+        unset($result['intents']);
+
+        foreach ($intents as [$provider, $reference]) {
+            try {
+                PaymentProviders::get($provider)?->cancel($reference);
+            } catch (Throwable $error) {
+                // L'ordine è annullato comunque: se il cliente pagasse lo stesso,
+                // il webhook registra l'incasso e avvisa il commerciante.
+                Errors::internal($error, 'orders.cancel_intent', ['order' => $orderId, 'reference' => $reference]);
+            }
+        }
 
         if ($result['changed'] && ($options['notify'] ?? true)) {
             OrderNotifier::send('cancelled', $orderId);
@@ -236,6 +270,30 @@ final class Lifecycle
         }
 
         return $result;
+    }
+
+    /**
+     * Il fornitore e l'intento della riga, se c'è un intento online ancora da
+     * chiudere nell'ambiente in cui il fornitore gira adesso.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private static function openIntent(array $payment): ?array
+    {
+        $provider = (string) ($payment['provider'] ?? '');
+        $reference = (string) ($payment['provider_reference'] ?? '');
+
+        if ($provider === '' || $provider === 'manual' || $reference === '') {
+            return null;
+        }
+
+        $gateway = PaymentProviders::get($provider);
+
+        if ($gateway === null || (string) ($payment['environment'] ?? 'live') !== $gateway->environment()) {
+            return null;
+        }
+
+        return [$provider, $reference];
     }
 
     /**

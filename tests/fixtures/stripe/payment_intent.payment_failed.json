@@ -1,0 +1,19 @@
+{
+  "id": "evt_prova_failed",
+  "object": "event",
+  "type": "payment_intent.payment_failed",
+  "livemode": false,
+  "data": {
+    "object": {
+      "id": "pi_prova",
+      "object": "payment_intent",
+      "amount": 5000,
+      "amount_received": 0,
+      "currency": "eur",
+      "status": "requires_payment_method",
+      "latest_charge": "ch_prova",
+      "metadata": {"order_id": "0", "order_code": "", "payment_code": "", "attempt": "1"},
+      "last_payment_error": {"message": "La carta è stata rifiutata."}
+    }
+  }
+}

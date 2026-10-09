@@ -11,9 +11,12 @@ require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
 
+use Wonder\Plugin\Gestionale\Extensions\OrderEmailExtras;
+use Wonder\Plugin\Gestionale\Extensions\ProvidesOrderEmailExtras;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
+use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderEmail;
@@ -21,6 +24,30 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
+
+final class LinkDelModulo implements ProvidesOrderEmailExtras
+{
+    public static function orderEmailExtras(string $key, array $order): array
+    {
+        return ['account_url' => '/account/password-restore/?token=dal-modulo'];
+    }
+}
+
+final class ModuloRotto implements ProvidesOrderEmailExtras
+{
+    public static function orderEmailExtras(string $key, array $order): array
+    {
+        throw new RuntimeException('rotto');
+    }
+}
+
+/** Il trasporto di fondo dei test: se qualcosa prova a spedire, è un errore. */
+function trasportoDiFondo(string $to, string $subject, string $body): bool
+{
+    throw new LogicException('Nessuna email vera dai test.');
+}
+
+Mailer::useTransport('trasportoDiFondo');
 
 function prova(callable $corpo): mixed
 {
@@ -134,7 +161,7 @@ check('le istruzioni di pagamento stanno solo nella ricevuta e nel promemoria', 
                 $dentro[$chiave] = str_contains(implode(' ', $corpi), 'IT99 ISTRUZIONI');
             }
         } finally {
-            Mailer::useTransport(null);
+            Mailer::useTransport('trasportoDiFondo');
         }
 
         return $dentro === ['received' => true, 'reminder' => true, 'confirmed' => false, 'cancelled' => false];
@@ -180,7 +207,7 @@ check('il bonifico porta in ricevuta e promemoria intestatario, banca, IBAN, BIC
                 $esiti[$chiave] = implode(' ', $corpi);
             }
         } finally {
-            Mailer::useTransport(null);
+            Mailer::useTransport('trasportoDiFondo');
         }
 
         $completa = static fn (string $corpo): bool => str_contains($corpo, 'Negozio &amp; Figli Srl')
@@ -239,7 +266,7 @@ check('l\'email al cliente parte e arriva al suo indirizzo', function () {
         try {
             $esito = OrderNotifier::send('received', ordineConRiga());
         } finally {
-            Mailer::useTransport(null);
+            Mailer::useTransport('trasportoDiFondo');
         }
 
         return $esito['sent'] === ['cliente@example.com'] && $partite === ['cliente@example.com'];
@@ -259,7 +286,7 @@ check('l\'email al commerciante va alle email per gli ordini', function () {
         try {
             $esito = OrderNotifier::send('merchant_new', ordineConRiga());
         } finally {
-            Mailer::useTransport(null);
+            Mailer::useTransport('trasportoDiFondo');
         }
 
         return $esito['sent'] === ['uno@example.test', 'due@example.test'];
@@ -366,6 +393,84 @@ check('senza link nessun blocco per la password', function () {
         $corpo = OrderEmail::compose('received', $ordine, [])['body'];
 
         return !str_contains($corpo, 'Crea la tua password');
+    });
+});
+
+check('i dati dei moduli arrivano nell\'email, ma vince chi chiama', function () {
+    return prova(static function (): bool {
+        $corpi = [];
+        Mailer::useTransport(static function (string $to, string $subject, string $body) use (&$corpi): bool {
+            $corpi[] = $body;
+
+            return true;
+        });
+        OrderEmailExtras::use([LinkDelModulo::class]);
+
+        try {
+            $ordine = ordineConRiga();
+            OrderNotifier::send('confirmed', $ordine);
+            OrderNotifier::send('confirmed', $ordine, ['account_url' => '/account/password-restore/?token=da-chi-chiama']);
+        } finally {
+            OrderEmailExtras::use(null);
+            Mailer::useTransport('trasportoDiFondo');
+        }
+
+        return count($corpi) === 2
+            && str_contains($corpi[0], 'token=dal-modulo')
+            && str_contains($corpi[1], 'token=da-chi-chiama')
+            && !str_contains($corpi[1], 'token=dal-modulo');
+    });
+});
+
+check('un modulo che lancia si salta e gli altri danno i loro dati', function () {
+    OrderEmailExtras::use([ModuloRotto::class, LinkDelModulo::class]);
+
+    try {
+        return OrderEmailExtras::for('confirmed', ['id' => 1]) === ['account_url' => '/account/password-restore/?token=dal-modulo'];
+    } finally {
+        OrderEmailExtras::use(null);
+    }
+});
+
+check('il link dell\'ordine diventa un bottone: «Vedi l\'ordine» al cliente, «Apri l\'ordine nel gestionale» al commerciante', function () {
+    return prova(static function (): bool {
+        $ordine = (array) Order::findById(ordineConRiga());
+        $cliente = OrderEmail::compose('shipped', $ordine, [], ['order_url' => '/account/ordini/ord_x/', 'url' => 'https://tracking.esempio.it/?c=1'])['body'];
+        $commerciante = OrderEmail::compose('merchant_new', $ordine, [], ['order_url' => '/backend/app/gestionale/ordini/5/'])['body'];
+        $senza = OrderEmail::compose('confirmed', $ordine, [])['body'];
+        $href = static fn (string $path): string => 'href="'.htmlspecialchars(OrderEmail::absoluteUrl($path), ENT_QUOTES, 'UTF-8').'"';
+
+        return str_contains($cliente, $href('/account/ordini/ord_x/')) && str_contains($cliente, 'Vedi l&#039;ordine')
+            && str_contains($cliente, 'https://tracking.esempio.it/?c=1')
+            && str_contains($commerciante, $href('/backend/app/gestionale/ordini/5/')) && str_contains($commerciante, 'Apri l&#039;ordine nel gestionale')
+            && !str_contains($senza, 'Vedi l&#039;ordine');
+    });
+});
+
+check('l\'email al commerciante porta il link alla scheda dell\'ordine nel backend', function () {
+    return prova(static function (): bool {
+        $riga = Setting::current();
+        Setting::update(['merchant_notification_emails' => 'uno@example.test'], (int) ($riga['id'] ?? 1));
+        $corpi = [];
+        Mailer::useTransport(static function (string $to, string $subject, string $body) use (&$corpi): bool {
+            $corpi[] = $body;
+
+            return true;
+        });
+
+        try {
+            $ordine = ordineConRiga();
+            OrderNotifier::send('merchant_new', $ordine);
+            OrderNotifier::send('confirmed', $ordine);
+        } finally {
+            Mailer::useTransport('trasportoDiFondo');
+        }
+
+        $scheda = htmlspecialchars(OrderEmail::absoluteUrl(OrderResource::detailUrl($ordine)), ENT_QUOTES, 'UTF-8');
+
+        return count($corpi) === 2
+            && str_contains($corpi[0], 'href="'.$scheda.'"')
+            && !str_contains($corpi[1], '/backend/');
     });
 });
 

@@ -10,19 +10,32 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
+require __DIR__.'/supporto/FakePaymentProvider.php';
 
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Expiry;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
+use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
+use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
+use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
+
+/** La posta di fondo: si butta via, mai il trasporto vero. */
+function postaDiFondo(): callable
+{
+    return static fn (): bool => true;
+}
+
+Mailer::useTransport(postaDiFondo());
 
 function prova(callable $corpo): mixed
 {
@@ -53,7 +66,7 @@ function conPosta(callable $corpo): array
     try {
         $esito = $corpo();
     } finally {
-        Mailer::useTransport(null);
+        Mailer::useTransport(postaDiFondo());
     }
 
     return [$esito, $partite];
@@ -197,7 +210,7 @@ check('l\'ordine confermato non lo tocca nessuno', function () {
             Lifecycle::confirm($ordine, ['payment' => false]);
             $esito = Expiry::run();
         } finally {
-            Mailer::useTransport(null);
+            Mailer::useTransport(postaDiFondo());
         }
 
         return $esito['cancelled'] === 0 && Order::findById($ordine)['status'] === 'confirmed';
@@ -263,6 +276,116 @@ check('un ordine che non si riesce ad annullare non ferma gli altri', function (
             && !in_array($guasto, $esito['orders'], true)
             && (string) Order::findById($guasto)['status'] === 'pending';
     });
+});
+
+/** Imposta gli indirizzi del commerciante (nella transazione di prova). */
+function commercianteScrivea(string $indirizzo): void
+{
+    Setting::update(['merchant_notification_emails' => $indirizzo], (int) (Setting::current()['id'] ?? 1));
+}
+
+/** Giorni di attesa del pagamento, come li legge Expiry. */
+function giorniDiAttesa(): int
+{
+    return (int) (Setting::current()['order_payment_wait_days'] ?? 7);
+}
+
+/**
+ * Un ordine in attesa con la riga di pagamento online già legata a un intento.
+ *
+ * @return array{0: int, 1: string}
+ */
+function ordineOnlineInAttesa(string $orderedAt): array
+{
+    [$ordine] = ordineInAttesa($orderedAt, date('Y-m-d H:i:s', strtotime('+1 day')));
+    Ledger::open(['order_id' => $ordine, 'amount' => 40.0, 'provider' => 'stripe']);
+
+    return [$ordine, OnlinePayments::start($ordine)->reference];
+}
+
+check('ordine online a metà termine: nessun promemoria e nessun segno di «ricordato»', function () {
+    $finto = new FakePaymentProvider();
+    PaymentProviders::register($finto);
+
+    try {
+        return prova(static function (): bool {
+            commercianteScrivea('negozio@example.com');
+            [$ordine] = ordineOnlineInAttesa(date('Y-m-d H:i:s', strtotime('-'.max(1, (int) ceil(giorniDiAttesa() / 2)).' days')));
+
+            [$esito, $partite] = conPosta(static fn (): array => Expiry::run());
+
+            return $esito['reminded'] === 0
+                && !in_array($ordine, $esito['orders'], true)
+                && $partite === []
+                && (int) sqlCount(
+                    OrderStatusLog::$table,
+                    "order_id = {$ordine} AND field = 'payment_reminder' AND deleted = 'false'"
+                ) === 0
+                && (string) Order::findById($ordine)['status'] === 'pending';
+        });
+    } finally {
+        PaymentProviders::reset();
+    }
+});
+
+check('ordine online scaduto: si annulla in silenzio e l\'intento si annulla sul fornitore', function () {
+    $finto = new FakePaymentProvider();
+    PaymentProviders::register($finto);
+
+    try {
+        return prova(static function () use ($finto): bool {
+            commercianteScrivea('negozio@example.com');
+            [$ordine, $intento] = ordineOnlineInAttesa(date('Y-m-d H:i:s', strtotime('-'.(giorniDiAttesa() + 1).' days')));
+
+            [$esito, $partite] = conPosta(static fn (): array => Expiry::run());
+
+            return $esito['cancelled'] === 1
+                && in_array($ordine, $esito['orders'], true)
+                && (string) Order::findById($ordine)['status'] === 'cancelled'
+                // Né al cliente né al commerciante: l'ordine non era mai stato «ricevuto».
+                && $partite === []
+                && $finto->cancelled === [$intento];
+        });
+    } finally {
+        PaymentProviders::reset();
+    }
+});
+
+check('ordine con righe manuali: promemoria e annullamento come sempre, al cliente e al commerciante', function () {
+    $finto = new FakePaymentProvider();
+    PaymentProviders::register($finto);
+
+    try {
+        return prova(static function () use ($finto): bool {
+            commercianteScrivea('negozio@example.com');
+            $giorni = giorniDiAttesa();
+            [$meta] = ordineInAttesa(
+                date('Y-m-d H:i:s', strtotime('-'.max(1, (int) ceil($giorni / 2)).' days')),
+                date('Y-m-d H:i:s', strtotime('+1 day'))
+            );
+            Ledger::open(['order_id' => $meta, 'amount' => 40.0]);
+
+            [$promemoria, $partitePromemoria] = conPosta(static fn (): array => Expiry::run());
+
+            [$scaduto] = ordineInAttesa(
+                date('Y-m-d H:i:s', strtotime('-'.($giorni + 1).' days')),
+                date('Y-m-d H:i:s', strtotime('-1 hour'))
+            );
+            Ledger::open(['order_id' => $scaduto, 'amount' => 40.0]);
+
+            [$annullo, $partiteAnnullo] = conPosta(static fn (): array => Expiry::run());
+
+            return $promemoria['reminded'] === 1
+                && $partitePromemoria === ['cliente@example.com']
+                && $annullo['cancelled'] === 1
+                && in_array($scaduto, $annullo['orders'], true)
+                && in_array('cliente@example.com', $partiteAnnullo, true)
+                && in_array('negozio@example.com', $partiteAnnullo, true)
+                && $finto->cancelled === [];
+        });
+    } finally {
+        PaymentProviders::reset();
+    }
 });
 
 summary();

@@ -101,6 +101,53 @@ final class Ledger
     }
 
     /**
+     * Lega la riga aperta al checkout all'intento del gateway.
+     *
+     * Da qui in poi la conferma, da qualunque parte arrivi, trova questa riga
+     * con il riferimento del gateway e la chiude: non ne nasce una seconda.
+     * Vale anche per una riga fallita, perché una carta rifiutata lascia
+     * l'intento riusabile e il cliente riprova sullo stesso.
+     */
+    public static function attach(int $paymentId, string $provider, string $reference, string $environment): void
+    {
+        Transaction::run(static function () use ($paymentId, $provider, $reference, $environment): void {
+            $row = Payment::findForUpdate(['id' => $paymentId], 1);
+
+            if (!is_array($row) || $row === []) {
+                throw new RuntimeException("Pagamento {$paymentId} non trovato.");
+            }
+
+            if (!in_array((string) $row['status'], ['pending', 'failed'], true)) {
+                throw new RuntimeException("Pagamento {$paymentId} già chiuso.");
+            }
+
+            Payment::update([
+                'provider' => $provider,
+                'provider_reference' => trim($reference),
+                'environment' => in_array($environment, Payment::ENVIRONMENTS, true) ? $environment : 'live',
+            ], $paymentId);
+        });
+    }
+
+    /**
+     * La riga con quel riferimento del gateway, senza bloccarla: per chi
+     * legge e poi passa da `register()`, `fail()` o `refund()`, che bloccano.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function byReference(string $provider, string $reference, string $type = 'payment'): ?array
+    {
+        $row = Payment::find([
+            'provider' => $provider,
+            'provider_reference' => trim($reference),
+            'type' => $type,
+            'deleted' => 'false',
+        ], 1);
+
+        return is_array($row) && $row !== [] ? $row : null;
+    }
+
+    /**
      * Ricalcola il `payment_status` dell'ordine dalle sue righe e lo salva.
      *
      * È l'unico punto in cui quella colonna si scrive. Se lo stato non cambia

@@ -46,7 +46,7 @@ final class Checkout
 {
     /**
      * @param array<string, mixed> $data con `customer_email` (`array{account_url?: string}`) per l'email al cliente
-     * @return array{order_id: int, order_number: string, payment_id: int, total: string, reserved: int, status: string, customer_email_sent: bool}
+     * @return array{order_id: int, order_number: string, payment_id: int, total: string, reserved: int, status: string, provider: string, customer_email_sent: bool}
      */
     public static function place(int $cartId, array $data): array
     {
@@ -80,8 +80,13 @@ final class Checkout
         // `customer_email_sent` dice al chiamante se l'email al cliente è partita.
         $result['customer_email_sent'] = false;
 
+        // Col gateway il denaro non c'è ancora: «ricevuto» e l'avviso al
+        // commerciante partirebbero anche per chi chiude la pagina senza
+        // pagare. Li manda la conferma, quando arriva l'incasso.
+        $online = $result['provider'] !== 'manual';
+
         try {
-            $key = 'received';
+            $key = $online ? '' : 'received';
             if ($result['timing'] === PaymentTiming::ON_DELIVERY) {
                 // La conferma la manda qui, non `confirm()`, per saperne l'esito.
                 $confirmed = Lifecycle::confirm($result['order_id'], [
@@ -101,10 +106,12 @@ final class Checkout
             Errors::internal($error, 'checkout.after_place', ['order_id' => $result['order_id']]);
         }
 
-        try {
-            OrderNotifier::send('merchant_new', $result['order_id']);
-        } catch (Throwable $error) {
-            Errors::internal($error, 'checkout.merchant_notice', ['order_id' => $result['order_id']]);
+        if (!$online) {
+            try {
+                OrderNotifier::send('merchant_new', $result['order_id']);
+            } catch (Throwable $error) {
+                Errors::internal($error, 'checkout.merchant_notice', ['order_id' => $result['order_id']]);
+            }
         }
 
         unset($result['timing']);
@@ -320,6 +327,8 @@ final class Checkout
                 (int) ($data['user_id'] ?? 0) ?: null
             );
 
+            $provider = PaymentMethod::ledgerProvider((string) ($method['provider'] ?? ''));
+
             $payment = Ledger::open([
                 'order_id' => $cartId,
                 'amount' => (float) $order['total'],
@@ -327,7 +336,7 @@ final class Checkout
                 'payment_method_id' => (int) $method['id'],
                 'payment_account_id' => (int) ($method['payment_account_id'] ?? 0),
                 'currency' => (string) ($order['currency'] ?? 'EUR'),
-                'provider' => PaymentMethod::ledgerProvider((string) ($method['provider'] ?? '')),
+                'provider' => $provider,
                 'source' => (string) ($data['source'] ?? 'user'),
                 'user_id' => (int) ($data['user_id'] ?? 0),
             ]);
@@ -342,6 +351,7 @@ final class Checkout
                 'reserved' => $reserved,
                 'timing' => $timing,
                 'status' => 'pending',
+                'provider' => $provider,
             ];
         });
     }

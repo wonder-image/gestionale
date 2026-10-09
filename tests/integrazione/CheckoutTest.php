@@ -18,12 +18,14 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
 use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
+use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\PaymentTiming;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Sql\Transaction;
@@ -683,6 +685,67 @@ check('place dice se l\'email al cliente è partita, col bonifico e col contrass
         }
 
         return $esiti === [true, false, true, false];
+    });
+});
+
+/** Corre il corpo segnando chi riceve posta; il commerciante è `negozio@example.com`. */
+function chiRiceve(callable $corpo): array
+{
+    sqlModify(Setting::$table, ['merchant_notification_emails' => 'negozio@example.com'], 'id', '1');
+    $posta = [];
+    Mailer::useTransport(static function (string $to) use (&$posta): bool {
+        $posta[] = $to;
+
+        return true;
+    });
+
+    try {
+        $corpo();
+    } finally {
+        Mailer::useTransport(null);
+    }
+
+    return $posta;
+}
+
+check('col bonifico partono «ricevuto» al cliente e l\'avviso al commerciante', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        $esito = [];
+        $posta = chiRiceve(static function () use ($carrello, &$esito): void {
+            $esito = Checkout::place($carrello, datiCheckout(metodoDiProva(PaymentTiming::DEFERRED)));
+        });
+
+        return $esito['provider'] === 'manual'
+            && $posta === ['cliente@example.com', 'negozio@example.com'];
+    });
+});
+
+check('con la carta l\'ordine nasce in silenzio: le email aspettano l\'incasso', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        $esito = [];
+        $posta = chiRiceve(static function () use ($carrello, &$esito): void {
+            $esito = Checkout::place($carrello, datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE)));
+        });
+
+        return $esito['provider'] === 'stripe'
+            && $esito['status'] === 'pending'
+            && $esito['customer_email_sent'] === false
+            && $posta === [];
+    });
+});
+
+check('la conferma con merchant_notice avvisa cliente e commerciante, una volta', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        $ordine = senzaPosta(static fn (): array => Checkout::place($carrello, datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE))))['order_id'];
+        $posta = chiRiceve(static function () use ($ordine): void {
+            Lifecycle::confirm($ordine, ['payment' => false, 'merchant_notice' => true]);
+            Lifecycle::confirm($ordine, ['payment' => false, 'merchant_notice' => true]);
+        });
+
+        return $posta === ['cliente@example.com', 'negozio@example.com'];
     });
 });
 
