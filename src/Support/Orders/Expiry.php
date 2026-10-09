@@ -7,6 +7,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
+use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Throwable;
@@ -88,20 +89,24 @@ final class Expiry
 
         $deadline = $ordered + $days * 86400;
         $moment = strtotime($now);
+        // Con il pagamento online il cliente non ha ricevuto «ricevuto» e il
+        // commerciante non ha ricevuto l'avviso di nuovo ordine: aspettavano
+        // l'incasso. Un ordine mai annunciato non si sollecita né si annuncia
+        // annullato; l'intento sul gateway si chiude comunque, dal `cancel`.
+        $silent = self::waitsForOnlinePayment($orderId);
 
         if ($moment >= $deadline) {
             Lifecycle::cancel($orderId, [
                 'reason' => 'Pagamento non ricevuto entro il termine',
                 'source' => 'cron',
-                'merchant_notice' => true,
-            ]);
+            ] + ($silent ? ['notify' => false] : ['merchant_notice' => true]));
             ++$result['cancelled'];
             $result['orders'][] = $orderId;
 
             return;
         }
 
-        if ($moment >= $ordered + (int) floor($days * 86400 / 2) && !self::reminded($orderId)) {
+        if (!$silent && $moment >= $ordered + (int) floor($days * 86400 / 2) && !self::reminded($orderId)) {
             OrderNotifier::send('reminder', $orderId, [
                 'deadline' => date('Y-m-d H:i:s', $deadline),
             ]);
@@ -154,6 +159,14 @@ final class Expiry
             'status' => 'pending',
             'deleted' => 'false',
         ]));
+    }
+
+    /** L'ordine aspetta un incasso online (riga di un gateway non ancora pagata)? */
+    private static function waitsForOnlinePayment(int $orderId): bool
+    {
+        $payment = OnlinePayments::payment($orderId);
+
+        return $payment !== null && (string) $payment['status'] !== 'paid';
     }
 
     /** Il promemoria di questo ordine è già partito? */
