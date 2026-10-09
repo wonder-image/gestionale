@@ -37,7 +37,16 @@ check('nomi: la carta tiene quello della riga, gli sconosciuti diventano leggibi
 check('icone: la carta perde wallet e metodi separati, gli sconosciuti hanno l\'icona generica', fn () =>
     StripeMethods::icons('card', ['visa', 'master', 'google_pay', 'apple_pay', 'klarna', 'paypal']) === ['visa', 'master']
     && StripeMethods::icons('klarna', []) === ['klarna']
-    && StripeMethods::icons('bancontact', []) === ['genericbank']);
+    && StripeMethods::icons('kakao_pay', []) === ['genericbank']);
+
+check('i metodi Stripe aggiunti hanno la loro icona, e la carta mostra solo i circuiti', fn () =>
+    StripeMethods::icons('amazon_pay', []) === ['amazon_pay']
+    && StripeMethods::icons('revolut_pay', []) === ['revolut_pay']
+    && StripeMethods::icons('satispay', []) === ['satispay']
+    && StripeMethods::icons('scalapay', []) === ['scalapay']
+    && StripeMethods::icons('twint', []) === ['twint']
+    && StripeMethods::icons('afterpay_clearpay', []) === ['afterpay_clearpay']
+    && StripeMethods::icons('card', ['visa', 'satispay', 'amazon_pay', 'master', 'genericbank']) === ['visa', 'master']);
 
 check('tipi dell\'intento: solo quello della scelta', fn () =>
     StripeMethods::intentTypes('card') === ['card'] && StripeMethods::intentTypes('klarna') === ['klarna']);

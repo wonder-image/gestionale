@@ -15,8 +15,8 @@ final class StripeMethods
     /** Vanno nella barra rapida, non fra le scelte del modulo. */
     private const WALLETS = ['apple_pay', 'google_pay', 'link'];
 
-    /** Le icone che la carta non mostra: hanno un altro posto. */
-    private const NOT_CARD_ICONS = ['apple_pay', 'google_pay', 'klarna', 'paypal'];
+    /** Le icone che la carta mostra: solo i circuiti, gli altri metodi hanno la loro voce. */
+    private const CARD_ICONS = ['visa', 'master', 'maestro', 'american_express', 'diners_club', 'discover', 'jcb', 'unionpay'];
 
     private const NAMES = [
         'affirm' => 'Affirm',
@@ -95,7 +95,7 @@ final class StripeMethods
     public static function icons(string $choice, array $rowIcons): array
     {
         return match ($choice) {
-            'card' => array_values(array_diff($rowIcons, self::NOT_CARD_ICONS)),
+            'card' => array_values(array_intersect($rowIcons, self::CARD_ICONS)),
             default => isset(PaymentMethod::ICONS[$choice]) ? [$choice] : ['genericbank'],
         };
     }
