@@ -239,7 +239,7 @@ check('il form rilegge le icone come elenco e scarta quelle sconosciute', functi
 check('ogni tipo ha le sue icone di partenza, tutte nel catalogo', function () {
     $tutte = array_merge(...array_map([PaymentMethod::class, 'defaultIcons'], PaymentMethod::PROVIDERS));
 
-    return count(PaymentMethod::ICONS) === 14
+    return count(PaymentMethod::ICONS) === 31
         && PaymentMethod::defaultIcons('stripe') === ['visa', 'master', 'maestro', 'american_express', 'google_pay', 'apple_pay']
         && PaymentMethod::defaultIcons('cash') === ['cash']
         && PaymentMethod::defaultIcons('sconosciuto') === []

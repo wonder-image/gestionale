@@ -60,6 +60,23 @@ final class PaymentMethod extends Model
         'google_pay' => 'Google Pay',
         'apple_pay' => 'Apple Pay',
         'klarna' => 'Klarna',
+        'amazon_pay' => 'Amazon Pay',
+        'revolut_pay' => 'Revolut Pay',
+        'satispay' => 'Satispay',
+        'scalapay' => 'Scalapay',
+        'afterpay_clearpay' => 'Clearpay',
+        'affirm' => 'Affirm',
+        'bancontact' => 'Bancontact',
+        'blik' => 'BLIK',
+        'eps' => 'EPS',
+        'giropay' => 'Giropay',
+        'ideal' => 'iDEAL',
+        'p24' => 'Przelewy24',
+        'twint' => 'TWINT',
+        'mobilepay' => 'MobilePay',
+        'alipay' => 'Alipay',
+        'wechat_pay' => 'WeChat Pay',
+        'sepa_debit' => 'Addebito SEPA',
         'genericbank' => 'Bonifico',
         'cash' => 'Contanti',
     ];
@@ -83,6 +100,12 @@ final class PaymentMethod extends Model
         $keys = array_map('trim', explode(',', $csv));
 
         return array_values(array_unique(array_filter($keys, static fn (string $key): bool => isset(self::ICONS[$key]))));
+    }
+
+    /** Il nome del metodo da mostrare: il tipo scelto in Stripe (Klarna, PayPal…) se non è la carta, altrimenti il nome del metodo. */
+    public static function choiceLabel(string $providerMethod, string $name): string
+    {
+        return $providerMethod !== 'card' && isset(self::ICONS[$providerMethod]) ? self::ICONS[$providerMethod] : $name;
     }
 
     /** Il fornitore da scrivere sul pagamento: a mano per bonifico e contanti, il gateway negli altri casi. */

@@ -446,7 +446,7 @@ final class OrderResource extends GestionaleResource
         // e il riepilogo IVA. Sotto, le tabelle a tutta larghezza.
         $componenti = [
             (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components([
-                (new Card)->components(static::headerItems($order, $metodi))->columns(12)->columnSpan(12),
+                (new Card)->components(static::headerItems($order, $metodi, static::rowsOf(Payment::class, ['order_id' => $id], 'id')))->columns(12)->columnSpan(12),
             ]),
             (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components([
                 $riquadro('Totali', OrderSheet::totals($order, static::rowsOf(CouponRedemption::class, ['order_id' => $id])[0] ?? null)),
@@ -487,13 +487,24 @@ final class OrderResource extends GestionaleResource
 
     /**
      * L'intestazione: numero, data, canale, i tre stati, il cliente, gli
-     * indirizzi, il metodo di pagamento e le note, un `DataItem` ciascuno.
+     * indirizzi, il metodo di pagamento (e chi l'ha gestito) e le note, un
+     * `DataItem` ciascuno.
      *
      * @param array<int, string> $metodi
+     * @param list<array<string, mixed>> $payments i pagamenti dell'ordine
      * @return list<DataItem>
      */
-    protected static function headerItems(array $order, array $metodi): array
+    protected static function headerItems(array $order, array $metodi, array $payments = []): array
     {
+        // L'ultimo incasso passato da un gateway dice il metodo scelto (Klarna…) e chi l'ha gestito.
+        $online = [];
+
+        foreach ($payments as $payment) {
+            if ((string) ($payment['type'] ?? 'payment') !== 'refund' && OrderPaymentTableResource::providerName((string) ($payment['provider'] ?? '')) !== '') {
+                $online = $payment;
+            }
+        }
+
         // Testo semplice, o markup già escapato da noi con `html()`.
         $dato = static fn (string $etichetta, string $valore, bool $html = false, string $azione = ''): DataItem => ($azione === ''
             ? DataItem::make($etichetta, $valore)
@@ -522,7 +533,8 @@ final class OrderResource extends GestionaleResource
             $dato('Telefono', (string) ($order['phone'] ?? '')),
             $dato('Fatturazione', OrderSheet::address($order, 'billing'), true),
             $dato('Spedizione', OrderSheet::address($order, 'shipping'), true),
-            $dato('Metodo di pagamento', $metodi[(int) ($order['payment_method_id'] ?? 0)] ?? ''),
+            $dato('Metodo di pagamento', PaymentMethod::choiceLabel((string) ($online['provider_method'] ?? ''), $metodi[(int) ($order['payment_method_id'] ?? 0)] ?? '')),
+            ...($online === [] ? [] : [$dato('Gestito da', OrderPaymentTableResource::providerName((string) $online['provider']))]),
             $dato('Nota del cliente', $nota((string) ($order['customer_note'] ?? '')), true),
             $dato('Nota interna', $nota((string) ($order['internal_note'] ?? '')), true, $matita('Nota interna')),
             $dato('Nota sul documento', $nota((string) ($order['document_note'] ?? '')), true, $matita('Nota sul documento')),

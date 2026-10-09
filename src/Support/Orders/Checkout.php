@@ -9,6 +9,8 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
+use Wonder\Plugin\Gestionale\Providers\Payments\StripeMethods;
+use Wonder\Plugin\Gestionale\Providers\Payments\StripeProvider;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -50,8 +52,12 @@ final class Checkout
      */
     public static function place(int $cartId, array $data): array
     {
+        // I tipi accesi in Stripe si leggono qui, fuori dalla transazione, e
+        // solo se il metodo scelto è Stripe.
+        $stripeTypes = self::stripeTypes($cartId, [self::paymentMethodId($data['payment_method_id'] ?? 0)]);
+
         try {
-            $result = self::create($cartId, $data);
+            $result = self::create($cartId, $data, $stripeTypes);
         } catch (UserError $error) {
             // Un coupon che non regge più al checkout non deve restare sul
             // carrello: l'ordine non è nato (la transazione è tornata indietro,
@@ -141,7 +147,7 @@ final class Checkout
      *     fulfillment: array{type: string, choices: list<string>},
      *     shipping_methods: array{options: list<array<string, mixed>>, selected: int},
      *     pickup_locations: array{options: list<array{id: int, name: string, address: string}>, selected: int},
-     *     payment_methods: array{options: list<array{id: int, name: string, provider: string, manual: bool, instructions: string, icons: list<string>, fee_type: string, fee_value: float, fee_percent: float}>, selected: int},
+     *     payment_methods: array{options: list<array{id: int, name: string, provider: string, manual: bool, instructions: string, icons: list<string>, fee_type: string, fee_value: float, fee_percent: float, key: string, stripe_method_type: string, payment_method_types: list<string>}>, selected: int},
      *     coupon: array{code: string, dropped: string},
      *     notices: list<string>,
      *     invalid: list<string>
@@ -149,7 +155,11 @@ final class Checkout
      */
     public static function preview(int $cartId, array $data): array
     {
-        return Transaction::run(static function () use ($cartId, $data): array {
+        // Fuori dalla transazione: la chiamata a Stripe non deve tenere bloccato
+        // il carrello. Si legge solo se fra i metodi attivi ce n'è uno Stripe.
+        $stripeTypes = self::stripeTypes($cartId, null);
+
+        return Transaction::run(static function () use ($cartId, $data, $stripeTypes): array {
             $cart = Order::findForUpdate(['id' => $cartId], 1);
 
             if (!is_array($cart) || $cart === [] || (string) $cart['stage'] !== 'cart') {
@@ -184,7 +194,7 @@ final class Checkout
             $payment = null;
 
             foreach ($payments as $candidate) {
-                if ((int) $candidate['id'] === (int) $data['payment_method_id']) {
+                if ((int) $candidate['id'] === self::paymentMethodId($data['payment_method_id'])) {
                     $payment = $candidate;
                 }
             }
@@ -247,7 +257,7 @@ final class Checkout
                 'shipping_methods' => ['options' => $options, 'selected' => $type === 'shipping' ? $methodId : 0],
                 'pickup_locations' => ['options' => $points, 'selected' => $locationId],
                 'payment_methods' => [
-                    'options' => array_map(static fn (array $method): array => self::paymentChoice($method, $cartId), $payments),
+                    'options' => self::paymentOptions($payments, $cartId, $stripeTypes),
                     'selected' => $payment === null ? 0 : (int) $payment['id'],
                 ],
                 'coupon' => ['code' => (string) ($order['coupon_code'] ?? ''), 'dropped' => $dropped],
@@ -261,11 +271,12 @@ final class Checkout
      * La transazione che fa nascere l'ordine.
      *
      * @param array<string, mixed> $data
+     * @param list<string> $stripeTypes
      * @return array{order_id: int, order_number: string, payment_id: int, total: string, reserved: int, timing: string, status: string}
      */
-    private static function create(int $cartId, array $data): array
+    private static function create(int $cartId, array $data, array $stripeTypes): array
     {
-        return Transaction::run(static function () use ($cartId, $data): array {
+        return Transaction::run(static function () use ($cartId, $data, $stripeTypes): array {
             $cart = Order::findForUpdate(['id' => $cartId], 1);
 
             if (!is_array($cart) || $cart === [] || (string) $cart['stage'] !== 'cart') {
@@ -273,7 +284,18 @@ final class Checkout
             }
 
             $type = self::fulfillment($data);
-            $method = self::method((int) ($data['payment_method_id'] ?? 0), $type);
+            $method = self::method(self::paymentMethodId($data['payment_method_id'] ?? 0), $type);
+            $stripeMethod = '';
+
+            // Su Stripe la scelta (carta, Klarna…) deve essere una di quelle offerte.
+            if (PaymentMethod::ledgerProvider((string) ($method['provider'] ?? '')) === 'stripe') {
+                $stripeMethod = trim((string) ($data['stripe_method_type'] ?? '')) ?: 'card';
+
+                if (!in_array($stripeMethod, StripeMethods::choices($stripeTypes), true)) {
+                    throw UserError::make('order.payment_method_unavailable');
+                }
+            }
+
             self::checkAddress($data, $type);
             self::write($cartId, self::details($data, $method, $type, (string) ($cart['email'] ?? '')));
 
@@ -337,6 +359,7 @@ final class Checkout
                 'payment_account_id' => (int) ($method['payment_account_id'] ?? 0),
                 'currency' => (string) ($order['currency'] ?? 'EUR'),
                 'provider' => $provider,
+                'provider_method' => $stripeMethod,
                 'source' => (string) ($data['source'] ?? 'user'),
                 'user_id' => (int) ($data['user_id'] ?? 0),
             ]);
@@ -416,6 +439,98 @@ final class Checkout
         usort($methods, static fn (array $a, array $b): int => [(int) ($a['position'] ?? 0), (int) $a['id']] <=> [(int) ($b['position'] ?? 0), (int) $b['id']]);
 
         return $methods;
+    }
+
+    /**
+     * I tipi accesi nel conto Stripe, letti fuori dalla transazione: la
+     * chiamata a Stripe non deve tenere bloccato il carrello.
+     *
+     * Si legge solo quando serve: il carrello c'è, Stripe è collegato e fra i
+     * metodi in gioco ce n'è uno Stripe (`$methodIds`: quelli scelti, oppure
+     * `null` per tutti i metodi attivi, come nell'anteprima). Altrimenti
+     * `['card']`, che chi non usa Stripe non guarda.
+     *
+     * @param list<int>|null $methodIds
+     * @return list<string>
+     */
+    private static function stripeTypes(int $cartId, ?array $methodIds): array
+    {
+        $provider = PaymentProviders::get('stripe');
+
+        if (!$provider instanceof StripeProvider || !$provider->connected()) {
+            return ['card'];
+        }
+
+        $cart = Order::findById($cartId);
+
+        if (!is_array($cart) || $cart === [] || (string) ($cart['stage'] ?? '') !== 'cart') {
+            return ['card'];
+        }
+
+        $methods = $methodIds === null
+            ? self::rows(PaymentMethod::find(['active' => 'true']))
+            : array_filter(array_map(static fn (int $id): mixed => $id > 0 ? PaymentMethod::findById($id) : null, $methodIds), 'is_array');
+
+        foreach ($methods as $method) {
+            if (PaymentMethod::ledgerProvider((string) ($method['provider'] ?? '')) === 'stripe') {
+                return $provider->activeTypes();
+            }
+        }
+
+        return ['card'];
+    }
+
+    /**
+     * L'id del metodo di pagamento come lo manda il chiamante. Un valore che
+     * non è un numero intero (per esempio «891:klarna», che l'ecommerce deve
+     * spezzare prima) non diventa 891 in silenzio: vale -1, che nessun metodo
+     * ha.
+     */
+    private static function paymentMethodId(mixed $value): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if ($value === null || $value === '') {
+            return 0;
+        }
+
+        return is_string($value) && ctype_digit(trim($value)) ? (int) trim($value) : -1;
+    }
+
+    /**
+     * Le voci del modulo: una per metodo, e per Stripe una per ogni scelta (§11b).
+     *
+     * @param list<array<string, mixed>> $methods
+     * @param list<string> $stripeTypes
+     * @return list<array<string, mixed>>
+     */
+    private static function paymentOptions(array $methods, int $orderId, array $stripeTypes): array
+    {
+        $options = [];
+
+        foreach ($methods as $method) {
+            $choice = self::paymentChoice($method, $orderId);
+
+            if (PaymentMethod::ledgerProvider($choice['provider']) !== 'stripe') {
+                $options[] = $choice + ['key' => (string) $choice['id'], 'stripe_method_type' => '', 'payment_method_types' => []];
+                continue;
+            }
+
+            foreach (StripeMethods::choices($stripeTypes) as $type) {
+                $options[] = array_replace($choice, [
+                    'name' => StripeMethods::name($type, $choice['name']),
+                    'icons' => StripeMethods::icons($type, $choice['icons']),
+                ]) + [
+                    'key' => $type === 'card' ? (string) $choice['id'] : $choice['id'].':'.$type,
+                    'stripe_method_type' => $type,
+                    'payment_method_types' => StripeMethods::intentTypes($type),
+                ];
+            }
+        }
+
+        return $options;
     }
 
     /**

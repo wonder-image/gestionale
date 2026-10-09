@@ -7,6 +7,13 @@ if (!defined('WONDER_NO_MAIL')) {
     define('WONDER_NO_MAIL', true);
 }
 
+// Nessun test parla con Stripe vero: di serie il client HTTP di stripe-php è
+// quello senza rete. I test che vogliono risposte loro installano un
+// `FakeStripeHttp`, che lo sostituisce. Serve l'autoload già caricato.
+if (class_exists(\Stripe\ApiRequestor::class)) {
+    require_once __DIR__.'/supporto/StripeSenzaRete.php';
+}
+
 $GLOBALS['__tests'] = 0;
 $GLOBALS['__failures'] = 0;
 

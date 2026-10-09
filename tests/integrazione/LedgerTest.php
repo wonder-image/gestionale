@@ -317,6 +317,15 @@ try {
             return false;
         });
 
+        check('open scrive il metodo scelto dentro il gateway', function () {
+            $ordine = ordineDiProva(10.0);
+            $esito = Ledger::open(['order_id' => $ordine, 'amount' => 10.0, 'provider' => 'stripe', 'provider_method' => 'klarna']);
+            $senza = Ledger::open(['order_id' => ordineDiProva(10.0), 'amount' => 10.0]);
+
+            return (string) Payment::findById($esito['payment_id'])['provider_method'] === 'klarna'
+                && (string) Payment::findById($senza['payment_id'])['provider_method'] === '';
+        });
+
         check('un gateway scritto con la maiuscola è lo stesso gateway', function () {
             // Il webhook manda «Stripe», la conferma «stripe»: se fossero due
             // gateway diversi la riga aperta non si ritroverebbe, e l'ordine

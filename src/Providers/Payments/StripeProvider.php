@@ -6,7 +6,9 @@ use Throwable;
 use Wonder\App\Credentials;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Providers\ExternalReferences;
 use Wonder\Plugin\Stripe\PaymentIntent;
 
@@ -31,6 +33,15 @@ final class StripeProvider implements PaymentProvider
         'canceled' => PaymentState::CANCELED,
     ];
 
+    /** Quanto vale la lettura dei tipi accesi nel conto, in secondi. */
+    public const CACHE_SECONDS = 600;
+
+    /** Dopo una lettura fallita, quanto si aspetta prima di richiamare Stripe. */
+    public const RETRY_SECONDS = 60;
+
+    /** @var array<string, list<string>> ambiente|conto → tipi, per la richiesta in corso */
+    private static array $types = [];
+
     public function __construct(private readonly ?object $api = null)
     {
     }
@@ -44,6 +55,12 @@ final class StripeProvider implements PaymentProvider
     public static function methodTypes(string $column): array
     {
         return array_values(array_filter(array_map('trim', explode(',', $column)), 'strlen'));
+    }
+
+    /** Svuota la memoria per richiesta dei tipi (la usano i test). */
+    public static function forget(): void
+    {
+        self::$types = [];
     }
 
     public function code(): string
@@ -68,11 +85,17 @@ final class StripeProvider implements PaymentProvider
         $code = (string) $payment['code'];
         $previous = trim((string) ($payment['provider_reference'] ?? ''));
         $attempt = 1;
+        $types = $this->intentTypes($order, $payment);
 
         if (str_starts_with($previous, 'pi_')) {
             $old = $intents->get($previous);
 
             if (in_array((string) $old->status, self::REUSABLE, true)) {
+                // La scelta può essere cambiata dopo un rifiuto: l'intento segue.
+                if ($types !== [] && self::sorted($types) !== self::sorted((array) ($old->payment_method_types ?? []))) {
+                    $old = $intents->update((string) $old->id, ['payment_method_types' => $types]);
+                }
+
                 return new PaymentStart((string) $old->id, (string) $old->client_secret, $environment);
             }
 
@@ -101,7 +124,6 @@ final class StripeProvider implements PaymentProvider
             $params['customer'] = $customer;
         }
 
-        $types = self::methodTypes((string) ($this->method($order)['stripe_payment_method_types'] ?? ''));
         if ($types !== []) {
             $params['payment_method_types'] = $types;
         } else {
@@ -111,6 +133,82 @@ final class StripeProvider implements PaymentProvider
         $intent = $intents->create($params, $attempt === 1 ? $code : $code.'-'.$attempt);
 
         return new PaymentStart((string) $intent->id, (string) $intent->client_secret, $environment);
+    }
+
+    /**
+     * I tipi di pagamento accesi nel conto collegato (§11b). Si legge Stripe
+     * al massimo ogni dieci minuti; se Stripe non risponde vale l'ultima
+     * lettura, e senza nessuna lettura resta la carta.
+     *
+     * @return list<string>
+     */
+    public function activeTypes(): array
+    {
+        if (!$this->connected()) {
+            return ['card'];
+        }
+
+        $environment = $this->environment();
+        $account = $this->keys($environment)['account'];
+        $memo = $environment.'|'.$account;
+
+        if (isset(self::$types[$memo])) {
+            return self::$types[$memo];
+        }
+
+        $settings = Setting::current();
+        $settingId = (int) ($settings['id'] ?? 0);
+        $cache = json_decode((string) ($settings['stripe_methods_cache'] ?? ''), true);
+        $mine = is_array($cache)
+            && ($cache['environment'] ?? '') === $environment
+            && ($cache['account'] ?? '') === $account;
+        $stale = $mine && is_array($cache['types'] ?? null) ? array_values($cache['types']) : null;
+
+        if ($stale !== null && time() - (int) ($cache['fetched_at'] ?? 0) < self::CACHE_SECONDS) {
+            return self::$types[$memo] = $stale;
+        }
+
+        // Stripe ha appena fallito: per un po' non lo si disturba e non si segnala di nuovo.
+        if ($mine && time() - (int) ($cache['failed_at'] ?? 0) < self::RETRY_SECONDS) {
+            return self::$types[$memo] = $stale ?? ['card'];
+        }
+
+        try {
+            $types = StripeMethods::typesFrom($this->intents($environment)->paymentMethodConfigurations());
+        } catch (Throwable $error) {
+            // Stripe non risponde: vale l'ultima lettura dello stesso conto, o la carta.
+            // Nel messaggio non ci sono chiavi: Stripe le maschera.
+            self::report('payment_methods.read', $error, $environment);
+            self::remember($settingId, $environment, $account, ($stale === null ? [] : [
+                'types' => $stale,
+                'fetched_at' => (int) ($cache['fetched_at'] ?? 0),
+            ]) + ['failed_at' => time()]);
+
+            return self::$types[$memo] = $stale ?? ['card'];
+        }
+
+        // Se la cache non si scrive i tipi appena letti valgono lo stesso.
+        self::remember($settingId, $environment, $account, ['types' => $types, 'fetched_at' => time()]);
+
+        return self::$types[$memo] = $types;
+    }
+
+    /** Scrive la cache dei tipi; un errore di scrittura si segnala e non arriva al cliente. */
+    private static function remember(int $settingId, string $environment, string $account, array $data): void
+    {
+        try {
+            Setting::update(['stripe_methods_cache' => json_encode(
+                ['environment' => $environment, 'account' => $account] + $data
+            )], $settingId);
+        } catch (Throwable $error) {
+            // Il messaggio del database porta con sé tutta la query: se ne tiene l'inizio.
+            self::report('payment_methods.cache', get_class($error).': '.mb_substr($error->getMessage(), 0, 300), $environment);
+        }
+    }
+
+    private static function report(string $action, Throwable|string $error, string $environment): void
+    {
+        Errors::report('stripe', $action, $error, ['environment' => $environment]);
     }
 
     public function status(string $reference): PaymentState
@@ -236,6 +334,35 @@ final class StripeProvider implements PaymentProvider
         ExternalReferences::save('contact', $contactId, 'stripe', 'customer', (string) $customer->id, $environment);
 
         return (string) $customer->id;
+    }
+
+    /**
+     * I tipi dell'intento: quelli della scelta del cliente (§11b); senza
+     * scelta il CSV della riga, e se è vuoto decide Stripe (lista vuota).
+     *
+     * @return list<string>
+     */
+    private function intentTypes(array $order, array $payment): array
+    {
+        $choice = trim((string) ($payment['provider_method'] ?? ''));
+
+        if ($choice !== '') {
+            return StripeMethods::intentTypes($choice);
+        }
+
+        return self::methodTypes((string) ($this->method($order)['stripe_payment_method_types'] ?? ''));
+    }
+
+    /**
+     * @param list<string> $types
+     * @return list<string>
+     */
+    private static function sorted(array $types): array
+    {
+        $types = array_map('strval', $types);
+        sort($types);
+
+        return $types;
     }
 
     /** @return array<string, mixed> */
