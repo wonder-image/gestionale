@@ -51,7 +51,7 @@ final class PaymentEvents
             return true;
         } catch (PaymentMismatch $error) {
             // Riprovare non cambia i numeri: l'evento resta in «Da controllare».
-            Errors::report($code, 'payment.mismatch', $error, $context);
+            OnlinePayments::alert($code, 'payment.mismatch', $error->getMessage(), $context);
             ProviderEvents::markFailed($code, $event->id, $error->getMessage(), $event->environment, true);
 
             return true;

@@ -11,6 +11,7 @@ require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 require __DIR__ . '/supporto/compra.php';
 require __DIR__ . '/supporto/FakePaymentProvider.php';
+require __DIR__ . '/supporto/posta.php';
 
 use Wonder\Sql\Transaction;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
@@ -98,6 +99,75 @@ check('con il fornitore spento non parte nulla', fn () => prova(static function 
     }
 
     return false;
+}));
+
+/** Ordine in attesa col pagamento già legato a un intento. */
+function intentoLegato(float $totale = 50.0): array
+{
+    [$ordine, $pagamento] = ordineStripe($totale);
+    $intento = 'pi_av_'.uniqid();
+    Ledger::attach($pagamento, 'stripe', $intento, 'test');
+
+    return [$ordine, $pagamento, $intento];
+}
+
+check('un incasso su un ordine annullato avvisa il commerciante con payment.review', fn () => prova(static function (): bool {
+    [$ordine, , $intento] = intentoLegato();
+    Lifecycle::cancel($ordine, ['notify' => false]);
+    destinatariCommerciante('negozio@example.com');
+
+    $avvisi = avvisiPagamento(conPosta(static function () use ($ordine, $intento): void {
+        OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+    }));
+
+    return count($avvisi) === 1
+        && $avvisi[0]['to'] === 'negozio@example.com'
+        && $avvisi[0]['subject'] === '[payment.review] Pagamento da controllare'
+        && str_contains($avvisi[0]['body'], $intento)
+        && str_contains($avvisi[0]['body'], 'dashboard di Stripe');
+}));
+
+check('lo stesso incasso ripassato non manda un secondo avviso', fn () => prova(static function (): bool {
+    [$ordine, , $intento] = intentoLegato();
+    Lifecycle::cancel($ordine, ['notify' => false]);
+    destinatariCommerciante('negozio@example.com');
+
+    $avvisi = avvisiPagamento(conPosta(static function () use ($ordine, $intento): void {
+        OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+        OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'cron');
+    }));
+
+    return count($avvisi) === 1;
+}));
+
+check('senza destinatari non parte niente e non si lancia niente', fn () => prova(static function (): bool {
+    [$ordine, , $intento] = intentoLegato();
+    Lifecycle::cancel($ordine, ['notify' => false]);
+    destinatariCommerciante('');
+
+    $partite = conPosta(static function () use ($ordine, $intento): void {
+        OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+        OnlinePayments::alert('stripe', 'payment.mismatch', 'Prova', ['order_id' => $ordine]);
+    });
+
+    return avvisiPagamento($partite) === [];
+}));
+
+check('succeeded due volte sullo stesso intento: una riga pagata, ordine confermato una volta', fn () => prova(static function (): bool {
+    [$ordine, $pagamento, $intento] = intentoLegato();
+    destinatariCommerciante('');
+
+    $primo = OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+    $secondo = OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'return');
+    $trovate = Payment::find(['order_id' => $ordine, 'type' => 'payment', 'deleted' => 'false']);
+    $righe = is_array($trovate) && isset($trovate['id']) ? [$trovate] : array_values(array_filter((array) $trovate, 'is_array'));
+
+    return ($primo['changed'] ?? false) === true
+        && ($secondo['changed'] ?? true) === false
+        && ($secondo['status'] ?? '') === 'confirmed'
+        && count($righe) === 1
+        && (int) $righe[0]['id'] === $pagamento
+        && $righe[0]['status'] === 'paid';
 }));
 
 PaymentProviders::reset();

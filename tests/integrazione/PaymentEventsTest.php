@@ -11,6 +11,7 @@ require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 require __DIR__ . '/supporto/compra.php';
 require __DIR__ . '/supporto/FakePaymentProvider.php';
+require __DIR__ . '/supporto/posta.php';
 
 use Wonder\Sql\Transaction;
 use Wonder\Plugin\Gestionale\Gestionale;
@@ -233,6 +234,21 @@ check('un errore nostro risponde 500; l\'evento fallito si rielabora e riesce', 
         && (int) ($riga['attempts'] ?? 0) === 1
         && $secondo === 200
         && stato($ordine) === 'confirmed';
+}));
+
+check('un evento incoerente avvisa il commerciante con payment.review', fn () => prova(static function () use ($finto): bool {
+    [$ordine, , $intento] = intentoAperto(50.0);
+    destinatariCommerciante('negozio@example.com');
+    $evento = evento('payment_intent.succeeded', $intento, $ordine, 4999);
+
+    $avvisi = avvisiPagamento(conPosta(static function () use ($finto, $evento): void {
+        arriva($finto, $evento);
+    }));
+
+    return count($avvisi) === 1
+        && $avvisi[0]['to'] === 'negozio@example.com'
+        && $avvisi[0]['subject'] === '[payment.review] Pagamento da controllare'
+        && str_contains($avvisi[0]['body'], $intento);
 }));
 
 check('la rotta del webhook è registrata e punta al suo file', static function (): bool {

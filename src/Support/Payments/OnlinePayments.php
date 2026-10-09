@@ -3,10 +3,14 @@
 namespace Wonder\Plugin\Gestionale\Support\Payments;
 
 use RuntimeException;
+use Throwable;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Providers\Payments\PaymentStart;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
+use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
+use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 
 /**
@@ -93,6 +97,9 @@ final class OnlinePayments
             throw new PaymentMismatch("Intento {$reference}: valuta {$currency} al posto di {$expected}.");
         }
 
+        // Letto prima di scrivere: chi ripassa su una riga già pagata non riavvisa.
+        $alreadyPaid = (string) $row['status'] === 'paid';
+
         Ledger::register([
             'order_id' => $rowOrder,
             'amount' => $amount / 100,
@@ -105,7 +112,9 @@ final class OnlinePayments
         if ((string) $order['status'] === 'cancelled') {
             // Il cliente ha pagato un ordine già annullato: il denaro va
             // restituito dalla dashboard del gateway.
-            Errors::report($provider, 'payment.cancelled_order', "Incasso {$reference} sull'ordine annullato {$rowOrder}: va rimborsato.", ['order_id' => $rowOrder]);
+            if (!$alreadyPaid) {
+                self::alert($provider, 'payment.cancelled_order', "Incasso {$reference} sull'ordine annullato {$rowOrder}: va rimborsato.", ['order_id' => $rowOrder]);
+            }
 
             return ['order_id' => $rowOrder, 'status' => 'cancelled', 'changed' => false];
         }
@@ -117,6 +126,34 @@ final class OnlinePayments
             'source' => $source,
             'merchant_notice' => true,
         ]);
+    }
+
+    /**
+     * Qualcosa nel denaro va guardato a mano dal commerciante (di solito un
+     * rimborso dalla dashboard del gateway). Resta la traccia tecnica e parte
+     * un'email ai destinatari delle notifiche del negozio. Non lancia mai:
+     * l'avviso non deve far cadere l'incasso che lo ha causato.
+     *
+     * @param array<string, mixed> $context
+     */
+    public static function alert(string $provider, string $action, string $message, array $context = []): void
+    {
+        try {
+            Errors::report($provider, $action, $message, $context);
+
+            $to = Recipients::parse((string) (Setting::current()['merchant_notification_emails'] ?? ''))['valid'];
+
+            if ($to === []) {
+                return;
+            }
+
+            Mailer::send('payment.review', $to, 'Pagamento da controllare', sprintf(
+                '<p>%s</p><p>Controlla il pagamento nella dashboard di Stripe e, se serve, rimborsalo da lì.</p>',
+                htmlspecialchars($message, ENT_QUOTES, 'UTF-8')
+            ));
+        } catch (Throwable $error) {
+            Errors::internal($error, 'payments.alert', ['action' => $action] + $context);
+        }
     }
 
     /**
