@@ -287,11 +287,13 @@ final class Checkout
             $method = self::method(self::paymentMethodId($data['payment_method_id'] ?? 0), $type);
             $stripeMethod = '';
 
-            // Su Stripe la scelta (carta, Klarna…) deve essere una di quelle offerte.
+            // Su Stripe la scelta (carta, Klarna…) deve essere una di quelle offerte;
+            // dalla barra rapida (`express`) solo un wallet attivo.
             if (PaymentMethod::ledgerProvider((string) ($method['provider'] ?? '')) === 'stripe') {
                 $stripeMethod = trim((string) ($data['stripe_method_type'] ?? '')) ?: 'card';
+                $choices = !empty($data['express']) ? StripeMethods::expressChoices($stripeTypes) : StripeMethods::choices($stripeTypes);
 
-                if (!in_array($stripeMethod, StripeMethods::choices($stripeTypes), true)) {
+                if (!in_array($stripeMethod, $choices, true)) {
                     throw UserError::make('order.payment_method_unavailable');
                 }
             }
@@ -420,6 +422,33 @@ final class Checkout
             && ($method['deleted'] ?? 'false') !== 'true'
             && ($method['applies_online'] ?? 'true') === 'true'
             && ($for === 'all' || $fulfillment === 'none' || $for === $fulfillment);
+    }
+
+    /**
+     * Il metodo Stripe della barra rapida (§11) e i wallet accesi nel conto;
+     * `id` 0 se Stripe non è collegato, non c'è un metodo Stripe attivo per la
+     * spedizione o nessun wallet è acceso.
+     *
+     * @return array{id: int, types: list<string>}
+     */
+    public static function expressMethod(): array
+    {
+        $none = ['id' => 0, 'types' => []];
+        $provider = PaymentProviders::get('stripe');
+
+        if (!$provider instanceof StripeProvider || !$provider->connected()) {
+            return $none;
+        }
+
+        foreach (self::paymentMethods('shipping') as $method) {
+            if (PaymentMethod::ledgerProvider((string) ($method['provider'] ?? '')) === 'stripe') {
+                $types = StripeMethods::expressChoices($provider->activeTypes());
+
+                return $types === [] ? $none : ['id' => (int) $method['id'], 'types' => $types];
+            }
+        }
+
+        return $none;
     }
 
     /**
