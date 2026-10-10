@@ -360,4 +360,60 @@ check('il client dei test non esce dalla rete: la carta sola, e un errore chiaro
         && str_contains($errore, 'Test senza rete');
 }));
 
+check('express: apple_pay attivo si salva come provider_method', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    stripeConTipi(TIPI);
+    $esito = compra(metodoStripe(), ['stripe_method_type' => 'apple_pay', 'express' => true]);
+
+    return providerMethod($esito) === 'apple_pay';
+}));
+
+check('express: google_pay non attivo si rifiuta', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    stripeConTipi(['card', 'apple_pay']);
+    $metodo = metodoStripe();
+
+    return rifiuto(fn () => compra($metodo, ['stripe_method_type' => 'google_pay', 'express' => true])) === 'order.payment_method_unavailable';
+}));
+
+check('express: card non è una scelta del wallet', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    stripeConTipi(TIPI);
+    $metodo = metodoStripe();
+
+    return rifiuto(fn () => compra($metodo, ['stripe_method_type' => 'card', 'express' => true])) === 'order.payment_method_unavailable';
+}));
+
+check('senza express apple_pay resta rifiutato', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    stripeConTipi(TIPI);
+    $metodo = metodoStripe();
+
+    return rifiuto(fn () => compra($metodo, ['stripe_method_type' => 'apple_pay'])) === 'order.payment_method_unavailable';
+}));
+
+check('expressMethod: il metodo Stripe con i wallet attivi', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    stripeConTipi(['card', 'link', 'apple_pay', 'klarna']);
+    $id = metodoStripe();
+
+    return Checkout::expressMethod() === ['id' => $id, 'types' => ['apple_pay', 'link']];
+}));
+
+check('expressMethod: senza metodo Stripe niente', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    stripeConTipi(TIPI);
+    metodoBonifico();
+
+    return Checkout::expressMethod() === ['id' => 0, 'types' => []];
+}));
+
+check('expressMethod: senza wallet attivi niente', fn () => prova(static function (): bool {
+    soloQuestiMetodi();
+    stripeConTipi(['card', 'klarna']);
+    metodoStripe();
+
+    return Checkout::expressMethod() === ['id' => 0, 'types' => []];
+}));
+
 summary();

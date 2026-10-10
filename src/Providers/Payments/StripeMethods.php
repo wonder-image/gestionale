@@ -102,9 +102,20 @@ final class StripeMethods
         };
     }
 
-    /** @return list<string> i tipi del PaymentIntent per questa scelta */
+    /**
+     * I wallet della barra rapida fra i tipi attivi, nell'ordine di WALLETS.
+     *
+     * @param list<string> $types
+     * @return list<string>
+     */
+    public static function expressChoices(array $types): array
+    {
+        return array_values(array_intersect(self::WALLETS, $types));
+    }
+
+    /** @return list<string> i tipi del PaymentIntent per questa scelta: per i wallet decide Stripe (lista vuota) */
     public static function intentTypes(string $choice): array
     {
-        return [$choice];
+        return in_array($choice, self::WALLETS, true) ? [] : [$choice];
     }
 }

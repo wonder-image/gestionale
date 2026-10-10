@@ -401,10 +401,12 @@ check('start con provider_method card: solo la carta', fn () => prova(static fun
     return $http->requests[0]['params']['payment_method_types'] === ['card'];
 }));
 
-check('start con provider_method link: solo link', fn () => prova(static function (): bool {
+check('start con provider_method link: decide Stripe', fn () => prova(static function (): bool {
     [, $http] = avviaConScelta(['provider_method' => 'link'], [intento()]);
+    $parametri = $http->requests[0]['params'];
 
-    return $http->requests[0]['params']['payment_method_types'] === ['link'];
+    return ($parametri['automatic_payment_methods']['enabled'] ?? '') === 'true'
+        && !isset($parametri['payment_method_types']);
 }));
 
 check('start senza provider_method e senza CSV: decide Stripe', fn () => prova(static function (): bool {
