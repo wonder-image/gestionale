@@ -201,4 +201,13 @@ check('nessuna colonna usa una parola riservata di MySQL', function () use ($mod
     return true;
 });
 
+check('la spedizione ha place ID e coordinate, la fatturazione no', function () use ($colonne, $campo) {
+    $nomi = array_keys($colonne(Order::class));
+    $geo = ['shipping_place_id', 'shipping_lat', 'shipping_lng'];
+
+    return array_diff($geo, $nomi) === []
+        && array_intersect(['billing_place_id', 'billing_lat', 'billing_lng'], $nomi) === []
+        && $campo(Order::class, 'shipping_lat') !== null;
+});
+
 summary();

@@ -9,6 +9,7 @@ use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
+use Wonder\App\Support\GoogleMaps;
 use Wonder\Backend\Support\FlashAlert;
 use Wonder\Elements\Components\Modal;
 use Wonder\Http\Csrf;
@@ -100,9 +101,11 @@ final class ContactAddressResource extends NavigationOnlyResource
     /**
      * I valori della finestra, puliti: solo i campi noti, senza spazi ai
      * bordi, il prefisso col «+», il paese in maiuscolo e `IT` se manca, il predefinito sì o no.
+     * Place ID e coordinate, scritti da Google nei campi nascosti, passano dalla
+     * regola del core: un valore fuori regola diventa null.
      *
      * @param array<string, mixed> $values
-     * @return array<string, string>
+     * @return array<string, string|float|null>
      */
     public static function clean(array $values): array
     {
@@ -120,7 +123,7 @@ final class ContactAddressResource extends NavigationOnlyResource
         $clean['country'] = strtoupper($clean['country']) !== '' ? strtoupper($clean['country']) : 'IT';
         $clean['is_default'] = (string) ($values['is_default'] ?? '') === 'true' ? 'true' : 'false';
 
-        return $clean;
+        return $clean + GoogleMaps::cleanGeo($values);
     }
 
     /**
@@ -320,7 +323,8 @@ final class ContactAddressResource extends NavigationOnlyResource
             ->columnSpan($col);
 
         // Paese, provincia e prefisso sono i campi del core: il paese ricarica le
-        // province, il prefisso è l'elenco internazionale.
+        // province, il prefisso è l'elenco internazionale. La via ha l'aiuto di
+        // Google, che scrive place ID e coordinate nei tre campi nascosti.
         $core = ContactAddress::address()->formSchema('IT');
 
         return Modal::make('Aggiungi indirizzo')
@@ -333,7 +337,7 @@ final class ContactAddressResource extends NavigationOnlyResource
                 $campo('label', 'Etichetta', 12),
                 $campo('name', 'Nome', 6),
                 $campo('surname', 'Cognome', 6),
-                $campo('street', 'Via', 8),
+                $core['street']->label('Via')->maxLength(static::FIELDS['street'])->columnSpan(8),
                 $campo('number', 'Civico', 4),
                 $campo('more', 'Scala, interno, citofono', 12),
                 $campo('cap', 'CAP', 4),
@@ -343,6 +347,9 @@ final class ContactAddressResource extends NavigationOnlyResource
                 $core['phone_prefix']->label('Prefisso')->columnSpan(4),
                 $campo('phone', 'Telefono', 8),
                 FormField::key('is_default')->checkbox()->label('Indirizzo predefinito')->attribute('value="true"')->columnSpan(12),
+                $core['place_id'],
+                $core['lat'],
+                $core['lng'],
             ])
             ->cancel('Indietro')
             ->submit('Salva')
@@ -362,7 +369,7 @@ final class ContactAddressResource extends NavigationOnlyResource
         $campi = (string) json_encode(array_merge(array_keys(static::FIELDS), ['is_default']));
 
         return '<script>(function(){'
-            .'var FIELDS='.$campi.',FORM='.json_encode(static::MODAL_ID).',PREFIX='.json_encode(VisitorCountry::phonePrefix()).';'
+            .'var FIELDS='.$campi.',GEO=["place_id","lat","lng"],FORM='.json_encode(static::MODAL_ID).',PREFIX='.json_encode(VisitorCountry::phonePrefix()).';'
             .'function dati(e){try{return JSON.parse((e.relatedTarget&&e.relatedTarget.getAttribute("data-wi-address"))||"{}")||{}}catch(x){return {}}}'
             .'document.addEventListener("show.bs.modal",function(e){'
             .'var m=e.target,d=dati(e);if(!m||m.id!==FORM){return}'
@@ -373,6 +380,7 @@ final class ContactAddressResource extends NavigationOnlyResource
             .'if(i.tagName==="SELECT"&&$){$(i).trigger("change")}});'
             .'var c=m.querySelector("[name=country]"),p=m.querySelector("[name=province]");'
             .'if(c&&p&&typeof searchStates==="function"){searchStates(c,d.province||"");if($){$(p).trigger("change")}}'
+            .'GEO.forEach(function(k){var i=m.querySelector("[name="+k+"]");if(i){i.value=d[k]==null?"":d[k]}});'
             .'m.querySelector("[name=address_id]").value=d.id||0;'
             .'m.querySelector("[data-wi-modal-title]").textContent=d.id?"Modifica indirizzo":"Aggiungi indirizzo";'
             .'});})();</script>';

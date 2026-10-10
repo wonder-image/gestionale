@@ -659,7 +659,8 @@ class CustomerResource extends GestionaleResource
                     ->select(['false' => 'No', 'true' => 'Sì'])
                     ->label('Predefinito')
                     ->columnSpan(3),
-                RepeaterColumn::key('street')->text()->label('Via')->columnSpan(5),
+                // La riga la ricava places.js dal nome della via: il prefisso dichiarato vale per tutte.
+                RepeaterColumn::key('street')->text()->label('Via')->attribute('data-wi-place="addresses[]["')->columnSpan(5),
                 RepeaterColumn::key('number')->text()->label('N.')->columnSpan(1),
                 RepeaterColumn::key('cap')->text()->label('CAP')->columnSpan(2),
                 RepeaterColumn::key('city')->text()->label('Città')->columnSpan(4),
