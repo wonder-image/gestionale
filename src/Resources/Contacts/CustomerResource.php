@@ -179,13 +179,13 @@ class CustomerResource extends GestionaleResource
                 static::getInput('pi')->columnSpan(4),
                 static::getInput('sdi')->columnSpan(2),
                 static::getInput('pec')->columnSpan(2),
-                static::getInput('street')->columnSpan(6),
-                static::getInput('number')->columnSpan(2),
-                static::getInput('more')->columnSpan(4),
+                static::getInput('street')->columnSpan(9),
+                static::getInput('number')->columnSpan(3),
                 static::getInput('country')->columnSpan(3),
                 static::getInput('province')->columnSpan(3),
                 static::getInput('city')->columnSpan(3),
                 static::getInput('cap')->columnSpan(3),
+                static::getInput('more')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
             (new Card)->components([
                 SectionTitle::make('Indirizzi di consegna')
