@@ -61,4 +61,62 @@ check('ogni passo dice dove andare', function () {
     return count(SetupChecks::pending([], [], [])) === 3;
 });
 
+// Google Cloud: le credenziali che servono a questo progetto.
+$google = [
+    'gcp_project_id' => 'progetto-prova',
+    'gcp_api_key' => 'chiave_privata_prova',
+    'gcp_client_api_key' => 'chiave_pubblica_prova',
+    'g_recaptcha_site_key' => 'chiave_sito_prova',
+    'google_oauth_client_id' => 'prova.apps.googleusercontent.com',
+];
+
+check('senza credenziali passate i passi Google non si controllano', fn () =>
+    SetupChecks::pending($completi['society'], $completi['location'], $completi['settings']) === []
+);
+
+check('con le credenziali Google a posto non resta niente da fare', fn () =>
+    SetupChecks::pending($completi['society'], $completi['location'], $completi['settings'], $google) === []
+);
+
+check('senza credenziali Google ci sono tre passi, in ordine', fn () =>
+    array_column(SetupChecks::pending($completi['society'], $completi['location'], $completi['settings'], []), 'key')
+        === ['google_maps', 'google_recaptcha', 'google_oauth']
+);
+
+check('la chiave pubblica chiede Maps JavaScript API e Places API (New)', function () use ($completi, $google) {
+    $credenziali = $google;
+    $credenziali['gcp_client_api_key'] = '  ';
+    $voci = SetupChecks::pending($completi['society'], $completi['location'], $completi['settings'], $credenziali);
+
+    return array_column($voci, 'key') === ['google_maps']
+        && str_contains($voci[0]['description'], 'Maps JavaScript API')
+        && str_contains($voci[0]['description'], 'Places API (New)')
+        && $voci[0]['url'] === '/backend/app/config/credentials/';
+});
+
+check('reCAPTCHA vuole ID progetto, chiave privata e chiave del sito', function () use ($completi, $google) {
+    foreach (['gcp_project_id', 'gcp_api_key', 'g_recaptcha_site_key'] as $campo) {
+        $credenziali = $google;
+        $credenziali[$campo] = '';
+        $voci = SetupChecks::pending($completi['society'], $completi['location'], $completi['settings'], $credenziali);
+
+        if (array_column($voci, 'key') !== ['google_recaptcha']
+            || !str_contains($voci[0]['description'], 'reCAPTCHA Enterprise API')) {
+            return false;
+        }
+    }
+
+    return true;
+});
+
+check('Accedi con Google chiede un ID client OAuth 2.0 per applicazione web', function () use ($completi, $google) {
+    $credenziali = $google;
+    unset($credenziali['google_oauth_client_id']);
+    $voci = SetupChecks::pending($completi['society'], $completi['location'], $completi['settings'], $credenziali);
+
+    return array_column($voci, 'key') === ['google_oauth']
+        && str_contains($voci[0]['description'], 'ID client OAuth 2.0')
+        && str_contains($voci[0]['description'], 'origini JavaScript autorizzate');
+});
+
 summary();

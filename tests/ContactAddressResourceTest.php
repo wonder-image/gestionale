@@ -147,4 +147,24 @@ check('la finestra riempie il prefisso di un indirizzo nuovo con quello del visi
     return str_contains($html, 'PREFIX="+34"');
 });
 
+check('clean porta place ID e coordinate pulite: un valore fuori regola diventa null, le coordinate in coppia', function () use ($valido) {
+    $buono = ContactAddressResource::clean([...$valido, 'place_id' => ' ChIJabc_def-123 ', 'lat' => '45.4642035', 'lng' => '9.189982']);
+    $sola = ContactAddressResource::clean([...$valido, 'place_id' => 'x<y', 'lat' => '45.46', 'lng' => '']);
+    $nulla = ContactAddressResource::clean($valido);
+
+    return $buono['place_id'] === 'ChIJabc_def-123' && $buono['lat'] === 45.4642035 && $buono['lng'] === 9.189982
+        && $sola['place_id'] === null && $sola['lat'] === null && $sola['lng'] === null
+        && array_key_exists('lat', $nulla) && $nulla['lat'] === null
+        && ContactAddressResource::problem($buono) === null;
+});
+
+check('la finestra ha l\'aiuto di Google sulla via e place ID e coordinate nascosti, riempiti all\'apertura', function () {
+    $html = ContactAddressResource::modals(12);
+    $nascosto = static fn (string $nome): bool => preg_match('/<input[^>]*type="hidden"[^>]*name="'.$nome.'"|<input[^>]*name="'.$nome.'"[^>]*type="hidden"/', $html) === 1;
+
+    return preg_match('/<input[^>]*name="street"[^>]*data-wi-place|<input[^>]*data-wi-place[^>]*name="street"/', $html) === 1
+        && $nascosto('place_id') && $nascosto('lat') && $nascosto('lng')
+        && str_contains($html, 'GEO=["place_id","lat","lng"]');
+});
+
 summary();

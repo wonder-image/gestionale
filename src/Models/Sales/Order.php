@@ -63,13 +63,14 @@ final class Order extends Model
         return AddressExtension::billing('billing_', countryDefault: 'IT')->withLink(false);
     }
 
-    /** La consegna: destinatario e telefono, nessun dato fiscale o aziendale. */
+    /** La consegna: destinatario, telefono, place ID e coordinate; nessun dato fiscale o aziendale. */
     public static function shippingAddress(): AddressExtension
     {
         return AddressExtension::simple('shipping_', countryDefault: 'IT')
             ->withLink(false)
             ->withContactName()
-            ->withPhone();
+            ->withPhone()
+            ->withGeo();
     }
 
     /** Gli ordini sono la storia di questo ambiente, non configurazione. */

@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Backend\Widgets;
 
+use Wonder\App\Credentials;
 use Wonder\App\Models\Config\SocietyLocation;
 use Wonder\Backend\Contracts\HomeWidget;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
@@ -35,7 +36,8 @@ final class SetupWidget implements HomeWidget
         return self::markup(SetupChecks::pending(
             self::society(),
             self::location(),
-            Setting::current()
+            Setting::current(),
+            (array) Credentials::api()
         ));
     }
 

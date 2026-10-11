@@ -223,4 +223,17 @@ check('il gestionale distingue password e provider federati', function () {
         ]) === 'Email e password';
 });
 
+check('nel repeater degli indirizzi la via ha l\'aiuto di Google, senza campi geo', function () {
+    $campo = (new ReflectionMethod(CustomerResource::class, 'addressesField'))->invoke(null);
+    $nome = new ReflectionProperty(\Wonder\App\ResourceSchema\Input::class, 'name');
+    $colonne = [];
+
+    foreach ((array) $campo->get('context')['columns'] as $colonna) {
+        $colonne[(string) $nome->getValue($colonna)] = (string) $colonna->get('attribute');
+    }
+
+    return str_contains($colonne['street'] ?? '', 'data-wi-place="addresses[]["')
+        && array_intersect(['place_id', 'lat', 'lng'], array_keys($colonne)) === [];
+});
+
 summary();

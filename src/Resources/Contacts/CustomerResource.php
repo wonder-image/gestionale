@@ -179,13 +179,13 @@ class CustomerResource extends GestionaleResource
                 static::getInput('pi')->columnSpan(4),
                 static::getInput('sdi')->columnSpan(2),
                 static::getInput('pec')->columnSpan(2),
+                static::getInput('street')->columnSpan(9),
+                static::getInput('number')->columnSpan(3),
                 static::getInput('country')->columnSpan(3),
                 static::getInput('province')->columnSpan(3),
                 static::getInput('city')->columnSpan(3),
                 static::getInput('cap')->columnSpan(3),
-                static::getInput('street')->columnSpan(6),
-                static::getInput('number')->columnSpan(2),
-                static::getInput('more')->columnSpan(4),
+                static::getInput('more')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
             (new Card)->components([
                 SectionTitle::make('Indirizzi di consegna')
@@ -659,12 +659,13 @@ class CustomerResource extends GestionaleResource
                     ->select(['false' => 'No', 'true' => 'Sì'])
                     ->label('Predefinito')
                     ->columnSpan(3),
-                RepeaterColumn::key('street')->text()->label('Via')->columnSpan(5),
-                RepeaterColumn::key('number')->text()->label('N.')->columnSpan(1),
-                RepeaterColumn::key('cap')->text()->label('CAP')->columnSpan(2),
+                // La riga la ricava places.js dal nome della via: il prefisso dichiarato vale per tutte.
+                RepeaterColumn::key('street')->text()->label('Indirizzo')->attribute('data-wi-place="addresses[]["')->columnSpan(10),
+                RepeaterColumn::key('number')->text()->label('Civico')->columnSpan(2),
+                RepeaterColumn::key('country')->country('province')->value('IT')->label('Paese')->columnSpan(3),
+                RepeaterColumn::key('province')->states('IT')->label('Provincia')->columnSpan(3),
                 RepeaterColumn::key('city')->text()->label('Città')->columnSpan(4),
-                RepeaterColumn::key('country')->country('province')->value('IT')->label('Paese')->columnSpan(6),
-                RepeaterColumn::key('province')->states('IT')->label('Provincia')->columnSpan(6),
+                RepeaterColumn::key('cap')->text()->label('CAP')->columnSpan(2),
             ])
             ->relation(
                 RepeaterRelation::make(ContactAddress::$table, 'contact_id')
