@@ -141,8 +141,10 @@ Il resto:
   form si ridisegna con la casella aperta. Login, registrazione e recupero password non cambiano
   altro.
 - `http/api/resource/index.php` e `Api/Handler::sendError`: per 617 e 618, HTTP 422 con corpo
-  `{success: false, status: 617|618, response: <messaggio>}`. Un codice d'eccezione fuori da
-  400–599 non diventa più il codice HTTP: si usa 500.
+  `{success: false, status: 617|618, response: <messaggio>}`. Oggi ogni codice d'eccezione
+  diventa il codice HTTP (anche 6xx–9xx delle notifiche, o 751 di `ResponsiveImage`); da qui in
+  poi un codice fuori da 400–599 dà HTTP 500, e il corpo tiene il codice vero in `status`, così
+  `alertToast(status)` mostra la notifica giusta.
 - `resources/lang/*/notifications.json` (5 lingue): voce `618`.
 
 ## 6. Lib
