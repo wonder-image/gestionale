@@ -18,9 +18,10 @@ final class SetupChecks
      * @param array<string, mixed> $society dati della società
      * @param array<string, mixed> $location sede predefinita
      * @param array<string, mixed> $settings impostazioni tecniche
+     * @param array<string, mixed>|null $credentials credenziali API; null non controlla Google
      * @return list<array{key: string, title: string, description: string, url: string}>
      */
-    public static function pending(array $society, array $location, array $settings): array
+    public static function pending(array $society, array $location, array $settings, ?array $credentials = null): array
     {
         $pending = [];
 
@@ -50,6 +51,51 @@ final class SetupChecks
                 // La pagina è a riga unica: l'elenco porta dritto alla scheda.
                 'url' => self::route('backend.resource.app-gestionale-impostazioni.list', [], '/backend/app/gestionale/impostazioni/'),
             ];
+        }
+
+        if ($credentials !== null) {
+            array_push($pending, ...self::google($credentials));
+        }
+
+        return $pending;
+    }
+
+    /**
+     * Cosa serve da Google Cloud a questo progetto: un passo per servizio,
+     * aperto finché manca una delle sue credenziali.
+     *
+     * @param array<string, mixed> $credentials
+     * @return list<array{key: string, title: string, description: string, url: string}>
+     */
+    private static function google(array $credentials): array
+    {
+        $url = self::route('backend.resource.app-config-credentials.list', [], '/backend/app/config/credentials/');
+        $steps = [
+            'google_maps' => [
+                'fields' => ['gcp_client_api_key'],
+                'title' => 'Collega Google Maps',
+                'description' => 'Nella Google Cloud Console attiva Maps JavaScript API e Places API (New) e crea una chiave API limitata ai referrer HTTP del sito: va in «Chiave pubblica» e completa gli indirizzi nei form.',
+            ],
+            'google_recaptcha' => [
+                'fields' => ['gcp_project_id', 'gcp_api_key', 'g_recaptcha_site_key'],
+                'title' => 'Collega reCAPTCHA',
+                'description' => 'Attiva reCAPTCHA Enterprise API, crea una chiave del sito per il dominio e una chiave API senza limiti di referrer: ID progetto, «Chiave privata» e «Chiave sito» proteggono i form.',
+            ],
+            'google_oauth' => [
+                'fields' => ['google_oauth_client_id'],
+                'title' => 'Collega Accedi con Google',
+                'description' => 'In Google Auth Platform crea un ID client OAuth 2.0 di tipo «Applicazione web» con il dominio del sito tra le origini JavaScript autorizzate: va in «Google Client ID».',
+            ],
+        ];
+        $pending = [];
+
+        foreach ($steps as $key => $step) {
+            foreach ($step['fields'] as $field) {
+                if (trim((string) ($credentials[$field] ?? '')) === '') {
+                    $pending[] = ['key' => $key, 'title' => $step['title'], 'description' => $step['description'], 'url' => $url];
+                    break;
+                }
+            }
         }
 
         return $pending;
