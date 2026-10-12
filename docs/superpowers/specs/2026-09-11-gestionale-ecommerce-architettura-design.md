@@ -1,6 +1,6 @@
 # Architettura `wonder-image/gestionale` + `wonder-image/ecommerce`
 
-- **Stato:** approvata il 2026-09-16; D60 (vendita senza giacenza) e prefisso `gst_` aggiunti il 2026-09-18
+- **Stato:** approvata il 2026-09-16; D60 (vendita senza giacenza) e prefisso `gst_` aggiunti il 2026-09-18; D63 (lavori in parallelo alla consegna) il 2026-10-12
 - **Brainstorming:** dal 2026-09-11 al 2026-09-16, decisioni D1–D59; D60 dal 2026-09-18
 - **Avanzamento:** [TODO.md](../../../TODO.md)
 - **Storia:** il registro cronologico delle decisioni è nel commit `4fa9852`
@@ -391,7 +391,7 @@ che li richiedono.
 | Promozioni | Sconto massivo | `discount_campaigns` | campagne per categoria, tag, brand o modello, con data e ora, in € o %, attivabili e disattivabili | Ordini | G6 |
 | Promozioni | Coupon | `coupons` | importo, percentuale, buono a scalare, spedizione gratuita, con limiti | Ordini | G6 |
 | Fatturazione | Fatturazione elettronica | `e_invoicing` | fatture, invio SDI, coda, stati, notifiche; fattura ciò che producono le funzionalità di vendita attive | — | G8 |
-| Fatturazione | Fattura differita | `deferred_invoicing` | fattura riepilogativa dei DDT del periodo | DDT, Fatturazione elettronica | G9 |
+| Fatturazione | Fattura differita | `deferred_invoicing` | fattura riepilogativa dei DDT del periodo | DDT, Fatturazione elettronica | G8 (D63) |
 | Spedizioni | Spedizioni | `shipping` | listini per zona e peso, spedizioni e tracking manuali, ritiro in sede | Ordini | G7 |
 | Spedizioni | Corrieri | `carriers` | etichette e tracking dal corriere | Spedizioni | futura |
 | Banco | Banco | `pos` | vendita in sede con documento commerciale e corrispettivi | Ordini | futura |
@@ -1355,7 +1355,7 @@ un'eccezione per la merce consegnata prima di essere pagata (art. 6 e 21 DPR
 
 1. pagamento completo prima dell'evasione → fattura al pagamento (è il caso degli
    ordini online);
-2. merce consegnata prima del pagamento (condizioni posticipate, G9):
+2. merce consegnata prima del pagamento (condizioni posticipate di G9, fattura con G8 per D63):
    - con `deferred_invoicing` e DDT: fattura al pagamento se arriva prima della
      fattura differita, altrimenti il DDT entra nella fattura differita del mese
      (TD24, entro il 15 del mese successivo);
@@ -2066,18 +2066,40 @@ pacchetto a parte.
   previsto (8.6). Rientra quando il negozio deve fatturare a partite IVA o su
   richiesta.
 
+**Lavori in parallelo alla consegna (D63, 2026-10-12).** La consegna del primo negozio
+resta al 29 ottobre 2026 con il percorso di D61, che non cambia. Accanto, ognuno su un
+worktree proprio, partono subito tre sotto-progetti che erano dopo il rilascio:
+
+1. **G3 Magazzino avanzato**, con i documenti di magazzino di G2b-bis (piani 4-6:
+   carichi, scarichi, inventario). La spec di G2b-bis §4 prevede già nei dati sede,
+   lotto, fornitore e costi, vuoti e nascosti: il piano 4 si scrive da lì, la spec di
+   G3 copre il resto (trasferimenti, acquisti e valore del magazzino, lotti e
+   scadenze, giacenza per fornitore, scarico automatico). Nel flusso di vendita G3
+   tocca un punto solo, il servizio unico di prenotazione e scarico (`Allocation`,
+   `Stock::apply()`, vincolo di D61).
+2. **G9 Vendite da ufficio senza la parte fiscale:** ordini da ufficio, preventivi
+   con revisioni e PDF, condizioni a rate e scadenzario, DDT. La fattura differita
+   TD24 (`deferred_invoicing`) e la fattura della merce consegnata prima del
+   pagamento (5.3, punto 2) passano a G8.
+3. **G10 + E3 Abbonamenti** da ufficio e online.
+
+L'ordine è questo perché G9 (DDT, scarico da ufficio) si appoggia alle sedi e ai lotti
+di G3, mentre G10 non dipende dagli altri due. Vincolo: quello che di questi tre si
+unisce su `main` prima della `1.0.0` resta **inerte a interruttori spenti**
+(`multi_location`, `purchasing`, `batch_tracking`, `quotes`, `delivery_notes`,
+`subscriptions`, `online_subscriptions`): con gli interruttori spenti il negozio si
+comporta esattamente come prima, altrimenti il parallelo mette a rischio la consegna.
+
 ### 10.4 Dopo il primo rilascio (D59)
 
 1. **Starter** da `boilerplates/ecommerce-site` (2.3).
 2. **E2 PayPal e Nexi** (6.3), con i lavori nel core (10.2).
-3. **G9 Vendite da ufficio:** creazione degli ordini da ufficio, preventivi con
-   revisioni e PDF, condizioni di pagamento a rate e scadenzario, DDT e fattura
-   differita TD24, fattura della merce consegnata prima del pagamento (4.7–4.9, 5.3,
-   5.4, 5.6).
-4. **G10 + E3 Abbonamenti** da ufficio e online (4.13, 5.5).
-5. **E4 Portale B2B**, con account creato dall'azienda cliente (4.4).
-6. **`AuthFederated`** nel core e accesso al sito con Apple e Google (4.4, 5.1).
-7. **Funzionalità future** (10.5).
+3. ~~G9 Vendite da ufficio~~ e ~~G10 + E3 Abbonamenti~~: anticipati in parallelo
+   alla consegna (D63, 10.3). G9 è senza la parte fiscale: la fattura differita TD24
+   e la fattura della merce consegnata prima del pagamento vanno con **G8**.
+4. **E4 Portale B2B**, con account creato dall'azienda cliente (4.4).
+5. **`AuthFederated`** nel core e accesso al sito con Apple e Google (4.4, 5.1).
+6. **Funzionalità future** (10.5).
 
 ### 10.5 Funzionalità future
 
@@ -2258,6 +2280,7 @@ Il testo originale di ogni decisione è nel commit `4fa9852`.
 | D60 | Vendita senza giacenza e prefisso `gst_` delle tabelle | | 1.5, 2.5, 3.4, 4.2, 4.3 |
 | D61 | Sequenza rivista per la consegna del primo negozio | D59 | 10.3 |
 | D62 | View sigillate, slot e divisione di E1 in tre fette | D11, D52 | 2.3, 7, 10.2, 10.3 |
+| D63 | Lavori in parallelo alla consegna: G3, G9 senza parte fiscale, G10 + E3 | D61 | 3.4, 10.3, 10.4 |
 
 ## Appendice B — Vincoli del framework (verificati il 2026-09-11 e il 2026-09-16)
 

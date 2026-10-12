@@ -126,6 +126,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Ramo `feature/prerequisiti-moduli-gestionale` unito in `main` in locale (avanzamento diretto fino a 223adf4b, 72 file di test verdi) e cancellato in locale (2026-09-17)
   - [x] Push di `main` di `wonder-image/app`, rilasci fino a `v2.4.0-beta.1` e ramo remoto `feature/prerequisiti-moduli-gestionale` cancellato (verificato il 2026-09-29)
 - [ ] D60 (2026-09-18): vendita senza giacenza per prodotto con giacenza sotto zero (funzionalità `backorders`, G4) e prefisso delle tabelle `gst_`; spec di architettura aggiornata (1316556)
+- [x] D63 (2026-10-12): **G3, G9 senza parte fiscale e G10 + E3 in parallelo alla consegna**, che resta al 2026-10-29; spec di architettura §3.4, §10.3, §10.4 e appendice A aggiornate
 - [ ] D61 (2026-09-29): **sequenza rivista per la consegna del primo negozio** (entro il 2026-10-29). Il negozio vende da una sede sola, con spedizioni, coupon e sconti, prodotti composti e personalizzabili; senza fatturazione elettronica. G3 e i documenti di magazzino (G2b-bis piani 4-6) escono dal percorso della consegna: restano dietro i loro interruttori (`multi_location`, `purchasing`, `batch_tracking` spenti) e la merce entra con la rettifica rapida. Vincolo su G4: prenotazione e scarico passano da **un unico servizio**, che riceve già sede, lotto e fornitore anche se `gst_stock.batch_id` e `supplier_id` restano a zero, così G3 toccherà solo quel punto. Spec di architettura §10.3 aggiornata
 - [x] G1 Fondamenta (chiuso il 2026-09-21)
   - Spec: `docs/superpowers/specs/2026-09-18-fondamenta-gestionale-design.md`
@@ -300,17 +301,22 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 - [ ] Rilascio `1.0.0` di gestionale ed ecommerce
 - [ ] Sito del cliente sopra `boilerplates/ecommerce-site`: tema, contenuti, prodotti veri, Stripe in produzione, collaudo
 
+**In parallelo alla consegna (D63, 2026-10-12)** — la consegna del 29 ottobre resta com'è; questi tre partono subito, ognuno su un worktree, nell'ordine. Quello che si unisce su `main` prima della `1.0.0` resta inerte a interruttori spenti.
+
+- [ ] G3 Magazzino avanzato — più sedi e trasferimenti, lotti e scadenze, giacenza e costi per fornitore, valore del magazzino, scarico automatico (lotto in scadenza, poi costo più basso)
+  - [ ] Piani 4-6 di G2b-bis (carichi, scarichi, inventario) dalla spec già approvata (§4): sede, lotto, fornitore e costi sono già nei dati, vuoti e nascosti
+  - [ ] Spec di G3 per il resto; nel flusso di vendita tocca solo `Allocation` / `Stock::apply()` (vincolo di D61)
+- [ ] G9 Vendite da ufficio **senza la parte fiscale** — ordini da ufficio, preventivi con revisioni e PDF, condizioni a rate e scadenzario, DDT. La fattura differita TD24 e la fattura della merce consegnata prima del pagamento vanno con G8
+- [ ] G10 + E3 Abbonamenti — da ufficio e online; la parte E3 va anche in [`packages/ecommerce/TODO.md`](../ecommerce/TODO.md)
+
 **Fuori dal percorso della consegna (D61)**
 
-- [ ] G3 Magazzino avanzato — più sedi e trasferimenti, lotti e scadenze, giacenza e costi per fornitore, valore del magazzino
-- [ ] G8 Fatturazione elettronica — il checkout è già previsto con la fatturazione spenta (§8.6); serve se il negozio fattura a partite IVA o su richiesta
+- [ ] G8 Fatturazione elettronica — il checkout è già previsto con la fatturazione spenta (§8.6); serve se il negozio fattura a partite IVA o su richiesta. Con D63 prende anche la fattura differita TD24 e la fattura della merce consegnata prima del pagamento di G9
 
 **Dopo il primo rilascio**
 
 - [ ] Starter da `boilerplates/ecommerce-site` (D12)
 - [ ] E2 PayPal e Nexi
-- [ ] G9 Vendite da ufficio
-- [ ] G10 + E3 Abbonamenti
 - [ ] E4 Portale B2B con account creato dall'azienda cliente (D31)
 - [ ] `AuthFederated` e accesso al sito con Apple e Google (D46)
 
