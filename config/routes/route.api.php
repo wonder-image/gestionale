@@ -9,3 +9,10 @@ Route::area('api')->response('json')->frontend()->translatable(false)
         Route::post('/stripe/webhook/', Gestionale::handlerPath('api/stripe/webhook.php'))
             ->name('stripe.webhook');
     });
+
+// Il backend del gestionale: con la sessione e i permessi delle pagine.
+Route::area('api')->response('json')->backend()->translatable(false)
+    ->name('api.gestionale.backend.')->prefix('/gestionale/backend')->group(function () {
+        Route::get('/magazzino/versioni/', Gestionale::handlerPath('api/stock/versions.php'))
+            ->name('stock.versions')->guarded()->permit(['admin', 'administrator']);
+    });
