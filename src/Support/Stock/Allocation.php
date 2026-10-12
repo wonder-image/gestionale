@@ -23,8 +23,11 @@ use Wonder\Sql\Transaction;
  * resta l'unica porta di scrittura del magazzino. L'unica tabella che
  * `Allocation` scrive è `gst_stock_reservations`.
  *
- * Tutti e cinque prendono sede, lotto e fornitore. Oggi la sede è quella
- * principale e lotto e fornitore sono zero, ma la firma è già quella giusta:
+ * Tutti e cinque prendono sede, lotto e fornitore. La sede dell'ordine è il
+ * punto di ritiro, non un magazzino: prenotazione, scarico e annullo usano
+ * sempre la principale (`Locations::forSale()`), e solo il reso rientra
+ * nella sede scelta da chi lo registra (`Locations::forReturn()`). Lotto e
+ * fornitore sono zero, ma la firma è già quella giusta:
  * G3 cambierà il dentro dei metodi senza riaprire gli ordini.
  *
  * Il lock è l'antioverselling: le righe di `gst_stock` si leggono con
@@ -299,7 +302,7 @@ final class Allocation
     public static function returnGoods(array $line): array
     {
         $restock = ($line['restock'] ?? true) !== false;
-        $context = self::context($line);
+        $context = self::context($line, true);
 
         if ($context['quantity'] <= 0) {
             throw UserError::make('order.zero_quantity');
@@ -311,7 +314,7 @@ final class Allocation
             return ['movement_id' => 0, 'before' => $onHand, 'after' => $onHand, 'restocked' => false];
         }
 
-        return self::giveBack($line, 'return', 'sales_return', (int) ($line['sales_return_id'] ?? 0))
+        return self::giveBack($line, 'return', 'sales_return', (int) ($line['sales_return_id'] ?? 0), true)
             + ['restocked' => true];
     }
 
@@ -322,9 +325,9 @@ final class Allocation
      * @param array<string, mixed> $line
      * @return array{movement_id: int, before: float, after: float}
      */
-    private static function giveBack(array $line, string $type, string $referenceType, int $referenceId): array
+    private static function giveBack(array $line, string $type, string $referenceType, int $referenceId, bool $return = false): array
     {
-        $context = self::context($line);
+        $context = self::context($line, $return);
 
         if ($context['quantity'] <= 0) {
             throw UserError::make('order.zero_quantity');
@@ -429,7 +432,7 @@ final class Allocation
      * @param array<string, mixed> $line
      * @return array{product: array<string, mixed>, product_id: int, quantity: float, location_id: int, batch_id: int, supplier_id: int}
      */
-    private static function context(array $line): array
+    private static function context(array $line, bool $return = false): array
     {
         $productId = (int) ($line['product_id'] ?? 0);
         $product = $productId > 0 ? Product::findById($productId) : null;
@@ -438,7 +441,10 @@ final class Allocation
             throw UserError::make('stock.product_missing');
         }
 
-        $locationId = (int) ($line['location_id'] ?? 0) ?: Locations::mainId();
+        // Il punto di ritiro non è un magazzino: la vendita esce dalla principale; il reso rientra dove l'ha registrato chi lo riceve.
+        $locationId = $return
+            ? Locations::forReturn((int) ($line['location_id'] ?? 0))
+            : Locations::forSale();
 
         if ($locationId <= 0) {
             throw UserError::make('stock.no_location');
