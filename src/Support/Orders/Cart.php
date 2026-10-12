@@ -23,6 +23,7 @@ use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Shipping\Shipping;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxResolver;
@@ -821,7 +822,7 @@ final class Cart
             return $wanted;
         }
 
-        return min($wanted, max(0.0, Levels::of($productId)['available']));
+        return min($wanted, max(0.0, self::available([$productId])[$productId]['available']));
     }
 
     /** @return array<string, mixed> */
@@ -847,11 +848,24 @@ final class Cart
             return;
         }
 
-        $available = Levels::of((int) $product['id'])['available'];
+        $available = self::available([(int) $product['id']])[(int) $product['id']]['available'];
 
         if ($wanted > $available) {
             throw self::stockError(ProductNames::full($product, ProductNames::models([$product])), $available);
         }
+    }
+
+    /**
+     * Il disponibile per la vendita: quello della sede da cui escono gli
+     * ordini, senza i lotti scaduti (G3, spec §2.2). Con più sedi la merce
+     * dei negozi non si vende online.
+     *
+     * @param list<int> $productIds
+     * @return array<int, array{quantity: float, expired: float, reserved: float, available: float}>
+     */
+    private static function available(array $productIds): array
+    {
+        return Levels::forSale($productIds, Locations::forSale());
     }
 
     private static function stockError(string $name, float $available): UserError
@@ -882,7 +896,7 @@ final class Cart
         }
 
         $pieces = Bundles::pieces($components, $chosen, $packs);
-        $levels = Levels::forProducts(array_keys($pieces));
+        $levels = self::available(array_keys($pieces));
         $available = [];
         $backorder = [];
         $products = [];

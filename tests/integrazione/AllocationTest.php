@@ -546,6 +546,82 @@ try {
             return $chiuse === 1 && $aperte === 2 && Allocation::expire($ordine) === 0;
         });
 
+        // --- G3 piano 1: secchi, riga d'ordine e rientri per secchio ---
+
+        $secchi = static function (int $productId) use ($sede): array {
+            $out = [];
+
+            foreach ((array) Wonder\Plugin\Gestionale\Models\Stock\Stock::find(['product_id' => $productId, 'location_id' => $sede, 'deleted' => 'false']) as $riga) {
+                if (is_array($riga) && isset($riga['batch_id'])) {
+                    $out[(int) $riga['batch_id'].'/'.(int) $riga['supplier_id']] = round((float) $riga['quantity'], 3);
+                }
+            }
+
+            ksort($out);
+
+            return $out;
+        };
+
+        check('G3 inerzia: con il solo secchio 0 la vendita scrive un movimento solo, con la riga d\'ordine e costo zero', function () use ($sede) {
+            $productId = articoloConGiacenza(5, 'TST-G3-1');
+            $ordine = ordineDiProva();
+
+            $esito = Allocation::commit(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine, 'order_item_id' => 987654]);
+            $movimenti = StockMovement::find("reference_type = 'order' AND reference_id = {$ordine} AND deleted = 'false'");
+            $movimenti = isset($movimenti['id']) ? [$movimenti] : array_values((array) $movimenti);
+
+            return $esito['before'] === 5.0 && $esito['after'] === 3.0
+                && count($movimenti) === 1
+                && (int) $movimenti[0]['reference_item_id'] === 987654
+                && (float) $movimenti[0]['unit_cost'] === 0.0
+                && $esito['parts'] === [['batch_id' => 0, 'supplier_id' => 0, 'quantity' => 2.0]];
+        });
+
+        check('G3: con Acquisti accesa la vendita si divide fra i fornitori e l\'annullo rimette ogni pezzo nel suo secchio', function () use ($sede, $secchi) {
+            $productId = articoloConGiacenza(1, 'TST-G3-2');
+            Stock::apply(['product_id' => $productId, 'quantity' => -1, 'type' => 'adjustment', 'reason' => 'other']);
+            Stock::apply(['product_id' => $productId, 'supplier_id' => 905, 'quantity' => 2, 'type' => 'purchase']);
+            Stock::apply(['product_id' => $productId, 'supplier_id' => 906, 'quantity' => 3, 'type' => 'purchase']);
+            accendiFunzionalita(['purchasing']);
+            $ordine = ordineDiProva();
+
+            $vendita = Allocation::commit(['product_id' => $productId, 'quantity' => 4, 'location_id' => $sede, 'order_id' => $ordine, 'order_item_id' => 987655, 'payment_ok' => true]);
+            $dopoVendita = $secchi($productId);
+            Allocation::restore(['product_id' => $productId, 'quantity' => 3, 'location_id' => $sede, 'order_id' => $ordine, 'order_item_id' => 987655]);
+            $dopoAnnullo = $secchi($productId);
+            spegniFunzionalita(['purchasing']);
+
+            return count($vendita['parts']) === 2
+                && $dopoVendita === ['0/0' => 0.0, '0/905' => 0.0, '0/906' => 1.0]
+                // Rientra dall'ultimo secchio uscito: 906 riprende i suoi 2, 905 uno solo.
+                && $dopoAnnullo === ['0/0' => 0.0, '0/905' => 1.0, '0/906' => 3.0];
+        });
+
+        check('G3: il reso rientra nel secchio da cui la riga era uscita', function () use ($sede, $secchi) {
+            $productId = articoloConGiacenza(1, 'TST-G3-3');
+            Stock::apply(['product_id' => $productId, 'quantity' => -1, 'type' => 'adjustment', 'reason' => 'other']);
+            Stock::apply(['product_id' => $productId, 'supplier_id' => 907, 'quantity' => 2, 'type' => 'purchase']);
+            accendiFunzionalita(['purchasing']);
+            $ordine = ordineDiProva();
+
+            Allocation::commit(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine, 'order_item_id' => 987656, 'payment_ok' => true]);
+            $reso = Allocation::returnGoods(['product_id' => $productId, 'quantity' => 1, 'location_id' => $sede, 'order_item_id' => 987656, 'sales_return_id' => 1]);
+            $dopo = $secchi($productId);
+            spegniFunzionalita(['purchasing']);
+
+            return $reso['restocked'] === true && $dopo['0/907'] === 1.0 && $dopo['0/0'] === 0.0;
+        });
+
+        check('G3: i movimenti di prima, senza riga d\'ordine, rientrano nel secchio 0', function () use ($sede, $secchi) {
+            $productId = articoloConGiacenza(3, 'TST-G3-4');
+            $ordine = ordineDiProva();
+
+            Allocation::commit(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine]);
+            $esito = Allocation::restore(['product_id' => $productId, 'quantity' => 2, 'location_id' => $sede, 'order_id' => $ordine]);
+
+            return $esito['after'] === 3.0 && $secchi($productId) === ['0/0' => 3.0];
+        });
+
         summary();
 
         throw new Annulla('Fine della prova: niente resta scritto.');

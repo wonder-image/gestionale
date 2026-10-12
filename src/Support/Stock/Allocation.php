@@ -6,7 +6,6 @@ use RuntimeException;
 use Throwable;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
-use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -54,7 +53,8 @@ final class Allocation
         }
 
         return Transaction::run(static function () use ($context, $line): array {
-            $onHand = self::lockedQuantity($context);
+            // Il lock sui secchi prima delle prenotazioni; i lotti scaduti non si vendono (G3.11).
+            $onHand = self::lockedStock($context)['sellable'];
             $reservations = self::liveReservations($context['product_id'], $context['location_id']);
             $available = Availability::of($onHand, $reservations);
 
@@ -223,7 +223,8 @@ final class Allocation
         }
 
         return Transaction::run(static function () use ($context, $line): array {
-            $onHand = self::lockedQuantity($context);
+            $stock = self::lockedStock($context);
+            $onHand = $stock['sellable'];
             $reserved = self::reservedFor($line, $context);
             $hasReservation = $reserved + 0.0005 >= $context['quantity'];
             $backorder = Stock::allowsBackorder($context['product']);
@@ -240,19 +241,43 @@ final class Allocation
             // lascia dietro una prenotazione che nessuno chiuderà più.
             self::release(array_merge($line, ['consume' => $context['quantity']]));
 
-            $movement = Stock::apply([
-                'product_id' => $context['product_id'],
-                'location_id' => $context['location_id'],
+            // Da quali secchi esce (G3.3): con il solo secchio 0 una parte sola,
+            // e quello che non c'è va sotto zero sempre nel secchio 0 (G3.15).
+            $split = StockPicking::split($stock['buckets'], $context['quantity'], [
+                'use_batches' => $stock['use_batches'],
+                'use_suppliers' => $stock['use_suppliers'],
                 'batch_id' => $context['batch_id'],
                 'supplier_id' => $context['supplier_id'],
-                'quantity' => -$context['quantity'],
-                'type' => 'sale',
-                'reference_type' => 'order',
-                'reference_id' => (int) ($line['order_id'] ?? 0),
-                'source' => (string) ($line['source'] ?? 'backend'),
-                'user_id' => (int) ($line['user_id'] ?? 0),
-                'allow_negative' => $hasReservation || $backorder || $paid,
             ]);
+            $parts = $split['missing'] > 0
+                ? StockMovements::addToZero($split['parts'], $split['missing'])
+                : $split['parts'];
+            $movementId = 0;
+
+            foreach ($parts as $part) {
+                $movementId = Stock::apply([
+                    'product_id' => $context['product_id'],
+                    'location_id' => $context['location_id'],
+                    'batch_id' => $part['batch_id'],
+                    'supplier_id' => $part['supplier_id'],
+                    'quantity' => -$part['quantity'],
+                    'type' => 'sale',
+                    'reference_type' => 'order',
+                    'reference_id' => (int) ($line['order_id'] ?? 0),
+                    'reference_item_id' => (int) ($line['order_item_id'] ?? 0),
+                    'unit_cost' => self::costOf($stock, $part, $context['product_id']),
+                    'source' => (string) ($line['source'] ?? 'backend'),
+                    'user_id' => (int) ($line['user_id'] ?? 0),
+                    'allow_negative' => $hasReservation || $backorder || $paid,
+                ])['movement_id'];
+            }
+
+            // Prima e dopo sono della sede intera, come quando il secchio era uno solo.
+            $movement = [
+                'movement_id' => $movementId,
+                'before' => $stock['quantity'],
+                'after' => round($stock['quantity'] - $context['quantity'], 3) + 0.0,
+            ];
 
             $oversold = $movement['after'] < 0;
             $alert = $oversold && !$backorder;
@@ -268,6 +293,7 @@ final class Allocation
                 'reserved' => $reserved,
                 'oversold' => $oversold,
                 'merchant_alert' => $alert,
+                'parts' => $parts,
             ];
         });
     }
@@ -309,7 +335,7 @@ final class Allocation
         }
 
         if (!$restock) {
-            $onHand = self::lockedQuantity($context);
+            $onHand = Transaction::run(static fn (): float => self::lockedStock($context)['quantity']);
 
             return ['movement_id' => 0, 'before' => $onHand, 'after' => $onHand, 'restocked' => false];
         }
@@ -333,25 +359,38 @@ final class Allocation
             throw UserError::make('order.zero_quantity');
         }
 
-        $movement = Stock::apply([
-            'product_id' => $context['product_id'],
-            'location_id' => $context['location_id'],
-            'batch_id' => $context['batch_id'],
-            'supplier_id' => $context['supplier_id'],
-            'quantity' => $context['quantity'],
-            'type' => $type,
-            'reference_type' => $referenceType,
-            'reference_id' => $referenceId,
-            'source' => (string) ($line['source'] ?? 'backend'),
-            'user_id' => (int) ($line['user_id'] ?? 0),
-            'note' => (string) ($line['note'] ?? ''),
-        ]);
+        // Rientra nei secchi da cui la riga era uscita, dall'ultimo al primo (G3.5).
+        $itemId = (int) ($line['order_item_id'] ?? 0);
 
-        return [
-            'movement_id' => $movement['movement_id'],
-            'before' => $movement['before'],
-            'after' => $movement['after'],
-        ];
+        return Transaction::run(static function () use ($context, $line, $type, $referenceType, $referenceId, $itemId): array {
+            $stock = self::lockedStock($context);
+            $parts = StockMovements::refill(StockMovements::netOut($itemId), $context['quantity']);
+            $movementId = 0;
+
+            foreach ($parts as $part) {
+                $movementId = Stock::apply([
+                    'product_id' => $context['product_id'],
+                    'location_id' => $context['location_id'],
+                    'batch_id' => $part['batch_id'],
+                    'supplier_id' => $part['supplier_id'],
+                    'quantity' => $part['quantity'],
+                    'type' => $type,
+                    'reference_type' => $referenceType,
+                    'reference_id' => $referenceId,
+                    'reference_item_id' => $itemId,
+                    'unit_cost' => self::costOf($stock, $part, $context['product_id']),
+                    'source' => (string) ($line['source'] ?? 'backend'),
+                    'user_id' => (int) ($line['user_id'] ?? 0),
+                    'note' => (string) ($line['note'] ?? ''),
+                ])['movement_id'];
+            }
+
+            return [
+                'movement_id' => $movementId,
+                'before' => $stock['quantity'],
+                'after' => round($stock['quantity'] + $context['quantity'], 3) + 0.0,
+            ];
+        });
     }
 
     /**
@@ -461,38 +500,41 @@ final class Allocation
     }
 
     /**
-     * La giacenza della sede, letta con il lock.
+     * I secchi del prodotto nella sede, letti con il lock (`StockBuckets`).
      *
      * Blocca tutte le righe del prodotto in quella sede — lotti e fornitori
-     * diversi sono righe diverse — perché è la sede l'unità che si vende. Con
-     * lotto o fornitore nella richiesta si restringe a quella riga: è G3 che
-     * comincerà a passarli.
+     * diversi sono righe diverse — perché è la sede l'unità che si vende: la
+     * stessa lettura di prima di G3, nello stesso ordine.
      *
-     * @param array{product_id: int, location_id: int, batch_id: int, supplier_id: int} $context
+     * @param array{product_id: int, location_id: int} $context
+     * @return array{buckets: list<array{batch_id: int, supplier_id: int, quantity: float, expiry_date: ?string, cost: ?float}>, quantity: float, sellable: float, use_batches: bool, use_suppliers: bool}
      */
-    private static function lockedQuantity(array $context): float
+    private static function lockedStock(array $context): array
     {
-        $where = [
-            'product_id' => $context['product_id'],
-            'location_id' => $context['location_id'],
-            'deleted' => 'false',
-        ];
+        return StockBuckets::locked($context['product_id'], $context['location_id']);
+    }
 
-        if ($context['batch_id'] > 0) {
-            $where['batch_id'] = $context['batch_id'];
+    /**
+     * Il costo di un secchio da scrivere sul movimento (G3.22): zero senza
+     * «Acquisti», come prima di G3.
+     *
+     * @param array{buckets: list<array<string, mixed>>, use_suppliers: bool} $stock
+     * @param array{batch_id: int, supplier_id: int} $part
+     */
+    private static function costOf(array $stock, array $part, int $productId): float
+    {
+        if (!$stock['use_suppliers']) {
+            return 0.0;
         }
 
-        if ($context['supplier_id'] > 0) {
-            $where['supplier_id'] = $context['supplier_id'];
+        foreach ($stock['buckets'] as $bucket) {
+            if ($bucket['batch_id'] === $part['batch_id'] && $bucket['supplier_id'] === $part['supplier_id']) {
+                return (float) ($bucket['cost'] ?? 0.0);
+            }
         }
 
-        $quantity = 0.0;
-
-        foreach (self::rows(StockRow::findForUpdate($where)) as $row) {
-            $quantity += (float) ($row['quantity'] ?? 0);
-        }
-
-        return round($quantity, 3);
+        // Un secchio che nella sede non c'è ancora (un reso in un altro negozio).
+        return (float) (StockCosts::of($part['supplier_id'], StockCosts::forProduct($productId)) ?? 0.0);
     }
 
     /**

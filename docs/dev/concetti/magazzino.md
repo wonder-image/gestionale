@@ -274,6 +274,43 @@ magazzino da cui esce: il ritiro si fa dove il cliente preferisce e la merce
 ci arriva dalla principale. Solo il reso rientra nella sede scelta da chi lo
 registra (`Locations::forReturn()`), e solo con *Più sedi* attiva.
 
+## Secchi, ripartizione e rientri (G3)
+
+Una riga di `gst_stock` è un **secchio**: prodotto, sede, lotto, fornitore.
+Lotto 0 e fornitore 0 vogliono dire «sconosciuto»; il **secchio 0** (tutti e
+due a 0) tiene la merce di prima di lotti e acquisti, quella entrata con la
+rettifica e i buchi della vendita scoperta.
+
+| Classe | Pura | Cosa fa |
+|---|---|---|
+| `StockPicking` | sì | `split()`: da quali secchi esce una quantità. Prima il lotto 0, poi la scadenza più vicina (senza scadenza in fondo), dentro il lotto prima il fornitore 0 e poi il costo più basso; scaduti fuori; `missing` = quello che manca. Con i soli secchi 0 una parte sola |
+| `StockCosts` | `of()` sì | il costo di un secchio: quello del fornitore, o il più basso col fornitore 0; IVA esclusa |
+| `StockBuckets` | no | `locked()`: i secchi di prodotto e sede con `FOR UPDATE` (la stessa lettura di prima di G3), con scadenze (solo con `batch_tracking`) e costi (solo con `purchasing`); `sellable` = giacenza senza i lotti scaduti |
+| `StockMovements` | `net()`, `refill()`, `addToZero()` sì | il netto per secchio di una riga d'ordine e dove rimettere un rientro |
+
+**La vendita** (`Allocation::commit()`) divide la quantità con
+`StockPicking` e scrive un `sale` per parte, con `reference_item_id` = la riga
+d'ordine e `unit_cost` = il costo del secchio (zero senza *Acquisti*). Quello
+che manca va sempre nel secchio 0, anche sotto zero, alle condizioni di prima
+(prenotazione, vendita scoperta, pagato). `before` e `after` della risposta
+sono della sede intera; `parts` dice da dove è uscita.
+
+**Annulli e resi** (`restore()`, `returnGoods()`) vogliono `order_item_id`:
+`StockMovements::netOut()` somma per secchio vendite meno annulli e resi con
+quel `reference_item_id`, e il rientro riempie dall'ultimo secchio uscito al
+primo. Quello che avanza (movimenti di prima di G3, senza riga) va nel
+secchio 0.
+
+**Il disponibile per la vendita** è `Levels::forSale($ids, $sede)`: la sola
+sede, meno i lotti scaduti e gli impegnati. Lo leggono il carrello e la
+vetrina dell'ecommerce con `Locations::forSale()`; le *Giacenze* restano su
+tutte le sedi (`Levels::of()`, `LevelsSql`).
+
+**Causali interne.** `Reasons::internal()` (oggi `batch_assignment`,
+«Assegnazione lotto») ha l'etichetta nei Movimenti ma non sta nelle tendine:
+le scelte a mano sono `Reasons::selectable()`, e la Rettifica rifiuta le
+interne.
+
 ## Chi ha una storia non si elimina
 
 Giacenze e movimenti puntano al prodotto con una chiave esterna

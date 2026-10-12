@@ -87,11 +87,11 @@ check('l\'azione ha le tre voci della rettifica e parte da «Aggiungi»', functi
     return false;
 });
 
-check('le causali sono quelle vere, con l\'inventario già scelto', function () {
+check('le causali sono quelle da scegliere, senza le interne, con l\'inventario già scelto', function () {
     foreach (StockAdjustmentResource::formSchema() as $field) {
         if ((string) $field->name === 'reason') {
             // Un select tiene le voci sotto `options`.
-            return array_keys((array) $field->get('options')) === array_keys(Reasons::all())
+            return array_keys((array) $field->get('options')) === array_keys(Reasons::selectable())
                 && $field->get('value') === Reasons::DEFAULT;
         }
     }

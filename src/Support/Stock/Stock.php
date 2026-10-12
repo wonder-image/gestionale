@@ -103,6 +103,7 @@ final class Stock
                 'unit_cost' => self::number((float) ($movement['unit_cost'] ?? 0), 4),
                 'reference_type' => trim((string) ($movement['reference_type'] ?? '')),
                 'reference_id' => (int) ($movement['reference_id'] ?? 0),
+                'reference_item_id' => (int) ($movement['reference_item_id'] ?? 0),
                 'source' => trim((string) ($movement['source'] ?? '')) !== ''
                     ? (string) $movement['source']
                     : 'backend',

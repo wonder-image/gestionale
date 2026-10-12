@@ -322,7 +322,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Piani 4-6 di G2b-bis (carichi, scarichi, inventario) dalla spec già approvata (§4): sede, lotto, fornitore e costi sono già nei dati, vuoti e nascosti (piano 6 il 2026-10-12)
   - [x] Spec di G3 per il resto: [spec](docs/superpowers/specs/2026-10-12-magazzino-avanzato-design.md) sul ramo `g3-magazzino-avanzato`. Decisioni G3.1–G3.22 approvate il 2026-10-12 (G3.15: compensazione al carico); design in sei sezioni scritto lo stesso giorno, **da rivedere dall'utente**; architettura §4.3 aggiornata. Nel flusso di vendita tocca `Allocation` e il disponibile (`Levels::forSale()` letto da `Cart` e dalla vetrina dell'ecommerce, una riga), inerte a interruttori spenti. Quattro piani: dati, ripartizione e vendita → acquisti → lotti → più sedi e trasferimenti
     - [ ] Revisione del design da parte dell'utente
-    - [ ] Piano 1 Dati, ripartizione e vendita
+    - [x] Piano 1 Dati, ripartizione e vendita — [piano](docs/superpowers/plans/2026-10-12-g3-piano-1-dati-ripartizione-vendita.md) eseguito sul ramo `g3-piano-1` (gestionale, con dentro `fix-sede-ritiro`) ed ecommerce (2026-10-12): unitari verdi; **test d'integrazione da lanciare sul sito di prova** prima di unire (nuovi controlli in `AllocationTest` e `CheckoutSpedizioneTest`). Ordine di unione: #30 → #31 → piano 1 del gestionale → piano 1 dell'ecommerce
     - [ ] Piano 2 Acquisti
     - [ ] Piano 3 Lotti e scadenze
     - [ ] Piano 4 Più sedi e trasferimenti

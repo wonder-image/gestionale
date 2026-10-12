@@ -46,9 +46,9 @@ check('il documento ha il suo prefisso di codice', fn () =>
     ($campo(StockDocument::class, 'code')?->getSchema('unique_code')['prefix'] ?? null) === Codes::STOCK_DOCUMENT
 );
 
-check('tipi e stati nascono completi, trasferimento compreso', fn () =>
+check('tipi e stati nascono completi, trasferimento e «in viaggio» compresi (G3.16)', fn () =>
     StockDocument::TYPES === ['receipt', 'issue', 'stocktake', 'transfer']
-    && StockDocument::STATUSES === ['draft', 'completed', 'cancelled']
+    && StockDocument::STATUSES === ['draft', 'in_transit', 'completed', 'cancelled']
 );
 
 check('la testata tiene tutte le colonne di 4.1, anche quelle di G3', function () use ($colonne) {

@@ -188,6 +188,7 @@ final class Returns
                     }
 
                     $done = Allocation::returnGoods([
+                        'order_item_id' => $good['order_item_id'],
                         'product_id' => $good['product_id'],
                         'quantity' => $good['quantity'],
                         'location_id' => $locationId,
