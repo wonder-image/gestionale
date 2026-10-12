@@ -13,15 +13,14 @@ use Wonder\Sql\TableSchema as Column;
  * Impostazioni tecniche e fiscali: una riga sola, scritta da `admin` in locale
  * e portata in produzione dal deploy.
  *
- * Fa eccezione `merchant_notification_emails`, chi riceve le email degli
- * ordini: non viaggia col deploy, perché ogni ambiente ha i suoi destinatari,
- * e si cambia anche in produzione. Lo stesso vale per `stripe_methods_cache`,
- * la lettura dei metodi del conto Stripe: è di quell'ambiente e quel conto.
+ * Fanno eccezione `merchant_notification_emails` e `low_stock_emails`, chi
+ * riceve le email degli ordini e degli avvisi di scorta: non viaggiano col
+ * deploy, perché ogni ambiente ha i suoi destinatari, e si cambiano anche in
+ * produzione. Lo stesso vale per `stripe_methods_cache`, la lettura dei metodi
+ * del conto Stripe: è di quell'ambiente e quel conto.
  *
  * Qui stanno le scelte che si fanno una volta con il commercialista o in fase
- * di installazione. Quello che il commerciante cambia ogni giorno sta in
- * `MerchantSetting`: è la regola di 8.2, e ogni sotto-progetto aggiunge le sue
- * colonne alla riga giusta. I moduli accesi aggiungono le loro coi riquadri di
+ * di installazione. I moduli accesi aggiungono le loro coi riquadri di
  * `SettingsSections`.
  */
 final class Setting extends Model
@@ -32,7 +31,7 @@ final class Setting extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'stripe_methods_cache']);
+        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'low_stock_emails', 'stripe_methods_cache']);
     }
 
     public static function tableSchema(): array
@@ -57,6 +56,7 @@ final class Setting extends Model
             Column::key('fiscal_confirmed_at')->datetime(),
             Column::key('developer_error_emails')->type('TEXT'),
             Column::key('merchant_notification_emails')->type('TEXT'),
+            Column::key('low_stock_emails')->type('TEXT'),
             // Tipi di pagamento accesi nel conto Stripe, riletti ogni dieci minuti (§11b).
             Column::key('stripe_methods_cache')->type('TEXT'),
         ];
@@ -87,6 +87,7 @@ final class Setting extends Model
             Field::key('fiscal_confirmed_at')->date(),
             Field::key('developer_error_emails')->text(),
             Field::key('merchant_notification_emails')->text(),
+            Field::key('low_stock_emails')->text(),
             Field::key('stripe_methods_cache')->text()->sanitize(false),
         ];
 

@@ -276,8 +276,20 @@ versionamento semantico.
 - Icone dei metodi di pagamento; font del negozio online nelle impostazioni del
   commerciante; l'anteprima del checkout mostra solo i provider collegati.
 
+### Cambiato
+
+- I destinatari degli avvisi di scorta minima (`low_stock_emails`) stanno in
+  `gst_settings`, card *Email* di Set Up → Gestionale → Impostazioni («Email per la
+  scorta minima», solo con `low_stock_alerts`): solo `admin`, fuori dal sync, si
+  cambiano anche in produzione. Tolti `MerchantSetting`, `MerchantSettingResource` e la
+  pagina Gestionale → Impostazioni; la tabella `gst_merchant_settings` resta senza
+  Model.
+
 ### Corretto
 
+- *Magazzino → Giacenze* dava errore SQL: `Query::Conditions(…, false)` del core
+  toglie ogni `WHERE` dalla condizione, anche quello della sottoquery che escludeva i
+  multiprodotti. Gli `id` dei multiprodotti ora si leggono prima, in PHP.
 - *Registra reso* dava errore 500: `Returns::returned()` chiedeva il blocco delle
   righe anche quando la pagina leggeva soltanto; ora blocca solo dentro una
   transazione.

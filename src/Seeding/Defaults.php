@@ -16,7 +16,6 @@ use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRate;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZone;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZoneArea;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
-use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
@@ -218,8 +217,6 @@ final class Defaults implements ModuleDefaults
                 'merchant_notification_emails' => self::societyEmail(),
             ]);
         }
-
-        $rows->ensureSingleton(MerchantSetting::class, []);
     }
 
     /** La sede predefinita del core diventa il primo magazzino. */

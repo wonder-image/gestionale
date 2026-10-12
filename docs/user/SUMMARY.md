@@ -51,4 +51,3 @@
 
 * [Il riquadro "Da controllare"](da-controllare.md)
 * [Sedi, orari e chiusure](sedi.md)
-* [Le impostazioni del negozio](impostazioni.md)
