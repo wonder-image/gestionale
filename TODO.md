@@ -320,7 +320,13 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 
 - [ ] G3 Magazzino avanzato — più sedi e trasferimenti, lotti e scadenze, giacenza e costi per fornitore, valore del magazzino, scarico automatico (lotto in scadenza, poi costo più basso)
   - [x] Piani 4-6 di G2b-bis (carichi, scarichi, inventario) dalla spec già approvata (§4): sede, lotto, fornitore e costi sono già nei dati, vuoti e nascosti (piano 6 il 2026-10-12)
-  - [ ] Spec di G3 per il resto; nel flusso di vendita tocca solo `Allocation` / `Stock::apply()` (vincolo di D61)
+  - [x] Spec di G3 per il resto: [spec](docs/superpowers/specs/2026-10-12-magazzino-avanzato-design.md) sul ramo `g3-magazzino-avanzato`. Decisioni G3.1–G3.22 approvate il 2026-10-12 (G3.15: compensazione al carico); design in sei sezioni scritto lo stesso giorno, **da rivedere dall'utente**; architettura §4.3 aggiornata. Nel flusso di vendita tocca `Allocation` e il disponibile (`Levels::forSale()` letto da `Cart` e dalla vetrina dell'ecommerce, una riga), inerte a interruttori spenti. Quattro piani: dati, ripartizione e vendita → acquisti → lotti → più sedi e trasferimenti
+    - [ ] Revisione del design da parte dell'utente
+    - [ ] Piano 1 Dati, ripartizione e vendita
+    - [ ] Piano 2 Acquisti
+    - [ ] Piano 3 Lotti e scadenze
+    - [ ] Piano 4 Più sedi e trasferimenti
+  - [ ] G3.1, prima della consegna: con *Più sedi* spenta il ritiro in un'altra sede prendeva la merce da quella sede (vuota) e il checkout rispondeva «non disponibile». Corretto sul ramo `fix-sede-ritiro` (`Locations::forSale()` in `Allocation`, test del ritiro allineati; unitari verdi, integrazione da lanciare sul sito di prova), da unire su `main`
   - [x] Ritocchi del magazzino (2026-10-12, ramo `ritocchi-magazzino`): destinatari della scorta minima nella card *Email* di Set Up → Impostazioni (tolta la pagina Gestionale → Impostazioni), elenco Giacenze che non si rompe più, «Visualizza» e scheda del movimento al posto di «Apri la versione». La prova nel browser aspetta l'utente
 - [ ] G9 Vendite da ufficio **senza la parte fiscale** — ordini da ufficio, preventivi con revisioni e PDF, condizioni a rate e scadenzario, DDT. La fattura differita TD24 e la fattura della merce consegnata prima del pagamento vanno con G8
 - [ ] G10 + E3 Abbonamenti — da ufficio e online; la parte E3 va anche in [`packages/ecommerce/TODO.md`](../ecommerce/TODO.md)
