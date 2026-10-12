@@ -20,6 +20,7 @@ use Wonder\Plugin\Gestionale\Resources\Stock\StockDocumentActionResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockIssueResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockMovementResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockReceiptResource;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockStocktakeResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
@@ -195,7 +196,32 @@ check('cancelQuestion e named: le frasi della spec', fn () =>
     && StockIssueResource::named() === 'Lo scarico'
     && StockReceiptResource::cancelQuestion() === 'Il carico {numero} si annulla: i suoi movimenti si stornano e il documento resta, annullato.'
     && StockIssueResource::cancelQuestion() === 'Lo scarico {numero} si annulla: i suoi movimenti si stornano e il documento resta, annullato.'
+    && StockStocktakeResource::named() === "L'inventario"
+    && StockStocktakeResource::cancelQuestion() === "L'inventario {numero} si annulla: i suoi movimenti si stornano e il documento resta, annullato."
 );
+
+check('scheda inventario: attesi, contati e differenza col segno; la riga non contata ha «—»; il totale dell\'inventario', function () use ($utente) {
+    return prova(static function () use ($utente): bool {
+        [$a, $b, $c, $d] = [articolo(10), articolo(4), articolo(2), articolo(7)];
+        $id = StockDocuments::create('stocktake', [], [
+            ['product_id' => $a, 'quantity' => '8'],
+            ['product_id' => $b, 'quantity' => '5,5'],
+            ['product_id' => $c, 'quantity' => '2'],
+            ['product_id' => $d, 'quantity' => ''],
+        ]);
+        StockDocuments::confirm($id, ['user_id' => $utente]);
+        $scheda = StockDocumentSheet::for(StockDocument::findById($id));
+        $celle = array_map(static fn (array $r): array => [$r['expected'], $r['quantity'], $r['difference'], $r['tone']], $scheda['lines']);
+
+        return $celle === [
+                ['10', '8', '−2', 'down'],
+                ['4', '5,5', '+1,5', 'up'],
+                ['2', '2', '0', ''],
+                ['—', '—', '—', ''],
+            ]
+            && $scheda['total'] === '4 righe · 3 contate · 2 con differenza';
+    });
+});
 
 check('scheda: righe con nome e SKU, totale, nota, chi ha confermato e chi ha annullato', function () use ($utente, $altro, $oggi, $annulla) {
     return prova(static function () use ($utente, $altro, $oggi, $annulla): bool {
@@ -209,6 +235,9 @@ check('scheda: righe con nome e SKU, totale, nota, chi ha confermato e chi ha an
                 'label' => html_entity_decode(ProductNames::full($p, ProductNames::models([$p])), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
                 'sku' => (string) $p['sku'],
                 'quantity' => '2,5',
+                'expected' => '',
+                'difference' => '',
+                'tone' => '',
             ]]
             && $scheda['total'] === '1 riga · 2,5 pezzi'
             && $scheda['note'] === 'Bolla 7'
