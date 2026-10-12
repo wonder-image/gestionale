@@ -185,6 +185,75 @@ final class StockDocuments
     }
 
     /**
+     * Una bozza nuova dello stesso tipo, da un documento in qualsiasi stato:
+     * sede, causale, nota e righe. Le versioni sparite si saltano; la sede, se
+     * non tiene più merce, diventa la principale. In un inventario gli attesi
+     * si rileggono adesso.
+     *
+     * @param array{user_id?: int} $options
+     */
+    public static function duplicate(int $id, array $options = []): int
+    {
+        return Transaction::run(static function () use ($id, $options): int {
+            $document = self::locked($id);
+            $type = (string) $document['type'];
+            $items = self::items($id);
+            $alive = self::rows(Product::find(
+                '`id` IN ('.implode(', ', array_merge([0], array_column($items, 'product_id'))).") AND `deleted` = 'false'",
+                null, null, null, 'id'
+            ));
+            $kept = array_map('intval', array_column($alive, 'id'));
+            $lines = [];
+
+            foreach ($items as $item) {
+                if (in_array($item['product_id'], $kept, true)) {
+                    $lines[] = ['product_id' => $item['product_id'], 'quantity' => $item['quantity']];
+                }
+            }
+
+            $locationId = (int) $document['location_id'];
+
+            return self::create($type, [
+                'location_id' => self::isStockLocation($locationId) ? $locationId : 0,
+                'reason' => (string) ($document['reason'] ?? ''),
+                'note' => (string) ($document['note'] ?? ''),
+            ], $lines, $options);
+        });
+    }
+
+    /**
+     * Il controllo dell'endpoint che cancella (piano 5): un `RuntimeException`,
+     * che `api/backend/delete` trasforma nel messaggio.
+     */
+    public static function assertDeletable(int $id): void
+    {
+        $document = StockDocument::findById($id);
+
+        if (!is_array($document) || !isset($document['id']) || (string) ($document['deleted'] ?? 'false') === 'true') {
+            throw UserError::refusal('stock_document.not_found');
+        }
+
+        if ((string) $document['status'] !== 'draft') {
+            throw UserError::refusal('stock_document.cannot_delete');
+        }
+    }
+
+    /** Elimina una bozza con le sue righe. Una bozza non ha log: la creazione non si registra. */
+    public static function delete(int $id): void
+    {
+        Transaction::run(static function () use ($id): void {
+            $document = self::locked($id);
+
+            if ((string) $document['status'] !== 'draft') {
+                throw UserError::make('stock_document.cannot_delete');
+            }
+
+            sqlDelete(StockDocumentItem::$table, '`stock_document_id` = '.$id);
+            StockDocument::delete($id);
+        });
+    }
+
+    /**
      * Le righe del documento, nell'ordine.
      *
      * @return list<array{id: int, product_id: int, quantity: ?float, expected_quantity: ?float, position: int}>

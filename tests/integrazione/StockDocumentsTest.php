@@ -436,4 +436,100 @@ check('annullare: solo un confermato, e una volta sola', function () {
     });
 });
 
+/** Il messaggio del rifiuto per l'endpoint che cancella, o null se non c'è stato. */
+function rifiutoDiCancellazione(callable $fn): ?string
+{
+    try {
+        $fn();
+    } catch (RuntimeException $errore) {
+        return $errore->getMessage();
+    }
+
+    return null;
+}
+
+check('duplicare: una bozza nuova con sede, causale, nota e righe; senza numero', function () use ($utente) {
+    return prova(static function () use ($utente): bool {
+        [$a, $b] = [articolo(10), articolo(10)];
+        $id = StockDocuments::create('issue', ['reason' => 'internal_use', 'note' => 'Vetrina'], [
+            ['product_id' => $a, 'quantity' => '2'],
+            ['product_id' => $b, 'quantity' => '1'],
+        ]);
+        StockDocuments::confirm($id);
+        StockDocuments::cancel($id);
+        $copia = StockDocuments::duplicate($id, ['user_id' => $utente]);
+        $doc = StockDocument::findById($copia);
+        $righe = StockDocuments::items($copia);
+
+        return $copia !== $id
+            && $doc['type'] === 'issue' && $doc['status'] === 'draft'
+            && in_array($doc['number'] ?? null, [null, ''], true)
+            && $doc['reason'] === 'internal_use' && $doc['note'] === 'Vetrina'
+            && (int) $doc['user_id'] === $utente
+            && array_column($righe, 'product_id') === [$a, $b]
+            && array_column($righe, 'quantity') === [2.0, 1.0];
+    });
+});
+
+check('duplicare: l\'inventario rilegge gli attesi di adesso', function () {
+    return prova(static function (): bool {
+        $a = articolo(10);
+        $id = StockDocuments::create('stocktake', [], [['product_id' => $a, 'quantity' => '8']]);
+        Stock::apply(['product_id' => $a, 'quantity' => -3, 'type' => 'sale']);
+        $copia = StockDocuments::duplicate($id);
+
+        return StockDocuments::items($id)[0]['expected_quantity'] === 10.0
+            && StockDocuments::items($copia)[0]['expected_quantity'] === 7.0
+            && StockDocuments::items($copia)[0]['quantity'] === 8.0;
+    });
+});
+
+check('duplicare: le versioni sparite si saltano', function () {
+    return prova(static function (): bool {
+        [$a, $b] = [articolo(10), articolo(10)];
+        $id = StockDocuments::create('receipt', [], [
+            ['product_id' => $a, 'quantity' => '2'],
+            ['product_id' => $b, 'quantity' => '1'],
+        ]);
+        sqlModify(\Wonder\Plugin\Gestionale\Models\Catalog\Product::$table, ['deleted' => 'true'], 'id', $b);
+        $copia = StockDocuments::duplicate($id);
+
+        return array_column(StockDocuments::items($copia), 'product_id') === [$a];
+    });
+});
+
+check('eliminare: una bozza sparisce con le sue righe', function () {
+    return prova(static function (): bool {
+        $a = articolo(10);
+        $id = StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '2']]);
+        StockDocuments::assertDeletable($id);
+        StockDocuments::delete($id);
+
+        return StockDocument::findById($id) === [] || StockDocument::findById($id) === null
+            ? righe(StockDocumentItem::class, 'stock_document_id = '.$id) === []
+            : false;
+    });
+});
+
+check('eliminare: un confermato o un annullato no, e lo dice', function () {
+    return prova(static function (): bool {
+        $a = articolo(10);
+        $id = StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '2']]);
+        StockDocuments::confirm($id);
+        $testo = UserError::make('stock_document.cannot_delete')->getMessage();
+        $primo = rifiutoDiCancellazione(fn () => StockDocuments::assertDeletable($id));
+        StockDocuments::cancel($id);
+
+        return $primo === $testo
+            && rifiutoDiCancellazione(fn () => StockDocuments::assertDeletable($id)) === $testo
+            && rifiuto(fn () => StockDocuments::delete($id)) === 'stock_document.cannot_delete'
+            && StockDocument::findById($id)['status'] === 'cancelled';
+    });
+});
+
+check('eliminare: un documento che non c\'è è un rifiuto', fn () =>
+    rifiutoDiCancellazione(fn () => StockDocuments::assertDeletable(999999999))
+        === UserError::make('stock_document.not_found')->getMessage()
+);
+
 summary();
