@@ -40,7 +40,7 @@
 
 ## Preparazione (una volta, prima del Task 1)
 
-Il worktree è `/Users/andreamarinoni/Developer/worktrees/g3-carichi-scarichi/gestionale`, ramo `g3-carichi-scarichi`, base `3ae99c2`. Un'altra chat lavora in `packages/gestionale` (reCAPTCHA): lì non si scrive niente.
+Il worktree è `/Users/andreamarinoni/Developer/worktrees/g3-carichi-scarichi/gestionale`, ramo `g3-carichi-scarichi`, base `3ae99c2` con origin/main unito (`c7ea1ac`, gestionale#25: «Visualizza» e la scheda del movimento al posto di «Apri la versione»). Un'altra chat lavora in `packages/gestionale` (reCAPTCHA): lì non si scrive niente.
 
 - [ ] **Passo 1: vendor del worktree**
 
@@ -4304,7 +4304,9 @@ EOF
 
 Lo spec (§3) vuole il documento dentro *Tipo* come testo e la sua pagina nel menu ⋯: «*Visualizza carico*», «*Visualizza scarico*» (e «*Visualizza inventario*» col piano 6), solo sulle righe nate da un documento, storni compresi. La voce usa le azioni-array del core (`docs/app/concetti/tabelle/tablecolumn.md`): la chiave della voce è `document_type`, una colonna calcolata. L'etichetta è una mappa sul suo valore: su una riga senza documento il valore manca e la voce non compare. Il tipo che non ha ancora una pagina, `stocktake`, non è nella mappa. Anche l'indirizzo è una colonna calcolata (`document_url`), perché carico e scarico hanno indirizzi diversi e `href` prende un solo modello.
 
-Tipo, numero e indirizzo arrivano con `select()`, come chiede lo spec («Mai una query per riga»). `documentOf()` li legge dalla riga quando ci sono. La lettura con `one()` resta solo per chi passa righe grezze (i test con `StockMovement::find`).
+Tipo, numero e indirizzo arrivano con `select()`, come chiede lo spec («Mai una query per riga»). `documentOf()` li legge dalla riga quando ci sono. La lettura con `one()` resta per chi passa righe grezze: la scheda del movimento (`showLayoutSchema()`, gestionale#25), che legge un record solo, e i test con `StockMovement::find`.
+
+Il menu ⋯ della #25 ha già *Visualizza* (`'view'`, la scheda del movimento) e *Visualizza ordine*: la voce del documento si aggiunge fra le due, il resto non cambia.
 
 **Files:**
 - Modify: `src/Resources/Stock/StockMovementResource.php` (`tableSchema()` colonna `actions`, `tableLayoutSchema()`, `documentOf()`, `navigationSchema()`, nuovi `select()` e `documentUrlSql()`)
@@ -4319,7 +4321,7 @@ Tipo, numero e indirizzo arrivano con `select()`, come chiede lo spec («Mai una
 - Produces:
   - `StockDocumentResource::viewUrlPattern(string $placeholder): string` — l'indirizzo della scheda con `$placeholder` al posto dell'id.
   - `StockMovementResource::select(): string` — alias `document_type`, `document_number`, `document_url`. Valgono `NULL` sulle righe senza documento; `document_url` è `''` per un tipo senza pagina.
-  - Voce ⋯ `document_type` (etichette `receipt` → «Visualizza carico», `issue` → «Visualizza scarico», `href` `{document_url}`); *Movimenti* a 50 nel menu *Magazzino*.
+  - Menu ⋯ `view`, `document_type`, `ordine`: la voce `document_type` ha le etichette `receipt` → «Visualizza carico», `issue` → «Visualizza scarico» e `href` `{document_url}`; *Movimenti* a 50 nel menu *Magazzino*.
 
 - [ ] **Passo 1: i test unitari che falliscono**
 
@@ -4331,10 +4333,10 @@ use Wonder\Plugin\Gestionale\Resources\Stock\StockIssueResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockReceiptResource;
 ```
 
-Sostituire il check «il menu ⋯ ha «Apri la versione» e «Visualizza ordine» solo per le righe di un ordine» (righe 165-184) con:
+Sostituire il check «il menu ⋯ ha «Visualizza» e «Visualizza ordine» solo per le righe di un ordine» (righe 176-194) con:
 
 ```php
-check('il menu ⋯: documento, ordine, versione; il documento solo sulle righe che ne hanno uno', function () {
+check('il menu ⋯: Visualizza, documento, ordine; il documento solo sulle righe che ne hanno uno', function () {
     foreach (StockMovementResource::tableSchema() as $colonna) {
         if ((string) $colonna->name !== 'actions') {
             continue;
@@ -4342,16 +4344,13 @@ check('il menu ⋯: documento, ordine, versione; il documento solo sulle righe c
 
         $azioni = (array) $colonna->getSchema('actions');
         $documento = (array) ($azioni['document_type'] ?? []);
-        $versione = (array) ($azioni['versione'] ?? []);
         $ordine = (array) ($azioni['ordine'] ?? []);
 
-        return array_keys($azioni) === ['document_type', 'ordine', 'versione']
+        return array_keys($azioni) === ['view', 'document_type', 'ordine']
+            && ($azioni['view'] ?? null) === true
             && ($documento['label'] ?? null) === ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico']
             && ($documento['href'] ?? '') === '{document_url}'
             && !isset($documento['filter'])
-            && ($versione['label'] ?? '') === 'Apri la versione'
-            && str_contains((string) ($versione['href'] ?? ''), '{product_id}')
-            && !isset($versione['filter'])
             && ($ordine['label'] ?? '') === 'Visualizza ordine'
             && str_contains((string) ($ordine['href'] ?? ''), '{reference_id}')
             && ($ordine['filter']['row']['reference_type'] ?? '') === 'order';
@@ -4456,7 +4455,11 @@ check('carico e suo storno: tipo, numero e indirizzo della scheda dalle colonne 
             && $storno['document_type'] === 'receipt' && $storno['document_number'] === $numero && $storno['document_url'] === $url
             && celleDi($carico)['type'] === 'Carico · '.htmlspecialchars($numero, ENT_QUOTES)
             && celleDi($storno)['type'] === 'Annullamento del carico · '.htmlspecialchars($numero, ENT_QUOTES)
-            && !str_contains(celleDi($carico)['type'], '<a');
+            && !str_contains(celleDi($carico)['type'], '<a')
+            // La scheda del movimento legge un record solo, senza le colonne
+            // calcolate: Tipo passa da one() e dice lo stesso.
+            && StockMovementResource::typeCellOf(array_diff_key($carico, array_flip(['document_type', 'document_number', 'document_url'])))
+                === 'Carico · '.htmlspecialchars($numero, ENT_QUOTES);
     });
 });
 
@@ -4494,7 +4497,7 @@ ps aux | grep "php .*Test.php" | grep -v grep; php tests/integrazione/StockMovem
 ```
 
 Expected:
-- nel test unitario falliscono il menu ⋯ (chiavi `['versione', 'ordine']`), `select()` e `viewUrlPattern()` (metodi che non esistono: «Call to undefined method», che ferma il file; vanno bene anche così) e l'ordine (20);
+- nel test unitario falliscono il menu ⋯ (chiavi `['view', 'ordine']`), `select()` e `viewUrlPattern()` (metodi che non esistono: «Call to undefined method», che ferma il file; vanno bene anche così) e l'ordine (20);
 - nel test d'integrazione si ferma sulla prima chiamata a `StockMovementResource::select()`, che non esiste.
 
 - [ ] **Passo 4: `viewUrlPattern()` in `StockDocumentResource`**
@@ -4524,9 +4527,11 @@ Nella colonna `actions` di `tableSchema()`, sostituire l'array con:
 
 ```php
         $columns[] = TableColumn::key('actions')->button()->actions([
-            // La chiave è la colonna calcolata di select(): l'etichetta si
+            // `view` e `ordine` sono quelli della #25. La chiave del documento
+            // è la colonna calcolata di select(): l'etichetta si
             // sceglie sul suo valore, e senza documento (NULL) o con un tipo
             // senza pagina la voce non compare.
+            'view',
             'document_type' => [
                 'label' => ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico'],
                 'href' => '{document_url}',
@@ -4536,7 +4541,6 @@ Nella colonna `actions` di `tableSchema()`, sostituire l'array con:
                 'href' => OrderResource::detailUrlPattern('{reference_id}'),
                 'filter' => ['row' => ['reference_type' => 'order']],
             ],
-            'versione' => ['label' => 'Apri la versione', 'href' => static::productUrl()],
         ]);
 ```
 
@@ -4672,10 +4676,10 @@ Expected:
 
 Su `https://ecommerce-carichi.test/backend/app/gestionale/movimenti/`, con il carico annullato e lo scarico del Task 6. Nessuna richiesta deve finire in errore (`read_network_requests`):
 - **Menu.** Nel menu *Magazzino* l'ordine è Giacenze, Carichi, Scarichi, Movimenti.
-- **Carico.** Sulla riga del carico, *Tipo* dice «Carico · N» senza link, e ⋯ ha *Visualizza carico*, che apre la sua scheda, e *Apri la versione*.
+- **Carico.** Sulla riga del carico, *Tipo* dice «Carico · N» senza link, e ⋯ ha *Visualizza*, che apre la scheda del movimento (anche lì *Tipo* dice «Carico · N»), e *Visualizza carico*, che apre il carico.
 - **Storno.** La riga dello storno dice «Annullamento del carico · N», e ⋯ → *Visualizza carico* apre lo stesso carico (prova 6 della spec §5.4).
 - **Scarico.** Sulla riga dello scarico, ⋯ → *Visualizza scarico*.
-- **Senza documento.** Una rettifica fatta da Giacenze ha in ⋯ solo *Apri la versione*. Una vendita ha *Visualizza ordine* e *Apri la versione*.
+- **Senza documento.** Una rettifica fatta da Giacenze ha in ⋯ solo *Visualizza*. Una vendita ha *Visualizza* e *Visualizza ordine*.
 - **Ricerca e ordinamento.** La ricerca per SKU funziona ancora: gli alias di `select()` restano fuori dal WHERE. L'ordinamento per data non dà errori.
 - **Scheda della versione.** La cronologia in fondo alla scheda della versione si carica senza errori.
 
@@ -5304,14 +5308,12 @@ In `docs/user/magazzino-movimenti.md` la riga **Tipo** della tabella diventa:
 | **Tipo** | rettifica, vendita, reso, carico… Per le vendite e i resi dice anche il **documento**: *Vendita · 2026/0012*, cliccabile, apre l'ordine. Per carichi e scarichi il documento è nel testo, *Carico · 2026/100003*; gli storni di un documento annullato si leggono *Annullamento del carico · 2026/100003* |
 ```
 
-e dopo la sezione `## Non si modifica e non si cancella` aggiungi:
+e nella sezione `## La scheda di un movimento` la riga «Per i movimenti di un ordine, nello stesso menu c'è anche **Visualizza ordine**.» diventa:
 
 ```markdown
-## Dal movimento al documento
-
-I tre puntini in fondo alla riga hanno, secondo il movimento, **Visualizza
-carico** o **Visualizza scarico** (anche sugli storni: aprono il documento
-annullato), **Visualizza ordine** per le vendite e **Apri la versione**.
+Per i movimenti di un ordine, nello stesso menu c'è anche **Visualizza
+ordine**; per quelli di un carico o di uno scarico **Visualizza carico** o
+**Visualizza scarico**, anche sugli storni, che aprono il documento annullato.
 ```
 
 - [ ] **Passo 5: *Funzionalità***
