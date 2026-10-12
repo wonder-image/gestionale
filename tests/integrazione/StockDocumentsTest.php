@@ -406,6 +406,35 @@ check('annullare: uno storno per movimento, segno opposto, con il suo riferiment
     });
 });
 
+check('confermare: i movimenti seguono l\'ordine delle versioni, non quello delle righe', function () {
+    return prova(static function (): bool {
+        [$a, $b] = [articolo(10), articolo(10)];
+        $id = StockDocuments::create('receipt', [], [
+            ['product_id' => $b, 'quantity' => '1'],
+            ['product_id' => $a, 'quantity' => '2'],
+        ]);
+        StockDocuments::confirm($id);
+        $mov = righe(StockMovement::class, "reference_type = 'stock_document' AND reference_id = ".$id);
+
+        return array_map('intval', array_column($mov, 'product_id')) === [$a, $b];
+    });
+});
+
+check('annullare: gli storni seguono l\'ordine delle versioni', function () {
+    return prova(static function (): bool {
+        [$a, $b] = [articolo(10), articolo(10)];
+        $id = StockDocuments::create('receipt', [], [
+            ['product_id' => $b, 'quantity' => '1'],
+            ['product_id' => $a, 'quantity' => '2'],
+        ]);
+        StockDocuments::confirm($id);
+        StockDocuments::cancel($id);
+        $storni = righe(StockMovement::class, "reference_type = 'stock_document_cancel' AND reference_id = ".$id);
+
+        return array_map('intval', array_column($storni, 'product_id')) === [$a, $b];
+    });
+});
+
 check('annullare: lo storno di un carico già venduto si ferma e il documento resta confermato', function () {
     return prova(static function (): bool {
         $a = articolo(0);

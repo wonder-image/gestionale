@@ -120,7 +120,11 @@ final class StockDocuments
             $now = new DateTimeImmutable();
             $number = DocumentSequences::next(StockDocumentRules::sequence($type), $now);
 
-            foreach ($items as $item) {
+            // In ordine di versione, non di riga: vedi `cancel()`.
+            $ordered = $items;
+            usort($ordered, static fn (array $x, array $y): int => $x['product_id'] <=> $y['product_id']);
+
+            foreach ($ordered as $item) {
                 $movement = StockDocumentRules::movement($type, $reason, $item);
 
                 if ($movement === null) {
@@ -167,6 +171,12 @@ final class StockDocuments
                 null, 'id', 'ASC'
             ));
 
+            // In ordine di versione, come la conferma: due operazioni sugli
+            // stessi articoli bloccano le righe di giacenza nello stesso
+            // ordine e si mettono in fila invece di bloccarsi a vicenda.
+            usort($movements, static fn (array $x, array $y): int =>
+                [(int) $x['product_id'], (int) $x['id']] <=> [(int) $y['product_id'], (int) $y['id']]);
+
             foreach ($movements as $movement) {
                 Stock::apply(StockDocumentRules::reversal($movement) + [
                     'product_id' => (int) $movement['product_id'],
@@ -195,7 +205,14 @@ final class StockDocuments
     public static function duplicate(int $id, array $options = []): int
     {
         return Transaction::run(static function () use ($id, $options): int {
-            $document = self::locked($id);
+            // L'originale si legge e basta: bloccarlo fermerebbe per niente
+            // una conferma o un annullamento dello stesso documento.
+            $document = StockDocument::findById($id);
+
+            if (!is_array($document) || !isset($document['id']) || (string) ($document['deleted'] ?? 'false') === 'true') {
+                throw UserError::make('stock_document.not_found');
+            }
+
             $type = (string) $document['type'];
             $items = self::items($id);
             $alive = self::rows(Product::find(

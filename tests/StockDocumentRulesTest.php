@@ -109,6 +109,29 @@ check('righe: 500 passano, 501 no', function () use ($rifiuto, $riga) {
         && $rifiuto(fn () => Regole::lines([...$righe, $riga(501, '1')])) === 'stock_document.too_many_rows';
 });
 
+check('righe: oltre 500 si rifiuta prima di leggerle', fn () =>
+    $rifiuto(fn () => Regole::lines(array_fill(0, 501, ['product_id' => 'abc', 'quantity' => '1']))) === 'stock_document.too_many_rows'
+);
+
+check('righe: un product_id che non è un intero positivo è un rifiuto', fn () =>
+    $rifiuto(fn () => Regole::lines([['product_id' => '12abc', 'quantity' => '1']])) === 'stock_document.invalid_lines'
+    && $rifiuto(fn () => Regole::lines([['product_id' => '-3', 'quantity' => '1']])) === 'stock_document.invalid_lines'
+    && $rifiuto(fn () => Regole::lines([['product_id' => -3, 'quantity' => '1']])) === 'stock_document.invalid_lines'
+    && $rifiuto(fn () => Regole::lines([['product_id' => [4], 'quantity' => '1']])) === 'stock_document.invalid_lines'
+    && $rifiuto(fn () => Regole::lines(['4'])) === 'stock_document.invalid_lines'
+);
+
+check('righe: product_id vuoto o zero si salta, le cifre in testo valgono', fn () =>
+    Regole::lines([
+        ['product_id' => '', 'quantity' => ''],
+        ['product_id' => 0, 'quantity' => '1'],
+        ['product_id' => '0', 'quantity' => '1'],
+        ['product_id' => null, 'quantity' => '1'],
+        ['product_id' => ' 7 ', 'quantity' => '2'],
+        ['product_id' => 9, 'quantity' => ''],
+    ]) === [['product_id' => 7, 'quantity' => 2.0], ['product_id' => 9, 'quantity' => null]]
+);
+
 check('conferma: lo scarico chiede la causale', fn () =>
     $rifiuto(fn () => Regole::assertConfirmable('issue', '', [$riga(4, 1.0)])) === 'stock_document.reason_required'
     && $rifiuto(fn () => Regole::assertConfirmable('issue', 'gift', [$riga(4, 1.0)])) === null

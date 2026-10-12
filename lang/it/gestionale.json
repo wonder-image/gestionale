@@ -26,6 +26,8 @@
                 "invalid_quantity": "La riga {{row}} ha una quantità che non va: scrivi solo cifre, da zero a 9.999.999.",
                 "duplicate_product": "La stessa versione compare due volte (riga {{row}}): tienine una sola.",
                 "too_many_rows": "Un documento tiene al massimo 500 righe: dividilo in due.",
+                "invalid_lines": "Le righe non si sono lette: ricarica la pagina e riprova.",
+                "expired": "La pagina è scaduta: ricaricala e riprova.",
                 "location_unknown": "La sede scelta non è più del magazzino: ricarica la pagina e riprova."
             },
             "order": {
