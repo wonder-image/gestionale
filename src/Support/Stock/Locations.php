@@ -41,6 +41,25 @@ final class Locations
         return self::$mainId = self::resolve();
     }
 
+    /**
+     * La sede da cui una vendita prenota, scarica e riprende la merce.
+     *
+     * Con "Più sedi" bloccata il magazzino è uno solo, la principale
+     * (architettura §4.3): un ritiro in un'altra sede prende la merce da lì,
+     * qualunque sede porti l'ordine. Con la funzionalità attiva vale la sede
+     * chiesta, e senza sede la principale.
+     */
+    public static function forSale(int $requested): int
+    {
+        return self::serving($requested, self::mainId(), Gestionale::feature('multi_location'));
+    }
+
+    /** La regola di `forSale()`, senza database. */
+    public static function serving(int $requested, int $mainId, bool $multiLocation): int
+    {
+        return $multiLocation && $requested > 0 ? $requested : $mainId;
+    }
+
     public static function reset(): void
     {
         self::$mainId = null;

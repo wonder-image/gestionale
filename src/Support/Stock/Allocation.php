@@ -23,8 +23,10 @@ use Wonder\Sql\Transaction;
  * resta l'unica porta di scrittura del magazzino. L'unica tabella che
  * `Allocation` scrive è `gst_stock_reservations`.
  *
- * Tutti e cinque prendono sede, lotto e fornitore. Oggi la sede è quella
- * principale e lotto e fornitore sono zero, ma la firma è già quella giusta:
+ * Tutti e cinque prendono sede, lotto e fornitore. La sede passa da
+ * `Locations::forSale()`: con "Più sedi" bloccata è sempre la principale,
+ * anche per un ritiro in un'altra sede. Lotto e fornitore sono zero, ma la
+ * firma è già quella giusta:
  * G3 cambierà il dentro dei metodi senza riaprire gli ordini.
  *
  * Il lock è l'antioverselling: le righe di `gst_stock` si leggono con
@@ -438,7 +440,8 @@ final class Allocation
             throw UserError::make('stock.product_missing');
         }
 
-        $locationId = (int) ($line['location_id'] ?? 0) ?: Locations::mainId();
+        // Con "Più sedi" bloccata il punto di ritiro non è un magazzino: la merce è nella principale.
+        $locationId = Locations::forSale((int) ($line['location_id'] ?? 0));
 
         if ($locationId <= 0) {
             throw UserError::make('stock.no_location');

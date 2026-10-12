@@ -263,9 +263,16 @@ con *Visualizza carico*, *Visualizza scarico* o *Visualizza inventario*. Le pagi
 
 ## Le prenotazioni
 
-`gst_stock_reservations` esiste ma **nasce vuota**: la riempirà il checkout in
-G4. `Availability` la legge già, così "disponibile" vuol dire la stessa cosa in
-backend e in vetrina fin da ora.
+`gst_stock_reservations` la riempie il checkout (`Allocation::reserve()`).
+`Availability` la legge, così "disponibile" vuol dire la stessa cosa in
+backend e in vetrina.
+
+**La sede della vendita** la decide `Locations::forSale()`, e `Allocation` la
+chiede lì per prenotare, scaricare e far rientrare. Con *Più sedi* bloccata è
+sempre la principale, anche quando l'ordine porta un punto di ritiro in
+un'altra sede: `gst_orders.location_id` dice dove il cliente ritira, non da
+quale magazzino esce la merce. Con la funzionalità attiva vale la sede
+dell'ordine (G3 la rifinirà con la *Giacenza* della sede).
 
 ## Chi ha una storia non si elimina
 

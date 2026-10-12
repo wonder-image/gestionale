@@ -320,6 +320,12 @@ versionamento semantico.
 
 ### Corretto
 
+- Ritiro in una sede che non è la principale, con *Più sedi* spenta: la merce
+  si prenotava e si scaricava dalla sede di ritiro, che non ha magazzino, e il
+  checkout rispondeva «non disponibile» (o, con la vendita senza giacenza, la
+  sede di ritiro andava sotto zero). Ora `Allocation` prende la sede da
+  `Locations::forSale()`: con la funzionalità spenta è sempre la principale.
+
 - *Magazzino → Giacenze* dava errore SQL: `Query::Conditions(…, false)` del core
   toglie ogni `WHERE` dalla condizione, anche quello della sottoquery che escludeva i
   multiprodotti. Gli `id` dei multiprodotti ora si leggono prima, in PHP.
