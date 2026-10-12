@@ -259,6 +259,17 @@ abstract class StockDocumentResource extends GestionaleResource
         return static::routeUrl('view', '/backend/'.static::path().'/'.$id.'/', ['id' => $id]);
     }
 
+    /**
+     * L'indirizzo della scheda con un segnaposto al posto dell'id: per le
+     * azioni-array (`{colonna}`) e per l'indirizzo calcolato dei Movimenti.
+     */
+    public static function viewUrlPattern(string $placeholder): string
+    {
+        $url = static::routeUrl('view', '/backend/'.static::path().'/__ROW_ID__/', ['id' => '__ROW_ID__']);
+
+        return str_replace('__ROW_ID__', $placeholder, $url);
+    }
+
     public static function editUrl(int $id): string
     {
         return static::routeUrl('edit', '/backend/'.static::path().'/'.$id.'/edit/', ['id' => $id]);
