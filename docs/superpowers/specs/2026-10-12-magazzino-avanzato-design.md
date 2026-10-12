@@ -79,10 +79,13 @@ oppure, con la vendita senza giacenza, la sede di ritiro va sotto zero.
 
 Nessuna spec l'aveva deciso: è nato nei test del piano D5 del checkout
 (`giacenzaIn()` nella sede di ritiro), mentre G7 e la spec del checkout ne
-tacciono. Vale l'architettura. Corretto (G3.1) sul ramo `fix-sede-ritiro`,
-indipendente da G3: `Locations::forSale()` decide la sede della vendita e
-`Allocation::context()` la usa; con `multi_location` spenta è sempre la
-principale. I test d'integrazione del ritiro sono allineati.
+tacciono. Corretto sul ramo `fix-sede-ritiro`, indipendente da G3, con la
+regola di G3.1–G3.2: **il punto di ritiro non è un magazzino**. Il ritiro si
+fa dove il cliente preferisce e la merce ci arriva dalla principale;
+`Locations::forSale()` dà sempre la principale e `Allocation` la usa per
+prenotare, scaricare e annullare. Il reso rientra nella sede scelta da chi lo
+registra (`Locations::forReturn()`, con `multi_location` attiva). I test
+d'integrazione del ritiro sono allineati.
 
 ### Già deciso nell'architettura (§4.3), non si riapre
 
@@ -114,7 +117,7 @@ Citate nel resto della spec come G3.1–G3.22.
 | # | Tema | Scelta | Alternative scartate |
 |---|---|---|---|
 | 1 | Sede della vendita con `multi_location` spenta | **sempre la principale** in `Allocation`, qualunque sia il punto di ritiro; correzione separata, prima della consegna | lasciare com'è (il ritiro in una seconda sede non funziona) |
-| 2 | Sede della vendita con `multi_location` accesa | **spedizione: la principale; ritiro: la sede di ritiro se ha *Giacenza* accesa nella pagina *Sedi* (`has_stock`), altrimenti la principale** — conta l'interruttore della sede, non i pezzi che ha in quel momento. Nessun trasferimento automatico | un'impostazione «sede delle spedizioni online»; la sede con più merce; prenotare un po' da una e un po' dall'altra |
+| 2 | Sede della vendita con `multi_location` accesa | **sempre la principale**, anche per il ritiro: il punto di ritiro dice dove il cliente passa a prendere la merce, non da quale magazzino esce. Il ritiro si fa dove il cliente preferisce e la merce ci arriva dalla principale (rivista dall'utente il 2026-10-12). Il reso rientra nella sede scelta da chi lo registra | la sede di ritiro se ha *Giacenza* (proposta iniziale, scartata dall'utente); un'impostazione «sede delle spedizioni online»; la sede con più merce |
 | 3 | Come si divide uno scarico fra i secchi | **una classe pura, `StockPicking::split()`**: riceve i secchi di prodotto e sede (con scadenza del lotto e costo del fornitore), la quantità e le funzionalità accese; risponde con la lista `(lotto, fornitore, pezzi)`. A interruttori spenti risponde sempre `[(0, 0, pezzi)]`: è il test che prova che il negozio non cambia. La usano vendita, scarico, rettifica in meno, trasferimento e inventario | la scelta dentro `Stock::apply()` (che resterebbe una porta, ma con dentro le regole); una query SQL ordinata |
 | 4 | Prenotazioni | **restano per prodotto e sede**, senza lotto né fornitore: la ripartizione si fa alla conferma, con le scadenze di quel giorno | prenotare già il lotto (un lotto che scade fra prenotazione e conferma resterebbe bloccato) |
 | 5 | Annullo e reso di una vendita divisa su più secchi | **colonna `reference_item_id` su `gst_stock_movements`** (la riga d'ordine o del documento). L'annullo rimette in ogni secchio quello che la riga ne aveva tolto; il reso parziale rientra nei secchi in ordine inverso a quello di uscita. Fuori da `Allocation` cambia una chiave sola: `Returns` passa `order_item_id` a `returnGoods()` (oggi non lo passa) | tabella `gst_stock_allocations` con la ripartizione; rientro sempre nel secchio 0 (si perderebbe il lotto, e il richiamo) |
@@ -246,11 +249,12 @@ più chi la legge (§2.2). Ordini, checkout ed ecommerce non cambiano firma.
 
 #### 2.1 La sede
 
-`Locations::forSale()` (già sul ramo `fix-sede-ritiro`, G3.1) diventa, con
-`multi_location` accesa: la sede chiesta se è attiva e ha *Giacenza* accesa,
-altrimenti la principale (G3.2). La spedizione chiede 0, quindi la principale.
-La regola pura `Locations::serving()` prende anche «la sede chiesta tiene
-merce».
+`Locations::forSale()` (dal ramo `fix-sede-ritiro`, G3.1–G3.2) dà sempre la
+principale: spedizione e ritiro escono da lì, con o senza `multi_location`.
+Portare la merce al punto di ritiro è uno spostamento fisico dopo la
+conferma, quando la merce è già uscita dal magazzino: non è un trasferimento
+(§5), che sposta merce ancora in giacenza. `Locations::forReturn()` dà la sede
+scelta nel reso con `multi_location` attiva, altrimenti la principale.
 
 #### 2.2 Il disponibile per la vendita
 
@@ -259,7 +263,8 @@ disponibile della **sede della vendita**, senza i lotti scaduti (G3.11) quando
 `batch_tracking` è accesa. Lo leggono:
 
 - `Cart` al posto di `Levels::of()` (aggiunta e controllo dei pezzi), con la
-  sede di `Locations::forSale()` per il carrello;
+  principale di `Locations::forSale()`: con più sedi `Levels::of()` conterebbe
+  anche la merce dei negozi, che online non si vende;
 - `Allocation::reserve()`, che oggi somma i secchi letti con il lock: toglie
   quelli scaduti;
 - la vetrina dell'ecommerce (`ProductCatalog`), che smette di sommare
@@ -267,8 +272,8 @@ disponibile della **sede della vendita**, senza i lotti scaduti (G3.11) quando
   principale: è l'unico ritocco nell'ecommerce, una riga, con la stessa
   regola di oggi (giacenza sopra zero).
 
-A interruttori spenti la sede è la principale, l'unica con merce, e nessun
-lotto scade: i numeri sono quelli di oggi. Le *Giacenze* del backend
+A interruttori spenti la principale è l'unica sede con merce e nessun lotto
+scade: i numeri sono quelli di oggi. Le *Giacenze* del backend
 continuano a mostrare tutte le sedi (`Levels::of()` resta per il totale).
 
 #### 2.3 Prenotare
@@ -547,8 +552,9 @@ Le funzionalità accese una alla volta su `ecommerce.test`: carico con fornitore
 e costi e valore che cambia; carico con lotti, vendita online che prende il
 lotto che scade prima, annullo che lo rimette; lotto scaduto fuori dalla
 vetrina e scaricato a mano; scheda del lotto con i clienti; trasferimento
-inviato e ricevuto con le colonne *In viaggio*; ritiro in una seconda sede con
-*Giacenza* accesa e spenta; il pannello che rifiuta di spegnere *Più sedi*.
+inviato e ricevuto con le colonne *In viaggio*; ritiro in una seconda sede che
+prende la merce dalla principale anche quando il negozio ne ha; reso registrato
+in un negozio che rientra lì; il pannello che rifiuta di spegnere *Più sedi*.
 
 #### 6.5 Piani
 
@@ -556,7 +562,7 @@ Ognuno sul suo ramo, unito su `main` a interruttori spenti (D63):
 
 1. **Dati, ripartizione e vendita** (§1, §2): tabelle, `StockPicking`,
    `StockBuckets`, `StockCosts`, `Allocation`, `Returns`, `Levels::forSale()`
-   con `Cart` e la vetrina, `Locations::forSale()` completa. Dopo questo
+   con `Cart` e la vetrina. Dopo questo
    piano la suite intera deve essere verde senza ritocchi.
 2. **Acquisti** (§3): carico con fornitore e costi, compensazione, valore,
    riquadro, colonne.

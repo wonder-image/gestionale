@@ -591,11 +591,10 @@ in `wonder-image/app`.
 - La sede principale è la sede predefinita del core. Con `multi_location` bloccata è
   l'unica sede del gestionale e la scelta della sede non compare da nessuna parte
   (D20).
-- **Sede della vendita (G3.1, G3.2):** con `multi_location` bloccata la merce di ogni
-  ordine esce dalla principale, anche per un ritiro in un'altra sede; con la
-  funzionalità attiva la spedizione esce dalla principale e il ritiro dalla sede di
-  ritiro se ha *Giacenza* accesa, altrimenti dalla principale. Nessun trasferimento
-  automatico.
+- **Sede della vendita (G3.1, G3.2):** la merce di ogni ordine esce dalla
+  principale, con o senza `multi_location`. Il punto di ritiro non è un magazzino:
+  il ritiro si fa dove il cliente preferisce e la merce ci arriva dalla principale.
+  Il reso rientra nella sede scelta da chi lo registra.
 - "Punto di ritiro" compare solo con `shipping`, "Banco" solo con `pos`.
 - Orari e chiusure effettivi dal core (`SocietyLocations::hoursFor()` e `isOpen()`):
   durante una chiusura il ritiro non si può scegliere.
