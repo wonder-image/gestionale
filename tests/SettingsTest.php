@@ -6,9 +6,7 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Gestionale;
-use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
-use Wonder\Plugin\Gestionale\Resources\System\MerchantSettingResource;
 use Wonder\Plugin\Gestionale\Resources\System\SettingResource;
 use Wonder\Sql\TableSchema as Column;
 
@@ -28,8 +26,9 @@ check('le impostazioni tecniche sono una riga sola che viaggia col deploy', func
     return $schema !== null && $schema->singleton && $schema->localOnly;
 });
 
-check('le impostazioni del commerciante restano nel loro ambiente', fn () =>
-    MerchantSetting::syncSchema() === null
+check('non c\'è più una pagina di impostazioni del commerciante: tutto sta in Set Up', fn () =>
+    !class_exists('Wonder\\Plugin\\Gestionale\\Resources\\System\\MerchantSettingResource')
+    && !class_exists('Wonder\\Plugin\\Gestionale\\Models\\System\\MerchantSetting')
 );
 
 check('le colonne fiscali e dei documenti di G1 ci sono tutte', function () use ($colonne) {
@@ -47,14 +46,12 @@ check('le email per gli ordini stanno in Set Up, vicino a quelle degli errori', 
     $campi = array_map(static fn ($field): string => (string) $field->name, SettingResource::formSchema());
 
     return in_array('merchant_notification_emails', $colonne(Setting::class), true)
-        && !in_array('merchant_notification_emails', $colonne(MerchantSetting::class), true)
-        && in_array('merchant_notification_emails', $campi, true)
-        && !in_array('merchant_notification_emails', array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema()), true);
+        && in_array('merchant_notification_emails', $campi, true);
 });
 
-check('le email per gli ordini restano nel loro ambiente e si cambiano anche in produzione', fn () =>
-    in_array('merchant_notification_emails', Setting::syncSchema()->excludeColumns, true)
-    && SettingResource::editableWhenReadonly() === ['merchant_notification_emails']
+check('le email per gli ordini e per gli avvisi restano nel loro ambiente e si cambiano anche in produzione', fn () =>
+    array_diff(['merchant_notification_emails', 'low_stock_emails'], Setting::syncSchema()->excludeColumns) === []
+    && SettingResource::editableWhenReadonly() === ['merchant_notification_emails', 'low_stock_emails']
 );
 
 check('ogni campo email dice quali email riceve', function () {
@@ -84,28 +81,18 @@ check('un indirizzo per gli ordini scritto male si rifiuta, nominandolo', functi
     return false;
 });
 
-check('le tecniche sono solo di admin; quelle del commerciante anche di admin, che vede tutto', function () {
-    $tecniche = SettingResource::permissionSchema()->toArray();
-    $commerciante = MerchantSettingResource::permissionSchema()->toArray();
-
-    foreach ($tecniche['backend'] ?? [] as $authorities) {
+check('le impostazioni sono solo di admin', function () {
+    foreach (SettingResource::permissionSchema()->toArray()['backend'] ?? [] as $authorities) {
         if ($authorities !== [] && $authorities !== ['admin']) {
             return false;
         }
     }
 
-    foreach ($commerciante['backend'] ?? [] as $authorities) {
-        if ($authorities !== [] && $authorities !== ['admin', 'administrator']) {
-            return false;
-        }
-    }
-
-    return (MerchantSettingResource::navigationSchema()->toArray()['authority'] ?? []) === ['admin', 'administrator'];
+    return true;
 });
 
-check('le tecniche stanno in Set Up, quelle del commerciante nel gestionale', fn () =>
+check('le impostazioni stanno in Set Up', fn () =>
     (SettingResource::navigationSchema()->toArray()['section_key'] ?? '') === 'set-up'
-    && (MerchantSettingResource::navigationSchema()->toArray()['section_key'] ?? '') === 'gestionale'
 );
 
 check('salvando le impostazioni fiscali si segna la conferma', function () {
@@ -129,32 +116,34 @@ $forza = static function (?array $stato): void {
     (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
 };
 
-check('il commerciante ha la colonna dei destinatari degli avvisi', fn () =>
-    in_array('low_stock_emails', $colonne(MerchantSetting::class), true)
+check('le impostazioni hanno la colonna dei destinatari degli avvisi', fn () =>
+    in_array('low_stock_emails', $colonne(Setting::class), true)
+    && in_array('low_stock_emails', array_map(static fn ($field): string => (string) $field->key, Setting::dataSchema()), true)
 );
 
 check('con gli avvisi bloccati i destinatari non si chiedono e non si scrivono', function () use ($forza) {
     $forza(['low_stock_alerts' => false]);
-    $campi = array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema());
-    $valori = MerchantSettingResource::mutateRequestValues(['low_stock_emails' => 'a@x.it'], 'update');
+    $campi = array_map(static fn ($field): string => (string) $field->name, SettingResource::formSchema());
+    $valori = SettingResource::mutateRequestValues(['low_stock_emails' => 'a@x.it'], 'update');
 
     return !in_array('low_stock_emails', $campi, true) && !array_key_exists('low_stock_emails', $valori);
 });
 
 check('con gli avvisi sbloccati i destinatari si salvano puliti', function () use ($forza) {
     $forza(['low_stock_alerts' => true]);
-    $campi = array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema());
-    $valori = MerchantSettingResource::mutateRequestValues(['low_stock_emails' => 'a@x.it; A@x.it  b@y.it'], 'update');
+    $campi = array_map(static fn ($field): string => (string) $field->name, SettingResource::formSchema());
+    $valori = SettingResource::mutateRequestValues(['low_stock_emails' => 'a@x.it; A@x.it  b@y.it'], 'update');
 
     return in_array('low_stock_emails', $campi, true)
-        && $valori['low_stock_emails'] === 'a@x.it, b@y.it';
+        && $valori['low_stock_emails'] === 'a@x.it, b@y.it'
+        && trim((string) (SettingResource::labelSchema()['low_stock_emails'] ?? '')) !== '';
 });
 
 check('un destinatario scritto male si rifiuta, nominandolo', function () use ($forza) {
     $forza(['low_stock_alerts' => true]);
 
     try {
-        MerchantSettingResource::mutateRequestValues(['low_stock_emails' => 'a@x.it, anna.x.it'], 'update');
+        SettingResource::mutateRequestValues(['low_stock_emails' => 'a@x.it, anna.x.it'], 'update');
     } catch (InvalidArgumentException $errore) {
         return str_contains($errore->getMessage(), 'anna.x.it');
     }
@@ -165,7 +154,7 @@ check('un destinatario scritto male si rifiuta, nominandolo', function () use ($
 check('un campo vuoto si salva vuoto: vuol dire nessuna email', function () use ($forza) {
     $forza(['low_stock_alerts' => true]);
 
-    return MerchantSettingResource::mutateRequestValues(['low_stock_emails' => ' '], 'update')['low_stock_emails'] === '';
+    return SettingResource::mutateRequestValues(['low_stock_emails' => ' '], 'update')['low_stock_emails'] === '';
 });
 
 check('le due impostazioni della vendita ci sono, con i predefiniti di 5.2', function () {
@@ -192,28 +181,6 @@ check('le due impostazioni hanno un\'etichetta in italiano', function () {
 
     return trim((string) ($etichette['order_reservation_minutes'] ?? '')) !== ''
         && trim((string) ($etichette['order_payment_wait_days'] ?? '')) !== '';
-});
-
-check('font e ordini senza account non stanno più nelle impostazioni del commerciante', function () use ($colonne, $forza) {
-    $forza(['online_sales' => true, 'low_stock_alerts' => true]);
-    $campi = array_map(static fn ($field): string => (string) $field->name, MerchantSettingResource::formSchema());
-    $via = [
-        'font_auth', 'font_account', 'font_cart', 'font_checkout', 'checkout_guest',
-        'font_auth_id', 'font_account_id', 'font_cart_id', 'font_checkout_id',
-    ];
-
-    return array_intersect($via, $colonne(MerchantSetting::class)) === []
-        && array_intersect($via, $campi) === []
-        && array_diff_key(array_flip($via), MerchantSettingResource::labelSchema()) === array_flip($via);
-});
-
-check('la pagina del commerciante si vede nel menu solo con gli avvisi di scorta', function () use ($forza) {
-    $forza(['low_stock_alerts' => false]);
-    $spenta = MerchantSettingResource::navigationSchema()->toArray()['enabled'] ?? null;
-    $forza(['low_stock_alerts' => true]);
-    $accesa = MerchantSettingResource::navigationSchema()->toArray()['enabled'] ?? null;
-
-    return $spenta === false && $accesa === true;
 });
 
 $forza(null);

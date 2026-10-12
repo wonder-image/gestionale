@@ -56,7 +56,10 @@ Ogni colonna si ordina con un clic sul titolo. In alto ci sono la ricerca
 (sottocategorie comprese) e, con gli avvisi, *Scorta*.
 
 I tre puntini in fondo alla riga portano ai **Movimenti** di quell'opzione, già
-filtrati, e alla sua scheda con **Apri la versione**.
+filtrati, e con **Vai al prodotto** alla scheda dell'articolo, in lettura, con
+tutte le sue versioni.
+
+Sul telefono la lista mostra solo l'articolo, la giacenza e i tre puntini.
 
 ### Quali sedi hanno una colonna
 

@@ -49,9 +49,10 @@ fondo c'è il link che apre le giacenze già filtrate.
   solo se in quella sede risale sopra la soglia e poi ci ricade.
 - Dieci rettifiche di fila non fanno dieci email: l'elenco parte al giro
   successivo, tutto insieme.
-- L'email arriva agli indirizzi scritti in **Destinatari degli avvisi**, nelle
-  [impostazioni del negozio](impostazioni.md). Se il campo è vuoto l'email non
-  parte: gli avvisi aspettano, e arrivano al primo giro dopo che hai scritto un
+- L'email arriva agli indirizzi scritti in **Email per la scorta minima**, nella
+  card *Email* di Set Up → Gestionale → Impostazioni: li scrive chi ti segue,
+  anche più di uno separati da virgola. Se il campo è vuoto l'email non parte:
+  gli avvisi aspettano, e arrivano al primo giro dopo che è stato scritto un
   indirizzo.
 
 Il giro ogni quarto d'ora lo accende chi ti segue, insieme alla funzionalità.

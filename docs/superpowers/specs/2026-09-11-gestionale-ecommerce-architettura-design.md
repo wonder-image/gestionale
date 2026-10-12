@@ -711,8 +711,8 @@ senza `purchasing`, D55), `other`.
 - Campo "Scorta minima" per prodotto e sede (`stock_thresholds`); se manca non
   ci sono avvisi per quella sede. Con una sede sola il commerciante ne vede una.
 - Soglia sul disponibile della sede; un avviso per prodotto e sede.
-- Sotto soglia parte un'email ai destinatari scelti dal commerciante (impostazioni
-  del commerciante, 8.2); se una sola operazione porta sotto soglia più prodotti,
+- Sotto soglia parte un'email ai destinatari delle impostazioni (card *Email* di
+  Set Up, 8.2); se una sola operazione porta sotto soglia più prodotti,
   arriva un'unica email con l'elenco.
 - L'avviso non si ripete finché quella sede non torna sopra soglia (`resolved_at`).
 - Riquadro della dashboard con i prodotti sotto soglia.
@@ -1680,6 +1680,14 @@ produzione.
 |---|---|---|
 | Tecniche | in locale da `admin`, sincronizzata | impostazioni fiscali (6.2); impostazioni del negozio (8.5); giorni di reso e da quando contarli (4.10); giorni di attesa del pagamento e minuti di prenotazione (5.2); giorni prima di `unpaid` (5.5); valori predefiniti del DDT (4.9); email per gli errori da risolvere nel codice (9.1) |
 | Del commerciante | in produzione da `administrator` | destinatari delle email al commerciante (5.2) e degli avvisi di scorta minima (4.3); email per gli errori da risolvere dal commerciante (9.1); giorni dei lotti in scadenza (4.3); vendita senza giacenza predefinita e giorni di attesa (4.3, D60) |
+
+> **Come è andata (2026-10-12).** I destinatari delle email (ordini e scorta
+> minima) stanno nella riga tecnica, card *Email* di Set Up → Gestionale →
+> Impostazioni, accanto a quelli degli errori: li scrive `admin`, non viaggiano
+> col deploy e si cambiano anche in produzione. La riga del commerciante
+> (`gst_merchant_settings`) e la sua pagina sono state tolte: ci restava solo
+> `low_stock_emails`. Le scelte del commerciante che verranno avranno una pagina
+> quando ci saranno.
 
 **Pagine delle tabelle sincronizzate:** in produzione in sola lettura, con l'avviso
 "Si modifica in locale e si pubblica con il deploy" (opzione del core); in locale

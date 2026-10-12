@@ -17,7 +17,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockLevel;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
-use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -87,7 +87,7 @@ function giroDiProva(string $destinatari): void
     }
 
     // Dritto sulla tabella: la riga delle impostazioni è una sola, la 1.
-    MerchantSetting::query()->Update(MerchantSetting::$table, ['low_stock_emails' => $destinatari], 'id', 1);
+    Setting::query()->Update(Setting::$table, ['low_stock_emails' => $destinatari], 'id', 1);
     $GLOBALS['posta'] = [];
     $GLOBALS['segnalazioni'] = [];
 }
@@ -283,7 +283,7 @@ check('senza destinatari l\'avviso aspetta, e parte appena ce n\'è uno', fn () 
 
     $senza = LowStockNotifier::run();
     $aspetta = trim((string) (Alerts::openRow($productId)['notified_at'] ?? '')) === '';
-    MerchantSetting::query()->Update(MerchantSetting::$table, ['low_stock_emails' => 'magazzino@negozio.test'], 'id', 1);
+    Setting::query()->Update(Setting::$table, ['low_stock_emails' => 'magazzino@negozio.test'], 'id', 1);
     $con = LowStockNotifier::run();
 
     return $senza['status'] === LowStockNotifier::NO_RECIPIENTS

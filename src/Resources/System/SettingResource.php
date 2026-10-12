@@ -71,6 +71,7 @@ final class SettingResource extends SingletonResource
             'fiscal_confirmed_at' => 'Confermate il',
             'merchant_notification_emails' => 'Email per gli ordini',
             'developer_error_emails' => 'Email per gli errori tecnici',
+            'low_stock_emails' => 'Email per la scorta minima',
             'order_reservation_minutes' => 'Minuti di prenotazione',
             'order_payment_wait_days' => 'Giorni di attesa del pagamento',
             'shipping_sync' => 'Spedizioni col deploy',
@@ -107,6 +108,9 @@ final class SettingResource extends SingletonResource
                 ->label('Bollo automatico'),
             FormField::key('merchant_notification_emails')->text()->label('Email per gli ordini'),
             FormField::key('developer_error_emails')->text()->label('Email per gli errori tecnici'),
+            ...(Gestionale::feature('low_stock_alerts')
+                ? [FormField::key('low_stock_emails')->text()->label('Email per la scorta minima')]
+                : []),
             FormField::key('order_reservation_minutes')->number()->decimal(0)->value(30)->label('Minuti di prenotazione')->required(),
             FormField::key('order_payment_wait_days')->number()->decimal(0)->value(7)->label('Giorni di attesa del pagamento')->required(),
             FormField::key('shipping_sync')
@@ -160,13 +164,7 @@ final class SettingResource extends SingletonResource
 
                 ...$modules,
 
-                (new Card)->components([
-                    SectionTitle::make('Email')
-                        ->tooltip('Più indirizzi separati da virgola. «Per gli ordini» riceve l\'avviso di ogni ordine nuovo e di ogni ordine annullato: di solito il negozio. «Per gli errori tecnici» riceve i guasti dei servizi esterni (pagamenti, corrieri, fatture elettroniche) e quelli del codice: chi sviluppa il sito.')
-                        ->columnSpan(12),
-                    static::getInput('merchant_notification_emails')->columnSpan(6),
-                    static::getInput('developer_error_emails')->columnSpan(6),
-                ])->columns(12)->columnSpan(12),
+                (new Card)->components(static::emailComponents())->columns(12)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ]);
     }
@@ -179,10 +177,37 @@ final class SettingResource extends SingletonResource
         return $url === '' ? $schema : $schema->docs($url);
     }
 
-    /** Le email degli ordini restano di chi vende: in produzione si cambiano lo stesso. */
+    /**
+     * La card Email: con gli avvisi di scorta accesi c'è un terzo campo, e i
+     * tre stanno su una riga.
+     */
+    private static function emailComponents(): array
+    {
+        $scorta = Gestionale::feature('low_stock_alerts');
+        $span = $scorta ? 4 : 6;
+        $tooltip = 'Più indirizzi separati da virgola. «Per gli ordini» riceve l\'avviso di ogni ordine nuovo e di ogni ordine annullato: di solito il negozio. «Per gli errori tecnici» riceve i guasti dei servizi esterni (pagamenti, corrieri, fatture elettroniche) e quelli del codice: chi sviluppa il sito.';
+
+        if ($scorta) {
+            $tooltip .= ' «Per la scorta minima» riceve l\'elenco dei prodotti scesi sotto la scorta: vuoto, l\'email non parte e gli avvisi aspettano.';
+        }
+
+        $components = [
+            SectionTitle::make('Email')->tooltip($tooltip)->columnSpan(12),
+            static::getInput('merchant_notification_emails')->columnSpan($span),
+            static::getInput('developer_error_emails')->columnSpan($span),
+        ];
+
+        if ($scorta) {
+            $components[] = static::getInput('low_stock_emails')->columnSpan($span);
+        }
+
+        return $components;
+    }
+
+    /** Le email degli ordini e della scorta restano di chi vende: in produzione si cambiano lo stesso. */
     public static function editableWhenReadonly(): array
     {
-        return ['merchant_notification_emails'];
+        return ['merchant_notification_emails', 'low_stock_emails'];
     }
 
     public static function permissionSchema(): PermissionSchema
@@ -218,7 +243,12 @@ final class SettingResource extends SingletonResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
-        foreach (['merchant_notification_emails', 'developer_error_emails'] as $key) {
+        // Con gli avvisi bloccati i destinatari non si scrivono.
+        if (!Gestionale::feature('low_stock_alerts')) {
+            unset($values['low_stock_emails']);
+        }
+
+        foreach (['merchant_notification_emails', 'developer_error_emails', 'low_stock_emails'] as $key) {
             if (!array_key_exists($key, $values)) {
                 continue;
             }

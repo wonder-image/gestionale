@@ -16,7 +16,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
-use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
@@ -95,12 +95,13 @@ final class StockLevelResource extends GestionaleResource
             TableColumn::key('photo')
                 ->image()
                 ->size('little')
+                ->hiddenDevice('mobile')
                 ->formatter(static fn (array $row): string => static::photo($row)),
             TableColumn::key('model_name')
                 ->text()
                 ->sortable()
                 ->formatter(static fn (array $row): string => static::name($row)),
-            TableColumn::key('sku')->text()->size('little')->sortable(),
+            TableColumn::key('sku')->text()->size('little')->sortable()->hiddenDevice('mobile'),
         ];
 
         foreach ($locations as $location) {
@@ -110,6 +111,7 @@ final class StockLevelResource extends GestionaleResource
                 ->text()
                 ->size('little')
                 ->sortable()
+                ->hiddenDevice('mobile')
                 ->formatter(static fn (array $row): string => static::number($row[$key] ?? 0, true));
         }
 
@@ -128,6 +130,7 @@ final class StockLevelResource extends GestionaleResource
             $columns[] = TableColumn::key('min_stock_quantity')
                 ->text()
                 ->size('little')
+                ->hiddenDevice('mobile')
                 ->formatter(static fn (array $row): string => static::number(static::threshold($row)));
         }
 
@@ -137,13 +140,14 @@ final class StockLevelResource extends GestionaleResource
                     ->text()
                     ->size('little')
                     ->sortable()
+                    ->hiddenDevice('mobile')
                     ->formatter(static fn (array $row): string => static::number($row[$key] ?? 0));
             }
         }
 
         $columns[] = TableColumn::key('actions')->button()->actions([
             'movimenti' => ['label' => 'Movimenti', 'href' => StockMovementResource::listUrl().'?versione={id}'],
-            'versione' => ['label' => 'Apri la versione', 'href' => static::productUrl()],
+            'prodotto' => ['label' => 'Vai al prodotto', 'href' => static::productUrl()],
         ]);
 
         return $columns;
@@ -153,16 +157,48 @@ final class StockLevelResource extends GestionaleResource
      * Le versioni che hanno una giacenza: un multiprodotto non ne ha, la sua
      * disponibilità viene dai componenti, e una riga a zero in elenco
      * farebbe credere che sia finito.
+     *
+     * Gli id dei multiprodotti si leggono qui e non con una sottoquery: il
+     * core passa la condizione da `Query::Conditions(…, false)`, che toglie
+     * ogni WHERE dalla stringa, anche quello dentro la sottoquery.
      */
     public static function querySchema(): array
     {
         $schema = parent::querySchema();
-        $base = Query::Conditions($schema['condition'] ?? [], false);
-        $semplici = '`'.Product::$table.'`.`product_model_id` NOT IN (SELECT b.id FROM `'.ProductModel::$table."` b WHERE b.type = 'bundle')";
+        $base = trim(Query::Conditions($schema['condition'] ?? [], false));
+        $bundles = static::bundleModelIds();
 
-        $schema['condition'] = ($base !== '' ? $base.' AND ' : '').$semplici;
+        if ($bundles !== []) {
+            $semplici = '`'.Product::$table.'`.`product_model_id` NOT IN ('.implode(', ', $bundles).')';
+            $base = ($base !== '' ? $base.' AND ' : '').$semplici;
+        }
+
+        $schema['condition'] = $base;
 
         return $schema;
+    }
+
+    /**
+     * Anche i multiprodotti cancellati: `find()` li salterebbe, e una loro
+     * versione rimasta viva tornerebbe in elenco.
+     *
+     * @return list<int>
+     */
+    private static function bundleModelIds(): array
+    {
+        try {
+            $rows = ProductModel::query()->Select(ProductModel::$table, "WHERE `type` = 'bundle'", null, null, null, 'id')->row;
+        } catch (Throwable) {
+            return [];
+        }
+
+        if (!is_array($rows) || $rows === []) {
+            return [];
+        }
+
+        $rows = isset($rows['id']) ? [$rows] : $rows;
+
+        return array_values(array_unique(array_map(static fn ($row): int => (int) ($row['id'] ?? 0), array_filter($rows, 'is_array'))));
     }
 
     public static function tableLayoutSchema(): TableLayoutSchema
@@ -425,21 +461,21 @@ final class StockLevelResource extends GestionaleResource
         return number_format($value, $decimals, ',', '.');
     }
 
-    /** "Apri la versione": la sua scheda, con l'id della riga al posto giusto. */
+    /** "Vai al prodotto": la scheda dell'articolo, in lettura, con tutte le versioni. */
     private static function productUrl(): string
     {
-        $fallback = '/backend/'.ProductResource::path().'/{id}/edit/';
+        $fallback = '/backend/'.ProductModelResource::path().'/{product_model_id}/';
 
         if (!function_exists('__r')) {
             return $fallback;
         }
 
         try {
-            $named = (string) __r('backend.resource.'.ProductResource::slug().'.edit', ['id' => '__ROW_ID__']);
+            $named = (string) __r('backend.resource.'.ProductModelResource::slug().'.view', ['id' => '__ROW_ID__']);
         } catch (Throwable) {
             return $fallback;
         }
 
-        return $named !== '' ? str_replace('__ROW_ID__', '{id}', $named) : $fallback;
+        return $named !== '' ? str_replace('__ROW_ID__', '{product_model_id}', $named) : $fallback;
     }
 }

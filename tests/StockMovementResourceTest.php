@@ -63,10 +63,20 @@ check('l\'elenco dei movimenti ha il suo indirizzo e il suo model', fn () =>
     && StockMovementResource::$model === StockMovement::class
 );
 
-check('i movimenti si leggono e basta: niente aggiungi, modifica o elimina', function () use ($pagine) {
+check('i movimenti si leggono e basta: elenco e scheda, niente aggiungi, modifica o elimina', function () use ($pagine) {
     $attive = array_keys(array_filter((array) ($pagine['pages'] ?? [])));
+    sort($attive);
 
-    return $attive === ['list'];
+    return $attive === ['list', 'view'];
+});
+
+check('la scheda si apre con gli stessi permessi dell\'elenco', function () {
+    $backend = (array) (StockMovementResource::permissionSchema()->toArray()['backend'] ?? []);
+    $azioni = array_keys(array_filter($backend, static fn ($chi): bool => $chi !== []));
+    sort($azioni);
+
+    return $azioni === ['list', 'view']
+        && ($backend['view'] ?? []) === ['admin', 'administrator'];
 });
 
 check('con una sede sola le colonne sono quelle della spec, senza Sede', function () use ($conSedi, $unaSede, $nomiColonne) {
@@ -163,19 +173,17 @@ check('Tipo con un ordine sparito mostra l\'etichetta e basta', function () {
     return $html === 'Vendita';
 });
 
-check('il menu ⋯ ha «Apri la versione» e «Visualizza ordine» solo per le righe di un ordine', function () {
+check('il menu ⋯ ha «Visualizza» e «Visualizza ordine» solo per le righe di un ordine', function () {
     foreach (StockMovementResource::tableSchema() as $colonna) {
         if ((string) $colonna->name !== 'actions') {
             continue;
         }
 
         $azioni = (array) $colonna->getSchema('actions');
-        $versione = (array) ($azioni['versione'] ?? []);
         $ordine = (array) ($azioni['ordine'] ?? []);
 
-        return ($versione['label'] ?? '') === 'Apri la versione'
-            && str_contains((string) ($versione['href'] ?? ''), '{product_id}')
-            && !isset($versione['filter'])
+        return ($azioni['view'] ?? null) === true
+            && !isset($azioni['versione'])
             && ($ordine['label'] ?? '') === 'Visualizza ordine'
             && str_contains((string) ($ordine['href'] ?? ''), '{reference_id}')
             && ($ordine['filter']['row']['reference_type'] ?? '') === 'order';
@@ -343,6 +351,62 @@ check('con ?versione= il titolo cambia e compare «Mostra tutti»', function () 
         && str_contains($bottoni, 'Mostra tutti')
         && str_contains($bottoni, 'href="'.htmlspecialchars(StockMovementResource::listUrl(), ENT_QUOTES).'"');
 });
+
+$movimento = [
+    'id' => 5, 'code' => 'MOV-00005', 'creation' => '2026-10-12 09:15:00', 'product_id' => 0, 'location_id' => 2,
+    'type' => 'adjustment', 'reason' => 'damaged', 'quantity_before' => '10.000', 'quantity' => '-3.000',
+    'quantity_after' => '7.000', 'unit_cost' => '12.5000', 'batch_id' => 0, 'supplier_id' => 0,
+    'source' => 'user', 'user_id' => 0, 'note' => "Caduto <b>dallo</b> scaffale\nseconda riga",
+];
+$scheda = static fn (array $riga, array $sedi): string => $conSedi($sedi, static fn (): string =>
+    Wonder\Backend\Support\ResourceFormLayoutRenderer::renderLayout(StockMovementResource::showLayoutSchema($riga))
+);
+$voce = static fn (string $html, string $etichetta, string $valore): bool =>
+    str_contains($html, '<div class="small text-muted">'.$etichetta.'</div><div>'.$valore.'</div>');
+
+check('la scheda del movimento ha tutti i dettagli', function () use ($scheda, $movimento, $unaSede, $voce) {
+    $html = $scheda($movimento, $unaSede);
+
+    return $voce($html, 'Codice', 'MOV-00005')
+        && $voce($html, 'Quando', '12/10/2026 09:15')
+        && $voce($html, 'Tipo', 'Rettifica')
+        && $voce($html, 'Causale', 'Danneggiato')
+        && $voce($html, 'Prima', '10')
+        && $voce($html, 'Pezzi', '-3')
+        && $voce($html, 'Dopo', '7')
+        && $voce($html, 'Costo unitario', '12,50 €')
+        && $voce($html, 'Chi', 'Sistema')
+        && str_contains($html, 'Versione');
+});
+
+check('la nota della scheda va a capo e non esce come HTML', function () use ($scheda, $movimento, $unaSede) {
+    $html = $scheda($movimento, $unaSede);
+
+    return !str_contains($html, '<b>dallo</b>')
+        && str_contains($html, 'Caduto &lt;b&gt;dallo&lt;/b&gt; scaffale<br />');
+});
+
+check('la scheda: la sede solo con più sedi; lotto e fornitore solo se ci sono; senza costo un trattino', function () use ($scheda, $movimento, $unaSede, $dueSedi, $voce) {
+    $una = $scheda($movimento, $unaSede);
+    $due = $scheda($movimento, $dueSedi);
+    $senzaCosto = $scheda(['unit_cost' => null] + $movimento, $unaSede);
+    $conLotto = $scheda(['batch_id' => 4] + $movimento, $unaSede);
+
+    return !str_contains($una, '>Sede<') && $voce($due, 'Sede', 'Magazzino')
+        && !str_contains($una, '>Lotto<') && !str_contains($una, '>Fornitore<')
+        && $voce($conLotto, 'Lotto', '#4')
+        && $voce($senzaCosto, 'Costo unitario', '—');
+});
+
+check('la versione della scheda porta alla sua pagina', function () use ($scheda, $movimento, $unaSede) {
+    $html = $scheda(['product_id' => 76918] + $movimento, $unaSede);
+
+    return str_contains($html, '/76918/edit/');
+});
+
+check('l\'indirizzo della scheda di un movimento', fn () =>
+    str_ends_with(StockMovementResource::detailUrl(5), '/movimenti/5/')
+);
 
 check('il link dalla scheda porta all\'elenco filtrato', fn () =>
     str_ends_with(StockMovementResource::listUrlFor(7), '?versione=7')

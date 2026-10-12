@@ -236,4 +236,13 @@ check('dopo l\'annullamento non resta niente', function () {
     return (!is_array($riga) || $riga === []) && (!is_array($sede) || $sede === []);
 });
 
+// L'elenco passa la condizione da `Table::query()`, che con `Conditions(…, false)`
+// toglie ogni WHERE dalla stringa: una sottoquery con il suo WHERE si rompe.
+check('la condizione dell\'elenco regge il passaggio dal core e conta le versioni senza i multiprodotti', function () {
+    $condizione = Wonder\Sql\Query::Conditions(StockLevelResource::querySchema()['condition'], false);
+    $attese = (int) sqlCount(Product::$table, "WHERE `deleted` = 'false' AND `product_model_id` NOT IN (SELECT b.id FROM `".ProductModel::$table."` b WHERE b.type = 'bundle')", 'id', true);
+
+    return (int) sqlCount(Product::$table, $condizione, 'id', true) === $attese;
+});
+
 summary();
