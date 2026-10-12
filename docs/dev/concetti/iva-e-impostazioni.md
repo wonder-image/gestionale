@@ -114,17 +114,21 @@ solo l'imponibile. Ogni riepilogo ha aliquota, natura, imponibile, imposta e
 totale: sono le righe che i sotto-progetti salveranno accanto a ordini e
 fatture.
 
-## Le due righe di impostazioni
+## La riga delle impostazioni
 
-| Tabella | Chi la scrive | Dove | Sync |
-|---|---|---|---|
-| `gst_settings` | `admin` | in locale | sì, riga unica |
-| `gst_merchant_settings` | `administrator` | dove si lavora | mai |
+`gst_settings` è una riga sola, scritta da `admin` in locale e portata in
+produzione dal deploy: la configurazione tecnica e fiscale, quella che si decide
+una volta con il commercialista. Fanno eccezione i destinatari delle email degli
+ordini (`merchant_notification_emails`) e della scorta minima
+(`low_stock_emails`): sono esclusi dal sync e si cambiano anche in produzione
+(`editableWhenReadonly()`), perché ogni ambiente ha i suoi. Il campo della
+scorta minima c'è solo con `low_stock_alerts` acceso.
 
-La regola è questa: la configurazione tecnica e fiscale, quella che si decide
-una volta con il commercialista, sta in `settings`; le scelte quotidiane del
-commerciante stanno nelle sue. Ogni sotto-progetto aggiunge le proprie colonne
-alla riga giusta. Un modulo aggiunge le sue a `settings` con un riquadro suo
+Fino al 2026-10-12 c'era una seconda riga, `gst_merchant_settings`, con la sua
+pagina in Gestionale → Impostazioni: aveva solo `low_stock_emails` ed è stata
+tolta. La tabella resta nei database dove c'era, senza Model.
+
+Un modulo aggiunge le sue colonne a `settings` con un riquadro suo
 (vedi [Hook del sito](hook.md#riquadri-dei-moduli-nelle-impostazioni)): il
 modulo ecommerce porta così font del negozio e ordini senza account.
 

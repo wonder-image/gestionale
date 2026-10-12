@@ -4,7 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
-use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockLevelResource;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
@@ -124,7 +124,7 @@ final class LowStockNotifier
         }
 
         $result['items'] = $items;
-        $result['to'] = Recipients::parse((string) (MerchantSetting::current()['low_stock_emails'] ?? ''))['valid'];
+        $result['to'] = Recipients::parse((string) (Setting::current()['low_stock_emails'] ?? ''))['valid'];
 
         if ($result['to'] === []) {
             return ['status' => self::NO_RECIPIENTS] + $result;

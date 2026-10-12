@@ -130,7 +130,7 @@ check('il modulo pulisce i suoi valori al salvataggio', function () {
 check('i campi del modulo seguono il resto della pagina: in produzione non si cambiano', function () {
     SettingsSections::use([new RiquadroDiProva()]);
 
-    return SettingResource::editableWhenReadonly() === ['merchant_notification_emails'];
+    return SettingResource::editableWhenReadonly() === ['merchant_notification_emails', 'low_stock_emails'];
 });
 
 SettingsSections::use(null);

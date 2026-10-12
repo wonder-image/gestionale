@@ -11,7 +11,12 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\App\Models\User\User;
+use Wonder\Elements\Components\Card;
+use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\DataItem;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
@@ -20,6 +25,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
+use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
@@ -31,7 +37,8 @@ use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentRules;
  *
  * Risponde a una domanda sola — "perché qui c'è scritto 3?" — e per farlo non
  * serve nessun pulsante: un movimento non si modifica e non si cancella, si
- * corregge con un'altra rettifica. Per questo la pagina ha il solo elenco.
+ * corregge con un'altra rettifica. Per questo ci sono l'elenco e la scheda di
+ * ogni movimento, e basta.
  *
  * Tipo, sede e periodo sono filtri con la loro condizione; la versione arriva
  * dall'indirizzo, perché la scheda della versione linka qui già filtrata.
@@ -143,7 +150,7 @@ final class StockMovementResource extends GestionaleResource
             ->formatter(static fn (array $row): string => static::whoCell($row, static::userName((int) ($row['user_id'] ?? 0))));
         $columns[] = TableColumn::key('note')->text();
         $columns[] = TableColumn::key('actions')->button()->actions([
-            'versione' => ['label' => 'Apri la versione', 'href' => static::productUrl()],
+            'view',
             'ordine' => [
                 'label' => 'Visualizza ordine',
                 'href' => OrderResource::detailUrlPattern('{reference_id}'),
@@ -422,8 +429,84 @@ final class StockMovementResource extends GestionaleResource
         // un'altra rettifica.
         return parent::pageSchema()
             ->only(['list'])
-            ->titles(['list' => static::listTitle()])
-            ->subtitles(['list' => 'Ogni pezzo entrato o uscito, con la sua causale. Si legge e basta: una quantità sbagliata si corregge con una rettifica.']);
+            ->enable(['view'])
+            ->titles(['list' => static::listTitle(), 'view' => 'Movimento'])
+            ->subtitles(['list' => 'Ogni pezzo entrato o uscito, con la sua causale. Si legge e basta: una quantità sbagliata si corregge con una rettifica.'])
+            ->view('show', Gestionale::viewPath('pages/stock-movement-show.php'));
+    }
+
+    /**
+     * La scheda di un movimento: tutto quello che la riga dell'elenco dice, più
+     * quello che non ci sta (codice, costo, lotto, fornitore, nota intera).
+     *
+     * @param array<string, mixed> $movement
+     */
+    public static function showLayoutSchema(array $movement): Container
+    {
+        $dato = static fn (string $etichetta, string $valore, bool $html = false): DataItem => DataItem::make($etichetta, $valore)
+            ->html($html)
+            ->columnSpan(['default' => 12, 'sm' => 4]);
+        $productId = (int) ($movement['product_id'] ?? 0);
+        $costo = (float) ($movement['unit_cost'] ?? 0);
+        $lotto = (int) ($movement['batch_id'] ?? 0);
+        $fornitore = (int) ($movement['supplier_id'] ?? 0);
+
+        $dati = [
+            $dato('Codice', (string) ($movement['code'] ?? '')),
+            $dato('Quando', OrderResource::date((string) ($movement['creation'] ?? ''))),
+            $dato('Versione', '<a href="'.static::escape(str_replace('{product_id}', (string) $productId, static::productUrl())).'">'
+                .static::escape(static::productLabel($productId)).'</a>', true),
+        ];
+
+        if (static::showsLocation()) {
+            $dati[] = $dato('Sede', static::locationLabel((int) ($movement['location_id'] ?? 0)));
+        }
+
+        array_push(
+            $dati,
+            $dato('Tipo', static::typeCellOf($movement), true),
+            $dato('Causale', Reasons::label((string) ($movement['reason'] ?? ''))),
+            $dato('Chi', static::who($movement, static::userName((int) ($movement['user_id'] ?? 0)))),
+            $dato('Prima', static::plain((float) ($movement['quantity_before'] ?? 0))),
+            $dato('Pezzi', static::signed((float) ($movement['quantity'] ?? 0))),
+            $dato('Dopo', static::plain((float) ($movement['quantity_after'] ?? 0))),
+            $dato('Costo unitario', $costo > 0 ? OrderResource::money($costo) : '—'),
+        );
+
+        // Lotti e fornitori arrivano con gli acquisti: fino ad allora sono 0 e non si mostrano.
+        if ($lotto > 0) {
+            $dati[] = $dato('Lotto', '#'.$lotto);
+        }
+
+        if ($fornitore > 0) {
+            $contatto = static::one(Contact::class, $fornitore);
+            $dati[] = $dato('Fornitore', $contatto === [] ? '#'.$fornitore : Contacts::displayName($contatto));
+        }
+
+        $nota = html_entity_decode((string) ($movement['note'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $dati[] = DataItem::make('Nota', nl2br(static::escape($nota)))->html()->columnSpan(12);
+
+        return (new Container)->columns(12)->components([
+            (new Card)->components($dati)->columns(12)->columnSpan(12),
+        ]);
+    }
+
+    /** L'indirizzo della scheda di un movimento, dalla rotta con il nome; il percorso è il ripiego. */
+    public static function detailUrl(int $id): string
+    {
+        $fallback = '/backend/'.static::path().'/'.$id.'/';
+
+        if (!function_exists('__r')) {
+            return $fallback;
+        }
+
+        try {
+            $named = (string) __r('backend.resource.'.static::slug().'.view', ['id' => $id]);
+        } catch (Throwable) {
+            return $fallback;
+        }
+
+        return $named !== '' ? $named : $fallback;
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -437,8 +520,8 @@ final class StockMovementResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        // Solo `list`: le altre azioni non esistono nemmeno come rotta.
-        return PermissionSchema::for(static::class)->backend(['list'], ['admin', 'administrator']);
+        // Solo elenco e scheda: le altre azioni non esistono nemmeno come rotta.
+        return PermissionSchema::for(static::class)->backend(['list', 'view'], ['admin', 'administrator']);
     }
 
     public static function apiSchema(): ApiSchema
@@ -575,7 +658,7 @@ final class StockMovementResource extends GestionaleResource
         self::$found = [];
     }
 
-    /** "Apri la versione": la sua scheda, con l'id della riga al posto giusto. */
+    /** La scheda della versione, con `{product_id}` al posto dell'id. */
     private static function productUrl(): string
     {
         $fallback = '/backend/'.ProductResource::path().'/{product_id}/edit/';

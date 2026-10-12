@@ -24,7 +24,6 @@ use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZone;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZoneArea;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Models\System\FeatureLog;
-use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
@@ -69,7 +68,6 @@ try {
         sqlDelete(Setting::$table);
         sqlDelete(TaxCategory::$table);
         sqlDelete(Tax::$table);
-        sqlDelete(MerchantSetting::$table);
         sqlDelete(PaymentMethod::$table);
         // La spedizione predefinita nasce solo dove non c'è nessun metodo.
         sqlDelete(ShippingRateBracket::$table);
@@ -154,8 +152,6 @@ try {
                 && (int) ($impostazioni['fallback_tax_id'] ?? 0) === (int) ($ventidue['id'] ?? -1)
                 && (int) ($impostazioni['shipping_tax_id'] ?? 0) === (int) ($ventidue['id'] ?? -1);
         });
-
-        check('il commerciante ha la sua riga', fn () => MerchantSetting::current() !== []);
 
         check('la sede predefinita ha la riga del magazzino', function () {
             $sede = SocietyLocation::find(['is_default' => 'true', 'deleted' => 'false'], 1);

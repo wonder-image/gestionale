@@ -6,9 +6,9 @@ use Throwable;
 use Wonder\App\LegacyGlobals;
 use Wonder\Backend\Contracts\HomeWidget;
 use Wonder\Plugin\Gestionale\Gestionale;
-use Wonder\Plugin\Gestionale\Models\System\MerchantSetting;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockLevelResource;
-use Wonder\Plugin\Gestionale\Resources\System\MerchantSettingResource;
+use Wonder\Plugin\Gestionale\Resources\System\SettingResource;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStockEmail;
@@ -53,7 +53,7 @@ final class LowStockWidget implements HomeWidget
         try {
             $alerts = LowStockReport::open();
             $items = LowStockReport::items($alerts, LowStockReport::products($alerts));
-            $recipients = Recipients::parse((string) (MerchantSetting::current()['low_stock_emails'] ?? ''))['valid'];
+            $recipients = Recipients::parse((string) (Setting::current()['low_stock_emails'] ?? ''))['valid'];
         } catch (Throwable $error) {
             // La home si apre lo stesso: il guasto va nel log, non in pagina.
             Errors::internal($error, 'widget.low_stock');
@@ -139,11 +139,11 @@ HTML;
     {
         if (!$canEditRecipients) {
             return <<<HTML
-<p class="small mt-2 mb-0"><i class="bi bi-envelope-exclamation"></i> Nessuno riceve l'email degli avvisi: il commerciante li aggiunge in Gestionale → Impostazioni.</p>
+<p class="small mt-2 mb-0"><i class="bi bi-envelope-exclamation"></i> Nessuno riceve l'email degli avvisi: chi installa il sito li aggiunge in Set Up → Impostazioni.</p>
 HTML;
         }
 
-        $url = htmlspecialchars('/backend/'.MerchantSettingResource::path(), ENT_QUOTES, 'UTF-8');
+        $url = htmlspecialchars('/backend/'.SettingResource::path(), ENT_QUOTES, 'UTF-8');
 
         return <<<HTML
 <p class="small mt-2 mb-0"><i class="bi bi-envelope-exclamation"></i> Nessuno riceve l'email degli avvisi. <a href="{$url}">Aggiungi i destinatari</a></p>
@@ -152,8 +152,8 @@ HTML;
 
     /**
      * Vero se chi guarda ha un'autorità ammessa dalle Impostazioni. Il riquadro
-     * lo vede anche chi installa (`admin`), ma la pagina è del commerciante:
-     * per chi installa il link finirebbe sul Login.
+     * lo vede anche il commerciante, ma la pagina è di chi installa (`admin`):
+     * per il commerciante il link finirebbe sul Login.
      */
     private static function canEditRecipients(): bool
     {
@@ -161,7 +161,7 @@ HTML;
         $authority = is_object($user) && isset($user->authority) && is_array($user->authority)
             ? $user->authority
             : [];
-        $allowed = (array) (MerchantSettingResource::permissionSchema()->get('backend')['edit'] ?? []);
+        $allowed = (array) (SettingResource::permissionSchema()->get('backend')['edit'] ?? []);
 
         return array_intersect($authority, $allowed) !== [];
     }

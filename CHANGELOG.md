@@ -276,8 +276,29 @@ versionamento semantico.
 - Icone dei metodi di pagamento; font del negozio online nelle impostazioni del
   commerciante; l'anteprima del checkout mostra solo i provider collegati.
 
+### Cambiato
+
+- Giacenze: nel menu ⋯ «Vai al prodotto» prende il posto di «Apri la versione» e apre
+  la scheda in lettura dell'articolo (`view` di `ProductModelResource`, con
+  `{product_model_id}`), non più la modifica della versione. Su mobile restano solo
+  articolo, giacenza e menu (`hiddenDevice('mobile')` sulle altre colonne).
+- Movimenti: nel menu ⋯ «Visualizza» prende il posto di «Apri la versione» e apre
+  la scheda del movimento (`view`, `showLayoutSchema()`, `detailUrl()`, vista
+  `pages/stock-movement-show.php`), con codice, costo unitario, lotto, fornitore e
+  nota intera; la versione è un link dalla scheda. Permessi `list` e `view`.
+- I destinatari degli avvisi di scorta minima (`low_stock_emails`) stanno in
+  `gst_settings`, card *Email* di Set Up → Gestionale → Impostazioni («Email per la
+  scorta minima», solo con `low_stock_alerts`): solo `admin`, fuori dal sync, si
+  cambiano anche in produzione. Tolti `MerchantSetting`, `MerchantSettingResource` e la
+  pagina Gestionale → Impostazioni; la tabella `gst_merchant_settings` resta senza
+  Model. **Chi aggiorna deve lanciare `php forge update`**; un indirizzo già scritto
+  nella vecchia pagina non si copia: va reinserito in Set Up.
+
 ### Corretto
 
+- *Magazzino → Giacenze* dava errore SQL: `Query::Conditions(…, false)` del core
+  toglie ogni `WHERE` dalla condizione, anche quello della sottoquery che escludeva i
+  multiprodotti. Gli `id` dei multiprodotti ora si leggono prima, in PHP.
 - *Registra reso* dava errore 500: `Returns::returned()` chiedeva il blocco delle
   righe anche quando la pagina leggeva soltanto; ora blocca solo dentro una
   transazione.

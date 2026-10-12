@@ -198,9 +198,9 @@ check('senza destinatari il riquadro avvisa che l\'email non parte, anche vuoto'
     $senza = LowStockWidget::markup([$sottoScorta('Maglia', 'M', 0.0, 2.0)], false, true);
     $vuoto = LowStockWidget::markup([], false, true);
 
-    return !str_contains($con, 'impostazioni-negozio')
+    return !str_contains($con, 'Aggiungi i destinatari')
         && str_contains($senza, 'Nessuno riceve l\'email')
-        && str_contains($senza, '<a href="/backend/app/gestionale/impostazioni-negozio">Aggiungi i destinatari</a>')
+        && str_contains($senza, '<a href="/backend/app/gestionale/impostazioni">Aggiungi i destinatari</a>')
         && str_contains($vuoto, 'Nessuno riceve l\'email')
         && str_contains($vuoto, 'Aggiungi i destinatari');
 });
@@ -208,16 +208,16 @@ check('senza destinatari il riquadro avvisa che l\'email non parte, anche vuoto'
 check('a chi non apre le Impostazioni l\'avviso dice dove sono, senza link', function () use ($sottoScorta) {
     $senza = LowStockWidget::markup([$sottoScorta('Maglia', 'M', 0.0, 2.0)], false, false);
     $vuoto = LowStockWidget::markup([], false, false);
-    $testo = 'Nessuno riceve l\'email degli avvisi: il commerciante li aggiunge in Gestionale → Impostazioni.';
+    $testo = 'Nessuno riceve l\'email degli avvisi: chi installa il sito li aggiunge in Set Up → Impostazioni.';
 
     return str_contains($senza, $testo)
         && str_contains($vuoto, $testo)
-        && !str_contains($senza, 'impostazioni-negozio')
-        && !str_contains($vuoto, 'impostazioni-negozio')
+        && !str_contains($senza, '<a href')
+        && !str_contains($vuoto, '<a href')
         && !str_contains($senza, 'Aggiungi i destinatari');
 });
 
-check('le Impostazioni le aprono il commerciante e admin, che vede tutto', function () {
+check('le Impostazioni le apre solo admin: al commerciante il link darebbe il Login', function () {
     // Le autorità ammesse sono quelle della pagina: a chi non le ha il link darebbe il Login.
     $puo = new ReflectionMethod(LowStockWidget::class, 'canEditRecipients');
     $prima = LegacyGlobals::get('USER');
@@ -233,7 +233,7 @@ check('le Impostazioni le aprono il commerciante e admin, che vede tutto', funct
         LegacyGlobals::set('USER', $prima);
     }
 
-    return $commerciante === true && $admin === true && $nessuno === false;
+    return $commerciante === false && $admin === true && $nessuno === false;
 });
 
 check('i nomi dei prodotti non possono iniettare markup', function () use ($sottoScorta) {

@@ -315,6 +315,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 - [ ] G3 Magazzino avanzato — più sedi e trasferimenti, lotti e scadenze, giacenza e costi per fornitore, valore del magazzino, scarico automatico (lotto in scadenza, poi costo più basso)
   - [ ] Piani 4-6 di G2b-bis (carichi, scarichi, inventario) dalla spec già approvata (§4): sede, lotto, fornitore e costi sono già nei dati, vuoti e nascosti
   - [ ] Spec di G3 per il resto; nel flusso di vendita tocca solo `Allocation` / `Stock::apply()` (vincolo di D61)
+  - [x] Ritocchi del magazzino (2026-10-12, ramo `ritocchi-magazzino`): destinatari della scorta minima nella card *Email* di Set Up → Impostazioni (tolta la pagina Gestionale → Impostazioni), elenco Giacenze che non si rompe più, «Visualizza» e scheda del movimento al posto di «Apri la versione». La prova nel browser aspetta l'utente
 - [ ] G9 Vendite da ufficio **senza la parte fiscale** — ordini da ufficio, preventivi con revisioni e PDF, condizioni a rate e scadenzario, DDT. La fattura differita TD24 e la fattura della merce consegnata prima del pagamento vanno con G8
 - [ ] G10 + E3 Abbonamenti — da ufficio e online; la parte E3 va anche in [`packages/ecommerce/TODO.md`](../ecommerce/TODO.md)
 
@@ -338,6 +339,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 - [ ] Prezzi all'inglese nelle tabelle del core. `Backend\Table\Field` rende il tipo `price` con `number_format($v, 2, '.', '').'€'`: nella scheda dell'articolo la stessa pagina scrive «da 9,90 €» nel riquadro «Prodotto» (lo compone il modulo) e «9.90€» nella tabella delle opzioni (lo compone il core). Va deciso se il formato lo prende dalla lingua del sito o da un'impostazione, e sistemato nel core: riguarda tutte le tabelle, non solo il gestionale
 
 ### Lavori preparatori in `wonder-image/app` (D58)
+
+- [ ] `Query::Conditions($cond, false)` (`app/class/Sql/Query.php:95-96`) toglie **ogni** `WHERE` dalla stringa, non solo quello iniziale: una condizione con una sottoquery si rompe in `Table::query()`. Aggirato in `StockLevelResource::bundleModelIds()` (gli id letti in PHP), da togliere quando il core è corretto
 
 - [x] `Data\Fields\Number::sqlSchema()` torna `'length' => '10,2'` fisso e ignora `decimals()`: ogni colonna nata da `sqlColumnsFromDataSchema()` perde i decimali oltre il secondo (le quantità del magazzino, `gst_products.weight`). Nel modulo c'è il ripiego `Support\Columns::decimal()`
 - [x] `app/function/mail.php` riga 158: Brevo riceve `->replyTo($from, ...)` anche quando `$from` è vuoto — il ramo PHPMailer (riga 208) la guardia ce l'ha già. Le email senza mittente sono quelle dello scheduler e dei comandi

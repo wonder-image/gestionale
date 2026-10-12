@@ -29,6 +29,16 @@ c'è scritto 3?"**.
 | **Giacenza dopo** | quanti ne restavano dopo quel movimento |
 | **Chi** | la persona che l'ha fatto; se l'ha fatto il sistema (un ordine, una scadenza) c'è scritto *Sistema* (o *Importazione*, per i dati caricati da file) |
 
+## La scheda di un movimento
+
+Dal menu **⋯** di una riga, **Visualizza** apre la scheda del movimento con
+tutti i dettagli, anche quelli che nell'elenco non ci stanno: il **codice** del
+movimento, il **costo unitario**, il **lotto** e il **fornitore** (quando ci
+sono) e la **nota** per intero. Il nome della versione è un link alla sua
+scheda.
+
+Per i movimenti di un ordine, nello stesso menu c'è anche **Visualizza ordine**.
+
 ## Non si modifica e non si cancella
 
 Un movimento è storia: resta com'è. Se hai sbagliato una rettifica **ne fai
