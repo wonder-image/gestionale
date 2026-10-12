@@ -320,6 +320,20 @@ versionamento semantico.
 
 ### Corretto
 
+- Carichi, scarichi e inventari: un documento nuovo che non nasce (CSRF
+  scaduto, sede sconosciuta, versione eliminata nel frattempo) riapre «Nuovo»
+  con le righe, la sede, la causale e la nota appena scritte, i pezzi come
+  erano (`StockDocumentForm::remember()` e `recall()`), invece di ripartire
+  vuoto.
+- Dati di prova dei documenti di magazzino: creazione e conferma in una
+  transazione sola; `--fresh` toglie anche i documenti di prova eliminati dal
+  backend, e un giro dopo un'eliminazione li rifà invece di fermarsi sul
+  codice già preso.
+- Scheda di un documento confermato o annullato: «da …» resta anche quando
+  l'utente che l'ha confermato è stato eliminato.
+- Guida *Carichi e scarichi*: il pezzo in più su una riga che c'è già lo dà
+  solo il lettore; col clic il cursore va sui pezzi di quella riga.
+
 - *Magazzino → Giacenze* dava errore SQL: `Query::Conditions(…, false)` del core
   toglie ogni `WHERE` dalla condizione, anche quello della sottoquery che escludeva i
   multiprodotti. Gli `id` dei multiprodotti ora si leggono prima, in PHP.
