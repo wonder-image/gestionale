@@ -230,4 +230,155 @@ check('salvare: un documento che non c\'è è un rifiuto', fn () =>
     rifiuto(fn () => StockDocuments::saveDraft(999999999, [], [])) === 'stock_document.not_found'
 );
 
+/** Il numero che viene dopo `$numero` nella stessa sequenza: «2026/100007» → «2026/100008». */
+function seguente(string $numero): string
+{
+    return substr($numero, 0, 7).str_pad((string) ((int) substr($numero, 7) + 1), 4, '0', STR_PAD_LEFT);
+}
+
+check('confermare: numero, data, stato, log e movimenti con il documento e chi conferma', function () use ($utente) {
+    return prova(static function () use ($utente): bool {
+        $a = articolo(10);
+        $id = StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '5']], ['user_id' => 0]);
+        $numero = StockDocuments::confirm($id, ['user_id' => $utente]);
+        $doc = StockDocument::findById($id);
+        $mov = righe(StockMovement::class, "reference_type = 'stock_document' AND reference_id = ".$id);
+        $log = righe(StockDocumentStatusLog::class, 'stock_document_id = '.$id);
+
+        return preg_match('#^\d{4}/\d{6,}$#', $numero) === 1
+            && $doc['number'] === $numero
+            && $doc['status'] === 'completed'
+            && $doc['date'] === date('Y-m-d')
+            && count($mov) === 1
+            && $mov[0]['type'] === 'purchase'
+            && (float) $mov[0]['quantity'] === 5.0
+            && (int) $mov[0]['location_id'] === Locations::mainId()
+            && (int) $mov[0]['user_id'] === $utente
+            && giacenza($a) === 15.0
+            && count($log) === 1
+            && $log[0]['from_value'] === 'draft' && $log[0]['to_value'] === 'completed'
+            && (int) $log[0]['user_id'] === $utente;
+    });
+});
+
+check('confermare: lo scarico toglie con la sua causale', function () {
+    return prova(static function (): bool {
+        $a = articolo(10);
+        $id = StockDocuments::create('issue', ['reason' => 'expired'], [['product_id' => $a, 'quantity' => '3']]);
+        StockDocuments::confirm($id);
+        $mov = righe(StockMovement::class, "reference_type = 'stock_document' AND reference_id = ".$id);
+
+        return count($mov) === 1
+            && $mov[0]['type'] === 'adjustment'
+            && $mov[0]['reason'] === 'expired'
+            && (float) $mov[0]['quantity'] === -3.0
+            && giacenza($a) === 7.0;
+    });
+});
+
+check('confermare: ogni tipo ha la sua sequenza, senza buchi dopo una conferma fermata', function () {
+    return prova(static function (): bool {
+        [$a, $b] = [articolo(10), articolo(1)];
+        $primo = StockDocuments::confirm(StockDocuments::create('issue', ['reason' => 'gift'], [['product_id' => $a, 'quantity' => '1']]));
+        $fermo = StockDocuments::create('issue', ['reason' => 'gift'], [['product_id' => $b, 'quantity' => '5']]);
+        $errore = rifiuto(fn () => StockDocuments::confirm($fermo));
+        $secondo = StockDocuments::confirm(StockDocuments::create('issue', ['reason' => 'gift'], [['product_id' => $a, 'quantity' => '1']]));
+        $carico = StockDocuments::confirm(StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '1']]));
+
+        return $errore === 'stock.insufficient'
+            && $secondo === seguente($primo)
+            && $carico !== '';
+    });
+});
+
+check('confermare: fermata da stock.insufficient non lascia numero, movimenti né log', function () {
+    return prova(static function (): bool {
+        [$a, $b] = [articolo(10), articolo(1)];
+        $id = StockDocuments::create('issue', ['reason' => 'damaged'], [
+            ['product_id' => $a, 'quantity' => '2'],
+            ['product_id' => $b, 'quantity' => '5'],
+        ]);
+        $errore = rifiuto(fn () => StockDocuments::confirm($id));
+        $doc = StockDocument::findById($id);
+
+        return $errore === 'stock.insufficient'
+            && $doc['status'] === 'draft'
+            && in_array($doc['number'] ?? null, [null, ''], true)
+            && righe(StockMovement::class, "reference_type = 'stock_document' AND reference_id = ".$id) === []
+            && righe(StockDocumentStatusLog::class, 'stock_document_id = '.$id) === []
+            && count(StockDocuments::items($id)) === 2
+            && giacenza($a) === 10.0;
+    });
+});
+
+check('confermare: quello che manca è un rifiuto, il documento resta bozza', function () {
+    return prova(static function (): bool {
+        $a = articolo(10);
+        $senzaCausale = StockDocuments::create('issue', [], [['product_id' => $a, 'quantity' => '1']]);
+        $vuoto = StockDocuments::create('receipt', [], []);
+        $aZero = StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '0']]);
+        $nonContato = StockDocuments::create('stocktake', [], [['product_id' => $a, 'quantity' => '']]);
+
+        return rifiuto(fn () => StockDocuments::confirm($senzaCausale)) === 'stock_document.reason_required'
+            && rifiuto(fn () => StockDocuments::confirm($vuoto)) === 'stock_document.no_rows'
+            && rifiuto(fn () => StockDocuments::confirm($aZero)) === 'stock_document.quantity_required'
+            && rifiuto(fn () => StockDocuments::confirm($nonContato)) === 'stock_document.nothing_counted'
+            && StockDocument::findById($aZero)['status'] === 'draft';
+    });
+});
+
+check('confermare due volte: la seconda è un rifiuto e non muove niente', function () {
+    return prova(static function (): bool {
+        $a = articolo(10);
+        $id = StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '5']]);
+        $numero = StockDocuments::confirm($id);
+
+        return rifiuto(fn () => StockDocuments::confirm($id)) === 'stock_document.not_draft'
+            && StockDocument::findById($id)['number'] === $numero
+            && count(righe(StockMovement::class, "reference_type = 'stock_document' AND reference_id = ".$id)) === 1
+            && giacenza($a) === 15.0;
+    });
+});
+
+check('confermato: non si salva più', function () {
+    return prova(static function (): bool {
+        $a = articolo(10);
+        $id = StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '5']]);
+        StockDocuments::confirm($id);
+
+        return rifiuto(fn () => StockDocuments::saveDraft($id, [], [['product_id' => $a, 'quantity' => '9']])) === 'stock_document.not_draft';
+    });
+});
+
+check('inventario: muove solo le righe contate con una differenza', function () {
+    return prova(static function (): bool {
+        [$a, $b, $c] = [articolo(10), articolo(5), articolo(3)];
+        $id = StockDocuments::create('stocktake', [], [
+            ['product_id' => $a, 'quantity' => '7'],
+            ['product_id' => $b, 'quantity' => '5'],
+            ['product_id' => $c, 'quantity' => ''],
+        ]);
+        StockDocuments::confirm($id);
+        $mov = righe(StockMovement::class, "reference_type = 'stock_document' AND reference_id = ".$id);
+
+        return count($mov) === 1
+            && (int) $mov[0]['product_id'] === $a
+            && $mov[0]['reason'] === 'inventory'
+            && (float) $mov[0]['quantity'] === -3.0
+            && giacenza($a) === 7.0 && giacenza($b) === 5.0 && giacenza($c) === 3.0;
+    });
+});
+
+check('inventario: una vendita fra il salvataggio della conta e la conferma resta', function () {
+    return prova(static function (): bool {
+        $a = articolo(10);
+        $id = StockDocuments::create('stocktake', [], [['product_id' => $a, 'quantity' => '8']]);
+        Stock::apply(['product_id' => $a, 'quantity' => -2, 'type' => 'sale']);
+        StockDocuments::confirm($id);
+
+        // Contati 8 su attesi 10: −2 sopra la giacenza di adesso (8) → 6.
+        return giacenza($a) === 6.0;
+    });
+});
+
 summary();

@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Stock;
 
+use DateTimeImmutable;
 use RuntimeException;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
@@ -10,6 +11,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Sql\Transaction;
@@ -91,6 +93,52 @@ final class StockDocuments
 
             StockDocument::update(['location_id' => $locationId, 'reason' => $reason, 'note' => $note], $id);
             self::writeItems($id, $type, $locationId, $wanted, $old, $locationId !== $before);
+        });
+    }
+
+    /**
+     * Conferma la bozza: numero, data, stato, log e un movimento per riga, in
+     * una transazione sola. Uno scarico che porterebbe sotto zero si ferma con
+     * `stock.insufficient` e la bozza resta com'era, senza numero.
+     *
+     * @param array{user_id?: int, source?: string} $options
+     * @return string il numero del documento
+     */
+    public static function confirm(int $id, array $options = []): string
+    {
+        return Transaction::run(static function () use ($id, $options): string {
+            $document = self::draft($id);
+            $type = (string) $document['type'];
+            $reason = (string) ($document['reason'] ?? '');
+            $items = self::items($id);
+
+            StockDocumentRules::assertConfirmable($type, $reason, $items);
+
+            $userId = (int) ($options['user_id'] ?? 0);
+            $source = StatusLogger::normalizeSource((string) ($options['source'] ?? 'user'));
+            $now = new DateTimeImmutable();
+            $number = DocumentSequences::next(StockDocumentRules::sequence($type), $now);
+
+            foreach ($items as $item) {
+                $movement = StockDocumentRules::movement($type, $reason, $item);
+
+                if ($movement === null) {
+                    continue;
+                }
+
+                Stock::apply($movement + [
+                    'product_id' => $item['product_id'],
+                    'location_id' => (int) $document['location_id'],
+                    'reference_type' => 'stock_document',
+                    'reference_id' => $id,
+                    'user_id' => $userId,
+                ]);
+            }
+
+            StockDocument::update(['status' => 'completed', 'number' => $number, 'date' => $now->format('Y-m-d')], $id);
+            self::log($id, 'draft', 'completed', $source, $userId);
+
+            return $number;
         });
     }
 
