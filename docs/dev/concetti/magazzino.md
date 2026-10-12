@@ -127,6 +127,8 @@ In G2b, a funzionalità bloccata, anche quel carico era rifiutato.
 | `Levels` | no | giacenza, prenotato e disponibile di uno o più prodotti |
 | `Alerts` | no | scrive gli avvisi decisi da `LowStock` |
 | `Stock` | no | la porta di scrittura |
+| `StockDocumentRules` | sì | le regole dei documenti: righe, conferma, movimento di ogni riga, storno, atteso dell'inventario |
+| `StockDocuments` | no | creare, salvare, confermare, annullare, duplicare ed eliminare un documento |
 | `ProductNames` | in parte | articolo e opzione come li legge la griglia: `of()` è pura, `models()` legge i nomi |
 | `LowStockReport` | in parte | gli avvisi aperti o da mandare, fatti righe: `build()` è pura e scarta chi è tornato sopra |
 | `LowStockEmail` | no | oggetto e corpo dell'email, con la view sovrascrivibile |
@@ -135,6 +137,64 @@ In G2b, a funzionalità bloccata, anche quel carico era rifiutato.
 
 Le pure si provano con gli array e senza database: è lì che deve stare la
 logica che G3 e G4 rileggeranno.
+
+## I documenti
+
+Carico (`receipt`), Scarico (`issue`) e Inventario (`stocktake`) sono
+documenti con le loro righe: `gst_stock_documents`,
+`gst_stock_document_items` e il log `gst_stock_document_status_logs`.
+`transfer` è già nell'enum e arriva con G3, come le colonne vuote di lotto,
+fornitore e costi.
+
+```php
+$id = StockDocuments::create('issue', ['reason' => 'damaged', 'note' => 'Caduti'], [
+    ['product_id' => 12, 'quantity' => '2'],
+], ['user_id' => $utente]);
+StockDocuments::saveDraft($id, ['note' => 'Caduti dallo scaffale'], $righe);
+$numero = StockDocuments::confirm($id, ['user_id' => $utente]);
+StockDocuments::cancel($id, ['user_id' => $utente]);
+$copia = StockDocuments::duplicate($id, ['user_id' => $utente]);
+```
+
+**Stati.** `draft` → `completed` → `cancelled`. La bozza non muove niente,
+si modifica e si elimina (`delete()`; per l'endpoint del core
+`assertDeletable()`). Un documento confermato non si modifica: si annulla e
+se ne fa un duplicato. Ogni passaggio scrive una riga nel log; `user_id` del
+documento è chi l'ha creato.
+
+**Conferma.** Una transazione sola: numero (`DocumentSequences`, una
+sequenza per tipo), `date` = il giorno della conferma, stato, log e un
+`Stock::apply()` per riga. Uno scarico che porterebbe sotto zero si ferma con
+`stock.insufficient` e la bozza resta senza numero.
+
+| Documento | Movimento |
+|---|---|
+| Carico | `purchase`, pezzi in più |
+| Scarico | `adjustment` con la causale del documento (`Reasons::forDocument('issue')`), pezzi in meno |
+| Inventario | `adjustment` con `inventory`: *contati − attesi*; nessun movimento se è zero o la riga non è contata |
+
+I movimenti hanno `reference_type` = `stock_document`, `reference_id` = il
+documento, la sua sede e, in `user_id`, chi conferma.
+
+**Annullamento.** Solo di un confermato: uno storno per movimento, stesso
+tipo e causale, segno opposto, `reference_type` = `stock_document_cancel`.
+Se lo storno di un carico già venduto andrebbe sotto zero si ferma con
+`stock.insufficient` e il documento resta confermato.
+
+**Attesi dell'inventario.** `expected_quantity` è la giacenza della versione
+in quella sede quando la bozza salva un numero contato nuovo o cambiato, o
+quando cambia la sede; lo stesso numero salvato di nuovo tiene l'atteso di
+prima. Una riga non contata ha `quantity` ed `expected_quantity` NULL.
+
+**Limiti.** Al massimo `StockDocumentRules::MAX_LINES` (500) righe, una
+versione una volta sola, quantità non negative nella bozza.
+
+Nei Movimenti *Tipo* legge «Scarico 2026/100003» o «Annullamento del carico
+2026/100003», e il filtro *Tipo* ha *Carico*, *Scarico* e *Inventario* al
+posto del carico registrato.
+
+**Rifiuti.** Le chiavi `stock_document.*` in `lang/it/gestionale.json`, più
+`stock.product_missing` e `stock.insufficient` di `Stock::apply()`.
 
 ## Le prenotazioni
 
