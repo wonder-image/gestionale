@@ -22,12 +22,14 @@ use Wonder\Sql\Transaction;
  * resta l'unica porta di scrittura del magazzino. L'unica tabella che
  * `Allocation` scrive è `gst_stock_reservations`.
  *
- * Tutti e cinque prendono sede, lotto e fornitore. La sede dell'ordine è il
- * punto di ritiro, non un magazzino: prenotazione, scarico e annullo usano
- * sempre la principale (`Locations::forSale()`), e solo il reso rientra
- * nella sede scelta da chi lo registra (`Locations::forReturn()`). Lotto e
- * fornitore sono zero, ma la firma è già quella giusta:
- * G3 cambierà il dentro dei metodi senza riaprire gli ordini.
+ * La sede dell'ordine è il punto di ritiro, non un magazzino: prenotazione,
+ * scarico e annullo usano sempre la principale (`Locations::forSale()`), e
+ * solo il reso rientra nella sede scelta da chi lo registra
+ * (`Locations::forReturn()`). Lo scarico si divide fra lotti e fornitori con
+ * `StockPicking` (G3), e ogni movimento porta la riga d'ordine; annulli e
+ * resi rientrano nei secchi da cui la riga era uscita (`StockMovements`).
+ * Con i soli secchi 0 — lotti e acquisti mai accesi — ogni operazione scrive
+ * un movimento solo, come prima di G3.
  *
  * Il lock è l'antioverselling: le righe di `gst_stock` si leggono con
  * `FOR UPDATE` **prima** delle prenotazioni, così due checkout sull'ultimo

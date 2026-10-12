@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
+use Wonder\Sql\Transaction;
 
 /**
  * Da quali secchi è uscita la merce di una riga d'ordine, e dove rimetterla
@@ -29,7 +30,10 @@ final class StockMovements
             return [];
         }
 
-        $rows = StockMovement::find(
+        // Con il lock dentro una transazione, come `Returns::returned()`: due
+        // rientri della stessa riga non leggono lo stesso netto.
+        $read = Transaction::active() ? StockMovement::findForUpdate(...) : StockMovement::find(...);
+        $rows = $read(
             '`reference_item_id` = '.$orderItemId
             ." AND `reference_type` IN ('order', 'sales_return')"
             ." AND `type` IN ('sale', 'sale_cancel', 'return') AND `deleted` = 'false'",

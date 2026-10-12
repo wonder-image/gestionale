@@ -181,7 +181,7 @@ dà il risultato di oggi. È la prova chiesta da D63, e ha i suoi test (§6.3).
 | `gst_settings` | `batch_expiry_days` INT, predefinito 30, fuori dal sync | i giorni del riquadro dei lotti in scadenza |
 | `StockDocument::STATUSES` | più `in_transit` | il trasferimento in viaggio (G3.16) |
 | `Reasons` | causale interna `batch_assignment` («Assegnazione lotto») | i movimenti di compensazione (G3.15): ha l'etichetta nei Movimenti e nel filtro, non compare fra le scelte di rettifica e scarico |
-| `config/features.php` | `batch_tracking` senza `created => false` | la funzionalità è costruita |
+| `config/features.php` | `batch_tracking` senza `created => false` (**piano 3**, non prima: nessun lotto deve poter nascere senza le pagine) | la funzionalità è costruita |
 | `Codes` | prefisso `bat_` | come le altre entità (D25) |
 
 Chi aggiorna lancia `php forge update`. Nessuna migrazione dei dati: le righe
