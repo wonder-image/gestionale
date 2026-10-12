@@ -37,12 +37,32 @@ function postaDiFondo(): callable
 
 Mailer::useTransport(postaDiFondo());
 
+/**
+ * Toglie di mezzo, dentro la transazione, quello che c'era già nel database.
+ *
+ * Expiry lavora su tutti gli ordini in attesa, non solo su quelli della
+ * prova: un ordine dei dati di prova fatto una settimana fa si annulla e
+ * scrive email, e i conti di promemoria e annullamenti non tornano più. Gli
+ * ordini in attesa e le prenotazioni già scadute si segnano eliminati; la
+ * transazione annullata li rimette com'erano.
+ */
+function soloLaProva(): void
+{
+    $db = Order::query()->mysqli;
+    $adesso = $db->real_escape_string(date('Y-m-d H:i:s'));
+
+    $db->query('UPDATE '.Order::$table." SET deleted = 'true' WHERE stage = 'order' AND status = 'pending' AND deleted = 'false'");
+    $db->query('UPDATE '.StockReservation::$table." SET deleted = 'true'"
+        ." WHERE released_at IS NULL AND expires_at IS NOT NULL AND expires_at <= '{$adesso}' AND deleted = 'false'");
+}
+
 function prova(callable $corpo): mixed
 {
     $esito = null;
 
     try {
         Transaction::run(static function () use ($corpo, &$esito): void {
+            soloLaProva();
             $esito = $corpo();
 
             throw new Annulla();

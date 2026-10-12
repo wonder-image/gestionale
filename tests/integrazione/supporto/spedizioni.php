@@ -134,7 +134,7 @@ function ordineDaSpedire(array $righe, array $ordine = []): array
 }
 
 /**
- * Una sede di prova: la riga del core, i suoi orari (sempre aperta o mai) e la
+ * Una sede di prova: la riga del core, i suoi orari (sempre aperta o chiusa adesso) e la
  * riga del gestionale. Si butta con la transazione della prova.
  *
  * @param array<string, string> $indirizzo campi di indirizzo della sede (`street`, `number`, `cap`, `city`)
@@ -150,6 +150,8 @@ function sede(bool $ritiro = true, bool $aperta = true, string $attiva = 'true',
         'visible' => 'true',
     ])->insert_id ?? 0);
 
+    // Gli orari vanno sempre scritti: una sede senza orari suoi eredita quelli
+    // della sede predefinita del sito, che possono dire «aperto» proprio adesso.
     if ($aperta) {
         // Un orario con l'apertura e senza chiusura vale «sempre aperto».
         SocietyLocationHour::create([
@@ -158,6 +160,19 @@ function sede(bool $ritiro = true, bool $aperta = true, string $attiva = 'true',
             'open_day' => 'Mon',
             'open_time' => '00:00',
             'close_time' => '',
+            'position' => 1,
+        ]);
+    } else {
+        // Chiusa: un'ora sola, fra due giorni. Né oggi né ieri (le fasce a cavallo
+        // della mezzanotte), anche se la prova scavalca la mezzanotte.
+        $giorno = date('D', strtotime('+2 days'));
+        SocietyLocationHour::create([
+            'society_location_id' => $core,
+            'hours_type' => 'regular',
+            'open_day' => $giorno,
+            'open_time' => '09:00',
+            'close_day' => $giorno,
+            'close_time' => '10:00',
             'position' => 1,
         ]);
     }
