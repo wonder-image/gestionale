@@ -7,6 +7,17 @@ versionamento semantico.
 
 ### Aggiunto
 
+- Inventari, pagine: *Magazzino → Inventari* (`StockStocktakeResource` su
+  `StockDocumentResource`) con le colonne *Contate* e *Con differenza*
+  nell'elenco, editor in modo inventario (Attesi · Contati · Differenza, righe
+  non contate vuote, attesi che seguono `StockDocumentRules::expected()`) e
+  *Aggiungi versioni* per tutte, una categoria con le sottocategorie o un
+  marchio (`StockVersionSearch::scope()`, `scope`/`scope_id` sulla rotta delle
+  versioni; oltre 500 righe rifiuta). Conferma che riassume contate, differenze
+  e correzione; scheda in sola lettura con attesi, contati e differenza
+  colorata (`StockDocumentSheet`, `StockDocumentEditor::stocktakeTotals()`).
+  Nei Movimenti *Visualizza inventario*. `gestionale:demo` aggiunge un
+  inventario in bozza. Guida `magazzino-inventario.md`.
 - Carichi e scarichi, pagine: *Magazzino → Carichi* e *Magazzino → Scarichi*
   (`StockReceiptResource`, `StockIssueResource` su `StockDocumentResource`) con
   elenco, bozza con «Cerca o scansiona» e lettore di codici a barre, *Salva
