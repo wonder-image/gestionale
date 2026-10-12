@@ -47,11 +47,20 @@ documento è la cosa giusta.
 La tabella **non si sincronizza mai**: i numeri li fa l'ambiente dove il
 documento nasce.
 
+I documenti di magazzino hanno una sequenza per tipo — `stock_receipt`,
+`stock_issue`, `stock_stocktake` — e prendono il numero alla conferma, non
+alla creazione: eliminare una bozza non lascia buchi. «Carico 2026/100001» e
+«Scarico 2026/100001» convivono, perché il tipo accompagna sempre il numero.
+
 ## Log degli stati
 
 Ogni documento con stati ha la sua tabella di log, sempre con le stesse
 colonne. La base è `Models\System\StatusLog`: una sottoclasse dichiara solo la
 tabella, la colonna verso il documento e la tabella del documento.
+
+Oggi sono `gst_order_status_logs`, `gst_payment_status_logs`,
+`gst_shipment_status_logs`, `gst_sales_return_status_logs` e
+`gst_stock_document_status_logs`.
 
 | Colonna | Contenuto |
 |---|---|

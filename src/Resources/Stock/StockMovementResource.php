@@ -14,6 +14,7 @@ use Wonder\App\Models\User\User;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
@@ -23,6 +24,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
+use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentRules;
 
 /**
  * "Movimenti": la storia del magazzino, in sola lettura.
@@ -109,7 +111,7 @@ final class StockMovementResource extends GestionaleResource
 
         $columns[] = TableColumn::key('type')
             ->text()
-            ->formatter(static fn (array $row): string => static::typeCell($row, ...static::documentOf($row)));
+            ->formatter(static fn (array $row): string => static::typeCellOf($row));
         $columns[] = TableColumn::key('reason')
             ->text()
             ->size('little')
@@ -196,7 +198,7 @@ final class StockMovementResource extends GestionaleResource
                     'columns' => ['name'],
                 ]],
             ]])
-            ->filterQuery('Tipo', 'tipo', ['' => 'Tutti'] + StockMovement::typeLabels(), static fn (array $values): string => static::typeCondition($values))
+            ->filterQuery('Tipo', 'tipo', static::typeOptions(), static fn (array $values): string => static::typeCondition($values))
             ->filterCustom('Causale', 'reason', Reasons::all());
 
         if (static::showsLocation()) {
@@ -236,16 +238,67 @@ final class StockMovementResource extends GestionaleResource
         return preg_match('/^\d+$/D', $text) === 1 ? (int) $text : 0;
     }
 
+    /** I movimenti che nascono da un documento di magazzino o dal suo annullamento. */
+    private const DOCUMENT_REFERENCES = "'stock_document', 'stock_document_cancel'";
+
     /**
-     * La condizione del filtro *Tipo*: solo i tipi che esistono.
+     * Le voci del filtro *Tipo*: al posto del carico registrato ci sono i tre
+     * documenti, perché uno scarico è registrato come rettifica.
+     *
+     * @return array<string, string>
+     */
+    public static function typeOptions(): array
+    {
+        $options = ['' => 'Tutti'];
+
+        foreach (StockMovement::typeLabels() as $type => $label) {
+            if ($type !== 'purchase') {
+                $options[$type] = $label;
+
+                continue;
+            }
+
+            foreach (StockDocumentRules::labels() as $document => $documentLabel) {
+                $options['doc_'.$document] = $documentLabel;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * La condizione del filtro *Tipo*, con la stessa regola della colonna:
+     * *Carico*, *Scarico* e *Inventario* guardano il documento, storni
+     * compresi (*Carico* anche i carichi senza documento, che la colonna
+     * chiama così); *Rettifica* è una rettifica senza documento. Solo voci
+     * che esistono: è testo che arriva dall'utente.
      *
      * @param list<string> $values
      */
     public static function typeCondition(array $values): string
     {
-        $types = array_values(array_intersect(array_map('strval', $values), StockMovement::TYPES));
+        $withoutDocument = '(`reference_type` IS NULL OR `reference_type` NOT IN ('.self::DOCUMENT_REFERENCES.'))';
+        $parts = [];
 
-        return $types === [] ? '' : '`type` IN ('.implode(', ', array_map(static fn (string $t): string => "'".$t."'", $types)).')';
+        foreach (array_unique(array_map('strval', $values)) as $value) {
+            $document = str_starts_with($value, 'doc_') ? substr($value, 4) : '';
+
+            if ($document !== '' && StockDocumentRules::exists($document)) {
+                $part = '(`reference_type` IN ('.self::DOCUMENT_REFERENCES.') AND `reference_id` IN (SELECT `id` FROM `'
+                    .StockDocument::$table."` WHERE `type` = '".$document."'))";
+                $parts[] = $document === 'receipt' ? '('.$part." OR (`type` = 'purchase' AND ".$withoutDocument.'))' : $part;
+            } elseif ($value === 'adjustment') {
+                $parts[] = "(`type` = 'adjustment' AND ".$withoutDocument.')';
+            } elseif ($value !== 'purchase' && in_array($value, StockMovement::TYPES, true)) {
+                $parts[] = "`type` = '".$value."'";
+            }
+        }
+
+        return match (count($parts)) {
+            0 => '',
+            1 => $parts[0],
+            default => '('.implode(' OR ', $parts).')',
+        };
     }
 
     /**
@@ -299,14 +352,19 @@ final class StockMovementResource extends GestionaleResource
         return static::escape(static::who($row, $userName));
     }
 
-    /**
-     * La cella *Tipo*: l'etichetta e, per un movimento nato da un documento, il
-     * suo numero con il link. Senza numero (il documento non c'è più, o non è
-     * ancora un tipo noto) resta l'etichetta.
-     */
-    public static function typeCell(array $row, string $number, string $url): string
+    /** La cella *Tipo* di una riga, con il documento letto dal database. */
+    public static function typeCellOf(array $row): string
     {
-        $label = static::escape(StockMovement::typeLabels()[(string) ($row['type'] ?? '')] ?? '');
+        return static::typeCell($row, ...static::documentOf($row));
+    }
+
+    /**
+     * La cella *Tipo*: l'etichetta (quella del documento, se c'è, altrimenti
+     * quella del tipo registrato) e il numero, con il link quando c'è.
+     */
+    public static function typeCell(array $row, string $number, string $url, string $label = ''): string
+    {
+        $label = static::escape($label !== '' ? $label : (StockMovement::typeLabels()[(string) ($row['type'] ?? '')] ?? ''));
 
         if ($number === '') {
             return $label;
@@ -318,21 +376,44 @@ final class StockMovementResource extends GestionaleResource
     }
 
     /**
-     * Il numero e il link del documento che ha causato il movimento.
+     * Il numero, il link e l'etichetta del documento che ha causato il
+     * movimento. Un documento di magazzino non ha ancora una pagina (piani
+     * 5-6): niente link.
      *
-     * @return array{0: string, 1: string}
+     * @return array{0: string, 1: string, 2: string}
      */
     private static function documentOf(array $row): array
     {
         $id = (int) ($row['reference_id'] ?? 0);
+        $reference = (string) ($row['reference_type'] ?? '');
 
-        if ((string) ($row['reference_type'] ?? '') !== 'order' || $id <= 0) {
-            return ['', ''];
+        if ($id <= 0) {
+            return ['', '', ''];
         }
 
-        $number = trim((string) (static::one(Order::class, $id)['order_number'] ?? ''));
+        if ($reference === 'order') {
+            $number = trim((string) (static::one(Order::class, $id)['order_number'] ?? ''));
 
-        return $number === '' ? ['', ''] : [$number, OrderResource::detailUrl($id)];
+            return $number === '' ? ['', '', ''] : [$number, OrderResource::detailUrl($id), ''];
+        }
+
+        if ($reference !== 'stock_document' && $reference !== 'stock_document_cancel') {
+            return ['', '', ''];
+        }
+
+        $document = static::one(StockDocument::class, $id);
+        $number = trim((string) ($document['number'] ?? ''));
+        $type = (string) ($document['type'] ?? '');
+
+        if ($number === '') {
+            return ['', '', ''];
+        }
+
+        return [
+            $number,
+            '',
+            $reference === 'stock_document' ? StockDocumentRules::label($type) : StockDocumentRules::cancelLabel($type),
+        ];
     }
 
     public static function pageSchema(): PageSchema

@@ -12,6 +12,22 @@
                 "location_duplicate": "La sede {{location}} compare due volte nelle righe della giacenza: tienine una sola.",
                 "location_unknown": "Una riga della giacenza punta a una sede che non è più del magazzino: ricarica la pagina e riprova."
             },
+            "stock_document": {
+                "not_found": "Questo documento di magazzino non esiste più.",
+                "not_draft": "Questo documento è già stato confermato o annullato: non si modifica più. Per correggerlo annullalo e duplicalo.",
+                "cannot_cancel": "Si annulla solo un documento confermato.",
+                "cannot_delete": "Si elimina solo una bozza: un documento confermato si annulla.",
+                "unknown_type": "Questo tipo di documento non c'è.",
+                "reason_required": "Scegli la causale dello scarico.",
+                "unknown_reason": "Questa causale non va con questo documento.",
+                "no_rows": "Aggiungi almeno una riga.",
+                "nothing_counted": "Scrivi il numero contato di almeno una riga.",
+                "quantity_required": "La riga {{row}} non ha pezzi: scrivi un numero maggiore di zero.",
+                "invalid_quantity": "La riga {{row}} ha una quantità che non va: scrivi solo cifre, da zero a 9.999.999.",
+                "duplicate_product": "La stessa versione compare due volte (riga {{row}}): tienine una sola.",
+                "too_many_rows": "Un documento tiene al massimo 500 righe: dividilo in due.",
+                "location_unknown": "La sede scelta non è più del magazzino: ricarica la pagina e riprova."
+            },
             "order": {
                 "zero_quantity": "Una riga d'ordine deve avere una quantità maggiore di zero.",
                 "reservation_lost": "I pezzi che avevi messo da parte non ci sono più: l'ordine resta in attesa e ti scriviamo appena rientrano.",
