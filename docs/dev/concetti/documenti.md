@@ -52,6 +52,11 @@ I documenti di magazzino hanno una sequenza per tipo — `stock_receipt`,
 alla creazione: eliminare una bozza non lascia buchi. «Carico 2026/100001» e
 «Scarico 2026/100001» convivono, perché il tipo accompagna sempre il numero.
 
+Il codice di un documento di magazzino (`stk_…`) nasce invece alla
+creazione, come quello di ogni record: `StockDocuments::create()` accetta un
+`code` dato nelle opzioni (lo usano i dati di prova per ritrovare i loro) e,
+senza, ne fa uno nuovo.
+
 ## Log degli stati
 
 Ogni documento con stati ha la sua tabella di log, sempre con le stesse

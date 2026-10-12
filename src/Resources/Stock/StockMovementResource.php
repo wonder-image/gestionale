@@ -334,6 +334,9 @@ final class StockMovementResource extends GestionaleResource
      * chiama così); *Rettifica* è una rettifica senza documento. Solo voci
      * che esistono: è testo che arriva dall'utente.
      *
+     * La condizione è per l'elenco (SSP), che la mette in una WHERE sua: non
+     * va passata a `Model::find()`, dove la sottoquery rompe l'SQL.
+     *
      * @param list<string> $values
      */
     public static function typeCondition(array $values): string

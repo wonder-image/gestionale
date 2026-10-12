@@ -43,7 +43,7 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Personalizzazione | Catalogo | Campi compilati al momento della vendita, con eventuale sovrapprezzo. | Ordini |
 | Etichette | Catalogo | Etichette con codice a barre e prezzo in PDF. | — |
 | Più sedi | Magazzino | Altre sedi con giacenze proprie e trasferimenti. | — |
-| Acquisti | Magazzino | Costi d'acquisto per fornitore, documenti di carico, valore del magazzino. | — |
+| Acquisti | Magazzino | Fornitori e costi d'acquisto nei prodotti e nei carichi, valore del magazzino. | — |
 | Lotti e scadenze | Magazzino | Lotto e data di scadenza su carichi e scarichi. | — |
 | Avvisi di scorta minima | Magazzino | Email e riquadro per i prodotti sotto la propria scorta minima. | — |
 | Vendita senza giacenza | Magazzino | Prodotti vendibili a magazzino vuoto: la giacenza va sotto zero e la vendita è "su ordinazione". | Ordini |
@@ -74,9 +74,11 @@ serviranno da complete, qui c'è quello che trovi già accendendole.
   **Fornitori** con la sua finestra se ne hai di più (vedi [Da chi lo compri e
   a quanto](catalogo-prodotti.md#da-chi-lo-compri-e-a-quanto)).
 
-Documenti di carico e valore del magazzino arriveranno dopo, e partiranno da
-questi costi. Spegnendola, fornitori e costi spariscono dalle pagine ma restano
-salvati: un fornitore che ha dei costi, per esempio, non si elimina lo stesso.
+I [carichi](magazzino-carichi-scarichi.md) non chiedono Acquisti: ci sono
+sempre. Fornitore e costi sui carichi, e il valore del magazzino, arriveranno
+dopo e partiranno da questi costi. Spegnendola, fornitori e costi spariscono
+dalle pagine ma restano salvati: un fornitore che ha dei costi, per esempio,
+non si elimina lo stesso.
 
 **Vendita senza giacenza** (richiede gli *Ordini*)
 

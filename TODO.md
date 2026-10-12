@@ -218,15 +218,15 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - [ ] **Rimandati dopo la consegna (D61)** i piani 4-6: carichi, scarichi, inventario e trasferimenti. Fino ad allora la merce entra ed esce con la rettifica rapida della scheda prodotto
     - [x] Piano 4 Documenti, dati e servizio scritto ed eseguito (2026-10-12): `docs/superpowers/plans/2026-10-12-documenti-di-magazzino-dati-e-servizio.md` — tabelle e Model, `StockDocumentRules` (pura), `StockDocuments` (bozza, conferma, annullamento, duplica, elimina), attesi dell'inventario, documento e storni dentro *Tipo* e filtro *Tipo* nei Movimenti, guide dello sviluppatore
       - [ ] Ritocchi minori rimandati dalla revisione finale del piano 4 (da fare con il piano 5):
-        - [ ] `StockDocuments::confirm` e `cancel`: applicare i movimenti ordinati per `product_id`, contro il blocco reciproco fra due conferme sugli stessi articoli
-        - [ ] `StockMovementResource::typeCondition`: docblock che dica che la condizione va solo nell'elenco (SSP), non in `Model::find` (la sottoquery con WHERE rompe l'SQL)
-        - [ ] `StockMovementResource::documentOf`: una query per documento, contro «mai una query per riga» della spec §3; leggere i documenti della pagina in blocco
-        - [ ] `StockDocumentRules::lines`: il limite `MAX_LINES` si controlla tardi, dopo aver letto tutte le righe
-        - [ ] `product_id` delle righe letto con un `(int)` troppo permissivo («12abc» diventa 12)
-        - [ ] Gli id delle righe cambiano a ogni salvataggio della bozza: scriverlo nella guida del piano 5, e anche che un validatore o un `required` nei `dataSchema` di `StockDocument` e `StockDocumentItem` va accompagnato dal controllo di `success` sulle scritture del servizio
-        - [ ] `StockDocuments::duplicate`: il `FOR UPDATE` sul documento d'origine non serve
+        - [x] `StockDocuments::confirm` e `cancel`: applicare i movimenti ordinati per `product_id`, contro il blocco reciproco fra due conferme sugli stessi articoli
+        - [x] `StockMovementResource::typeCondition`: docblock che dica che la condizione va solo nell'elenco (SSP), non in `Model::find` (la sottoquery con WHERE rompe l'SQL)
+        - [x] `StockMovementResource::documentOf`: una query per documento, contro «mai una query per riga» della spec §3; leggere i documenti della pagina in blocco
+        - [x] `StockDocumentRules::lines`: il limite `MAX_LINES` si controlla tardi, dopo aver letto tutte le righe
+        - [x] `product_id` delle righe letto con un `(int)` troppo permissivo («12abc» diventa 12)
+        - [x] Gli id delle righe cambiano a ogni salvataggio della bozza: scriverlo nella guida del piano 5, e anche che un validatore o un `required` nei `dataSchema` di `StockDocument` e `StockDocumentItem` va accompagnato dal controllo di `success` sulle scritture del servizio
+        - [x] `StockDocuments::duplicate`: il `FOR UPDATE` sul documento d'origine non serve
         - [ ] Manca una prova vera di concorrenza e una del filtro *Tipo* attraverso l'elenco reale (SSP): da fare nel browser col piano 5
-    - [ ] Piano 5 Carichi e scarichi, pagine: menu, elenchi, bozza con i componenti, rotta JSON e indice `ean`, pagina in sola lettura, azioni, dati di prova
+    - [ ] Piano 5 Carichi e scarichi, pagine: menu, elenchi, bozza con i componenti, rotta JSON e indice `ean`, pagina in sola lettura, azioni, dati di prova — eseguito sul ramo g3-carichi-scarichi (2026-10-12), da unire
     - [ ] Piano 6 Inventario, pagine: Attesi · Contati · Differenza, *Aggiungi versioni*, limite di 500 righe, dati di prova; chiusura di G2b-bis
   - [ ] **G2c La scheda prodotto, secondo giro** — spec: `docs/superpowers/specs/2026-09-22-scheda-prodotto-secondo-giro-design.md` (sedici giri chiusi, decisioni P1–P128)
     - [x] Tredicesimo giro eseguito (spec §22, 2026-09-25, commit `0a04ef9`): fornitori dell'articolo, giacenza e scorta minima per sede (`gst_stock_thresholds`, via `gst_products.min_stock_quantity`), colonna «Scontato» nella griglia, personalizzazioni scritte in spec per G5. Architettura 4.3 aggiornata; G2b-bis §2 «la scorta minima è della versione» superata
