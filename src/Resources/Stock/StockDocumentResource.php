@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Stock;
 
 use DateTimeImmutable;
 use Throwable;
+use Wonder\App\LegacyGlobals;
 use Wonder\App\Models\User\User;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -11,13 +12,16 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Http\Csrf;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
+use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentForm;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocuments;
 use Wonder\Sql\Query;
 
@@ -312,6 +316,112 @@ abstract class StockDocumentResource extends GestionaleResource
         StockDocuments::delete((int) $id);
 
         return (object) ['success' => true, 'table' => StockDocument::$table, 'id' => $id];
+    }
+
+    /**
+     * Il POST di *Salva bozza* e *Conferma* (rotte `store` e `update` del
+     * core). Non restituisce mai i valori: il core scriverebbe le colonne del
+     * form senza righe né controlli del servizio. Qui si controlla il CSRF, si
+     * passa a `StockDocumentForm` e si chiude con messaggio e redirect.
+     */
+    public static function mutateRequestValues(array $values, string $action, string $context = 'backend', ?array $oldValues = null): array
+    {
+        $id = (int) ($oldValues['id'] ?? 0);
+        $result = Csrf::verify()
+            ? static::handleSubmit($values, $id, static::currentUserId())
+            : [
+                'ok' => false,
+                'message' => UserError::make('stock_document.expired')->getMessage(),
+                'url' => $id > 0 ? static::editUrl($id) : static::createUrl(),
+            ];
+
+        StockDocumentForm::respond($result);
+    }
+
+    /**
+     * L'invio senza HTTP, con la frase da mostrare e la pagina dove tornare.
+     *
+     * @param array<string, mixed> $post
+     * @return array{ok: bool, message: string, url: string}
+     */
+    public static function handleSubmit(array $post, int $id, int $userId): array
+    {
+        $result = StockDocumentForm::submit(static::type(), $id, $post, $userId);
+
+        if ($result['error'] !== '') {
+            $message = $result['error'];
+        } elseif ($result['number'] !== '') {
+            $message = static::singular().' '.$result['number'].' confermato.';
+        } else {
+            $message = 'Bozza salvata.';
+        }
+
+        return ['ok' => $result['error'] === '', 'message' => $message, 'url' => static::redirectFor($result['id'])];
+    }
+
+    /**
+     * Dove si torna dopo un invio: la pagina del documento per il suo stato
+     * (la bozza, o la scheda di un confermato); l'elenco se non c'è più o è di
+     * un altro tipo; «Nuovo» se il documento non è nato.
+     */
+    public static function redirectFor(int $id): string
+    {
+        if ($id <= 0) {
+            return static::createUrl();
+        }
+
+        $document = StockDocument::findById($id);
+
+        if (!is_array($document) || $document === []
+            || (string) ($document['deleted'] ?? 'false') === 'true'
+            || (string) ($document['type'] ?? '') !== static::type()) {
+            return static::listUrl();
+        }
+
+        return static::pageUrl($document);
+    }
+
+    /** La bozza si modifica; un documento confermato o annullato si apre in sola lettura. */
+    public static function closedRedirect(array $values, string $mode): ?string
+    {
+        if ($mode !== 'edit' || (string) ($values['status'] ?? 'draft') === 'draft') {
+            return null;
+        }
+
+        return static::viewUrl((int) ($values['id'] ?? 0));
+    }
+
+    /**
+     * Il form della bozza: un documento chiuso aperto in modifica (link
+     * vecchio, altra scheda) va alla sua scheda; le righe arrivano descritte
+     * per l'editor in `editor`.
+     */
+    public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
+    {
+        $closed = static::closedRedirect($values, $mode);
+
+        if ($closed !== null) {
+            if (!headers_sent()) {
+                header('Location: '.$closed);
+            }
+
+            exit();
+        }
+
+        $locationId = (int) ($values['location_id'] ?? 0);
+        $values['editor'] = StockDocumentForm::editorLines(
+            $mode === 'edit' ? StockDocuments::items((int) ($values['id'] ?? 0)) : [],
+            $locationId > 0 ? $locationId : Locations::mainId()
+        );
+
+        return $values;
+    }
+
+    protected static function currentUserId(): int
+    {
+        $user = LegacyGlobals::get('USER');
+
+        return is_object($user) ? (int) ($user->id ?? 0) : 0;
     }
 
     /** Il posto nel menu *Magazzino*: Giacenze 10, Carichi 20, Scarichi 30, Inventari 40, Movimenti 50. */
