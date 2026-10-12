@@ -153,16 +153,48 @@ final class StockLevelResource extends GestionaleResource
      * Le versioni che hanno una giacenza: un multiprodotto non ne ha, la sua
      * disponibilità viene dai componenti, e una riga a zero in elenco
      * farebbe credere che sia finito.
+     *
+     * Gli id dei multiprodotti si leggono qui e non con una sottoquery: il
+     * core passa la condizione da `Query::Conditions(…, false)`, che toglie
+     * ogni WHERE dalla stringa, anche quello dentro la sottoquery.
      */
     public static function querySchema(): array
     {
         $schema = parent::querySchema();
-        $base = Query::Conditions($schema['condition'] ?? [], false);
-        $semplici = '`'.Product::$table.'`.`product_model_id` NOT IN (SELECT b.id FROM `'.ProductModel::$table."` b WHERE b.type = 'bundle')";
+        $base = trim(Query::Conditions($schema['condition'] ?? [], false));
+        $bundles = static::bundleModelIds();
 
-        $schema['condition'] = ($base !== '' ? $base.' AND ' : '').$semplici;
+        if ($bundles !== []) {
+            $semplici = '`'.Product::$table.'`.`product_model_id` NOT IN ('.implode(', ', $bundles).')';
+            $base = ($base !== '' ? $base.' AND ' : '').$semplici;
+        }
+
+        $schema['condition'] = $base;
 
         return $schema;
+    }
+
+    /**
+     * Anche i multiprodotti cancellati: `find()` li salterebbe, e una loro
+     * versione rimasta viva tornerebbe in elenco.
+     *
+     * @return list<int>
+     */
+    private static function bundleModelIds(): array
+    {
+        try {
+            $rows = ProductModel::query()->Select(ProductModel::$table, "WHERE `type` = 'bundle'", null, null, null, 'id')->row;
+        } catch (Throwable) {
+            return [];
+        }
+
+        if (!is_array($rows) || $rows === []) {
+            return [];
+        }
+
+        $rows = isset($rows['id']) ? [$rows] : $rows;
+
+        return array_values(array_unique(array_map(static fn ($row): int => (int) ($row['id'] ?? 0), array_filter($rows, 'is_array'))));
     }
 
     public static function tableLayoutSchema(): TableLayoutSchema
