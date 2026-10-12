@@ -2190,7 +2190,7 @@ check('Movimenti: il filtro Tipo trova nel database le righe giuste', function (
         StockDocuments::confirm($scarico);
         StockDocuments::cancel($scarico);
         StockDocuments::confirm(StockDocuments::create('stocktake', [], [['product_id' => $a, 'quantity' => '4']]));
-        Stock::apply(['product_id' => $a, 'quantity' => 1, 'reason' => 'other']);
+        Stock::apply(['product_id' => $a, 'quantity' => 1, 'type' => 'adjustment', 'reason' => 'other']);
         $trova = static fn (string $voce): array => array_map(
             static fn (array $r): string => $r['type'].'|'.($r['reference_type'] ?? ''),
             righe(StockMovement::class, StockMovementResource::typeCondition([$voce]).' AND `product_id` = '.$a)
