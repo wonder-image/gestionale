@@ -277,13 +277,16 @@ abstract class StockDocumentResource extends GestionaleResource
     public static function pageSchema(): PageSchema
     {
         return parent::pageSchema()
-            ->only(['list', 'create', 'store', 'edit', 'update', 'delete'])
+            ->only(['list', 'create', 'store', 'edit', 'update', 'view', 'delete'])
             ->titles([
                 'list' => static::titleLabel(),
                 'create' => static::newLabel(),
                 'edit' => 'Bozza di '.mb_strtolower(static::singular()),
+                'view' => static::singular(),
             ])
-            ->view('form', Gestionale::viewPath('pages/stock-document-form.php'));
+            ->view('form', Gestionale::viewPath('pages/stock-document-form.php'))
+            ->view('show', Gestionale::viewPath('pages/stock-document-show.php'))
+            ->actions('view', static fn (array $item): array => static::headerActions($item));
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -425,6 +428,132 @@ abstract class StockDocumentResource extends GestionaleResource
         }
 
         return $notices;
+    }
+
+    /** «Il carico», «Lo scarico»: il soggetto delle frasi su un documento. */
+    public static function named(): string
+    {
+        return match (static::type()) {
+            'issue' => 'Lo scarico',
+            'stocktake' => 'L\'inventario',
+            default => 'Il carico',
+        };
+    }
+
+    /** La domanda prima di *Annulla* (spec §4.2); `{numero}` lo riempie `hiddenForms()`. */
+    public static function cancelQuestion(): string
+    {
+        return static::named().' {numero} si annulla: i suoi movimenti si stornano e il documento resta, annullato.';
+    }
+
+    /**
+     * I bottoni dell'intestazione della scheda: *Duplica* sempre, *Annulla*
+     * solo sui confermati. Inviano i form di `hiddenForms()`.
+     *
+     * @param array<string, mixed> $item
+     * @return list<array<string, string>>
+     */
+    public static function headerActions(array $item): array
+    {
+        $actions = [[
+            'label' => 'Duplica',
+            'icon' => 'bi bi-files',
+            'class' => 'btn-outline-dark btn-sm',
+            'onclick' => "document.getElementById('wi-doc-duplicate').requestSubmit()",
+        ]];
+
+        if ((string) ($item['status'] ?? '') === 'completed') {
+            $actions[] = [
+                'label' => 'Annulla',
+                'icon' => 'bi bi-x-circle',
+                'class' => 'btn-outline-danger btn-sm',
+                'onclick' => "document.getElementById('wi-doc-cancel').requestSubmit()",
+            ];
+        }
+
+        return $actions;
+    }
+
+    /**
+     * I form nascosti di *Duplica* e *Annulla*, fuori da ogni altro form, e
+     * lo script di `?duplica=1` (il menu ⋯ dell'elenco). *Annulla* chiede
+     * conferma con `data-wi-confirm` del core; `?duplica=1` chiede con
+     * `wi.confirm()` prima di inviare, così un link mandato da altri non crea
+     * bozze da solo. Un secondo invio di *Duplica* si ignora.
+     *
+     * @param array<string, mixed> $document
+     */
+    public static function hiddenForms(array $document): string
+    {
+        $id = (int) ($document['id'] ?? 0);
+
+        if ($id <= 0) {
+            return '';
+        }
+
+        $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+        $json = static fn (string $value): string => (string) json_encode($value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        $action = $e(StockDocumentActionResource::submitUrl());
+        $fields = static fn (string $what): string => Csrf::fieldFor('post')
+            .'<input type="hidden" name="action" value="'.$what.'">'
+            .'<input type="hidden" name="document_id" value="'.$id.'">';
+        $html = '<form id="wi-doc-duplicate" method="POST" action="'.$action.'" hidden>'
+            .$fields(StockDocumentActionResource::DUPLICATE).'</form>';
+
+        if ((string) ($document['status'] ?? '') === 'completed') {
+            $number = html_entity_decode((string) ($document['number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $label = 'Annulla '.mb_strtolower(static::named());
+
+            $html .= '<form id="wi-doc-cancel" method="POST" action="'.$action.'" hidden'
+                .' data-wi-confirm="'.$e(str_replace('{numero}', $number, static::cancelQuestion())).'"'
+                .' data-wi-confirm-title="'.$e('Annulla '.mb_strtolower(static::singular())).'"'
+                .' data-wi-confirm-ok="'.$e($label).'"'
+                .' data-wi-confirm-cancel="Torna indietro"'
+                .' data-wi-confirm-variant="danger">'
+                .$fields(StockDocumentActionResource::CANCEL).'</form>';
+        }
+
+        return $html.'<script>
+(function () {
+    \'use strict\';
+
+    var form = document.getElementById(\'wi-doc-duplicate\');
+    var text = '.$json('Nasce una bozza nuova con la stessa sede, causale, nota e righe.').';
+    var params = new URLSearchParams(window.location.search);
+    var rest;
+
+    form.addEventListener(\'submit\', function (event) {
+        if (form.getAttribute(\'data-sent\') === \'1\') {
+            event.preventDefault();
+
+            return;
+        }
+
+        form.setAttribute(\'data-sent\', \'1\');
+    });
+
+    if (params.get(\'duplica\') !== \'1\') {
+        return;
+    }
+
+    // Il parametro esce subito: ricaricando la pagina non si chiede di nuovo.
+    params.delete(\'duplica\');
+    rest = params.toString();
+    window.history.replaceState(null, \'\', window.location.pathname + (rest !== \'\' ? \'?\' + rest : \'\') + window.location.hash);
+
+    window.addEventListener(\'load\', function () {
+        var ask = window.wi && typeof window.wi.confirm === \'function\'
+            ? window.wi.confirm({title: \'Duplica\', text: text, ok: \'Duplica\', cancel: \'Torna indietro\'})
+            : Promise.resolve(window.confirm(text));
+
+        ask.then(function (ok) {
+            if (ok) {
+                form.requestSubmit();
+            }
+        });
+    });
+})();
+</script>';
     }
 
     /**

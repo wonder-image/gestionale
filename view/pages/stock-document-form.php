@@ -187,4 +187,5 @@ $noteHelp = $resource::type() === 'issue'
     });
 })();
 </script>
+<?=$resource::hiddenForms($values)?>
 <?php \Wonder\View\View::end(); ?>
