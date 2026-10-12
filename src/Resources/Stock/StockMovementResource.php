@@ -156,7 +156,7 @@ final class StockMovementResource extends GestionaleResource
             // senza pagina la voce non compare.
             'view',
             'document_type' => [
-                'label' => ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico'],
+                'label' => ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico', 'stocktake' => 'Visualizza inventario'],
                 'href' => '{document_url}',
             ],
             'ordine' => [

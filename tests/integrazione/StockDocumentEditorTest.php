@@ -13,6 +13,7 @@ require __DIR__.'/../harness.php';
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockIssueResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockReceiptResource;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockStocktakeResource;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentEditor;
 use Wonder\Plugin\Gestionale\Support\Stock\Stocktake;
 
@@ -212,6 +213,157 @@ JS;
     }
 
     return $ok;
+});
+
+check('stocktakeTotals: righe, contate e con differenza, singolare e plurale', fn () =>
+    StockDocumentEditor::stocktakeTotals(40, 12, 3) === '40 righe · 12 contate · 3 con differenza'
+    && StockDocumentEditor::stocktakeTotals(1, 1, 0) === '1 riga · 1 contata · 0 con differenza'
+);
+
+check('render inventario: Attesi · Contati · Differenza, Aggiungi versioni con le scelte escapate, totale dalle righe', function () {
+    $righe = [
+        ['id' => 1, 'label' => 'A', 'sku' => '', 'ean' => '', 'photo' => '', 'stock' => 5.0, 'inactive' => false, 'quantity' => '6', 'expected' => 4.0],
+        ['id' => 2, 'label' => 'B', 'sku' => '', 'ean' => '', 'photo' => '', 'stock' => 3.0, 'inactive' => false, 'quantity' => '3', 'expected' => 3.0],
+        ['id' => 3, 'label' => 'C', 'sku' => '', 'ean' => '', 'photo' => '', 'stock' => 2.0, 'inactive' => false, 'quantity' => '', 'expected' => null],
+    ];
+    $html = StockDocumentEditor::render($righe, '/x/', 'stocktake', [
+        'categories' => ['4' => 'Maglie', '5' => '— <b>Rosse</b>'],
+        'brands' => ['9' => 'Marca & Co'],
+    ]);
+    $carico = StockDocumentEditor::render([], '/x/');
+
+    return str_contains($html, 'data-mode="stocktake"')
+        && str_contains($html, '>Attesi</th>') && str_contains($html, '>Contati</th>') && str_contains($html, '>Differenza</th>')
+        && !str_contains($html, '>Pezzi</th>')
+        && str_contains($html, '<option value="all">Tutte le versioni</option>')
+        && str_contains($html, '<optgroup label="Categorie"><option value="category:4">Maglie</option><option value="category:5">— &lt;b&gt;Rosse&lt;/b&gt;</option></optgroup>')
+        && str_contains($html, '<option value="brand:9">Marca &amp; Co</option>')
+        && str_contains($html, 'data-wi-stock-scope-add>Aggiungi versioni</button>')
+        && str_contains($html, '3 righe · 2 contate · 1 con differenza')
+        && str_contains($carico, 'data-mode="pieces"')
+        && !str_contains($carico, 'Tutte le versioni')
+        && str_contains($carico, '>Pezzi</th>');
+});
+
+check('confirmQuestion inventario: contate, differenza e correzione da riempire', fn () =>
+    StockStocktakeResource::confirmQuestion() === '{contate}, {differenza}: {correzione}. Dopo non si modifica più: si può solo annullare.'
+);
+
+check('script inventario: attesi come StockDocumentRules::expected(), differenza, cambio sede, Aggiungi versioni (node)', function () {
+    $node = trim((string) shell_exec('command -v node 2>/dev/null'));
+
+    if ($node === '') {
+        echo "  (salto: node non c'è in PATH)\n";
+
+        return true;
+    }
+
+    $harness = <<<'JS'
+function El(tag) { this.tagName = tag; this.children = []; this.attrs = {}; this.listeners = {}; this.value = ''; this.textContent = ''; this.className = ''; this.style = {}; this.parentNode = null; this.firstChild = null; this.disabled = false; this.classList = {add: function () {}, remove: function () {}}; }
+El.prototype.appendChild = function (c) { c.parentNode = this; this.children.push(c); this.firstChild = this.children[0]; return c; };
+El.prototype.removeChild = function (c) { this.children.splice(this.children.indexOf(c), 1); this.firstChild = this.children[0] || null; return c; };
+El.prototype.insertBefore = function (c) { return this.appendChild(c); };
+El.prototype.setAttribute = function (k, v) { this.attrs[k] = String(v); };
+El.prototype.getAttribute = function (k) { return k in this.attrs ? this.attrs[k] : null; };
+El.prototype.addEventListener = function (t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); };
+El.prototype.fire = function (t, e) { (this.listeners[t] || []).forEach(function (f) { f(e || {}); }); };
+El.prototype.focus = function () {};
+El.prototype.select = function () {};
+El.prototype.contains = function () { return true; };
+var parts = {search: new El('input'), results: new El('div'), message: new El('div'), rows: new El('tbody'), empty: new El('div'), totals: new El('div'), lines: new El('script'), scope: new El('select'), 'scope-add': new El('button')};
+parts.lines.textContent = JSON.stringify([
+    {id: 1, label: 'A', stock: 5, expected: 4, quantity: '6'},
+    {id: 2, label: 'B', stock: 3, expected: null, quantity: ''}
+]);
+var place = new El('select');
+place.value = '1';
+var root = new El('div');
+root.setAttribute('data-search-url', '/cerca/');
+root.setAttribute('data-mode', 'stocktake');
+root.setAttribute('data-max-lines', '4');
+root.querySelector = function (sel) { return parts[sel.replace('[data-wi-stock-', '').replace(']', '')]; };
+root.closest = function () { return {querySelector: function () { return place; }}; };
+var window = {};
+var document = {createElement: function (t) { return new El(t); }, querySelectorAll: function () { return [root]; }, addEventListener: function () {}};
+var urls = [];
+window.fetch = function (url) {
+    var data = {versions: []};
+    urls.push(url);
+    if (url.indexOf('ids=') !== -1) { data = {versions: [{id: 1, label: 'A', stock: 10}, {id: 2, label: 'B', stock: 1}]}; }
+    if (url.indexOf('scope_id=3') !== -1) { data = {count: 3, ids: [1, 2, 3], versions: [{id: 1, label: 'A', stock: 10}, {id: 2, label: 'B', stock: 1}, {id: 3, label: 'C', stock: 2}]}; }
+    if (url.indexOf('scope=all') !== -1) { data = {count: 600, ids: [1, 2, 3, 4, 5], versions: []}; }
+    return Promise.resolve({ok: true, json: function () { return data; }});
+};
+JS;
+    $run = <<<'JS'
+var ed = root.wiStockEditor;
+function row(i) { var tr = parts.rows.children[i]; return [tr.children[1].textContent, tr.children[2].children[0].value, tr.children[3].textContent]; }
+function input(i) { return parts.rows.children[i].children[2].children[0]; }
+function wait() { return new Promise(function (r) { setTimeout(r, 10); }); }
+var out = {};
+out.start = [row(0), row(1), parts.totals.textContent, ed.words()];
+input(0).value = '5'; input(0).fire('input');
+out.newCount = [row(0), parts.totals.textContent, ed.words()];
+input(0).value = '6'; input(0).fire('input');
+out.back = row(0);
+input(1).value = '0'; input(1).fire('input');
+out.zero = [row(1), ed.words()];
+place.value = '2'; place.fire('change');
+wait().then(function () {
+    out.place = [row(0), row(1)];
+    place.value = '1'; place.fire('change');
+    return wait();
+}).then(function () {
+    out.placeBack = row(0);
+    parts.scope.value = 'brand:3'; parts['scope-add'].fire('click');
+    return wait();
+}).then(function () {
+    out.scope = [parts.rows.children.length, row(2), parts.message.textContent];
+    parts['scope-add'].fire('click');
+    return wait();
+}).then(function () {
+    out.again = parts.message.textContent;
+    parts.scope.value = 'all'; parts['scope-add'].fire('click');
+    return wait();
+}).then(function () {
+    out.crowded = [parts.rows.children.length, parts.message.textContent];
+    out.scopeUrl = urls.filter(function (u) { return u.indexOf('scope=brand') !== -1; })[0];
+    input(0).value = ''; input(0).fire('input'); input(1).value = ''; input(1).fire('input');
+    out.none = ed.words();
+    console.log(JSON.stringify(out));
+});
+JS;
+    $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
+    $file = $base.'.js';
+    file_put_contents($file, $harness."\n".StockDocumentEditor::script()."\n".$run);
+    $raw = (string) shell_exec(escapeshellarg($node).' '.escapeshellarg($file).' 2>&1');
+    $js = json_decode($raw, true);
+    @unlink($file);
+    @unlink($base);
+
+    $atteso = [
+        'start' => [['4', '6', '+2'], ['3', '', '—'], '2 righe · 1 contata · 1 con differenza',
+            ['contate' => '1 riga contata', 'differenza' => '1 con differenza', 'correzione' => 'la giacenza di quella versione si corregge']],
+        'newCount' => [['5', '5', '0'], '2 righe · 1 contata · 0 con differenza',
+            ['contate' => '1 riga contata', 'differenza' => 'nessuna differenza', 'correzione' => 'la giacenza non cambia']],
+        'back' => ['4', '6', '+2'],
+        'zero' => [['3', '0', '−3'], ['contate' => '2 righe contate', 'differenza' => '2 con differenza', 'correzione' => 'la giacenza di quelle 2 versioni si corregge']],
+        'place' => [['10', '6', '−4'], ['1', '0', '−1']],
+        'placeBack' => ['4', '6', '+2'],
+        'scope' => [3, ['2', '', '—'], 'Aggiunta 1 versione.'],
+        'again' => 'Ci sono già tutte.',
+        'crowded' => [3, 'Sarebbero 5 righe: un documento ne tiene al massimo 4. Conta per categorie o per marchi.'],
+        'scopeUrl' => '/cerca/?scope=brand&scope_id=3&location=1',
+        'none' => null,
+    ];
+
+    if ($js !== $atteso) {
+        echo '  '.$raw."\n";
+
+        return false;
+    }
+
+    return true;
 });
 
 summary();

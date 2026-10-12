@@ -36,6 +36,7 @@ dentro una transazione propria apre un savepoint, non una seconda transazione.
 | Rettifica | `StockAdjustmentResource` | pagina-form su `?versione=`, con causale e nota |
 | Carichi | `StockReceiptResource` | elenco, bozza e scheda in sola lettura dei carichi (`app/gestionale/carichi`) |
 | Scarichi | `StockIssueResource` | lo stesso per gli scarichi (`app/gestionale/scarichi`), con la causale |
+| Inventari | `StockStocktakeResource` | lo stesso per gli inventari (`app/gestionale/inventari`), con attesi, contati e differenza |
 | Azioni sul documento | `StockDocumentActionResource` | riceve *Annulla* e *Duplica* (`app/gestionale/documento-magazzino-azione`) |
 
 **Giacenze non scrive niente.** I numeri nascono nella query: `select()`
@@ -75,9 +76,9 @@ Tre cose da sapere se la si tocca:
    percorsi o indirizzi assoluti di questo sito: un `torna=` che arriva dalla
    query string è testo di chiunque.
 
-**Carichi e scarichi.** Le due Resource dicono solo tipo, nomi e posto nel
-menu (Giacenze 10 · Carichi 20 · Scarichi 30 · Movimenti 50); il resto sta in
-`StockDocumentResource`, che il piano 6 userà per l'inventario. Le pagine non
+**Carichi, scarichi e inventari.** Le tre Resource dicono solo tipo, nomi e
+posto nel menu (Giacenze 10 · Carichi 20 · Scarichi 30 · Inventari 40 ·
+Movimenti 50); il resto sta in `StockDocumentResource`. Le pagine non
 scrivono mai sulle tabelle dei documenti: passa tutto da `StockDocuments`.
 
 1. **La bozza non passa dallo store del core.** Il form posta alle rotte
@@ -103,12 +104,34 @@ scrivono mai sulle tabelle dei documenti: passa tutto da `StockDocuments`.
    tipo, numero e indirizzo del documento nella stessa query dell'elenco
    (`document_type`, `document_number`, `document_url`); l'indirizzo lo
    compone `StockDocumentResource::viewUrlPattern()`. Un tipo senza pagine
-   (l'inventario fino al piano 6) ha l'indirizzo vuoto e la voce ⋯ non c'è.
+   avrebbe l'indirizzo vuoto e la voce ⋯ non ci sarebbe.
 6. **Dati di prova.** `StockDocumentsDemo` (chiave
    `documenti-magazzino`) crea un carico e uno scarico confermati con i
-   codici `stk_demo-carico` e `stk_demo-scarico`; `--fresh` li annulla e li
-   toglie con righe, storia e movimenti. È registrato per ultimo, così si
+   codici `stk_demo-carico` e `stk_demo-scarico`, e un inventario in bozza
+   (`stk_demo-inventario`) con una riga contata con una differenza e una
+   non contata; `--fresh` annulla i confermati e toglie tutti e tre con
+   righe, storia e movimenti. È registrato per ultimo, così si
    pulisce prima del catalogo.
+7. **L'editor in modo inventario.** `StockDocumentEditor::render()` con
+   `type = 'stocktake'` mette `data-mode="stocktake"`: colonne Attesi ·
+   Contati · Differenza, righe nuove senza numero (una casella vuota è una
+   riga non contata), il lettore che aggiunge un pezzo. Gli attesi nel
+   browser seguono `StockDocumentRules::expected()`: quello salvato finché
+   numero e sede sono quelli salvati, la giacenza di adesso altrimenti. Il
+   server li ricalcola comunque al salvataggio.
+8. **Aggiungi versioni.** La rotta delle versioni con `scope`
+   (`all`, `category`, `brand`) e `scope_id` chiama
+   `StockVersionSearch::scope()`: versioni attive più quelle spente con
+   pezzi nella sede, sottocategorie comprese, mai multiprodotti né
+   cancellate. Oltre `MAX_LINES` risponde `count` e `ids` senza le versioni,
+   e l'editor non aggiunge niente. Le scelte del menu le dà
+   `scopeOptions()`.
+9. **Elenco e scheda.** Per l'inventario `select()` aggiunge
+   `counted_count` e `difference_count` al posto dei pezzi;
+   `StockDocumentSheet` dà a ogni riga `expected`, `difference` e `tone`
+   (`up`/`down`), e il totale con `StockDocumentEditor::stocktakeTotals()`.
+   La domanda della conferma usa `{contate}`, `{differenza}` e
+   `{correzione}`, che l'editor riempie con `words()`.
 
 ## I parametri
 
@@ -232,7 +255,7 @@ versione una volta sola, quantità non negative nella bozza.
 Nei Movimenti *Tipo* legge «Scarico · 2026/100003» o «Annullamento del
 carico · 2026/100003», e il filtro *Tipo* ha *Carico*, *Scarico* e
 *Inventario* al posto del carico registrato. Il menu ⋯ porta al documento
-con *Visualizza carico* o *Visualizza scarico*. Le pagine sono in
+con *Visualizza carico*, *Visualizza scarico* o *Visualizza inventario*. Le pagine sono in
 [Le pagine](#le-pagine).
 
 **Rifiuti.** Le chiavi `stock_document.*` in `lang/it/gestionale.json`, più

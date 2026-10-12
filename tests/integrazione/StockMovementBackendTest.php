@@ -26,6 +26,7 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockIssueResource;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockStocktakeResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockMovementResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockReceiptResource;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
@@ -248,13 +249,14 @@ check('uno scarico porta alla scheda dello scarico', function () {
     });
 });
 
-check('un inventario non ha ancora una pagina: indirizzo vuoto, la voce ⋯ non compare', function () {
+check('un inventario porta alla sua scheda', function () {
     return prova(static function (): bool {
         $prodotto = articoloConGiacenza(5, 'TST-MOV-I'.substr((string) microtime(true), -6));
-        StockDocuments::confirm(StockDocuments::create('stocktake', [], [['product_id' => $prodotto, 'quantity' => '4']]));
+        $id = StockDocuments::create('stocktake', [], [['product_id' => $prodotto, 'quantity' => '4']]);
+        StockDocuments::confirm($id);
         $riga = movimentiConDocumento($prodotto)[1] ?? [];
 
-        return ($riga['document_type'] ?? '') === 'stocktake' && ($riga['document_url'] ?? null) === '';
+        return ($riga['document_type'] ?? '') === 'stocktake' && ($riga['document_url'] ?? null) === StockStocktakeResource::viewUrl($id);
     });
 });
 

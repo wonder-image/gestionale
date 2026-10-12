@@ -1,7 +1,8 @@
 <?php
 
 /**
- * La scheda di un carico o di uno scarico confermato o annullato (G2b-bis 4.2).
+ * La scheda di un carico, scarico o inventario confermato o annullato
+ * (G2b-bis 4.2). Nell'inventario le colonne sono Attesi · Contati · Differenza.
  *
  * Si legge e basta: *Duplica* e *Annulla* stanno nell'intestazione e inviano
  * i form nascosti di `hiddenForms()`. Il badge *Annullato* sta nel riquadro,
@@ -25,6 +26,9 @@ if ((string) ($document['status'] ?? '') === 'draft') {
 }
 
 $sheet = StockDocumentSheet::for($document);
+$counting = (string) ($document['type'] ?? '') === 'stocktake';
+$numeric = ' style="font-variant-numeric: tabular-nums"';
+$tones = ['up' => ' text-success', 'down' => ' text-danger', '' => ''];
 $number = html_entity_decode((string) ($document['number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 $info = array_values(array_filter([$sheet['location'], $sheet['reason'], $sheet['note']], static fn (string $value): bool => $value !== ''));
 
@@ -52,7 +56,13 @@ View::layout('backend.show', ['TITLE' => $resource::singular().' '.$number]);
                 <thead>
                     <tr>
                         <th>Articolo</th>
+                        <?php if ($counting) { ?>
+                        <th class="text-end">Attesi</th>
+                        <th class="text-end">Contati</th>
+                        <th class="text-end">Differenza</th>
+                        <?php } else { ?>
                         <th class="text-end">Pezzi</th>
+                        <?php } ?>
                     </tr>
                 </thead>
                 <tbody>
@@ -64,13 +74,19 @@ View::layout('backend.show', ['TITLE' => $resource::singular().' '.$number]);
                             <div class="small text-body-secondary"><?=$e($line['sku'])?></div>
                             <?php } ?>
                         </td>
-                        <td class="text-end" style="font-variant-numeric: tabular-nums"><?=$e($line['quantity'])?></td>
+                        <?php if ($counting) { ?>
+                        <td class="text-end"<?=$numeric?>><?=$e($line['expected'])?></td>
+                        <td class="text-end"<?=$numeric?>><?=$e($line['quantity'])?></td>
+                        <td class="text-end<?=$tones[$line['tone']] ?? ''?>"<?=$numeric?>><?=$e($line['difference'])?></td>
+                        <?php } else { ?>
+                        <td class="text-end"<?=$numeric?>><?=$e($line['quantity'])?></td>
+                        <?php } ?>
                     </tr>
                     <?php } ?>
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="2" class="text-end text-body-secondary"><?=$e($sheet['total'])?></td>
+                        <td colspan="<?=$counting ? 4 : 2?>" class="text-end text-body-secondary"><?=$e($sheet['total'])?></td>
                     </tr>
                 </tfoot>
             </table>

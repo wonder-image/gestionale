@@ -188,7 +188,7 @@ check('il menu ⋯: Visualizza, documento, ordine; il documento solo sulle righe
 
         return array_keys($azioni) === ['view', 'document_type', 'ordine']
             && ($azioni['view'] ?? null) === true
-            && ($documento['label'] ?? null) === ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico']
+            && ($documento['label'] ?? null) === ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico', 'stocktake' => 'Visualizza inventario']
             && ($documento['href'] ?? '') === '{document_url}'
             && !isset($documento['filter'])
             && ($ordine['label'] ?? '') === 'Visualizza ordine'
@@ -427,12 +427,12 @@ check('l\'elenco legge tipo, numero e indirizzo del documento con select()', fun
         && str_contains($select, "IN ('stock_document', 'stock_document_cancel')");
 });
 
-check('l\'indirizzo calcolato copre i tipi con una pagina, non l\'inventario', function () {
+check('l\'indirizzo calcolato copre carichi, scarichi e inventari', function () {
     $select = StockMovementResource::select();
 
     return str_contains($select, "WHEN 'receipt' THEN")
         && str_contains($select, "WHEN 'issue' THEN")
-        && !str_contains($select, "'stocktake'");
+        && str_contains($select, "WHEN 'stocktake' THEN");
 });
 
 check('il modello dell\'indirizzo della scheda tiene il segnaposto al posto dell\'id', fn () =>

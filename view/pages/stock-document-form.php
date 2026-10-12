@@ -5,9 +5,10 @@ use Wonder\Http\Csrf;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentEditor;
+use Wonder\Plugin\Gestionale\Support\Stock\StockVersionSearch;
 
 /*
- * La bozza di carico o scarico (G2b-bis 4.2): Sede · Causale · Nota, le righe
+ * La bozza di carico, scarico o inventario (G2b-bis 4.2): Sede · Causale · Nota, le righe
  * e due bottoni. Posta alle rotte `store`/`update` del core, che la Resource
  * intercetta in `mutateRequestValues()`: le righe viaggiano nel solo campo
  * `lines`, scritto dal JS all'invio.
@@ -22,9 +23,12 @@ $locationId = (int) ($values['location_id'] ?? 0) ?: Locations::mainId();
 $reason = (string) ($values['reason'] ?? '');
 $note = html_entity_decode((string) ($values['note'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 $editor = (array) ($values['editor'] ?? []);
-$noteHelp = $resource::type() === 'issue'
-    ? 'Per esempio a chi è andata la merce o perché.'
-    : 'Per esempio il numero della bolla o della fattura del fornitore.';
+$type = $resource::type();
+$noteHelp = match ($type) {
+    'issue' => 'Per esempio a chi è andata la merce o perché.',
+    'stocktake' => 'Per esempio quale scaffale o reparto hai contato.',
+    default => 'Per esempio il numero della bolla o della fattura del fornitore.',
+};
 
 \Wonder\View\View::layout('backend.form');
 ?>
@@ -44,7 +48,7 @@ $noteHelp = $resource::type() === 'issue'
                 </select>
             </div>
             <?php } ?>
-            <?php if ($resource::type() === 'issue') { ?>
+            <?php if ($type === 'issue') { ?>
             <div class="col-12 col-md-3">
                 <label class="form-label" for="wi-doc-reason">Causale</label>
                 <select class="form-select" id="wi-doc-reason" name="reason">
@@ -61,7 +65,12 @@ $noteHelp = $resource::type() === 'issue'
             </div>
         </wi-card>
         <wi-card class="col-12">
-            <?=StockDocumentEditor::render((array) ($editor['lines'] ?? []), StockDocumentEditor::searchUrl())?>
+            <?=StockDocumentEditor::render(
+                (array) ($editor['lines'] ?? []),
+                StockDocumentEditor::searchUrl(),
+                $type,
+                $type === 'stocktake' ? StockVersionSearch::scopeOptions() : []
+            )?>
         </wi-card>
         <wi-card class="col-12">
             <div class="col-12 d-flex flex-wrap justify-content-end gap-2">
@@ -147,16 +156,16 @@ $noteHelp = $resource::type() === 'issue'
 
     confirmButton.addEventListener('click', function () {
         var current = editor();
-        var count;
+        var words;
 
         if (sending || !current || !current.validate()) {
             return;
         }
 
-        count = current.totals();
+        words = current.words();
 
-        // Senza righe niente domanda: il servizio risponde che non ce ne sono.
-        if (count.rows === 0) {
+        // Senza righe (o senza righe contate) niente domanda: risponde il servizio.
+        if (words === null) {
             send();
 
             return;
@@ -164,7 +173,9 @@ $noteHelp = $resource::type() === 'issue'
 
         ask({
             title: label,
-            text: question.replace('{pezzi}', window.wiStockEditor.format(count.pieces)).replace('{righe}', String(count.rows)),
+            text: question.replace(/\{(\w+)\}/g, function (all, key) {
+                return Object.prototype.hasOwnProperty.call(words, key) ? words[key] : all;
+            }),
             ok: label,
             cancel: 'Torna alla bozza'
         }).then(function (ok) {

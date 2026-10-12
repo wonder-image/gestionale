@@ -42,7 +42,7 @@ abstract class StockDocumentResource extends GestionaleResource
     public static string $orderDirection = 'DESC';
     public static string $docsPage = 'magazzino/magazzino-carichi-scarichi';
 
-    /** Il tipo del documento: `receipt`, `issue` (`stocktake` nel piano 6). */
+    /** Il tipo del documento: `receipt`, `issue`, `stocktake`. */
     abstract public static function type(): string;
 
     /** «Carico», «Scarico»: il titolo della scheda e delle domande. */
@@ -63,6 +63,8 @@ abstract class StockDocumentResource extends GestionaleResource
             'reason' => 'Causale',
             'row_count' => 'Righe',
             'piece_count' => 'Pezzi',
+            'counted_count' => 'Contate',
+            'difference_count' => 'Con differenza',
             'note' => 'Nota',
             'who_name' => 'Chi',
         ];
@@ -96,7 +98,11 @@ abstract class StockDocumentResource extends GestionaleResource
                 ->formatter(static fn (array $row): string => static::escape(static::reasonLabel((string) ($row['reason'] ?? ''))));
         }
 
-        foreach (['row_count', 'piece_count'] as $key) {
+        // Negli inventari i pezzi non dicono niente: contano le righe contate
+        // e quelle dove contati e attesi non coincidono.
+        $counts = static::type() === 'stocktake' ? ['row_count', 'counted_count', 'difference_count'] : ['row_count', 'piece_count'];
+
+        foreach ($counts as $key) {
             $columns[] = TableColumn::key($key)
                 ->text()
                 ->size('little')
@@ -163,7 +169,8 @@ abstract class StockDocumentResource extends GestionaleResource
      * - `sort_date`: il giorno del documento (della conferma; della creazione
      *   per una bozza) e l'id, così a parità di giorno il più recente sta in
      *   cima;
-     * - `row_count`, `piece_count`: righe e pezzi;
+     * - `row_count`, `piece_count`: righe e pezzi; negli inventari
+     *   `counted_count` e `difference_count` al posto dei pezzi;
      * - `who_name`: chi ha confermato, dal log degli stati; per una bozza chi
      *   l'ha creata.
      */
@@ -177,10 +184,19 @@ abstract class StockDocumentResource extends GestionaleResource
             .' WHERE l.`stock_document_id` = '.$doc.".`id` AND l.`to_value` = 'completed' AND l.`deleted` = 'false'"
             .' ORDER BY l.`id` DESC LIMIT 1))';
 
+        $of = static fn (string $expression, string $where, string $alias): string => '(SELECT '.$expression.' FROM '.$items
+            .' i WHERE i.`stock_document_id` = '.$doc.".`id` AND i.`deleted` = 'false'".$where.') AS '.$alias;
+        $counts = static::type() === 'stocktake'
+            ? [
+                $of('COUNT(*)', ' AND i.`quantity` IS NOT NULL', 'counted_count'),
+                $of('COUNT(*)', ' AND i.`quantity` IS NOT NULL AND ROUND(i.`quantity`, 3) <> ROUND(COALESCE(i.`expected_quantity`, 0), 3)', 'difference_count'),
+            ]
+            : [$of('COALESCE(SUM(i.`quantity`), 0)', '', 'piece_count')];
+
         return implode(', ', [
             'CONCAT(COALESCE('.$doc.'.`date`, DATE('.$doc.".`creation`)), ' ', LPAD(".$doc.".`id`, 10, '0')) AS sort_date",
-            '(SELECT COUNT(*) FROM '.$items.' i WHERE i.`stock_document_id` = '.$doc.".`id` AND i.`deleted` = 'false') AS row_count",
-            '(SELECT COALESCE(SUM(i.`quantity`), 0) FROM '.$items.' i WHERE i.`stock_document_id` = '.$doc.".`id` AND i.`deleted` = 'false') AS piece_count",
+            $of('COUNT(*)', '', 'row_count'),
+            ...$counts,
             "(SELECT COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.`name`, u.`surname`)), ''), u.`username`) FROM ".$users.' u WHERE u.`id` = '.$whoId.' LIMIT 1) AS who_name',
         ]);
     }
@@ -232,6 +248,7 @@ abstract class StockDocumentResource extends GestionaleResource
         return [
             'receipt' => StockReceiptResource::class,
             'issue' => StockIssueResource::class,
+            'stocktake' => StockStocktakeResource::class,
         ][$type] ?? null;
     }
 
@@ -412,14 +429,22 @@ abstract class StockDocumentResource extends GestionaleResource
     }
 
     /**
-     * La domanda prima della conferma (spec §4.2). `{pezzi}` e `{righe}` li
-     * riempie la pagina con i numeri della tabella.
+     * La domanda prima della conferma (spec §4.2). Ogni `{chiave}` la riempie
+     * la pagina con le parole dell'editor (`words()` nel JS): `{pezzi}` e
+     * `{righe}` per carichi e scarichi, `{contate}`, `{differenza}` e
+     * `{correzione}` per l'inventario.
      */
     public static function confirmQuestion(): string
     {
+        $end = 'Dopo non si modifica più: si può solo annullare.';
+
+        if (static::type() === 'stocktake') {
+            return '{contate}, {differenza}: {correzione}. '.$end;
+        }
+
         $where = static::type() === 'issue' ? 'escono dal' : 'entrano in';
 
-        return '{pezzi} pezzi in {righe} righe '.$where.' magazzino. Dopo non si modifica più: si può solo annullare.';
+        return '{pezzi} pezzi in {righe} righe '.$where.' magazzino. '.$end;
     }
 
     /**

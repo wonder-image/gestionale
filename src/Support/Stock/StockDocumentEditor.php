@@ -17,22 +17,45 @@ use Throwable;
 final class StockDocumentEditor
 {
     /**
-     * @param list<array<string, mixed>> $lines Version + `quantity` in testo (`StockDocumentForm::editorLines()`)
+     * Con `stocktake` le colonne sono Articolo · Attesi · Contati · Differenza
+     * (su telefono Articolo e Contati) e sotto la casella c'è *Aggiungi
+     * versioni* con le scelte di `StockVersionSearch::scopeOptions()`.
+     *
+     * @param list<array<string, mixed>> $lines Version + `quantity` in testo (+ `expected` nell'inventario: `StockDocumentForm::editorLines()`)
+     * @param array{categories?: array<string, string>, brands?: array<string, string>} $scopes
      */
-    public static function render(array $lines, string $searchUrl): string
+    public static function render(array $lines, string $searchUrl, string $type = 'receipt', array $scopes = []): string
     {
         $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
         $lines = array_values($lines);
+        $counting = $type === 'stocktake';
         $pieces = 0.0;
+        $counted = 0;
+        $differing = 0;
 
         foreach ($lines as $line) {
             $quantity = Stocktake::quantity($line['quantity'] ?? null);
             $pieces += $quantity !== null && $quantity > 0 ? $quantity : 0.0;
+
+            if ($quantity !== null && $quantity >= 0) {
+                $counted++;
+                $expected = (float) ($line['expected'] ?? $line['stock'] ?? 0);
+                $differing += round($quantity - $expected, 3) != 0 ? 1 : 0;
+            }
         }
 
         $json = (string) json_encode($lines, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_PRESERVE_ZERO_FRACTION | JSON_INVALID_UTF8_SUBSTITUTE);
+        $head = $counting
+            ? '<th>Articolo</th>'
+                .'<th class="d-none d-md-table-cell text-end">Attesi</th>'
+                .'<th class="text-end" style="width: 8rem">Contati</th>'
+                .'<th class="d-none d-md-table-cell text-end">Differenza</th>'
+            : '<th>Articolo</th>'
+                .'<th class="d-none d-md-table-cell text-end">Giacenza</th>'
+                .'<th class="text-end" style="width: 8rem">Pezzi</th>';
 
         return '<div class="col-12" data-wi-stock-editor'
+            .' data-mode="'.($counting ? 'stocktake' : 'pieces').'"'
             .' data-search-url="'.$e($searchUrl).'"'
             .' data-max-lines="'.StockDocumentRules::MAX_LINES.'"'
             .' data-max-quantity="'.StockDocumentRules::MAX_QUANTITY.'"'
@@ -45,22 +68,61 @@ final class StockDocumentEditor
             .'</div>'
             .'<div class="list-group position-absolute w-100 shadow d-none" style="z-index: 1050; max-height: 20rem; overflow-y: auto" data-wi-stock-results></div>'
             .'</div>'
+            .($counting ? self::scopePicker($scopes) : '')
             .'<div class="small mt-1" role="status" aria-live="polite" data-wi-stock-message></div>'
             .'<div class="table-responsive mt-3">'
             .'<table class="table table-sm align-middle mb-0">'
             .'<thead><tr>'
-            .'<th>Articolo</th>'
-            .'<th class="d-none d-md-table-cell text-end">Giacenza</th>'
-            .'<th class="text-end" style="width: 8rem">Pezzi</th>'
+            .$head
             .'<th style="width: 3rem"><span class="visually-hidden">Togli</span></th>'
             .'</tr></thead>'
             .'<tbody data-wi-stock-rows></tbody>'
             .'</table>'
             .'</div>'
             .'<p class="text-body-secondary my-3'.($lines === [] ? '' : ' d-none').'" data-wi-stock-empty>Nessuna riga: cerca una versione o scansiona un codice.</p>'
-            .'<div class="text-end fw-semibold mt-2" data-wi-stock-totals>'.$e(self::totals(count($lines), $pieces)).'</div>'
+            .'<div class="text-end fw-semibold mt-2" data-wi-stock-totals>'.$e($counting ? self::stocktakeTotals(count($lines), $counted, $differing) : self::totals(count($lines), $pieces)).'</div>'
             .'<script type="application/json" data-wi-stock-lines>'.$json.'</script>'
             .'<script>'.self::script().'</script>'
+            .'</div>';
+    }
+
+    /** «40 righe · 12 contate · 3 con differenza», «1 riga · 1 contata · 0 con differenza». */
+    public static function stocktakeTotals(int $rows, int $counted, int $differing): string
+    {
+        return $rows.' '.($rows === 1 ? 'riga' : 'righe')
+            .' · '.$counted.' '.($counted === 1 ? 'contata' : 'contate')
+            .' · '.$differing.' con differenza';
+    }
+
+    /**
+     * La riga di *Aggiungi versioni*: tutte, una categoria (con le sue
+     * sottocategorie) o un marchio.
+     *
+     * @param array{categories?: array<string, string>, brands?: array<string, string>} $scopes
+     */
+    private static function scopePicker(array $scopes): string
+    {
+        $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+        $groups = ['category' => ['Categorie', $scopes['categories'] ?? []], 'brand' => ['Marchi', $scopes['brands'] ?? []]];
+        $options = '<option value="all">Tutte le versioni</option>';
+
+        foreach ($groups as $scope => [$label, $choices]) {
+            if ($choices === []) {
+                continue;
+            }
+
+            $options .= '<optgroup label="'.$e($label).'">';
+
+            foreach ($choices as $id => $name) {
+                $options .= '<option value="'.$e($scope.':'.$id).'">'.$e((string) $name).'</option>';
+            }
+
+            $options .= '</optgroup>';
+        }
+
+        return '<div class="d-flex flex-wrap gap-2 mt-2">'
+            .'<select class="form-select form-select-sm w-auto mw-100" data-wi-stock-scope aria-label="Quali versioni aggiungere">'.$options.'</select>'
+            .'<button type="button" class="btn btn-sm btn-outline-dark" data-wi-stock-scope-add>Aggiungi versioni</button>'
             .'</div>';
     }
 
@@ -109,6 +171,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
     var EMPTY = 'Nessuna versione trovata';
     var DOWN = 'La ricerca non risponde: riprova.';
     var BAD = 'Controlla i pezzi della riga in rosso.';
+    var CROWDED = ' righe: un documento ne tiene al massimo ';
     // Come Numbers::fromForm(): lettere e valute solo in coda («3 pz», «5€»).
     // ES5 non ha \p{L}: bastano latino, greco, cirillico e i simboli di valuta.
     var TRAILING = /[A-Za-zªµºÀ-ɏͰ-ϿЀ-ӿ$¢-¥₠-⃏]+$/;
@@ -148,6 +211,13 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
     function totals(rows, pieces) {
         return rows + ' ' + (rows === 1 ? 'riga' : 'righe') + ' · ' + format(pieces) + ' ' + (pieces === 1 ? 'pezzo' : 'pezzi');
+    }
+
+    // Come StockDocumentEditor::stocktakeTotals().
+    function counts(rows, counted, differing) {
+        return rows + ' ' + (rows === 1 ? 'riga' : 'righe')
+            + ' · ' + counted + ' ' + (counted === 1 ? 'contata' : 'contate')
+            + ' · ' + differing + ' con differenza';
     }
 
     function el(tag, className, text) {
@@ -204,6 +274,11 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         var maxQuantity = parseFloat(root.getAttribute('data-max-quantity')) || 9999999.999;
         var form = root.closest('form');
         var place = form ? form.querySelector('[data-wi-stock-location]') : null;
+        var counting = root.getAttribute('data-mode') === 'stocktake';
+        var scope = root.querySelector('[data-wi-stock-scope]');
+        var scopeAdd = root.querySelector('[data-wi-stock-scope-add]');
+        // La sede salvata: tornandoci, l'atteso salvato vale di nuovo (come in StockDocumentRules::expected()).
+        var origin = place ? place.value : '';
         var rows = [];
         var timer = null;
         var seq = 0;
@@ -320,10 +395,51 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             return !bad;
         }
 
+        // L'atteso della riga, con le regole di StockDocumentRules::expected():
+        // quello salvato finché la casella ha il contato salvato e la sede è
+        // quella; altrimenti la giacenza di adesso.
+        function expected(row) {
+            var value = parse(row.input.value);
+
+            if (row.saved !== null && value === row.savedCount && (!place || place.value === origin)) {
+                return row.saved;
+            }
+
+            return row.current;
+        }
+
+        // null = non contata (o casella da correggere).
+        function difference(row) {
+            var value = parse(row.input.value);
+
+            if (value === null || !(value >= 0 && value <= maxQuantity)) {
+                return null;
+            }
+
+            return Math.round((value - expected(row)) * 1000) / 1000;
+        }
+
+        function paint(row) {
+            var diff;
+
+            if (!counting) {
+                return;
+            }
+
+            diff = difference(row);
+            row.stock.textContent = format(expected(row));
+            row.diff.textContent = diff === null ? '—' : (diff > 0 ? '+' : diff < 0 ? '−' : '') + format(Math.abs(diff));
+            row.diff.className = 'd-none d-md-table-cell text-end text-nowrap '
+                + (diff === null || diff === 0 ? 'text-body-secondary' : diff > 0 ? 'text-success' : 'text-danger');
+        }
+
         function count() {
             var pieces = 0;
+            var counted = 0;
+            var differing = 0;
             var i;
             var value;
+            var diff;
 
             for (i = 0; i < rows.length; i++) {
                 value = parse(rows[i].input.value);
@@ -331,15 +447,43 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 if (value > 0) {
                     pieces += value;
                 }
+
+                if (counting) {
+                    diff = difference(rows[i]);
+                    counted += diff === null ? 0 : 1;
+                    differing += diff === null || diff === 0 ? 0 : 1;
+                }
             }
 
-            return {rows: rows.length, pieces: Math.round(pieces * 1000) / 1000};
+            return {rows: rows.length, pieces: Math.round(pieces * 1000) / 1000, counted: counted, differing: differing};
+        }
+
+        // I segnaposto della domanda di conferma (confirmQuestion() della
+        // Resource); null quando non c'è niente da chiedere e risponde il servizio.
+        function words() {
+            var current = count();
+
+            if (!counting) {
+                return current.rows === 0 ? null : {pezzi: format(current.pieces), righe: String(current.rows)};
+            }
+
+            if (current.counted === 0) {
+                return null;
+            }
+
+            return {
+                contate: current.counted === 1 ? '1 riga contata' : current.counted + ' righe contate',
+                differenza: current.differing === 0 ? 'nessuna differenza' : current.differing + ' con differenza',
+                correzione: current.differing === 0
+                    ? 'la giacenza non cambia'
+                    : 'la giacenza di ' + (current.differing === 1 ? 'quella versione' : 'quelle ' + current.differing + ' versioni') + ' si corregge'
+            };
         }
 
         function refresh() {
             var current = count();
 
-            summary.textContent = totals(current.rows, current.pieces);
+            summary.textContent = counting ? counts(current.rows, current.counted, current.differing) : totals(current.rows, current.pieces);
 
             if (rows.length) {
                 empty.classList.add('d-none');
@@ -409,9 +553,10 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             input.type = 'text';
             input.inputMode = 'decimal';
             input.value = quantity == null ? '' : String(quantity);
-            input.setAttribute('aria-label', 'Pezzi di ' + row.label);
+            input.setAttribute('aria-label', (counting ? 'Contati di ' : 'Pezzi di ') + row.label);
             input.addEventListener('input', function () {
                 check(row);
+                paint(row);
                 refresh();
             });
             input.addEventListener('keydown', function (event) {
@@ -436,14 +581,24 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
             row.tr = tr;
             row.input = input;
-            row.stock = el('td', 'd-none d-md-table-cell text-end text-nowrap', format(Number(version.stock) || 0));
+            row.current = Number(version.stock) || 0;
+            row.saved = version.expected == null ? null : Number(version.expected);
+            row.savedCount = parse(quantity);
+            row.stock = el('td', 'd-none d-md-table-cell text-end text-nowrap', format(row.current));
             tr.appendChild(article);
             tr.appendChild(row.stock);
             tr.appendChild(cell);
+
+            if (counting) {
+                row.diff = el('td');
+                tr.appendChild(row.diff);
+            }
+
             tr.appendChild(tools);
             body.appendChild(tr);
             rows.push(row);
             check(row);
+            paint(row);
             refresh();
 
             return row;
@@ -466,6 +621,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
                 row.input.value = format((current || 0) + 1, false);
                 check(row);
+                paint(row);
                 refresh();
             } else if (!append(version, '1')) {
                 return;
@@ -511,9 +667,9 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             });
         }
 
-        // Un clic sulla lista: la riga (nuova con 1 pezzo, o quella che c'è) e il fuoco sui pezzi.
+        // Un clic sulla lista: la riga (nuova con 1 pezzo, o da contare nell'inventario; o quella che c'è) e il fuoco sui pezzi.
         function picked(version) {
-            var row = byId(version.id) || append(version, '1');
+            var row = byId(version.id) || append(version, counting ? null : '1');
 
             close();
 
@@ -611,7 +767,8 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             }
         });
 
-        // Cambiando la sede, la giacenza delle righe si rilegge.
+        // Cambiando la sede, la giacenza delle righe si rilegge; nell'inventario
+        // gli attesi ripartono da lì.
         if (place) {
             place.addEventListener('change', function () {
                 var ids = [];
@@ -619,7 +776,10 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
                 for (i = 0; i < rows.length; i++) {
                     ids.push(rows[i].id);
+                    paint(rows[i]);
                 }
+
+                refresh();
 
                 if (!ids.length) {
                     return;
@@ -634,10 +794,63 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                         row = byId(versions[j].id);
 
                         if (row) {
-                            row.stock.textContent = format(Number(versions[j].stock) || 0);
+                            row.current = Number(versions[j].stock) || 0;
+                            row.stock.textContent = format(row.current);
+                            paint(row);
                         }
                     }
+
+                    refresh();
                 }, function () {
+                    say(DOWN, 'error');
+                });
+            });
+        }
+
+        // Aggiungi versioni: quelle della scelta che non ci sono ancora, da contare.
+        if (scope && scopeAdd) {
+            scopeAdd.addEventListener('click', function () {
+                var parts = String(scope.value).split(':');
+                var params = 'scope=' + encodeURIComponent(parts[0]) + (parts[1] ? '&scope_id=' + encodeURIComponent(parts[1]) : '');
+
+                scopeAdd.disabled = true;
+                say('');
+                request(params, function (data) {
+                    var ids = data && Object.prototype.toString.call(data.ids) === '[object Array]' ? data.ids : [];
+                    var versions = list(data);
+                    var fresh = [];
+                    var added = 0;
+                    var i;
+
+                    scopeAdd.disabled = false;
+
+                    for (i = 0; i < ids.length; i++) {
+                        if (!byId(ids[i])) {
+                            fresh.push(Number(ids[i]));
+                        }
+                    }
+
+                    if (rows.length + fresh.length > maxLines) {
+                        say('Sarebbero ' + (rows.length + fresh.length) + CROWDED + maxLines + '. Conta per categorie o per marchi.', 'error');
+
+                        return;
+                    }
+
+                    if (!fresh.length) {
+                        say(ids.length ? 'Ci sono già tutte.' : 'Nessuna versione da aggiungere.');
+
+                        return;
+                    }
+
+                    for (i = 0; i < versions.length; i++) {
+                        if (!byId(versions[i].id) && append(versions[i], null)) {
+                            added++;
+                        }
+                    }
+
+                    say(added === 1 ? 'Aggiunta 1 versione.' : 'Aggiunte ' + added + ' versioni.');
+                }, function () {
+                    scopeAdd.disabled = false;
                     say(DOWN, 'error');
                 });
             });
@@ -655,7 +868,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
         refresh();
 
-        return {validate: validate, totals: count, serialize: serialize};
+        return {validate: validate, totals: count, words: words, serialize: serialize};
     }
 
     function init() {

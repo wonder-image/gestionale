@@ -103,6 +103,8 @@ uno regalato, tre usati in negozio. Salvando torni da dove eri arrivato, e nei
 Per la merce che arriva o che esce in più righe insieme — una consegna, un
 cartone di pezzi rotti — c'è un [carico o uno scarico](magazzino-carichi-scarichi.md):
 un documento solo, con il numero, invece di tante rettifiche.
+Per contare tanti articoli insieme, uno scaffale o un reparto, c'è
+l'[inventario](magazzino-inventario.md).
 
 ## Sotto zero
 
