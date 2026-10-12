@@ -11,7 +11,14 @@ require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
 
+use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
+use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\StockVersionSearch as Ricerca;
 use Wonder\Sql\Transaction;
@@ -159,6 +166,119 @@ check('ricerca: una versione ferma ha il segno', function () {
         Product::update(['active' => 'false'], $id);
 
         return (Ricerca::search($sku, 0)[0]['inactive'] ?? false) === true;
+    });
+});
+
+/** Un marchio nuovo; torna l'id. */
+function marchioDiProva(): int
+{
+    $nome = 'Prova Marchio Inventario '.uniqid();
+    $riga = Brand::create([
+        'code' => Code::make(Brand::class, Codes::BRAND),
+        'name' => $nome,
+        'slug' => Slug::unique($nome, Brand::class),
+        'position' => 1,
+        'visible' => 'true',
+    ]);
+
+    return (int) ($riga->insert_id ?? 0);
+}
+
+/** Una categoria nuova sotto `$padre`; torna l'id. */
+function categoriaDiProva(int $padre = 0): int
+{
+    $nome = 'Prova Categoria Inventario '.uniqid();
+    $riga = Category::create([
+        'code' => Code::make(Category::class, Codes::CATEGORY),
+        'name' => $nome,
+        'slug' => Slug::unique($nome, Category::class),
+        'parent_id' => $padre,
+        'position' => 900,
+        'visible' => 'true',
+    ]);
+
+    return (int) ($riga->insert_id ?? 0);
+}
+
+check('aggiungi versioni: la categoria porta anche le sottocategorie', function () {
+    return prova(static function (): bool {
+        $padre = categoriaDiProva();
+        $figlia = categoriaDiProva($padre);
+        $altra = categoriaDiProva();
+        $a = articoloConGiacenza(1, codice());
+        $b = articoloConGiacenza(0, codice());
+        $fuori = articoloConGiacenza(1, codice());
+        ProductModelCategory::create(['product_model_id' => modelloDi($a), 'category_id' => $padre, 'is_main' => 'true', 'position' => 1]);
+        ProductModelCategory::create(['product_model_id' => modelloDi($b), 'category_id' => $figlia, 'is_main' => 'true', 'position' => 1]);
+        ProductModelCategory::create(['product_model_id' => modelloDi($fuori), 'category_id' => $altra, 'is_main' => 'true', 'position' => 1]);
+        $padreTrova = Ricerca::scope('category', $padre, 0);
+        $figliaTrova = Ricerca::scope('category', $figlia, 0);
+
+        $pezzi = array_column($padreTrova['versions'], 'stock', 'id');
+
+        return $padreTrova['ids'] === [$a, $b]
+            && $padreTrova['count'] === 2
+            && $pezzi === [$a => 1.0, $b => 0.0] + $pezzi && count($pezzi) === 2
+            && $figliaTrova['ids'] === [$b]
+            && count($figliaTrova['versions']) === 1;
+    });
+});
+
+check('aggiungi versioni: il marchio; le ferme solo con pezzi nella sede; mai multiprodotti né cancellate', function () {
+    return prova(static function (): bool {
+        $marchio = marchioDiProva();
+        $inVendita = articoloConGiacenza(0, codice());
+        $fermaConPezzi = articoloConGiacenza(2, codice());
+        $fermaSenza = articoloConGiacenza(0, codice());
+        $cancellata = articoloConGiacenza(1, codice());
+        $bundle = multiprodottoDiProva('fixed', [['product_id' => $inVendita, 'quantity' => 1]], []);
+        Product::update(['active' => 'false'], $fermaConPezzi);
+        Product::update(['active' => 'false'], $fermaSenza);
+        Product::query()->Update(Product::$table, ['deleted' => 'true'], 'id', $cancellata);
+
+        foreach ([$inVendita, $fermaConPezzi, $fermaSenza, $cancellata, $bundle] as $id) {
+            ProductModel::update(['brand_id' => $marchio], modelloDi($id));
+        }
+
+        $trovate = Ricerca::scope('brand', $marchio, 0);
+        $ferma = array_values(array_filter($trovate['versions'], static fn (array $v): bool => $v['id'] === $fermaConPezzi));
+
+        return $trovate['ids'] === [$inVendita, $fermaConPezzi]
+            && count($trovate['versions']) === 2
+            && ($ferma[0]['inactive'] ?? false) === true
+            && ($ferma[0]['stock'] ?? 0) === 2.0;
+    });
+});
+
+check('aggiungi versioni: scelta sconosciuta o senza id, niente', fn () =>
+    Ricerca::scope('colore', 1, 0) === ['count' => 0, 'ids' => [], 'versions' => []]
+    && Ricerca::scope('category', 0, 0)['count'] === 0
+    && Ricerca::scope('brand', 0, 0)['count'] === 0
+);
+
+check('aggiungi versioni: oltre 500 solo il conteggio', function () {
+    return prova(static function (): bool {
+        $marchio = marchioDiProva();
+        $prefisso = codice('TST-INV-');
+
+        for ($i = 0; $i < 501; $i++) {
+            ProductModel::update(['brand_id' => $marchio], modelloDi(articoloConGiacenza(0, $prefisso.'-'.$i)));
+        }
+
+        $trovate = Ricerca::scope('brand', $marchio, 0);
+
+        return $trovate['count'] === 501 && count($trovate['ids']) === 501 && $trovate['versions'] === [];
+    });
+});
+
+check('aggiungi versioni: le scelte hanno categorie e marchi', function () {
+    return prova(static function (): bool {
+        $marchio = marchioDiProva();
+        $categoria = categoriaDiProva();
+        $scelte = Ricerca::scopeOptions();
+
+        return isset($scelte['brands'][(string) $marchio], $scelte['categories'][(string) $categoria])
+            && !isset($scelte['categories']['']);
     });
 });
 

@@ -16,6 +16,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockIssueResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockReceiptResource;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockStocktakeResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
@@ -220,6 +221,26 @@ check('editorLines: l\'ordine del documento, i pezzi in testo, la versione elimi
             && array_column($editor['lines'], 'quantity') === ['2,5', '']
             && (float) $editor['lines'][1]['stock'] === 4.0
             && $editor['lines'][0]['label'] !== '';
+    });
+});
+
+check('inventario dalla pagina: la bozza porta l\'atteso all\'editor, la conferma muove solo le righe contate con una differenza', function () use ($utente) {
+    return prova(static function () use ($utente): bool {
+        [$a, $b, $c] = [articolo(10), articolo(4), articolo(7)];
+        $righe = [[$a, '8'], [$b, '4'], [$c, '']];
+        $bozza = StockDocumentForm::submit('stocktake', 0, post($righe, ['intent' => 'save']), $utente);
+        $editor = StockDocumentForm::editorLines(StockDocuments::items($bozza['id']), Locations::mainId());
+        $esito = StockStocktakeResource::handleSubmit(post($righe, ['intent' => 'confirm']), $bozza['id'], $utente);
+        $doc = StockDocument::findById($bozza['id']);
+        $mossa = StockMovement::find("`reference_type` = 'stock_document' AND `reference_id` = ".$bozza['id']." AND `deleted` = 'false'", 1);
+
+        return $bozza['error'] === ''
+            && array_column($editor['lines'], 'expected') === [10.0, 4.0, null]
+            && array_column($editor['lines'], 'quantity') === ['8', '4', '']
+            && $esito['ok'] && $esito['message'] === 'Inventario '.$doc['number'].' confermato.'
+            && $esito['url'] === StockStocktakeResource::viewUrl($bozza['id'])
+            && movimenti($bozza['id']) === 1
+            && (int) $mossa['product_id'] === $a && (float) $mossa['quantity'] === -2.0;
     });
 });
 

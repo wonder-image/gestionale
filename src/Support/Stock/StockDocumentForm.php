@@ -86,7 +86,10 @@ final class StockDocumentForm
      * SKU, foto, giacenza della sede) più i pezzi in testo. Una riga la cui
      * versione non c'è più si toglie e si conta: la pagina lo dice.
      *
-     * @param list<array{product_id: int, quantity: ?float}> $items
+     * Nell'inventario la riga porta anche `expected`, l'atteso salvato (o
+     * null): l'editor lo mostra finché il contato e la sede restano quelli.
+     *
+     * @param list<array{product_id: int, quantity: ?float, expected_quantity?: ?float}> $items
      * @return array{lines: list<array<string, mixed>>, dropped: int}
      */
     public static function editorLines(array $items, int $locationId): array
@@ -105,7 +108,11 @@ final class StockDocumentForm
                 continue;
             }
 
-            $lines[] = $version + ['quantity' => self::quantityText($item['quantity'])];
+            $expected = $item['expected_quantity'] ?? null;
+            $lines[] = $version + [
+                'quantity' => self::quantityText($item['quantity']),
+                'expected' => $expected === null ? null : round((float) $expected, 3),
+            ];
         }
 
         return ['lines' => $lines, 'dropped' => $dropped];

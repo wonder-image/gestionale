@@ -2,8 +2,13 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Stock;
 
+use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
+use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockLevelResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 
 /**
@@ -90,6 +95,76 @@ final class StockVersionSearch
     }
 
     /**
+     * *Aggiungi versioni* dell'inventario: tutte le versioni (`all`), quelle
+     * di una categoria con le sottocategorie (`category`) o di un marchio
+     * (`brand`). Entrano quelle in vendita e le ferme che hanno ancora pezzi
+     * nella sede; mai i multiprodotti.
+     *
+     * Prima si contano: oltre le 500 righe di un documento tornano solo gli
+     * id, perché la pagina dica quante sarebbero senza ricevere migliaia di
+     * versioni da rifiutare. Le versioni stanno in ordine di nome.
+     *
+     * @return array{count: int, ids: list<int>, versions: list<Version>}
+     */
+    public static function scope(string $scope, int $scopeId, int $locationId): array
+    {
+        $none = ['count' => 0, 'ids' => [], 'versions' => []];
+        $filter = match ($scope) {
+            'all' => '',
+            'category' => $scopeId > 0 ? StockLevelResource::categoryCondition([(string) $scopeId], self::rows(Category::all())) : null,
+            'brand' => $scopeId > 0 ? StockLevelResource::brandCondition([(string) $scopeId]) : null,
+            default => null,
+        };
+
+        if ($filter === null) {
+            return $none;
+        }
+
+        $location = $locationId > 0 ? $locationId : Locations::mainId();
+        $products = '`'.Product::$table.'`';
+        $conditions = [
+            "`deleted` = 'false'",
+            self::notBundle(),
+            '`product_model_id` IN (SELECT a.`id` FROM `'.ProductModel::$table."` a WHERE a.`deleted` = 'false')",
+            "(`active` = 'true' OR ".self::stockAt($location, $products.'.`id`').' > 0)',
+        ];
+
+        if ($filter !== '') {
+            $conditions[] = $filter;
+        }
+
+        $ids = array_map('intval', array_column(self::rows(Product::find(implode(' AND ', $conditions), null, 'id', 'ASC', 'id')), 'id'));
+
+        if ($ids === [] || count($ids) > StockDocumentRules::MAX_LINES) {
+            return ['count' => count($ids), 'ids' => $ids, 'versions' => []];
+        }
+
+        $versions = array_values(self::describe($ids, $location));
+        usort($versions, static fn (array $a, array $b): int => strnatcasecmp($a['label'], $b['label']) ?: $a['id'] <=> $b['id']);
+
+        return ['count' => count($ids), 'ids' => $ids, 'versions' => $versions];
+    }
+
+    /**
+     * Le scelte di *Aggiungi versioni*: le categorie indentate come nella
+     * scheda e i marchi per nome.
+     *
+     * @return array{categories: array<string, string>, brands: array<string, string>}
+     */
+    public static function scopeOptions(): array
+    {
+        $categories = CategoryTree::options(self::rows(Category::all()));
+        unset($categories['']);
+        $brands = [];
+
+        foreach (self::rows(Brand::find(null, null, 'name', 'ASC')) as $brand) {
+            $brands[(string) $brand['id']] = (string) ($brand['name'] ?? '');
+        }
+
+        return ['categories' => $categories, 'brands' => $brands];
+    }
+
+    /**
      * Le versioni di questi id, pronte per la pagina; quelle che non ci sono
      * più, i multiprodotti e gli id non validi mancano.
      *
@@ -133,6 +208,13 @@ final class StockVersionSearch
     private static function like(string $word): string
     {
         return "'%".addcslashes(Product::connection()->real_escape_string($word), '%_')."%'";
+    }
+
+    /** I pezzi della versione nella sede, come `LevelsSql::quantityAt()`. */
+    private static function stockAt(int $locationId, string $product): string
+    {
+        return '(SELECT COALESCE(SUM(s.`quantity`), 0) FROM `'.StockRow::$table.'` s WHERE s.`product_id` = '.$product
+            .' AND s.`location_id` = '.$locationId." AND s.`deleted` = 'false')";
     }
 
     private static function notBundle(): string

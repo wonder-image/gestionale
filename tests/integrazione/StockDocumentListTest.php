@@ -16,6 +16,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockDocumentResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockIssueResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockReceiptResource;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockStocktakeResource;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocuments;
 use Wonder\Sql\Transaction;
@@ -46,10 +47,10 @@ function articolo(float $pezzi = 10): int
 }
 
 /** La riga dell'elenco come la legge il core: le colonne del documento più la `select()`. */
-function rigaElenco(int $id): array
+function rigaElenco(int $id, string $resource = StockReceiptResource::class): array
 {
     $t = '`'.StockDocument::$table.'`';
-    $r = StockDocument::connection()->query('SELECT '.$t.'.*, '.StockReceiptResource::select().' FROM '.$t.' WHERE '.$t.'.`id` = '.$id);
+    $r = StockDocument::connection()->query('SELECT '.$t.'.*, '.$resource::select().' FROM '.$t.' WHERE '.$t.'.`id` = '.$id);
 
     return $r ? (array) $r->fetch_assoc() : [];
 }
@@ -78,6 +79,26 @@ check('elenco: righe, pezzi, data della bozza e chi l\'ha creata', function () u
             && (float) $r['piece_count'] === 5.5
             && str_starts_with((string) $r['sort_date'], date('Y-m-d').' ')
             && $r['who_name'] === nomeUtente($utente);
+    });
+});
+
+check('elenco inventari: righe, contate e con differenza al posto dei pezzi', function () {
+    return prova(static function (): bool {
+        [$a, $b, $c] = [articolo(5), articolo(3), articolo(2)];
+        $id = StockDocuments::create('stocktake', [], [
+            ['product_id' => $a, 'quantity' => '4'],
+            ['product_id' => $b, 'quantity' => '3'],
+            ['product_id' => $c, 'quantity' => ''],
+        ]);
+        $r = rigaElenco($id, StockStocktakeResource::class);
+        $colonne = json_encode(StockStocktakeResource::tableSchema());
+
+        return (int) $r['row_count'] === 3
+            && (int) $r['counted_count'] === 2
+            && (int) $r['difference_count'] === 1
+            && !array_key_exists('piece_count', $r)
+            && str_contains($colonne, 'counted_count') && str_contains($colonne, 'difference_count')
+            && !str_contains($colonne, 'piece_count');
     });
 });
 
@@ -159,7 +180,10 @@ check('tipi: ogni Resource vede il suo, la pagina giusta per lo stato', function
         && StockIssueResource::type() === 'issue'
         && StockDocumentResource::classFor('receipt') === StockReceiptResource::class
         && StockDocumentResource::classFor('issue') === StockIssueResource::class
-        && StockDocumentResource::classFor('stocktake') === null
+        && StockDocumentResource::classFor('stocktake') === StockStocktakeResource::class
+        && StockStocktakeResource::type() === 'stocktake'
+        && StockStocktakeResource::newLabel() === 'Nuovo inventario'
+        && StockStocktakeResource::confirmLabel() === 'Conferma inventario'
         && StockDocumentResource::pageUrl($carico) === StockReceiptResource::editUrl(7)
         && StockDocumentResource::pageUrl($scarico) === StockIssueResource::viewUrl(8)
         && str_contains(StockReceiptResource::editUrl(7), '/7/edit')
