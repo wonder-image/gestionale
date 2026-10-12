@@ -136,4 +136,82 @@ check('pageSchema: nuovo e bozza con il template della bozza', function () {
         && ((array) StockIssueResource::pageSchema()->get('titles'))['edit'] === 'Bozza di scarico';
 });
 
+check('script: il lettore veloce non perde letture, anche con le risposte in disordine (node)', function () {
+    $node = trim((string) shell_exec('command -v node 2>/dev/null'));
+
+    if ($node === '') {
+        echo "  (salto: node non c'è in PATH)\n";
+
+        return true;
+    }
+
+    // Un DOM finto quanto basta all'editor; fetch resta in sospeso finché la prova non risponde.
+    $harness = <<<'JS'
+function El(tag) { this.tagName = tag; this.children = []; this.attrs = {}; this.listeners = {}; this.value = ''; this.textContent = ''; this.className = ''; this.style = {}; this.parentNode = null; this.firstChild = null; this.classList = {add: function () {}, remove: function () {}}; }
+El.prototype.appendChild = function (c) { c.parentNode = this; this.children.push(c); this.firstChild = this.children[0]; return c; };
+El.prototype.removeChild = function (c) { this.children.splice(this.children.indexOf(c), 1); this.firstChild = this.children[0] || null; return c; };
+El.prototype.insertBefore = function (c) { return this.appendChild(c); };
+El.prototype.setAttribute = function (k, v) { this.attrs[k] = String(v); };
+El.prototype.getAttribute = function (k) { return k in this.attrs ? this.attrs[k] : null; };
+El.prototype.addEventListener = function (t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); };
+El.prototype.fire = function (t, e) { (this.listeners[t] || []).forEach(function (f) { f(e); }); };
+El.prototype.focus = function () {};
+El.prototype.select = function () {};
+El.prototype.contains = function () { return true; };
+El.prototype.closest = function () { return null; };
+var parts = {search: new El('input'), results: new El('div'), message: new El('div'), rows: new El('tbody'), empty: new El('div'), totals: new El('div'), lines: new El('script')};
+parts.lines.textContent = '[]';
+var root = new El('div');
+root.setAttribute('data-search-url', '/cerca/');
+root.querySelector = function (sel) { return parts[sel.replace('[data-wi-stock-', '').replace(']', '')]; };
+var window = {};
+var document = {createElement: function (t) { return new El(t); }, querySelectorAll: function () { return [root]; }, addEventListener: function () {}};
+var answers = {'111': {result: 'one', versions: [{id: 1, label: 'A', stock: 0}]}, '222': {result: 'one', versions: [{id: 2, label: 'B', stock: 0}]}, 'zzz': {result: 'none', versions: []}};
+var waiting = [];
+window.fetch = function (url) {
+    var code = decodeURIComponent((/code=([^&]*)/.exec(url) || [])[1] || '');
+    return new Promise(function (resolve) { waiting.push(function () { resolve({ok: true, json: function () { return answers[code] || {result: 'none', versions: []}; }}); }); });
+};
+JS;
+    $run = <<<'JS'
+// Il lettore scrive il codice e Invio; la lettura dopo arriva prima delle risposte.
+['111', '222', '111', 'zzz'].forEach(function (code) {
+    parts.search.value += code;
+    parts.search.fire('input', {});
+    parts.search.fire('keydown', {key: 'Enter', preventDefault: function () {}});
+});
+waiting.slice().reverse().forEach(function (answer) { answer(); });
+setTimeout(function () {
+    console.log(JSON.stringify({
+        rows: parts.rows.children.map(function (tr) { var input = tr.children[2].children[0]; return [input.getAttribute('aria-label'), input.value]; }),
+        box: parts.search.value,
+        message: parts.message.textContent
+    }));
+}, 50);
+JS;
+    $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
+    $file = $base.'.js';
+    file_put_contents($file, $harness."\n".StockDocumentEditor::script()."\n".$run);
+    $out = (string) shell_exec(escapeshellarg($node).' '.escapeshellarg($file).' 2>&1');
+    $js = json_decode($out, true);
+    @unlink($file);
+    @unlink($base);
+
+    if (!is_array($js)) {
+        echo '  node: '.$out."\n";
+
+        return false;
+    }
+
+    $ok = $js['rows'] === [['Pezzi di A', '2'], ['Pezzi di B', '1']]
+        && $js['box'] === ''
+        && str_contains($js['message'], 'zzz');
+
+    if (!$ok) {
+        echo '  '.json_encode($js, JSON_UNESCAPED_UNICODE)."\n";
+    }
+
+    return $ok;
+});
+
 summary();

@@ -227,6 +227,12 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
         - [x] `StockDocuments::duplicate`: il `FOR UPDATE` sul documento d'origine non serve
         - [ ] Manca una prova vera di concorrenza e una del filtro *Tipo* attraverso l'elenco reale (SSP): da fare nel browser col piano 5
     - [ ] Piano 5 Carichi e scarichi, pagine: menu, elenchi, bozza con i componenti, rotta JSON e indice `ean`, pagina in sola lettura, azioni, dati di prova — eseguito sul ramo g3-carichi-scarichi (2026-10-12), da unire
+      - [ ] Ritocchi minori rimandati dalla revisione finale del piano 5:
+        - [ ] Se `create()` di un documento nuovo fallisce (CSRF, sede sconosciuta, versione eliminata nel frattempo) le righe scritte o lette si perdono: tenerle nel flash della sessione e riaprire l'editor con quelle
+        - [ ] Guida `magazzino-carichi-scarichi.md`, passo 4: il pezzo in più lo dà solo il lettore; col clic il cursore va sui pezzi della riga che c'è
+        - [ ] `StockDocumentsDemo::create`: creazione e conferma non sono atomiche, una bozza di prova rimasta a metà blocca i giri dopo
+        - [ ] `StockDocumentsDemo::clear()` non vede i documenti di prova eliminati (serve `deleted IN ('true','false')`)
+        - [ ] `StockDocumentSheet::people` legge `User::find` col filtro di default: un utente eliminato dopo perde il «da …»
     - [ ] Piano 6 Inventario, pagine: Attesi · Contati · Differenza, *Aggiungi versioni*, limite di 500 righe, dati di prova; chiusura di G2b-bis
   - [ ] **G2c La scheda prodotto, secondo giro** — spec: `docs/superpowers/specs/2026-09-22-scheda-prodotto-secondo-giro-design.md` (sedici giri chiusi, decisioni P1–P128)
     - [x] Tredicesimo giro eseguito (spec §22, 2026-09-25, commit `0a04ef9`): fornitori dell'articolo, giacenza e scorta minima per sede (`gst_stock_thresholds`, via `gst_products.min_stock_quantity`), colonna «Scontato» nella griglia, personalizzazioni scritte in spec per G5. Architettura 4.3 aggiornata; G2b-bis §2 «la scorta minima è della versione» superata

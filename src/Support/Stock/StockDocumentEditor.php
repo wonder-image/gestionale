@@ -207,6 +207,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         var rows = [];
         var timer = null;
         var seq = 0;
+        var scans = null;
         var initial = [];
         var k;
 
@@ -230,7 +231,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             }).then(done, fail);
         }
 
-        // Ricerca e lettore: conta solo l'ultima domanda.
+        // La ricerca per nome: conta solo l'ultima domanda.
         function lookup(params, done) {
             var mine = ++seq;
 
@@ -448,7 +449,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             return row;
         }
 
-        // Il lettore: +1 sulla riga che c'è, o una riga nuova; il fuoco resta nella casella.
+        // Il lettore: +1 sulla riga che c'è, o una riga nuova; la casella non si tocca (può avere già il codice dopo).
         function scanned(version) {
             var row = byId(version.id);
             var current;
@@ -470,9 +471,44 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 return;
             }
 
-            search.value = '';
             say('');
             search.focus();
+        }
+
+        // Il lettore: ogni Invio ha la sua risposta, letta nell'ordine delle letture.
+        function scan(code) {
+            var answer = new Promise(function (resolve) {
+                request('code=' + encodeURIComponent(code), function (data) {
+                    resolve({data: data});
+                }, function () {
+                    resolve(null);
+                });
+            });
+
+            scans = (scans || Promise.resolve()).then(function () {
+                return answer;
+            }).then(function (reply) {
+                var versions;
+
+                if (reply === null) {
+                    close();
+                    say(DOWN, 'error');
+
+                    return;
+                }
+
+                versions = list(reply.data);
+
+                if (reply.data && reply.data.result === 'one' && versions.length === 1) {
+                    close();
+                    scanned(versions[0]);
+                } else if (reply.data && reply.data.result === 'many') {
+                    show(versions, MANY);
+                } else {
+                    close();
+                    say(NONE + ': ' + code, 'error');
+                }
+            });
         }
 
         // Un clic sulla lista: la riga (nuova con 1 pezzo, o quella che c'è) e il fuoco sui pezzi.
@@ -563,20 +599,10 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 return;
             }
 
-            lookup('code=' + encodeURIComponent(code), function (data) {
-                var versions = list(data);
-
-                if (data.result === 'one' && versions.length === 1) {
-                    close();
-                    scanned(versions[0]);
-                } else if (data.result === 'many') {
-                    show(versions, MANY);
-                } else {
-                    close();
-                    say(NONE, 'error');
-                    search.select();
-                }
-            });
+            // La casella si svuota subito: il lettore può già scrivere il codice dopo.
+            search.value = '';
+            seq++;
+            scan(code);
         });
 
         document.addEventListener('click', function (event) {

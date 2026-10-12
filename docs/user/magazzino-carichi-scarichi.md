@@ -51,15 +51,16 @@ Confermato, il carico prende numero e data, e nei
 Il lettore scrive il codice nella casella **Cerca o scansiona** e preme
 Invio da solo. Con un codice che corrisponde **esattamente** allo SKU o
 all'EAN di una versione sola, la riga si aggiunge (o prende un pezzo in più)
-e la casella si svuota per il codice dopo. Così si carica un cartone
-passando i pezzi uno a uno.
+e la casella si svuota subito per il codice dopo. Così si carica un cartone
+passando i pezzi uno a uno, anche in fretta: ogni lettura conta.
 
 Invio non sceglie mai a caso:
 
 - **Più versioni con questo codice: scegline una** — due versioni hanno lo
   stesso codice; clicca quella giusta.
-- **Nessuna versione con questo codice** — il codice non è di nessuna
-  versione: controllalo, o scrivilo nella scheda della versione.
+- **Nessuna versione con questo codice: …** — il codice letto, scritto dopo
+  i due punti, non è di nessuna versione: controllalo, o scrivilo nella
+  scheda della versione.
 
 ## Fare uno scarico
 
