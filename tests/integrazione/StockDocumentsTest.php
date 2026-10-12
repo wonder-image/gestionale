@@ -381,4 +381,59 @@ check('inventario: una vendita fra il salvataggio della conta e la conferma rest
     });
 });
 
+check('annullare: uno storno per movimento, segno opposto, con il suo riferimento', function () use ($utente) {
+    return prova(static function () use ($utente): bool {
+        [$a, $b] = [articolo(10), articolo(5)];
+        $id = StockDocuments::create('stocktake', [], [
+            ['product_id' => $a, 'quantity' => '7'],
+            ['product_id' => $b, 'quantity' => '8'],
+        ]);
+        StockDocuments::confirm($id);
+        StockDocuments::cancel($id, ['user_id' => $utente]);
+        $storni = righe(StockMovement::class, "reference_type = 'stock_document_cancel' AND reference_id = ".$id);
+        $log = righe(StockDocumentStatusLog::class, 'stock_document_id = '.$id);
+        $perProdotto = array_column($storni, 'quantity', 'product_id');
+
+        return count($storni) === 2
+            && (float) $perProdotto[$a] === 3.0
+            && (float) $perProdotto[$b] === -3.0
+            && $storni[0]['type'] === 'adjustment' && $storni[0]['reason'] === 'inventory'
+            && (int) $storni[0]['user_id'] === $utente
+            && giacenza($a) === 10.0 && giacenza($b) === 5.0
+            && StockDocument::findById($id)['status'] === 'cancelled'
+            && end($log)['from_value'] === 'completed' && end($log)['to_value'] === 'cancelled';
+    });
+});
+
+check('annullare: lo storno di un carico già venduto si ferma e il documento resta confermato', function () {
+    return prova(static function (): bool {
+        $a = articolo(0);
+        $id = StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '5']]);
+        StockDocuments::confirm($id);
+        Stock::apply(['product_id' => $a, 'quantity' => -4, 'type' => 'sale']);
+        $errore = rifiuto(fn () => StockDocuments::cancel($id));
+
+        return $errore === 'stock.insufficient'
+            && StockDocument::findById($id)['status'] === 'completed'
+            && righe(StockMovement::class, "reference_type = 'stock_document_cancel' AND reference_id = ".$id) === []
+            && count(righe(StockDocumentStatusLog::class, 'stock_document_id = '.$id)) === 1
+            && giacenza($a) === 1.0;
+    });
+});
+
+check('annullare: solo un confermato, e una volta sola', function () {
+    return prova(static function (): bool {
+        $a = articolo(10);
+        $bozza = StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '5']]);
+        $id = StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '5']]);
+        StockDocuments::confirm($id);
+        StockDocuments::cancel($id);
+
+        return rifiuto(fn () => StockDocuments::cancel($bozza)) === 'stock_document.cannot_cancel'
+            && rifiuto(fn () => StockDocuments::cancel($id)) === 'stock_document.cannot_cancel'
+            && count(righe(StockMovement::class, "reference_type = 'stock_document_cancel' AND reference_id = ".$id)) === 1
+            && giacenza($a) === 10.0;
+    });
+});
+
 summary();

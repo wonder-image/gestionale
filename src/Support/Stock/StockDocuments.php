@@ -9,6 +9,7 @@ use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
+use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
@@ -139,6 +140,47 @@ final class StockDocuments
             self::log($id, 'draft', 'completed', $source, $userId);
 
             return $number;
+        });
+    }
+
+    /**
+     * Annulla un documento confermato: per ogni suo movimento uno storno con lo
+     * stesso tipo e la stessa causale, segno opposto. Se uno storno porterebbe
+     * sotto zero (i pezzi caricati sono già venduti) si ferma con
+     * `stock.insufficient` e il documento resta confermato.
+     *
+     * @param array{user_id?: int, source?: string} $options
+     */
+    public static function cancel(int $id, array $options = []): void
+    {
+        Transaction::run(static function () use ($id, $options): void {
+            $document = self::locked($id);
+
+            if ((string) $document['status'] !== 'completed') {
+                throw UserError::make('stock_document.cannot_cancel');
+            }
+
+            $userId = (int) ($options['user_id'] ?? 0);
+            $source = StatusLogger::normalizeSource((string) ($options['source'] ?? 'user'));
+            $movements = self::rows(StockMovement::find(
+                "`reference_type` = 'stock_document' AND `reference_id` = ".$id." AND `deleted` = 'false'",
+                null, 'id', 'ASC'
+            ));
+
+            foreach ($movements as $movement) {
+                Stock::apply(StockDocumentRules::reversal($movement) + [
+                    'product_id' => (int) $movement['product_id'],
+                    'location_id' => (int) $movement['location_id'],
+                    'batch_id' => (int) ($movement['batch_id'] ?? 0),
+                    'supplier_id' => (int) ($movement['supplier_id'] ?? 0),
+                    'reference_type' => 'stock_document_cancel',
+                    'reference_id' => $id,
+                    'user_id' => $userId,
+                ]);
+            }
+
+            StockDocument::update(['status' => 'cancelled'], $id);
+            self::log($id, 'completed', 'cancelled', $source, $userId);
         });
     }
 
