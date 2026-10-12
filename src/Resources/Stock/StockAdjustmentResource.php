@@ -22,6 +22,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\Adjustment;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
+use Wonder\Plugin\Gestionale\Support\Stock\StockOut;
 use Wonder\Plugin\Gestionale\Support\Stock\Stocktake;
 
 /**
@@ -240,7 +241,8 @@ final class StockAdjustmentResource extends NavigationOnlyResource
             throw UserError::make('stock.unknown_reason');
         }
 
-        Stock::apply([
+        // In meno dai secchi, come gli scarichi (G3.13); in più nel secchio 0.
+        ($change['delta'] < 0 ? StockOut::take(...) : Stock::apply(...))([
             'product_id' => $productId,
             'quantity' => $change['delta'],
             'reason' => $reason,

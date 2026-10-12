@@ -19,6 +19,9 @@ final class StockDocumentRules
     /** La quantità più alta che `quantity` DECIMAL(10,3) tiene. */
     public const MAX_QUANTITY = 9999999.999;
 
+    /** Il costo più alto che `unit_cost` DECIMAL(10,4) tiene. */
+    public const MAX_COST = 999999.9999;
+
     /** I tipi che si creano oggi: `transfer` arriva con G3. */
     public const TYPES = ['receipt', 'issue', 'stocktake'];
 
@@ -116,7 +119,14 @@ final class StockDocumentRules
             }
 
             $seen[$productId] = true;
-            $lines[] = ['product_id' => $productId, 'quantity' => self::quantity($line['quantity'] ?? null, $row)];
+            $wanted = ['product_id' => $productId, 'quantity' => self::quantity($line['quantity'] ?? null, $row)];
+
+            // G3, Acquisti: il costo del carico, solo se la riga lo porta.
+            if (array_key_exists('cost', $line)) {
+                $wanted['unit_cost'] = self::cost($line['cost'], $row);
+            }
+
+            $lines[] = $wanted;
         }
 
         return $lines;
@@ -243,6 +253,56 @@ final class StockDocumentRules
         }
 
         throw UserError::make('stock_document.invalid_lines');
+    }
+
+    /**
+     * Fornitore e documento del fornitore di un carico (G3.7), letti dalla
+     * testata: fornitore 0 = nessuno, numero tagliato a 50 caratteri, data
+     * `Y-m-d` valida o null. Che il fornitore esista lo controlla il servizio.
+     *
+     * @param array<string, mixed> $header
+     * @return array{supplier_id: int, supplier_document_number: string, supplier_document_date: ?string}
+     */
+    public static function supplierHeader(array $header): array
+    {
+        $supplierId = $header['supplier_id'] ?? 0;
+        $supplierId = is_int($supplierId) || (is_string($supplierId) && preg_match('/^\d{1,10}$/D', trim($supplierId)) === 1)
+            ? max(0, (int) $supplierId)
+            : 0;
+        $date = trim((string) ($header['supplier_document_date'] ?? ''));
+
+        if ($date !== '') {
+            $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+            if ($parsed === false || $parsed->format('Y-m-d') !== $date) {
+                throw UserError::make('stock_document.invalid_date');
+            }
+        }
+
+        return [
+            'supplier_id' => $supplierId,
+            'supplier_document_number' => mb_substr(trim((string) ($header['supplier_document_number'] ?? '')), 0, 50),
+            'supplier_document_date' => $date === '' ? null : $date,
+        ];
+    }
+
+    /**
+     * Il costo di una riga di carico, IVA esclusa: vuoto = non lo so (null,
+     * non zero); «2,50» si legge; negativo o storto è un rifiuto.
+     */
+    public static function cost(mixed $value, int $row): ?float
+    {
+        if ($value === null || (is_string($value) && trim($value) === '')) {
+            return null;
+        }
+
+        $cost = is_int($value) || is_float($value) ? (float) $value : Stocktake::quantity($value);
+
+        if ($cost === null || !is_finite($cost) || $cost < 0 || $cost > self::MAX_COST) {
+            throw UserError::make('stock_document.invalid_cost', ['row' => $row]);
+        }
+
+        return round($cost, 4);
     }
 
     private static function quantity(mixed $value, int $row): ?float

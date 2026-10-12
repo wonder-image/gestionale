@@ -161,7 +161,7 @@ final class StockDocumentForm
      * ignorano le regole.
      *
      * @param array<string, mixed> $post
-     * @return array{location_id?: int, reason?: string, note?: string}
+     * @return array{location_id?: int, reason?: string, note?: string, supplier_id?: string, supplier_document_number?: string, supplier_document_date?: string}
      */
     private static function header(array $post): array
     {
@@ -171,7 +171,8 @@ final class StockDocumentForm
             $header['location_id'] = (int) $post['location_id'];
         }
 
-        foreach (['reason', 'note'] as $key) {
+        // Il fornitore del carico (G3.7): la pagina li manda solo con «Acquisti».
+        foreach (['reason', 'note', 'supplier_id', 'supplier_document_number', 'supplier_document_date'] as $key) {
             if (array_key_exists($key, $post) && is_scalar($post[$key])) {
                 $header[$key] = (string) $post[$key];
             }
