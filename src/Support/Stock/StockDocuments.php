@@ -33,7 +33,7 @@ final class StockDocuments
      *
      * @param array{location_id?: int, reason?: string, note?: string} $header sede vuota = la principale
      * @param list<array{product_id: int, quantity: mixed}> $lines
-     * @param array{user_id?: int} $options
+     * @param array{user_id?: int, code?: string} $options `code` vuoto = un codice nuovo
      */
     public static function create(string $type, array $header, array $lines, array $options = []): int
     {
@@ -47,7 +47,7 @@ final class StockDocuments
             $wanted = StockDocumentRules::lines($lines);
 
             $created = StockDocument::create([
-                'code' => Code::make(StockDocument::class, Codes::STOCK_DOCUMENT),
+                'code' => trim((string) ($options['code'] ?? '')) ?: Code::make(StockDocument::class, Codes::STOCK_DOCUMENT),
                 'type' => $type,
                 'status' => 'draft',
                 'location_id' => $locationId,

@@ -133,6 +133,18 @@ check('creare: la bozza non muove la giacenza', function () {
     });
 });
 
+check('creare: un codice dato resta quello, senza codice ne nasce uno nuovo', function () {
+    return prova(function (): bool {
+        $prodotto = articolo();
+        $dato = StockDocuments::create('receipt', [], [['product_id' => $prodotto, 'quantity' => 1]], ['code' => 'stk_prova-codice-dato']);
+        $nuovo = StockDocuments::create('receipt', [], [['product_id' => $prodotto, 'quantity' => 1]]);
+
+        return (string) StockDocument::find(['id' => $dato], 1)['code'] === 'stk_prova-codice-dato'
+            && str_starts_with((string) StockDocument::find(['id' => $nuovo], 1)['code'], 'stk_')
+            && (string) StockDocument::find(['id' => $nuovo], 1)['code'] !== 'stk_prova-codice-dato';
+    });
+});
+
 check('creare: un tipo che non c\'è, una sede sconosciuta, una versione sparita sono rifiuti', function () {
     return prova(static function (): bool {
         $a = articolo();
