@@ -287,7 +287,8 @@ versionamento semantico.
   scorta minima», solo con `low_stock_alerts`): solo `admin`, fuori dal sync, si
   cambiano anche in produzione. Tolti `MerchantSetting`, `MerchantSettingResource` e la
   pagina Gestionale → Impostazioni; la tabella `gst_merchant_settings` resta senza
-  Model.
+  Model. **Chi aggiorna deve lanciare `php forge update`**; un indirizzo già scritto
+  nella vecchia pagina non si copia: va reinserito in Set Up.
 
 ### Corretto
 
