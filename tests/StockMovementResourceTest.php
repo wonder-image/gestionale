@@ -205,19 +205,70 @@ check('ricerca su codice, nota, SKU, EAN, nome dell\'opzione e dell\'articolo', 
         && in_array('name', (array) ($figlia['columns'] ?? []), true);
 });
 
-check('il filtro Tipo offre i tipi veri, con «Tutti»', function () use ($filtro) {
+check('il filtro Tipo offre i documenti al posto del carico, con «Tutti»', function () use ($filtro) {
     $f = $filtro('tipo');
 
-    return $f !== null && array_keys((array) $f['array']) === ['', ...StockMovement::TYPES] && is_callable($f['where']);
+    return $f !== null
+        && array_keys((array) $f['array']) === [
+            '', 'sale', 'sale_cancel', 'return', 'doc_receipt', 'doc_issue', 'doc_stocktake',
+            'adjustment', 'transfer_in', 'transfer_out',
+        ]
+        && $f['array']['doc_receipt'] === 'Carico'
+        && $f['array']['doc_issue'] === 'Scarico'
+        && $f['array']['doc_stocktake'] === 'Inventario'
+        && is_callable($f['where']);
 });
 
-check('il filtro Tipo non fa passare niente che non sia un tipo', function () use ($filtro) {
+check('il filtro Tipo: un tipo semplice è il suo tipo', function () use ($filtro) {
+    return $filtro('tipo')['where'](['sale']) === "`type` = 'sale'";
+});
+
+check('il filtro Tipo: Scarico guarda il documento, storni compresi', function () use ($filtro) {
+    $sql = $filtro('tipo')['where'](['doc_issue']);
+
+    return str_contains($sql, "`reference_type` IN ('stock_document', 'stock_document_cancel')")
+        && str_contains($sql, "FROM `gst_stock_documents` WHERE `type` = 'issue'");
+});
+
+check('il filtro Tipo: Carico prende anche i carichi senza documento', function () use ($filtro) {
+    $sql = $filtro('tipo')['where'](['doc_receipt']);
+
+    return str_contains($sql, "`type` = 'receipt'") && str_contains($sql, "`type` = 'purchase' AND");
+});
+
+check('il filtro Tipo: Rettifica è una rettifica senza documento', function () use ($filtro) {
+    $sql = $filtro('tipo')['where'](['adjustment']);
+
+    return str_starts_with($sql, "(`type` = 'adjustment' AND (`reference_type` IS NULL OR `reference_type` NOT IN");
+});
+
+check('il filtro Tipo: più voci vanno in OR fra parentesi', function () use ($filtro) {
+    $sql = $filtro('tipo')['where'](['sale', 'doc_issue']);
+
+    return str_starts_with($sql, "(`type` = 'sale' OR (") && str_ends_with($sql, ')');
+});
+
+check('il filtro Tipo non fa passare niente che non sia una voce', function () use ($filtro) {
     $dove = $filtro('tipo')['where'];
 
-    return $dove(['sale']) === "`type` IN ('sale')"
-        && $dove(["sale') OR 1=1 --"]) === ''
+    return $dove(["sale') OR 1=1 --"]) === ''
+        && $dove(["doc_issue') OR 1=1 --"]) === ''
+        && $dove(['doc_transfer']) === ''
+        && $dove(['purchase']) === ''
         && $dove([]) === ''
         && $dove(['']) === '';
+});
+
+check('Tipo con un documento: l\'etichetta del documento, non quella del tipo registrato', function () {
+    $html = StockMovementResource::typeCell(['type' => 'adjustment'], '2026/100003', '', 'Scarico');
+
+    return $html === 'Scarico · 2026/100003';
+});
+
+check('Tipo con uno storno: «Annullamento del carico» col numero', function () {
+    $html = StockMovementResource::typeCell(['type' => 'purchase'], '2026/100001', '', 'Annullamento del carico');
+
+    return $html === 'Annullamento del carico · 2026/100001';
 });
 
 check('il filtro Causale offre le causali vere', function () use ($filtro) {

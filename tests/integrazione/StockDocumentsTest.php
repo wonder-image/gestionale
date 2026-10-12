@@ -18,6 +18,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockMovementResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
@@ -531,5 +532,44 @@ check('eliminare: un documento che non c\'è è un rifiuto', fn () =>
     rifiutoDiCancellazione(fn () => StockDocuments::assertDeletable(999999999))
         === UserError::make('stock_document.not_found')->getMessage()
 );
+
+check('Movimenti: la cella Tipo legge il documento e lo storno', function () {
+    return prova(static function (): bool {
+        $a = articolo(10);
+        $id = StockDocuments::create('issue', ['reason' => 'damaged'], [['product_id' => $a, 'quantity' => '1']]);
+        $numero = StockDocuments::confirm($id);
+        StockDocuments::cancel($id);
+        $mov = righe(StockMovement::class, "reference_type = 'stock_document' AND reference_id = ".$id)[0];
+        $storno = righe(StockMovement::class, "reference_type = 'stock_document_cancel' AND reference_id = ".$id)[0];
+
+        return StockMovementResource::typeCellOf($mov) === 'Scarico · '.$numero
+            && StockMovementResource::typeCellOf($storno) === 'Annullamento dello scarico · '.$numero;
+    });
+});
+
+check('Movimenti: il filtro Tipo trova nel database le righe giuste', function () {
+    return prova(static function (): bool {
+        $a = articolo(10);
+        $scarico = StockDocuments::create('issue', ['reason' => 'gift'], [['product_id' => $a, 'quantity' => '1']]);
+        StockDocuments::confirm($scarico);
+        StockDocuments::cancel($scarico);
+        StockDocuments::confirm(StockDocuments::create('stocktake', [], [['product_id' => $a, 'quantity' => '4']]));
+        Stock::apply(['product_id' => $a, 'quantity' => 1, 'type' => 'adjustment', 'reason' => 'other']);
+        // Una query diretta, come fa SSP nell'elenco: Model::find non aggiunge il suo
+        // WHERE a una condizione che ne contiene già uno (la sottoquery).
+        $trova = static fn (string $voce): array => array_map(
+            static fn (array $r): string => $r['type'].'|'.($r['reference_type'] ?? ''),
+            StockMovement::query()->mysqli->query(
+                'SELECT `type`, `reference_type` FROM `'.StockMovement::$table.'` WHERE `product_id` = '.$a
+                .' AND '.StockMovementResource::typeCondition([$voce]).' ORDER BY `id`'
+            )->fetch_all(MYSQLI_ASSOC)
+        );
+
+        return $trova('doc_issue') === ['adjustment|stock_document', 'adjustment|stock_document_cancel']
+            && $trova('doc_stocktake') === ['adjustment|stock_document']
+            && $trova('doc_receipt') === ['purchase|']
+            && $trova('adjustment') === ['adjustment|'];
+    });
+});
 
 summary();
