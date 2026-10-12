@@ -13,6 +13,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Http\Csrf;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
@@ -276,8 +277,13 @@ abstract class StockDocumentResource extends GestionaleResource
     public static function pageSchema(): PageSchema
     {
         return parent::pageSchema()
-            ->only(['list', 'delete'])
-            ->titles(['list' => static::titleLabel()]);
+            ->only(['list', 'create', 'store', 'edit', 'update', 'delete'])
+            ->titles([
+                'list' => static::titleLabel(),
+                'create' => static::newLabel(),
+                'edit' => 'Bozza di '.mb_strtolower(static::singular()),
+            ])
+            ->view('form', Gestionale::viewPath('pages/stock-document-form.php'));
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -389,6 +395,36 @@ abstract class StockDocumentResource extends GestionaleResource
         }
 
         return static::viewUrl((int) ($values['id'] ?? 0));
+    }
+
+    /**
+     * La domanda prima della conferma (spec §4.2). `{pezzi}` e `{righe}` li
+     * riempie la pagina con i numeri della tabella.
+     */
+    public static function confirmQuestion(): string
+    {
+        $where = static::type() === 'issue' ? 'escono dal' : 'entrano in';
+
+        return '{pezzi} pezzi in {righe} righe '.$where.' magazzino. Dopo non si modifica più: si può solo annullare.';
+    }
+
+    /**
+     * Le righe la cui versione è stata eliminata non si disegnano
+     * (`StockDocumentForm::editorLines()`): la pagina lo dice, perché salvando
+     * escono anche dal documento.
+     */
+    public static function formNotices(array $values, string $mode): array
+    {
+        $notices = parent::formNotices($values, $mode);
+        $dropped = (int) ($values['editor']['dropped'] ?? 0);
+
+        if ($dropped === 1) {
+            $notices[] = ['level' => 'warning', 'message' => "Una riga non c'è più: la sua versione è stata eliminata. Salvando la bozza esce anche dal documento."];
+        } elseif ($dropped > 1) {
+            $notices[] = ['level' => 'warning', 'message' => $dropped.' righe non ci sono più: le loro versioni sono state eliminate. Salvando la bozza escono anche dal documento.'];
+        }
+
+        return $notices;
     }
 
     /**
