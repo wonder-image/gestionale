@@ -55,6 +55,10 @@ try {
         sqlDelete(\Wonder\Plugin\Gestionale\Models\Sales\SalesReturnStatusLog::$table);
         sqlDelete(\Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem::$table);
         sqlDelete(\Wonder\Plugin\Gestionale\Models\Sales\SalesReturn::$table);
+        // E per i documenti di magazzino, che hanno la loro sede.
+        sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog::$table);
+        sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem::$table);
+        sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockDocument::$table);
         sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockThreshold::$table);
         sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockAlert::$table);
         sqlDelete(\Wonder\Plugin\Gestionale\Models\Stock\StockReservation::$table);
