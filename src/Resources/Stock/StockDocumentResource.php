@@ -13,6 +13,8 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Http\Csrf;
+use Wonder\Plugin\Gestionale\Support\Stock\StockValue;
+use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
@@ -68,6 +70,8 @@ abstract class StockDocumentResource extends GestionaleResource
             'difference_count' => 'Con differenza',
             'note' => 'Nota',
             'who_name' => 'Chi',
+            'supplier_id' => 'Fornitore',
+            'total_cost' => 'Costo',
         ];
     }
 
@@ -84,6 +88,13 @@ abstract class StockDocumentResource extends GestionaleResource
                 ->sortable()
                 ->formatter(static fn (array $row): string => static::dateCell($row)),
         ];
+
+        if (static::purchases()) {
+            $columns[] = TableColumn::key('supplier_id')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::escape(SupplierNames::of((int) ($row['supplier_id'] ?? 0))));
+        }
 
         if (static::showsLocation()) {
             $columns[] = TableColumn::key('location_id')
@@ -109,6 +120,15 @@ abstract class StockDocumentResource extends GestionaleResource
                 ->size('little')
                 ->sortable()
                 ->formatter(static fn (array $row): string => static::number($row[$key] ?? 0));
+        }
+
+        if (static::purchases()) {
+            $columns[] = TableColumn::key('total_cost')
+                ->text()
+                ->size('little')
+                ->sortable()
+                ->hiddenDevice('mobile')
+                ->formatter(static fn (array $row): string => StockValue::money((float) ($row['total_cost'] ?? 0)));
         }
 
         $columns[] = TableColumn::key('note')
@@ -159,6 +179,15 @@ abstract class StockDocumentResource extends GestionaleResource
 
         if (static::type() === 'issue') {
             $schema->filterCustom('Causale', 'reason', ['' => 'Tutte'] + Reasons::forDocument('issue'));
+        }
+
+        if (static::purchases()) {
+            $schema->filterQuery(
+                'Fornitore',
+                'fornitore',
+                ['' => 'Tutti', '0' => 'Senza fornitore'] + SupplierNames::all(),
+                static fn (array $values): string => SupplierNames::condition($values, '`'.StockDocument::$table.'`.`supplier_id`')
+            );
         }
 
         return $schema;

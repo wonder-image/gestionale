@@ -3,6 +3,9 @@
 namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use Wonder\App\Models\User\User;
+use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
 
@@ -20,7 +23,10 @@ final class StockDocumentSheet
      * (`up`, `down`, `''`); una riga non contata ha «—» nelle tre celle.
      *
      * @param array<string, mixed> $document una riga di `gst_stock_documents`
-     * @return array{lines: list<array{label: string, sku: string, quantity: string, expected: string, difference: string, tone: string}>, total: string, confirmed: string, cancelled: string, location: string, reason: string, note: string}
+     * Nel carico con «Acquisti» ogni riga ha anche `cost` e `line_total`, e
+     * `supplier` dice fornitore e documento.
+     *
+     * @return array{lines: list<array{label: string, sku: string, quantity: string, expected: string, difference: string, tone: string, cost: string, line_total: string}>, total: string, costs: bool, supplier: string, confirmed: string, cancelled: string, location: string, reason: string, note: string}
      */
     public static function for(array $document): array
     {
@@ -41,10 +47,15 @@ final class StockDocumentSheet
         }
 
         $people = self::people($id);
+        // G3, Acquisti: fornitore e costi del carico, solo con la funzionalità.
+        $costs = (string) ($document['type'] ?? '') === 'receipt' && Gestionale::feature('purchasing');
+        $total = $counting ? StockDocumentEditor::stocktakeTotals(count($items), $counted, $differing) : StockDocumentEditor::totals(count($items), $pieces);
 
         return [
-            'lines' => self::lines($items, $counting),
-            'total' => $counting ? StockDocumentEditor::stocktakeTotals(count($items), $counted, $differing) : StockDocumentEditor::totals(count($items), $pieces),
+            'lines' => self::lines($items, $counting, $costs),
+            'total' => $costs ? $total.' · '.StockValue::money((float) ($document['total_cost'] ?? 0)) : $total,
+            'costs' => $costs,
+            'supplier' => $costs ? self::supplier($document) : '',
             'confirmed' => $people['completed'] ?? '',
             'cancelled' => $people['cancelled'] ?? '',
             'location' => self::location((int) ($document['location_id'] ?? 0)),
@@ -57,7 +68,7 @@ final class StockDocumentSheet
      * @param list<array{product_id: int, quantity: ?float, expected_quantity?: ?float}> $items
      * @return list<array{label: string, sku: string, quantity: string, expected: string, difference: string, tone: string}>
      */
-    private static function lines(array $items, bool $counting): array
+    private static function lines(array $items, bool $counting, bool $costs = false): array
     {
         $ids = array_values(array_unique(array_map(static fn (array $item): int => (int) $item['product_id'], $items)));
         $products = [];
@@ -72,7 +83,7 @@ final class StockDocumentSheet
 
         $models = ProductNames::models($products);
 
-        return array_map(static function (array $item) use ($products, $models, $counting): array {
+        return array_map(static function (array $item) use ($products, $models, $counting, $costs): array {
             $product = $products[(int) $item['product_id']] ?? null;
             $line = [
                 'label' => $product === null ? 'Versione eliminata' : self::text(ProductNames::full($product, $models)),
@@ -81,7 +92,15 @@ final class StockDocumentSheet
                 'expected' => '',
                 'difference' => '',
                 'tone' => '',
+                'cost' => '',
+                'line_total' => '',
             ];
+
+            if ($costs) {
+                $cost = $item['unit_cost'] ?? null;
+                $line['cost'] = $cost === null ? '—' : StockValue::money((float) $cost);
+                $line['line_total'] = $cost === null || $item['quantity'] === null ? '—' : StockValue::money(round((float) $cost * (float) $item['quantity'], 2));
+            }
 
             if (!$counting) {
                 return $line;
@@ -99,6 +118,29 @@ final class StockDocumentSheet
                 'tone' => $difference > 0 ? 'up' : ($difference < 0 ? 'down' : ''),
             ] + $line;
         }, $items);
+    }
+
+    /**
+     * «Fornitore Rossi · FT 12 del 10/10/2026»; senza fornitore stringa vuota.
+     *
+     * @param array<string, mixed> $document
+     */
+    private static function supplier(array $document): string
+    {
+        $id = (int) ($document['supplier_id'] ?? 0);
+
+        if ($id <= 0) {
+            return '';
+        }
+
+        $contact = Contact::find('`id` = '.$id." AND `deleted` IN ('true', 'false')", 1);
+        $name = is_array($contact) && isset($contact['id']) ? self::text(Contacts::displayName($contact)) : 'Fornitore #'.$id;
+        $number = self::text((string) ($document['supplier_document_number'] ?? ''));
+        $date = substr((string) ($document['supplier_document_date'] ?? ''), 0, 10);
+        $date = $date !== '' && !str_starts_with($date, '0000') ? date('d/m/Y', (int) strtotime($date)) : '';
+        $reference = trim($number.($date !== '' ? ' del '.$date : ''));
+
+        return 'Fornitore '.$name.($reference !== '' ? ' · '.$reference : '');
     }
 
     /** Contati − attesi, a tre decimali (come il movimento della conferma). */

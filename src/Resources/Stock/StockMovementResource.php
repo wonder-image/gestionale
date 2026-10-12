@@ -14,6 +14,7 @@ use Wonder\App\Models\User\User;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
+use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
@@ -93,6 +94,7 @@ final class StockMovementResource extends GestionaleResource
             'quantity_after' => 'Dopo',
             'user_id' => 'Chi',
             'note' => 'Nota',
+            'supplier_id' => 'Fornitore',
         ];
     }
 
@@ -114,6 +116,15 @@ final class StockMovementResource extends GestionaleResource
                 ->text()
                 ->size('little')
                 ->formatter(static fn (array $row): string => static::escape(static::locationLabel((int) ($row['location_id'] ?? 0))));
+        }
+
+        if (Gestionale::feature('purchasing')) {
+            // G3, Acquisti: il secchio da cui è uscita o in cui è entrata la merce.
+            $columns[] = TableColumn::key('supplier_id')
+                ->text()
+                ->size('little')
+                ->hiddenDevice('mobile')
+                ->formatter(static fn (array $row): string => static::escape(SupplierNames::of((int) ($row['supplier_id'] ?? 0))));
         }
 
         $columns[] = TableColumn::key('type')
@@ -219,6 +230,15 @@ final class StockMovementResource extends GestionaleResource
 
         if (static::showsLocation()) {
             $schema->filterQuery('Sede', 'sede', static::locationOptions(), static fn (array $values): string => static::locationCondition($values));
+        }
+
+        if (Gestionale::feature('purchasing')) {
+            $schema->filterQuery(
+                'Fornitore',
+                'fornitore',
+                ['0' => 'Senza fornitore'] + SupplierNames::all(),
+                static fn (array $values): string => SupplierNames::condition($values)
+            );
         }
 
         $schema->filterQuery(
