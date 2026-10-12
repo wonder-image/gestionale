@@ -37,8 +37,8 @@ versionamento semantico.
   annullamento con gli storni (`stock_document_cancel`), duplica ed eliminazione della
   bozza (`Support\Stock\StockDocuments`, regole pure in `StockDocumentRules`);
   `Reasons::forDocument()`. Nei Movimenti *Tipo* mostra il documento e i suoi storni, e
-  il filtro *Tipo* ha *Carico*, *Scarico* e *Inventario*. Senza pagine: arrivano con i
-  piani 5 e 6.
+  il filtro *Tipo* ha *Carico*, *Scarico* e *Inventario*. Le pagine sono nelle due
+  voci sopra.
 - `Coupons::reserved(int $customerId)`: i coupon riservati al cliente, con i suoi
   utilizzi non rilasciati (`list<array{coupon, used}>`). Vuoto con `id` minore o uguale
   a 0 o con la funzionalità Coupon spenta. `CustomerSheet::coupons()` lo usa: la scheda
