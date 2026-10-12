@@ -225,6 +225,12 @@ StockPicking::split(array $buckets, float $quantity, array $options): array
 lock (`FOR UPDATE`, come oggi `Allocation::lockedQuantity()`), con la scadenza
 del lotto e il costo del secchio.
 
+**Chi controlla lotto e fornitore.** `Stock::apply()` resta com'è e si fida di
+chi chiama. `Allocation` prende lotto e fornitore solo dai secchi letti con il
+lock; `StockDocuments` controlla, prima di confermare, che il lotto scelto o
+trovato sia della versione della riga (`batch.wrong_product`) e che il
+fornitore sia un contatto con il ruolo di fornitore (`stock_document.supplier_unknown`).
+
 #### 1.4 Il costo di un secchio
 
 `StockCosts::of()` (pura sulle righe lette): fornitore noto → il suo `cost` in
@@ -273,7 +279,10 @@ Come oggi, per prodotto e sede (G3.4), contro il disponibile di §2.2.
 
 `Allocation::commit()`:
 
-1. lock dei secchi (`StockBuckets`), prenotazione della riga come oggi;
+1. lock dei secchi (`StockBuckets`), prenotazione della riga come oggi; il
+   controllo `order.reservation_lost` resta **prima** di ogni scrittura, come
+   oggi, calcolato sulla giacenza della sede senza i lotti scaduti (così la
+   chiave d'errore e i test di `AllocationTest` non cambiano);
 2. `StockPicking::split()` sulla quantità della riga, con le funzionalità
    accese;
 3. un `Stock::apply()` per ogni parte: tipo `sale`, `reference_item_id` = la
@@ -331,9 +340,15 @@ secchio 0 di quell'opzione e sede è sotto zero di *n* pezzi: due movimenti
 `adjustment` con causale `batch_assignment` e lo stesso riferimento della riga,
 `-min(n, pezzi caricati)` nel secchio appena caricato e lo stesso in più nel
 secchio 0. La giacenza della sede non cambia; il lotto (o il fornitore) risulta
-uscito. L'annullamento del carico storna anche questi due, come tutti i
-movimenti del documento. Vale per i carichi da `StockDocuments::confirm()`, non
-per la rettifica (che entra nel secchio 0).
+uscito. Vale per i carichi da `StockDocuments::confirm()`, non per la rettifica
+(che entra nel secchio 0).
+
+L'annullamento del carico storna anche questi due, **in ordine cronologico
+inverso**: prima le compensazioni, poi il `purchase`. Nell'ordine di scrittura
+il `purchase` toglierebbe *q* da un secchio che ne ha *q − n* e `Stock::apply()`
+lo rifiuterebbe. `StockDocuments::cancel()` tiene l'ordinamento per
+`product_id` del piano 5 (contro il blocco reciproco) e dentro lo stesso
+prodotto storna dall'ultimo movimento al primo; vale per tutti i documenti.
 
 #### 3.4 Valore del magazzino (G3.19)
 
