@@ -37,6 +37,9 @@ final class StockDocumentItem extends Model
             Column::key('product_id')->int()->null(false)->foreign(Product::$table),
             Column::key('batch_id')->int()->default(0),
             Column::key('supplier_id')->int()->default(0),
+            // G3: lotto e scadenza scritti nella bozza del carico, prima che il lotto esista.
+            Column::key('batch_number')->length(50),
+            Column::key('batch_expiry')->date()->null(true),
             Columns::decimal('quantity')->null(true),
             Columns::decimal('expected_quantity')->null(true),
             Columns::decimal('unit_cost', '10,4'),
@@ -60,6 +63,8 @@ final class StockDocumentItem extends Model
             Field::key('product_id')->number()->decimals(0),
             Field::key('batch_id')->number()->decimals(0),
             Field::key('supplier_id')->number()->decimals(0),
+            Field::key('batch_number')->text(),
+            Field::key('batch_expiry')->date(),
             Field::key('quantity')->number()->decimals(3),
             Field::key('expected_quantity')->number()->decimals(3),
             Field::key('unit_cost')->number()->decimals(4),

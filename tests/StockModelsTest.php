@@ -5,14 +5,17 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Plugin\Gestionale\Models\Stock\Batch;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock;
+use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
+use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Models\Stock\StockThreshold;
 use Wonder\Plugin\Gestionale\Support\Codes;
 
-$modelli = [Stock::class, StockMovement::class, StockReservation::class, StockAlert::class, StockThreshold::class];
+$modelli = [Stock::class, StockMovement::class, StockReservation::class, StockAlert::class, StockThreshold::class, Batch::class];
 
 $colonne = static function (string $model): array {
     $colonne = [];
@@ -180,6 +183,26 @@ check('nessuna colonna usa una parola riservata di MySQL', function () use ($mod
     }
 
     return true;
+});
+
+check('G3: il lotto è unico per versione, con la scadenza che può mancare e il suo prefisso', function () use ($colonne, $campo) {
+    $c = $colonne(Batch::class);
+
+    return Batch::$table === 'gst_batches'
+        && (Batch::tablePseudos()['uni_batch']['unique'] ?? []) === ['product_id', 'number']
+        && $c['product_id']->getSchema('foreign_table') === 'gst_products'
+        && $c['expiry_date']->getSchema('null') === true
+        && ($campo(Batch::class, 'code')?->getSchema('unique_code')['prefix'] ?? null) === Codes::BATCH;
+});
+
+check('G3: il movimento sa da quale riga viene, e le righe dei documenti tengono il lotto scritto', function () use ($colonne) {
+    $m = $colonne(StockMovement::class);
+    $r = $colonne(StockDocumentItem::class);
+
+    return isset($m['reference_item_id'])
+        && (StockMovement::tablePseudos()['ind_reference_item']['index'] ?? []) === ['reference_type', 'reference_id', 'reference_item_id']
+        && isset($r['batch_number'], $r['batch_expiry'])
+        && in_array('in_transit', StockDocument::STATUSES, true);
 });
 
 summary();

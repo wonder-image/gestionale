@@ -11,8 +11,16 @@ use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 check('le causali della spec ci sono tutte', fn () =>
     array_keys(Reasons::all()) === [
         'inventory', 'initial_stock', 'damaged', 'expired',
-        'gift', 'internal_use', 'other',
+        'gift', 'internal_use', 'other', 'batch_assignment',
     ]
+);
+
+check('la causale interna ha l\'etichetta ma non sta fra quelle da scegliere', fn () =>
+    Reasons::internal() === ['batch_assignment']
+    && Reasons::label('batch_assignment') === 'Assegnazione lotto'
+    && !array_key_exists('batch_assignment', Reasons::selectable())
+    && array_keys(Reasons::selectable()) === ['inventory', 'initial_stock', 'damaged', 'expired', 'gift', 'internal_use', 'other']
+    && !array_key_exists('batch_assignment', Reasons::forDocument('issue'))
 );
 
 check('la causale predefinita è l\'inventario, la prima dell\'elenco', fn () =>

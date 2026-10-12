@@ -61,6 +61,8 @@ final class ProductModel extends Model
             Column::key('description')->type('TEXT'),
             Column::key('returnable')->enum(['true', 'false'])->default('true'),
             Column::key('requires_shipping')->enum(['true', 'false'])->default('true'),
+            // G3: «Gestisci lotti e scadenze» (G3.9); il campo arriva con il piano 3.
+            Column::key('track_batches')->enum(['true', 'false'])->default('false'),
             Column::key('visible')->enum(['true', 'false'])->default('true'),
             Column::key('visible_online')->enum(['true', 'false'])->default('true'),
             // Se l'articolo si vende in più opzioni. È una risposta, non un
@@ -106,6 +108,7 @@ final class ProductModel extends Model
             Field::key('circumference')->number()->decimals(2),
             Field::key('returnable')->text()->sanitize(false),
             Field::key('requires_shipping')->text()->sanitize(false),
+            Field::key('track_batches')->text()->sanitize(false),
             Field::key('visible')->text()->sanitize(false),
             Field::key('visible_online')->text()->sanitize(false),
             Field::key('has_variants')->text()->sanitize(false),
