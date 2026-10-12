@@ -21,6 +21,7 @@
 
 * [Giacenze e rettifiche](magazzino-giacenze.md)
 * [Carichi e scarichi](magazzino-carichi-scarichi.md)
+* [Acquisti e valore del magazzino](magazzino-acquisti.md)
 * [Inventario](magazzino-inventario.md)
 * [Movimenti](magazzino-movimenti.md)
 * [Avvisi di scorta minima](magazzino-avvisi.md)

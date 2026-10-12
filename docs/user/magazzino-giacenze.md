@@ -50,6 +50,8 @@ SKU. Poi:
   totale in rosso, con l'etichetta *sotto scorta*.
 - **Impegnati** e **Disponibili**, se hai gli ordini: i pezzi già promessi a
   un ordine e quelli che puoi ancora vendere, contando tutte le sedi.
+- **Valore**, se hai gli [acquisti](magazzino-acquisti.md): i pezzi per il
+  costo di oggi del fornitore, IVA esclusa.
 
 Ogni colonna si ordina con un clic sul titolo. In alto ci sono la ricerca
 (nome dell'articolo, SKU o EAN) e i filtri *Stato*, *Marchio*, *Categoria*

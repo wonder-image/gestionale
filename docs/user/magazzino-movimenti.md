@@ -22,8 +22,9 @@ c'è scritto 3?"**.
 | **Quando** | data e ora |
 | **Articolo** | la versione in vendita che si è mossa |
 | **Tipo** | rettifica, vendita, reso, carico… Per le vendite e i resi dice anche il **documento**: *Vendita · 2026/0012*, cliccabile, apre l'ordine. Per carichi e scarichi il documento è nel testo, *Carico · 2026/100003*; gli storni di un documento annullato si leggono *Annullamento del carico · 2026/100003* |
-| **Causale** | il perché: inventario, danneggiato, regalo… |
+| **Causale** | il perché: inventario, danneggiato, regalo… *Assegnazione lotto* la scrive il gestionale quando un carico copre pezzi venduti prima che arrivassero |
 | **Sede** | dove si è mossa la merce (solo se hai più sedi) |
+| **Fornitore** | il fornitore di quella merce, o niente se è entrata senza (solo con gli [acquisti](magazzino-acquisti.md)); c'è anche il filtro *Fornitore* |
 | **Prima** | quanti pezzi c'erano prima del movimento |
 | **Pezzi** | `+10` sono entrati, `−3` sono usciti |
 | **Giacenza dopo** | quanti ne restavano dopo quel movimento |

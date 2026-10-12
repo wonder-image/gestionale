@@ -306,6 +306,23 @@ sede, meno i lotti scaduti e gli impegnati. Lo leggono il carrello e la
 vetrina dell'ecommerce con `Locations::forSale()`; le *Giacenze* restano su
 tutte le sedi (`Levels::of()`, `LevelsSql`).
 
+**Acquisti (G3, piano 2).** Con `purchasing` il carico ha `supplier_id`,
+`supplier_document_number`, `supplier_document_date` in testata (letti da
+`StockDocumentRules::supplierHeader()`, controllati dal servizio) e
+`unit_cost`/`line_total` sulle righe (`StockDocumentRules::cost()`: vuoto è
+`null`, non zero), `total_cost` sul documento. La conferma scrive il
+`purchase` nel secchio `(0, fornitore)`, poi la **compensazione**: se il
+secchio 0 è sotto zero, due `adjustment` `batch_assignment` gli passano i
+pezzi; poi il costo maggiore di zero diventa quello di `gst_product_suppliers`
+(legame creato se manca). L'annullo storna dentro la stessa versione
+dall'ultimo movimento al primo, e lo storno di una compensazione può tornare
+sotto zero (`allow_negative`). Scarichi, inventari in meno e rettifiche in
+meno passano da `StockOut::take()`, che divide con `StockPicking`.
+`StockValue` (puro) e `LevelsSql::value()` danno il valore; il riquadro è
+`StockValueWidget`; `SupplierNames` dà i nomi dei fornitori agli elenchi.
+`StockVersionSearch::describe()` porta `costs` (fornitore → costo) per
+riempire il costo nell'editor.
+
 **Causali interne.** `Reasons::internal()` (oggi `batch_assignment`,
 «Assegnazione lotto») ha l'etichetta nei Movimenti ma non sta nelle tendine:
 le scelte a mano sono `Reasons::selectable()`, e la Rettifica rifiuta le

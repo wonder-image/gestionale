@@ -7,6 +7,22 @@ versionamento semantico.
 
 ### Aggiunto
 
+- G3 piano 2, **Acquisti** (funzionalità `purchasing`, inerte se spenta):
+  carico con **Fornitore**, documento e data del fornitore in testata e
+  **Costo** per riga (IVA esclusa) con il totale, riempito dal costo
+  dell'opzione per quel fornitore; alla conferma la merce entra nel secchio
+  del fornitore, il costo diventa quello di oggi in `gst_product_suppliers`
+  (legame creato se manca), e la vendita scoperta si **compensa** (due
+  movimenti *Assegnazione lotto*). Scarichi, inventari in meno e rettifiche in
+  meno escono dai secchi (`StockOut`), prima la merce senza fornitore e poi il
+  fornitore che costa meno. **Valore del magazzino**: riquadro della home
+  (`StockValueWidget`) e colonna *Valore* nelle Giacenze. Colonne e filtri
+  *Fornitore* in Carichi e Movimenti, giacenza per fornitore nella scheda della
+  versione. Annullare un documento storna, dentro la stessa versione,
+  dall'ultimo movimento al primo. Guida `magazzino-acquisti.md`.
+  `gestionale:demo` con *Acquisti* accesa aggiunge un carico da un fornitore
+  di prova.
+
 - G3 piano 1, magazzino a secchi (inerte a funzionalità spente): tabella
   `gst_batches` (lotti), `reference_item_id` sui movimenti (la riga d'ordine o
   di documento), `batch_number`/`batch_expiry` sulle righe dei documenti,
