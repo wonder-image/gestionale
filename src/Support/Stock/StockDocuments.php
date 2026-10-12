@@ -165,6 +165,10 @@ final class StockDocuments
                     continue;
                 }
 
+                // Lo stesso lock di vendite e scarichi, prima di ogni secchio: chi
+                // scrive sulla stessa versione si mette in fila invece di
+                // bloccarsi a vicenda fra il secchio del fornitore e il secchio 0.
+                StockBuckets::locked($item['product_id'], (int) $document['location_id']);
                 $cost = $purchasing ? $item['unit_cost'] : null;
                 Stock::apply($movement + $base + ['supplier_id' => $supplierId, 'unit_cost' => $cost ?? 0.0]);
                 self::compensate($base, 0, $supplierId, $movement['quantity'], $cost ?? 0.0);

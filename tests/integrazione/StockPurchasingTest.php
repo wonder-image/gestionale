@@ -177,4 +177,25 @@ check('la rettifica in meno esce dai secchi; senza merce si ferma come prima', f
         && rifiuto(fn () => StockOut::take(['product_id' => $a, 'quantity' => -5, 'type' => 'adjustment', 'reason' => 'damaged'])) === 'stock.insufficient';
 }));
 
+check('il valore della colonna (LevelsSql) è quello di StockValue, anche con un costo vuoto', fn () => prova(static function () use ($utente): bool {
+    accendiFunzionalita(['purchasing']);
+    [$costoso, $senza] = [fornitore('Fornitore G3 valore'), fornitore('Fornitore G3 senza costo')];
+    $a = articoloConGiacenza(1, 'TST-ACQ-7');
+    $c = StockDocuments::create('receipt', ['supplier_id' => (string) $costoso], [['product_id' => $a, 'quantity' => '2', 'cost' => '3']], ['user_id' => $utente]);
+    StockDocuments::confirm($c, ['user_id' => $utente]);
+    Stock::apply(['product_id' => $a, 'supplier_id' => $senza, 'quantity' => 1, 'type' => 'purchase']);
+    ProductSupplier::create(['product_id' => $a, 'supplier_id' => $senza, 'supplier_sku' => '', 'cost' => null, 'position' => 9]);
+
+    $sql = Wonder\Plugin\Gestionale\Models\Stock\Stock::connection()->query('SELECT '.Wonder\Plugin\Gestionale\Support\Stock\LevelsSql::value((string) $a).' AS v');
+    $colonna = $sql ? (float) $sql->fetch_assoc()['v'] : -1.0;
+    $stock = Wonder\Plugin\Gestionale\Support\Stock\StockBuckets::describe(
+        array_values(array_filter((array) StockRow::find(['product_id' => $a, 'deleted' => 'false']), 'is_array')),
+        $a
+    );
+    $valore = Wonder\Plugin\Gestionale\Support\Stock\StockValue::of($stock['buckets']);
+
+    // Secchio 0: 1 pezzo al costo più basso (3); 2 pezzi a 3; 1 pezzo senza costo.
+    return $colonna === 9.0 && $valore === ['value' => 9.0, 'pieces' => 4.0, 'uncosted' => 1.0];
+}));
+
 summary();
