@@ -248,7 +248,7 @@ check('il filtro Scorta c\'è solo con gli avvisi di scorta minima', function ()
         && in_array('active', $con, true);
 });
 
-check('il menu della riga porta ai movimenti e alla versione', function () use ($conSedi) {
+check('il menu della riga porta ai movimenti e alla scheda del prodotto', function () use ($conSedi) {
     $azioni = $conSedi([], [], function () {
         foreach (StockLevelResource::tableSchema() as $column) {
             if ((string) $column->name === 'actions') {
@@ -259,9 +259,33 @@ check('il menu della riga porta ai movimenti e alla versione', function () use (
         return [];
     });
 
-    return array_keys($azioni) === ['movimenti', 'versione']
+    $prodotto = (string) ($azioni['prodotto']['href'] ?? '');
+
+    return array_keys($azioni) === ['movimenti', 'prodotto']
         && str_contains((string) $azioni['movimenti']['href'], 'versione={id}')
-        && str_contains((string) $azioni['versione']['href'], '{id}');
+        && ($azioni['prodotto']['label'] ?? '') === 'Vai al prodotto'
+        && str_contains($prodotto, '{product_model_id}')
+        && !str_contains($prodotto, '/edit/');
+});
+
+check('su mobile restano articolo, giacenza e menu', function () use ($conSedi) {
+    $visibili = $conSedi(
+        [['id' => 2, 'label' => 'Magazzino'], ['id' => 1, 'label' => 'Negozio']],
+        ['low_stock_alerts' => true, 'orders' => true],
+        function () {
+            $nomi = [];
+
+            foreach (StockLevelResource::tableSchema() as $column) {
+                if (($column->toArray()['hidden-device'] ?? '') !== 'mobile') {
+                    $nomi[] = (string) $column->name;
+                }
+            }
+
+            return $nomi;
+        }
+    );
+
+    return $visibili === ['model_name', 'stock_quantity', 'actions'];
 });
 
 check('marchio: solo id validi, e niente condizione se non resta nulla', fn () =>

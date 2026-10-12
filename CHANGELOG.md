@@ -278,6 +278,10 @@ versionamento semantico.
 
 ### Cambiato
 
+- Giacenze: nel menu ⋯ «Vai al prodotto» prende il posto di «Apri la versione» e apre
+  la scheda in lettura dell'articolo (`view` di `ProductModelResource`, con
+  `{product_model_id}`), non più la modifica della versione. Su mobile restano solo
+  articolo, giacenza e menu (`hiddenDevice('mobile')` sulle altre colonne).
 - Movimenti: nel menu ⋯ «Visualizza» prende il posto di «Apri la versione» e apre
   la scheda del movimento (`view`, `showLayoutSchema()`, `detailUrl()`, vista
   `pages/stock-movement-show.php`), con codice, costo unitario, lotto, fornitore e

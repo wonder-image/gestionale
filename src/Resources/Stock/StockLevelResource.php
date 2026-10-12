@@ -16,7 +16,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
-use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
@@ -95,12 +95,13 @@ final class StockLevelResource extends GestionaleResource
             TableColumn::key('photo')
                 ->image()
                 ->size('little')
+                ->hiddenDevice('mobile')
                 ->formatter(static fn (array $row): string => static::photo($row)),
             TableColumn::key('model_name')
                 ->text()
                 ->sortable()
                 ->formatter(static fn (array $row): string => static::name($row)),
-            TableColumn::key('sku')->text()->size('little')->sortable(),
+            TableColumn::key('sku')->text()->size('little')->sortable()->hiddenDevice('mobile'),
         ];
 
         foreach ($locations as $location) {
@@ -110,6 +111,7 @@ final class StockLevelResource extends GestionaleResource
                 ->text()
                 ->size('little')
                 ->sortable()
+                ->hiddenDevice('mobile')
                 ->formatter(static fn (array $row): string => static::number($row[$key] ?? 0, true));
         }
 
@@ -128,6 +130,7 @@ final class StockLevelResource extends GestionaleResource
             $columns[] = TableColumn::key('min_stock_quantity')
                 ->text()
                 ->size('little')
+                ->hiddenDevice('mobile')
                 ->formatter(static fn (array $row): string => static::number(static::threshold($row)));
         }
 
@@ -137,13 +140,14 @@ final class StockLevelResource extends GestionaleResource
                     ->text()
                     ->size('little')
                     ->sortable()
+                    ->hiddenDevice('mobile')
                     ->formatter(static fn (array $row): string => static::number($row[$key] ?? 0));
             }
         }
 
         $columns[] = TableColumn::key('actions')->button()->actions([
             'movimenti' => ['label' => 'Movimenti', 'href' => StockMovementResource::listUrl().'?versione={id}'],
-            'versione' => ['label' => 'Apri la versione', 'href' => static::productUrl()],
+            'prodotto' => ['label' => 'Vai al prodotto', 'href' => static::productUrl()],
         ]);
 
         return $columns;
@@ -457,21 +461,21 @@ final class StockLevelResource extends GestionaleResource
         return number_format($value, $decimals, ',', '.');
     }
 
-    /** "Apri la versione": la sua scheda, con l'id della riga al posto giusto. */
+    /** "Vai al prodotto": la scheda dell'articolo, in lettura, con tutte le versioni. */
     private static function productUrl(): string
     {
-        $fallback = '/backend/'.ProductResource::path().'/{id}/edit/';
+        $fallback = '/backend/'.ProductModelResource::path().'/{product_model_id}/';
 
         if (!function_exists('__r')) {
             return $fallback;
         }
 
         try {
-            $named = (string) __r('backend.resource.'.ProductResource::slug().'.edit', ['id' => '__ROW_ID__']);
+            $named = (string) __r('backend.resource.'.ProductModelResource::slug().'.view', ['id' => '__ROW_ID__']);
         } catch (Throwable) {
             return $fallback;
         }
 
-        return $named !== '' ? str_replace('__ROW_ID__', '{id}', $named) : $fallback;
+        return $named !== '' ? str_replace('__ROW_ID__', '{product_model_id}', $named) : $fallback;
     }
 }
