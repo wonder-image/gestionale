@@ -14,8 +14,10 @@ use Wonder\Plugin\Gestionale\Support\Stock\StockDocuments;
 use Wonder\Sql\Transaction;
 
 /**
- * Un carico e uno scarico di prova, confermati, sugli articoli di
- * `CatalogDemo`: così Carichi e scarichi e i Movimenti non partono vuoti.
+ * Un carico e uno scarico di prova, confermati, e un inventario in bozza
+ * sugli articoli di `CatalogDemo`: così Carichi e scarichi, Inventari e i
+ * Movimenti non partono vuoti. L'inventario ha una riga contata con una
+ * differenza e una non contata, e resta da confermare.
  *
  * Nascono dal servizio vero (`StockDocuments`), quindi numero, movimenti e
  * giacenza sono quelli di un documento fatto a mano. Il codice di prova li
@@ -35,7 +37,7 @@ final class StockDocumentsDemo
     {
         DemoData::register(
             self::KEY,
-            'Documenti di magazzino: un carico e uno scarico confermati',
+            'Documenti di magazzino: un carico e uno scarico confermati, un inventario in bozza',
             static fn (): int => self::create(),
             static fn (): int => self::clear()
         );
@@ -69,6 +71,15 @@ final class StockDocumentsDemo
                 ['product_id' => $versions[0], 'quantity' => 2],
             ], ['code' => DemoCode::forModel(StockDocument::class, 'scarico')]);
             StockDocuments::confirm($id, $system);
+            $created++;
+        }
+
+        // In bozza: la prima versione contata con una differenza, la seconda non ancora.
+        if (self::document('inventario') === []) {
+            StockDocuments::create('stocktake', ['note' => 'Dati di prova'], [
+                ['product_id' => $versions[0], 'quantity' => 3],
+                ['product_id' => $versions[1], 'quantity' => null],
+            ], ['code' => DemoCode::forModel(StockDocument::class, 'inventario')]);
             $created++;
         }
 

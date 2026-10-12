@@ -74,7 +74,7 @@ try {
         $esito['secondo'] = StockDocumentsDemo::create();
         $esito['dopo_create'] = $giacenze();
 
-        $documenti = $righe(StockDocument::class, "code IN ('".DemoCode::forModel(StockDocument::class, 'carico')."', '".DemoCode::forModel(StockDocument::class, 'scarico')."')");
+        $documenti = $righe(StockDocument::class, "code IN ('".DemoCode::forModel(StockDocument::class, 'carico')."', '".DemoCode::forModel(StockDocument::class, 'scarico')."', '".DemoCode::forModel(StockDocument::class, 'inventario')."')");
         $esito['documenti'] = array_map(static fn (array $d): array => [
             'type' => (string) $d['type'],
             'status' => (string) $d['status'],
@@ -83,6 +83,18 @@ try {
         ], $documenti);
         $ids = array_map(static fn (array $d): int => (int) $d['id'], $documenti);
         $in = $ids === [] ? '0' : implode(',', $ids);
+        $esito['inventario'] = [];
+
+        foreach ($documenti as $d) {
+            if ((string) $d['type'] === 'stocktake') {
+                foreach ($righe(StockDocumentItem::class, ['stock_document_id' => (int) $d['id']]) as $riga) {
+                    $esito['inventario'][] = [
+                        $riga['quantity'] === null ? null : (float) $riga['quantity'],
+                        $riga['expected_quantity'] === null ? null : (float) $riga['expected_quantity'],
+                    ];
+                }
+            }
+        }
         $esito['movimenti'] = count($righe(StockMovement::class, "reference_type = 'stock_document' AND reference_id IN (".$in.')'));
 
         // La pulizia toglie documenti, righe, storia e movimenti, e la giacenza torna com'era.
@@ -129,14 +141,27 @@ check('i documenti di prova sono nel registro, dopo il catalogo', function () us
         && array_search(StockDocumentsDemo::KEY, $chiavi, true) > array_search(CatalogDemo::KEY, $chiavi, true);
 });
 
-check('create fa un carico e uno scarico, confermati e numerati, e un secondo giro non ne duplica', function () use ($esito) {
-    $tipi = array_column($esito['documenti'] ?? [], 'type');
-    sort($tipi);
+check('create fa un carico e uno scarico confermati e numerati, un inventario in bozza, e un secondo giro non ne duplica', function () use ($esito) {
+    $stati = [];
 
-    return ($esito['create'] ?? 0) === 2 && ($esito['secondo'] ?? -1) === 0
-        && $tipi === ['issue', 'receipt']
-        && array_unique(array_column($esito['documenti'], 'status')) === ['completed']
-        && !in_array('', array_column($esito['documenti'], 'number'), true);
+    foreach ($esito['documenti'] ?? [] as $documento) {
+        $stati[$documento['type']] = $documento['status'];
+    }
+
+    ksort($stati);
+    $confermati = array_filter($esito['documenti'] ?? [], static fn (array $d): bool => $d['status'] === 'completed');
+
+    return ($esito['create'] ?? 0) === 3 && ($esito['secondo'] ?? -1) === 0
+        && $stati === ['issue' => 'completed', 'receipt' => 'completed', 'stocktake' => 'draft']
+        && !in_array('', array_column($confermati, 'number'), true);
+});
+
+check('l\'inventario ha una riga contata con una differenza e una non contata', function () use ($esito) {
+    [$contata, $vuota] = ($esito['inventario'] ?? []) + [[0, 0], [0, 0]];
+
+    return count($esito['inventario'] ?? []) === 2
+        && $contata[0] === 3.0 && $contata[1] !== null && $contata[1] !== 3.0
+        && $vuota === [null, null];
 });
 
 check('lo scarico ha la causale «danneggiato»', function () use ($esito) {
@@ -156,8 +181,8 @@ check('la giacenza si muove: +8 su una versione (10 caricati, 2 scaricati) e +5 
     return $mosse === [5.0, 8.0] && ($esito['movimenti'] ?? 0) === 3;
 });
 
-check('la pulizia toglie i due documenti con righe, storia e movimenti, e la giacenza torna com\'era', fn () =>
-    ($esito['pulite'] ?? 0) === 2 && ($esito['restano'] ?? -1) === 0
+check('la pulizia toglie i tre documenti con righe, storia e movimenti, e la giacenza torna com\'era', fn () =>
+    ($esito['pulite'] ?? 0) === 3 && ($esito['restano'] ?? -1) === 0
     && $variazioni($esito['prima'] ?? [], $esito['dopo_pulizia'] ?? []) === []
     && ($esito['seconda_pulizia'] ?? -1) === 0
 );
