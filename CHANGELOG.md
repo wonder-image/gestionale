@@ -278,6 +278,10 @@ versionamento semantico.
 
 ### Cambiato
 
+- Movimenti: nel menu ⋯ «Visualizza» prende il posto di «Apri la versione» e apre
+  la scheda del movimento (`view`, `showLayoutSchema()`, `detailUrl()`, vista
+  `pages/stock-movement-show.php`), con codice, costo unitario, lotto, fornitore e
+  nota intera; la versione è un link dalla scheda. Permessi `list` e `view`.
 - I destinatari degli avvisi di scorta minima (`low_stock_emails`) stanno in
   `gst_settings`, card *Email* di Set Up → Gestionale → Impostazioni («Email per la
   scorta minima», solo con `low_stock_alerts`): solo `admin`, fuori dal sync, si
