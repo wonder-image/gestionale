@@ -81,6 +81,23 @@ check('righe: un numero che non si legge o negativo è un rifiuto con la riga', 
     return false;
 });
 
+check('righe: una quantità oltre DECIMAL(10,3) o infinita è un rifiuto con la riga', function () use ($rifiuto, $riga) {
+    foreach (['99999999', '1e400', '9999999.9999'] as $troppo) {
+        if ($rifiuto(fn () => Regole::lines([$riga(4, '1'), $riga(5, $troppo)])) !== 'stock_document.invalid_quantity') {
+            return false;
+        }
+    }
+
+    try {
+        Regole::lines([$riga(4, '1'), $riga(5, '99999999')]);
+    } catch (UserError $errore) {
+        return str_contains($errore->getMessage(), '2')
+            && Regole::lines([$riga(4, '9999999.999')]) === [['product_id' => 4, 'quantity' => 9999999.999]];
+    }
+
+    return false;
+});
+
 check('righe: la stessa versione due volte è un rifiuto', fn () =>
     $rifiuto(fn () => Regole::lines([$riga(4, '1'), $riga(5, '1'), $riga(4, '2')])) === 'stock_document.duplicate_product'
 );

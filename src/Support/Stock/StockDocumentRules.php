@@ -16,6 +16,9 @@ final class StockDocumentRules
 {
     public const MAX_LINES = 500;
 
+    /** La quantità più alta che `quantity` DECIMAL(10,3) tiene. */
+    public const MAX_QUANTITY = 9999999.999;
+
     /** I tipi che si creano oggi: `transfer` arriva con G3. */
     public const TYPES = ['receipt', 'issue', 'stocktake'];
 
@@ -223,7 +226,7 @@ final class StockDocumentRules
 
         $quantity = Stocktake::quantity($value);
 
-        if ($quantity === null || $quantity < 0) {
+        if ($quantity === null || !is_finite($quantity) || $quantity < 0 || $quantity > self::MAX_QUANTITY) {
             throw UserError::make('stock_document.invalid_quantity', ['row' => $row]);
         }
 

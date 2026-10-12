@@ -23,7 +23,7 @@
                 "no_rows": "Aggiungi almeno una riga.",
                 "nothing_counted": "Scrivi il numero contato di almeno una riga.",
                 "quantity_required": "La riga {{row}} non ha pezzi: scrivi un numero maggiore di zero.",
-                "invalid_quantity": "La riga {{row}} ha un numero che non si legge: scrivi solo cifre, zero o più.",
+                "invalid_quantity": "La riga {{row}} ha una quantità che non va: scrivi solo cifre, da zero a 9.999.999.",
                 "duplicate_product": "La stessa versione compare due volte (riga {{row}}): tienine una sola.",
                 "too_many_rows": "Un documento tiene al massimo 500 righe: dividilo in due.",
                 "location_unknown": "La sede scelta non è più del magazzino: ricarica la pagina e riprova."
