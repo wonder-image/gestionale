@@ -340,7 +340,7 @@ function contrassegno(int $cart, string $modo, int $sedeId): int
 
 check('con la consegna il contrassegno porta la commissione del listino, con il ritiro no e senza riga di spedizione', fn () => prova(static function (): bool {
     $consegna = contrassegno(carrelloConContrassegno('shipping', 0), 'shipping', 0);
-    // Con Più sedi spenta il ritiro prende la merce della principale.
+    // Il ritiro prende la merce della principale: il punto di ritiro non è un magazzino.
     $sede = sede();
     $ritiro = contrassegno(carrelloConContrassegno('pickup', $sede), 'pickup', $sede);
     $commissioni = static fn (int $ordine, string $tipo): array => righe(OrderItem::class, "order_id = {$ordine} AND type = '{$tipo}' AND deleted = 'false'");

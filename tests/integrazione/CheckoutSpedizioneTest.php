@@ -392,7 +392,7 @@ check('il ritiro in una sede che non è di ritiro, spenta o nessuna si rifiuta e
     return true;
 }));
 
-check('il ritiro in una sede fuori orario passa e, con Più sedi spenta, prenota la merce della principale', fn () => prova(static function (): bool {
+check('il ritiro in una sede fuori orario passa e prenota la merce della principale: il punto di ritiro non è un magazzino', fn () => prova(static function (): bool {
     $sede = sede(true, false);
     $cart = carrello([[articolo(2.0, 10.0), 1]]);
 

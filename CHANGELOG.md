@@ -320,11 +320,13 @@ versionamento semantico.
 
 ### Corretto
 
-- Ritiro in una sede che non è la principale, con *Più sedi* spenta: la merce
-  si prenotava e si scaricava dalla sede di ritiro, che non ha magazzino, e il
-  checkout rispondeva «non disponibile» (o, con la vendita senza giacenza, la
-  sede di ritiro andava sotto zero). Ora `Allocation` prende la sede da
-  `Locations::forSale()`: con la funzionalità spenta è sempre la principale.
+- Ritiro in una sede che non è la principale: la merce si prenotava e si
+  scaricava dalla sede di ritiro, che non è un magazzino, e il checkout
+  rispondeva «non disponibile» (o, con la vendita senza giacenza, la sede di
+  ritiro andava sotto zero). Ora la vendita esce sempre dalla principale
+  (`Locations::forSale()`): il ritiro si fa dove il cliente preferisce e la
+  merce ci arriva da lì. Il reso rientra nella sede scelta da chi lo registra,
+  con *Più sedi* attiva (`Locations::forReturn()`).
 
 - *Magazzino → Giacenze* dava errore SQL: `Query::Conditions(…, false)` del core
   toglie ogni `WHERE` dalla condizione, anche quello della sottoquery che escludeva i

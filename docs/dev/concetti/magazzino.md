@@ -267,12 +267,12 @@ con *Visualizza carico*, *Visualizza scarico* o *Visualizza inventario*. Le pagi
 `Availability` la legge, così "disponibile" vuol dire la stessa cosa in
 backend e in vetrina.
 
-**La sede della vendita** la decide `Locations::forSale()`, e `Allocation` la
-chiede lì per prenotare, scaricare e far rientrare. Con *Più sedi* bloccata è
-sempre la principale, anche quando l'ordine porta un punto di ritiro in
-un'altra sede: `gst_orders.location_id` dice dove il cliente ritira, non da
-quale magazzino esce la merce. Con la funzionalità attiva vale la sede
-dell'ordine (G3 la rifinirà con la *Giacenza* della sede).
+**La sede della vendita** è sempre la principale: `Allocation` la chiede a
+`Locations::forSale()` per prenotare, scaricare e annullare. `gst_orders.location_id`
+è il punto di ritiro, cioè dove il cliente passa a prendere la merce, non il
+magazzino da cui esce: il ritiro si fa dove il cliente preferisce e la merce
+ci arriva dalla principale. Solo il reso rientra nella sede scelta da chi lo
+registra (`Locations::forReturn()`), e solo con *Più sedi* attiva.
 
 ## Chi ha una storia non si elimina
 
