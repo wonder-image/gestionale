@@ -81,20 +81,33 @@ final class StockDocumentRules
      * pagina può lasciarne una vuota); la casella vuota resta `null`, che non
      * vuol dire zero. `{{row}}` è la riga come la conta chi legge, da 1.
      *
-     * @param list<array<string, mixed>> $input
+     * Il limite si controlla prima di leggere: 10.000 righe non si leggono
+     * per poi rifiutarle. Un `product_id` che non è un intero positivo è un
+     * rifiuto, non uno zero: «12abc» non diventa 12.
+     *
+     * @param list<mixed> $input
      * @return list<array{product_id: int, quantity: ?float}>
      */
     public static function lines(array $input): array
     {
+        if (count($input) > self::MAX_LINES) {
+            throw UserError::make('stock_document.too_many_rows');
+        }
+
         $lines = [];
         $seen = [];
         $row = 0;
 
         foreach ($input as $line) {
             $row++;
-            $productId = (int) ($line['product_id'] ?? 0);
 
-            if ($productId <= 0) {
+            if (!is_array($line)) {
+                throw UserError::make('stock_document.invalid_lines');
+            }
+
+            $productId = self::productId($line['product_id'] ?? null);
+
+            if ($productId === 0) {
                 continue;
             }
 
@@ -104,10 +117,6 @@ final class StockDocumentRules
 
             $seen[$productId] = true;
             $lines[] = ['product_id' => $productId, 'quantity' => self::quantity($line['quantity'] ?? null, $row)];
-        }
-
-        if (count($lines) > self::MAX_LINES) {
-            throw UserError::make('stock_document.too_many_rows');
         }
 
         return $lines;
@@ -216,6 +225,24 @@ final class StockDocumentRules
         return $difference === 0.0 || $difference === -0.0
             ? null
             : ['type' => 'adjustment', 'reason' => Reasons::DEFAULT, 'quantity' => $difference];
+    }
+
+    /** La versione di una riga: 0 se la riga è vuota, un rifiuto se non è un intero positivo. */
+    private static function productId(mixed $raw): int
+    {
+        if ($raw === null || $raw === '' || $raw === 0 || $raw === '0') {
+            return 0;
+        }
+
+        if (is_int($raw) && $raw > 0) {
+            return $raw;
+        }
+
+        if (is_string($raw) && preg_match('/^[1-9]\d{0,9}$/D', trim($raw)) === 1) {
+            return (int) trim($raw);
+        }
+
+        throw UserError::make('stock_document.invalid_lines');
     }
 
     private static function quantity(mixed $value, int $row): ?float

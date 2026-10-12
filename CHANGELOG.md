@@ -7,6 +7,19 @@ versionamento semantico.
 
 ### Aggiunto
 
+- Carichi e scarichi, pagine: *Magazzino → Carichi* e *Magazzino → Scarichi*
+  (`StockReceiptResource`, `StockIssueResource` su `StockDocumentResource`) con
+  elenco, bozza con «Cerca o scansiona» e lettore di codici a barre, *Salva
+  bozza* e *Conferma*, scheda in sola lettura con *Annulla* e *Duplica*
+  (`StockDocumentActionResource`). Ricerca delle versioni `StockVersionSearch`
+  dietro `api.gestionale.backend.stock.versions`, indice su `gst_products.ean`.
+  Nei Movimenti *Visualizza carico* e *Visualizza scarico* nel menu ⋯, con il
+  documento letto nella query dell'elenco. `gestionale:demo` crea un carico e
+  uno scarico confermati (`StockDocumentsDemo`). `StockDocuments::create()`
+  accetta un `code`; `StockDocumentRules::lines()` controlla il limite di righe
+  prima di leggerle e rifiuta un `product_id` che non è un intero positivo;
+  conferma e annullamento applicano i movimenti in ordine di versione;
+  *Duplica* non blocca più il documento d'origine.
 - Documenti di magazzino, dati e servizio: `gst_stock_documents`,
   `gst_stock_document_items`, `gst_stock_document_status_logs`; Carico, Scarico e
   Inventario con bozza, conferma (numero per tipo, un `Stock::apply()` per riga),

@@ -72,7 +72,7 @@ return [
     ],
     'purchasing' => [
         'name' => 'Acquisti',
-        'description' => 'Costi d\'acquisto per fornitore, documenti di carico, valore del magazzino.',
+        'description' => 'Fornitori e costi d\'acquisto nei prodotti e nei carichi, valore del magazzino.',
         'area' => 'Magazzino',
         'release' => 'G3',
     ],

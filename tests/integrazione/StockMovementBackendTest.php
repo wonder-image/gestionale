@@ -25,10 +25,13 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockIssueResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockMovementResource;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockReceiptResource;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
+use Wonder\Plugin\Gestionale\Support\Stock\StockDocuments;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -97,6 +100,21 @@ function celleDi(array $riga): array
     }
 
     return $celle;
+}
+
+/**
+ * I movimenti di una versione come li legge l'elenco: la riga e le colonne
+ * calcolate di `select()`. Una query diretta, come fa SSP: `Model::find` non
+ * aggiunge il suo WHERE a una condizione che contiene già una sottoquery.
+ */
+function movimentiConDocumento(int $prodotto): array
+{
+    $tabella = '`'.StockMovement::$table.'`';
+
+    return StockMovement::query()->mysqli->query(
+        'SELECT '.$tabella.'.*, '.StockMovementResource::select().' FROM '.$tabella
+        .' WHERE `product_id` = '.$prodotto." AND `deleted` = 'false' ORDER BY `id`"
+    )->fetch_all(MYSQLI_ASSOC);
 }
 
 check('un movimento nato da un ordine mostra il numero dell\'ordine, con il link', function () {
@@ -192,6 +210,51 @@ check('l\'elenco con ?versione= si costruisce, titolo compreso', function () {
         }
 
         return stripos($titolo, 'Movimenti di Prova vendite') === 0 && str_contains($html, '<table');
+    });
+});
+
+check('carico e suo storno: tipo, numero e indirizzo della scheda dalle colonne calcolate', function () {
+    return prova(static function (): bool {
+        $prodotto = articoloConGiacenza(3, 'TST-MOV-C'.substr((string) microtime(true), -6));
+        $id = StockDocuments::create('receipt', [], [['product_id' => $prodotto, 'quantity' => '2']]);
+        $numero = StockDocuments::confirm($id);
+        StockDocuments::cancel($id);
+        [$iniziale, $carico, $storno] = movimentiConDocumento($prodotto) + [[], [], []];
+        $url = StockReceiptResource::viewUrl($id);
+
+        return $iniziale['document_type'] === null && $iniziale['document_url'] === null
+            && $carico['document_type'] === 'receipt' && $carico['document_number'] === $numero && $carico['document_url'] === $url
+            && $storno['document_type'] === 'receipt' && $storno['document_number'] === $numero && $storno['document_url'] === $url
+            && celleDi($carico)['type'] === 'Carico · '.htmlspecialchars($numero, ENT_QUOTES)
+            && celleDi($storno)['type'] === 'Annullamento del carico · '.htmlspecialchars($numero, ENT_QUOTES)
+            && !str_contains(celleDi($carico)['type'], '<a')
+            // La scheda del movimento legge un record solo, senza le colonne
+            // calcolate: Tipo passa da one() e dice lo stesso.
+            && StockMovementResource::typeCellOf(array_diff_key($carico, array_flip(['document_type', 'document_number', 'document_url'])))
+                === 'Carico · '.htmlspecialchars($numero, ENT_QUOTES);
+    });
+});
+
+check('uno scarico porta alla scheda dello scarico', function () {
+    return prova(static function (): bool {
+        $prodotto = articoloConGiacenza(5, 'TST-MOV-S'.substr((string) microtime(true), -6));
+        $id = StockDocuments::create('issue', ['reason' => 'internal_use'], [['product_id' => $prodotto, 'quantity' => '1']]);
+        $numero = StockDocuments::confirm($id);
+        $scarico = movimentiConDocumento($prodotto)[1] ?? [];
+
+        return ($scarico['document_type'] ?? '') === 'issue'
+            && ($scarico['document_url'] ?? '') === StockIssueResource::viewUrl($id)
+            && celleDi($scarico)['type'] === 'Scarico · '.htmlspecialchars($numero, ENT_QUOTES);
+    });
+});
+
+check('un inventario non ha ancora una pagina: indirizzo vuoto, la voce ⋯ non compare', function () {
+    return prova(static function (): bool {
+        $prodotto = articoloConGiacenza(5, 'TST-MOV-I'.substr((string) microtime(true), -6));
+        StockDocuments::confirm(StockDocuments::create('stocktake', [], [['product_id' => $prodotto, 'quantity' => '4']]));
+        $riga = movimentiConDocumento($prodotto)[1] ?? [];
+
+        return ($riga['document_type'] ?? '') === 'stocktake' && ($riga['document_url'] ?? null) === '';
     });
 });
 

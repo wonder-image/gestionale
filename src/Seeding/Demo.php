@@ -26,6 +26,7 @@ final class Demo
         PromotionsDemo::class,
         OrdersDemo::class,
         ShipmentsDemo::class,
+        StockDocumentsDemo::class,
     ];
 
     public static function registerAll(): void

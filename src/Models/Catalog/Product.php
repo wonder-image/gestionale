@@ -68,6 +68,7 @@ final class Product extends Model
             'ind_model' => ['index' => 'product_model_id'],
             'ind_variant' => ['index' => 'product_variant_id'],
             'ind_sku' => ['index' => 'sku'],
+            'ind_ean' => ['index' => 'ean'],
         ];
     }
 

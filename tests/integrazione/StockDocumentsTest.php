@@ -133,6 +133,18 @@ check('creare: la bozza non muove la giacenza', function () {
     });
 });
 
+check('creare: un codice dato resta quello, senza codice ne nasce uno nuovo', function () {
+    return prova(function (): bool {
+        $prodotto = articolo();
+        $dato = StockDocuments::create('receipt', [], [['product_id' => $prodotto, 'quantity' => 1]], ['code' => 'stk_prova-codice-dato']);
+        $nuovo = StockDocuments::create('receipt', [], [['product_id' => $prodotto, 'quantity' => 1]]);
+
+        return (string) StockDocument::find(['id' => $dato], 1)['code'] === 'stk_prova-codice-dato'
+            && str_starts_with((string) StockDocument::find(['id' => $nuovo], 1)['code'], 'stk_')
+            && (string) StockDocument::find(['id' => $nuovo], 1)['code'] !== 'stk_prova-codice-dato';
+    });
+});
+
 check('creare: un tipo che non c\'è, una sede sconosciuta, una versione sparita sono rifiuti', function () {
     return prova(static function (): bool {
         $a = articolo();
@@ -403,6 +415,35 @@ check('annullare: uno storno per movimento, segno opposto, con il suo riferiment
             && giacenza($a) === 10.0 && giacenza($b) === 5.0
             && StockDocument::findById($id)['status'] === 'cancelled'
             && end($log)['from_value'] === 'completed' && end($log)['to_value'] === 'cancelled';
+    });
+});
+
+check('confermare: i movimenti seguono l\'ordine delle versioni, non quello delle righe', function () {
+    return prova(static function (): bool {
+        [$a, $b] = [articolo(10), articolo(10)];
+        $id = StockDocuments::create('receipt', [], [
+            ['product_id' => $b, 'quantity' => '1'],
+            ['product_id' => $a, 'quantity' => '2'],
+        ]);
+        StockDocuments::confirm($id);
+        $mov = righe(StockMovement::class, "reference_type = 'stock_document' AND reference_id = ".$id);
+
+        return array_map('intval', array_column($mov, 'product_id')) === [$a, $b];
+    });
+});
+
+check('annullare: gli storni seguono l\'ordine delle versioni', function () {
+    return prova(static function (): bool {
+        [$a, $b] = [articolo(10), articolo(10)];
+        $id = StockDocuments::create('receipt', [], [
+            ['product_id' => $b, 'quantity' => '1'],
+            ['product_id' => $a, 'quantity' => '2'],
+        ]);
+        StockDocuments::confirm($id);
+        StockDocuments::cancel($id);
+        $storni = righe(StockMovement::class, "reference_type = 'stock_document_cancel' AND reference_id = ".$id);
+
+        return array_map('intval', array_column($storni, 'product_id')) === [$a, $b];
     });
 });
 

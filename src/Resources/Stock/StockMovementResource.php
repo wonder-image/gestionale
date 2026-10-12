@@ -150,7 +150,15 @@ final class StockMovementResource extends GestionaleResource
             ->formatter(static fn (array $row): string => static::whoCell($row, static::userName((int) ($row['user_id'] ?? 0))));
         $columns[] = TableColumn::key('note')->text();
         $columns[] = TableColumn::key('actions')->button()->actions([
+            // `view` e `ordine` sono quelli della #25. La chiave del documento
+            // è la colonna calcolata di select(): l'etichetta si
+            // sceglie sul suo valore, e senza documento (NULL) o con un tipo
+            // senza pagina la voce non compare.
             'view',
+            'document_type' => [
+                'label' => ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico'],
+                'href' => '{document_url}',
+            ],
             'ordine' => [
                 'label' => 'Visualizza ordine',
                 'href' => OrderResource::detailUrlPattern('{reference_id}'),
@@ -191,6 +199,7 @@ final class StockMovementResource extends GestionaleResource
         $schema = TableLayoutSchema::for(static::class)
             ->title(static::listTitle())
             ->results()
+            ->select(static::select())
             ->hideButtonAdd()
             ->filterSearch()
             ->searchFields(['code', 'note', [
@@ -227,6 +236,51 @@ final class StockMovementResource extends GestionaleResource
         }
 
         return $schema;
+    }
+
+    /**
+     * Le colonne calcolate dell'elenco: tipo, numero e indirizzo della scheda
+     * del documento di magazzino che ha causato il movimento, storni compresi.
+     * Valgono NULL sulle altre righe. Una sottoquery per colonna nella stessa
+     * query della pagina, mai una lettura per riga.
+     */
+    public static function select(): string
+    {
+        $movements = '`'.StockMovement::$table.'`';
+        $of = static fn (string $expression, string $alias): string => '(SELECT '.$expression
+            .' FROM `'.StockDocument::$table.'` d WHERE d.`id` = '.$movements.'.`reference_id`'
+            .' AND '.$movements.'.`reference_type` IN ('.self::DOCUMENT_REFERENCES.') LIMIT 1) AS '.$alias;
+
+        return implode(', ', [
+            $of('d.`type`', 'document_type'),
+            $of('d.`number`', 'document_number'),
+            $of(static::documentUrlSql(), 'document_url'),
+        ]);
+    }
+
+    /**
+     * L'indirizzo della scheda in SQL, sul tipo del documento `d`: un ramo per
+     * ogni tipo che ha una pagina (`StockDocumentResource::classFor()`), stringa
+     * vuota per gli altri. I pezzi dell'indirizzo vengono dalle rotte, non
+     * dall'utente; si quotano lo stesso.
+     */
+    private static function documentUrlSql(): string
+    {
+        $quote = static fn (string $text): string => "'".addcslashes($text, "\\'")."'";
+        $cases = '';
+
+        foreach (StockDocumentRules::TYPES as $type) {
+            $class = StockDocumentResource::classFor($type);
+
+            if ($class === null) {
+                continue;
+            }
+
+            [$before, $after] = explode('__DOC_ID__', $class::viewUrlPattern('__DOC_ID__'), 2) + ['', ''];
+            $cases .= ' WHEN '.$quote($type).' THEN CONCAT('.$quote($before).', d.`id`, '.$quote($after).')';
+        }
+
+        return $cases === '' ? "''" : 'CASE d.`type`'.$cases." ELSE '' END";
     }
 
     /** Il titolo: «Movimenti», o «Movimenti di Maglia — Rossa, M» quando l'elenco è ristretto a una versione. */
@@ -279,6 +333,9 @@ final class StockMovementResource extends GestionaleResource
      * compresi (*Carico* anche i carichi senza documento, che la colonna
      * chiama così); *Rettifica* è una rettifica senza documento. Solo voci
      * che esistono: è testo che arriva dall'utente.
+     *
+     * La condizione è per l'elenco (SSP), che la mette in una WHERE sua: non
+     * va passata a `Model::find()`, dove la sottoquery rompe l'SQL.
      *
      * @param list<string> $values
      */
@@ -384,8 +441,10 @@ final class StockMovementResource extends GestionaleResource
 
     /**
      * Il numero, il link e l'etichetta del documento che ha causato il
-     * movimento. Un documento di magazzino non ha ancora una pagina (piani
-     * 5-6): niente link.
+     * movimento. Il numero di un documento di magazzino resta testo: la sua
+     * scheda si apre dal menu ⋯ (spec §3). Tipo e numero arrivano da select();
+     * una riga senza quelle colonne (letta fuori dall'elenco) li legge dal
+     * database.
      *
      * @return array{0: string, 1: string, 2: string}
      */
@@ -408,7 +467,9 @@ final class StockMovementResource extends GestionaleResource
             return ['', '', ''];
         }
 
-        $document = static::one(StockDocument::class, $id);
+        $document = array_key_exists('document_type', $row)
+            ? ['type' => $row['document_type'], 'number' => $row['document_number'] ?? '']
+            : static::one(StockDocument::class, $id);
         $number = trim((string) ($document['number'] ?? ''));
         $type = (string) ($document['type'] ?? '');
 
@@ -514,7 +575,7 @@ final class StockMovementResource extends GestionaleResource
         return NavigationSchema::for(static::class)
             ->section('magazzino', 'Magazzino', 'bi-boxes', 400, ['admin', 'administrator'])
             ->title('Movimenti')
-            ->order(20)
+            ->order(50)
             ->authority(['admin', 'administrator']);
     }
 

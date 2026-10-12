@@ -5,9 +5,12 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Backend\Support\ResourceTableRenderer;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockIssueResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockMovementResource;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockReceiptResource;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
@@ -173,17 +176,21 @@ check('Tipo con un ordine sparito mostra l\'etichetta e basta', function () {
     return $html === 'Vendita';
 });
 
-check('il menu ⋯ ha «Visualizza» e «Visualizza ordine» solo per le righe di un ordine', function () {
+check('il menu ⋯: Visualizza, documento, ordine; il documento solo sulle righe che ne hanno uno', function () {
     foreach (StockMovementResource::tableSchema() as $colonna) {
         if ((string) $colonna->name !== 'actions') {
             continue;
         }
 
         $azioni = (array) $colonna->getSchema('actions');
+        $documento = (array) ($azioni['document_type'] ?? []);
         $ordine = (array) ($azioni['ordine'] ?? []);
 
-        return ($azioni['view'] ?? null) === true
-            && !isset($azioni['versione'])
+        return array_keys($azioni) === ['view', 'document_type', 'ordine']
+            && ($azioni['view'] ?? null) === true
+            && ($documento['label'] ?? null) === ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico']
+            && ($documento['href'] ?? '') === '{document_url}'
+            && !isset($documento['filter'])
             && ($ordine['label'] ?? '') === 'Visualizza ordine'
             && str_contains((string) ($ordine['href'] ?? ''), '{reference_id}')
             && ($ordine['filter']['row']['reference_type'] ?? '') === 'order';
@@ -410,6 +417,49 @@ check('l\'indirizzo della scheda di un movimento', fn () =>
 
 check('il link dalla scheda porta all\'elenco filtrato', fn () =>
     str_ends_with(StockMovementResource::listUrlFor(7), '?versione=7')
+);
+
+check('l\'elenco legge tipo, numero e indirizzo del documento con select()', function () use ($layout) {
+    $select = StockMovementResource::select();
+
+    return ($layout()['select'] ?? '') === $select
+        && ResourceTableRenderer::selectAliases($select) === ['document_type', 'document_number', 'document_url']
+        && str_contains($select, "IN ('stock_document', 'stock_document_cancel')");
+});
+
+check('l\'indirizzo calcolato copre i tipi con una pagina, non l\'inventario', function () {
+    $select = StockMovementResource::select();
+
+    return str_contains($select, "WHEN 'receipt' THEN")
+        && str_contains($select, "WHEN 'issue' THEN")
+        && !str_contains($select, "'stocktake'");
+});
+
+check('il modello dell\'indirizzo della scheda tiene il segnaposto al posto dell\'id', fn () =>
+    StockReceiptResource::viewUrlPattern('{x}') === str_replace('/8/', '/{x}/', StockReceiptResource::viewUrl(8))
+    && StockIssueResource::viewUrlPattern('__ID__') === str_replace('/8/', '/__ID__/', StockIssueResource::viewUrl(8))
+);
+
+check('Tipo legge il documento dalla riga, senza database', fn () =>
+    StockMovementResource::typeCellOf([
+        'type' => 'adjustment', 'reference_type' => 'stock_document', 'reference_id' => 5,
+        'document_type' => 'issue', 'document_number' => '2026/100003',
+    ]) === 'Scarico · 2026/100003'
+    && StockMovementResource::typeCellOf([
+        'type' => 'purchase', 'reference_type' => 'stock_document_cancel', 'reference_id' => 4,
+        'document_type' => 'receipt', 'document_number' => '2026/100001',
+    ]) === 'Annullamento del carico · 2026/100001'
+);
+
+check('Tipo con le colonne del documento vuote resta l\'etichetta del tipo', fn () =>
+    StockMovementResource::typeCellOf([
+        'type' => 'adjustment', 'reference_type' => '', 'reference_id' => 0,
+        'document_type' => null, 'document_number' => null,
+    ]) === 'Rettifica'
+);
+
+check('Movimenti sta dopo Carichi e Scarichi nel menu Magazzino', fn () =>
+    (StockMovementResource::navigationSchema()->toArray()['order'] ?? null) === 50
 );
 
 summary();

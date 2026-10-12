@@ -21,7 +21,7 @@ c'è scritto 3?"**.
 |---|---|
 | **Quando** | data e ora |
 | **Articolo** | la versione in vendita che si è mossa |
-| **Tipo** | rettifica, vendita, reso, carico… Per le vendite e i resi dice anche il **documento**: *Vendita · 2026/0012*, cliccabile, apre l'ordine |
+| **Tipo** | rettifica, vendita, reso, carico… Per le vendite e i resi dice anche il **documento**: *Vendita · 2026/0012*, cliccabile, apre l'ordine. Per carichi e scarichi il documento è nel testo, *Carico · 2026/100003*; gli storni di un documento annullato si leggono *Annullamento del carico · 2026/100003* |
 | **Causale** | il perché: inventario, danneggiato, regalo… |
 | **Sede** | dove si è mossa la merce (solo se hai più sedi) |
 | **Prima** | quanti pezzi c'erano prima del movimento |
@@ -37,7 +37,9 @@ movimento, il **costo unitario**, il **lotto** e il **fornitore** (quando ci
 sono) e la **nota** per intero. Il nome della versione è un link alla sua
 scheda.
 
-Per i movimenti di un ordine, nello stesso menu c'è anche **Visualizza ordine**.
+Per i movimenti di un ordine, nello stesso menu c'è anche **Visualizza
+ordine**; per quelli di un carico o di uno scarico **Visualizza carico** o
+**Visualizza scarico**, anche sugli storni, che aprono il documento annullato.
 
 ## Non si modifica e non si cancella
 

@@ -72,10 +72,12 @@ per sede*.
 
 ## Il primo carico
 
-Appena installato il gestionale, i pezzi che hai si scrivono nella colonna
-**Giacenza** della scheda dell'articolo, quando crei le opzioni: una riga
-appena nata parte con un movimento di *Giacenza iniziale*. Per un'opzione che
-esiste già usa la [rettifica](#rettificare-una-riga-sola), con la causale
+I pezzi che hai già si caricano con un [carico](magazzino-carichi-scarichi.md#il-primo-carico),
+da **Magazzino → Carichi**: una riga per versione, anche con il lettore di
+codici a barre. La colonna **Giacenza** della scheda dell'articolo resta
+comoda per un articolo nuovo, quando crei le opzioni (una riga appena nata
+parte con un movimento di *Giacenza iniziale*); per una versione sola che
+esiste già c'è la [rettifica](#rettificare-una-riga-sola) con la causale
 **Giacenza iniziale**.
 
 ## Rettificare una riga sola
@@ -97,6 +99,10 @@ tre:
 È la strada da fare quando la causale **non** è l'inventario: due pezzi rotti,
 uno regalato, tre usati in negozio. Salvando torni da dove eri arrivato, e nei
 *Movimenti* compare la riga nuova.
+
+Per la merce che arriva o che esce in più righe insieme — una consegna, un
+cartone di pezzi rotti — c'è un [carico o uno scarico](magazzino-carichi-scarichi.md):
+un documento solo, con il numero, invece di tante rettifiche.
 
 ## Sotto zero
 

@@ -34,6 +34,9 @@ dentro una transazione propria apre un savepoint, non una seconda transazione.
 |---|---|---|
 | Giacenze | `StockLevelResource` | elenco del core su `Product`, in sola consultazione: una colonna per sede, filtri, menu ⋯ |
 | Rettifica | `StockAdjustmentResource` | pagina-form su `?versione=`, con causale e nota |
+| Carichi | `StockReceiptResource` | elenco, bozza e scheda in sola lettura dei carichi (`app/gestionale/carichi`) |
+| Scarichi | `StockIssueResource` | lo stesso per gli scarichi (`app/gestionale/scarichi`), con la causale |
+| Azioni sul documento | `StockDocumentActionResource` | riceve *Annulla* e *Duplica* (`app/gestionale/documento-magazzino-azione`) |
 
 **Giacenze non scrive niente.** I numeri nascono nella query: `select()`
 aggiunge `model_name`, `stock_quantity`, una `stock_loc_<id>` per sede e,
@@ -71,6 +74,41 @@ Tre cose da sapere se la si tocca:
 3. **Gli indirizzi del ritorno si controllano.** `backUrlFrom()` accetta solo
    percorsi o indirizzi assoluti di questo sito: un `torna=` che arriva dalla
    query string è testo di chiunque.
+
+**Carichi e scarichi.** Le due Resource dicono solo tipo, nomi e posto nel
+menu (Giacenze 10 · Carichi 20 · Scarichi 30 · Movimenti 50); il resto sta in
+`StockDocumentResource`, che il piano 6 userà per l'inventario. Le pagine non
+scrivono mai sulle tabelle dei documenti: passa tutto da `StockDocuments`.
+
+1. **La bozza non passa dallo store del core.** Il form posta alle rotte
+   `store`/`update`, che il core vuole per disegnarlo, ma
+   `mutateRequestValues()` non restituisce mai i valori: controlla il CSRF,
+   dà tutto a `StockDocumentForm::submit()`, mette il messaggio e fa il
+   redirect. Lasciare lavorare il core scriverebbe colonne grezze senza le
+   righe e senza i controlli del servizio.
+2. **Le righe viaggiano in un campo solo**, `lines`, in JSON: un campo per
+   numero supererebbe `max_input_vars` con un documento lungo.
+3. **Gli id delle righe cambiano a ogni salvataggio della bozza**: il
+   servizio le riscrive tutte. Chi le collega da fuori usa
+   `stock_document_id` e `product_id`, non l'id. E un validatore o un
+   `required` aggiunto nei `dataSchema` di `StockDocument` o
+   `StockDocumentItem` va accompagnato dal controllo di `success` sulle
+   scritture del servizio, che oggi non lo legge.
+4. **La ricerca delle versioni** è `StockVersionSearch`, dietro la rotta
+   `api.gestionale.backend.stock.versions`
+   (`/api/gestionale/backend/magazzino/versioni/`, con `q`, `code` o `ids`
+   più `location`): al più 20 versioni, mai i multiprodotti, e per il lettore
+   `scan()` dice `one`, `many` o `none`. `gst_products` ha l'indice su `ean`.
+5. **Dai Movimenti al documento.** `StockMovementResource::select()` legge
+   tipo, numero e indirizzo del documento nella stessa query dell'elenco
+   (`document_type`, `document_number`, `document_url`); l'indirizzo lo
+   compone `StockDocumentResource::viewUrlPattern()`. Un tipo senza pagine
+   (l'inventario fino al piano 6) ha l'indirizzo vuoto e la voce ⋯ non c'è.
+6. **Dati di prova.** `StockDocumentsDemo` (chiave
+   `documenti-magazzino`) crea un carico e uno scarico confermati con i
+   codici `stk_demo-carico` e `stk_demo-scarico`; `--fresh` li annulla e li
+   toglie con righe, storia e movimenti. È registrato per ultimo, così si
+   pulisce prima del catalogo.
 
 ## I parametri
 
@@ -129,6 +167,8 @@ In G2b, a funzionalità bloccata, anche quel carico era rifiutato.
 | `Stock` | no | la porta di scrittura |
 | `StockDocumentRules` | sì | le regole dei documenti: righe, conferma, movimento di ogni riga, storno, atteso dell'inventario |
 | `StockDocuments` | no | creare, salvare, confermare, annullare, duplicare ed eliminare un documento |
+| `StockDocumentForm` | no | l'invio della bozza: *Salva bozza* e *Conferma*, con il messaggio e l'indirizzo dove tornare |
+| `StockVersionSearch` | in parte | le versioni per «Cerca o scansiona»: `outcome()` è pura |
 | `ProductNames` | in parte | articolo e opzione come li legge la griglia: `of()` è pura, `models()` legge i nomi |
 | `LowStockReport` | in parte | gli avvisi aperti o da mandare, fatti righe: `build()` è pura e scarta chi è tornato sopra |
 | `LowStockEmail` | no | oggetto e corpo dell'email, con la view sovrascrivibile |
@@ -189,9 +229,11 @@ prima. Una riga non contata ha `quantity` ed `expected_quantity` NULL.
 **Limiti.** Al massimo `StockDocumentRules::MAX_LINES` (500) righe, una
 versione una volta sola, quantità non negative nella bozza.
 
-Nei Movimenti *Tipo* legge «Scarico 2026/100003» o «Annullamento del carico
-2026/100003», e il filtro *Tipo* ha *Carico*, *Scarico* e *Inventario* al
-posto del carico registrato.
+Nei Movimenti *Tipo* legge «Scarico · 2026/100003» o «Annullamento del
+carico · 2026/100003», e il filtro *Tipo* ha *Carico*, *Scarico* e
+*Inventario* al posto del carico registrato. Il menu ⋯ porta al documento
+con *Visualizza carico* o *Visualizza scarico*. Le pagine sono in
+[Le pagine](#le-pagine).
 
 **Rifiuti.** Le chiavi `stock_document.*` in `lang/it/gestionale.json`, più
 `stock.product_missing` e `stock.insufficient` di `Stock::apply()`.
