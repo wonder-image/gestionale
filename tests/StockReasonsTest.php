@@ -78,4 +78,20 @@ check('il disponibile può andare sotto zero e lo dice', fn () =>
     ], '2026-09-22 10:00:00') === -2.0
 );
 
+check('lo scarico sceglie fra cinque causali, nell\'ordine della tendina', fn () =>
+    Reasons::forDocument('issue') === [
+        'damaged' => 'Danneggiato',
+        'expired' => 'Scaduto',
+        'gift' => 'Regalo',
+        'internal_use' => 'Uso interno',
+        'other' => 'Altro',
+    ]
+);
+
+check('l\'inventario ha solo la sua causale, il carico nessuna', fn () =>
+    Reasons::forDocument('stocktake') === ['inventory' => 'Inventario']
+    && Reasons::forDocument('receipt') === []
+    && Reasons::forDocument('transfer') === []
+);
+
 summary();

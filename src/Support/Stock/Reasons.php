@@ -39,4 +39,21 @@ final class Reasons
     {
         return self::all()[$reason] ?? '';
     }
+
+    /**
+     * Le causali che vanno con un documento di magazzino: lo scarico ne
+     * sceglie una, l'inventario usa sempre la sua, il carico nessuna.
+     *
+     * @return array<string, string> nell'ordine della tendina
+     */
+    public static function forDocument(string $type): array
+    {
+        $keys = match ($type) {
+            'issue' => ['damaged', 'expired', 'gift', 'internal_use', 'other'],
+            'stocktake' => [self::DEFAULT],
+            default => [],
+        };
+
+        return array_intersect_key(self::all(), array_flip($keys));
+    }
 }
