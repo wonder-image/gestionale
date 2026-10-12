@@ -214,11 +214,13 @@ check('aggiungi versioni: la categoria porta anche le sottocategorie', function 
         $padreTrova = Ricerca::scope('category', $padre, 0);
         $figliaTrova = Ricerca::scope('category', $figlia, 0);
 
+        // Le versioni vanno in ordine di nome, che qui è casuale: si confrontano per id.
         $pezzi = array_column($padreTrova['versions'], 'stock', 'id');
+        ksort($pezzi);
 
         return $padreTrova['ids'] === [$a, $b]
             && $padreTrova['count'] === 2
-            && $pezzi === [$a => 1.0, $b => 0.0] + $pezzi && count($pezzi) === 2
+            && $pezzi === [$a => 1.0, $b => 0.0]
             && $figliaTrova['ids'] === [$b]
             && count($figliaTrova['versions']) === 1;
     });
