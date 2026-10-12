@@ -24,11 +24,14 @@ final class StockDocumentEditor
      * @param list<array<string, mixed>> $lines Version + `quantity` in testo (+ `expected` nell'inventario: `StockDocumentForm::editorLines()`)
      * @param array{categories?: array<string, string>, brands?: array<string, string>} $scopes
      */
-    public static function render(array $lines, string $searchUrl, string $type = 'receipt', array $scopes = []): string
+    public static function render(array $lines, string $searchUrl, string $type = 'receipt', array $scopes = [], bool $costs = false): string
     {
         $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
         $lines = array_values($lines);
         $counting = $type === 'stocktake';
+        // G3, Acquisti: costo e totale di riga solo nel carico.
+        $costs = $costs && $type === 'receipt';
+        $cost = 0.0;
         $pieces = 0.0;
         $counted = 0;
         $differing = 0;
@@ -36,6 +39,8 @@ final class StockDocumentEditor
         foreach ($lines as $line) {
             $quantity = Stocktake::quantity($line['quantity'] ?? null);
             $pieces += $quantity !== null && $quantity > 0 ? $quantity : 0.0;
+            $unit = Stocktake::quantity($line['cost'] ?? null);
+            $cost += $costs && $quantity !== null && $unit !== null && $unit >= 0 ? $quantity * $unit : 0.0;
 
             if ($quantity !== null && $quantity >= 0) {
                 $counted++;
@@ -52,10 +57,12 @@ final class StockDocumentEditor
                 .'<th class="d-none d-md-table-cell text-end">Differenza</th>'
             : '<th>Articolo</th>'
                 .'<th class="d-none d-md-table-cell text-end">Giacenza</th>'
-                .'<th class="text-end" style="width: 8rem">Pezzi</th>';
+                .'<th class="text-end" style="width: 8rem">Pezzi</th>'
+                .($costs ? '<th class="text-end" style="width: 8rem">Costo</th><th class="d-none d-md-table-cell text-end">Totale</th>' : '');
 
         return '<div class="col-12" data-wi-stock-editor'
             .' data-mode="'.($counting ? 'stocktake' : 'pieces').'"'
+            .($costs ? ' data-costs="1"' : '')
             .' data-search-url="'.$e($searchUrl).'"'
             .' data-max-lines="'.StockDocumentRules::MAX_LINES.'"'
             .' data-max-quantity="'.StockDocumentRules::MAX_QUANTITY.'"'
@@ -80,7 +87,7 @@ final class StockDocumentEditor
             .'</table>'
             .'</div>'
             .'<p class="text-body-secondary my-3'.($lines === [] ? '' : ' d-none').'" data-wi-stock-empty>Nessuna riga: cerca una versione o scansiona un codice.</p>'
-            .'<div class="text-end fw-semibold mt-2" data-wi-stock-totals>'.$e($counting ? self::stocktakeTotals(count($lines), $counted, $differing) : self::totals(count($lines), $pieces)).'</div>'
+            .'<div class="text-end fw-semibold mt-2" data-wi-stock-totals>'.$e($counting ? self::stocktakeTotals(count($lines), $counted, $differing) : self::totals(count($lines), $pieces).($costs ? ' · '.StockValue::money(round($cost, 2)) : '')).'</div>'
             .'<script type="application/json" data-wi-stock-lines>'.$json.'</script>'
             .'<script>'.self::script().'</script>'
             .'</div>';
@@ -209,6 +216,18 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         return decimals === '' ? whole : whole + ',' + decimals;
     }
 
+    // «1.234,50 €», come StockValue::money().
+    function money(number) {
+        var parts = (Math.round(number * 100) / 100).toFixed(2).split('.');
+
+        return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + parts[1] + ' €';
+    }
+
+    // Il costo come si scrive nella casella: «2,5», fino a quattro decimali.
+    function costText(number) {
+        return String(Math.round(number * 10000) / 10000).replace('.', ',');
+    }
+
     function totals(rows, pieces) {
         return rows + ' ' + (rows === 1 ? 'riga' : 'righe') + ' · ' + format(pieces) + ' ' + (pieces === 1 ? 'pezzo' : 'pezzi');
     }
@@ -275,6 +294,9 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         var form = root.closest('form');
         var place = form ? form.querySelector('[data-wi-stock-location]') : null;
         var counting = root.getAttribute('data-mode') === 'stocktake';
+        // G3, Acquisti: costo per riga nel carico, riempito dal fornitore della testata.
+        var costing = root.getAttribute('data-costs') === '1';
+        var supplier = form ? form.querySelector('[data-wi-stock-supplier]') : null;
         var scope = root.querySelector('[data-wi-stock-scope]');
         var scopeAdd = root.querySelector('[data-wi-stock-scope-add]');
         // La sede salvata: tornandoci, l'atteso salvato vale di nuovo (come in StockDocumentRules::expected()).
@@ -385,6 +407,8 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         function check(row) {
             var value = parse(row.input.value);
             var bad = value !== null && !(value >= 0 && value <= maxQuantity);
+            var cost;
+            var badCost = false;
 
             if (bad) {
                 row.input.classList.add('is-invalid');
@@ -392,7 +416,38 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 row.input.classList.remove('is-invalid');
             }
 
-            return !bad;
+            if (row.cost) {
+                cost = parse(row.cost.value);
+                badCost = cost !== null && !(cost >= 0);
+
+                if (badCost) {
+                    row.cost.classList.add('is-invalid');
+                } else {
+                    row.cost.classList.remove('is-invalid');
+                }
+            }
+
+            return !bad && !badCost;
+        }
+
+        // Il costo dell'opzione per il fornitore scelto, o vuoto.
+        function suggested(row) {
+            var value;
+
+            if (!supplier || !row.costs) {
+                return '';
+            }
+
+            value = row.costs[supplier.value];
+
+            return value == null ? '' : costText(Number(value));
+        }
+
+        function lineCost(row) {
+            var quantity = parse(row.input.value);
+            var cost = row.cost ? parse(row.cost.value) : null;
+
+            return quantity === null || cost === null || isNaN(quantity) || isNaN(cost) || quantity < 0 || cost < 0 ? null : quantity * cost;
         }
 
         // L'atteso della riga, con le regole di StockDocumentRules::expected():
@@ -421,6 +476,12 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
         function paint(row) {
             var diff;
+            var line;
+
+            if (row.lineTotal) {
+                line = lineCost(row);
+                row.lineTotal.textContent = line === null ? '—' : money(line);
+            }
 
             if (!counting) {
                 return;
@@ -435,6 +496,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
         function count() {
             var pieces = 0;
+            var cost = 0;
             var counted = 0;
             var differing = 0;
             var i;
@@ -448,6 +510,10 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                     pieces += value;
                 }
 
+                if (costing && lineCost(rows[i]) !== null) {
+                    cost += lineCost(rows[i]);
+                }
+
                 if (counting) {
                     diff = difference(rows[i]);
                     counted += diff === null ? 0 : 1;
@@ -455,7 +521,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 }
             }
 
-            return {rows: rows.length, pieces: Math.round(pieces * 1000) / 1000, counted: counted, differing: differing};
+            return {rows: rows.length, pieces: Math.round(pieces * 1000) / 1000, cost: cost, counted: counted, differing: differing};
         }
 
         // I segnaposto della domanda di conferma (confirmQuestion() della
@@ -483,7 +549,9 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         function refresh() {
             var current = count();
 
-            summary.textContent = counting ? counts(current.rows, current.counted, current.differing) : totals(current.rows, current.pieces);
+            summary.textContent = counting
+                ? counts(current.rows, current.counted, current.differing)
+                : totals(current.rows, current.pieces) + (costing ? ' · ' + money(current.cost) : '');
 
             if (rows.length) {
                 empty.classList.add('d-none');
@@ -499,7 +567,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             search.focus();
         }
 
-        function append(version, quantity) {
+        function append(version, quantity, cost) {
             var row;
             var tr;
             var article;
@@ -588,6 +656,23 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             tr.appendChild(article);
             tr.appendChild(row.stock);
             tr.appendChild(cell);
+
+            if (costing) {
+                row.costs = version.costs || {};
+                row.cost = el('input', 'form-control form-control-sm text-end');
+                row.cost.type = 'text';
+                row.cost.inputMode = 'decimal';
+                row.cost.value = cost != null && cost !== '' ? String(cost) : suggested(row);
+                row.cost.setAttribute('aria-label', 'Costo di ' + row.label);
+                row.cost.addEventListener('input', function () {
+                    check(row);
+                    paint(row);
+                    refresh();
+                });
+                row.lineTotal = el('td', 'd-none d-md-table-cell text-end text-nowrap');
+                tr.appendChild(el('td', 'text-end')).appendChild(row.cost);
+                tr.appendChild(row.lineTotal);
+            }
 
             if (counting) {
                 row.diff = el('td');
@@ -706,7 +791,9 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             var i;
 
             for (i = 0; i < rows.length; i++) {
-                out.push({product_id: rows[i].id, quantity: rows[i].input.value});
+                out.push(costing
+                    ? {product_id: rows[i].id, quantity: rows[i].input.value, cost: rows[i].cost.value}
+                    : {product_id: rows[i].id, quantity: rows[i].input.value});
             }
 
             return JSON.stringify(out);
@@ -863,7 +950,24 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         }
 
         for (k = 0; k < initial.length; k++) {
-            append(initial[k], initial[k].quantity);
+            append(initial[k], initial[k].quantity, initial[k].cost);
+        }
+
+        // Cambiando fornitore, le caselle del costo ancora vuote prendono il suo.
+        if (costing && supplier) {
+            supplier.addEventListener('change', function () {
+                var i;
+
+                for (i = 0; i < rows.length; i++) {
+                    if (rows[i].cost.value === '') {
+                        rows[i].cost.value = suggested(rows[i]);
+                        check(rows[i]);
+                        paint(rows[i]);
+                    }
+                }
+
+                refresh();
+            });
         }
 
         refresh();

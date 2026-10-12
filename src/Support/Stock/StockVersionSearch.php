@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Stock;
 
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -186,6 +188,8 @@ final class StockVersionSearch
         $location = $locationId > 0 ? $locationId : Locations::mainId();
         $modelNames = ProductNames::models($products);
         $levels = Levels::byLocationForProducts(array_map('intval', array_column($products, 'id')));
+        // G3, Acquisti: i costi per fornitore, per riempire il costo del carico.
+        $costs = Gestionale::feature('purchasing') ? self::costs(array_map('intval', array_column($products, 'id'))) : [];
         $versions = [];
 
         foreach ($products as $product) {
@@ -198,10 +202,33 @@ final class StockVersionSearch
                 'photo' => ProductPhotos::forModel((int) $product['product_model_id'], (int) ($product['product_variant_id'] ?? 0), $id),
                 'stock' => round((float) ($levels[$id][$location]['quantity'] ?? 0), 3),
                 'inactive' => (string) ($product['active'] ?? 'true') === 'false',
-            ];
+            ] + (Gestionale::feature('purchasing') ? ['costs' => (object) ($costs[$id] ?? [])] : []);
         }
 
         return $versions;
+    }
+
+    /**
+     * I costi d'acquisto delle versioni, per fornitore, in una lettura sola.
+     *
+     * @param list<int> $productIds
+     * @return array<int, array<int, float>>
+     */
+    private static function costs(array $productIds): array
+    {
+        if ($productIds === []) {
+            return [];
+        }
+
+        $out = [];
+
+        foreach (self::rows(ProductSupplier::find('`product_id` IN ('.implode(', ', $productIds).") AND `deleted` = 'false'")) as $link) {
+            if ($link['cost'] !== null && trim((string) $link['cost']) !== '') {
+                $out[(int) $link['product_id']][(int) $link['supplier_id']] = round((float) $link['cost'], 4);
+            }
+        }
+
+        return $out;
     }
 
     /** `'%parola%'` per LIKE: l'apice è escapato dal driver, `%` e `_` restano caratteri. */

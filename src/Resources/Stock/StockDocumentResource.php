@@ -13,6 +13,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Http\Csrf;
+use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
@@ -218,6 +219,26 @@ abstract class StockDocumentResource extends GestionaleResource
         $doc = '`'.StockDocument::$table.'`';
 
         return 'COALESCE('.$doc.'.`date`, DATE('.$doc.'.`creation`)) BETWEEN \''.substr($range['from'], 0, 10).'\' AND \''.substr($range['to'], 0, 10).'\'';
+    }
+
+    /**
+     * Fornitore, documento del fornitore e costi (G3.7): solo nel carico e
+     * solo con «Acquisti».
+     */
+    public static function purchases(): bool
+    {
+        return static::type() === 'receipt' && Gestionale::feature('purchasing');
+    }
+
+    /**
+     * I fornitori della tendina del carico, più quello già scelto anche se
+     * non è più attivo.
+     *
+     * @return array<int, string>
+     */
+    public static function supplierOptions(int $keep = 0): array
+    {
+        return Contacts::supplierOptions($keep > 0 ? [$keep] : []);
     }
 
     /** La colonna e il filtro *Sede* servono da due sedi in su. */

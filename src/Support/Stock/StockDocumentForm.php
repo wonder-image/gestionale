@@ -109,9 +109,12 @@ final class StockDocumentForm
             }
 
             $expected = $item['expected_quantity'] ?? null;
+            $cost = $item['unit_cost'] ?? null;
             $lines[] = $version + [
                 'quantity' => self::quantityText($item['quantity']),
                 'expected' => $expected === null ? null : round((float) $expected, 3),
+                // G3, Acquisti: il costo salvato, come si scrive nella casella («2,5»).
+                'cost' => $cost === null ? '' : str_replace('.', ',', (string) (round((float) $cost, 4) + 0)),
             ];
         }
 
