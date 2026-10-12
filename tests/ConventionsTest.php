@@ -55,6 +55,9 @@ check('ogni Resource con dati dichiara la sua funzionalità', function () use ($
         // in più, gli acquisti e i lotti, non la giacenza.
         'Wonder\\Plugin\\Gestionale\\Resources\\Stock\\StockLevelResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Stock\\StockMovementResource',
+        'Wonder\\Plugin\\Gestionale\\Resources\\Stock\\StockDocumentResource',
+        'Wonder\\Plugin\\Gestionale\\Resources\\Stock\\StockReceiptResource',
+        'Wonder\\Plugin\\Gestionale\\Resources\\Stock\\StockIssueResource',
         // I clienti ci sono sempre; i fornitori arrivano con gli acquisti, e
         // infatti `SupplierResource` dichiara la sua funzionalità.
         'Wonder\\Plugin\\Gestionale\\Resources\\Contacts\\CustomerResource',
