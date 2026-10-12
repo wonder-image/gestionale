@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
@@ -54,6 +55,22 @@ final class LevelsSql
     public static function available(string $now, string $product = self::PRODUCT): string
     {
         return '(ROUND('.self::quantity($product).' - '.self::reserved($now, $product).', 3))';
+    }
+
+    /**
+     * Il valore della versione, come `StockValue`: i secchi sopra zero per il
+     * costo del loro fornitore, il più basso fra i fornitori dell'opzione per
+     * il fornitore 0; i pezzi senza costo non contano. IVA esclusa.
+     */
+    public static function value(string $product = self::PRODUCT): string
+    {
+        $links = '`'.ProductSupplier::$table.'`';
+
+        return '(SELECT ROUND(COALESCE(SUM(s.quantity * (CASE WHEN s.supplier_id > 0'
+            .' THEN (SELECT MAX(ps.cost) FROM '.$links.' ps WHERE ps.product_id = s.product_id AND ps.supplier_id = s.supplier_id'." AND ps.deleted = 'false')"
+            .' ELSE (SELECT MIN(pz.cost) FROM '.$links.' pz WHERE pz.product_id = s.product_id'." AND pz.deleted = 'false') END)), 0), 2)"
+            .' FROM `'.StockRow::$table.'` s'
+            .' WHERE s.product_id = '.$product." AND s.deleted = 'false' AND s.quantity > 0)";
     }
 
     /** Vero se la versione ha un avviso di scorta minima aperto, come `Alerts`. */

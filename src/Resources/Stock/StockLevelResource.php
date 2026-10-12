@@ -21,6 +21,7 @@ use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Stock\LevelsSql;
+use Wonder\Plugin\Gestionale\Support\Stock\StockValue;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\Thresholds;
@@ -84,6 +85,7 @@ final class StockLevelResource extends GestionaleResource
             'min_stock_quantity' => 'Scorta minima',
             'stock_reserved' => 'Impegnati',
             'stock_available' => 'Disponibili',
+            'stock_value' => 'Valore',
         ];
     }
 
@@ -143,6 +145,16 @@ final class StockLevelResource extends GestionaleResource
                     ->hiddenDevice('mobile')
                     ->formatter(static fn (array $row): string => static::number($row[$key] ?? 0));
             }
+        }
+
+        if (Gestionale::feature('purchasing')) {
+            // Il valore (G3.19): pezzi per costo del fornitore, IVA esclusa.
+            $columns[] = TableColumn::key('stock_value')
+                ->text()
+                ->size('little')
+                ->sortable()
+                ->hiddenDevice('mobile')
+                ->formatter(static fn (array $row): string => StockValue::money((float) ($row['stock_value'] ?? 0)));
         }
 
         $columns[] = TableColumn::key('actions')->button()->actions([
@@ -253,6 +265,10 @@ final class StockLevelResource extends GestionaleResource
 
         if (Gestionale::feature('low_stock_alerts')) {
             $parts[] = LevelsSql::openAlert().' AS stock_alert';
+        }
+
+        if (Gestionale::feature('purchasing')) {
+            $parts[] = LevelsSql::value().' AS stock_value';
         }
 
         return implode(', ', $parts);
