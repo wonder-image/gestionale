@@ -59,6 +59,12 @@ di vendita G3 tocca un punto solo, `Allocation` con `Stock::apply()` (D61).
 - **Sede dell'ordine:** `gst_orders.location_id` è il punto di ritiro scelto, o
   0 per la spedizione (vale la principale). `Checkout` e `Lifecycle` la passano
   ad `Allocation`.
+- **Resi:** `Returns` chiama `Allocation::returnGoods()` per ogni pezzo che
+  rientra; la riga d'ordine ce l'ha (`$good['order_item_id']`) ma oggi non la
+  passa.
+- **L'ecommerce non si tocca:** legge disponibilità e giacenze da `Levels`, ed è
+  lì che arrivano le regole per sede e dei lotti scaduti. È la garanzia che E1
+  resta com'è a interruttori spenti.
 
 ### Un difetto di oggi, da correggere prima della consegna
 
@@ -69,9 +75,11 @@ spenta l'unica sede del magazzino è la principale (architettura §4.3): la
 prenotazione legge una giacenza vuota e il checkout risponde «non disponibile»,
 oppure, con la vendita senza giacenza, la sede di ritiro va sotto zero.
 
-Correzione proposta, piccola e indipendente da G3: con `multi_location` spenta
-`Allocation` usa sempre `Locations::mainId()`, qualunque sia la sede dell'ordine.
-Va in un ramo a parte, prima del 29 ottobre (decisione 1 qui sotto).
+Nessuna spec ha deciso che il ritiro scarichi dalla sede di ritiro (G7 e il
+checkout con spedizione ne tacciono): vale l'architettura. Correzione proposta,
+piccola e indipendente da G3: con `multi_location` spenta `Allocation::context()`
+usa sempre `Locations::mainId()`, qualunque sia la sede dell'ordine. Una riga più
+un test, in un ramo a parte, prima del 29 ottobre (decisione 1 qui sotto).
 
 ### Già deciso nell'architettura (§4.3), non si riapre
 
@@ -104,25 +112,47 @@ poterle approvare o cambiare una per una.
 | # | Tema | Proposta | Alternative scartate |
 |---|---|---|---|
 | 1 | Sede della vendita con `multi_location` spenta | **sempre la principale** in `Allocation`, qualunque sia il punto di ritiro; correzione separata, prima della consegna | lasciare com'è (il ritiro in una seconda sede non funziona) |
-| 2 | Sede della vendita con `multi_location` accesa | **spedizione: la principale; ritiro: la sede di ritiro se ha giacenza, altrimenti la principale.** Nessun trasferimento automatico | un'impostazione «sede delle spedizioni online»; la sede con più merce; prenotare un po' da una e un po' dall'altra |
+| 2 | Sede della vendita con `multi_location` accesa | **spedizione: la principale; ritiro: la sede di ritiro se ha *Giacenza* accesa nella pagina *Sedi* (`has_stock`), altrimenti la principale** — conta l'interruttore della sede, non i pezzi che ha in quel momento. Nessun trasferimento automatico | un'impostazione «sede delle spedizioni online»; la sede con più merce; prenotare un po' da una e un po' dall'altra |
 | 3 | Come si divide uno scarico fra i secchi | **una classe pura, `StockPicking::split()`**: riceve i secchi di prodotto e sede (con scadenza del lotto e costo del fornitore), la quantità e le funzionalità accese; risponde con la lista `(lotto, fornitore, pezzi)`. A interruttori spenti risponde sempre `[(0, 0, pezzi)]`: è il test che prova che il negozio non cambia. La usano vendita, scarico, rettifica in meno, trasferimento e inventario | la scelta dentro `Stock::apply()` (che resterebbe una porta, ma con dentro le regole); una query SQL ordinata |
 | 4 | Prenotazioni | **restano per prodotto e sede**, senza lotto né fornitore: la ripartizione si fa alla conferma, con le scadenze di quel giorno | prenotare già il lotto (un lotto che scade fra prenotazione e conferma resterebbe bloccato) |
-| 5 | Annullo e reso di una vendita divisa su più secchi | **colonna `reference_item_id` su `gst_stock_movements`** (la riga d'ordine o del documento). L'annullo rimette in ogni secchio quello che la riga ne aveva tolto; il reso parziale rientra nei secchi in ordine inverso a quello di uscita | tabella `gst_stock_allocations` con la ripartizione; rientro sempre nel secchio 0 (si perderebbe il lotto, e il richiamo) |
+| 5 | Annullo e reso di una vendita divisa su più secchi | **colonna `reference_item_id` su `gst_stock_movements`** (la riga d'ordine o del documento). L'annullo rimette in ogni secchio quello che la riga ne aveva tolto; il reso parziale rientra nei secchi in ordine inverso a quello di uscita. Fuori da `Allocation` cambia una chiave sola: `Returns` passa `order_item_id` a `returnGoods()` (oggi non lo passa) | tabella `gst_stock_allocations` con la ripartizione; rientro sempre nel secchio 0 (si perderebbe il lotto, e il richiamo) |
 | 6 | Il secchio 0 dopo l'accensione | la merce che c'era prima (lotto 0, fornitore 0) **resta dov'è, nessuna migrazione**. Nello scarico automatico esce **per prima** (è la più vecchia). Nel valore conta al **costo più basso fra i fornitori dell'opzione**; senza nessun costo conta zero e il riquadro lo dice («N pezzi senza costo») | chiedere al commerciante di assegnarla a mano all'accensione; uscire per ultima |
 | 7 | Fornitore sul carico con `purchasing` accesa | **sulla testata, facoltativo**: vale per tutte le righe (le righe lo copiano); senza fornitore la merce entra nel secchio 0. Con il fornitore: numero e data del suo documento, costo per riga | fornitore per riga; fornitore obbligatorio |
 | 8 | Costo del fornitore alla conferma del carico | **aggiorna `gst_product_suppliers.cost`**, e **crea il collegamento** opzione-fornitore se manca | aggiornare solo se c'è già; non toccare mai la scheda |
 | 9 | Quali articoli hanno i lotti | **un interruttore sull'articolo, «Gestisci lotti e scadenze»** (con `batch_tracking` accesa), spento di serie. Solo i suoi carichi chiedono lotto e scadenza (la scadenza resta facoltativa: ci sono lotti senza) | tutti gli articoli con la funzionalità accesa |
 | 10 | Numero del lotto | **unico per opzione**: lo stesso numero in un altro carico è lo stesso lotto, e la scadenza deve coincidere (altrimenti il carico non si conferma) | unico per opzione e fornitore; un lotto nuovo a ogni carico |
-| 11 | Lotti scaduti | **fuori dal disponibile** in vetrina, nel checkout e nelle *Giacenze* (colonna *Scaduti* con la funzionalità accesa); restano in giacenza finché uno scarico con causale *Scaduto* non li toglie. Scaduto = data di scadenza prima di oggi | toglierli da soli con un'attività notturna; contarli disponibili fino allo scarico |
+| 11 | Lotti scaduti | **fuori dal disponibile** in vetrina, nel checkout e nelle *Giacenze* (colonna *Scaduti* con la funzionalità accesa); restano in giacenza finché uno scarico con causale *Scaduto* non li toglie. Scaduto = data di scadenza **prima di oggi**: il giorno della scadenza si vende ancora. Uscendo dal disponibile, un lotto che scade può aprire un **avviso di scorta minima** (`Alerts::refresh()` legge il disponibile): è voluto | toglierli da soli con un'attività notturna; contarli disponibili fino allo scarico |
 | 12 | Lotto e fornitore nello scarico | **scelta a mano facoltativa sulla riga** (con le funzionalità accese); vuota = scarico automatico. Serve per buttare un lotto scaduto, che lo scarico automatico non prende mai | solo automatico |
 | 13 | Rettifica rapida con lotti e fornitori | in meno: **scarico automatico**; in più: **secchio 0** (lotto e fornitore sconosciuti) | chiedere lotto e fornitore nella finestra della rettifica |
 | 14 | Inventario con lotti e fornitori | **resta per opzione e sede** (piano 6 com'è). Differenza in meno: scarico automatico; in più: secchio 0. La conta per lotto è il «conteggio guidato», funzionalità futura | una riga per lotto nell'inventario (riapre l'editor del piano 6) |
-| 15 | Vendita senza giacenza con i lotti (D60: «dettaglio in G3») | il pezzo venduto scoperto va sotto zero nel **secchio 0**. Alla conferma del carico dopo, se il secchio 0 di quell'opzione e sede è sotto zero, **due movimenti di compensazione** (causale interna *Assegnazione lotto*): il lotto appena caricato cede i pezzi al secchio 0, che torna a zero. Così il lotto risulta uscito e il richiamo lo trova | lasciare il secchio 0 negativo e il lotto pieno (le somme tornano, ma il lotto mente e il valore pure); riscrivere il movimento di vendita (vietato) |
-| 16 | Trasferimento | **quarto documento, *Trasferimenti***, in due passi: **Invia** (`transfer_out` dalla sede di partenza, stato `in_transit`) e **Ricevi** (`transfer_in` nella sede d'arrivo, stato `completed`). Lotto e fornitore passano uguali. Arrivo sempre per intero. Annullabile da *in viaggio* (storno della partenza) e da *completato* (storno di tutti e due, se la merce è ancora lì). Pezzi *In viaggio* come colonna delle *Giacenze* | un passo solo (partenza e arrivo insieme); arrivi parziali |
+| 15 | Vendita senza giacenza con i lotti (D60: «dettaglio in G3») | il pezzo venduto scoperto va sotto zero nel **secchio 0**. **Da scegliere fra due strade**, vedi sotto la tabella | riscrivere il movimento di vendita (vietato) |
+| 16 | Trasferimento | **quarto documento, *Trasferimenti***, in due passi: **Invia** (`transfer_out` dalla sede di partenza, stato `in_transit`) e **Ricevi** (`transfer_in` nella sede d'arrivo, stato `completed`). Partenza e arrivo devono essere sedi con *Giacenza* accesa, diverse fra loro. Lotto e fornitore passano uguali. Arrivo sempre per intero. Annullabile da *in viaggio* (storno della partenza) e da *completato* (storno di tutti e due, se la merce è ancora lì). Pezzi *In viaggio* come colonna delle *Giacenze* | un passo solo (partenza e arrivo insieme); arrivi parziali |
 | 17 | Pezzi prenotati e trasferimento | stessa regola dello scarico di oggi: **controlla la giacenza, non le prenotazioni** | rifiutare se tocca merce prenotata |
 | 18 | Spegnere una funzionalità con dei dati | il pannello **rifiuta** di spegnere `multi_location` con pezzi fuori dalla principale o trasferimenti in viaggio; `purchasing` e `batch_tracking` si spengono sempre (i dati restano, nascosti, e tornano alla riaccensione) | spegnere sempre; spostare la merce da sola nella principale |
 | 19 | Valore del magazzino | **riquadro della home** e **colonna *Valore*** nelle *Giacenze*, con `purchasing` accesa; giacenze sotto zero escluse | solo il riquadro; una pagina a parte |
 | 20 | Pagina dei lotti | ***Magazzino → Lotti***: elenco con opzione, numero, scadenza, pezzi per sede, filtro *In scadenza* e *Scaduti*; scheda del lotto con giacenze, movimenti e **clienti che l'hanno ricevuto** (per il richiamo) | solo il riquadro in home e il filtro nei Movimenti |
+| 21 | Costi | **IVA esclusa**, sia il costo del fornitore sia il costo del carico (D19 parla solo dei prezzi di vendita) | IVA inclusa come i prezzi del negozio |
+| 22 | Costo sui movimenti che escono e rientrano | **`unit_cost` = il costo del fornitore del secchio in quel momento** su `sale`, `return`, `sale_cancel`, `transfer_*`, scarichi e inventari: dà il costo del venduto per le statistiche | lasciarlo a zero e rimandare il costo del venduto |
+
+### La decisione 15, in dettaglio
+
+Un pezzo venduto scoperto esce dal secchio 0 prima che il lotto esista: chi l'ha
+comprato non è legato a nessun lotto, e **resta non rintracciabile in tutte e due
+le strade**.
+
+- **A. Compensazione al carico.** Alla conferma del carico dopo, se il secchio 0
+  di quell'opzione e sede è sotto zero, due movimenti con una causale interna
+  (*Assegnazione lotto*): il lotto appena caricato cede i pezzi al secchio 0, che
+  torna a zero. Il lotto mostra i pezzi che ha davvero e il valore torna giusto;
+  ma il richiamo, seguendo i movimenti del lotto, trova «N pezzi al secchio 0»,
+  non dei clienti.
+- **B. Lasciare com'è.** Il secchio 0 resta sotto zero e il lotto pieno; le somme
+  per opzione e sede tornano, ma il lotto dichiara più pezzi di quelli che ha
+  finché un inventario non lo corregge. Il riquadro *Da controllare* segnala le
+  coppie «secchio 0 sotto zero + lotto sopra zero».
+
+Proposta: **A**, perché lotto e valore restano veri senza lavoro a mano; B è più
+semplice e non tocca la conferma del carico.
 
 ## Design (da scrivere dopo l'approvazione)
 
