@@ -367,8 +367,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 
 - [x] Spostare questa spec in `gestionale/docs/superpowers/specs/` alla creazione del repository del gestionale (D15)
 - [ ] Creare i tre spazi GitBook con i sommari di D57: sviluppatori del gestionale, sviluppatori dell'ecommerce, commercianti (Project directory `guide`)
-- [ ] Riquadro standard "Inclusa / Da attivare su richiesta" per le pagine della guida commercianti (D32)
-- [ ] Comando che genera la tabella delle funzionalità da `config/features.php` (D32)
+- [x] Riquadro standard "Inclusa / Da attivare su richiesta" per le pagine della guida commercianti (D32) — verificato il 2026-10-12: ogni pagina di `docs/user/` (tranne README, SUMMARY e `funzionalita.md`, che ha «Configurata da Wonder Image») si apre con «**Inclusa.**» o «**Da attivare.**»
+- [x] Comando che genera la tabella delle funzionalità da `config/features.php` (D32) — è `gestionale:features-doc` (G1 piano 4), scrive fra i segni di `docs/user/funzionalita.md`
 - [ ] Guida sviluppatori: hook, dati passati alle pagine e alle email, classi dei PDF sostituibili (D52)
 - [ ] Guida sviluppatori: checklist di prova manuale prima di ogni rilascio, con gli account di prova di Stripe e Fatture in Cloud (D56)
 
