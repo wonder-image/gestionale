@@ -41,6 +41,35 @@ final class Locations
         return self::$mainId = self::resolve();
     }
 
+    /**
+     * La sede da cui una vendita prenota, scarica e riprende la merce: la
+     * principale, sempre.
+     *
+     * Il punto di ritiro dell'ordine dice dove il cliente passa a prendere la
+     * merce, non da quale magazzino esce: il ritiro si fa dove il cliente
+     * preferisce, e la merce ci arriva dalla principale.
+     */
+    public static function forSale(): int
+    {
+        return self::mainId();
+    }
+
+    /**
+     * La sede dove rientra la merce di un reso: quella scelta da chi lo
+     * registra, con "Più sedi" attiva; altrimenti la principale, l'unico
+     * magazzino.
+     */
+    public static function forReturn(int $requested): int
+    {
+        return self::serving($requested, self::mainId(), Gestionale::feature('multi_location'));
+    }
+
+    /** La regola di `forReturn()`, senza database. */
+    public static function serving(int $requested, int $mainId, bool $multiLocation): int
+    {
+        return $multiLocation && $requested > 0 ? $requested : $mainId;
+    }
+
     public static function reset(): void
     {
         self::$mainId = null;

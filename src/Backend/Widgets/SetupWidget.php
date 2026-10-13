@@ -66,13 +66,11 @@ final class SetupWidget implements HomeWidget
 HTML;
         }
 
-        return <<<HTML
-<wi-card class="col-12">
+        return WidgetCard::wrap(<<<HTML
     <h5 class="mb-1"><i class="bi bi-flag"></i> Primi passi</h5>
     <p class="text-body-secondary small">Manca ancora qualcosa prima di partire.</p>
     <ul class="list-group list-group-flush">{$items}</ul>
-</wi-card>
-HTML;
+HTML);
     }
 
     /** @return array<string, mixed> */

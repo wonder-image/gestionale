@@ -62,9 +62,10 @@ Per gli ordini con ritiro i passaggi sono tre: la spedizione di ritiro nasce
 **in attesa** quando premi **Pronto per il ritiro**; il cliente riceve subito
 un'email con nome e indirizzo della sede; quando passa a prendere la merce premi
 **Ritirato**. La sede deve essere attiva, di ritiro e aperta in quel momento. Al checkout invece
-l'orario non conta: il cliente può scegliere il ritiro anche di sera, e la merce
-viene prenotata nel magazzino di quella sede. Il magazzino non cambia: la merce è già uscita alla
-conferma dell'ordine.
+l'orario non conta: il cliente può scegliere il ritiro anche di sera. La merce
+si prenota nel magazzino della sede principale, anche se il cliente ritira in
+un'altra sede: portarla lì è compito tuo. Il magazzino non cambia: la merce è
+già uscita alla conferma dell'ordine.
 
 ## Le spedizioni, tutte insieme
 
