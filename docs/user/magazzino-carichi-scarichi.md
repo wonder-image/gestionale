@@ -37,8 +37,10 @@ eliminano.
    versione: compaiono fino a 20 risultati con foto e giacenza nella sede
    scelta. Un clic la aggiunge alle righe. I multiprodotti non ci sono: la
    loro giacenza è quella dei pezzi che li compongono.
-4. Scrivi i **pezzi** di ogni riga. Una versione sta una volta sola: se la
-   aggiungi di nuovo, la riga che c'è già prende un pezzo in più.
+4. Scrivi i **pezzi** di ogni riga: una riga nuova parte da 1. Una versione
+   sta una volta sola: se la clicchi di nuovo nei risultati, il cursore va
+   sui pezzi della riga che c'è già, da correggere a mano. Solo il lettore
+   di codici a barre aggiunge da sé il pezzo in più (vedi sotto).
 5. **Salva bozza** se devi interrompere, **Conferma carico** quando hai
    finito. La conferma chiede «{pezzi} pezzi in {righe} righe entrano in
    magazzino. Dopo non si modifica più: si può solo annullare.».

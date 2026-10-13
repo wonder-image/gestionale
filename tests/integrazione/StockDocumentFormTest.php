@@ -224,6 +224,21 @@ check('editorLines: l\'ordine del documento, i pezzi in testo, la versione elimi
     });
 });
 
+check('editorLines con le righe rimesse da restorable(): i pezzi come erano scritti, anche quelli storti', function () use ($utente) {
+    return prova(static function () use ($utente): bool {
+        [$a, $b] = [articolo(), articolo()];
+        $post = post([[$a, 'abc'], [$b, '2,50']], ['note' => 'Bolla 7', 'intent' => 'confirm']);
+        $esito = StockDocumentForm::submit('receipt', 0, $post, $utente);
+        $rimesso = StockDocumentForm::restorable($post);
+        $editor = StockDocumentForm::editorLines($rimesso['items'], Locations::mainId());
+
+        return $esito['id'] === 0 && $esito['error'] !== ''
+            && array_column($editor['lines'], 'id') === [$a, $b]
+            && array_column($editor['lines'], 'quantity') === ['abc', '2,50']
+            && $rimesso['header']['note'] === 'Bolla 7';
+    });
+});
+
 check('inventario dalla pagina: la bozza porta l\'atteso all\'editor, la conferma muove solo le righe contate con una differenza', function () use ($utente) {
     return prova(static function () use ($utente): bool {
         [$a, $b, $c] = [articolo(10), articolo(4), articolo(7)];

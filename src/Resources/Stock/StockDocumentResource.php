@@ -447,6 +447,11 @@ abstract class StockDocumentResource extends GestionaleResource
                 'url' => $id > 0 ? static::editUrl($id) : static::createUrl(),
             ];
 
+        // Si torna a «Nuovo» senza una bozza: le righe scritte non vanno perse.
+        if (!$result['ok'] && $result['url'] === static::createUrl()) {
+            StockDocumentForm::remember(static::type(), $values);
+        }
+
         StockDocumentForm::respond($result);
     }
 
@@ -711,7 +716,9 @@ abstract class StockDocumentResource extends GestionaleResource
     /**
      * Il form della bozza: un documento chiuso aperto in modifica (link
      * vecchio, altra scheda) va alla sua scheda; le righe arrivano descritte
-     * per l'editor in `editor`.
+     * per l'editor in `editor`. «Nuovo» dopo un invio che non ha fatto
+     * nascere il documento riprende righe, sede, causale e nota di quell'invio
+     * (`StockDocumentForm::recall()`); una sede che non c'è più si lascia.
      */
     public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
     {
@@ -725,9 +732,23 @@ abstract class StockDocumentResource extends GestionaleResource
             exit();
         }
 
+        $items = $mode === 'edit' ? StockDocuments::items((int) ($values['id'] ?? 0)) : [];
+        $restored = $mode === 'edit' ? null : StockDocumentForm::recall(static::type());
+
+        if ($restored !== null) {
+            $header = $restored['header'];
+
+            if (!array_key_exists((string) ($header['location_id'] ?? ''), static::locationOptions())) {
+                unset($header['location_id']);
+            }
+
+            $values = $header + $values;
+            $items = $restored['items'];
+        }
+
         $locationId = (int) ($values['location_id'] ?? 0);
         $values['editor'] = StockDocumentForm::editorLines(
-            $mode === 'edit' ? StockDocuments::items((int) ($values['id'] ?? 0)) : [],
+            $items,
             $locationId > 0 ? $locationId : Locations::mainId()
         );
 
