@@ -135,6 +135,21 @@ o l'area cliente del sito gli mostrerebbe gli ordini dell'ufficio.
   pagina, `OfficeOrderResource`); un ordine da ufficio confermato ha
   `cancel_lines`.
 
+## DDT e righe evase (G9)
+
+`DeliveryNotes` è la sola porta del DDT: `createFromOrder()` (le righe di
+merce non ancora in un DDT emesso, divise per lotto con
+`StockMovements::netOut()`), `saveDraft()`, `issue()` (numero, data, PDF in
+`storage/gestionale/documents/delivery-notes/`), `cancel()`, `delete()`,
+`send()`. Non muove il magazzino.
+
+Una riga è evasa per `FulfilledLines::of($ordinato, $nei DDT emessi,
+$spedito)`: il **massimo**, mai la somma. La usano `Shipments::remaining()`
+(non si spedisce quello che un DDT ha consegnato), `Shipments::syncOrder()`
+(lo stato di evasione, che resta il solo a scriverlo e che chiamano anche
+`issue()` e `cancel()` del DDT) e *Annulla righe*. Il PDF è
+`DeliveryNotePdf` (tipo `delivery_note` dell'hook `documentPdf`).
+
 ## Preventivi e PDF (G9)
 
 Il preventivo è lo stesso documento della bozza d'ordine con `stage` `quote`:

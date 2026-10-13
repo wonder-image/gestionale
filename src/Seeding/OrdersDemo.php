@@ -13,6 +13,9 @@ use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
+use Wonder\Plugin\Gestionale\Models\Sales\DeliveryNote;
+use Wonder\Plugin\Gestionale\Models\Sales\DeliveryNoteItem;
+use Wonder\Plugin\Gestionale\Models\Sales\DeliveryNoteStatusLog;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderQuoteRevision;
@@ -38,6 +41,7 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderLines;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
+use Wonder\Plugin\Gestionale\Support\Sales\DeliveryNotes;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
 use Wonder\Plugin\Gestionale\Support\Sales\Quotes;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
@@ -454,6 +458,11 @@ final class OrdersDemo
                 'source' => 'system',
                 'installments_from' => (new DateTimeImmutable('first day of this month'))->setTime(0, 0)->modify('-31 days'),
             ]);
+
+            // Con i DDT accesi la merce è partita con il suo documento.
+            if (Gestionale::feature('delivery_notes')) {
+                DeliveryNotes::issue(DeliveryNotes::createFromOrder($orderId, ['source' => 'system']), ['source' => 'system']);
+            }
             Order::update(['ordered_at' => date('Y-m-d H:i:s', strtotime('-'.(int) $plan['days'].' days'))], $orderId);
         }
 
@@ -628,6 +637,19 @@ final class OrdersDemo
             }
 
             sqlDelete(OrderQuoteRevision::$table, 'order_id = '.$id);
+
+            // G9: i DDT dell'ordine, con il loro PDF.
+            foreach (self::rows(DeliveryNote::find(['order_id' => $id])) as $note) {
+                $file = DocumentFiles::path((string) ($note['pdf_file'] ?? ''));
+
+                if ($file !== null) {
+                    @unlink($file);
+                }
+
+                sqlDelete(DeliveryNoteItem::$table, 'delivery_note_id = '.(int) $note['id']);
+                sqlDelete(DeliveryNoteStatusLog::$table, 'delivery_note_id = '.(int) $note['id']);
+                sqlDelete(DeliveryNote::$table, 'id = '.(int) $note['id']);
+            }
             sqlDelete(OrderItem::$table, 'order_id = '.$id);
             sqlDelete(Order::$table, 'id = '.$id);
         });

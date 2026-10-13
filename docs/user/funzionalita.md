@@ -37,7 +37,7 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Ordini | Vendite | Gestione degli ordini con stati e scarico del magazzino. | — |
 | Preventivi | Vendite | Preventivi con PDF e revisioni: accettato, il preventivo diventa un ordine da ufficio. | Ordini, Vendita in ufficio |
 | Resi | Vendite | Richiesta, approvazione, motivo e ricarico a magazzino. | Ordini |
-| DDT | Vendite | Documento di trasporto per le consegne. | Ordini |
+| DDT | Vendite | Documento di trasporto per le consegne, con i lotti e il PDF. | Ordini |
 | Abbonamenti | Vendite | Piani, rinnovi e cambio piano. | — |
 | Multiprodotto | Catalogo | Prodotti composti da altri prodotti: vendendoli si scaricano i componenti. | — |
 | Personalizzazione | Catalogo | Campi compilati al momento della vendita, con eventuale sovrapprezzo. | Ordini |
