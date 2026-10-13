@@ -79,6 +79,7 @@ final class SettingResource extends SingletonResource
             'batch_expiry_days' => 'Giorni prima della scadenza',
             'payment_due_days' => 'Giorni di preavviso per le scadenze',
             'quote_validity_days' => 'Validità dei preventivi (giorni)',
+            'subscription_unpaid_days' => 'Giorni prima di «non pagato»',
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -129,6 +130,9 @@ final class SettingResource extends SingletonResource
                 : []),
             ...(Gestionale::feature('quotes')
                 ? [FormField::key('quote_validity_days')->number()->decimal(0)->value(30)->label('Validità dei preventivi (giorni)')]
+                : []),
+            ...(Gestionale::feature('subscriptions')
+                ? [FormField::key('subscription_unpaid_days')->number()->decimal(0)->value(15)->label('Giorni prima di «non pagato»')]
                 : []),
         ];
 
@@ -217,6 +221,13 @@ final class SettingResource extends SingletonResource
             $out[] = static::getInput('quote_validity_days')->columnSpan(4);
         }
 
+        if (Gestionale::feature('subscriptions')) {
+            $out[] = SectionTitle::make('Abbonamenti da ufficio')
+                ->tooltip('Quanti giorni dopo la scadenza di una rata non pagata l\'abbonamento passa da «da pagare» a «non pagato». L\'annullamento lo decidi tu dalla scheda dell\'abbonamento.')
+                ->columnSpan(12);
+            $out[] = static::getInput('subscription_unpaid_days')->columnSpan(4);
+        }
+
         return $out;
     }
 
@@ -271,7 +282,7 @@ final class SettingResource extends SingletonResource
     /** Le email degli ordini e della scorta restano di chi vende: in produzione si cambiano lo stesso. */
     public static function editableWhenReadonly(): array
     {
-        return ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days'];
+        return ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days', 'subscription_unpaid_days'];
     }
 
     /** I giorni di validità di un preventivo: da 1 a 365, o un rifiuto; vuoto torna a 30. */
@@ -301,6 +312,22 @@ final class SettingResource extends SingletonResource
 
         if ($number === null || !is_numeric($number) || (float) $number !== floor((float) $number) || (float) $number < 0 || (float) $number > 365) {
             throw UserError::make('settings.payment_due_days_invalid');
+        }
+
+        return (int) $number;
+    }
+
+    /** I giorni prima di «non pagato» (G10): un intero da 1 a 365, o un rifiuto; vuoto vale 15. */
+    public static function unpaidDays(mixed $value): int
+    {
+        if ($value === null || is_string($value) && trim($value) === '') {
+            return 15;
+        }
+
+        $number = Numbers::fromForm($value);
+
+        if ($number === null || !is_numeric($number) || (float) $number !== floor((float) $number) || (float) $number < 1 || (float) $number > 365) {
+            throw UserError::make('settings.subscription_unpaid_days_invalid');
         }
 
         return (int) $number;
@@ -372,6 +399,13 @@ final class SettingResource extends SingletonResource
             unset($values['quote_validity_days']);
         } elseif (array_key_exists('quote_validity_days', $values)) {
             $values['quote_validity_days'] = static::validityDays($values['quote_validity_days']);
+        }
+
+        // G10, abbonamenti da ufficio: da 1 a 365 giorni; vuoto torna ai 15 di partenza.
+        if (!Gestionale::feature('subscriptions')) {
+            unset($values['subscription_unpaid_days']);
+        } elseif (array_key_exists('subscription_unpaid_days', $values)) {
+            $values['subscription_unpaid_days'] = static::unpaidDays($values['subscription_unpaid_days']);
         }
 
         // G9, scadenzario: da 0 a 365 giorni; vuoto torna ai 7 di partenza.

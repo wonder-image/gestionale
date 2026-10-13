@@ -15,6 +15,7 @@ final class DocumentPdfs
     public const DEFAULTS = [
         'quote' => QuotePdf::class,
         'order_confirmation' => OrderConfirmationPdf::class,
+        'proforma' => ProformaPdf::class,
     ];
 
     /** @return class-string<DocumentPdf> */

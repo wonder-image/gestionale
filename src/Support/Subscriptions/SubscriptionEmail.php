@@ -7,8 +7,9 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderEmail;
 
 /**
- * Oggetto e corpo delle tre email di un abbonamento (G10 §2.6): attivato,
- * rinnovo non riuscito, disdetta registrata. I testi stanno nel file di
+ * Oggetto e corpo delle email di un abbonamento: attivato, rinnovo non
+ * riuscito, disdetta registrata (G10 §2.6); proforma del periodo e promemoria
+ * della rata scaduta, per quelli da ufficio (§3). I testi stanno nel file di
  * lingua (`gestionale.emails.subscription`) e si correggono senza toccare il
  * codice, come quelli degli ordini.
  *
@@ -18,7 +19,7 @@ final class SubscriptionEmail
 {
     public const VIEW = 'emails/subscription.php';
 
-    public const KEYS = ['confirmed', 'payment_failed', 'cancel_requested'];
+    public const KEYS = ['confirmed', 'payment_failed', 'cancel_requested', 'proforma', 'reminder'];
 
     /**
      * @param array<string, mixed> $subscription riga di `gst_subscriptions`
@@ -34,6 +35,7 @@ final class SubscriptionEmail
             ':renewal' => self::date((string) ($subscription['next_renewal_at'] ?? '')),
             ':trial' => self::date((string) ($subscription['trial_ends_at'] ?? '')),
             ':end' => self::date(self::endOf($subscription)),
+            ':period' => self::date((string) ($subscription['current_period_start'] ?? '')).' - '.self::date((string) ($subscription['current_period_end'] ?? '')),
         ];
         $lines = [];
 

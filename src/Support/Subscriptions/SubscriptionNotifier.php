@@ -16,8 +16,11 @@ use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
  */
 final class SubscriptionNotifier
 {
-    /** @return array{status: string, to: list<string>, sent: list<string>, failed: list<string>} */
-    public static function send(string $key, int $subscriptionId): array
+    /**
+     * @param array<string, string> $attachments percorso => nome, come gli allegati del core
+     * @return array{status: string, to: list<string>, sent: list<string>, failed: list<string>}
+     */
+    public static function send(string $key, int $subscriptionId, array $attachments = []): array
     {
         $subscription = Subscription::findById($subscriptionId);
         $empty = ['to' => [], 'sent' => [], 'failed' => []];
@@ -38,7 +41,7 @@ final class SubscriptionNotifier
             'account_url' => self::accountUrl(),
         ]);
 
-        return Mailer::send('subscription.'.$key, $to, $email['subject'], $email['body']);
+        return Mailer::send('subscription.'.$key, $to, $email['subject'], $email['body'], $attachments);
     }
 
     /** La sezione *Abbonamenti* dell'area cliente, se il sito ha la rotta. */

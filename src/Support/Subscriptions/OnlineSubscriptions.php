@@ -71,8 +71,8 @@ final class OnlineSubscriptions
         }
 
         $coupon = trim($couponCode) !== '' ? self::couponFor($couponCode, $customerId) : null;
-        $billing = self::billing($billing, $contact);
-        [$taxId, $taxRate] = self::tax((int) ($plan['tax_category_id'] ?? 0), $billing);
+        $billing = self::billingFor($billing, $contact);
+        [$taxId, $taxRate] = self::taxFor((int) ($plan['tax_category_id'] ?? 0), $billing);
         $includeTax = (string) (Setting::current()['catalog_prices_include_tax'] ?? 'true') === 'true';
         $amounts = SubscriptionAmounts::of($price, $coupon, $taxRate, $includeTax, 0);
         $trial = (int) ($price['trial_days'] ?? 0) > 0 && !self::hadPlan($customerId, (int) $plan['id']) ? (int) $price['trial_days'] : 0;
@@ -389,12 +389,12 @@ final class OnlineSubscriptions
     }
 
     /**
-     * Il coupon scritto dal cliente, se vale per gli abbonamenti sul sito,
-     * adesso e per lui.
+     * Il coupon scritto dal cliente (o dall'operatore, con `office`), se vale
+     * per gli abbonamenti su quel canale, adesso e per lui.
      *
      * @return array<string, mixed>
      */
-    public static function couponFor(string $code, int $customerId, ?string $now = null): array
+    public static function couponFor(string $code, int $customerId, ?string $now = null, string $channel = 'online'): array
     {
         $now ??= date('Y-m-d H:i:s');
         $coupon = Coupons::find($code) ?? throw UserError::make('coupon.unknown');
@@ -407,7 +407,9 @@ final class OnlineSubscriptions
             throw UserError::make('coupon.not_for_subscriptions');
         }
 
-        if ((string) ($coupon['applies_online'] ?? 'true') !== 'true') {
+        $column = $channel === 'office' ? 'applies_office' : 'applies_online';
+
+        if ((string) ($coupon[$column] ?? ($channel === 'office' ? 'false' : 'true')) !== 'true') {
             throw UserError::make('coupon.channel');
         }
 
@@ -439,7 +441,7 @@ final class OnlineSubscriptions
      * @param array<string, mixed> $contact
      * @return array<string, string>
      */
-    private static function billing(array $billing, array $contact): array
+    public static function billingFor(array $billing, array $contact): array
     {
         $values = [];
 
@@ -462,7 +464,7 @@ final class OnlineSubscriptions
      * @param array<string, string> $billing
      * @return array{0: int, 1: float}
      */
-    private static function tax(int $taxCategoryId, array $billing): array
+    public static function taxFor(int $taxCategoryId, array $billing): array
     {
         $rules = self::rows(TaxRule::find(['deleted' => 'false']));
         $type = trim((string) ($billing['billing_pi'] ?? '')) !== '' ? 'business' : 'private';
