@@ -14,7 +14,7 @@
             },
             "feature": {
                 "multi_location_in_use": "«Più sedi» non si spegne: {{where}}. Riporta la merce nella sede principale con un trasferimento e ricevi quelli in viaggio, poi riprova.",
-                "subscriptions_in_use": "«Abbonamenti» non si spegne: {{count}}. Aspetta che finiscano o annullali, poi riprova."
+                "subscriptions_in_use": "«Abbonamenti» non si spegne: {{count}}. Aspetta che finiscano, poi riprova."
             },
             "stock_document": {
                 "not_found": "Questo documento di magazzino non esiste più.",
@@ -261,7 +261,8 @@
                 "negative_period": "Vincolo e giorni di prova di «{{name}}» non possono essere negativi.",
                 "renewal_invalid": "Il prezzo di rinnovo di «{{name}}» deve essere un altro prezzo, già salvato, di un piano attivo.",
                 "price_in_use": "Il prezzo «{{name}}» è usato da un abbonamento e non si toglie: spegnilo.",
-                "in_use": "Il piano ha {{count}} abbonamenti in corso e non si elimina: spegnilo."
+                "in_use": "Il piano ha {{count}} abbonamenti in corso e non si elimina: spegnilo.",
+                "feature_duplicate": "Il limite «{{key}}» è scritto due volte: tienine uno."
             }
         },
         "emails": {

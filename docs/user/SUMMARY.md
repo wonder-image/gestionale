@@ -33,6 +33,7 @@
 * [Ordini](vendite-ordini.md)
 * [Pagamenti e scadenze](vendite-pagamenti.md)
 * [Resi](vendite-resi.md)
+* [Abbonamenti](vendite-abbonamenti.md)
 
 ## Spedizioni
 
