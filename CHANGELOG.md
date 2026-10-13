@@ -19,16 +19,6 @@ versionamento semantico.
   `gestionale:demo` con *Più sedi* aggiunge una sede di prova e un
   trasferimento in viaggio.
 
-### Corretto
-
-- `StockDocuments`: ripristinati sette metodi privati (`draft`, `locked`,
-  `location`, `isStockLocation`, `assertProducts`, `log`, `decimal`) persi in
-  un commit del piano 2 di G3; senza, carichi, scarichi e inventari andavano
-  in errore. Nuovo `SelfCallsTest`: ogni `self::metodo()` di `src` deve avere
-  il suo metodo.
-
-### Aggiunto (G3, piani 1–3)
-
 - G3 piano 3b, **Lotti e scadenze** costruita (`batch_tracking`, da
   attivare): pagina **Magazzino → Lotti** con i pezzi, la scadenza colorata
   (rossa scaduto, gialla entro i giorni scelti) e i filtri *Stato* e *Sede*;
@@ -389,6 +379,12 @@ versionamento semantico.
   nella vecchia pagina non si copia: va reinserito in Set Up.
 
 ### Corretto
+
+- `StockDocuments`: ripristinati sette metodi privati (`draft`, `locked`,
+  `location`, `isStockLocation`, `assertProducts`, `log`, `decimal`) persi in
+  un commit del piano 2 di G3; senza, carichi, scarichi e inventari andavano
+  in errore. Nuovo `SelfCallsTest`: ogni `self::metodo()` di `src` deve avere
+  il suo metodo.
 
 - Ritiro in una sede che non è la principale: la merce si prenotava e si
   scaricava dalla sede di ritiro, che non è un magazzino, e il checkout
