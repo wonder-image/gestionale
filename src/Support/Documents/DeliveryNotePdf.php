@@ -102,8 +102,8 @@ class DeliveryNotePdf extends DocumentPdf
                 continue;
             }
 
-            $this->pdf->Cell(45, 5, self::text($label), 0, 0);
-            $this->pdf->Cell(45, 5, self::text($value), 0, $i % 2 === 1 ? 1 : 0);
+            $this->pdf->Cell(45, 5, static::text($label), 0, 0);
+            $this->pdf->Cell(45, 5, static::text($value), 0, $i % 2 === 1 ? 1 : 0);
             $i++;
         }
 
@@ -121,7 +121,7 @@ class DeliveryNotePdf extends DocumentPdf
             $this->pdf->Line($x, $y + 10, $x + 54, $y + 10);
             $this->pdf->SetXY($x, $y + 11);
             $this->pdf->SetFont('Helvetica', '', 7);
-            $this->pdf->Cell(54, 4, self::text($label), 0, 0, 'C');
+            $this->pdf->Cell(54, 4, static::text($label), 0, 0, 'C');
         }
 
         $this->pdf->SetY($y + 20);
@@ -142,7 +142,7 @@ class DeliveryNotePdf extends DocumentPdf
 
         $this->section('Note');
         $this->pdf->SetFont('Helvetica', '', 9);
-        $this->pdf->MultiCell(self::WIDTH, 5, self::text($note));
+        $this->pdf->MultiCell(self::WIDTH, 5, static::text($note));
     }
 
     protected function columns(): array
