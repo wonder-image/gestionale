@@ -1144,7 +1144,7 @@ final class CatalogDemo
             // Un componente che un multiprodotto vero usa ancora resta, con la
             // sua giacenza: la storia di magazzino non si tocca.
             if (self::inBundle($modelId)) {
-                $kept[] = DemoCode::label(ProductModel::class, (string) ($row['name'] ?? ''));
+                self::keep($kept, ProductModel::class, $row);
                 continue;
             }
 
@@ -1167,7 +1167,7 @@ final class CatalogDemo
             if (self::remove(static fn () => ProductModelResource::deleteRecord($modelId))) {
                 $removed += 1 + $sotto;
             } else {
-                $kept[] = DemoCode::label(ProductModel::class, (string) ($row['name'] ?? ''));
+                self::keep($kept, ProductModel::class, $row);
             }
         }
 
@@ -1202,7 +1202,7 @@ final class CatalogDemo
             // Gli articoli di prova sono già andati con i loro collegamenti:
             // chi lo usa ancora è un articolo vero, e non gli si toglie niente.
             if (self::attributeInUse($id)) {
-                $kept[] = DemoCode::label(Attribute::class, (string) ($row['name'] ?? ''));
+                self::keep($kept, Attribute::class, $row);
                 continue;
             }
 
@@ -1218,7 +1218,7 @@ final class CatalogDemo
             if (self::remove(static fn () => Attribute::delete($id))) {
                 $removed++;
             } else {
-                $kept[] = DemoCode::label(Attribute::class, (string) ($row['name'] ?? ''));
+                self::keep($kept, Attribute::class, $row);
             }
         }
 
@@ -1337,6 +1337,25 @@ final class CatalogDemo
         }
 
         return false;
+    }
+
+    /**
+     * Una riga di prova che la pulizia lascia: si dice, se si vede.
+     *
+     * Una già cancellata dal backend resta in silenzio: non la vede nessuno,
+     * e una nota a ogni giro per una riga che non c'è non aiuta. Il giro dopo
+     * la riprova.
+     *
+     * @param list<string> $kept
+     * @param array<string, mixed> $row
+     */
+    private static function keep(array &$kept, string $model, array $row): void
+    {
+        if ((string) ($row['deleted'] ?? 'false') === 'true') {
+            return;
+        }
+
+        $kept[] = DemoCode::label($model, (string) ($row['name'] ?? ''));
     }
 
     /** Una cancellazione riuscita? Un errore del database conta come un no. */
