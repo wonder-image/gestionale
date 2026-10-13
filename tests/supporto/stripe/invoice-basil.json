@@ -1,0 +1,8 @@
+{
+    "id": "in_basil1",
+    "object": "invoice",
+    "amount_paid": 2440,
+    "currency": "eur",
+    "status_transitions": {"paid_at": 1760003600},
+    "parent": {"type": "subscription_details", "subscription_details": {"subscription": "sub_basil1", "metadata": {"subscription_id": "42"}}}
+}

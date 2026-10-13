@@ -205,7 +205,8 @@
                 "type_not_allowed": "Questo tipo di coupon non si crea da qui.",
                 "customer_unknown": "Uno dei clienti scelti non esiste più.",
                 "duration_months_required": "Scrivi per quanti mesi vale il coupon sugli abbonamenti.",
-                "subscriptions_free_shipping": "La spedizione gratuita non vale per gli abbonamenti: scegli una percentuale o un importo."
+                "subscriptions_free_shipping": "La spedizione gratuita non vale per gli abbonamenti: scegli una percentuale o un importo.",
+                "not_for_subscriptions": "Questo codice sconto non vale per gli abbonamenti."
             },
             "shipping": {
                 "no_method_for_destination": "Non spediamo verso questa destinazione.",
@@ -263,6 +264,16 @@
                 "price_in_use": "Il prezzo «{{name}}» è usato da un abbonamento e non si toglie: spegnilo.",
                 "in_use": "Il piano non si elimina, {{count}}: spegnilo.",
                 "feature_duplicate": "Il limite «{{key}}» è scritto due volte: tienine uno."
+            },
+            "subscription": {
+                "unavailable": "Gli abbonamenti online non sono disponibili in questo momento.",
+                "account_required": "Per abbonarti accedi al tuo account o creane uno.",
+                "already_active": "Hai già un abbonamento in corso: per cambiarlo vai nella sezione Abbonamenti del tuo account.",
+                "price_unavailable": "Questo piano non è più disponibile: scegline un altro.",
+                "stripe_unavailable": "Il pagamento non si è aperto: riprova tra qualche minuto.",
+                "not_live": "Questo abbonamento non è in corso: non si può cambiare.",
+                "already_cancelled": "La disdetta di questo abbonamento è già registrata.",
+                "not_found": "Abbonamento non trovato."
             }
         },
         "emails": {
@@ -326,6 +337,28 @@
                     "bic": "BIC/SWIFT",
                     "reference": "Causale",
                     "reference_value": "Ordine :number"
+                }
+            },
+            "subscription": {
+                "confirmed": {
+                    "subject": "Abbonamento :plan attivato",
+                    "title": "Abbonamento attivato",
+                    "intro": "Grazie: il tuo abbonamento :plan è attivo.",
+                    "trial_line": "La prova gratuita dura fino al :trial: fino ad allora non paghi niente.",
+                    "renewal_line": "Il prossimo rinnovo è il :renewal.",
+                    "button": "Vedi il tuo abbonamento"
+                },
+                "payment_failed": {
+                    "subject": "Il rinnovo di :plan non è riuscito",
+                    "title": "Rinnovo non riuscito",
+                    "intro": "Non siamo riusciti ad addebitare il rinnovo del tuo abbonamento :plan. Riproveremo nei prossimi giorni: intanto controlla la carta.",
+                    "button": "Aggiorna la carta"
+                },
+                "cancel_requested": {
+                    "subject": "Disdetta di :plan registrata",
+                    "title": "Disdetta registrata",
+                    "intro": "Abbiamo registrato la disdetta del tuo abbonamento :plan: resta attivo fino al :end, poi non si rinnova.",
+                    "button": "Vedi il tuo abbonamento"
                 }
             }
         }
