@@ -320,6 +320,11 @@ versionamento semantico.
 
 ### Corretto
 
+- Bozza di carico, scarico e inventario: la ricerca per nome, *Aggiungi
+  versioni*, *Salva bozza* e *Conferma* non rispondevano. Il core ricopia il
+  contenuto dei `<wi-card>` al caricamento e gli ascolti legati prima andavano
+  persi: l'editor ora parte con l'evento `loaded` del core e la pagina ascolta
+  *Conferma* sul form.
 - *Magazzino → Giacenze* dava errore SQL: `Query::Conditions(…, false)` del core
   toglie ogni `WHERE` dalla condizione, anche quello della sottoquery che escludeva i
   multiprodotti. Gli `id` dei multiprodotti ora si leggono prima, in PHP.
