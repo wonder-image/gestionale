@@ -331,6 +331,12 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] G3.1–G3.2, prima della consegna: il ritiro in una sede che non è la principale prendeva la merce da quella sede (vuota) e il checkout rispondeva «non disponibile». Regola rivista dall'utente: **il punto di ritiro non è un magazzino**, la vendita esce sempre dalla principale e la merce arriva al punto di ritiro; il reso rientra nella sede scelta. Ramo `fix-sede-ritiro` (`Locations::forSale()`/`forReturn()` in `Allocation`, test del ritiro e guida *Spedire* allineati), unito su `main` con #30
   - [x] Ritocchi del magazzino (2026-10-12, ramo `ritocchi-magazzino`): destinatari della scorta minima nella card *Email* di Set Up → Impostazioni (tolta la pagina Gestionale → Impostazioni), elenco Giacenze che non si rompe più, «Visualizza» e scheda del movimento al posto di «Apri la versione». La prova nel browser aspetta l'utente
 - [ ] G9 Vendite da ufficio **senza la parte fiscale** — ordini da ufficio, preventivi con revisioni e PDF, condizioni a rate e scadenzario, DDT. La fattura differita TD24 e la fattura della merce consegnata prima del pagamento vanno con G8
+  - [x] Spec: [spec](docs/superpowers/specs/2026-10-13-vendite-da-ufficio-design.md) sul ramo `g9-vendite-ufficio`. Decisioni G9.1–G9.18 approvate il 2026-10-13, tutte come consigliate. **Si unisce su `main` dopo la `1.0.0`** (G9.1: la creazione degli ordini da ufficio dipende da `office_sales`, già costruita). Quattro piani: condizioni di pagamento e scadenzario → ordini da ufficio → preventivi, PDF ed email → DDT
+  - [ ] Piano 1 Condizioni di pagamento e scadenzario
+  - [ ] Piano 2 Ordini da ufficio
+  - [ ] Piano 3 Preventivi, PDF ed email
+  - [ ] Piano 4 DDT
+  - [ ] Dopo G9 (dalla spec, §8): DDT da trasferimento fra sedi, correzione del lotto nel DDT in bozza, spedizione creata da un DDT, promemoria delle rate scadute; nell'ecommerce, l'accettazione del preventivo dal cliente (link nell'email, area cliente)
 - [ ] G10 + E3 Abbonamenti — da ufficio e online; la parte E3 va anche in [`packages/ecommerce/TODO.md`](../ecommerce/TODO.md)
 
 **Fuori dal percorso della consegna (D61)**
