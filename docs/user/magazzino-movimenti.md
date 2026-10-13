@@ -53,6 +53,8 @@ l'errore, ed è giusto che sia così.
 In alto ci sono i filtri per **tipo**, **causale**, **sede** (con più sedi) e
 **periodo** — *Oggi*, *Ultimi 7 giorni*, *Questo mese*, *Mese scorso*, *Quest'anno* — e la
 ricerca per codice del movimento, per nota o per **nome e codice dell'articolo**.
+Con i [lotti](magazzino-lotti.md) c'è la colonna **Lotto** e la ricerca trova
+anche il numero del lotto.
 
 Dalla scheda di una versione il riquadro *Ultimi movimenti* mostra gli ultimi
 dieci con le stesse colonne, e il pulsante *Vedi tutti i movimenti* apre questa

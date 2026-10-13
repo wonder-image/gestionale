@@ -7,8 +7,18 @@ versionamento semantico.
 
 ### Aggiunto
 
-- G3 piano 3a, **Lotti e scadenze** (funzionalità `batch_tracking`, ancora
-  non costruita: arriva accesa col piano 3b): interruttore *Gestisci lotti e
+- G3 piano 3b, **Lotti e scadenze** costruita (`batch_tracking`, da
+  attivare): pagina **Magazzino → Lotti** con i pezzi, la scadenza colorata
+  (rossa scaduto, gialla entro i giorni scelti) e i filtri *Stato* e *Sede*;
+  scheda del lotto con pezzi per sede, movimenti e **clienti che l'hanno
+  ricevuto** al netto di annulli e resi, **Scarica i clienti** (CSV) per i
+  richiami; scadenza e nota modificabili, un lotto con movimenti non si
+  elimina. Riquadro della home **Lotti in scadenza**; *Giorni prima della
+  scadenza* nella card *Magazzino* delle Impostazioni; colonna e ricerca
+  **Lotto** nei Movimenti. Guida `magazzino-lotti.md`. `gestionale:demo` con
+  la funzionalità accesa aggiunge un carico con due lotti.
+
+- G3 piano 3a, **Lotti e scadenze**: interruttore *Gestisci lotti e
   scadenze* nella scheda dell'articolo; nel carico caselle **Lotto** e
   **Scadenza** e bottone **+ lotto** per le versioni che li gestiscono, lotto
   trovato o creato alla conferma (`Batches`) e merce nel secchio del lotto;

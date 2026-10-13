@@ -22,6 +22,7 @@ use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
+use Wonder\Plugin\Gestionale\Support\Numbers;
 
 /**
  * "Impostazioni" tecniche in Set Up: una riga sola, di `admin`.
@@ -75,6 +76,7 @@ final class SettingResource extends SingletonResource
             'order_reservation_minutes' => 'Minuti di prenotazione',
             'order_payment_wait_days' => 'Giorni di attesa del pagamento',
             'shipping_sync' => 'Spedizioni col deploy',
+            'batch_expiry_days' => 'Giorni prima della scadenza',
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -117,6 +119,9 @@ final class SettingResource extends SingletonResource
                 ->select(['true' => 'Sì', 'false' => 'No'])
                 ->value('true')
                 ->label('Spedizioni col deploy'),
+            ...(Gestionale::feature('batch_tracking')
+                ? [FormField::key('batch_expiry_days')->number()->decimal(0)->value(30)->label('Giorni prima della scadenza')]
+                : []),
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -162,6 +167,8 @@ final class SettingResource extends SingletonResource
                     static::getInput('shipping_sync')->columnSpan(4),
                 ])->columns(12)->columnSpan(12),
 
+                ...static::stockCards(),
+
                 ...$modules,
 
                 (new Card)->components(static::emailComponents())->columns(12)->columnSpan(12),
@@ -175,6 +182,27 @@ final class SettingResource extends SingletonResource
         $url = Gestionale::docsUrl('impostazioni/tecniche');
 
         return $url === '' ? $schema : $schema->docs($url);
+    }
+
+    /**
+     * La card Magazzino: solo con «Lotti e scadenze» (G3.20).
+     *
+     * @return list<Card>
+     */
+    private static function stockCards(): array
+    {
+        if (!Gestionale::feature('batch_tracking')) {
+            return [];
+        }
+
+        return [
+            (new Card)->components([
+                SectionTitle::make('Magazzino')
+                    ->tooltip('Quanti giorni prima della scadenza un lotto si segna in giallo e compare nel riquadro «Lotti in scadenza» della home. I lotti già scaduti sono sempre in rosso.')
+                    ->columnSpan(12),
+                static::getInput('batch_expiry_days')->columnSpan(4),
+            ])->columns(12)->columnSpan(12),
+        ];
     }
 
     /**
@@ -207,7 +235,23 @@ final class SettingResource extends SingletonResource
     /** Le email degli ordini e della scorta restano di chi vende: in produzione si cambiano lo stesso. */
     public static function editableWhenReadonly(): array
     {
-        return ['merchant_notification_emails', 'low_stock_emails'];
+        return ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days'];
+    }
+
+    /** I giorni del riquadro dei lotti: un intero da 0 a 3650, o un rifiuto. */
+    public static function expiryDays(mixed $value): int
+    {
+        if (is_string($value) && trim($value) === '' || $value === null) {
+            return 30;
+        }
+
+        $number = Numbers::fromForm($value);
+
+        if ($number === null || !is_numeric($number) || (float) $number !== floor((float) $number) || (float) $number < 0 || (float) $number > 3650) {
+            throw UserError::make('settings.batch_expiry_days_invalid');
+        }
+
+        return (int) $number;
     }
 
     public static function permissionSchema(): PermissionSchema
@@ -246,6 +290,13 @@ final class SettingResource extends SingletonResource
         // Con gli avvisi bloccati i destinatari non si scrivono.
         if (!Gestionale::feature('low_stock_alerts')) {
             unset($values['low_stock_emails']);
+        }
+
+        // G3, lotti: da 0 a 3650 giorni; vuoto torna ai 30 di partenza.
+        if (!Gestionale::feature('batch_tracking')) {
+            unset($values['batch_expiry_days']);
+        } elseif (array_key_exists('batch_expiry_days', $values)) {
+            $values['batch_expiry_days'] = static::expiryDays($values['batch_expiry_days']);
         }
 
         foreach (['merchant_notification_emails', 'developer_error_emails', 'low_stock_emails'] as $key) {

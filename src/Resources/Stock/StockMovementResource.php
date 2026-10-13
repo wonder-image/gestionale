@@ -20,6 +20,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Stock\Batch;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
@@ -95,6 +96,7 @@ final class StockMovementResource extends GestionaleResource
             'user_id' => 'Chi',
             'note' => 'Nota',
             'supplier_id' => 'Fornitore',
+            'batch_id' => 'Lotto',
         ];
     }
 
@@ -125,6 +127,15 @@ final class StockMovementResource extends GestionaleResource
                 ->size('little')
                 ->hiddenDevice('mobile')
                 ->formatter(static fn (array $row): string => static::escape(SupplierNames::of((int) ($row['supplier_id'] ?? 0))));
+        }
+
+        if (Gestionale::feature('batch_tracking')) {
+            // G3, lotti: il lotto del secchio, col numero letto da select().
+            $columns[] = TableColumn::key('batch_id')
+                ->text()
+                ->size('little')
+                ->hiddenDevice('mobile')
+                ->formatter(static fn (array $row): string => static::escape(static::batchLabel($row)));
         }
 
         $columns[] = TableColumn::key('type')
@@ -207,24 +218,31 @@ final class StockMovementResource extends GestionaleResource
 
     public static function tableLayoutSchema(): TableLayoutSchema
     {
+        $search = ['code', 'note', [
+            'table' => Product::$table,
+            'local_key' => 'product_id',
+            'foreign_key' => 'id',
+            'columns' => ['sku', 'ean', 'name'],
+            'relations' => [[
+                'table' => ProductModel::$table,
+                'local_key' => 'product_model_id',
+                'foreign_key' => 'id',
+                'columns' => ['name'],
+            ]],
+        ]];
+
+        // G3, lotti: anche il numero del lotto.
+        if (Gestionale::feature('batch_tracking')) {
+            $search[] = ['table' => Batch::$table, 'local_key' => 'batch_id', 'foreign_key' => 'id', 'columns' => ['number']];
+        }
+
         $schema = TableLayoutSchema::for(static::class)
             ->title(static::listTitle())
             ->results()
             ->select(static::select())
             ->hideButtonAdd()
             ->filterSearch()
-            ->searchFields(['code', 'note', [
-                'table' => Product::$table,
-                'local_key' => 'product_id',
-                'foreign_key' => 'id',
-                'columns' => ['sku', 'ean', 'name'],
-                'relations' => [[
-                    'table' => ProductModel::$table,
-                    'local_key' => 'product_model_id',
-                    'foreign_key' => 'id',
-                    'columns' => ['name'],
-                ]],
-            ]])
+            ->searchFields($search)
             ->filterQuery('Tipo', 'tipo', static::typeOptions(), static fn (array $values): string => static::typeCondition($values))
             ->filterCustom('Causale', 'reason', Reasons::all());
 
@@ -271,11 +289,18 @@ final class StockMovementResource extends GestionaleResource
             .' FROM `'.StockDocument::$table.'` d WHERE d.`id` = '.$movements.'.`reference_id`'
             .' AND '.$movements.'.`reference_type` IN ('.self::DOCUMENT_REFERENCES.') LIMIT 1) AS '.$alias;
 
-        return implode(', ', [
+        $columns = [
             $of('d.`type`', 'document_type'),
             $of('d.`number`', 'document_number'),
             $of(static::documentUrlSql(), 'document_url'),
-        ]);
+        ];
+
+        // G3, lotti: il numero del lotto, nella stessa query.
+        if (Gestionale::feature('batch_tracking')) {
+            $columns[] = '(SELECT b.`number` FROM `'.Batch::$table.'` b WHERE b.`id` = '.$movements.'.`batch_id` LIMIT 1) AS batch_number';
+        }
+
+        return implode(', ', $columns);
     }
 
     /**
@@ -554,9 +579,9 @@ final class StockMovementResource extends GestionaleResource
             $dato('Costo unitario', $costo > 0 ? OrderResource::money($costo) : '—'),
         );
 
-        // Lotti e fornitori arrivano con gli acquisti: fino ad allora sono 0 e non si mostrano.
+        // Lotti e fornitori arrivano con G3: senza sono 0 e non si mostrano.
         if ($lotto > 0) {
-            $dati[] = $dato('Lotto', '#'.$lotto);
+            $dati[] = $dato('Lotto', static::batchLabel($movement));
         }
 
         if ($fornitore > 0) {
@@ -651,6 +676,20 @@ final class StockMovementResource extends GestionaleResource
         }
 
         return $base;
+    }
+
+    /** Il numero del lotto (da select() o dal database); vuoto senza lotto. */
+    public static function batchLabel(array $row): string
+    {
+        $batchId = (int) ($row['batch_id'] ?? 0);
+
+        if ($batchId <= 0) {
+            return '';
+        }
+
+        $number = trim((string) ($row['batch_number'] ?? static::one(Batch::class, $batchId)['number'] ?? ''));
+
+        return $number !== '' ? html_entity_decode($number, ENT_QUOTES | ENT_HTML5, 'UTF-8') : '#'.$batchId;
     }
 
     private static function signed(float $value): string

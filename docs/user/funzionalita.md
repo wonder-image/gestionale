@@ -44,7 +44,7 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Etichette | Catalogo | Etichette con codice a barre e prezzo in PDF. | — |
 | Più sedi | Magazzino | Altre sedi con giacenze proprie e trasferimenti. | — |
 | Acquisti | Magazzino | Fornitori e costi d'acquisto nei prodotti e nei carichi, valore del magazzino. | — |
-| Lotti e scadenze | Magazzino | Lotto e data di scadenza su carichi e scarichi. | — |
+| Lotti e scadenze | Magazzino | Lotto e scadenza nei carichi, vendita dal lotto che scade prima, pagina Lotti con i clienti per i richiami. | — |
 | Avvisi di scorta minima | Magazzino | Email e riquadro per i prodotti sotto la propria scorta minima. | — |
 | Vendita senza giacenza | Magazzino | Prodotti vendibili a magazzino vuoto: la giacenza va sotto zero e la vendita è "su ordinazione". | Ordini |
 | Listini cliente | Listini | Prezzi personalizzati per cliente, con scaglioni. | Ordini |

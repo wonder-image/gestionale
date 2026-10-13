@@ -78,6 +78,11 @@ carichi:
 
 Una **bozza** si modifica quante volte vuoi e si elimina dai tre puntini.
 
+Con i [lotti](magazzino-lotti.md) l'inventario conta la versione, non i
+lotti: i pezzi che mancano escono prima dalla merce senza lotto e poi dai
+lotti, dalla scadenza più vicina, scaduti compresi; quelli in più entrano senza
+lotto.
+
 ## Inventario o scheda del prodotto?
 
 Per correggere un numero o due basta la colonna **Giacenza** nella
