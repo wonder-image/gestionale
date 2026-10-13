@@ -227,12 +227,12 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
         - [x] `StockDocuments::duplicate`: il `FOR UPDATE` sul documento d'origine non serve
         - [ ] Manca una prova vera di concorrenza e una del filtro *Tipo* attraverso l'elenco reale (SSP): da fare nel browser col piano 5
     - [x] Piano 5 Carichi e scarichi, pagine: menu, elenchi, bozza con i componenti, rotta JSON e indice `ean`, pagina in sola lettura, azioni, dati di prova — unito su main con gestionale#27 (27949e2, 2026-10-12); prove nel browser ancora da fare
-      - [ ] Ritocchi minori rimandati dalla revisione finale del piano 5:
-        - [ ] Se `create()` di un documento nuovo fallisce (CSRF, sede sconosciuta, versione eliminata nel frattempo) le righe scritte o lette si perdono: tenerle nel flash della sessione e riaprire l'editor con quelle
-        - [ ] Guida `magazzino-carichi-scarichi.md`, passo 4: il pezzo in più lo dà solo il lettore; col clic il cursore va sui pezzi della riga che c'è
-        - [ ] `StockDocumentsDemo::create`: creazione e conferma non sono atomiche, una bozza di prova rimasta a metà blocca i giri dopo
-        - [ ] `StockDocumentsDemo::clear()` non vede i documenti di prova eliminati (serve `deleted IN ('true','false')`)
-        - [ ] `StockDocumentSheet::people` legge `User::find` col filtro di default: un utente eliminato dopo perde il «da …»
+      - [x] Ritocchi minori rimandati dalla revisione finale del piano 5 (2026-10-12, ramo `ritocchi-carichi-scarichi`; test unitari verdi, i test d'integrazione toccati — `StockDocumentFormTest`, `StockDocumentsDemoTest` — vanno lanciati sul sito di prova):
+        - [x] Se `create()` di un documento nuovo fallisce (CSRF, sede sconosciuta, versione eliminata nel frattempo) le righe scritte o lette si perdono: tenerle nel flash della sessione e riaprire l'editor con quelle — `StockDocumentForm::remember()`/`recall()` (sessione, dieci minuti, stesso tipo), `mutateFormValues()` le ridisegna con i pezzi come erano scritti
+        - [x] Guida `magazzino-carichi-scarichi.md`, passo 4: il pezzo in più lo dà solo il lettore; col clic il cursore va sui pezzi della riga che c'è
+        - [x] `StockDocumentsDemo::create`: creazione e conferma non sono atomiche, una bozza di prova rimasta a metà blocca i giri dopo — ora in `Transaction::run()`; un documento di prova eliminato dal backend si toglie del tutto e si rifà
+        - [x] `StockDocumentsDemo::clear()` non vede i documenti di prova eliminati (serve `deleted IN ('true','false')`)
+        - [x] `StockDocumentSheet::people` legge `User::find` col filtro di default: un utente eliminato dopo perde il «da …»
     - [x] Piano 6 Inventario, pagine: Attesi · Contati · Differenza, *Aggiungi versioni*, limite di 500 righe, dati di prova, guida — [piano](docs/superpowers/plans/2026-10-12-inventario-pagine.md) eseguito sul ramo `g3-inventario` (2026-10-12); prova nel browser dell'utente da fare (spec §5, prova 5: un inventario di una categoria muove solo le righe contate con una differenza)
   - [ ] **G2c La scheda prodotto, secondo giro** — spec: `docs/superpowers/specs/2026-09-22-scheda-prodotto-secondo-giro-design.md` (sedici giri chiusi, decisioni P1–P128)
     - [x] Tredicesimo giro eseguito (spec §22, 2026-09-25, commit `0a04ef9`): fornitori dell'articolo, giacenza e scorta minima per sede (`gst_stock_thresholds`, via `gst_products.min_stock_quantity`), colonna «Scontato» nella griglia, personalizzazioni scritte in spec per G5. Architettura 4.3 aggiornata; G2b-bis §2 «la scorta minima è della versione» superata
@@ -370,8 +370,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 
 - [x] Spostare questa spec in `gestionale/docs/superpowers/specs/` alla creazione del repository del gestionale (D15)
 - [ ] Creare i tre spazi GitBook con i sommari di D57: sviluppatori del gestionale, sviluppatori dell'ecommerce, commercianti (Project directory `guide`)
-- [ ] Riquadro standard "Inclusa / Da attivare su richiesta" per le pagine della guida commercianti (D32)
-- [ ] Comando che genera la tabella delle funzionalità da `config/features.php` (D32)
+- [x] Riquadro standard "Inclusa / Da attivare su richiesta" per le pagine della guida commercianti (D32) — verificato il 2026-10-12: ogni pagina di `docs/user/` (tranne README, SUMMARY e `funzionalita.md`, che ha «Configurata da Wonder Image») si apre con «**Inclusa.**» o «**Da attivare.**»
+- [x] Comando che genera la tabella delle funzionalità da `config/features.php` (D32) — è `gestionale:features-doc` (G1 piano 4), scrive fra i segni di `docs/user/funzionalita.md`
 - [ ] Guida sviluppatori: hook, dati passati alle pagine e alle email, classi dei PDF sostituibili (D52)
 - [ ] Guida sviluppatori: checklist di prova manuale prima di ogni rilascio, con gli account di prova di Stripe e Fatture in Cloud (D56)
 

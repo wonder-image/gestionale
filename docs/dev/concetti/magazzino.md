@@ -86,7 +86,12 @@ scrivono mai sulle tabelle dei documenti: passa tutto da `StockDocuments`.
    `mutateRequestValues()` non restituisce mai i valori: controlla il CSRF,
    dà tutto a `StockDocumentForm::submit()`, mette il messaggio e fa il
    redirect. Lasciare lavorare il core scriverebbe colonne grezze senza le
-   righe e senza i controlli del servizio.
+   righe e senza i controlli del servizio. Un documento nuovo che non nasce
+   (CSRF scaduto, sede sconosciuta, versione eliminata nel frattempo) torna
+   a «Nuovo» senza bozza: `StockDocumentForm::remember()` mette da parte
+   righe, sede, causale e nota in sessione (`gst_stock_document_restore`,
+   dieci minuti, solo per lo stesso tipo) e `mutateFormValues()` le
+   ridisegna con `recall()`, i pezzi come erano scritti.
 2. **Le righe viaggiano in un campo solo**, `lines`, in JSON: un campo per
    numero supererebbe `max_input_vars` con un documento lungo.
 3. **Gli id delle righe cambiano a ogni salvataggio della bozza**: il
@@ -109,9 +114,12 @@ scrivono mai sulle tabelle dei documenti: passa tutto da `StockDocuments`.
    `documenti-magazzino`) crea un carico e uno scarico confermati con i
    codici `stk_demo-carico` e `stk_demo-scarico`, e un inventario in bozza
    (`stk_demo-inventario`) con una riga contata con una differenza e una
-   non contata; `--fresh` annulla i confermati e toglie tutti e tre con
-   righe, storia e movimenti. È registrato per ultimo, così si
-   pulisce prima del catalogo.
+   non contata; creazione e conferma stanno in una transazione sola, così
+   una conferma rifiutata non lascia una bozza col codice di prova.
+   `--fresh` annulla i confermati e toglie tutti e tre con righe, storia e
+   movimenti, anche quelli eliminati dal backend; un documento di prova
+   eliminato si toglie del tutto anche al giro dopo, che lo rifà. È
+   registrato per ultimo, così si pulisce prima del catalogo.
 7. **L'editor in modo inventario.** `StockDocumentEditor::render()` con
    `type = 'stocktake'` mette `data-mode="stocktake"`: colonne Attesi ·
    Contati · Differenza, righe nuove senza numero (una casella vuota è una
