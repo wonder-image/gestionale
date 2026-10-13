@@ -54,12 +54,10 @@ final class AttentionWidget implements HomeWidget
     public static function markup(array $errors, array $negatives = []): string
     {
         if ($errors === [] && $negatives === []) {
-            return <<<HTML
-<wi-card class="col-12">
+            return WidgetCard::wrap(<<<HTML
     <h5 class="mb-1"><i class="bi bi-check-circle"></i> Da controllare</h5>
     <p class="text-body-secondary small mb-0">Non c'è niente da controllare.</p>
-</wi-card>
-HTML;
+HTML);
         }
 
         $items = '';
@@ -96,12 +94,10 @@ HTML;
 HTML;
         }
 
-        return <<<HTML
-<wi-card class="col-12">
+        return WidgetCard::wrap(<<<HTML
     <h5 class="mb-1"><i class="bi bi-exclamation-triangle"></i> Da controllare</h5>
     <ul class="list-group list-group-flush">{$items}</ul>
-</wi-card>
-HTML;
+HTML);
     }
 
     /** @param array{product_id: int, article: string, option: string, sku: string, quantity: float, locations: int} $negative */
