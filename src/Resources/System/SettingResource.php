@@ -79,6 +79,10 @@ final class SettingResource extends SingletonResource
             'batch_expiry_days' => 'Giorni prima della scadenza',
             'payment_due_days' => 'Giorni di preavviso per le scadenze',
             'quote_validity_days' => 'Validità dei preventivi (giorni)',
+            'delivery_transport_by' => 'Trasporto a cura del',
+            'delivery_carrier_id' => 'Vettore',
+            'delivery_goods_appearance' => 'Aspetto dei beni',
+            'delivery_freight_terms' => 'Porto',
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -129,6 +133,14 @@ final class SettingResource extends SingletonResource
                 : []),
             ...(Gestionale::feature('quotes')
                 ? [FormField::key('quote_validity_days')->number()->decimal(0)->value(30)->label('Validità dei preventivi (giorni)')]
+                : []),
+            ...(Gestionale::feature('delivery_notes')
+                ? [
+                    FormField::key('delivery_transport_by')->select(['sender' => 'Mittente', 'recipient' => 'Destinatario', 'carrier' => 'Vettore'])->value('sender')->label('Trasporto a cura del'),
+                    FormField::key('delivery_carrier_id')->select(['0' => 'Nessuno'] + static::carriers())->value('0')->label('Vettore'),
+                    FormField::key('delivery_goods_appearance')->text()->label('Aspetto dei beni'),
+                    FormField::key('delivery_freight_terms')->select(['prepaid' => 'Franco', 'collect' => 'Assegnato'])->value('prepaid')->label('Porto'),
+                ]
                 : []),
         ];
 
@@ -210,6 +222,16 @@ final class SettingResource extends SingletonResource
             $out[] = static::getInput('payment_due_days')->columnSpan(4);
         }
 
+        if (Gestionale::feature('delivery_notes')) {
+            $out[] = SectionTitle::make('DDT')
+                ->tooltip('I dati di trasporto che un DDT nuovo propone: si cambiano su ogni DDT finché è in bozza.')
+                ->columnSpan(12);
+            $out[] = static::getInput('delivery_transport_by')->columnSpan(3);
+            $out[] = static::getInput('delivery_carrier_id')->columnSpan(3);
+            $out[] = static::getInput('delivery_goods_appearance')->columnSpan(3);
+            $out[] = static::getInput('delivery_freight_terms')->columnSpan(3);
+        }
+
         if (Gestionale::feature('quotes')) {
             $out[] = SectionTitle::make('Preventivi')
                 ->tooltip('Quanti giorni vale un preventivo nuovo: la data si cambia su ogni preventivo. Inviato e non accettato entro quella data, il preventivo diventa scaduto.')
@@ -271,7 +293,28 @@ final class SettingResource extends SingletonResource
     /** Le email degli ordini e della scorta restano di chi vende: in produzione si cambiano lo stesso. */
     public static function editableWhenReadonly(): array
     {
-        return ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days'];
+        return ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days',
+            'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms'];
+    }
+
+    /** I corrieri attivi, per il vettore predefinito del DDT. @return array<int, string> */
+    public static function carriers(): array
+    {
+        $out = [];
+
+        try {
+            $rows = \Wonder\Plugin\Gestionale\Models\Shipping\Carrier::find(['deleted' => 'false', 'active' => 'true'], null, 'position', 'ASC');
+        } catch (\Throwable) {
+            return [];
+        }
+
+        foreach (is_array($rows) ? (isset($rows['id']) ? [$rows] : $rows) : [] as $row) {
+            if (is_array($row) && isset($row['id'])) {
+                $out[(int) $row['id']] = html_entity_decode((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
+
+        return $out;
     }
 
     /** I giorni di validità di un preventivo: da 1 a 365, o un rifiuto; vuoto torna a 30. */
@@ -365,6 +408,23 @@ final class SettingResource extends SingletonResource
             unset($values['batch_expiry_days']);
         } elseif (array_key_exists('batch_expiry_days', $values)) {
             $values['batch_expiry_days'] = static::expiryDays($values['batch_expiry_days']);
+        }
+
+        // G9, DDT: i predefiniti del trasporto, solo con la funzionalità; scelte note o quella di partenza.
+        if (!Gestionale::feature('delivery_notes')) {
+            unset($values['delivery_transport_by'], $values['delivery_carrier_id'], $values['delivery_goods_appearance'], $values['delivery_freight_terms']);
+        } else {
+            if (array_key_exists('delivery_transport_by', $values) && !in_array((string) $values['delivery_transport_by'], ['sender', 'recipient', 'carrier'], true)) {
+                $values['delivery_transport_by'] = 'sender';
+            }
+
+            if (array_key_exists('delivery_freight_terms', $values) && !in_array((string) $values['delivery_freight_terms'], ['prepaid', 'collect'], true)) {
+                $values['delivery_freight_terms'] = 'prepaid';
+            }
+
+            if (array_key_exists('delivery_carrier_id', $values)) {
+                $values['delivery_carrier_id'] = max(0, (int) $values['delivery_carrier_id']);
+            }
         }
 
         // G9, preventivi: da 1 a 365 giorni; vuoto torna ai 30 di partenza.

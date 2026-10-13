@@ -132,4 +132,11 @@ check('un ordine da ufficio confermato annulla anche le righe, prima di annullar
     && OrderActions::label('cancel_lines') === 'Annulla righe'
 );
 
+check('con i DDT accesi «Crea DDT» vale anche a ordine chiuso, mai prima della conferma (G9)', fn () =>
+    in_array('create_delivery_note', OrderActions::available(['status' => 'completed', 'fulfillment_status' => 'fulfilled'], ['delivery_notes' => true]), true)
+    && in_array('create_delivery_note', OrderActions::available(['status' => 'confirmed', 'fulfillment_status' => 'unfulfilled'], ['delivery_notes' => true]), true)
+    && !in_array('create_delivery_note', OrderActions::available(['status' => 'pending'], ['delivery_notes' => true]), true)
+    && !in_array('create_delivery_note', OrderActions::available(['status' => 'confirmed', 'fulfillment_status' => 'unfulfilled'], []), true)
+);
+
 summary();
