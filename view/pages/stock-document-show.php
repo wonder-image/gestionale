@@ -40,11 +40,13 @@ View::layout('backend.show', ['TITLE' => $resource::singular().' '.$number]);
         <div class="col-12">
             <?php if ((string) ($document['status'] ?? '') === 'cancelled') { ?>
             <span class="badge text-bg-danger mb-2">Annullato</span>
+            <?php } elseif ((string) ($document['status'] ?? '') === 'in_transit') { ?>
+            <span class="badge text-bg-warning mb-2">In viaggio</span>
             <?php } ?>
             <?php if ($info !== []) { ?>
             <p class="mb-2"><?=implode(' · ', array_map($e, $info))?></p>
             <?php } ?>
-            <?php foreach ([$sheet['confirmed'], $sheet['cancelled']] as $line) { ?>
+            <?php foreach ([$sheet['sent'], $sheet['confirmed'], $sheet['cancelled']] as $line) { ?>
             <?php if ($line !== '') { ?>
             <div class="small text-body-secondary"><?=$e($line)?></div>
             <?php } ?>

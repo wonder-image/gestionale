@@ -34,8 +34,9 @@ final class StockDocumentEditor
         $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
         $lines = array_values($lines);
         $counting = $type === 'stocktake';
-        $lots = $batches && $type === 'receipt' ? 'input' : ($batches && $type === 'issue' ? 'pick' : '');
-        $pickSuppliers = $costs && $type === 'issue';
+        // Il trasferimento sceglie lotto e fornitore come lo scarico (G3.16).
+        $lots = $batches && $type === 'receipt' ? 'input' : ($batches && in_array($type, ['issue', 'transfer'], true) ? 'pick' : '');
+        $pickSuppliers = $costs && in_array($type, ['issue', 'transfer'], true);
         $source = implode(' · ', array_filter([$lots !== '' ? 'Lotto' : '', $lots === 'input' ? 'Scadenza' : '', $pickSuppliers ? 'Fornitore' : '']));
         // G3, Acquisti: costo e totale di riga solo nel carico.
         $costs = $costs && $type === 'receipt';

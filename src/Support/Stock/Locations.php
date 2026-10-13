@@ -113,6 +113,19 @@ final class Locations
     }
 
     /**
+     * Le sedi vive che tengono merce, senza quelle cancellate: le scelte di
+     * un trasferimento (G3.16), che non parte e non arriva in una sede tolta.
+     *
+     * @return list<array{id: int, label: string}>
+     */
+    public static function alive(): array
+    {
+        $all = "deleted IN ('true', 'false')";
+
+        return self::pick(self::rows(Location::class, $all), self::rows(SocietyLocation::class, $all), []);
+    }
+
+    /**
      * La regola di `shown()`, senza database.
      *
      * Una sede entra se tiene merce ed è viva (lei e la sua sede del core), o

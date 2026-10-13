@@ -96,11 +96,19 @@ abstract class StockDocumentResource extends GestionaleResource
                 ->formatter(static fn (array $row): string => static::escape(SupplierNames::of((int) ($row['supplier_id'] ?? 0))));
         }
 
-        if (static::showsLocation()) {
+        if (static::showsLocation() || static::type() === 'transfer') {
             $columns[] = TableColumn::key('location_id')
                 ->text()
                 ->size('little')
                 ->formatter(static fn (array $row): string => static::escape(static::locationOptions()[(string) ($row['location_id'] ?? '')] ?? ''));
+        }
+
+        // G3.16: il trasferimento ha anche la sede d'arrivo.
+        if (static::type() === 'transfer') {
+            $columns[] = TableColumn::key('to_location_id')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::escape(static::locationOptions()[(string) ($row['to_location_id'] ?? '')] ?? ''));
         }
 
         if (static::type() === 'issue') {
@@ -164,10 +172,10 @@ abstract class StockDocumentResource extends GestionaleResource
             ->select(static::select())
             ->filterSearch()
             ->searchFields(['number', 'note'])
-            ->filterCustom('Stato', 'status', ['' => 'Tutti', 'draft' => 'Bozze', 'completed' => 'Confermati', 'cancelled' => 'Annullati']);
+            ->filterCustom('Stato', 'status', static::statusOptions());
 
         if (static::showsLocation()) {
-            $schema->filterQuery('Sede', 'sede', ['' => 'Tutte'] + static::locationOptions(), static fn (array $values): string => StockMovementResource::locationCondition($values));
+            $schema->filterQuery('Sede', 'sede', ['' => 'Tutte'] + static::locationOptions(), static fn (array $values): string => static::locationFilter($values));
         }
 
         $schema->filterQuery(
@@ -193,6 +201,22 @@ abstract class StockDocumentResource extends GestionaleResource
         return $schema;
     }
 
+    /** @return array<string, string> le voci del filtro *Stato* */
+    public static function statusOptions(): array
+    {
+        return ['' => 'Tutti', 'draft' => 'Bozze', 'completed' => 'Confermati', 'cancelled' => 'Annullati'];
+    }
+
+    /**
+     * La condizione del filtro *Sede*: la sede del documento.
+     *
+     * @param list<string> $values
+     */
+    public static function locationFilter(array $values): string
+    {
+        return StockMovementResource::locationCondition($values);
+    }
+
     /**
      * Le colonne calcolate dell'elenco.
      *
@@ -211,7 +235,7 @@ abstract class StockDocumentResource extends GestionaleResource
         $logs = '`'.StockDocumentStatusLog::$table.'`';
         $users = '`'.User::$table.'`';
         $whoId = 'IF('.$doc.".`status` = 'draft', ".$doc.'.`user_id`, (SELECT l.`user_id` FROM '.$logs.' l'
-            .' WHERE l.`stock_document_id` = '.$doc.".`id` AND l.`to_value` = 'completed' AND l.`deleted` = 'false'"
+            .' WHERE l.`stock_document_id` = '.$doc.".`id` AND l.`to_value` IN ('completed', 'in_transit') AND l.`deleted` = 'false'"
             .' ORDER BY l.`id` DESC LIMIT 1))';
 
         $of = static fn (string $expression, string $where, string $alias): string => '(SELECT '.$expression.' FROM '.$items
@@ -299,6 +323,7 @@ abstract class StockDocumentResource extends GestionaleResource
             'receipt' => StockReceiptResource::class,
             'issue' => StockIssueResource::class,
             'stocktake' => StockStocktakeResource::class,
+            'transfer' => StockTransferResource::class,
         ][$type] ?? null;
     }
 
@@ -492,6 +517,10 @@ abstract class StockDocumentResource extends GestionaleResource
             return '{contate}, {differenza}: {correzione}. '.$end;
         }
 
+        if (static::type() === 'transfer') {
+            return '{pezzi} pezzi in {righe} righe partono per la sede d\'arrivo e restano in viaggio finché non li ricevi. Dopo non si modifica più: si può ricevere o annullare.';
+        }
+
         $where = static::type() === 'issue' ? 'escono dal' : 'entrano in';
 
         return '{pezzi} pezzi in {righe} righe '.$where.' magazzino. '.$end;
@@ -522,14 +551,30 @@ abstract class StockDocumentResource extends GestionaleResource
         return match (static::type()) {
             'issue' => 'Lo scarico',
             'stocktake' => 'L\'inventario',
+            'transfer' => 'Il trasferimento',
             default => 'Il carico',
         };
     }
 
-    /** La domanda prima di *Annulla* (spec §4.2); `{numero}` lo riempie `hiddenForms()`. */
-    public static function cancelQuestion(): string
+    /**
+     * La domanda prima di *Annulla* (spec §4.2); `{numero}` lo riempie
+     * `hiddenForms()`. Il trasferimento dice dove torna la merce (G3.16).
+     */
+    public static function cancelQuestion(string $status = 'completed'): string
     {
+        if (static::type() === 'transfer') {
+            return $status === 'in_transit'
+                ? 'Il trasferimento {numero} si annulla: la merce in viaggio torna nella sede di partenza.'
+                : 'Il trasferimento {numero} si annulla: la merce esce dalla sede d\'arrivo e torna in quella di partenza. Se all\'arrivo una parte è già uscita, non si annulla.';
+        }
+
         return static::named().' {numero} si annulla: i suoi movimenti si stornano e il documento resta, annullato.';
+    }
+
+    /** Si annulla un documento confermato; un trasferimento anche in viaggio. */
+    public static function cancellable(string $status): bool
+    {
+        return $status === 'completed' || (static::type() === 'transfer' && $status === 'in_transit');
     }
 
     /**
@@ -548,7 +593,16 @@ abstract class StockDocumentResource extends GestionaleResource
             'onclick' => "document.getElementById('wi-doc-duplicate').requestSubmit()",
         ]];
 
-        if ((string) ($item['status'] ?? '') === 'completed') {
+        if (static::type() === 'transfer' && (string) ($item['status'] ?? '') === 'in_transit') {
+            $actions[] = [
+                'label' => 'Ricevi',
+                'icon' => 'bi bi-box-arrow-in-down',
+                'class' => 'btn-dark btn-sm',
+                'onclick' => "document.getElementById('wi-doc-receive').requestSubmit()",
+            ];
+        }
+
+        if (static::cancellable((string) ($item['status'] ?? ''))) {
             $actions[] = [
                 'label' => 'Annulla',
                 'icon' => 'bi bi-x-circle',
@@ -586,12 +640,24 @@ abstract class StockDocumentResource extends GestionaleResource
         $html = '<form id="wi-doc-duplicate" method="POST" action="'.$action.'" hidden>'
             .$fields(StockDocumentActionResource::DUPLICATE).'</form>';
 
-        if ((string) ($document['status'] ?? '') === 'completed') {
-            $number = html_entity_decode((string) ($document['number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $status = (string) ($document['status'] ?? '');
+        $number = html_entity_decode((string) ($document['number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        // G3.16: *Ricevi* il trasferimento in viaggio, con la sua domanda.
+        if (static::type() === 'transfer' && $status === 'in_transit') {
+            $html .= '<form id="wi-doc-receive" method="POST" action="'.$action.'" hidden'
+                .' data-wi-confirm="'.$e('Il trasferimento '.$number.' arriva: tutta la merce entra nella sede d\'arrivo.').'"'
+                .' data-wi-confirm-title="Ricevi trasferimento"'
+                .' data-wi-confirm-ok="Ricevi"'
+                .' data-wi-confirm-cancel="Torna indietro">'
+                .$fields(StockDocumentActionResource::RECEIVE).'</form>';
+        }
+
+        if (static::cancellable($status)) {
             $label = 'Annulla '.mb_strtolower(static::named());
 
             $html .= '<form id="wi-doc-cancel" method="POST" action="'.$action.'" hidden'
-                .' data-wi-confirm="'.$e(str_replace('{numero}', $number, static::cancelQuestion())).'"'
+                .' data-wi-confirm="'.$e(str_replace('{numero}', $number, static::cancelQuestion($status))).'"'
                 .' data-wi-confirm-title="'.$e('Annulla '.mb_strtolower(static::singular())).'"'
                 .' data-wi-confirm-ok="'.$e($label).'"'
                 .' data-wi-confirm-cancel="Torna indietro"'
@@ -675,7 +741,7 @@ abstract class StockDocumentResource extends GestionaleResource
         return is_object($user) ? (int) ($user->id ?? 0) : 0;
     }
 
-    /** Il posto nel menu *Magazzino*: Giacenze 10, Carichi 20, Scarichi 30, Inventari 40, Movimenti 50. */
+    /** Il posto nel menu *Magazzino*: Giacenze 10, Carichi 20, Scarichi 30, Inventari 40, Trasferimenti 42, Lotti 45, Movimenti 50. */
     abstract protected static function navigationOrder(): int;
 
     /**
@@ -688,7 +754,7 @@ abstract class StockDocumentResource extends GestionaleResource
     protected static function rowActions(): array
     {
         $draft = ['row' => ['status' => 'draft']];
-        $closed = ['row' => ['status' => ['completed', 'cancelled']]];
+        $closed = ['row' => ['status' => ['in_transit', 'completed', 'cancelled']]];
 
         return [
             'modify' => ['filter' => $draft],
@@ -706,6 +772,7 @@ abstract class StockDocumentResource extends GestionaleResource
 
         return match ((string) ($row['status'] ?? '')) {
             'draft' => '<span class="badge text-bg-secondary">Bozza</span>',
+            'in_transit' => $number.' <span class="badge text-bg-warning">In viaggio</span>',
             'cancelled' => $number.' <span class="badge text-bg-danger">Annullato</span>',
             default => $number,
         };

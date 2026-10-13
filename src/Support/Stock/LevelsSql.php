@@ -7,6 +7,8 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Stock\Batch;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
+use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
+use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 
 /**
@@ -72,6 +74,19 @@ final class LevelsSql
             .' INNER JOIN `'.Batch::$table.'` b ON b.id = s.batch_id'
             .' WHERE s.product_id = '.$product." AND s.deleted = 'false' AND s.quantity > 0"
             ." AND b.expiry_date >= '1000-01-01' AND b.expiry_date < '".substr(self::moment($now), 0, 10)."')";
+    }
+
+    /**
+     * I pezzi in viaggio della versione (G3.16): l'uscita dei trasferimenti
+     * inviati e non ancora ricevuti. Non sono in nessuna sede: non entrano nel
+     * totale, nel disponibile né nel valore.
+     */
+    public static function inTransit(string $product = self::PRODUCT): string
+    {
+        return '(SELECT ROUND(COALESCE(-SUM(m.quantity), 0), 3) FROM `'.StockMovement::$table.'` m'
+            .' INNER JOIN `'.StockDocument::$table.'` d ON d.id = m.reference_id'
+            .' WHERE m.product_id = '.$product." AND m.type = 'transfer_out' AND m.reference_type = 'stock_document'"
+            ." AND m.deleted = 'false' AND d.type = 'transfer' AND d.status = 'in_transit' AND d.deleted = 'false')";
     }
 
     /**
