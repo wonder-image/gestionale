@@ -261,7 +261,7 @@
                 "negative_period": "Vincolo e giorni di prova di «{{name}}» non possono essere negativi.",
                 "renewal_invalid": "Il prezzo di rinnovo di «{{name}}» deve essere un altro prezzo, già salvato, di un piano attivo.",
                 "price_in_use": "Il prezzo «{{name}}» è usato da un abbonamento e non si toglie: spegnilo.",
-                "in_use": "Il piano ha {{count}} abbonamenti in corso e non si elimina: spegnilo.",
+                "in_use": "Il piano non si elimina, {{count}}: spegnilo.",
                 "feature_duplicate": "Il limite «{{key}}» è scritto due volte: tienine uno."
             }
         },

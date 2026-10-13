@@ -157,8 +157,8 @@ final class SubscriptionResource extends GestionaleResource
             ->hideButtonAdd()
             ->filterSearch()
             ->searchFields(['code', 'billing_name', 'billing_surname', 'billing_business_name', 'coupon_code'])
-            ->filterCustom('Stato', 'status', static::statusLabels())
-            ->filterCustom('Canale', 'channel', static::channelLabels());
+            ->filterCustom('Stato', 'status', ['' => 'Tutti'] + static::statusLabels())
+            ->filterCustom('Canale', 'channel', ['' => 'Tutti'] + static::channelLabels());
     }
 
     public static function pageSchema(): PageSchema

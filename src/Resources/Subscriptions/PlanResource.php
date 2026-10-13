@@ -21,6 +21,7 @@ use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Features\FeatureGuards;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Positions;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\PlanPriceRules;
@@ -392,7 +393,7 @@ final class PlanResource extends GestionaleResource
         $count = Subscriptions::liveCount(Subscriptions::priceIds((int) $id));
 
         if ($count > 0) {
-            throw UserError::refusal('plan.in_use', ['count' => $count]);
+            throw UserError::refusal('plan.in_use', ['count' => FeatureGuards::subscriptionsLabel($count)]);
         }
     }
 
