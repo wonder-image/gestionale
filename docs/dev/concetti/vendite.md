@@ -175,8 +175,9 @@ vedi [Errori e log](errori.md).
   transazione che alla fine si annulla, così il database del sito di prova
   resta com'era.
 - Con `office_sales` accesa, `gestionale:demo` crea anche «rate-ufficio»:
-  un ordine da ufficio in RiBa 30/60 confermato 45 giorni fa, con la prima
-  rata scaduta. `tests/integrazione/InstallmentsTest.php` prova i conti delle
+  un ordine da ufficio in RiBa 30/60 con le rate che partono 31 giorni prima
+  dell'inizio del mese: la prima è sempre scaduta, la seconda no, qualunque
+  sia il giorno. `tests/integrazione/InstallmentsTest.php` prova i conti delle
   rate sul database.
 - Per spegnere una funzionalità solo dentro la prova:
   `sqlModify(Feature::$table, ['enabled' => 'false'], 'feature_key', 'returns')`

@@ -85,7 +85,8 @@ final class OrdersDemo
         'coupon-riservato' => ['method' => 'stripe', 'end' => 'paid', 'days' => 3, 'coupon' => 'DEMO-ANNA15'],
         'coupon-annullato' => ['method' => 'bank-transfer', 'end' => 'cancelled', 'days' => 4, 'coupon' => 'DEMO-PERCENTUALE10'],
         // G9, a «Vendita in ufficio» accesa: un ordine da ufficio in RiBa 30/60, la prima rata già scaduta.
-        'rate-ufficio' => ['method' => 'bank-transfer', 'end' => 'installments', 'days' => 45, 'company' => true, 'office' => true],
+        // Le rate partono 31 giorni prima dell'inizio del mese (fino a 61 giorni fa): l'ordine è di prima.
+        'rate-ufficio' => ['method' => 'bank-transfer', 'end' => 'installments', 'days' => 62, 'company' => true, 'office' => true],
     ];
 
     public static function register(): void
@@ -260,7 +261,7 @@ final class OrdersDemo
             'fulfilled' => self::fulfilled($orderId, $ref),
             'cancelled' => Lifecycle::cancel($orderId, ['reason' => 'Ordine di prova annullato', 'notify' => false, 'merchant_notice' => false, 'source' => 'system']),
             'partial' => self::partial($orderId, (float) $placed['total']),
-            'installments' => self::installments($orderId, (int) $plan['days']),
+            'installments' => self::installments($orderId),
             default => null,
         };
 
@@ -382,10 +383,13 @@ final class OrdersDemo
     }
 
     /**
-     * Da ufficio, in RiBa 30/60 gg fine mese, confermato `$days` giorni fa:
-     * le rate partono da lì, e la prima è già scaduta.
+     * Da ufficio, in RiBa 30/60 gg fine mese. Le rate partono da 31 giorni
+     * prima dell'inizio del mese: la prima scade a fine del mese scorso (già
+     * scaduta), la seconda a fine di questo o del prossimo. Contare i giorni
+     * da oggi no: col fine mese, metà dei giorni del mese la prima rata non
+     * sarebbe ancora scaduta.
      */
-    private static function installments(int $orderId, int $days): void
+    private static function installments(int $orderId): void
     {
         $term = PaymentTerm::find(['code' => 'riba-30-60-fm', 'deleted' => 'false'], 1);
 
@@ -396,7 +400,7 @@ final class OrdersDemo
 
         Order::update(['channel' => 'office', 'payment_term_id' => (int) ($term['id'] ?? 0)], $orderId);
         Lifecycle::confirm($orderId, ['payment' => false, 'notify' => false, 'source' => 'system']);
-        Installments::create($orderId, new DateTimeImmutable('today -'.$days.' days'));
+        Installments::create($orderId, (new DateTimeImmutable('first day of this month'))->setTime(0, 0)->modify('-31 days'));
     }
 
     /**

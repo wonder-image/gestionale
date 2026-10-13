@@ -329,7 +329,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
             header('Location: '.OrderResource::detailUrl($orderId, $back !== '' ? $back : null));
         } else {
             FlashAlert::custom('Attenzione', $result['message'], 'warning');
-            header('Location: '.static::urlFor($orderId, $back));
+            header('Location: '.static::urlFor($orderId, $back, (int) ($values['payment_id'] ?? 0)));
         }
 
         exit();
