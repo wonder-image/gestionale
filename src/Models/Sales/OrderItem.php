@@ -42,7 +42,7 @@ final class OrderItem extends Model
         return [
             Column::key('order_id')->int()->null(false)->foreign(Order::$table),
             ...static::sqlColumnsFromDataSchema([
-                'list_price', 'unit_price', 'discount_value', 'order_discount_amount',
+                'list_price', 'unit_price', 'manual_unit_price', 'discount_value', 'order_discount_amount',
                 'tax_rate', 'customization_surcharge', 'line_total',
             ]),
             Column::key('type')->enum(static::TYPES)->default('product'),
@@ -108,6 +108,9 @@ final class OrderItem extends Model
             Field::key('quantity_cancelled')->number()->decimals(3),
             Field::key('list_price')->number()->decimals(2),
             Field::key('unit_price')->number()->decimals(2),
+            // G9: il prezzo unitario scritto a mano, prima dello sconto di
+            // riga; vuoto = lo decide il listino. `unit_price` è il risultato.
+            Field::key('manual_unit_price')->number()->decimals(2),
             Field::key('price_source')->text()->sanitize(false),
             Field::key('discount_type')->text()->sanitize(false),
             Field::key('discount_value')->number()->decimals(2),

@@ -29,6 +29,7 @@ final class OrderSheet
     private const LOG_FIELDS = [
         'status' => 'Ordine', 'payment_status' => 'Pagamento', 'fulfillment_status' => 'Evasione',
         'payment_reminder' => 'Promemoria di pagamento',
+        'items' => 'Righe',
     ];
 
     private const LOG_KINDS = ['status' => 'order', 'payment_status' => 'payment', 'fulfillment_status' => 'fulfillment'];
