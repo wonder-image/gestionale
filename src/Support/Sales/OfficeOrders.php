@@ -83,7 +83,6 @@ final class OfficeOrders
                     'status' => 'draft',
                     'channel' => 'office',
                     'payment_status' => 'unpaid',
-                    'user_id' => $userId,
                     'currency' => 'EUR',
                     'prices_include_tax' => (string) ($settings['catalog_prices_include_tax'] ?? 'true') === 'false' ? 'false' : 'true',
                 ]);
@@ -92,6 +91,9 @@ final class OfficeOrders
                 if ($orderId <= 0) {
                     throw new RuntimeException('Bozza d\'ordine non scritta.');
                 }
+
+                // Chi l'ha fatta resta nello storico.
+                StatusLogger::record(OrderStatusLog::class, $orderId, 'status', '', 'draft', 'user', $userId ?: null);
             } else {
                 Order::update($values, $orderId);
             }
@@ -636,6 +638,10 @@ final class OfficeOrders
             }
 
             $defaults = self::customerDefaults($customerId);
+            // `user_id` è l'account del cliente sul sito, come per gli ordini
+            // online: così l'ordine compare nella sua area. L'operatore resta
+            // nello storico, mai qui (lo vedrebbe come suo).
+            $values['user_id'] = (int) ($contact['user_id'] ?? 0);
         }
 
         foreach (array_merge(

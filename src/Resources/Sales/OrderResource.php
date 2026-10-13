@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Sales;
 use DateTimeImmutable;
 use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
+use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
@@ -31,6 +32,7 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentStatus;
+use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
 use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
@@ -94,7 +96,15 @@ final class OrderResource extends GestionaleResource
     public static function tableSchema(): array
     {
         return [
-            TableColumn::key('order_number')->text()->size('little')->sortable()->link('view'),
+            TableColumn::key('order_number')
+                ->text()
+                ->size('little')
+                ->sortable()
+                ->link('view')
+                // La bozza da ufficio non ha ancora un numero (G9).
+                ->formatter(static fn (array $row): string => trim((string) ($row['order_number'] ?? '')) !== ''
+                    ? static::escape((string) $row['order_number'])
+                    : '<span class="text-body-secondary">Bozza</span>'),
             TableColumn::key('customer')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(static::customerName($row)))
@@ -132,7 +142,7 @@ final class OrderResource extends GestionaleResource
             ->hideButtonAdd()
             ->filterSearch()
             ->searchFields(['order_number', 'billing_name', 'billing_surname', 'billing_business_name', 'email'])
-            ->filterCustom('Ordine', 'status', static::options('order', Order::LIVE_STATUSES))
+            ->filterCustom('Ordine', 'status', static::options('order', Gestionale::feature('office_sales') ? ['draft', ...Order::LIVE_STATUSES] : Order::LIVE_STATUSES))
             ->filterCustom('Pagamento', 'payment_status', static::options('payment', Order::PAYMENT_STATUSES))
             ->filterCustom('Evasione', 'fulfillment_status', static::options('fulfillment', Order::FULFILLMENT_STATUSES))
             ->filterQuery(
@@ -179,9 +189,24 @@ final class OrderResource extends GestionaleResource
     {
         $pulsanti = [];
 
+        // La bozza da ufficio si apre nella sua pagina: lì si conferma o si elimina (G9).
+        if ((string) ($order['channel'] ?? '') === 'office' && (string) ($order['status'] ?? '') === 'draft') {
+            return [[
+                'label' => 'Modifica bozza',
+                'icon' => 'bi-pencil-square',
+                'class' => 'btn-primary btn-sm',
+                'href' => OfficeOrderResource::editUrl((int) ($order['id'] ?? 0)),
+            ]];
+        }
+
         $azioni = OrderActions::available($order, static::actionFeatures());
         $incassa = OrderActions::canRegisterPayment($order);
         $rende = OrderActions::canRegisterReturn($order, ['returns' => Gestionale::feature('returns')]);
+
+        // «Annulla righe» solo se c'è qualcosa che non è ancora partito.
+        if (in_array(OrderActions::CANCEL_LINES, $azioni, true) && static::cancellable($order) === []) {
+            $azioni = array_values(array_diff($azioni, [OrderActions::CANCEL_LINES]));
+        }
 
         foreach ($azioni as $azione) {
             // «Registra pagamento» e «Registra reso» stanno prima di Annulla.
@@ -301,6 +326,12 @@ final class OrderResource extends GestionaleResource
                 continue;
             }
 
+            if ($azione === OrderActions::CANCEL_LINES) {
+                $html .= static::cancelLinesModal($order, $items, $back);
+
+                continue;
+            }
+
             $html .= Modal::make(trim(OrderActions::label($azione).' l\'ordine '.trim((string) ($order['order_number'] ?? ''))))
                 ->id(static::actionModalId($azione))
                 ->form(OrderActionResource::submitUrl(), hidden: [
@@ -321,6 +352,60 @@ final class OrderResource extends GestionaleResource
         }
 
         return $html;
+    }
+
+    /**
+     * Quanto si può annullare di ogni riga di un ordine da ufficio confermato
+     * (G9 §2.5).
+     *
+     * @return array<int, float>
+     */
+    public static function cancellable(array $order): array
+    {
+        if ((string) ($order['channel'] ?? '') !== 'office') {
+            return [];
+        }
+
+        return OfficeOrders::cancellableQuantities($order, static::rowsOf(OrderItem::class, ['order_id' => (int) ($order['id'] ?? 0)], 'position'));
+    }
+
+    /**
+     * «Annulla righe»: una casella per riga ancora annullabile, vuota. La
+     * merce rientra in magazzino, totali e rate si rifanno.
+     *
+     * @param list<array<string, mixed>> $items
+     */
+    public static function cancelLinesModal(array $order, array $items, string $back): string
+    {
+        $remaining = OfficeOrders::cancellableQuantities($order, $items);
+        $names = array_column($items, 'name', 'id');
+        $campi = [];
+
+        foreach ($remaining as $itemId => $quantita) {
+            $nome = html_entity_decode((string) ($names[$itemId] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $campi[] = FormField::key('qty_'.(int) $itemId)->text()
+                ->label($nome.' (al massimo '.OrderSheet::number($quantita).')')
+                ->attribute('inputmode="decimal"')
+                ->columnSpan(12);
+        }
+
+        if ($campi === []) {
+            return '';
+        }
+
+        return Modal::make(trim('Annulla righe: ordine '.html_entity_decode(trim((string) ($order['order_number'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8')))
+            ->id(static::actionModalId(OrderActions::CANCEL_LINES))
+            ->help('Scrivi quanto annullare di ogni riga: la merce torna in magazzino, i totali e le rate si rifanno. Si annulla solo quello che non è ancora partito; annullando tutto si annulla l\'ordine.')
+            ->form(OrderActionResource::submitUrl(), hidden: [
+                'order_id' => (int) ($order['id'] ?? 0),
+                'action' => OrderActions::CANCEL_LINES,
+                'torna' => $back,
+            ])
+            ->columns(12)
+            ->components($campi)
+            ->cancel('Indietro')
+            ->submit(OrderActions::label(OrderActions::CANCEL_LINES), 'danger')
+            ->render('bootstrap');
     }
 
     public static function navigationSchema(): NavigationSchema

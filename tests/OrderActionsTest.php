@@ -121,4 +121,15 @@ check('«Registra reso» non vale per ordini non consegnabili né con la funzion
     && !OrderActions::canRegisterReturn(['stage' => 'order', 'status' => 'confirmed'], [])
 );
 
+check('la bozza da ufficio non ha azioni qui: si apre nella sua pagina (G9)', fn () =>
+    OrderActions::available(['status' => 'draft', 'channel' => 'office'], []) === []
+);
+
+check('un ordine da ufficio confermato annulla anche le righe, prima di annullare tutto', fn () =>
+    OrderActions::available(['status' => 'confirmed', 'fulfillment_status' => 'unfulfilled', 'channel' => 'office'], []) === ['fulfill', 'cancel_lines', 'cancel']
+    && OrderActions::available(['status' => 'completed', 'fulfillment_status' => 'fulfilled', 'channel' => 'office'], []) === []
+    && !in_array('cancel_lines', OrderActions::available(['status' => 'confirmed', 'channel' => 'online'], []), true)
+    && OrderActions::label('cancel_lines') === 'Annulla righe'
+);
+
 summary();
