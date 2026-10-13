@@ -19,8 +19,8 @@ Le pagine sono due, in **Vendite**:
 * **Piani**: cosa vendi, a quali prezzi e con quali limiti;
 * **Abbonamenti**: chi è abbonato, a cosa, e quando rinnova.
 
-> Per ora gli abbonamenti si **leggono** soltanto. La sottoscrizione dal sito
-> (con Stripe) e la creazione da ufficio arrivano con i prossimi aggiornamenti.
+> Gli abbonamenti nascono dal **sito**, con la funzionalità *Abbonamenti online*
+> (vedi sotto). La creazione da ufficio arriva con un prossimo aggiornamento.
 
 ## I piani
 
@@ -97,6 +97,46 @@ Cliccando sul codice si apre la scheda:
   del vincolo, disdetta;
 * **Importi del periodo**: subtotale, sconto del coupon, IVA, totale;
 * **Pagamenti**, **Cambi di piano** e **Storia** degli stati.
+
+## Abbonamenti online
+
+Con la funzionalità **Abbonamenti online** (in *Funzionalità → Canali di
+vendita*; chiede *Vendita online* e *Abbonamenti*) il sito ha la pagina dei
+piani, e il cliente si abbona da solo:
+
+1. sceglie un prezzo nella pagina dei piani; serve un **account**;
+2. conferma i dati di fatturazione e, se ce l'ha, scrive un codice sconto;
+3. paga sulla pagina di **Stripe**, con la carta (anche con Link);
+4. torna sul sito: l'abbonamento compare *In prova* o *Attivo* appena Stripe
+   conferma il pagamento.
+
+Lo stato lo decide Stripe: rinnovi pagati, rinnovi non riusciti e chiusure
+arrivano da soli, e ogni pagamento riuscito è una riga in **Pagamenti** della
+scheda. Il cliente riceve un'email quando l'abbonamento si attiva, quando un
+rinnovo non riesce (con il link per aggiornare la carta) e quando disdice.
+
+Dall'**area cliente**, sezione *Abbonamenti*, il cliente:
+
+* **cambia piano**: subito, il nuovo prezzo vale dal rinnovo dopo, senza
+  conguagli; il codice sconto resta;
+* **disdice**: l'abbonamento resta attivo fino alla fine del periodo pagato e
+  poi non si rinnova. Durante un **vincolo** la disdetta si registra e vale alla
+  fine del vincolo;
+* **aggiorna la carta** nella pagina di Stripe.
+
+Alla fine del vincolo, se il prezzo ha «A fine vincolo passa a», l'abbonamento
+prende quel prezzo dal rinnovo dopo.
+
+Chi lascia la pagina di Stripe senza pagare lascia un abbonamento *In attesa*:
+dopo 24 ore si chiude da solo.
+
+> **Per chi installa.** Servono le chiavi di Stripe del sito e il webhook già
+> usato per gli ordini, con in più gli eventi `checkout.session.completed`,
+> `customer.subscription.created`, `customer.subscription.updated`,
+> `customer.subscription.deleted`, `invoice.paid` e `invoice.payment_failed`.
+> Accendi le attività **Gestionale: riallineamento con Stripe** e
+> **Gestionale: fine vincolo degli abbonamenti**. Un rimborso di un abbonamento
+> si fa da Stripe e compare in *Da controllare*.
 
 ## Coupon sugli abbonamenti
 
