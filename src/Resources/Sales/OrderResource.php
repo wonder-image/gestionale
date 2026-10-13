@@ -229,6 +229,18 @@ final class OrderResource extends GestionaleResource
         $incassa && $pulsanti[] = static::registerPaymentButton($order);
         $rende && $pulsanti[] = static::registerReturnButton($order);
 
+        // La conferma d'ordine in PDF, per un ordine da ufficio confermato (G9 §3.3).
+        if ((string) ($order['channel'] ?? '') === 'office'
+            && in_array((string) ($order['status'] ?? ''), ['confirmed', 'processing', 'completed'], true)
+            && Gestionale::feature('office_sales')) {
+            array_unshift($pulsanti, [
+                'label' => 'PDF',
+                'icon' => 'bi-file-earmark-pdf',
+                'class' => 'btn-outline-secondary btn-sm',
+                'href' => OfficeOrderResource::pdfUrl((int) ($order['id'] ?? 0)),
+            ]);
+        }
+
         return $pulsanti;
     }
 

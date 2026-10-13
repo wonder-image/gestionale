@@ -30,7 +30,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\Locations;
  * non torna mai al core: le righe viaggiano in JSON e le scrive
  * `OfficeOrders`.
  */
-final class OfficeOrderResource extends GestionaleResource
+class OfficeOrderResource extends GestionaleResource
 {
     public static string $feature = 'office_sales';
     public static string $model = Order::class;
@@ -66,6 +66,12 @@ final class OfficeOrderResource extends GestionaleResource
     public static function labelSchema(): array
     {
         return ['customer' => 'Cliente', 'total' => 'Totale', 'creation' => 'Creata', 'last_modified' => 'Modificata'];
+    }
+
+    /** `order` qui, `quote` per i preventivi (`QuoteResource`): la pagina e il servizio sono gli stessi. */
+    public static function stage(): string
+    {
+        return 'order';
     }
 
     public static function formSchema(): array
@@ -150,16 +156,18 @@ final class OfficeOrderResource extends GestionaleResource
      */
     public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
     {
-        if ($mode === 'edit' && ((string) ($values['status'] ?? '') !== 'draft' || (string) ($values['stage'] ?? '') !== 'order')) {
+        $closed = $mode === 'edit' ? static::closedRedirect($values) : null;
+
+        if ($closed !== null) {
             if (!headers_sent()) {
-                header('Location: '.OrderResource::detailUrl((int) ($values['id'] ?? 0)));
+                header('Location: '.$closed);
             }
 
             exit();
         }
 
         $rows = $mode === 'edit' ? OfficeOrderForm::items((int) ($values['id'] ?? 0)) : [];
-        $restored = $mode === 'edit' ? null : OfficeOrderForm::recall();
+        $restored = $mode === 'edit' ? null : OfficeOrderForm::recall(static::stage());
 
         if ($restored !== null) {
             $values = $restored['header'] + $values;
@@ -206,7 +214,7 @@ final class OfficeOrderResource extends GestionaleResource
             : ['ok' => false, 'message' => UserError::make('stock_document.expired')->getMessage(), 'url' => $id > 0 ? static::editUrl($id) : static::createUrl()];
 
         if (!$result['ok'] && $result['url'] === static::createUrl()) {
-            OfficeOrderForm::remember($values);
+            OfficeOrderForm::remember($values, static::stage());
         }
 
         if ($result['ok']) {
@@ -230,7 +238,7 @@ final class OfficeOrderResource extends GestionaleResource
      */
     public static function handleSubmit(array $post, int $id, int $userId): array
     {
-        $result = OfficeOrderForm::submit($id, $post, $userId);
+        $result = OfficeOrderForm::submit($id, $post, $userId, static::stage());
 
         if ($result['deleted']) {
             return ['ok' => true, 'message' => 'Bozza eliminata.', 'url' => OrderResource::listUrl()];
@@ -245,6 +253,40 @@ final class OfficeOrderResource extends GestionaleResource
         }
 
         return ['ok' => true, 'message' => 'Bozza salvata.', 'url' => static::editUrl($result['id'])];
+    }
+
+    /**
+     * Dove va una pagina che non è più da modificare qui: l'ordine confermato
+     * alla sua scheda; null se resta.
+     *
+     * @param array<string, mixed> $values
+     */
+    public static function closedRedirect(array $values): ?string
+    {
+        if ((string) ($values['status'] ?? '') === 'draft' && (string) ($values['stage'] ?? '') === 'order') {
+            return null;
+        }
+
+        return (string) ($values['stage'] ?? '') === 'quote'
+            ? QuoteResource::editUrl((int) ($values['id'] ?? 0))
+            : OrderResource::detailUrl((int) ($values['id'] ?? 0));
+    }
+
+    /** Il PDF della conferma di un ordine da ufficio confermato. */
+    public static function pdfUrl(int $id): string
+    {
+        return static::routeUrl('pdf', '/backend/'.static::path().'/'.$id.'/pdf/', ['id' => $id]);
+    }
+
+    /** *Scarica PDF* della conferma d'ordine (G9 §3.3). */
+    public static function registerBackendRoutes(string $rootApp, string $slug): void
+    {
+        \Wonder\Http\Route::get('/{id}/pdf/', Gestionale::handlerPath('backend/sales/order-pdf.php'), [
+            'resource' => $slug,
+            'resource_action' => 'pdf',
+        ])->name('pdf')
+            ->permit(['admin', 'administrator'])
+            ->where('id', '[0-9]+');
     }
 
     /** Il metodo di pagamento si sceglie fra quelli che valgono in ufficio. @return array<int, string> */
@@ -310,7 +352,7 @@ final class OfficeOrderResource extends GestionaleResource
         return is_object($user) ? (int) ($user->id ?? 0) : 0;
     }
 
-    private static function routeUrl(string $action, string $fallback, array $params = []): string
+    protected static function routeUrl(string $action, string $fallback, array $params = []): string
     {
         if (!function_exists('__r')) {
             return $fallback;
