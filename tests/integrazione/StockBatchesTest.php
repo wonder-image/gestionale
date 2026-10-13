@@ -84,7 +84,8 @@ function secchi(int $prodotto): array
         }
     }
 
-    ksort($out);
+    // Naturale: il lotto 10 viene dopo il 9, come l'ordine di creazione.
+    ksort($out, SORT_NATURAL);
 
     return $out;
 }

@@ -2777,7 +2777,8 @@ HTML
      */
     public static function assertBatchesOff(int $modelId, array $values): void
     {
-        if ($modelId <= 0 || !Gestionale::feature('batch_tracking') || ($values['track_batches'] ?? null) !== 'false') {
+        // Come `backorderChoice()`: la chiave c'è e non è `true` = spento.
+        if ($modelId <= 0 || !Gestionale::feature('batch_tracking') || !array_key_exists('track_batches', $values) || $values['track_batches'] === 'true') {
             return;
         }
 
