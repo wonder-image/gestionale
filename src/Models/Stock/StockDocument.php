@@ -29,7 +29,8 @@ final class StockDocument extends Model
 
     public const TYPES = ['receipt', 'issue', 'stocktake', 'transfer'];
 
-    public const STATUSES = ['draft', 'completed', 'cancelled'];
+    /** `in_transit` è il trasferimento partito e non ancora arrivato (G3.16). */
+    public const STATUSES = ['draft', 'in_transit', 'completed', 'cancelled'];
 
     public static function syncSchema(): ?SyncSchema
     {

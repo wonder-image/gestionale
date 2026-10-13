@@ -17,7 +17,8 @@ use Wonder\Sql\TableSchema as Column;
  * riceve le email degli ordini e degli avvisi di scorta: non viaggiano col
  * deploy, perché ogni ambiente ha i suoi destinatari, e si cambiano anche in
  * produzione. Lo stesso vale per `stripe_methods_cache`, la lettura dei metodi
- * del conto Stripe: è di quell'ambiente e quel conto.
+ * del conto Stripe: è di quell'ambiente e quel conto, e per `batch_expiry_days`,
+ * i giorni di preavviso dei lotti in scadenza scelti dal commerciante.
  *
  * Qui stanno le scelte che si fanno una volta con il commercialista o in fase
  * di installazione. I moduli accesi aggiungono le loro coi riquadri di
@@ -31,7 +32,7 @@ final class Setting extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'low_stock_emails', 'stripe_methods_cache']);
+        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'low_stock_emails', 'stripe_methods_cache', 'batch_expiry_days']);
     }
 
     public static function tableSchema(): array
@@ -59,6 +60,8 @@ final class Setting extends Model
             Column::key('low_stock_emails')->type('TEXT'),
             // Tipi di pagamento accesi nel conto Stripe, riletti ogni dieci minuti (§11b).
             Column::key('stripe_methods_cache')->type('TEXT'),
+            // G3: i giorni del riquadro dei lotti in scadenza, del commerciante.
+            Column::key('batch_expiry_days')->int()->default(30),
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -89,6 +92,7 @@ final class Setting extends Model
             Field::key('merchant_notification_emails')->text(),
             Field::key('low_stock_emails')->text(),
             Field::key('stripe_methods_cache')->text()->sanitize(false),
+            Field::key('batch_expiry_days')->number()->decimals(0),
         ];
 
         foreach (SettingsSections::all() as $section) {

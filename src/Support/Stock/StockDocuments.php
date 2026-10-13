@@ -136,6 +136,7 @@ final class StockDocuments
                     'location_id' => (int) $document['location_id'],
                     'reference_type' => 'stock_document',
                     'reference_id' => $id,
+                    'reference_item_id' => (int) $item['id'],
                     'user_id' => $userId,
                 ]);
             }
@@ -185,6 +186,7 @@ final class StockDocuments
                     'supplier_id' => (int) ($movement['supplier_id'] ?? 0),
                     'reference_type' => 'stock_document_cancel',
                     'reference_id' => $id,
+                    'reference_item_id' => (int) ($movement['reference_item_id'] ?? 0),
                     'user_id' => $userId,
                 ]);
             }

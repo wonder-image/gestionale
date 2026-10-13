@@ -74,6 +74,8 @@ final class StockMovement extends Model
             Column::key('reason')->length(30),
             Column::key('reference_type')->length(30),
             Column::key('reference_id')->int(),
+            // G3: la riga d'ordine o di documento che ha mosso la merce (G3.5).
+            Column::key('reference_item_id')->int()->default(0),
             Column::key('source')->length(20),
             Column::key('user_id')->int(),
             Column::key('note')->type('TEXT'),
@@ -86,6 +88,7 @@ final class StockMovement extends Model
             'ind_product' => ['index' => 'product_id'],
             'ind_location' => ['index' => 'location_id'],
             'ind_reference' => ['index' => 'reference_id'],
+            'ind_reference_item' => ['index' => ['reference_type', 'reference_id', 'reference_item_id']],
         ];
     }
 
@@ -108,6 +111,7 @@ final class StockMovement extends Model
             Field::key('unit_cost')->number()->decimals(4),
             Field::key('reference_type')->text()->sanitize(false),
             Field::key('reference_id')->number()->decimals(0),
+            Field::key('reference_item_id')->number()->decimals(0),
             Field::key('source')->text()->sanitize(false),
             Field::key('user_id')->number()->decimals(0),
             Field::key('note')->text(),

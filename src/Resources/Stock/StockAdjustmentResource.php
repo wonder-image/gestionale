@@ -129,7 +129,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
                 ->label('Quantità')
                 ->required(),
             FormField::key('reason')
-                ->select(Reasons::all())
+                ->select(Reasons::selectable())
                 ->value(Reasons::DEFAULT)
                 ->label('Causale')
                 ->required(),
@@ -233,11 +233,17 @@ final class StockAdjustmentResource extends NavigationOnlyResource
         }
 
         $user = LegacyGlobals::get('USER');
+        $reason = (string) ($values['reason'] ?? Reasons::DEFAULT);
+
+        // Le causali interne le scrive solo il gestionale (G3.15).
+        if (in_array($reason, Reasons::internal(), true)) {
+            throw UserError::make('stock.unknown_reason');
+        }
 
         Stock::apply([
             'product_id' => $productId,
             'quantity' => $change['delta'],
-            'reason' => (string) ($values['reason'] ?? Reasons::DEFAULT),
+            'reason' => $reason,
             'note' => (string) ($values['note'] ?? ''),
             'user_id' => is_object($user) ? (int) ($user->id ?? 0) : 0,
         ]);

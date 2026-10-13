@@ -536,4 +536,15 @@ check('un\'email vuota non cancella quella già sul carrello', fn () => prova(st
     return Order::findById($cart)['email'] === 'c@example.com';
 }));
 
+check('G3: la merce di un\'altra sede non si vende online: il carrello guarda solo la principale', fn () => prova(static function (): bool {
+    $prodotto = articolo(2.0, 10.0);
+    Stock::apply(['product_id' => $prodotto, 'quantity' => -50, 'type' => 'adjustment', 'reason' => 'other']);
+    giacenzaIn($prodotto, sede(), 5);
+    $vendita = Levels::forSale([$prodotto], Locations::forSale())[$prodotto];
+
+    return Levels::of($prodotto)['available'] === 5.0
+        && $vendita['quantity'] === 0.0
+        && $vendita['available'] === 0.0;
+}));
+
 summary();

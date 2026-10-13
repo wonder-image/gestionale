@@ -26,7 +26,31 @@ final class Reasons
             'gift' => 'Regalo',
             'internal_use' => 'Uso interno',
             'other' => 'Altro',
+            'batch_assignment' => 'Assegnazione lotto',
         ];
+    }
+
+    /**
+     * Le causali che scrive solo il gestionale, mai una persona: hanno
+     * l'etichetta nei Movimenti e nel filtro, non stanno nelle tendine.
+     *
+     * `batch_assignment` è la compensazione della vendita scoperta (G3.15).
+     *
+     * @return list<string>
+     */
+    public static function internal(): array
+    {
+        return ['batch_assignment'];
+    }
+
+    /**
+     * Le causali che si scelgono a mano, nell'ordine della tendina.
+     *
+     * @return array<string, string>
+     */
+    public static function selectable(): array
+    {
+        return array_diff_key(self::all(), array_flip(self::internal()));
     }
 
     public static function exists(string $reason): bool

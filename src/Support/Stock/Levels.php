@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use Throwable;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 
@@ -68,6 +69,63 @@ final class Levels
             $rows = $reservations[$id] ?? [];
             $levels[$id]['reserved'] = Availability::reserved($rows, $now);
             $levels[$id]['available'] = Availability::of($level['quantity'], $rows, $now);
+        }
+
+        return $levels;
+    }
+
+    /**
+     * Quello che si può vendere da una sede (G3, spec §2.2): giacenza della
+     * sola sede, pezzi nei lotti scaduti (zero senza «Lotti e scadenze»),
+     * impegnati della sede e disponibile = giacenza − scaduti − impegnati.
+     *
+     * È il numero del carrello e della vetrina, con la sede di
+     * `Locations::forSale()`. A funzionalità spente la principale è l'unica
+     * sede con merce e niente scade: è lo stesso numero di `forProducts()`.
+     *
+     * @param list<int> $productIds
+     * @return array<int, array{quantity: float, expired: float, reserved: float, available: float}>
+     */
+    public static function forSale(array $productIds, int $locationId): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $productIds)));
+        $levels = array_fill_keys($ids, ['quantity' => 0.0, 'expired' => 0.0, 'reserved' => 0.0, 'available' => 0.0]);
+
+        if ($ids === []) {
+            return $levels;
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $stock = self::rows(StockRow::class, $ids, $locationId);
+        $expiries = Gestionale::feature('batch_tracking')
+            ? StockBuckets::expiries(array_map(static fn (array $r): int => (int) ($r['batch_id'] ?? 0), $stock))
+            : [];
+
+        foreach ($stock as $row) {
+            $id = (int) ($row['product_id'] ?? 0);
+            $pieces = (float) ($row['quantity'] ?? 0);
+
+            if (!isset($levels[$id])) {
+                continue;
+            }
+
+            $levels[$id]['quantity'] = round($levels[$id]['quantity'] + $pieces, 3);
+
+            if ($pieces > 0 && StockPicking::isExpired($expiries[(int) ($row['batch_id'] ?? 0)] ?? null, substr($now, 0, 10))) {
+                $levels[$id]['expired'] = round($levels[$id]['expired'] + $pieces, 3);
+            }
+        }
+
+        $reservations = [];
+
+        foreach (self::rows(StockReservation::class, $ids, $locationId) as $row) {
+            $reservations[(int) ($row['product_id'] ?? 0)][] = $row;
+        }
+
+        foreach ($levels as $id => $level) {
+            $rows = $reservations[$id] ?? [];
+            $levels[$id]['reserved'] = Availability::reserved($rows, $now);
+            $levels[$id]['available'] = Availability::of(round($level['quantity'] - $level['expired'], 3), $rows, $now);
         }
 
         return $levels;
@@ -165,13 +223,16 @@ final class Levels
      *
      * @param class-string<\Wonder\App\Model> $modelClass
      * @param list<int> $ids
+     * @param int $locationId 0 = tutte le sedi
      * @return list<array<string, mixed>>
      */
-    private static function rows(string $modelClass, array $ids): array
+    private static function rows(string $modelClass, array $ids, int $locationId = 0): array
     {
         try {
             $rows = $modelClass::find(
-                'product_id IN ('.implode(',', $ids).") AND deleted = 'false'"
+                'product_id IN ('.implode(',', $ids).')'
+                .($locationId > 0 ? ' AND location_id = '.$locationId : '')
+                ." AND deleted = 'false'"
             );
         } catch (Throwable) {
             return [];

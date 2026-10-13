@@ -7,6 +7,18 @@ versionamento semantico.
 
 ### Aggiunto
 
+- G3 piano 1, magazzino a secchi (inerte a funzionalità spente): tabella
+  `gst_batches` (lotti), `reference_item_id` sui movimenti (la riga d'ordine o
+  di documento), `batch_number`/`batch_expiry` sulle righe dei documenti,
+  `track_batches` sull'articolo, `batch_expiry_days` nelle impostazioni (non
+  sincronizzata), stato `in_transit` dei documenti, causale interna
+  `batch_assignment`. `StockPicking`, `StockCosts`, `StockBuckets` e
+  `StockMovements` dividono la vendita fra lotti e fornitori e rimettono
+  annulli e resi nei secchi da cui la merce era uscita; `Levels::forSale()` è
+  il disponibile del carrello (solo la sede delle vendite, senza lotti
+  scaduti). `Returns` passa la riga d'ordine ad `Allocation::returnGoods()`.
+  **Chi aggiorna lancia `php forge update`.**
+
 - Inventari, pagine: *Magazzino → Inventari* (`StockStocktakeResource` su
   `StockDocumentResource`) con le colonne *Contate* e *Con differenza*
   nell'elenco, editor in modo inventario (Attesi · Contati · Differenza, righe
