@@ -65,12 +65,10 @@ final class ContactsWidget implements HomeWidget
 
         $body = implode('', $rows);
 
-        return <<<HTML
-<wi-card class="col-12">
+        return WidgetCard::wrap(<<<HTML
     <h5 class="mb-2"><i class="bi bi-people"></i> Anagrafiche</h5>
     {$body}
-</wi-card>
-HTML;
+HTML);
     }
 
     private static function line(string $label, int $count, string $url, string $singular): string
