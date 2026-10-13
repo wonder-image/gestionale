@@ -138,6 +138,20 @@ check('una email per destinatario, con oggetto e corpo', function () use ($posti
         && $inviate === [['a@x.it', 'Oggetto', '<p>Corpo</p>'], ['b@y.it', 'Oggetto', '<p>Corpo</p>']];
 });
 
+check('gli allegati arrivano al trasporto, percorso e nome (G9)', function () use ($pulisci) {
+    $pulisci();
+    $visti = [];
+    Mailer::useTransport(static function (string $to, string $subject, string $body, array $files = []) use (&$visti): bool {
+        $visti[] = $files;
+
+        return true;
+    });
+    Mailer::send('prova', ['a@x.it'], 'Oggetto', 'x', ['/tmp/p.pdf' => 'Preventivo.pdf']);
+    Mailer::send('prova', ['a@x.it'], 'Oggetto', 'x');
+
+    return $visti === [['/tmp/p.pdf' => 'Preventivo.pdf'], []];
+});
+
 check('l\'hook riceve la chiave dell\'email e può cambiare il messaggio', function () use ($postino, $pulisci, &$inviate) {
     $pulisci();
     Extensions::use([OggettoConChiave::class]);

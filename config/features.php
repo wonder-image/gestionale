@@ -16,11 +16,11 @@ return [
     ],
     'quotes' => [
         'name' => 'Preventivi',
-        'description' => 'Preventivi con PDF e revisioni, convertibili in ordine.',
+        'description' => 'Preventivi con PDF e revisioni: accettato, il preventivo diventa un ordine da ufficio.',
         'area' => 'Vendite',
-        'requires' => ['orders'],
+        // Accettato diventa una bozza d'ordine da ufficio: senza quella pagina non si aprirebbe.
+        'requires' => ['orders', 'office_sales'],
         'release' => 'G9',
-        'created' => false,
     ],
     'returns' => [
         'name' => 'Resi',
@@ -155,7 +155,7 @@ return [
     ],
     'office_sales' => [
         'name' => 'Vendita in ufficio',
-        'description' => 'Gli ordini si fanno dal gestionale: coupon, campagne e metodi di pagamento valgono anche per l\'ufficio.',
+        'description' => 'Gli ordini si fanno dal gestionale: coupon, campagne e metodi di pagamento valgono anche per l\'ufficio; le rate si seguono nello Scadenzario.',
         'area' => 'Canali di vendita',
         'requires' => ['orders'],
         'release' => 'G6',

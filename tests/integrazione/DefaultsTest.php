@@ -69,6 +69,8 @@ try {
         sqlDelete(TaxCategory::$table);
         sqlDelete(Tax::$table);
         sqlDelete(PaymentMethod::$table);
+        sqlDelete(\Wonder\Plugin\Gestionale\Models\Payments\PaymentTermInstallment::$table);
+        sqlDelete(\Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm::$table);
         // La spedizione predefinita nasce solo dove non c'è nessun metodo.
         sqlDelete(ShippingRateBracket::$table);
         sqlDelete(ShippingRate::$table);
@@ -190,6 +192,29 @@ try {
                 && ($m['bank-transfer']['active'] ?? '') === 'true'
                 && ($m['cash']['active'] ?? '') === 'true';
         });
+
+        $condizioni = static function (): array {
+            $out = [];
+
+            foreach (array_filter((array) sqlSelect(\Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm::$table, null)->row, 'is_array') as $t) {
+                $rate = array_filter((array) sqlSelect(\Wonder\Plugin\Gestionale\Models\Payments\PaymentTermInstallment::$table, ['payment_term_id' => (int) $t['id']])->row, 'is_array');
+                usort($rate, static fn (array $a, array $b): int => (int) $a['position'] <=> (int) $b['position']);
+                $out[(string) $t['code']] = [
+                    (string) $t['sdi_condition'],
+                    array_map(static fn (array $r): array => [(int) $r['days'], (string) $r['end_of_month'], round((float) $r['percentage'], 2)], $rate),
+                ];
+            }
+
+            return $out;
+        };
+
+        check('nascono tre condizioni di pagamento con le loro rate (G9)', fn () =>
+            $condizioni() === [
+                'rimessa-diretta' => ['TP02', [[0, 'false', 100.0]]],
+                'bonifico-30-fm' => ['TP02', [[30, 'true', 100.0]]],
+                'riba-30-60-fm' => ['TP01', [[30, 'true', 50.0], [60, 'true', 50.0]]],
+            ]
+        );
 
         // Spento a mano e acceso a mano: il rilancio non rimette le cose com'erano.
         PaymentMethod::update(['active' => 'false'], (int) $metodi()['bank-transfer']['id']);
@@ -339,6 +364,7 @@ try {
 
         check('una seconda esecuzione non duplica niente', fn () =>
             count($righe()) === count($dopo)
+            && count($condizioni()['riba-30-60-fm'][1] ?? []) === 2
             && count(array_filter((array) sqlSelect(Tax::$table, null)->row, 'is_array')) === count($aliquote)
         );
 

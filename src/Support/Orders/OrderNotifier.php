@@ -27,9 +27,10 @@ final class OrderNotifier
 
     /**
      * @param array{instructions?: string, deadline?: string, url?: string, order_url?: string, account_url?: string, carrier?: string, tracking?: string, location?: string} $extra
+     * @param array<string, string> $attachments percorso => nome (G9: il PDF)
      * @return array{status: string, to: list<string>, sent: list<string>, failed: list<string>}
      */
-    public static function send(string $key, int $orderId, array $extra = []): array
+    public static function send(string $key, int $orderId, array $extra = [], array $attachments = []): array
     {
         $order = Order::findById($orderId);
 
@@ -53,7 +54,7 @@ final class OrderNotifier
             'order_url' => in_array($key, OrderEmail::MERCHANT_KEYS, true) ? OrderResource::detailUrl($orderId) : '',
         ]);
 
-        return Mailer::send('order.'.$key, $to, $email['subject'], $email['body']);
+        return Mailer::send('order.'.$key, $to, $email['subject'], $email['body'], $attachments);
     }
 
     /**

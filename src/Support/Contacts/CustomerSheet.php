@@ -90,6 +90,25 @@ final class CustomerSheet
     }
 
     /**
+     * Metodo e condizione di pagamento predefiniti (G9), per «Tutti i suoi
+     * dati». La condizione è `null` quando non si sceglie (una sola attiva).
+     *
+     * @return list<DataItem>
+     */
+    public static function payment(string $method, ?string $term): array
+    {
+        $dato = static fn (string $etichetta, string $valore): DataItem => DataItem::make($etichetta, $valore !== '' ? $valore : '—')
+            ->columnSpan(['default' => 12, 'sm' => 4]);
+        $items = [$dato('Metodo di pagamento', $method)];
+
+        if ($term !== null) {
+            $items[] = $dato('Condizione di pagamento', $term);
+        }
+
+        return $items;
+    }
+
+    /**
      * I dati di fatturazione, un `DataItem` ciascuno: codice fiscale, per le
      * aziende partita IVA, SDI e PEC, poi l'indirizzo.
      *

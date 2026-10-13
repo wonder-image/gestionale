@@ -45,6 +45,12 @@
 <?php if ($items !== []) { ?>
     <table cellpadding="6" cellspacing="0" border="0">
         <?php foreach ($items as $item) { ?>
+            <?php if ((string) ($item['type'] ?? '') === 'text') { ?>
+                <tr>
+                    <td colspan="3"><em><?= $e($item['name'] ?? '') ?></em></td>
+                </tr>
+                <?php continue; ?>
+            <?php } ?>
             <?php if ((int) ($item['parent_item_id'] ?? 0) > 0) { ?>
                 <tr>
                     <td style="padding-left: 24px"><?= $e(((int) ($item['bundle_option_id'] ?? 0) > 0 ? 'Scelta: ' : '').($item['name'] ?? '')) ?></td>

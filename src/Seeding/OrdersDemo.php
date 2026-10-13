@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Seeding;
 
+use DateTimeImmutable;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -11,8 +12,10 @@ use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderQuoteRevision;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
@@ -25,6 +28,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
+use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
@@ -34,6 +38,8 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderLines;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
+use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
+use Wonder\Plugin\Gestionale\Support\Sales\Quotes;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\App\Support\DefaultRows;
@@ -81,6 +87,13 @@ final class OrdersDemo
         'coupon-pagato' => ['method' => 'stripe', 'end' => 'paid', 'days' => 2, 'guest' => true, 'coupon' => 'DEMO-PERCENTUALE10'],
         'coupon-riservato' => ['method' => 'stripe', 'end' => 'paid', 'days' => 3, 'coupon' => 'DEMO-ANNA15'],
         'coupon-annullato' => ['method' => 'bank-transfer', 'end' => 'cancelled', 'days' => 4, 'coupon' => 'DEMO-PERCENTUALE10'],
+        // G9, a «Vendita in ufficio» accesa: un ordine da ufficio in RiBa 30/60, la prima rata già scaduta.
+        // Le rate partono 31 giorni prima dell'inizio del mese (fino a 61 giorni fa): l'ordine è di prima.
+        'rate-ufficio' => ['method' => 'bank-transfer', 'end' => 'installments', 'days' => 62, 'company' => true, 'office' => true],
+        // Una bozza da ufficio: senza numero, senza merce impegnata.
+        'bozza-ufficio' => ['method' => 'bank-transfer', 'end' => 'draft', 'days' => 0, 'company' => true, 'office' => true],
+        // G9, a «Preventivi» accesa: un preventivo inviato, con il suo PDF.
+        'preventivo-inviato' => ['method' => 'bank-transfer', 'end' => 'quote_sent', 'days' => 0, 'company' => true, 'office' => true, 'quote' => true],
     ];
 
     public static function register(): void
@@ -98,10 +111,14 @@ final class OrdersDemo
     {
         $bundles = Gestionale::feature('bundles');
         $coupons = Gestionale::feature('coupons');
+        $office = Gestionale::feature('office_sales');
+        $quotes = Gestionale::feature('quotes');
         $missing = array_filter(
             array_keys(self::ORDERS),
             static fn (string $ref): bool => ($bundles || empty(self::ORDERS[$ref]['bundle']))
                 && ($coupons || empty(self::ORDERS[$ref]['coupon']))
+                && ($office || empty(self::ORDERS[$ref]['office']))
+                && ($quotes || empty(self::ORDERS[$ref]['quote']))
                 && self::find($ref) === []
         );
 
@@ -126,6 +143,14 @@ final class OrdersDemo
         try {
             foreach (self::ORDERS as $ref => $plan) {
                 if (!in_array($ref, $missing, true)) {
+                    continue;
+                }
+
+                // G9: gli ordini da ufficio nascono dalla loro pagina, non dal carrello.
+                if (!empty($plan['office'])) {
+                    $created += self::office($ref, $plan, $products[$turn % count($products)]);
+                    $turn++;
+
                     continue;
                 }
 
@@ -374,6 +399,68 @@ final class OrdersDemo
     }
 
     /**
+     * Un ordine da ufficio dal flusso vero (`OfficeOrders`): due pezzi e una
+     * riga libera, per l'azienda di prova. Con `end` `installments` si
+     * conferma in RiBa 30/60 gg fine mese, con le rate che partono da 31
+     * giorni prima dell'inizio del mese: la prima scade a fine del mese scorso
+     * (già scaduta), la seconda a fine di questo o del prossimo. Contare i
+     * giorni da oggi no: col fine mese, metà dei giorni del mese la prima rata
+     * non sarebbe ancora scaduta. Con `draft` resta bozza.
+     *
+     * @param array<string, mixed> $plan
+     * @param array{id: int} $product
+     */
+    private static function office(string $ref, array $plan, array $product): int
+    {
+        $term = PaymentTerm::find(['code' => 'riba-30-60-fm', 'deleted' => 'false'], 1);
+
+        if (!is_array($term) || !isset($term['id'])) {
+            Defaults::seed(new DefaultRows());
+            $term = PaymentTerm::find(['code' => 'riba-30-60-fm', 'deleted' => 'false'], 1);
+        }
+
+        $customer = self::customer('rossi-abbigliamento');
+
+        if ($customer <= 0) {
+            DemoData::note('L\'ordine da ufficio «'.$ref.'» vende all\'azienda di prova: crea prima i contatti e rilancia il comando.');
+
+            return 0;
+        }
+
+        $method = self::method((string) $plan['method']);
+        $quote = !empty($plan['quote']);
+        $orderId = OfficeOrders::save(0, [
+            'customer_id' => $customer,
+            'fulfillment_type' => 'shipping',
+            'payment_method_id' => (int) ($method['id'] ?? 0),
+            'payment_term_id' => (int) ($term['id'] ?? 0),
+            'document_note' => 'Consegna al magazzino, dal lunedì al venerdì.',
+            'lines' => [
+                ['type' => 'product', 'product_id' => $product['id'], 'quantity' => '2'],
+                ['type' => 'custom', 'name' => 'Etichettatura personalizzata', 'quantity' => '1', 'unit_price' => '15'],
+            ],
+        ], 0, $quote ? 'quote' : 'order');
+
+        // Il codice col segno: serve a riconoscere l'ordine alla pulizia.
+        Order::update(['code' => DemoCode::forModel(Order::class, $ref)], $orderId);
+
+        if ((string) $plan['end'] === 'quote_sent') {
+            // Niente email: il PDF resta nell'archivio, come se l'avesse mandato a mano.
+            Quotes::send($orderId, ['source' => 'system', 'notify' => false]);
+        }
+
+        if ((string) $plan['end'] === 'installments') {
+            OfficeOrders::confirm($orderId, [
+                'source' => 'system',
+                'installments_from' => (new DateTimeImmutable('first day of this month'))->setTime(0, 0)->modify('-31 days'),
+            ]);
+            Order::update(['ordered_at' => date('Y-m-d H:i:s', strtotime('-'.(int) $plan['days'].' days'))], $orderId);
+        }
+
+        return 1;
+    }
+
+    /**
      * Gli articoli di prova con merce da vendere, per prezzo e disponibilità.
      *
      * @return list<array{id: int, price: float}>
@@ -531,6 +618,16 @@ final class OrdersDemo
             sqlDelete(Payment::$table, 'order_id = '.$id);
             sqlDelete(OrderStatusLog::$table, 'order_id = '.$id);
             sqlDelete(OrderTaxSummary::$table, 'order_id = '.$id);
+            // G9: le revisioni del preventivo, con il loro PDF.
+            foreach (self::rows(OrderQuoteRevision::find(['order_id' => $id])) as $revision) {
+                $file = DocumentFiles::path((string) ($revision['pdf_file'] ?? ''));
+
+                if ($file !== null) {
+                    @unlink($file);
+                }
+            }
+
+            sqlDelete(OrderQuoteRevision::$table, 'order_id = '.$id);
             sqlDelete(OrderItem::$table, 'order_id = '.$id);
             sqlDelete(Order::$table, 'id = '.$id);
         });

@@ -67,7 +67,11 @@ final class OrderItemTableResource extends OrderSectionResource
             TableColumn::key('quantity')
                 ->text()
                 ->size('little')
-                ->formatter(static fn (array $row): string => static::onlyIfPriced($row, static::escape(OrderSheet::number($row['quantity'] ?? 0)))),
+                ->formatter(static fn (array $row): string => static::onlyIfPriced($row, static::escape(OrderSheet::number($row['quantity'] ?? 0))
+                    // G9: quanto è stato annullato dopo la conferma.
+                    .((float) ($row['quantity_cancelled'] ?? 0) > 0
+                        ? '<div class="small text-danger text-nowrap">annullati '.static::escape(OrderSheet::number($row['quantity_cancelled'])).'</div>'
+                        : ''))),
             TableColumn::key('unit_price')
                 ->price()
                 ->size('little')

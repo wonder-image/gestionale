@@ -207,7 +207,8 @@ final class Cart
     public static function recalculate(int $cartId): array
     {
         return Transaction::run(static function () use ($cartId): array {
-            $cart = self::cart($cartId);
+            // Anche la bozza d'ordine e di preventivo (G9): stesso motore.
+            $cart = self::cart($cartId, true);
             $settings = Setting::current();
             $rules = self::rows(TaxRule::find(['deleted' => 'false']));
             $fallback = (int) ($settings['fallback_tax_id'] ?? 0);
@@ -234,6 +235,11 @@ final class Cart
                 // La spedizione calcolata si rifà dopo, quando i prodotti sono
                 // prezzati: quella a mano si prezza come ogni altra riga.
                 if ($shipping && (string) $item['type'] === 'shipping' && (string) $item['price_source'] !== 'manual') {
+                    continue;
+                }
+
+                // Una riga di solo testo (G9) non ha prezzo né peso.
+                if ((string) $item['type'] === 'text') {
                     continue;
                 }
 
@@ -325,8 +331,9 @@ final class Cart
 
                 // La campagna dà il prezzo solo alle righe di prodotto a prezzo
                 // automatico: il prezzo a mano non si tocca, le figlie non si prezzano.
+                $manualPrice = self::manualPrice($item);
                 $campaign = $productId > 0 && (string) $item['type'] === 'product'
-                    && (string) $item['price_source'] !== 'manual'
+                    && $manualPrice === ''
                     ? Campaigns::forProduct($productId, $now, $channel)
                     : null;
 
@@ -334,9 +341,7 @@ final class Cart
                     'quantity' => $item['quantity'] ?? 0,
                     'price' => is_array($product) ? ($product['price'] ?? 0) : ($item['list_price'] ?? 0),
                     'sale_price' => is_array($product) ? ($product['sale_price'] ?? 0) : 0,
-                    'manual_unit_price' => (string) $item['price_source'] === 'manual'
-                        ? ($item['unit_price'] ?? '')
-                        : '',
+                    'manual_unit_price' => $manualPrice,
                     'campaign_price' => $campaign !== null ? number_format($campaign['price'], 2, '.', '') : '',
                     'discount_type' => $item['discount_type'] ?? 'none',
                     'discount_value' => $item['discount_value'] ?? 0,
@@ -759,12 +764,18 @@ final class Cart
      *
      * @return array<string, mixed>
      */
-    private static function cart(int $cartId): array
+    private static function cart(int $cartId, bool $drafts = false): array
     {
         $row = Order::findForUpdate(['id' => $cartId], 1);
 
         if (!is_array($row) || $row === []) {
             throw UserError::make('cart.not_a_cart');
+        }
+
+        // Il ricalcolo vale anche per le bozze dell'ufficio (G9): non hanno
+        // merce prenotata dietro, e i prezzi si rifanno finché si confermano.
+        if ($drafts && (string) $row['status'] === 'draft' && in_array((string) $row['stage'], ['order', 'quote'], true)) {
+            return $row;
         }
 
         if ((string) $row['stage'] !== 'cart') {
@@ -774,6 +785,33 @@ final class Cart
         }
 
         return $row;
+    }
+
+    /**
+     * Il prezzo unitario scritto a mano, prima dello sconto di riga; vuoto se
+     * lo decide il listino.
+     *
+     * Sta in `manual_unit_price` (G9). Prima c'era solo `price_source`
+     * `manual` con il prezzo in `unit_price`: vale ancora per le righe senza
+     * sconto (la spedizione a mano), mentre con uno sconto `unit_price` è già
+     * scontato, e rileggerlo come prezzo a mano sconterebbe due volte.
+     *
+     * @param array<string, mixed> $item
+     */
+    private static function manualPrice(array $item): string
+    {
+        $written = trim((string) ($item['manual_unit_price'] ?? ''));
+
+        if ($written !== '' && is_numeric($written)) {
+            return $written;
+        }
+
+        if ((string) ($item['price_source'] ?? '') === 'manual'
+            && in_array((string) ($item['discount_type'] ?? 'none'), ['', 'none'], true)) {
+            return (string) ($item['unit_price'] ?? '');
+        }
+
+        return '';
     }
 
     /**

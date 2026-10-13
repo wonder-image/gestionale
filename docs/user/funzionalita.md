@@ -35,7 +35,7 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Funzionalità | Area | A cosa serve | Serve prima |
 |---|---|---|---|
 | Ordini | Vendite | Gestione degli ordini con stati e scarico del magazzino. | — |
-| Preventivi | Vendite | Preventivi con PDF e revisioni, convertibili in ordine. | Ordini |
+| Preventivi | Vendite | Preventivi con PDF e revisioni: accettato, il preventivo diventa un ordine da ufficio. | Ordini, Vendita in ufficio |
 | Resi | Vendite | Richiesta, approvazione, motivo e ricarico a magazzino. | Ordini |
 | DDT | Vendite | Documento di trasporto per le consegne. | Ordini |
 | Abbonamenti | Vendite | Piani, rinnovi e cambio piano. | — |
@@ -55,7 +55,7 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Spedizioni | Spedizioni | Listini per zona e peso, spedizioni e tracking manuali, ritiro in sede. | Ordini |
 | Corrieri | Spedizioni | Etichette e tracking dal corriere. | Spedizioni |
 | Vendita online | Canali di vendita | Il sito vende: coupon, campagne e metodi di pagamento valgono per il sito. | Ordini |
-| Vendita in ufficio | Canali di vendita | Gli ordini si fanno dal gestionale: coupon, campagne e metodi di pagamento valgono anche per l'ufficio. | Ordini |
+| Vendita in ufficio | Canali di vendita | Gli ordini si fanno dal gestionale: coupon, campagne e metodi di pagamento valgono anche per l'ufficio; le rate si seguono nello Scadenzario. | Ordini |
 | Abbonamenti online | Canali di vendita | Il sito vende i piani: pagina dei piani, sottoscrizione con Stripe e abbonamenti nell'area cliente. | Vendita online, Abbonamenti |
 | Vendita in cassa | Canali di vendita | Vendita in sede con documento commerciale e corrispettivi. | Ordini |
 <!-- funzionalita:fine -->
