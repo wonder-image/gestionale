@@ -79,7 +79,7 @@ check('script: il JS legge i pezzi come il server e scrive il totale come il PHP
     $casi = ['2,5', '1.234,5', '3 pz', '€5', '5€', 'abc', '', '  ', '-1', '1e3', '0', '7.5', '1 000', '--3'];
     $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
     $file = $base.'.js';
-    file_put_contents($file, "var window = {}; var document = {querySelectorAll: function () { return []; }};\n"
+    file_put_contents($file, "var window = {addEventListener: function () {}}; var document = {readyState: 'complete', querySelectorAll: function () { return []; }};\n"
         .StockDocumentEditor::script()."\n"
         .'console.log(JSON.stringify({parse: '.json_encode($casi).'.map(function (c) {'
         .' var v = window.wiStockEditor.parse(c); return v === null ? null : (isNaN(v) ? "x" : v); }),'
@@ -165,8 +165,8 @@ parts.lines.textContent = '[]';
 var root = new El('div');
 root.setAttribute('data-search-url', '/cerca/');
 root.querySelector = function (sel) { return parts[sel.replace('[data-wi-stock-', '').replace(']', '')]; };
-var window = {};
-var document = {createElement: function (t) { return new El(t); }, querySelectorAll: function () { return [root]; }, addEventListener: function () {}};
+var window = {addEventListener: function () {}};
+var document = {readyState: 'complete', createElement: function (t) { return new El(t); }, querySelectorAll: function () { return [root]; }, addEventListener: function () {}};
 var answers = {'111': {result: 'one', versions: [{id: 1, label: 'A', stock: 0}]}, '222': {result: 'one', versions: [{id: 2, label: 'B', stock: 0}]}, 'zzz': {result: 'none', versions: []}};
 var waiting = [];
 window.fetch = function (url) {
@@ -283,8 +283,8 @@ root.setAttribute('data-mode', 'stocktake');
 root.setAttribute('data-max-lines', '4');
 root.querySelector = function (sel) { return parts[sel.replace('[data-wi-stock-', '').replace(']', '')]; };
 root.closest = function () { return {querySelector: function () { return place; }}; };
-var window = {};
-var document = {createElement: function (t) { return new El(t); }, querySelectorAll: function () { return [root]; }, addEventListener: function () {}};
+var window = {addEventListener: function () {}};
+var document = {readyState: 'complete', createElement: function (t) { return new El(t); }, querySelectorAll: function () { return [root]; }, addEventListener: function () {}};
 var urls = [];
 window.fetch = function (url) {
     var data = {versions: []};
@@ -358,6 +358,149 @@ JS;
     ];
 
     if ($js !== $atteso) {
+        echo '  '.$raw."\n";
+
+        return false;
+    }
+
+    return true;
+});
+
+check('script: l\'editor si lega dopo createCard() del core, al nodo che resta nella pagina (node)', function () {
+    $node = trim((string) shell_exec('command -v node 2>/dev/null'));
+
+    if ($node === '') {
+        echo "  (salto: node non c'è in PATH)\n";
+
+        return true;
+    }
+
+    // Al caricamento il core ricopia il contenuto di ogni <wi-card> e poi lancia
+    // «loaded» sulla finestra: il nodo visto durante il parse non resta.
+    $harness = <<<'JS'
+function El(tag) { this.tagName = tag; this.children = []; this.attrs = {}; this.listeners = {}; this.value = ''; this.textContent = ''; this.className = ''; this.style = {}; this.parentNode = null; this.firstChild = null; this.classList = {add: function () {}, remove: function () {}}; }
+El.prototype.appendChild = function (c) { c.parentNode = this; this.children.push(c); this.firstChild = this.children[0]; return c; };
+El.prototype.removeChild = function (c) { this.children.splice(this.children.indexOf(c), 1); this.firstChild = this.children[0] || null; return c; };
+El.prototype.insertBefore = function (c) { return this.appendChild(c); };
+El.prototype.setAttribute = function (k, v) { this.attrs[k] = String(v); };
+El.prototype.getAttribute = function (k) { return k in this.attrs ? this.attrs[k] : null; };
+El.prototype.addEventListener = function (t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); };
+El.prototype.contains = function () { return true; };
+El.prototype.closest = function () { return null; };
+function makeRoot() {
+    var parts = {search: new El('input'), results: new El('div'), message: new El('div'), rows: new El('tbody'), empty: new El('div'), totals: new El('div'), lines: new El('script')};
+    var root = new El('div');
+    parts.lines.textContent = '[]';
+    root.setAttribute('data-search-url', '/cerca/');
+    root.querySelector = function (sel) { return parts[sel.replace('[data-wi-stock-', '').replace(']', '')] || null; };
+    return root;
+}
+var handlers = {};
+var window = {addEventListener: function (t, f) { (handlers[t] = handlers[t] || []).push(f); }};
+var parsed = makeRoot();
+var copy = makeRoot();
+var late = makeRoot();
+var live = [parsed];
+var document = {readyState: 'loading', createElement: function (t) { return new El(t); }, querySelectorAll: function () { return live; }, addEventListener: function () {}};
+var out = {};
+JS;
+    $loaded = <<<'JS'
+out.atParse = !!parsed.wiStockEditor;
+live = [copy];
+(handlers.loaded || []).forEach(function (f) { f(); });
+out.copy = !!copy.wiStockEditor;
+out.parsed = !!parsed.wiStockEditor;
+// Uno script arrivato a pagina già pronta non aspetta un «loaded» che non torna.
+document.readyState = 'complete';
+live = [copy, late];
+JS;
+    $late = <<<'JS'
+out.late = !!late.wiStockEditor;
+console.log(JSON.stringify(out));
+JS;
+    $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
+    $file = $base.'.js';
+    file_put_contents($file, $harness."\n".StockDocumentEditor::script()."\n".$loaded."\n".StockDocumentEditor::script()."\n".$late);
+    $raw = (string) shell_exec(escapeshellarg($node).' '.escapeshellarg($file).' 2>&1');
+    $js = json_decode($raw, true);
+    @unlink($file);
+    @unlink($base);
+
+    if ($js !== ['atParse' => false, 'copy' => true, 'parsed' => false, 'late' => true]) {
+        echo '  '.$raw."\n";
+
+        return false;
+    }
+
+    return true;
+});
+
+check('pagina: Conferma e lo spegnimento dei bottoni valgono anche dopo che il core ricopia i <wi-card> (node)', function () {
+    $node = trim((string) shell_exec('command -v node 2>/dev/null'));
+
+    if ($node === '') {
+        echo "  (salto: node non c'è in PATH)\n";
+
+        return true;
+    }
+
+    // Lo script della vista, con una stringa al posto di ogni valore scritto dal PHP.
+    $view = (string) file_get_contents(Gestionale::viewPath('pages/stock-document-form.php'));
+
+    if (!preg_match('~<script>(.*)</script>~s', $view, $match)) {
+        return false;
+    }
+
+    $page = (string) preg_replace('~<\?=.*?\?>~', '"x"', $match[1]);
+    $harness = <<<'JS'
+function Btn(confirm) { this.disabled = false; this.confirm = confirm; this.listeners = {}; }
+Btn.prototype.addEventListener = function (t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); };
+Btn.prototype.closest = function (sel) { return sel === '[data-wi-doc-confirm]' && this.confirm ? this : null; };
+var listeners = {};
+var parsed = {save: new Btn(false), confirm: new Btn(true)};
+var copy = {save: new Btn(false), confirm: new Btn(true)};
+var live = parsed;
+var intent = {value: 'save'};
+var lines = {value: ''};
+var root = {wiStockEditor: {validate: function () { return true; }, words: function () { return null; }, serialize: function () { return '[]'; }}};
+var requested = false;
+var form = {
+    addEventListener: function (t, f) { (listeners[t] = listeners[t] || []).push(f); },
+    querySelector: function (sel) {
+        return {'input[name="intent"]': intent, 'input[name="lines"]': lines, '[data-wi-doc-confirm]': live.confirm, '[data-wi-stock-editor]': root}[sel] || null;
+    },
+    querySelectorAll: function () { return [live.save, live.confirm]; },
+    requestSubmit: function () {
+        var event = {preventDefault: function () {}};
+        requested = true;
+        (listeners.submit || []).forEach(function (f) { f(event); });
+    }
+};
+var document = {getElementById: function () { return form; }};
+var window = {addEventListener: function () {}};
+function click(target) { (listeners.click || []).forEach(function (f) { f({target: target}); }); }
+JS;
+    $run = <<<'JS'
+live = copy;
+var out = {};
+click(copy.save);
+out.other = requested;
+click(copy.confirm);
+out.requested = requested;
+out.intent = intent.value;
+out.lines = lines.value;
+out.off = copy.save.disabled && copy.confirm.disabled;
+console.log(JSON.stringify(out));
+JS;
+    $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
+    $file = $base.'.js';
+    file_put_contents($file, $harness."\n".$page."\n".$run);
+    $raw = (string) shell_exec(escapeshellarg($node).' '.escapeshellarg($file).' 2>&1');
+    $js = json_decode($raw, true);
+    @unlink($file);
+    @unlink($base);
+
+    if ($js !== ['other' => false, 'requested' => true, 'intent' => 'confirm', 'lines' => '[]', 'off' => true]) {
         echo '  '.$raw."\n";
 
         return false;

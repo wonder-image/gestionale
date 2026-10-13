@@ -5,14 +5,14 @@ namespace Wonder\Plugin\Gestionale\Providers\Payments;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 
 /**
- * Le scelte che un solo metodo Stripe offre nel checkout: la carta e una
- * scelta per ogni altro metodo acceso nel conto (§11b). Apple Pay, Google
- * Pay e Link stanno nella barra rapida (§11), non qui. Non si chiama Stripe: si
- * lavora sui tipi già letti.
+ * Le scelte che un solo metodo Stripe offre nel checkout: la carta, i wallet
+ * e una scelta per ogni altro metodo acceso nel conto (§11b). I wallet stanno
+ * anche nella barra rapida (§11), che però non serve la fattura dell'ospite né
+ * il ritiro. Non si chiama Stripe: si lavora sui tipi già letti.
  */
 final class StripeMethods
 {
-    /** Vanno nella barra rapida, non fra le scelte del modulo. */
+    /** Vanno nella barra rapida e, dopo la carta, fra le scelte del modulo. */
     private const WALLETS = ['apple_pay', 'google_pay', 'link'];
 
     /** Si pagano dopo, con un riferimento o delle istruzioni: al ritorno l'intento è ancora aperto e il checkout lo annullerebbe. */
@@ -26,9 +26,11 @@ final class StripeMethods
         'afterpay_clearpay' => 'Clearpay',
         'alipay' => 'Alipay',
         'amazon_pay' => 'Amazon Pay',
+        'apple_pay' => 'Apple Pay',
         'bancontact' => 'Bancontact',
         'blik' => 'BLIK',
         'eps' => 'EPS',
+        'google_pay' => 'Google Pay',
         'ideal' => 'iDEAL',
         'klarna' => 'Klarna',
         'link' => 'Link',
@@ -79,7 +81,7 @@ final class StripeMethods
         $others = array_values(array_diff($types, ['card'], self::WALLETS, self::DELAYED));
         sort($others);
 
-        return array_merge(['card'], $others);
+        return array_merge(['card'], self::expressChoices($types), $others);
     }
 
     public static function name(string $choice, string $cardName): string
@@ -98,6 +100,8 @@ final class StripeMethods
     {
         return match ($choice) {
             'card' => array_values(array_intersect($rowIcons, self::CARD_ICONS)),
+            // Il set delle icone non ha Link: meglio nessuna che quella generica della banca.
+            'link' => [],
             default => isset(PaymentMethod::ICONS[$choice]) ? [$choice] : ['genericbank'],
         };
     }
