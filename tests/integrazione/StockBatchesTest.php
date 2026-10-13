@@ -11,7 +11,13 @@ require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
 
+use Wonder\Plugin\Gestionale\Backend\Widgets\ExpiringBatchesWidget;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
+use Wonder\Plugin\Gestionale\Resources\Stock\BatchResource;
+use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
+use Wonder\Plugin\Gestionale\Support\Stock\BatchCustomers;
 use Wonder\Plugin\Gestionale\Models\Stock\Batch;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
@@ -240,6 +246,81 @@ check('inerzia: funzionalità spenta, articolo con i lotti → niente lotti, nie
 
     return secchi($a) === ['0/0' => 2.0] && lotto($a, 'IGNORATO') === null
         && !array_key_exists('tracks_batches', $v) && !array_key_exists('lots', $v);
+}));
+
+// --- 3b: pagina Lotti, clienti, riquadro ---
+
+function rigaDOrdine(int $ordine, int $prodotto, float $pezzi): int
+{
+    return (int) (OrderItem::create([
+        'order_id' => $ordine,
+        'type' => 'product',
+        'product_id' => $prodotto,
+        'name' => 'Prova lotti',
+        'list_price' => '1.00',
+        'unit_price' => '1.00',
+        'quantity' => number_format($pezzi, 3, '.', ''),
+        'line_total' => '1.00',
+        'position' => 1,
+    ])->insert_id ?? 0);
+}
+
+check('clienti del lotto: la vendita conta, il reso si toglie, l\'ordine reso del tutto sparisce', fn () => prova(static function () use ($fraUnMese): bool {
+    accendiFunzionalita(['batch_tracking']);
+    $a = conLotti('TST-LOT-12');
+    carico($a, [['quantity' => '5', 'batch_number' => 'RICHIAMO', 'batch_expiry' => $fraUnMese]]);
+    $lotto = (int) lotto($a, 'RICHIAMO')['id'];
+    $sede = Locations::forSale();
+    $uno = ordineDiProva();
+    Order::update(['order_number' => 'TST-1', 'email' => 'uno@example.com'], $uno);
+    $due = ordineDiProva();
+    $rigaUno = rigaDOrdine($uno, $a, 3);
+    $rigaDue = rigaDOrdine($due, $a, 1);
+    Allocation::commit(['product_id' => $a, 'quantity' => 3, 'location_id' => $sede, 'order_id' => $uno, 'order_item_id' => $rigaUno, 'payment_ok' => true]);
+    Allocation::commit(['product_id' => $a, 'quantity' => 1, 'location_id' => $sede, 'order_id' => $due, 'order_item_id' => $rigaDue, 'payment_ok' => true]);
+    Allocation::returnGoods(['product_id' => $a, 'quantity' => 1, 'location_id' => $sede, 'order_id' => $uno, 'order_item_id' => $rigaUno, 'sales_return_id' => resoDiProva($uno, $sede), 'restock' => true]);
+    Allocation::returnGoods(['product_id' => $a, 'quantity' => 1, 'location_id' => $sede, 'order_id' => $due, 'order_item_id' => $rigaDue, 'sales_return_id' => resoDiProva($due, $sede), 'restock' => true]);
+    $clienti = BatchCustomers::of($lotto);
+
+    return count($clienti) === 1 && $clienti[0]['order_id'] === $uno && $clienti[0]['quantity'] === 2.0
+        && $clienti[0]['email'] === 'uno@example.com'
+        && str_contains(BatchCustomers::csv($clienti), 'TST-1;');
+}));
+
+check('un lotto con movimenti non si elimina; uno senza sì', fn () => prova(static function (): bool {
+    accendiFunzionalita(['batch_tracking']);
+    $a = conLotti('TST-LOT-13');
+    carico($a, [['quantity' => '1', 'batch_number' => 'MOSSO']]);
+    $vuoto = Batches::resolve($a, 'VUOTO', null, 0, 1);
+
+    try {
+        BatchResource::assertDeletable((int) lotto($a, 'MOSSO')['id']);
+        $mosso = 'eliminabile';
+    } catch (RuntimeException $e) {
+        $mosso = 'rifiutato';
+    }
+
+    return $mosso === 'rifiutato' && rifiuto(fn () => BatchResource::assertDeletable($vuoto)) === null;
+}));
+
+check('riquadro: i lotti con pezzi scaduti o in scadenza, non quelli lontani né finiti', fn () => prova(static function () use ($ieri, $domani): bool {
+    accendiFunzionalita(['batch_tracking']);
+    $a = conLotti('TST-LOT-14');
+    carico($a, [
+        ['quantity' => '1', 'batch_number' => 'W-SCADUTO', 'batch_expiry' => $ieri],
+        ['quantity' => '1', 'batch_number' => 'W-DOMANI', 'batch_expiry' => $domani],
+        ['quantity' => '1', 'batch_number' => 'W-LONTANO', 'batch_expiry' => date('Y-m-d', strtotime('+400 days'))],
+    ]);
+    $html = (new ExpiringBatchesWidget())->render();
+
+    return str_contains($html, 'W-SCADUTO') && str_contains($html, 'W-DOMANI') && !str_contains($html, 'W-LONTANO');
+}));
+
+check('riquadro e pagina Lotti non esistono a funzionalità spenta', fn () => prova(static function (): bool {
+    spegniFunzionalita(['batch_tracking']);
+
+    return (new ExpiringBatchesWidget())->render() === ''
+        && !in_array(true, (array) BatchResource::pageSchema()->get('pages'), true);
 }));
 
 summary();

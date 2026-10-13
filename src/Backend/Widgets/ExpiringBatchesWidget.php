@@ -72,8 +72,7 @@ final class ExpiringBatchesWidget implements HomeWidget
 
     /**
      * I lotti con pezzi che scadono entro `$limit` (gli scaduti compresi),
-     * dalla scadenza più vicina. Due letture semplici: `find()` non regge le
-     * sottoquery.
+     * dalla scadenza più vicina: i lotti per data, poi i loro pezzi.
      *
      * @return list<array<string, mixed>>
      */

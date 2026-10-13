@@ -63,4 +63,9 @@ check('riquadro: niente senza lotti; nomi escapati, scadenza colorata, «e altri
         && str_contains($html, 'Apri i Lotti e altri 3');
 });
 
+check('senza database la funzionalità è bloccata: la pagina Lotti non ha pagine e il riquadro non c\'è', fn () =>
+    !in_array(true, (array) BatchResource::pageSchema()->get('pages'), true)
+    && (new ExpiringBatchesWidget())->render() === ''
+);
+
 summary();

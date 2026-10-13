@@ -7,6 +7,8 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Stock\Batch;
+use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
@@ -17,6 +19,8 @@ use Wonder\Sql\Transaction;
 
 /**
  * Un carico e uno scarico di prova, confermati, e un inventario in bozza
+ * (con *Acquisti* anche un carico da un fornitore, con *Lotti e scadenze* un
+ * carico con due lotti su un terzo articolo)
  * sugli articoli di `CatalogDemo`: così Carichi e scarichi, Inventari e i
  * Movimenti non partono vuoti. L'inventario ha una riga contata con una
  * differenza e una non contata, e resta da confermare.
@@ -107,7 +111,63 @@ final class StockDocumentsDemo
             }
         }
 
+        // G3, lotti: un articolo di prova con i lotti e un carico con due lotti,
+        // uno che scade fra dieci giorni e uno già scaduto.
+        if (Gestionale::feature('batch_tracking') && self::document('carico-lotti') === []) {
+            $version = self::batchVersion($versions);
+
+            if ($version > 0) {
+                Transaction::run(static function () use ($version, $system): void {
+                    ProductModel::update(['track_batches' => 'true'], self::modelOf($version));
+                    $id = StockDocuments::create('receipt', ['note' => 'Dati di prova'], [
+                        ['product_id' => $version, 'quantity' => 8, 'batch_number' => self::BATCH_PREFIX.'IN-SCADENZA', 'batch_expiry' => date('Y-m-d', strtotime('+10 days'))],
+                        ['product_id' => $version, 'quantity' => 3, 'batch_number' => self::BATCH_PREFIX.'SCADUTO', 'batch_expiry' => date('Y-m-d', strtotime('-5 days'))],
+                    ], ['code' => DemoCode::forModel(StockDocument::class, 'carico-lotti')]);
+                    StockDocuments::confirm($id, $system);
+                });
+                $created++;
+            } else {
+                DemoData::note('Il carico con i lotti di prova vuole un terzo articolo di prova: lancia il comando con il catalogo di prova.');
+            }
+        }
+
         return $created;
+    }
+
+    /** I lotti di prova cominciano così: la pulizia li ritrova. */
+    private const BATCH_PREFIX = 'DEMO-';
+
+    /**
+     * Una versione di un articolo di prova diverso da quelli dei primi due
+     * carichi, così i lotti non cambiano il carico e lo scarico di prova.
+     *
+     * @param list<int> $taken
+     */
+    private static function batchVersion(array $taken): int
+    {
+        $models = array_map(static fn (int $id): int => self::modelOf($id), $taken);
+        $prefix = DemoCode::prefixOf(ProductModel::class);
+
+        foreach (self::rows(ProductModel::find("code LIKE '".$prefix."demo-%' AND deleted = 'false' AND type <> 'bundle'", null, 'id', 'ASC')) as $model) {
+            if (in_array((int) $model['id'], $models, true)) {
+                continue;
+            }
+
+            $product = Product::find(['product_model_id' => (int) $model['id'], 'deleted' => 'false'], 1, 'id', 'ASC');
+
+            if (is_array($product) && isset($product['id'])) {
+                return (int) $product['id'];
+            }
+        }
+
+        return 0;
+    }
+
+    private static function modelOf(int $productId): int
+    {
+        $row = Product::find(['id' => $productId], 1);
+
+        return is_array($row) ? (int) ($row['product_model_id'] ?? 0) : 0;
     }
 
     /** Il primo fornitore delle anagrafiche di prova, o 0. */
@@ -151,7 +211,38 @@ final class StockDocumentsDemo
             $removed++;
         }
 
+        self::clearBatches();
+
         return $removed;
+    }
+
+    /**
+     * I lotti di prova senza più movimenti, i loro secchi a zero, e
+     * l'interruttore spento sugli articoli di prova che non hanno più lotti.
+     */
+    private static function clearBatches(): void
+    {
+        $batches = self::rows(Batch::find("`number` LIKE '".self::BATCH_PREFIX."%'"));
+
+        foreach ($batches as $batch) {
+            $id = (int) $batch['id'];
+            $movements = self::rows(StockMovement::find(['batch_id' => $id], 1));
+
+            if ($movements !== []) {
+                continue;
+            }
+
+            Transaction::run(static function () use ($id, $batch): void {
+                sqlDelete(StockRow::$table, 'batch_id = '.$id.' AND quantity = 0');
+                sqlDelete(Batch::$table, 'id = '.$id);
+                $model = self::modelOf((int) $batch['product_id']);
+                $left = self::rows(StockRow::find('`batch_id` > 0 AND `product_id` IN (SELECT p.`id` FROM `'.Product::$table.'` p WHERE p.`product_model_id` = '.$model.')', 1));
+
+                if ($model > 0 && $left === []) {
+                    ProductModel::update(['track_batches' => 'false'], $model);
+                }
+            });
+        }
     }
 
     /**
