@@ -54,7 +54,9 @@ In alto ci sono i filtri per **tipo**, **causale**, **sede** (con più sedi) e
 **periodo** — *Oggi*, *Ultimi 7 giorni*, *Questo mese*, *Mese scorso*, *Quest'anno* — e la
 ricerca per codice del movimento, per nota o per **nome e codice dell'articolo**.
 Con i [lotti](magazzino-lotti.md) c'è la colonna **Lotto** e la ricerca trova
-anche il numero del lotto.
+anche il numero del lotto. I [trasferimenti](magazzino-trasferimenti.md) sono
+due righe: *Trasferimento in uscita* nella sede di partenza e *in entrata* in
+quella d'arrivo.
 
 Dalla scheda di una versione il riquadro *Ultimi movimenti* mostra gli ultimi
 dieci con le stesse colonne, e il pulsante *Vedi tutti i movimenti* apre questa

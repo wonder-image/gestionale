@@ -54,6 +54,9 @@ SKU. Poi:
   costo di oggi del fornitore, IVA esclusa.
 - **Scaduti**, se hai i [lotti](magazzino-lotti.md): i pezzi dei lotti già
   scaduti. Non si vendono, quindi non sono nei *Disponibili*.
+- **In viaggio**, se hai più sedi: i pezzi dei
+  [trasferimenti](magazzino-trasferimenti.md) partiti e non ancora ricevuti.
+  Non sono in nessuna sede, quindi non entrano nel totale.
 
 Ogni colonna si ordina con un clic sul titolo. In alto ci sono la ricerca
 (nome dell'articolo, SKU o EAN) e i filtri *Stato*, *Marchio*, *Categoria*
