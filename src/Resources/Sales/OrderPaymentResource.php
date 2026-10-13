@@ -22,6 +22,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
+use Wonder\Plugin\Gestionale\Support\Payments\Installments;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentStatus;
 
@@ -347,18 +348,28 @@ final class OrderPaymentResource extends NavigationOnlyResource
         $metodo = PaymentMethod::findById((int) ($values['payment_method_id'] ?? 0));
         $metodo = is_array($metodo) && $metodo !== [] ? $metodo : [];
 
-        $esito = Ledger::register([
-            'order_id' => $orderId,
-            'amount' => $amount,
-            'customer_id' => (int) ($ordine['customer_id'] ?? 0),
-            'payment_method_id' => (int) ($metodo['id'] ?? $ordine['payment_method_id'] ?? 0),
-            'currency' => (string) ($ordine['currency'] ?? 'EUR'),
-            'provider' => PaymentMethod::ledgerProvider((string) ($metodo['provider'] ?? '')),
-            'provider_reference' => trim((string) ($values['reference'] ?? '')),
-            'paid_at' => static::dateFrom($values['paid_at'] ?? ''),
-            'source' => 'user',
-            'user_id' => $userId,
-        ]);
+        // Con le rate in attesa l'incasso chiude prima quella che scade prima:
+        // `Ledger` ne scriverebbe uno a parte e le rate resterebbero aperte.
+        $esito = Installments::hasPending($orderId)
+            ? Installments::registerOnOrder($orderId, $amount, [
+                'payment_method_id' => (int) ($metodo['id'] ?? 0),
+                'reference' => trim((string) ($values['reference'] ?? '')),
+                'paid_at' => static::dateFrom($values['paid_at'] ?? ''),
+                'source' => 'user',
+                'user_id' => $userId,
+            ])
+            : Ledger::register([
+                'order_id' => $orderId,
+                'amount' => $amount,
+                'customer_id' => (int) ($ordine['customer_id'] ?? 0),
+                'payment_method_id' => (int) ($metodo['id'] ?? $ordine['payment_method_id'] ?? 0),
+                'currency' => (string) ($ordine['currency'] ?? 'EUR'),
+                'provider' => PaymentMethod::ledgerProvider((string) ($metodo['provider'] ?? '')),
+                'provider_reference' => trim((string) ($values['reference'] ?? '')),
+                'paid_at' => static::dateFrom($values['paid_at'] ?? ''),
+                'source' => 'user',
+                'user_id' => $userId,
+            ]);
 
         $resta = round($residuo - $amount, 2);
         $message = 'Registrato l\'incasso di '.OrderSheet::money($amount).' sull\'ordine '.trim((string) ($ordine['order_number'] ?? '')).'.';

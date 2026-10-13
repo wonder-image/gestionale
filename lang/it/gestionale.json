@@ -76,7 +76,8 @@
                 "invalid_date": "La data dell'incasso non è valida: usa il formato anno-mese-giorno, per esempio 2026-10-01.",
                 "over_balance": "L'importo supera quanto resta da incassare ({{residuo}}): scrivi al massimo quella cifra.",
                 "order_closed": "Quest'ordine è annullato: non si registrano incassi.",
-                "installment_not_pending": "Questa rata non è più in attesa: forse è già stata pagata o annullata. Ricarica la pagina."
+                "installment_not_pending": "Questa rata non è più in attesa: forse è già stata pagata o annullata. Ricarica la pagina.",
+                "reference_used": "Questo riferimento è già su un altro incasso: controlla il numero di CRO o di operazione."
             },
             "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
             "category": {

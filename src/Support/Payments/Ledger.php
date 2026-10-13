@@ -200,9 +200,12 @@ final class Ledger
      * vera è quella dell'estratto conto. Una data senza ora vale la
      * mezzanotte di quel giorno; nel futuro non si incassa.
      *
+     * Pubblica perché le rate (`Installments`) controllano la data allo
+     * stesso modo.
+     *
      * @param array<string, mixed> $data
      */
-    private static function paidAt(array $data): string
+    public static function paidAt(array $data): string
     {
         $raw = trim((string) ($data['paid_at'] ?? ''));
 
@@ -394,7 +397,10 @@ final class Ledger
             if ((string) $row['type'] !== $type
                 || (string) $row['status'] !== 'pending'
                 || (string) $row['provider'] !== $provider
-                || (string) $row['provider_reference'] !== (string) $row['code']) {
+                || (string) $row['provider_reference'] !== (string) $row['code']
+                // Una rata (G9) ha la sua scadenza e il suo importo: la chiude
+                // `Installments`, che sa cosa fare del resto.
+                || preg_match('/^[1-9]\d{3}-/', (string) ($row['due_date'] ?? '')) === 1) {
                 continue;
             }
 
