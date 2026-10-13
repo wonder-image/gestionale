@@ -325,6 +325,13 @@ versionamento semantico.
 
 ### Corretto
 
+- Ritiro in una sede che non è la principale: la merce si prenotava e si
+  scaricava dalla sede di ritiro, che non è un magazzino, e il checkout
+  rispondeva «non disponibile» (o, con la vendita senza giacenza, la sede di
+  ritiro andava sotto zero). Ora la vendita esce sempre dalla principale
+  (`Locations::forSale()`): il ritiro si fa dove il cliente preferisce e la
+  merce ci arriva da lì. Il reso rientra nella sede scelta da chi lo registra,
+  con *Più sedi* attiva (`Locations::forReturn()`).
 - Bozza di carico, scarico e inventario: la ricerca per nome, *Aggiungi
   versioni*, *Salva bozza* e *Conferma* non rispondevano. Il core ricopia il
   contenuto dei `<wi-card>` al caricamento e gli ascolti legati prima andavano
