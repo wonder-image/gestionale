@@ -78,7 +78,7 @@ return [
     ],
     'batch_tracking' => [
         'name' => 'Lotti e scadenze',
-        'description' => 'Lotto e data di scadenza su carichi e scarichi.',
+        'description' => 'Lotto e scadenza nei carichi, vendita dal lotto che scade prima, pagina Lotti con i clienti per i richiami.',
         'area' => 'Magazzino',
         'release' => 'G3',
         'created' => false,

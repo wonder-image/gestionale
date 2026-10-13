@@ -343,6 +343,20 @@ pezzi nella sede, in ordine di uscita, gli scaduti segnati) e, con
 *Acquisti*, `suppliers`: l'editor ne fa le caselle Lotto e Scadenza del carico
 e le tendine dello scarico.
 
+La pagina *Lotti* è `BatchResource` (elenco, scheda `batch-show.php`, modifica
+di scadenza e nota; niente creazione, un lotto con movimenti non si elimina):
+pezzi con `BatchResource::piecesSql()` nella select e nei filtri *Stato* (*Con
+pezzi* predefinito, col sesto argomento `value` di `filterQuery()`) e *Sede*.
+`BatchExpiry` (puro salvo `days()`) dà stato e badge della scadenza con
+`batch_expiry_days` (card *Magazzino* in Set Up). `BatchCustomers` fa il
+netto per riga d'ordine dei `sale`/`sale_cancel`/`return` del lotto, lo somma
+per ordine e scrive il CSV (`;`, BOM, celle che sembrano formule disinnescate),
+servito da `http/backend/stock/batch-customers.php` sulla rotta
+`registerBackendRoutes()` della Resource, che guarda la funzionalità da sé.
+`BatchSheet` prepara la scheda; `ExpiringBatchesWidget` (ordine 29) elenca i
+primi dieci lotti con pezzi scaduti o in scadenza. Nei *Movimenti* la colonna
+*Lotto* legge il numero dalla select e la ricerca scende in `gst_batches`.
+
 **Causali interne.** `Reasons::internal()` (oggi `batch_assignment`,
 «Assegnazione lotto») ha l'etichetta nei Movimenti ma non sta nelle tendine:
 le scelte a mano sono `Reasons::selectable()`, e la Rettifica rifiuta le

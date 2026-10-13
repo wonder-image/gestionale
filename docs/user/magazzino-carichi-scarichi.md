@@ -50,6 +50,10 @@ Con *Acquisti* attiva il carico ha anche **Fornitore**, il suo documento e il
 **costo** di ogni riga: vedi [Acquisti e valore del
 magazzino](magazzino-acquisti.md).
 
+Con *Lotti e scadenze* attiva, le righe degli articoli che gestiscono i lotti
+hanno anche **Lotto** e **Scadenza**, e il bottone **+ lotto** per un secondo
+lotto dello stesso prodotto: vedi [Lotti e scadenze](magazzino-lotti.md).
+
 ## Con il lettore di codici a barre
 
 Il lettore scrive il codice nella casella **Cerca o scansiona** e preme
@@ -77,6 +81,12 @@ messaggio dice quale versione, e la bozza resta com'era, con le modifiche
 salvate. Correggi i pezzi, o fai prima il carico che manca. Fanno eccezione
 gli articoli con **Vendita senza giacenza** accesa (vedi [Sotto
 zero](magazzino-giacenze.md#sotto-zero)).
+
+Con *Lotti e scadenze* ogni riga di un articolo con i lotti ha la tendina
+**Lotto** (i lotti scaduti in rosso), e con *Acquisti* ogni riga ha la tendina
+**Fornitore**. Lasciate su *automatico*, la merce esce dal lotto che scade
+prima e dal fornitore che costa meno; i lotti scaduti si scaricano solo
+scegliendoli.
 
 ## Un documento confermato
 
