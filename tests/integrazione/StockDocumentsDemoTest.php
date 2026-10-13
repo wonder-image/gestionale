@@ -26,6 +26,7 @@ use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Plugin\Gestionale\Seeding\StockDocumentsDemo;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\StockDocuments;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -106,6 +107,19 @@ try {
             + count($righe(StockMovement::class, "reference_type IN ('stock_document', 'stock_document_cancel') AND reference_id IN (".$in.')'));
         $esito['seconda_pulizia'] = StockDocumentsDemo::clear();
 
+        // L'inventario di prova eliminato dal backend: il giro dopo lo rifà e la pulizia lo vede.
+        $codiceInventario = DemoCode::forModel(StockDocument::class, 'inventario');
+        $elimina = static function () use ($codiceInventario): void {
+            $inventario = StockDocument::find(['code' => $codiceInventario], 1);
+            StockDocuments::delete((int) $inventario['id']);
+        };
+        StockDocumentsDemo::create();
+        $elimina();
+        $esito['rifatto'] = StockDocumentsDemo::create();
+        $elimina();
+        $esito['pulite_con_eliminati'] = StockDocumentsDemo::clear();
+        $esito['restano_eliminati'] = count($righe(StockDocument::class, "code LIKE '".str_replace('_', '\\_', DemoCode::prefixOf(StockDocument::class))."demo-%' AND deleted IN ('true', 'false')"));
+
         // Senza articoli di prova non si crea niente e il comando lo dice.
         CatalogDemo::clear();
         DemoData::notes();
@@ -185,6 +199,12 @@ check('la pulizia toglie i tre documenti con righe, storia e movimenti, e la gia
     ($esito['pulite'] ?? 0) === 3 && ($esito['restano'] ?? -1) === 0
     && $variazioni($esito['prima'] ?? [], $esito['dopo_pulizia'] ?? []) === []
     && ($esito['seconda_pulizia'] ?? -1) === 0
+);
+
+check('un inventario di prova eliminato dal backend si rifà al giro dopo, e la pulizia toglie anche quello', fn () =>
+    ($esito['rifatto'] ?? 0) === 1
+    && ($esito['pulite_con_eliminati'] ?? 0) === 3
+    && ($esito['restano_eliminati'] ?? -1) === 0
 );
 
 check('senza articoli di prova non crea niente e lascia una nota', fn () =>

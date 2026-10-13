@@ -129,7 +129,8 @@ final class StockDocumentSheet
         $names = [];
 
         if ($userIds !== []) {
-            foreach (self::rows(User::find('`id` IN ('.implode(', ', $userIds).')')) as $user) {
+            // Eliminati compresi: chi ha confermato resta nella storia del documento.
+            foreach (self::rows(User::find('`id` IN ('.implode(', ', $userIds).") AND `deleted` IN ('true', 'false')")) as $user) {
                 $name = trim(trim((string) ($user['name'] ?? '')).' '.trim((string) ($user['surname'] ?? '')));
                 $names[(int) $user['id']] = self::text($name !== '' ? $name : (string) ($user['username'] ?? ''));
             }
