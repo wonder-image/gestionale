@@ -19,6 +19,8 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
+use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
 use Wonder\Plugin\Gestionale\Seeding\ContactsDemo;
 use Wonder\Plugin\Gestionale\Seeding\Demo;
@@ -113,7 +115,34 @@ try {
             $inventario = StockDocument::find(['code' => $codiceInventario], 1);
             StockDocuments::delete((int) $inventario['id']);
         };
-        StockDocumentsDemo::create();
+        $note = DemoData::notes();
+
+        try {
+            StockDocumentsDemo::create();
+        } catch (UserError $errore) {
+            // Il perché, quando il giro dopo la pulizia non riparte: le note
+            // della pulizia, i documenti di prova rimasti e i secchi delle
+            // versioni di prova.
+            $documenti = array_map(
+                static fn (array $d): string => $d['code'].' '.$d['type'].' '.$d['status'].($d['deleted'] === 'true' ? ' (eliminato)' : ''),
+                $righe(StockDocument::class, "code LIKE '".str_replace('_', '\\_', DemoCode::prefixOf(StockDocument::class))."demo-%' AND deleted IN ('true', 'false')")
+            );
+            $secchi = [];
+
+            foreach (array_keys($giacenze()) as $versione) {
+                foreach ($righe(StockRow::class, ['product_id' => $versione]) as $secchio) {
+                    $secchi[] = '#'.$versione.' sede '.$secchio['location_id'].' lotto '.$secchio['batch_id'].' fornitore '.$secchio['supplier_id'].' = '.$secchio['quantity'];
+                }
+            }
+
+            echo "\n  DIAGNOSI dopo la pulizia\n  note: ".($note === [] ? 'nessuna' : implode(' | ', $note))
+                ."\n  documenti di prova: ".($documenti === [] ? 'nessuno' : implode(' | ', $documenti))
+                ."\n  secchi: ".($secchi === [] ? 'nessuno' : implode(' | ', $secchi))
+                ."\n  feature: ".implode(', ', array_keys(array_filter(Wonder\Plugin\Gestionale\Gestionale::features())))."\n\n";
+
+            throw $errore;
+        }
+
         $elimina();
         $esito['rifatto'] = StockDocumentsDemo::create();
         $elimina();
