@@ -338,7 +338,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Piano 1 Catalogo dei piani ([piano](docs/superpowers/plans/2026-10-13-g10-piano-1-catalogo-dei-piani.md), ramo `g10-piano-1`): *Vendite → Piani* con prezzi e limiti, *Vendite → Abbonamenti* in lettura, `SubscriptionAmounts`, coupon con durata, `Subscriptions::limit()`, guardia del pannello, piani di prova. Test d'integrazione `PlansTest` sul Mac e prova nel browser da fare
   - [ ] Piano 2 Abbonamenti online (E3, gestionale ed ecommerce) ([piano](docs/superpowers/plans/2026-10-13-g10-piano-2-abbonamenti-online.md))
     - [x] Gestionale (ramo `g10-piano-2`): `StripeCatalog`, `OnlineSubscriptions` (Checkout, cambio piano, disdetta col vincolo, portale, riallineamento, fine vincolo), notifiche in `SubscriptionEvents`, tre email, `online_subscriptions`. Test `OnlineSubscriptionsTest` sul Mac
-    - [ ] Ecommerce: pagina dei piani, sottoscrizione, area cliente
+    - [x] Ecommerce: pagina dei piani, sottoscrizione, area cliente (wonder-image/ecommerce#11, ramo `g10-abbonamenti-online`)
     - [ ] Prove con Stripe vero: aspettano le chiavi di prova sul sito di prova
     - [ ] Dopo: *Cambia piano* e *Disdici* dal backend (piano 3); rimborsi degli abbonamenti registrati in automatico (G8)
   - [ ] Piano 3 Abbonamenti da ufficio
