@@ -88,11 +88,19 @@ final class StockDocumentRules
      * per poi rifiutarle. Un `product_id` che non è un intero positivo è un
      * rifiuto, non uno zero: «12abc» non diventa 12.
      *
+     * G3, lotti: le versioni di `$batchProducts` stanno su più righe purché
+     * con lotti diversi (G3.10); le altre una volta sola. Le chiavi del lotto
+     * (`batch_number`, `batch_expiry`) e la scelta a mano dello scarico
+     * (`batch_id`, `supplier_id`) escono solo se la riga le porta.
+     *
      * @param list<mixed> $input
+     * @param list<int> $batchProducts le versioni che gestiscono i lotti
      * @return list<array{product_id: int, quantity: ?float}>
      */
-    public static function lines(array $input): array
+    public static function lines(array $input, array $batchProducts = []): array
     {
+        $batchProducts = array_flip(array_map('intval', $batchProducts));
+
         if (count($input) > self::MAX_LINES) {
             throw UserError::make('stock_document.too_many_rows');
         }
@@ -114,12 +122,31 @@ final class StockDocumentRules
                 continue;
             }
 
-            if (isset($seen[$productId])) {
-                throw UserError::make('stock_document.duplicate_product', ['row' => $row]);
+            $batchNumber = array_key_exists('batch_number', $line) ? self::batchNumber($line['batch_number']) : null;
+            $key = isset($batchProducts[$productId]) ? $productId.'|'.mb_strtolower((string) $batchNumber) : (string) $productId;
+
+            // Due righe ancora senza lotto si tengono: il lotto lo chiede la conferma.
+            if (isset($seen[$key]) && !(isset($batchProducts[$productId]) && (string) $batchNumber === '')) {
+                throw UserError::make(isset($batchProducts[$productId]) ? 'stock_document.duplicate_batch' : 'stock_document.duplicate_product', ['row' => $row]);
             }
 
-            $seen[$productId] = true;
+            $seen[$key] = true;
             $wanted = ['product_id' => $productId, 'quantity' => self::quantity($line['quantity'] ?? null, $row)];
+
+            // G3, lotti: lotto e scadenza del carico, lotto e fornitore scelti nello scarico.
+            if ($batchNumber !== null) {
+                $wanted['batch_number'] = $batchNumber;
+            }
+
+            if (array_key_exists('batch_expiry', $line)) {
+                $wanted['batch_expiry'] = self::expiry($line['batch_expiry'], $row);
+            }
+
+            foreach (['batch_id', 'supplier_id'] as $choice) {
+                if (array_key_exists($choice, $line)) {
+                    $wanted[$choice] = self::choice($line[$choice]);
+                }
+            }
 
             // G3, Acquisti: il costo del carico, solo se la riga lo porta.
             if (array_key_exists('cost', $line)) {
@@ -135,10 +162,23 @@ final class StockDocumentRules
     /**
      * Quello che la conferma chiede. Righe numerate nell'ordine del documento.
      *
+     * Nel carico una versione con i lotti vuole il lotto su ogni riga (G3.9).
+     *
      * @param list<array{quantity: ?float}> $lines
+     * @param list<int> $batchProducts le versioni che gestiscono i lotti
      */
-    public static function assertConfirmable(string $type, string $reason, array $lines): void
+    public static function assertConfirmable(string $type, string $reason, array $lines, array $batchProducts = []): void
     {
+        if ($type === 'receipt' && $batchProducts !== []) {
+            $tracking = array_flip(array_map('intval', $batchProducts));
+
+            foreach (array_values($lines) as $i => $line) {
+                if (isset($tracking[(int) ($line['product_id'] ?? 0)]) && trim((string) ($line['batch_number'] ?? '')) === '') {
+                    throw UserError::make('stock_document.batch_required', ['row' => $i + 1]);
+                }
+            }
+        }
+
         if ($type === 'issue' && trim($reason) === '') {
             throw UserError::make('stock_document.reason_required');
         }
@@ -284,6 +324,40 @@ final class StockDocumentRules
             'supplier_document_number' => mb_substr(trim((string) ($header['supplier_document_number'] ?? '')), 0, 50),
             'supplier_document_date' => $date === '' ? null : $date,
         ];
+    }
+
+    /** Il numero del lotto come si salva: senza spazi ai lati, al massimo 50 caratteri. */
+    public static function batchNumber(mixed $value): string
+    {
+        return is_scalar($value) && !is_bool($value) ? mb_substr(trim((string) $value), 0, 50) : '';
+    }
+
+    /** La scadenza di una riga: `Y-m-d` valida o null; il resto è un rifiuto con la riga. */
+    public static function expiry(mixed $value, int $row): ?string
+    {
+        $date = is_scalar($value) && !is_bool($value) ? trim((string) $value) : '';
+
+        if ($date === '') {
+            return null;
+        }
+
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+        if ($parsed === false || $parsed->format('Y-m-d') !== $date) {
+            throw UserError::make('stock_document.invalid_expiry', ['row' => $row]);
+        }
+
+        return $date;
+    }
+
+    /** Un lotto o un fornitore scelti a mano: un intero positivo, o 0 = automatico. */
+    private static function choice(mixed $value): int
+    {
+        if (is_int($value)) {
+            return max(0, $value);
+        }
+
+        return is_string($value) && preg_match('/^\d{1,10}$/D', trim($value)) === 1 ? (int) trim($value) : 0;
     }
 
     /**

@@ -224,4 +224,40 @@ check('G3 Acquisti: la testata del fornitore si legge, la data deve esistere', f
     && $rifiuto(fn () => Regole::supplierHeader(['supplier_document_date' => '12/10/2026'])) === 'stock_document.invalid_date'
 );
 
+check('G3 lotti: senza chiavi del lotto la riga è quella di prima', fn () =>
+    Regole::lines([$riga(5, '2')], [5]) === [['product_id' => 5, 'quantity' => 2.0]]
+);
+
+check('G3 lotti: una versione con i lotti sta su più righe con lotti diversi, non con lo stesso', fn () =>
+    count(Regole::lines([
+        ['product_id' => 5, 'quantity' => '2', 'batch_number' => 'L1', 'batch_expiry' => '2027-01-31'],
+        ['product_id' => 5, 'quantity' => '1', 'batch_number' => 'L2', 'batch_expiry' => ''],
+    ], [5])) === 2
+    && $rifiuto(fn () => Regole::lines([
+        ['product_id' => 5, 'quantity' => '2', 'batch_number' => 'L1'],
+        ['product_id' => 5, 'quantity' => '1', 'batch_number' => ' l1 '],
+    ], [5])) === 'stock_document.duplicate_batch'
+    && $rifiuto(fn () => Regole::lines([$riga(6, '1'), $riga(6, '2')], [5])) === 'stock_document.duplicate_product'
+);
+
+check('G3 lotti: due righe ancora senza lotto si tengono in bozza, la conferma le ferma', fn () =>
+    count(Regole::lines([
+        ['product_id' => 5, 'quantity' => '2', 'batch_number' => ''],
+        ['product_id' => 5, 'quantity' => '1', 'batch_number' => ''],
+    ], [5])) === 2
+    && $rifiuto(fn () => Regole::assertConfirmable('receipt', '', [
+        ['product_id' => 5, 'quantity' => 2.0, 'batch_number' => 'L1'],
+        ['product_id' => 5, 'quantity' => 1.0, 'batch_number' => ''],
+    ], [5])) === 'stock_document.batch_required'
+    && $rifiuto(fn () => Regole::assertConfirmable('receipt', '', [['product_id' => 6, 'quantity' => 1.0]], [5])) === null
+);
+
+check('G3 lotti: scadenza valida o vuota; lotto e fornitore scelti sono interi', fn () =>
+    Regole::lines([['product_id' => 5, 'quantity' => '1', 'batch_number' => 'L1', 'batch_expiry' => '2027-02-28']], [5])[0]['batch_expiry'] === '2027-02-28'
+    && $rifiuto(fn () => Regole::lines([['product_id' => 5, 'quantity' => '1', 'batch_expiry' => '2027-02-30']], [5])) === 'stock_document.invalid_expiry'
+    && Regole::lines([['product_id' => 5, 'quantity' => '1', 'batch_id' => '12', 'supplier_id' => 'x']])
+        === [['product_id' => 5, 'quantity' => 1.0, 'batch_id' => 12, 'supplier_id' => 0]]
+    && Regole::batchNumber(str_repeat('a', 80)) === str_repeat('a', 50)
+);
+
 summary();

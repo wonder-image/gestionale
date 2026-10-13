@@ -48,7 +48,7 @@ final class StockDocuments
         return Transaction::run(static function () use ($type, $header, $lines, $options): int {
             $locationId = self::location((int) ($header['location_id'] ?? 0));
             $reason = StockDocumentRules::reason($type, (string) ($header['reason'] ?? ''));
-            $wanted = StockDocumentRules::lines($lines);
+            $wanted = StockDocumentRules::lines($lines, self::batchProducts($type, $lines));
             $supplier = self::supplierFields($type, $header, null);
 
             $created = StockDocument::create($supplier + [
@@ -90,7 +90,7 @@ final class StockDocuments
                 ? StockDocumentRules::reason($type, (string) $header['reason'])
                 : (string) ($document['reason'] ?? '');
             $note = array_key_exists('note', $header) ? trim((string) $header['note']) : (string) ($document['note'] ?? '');
-            $wanted = StockDocumentRules::lines($lines);
+            $wanted = StockDocumentRules::lines($lines, self::batchProducts($type, $lines));
             $old = [];
 
             foreach (self::items($id) as $item) {
@@ -121,7 +121,8 @@ final class StockDocuments
             $reason = (string) ($document['reason'] ?? '');
             $items = self::items($id);
 
-            StockDocumentRules::assertConfirmable($type, $reason, $items);
+            $tracking = self::batchProducts($type, $items);
+            StockDocumentRules::assertConfirmable($type, $reason, $items, $tracking);
 
             $userId = (int) ($options['user_id'] ?? 0);
             $source = StatusLogger::normalizeSource((string) ($options['source'] ?? 'user'));
@@ -152,8 +153,9 @@ final class StockDocuments
                 ];
 
                 if ($movement['quantity'] < 0) {
-                    // Scarico e inventario in meno: dai secchi, come la vendita (G3.13, G3.14).
-                    self::takeOut($movement, $base, $type === 'stocktake');
+                    // Scarico e inventario in meno: dai secchi, come la vendita (G3.13, G3.14);
+                    // nello scarico lotto e fornitore scelti a mano restringono (G3.12).
+                    self::takeOut($movement, $base + ($type === 'issue' ? self::chosen($item) : []), $type === 'stocktake');
 
                     continue;
                 }
@@ -170,8 +172,17 @@ final class StockDocuments
                 // bloccarsi a vicenda fra il secchio del fornitore e il secchio 0.
                 StockBuckets::locked($item['product_id'], (int) $document['location_id']);
                 $cost = $purchasing ? $item['unit_cost'] : null;
-                Stock::apply($movement + $base + ['supplier_id' => $supplierId, 'unit_cost' => $cost ?? 0.0]);
-                self::compensate($base, 0, $supplierId, $movement['quantity'], $cost ?? 0.0);
+                // G3, lotti: il lotto si trova o nasce adesso, e la riga lo ricorda (G3.10).
+                $batchId = in_array($item['product_id'], $tracking, true)
+                    ? Batches::resolve($item['product_id'], (string) $item['batch_number'], $item['batch_expiry'], $supplierId, (int) $item['position'])
+                    : 0;
+
+                if ($batchId > 0) {
+                    StockDocumentItem::update(['batch_id' => $batchId], (int) $item['id']);
+                }
+
+                Stock::apply($movement + $base + ['batch_id' => $batchId, 'supplier_id' => $supplierId, 'unit_cost' => $cost ?? 0.0]);
+                self::compensate($base, $batchId, $supplierId, $movement['quantity'], $cost ?? 0.0);
                 self::rememberCost($item['product_id'], $supplierId, $cost);
             }
 
@@ -334,6 +345,10 @@ final class StockDocuments
             'quantity' => self::nullable($row['quantity'] ?? null),
             'expected_quantity' => self::nullable($row['expected_quantity'] ?? null),
             'unit_cost' => self::nullableCost($row['unit_cost'] ?? null),
+            'batch_number' => (string) ($row['batch_number'] ?? ''),
+            'batch_expiry' => self::date($row['batch_expiry'] ?? null),
+            'batch_id' => (int) ($row['batch_id'] ?? 0),
+            'supplier_id' => (int) ($row['supplier_id'] ?? 0),
             'position' => (int) $row['position'],
         ], $rows);
     }
@@ -372,11 +387,24 @@ final class StockDocuments
             $lineTotal = $cost !== null && $line['quantity'] !== null ? round($cost * $line['quantity'], 2) : null;
             $total += $lineTotal ?? 0.0;
 
+            // G3, lotti: quello che la pagina manda, o quello di prima se non lo
+            // manda (con la funzionalità spenta i dati restano, nascosti).
+            $before = $old[$line['product_id']] ?? [];
+            $lot = [];
+
+            foreach (['batch_number' => '', 'batch_expiry' => null, 'batch_id' => 0, 'supplier_id' => 0] as $key => $empty) {
+                $lot[$key] = array_key_exists($key, $line) ? $line[$key] : ($before[$key] ?? $empty);
+            }
+
             StockDocumentItem::create([
                 'stock_document_id' => $id,
                 'product_id' => $line['product_id'],
                 'quantity' => self::decimal($line['quantity']),
                 'expected_quantity' => self::decimal($expected),
+                'batch_number' => $type === 'receipt' ? (string) $lot['batch_number'] : '',
+                'batch_expiry' => $type === 'receipt' ? (string) ($lot['batch_expiry'] ?? '') : '',
+                'batch_id' => $type === 'issue' ? (int) $lot['batch_id'] : 0,
+                'supplier_id' => $type === 'issue' ? (int) $lot['supplier_id'] : 0,
                 'unit_cost' => $cost === null ? null : number_format($cost, 4, '.', ''),
                 'line_total' => $lineTotal === null ? null : number_format($lineTotal, 2, '.', ''),
                 'position' => $i + 1,
@@ -503,6 +531,64 @@ final class StockDocuments
             'cost' => $value,
             'position' => $position,
         ]);
+    }
+
+    /**
+     * Le versioni del documento che gestiscono i lotti: contano solo nel
+     * carico e nello scarico, con la funzionalità accesa.
+     *
+     * @param list<mixed> $lines righe del form o della tabella
+     * @return list<int>
+     */
+    private static function batchProducts(string $type, array $lines): array
+    {
+        if (!in_array($type, ['receipt', 'issue'], true)) {
+            return [];
+        }
+
+        $ids = [];
+
+        foreach ($lines as $line) {
+            $id = is_array($line) ? ($line['product_id'] ?? 0) : 0;
+            $ids[] = is_int($id) || (is_string($id) && ctype_digit(trim($id))) ? (int) $id : 0;
+        }
+
+        return $type === 'receipt' ? Batches::trackingProducts($ids) : [];
+    }
+
+    /**
+     * Lotto e fornitore scelti a mano su una riga di scarico (G3.12), solo
+     * con la loro funzionalità; un lotto di un'altra versione è un rifiuto.
+     *
+     * @param array{product_id: int, batch_id?: int, supplier_id?: int, position?: int} $item
+     * @return array{batch_id?: int, supplier_id?: int}
+     */
+    private static function chosen(array $item): array
+    {
+        $out = [];
+        $batchId = (int) ($item['batch_id'] ?? 0);
+        $supplierId = (int) ($item['supplier_id'] ?? 0);
+
+        if ($batchId > 0 && Gestionale::feature('batch_tracking')) {
+            if (!Batches::belongsTo($batchId, (int) $item['product_id'])) {
+                throw UserError::make('batch.wrong_product', ['row' => (int) ($item['position'] ?? 0)]);
+            }
+
+            $out['batch_id'] = $batchId;
+        }
+
+        if ($supplierId > 0 && Gestionale::feature('purchasing')) {
+            $out['supplier_id'] = $supplierId;
+        }
+
+        return $out;
+    }
+
+    private static function date(mixed $value): ?string
+    {
+        $date = substr(trim((string) $value), 0, 10);
+
+        return $date === '' || str_starts_with($date, '0000') ? null : $date;
     }
 
     private static function nullableCost(mixed $value): ?float

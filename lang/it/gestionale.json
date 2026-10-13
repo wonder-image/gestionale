@@ -31,7 +31,10 @@
                 "location_unknown": "La sede scelta non è più del magazzino: ricarica la pagina e riprova.",
                 "invalid_cost": "La riga {{row}} ha un costo che non va: scrivi un numero da zero in su, per esempio 2,50.",
                 "invalid_date": "La data del documento del fornitore non va: sceglila dal calendario.",
-                "supplier_unknown": "Il fornitore scelto non c'è più fra i fornitori: ricarica la pagina e scegline un altro."
+                "supplier_unknown": "Il fornitore scelto non c'è più fra i fornitori: ricarica la pagina e scegline un altro.",
+                "duplicate_batch": "La stessa versione con lo stesso lotto compare due volte (riga {{row}}): tienine una sola, o cambia il lotto.",
+                "invalid_expiry": "La scadenza della riga {{row}} non va: sceglila dal calendario.",
+                "batch_required": "La riga {{row}} è di un articolo con i lotti: scrivi il lotto."
             },
             "order": {
                 "zero_quantity": "Una riga d'ordine deve avere una quantità maggiore di zero.",
@@ -227,6 +230,14 @@
                 "not_pickup_point": "La sede scelta per questo ordine non è un punto di ritiro attivo.",
                 "location_closed": "La sede di ritiro è chiusa in questo momento.",
                 "pickup_exists": "Questo ordine ha già un ritiro in corso."
+            },
+            "batch": {
+                "expiry_mismatch": "Il lotto della riga {{row}} c'è già con un'altra scadenza ({{expiry}}): controlla il lotto o la data.",
+                "wrong_product": "Il lotto scelto nella riga {{row}} non è di quella versione: ricarica la pagina e sceglilo di nuovo.",
+                "in_use": "Questo lotto ha dei movimenti: non si elimina."
+            },
+            "catalog": {
+                "batches_in_stock": "Ci sono ancora pezzi in un lotto di questo articolo: scaricali prima di spegnere «Gestisci lotti e scadenze»."
             }
         },
         "emails": {
