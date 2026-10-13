@@ -335,7 +335,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 - [ ] G10 + E3 Abbonamenti — da ufficio e online; la parte E3 va anche in [`packages/ecommerce/TODO.md`](../ecommerce/TODO.md)
   - [x] Spec: [spec](docs/superpowers/specs/2026-10-13-abbonamenti-design.md) sul ramo `g10-abbonamenti`. Decisioni G10.1–G10.19 approvate il 2026-10-13, tutte come consigliate. **Si unisce su `main` dopo la `1.0.0`**. Tre piani: catalogo dei piani → abbonamenti online con Stripe (E3) → abbonamenti da ufficio (dopo G9 piani 1 e 3: `PaymentSchedule` e `DocumentPdf`)
   - [ ] Da chiedere prima del piano 2: chiavi di **prova** di Stripe sul sito di prova per i test online
-  - [ ] Piano 1 Catalogo dei piani
+  - [x] Piano 1 Catalogo dei piani ([piano](docs/superpowers/plans/2026-10-13-g10-piano-1-catalogo-dei-piani.md), ramo `g10-piano-1`): *Vendite → Piani* con prezzi e limiti, *Vendite → Abbonamenti* in lettura, `SubscriptionAmounts`, coupon con durata, `Subscriptions::limit()`, guardia del pannello, piani di prova. Test d'integrazione `PlansTest` sul Mac e prova nel browser da fare
   - [ ] Piano 2 Abbonamenti online (E3, gestionale ed ecommerce)
   - [ ] Piano 3 Abbonamenti da ufficio
 
