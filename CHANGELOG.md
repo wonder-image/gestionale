@@ -302,6 +302,11 @@ versionamento semantico.
 
 ### Cambiato
 
+- Checkout con Stripe: Apple Pay, Google Pay e Link sono anche fra le scelte del
+  modulo, subito dopo la carta (`StripeMethods::choices()`), per chi chiede fattura
+  o ritira in negozio e non può usare la barra rapida. Tipi dell'intento automatici
+  (`intentTypes()` vuoto), Link senza icona; `Checkout::create` li accetta anche
+  senza `express` e li salva in `provider_method`.
 - Giacenze: nel menu ⋯ «Vai al prodotto» prende il posto di «Apri la versione» e apre
   la scheda in lettura dell'articolo (`view` di `ProductModelResource`, con
   `{product_model_id}`), non più la modifica della versione. Su mobile restano solo
@@ -333,7 +338,18 @@ versionamento semantico.
   l'utente che l'ha confermato è stato eliminato.
 - Guida *Carichi e scarichi*: il pezzo in più su una riga che c'è già lo dà
   solo il lettore; col clic il cursore va sui pezzi di quella riga.
-
+- Ritiro in una sede che non è la principale: la merce si prenotava e si
+  scaricava dalla sede di ritiro, che non è un magazzino, e il checkout
+  rispondeva «non disponibile» (o, con la vendita senza giacenza, la sede di
+  ritiro andava sotto zero). Ora la vendita esce sempre dalla principale
+  (`Locations::forSale()`): il ritiro si fa dove il cliente preferisce e la
+  merce ci arriva da lì. Il reso rientra nella sede scelta da chi lo registra,
+  con *Più sedi* attiva (`Locations::forReturn()`).
+- Bozza di carico, scarico e inventario: la ricerca per nome, *Aggiungi
+  versioni*, *Salva bozza* e *Conferma* non rispondevano. Il core ricopia il
+  contenuto dei `<wi-card>` al caricamento e gli ascolti legati prima andavano
+  persi: l'editor ora parte con l'evento `loaded` del core e la pagina ascolta
+  *Conferma* sul form.
 - *Magazzino → Giacenze* dava errore SQL: `Query::Conditions(…, false)` del core
   toglie ogni `WHERE` dalla condizione, anche quello della sottoquery che escludeva i
   multiprodotti. Gli `id` dei multiprodotti ora si leggono prima, in PHP.

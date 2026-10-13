@@ -30,6 +30,8 @@ use Wonder\Plugin\Gestionale\Support\Orders\PaymentTiming;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
+use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -390,23 +392,25 @@ check('il ritiro in una sede che non è di ritiro, spenta o nessuna si rifiuta e
     return true;
 }));
 
-check('il ritiro in una sede fuori orario passa e prenota la merce di quella sede', fn () => prova(static function (): bool {
+check('il ritiro in una sede fuori orario passa e prenota la merce della principale: il punto di ritiro non è un magazzino', fn () => prova(static function (): bool {
     $sede = sede(true, false);
-    $prodotto = articolo(2.0, 10.0);
-    giacenzaIn($prodotto, $sede, 5);
-    $cart = carrello([[$prodotto, 1]]);
+    $cart = carrello([[articolo(2.0, 10.0), 1]]);
 
     $esito = compra($cart, ['fulfillment_type' => 'pickup', 'location_id' => $sede]);
     $prenotazioni = righe(StockReservation::class, "order_id = {$cart} AND deleted = 'false'");
 
     return $esito['status'] === 'pending'
         && count($prenotazioni) === 1
-        && (int) $prenotazioni[0]['location_id'] === $sede;
+        && (int) $prenotazioni[0]['location_id'] === Locations::mainId()
+        && (int) Order::findById($cart)['location_id'] === $sede;
 }));
 
-check('il ritiro in una sede senza la merce si ferma e il carrello resta', fn () => prova(static function (): bool {
+check('il ritiro quando la principale è rimasta senza merce si ferma e il carrello resta', fn () => prova(static function (): bool {
     $sede = sede();
-    $cart = carrello([[articolo(2.0, 10.0), 1]]);
+    $prodotto = articolo(2.0, 10.0);
+    $cart = carrello([[$prodotto, 1]]);
+    // La merce finisce dopo che è entrata nel carrello.
+    Stock::apply(['product_id' => $prodotto, 'quantity' => -50, 'type' => 'adjustment', 'reason' => 'other']);
 
     return rifiuto(fn () => compra($cart, ['fulfillment_type' => 'pickup', 'location_id' => $sede])) === 'stock.insufficient'
         && restaCarrello($cart);
