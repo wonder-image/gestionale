@@ -94,4 +94,21 @@ check('recall: solo il suo tipo, una volta sola, non quando è vecchio', functio
         && $vecchio === null && $vuota === [];
 });
 
+check('G3, Acquisti: il costo del carico torna scritto com\'era, e il fornitore della testata con lui', function () use ($post) {
+    $salvato = StockDocumentForm::restorable($post([
+        ['product_id' => 3, 'quantity' => '2', 'cost' => '4,5'],
+        ['product_id' => 4, 'quantity' => '1', 'cost' => 'abc'],
+        ['product_id' => 5, 'quantity' => '1'],
+    ]) + ['supplier_id' => '7', 'supplier_document_number' => 'DDT 12', 'supplier_document_date' => '2026-10-13']);
+
+    return $salvato['items'] === [
+            ['product_id' => 3, 'quantity' => '2', 'cost' => '4,5'],
+            ['product_id' => 4, 'quantity' => '1', 'cost' => 'abc'],
+            ['product_id' => 5, 'quantity' => '1'],
+        ]
+        && ($salvato['header']['supplier_id'] ?? null) === '7'
+        && ($salvato['header']['supplier_document_number'] ?? null) === 'DDT 12'
+        && ($salvato['header']['supplier_document_date'] ?? null) === '2026-10-13';
+});
+
 summary();
