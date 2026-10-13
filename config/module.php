@@ -21,6 +21,7 @@ return [
             \Wonder\Plugin\Gestionale\Backend\Widgets\ShipmentsToCheckWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\ShippedNotDeliveredWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\StockValueWidget::class,
+            \Wonder\Plugin\Gestionale\Backend\Widgets\ExpiringBatchesWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\ContactsWidget::class,
         ],
     ],

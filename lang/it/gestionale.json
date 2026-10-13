@@ -129,6 +129,7 @@
                 "supplier_role_in_use": "Questa scheda è ancora il fornitore di articoli o opzioni in vendita ({{count}}): toglila dai loro fornitori prima di cambiarle ruolo, o mettila su «Non attiva»."
             },
             "settings": {
+                "batch_expiry_days_invalid": "I giorni prima della scadenza vanno da 0 a 3650.",
                 "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo."
             },
             "payment_method": {
@@ -234,7 +235,8 @@
             "batch": {
                 "expiry_mismatch": "Il lotto della riga {{row}} c'è già con un'altra scadenza ({{expiry}}): controlla il lotto o la data.",
                 "wrong_product": "Il lotto scelto nella riga {{row}} non è di quella versione: ricarica la pagina e sceglilo di nuovo.",
-                "in_use": "Questo lotto ha dei movimenti: non si elimina."
+                "in_use": "Questo lotto ha dei movimenti: non si elimina.",
+                "invalid_expiry": "La scadenza non è una data valida: scrivila come gg/mm/aaaa o lasciala vuota."
             },
             "catalog": {
                 "batches_in_stock": "Ci sono ancora pezzi in un lotto di questo articolo: scaricali prima di spegnere «Gestisci lotti e scadenze»."
