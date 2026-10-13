@@ -149,7 +149,8 @@ check('creare: un tipo che non c\'è, una sede sconosciuta, una versione sparita
     return prova(static function (): bool {
         $a = articolo();
 
-        return rifiuto(fn () => StockDocuments::create('transfer', [], [])) === 'stock_document.unknown_type'
+        // `transfer` è un tipo vero da G3 (piano 4): il tipo che non c'è è un altro.
+        return rifiuto(fn () => StockDocuments::create('regalo', [], [])) === 'stock_document.unknown_type'
             && rifiuto(fn () => StockDocuments::create('receipt', ['location_id' => 999999], [])) === 'stock_document.location_unknown'
             && rifiuto(fn () => StockDocuments::create('receipt', [], [['product_id' => 999999, 'quantity' => '1']])) === 'stock.product_missing'
             && rifiuto(fn () => StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '1'], ['product_id' => $a, 'quantity' => '2']])) === 'stock_document.duplicate_product';

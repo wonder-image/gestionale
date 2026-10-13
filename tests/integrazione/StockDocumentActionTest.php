@@ -231,15 +231,20 @@ check('scheda: righe con nome e SKU, totale, nota, chi ha confermato e chi ha an
         $p = Product::findById($a);
         $scheda = StockDocumentSheet::for(StockDocument::findById($id));
 
-        return $scheda['lines'] === [[
-                'label' => html_entity_decode(ProductNames::full($p, ProductNames::models([$p])), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
-                'sku' => (string) $p['sku'],
-                'quantity' => '2,5',
-                'expected' => '',
-                'difference' => '',
-                'tone' => '',
-            ]]
-            && $scheda['total'] === '1 riga · 2,5 pezzi'
+        $attesa = [
+            'label' => html_entity_decode(ProductNames::full($p, ProductNames::models([$p])), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+            'sku' => (string) $p['sku'],
+            'quantity' => '2,5',
+            'expected' => '',
+            'difference' => '',
+            'tone' => '',
+        ];
+
+        // Da G3 la riga porta anche costo, totale di riga e lotto/fornitore,
+        // e con *Acquisti* il totale anche il valore: qui conta il resto.
+        return count($scheda['lines']) === 1
+            && array_intersect_key($scheda['lines'][0], $attesa) === $attesa
+            && str_starts_with($scheda['total'], '1 riga · 2,5 pezzi')
             && $scheda['note'] === 'Bolla 7'
             && $scheda['reason'] === ''
             && $scheda['confirmed'] === 'Confermato da '.nomeUtente($utente).' il '.$oggi
