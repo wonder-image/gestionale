@@ -302,6 +302,11 @@ versionamento semantico.
 
 ### Cambiato
 
+- Checkout con Stripe: Apple Pay, Google Pay e Link sono anche fra le scelte del
+  modulo, subito dopo la carta (`StripeMethods::choices()`), per chi chiede fattura
+  o ritira in negozio e non può usare la barra rapida. Tipi dell'intento automatici
+  (`intentTypes()` vuoto), Link senza icona; `Checkout::create` li accetta anche
+  senza `express` e li salva in `provider_method`.
 - Giacenze: nel menu ⋯ «Vai al prodotto» prende il posto di «Apri la versione» e apre
   la scheda in lettura dell'articolo (`view` di `ProductModelResource`, con
   `{product_model_id}`), non più la modifica della versione. Su mobile restano solo

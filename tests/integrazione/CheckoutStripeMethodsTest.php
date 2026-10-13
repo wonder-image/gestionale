@@ -191,21 +191,24 @@ function anteprima(int $metodo): array
     return Checkout::preview($cart, ['payment_method_id' => $metodo]);
 }
 
-check('il metodo Stripe dà una scelta per la carta e per ogni tipo acceso, senza wallet', fn () => prova(static function (): bool {
+check('il metodo Stripe dà una scelta per la carta, per ogni wallet e per ogni altro tipo acceso', fn () => prova(static function (): bool {
     soloQuestiMetodi();
     stripeConTipi(TIPI);
     $id = metodoStripe();
     $voci = array_values(array_filter(anteprima($id)['payment_methods']['options'], static fn (array $v): bool => $v['id'] === $id));
     PaymentProviders::reset();
-    [$carta, $klarna, $sepa] = $voci + [null, null, null];
+    [$carta, $apple, $google, $link, $klarna, $sepa] = $voci + array_fill(0, 6, null);
 
-    return count($voci) === 3
-        && array_column($voci, 'stripe_method_type') === ['card', 'klarna', 'sepa_debit']
-        && array_column($voci, 'key') === ["{$id}", "{$id}:klarna", "{$id}:sepa_debit"]
+    return count($voci) === 6
+        && array_column($voci, 'stripe_method_type') === ['card', 'apple_pay', 'google_pay', 'link', 'klarna', 'sepa_debit']
+        && array_column($voci, 'key') === ["{$id}", "{$id}:apple_pay", "{$id}:google_pay", "{$id}:link", "{$id}:klarna", "{$id}:sepa_debit"]
         && array_unique(array_column($voci, 'id')) === [$id]
         && $carta['name'] === (string) PaymentMethod::findById($id)['name']
         && $carta['icons'] === ['visa', 'master']
         && $carta['payment_method_types'] === ['card']
+        && $apple['name'] === 'Apple Pay' && $apple['icons'] === ['apple_pay'] && $apple['payment_method_types'] === []
+        && $google['name'] === 'Google Pay' && $google['payment_method_types'] === []
+        && $link['name'] === 'Link' && $link['icons'] === [] && $link['payment_method_types'] === []
         && $klarna['payment_method_types'] === ['klarna']
         && $sepa['name'] === 'Addebito SEPA';
 }));
@@ -234,13 +237,13 @@ check('selected resta l\'id del metodo', fn () => prova(static function (): bool
     return $selected === $id;
 }));
 
-check('place con un tipo non in elenco si rifiuta: spento (paypal) o wallet (apple_pay)', fn () => prova(static function (): bool {
+check('place con un tipo non in elenco si rifiuta: paypal o un wallet spenti', fn () => prova(static function (): bool {
     soloQuestiMetodi();
-    stripeConTipi(TIPI);
+    stripeConTipi(['card', 'apple_pay', 'klarna']);
     $id = metodoStripe();
     $esiti = [];
 
-    foreach (['paypal', 'apple_pay'] as $tipo) {
+    foreach (['paypal', 'google_pay'] as $tipo) {
         $esiti[] = rifiuto(fn () => compra($id, ['stripe_method_type' => $tipo]));
     }
 
@@ -384,12 +387,11 @@ check('express: card non è una scelta del wallet', fn () => prova(static functi
     return rifiuto(fn () => compra($metodo, ['stripe_method_type' => 'card', 'express' => true])) === 'order.payment_method_unavailable';
 }));
 
-check('senza express apple_pay resta rifiutato', fn () => prova(static function (): bool {
+check('dal modulo (senza express) apple_pay attivo si accetta e si salva come provider_method', fn () => prova(static function (): bool {
     soloQuestiMetodi();
     stripeConTipi(TIPI);
-    $metodo = metodoStripe();
 
-    return rifiuto(fn () => compra($metodo, ['stripe_method_type' => 'apple_pay'])) === 'order.payment_method_unavailable';
+    return providerMethod(compra(metodoStripe(), ['stripe_method_type' => 'apple_pay'])) === 'apple_pay';
 }));
 
 check('expressMethod: il metodo Stripe con i wallet attivi', fn () => prova(static function (): bool {
