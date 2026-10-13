@@ -269,6 +269,12 @@ final class OfficeOrders
             }
 
             OrderNotifier::send('office_confirmed', $orderId, [], $attachments);
+
+            // Il PDF temporaneo è già nell'email: sul disco non serve più.
+            foreach (array_keys($attachments) as $file) {
+                @unlink($file);
+                @rmdir(dirname($file));
+            }
         }
 
         return $result;

@@ -30,6 +30,7 @@ final class OrderSheet
         'status' => 'Ordine', 'payment_status' => 'Pagamento', 'fulfillment_status' => 'Evasione',
         'payment_reminder' => 'Promemoria di pagamento',
         'items' => 'Righe',
+        'stage' => 'Documento',
     ];
 
     private const LOG_KINDS = ['status' => 'order', 'payment_status' => 'payment', 'fulfillment_status' => 'fulfillment'];
@@ -201,6 +202,11 @@ final class OrderSheet
     {
         if ($value === '') {
             return '—';
+        }
+
+        // G9: il preventivo accettato diventa un ordine.
+        if ($field === 'stage') {
+            return ['quote' => 'Preventivo', 'order' => 'Ordine', 'cart' => 'Carrello'][$value] ?? $value;
         }
 
         $kind = self::LOG_KINDS[$field] ?? null;

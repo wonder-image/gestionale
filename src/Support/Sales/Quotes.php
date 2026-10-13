@@ -134,16 +134,21 @@ final class Quotes
             }
 
             Order::update(['stage' => 'order', 'status' => 'draft'], $orderId);
+            // Nello storico il passaggio da preventivo a ordine; lo stato, solo se cambia.
             StatusLogger::record(
                 OrderStatusLog::class,
                 $orderId,
-                'status',
-                (string) $order['status'],
-                'draft',
+                'stage',
+                'quote',
+                'order',
                 (string) ($options['source'] ?? 'user'),
                 (int) ($options['user_id'] ?? 0) ?: null,
                 'Preventivo accettato'
             );
+
+            if ((string) $order['status'] !== 'draft') {
+                StatusLogger::record(OrderStatusLog::class, $orderId, 'status', (string) $order['status'], 'draft', (string) ($options['source'] ?? 'user'), (int) ($options['user_id'] ?? 0) ?: null);
+            }
 
             return $orderId;
         });
