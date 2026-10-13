@@ -22,6 +22,8 @@ use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
@@ -138,7 +140,71 @@ class CustomerResource extends GestionaleResource
                 ->required();
         }
 
+        // G9: metodo e condizione che l'ordine da ufficio propone. La
+        // condizione si sceglie solo se ce n'è più d'una (D20).
+        if (static::paymentDefaultsShown()) {
+            $fields[] = FormField::key('payment_method_id')
+                ->select(['' => 'Nessuno'] + static::officeMethods())
+                ->label('Metodo di pagamento');
+
+            if (count(static::activeTerms()) > 1) {
+                $fields[] = FormField::key('payment_term_id')
+                    ->select(['' => 'Nessuna'] + static::activeTerms())
+                    ->label('Condizione di pagamento');
+            }
+        }
+
         return $fields;
+    }
+
+    /** Metodo e condizione predefiniti: solo per i clienti, con «Vendita in ufficio». */
+    public static function paymentDefaultsShown(): bool
+    {
+        return static::roleColumn() === 'is_customer' && Gestionale::feature('office_sales');
+    }
+
+    /** I metodi attivi che valgono in ufficio, per id. @return array<int, string> */
+    public static function officeMethods(): array
+    {
+        $metodi = [];
+
+        foreach (static::rowsOf(PaymentMethod::class, ['active' => 'true', 'applies_office' => 'true'], 'position') as $metodo) {
+            $metodi[(int) $metodo['id']] = (string) ($metodo['name'] ?? '');
+        }
+
+        return $metodi;
+    }
+
+    /** Le condizioni di pagamento attive, per id. @return array<int, string> */
+    public static function activeTerms(): array
+    {
+        $condizioni = [];
+
+        foreach (static::rowsOf(PaymentTerm::class, ['active' => 'true'], 'position') as $condizione) {
+            $condizioni[(int) $condizione['id']] = (string) ($condizione['name'] ?? '');
+        }
+
+        return $condizioni;
+    }
+
+    /** @return list<Card> */
+    protected static function paymentCards(): array
+    {
+        if (!static::paymentDefaultsShown()) {
+            return [];
+        }
+
+        $condizione = count(static::activeTerms()) > 1;
+
+        return [
+            (new Card)->components([
+                SectionTitle::make('Pagamento')
+                    ->tooltip('Quello che il nuovo ordine da ufficio propone per questo cliente: si può sempre cambiare sull\'ordine.'.($condizione ? ' La condizione dice in quante rate e quando paga.' : ''))
+                    ->columnSpan(12),
+                static::getInput('payment_method_id')->columnSpan(6),
+                ...($condizione ? [static::getInput('payment_term_id')->columnSpan(6)] : []),
+            ])->columns(12)->columnSpan(12),
+        ];
     }
 
     public static function formLayoutSchema(): ?Form
@@ -187,6 +253,7 @@ class CustomerResource extends GestionaleResource
                 static::getInput('cap')->columnSpan(3),
                 static::getInput('more')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
+            ...static::paymentCards(),
             (new Card)->components([
                 SectionTitle::make('Indirizzi di consegna')
                     ->tooltip('Dove si consegna, quando non è l\'indirizzo di fatturazione. Il destinatario è chi il corriere deve cercare.')
@@ -347,6 +414,12 @@ class CustomerResource extends GestionaleResource
         $sinistra[] = (new Card)->components([
             SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
             ...CustomerSheet::data($contact, static::authMethod(static::withAccount($contact))),
+            ...(static::paymentDefaultsShown()
+                ? CustomerSheet::payment(
+                    static::officeMethods()[(int) ($contact['payment_method_id'] ?? 0)] ?? '',
+                    count(static::activeTerms()) > 1 ? (static::activeTerms()[(int) ($contact['payment_term_id'] ?? 0)] ?? '') : null
+                )
+                : []),
         ])->columns(12)->columnSpan(12);
 
         if ($vendite) {
@@ -508,6 +581,22 @@ class CustomerResource extends GestionaleResource
         // con il loro valore di default, e la scheda cambierebbe ruolo da
         // sola al primo salvataggio.
         unset($values['roles'], $values['is_customer'], $values['is_supplier']);
+
+        // Metodo e condizione si scrivono solo dove il form li mostra: un
+        // salvataggio da un'altra pagina non li azzera.
+        if (!static::paymentDefaultsShown()) {
+            unset($values['payment_method_id'], $values['payment_term_id']);
+        } else {
+            if (array_key_exists('payment_method_id', $values)) {
+                $values['payment_method_id'] = (int) $values['payment_method_id'];
+            }
+
+            if (count(static::activeTerms()) <= 1) {
+                unset($values['payment_term_id']);
+            } elseif (array_key_exists('payment_term_id', $values)) {
+                $values['payment_term_id'] = (int) $values['payment_term_id'];
+            }
+        }
 
         if (Gestionale::feature('purchasing') && $choice !== '') {
             $values = [...$values, ...Contacts::rolesFromChoice($choice)];

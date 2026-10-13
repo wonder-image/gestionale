@@ -31,7 +31,8 @@ final class Installments
     /**
      * Alla conferma: una riga in attesa per ogni rata della condizione
      * dell'ordine, per quanto resta da pagare. Senza condizione, una rata sola
-     * a vista.
+     * a vista. La richiesta di pagamento aperta senza scadenza si annulla: la
+     * sostituiscono le rate.
      *
      * Ripetuta non scrive niente: un ordine che ha già rate le tiene.
      *
@@ -46,6 +47,17 @@ final class Installments
 
             if (self::pending($orderId) !== []) {
                 return [];
+            }
+
+            // La richiesta di pagamento ancora aperta (quella del checkout, senza
+            // scadenza) la prendono le rate: lasciata lì, il «da pagare» si
+            // conterebbe due volte.
+            foreach (self::rowsOf($orderId) as $row) {
+                if ((string) ($row['type'] ?? '') === 'payment'
+                    && (string) ($row['status'] ?? '') === 'pending'
+                    && !self::isDate((string) ($row['due_date'] ?? ''))) {
+                    self::move((int) $row['id'], 'pending', 'cancelled', 'Sostituita dalle rate');
+                }
             }
 
             $due = self::due($order, self::rowsOf($orderId));

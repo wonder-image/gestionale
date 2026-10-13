@@ -243,10 +243,6 @@ final class Defaults implements ModuleDefaults
     }
 
     /**
-     * Tre modi di pagare per cominciare. Stripe nasce spento: si accende
-     * quando c'è la chiave, un metodo che non può incassare non si propone.
-     */
-    /**
      * Le tre condizioni di pagamento più comuni (G9). Le rate nascono solo
      * insieme alla loro condizione: una condizione che c'era già, magari
      * cambiata dal commerciante, non si tocca.
@@ -303,6 +299,10 @@ final class Defaults implements ModuleDefaults
         }
     }
 
+    /**
+     * Tre modi di pagare per cominciare. Stripe nasce spento: si accende
+     * quando c'è la chiave, un metodo che non può incassare non si propone.
+     */
     private static function paymentMethods(DefaultRows $rows): void
     {
         $rows->ensure(PaymentMethod::class, 'code', [

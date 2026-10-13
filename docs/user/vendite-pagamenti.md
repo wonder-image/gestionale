@@ -34,6 +34,9 @@ se è ancora in attesa, la merce esce dal magazzino quando premi **Conferma**.
 Se invece l'ordine era già confermato ed evaso, l'ultimo incasso lo chiude da
 solo (**Completato**).
 
+Un ordine da ufficio può essere pagato **a rate**, ognuna con la sua scadenza:
+vedi [Pagamenti a rate e scadenzario](vendite-pagamenti-a-rate.md).
+
 ## Metodi e conti
 
 Si configurano in *Set Up → Pagamenti*:
@@ -43,6 +46,8 @@ Si configurano in *Set Up → Pagamenti*:
   chi è **Disponibile** e la **Commissione**. Le scelte sui canali (sito, ufficio, cassa)
   compaiono solo se hai acceso più di un [canale di vendita](canali-di-vendita.md). Il codice del
   metodo lo crea il sistema.
+* **Condizioni di pagamento** — in quante rate e quando: vedi
+  [Pagamenti a rate e scadenzario](vendite-pagamenti-a-rate.md).
 * **Conti di pagamento** — dove arriva il denaro: **Intestatario**, banca, IBAN e BIC finiscono
   nell'email del bonifico. Il conto si sceglie solo nei metodi di tipo *Bonifico bancario*.
 

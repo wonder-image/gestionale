@@ -156,7 +156,7 @@ return [
     ],
     'office_sales' => [
         'name' => 'Vendita in ufficio',
-        'description' => 'Gli ordini si fanno dal gestionale: coupon, campagne e metodi di pagamento valgono anche per l\'ufficio.',
+        'description' => 'Gli ordini si fanno dal gestionale: coupon, campagne e metodi di pagamento valgono anche per l\'ufficio; le rate si seguono nello Scadenzario.',
         'area' => 'Canali di vendita',
         'requires' => ['orders'],
         'release' => 'G6',

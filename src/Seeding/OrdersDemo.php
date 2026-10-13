@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Seeding;
 
+use DateTimeImmutable;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -11,6 +12,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
@@ -31,6 +33,7 @@ use Wonder\Plugin\Gestionale\Support\Orders\Cart;
 use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderLines;
+use Wonder\Plugin\Gestionale\Support\Payments\Installments;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
@@ -81,6 +84,8 @@ final class OrdersDemo
         'coupon-pagato' => ['method' => 'stripe', 'end' => 'paid', 'days' => 2, 'guest' => true, 'coupon' => 'DEMO-PERCENTUALE10'],
         'coupon-riservato' => ['method' => 'stripe', 'end' => 'paid', 'days' => 3, 'coupon' => 'DEMO-ANNA15'],
         'coupon-annullato' => ['method' => 'bank-transfer', 'end' => 'cancelled', 'days' => 4, 'coupon' => 'DEMO-PERCENTUALE10'],
+        // G9, a «Vendita in ufficio» accesa: un ordine da ufficio in RiBa 30/60, la prima rata già scaduta.
+        'rate-ufficio' => ['method' => 'bank-transfer', 'end' => 'installments', 'days' => 45, 'company' => true, 'office' => true],
     ];
 
     public static function register(): void
@@ -98,10 +103,12 @@ final class OrdersDemo
     {
         $bundles = Gestionale::feature('bundles');
         $coupons = Gestionale::feature('coupons');
+        $office = Gestionale::feature('office_sales');
         $missing = array_filter(
             array_keys(self::ORDERS),
             static fn (string $ref): bool => ($bundles || empty(self::ORDERS[$ref]['bundle']))
                 && ($coupons || empty(self::ORDERS[$ref]['coupon']))
+                && ($office || empty(self::ORDERS[$ref]['office']))
                 && self::find($ref) === []
         );
 
@@ -253,6 +260,7 @@ final class OrdersDemo
             'fulfilled' => self::fulfilled($orderId, $ref),
             'cancelled' => Lifecycle::cancel($orderId, ['reason' => 'Ordine di prova annullato', 'notify' => false, 'merchant_notice' => false, 'source' => 'system']),
             'partial' => self::partial($orderId, (float) $placed['total']),
+            'installments' => self::installments($orderId, (int) $plan['days']),
             default => null,
         };
 
@@ -371,6 +379,24 @@ final class OrdersDemo
             'provider' => 'manual',
             'source' => 'system',
         ]);
+    }
+
+    /**
+     * Da ufficio, in RiBa 30/60 gg fine mese, confermato `$days` giorni fa:
+     * le rate partono da lì, e la prima è già scaduta.
+     */
+    private static function installments(int $orderId, int $days): void
+    {
+        $term = PaymentTerm::find(['code' => 'riba-30-60-fm', 'deleted' => 'false'], 1);
+
+        if (!is_array($term) || !isset($term['id'])) {
+            Defaults::seed(new DefaultRows());
+            $term = PaymentTerm::find(['code' => 'riba-30-60-fm', 'deleted' => 'false'], 1);
+        }
+
+        Order::update(['channel' => 'office', 'payment_term_id' => (int) ($term['id'] ?? 0)], $orderId);
+        Lifecycle::confirm($orderId, ['payment' => false, 'notify' => false, 'source' => 'system']);
+        Installments::create($orderId, new DateTimeImmutable('today -'.$days.' days'));
     }
 
     /**

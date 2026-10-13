@@ -139,6 +139,7 @@
             },
             "settings": {
                 "batch_expiry_days_invalid": "I giorni prima della scadenza vanno da 0 a 3650.",
+                "payment_due_days_invalid": "I giorni di preavviso per le scadenze vanno da 0 a 365.",
                 "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo."
             },
             "payment_method": {

@@ -132,6 +132,19 @@ check('senza condizione, una rata sola a vista', function () {
     });
 });
 
+check('la richiesta aperta senza scadenza la sostituiscono le rate', function () {
+    return prova(static function (): bool {
+        $ordine = ordineDiProva(300.0);
+        $aperta = Wonder\Plugin\Gestionale\Support\Payments\Ledger::open(['order_id' => $ordine, 'amount' => 300.0])['payment_id'];
+        Order::update(['payment_term_id' => condizione([[30, true, 50], [60, true, 50]])], $ordine);
+        Installments::create($ordine, new DateTimeImmutable('2026-10-10'));
+
+        return (string) Payment::findById($aperta)['status'] === 'cancelled'
+            && count(Installments::pending($ordine)) === 2
+            && round(array_sum(array_column(Installments::pending($ordine), 'amount')), 2) === 300.0;
+    });
+});
+
 check('pagamento uguale alla rata: pagata, le altre restano', function () {
     return prova(static function (): bool {
         $ordine = ordineATreRate();

@@ -25,6 +25,7 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Payments\Installments;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentStatus;
+use Wonder\Plugin\Gestionale\Support\Stock\BatchExpiry;
 
 /**
  * «Registra pagamento»: il denaro arrivato a mano — il bonifico guardato
@@ -63,10 +64,23 @@ final class OrderPaymentResource extends NavigationOnlyResource
         return true;
     }
 
-    /** Il link che apre la pagina su un ordine, con la strada del ritorno. */
-    public static function urlFor(int $orderId, string $back = ''): string
+    /** Il link che apre la pagina su un ordine, con la strada del ritorno; con `$paymentId`, su quella rata. */
+    public static function urlFor(int $orderId, string $back = '', int $paymentId = 0): string
     {
-        $url = static::submitUrl().'?ordine='.$orderId;
+        return static::installmentUrlPattern((string) $orderId, $paymentId > 0 ? (string) $paymentId : '', $back);
+    }
+
+    /**
+     * Lo stesso link con i segnaposto del menu di riga (`{order_id}`, `{id}`):
+     * lo scadenzario apre la pagina sulla rata.
+     */
+    public static function installmentUrlPattern(string $order, string $payment, string $back = ''): string
+    {
+        $url = static::submitUrl().'?ordine='.$order;
+
+        if ($payment !== '') {
+            $url .= '&rata='.$payment;
+        }
 
         return $back === '' ? $url : $url.'&torna='.rawurlencode($back);
     }
@@ -164,11 +178,13 @@ final class OrderPaymentResource extends NavigationOnlyResource
     public static function formSchema(): array
     {
         $ordine = static::currentOrder();
+        $rata = static::currentInstallment($ordine);
         $metodi = static::activeMethods();
         $predefinito = (int) ($ordine['payment_method_id'] ?? 0);
+        $importo = $rata !== null ? $rata['amount'] : static::balanceOf($ordine);
 
         return [
-            FormField::key('amount')->text()->label('Importo (€)')->value(static::moneyField(static::balanceOf($ordine)))->required(),
+            FormField::key('amount')->text()->label('Importo (€)')->value(static::moneyField($importo))->required(),
             FormField::key('payment_method_id')
                 ->select($metodi)
                 ->value((string) (isset($metodi[$predefinito]) ? $predefinito : (array_key_first($metodi) ?? '')))
@@ -176,6 +192,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
             FormField::key('paid_at')->dateInput()->value(date('d/m/Y'))->label('Data')->required(),
             FormField::key('reference')->text()->label('Riferimento'),
             FormField::key('order_id')->hidden()->value((string) ($ordine['id'] ?? 0)),
+            FormField::key('payment_id')->hidden()->value((string) ($rata['id'] ?? '')),
             FormField::key('back')->hidden()->value(StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '')),
         ];
     }
@@ -183,11 +200,12 @@ final class OrderPaymentResource extends NavigationOnlyResource
     public static function formLayoutSchema(): ?Form
     {
         $ordine = static::currentOrder();
+        $rata = static::currentInstallment($ordine);
 
         return (new Form)->components([
             (new Container)->components([
                 (new Card)->components([
-                    SectionTitle::make(static::titleFor($ordine))
+                    SectionTitle::make(static::titleFor($ordine, $rata))
                         ->tooltip(static::HELP)
                         ->columnSpan(12),
                     RichText::make(static::summaryLine($ordine))->columnSpan(12),
@@ -196,6 +214,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
                     static::getInput('paid_at')->columnSpan(3),
                     static::getInput('reference')->columnSpan(3),
                     static::getInput('order_id')->columnSpan(12),
+                    static::getInput('payment_id')->columnSpan(12),
                     static::getInput('back')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
@@ -348,17 +367,22 @@ final class OrderPaymentResource extends NavigationOnlyResource
         $metodo = PaymentMethod::findById((int) ($values['payment_method_id'] ?? 0));
         $metodo = is_array($metodo) && $metodo !== [] ? $metodo : [];
 
-        // Con le rate in attesa l'incasso chiude prima quella che scade prima:
-        // `Ledger` ne scriverebbe uno a parte e le rate resterebbero aperte.
-        $esito = Installments::hasPending($orderId)
-            ? Installments::registerOnOrder($orderId, $amount, [
-                'payment_method_id' => (int) ($metodo['id'] ?? 0),
-                'reference' => trim((string) ($values['reference'] ?? '')),
-                'paid_at' => static::dateFrom($values['paid_at'] ?? ''),
-                'source' => 'user',
-                'user_id' => $userId,
-            ])
-            : Ledger::register([
+        $opzioni = [
+            'payment_method_id' => (int) ($metodo['id'] ?? 0),
+            'reference' => trim((string) ($values['reference'] ?? '')),
+            'paid_at' => static::dateFrom($values['paid_at'] ?? ''),
+            'source' => 'user',
+            'user_id' => $userId,
+        ];
+        $rata = (int) ($values['payment_id'] ?? 0);
+
+        // Dallo scadenzario si paga quella rata. Senza, con le rate in attesa
+        // l'incasso chiude prima quella che scade prima: `Ledger` ne
+        // scriverebbe uno a parte e le rate resterebbero aperte.
+        $esito = match (true) {
+            $rata > 0 => Installments::register(static::installmentOf($orderId, $rata), $amount, $opzioni),
+            Installments::hasPending($orderId) => Installments::registerOnOrder($orderId, $amount, $opzioni),
+            default => Ledger::register([
                 'order_id' => $orderId,
                 'amount' => $amount,
                 'customer_id' => (int) ($ordine['customer_id'] ?? 0),
@@ -369,7 +393,8 @@ final class OrderPaymentResource extends NavigationOnlyResource
                 'paid_at' => static::dateFrom($values['paid_at'] ?? ''),
                 'source' => 'user',
                 'user_id' => $userId,
-            ]);
+            ]),
+        };
 
         $resta = round($residuo - $amount, 2);
         $message = 'Registrato l\'incasso di '.OrderSheet::money($amount).' sull\'ordine '.trim((string) ($ordine['order_number'] ?? '')).'.';
@@ -390,10 +415,59 @@ final class OrderPaymentResource extends NavigationOnlyResource
         return is_array($ordine) && $ordine !== [] ? $ordine : [];
     }
 
-    /** @param array<string, mixed> $ordine */
-    private static function titleFor(array $ordine): string
+    /**
+     * La rata scelta dallo scadenzario (`?rata=`), se è ancora in attesa e
+     * dell'ordine; altrimenti nessuna, e l'incasso è libero.
+     *
+     * @param array<string, mixed> $ordine
+     * @return array{id: int, amount: float, due_date: string, note: string}|null
+     */
+    private static function currentInstallment(array $ordine): ?array
     {
-        return $ordine === [] ? 'Registra pagamento' : 'Registra pagamento: ordine '.trim((string) ($ordine['order_number'] ?? ''));
+        $id = (int) ($_GET['rata'] ?? $_POST['payment_id'] ?? 0);
+
+        if ($id <= 0 || $ordine === []) {
+            return null;
+        }
+
+        foreach (Installments::pending((int) $ordine['id']) as $rata) {
+            if ($rata['id'] === $id) {
+                return $rata;
+            }
+        }
+
+        return null;
+    }
+
+    /** La rata dell'ordine, o il rifiuto: una rata d'un altro ordine non si paga qui. */
+    private static function installmentOf(int $orderId, int $paymentId): int
+    {
+        $riga = Payment::findById($paymentId);
+
+        if (!is_array($riga) || (int) ($riga['order_id'] ?? 0) !== $orderId) {
+            throw UserError::make('payment.installment_not_pending');
+        }
+
+        return $paymentId;
+    }
+
+    /**
+     * @param array<string, mixed> $ordine
+     * @param array{note: string, due_date: string}|null $rata
+     */
+    private static function titleFor(array $ordine, ?array $rata = null): string
+    {
+        if ($ordine === []) {
+            return 'Registra pagamento';
+        }
+
+        $titolo = 'Registra pagamento: ordine '.trim((string) ($ordine['order_number'] ?? ''));
+
+        if ($rata !== null) {
+            $titolo .= ', '.lcfirst($rata['note'] !== '' ? $rata['note'] : 'rata').' del '.BatchExpiry::label($rata['due_date']);
+        }
+
+        return $titolo;
     }
 
     /** La riga che dice a che punto è l'ordine, sopra le caselle. */
