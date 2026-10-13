@@ -63,6 +63,7 @@ final class Codes
     // Abbonamenti, listini e sconti
     public const SUBSCRIPTION = 'sub_';
     public const PLAN = 'pln_';
+    public const PLAN_PRICE = 'ppr_';
     public const PRICE_LIST = 'prl_';
     public const DISCOUNT_CAMPAIGN = 'dsc_';
 

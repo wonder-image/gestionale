@@ -13,7 +13,8 @@
                 "location_unknown": "Una riga della giacenza punta a una sede che non è più del magazzino: ricarica la pagina e riprova."
             },
             "feature": {
-                "multi_location_in_use": "«Più sedi» non si spegne: {{where}}. Riporta la merce nella sede principale con un trasferimento e ricevi quelli in viaggio, poi riprova."
+                "multi_location_in_use": "«Più sedi» non si spegne: {{where}}. Riporta la merce nella sede principale con un trasferimento e ricevi quelli in viaggio, poi riprova.",
+                "subscriptions_in_use": "«Abbonamenti» non si spegne: {{count}}. Aspetta che finiscano o annullali, poi riprova."
             },
             "stock_document": {
                 "not_found": "Questo documento di magazzino non esiste più.",
@@ -202,7 +203,9 @@
                 "amount_not_positive": "L'importo dello sconto deve essere maggiore di zero.",
                 "ends_before_starts": "Il coupon non può finire prima di cominciare.",
                 "type_not_allowed": "Questo tipo di coupon non si crea da qui.",
-                "customer_unknown": "Uno dei clienti scelti non esiste più."
+                "customer_unknown": "Uno dei clienti scelti non esiste più.",
+                "duration_months_required": "Scrivi per quanti mesi vale il coupon sugli abbonamenti.",
+                "subscriptions_free_shipping": "La spedizione gratuita non vale per gli abbonamenti: scegli una percentuale o un importo."
             },
             "shipping": {
                 "no_method_for_destination": "Non spediamo verso questa destinazione.",
@@ -247,6 +250,18 @@
             },
             "catalog": {
                 "batches_in_stock": "Ci sono ancora pezzi in un lotto di questo articolo: scaricali prima di spegnere «Gestisci lotti e scadenze»."
+            },
+            "plan": {
+                "name_required": "Scrivi il nome del piano.",
+                "no_prices": "Un piano ha almeno un prezzo.",
+                "price_name_required": "Ogni prezzo ha un nome («Mensile», «Annuale»).",
+                "price_invalid": "Il prezzo «{{name}}» deve essere un numero, zero o più.",
+                "sale_not_lower": "Il prezzo scontato di «{{name}}» deve essere più basso del prezzo.",
+                "term_mismatch": "I mesi per addebito di «{{name}}» non vanno con l'intervallo: da 1 a 12 per il mensile, 12, 24 o 36 per l'annuale.",
+                "negative_period": "Vincolo e giorni di prova di «{{name}}» non possono essere negativi.",
+                "renewal_invalid": "Il prezzo di rinnovo di «{{name}}» deve essere un altro prezzo, già salvato, di un piano attivo.",
+                "price_in_use": "Il prezzo «{{name}}» è usato da un abbonamento e non si toglie: spegnilo.",
+                "in_use": "Il piano ha {{count}} abbonamenti in corso e non si elimina: spegnilo."
             }
         },
         "emails": {

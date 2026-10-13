@@ -64,7 +64,8 @@ check('ogni tabella ha le sue colonne', function () use ($colonne) {
         Coupon::class => [
             'code', 'name', 'discount_type', 'discount_value', 'min_order_amount', 'applies_to_all',
             'exclude_discounted_products', 'first_order_only', 'usage_limit', 'usage_limit_per_customer',
-            'starts_at', 'ends_at', 'applies_online', 'applies_office', 'applies_pos', 'active', 'note',
+            'starts_at', 'ends_at', 'applies_online', 'applies_office', 'applies_pos',
+            'applies_subscriptions', 'duration', 'duration_months', 'active', 'note',
         ],
         CouponCategory::class => ['coupon_id', 'category_id'],
         CouponTag::class => ['coupon_id', 'tag_id'],
