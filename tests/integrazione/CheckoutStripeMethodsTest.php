@@ -208,7 +208,7 @@ check('il metodo Stripe dà una scelta per la carta, per ogni wallet e per ogni 
         && $carta['payment_method_types'] === ['card']
         && $apple['name'] === 'Apple Pay' && $apple['icons'] === ['apple_pay'] && $apple['payment_method_types'] === []
         && $google['name'] === 'Google Pay' && $google['payment_method_types'] === []
-        && $link['name'] === 'Link' && $link['icons'] === [] && $link['payment_method_types'] === []
+        && $link['name'] === 'Link' && $link['icons'] === ['link'] && $link['payment_method_types'] === []
         && $klarna['payment_method_types'] === ['klarna']
         && $sepa['name'] === 'Addebito SEPA';
 }));
