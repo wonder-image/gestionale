@@ -2144,6 +2144,22 @@ check('«Aggiungi caratteristica» propone quelle nascoste e quella nuova', func
         && str_contains($testo, 'Nuova caratteristica…');
 });
 
+check('i menu «Aggiungi» escono dal Dropdown del core, senza freccia, e lo script trova il divisore nel menu', function () use ($schedaTecnica, $testoScheda, $schedaAperta) {
+    $testo = $testoScheda($schedaTecnica::vediScheda());
+    $selettore = $schedaAperta::vediSelettore();
+    $bottone = static fn (string $html, string $classe): bool => preg_match('#<button type="button" class="btn btn-outline-secondary w-100 '.$classe.'" style="border-style:dashed" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-plus-lg"></i> Aggiungi#u', $html) === 1;
+
+    return $bottone($testo, 'wi-technical-choose')
+        && $bottone($selettore, 'wi-option-choose')
+        && !str_contains($testo.$selettore, 'dropdown-toggle')
+        && str_contains($testo, '<div class="dropdown wi-technical-picker">')
+        && str_contains($selettore, '<div class="dropdown wi-option-add">')
+        && str_contains($testo, '<li><hr class="dropdown-divider"></li>')
+        && str_contains($testo, 'function divisoreDelMenu()')
+        && !str_contains($testo, 'wi-technical-divider')
+        && str_contains($testo, '<span class="dropdown-item-text small text-body-secondary">Elenchi e simboli');
+});
+
 check('togliere una caratteristica la svuota, perché nascosta si salverebbe lo stesso', function () use ($schedaTecnica, $testoScheda) {
     $testo = $testoScheda($schedaTecnica::vediScheda());
 
