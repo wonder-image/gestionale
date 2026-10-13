@@ -117,8 +117,6 @@ $noteHelp = $purchases ? 'Per esempio chi ha consegnato o cosa mancava.' : $note
     var form = document.getElementById('wi-doc-form');
     var intent = form.querySelector('input[name="intent"]');
     var lines = form.querySelector('input[name="lines"]');
-    var buttons = form.querySelectorAll('button[type="submit"], [data-wi-doc-confirm]');
-    var confirmButton = form.querySelector('[data-wi-doc-confirm]');
     var question = <?=$json($resource::confirmQuestion())?>;
     var label = <?=$json($resource::confirmLabel())?>;
     var sending = false;
@@ -129,7 +127,9 @@ $noteHelp = $purchases ? 'Per esempio chi ha consegnato o cosa mancava.' : $note
         return root ? root.wiStockEditor : null;
     }
 
+    // I bottoni stanno nei <wi-card>, che il core ricopia al caricamento: si cercano ogni volta.
     function lock(on) {
+        var buttons = form.querySelectorAll('button[type="submit"], [data-wi-doc-confirm]');
         var i;
 
         sending = on;
@@ -184,9 +184,16 @@ $noteHelp = $purchases ? 'Per esempio chi ha consegnato o cosa mancava.' : $note
         }
     });
 
-    confirmButton.addEventListener('click', function () {
-        var current = editor();
+    // Il click si ascolta sul form, che resta: il bottone viene ricopiato con il suo <wi-card>.
+    form.addEventListener('click', function (event) {
+        var current;
         var words;
+
+        if (!event.target.closest('[data-wi-doc-confirm]')) {
+            return;
+        }
+
+        current = editor();
 
         if (sending || !current || !current.validate()) {
             return;
