@@ -8,6 +8,7 @@ use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTermInstallment;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -15,8 +16,9 @@ use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Sql\Transaction;
 
 /**
- * Le rate di un ordine da ufficio (G9.3): una riga di `gst_payments` in
- * attesa per rata, con la sua scadenza.
+ * Le rate di un ordine da ufficio (G9.3) o di un periodo di un abbonamento
+ * da ufficio (G10 §3): una riga di `gst_payments` in attesa per rata, con la
+ * sua scadenza.
  *
  * I conti li fa `InstallmentMath`, che è pura; qui si leggono le rate, si
  * scrive quello che dice e si lascia a `Ledger::sync()` lo stato di pagamento
@@ -66,7 +68,7 @@ final class Installments
             $count = count($schedule);
 
             foreach ($schedule as $i => $rata) {
-                $ids[] = self::write($order, (float) $rata['amount'], (string) $rata['due_date'], 'Rata '.($i + 1).' di '.$count);
+                $ids[] = self::write($order, 'order_id', (float) $rata['amount'], (string) $rata['due_date'], 'Rata '.($i + 1).' di '.$count);
             }
 
             if ($ids !== []) {
@@ -91,14 +93,18 @@ final class Installments
         return Transaction::run(static function () use ($paymentId, $amount, $options, $paidAt): array {
             $row = Payment::findById($paymentId);
             $orderId = is_array($row) ? (int) ($row['order_id'] ?? 0) : 0;
+            $subscriptionId = is_array($row) ? (int) ($row['subscription_id'] ?? 0) : 0;
 
-            if ($orderId <= 0) {
-                throw UserError::make('payment.installment_not_pending');
+            if ($orderId > 0) {
+                return self::apply(['column' => 'order_id', 'id' => $orderId, 'row' => self::lockOrder($orderId)], $paymentId, $amount, $options, $paidAt);
             }
 
-            self::lockOrder($orderId);
+            // Le rate di un abbonamento da ufficio (G10): stessi conti, nessun ordine da allineare.
+            if ($subscriptionId > 0) {
+                return self::apply(['column' => 'subscription_id', 'id' => $subscriptionId, 'row' => self::lockSubscription($subscriptionId)], $paymentId, $amount, $options, $paidAt);
+            }
 
-            return self::apply($orderId, $paymentId, $amount, $options, $paidAt);
+            throw UserError::make('payment.installment_not_pending');
         });
     }
 
@@ -114,14 +120,14 @@ final class Installments
         $paidAt = Ledger::paidAt($options);
 
         return Transaction::run(static function () use ($orderId, $amount, $options, $paidAt): array {
-            self::lockOrder($orderId);
+            $order = self::lockOrder($orderId);
             $pending = self::pending($orderId);
 
             if ($pending === []) {
                 throw UserError::make('payment.installment_not_pending');
             }
 
-            return self::apply($orderId, (int) $pending[0]['id'], $amount, $options, $paidAt);
+            return self::apply(['column' => 'order_id', 'id' => $orderId, 'row' => $order], (int) $pending[0]['id'], $amount, $options, $paidAt);
         });
     }
 
@@ -165,9 +171,46 @@ final class Installments
      */
     public static function pending(int $orderId): array
     {
+        return self::pendingOf('order_id', $orderId);
+    }
+
+    /**
+     * Le rate in attesa di un abbonamento da ufficio (G10), in ordine di scadenza.
+     *
+     * @return list<array{id: int, amount: float, due_date: string, note: string}>
+     */
+    public static function pendingForSubscription(int $subscriptionId): array
+    {
+        return self::pendingOf('subscription_id', $subscriptionId);
+    }
+
+    /**
+     * Le rate di un periodo di un abbonamento da ufficio (G10 §3): una riga
+     * in attesa per rata della condizione di pagamento, dalla data d'inizio
+     * del periodo.
+     *
+     * @param array<string, mixed> $subscription riga di `gst_subscriptions`
+     * @return list<int> gli id delle rate scritte
+     */
+    public static function createForSubscription(array $subscription, float $total, DateTimeImmutable $from, string $label): array
+    {
+        $schedule = PaymentSchedule::of(self::termRows((int) ($subscription['payment_term_id'] ?? 0)), $total, $from);
+        $count = count($schedule);
+        $ids = [];
+
+        foreach ($schedule as $i => $rata) {
+            $ids[] = self::write($subscription, 'subscription_id', (float) $rata['amount'], (string) $rata['due_date'], $label.($count > 1 ? ', rata '.($i + 1).' di '.$count : ''));
+        }
+
+        return $ids;
+    }
+
+    /** @return list<array{id: int, amount: float, due_date: string, note: string}> */
+    private static function pendingOf(string $column, int $id): array
+    {
         $rate = [];
 
-        foreach (self::rowsOf($orderId) as $row) {
+        foreach (self::rowsOf($id, $column) as $row) {
             if ((string) ($row['type'] ?? '') !== 'payment'
                 || (string) ($row['status'] ?? '') !== 'pending'
                 || !self::isDate((string) ($row['due_date'] ?? ''))) {
@@ -196,12 +239,17 @@ final class Installments
     /**
      * Il pagamento sulla rata, scritto: la rata, il resto, le successive.
      *
+     * Il titolare delle rate è un ordine o un abbonamento: `column` dice
+     * quale, `row` è la sua riga già bloccata. Lo stato di pagamento si
+     * riallinea solo per l'ordine.
+     *
+     * @param array{column: string, id: int, row: array<string, mixed>} $owner
      * @param array<string, mixed> $options
      * @return array{payment_id: int, payment_status: string}
      */
-    private static function apply(int $orderId, int $paymentId, float $amount, array $options, string $paidAt): array
+    private static function apply(array $owner, int $paymentId, float $amount, array $options, string $paidAt): array
     {
-        $pending = self::pending($orderId);
+        $pending = self::pendingOf($owner['column'], $owner['id']);
         $plan = InstallmentMath::register($pending, $paymentId, $amount);
         $target = null;
 
@@ -241,17 +289,14 @@ final class Installments
 
         self::log($paymentId, 'status', 'pending', 'paid', $options);
 
-        if ($plan['create'] !== []) {
-            $order = Order::findById($orderId);
-
-            foreach ($plan['create'] as $resto) {
-                self::write(
-                    is_array($order) ? $order : ['id' => $orderId],
-                    (float) $resto['amount'],
-                    (string) $resto['due_date'],
-                    trim($target['note'].' (resto)')
-                );
-            }
+        foreach ($plan['create'] as $resto) {
+            self::write(
+                $owner['row'],
+                $owner['column'],
+                (float) $resto['amount'],
+                (string) $resto['due_date'],
+                trim($target['note'].' (resto)')
+            );
         }
 
         foreach ($plan['update'] as $id => $value) {
@@ -262,21 +307,26 @@ final class Installments
             self::move($id, 'pending', 'cancelled', 'Pagata con la rata precedente');
         }
 
-        return ['payment_id' => $paymentId, 'payment_status' => Ledger::sync($orderId)];
+        return [
+            'payment_id' => $paymentId,
+            'payment_status' => $owner['column'] === 'order_id' ? Ledger::sync($owner['id']) : '',
+        ];
     }
 
     /**
      * Una rata in attesa, firmata col proprio codice come gli incassi a mano.
+     * `$column` dice di chi è: `order_id` o `subscription_id`.
      *
-     * @param array<string, mixed> $order
+     * @param array<string, mixed> $order la riga dell'ordine o dell'abbonamento
      */
-    private static function write(array $order, float $amount, string $dueDate, string $note): int
+    private static function write(array $order, string $column, float $amount, string $dueDate, string $note): int
     {
         $code = Code::make(Payment::class, Codes::PAYMENT);
         $created = Payment::create([
             'code' => $code,
             'type' => 'payment',
-            'order_id' => (int) $order['id'],
+            'order_id' => $column === 'order_id' ? (int) $order['id'] : 0,
+            'subscription_id' => $column === 'subscription_id' ? (int) $order['id'] : 0,
             'customer_id' => (int) ($order['customer_id'] ?? 0),
             'payment_method_id' => (int) ($order['payment_method_id'] ?? 0),
             'payment_account_id' => (int) ($order['payment_account_id'] ?? 0),
@@ -329,6 +379,18 @@ final class Installments
     }
 
     /** @return array<string, mixed> */
+    private static function lockSubscription(int $subscriptionId): array
+    {
+        $row = Subscription::findForUpdate(['id' => $subscriptionId], 1);
+
+        if (!is_array($row) || $row === [] || (string) ($row['deleted'] ?? 'false') === 'true') {
+            throw new RuntimeException("Abbonamento {$subscriptionId} non trovato.");
+        }
+
+        return $row;
+    }
+
+    /** @return array<string, mixed> */
     private static function lockOrder(int $orderId): array
     {
         $order = $orderId > 0 ? Order::findForUpdate(['id' => $orderId], 1) : null;
@@ -372,9 +434,9 @@ final class Installments
     }
 
     /** @return list<array<string, mixed>> */
-    private static function rowsOf(int $orderId): array
+    private static function rowsOf(int $orderId, string $column = 'order_id'): array
     {
-        $rows = Payment::find(['order_id' => $orderId, 'deleted' => 'false']);
+        $rows = Payment::find([$column => $orderId, 'deleted' => 'false']);
 
         if (!is_array($rows) || $rows === []) {
             return [];
