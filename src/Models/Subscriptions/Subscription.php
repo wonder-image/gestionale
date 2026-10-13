@@ -34,6 +34,8 @@ final class Subscription extends Model
     public const LIVE = ['trialing', 'active', 'past_due'];
     public const CHANNELS = ['online', 'office'];
     public const PROVIDERS = ['stripe', 'manual'];
+    /** Come i pagamenti: un abbonamento di prova non è un abbonamento vero. */
+    public const ENVIRONMENTS = ['live', 'test'];
 
     /** La fatturazione: gli stessi campi dell'ordine. */
     public static function billingAddress(): AddressExtension
@@ -79,6 +81,7 @@ final class Subscription extends Model
             Column::key('cancelled_at')->datetime(),
             Column::key('ended_at')->datetime(),
             Column::key('provider_reference')->length(191),
+            Column::key('environment')->enum(static::ENVIRONMENTS)->default('live'),
             Column::key('note')->type('TEXT'),
         ];
     }
@@ -127,6 +130,7 @@ final class Subscription extends Model
             Field::key('cancelled_at')->date(),
             Field::key('ended_at')->date(),
             Field::key('provider_reference')->text()->sanitize(false),
+            Field::key('environment')->text()->sanitize(false),
             Field::key('note')->text(),
         ];
     }

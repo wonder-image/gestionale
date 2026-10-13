@@ -58,7 +58,7 @@ check('ogni tabella ha le sue colonne', function () use ($colonne) {
             'payment_term_id', 'coupon_id', 'coupon_code', 'billing_country', 'prices_include_tax', 'subtotal',
             'discount_total', 'tax_id', 'tax_country', 'tax_rate', 'tax_total', 'total', 'currency', 'started_at',
             'trial_ends_at', 'commitment_ends_at', 'current_period_start', 'current_period_end', 'next_renewal_at',
-            'auto_renew', 'cancel_requested_at', 'cancelled_at', 'ended_at', 'provider_reference', 'note',
+            'auto_renew', 'cancel_requested_at', 'cancelled_at', 'ended_at', 'provider_reference', 'environment', 'note',
         ],
         SubscriptionPlanChange::class => ['subscription_id', 'old_plan_price_id', 'new_plan_price_id', 'user_id', 'source', 'changed_at'],
         SubscriptionStatusLog::class => ['subscription_id', 'field', 'from_value', 'to_value', 'source', 'user_id', 'message'],
