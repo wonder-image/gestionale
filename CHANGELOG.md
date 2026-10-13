@@ -325,6 +325,11 @@ versionamento semantico.
 
 ### Corretto
 
+- Dati di prova del catalogo: un articolo o un attributo di prova cancellato dal
+  backend (che lo segna e basta, tenendo il codice) non si rifaceva più e il
+  comando lo saltava. Ora si toglie davvero, con le sue righe figlie, e rinasce
+  da zero; `--fresh` toglie anche quelli cancellati. Se un multiprodotto o un
+  articolo vero lo usa ancora resta, e il comando lo dice.
 - Ritiro in una sede che non è la principale: la merce si prenotava e si
   scaricava dalla sede di ritiro, che non è un magazzino, e il checkout
   rispondeva «non disponibile» (o, con la vendita senza giacenza, la sede di
