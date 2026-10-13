@@ -393,6 +393,8 @@ final class OfficeOrders
         }
 
         $shipping = Gestionale::feature('shipping') ? Shipments::remaining((int) $order['id']) : null;
+        // G9.15: quello che un DDT emesso ha già consegnato non si annulla.
+        $notes = DeliveryNotes::inNotes((int) $order['id']);
         $done = (string) ($order['fulfillment_status'] ?? '') === 'fulfilled';
         $out = [];
 
@@ -408,7 +410,11 @@ final class OfficeOrders
             if ((string) $item['type'] === 'custom') {
                 $out[$id] = $quantity;
             } elseif ((string) $item['type'] === 'product') {
-                $out[$id] = $done ? 0.0 : ($shipping === null ? $quantity : min($quantity, (float) ($shipping[$id] ?? 0.0)));
+                // Con le spedizioni accese il resto da spedire conta già i DDT;
+                // spente, o per un prodotto che non si spedisce, si tolgono i DDT.
+                $out[$id] = $done ? 0.0 : ($shipping !== null && array_key_exists($id, $shipping)
+                    ? min($quantity, (float) $shipping[$id])
+                    : max(0.0, round($quantity - (float) ($notes[$id] ?? 0.0), 3)));
             }
         }
 

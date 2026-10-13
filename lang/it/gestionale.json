@@ -43,6 +43,19 @@
                 "cannot_receive": "Si riceve solo un trasferimento in viaggio.",
                 "transfer_moved": "La merce non è più tutta nella sede d'arrivo: una parte è già uscita, e il trasferimento non si annulla. Riportala con un trasferimento nuovo."
             },
+            "delivery_note": {
+                "not_found": "Questo DDT non c'è più.",
+                "not_draft": "Questo DDT è già emesso: non si modifica più. Puoi annullarlo e farne un altro.",
+                "not_issued": "Si manda solo un DDT emesso.",
+                "cannot_cancel": "Si annulla solo un DDT emesso.",
+                "order_not_ready": "Il DDT si fa da un ordine confermato: prima conferma l'ordine.",
+                "nothing_to_deliver": "Non c'è niente da mettere nel DDT: le righe di quest'ordine sono già tutte in DDT emessi.",
+                "no_rows": "Il DDT non ha righe: almeno una quantità deve essere maggiore di zero.",
+                "invalid_quantity": "La quantità di «{{name}}» non va: scrivi un numero da zero in su.",
+                "too_much": "Di «{{name}}» puoi consegnare al massimo {{max}}: il resto è già in altri DDT emessi.",
+                "invalid_weight": "Il peso non va: scrivi i chili con la virgola, per esempio 12,5.",
+                "invalid_date": "La data d'inizio del trasporto non va: sceglila dal calendario."
+            },
             "quote": {
                 "not_found": "Questo preventivo non c'è più.",
                 "not_editable": "Questo preventivo è già stato accettato: è diventato un ordine e si modifica da lì.",
@@ -316,6 +329,11 @@
                     "subject": "Ordine :number confermato",
                     "title": "Ordine confermato",
                     "intro": "Abbiamo confermato l'ordine :number: in allegato trovi la conferma, con le scadenze dei pagamenti."
+                },
+                "delivery_note_sent": {
+                    "subject": "Documento di trasporto :ddt",
+                    "title": "Documento di trasporto",
+                    "intro": "In allegato il documento di trasporto :ddt della merce dell'ordine :number."
                 },
                 "reminder": {
                     "subject": "L'ordine :number aspetta il pagamento",
