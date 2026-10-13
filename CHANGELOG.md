@@ -302,6 +302,12 @@ versionamento semantico.
 
 ### Cambiato
 
+- Scheda articolo: i menu *Aggiungi un attributo* e *Aggiungi caratteristica*
+  escono dal `Dropdown` del core (`ProductModelResource::addMenu()`) invece che
+  da HTML in stringa. Aspetto e voci restano quelli di prima. Chiede il core con
+  `Dropdown::icon()`, `caret()`, `toggleAttributes()` e le opzioni di `text()`:
+  chi aggiorna il gestionale aggiorna anche `wonder-image/app` alla versione
+  che li porta.
 - Riquadri della home (*Primi passi*, *Da controllare*, *Sotto scorta*,
   *Anagrafiche*, *Spedizioni da controllare*, *Spedizioni in ritardo*): la
   cornice è una `Card` del core (`WidgetCard::wrap()`) al posto di
