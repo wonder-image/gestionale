@@ -302,6 +302,12 @@ versionamento semantico.
 
 ### Cambiato
 
+- Il gestionale chiede `wonder-image/app` `^2.4.0-beta.2`: `Query::Conditions()`
+  del core toglie solo il `WHERE` iniziale, e *Giacenze* torna a escludere i
+  multiprodotti con una sottoquery invece di leggerne gli id prima, in PHP.
+  **Chi aggiorna deve avere il core almeno a `2.4.0-beta.2`.** Nel lock di
+  sviluppo del modulo sale anche `stripe/stripe-php` a 19, come chiede il core.
+
 - Checkout con Stripe: Apple Pay, Google Pay e Link sono anche fra le scelte del
   modulo, subito dopo la carta (`StripeMethods::choices()`), per chi chiede fattura
   o ritira in negozio e non può usare la barra rapida. Tipi dell'intento automatici

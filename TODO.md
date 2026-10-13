@@ -346,7 +346,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 
 ### Lavori preparatori in `wonder-image/app` (D58)
 
-- [ ] `Query::Conditions($cond, false)` (`app/class/Sql/Query.php:95-96`) toglie **ogni** `WHERE` dalla stringa, non solo quello iniziale: una condizione con una sottoquery si rompe in `Table::query()`. Aggirato in `StockLevelResource::bundleModelIds()` (gli id letti in PHP), da togliere quando il core è corretto
+- [x] `Query::Conditions($cond, false)` (`app/class/Sql/Query.php:95-96`) toglie **ogni** `WHERE` dalla stringa, non solo quello iniziale: una condizione con una sottoquery si rompe in `Table::query()`. Aggirato in `StockLevelResource::bundleModelIds()` (gli id letti in PHP), da togliere quando il core è corretto — corretto nel core (`ca845c2`, `wonder-image/app` `2.4.0-beta.2`, toglie solo il `WHERE` iniziale); il giro in `StockLevelResource` è tolto e il gestionale chiede `^2.4.0-beta.2` (2026-10-13)
 
 - [x] `Data\Fields\Number::sqlSchema()` torna `'length' => '10,2'` fisso e ignora `decimals()`: ogni colonna nata da `sqlColumnsFromDataSchema()` perde i decimali oltre il secondo (le quantità del magazzino, `gst_products.weight`). Nel modulo c'è il ripiego `Support\Columns::decimal()`
 - [x] `app/function/mail.php` riga 158: Brevo riceve `->replyTo($from, ...)` anche quando `$from` è vuoto — il ramo PHPMailer (riga 208) la guardia ce l'ha già. Le email senza mittente sono quelle dello scheduler e dei comandi
