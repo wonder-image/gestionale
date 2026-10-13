@@ -416,6 +416,78 @@ final class StockDocuments
         }
     }
 
+    /** @param list<int> $productIds */
+    private static function assertProducts(array $productIds): void
+    {
+        if ($productIds === []) {
+            return;
+        }
+
+        $found = self::rows(Product::find(
+            '`id` IN ('.implode(', ', array_map('intval', $productIds)).") AND `deleted` = 'false'",
+            null, null, null, 'id'
+        ));
+        $known = array_map('intval', array_column($found, 'id'));
+
+        foreach ($productIds as $productId) {
+            if (!in_array($productId, $known, true)) {
+                throw UserError::make('stock.product_missing');
+            }
+        }
+    }
+
+    /** La sede del documento: vuota = la principale; deve tenere merce. */
+    private static function location(int $locationId): int
+    {
+        $locationId = $locationId ?: Locations::mainId();
+
+        if (!self::isStockLocation($locationId)) {
+            throw UserError::make('stock_document.location_unknown');
+        }
+
+        return $locationId;
+    }
+
+    private static function isStockLocation(int $locationId): bool
+    {
+        return $locationId > 0
+            && self::rows(Location::find(['id' => $locationId, 'has_stock' => 'true', 'deleted' => 'false'], 1)) !== [];
+    }
+
+    /** Il documento, bloccato fino alla fine della transazione. */
+    private static function locked(int $id): array
+    {
+        $document = StockDocument::findForUpdate(['id' => $id], 1);
+
+        if (!is_array($document) || $document === [] || (string) ($document['deleted'] ?? 'false') === 'true') {
+            throw UserError::make('stock_document.not_found');
+        }
+
+        return $document;
+    }
+
+    /** Il documento bloccato, purché sia ancora una bozza. */
+    private static function draft(int $id): array
+    {
+        $document = self::locked($id);
+
+        if ((string) $document['status'] !== 'draft') {
+            throw UserError::make('stock_document.not_draft');
+        }
+
+        return $document;
+    }
+
+    private static function log(int $id, string $from, string $to, string $source, int $userId): void
+    {
+        StatusLogger::record(StockDocumentStatusLog::class, $id, 'status', $from, $to, $source, $userId ?: null);
+    }
+
+    private static function decimal(?float $value): ?string
+    {
+        return $value === null ? null : number_format($value, 3, '.', '');
+    }
+
     /**
      * Fornitore e documento del fornitore di un carico, da scrivere sul
      * documento (G3.7). Solo per il carico e solo con «Acquisti»; con
