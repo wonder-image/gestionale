@@ -63,20 +63,31 @@ final class StockDocumentsDemo
         $created = 0;
         $system = ['source' => 'system'];
 
+        foreach (['carico', 'scarico', 'inventario'] as $ref) {
+            self::dropDeleted($ref);
+        }
+
+        // Creazione e conferma insieme: una bozza di prova rimasta a metà
+        // (conferma rifiutata) avrebbe già il codice, e i giri dopo la
+        // salterebbero senza confermarla mai.
         if (self::document('carico') === []) {
-            $id = StockDocuments::create('receipt', ['note' => 'Dati di prova'], [
-                ['product_id' => $versions[0], 'quantity' => 10],
-                ['product_id' => $versions[1], 'quantity' => 5],
-            ], ['code' => DemoCode::forModel(StockDocument::class, 'carico')]);
-            StockDocuments::confirm($id, $system);
+            Transaction::run(static function () use ($versions, $system): void {
+                $id = StockDocuments::create('receipt', ['note' => 'Dati di prova'], [
+                    ['product_id' => $versions[0], 'quantity' => 10],
+                    ['product_id' => $versions[1], 'quantity' => 5],
+                ], ['code' => DemoCode::forModel(StockDocument::class, 'carico')]);
+                StockDocuments::confirm($id, $system);
+            });
             $created++;
         }
 
         if (self::document('scarico') === []) {
-            $id = StockDocuments::create('issue', ['reason' => 'damaged', 'note' => 'Dati di prova'], [
-                ['product_id' => $versions[0], 'quantity' => 2],
-            ], ['code' => DemoCode::forModel(StockDocument::class, 'scarico')]);
-            StockDocuments::confirm($id, $system);
+            Transaction::run(static function () use ($versions, $system): void {
+                $id = StockDocuments::create('issue', ['reason' => 'damaged', 'note' => 'Dati di prova'], [
+                    ['product_id' => $versions[0], 'quantity' => 2],
+                ], ['code' => DemoCode::forModel(StockDocument::class, 'scarico')]);
+                StockDocuments::confirm($id, $system);
+            });
             $created++;
         }
 
@@ -190,10 +201,11 @@ final class StockDocumentsDemo
         $removed = 0;
         $prefix = str_replace('_', '\\_', DemoCode::prefixOf(StockDocument::class));
 
-        foreach (self::rows(StockDocument::find("code LIKE '".$prefix."demo-%'", null, 'id', 'DESC')) as $document) {
+        // Anche quelli eliminati dal backend: righe, storia e movimenti restano finché non li toglie qui.
+        foreach (self::rows(StockDocument::find("code LIKE '".$prefix."demo-%' AND deleted IN ('true', 'false')", null, 'id', 'DESC')) as $document) {
             $id = (int) $document['id'];
 
-            if ((string) $document['status'] === 'completed') {
+            if ((string) $document['status'] === 'completed' && (string) ($document['deleted'] ?? 'false') === 'false') {
                 try {
                     StockDocuments::cancel($id, ['source' => 'system']);
                 } catch (UserError) {
@@ -267,6 +279,27 @@ final class StockDocumentsDemo
         }
 
         return $out;
+    }
+
+    /**
+     * Un documento di prova eliminato dal backend (solo una bozza si elimina,
+     * e le sue righe sono già andate) tiene ancora il codice: si toglie del
+     * tutto, così il giro lo rifà invece di inciampare nel codice preso.
+     */
+    private static function dropDeleted(string $ref): void
+    {
+        $row = StockDocument::find(['code' => DemoCode::forModel(StockDocument::class, $ref), 'deleted' => 'true'], 1);
+        $id = is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+
+        if ($id <= 0 || (string) ($row['status'] ?? '') !== 'draft') {
+            return;
+        }
+
+        Transaction::run(static function () use ($id): void {
+            sqlDelete(StockDocumentStatusLog::$table, 'stock_document_id = '.$id);
+            sqlDelete(StockDocumentItem::$table, 'stock_document_id = '.$id);
+            sqlDelete(StockDocument::$table, 'id = '.$id);
+        });
     }
 
     /** @return array<string, mixed> */

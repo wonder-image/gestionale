@@ -22,6 +22,7 @@ use Wonder\Elements\Components\Accordion;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\Dropdown;
 use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\QuickCreateButton;
 use Wonder\Elements\Components\RichText;
@@ -4723,30 +4724,24 @@ HTML
     protected static function optionsPicker(int $modelId = 0): object
     {
         $ordine = static::escape(implode('-', static::axesOrder($modelId)));
-        $voci = '';
-
-        foreach (static::optionAttributes() as $attribute) {
-            $voci .= '<li><button type="button" class="dropdown-item" data-wi-option-add="'.(int) $attribute['id'].'">'
-                .static::escape((string) ($attribute['name'] ?? '')).'</button></li>';
-        }
 
         // Un bottone largo quanto il riquadro, sotto l'ultimo attributo: la
         // select in alto a destra si notava poco, e l'attributo scelto
         // compariva lontano da dove si era cliccato. Il bordo tratteggiato
         // dice «qui si aggiunge», come uno spazio vuoto.
-        //
+        $menu = static::addMenu('Aggiungi un attributo', 'wi-option-add', 'wi-option-choose');
+
+        foreach (static::optionAttributes() as $attribute) {
+            $menu->action((string) ($attribute['name'] ?? ''), ['data-wi-option-add' => (string) (int) $attribute['id']]);
+        }
+
+        $menu = $menu->render('bootstrap');
+
         // Un `div`, non il `p` di un testo: dentro c'è un altro `div`, che un
         // `p` chiuderebbe prima del tempo.
         return RichText::make(<<<HTML
 <div class="wi-option-picker d-flex flex-column gap-1">
-    <div class="dropdown wi-option-add">
-        <button type="button" class="btn btn-outline-secondary w-100 wi-option-choose" style="border-style:dashed" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-plus-lg me-1"></i>Aggiungi un attributo
-        </button>
-        <ul class="dropdown-menu w-100">
-            {$voci}
-        </ul>
-    </div>
+    {$menu}
     <span class="small text-body-secondary wi-option-full d-none">Tre attributi sono il massimo: per aggiungerne un altro togline uno.</span>
     <span class="small text-body-secondary wi-option-order d-none" data-wi-option-order="{$ordine}"></span>
 </div>
@@ -6476,6 +6471,26 @@ HTML)->tag('div');
      *
      * @param array<int, string> $voci le caratteristiche, per id
      */
+    /**
+     * Il bottone «Aggiungi …» largo quanto il riquadro, col bordo tratteggiato
+     * e senza freccia, e il suo menu largo uguale. Le voci le mette chi lo usa.
+     *
+     * @param string $menuClass classe del contenitore, che lo script nasconde o cerca
+     * @param string $toggleClass classe del bottone, che lo script ritrova
+     */
+    protected static function addMenu(string $label, string $menuClass, string $toggleClass): Dropdown
+    {
+        return Dropdown::make($label)
+            ->icon('bi bi-plus-lg')
+            ->caret(false)
+            ->outline()
+            ->addClass($menuClass)
+            ->toggleClass('w-100 '.$toggleClass)
+            ->toggleAttributes(['style' => 'border-style:dashed'])
+            ->menuClass('w-100')
+            ->columnSpan(12);
+    }
+
     protected static function technicalScript(array $voci = [], bool $nuova = true): RichText
     {
         $modelli = '';
@@ -6489,37 +6504,35 @@ HTML)->tag('div');
                 .'</template>';
         }
 
-        $menu = '';
+        // Il bordo tratteggiato dice «qui si aggiunge», come in «Opzioni in
+        // vendita».
+        $menu = static::addMenu('Aggiungi caratteristica', 'wi-technical-picker', 'wi-technical-choose');
 
         foreach ($voci as $id => $nome) {
-            $menu .= '<li><button type="button" class="dropdown-item" data-wi-technical-add="'.(int) $id.'">'
-                .static::escape($nome).'</button></li>';
+            $menu->action($nome, ['data-wi-technical-add' => (string) (int) $id]);
         }
 
         $elenco = static::escape(static::attributesUrl());
         $risorsa = json_encode(AttributeResource::slug());
         $bottone = json_encode(static::TECHNICAL_BUTTON);
+        $nota = ['html' => true, 'class' => 'small text-body-secondary'];
 
-        // Senza «Nuova caratteristica…» sotto, il divisore non divide niente.
-        $coda = $nuova
-            ? '<li class="wi-technical-divider"><hr class="dropdown-divider"></li>'
-                .'<li><button type="button" class="dropdown-item" data-wi-technical-new="true"><i class="bi bi-plus-lg me-1"></i>Nuova caratteristica…</button></li>'
-                .'<li><span class="dropdown-item-text small text-body-secondary">Elenchi e simboli con le loro immagini, come quelli di lavaggio, si preparano in <a href="'.$elenco.'">Catalogo → Attributi</a>.</span></li>'
-            : '<li><span class="dropdown-item-text small text-body-secondary">Una caratteristica nuova si prepara in <a href="'.$elenco.'">Catalogo → Attributi</a>, scegliendo «Scheda tecnica di ogni opzione».</span></li>';
+        // Senza «Nuova caratteristica…» sotto, il divisore non divide niente:
+        // lo script lo nasconde quando sopra non resta nessuna voce.
+        if ($nuova) {
+            $menu->divider()
+                ->action('Nuova caratteristica…', ['data-wi-technical-new' => 'true'], ['icon' => 'bi bi-plus-lg'])
+                ->text('Elenchi e simboli con le loro immagini, come quelli di lavaggio, si preparano in <a href="'.$elenco.'">Catalogo → Attributi</a>.', $nota);
+        } else {
+            $menu->text('Una caratteristica nuova si prepara in <a href="'.$elenco.'">Catalogo → Attributi</a>, scegliendo «Scheda tecnica di ogni opzione».', $nota);
+        }
+
+        $menu = $menu->render('bootstrap');
 
         // Un `div`, non il `p` di un testo: dentro ci sono il menu, i modelli
-        // e lo script. Il bordo tratteggiato dice «qui si aggiunge», come in
-        // «Opzioni in vendita».
+        // e lo script.
         return RichText::make(<<<HTML
-<div class="dropdown wi-technical-picker">
-    <button type="button" class="btn btn-outline-secondary w-100 wi-technical-choose" style="border-style:dashed" data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="bi bi-plus-lg me-1"></i>Aggiungi caratteristica
-    </button>
-    <ul class="dropdown-menu w-100">
-        {$menu}
-        {$coda}
-    </ul>
-</div>
+{$menu}
 {$modelli}
 <script>
     window.wiTechnicalSheet = window.wiTechnicalSheet || (function () {
@@ -6534,6 +6547,14 @@ HTML)->tag('div');
             }
 
             return nodo;
+        }
+
+        // La riga del divisore del menu, prima di «Nuova caratteristica…»:
+        // le caratteristiche che si tolgono rientrano sopra di lei.
+        function divisoreDelMenu() {
+            var linea = document.querySelector('.wi-technical-picker .dropdown-divider');
+
+            return linea ? linea.parentElement : null;
         }
 
         function blocchi() {
@@ -6569,7 +6590,7 @@ HTML)->tag('div');
         function riordina() {
             var restano = Array.prototype.slice.call(document.querySelectorAll('[data-wi-technical-add]'))
                 .some(function (voce) { return !voce.parentElement.classList.contains('d-none'); });
-            var divisore = document.querySelector('.wi-technical-divider');
+            var divisore = divisoreDelMenu();
             var vuoto = document.querySelector('.wi-technical-empty');
 
             if (divisore) {
@@ -6814,7 +6835,7 @@ HTML)->tag('div');
             prima.parentElement.insertBefore(campo, prima);
 
             // La sua voce nel menu, per quando la si toglie.
-            var divisore = document.querySelector('.wi-technical-divider');
+            var divisore = divisoreDelMenu();
 
             if (divisore) {
                 var voce = document.createElement('li');
