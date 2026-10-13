@@ -2,7 +2,6 @@
 
 use Wonder\Elements\Components\Tooltip;
 use Wonder\Http\Csrf;
-use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
 use Wonder\Plugin\Gestionale\Resources\Sales\DeliveryNoteResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Documents\DeliveryNotePdf;
@@ -24,13 +23,7 @@ $draft = $status === 'draft';
 $disabled = $draft ? '' : ' disabled';
 $order = (array) ($values['order'] ?? []);
 $lines = (array) ($values['lines'] ?? []);
-$carriers = ['0' => 'Nessuno'];
-
-foreach ((array) (Carrier::find(['deleted' => 'false', 'active' => 'true'], null, 'position', 'ASC') ?: []) as $row) {
-    if (is_array($row) && isset($row['id'])) {
-        $carriers[(string) $row['id']] = html_entity_decode((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    }
-}
+$carriers = ['0' => 'Nessuno'] + \Wonder\Plugin\Gestionale\Resources\System\SettingResource::carriers();
 
 $started = substr(str_replace(' ', 'T', (string) ($values['transport_started_at'] ?? '')), 0, 16);
 $started = str_starts_with($started, '0000') ? '' : $started;

@@ -64,7 +64,8 @@ per la somma, e una merce già in un DDT emesso non si rispedisce.
 > vero. Per un ordine usa un tipo di documento solo.
 
 *Annulla righe* di un ordine da ufficio non tocca quello che è già in un DDT
-emesso.
+emesso. Prima di annullare un ordine intero, annulla i suoi DDT emessi: da
+soli restano emessi.
 
 ## L'elenco
 

@@ -80,9 +80,10 @@ final class DeliveryNotes
                 'user_id' => (int) ($options['user_id'] ?? 0),
             ] + self::carrierCopy((int) ($settings['delivery_carrier_id'] ?? 0));
 
-            foreach ($order as $key => $value) {
-                if (str_starts_with((string) $key, 'billing_') || str_starts_with((string) $key, 'shipping_')) {
-                    $values[$key] = $value;
+            // Solo gli indirizzi: `shipping_method_id` e `shipping_total` sono dell'ordine.
+            foreach (self::addressKeys() as $key) {
+                if (array_key_exists($key, $order)) {
+                    $values[$key] = $order[$key];
                 }
             }
 
@@ -452,12 +453,22 @@ final class DeliveryNotes
         }
 
         foreach ($header as $key => $value) {
-            if (str_starts_with((string) $key, 'shipping_') && is_scalar($value) && !in_array((string) $key, ['shipping_lat', 'shipping_lng'], true)) {
+            if (in_array((string) $key, self::addressKeys(), true) && str_starts_with((string) $key, 'shipping_')
+                && is_scalar($value) && !in_array((string) $key, ['shipping_lat', 'shipping_lng'], true)) {
                 $values[(string) $key] = trim((string) $value);
             }
         }
 
         return $values;
+    }
+
+    /** @return list<string> le colonne degli indirizzi copiati dall'ordine */
+    private static function addressKeys(): array
+    {
+        return array_map(
+            static fn (object $column): string => (string) $column->name,
+            [...Order::billingAddress()->tableSchema(), ...Order::shippingAddress()->tableSchema()]
+        );
     }
 
     /** @return array{carrier_id: int, carrier_name: string, carrier_vat: string, carrier_address: string} */

@@ -47,7 +47,8 @@ final class OrderNotifier
         $method = (int) ($order['payment_method_id'] ?? 0) > 0
             ? PaymentMethod::findById((int) $order['payment_method_id'])
             : null;
-        $email = OrderEmail::compose($key, $order, self::items($orderId), $extra + OrderEmailExtras::for($key, $order) + [
+        // L'email del DDT non mostra righe e prezzi: il documento è allegato.
+        $email = OrderEmail::compose($key, $order, $key === 'delivery_note_sent' ? [] : self::items($orderId), $extra + OrderEmailExtras::for($key, $order) + [
             'method' => is_array($method) ? (string) ($method['name'] ?? '') : '',
             'instructions' => is_array($method) ? (string) ($method['instructions'] ?? '') : '',
             'bank' => self::bankAccount($method),
