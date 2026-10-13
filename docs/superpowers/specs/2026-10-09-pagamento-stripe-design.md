@@ -53,13 +53,13 @@ Criteri di riuscita:
 | Importo | Il totale lo decide il server. Se differisce da quello mostrato al cliente, niente addebito e il riepilogo si aggiorna. Gli importi si confrontano in centesimi. Se un evento porta importo, valuta o ordine diversi da quelli attesi, l'ordine non si conferma, l'evento resta `failed` senza altri tentativi e il commerciante riceve la segnalazione. |
 | Customer Stripe | Uno per scheda cliente e per ambiente, creato al primo pagamento Stripe (email, nome). L'id sta in `external_references` e i cambi successivi non si sincronizzano. |
 | Prodotti e coupon | Non vanno su Stripe. Il PaymentIntent porta solo il totale e i metadati. |
-| Tipi di pagamento | Nel checkout, dalla scelta del cliente (§11b): `card` o un altro metodo acceso nel conto; dalla barra rapida (§11), il tipo che il wallet comunica (`apple_pay`, `google_pay`, `link`). Per i pagamenti senza scelta (righe vecchie, pagamenti creati dal backend), da `stripe_payment_method_types` del metodo; se la colonna è vuota, quelli automatici del conto. Browser e server leggono la stessa fonte. |
+| Tipi di pagamento | Nel checkout, dalla scelta del cliente (§11b): `card`, un wallet (`apple_pay`, `google_pay`, `link`) o un altro metodo acceso nel conto; dalla barra rapida (§11), il tipo che il wallet comunica. Per i pagamenti senza scelta (righe vecchie, pagamenti creati dal backend), da `stripe_payment_method_types` del metodo; se la colonna è vuota, quelli automatici del conto. Browser e server leggono la stessa fonte. |
 | Rimborsi | Fatti dalla dashboard di Stripe e registrati da `charge.refunded`. |
 | Email | Per gli ordini pagati online, al `place` non parte nulla. «Confermato» e l'avviso al commerciante partono alla conferma. Il link per la password dell'ospite viaggia con «confermato» (`OrderEmailExtras`). |
 | Durata della prenotazione | `order_reservation_minutes`, impostata nel backend (predefinita 30). Il D6 non la cambia. |
 | Ambiente | Colonna `environment` (`live`, `test`) su `gst_payments`. Gli ordini pagati in test portano il bollino «Prova» nel backend. |
-| Express e fattura | L'express serve chi non chiede fattura, oppure il cliente con l'accesso che ha già i dati di fatturazione sulla scheda (§5.1 dell'architettura). |
-| Express e ritiro | Il ritiro in negozio resta fuori: il wallet chiede sempre un indirizzo. |
+| Express e fattura | La barra rapida serve chi non chiede fattura, oppure il cliente con l'accesso che ha già i dati di fatturazione sulla scheda (§5.1 dell'architettura). Chi chiede fattura paga con Apple Pay, Google Pay o Link dalle scelte del modulo (§11b). |
+| Express e ritiro | Il ritiro in negozio resta fuori dalla barra rapida: il wallet chiede sempre un indirizzo. Chi ritira paga con i wallet dalle scelte del modulo (§11b). |
 | Piani | Piano 1: §4–§10 e §12 senza express. Piano 2: §11 e le sue prove. |
 
 ## 4. Credenziali e collegamento (app)
@@ -355,7 +355,8 @@ Stripe.
 L'elemento mostra bottoni separati, solo quelli disponibili sul dispositivo e
 accesi nel conto: Apple Pay, Google Pay e Link (`paymentMethods` ad `auto` per
 questi tre, `never` per gli altri, che hanno la loro scelta nel modulo, §11b).
-Apple Pay e Google Pay stanno solo qui, non fra le scelte del modulo.
+Gli stessi wallet sono anche fra le scelte del modulo (§11b), per chi chiede
+fattura o ritira in negozio.
 
 **Quando non compare:**
 
@@ -414,10 +415,12 @@ CSRF sono quelli del sito.
 
 Richiesta del commerciante: Klarna e gli altri non stanno dentro «Carta di
 credito», ma sotto, uno per scelta, e compaiono da soli secondo i metodi accesi
-nel conto Stripe. Apple Pay, Google Pay e Link non sono fra le scelte: stanno
-nella barra rapida in cima (§11, piano 2b). Link non può stare da solo nel
-Payment Element (Stripe lo vuole insieme a `card`), e dentro la carta non lo
-vogliamo.
+nel conto Stripe. Apple Pay, Google Pay e Link stanno nella barra rapida in cima
+(§11, piano 2b) e anche fra le scelte, subito dopo la carta: la barra non serve
+chi chiede fattura né chi ritira in negozio, e loro devono poter pagare con un
+wallet. La scelta del wallet non usa il Payment Element (Link non può starci da
+solo, Stripe lo vuole insieme a `card`) ma un Express Checkout Element con solo
+quel wallet; i dati restano quelli del modulo.
 
 **Una riga, più scelte.** Il metodo Stripe resta una sola riga di
 `gst_payment_methods` (nome, commissione, icone dei circuiti). Il checkout ne
@@ -427,6 +430,7 @@ ricava più scelte con lo stesso `payment_method_id` e un campo in più,
 | Scelta | `stripe_method_type` | Pannello | Tipi dell'intento |
 |---|---|---|---|
 | Nome del metodo (es. «Carta di credito») | `card` | Payment Element con solo `card`, icone dei circuiti senza i wallet | `['card']` |
+| «Apple Pay», «Google Pay», «Link», se accesi | il wallet (`apple_pay`, `google_pay`, `link`) | Express Checkout Element con solo quel wallet; «Paga» nascosto | `[]`, automatici: il wallet paga con un tipo che Stripe decide |
 | Una per ogni altro metodo acceso (Klarna, Satispay, PayPal, …) | il tipo Stripe (`klarna`, `paypal`, …) | Payment Element con solo quel tipo | `[tipo]` |
 
 La commissione è quella della riga, uguale per tutte le scelte. Nel riepilogo
@@ -445,19 +449,24 @@ l'ordine porta il nome della riga; il tipo scelto si legge sul pagamento.
   ambiente o conto: la cache non vale.
 - Se la chiamata fallisce si usa la cache scaduta; se non c'è nemmeno quella,
   compare solo la carta. Nessun errore al cliente.
-- Le scelte separate sono i tipi disponibili meno `card`, `apple_pay` e
-  `google_pay`.
+- Le scelte separate sono i tipi disponibili meno `card`, i wallet e quelli che
+  si pagano dopo con istruzioni (Multibanco, `customer_balance`, OXXO, Boleto,
+  Konbini).
 - `stripe_payment_method_types` della riga non filtra più le scelte del checkout:
   vale solo per i pagamenti senza tipo scelto (§3).
 
-**Nomi e icone.** Una mappa tipo → nome («Klarna», «Satispay», «PayPal», «Bonifico
-SEPA», «Bancontact», «iDEAL», …), con `ucfirst` del tipo come riserva. Icona dalla
-cartella delle icone di pagamento quando c'è, altrimenti una generica.
+**Nomi e icone.** Una mappa tipo → nome («Apple Pay», «Google Pay», «Link»,
+«Klarna», «Satispay», «PayPal», «Bonifico SEPA», «Bancontact», «iDEAL», …), con
+`ucfirst` del tipo come riserva. Icona dalla cartella delle icone di pagamento
+quando c'è, altrimenti una generica. Link non ha icona: nel set non c'è, e quella
+generica della banca confonderebbe.
 
 **Server.**
 
-- `Checkout::preview` restituisce le scelte nell'ordine: carta, poi le separate in
-  ordine alfabetico del tipo.
+- `Checkout::preview` restituisce le scelte nell'ordine: carta, poi i wallet
+  (Apple Pay, Google Pay, Link), poi le separate in ordine alfabetico del tipo.
+- Dal modulo i wallet si accettano anche senza la barra rapida: il pagamento ha
+  `provider_method` uguale al wallet, come quello dalla barra.
 - `Checkout::place` convalida `stripe_method_type`: deve essere fra le scelte
   calcolate in quel momento, altrimenti 422 «metodo di pagamento non disponibile».
   Per le righe non Stripe il campo si ignora.
@@ -481,6 +490,28 @@ cartella delle icone di pagamento quando c'è, altrimenti una generica.
   nasconde e torna selezionata la carta.
 - `stripe_method_type` si ricorda nello stato del modulo
   (`ecommerce_checkout_form_state`), come gli altri campi.
+- **Wallet:** le scelte Apple Pay, Google Pay e Link stanno sempre nella lista
+  (così i conti fra scelte e label tornano quando `choices()` aggiorna sul posto),
+  ma nascoste finché il browser non le conferma. Appena ci sono chiave, importo e
+  scelte wallet, si monta una prova: un Express Checkout Element con tutti i
+  wallet della lista, invisibile ma largo come la colonna (lo stile «in attesa»
+  della barra rapida). Su `ready` si mostrano i wallet di
+  `availablePaymentMethods` e si tolgono gli altri; su `loaderror` si tolgono
+  tutti. Sul PC di solito resta Link. Il server non spunta mai un wallet
+  all'apertura: se lo stato salvato o il rifiuto ne indicano uno, torna la carta.
+- **Pannello del wallet:** un gruppo `elements` in modalità differita con un
+  Express Checkout Element che ha solo quel wallet ad `auto` (gli altri, PayPal,
+  Amazon Pay e Klarna a `never`). «Paga» si nasconde: si paga dal bottone del
+  wallet.
+  - `click`: se il modulo non è valido (stessi controlli di «Paga», con il focus
+    sul primo errore) non si fa `resolve` e il foglio non si apre. Altrimenti
+    `event.resolve({})` subito, senza chiedere indirizzi né email: i dati sono
+    quelli del modulo. Per l'ospite il token reCAPTCHA si chiede subito dopo.
+  - `confirm`: `elements.submit()`, il token reCAPTCHA, `place()` con
+    `stripe_method_type` uguale al wallet, poi `confirmPayment` con
+    `billing_details` del modulo, come la carta. Se il server rifiuta o il
+    totale cambia, `event.paymentFailed` e il messaggio sotto il modulo, che si
+    riapre.
 - Rifiuto e «Paga ora» restano quelli di §7–§8: il modulo si riapre con la scelta
   di prima; «Paga ora» monta il Payment Element sull'intento esistente con i suoi
   tipi.
