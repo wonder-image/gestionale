@@ -21,8 +21,8 @@ $rifiuto = static function (callable $fn): ?string {
 
 $riga = static fn (int $prodotto, mixed $pezzi): array => ['product_id' => $prodotto, 'quantity' => $pezzi];
 
-check('tre tipi, con etichetta, storno e sequenza', fn () =>
-    Regole::TYPES === ['receipt', 'issue', 'stocktake']
+check('quattro tipi, con etichetta, storno e sequenza', fn () =>
+    Regole::TYPES === ['receipt', 'issue', 'stocktake', 'transfer']
     && Regole::label('receipt') === 'Carico'
     && Regole::label('issue') === 'Scarico'
     && Regole::label('stocktake') === 'Inventario'
@@ -30,9 +30,31 @@ check('tre tipi, con etichetta, storno e sequenza', fn () =>
     && Regole::cancelLabel('issue') === 'Annullamento dello scarico'
     && Regole::cancelLabel('stocktake') === "Annullamento dell'inventario"
     && Regole::sequence('issue') === 'stock_issue'
-    && !Regole::exists('transfer')
-    && Regole::label('transfer') === ''
+    && Regole::exists('transfer')
+    && Regole::label('transfer') === 'Trasferimento'
+    && Regole::cancelLabel('transfer') === 'Annullamento del trasferimento'
+    && Regole::sequence('transfer') === 'stock_transfer'
+    && !Regole::exists('order')
+    && Regole::label('order') === ''
 );
+
+check('trasferimento: l\'invio è un transfer_out, le sedi sono due e diverse', function () {
+    $sedi = static function (int $da, int $a): ?string {
+        try {
+            Regole::assertTransferLocations($da, $a);
+        } catch (Wonder\Plugin\Gestionale\Support\Errors\UserError $e) {
+            return $e->key();
+        }
+
+        return null;
+    };
+
+    return Regole::movement('transfer', '', ['quantity' => 3.0]) === ['type' => 'transfer_out', 'reason' => '', 'quantity' => -3.0]
+        && Regole::movement('transfer', '', ['quantity' => null]) === null
+        && $sedi(1, 2) === null
+        && $sedi(1, 1) === 'stock_document.transfer_same_location'
+        && $sedi(1, 0) === 'stock_document.transfer_destination_required';
+});
 
 check('causale: lo scarico tiene la sua, vuota finché è bozza', fn () =>
     Regole::reason('issue', 'damaged') === 'damaged'

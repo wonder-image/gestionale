@@ -178,7 +178,7 @@ final class StockMovementResource extends GestionaleResource
             // senza pagina la voce non compare.
             'view',
             'document_type' => [
-                'label' => ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico', 'stocktake' => 'Visualizza inventario'],
+                'label' => ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico', 'stocktake' => 'Visualizza inventario', 'transfer' => 'Visualizza trasferimento'],
                 'href' => '{document_url}',
             ],
             'ordine' => [
@@ -365,7 +365,10 @@ final class StockMovementResource extends GestionaleResource
             }
 
             foreach (StockDocumentRules::labels() as $document => $documentLabel) {
-                $options['doc_'.$document] = $documentLabel;
+                // Il trasferimento ha già le sue voci: entrata e uscita.
+                if ($document !== 'transfer') {
+                    $options['doc_'.$document] = $documentLabel;
+                }
             }
         }
 
@@ -392,7 +395,7 @@ final class StockMovementResource extends GestionaleResource
         foreach (array_unique(array_map('strval', $values)) as $value) {
             $document = str_starts_with($value, 'doc_') ? substr($value, 4) : '';
 
-            if ($document !== '' && StockDocumentRules::exists($document)) {
+            if ($document !== '' && $document !== 'transfer' && StockDocumentRules::exists($document)) {
                 $part = '(`reference_type` IN ('.self::DOCUMENT_REFERENCES.') AND `reference_id` IN (SELECT `id` FROM `'
                     .StockDocument::$table."` WHERE `type` = '".$document."'))";
                 $parts[] = $document === 'receipt' ? '('.$part." OR (`type` = 'purchase' AND ".$withoutDocument.'))' : $part;

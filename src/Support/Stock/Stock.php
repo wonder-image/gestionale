@@ -80,8 +80,10 @@ final class Stock
             // vendita chiusa per un numero che non torna. Chi toglie trova
             // comunque un muro; la merce che arriva entra sempre, anche se non
             // basta a colmare un buco rimasto da quando si vendeva scoperto.
+            // `no_backorder` (trasferimenti, G3.16): la merce che non c'è non
+            // parte, nemmeno per un articolo che si vende scoperto.
             $negative = ($movement['allow_negative'] ?? false) === true
-                || self::allowsBackorder($product);
+                || (($movement['no_backorder'] ?? false) !== true && self::allowsBackorder($product));
 
             if ($after < 0 && $quantity < 0 && !$negative) {
                 throw UserError::make('stock.insufficient', [

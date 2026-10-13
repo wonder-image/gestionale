@@ -50,8 +50,10 @@ final class StockDocuments
             $reason = StockDocumentRules::reason($type, (string) ($header['reason'] ?? ''));
             $wanted = StockDocumentRules::lines($lines, self::batchProducts($type, $lines));
             $supplier = self::supplierFields($type, $header, null);
+            // G3.16: la sede d'arrivo del trasferimento.
+            $destination = $type === 'transfer' ? ['to_location_id' => self::destination((int) ($header['to_location_id'] ?? 0), $locationId)] : [];
 
-            $created = StockDocument::create($supplier + [
+            $created = StockDocument::create($supplier + $destination + [
                 'code' => trim((string) ($options['code'] ?? '')) ?: Code::make(StockDocument::class, Codes::STOCK_DOCUMENT),
                 'type' => $type,
                 'status' => 'draft',
@@ -97,8 +99,12 @@ final class StockDocuments
                 $old[$item['product_id']] = $item;
             }
 
+            $destination = $type === 'transfer'
+                ? ['to_location_id' => self::destination((int) ($header['to_location_id'] ?? $document['to_location_id'] ?? 0), $locationId)]
+                : [];
+
             StockDocument::update(
-                self::supplierFields($type, $header, $document) + ['location_id' => $locationId, 'reason' => $reason, 'note' => $note],
+                self::supplierFields($type, $header, $document) + $destination + ['location_id' => $locationId, 'reason' => $reason, 'note' => $note],
                 $id
             );
             self::writeItems($id, $type, $locationId, $wanted, $old, $locationId !== $before);
@@ -123,6 +129,13 @@ final class StockDocuments
 
             $tracking = self::batchProducts($type, $items);
             StockDocumentRules::assertConfirmable($type, $reason, $items, $tracking);
+
+            // G3.16: le sedi si ricontrollano all'invio, una può aver perso la giacenza.
+            if ($type === 'transfer') {
+                $from = self::location((int) $document['location_id']);
+                StockDocumentRules::assertTransferLocations($from, (int) ($document['to_location_id'] ?? 0));
+                self::destination((int) $document['to_location_id'], $from);
+            }
 
             $userId = (int) ($options['user_id'] ?? 0);
             $source = StatusLogger::normalizeSource((string) ($options['source'] ?? 'user'));
@@ -154,8 +167,11 @@ final class StockDocuments
 
                 if ($movement['quantity'] < 0) {
                     // Scarico e inventario in meno: dai secchi, come la vendita (G3.13, G3.14);
-                    // nello scarico lotto e fornitore scelti a mano restringono (G3.12).
-                    self::takeOut($movement, $base + ($type === 'issue' ? self::chosen($item) : []), $type === 'stocktake');
+                    // nello scarico e nel trasferimento lotto e fornitore scelti a mano
+                    // restringono (G3.12). Il trasferimento non parte con merce che non c'è.
+                    $choice = in_array($type, ['issue', 'transfer'], true) ? self::chosen($item) : [];
+                    $strict = $type === 'transfer' ? ['no_backorder' => true] : [];
+                    self::takeOut($movement, $base + $choice + $strict, $type === 'stocktake');
 
                     continue;
                 }
@@ -186,10 +202,65 @@ final class StockDocuments
                 self::rememberCost($item['product_id'], $supplierId, $cost);
             }
 
-            StockDocument::update(['status' => 'completed', 'number' => $number, 'date' => $now->format('Y-m-d')], $id);
-            self::log($id, 'draft', 'completed', $source, $userId);
+            // Il trasferimento inviato è in viaggio finché non si riceve (G3.16).
+            $status = $type === 'transfer' ? 'in_transit' : 'completed';
+            StockDocument::update(['status' => $status, 'number' => $number, 'date' => $now->format('Y-m-d')], $id);
+            self::log($id, 'draft', $status, $source, $userId);
 
             return $number;
+        });
+    }
+
+    /**
+     * Riceve un trasferimento in viaggio (G3.16): per ogni `transfer_out` un
+     * `transfer_in` nella sede d'arrivo, stesso secchio, pezzi e costo. Sempre
+     * tutto: un arrivo parziale non c'è.
+     *
+     * @param array{user_id?: int, source?: string} $options
+     */
+    public static function receive(int $id, array $options = []): void
+    {
+        Transaction::run(static function () use ($id, $options): void {
+            $document = self::locked($id);
+
+            if ((string) $document['type'] !== 'transfer' || (string) $document['status'] !== 'in_transit') {
+                throw UserError::make('stock_document.cannot_receive');
+            }
+
+            $to = (int) ($document['to_location_id'] ?? 0);
+
+            if (!self::isStockLocation($to)) {
+                throw UserError::make('stock_document.location_unknown');
+            }
+
+            $userId = (int) ($options['user_id'] ?? 0);
+            $source = StatusLogger::normalizeSource((string) ($options['source'] ?? 'user'));
+            $sent = self::rows(StockMovement::find(
+                "`reference_type` = 'stock_document' AND `reference_id` = ".$id." AND `type` = 'transfer_out' AND `deleted` = 'false'",
+                null, 'id', 'ASC'
+            ));
+            usort($sent, static fn (array $x, array $y): int => [(int) $x['product_id'], (int) $x['id']] <=> [(int) $y['product_id'], (int) $y['id']]);
+            self::lockBuckets(array_map(static fn (array $m): array => [(int) $m['product_id'], $to], $sent));
+
+            foreach ($sent as $movement) {
+                Stock::apply([
+                    'type' => 'transfer_in',
+                    'reason' => '',
+                    'quantity' => -round((float) $movement['quantity'], 3),
+                    'product_id' => (int) $movement['product_id'],
+                    'location_id' => $to,
+                    'batch_id' => (int) ($movement['batch_id'] ?? 0),
+                    'supplier_id' => (int) ($movement['supplier_id'] ?? 0),
+                    'unit_cost' => (float) ($movement['unit_cost'] ?? 0),
+                    'reference_type' => 'stock_document',
+                    'reference_id' => $id,
+                    'reference_item_id' => (int) ($movement['reference_item_id'] ?? 0),
+                    'user_id' => $userId,
+                ]);
+            }
+
+            StockDocument::update(['status' => 'completed'], $id);
+            self::log($id, 'in_transit', 'completed', $source, $userId);
         });
     }
 
@@ -205,8 +276,11 @@ final class StockDocuments
     {
         Transaction::run(static function () use ($id, $options): void {
             $document = self::locked($id);
+            $status = (string) $document['status'];
+            $transfer = (string) $document['type'] === 'transfer';
 
-            if ((string) $document['status'] !== 'completed') {
+            // Il trasferimento si annulla anche in viaggio: la merce torna alla partenza (G3.16).
+            if ($status !== 'completed' && !($transfer && $status === 'in_transit')) {
                 throw UserError::make('stock_document.cannot_cancel');
             }
 
@@ -225,7 +299,20 @@ final class StockDocuments
             usort($movements, static fn (array $x, array $y): int =>
                 [(int) $x['product_id'], (int) $y['id']] <=> [(int) $y['product_id'], (int) $x['id']]);
 
+            // Un trasferimento tocca due sedi: tutti i secchi prima, in ordine di
+            // versione e di sede, così due annulli incrociati (A→B e B→A) si
+            // mettono in fila invece di bloccarsi a vicenda.
+            if ($transfer) {
+                self::lockBuckets(array_map(static fn (array $m): array => [(int) $m['product_id'], (int) $m['location_id']], $movements));
+            }
+
             foreach ($movements as $movement) {
+                if ($transfer) {
+                    self::reverseTransfer($movement, $id, $userId);
+
+                    continue;
+                }
+
                 Stock::apply(StockDocumentRules::reversal($movement) + [
                     'product_id' => (int) $movement['product_id'],
                     'location_id' => (int) $movement['location_id'],
@@ -242,7 +329,7 @@ final class StockDocuments
             }
 
             StockDocument::update(['status' => 'cancelled'], $id);
-            self::log($id, 'completed', 'cancelled', $source, $userId);
+            self::log($id, $status, 'cancelled', $source, $userId);
         });
     }
 
@@ -290,11 +377,19 @@ final class StockDocuments
             $supplierAlive = $purchase && $supplierId > 0
                 && self::rows(Contact::find(['id' => $supplierId, 'is_supplier' => 'true', 'deleted' => 'false'], 1)) !== [];
 
+            $from = self::isStockLocation($locationId) ? $locationId : 0;
+            $to = (int) ($document['to_location_id'] ?? 0);
+            // Il trasferimento copiato va dove andava, se quella sede tiene ancora merce
+            // e non è diventata la partenza; altrimenti la sede d'arrivo si sceglie.
+            $destination = $type === 'transfer'
+                ? ['to_location_id' => self::isStockLocation($to) && $to !== ($from ?: Locations::mainId()) ? $to : 0]
+                : [];
+
             return self::create($type, [
-                'location_id' => self::isStockLocation($locationId) ? $locationId : 0,
+                'location_id' => $from,
                 'reason' => (string) ($document['reason'] ?? ''),
                 'note' => (string) ($document['note'] ?? ''),
-            ] + ($purchase ? ['supplier_id' => $supplierAlive ? $supplierId : 0] : []), $lines, $options);
+            ] + $destination + ($purchase ? ['supplier_id' => $supplierAlive ? $supplierId : 0] : []), $lines, $options);
         });
     }
 
@@ -403,8 +498,8 @@ final class StockDocuments
                 'expected_quantity' => self::decimal($expected),
                 'batch_number' => $type === 'receipt' ? (string) $lot['batch_number'] : '',
                 'batch_expiry' => $type === 'receipt' ? (string) ($lot['batch_expiry'] ?? '') : '',
-                'batch_id' => $type === 'issue' ? (int) $lot['batch_id'] : 0,
-                'supplier_id' => $type === 'issue' ? (int) $lot['supplier_id'] : 0,
+                'batch_id' => in_array($type, ['issue', 'transfer'], true) ? (int) $lot['batch_id'] : 0,
+                'supplier_id' => in_array($type, ['issue', 'transfer'], true) ? (int) $lot['supplier_id'] : 0,
                 'unit_cost' => $cost === null ? null : number_format($cost, 4, '.', ''),
                 'line_total' => $lineTotal === null ? null : number_format($lineTotal, 2, '.', ''),
                 'position' => $i + 1,
@@ -446,6 +541,79 @@ final class StockDocuments
         }
 
         return $locationId;
+    }
+
+    /**
+     * La sede d'arrivo di un trasferimento: tiene merce ed è diversa dalla
+     * partenza. Una bozza può non averla ancora: 0 resta 0 fino all'invio.
+     */
+    private static function destination(int $to, int $from): int
+    {
+        if ($to <= 0) {
+            return 0;
+        }
+
+        StockDocumentRules::assertTransferLocations($from, $to);
+
+        if (!self::isStockLocation($to)) {
+            throw UserError::make('stock_document.location_unknown');
+        }
+
+        return $to;
+    }
+
+    /**
+     * Blocca i secchi delle coppie (versione, sede) date, una volta ciascuna,
+     * in ordine di versione e poi di sede.
+     *
+     * @param list<array{0: int, 1: int}> $pairs
+     */
+    private static function lockBuckets(array $pairs): void
+    {
+        $unique = [];
+
+        foreach ($pairs as [$productId, $locationId]) {
+            $unique[$productId.'/'.$locationId] = [$productId, $locationId];
+        }
+
+        usort($unique, static fn (array $a, array $b): int => $a <=> $b);
+
+        foreach ($unique as [$productId, $locationId]) {
+            StockBuckets::locked($productId, $locationId);
+        }
+    }
+
+    /**
+     * Lo storno di un movimento di trasferimento: mai sotto zero, nemmeno per
+     * un articolo che si vende scoperto. All'arrivo la merce può essere già
+     * uscita: allora il rifiuto lo dice (G3.16).
+     *
+     * @param array<string, mixed> $movement
+     */
+    private static function reverseTransfer(array $movement, int $id, int $userId): void
+    {
+        $reversal = StockDocumentRules::reversal($movement) + [
+            'product_id' => (int) $movement['product_id'],
+            'location_id' => (int) $movement['location_id'],
+            'batch_id' => (int) ($movement['batch_id'] ?? 0),
+            'supplier_id' => (int) ($movement['supplier_id'] ?? 0),
+            'unit_cost' => (float) ($movement['unit_cost'] ?? 0),
+            'reference_type' => 'stock_document_cancel',
+            'reference_id' => $id,
+            'reference_item_id' => (int) ($movement['reference_item_id'] ?? 0),
+            'user_id' => $userId,
+            'no_backorder' => true,
+        ];
+
+        try {
+            Stock::apply($reversal);
+        } catch (UserError $error) {
+            if ((string) $movement['type'] === 'transfer_in' && $error->key() === 'stock.insufficient') {
+                throw UserError::make('stock_document.transfer_moved');
+            }
+
+            throw $error;
+        }
     }
 
     private static function isStockLocation(int $locationId): bool
