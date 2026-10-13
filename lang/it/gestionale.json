@@ -43,6 +43,15 @@
                 "cannot_receive": "Si riceve solo un trasferimento in viaggio.",
                 "transfer_moved": "La merce non è più tutta nella sede d'arrivo: una parte è già uscita, e il trasferimento non si annulla. Riportala con un trasferimento nuovo."
             },
+            "quote": {
+                "not_found": "Questo preventivo non c'è più.",
+                "not_editable": "Questo preventivo è già stato accettato: è diventato un ordine e si modifica da lì.",
+                "invalid_expiry": "La validità del preventivo non va: sceglila dal calendario.",
+                "cannot_send": "Si invia un preventivo da inviare: questo è già accettato, rifiutato o scaduto. Modificalo per riaprirlo.",
+                "cannot_accept": "Si accetta un preventivo inviato o ancora in bozza.",
+                "cannot_reject": "Si rifiuta solo un preventivo inviato.",
+                "cannot_delete": "Un preventivo già inviato non si elimina: il cliente ha il suo PDF. Rifiutalo o lascialo scadere."
+            },
             "office_order": {
                 "too_many_rows": "Un ordine tiene al massimo {{max}} righe: dividilo in due.",
                 "invalid_lines": "Le righe non si sono lette: ricarica la pagina e riprova.",
@@ -166,6 +175,7 @@
             "settings": {
                 "batch_expiry_days_invalid": "I giorni prima della scadenza vanno da 0 a 3650.",
                 "payment_due_days_invalid": "I giorni di preavviso per le scadenze vanno da 0 a 365.",
+                "quote_validity_days_invalid": "La validità dei preventivi va da 1 a 365 giorni.",
                 "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo."
             },
             "payment_method": {
@@ -296,6 +306,16 @@
                     "subject": "Ordine :number confermato",
                     "title": "Ordine confermato",
                     "intro": "Il pagamento è a posto: prepariamo l'ordine :number."
+                },
+                "quote_sent": {
+                    "subject": "Preventivo :quote",
+                    "title": "Il tuo preventivo",
+                    "intro": "Ti mandiamo il preventivo :quote, valido fino al :expires: lo trovi in allegato. Per accettarlo rispondi a questa email."
+                },
+                "office_confirmed": {
+                    "subject": "Ordine :number confermato",
+                    "title": "Ordine confermato",
+                    "intro": "Abbiamo confermato l'ordine :number: in allegato trovi la conferma, con le scadenze dei pagamenti."
                 },
                 "reminder": {
                     "subject": "L'ordine :number aspetta il pagamento",

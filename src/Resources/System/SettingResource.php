@@ -78,6 +78,7 @@ final class SettingResource extends SingletonResource
             'shipping_sync' => 'Spedizioni col deploy',
             'batch_expiry_days' => 'Giorni prima della scadenza',
             'payment_due_days' => 'Giorni di preavviso per le scadenze',
+            'quote_validity_days' => 'Validità dei preventivi (giorni)',
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -125,6 +126,9 @@ final class SettingResource extends SingletonResource
                 : []),
             ...(Gestionale::feature('office_sales')
                 ? [FormField::key('payment_due_days')->number()->decimal(0)->value(7)->label('Giorni di preavviso per le scadenze')]
+                : []),
+            ...(Gestionale::feature('quotes')
+                ? [FormField::key('quote_validity_days')->number()->decimal(0)->value(30)->label('Validità dei preventivi (giorni)')]
                 : []),
         ];
 
@@ -197,16 +201,23 @@ final class SettingResource extends SingletonResource
      */
     private static function salesExtra(): array
     {
-        if (!Gestionale::feature('office_sales')) {
-            return [];
+        $out = [];
+
+        if (Gestionale::feature('office_sales')) {
+            $out[] = SectionTitle::make('Scadenzario')
+                ->tooltip('Quanti giorni prima della scadenza una rata si segna in giallo e compare nel riquadro «Pagamenti in scadenza» della home. Le rate già scadute sono sempre in rosso.')
+                ->columnSpan(12);
+            $out[] = static::getInput('payment_due_days')->columnSpan(4);
         }
 
-        return [
-            SectionTitle::make('Scadenzario')
-                ->tooltip('Quanti giorni prima della scadenza una rata si segna in giallo e compare nel riquadro «Pagamenti in scadenza» della home. Le rate già scadute sono sempre in rosso.')
-                ->columnSpan(12),
-            static::getInput('payment_due_days')->columnSpan(4),
-        ];
+        if (Gestionale::feature('quotes')) {
+            $out[] = SectionTitle::make('Preventivi')
+                ->tooltip('Quanti giorni vale un preventivo nuovo: la data si cambia su ogni preventivo. Inviato e non accettato entro quella data, il preventivo diventa scaduto.')
+                ->columnSpan(12);
+            $out[] = static::getInput('quote_validity_days')->columnSpan(4);
+        }
+
+        return $out;
     }
 
     /**
@@ -260,7 +271,23 @@ final class SettingResource extends SingletonResource
     /** Le email degli ordini e della scorta restano di chi vende: in produzione si cambiano lo stesso. */
     public static function editableWhenReadonly(): array
     {
-        return ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days'];
+        return ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days'];
+    }
+
+    /** I giorni di validità di un preventivo: da 1 a 365, o un rifiuto; vuoto torna a 30. */
+    public static function validityDays(mixed $value): int
+    {
+        if ($value === null || is_string($value) && trim($value) === '') {
+            return 30;
+        }
+
+        $number = Numbers::fromForm($value);
+
+        if ($number === null || !is_numeric($number) || (float) $number !== floor((float) $number) || (float) $number < 1 || (float) $number > 365) {
+            throw UserError::make('settings.quote_validity_days_invalid');
+        }
+
+        return (int) $number;
     }
 
     /** I giorni dello scadenzario: un intero da 0 a 365, o un rifiuto; vuoto torna a 7. */
@@ -338,6 +365,13 @@ final class SettingResource extends SingletonResource
             unset($values['batch_expiry_days']);
         } elseif (array_key_exists('batch_expiry_days', $values)) {
             $values['batch_expiry_days'] = static::expiryDays($values['batch_expiry_days']);
+        }
+
+        // G9, preventivi: da 1 a 365 giorni; vuoto torna ai 30 di partenza.
+        if (!Gestionale::feature('quotes')) {
+            unset($values['quote_validity_days']);
+        } elseif (array_key_exists('quote_validity_days', $values)) {
+            $values['quote_validity_days'] = static::validityDays($values['quote_validity_days']);
         }
 
         // G9, scadenzario: da 0 a 365 giorni; vuoto torna ai 7 di partenza.

@@ -19,7 +19,11 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Documents\DocumentData;
+use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
+use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdfs;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
+use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
@@ -57,6 +61,9 @@ final class OfficeOrders
         'payment_method_id', 'payment_term_id', 'customer_note', 'internal_note', 'document_note',
     ];
 
+    /** Gli stati da cui un preventivo si modifica: dopo la modifica torna da inviare (G9 §3.1). */
+    public const QUOTE_EDITABLE = ['draft', 'sent', 'rejected', 'expired'];
+
     /**
      * Salva la bozza: testata e righe dall'editor, poi il ricalcolo. Con
      * `$orderId` 0 nasce una bozza nuova.
@@ -64,11 +71,17 @@ final class OfficeOrders
      * Le righe si riscrivono tutte: la bozza non ha merce né storia dietro,
      * e riscriverle è più semplice che confrontarle.
      *
-     * @param array<string, mixed> $data testata (vedi `HEADER`, `billing_*`, `shipping_*`, `fulfillment_type`, sconto, `shipping_amount`) e `lines`
+     * Con `$stage` `quote` è un preventivo (piano 3): stesso editor, stesse
+     * righe; un preventivo già inviato che si modifica torna `draft` e al
+     * prossimo invio la revisione sale.
+     *
+     * @param array<string, mixed> $data testata (vedi `HEADER`, `billing_*`, `shipping_*`, `fulfillment_type`, sconto, `shipping_amount`, `quote_expires_at`) e `lines`
      * @return int l'id della bozza
      */
-    public static function save(int $orderId, array $data, int $userId = 0): int
+    public static function save(int $orderId, array $data, int $userId = 0, string $stage = 'order'): int
     {
+        $stage = $stage === 'quote' ? 'quote' : 'order';
+
         // Su una bozza che c'è già, la testata che non arriva resta com'era.
         if ($orderId > 0) {
             $stored = Order::findById($orderId);
@@ -84,15 +97,27 @@ final class OfficeOrders
         $lines = OfficeOrderRules::lines(is_array($data['lines'] ?? null) ? $data['lines'] : []);
         $shipping = self::shippingAmount($data['shipping_amount'] ?? null);
 
-        return Transaction::run(static function () use ($orderId, $data, $userId, $header, $lines, $shipping): int {
-            $order = $orderId > 0 ? self::draft($orderId) : null;
+        $expires = $stage === 'quote' ? self::expiryDate($data['quote_expires_at'] ?? null) : null;
+
+        return Transaction::run(static function () use ($orderId, $data, $userId, $header, $lines, $shipping, $stage, $expires): int {
+            $order = $orderId > 0 ? self::draft($orderId, $stage) : null;
             $values = self::headerValues($data, $header, $order !== null);
+
+            if ($stage === 'quote') {
+                $values['quote_expires_at'] = $expires ?? (string) ($order['quote_expires_at'] ?? '') ?: self::defaultExpiry();
+            }
+
+            if ($order !== null && (string) $order['status'] !== 'draft') {
+                // Il preventivo inviato, rifiutato o scaduto che si cambia torna da inviare.
+                $values['status'] = 'draft';
+                StatusLogger::record(OrderStatusLog::class, $orderId, 'status', (string) $order['status'], 'draft', 'user', $userId ?: null);
+            }
 
             if ($order === null) {
                 $settings = self::settings();
                 $created = Order::create($values + [
                     'code' => Code::make(Order::class, Codes::ORDER),
-                    'stage' => 'order',
+                    'stage' => $stage,
                     'status' => 'draft',
                     'channel' => 'office',
                     'payment_status' => 'unpaid',
@@ -231,8 +256,19 @@ final class OfficeOrders
         });
 
         if (($options['notify'] ?? false) === true) {
-            // Fuori dalla transazione, come `Lifecycle`: la posta è lenta.
-            OrderNotifier::send('confirmed', $orderId);
+            // Fuori dalla transazione, come `Lifecycle`: la posta è lenta. La
+            // conferma da ufficio porta il PDF con le rate (G9 §3.4).
+            $attachments = [];
+
+            try {
+                $name = 'Conferma-ordine-'.preg_replace('/[^A-Za-z0-9-]+/', '-', $result['order_number']).'.pdf';
+                $attachments = [DocumentFiles::temporary($name, DocumentPdfs::render('order_confirmation', DocumentData::forOrder($orderId))) => $name];
+            } catch (Throwable $error) {
+                // Senza PDF l'email parte lo stesso: il guasto va nel log.
+                Errors::internal($error, 'pdf.order_confirmation', ['order_id' => $orderId]);
+            }
+
+            OrderNotifier::send('office_confirmed', $orderId, [], $attachments);
         }
 
         return $result;
@@ -723,12 +759,20 @@ final class OfficeOrders
     }
 
     /** @return array<string, mixed> */
-    private static function draft(int $orderId): array
+    private static function draft(int $orderId, string $stage = 'order'): array
     {
         $order = Order::findForUpdate(['id' => $orderId], 1);
 
         if (!is_array($order) || $order === [] || (string) ($order['deleted'] ?? 'false') === 'true') {
-            throw UserError::make('office_order.not_draft');
+            throw UserError::make($stage === 'quote' ? 'quote.not_found' : 'office_order.not_draft');
+        }
+
+        if ($stage === 'quote') {
+            if ((string) $order['stage'] !== 'quote' || !in_array((string) $order['status'], self::QUOTE_EDITABLE, true)) {
+                throw UserError::make('quote.not_editable');
+            }
+
+            return $order;
         }
 
         if ((string) $order['status'] !== 'draft' || (string) $order['stage'] !== 'order') {
@@ -736,6 +780,38 @@ final class OfficeOrders
         }
 
         return $order;
+    }
+
+    /**
+     * La validità del preventivo dalla pagina (`d/m/Y` o `Y-m-d`), a
+     * mezzanotte; null se vuota.
+     */
+    private static function expiryDate(mixed $value): ?string
+    {
+        $text = trim((string) ($value ?? ''));
+
+        if ($text === '') {
+            return null;
+        }
+
+        if (preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})$#', $text, $m) === 1) {
+            $text = sprintf('%04d-%02d-%02d', (int) $m[3], (int) $m[2], (int) $m[1]);
+        }
+
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $text, $m) !== 1 || !checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+            throw UserError::make('quote.invalid_expiry');
+        }
+
+        return $m[1].'-'.$m[2].'-'.$m[3].' 00:00:00';
+    }
+
+    /** Oggi più i giorni di validità delle impostazioni (30 se mancano). */
+    public static function defaultExpiry(): string
+    {
+        $days = (int) (self::settings()['quote_validity_days'] ?? 30);
+        $days = $days > 0 ? min($days, 3650) : 30;
+
+        return date('Y-m-d 00:00:00', (int) strtotime('+'.$days.' days'));
     }
 
     /** @return list<array<string, mixed>> */
