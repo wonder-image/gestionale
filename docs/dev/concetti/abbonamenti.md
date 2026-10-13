@@ -87,12 +87,31 @@ Funzionalità `online_subscriptions` (richiede `online_sales` e
   fattura.
 - **Stati**: li scrive solo `SubscriptionStatus::move()`, con la storia.
 
+## Abbonamenti da ufficio
+
+`OfficeSubscriptions` (canale `office`, provider `manual`):
+
+- **`create()`** parte attivo o in prova dalla data d'inizio e, senza prova,
+  chiama `openPeriod()`.
+- **`openPeriod()`** scrive le rate con `Installments::createForSubscription()`
+  (la `PaymentSchedule` di G9, dal `current_period_start`) e manda il proforma
+  (`ProformaPdf`, tipo `proforma`, con il dato di
+  `DocumentData::forSubscription()`). L'addebito per il coupon si conta dai mesi
+  trascorsi.
+- **`registerPayment()`** passa da `Installments::register()`, che riconosce le
+  rate con `subscription_id`: stessi conti delle rate degli ordini, senza
+  `Ledger::sync()`.
+- **`daily()`** (`OfficeSubscriptionsTask`) apre i periodi, chiude i disdetti
+  e segue le rate scadute: `past_due` con il promemoria, `unpaid` oltre
+  `subscription_unpaid_days`.
+
 ## Provare
 
 - Unitari: `PlanPriceRulesTest`, `SubscriptionAmountsTest`,
   `SubscriptionModelsTest`, `SubscriptionPagesTest`, `StripeCatalogTest`,
   `StripeSubscriptionDataTest`.
 - Integrazione: `php tests/integrazione/PlansTest.php` e
-  `php tests/integrazione/OnlineSubscriptionsTest.php` (dopo `php forge update`;
-  Stripe finto, notifiche simulate).
+  `php tests/integrazione/OnlineSubscriptionsTest.php` (Stripe finto, notifiche
+  simulate) e `php tests/integrazione/OfficeSubscriptionsTest.php`, dopo
+  `php forge update`.
 - Dati di prova: `php forge gestionale:demo` crea i piani «Base» e «Pro».

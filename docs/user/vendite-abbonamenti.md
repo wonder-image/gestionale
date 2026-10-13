@@ -19,8 +19,8 @@ Le pagine sono due, in **Vendite**:
 * **Piani**: cosa vendi, a quali prezzi e con quali limiti;
 * **Abbonamenti**: chi è abbonato, a cosa, e quando rinnova.
 
-> Gli abbonamenti nascono dal **sito**, con la funzionalità *Abbonamenti online*
-> (vedi sotto). La creazione da ufficio arriva con un prossimo aggiornamento.
+> Gli abbonamenti nascono dal **sito**, con la funzionalità *Abbonamenti online*,
+> oppure **da ufficio**, con «Nuovo abbonamento» (vedi sotto).
 
 ## I piani
 
@@ -139,11 +139,50 @@ dopo 24 ore si chiude da solo.
 > **Gestionale: fine vincolo degli abbonamenti**. Un rimborso di un abbonamento
 > si fa da Stripe e compare in *Da controllare*.
 
+## Abbonamenti da ufficio
+
+Dall'elenco *Abbonamenti*, **Nuovo abbonamento**: scegli il cliente, il piano e
+il prezzo, la data d'inizio, il metodo e la condizione di pagamento (vuoti: quelli
+della scheda del cliente) e, se vuoi, un coupon. Niente Stripe: il cliente paga
+come per un ordine da ufficio.
+
+* L'abbonamento parte **attivo** dalla data scelta (o *in prova*, se il prezzo
+  ne ha una): non aspetta il primo pagamento.
+* A ogni periodo nascono le **rate** della condizione di pagamento (con
+  «Bonifico 30 gg fine mese», una rata a fine del mese dopo l'inizio del
+  periodo) e il cliente riceve il **proforma** in PDF, con l'importo, le
+  scadenze e l'IBAN del conto. Il proforma non è una fattura.
+* Le rate si incassano dallo **Scadenzario** (*Vendite → Scadenzario*, con
+  *Vendita in ufficio*) o dalla scheda dell'abbonamento, con **Registra**. Un
+  acconto lascia il resto con la stessa scadenza.
+* Una rata **scaduta** porta l'abbonamento a *da pagare* e il cliente riceve un
+  promemoria. Dopo i giorni scelti in *Impostazioni → Vendite → Giorni prima di
+  «non pagato»* (15 di partenza) diventa *non pagato*: non si aprono più periodi
+  finché non paga. Annullarlo lo decidi tu.
+
+Dalla scheda dell'abbonamento:
+
+* **Cambia piano**: il nuovo prezzo vale dal periodo dopo; le rate di quello in
+  corso restano.
+* **Disdici**: non si rinnova più e finisce alla fine del periodo (o del
+  vincolo, se dura ancora).
+* **Annulla**: si chiude subito e le rate in attesa si annullano. I pagamenti già
+  arrivati restano.
+* **Rimanda il proforma** e scarica il PDF del periodo in corso.
+
+*Cambia piano* e *Disdici* ci sono anche per gli abbonamenti online: passano a
+Stripe.
+
+> **Per chi installa.** Accendi l'attività **Gestionale: periodi e scadenze
+> degli abbonamenti da ufficio**: apre i periodi, chiude i disdetti e segue le
+> rate scadute.
+
 ## Coupon sugli abbonamenti
 
 Un coupon vale anche per gli abbonamenti se nella sua scheda accendi **Vale per
 gli abbonamenti** (vedi [Coupon](promozioni-coupon.md)). Solo sconti in
-percentuale o in importo, con una durata:
+percentuale o in importo, con una durata (da ufficio il coupon deve valere anche
+per *Ufficio*):
 
 * **Sul primo addebito**;
 * **Per N mesi**: un mensile lo prende per N addebiti, un annuale solo sul
