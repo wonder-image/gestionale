@@ -8,6 +8,8 @@ use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
+use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Backend\Support\FlashAlert;
 use Wonder\Http\Csrf;
 use Wonder\Plugin\Gestionale\Gestionale;
@@ -20,9 +22,9 @@ use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderForm;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 
 /**
- * *Vendite → Nuovo ordine* (G9 §2.2): la bozza d'ordine da ufficio, composta e
- * salvata da una pagina sola. Un ordine confermato non si apre qui: si va alla
- * sua scheda negli *Ordini*.
+ * *Vendite → Ordini da ufficio* (G9 §2.2): le bozze dell'ufficio e *Nuovo
+ * ordine*, la bozza composta e salvata da una pagina sola. Un ordine
+ * confermato non si apre qui: si va alla sua scheda negli *Ordini*.
  *
  * Come i documenti di magazzino, il POST passa da `mutateRequestValues()` e
  * non torna mai al core: le righe viaggiano in JSON e le scrive
@@ -46,7 +48,7 @@ final class OfficeOrderResource extends GestionaleResource
 
     public static function titleLabel(): string
     {
-        return 'Nuovo ordine';
+        return 'Ordini da ufficio';
     }
 
     public static function textSchema(): array
@@ -61,17 +63,60 @@ final class OfficeOrderResource extends GestionaleResource
         ];
     }
 
+    public static function labelSchema(): array
+    {
+        return ['customer' => 'Cliente', 'total' => 'Totale', 'creation' => 'Creata', 'last_modified' => 'Modificata'];
+    }
+
     public static function formSchema(): array
     {
         return [];
     }
 
+    public static function tableSchema(): array
+    {
+        return [
+            TableColumn::key('customer')
+                ->text()
+                ->link('edit')
+                ->formatter(static fn (array $row): string => static::escape(OrderResource::customerName($row))),
+            TableColumn::key('total')->price()->size('little'),
+            TableColumn::key('creation')->date()->size('medium')->hiddenDevice('mobile'),
+            TableColumn::key('actions')->button()->actions(['edit']),
+        ];
+    }
+
+    public static function tableLayoutSchema(): TableLayoutSchema
+    {
+        return TableLayoutSchema::for(static::class)
+            ->title('Bozze')
+            ->results()
+            ->buttonAdd(true, 'Nuovo ordine')
+            ->filterSearch()
+            ->searchFields(['billing_name', 'billing_surname', 'billing_business_name', 'email']);
+    }
+
+    /**
+     * Solo le bozze dell'ufficio: gli ordini confermati stanno negli *Ordini*.
+     *
+     * @return array<string, mixed>
+     */
+    public static function querySchema(): array
+    {
+        $schema = parent::querySchema();
+        $schema['condition'] = "deleted = 'false' AND stage = 'order' AND status = 'draft' AND channel = 'office'";
+        $schema['order'] = ['column' => 'creation', 'direction' => 'DESC'];
+
+        return $schema;
+    }
+
     public static function pageSchema(): PageSchema
     {
         return static::withFeature(parent::pageSchema()
-            ->only(['create', 'store', 'edit', 'update'])
-            ->titles(['create' => 'Nuovo ordine', 'edit' => 'Bozza d\'ordine'])
+            ->only(['list', 'create', 'store', 'edit', 'update'])
+            ->titles(['list' => 'Ordini da ufficio', 'create' => 'Nuovo ordine', 'edit' => 'Bozza d\'ordine'])
             ->subtitles([
+                'list' => 'Le bozze degli ordini fatti dall\'ufficio. Confermate, passano negli Ordini con il loro numero.',
                 'create' => 'Un ordine fatto dall\'ufficio: si salva come bozza, senza numero e senza toccare il magazzino, finché non lo confermi.',
                 'edit' => 'La bozza non ha numero e non tocca il magazzino: alla conferma la merce esce e nascono le rate.',
             ])
@@ -82,15 +127,15 @@ final class OfficeOrderResource extends GestionaleResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('vendite')
-            ->title('Nuovo ordine')
-            ->order(5)
+            ->title('Ordini da ufficio')
+            ->order(12)
             ->authority(['admin', 'administrator'])
             ->enabled(static::featureActive());
     }
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['create', 'store', 'edit', 'update'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->backend(['list', 'create', 'store', 'edit', 'update'], ['admin', 'administrator']);
     }
 
     public static function apiSchema(): ApiSchema

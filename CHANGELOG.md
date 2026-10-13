@@ -8,7 +8,7 @@ versionamento semantico.
 ### Aggiunto
 
 - G9 piano 2, **Ordini da ufficio** (con *Vendita in ufficio*): **Vendite →
-  Nuovo ordine** con la bozza senza numero né merce impegnata (cliente con i
+  Ordini da ufficio** con le bozze e **Nuovo ordine**: la bozza senza numero né merce impegnata (cliente con i
   dati della sua scheda, fatturazione, consegna con costo di spedizione a mano,
   sede, righe da «Cerca o scansiona» con prezzo e sconto di riga, righe libere
   e di testo, lotto e fornitore, disponibile della sede, sconto sul totale,

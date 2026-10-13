@@ -160,9 +160,11 @@ check('salvare di nuovo riscrive le righe e la bozza resta una', function () {
     return prova(static function (): bool {
         $prodotto = articolo(5);
         $ordine = bozza($prodotto, 1);
-        OfficeOrders::save($ordine, ['fulfillment_type' => 'pickup', 'lines' => [['type' => 'product', 'product_id' => $prodotto, 'quantity' => '3']]]);
+        OfficeOrders::save($ordine, ['lines' => [['type' => 'product', 'product_id' => $prodotto, 'quantity' => '3']]]);
 
-        return count(righe($ordine)) === 1 && round((float) righe($ordine)[0]['quantity'], 3) === 3.0;
+        // Indirizzi e consegna non inviati restano com'erano.
+        return count(righe($ordine)) === 1 && round((float) righe($ordine)[0]['quantity'], 3) === 3.0
+            && (string) Order::findById($ordine)['billing_city'] === 'Milano';
     });
 });
 

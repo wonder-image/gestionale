@@ -17,7 +17,7 @@ numero e non tocca il magazzino, e lo puoi modificare quanto vuoi. Quando lo
 
 ## Nuovo ordine
 
-*Vendite → Nuovo ordine*.
+*Vendite → Ordini da ufficio* elenca le bozze; **Nuovo ordine** ne apre una.
 
 * **Cliente** — cercalo per nome, email o partita IVA. Scegliendolo si
   riempiono fatturazione, consegna, metodo e condizione di pagamento dalla sua
@@ -57,8 +57,8 @@ ufficio non si scelgono ancora: vendili come riga libera.
 ### Salvare e confermare
 
 **Salva bozza** salva tutto e mostra i **totali** veri, con listino, campagne,
-sconti e spedizione. La bozza la ritrovi negli **Ordini**, con il badge
-*Bozza* e senza numero.
+sconti e spedizione. La bozza la ritrovi in *Ordini da ufficio* e negli **Ordini**, con
+*Bozza* al posto del numero.
 
 **Conferma ordine**:
 

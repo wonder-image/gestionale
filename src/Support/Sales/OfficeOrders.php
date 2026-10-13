@@ -67,13 +67,24 @@ final class OfficeOrders
      */
     public static function save(int $orderId, array $data, int $userId = 0): int
     {
+        // Su una bozza che c'è già, la testata che non arriva resta com'era.
+        if ($orderId > 0) {
+            $stored = Order::findById($orderId);
+
+            foreach (['fulfillment_type', 'manual_discount_type', 'manual_discount_value'] as $key) {
+                if (!array_key_exists($key, $data) && is_array($stored) && isset($stored[$key])) {
+                    $data[$key] = (string) $stored[$key];
+                }
+            }
+        }
+
         $header = OfficeOrderRules::header($data);
         $lines = OfficeOrderRules::lines(is_array($data['lines'] ?? null) ? $data['lines'] : []);
         $shipping = self::shippingAmount($data['shipping_amount'] ?? null);
 
         return Transaction::run(static function () use ($orderId, $data, $userId, $header, $lines, $shipping): int {
             $order = $orderId > 0 ? self::draft($orderId) : null;
-            $values = self::headerValues($data, $header);
+            $values = self::headerValues($data, $header, $order !== null);
 
             if ($order === null) {
                 $settings = self::settings();
@@ -614,7 +625,7 @@ final class OfficeOrders
      * @param array{fulfillment_type: string, manual_discount_type: string, manual_discount_value: float} $header
      * @return array<string, mixed>
      */
-    private static function headerValues(array $data, array $header): array
+    private static function headerValues(array $data, array $header, bool $update = false): array
     {
         $values = [
             'fulfillment_type' => $header['fulfillment_type'],
@@ -651,6 +662,11 @@ final class OfficeOrders
             array_map(static fn (string $k): string => 'billing_'.$k, self::billingKeys()),
             array_map(static fn (string $k): string => 'shipping_'.$k, self::shippingKeys())
         ) as $key) {
+            // In aggiornamento un indirizzo che non arriva non si tocca.
+            if ($update && !array_key_exists($key, $data) && !isset($defaults[$key])) {
+                continue;
+            }
+
             $value = trim((string) ($data[$key] ?? ''));
             $values[$key] = $value !== '' ? $value : (string) ($defaults[$key] ?? '');
         }
