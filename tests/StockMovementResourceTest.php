@@ -188,7 +188,7 @@ check('il menu ⋯: Visualizza, documento, ordine; il documento solo sulle righe
 
         return array_keys($azioni) === ['view', 'document_type', 'ordine']
             && ($azioni['view'] ?? null) === true
-            && ($documento['label'] ?? null) === ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico', 'stocktake' => 'Visualizza inventario', 'transfer' => 'Visualizza trasferimento']
+            && ($documento['label'] ?? null) === ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico', 'stocktake' => 'Visualizza inventario']
             && ($documento['href'] ?? '') === '{document_url}'
             && !isset($documento['filter'])
             && ($ordine['label'] ?? '') === 'Visualizza ordine'

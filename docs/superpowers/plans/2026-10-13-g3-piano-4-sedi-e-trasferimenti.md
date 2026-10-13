@@ -47,3 +47,8 @@ Il commit `f4e99df` (piano 2) aveva tagliato il fondo di `StockDocuments.php`: s
 1. Lock: l'invio blocca i secchi della partenza, la ricezione quelli dell'arrivo, sempre in ordine di versione.
 2. Annullo da *ricevuto*: prima gli storni all'arrivo (che possono fallire), poi quelli alla partenza, in una transazione.
 3. La guardia vede anche lo spegnimento a catena (un blocco che toglie una dipendenza di `multi_location`).
+
+## Note per l'unione
+- `ritocchi-carichi-scarichi`: `restorable()` deve tenere anche `to_location_id` della testata (oltre a `cost` e alle chiavi del lotto), o una bozza di trasferimento rifiutata all'invio si riapre senza l'arrivo.
+- `StockDocumentsDemoTest`: un documento di prova in più con *Più sedi* accesa.
+- *In viaggio* si vede da due sedi in su, non solo con la funzionalità: con una sede non si trasferisce.

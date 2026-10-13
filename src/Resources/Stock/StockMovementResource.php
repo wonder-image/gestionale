@@ -178,7 +178,9 @@ final class StockMovementResource extends GestionaleResource
             // senza pagina la voce non compare.
             'view',
             'document_type' => [
-                'label' => ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico', 'stocktake' => 'Visualizza inventario', 'transfer' => 'Visualizza trasferimento'],
+                'label' => ['receipt' => 'Visualizza carico', 'issue' => 'Visualizza scarico', 'stocktake' => 'Visualizza inventario']
+                    // Senza «Più sedi» la pagina dei trasferimenti non c'è: niente link morto.
+                    + (StockTransferResource::featureActive() ? ['transfer' => 'Visualizza trasferimento'] : []),
                 'href' => '{document_url}',
             ],
             'ordine' => [
@@ -317,7 +319,7 @@ final class StockMovementResource extends GestionaleResource
         foreach (StockDocumentRules::TYPES as $type) {
             $class = StockDocumentResource::classFor($type);
 
-            if ($class === null) {
+            if ($class === null || !$class::featureActive()) {
                 continue;
             }
 
