@@ -12,6 +12,9 @@
                 "location_duplicate": "La sede {{location}} compare due volte nelle righe della giacenza: tienine una sola.",
                 "location_unknown": "Una riga della giacenza punta a una sede che non è più del magazzino: ricarica la pagina e riprova."
             },
+            "feature": {
+                "multi_location_in_use": "«Più sedi» non si spegne: {{where}}. Riporta la merce nella sede principale con un trasferimento e ricevi quelli in viaggio, poi riprova."
+            },
             "stock_document": {
                 "not_found": "Questo documento di magazzino non esiste più.",
                 "not_draft": "Questo documento è già stato confermato o annullato: non si modifica più. Per correggerlo annullalo e duplicalo.",

@@ -2,7 +2,9 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\System;
 
+use Throwable;
 use Wonder\App\Environment;
+use Wonder\Backend\Support\FlashAlert;
 use Wonder\App\Resources\Support\NavigationOnlyResource;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -16,6 +18,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureCatalog;
 use Wonder\Plugin\Gestionale\Support\Features\FeaturePanel;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
 /**
  * Pagina "Funzionalità": un interruttore per funzionalità, raggruppati per
@@ -143,7 +146,19 @@ final class FeatureResource extends NavigationOnlyResource
         }
 
         $user = LegacyGlobals::get('USER');
-        $changes = FeaturePanel::save($requested, is_object($user) ? (int) ($user->id ?? 0) : 0);
+
+        try {
+            $changes = FeaturePanel::save($requested, is_object($user) ? (int) ($user->id ?? 0) : 0);
+        } catch (UserError $error) {
+            // G3.18: un rifiuto è un avviso, non il messaggio verde del salvataggio.
+            if (headers_sent()) {
+                return $error->getMessage();
+            }
+
+            FlashAlert::custom('Attenzione', $error->getMessage(), 'warning');
+            header('Location: '.static::formUrl());
+            exit();
+        }
 
         return match (true) {
             $changes['unlocked'] !== [] && $changes['locked'] !== [] => 'Sbloccate: '.implode(', ', $changes['unlocked'])
@@ -154,7 +169,25 @@ final class FeatureResource extends NavigationOnlyResource
         };
     }
 
-    /** Descrizione del catalogo, con le dipendenze e il modulo richiesto. */
+    /** La pagina degli interruttori, dove si torna dopo un rifiuto. */
+    private static function formUrl(): string
+    {
+        $fallback = '/backend/'.static::path();
+
+        if (!function_exists('__r')) {
+            return $fallback;
+        }
+
+        try {
+            $named = (string) __r('backend.resource.'.static::slug().'.form');
+        } catch (Throwable) {
+            return $fallback;
+        }
+
+        return $named !== '' ? $named : $fallback;
+    }
+
+        /** Descrizione del catalogo, con le dipendenze e il modulo richiesto. */
     private static function describe(array $feature): string
     {
         $parts = [$feature['description']];
