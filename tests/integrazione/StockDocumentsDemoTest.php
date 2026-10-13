@@ -127,9 +127,12 @@ try {
 
         // L'inventario di prova eliminato dal backend: il giro dopo lo rifà e la pulizia lo vede.
         $codiceInventario = DemoCode::forModel(StockDocument::class, 'inventario');
+        // Come *Elimina* dell'elenco del backend: la riga resta, segnata come
+        // eliminata. `StockDocuments::delete()` la toglierebbe davvero, e non
+        // ci sarebbe niente da ritrovare.
         $elimina = static function () use ($codiceInventario): void {
-            $inventario = StockDocument::find(['code' => $codiceInventario], 1);
-            StockDocuments::delete((int) $inventario['id']);
+            $inventario = StockDocument::find(['code' => $codiceInventario, 'deleted' => 'false'], 1);
+            sqlModify(StockDocument::$table, ['deleted' => 'true'], 'id', (int) $inventario['id']);
         };
         // Il perché, quando un giro si ferma: le note della pulizia, i
         // documenti e gli articoli di prova rimasti, i secchi delle versioni.
