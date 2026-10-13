@@ -591,6 +591,10 @@ in `wonder-image/app`.
 - La sede principale è la sede predefinita del core. Con `multi_location` bloccata è
   l'unica sede del gestionale e la scelta della sede non compare da nessuna parte
   (D20).
+- **Sede della vendita (G3.1, G3.2):** la merce di ogni ordine esce dalla
+  principale, con o senza `multi_location`. Il punto di ritiro non è un magazzino:
+  il ritiro si fa dove il cliente preferisce e la merce ci arriva dalla principale.
+  Il reso rientra nella sede scelta da chi lo registra.
 - "Punto di ritiro" compare solo con `shipping`, "Banco" solo con `pos`.
 - Orari e chiusure effettivi dal core (`SocietyLocations::hoursFor()` e `isOpen()`):
   durante una chiusura il ritiro non si può scegliere.
@@ -631,7 +635,8 @@ bloccata la giacenza blocca sempre la vendita e nessun campo compare (D20).
 - Il multiprodotto si vende se ogni componente è disponibile oppure vendibile senza
   giacenza.
 - Con `batch_tracking` il pezzo venduto senza giacenza resta senza lotto: lo assegna il
-  carico successivo (dettaglio in G3).
+  carico successivo, con due movimenti di compensazione (G3.15). Lo stesso per il
+  fornitore con `purchasing`.
 - Le giacenze negative compaiono negli avvisi di scorta minima e nel riquadro "Da
   controllare".
 
@@ -642,7 +647,9 @@ disponibile.
 - Carrello e checkout prenotano; alla conferma la prenotazione diventa un movimento
   `sale`. Al banco lo scarico è immediato.
 - Lotto e fornitore si scelgono alla conferma: in automatico (vedi sotto), a mano
-  negli ordini da ufficio.
+  negli ordini da ufficio. Le prenotazioni restano per prodotto e sede (G3.4); ogni
+  movimento porta la riga d'ordine (`reference_item_id`), così annulli e resi
+  rientrano nei lotti e fornitori da cui la merce era uscita (G3.5).
 - Ordine annullato dopo la conferma: movimenti `sale_cancel`.
 - DDT e spedizioni non muovono la giacenza, salvo la correzione del lotto nel DDT
   in bozza (4.9).
@@ -669,7 +676,8 @@ sola tabella, come i documenti di carico e scarico di cco:
   cancellando.
 - **Funzionalità:** carico, scarico e inventario sono sempre disponibili (G2b-bis);
   con `purchasing` il carico riceve fornitore, documento del fornitore e costi. Il
-  trasferimento richiede `multi_location`.
+  trasferimento richiede `multi_location` e ha due passi, *Invia* (`in_transit`) e
+  *Ricevi*, sempre per intero (G3.16).
 
 **Rettifica rapida** dalla scheda prodotto, sempre disponibile: movimento
 `adjustment` senza documento, con causale (`reason`): `damaged`, `gift`,
@@ -679,7 +687,8 @@ senza `purchasing`, D55), `other`.
 **Lotti e scadenze (`batch_tracking`).**
 
 - `batches`: code `bat_`, product_id, number, expiry_date, supplier_id, note.
-- Il lotto nasce al carico.
+- Il lotto nasce al carico, solo per gli articoli con «Gestisci lotti e scadenze»
+  acceso (G3.9); il numero è unico per opzione (G3.10).
 - I lotti scaduti non sono disponibili online né per lo scarico automatico.
 - Dai movimenti si risale ai clienti che hanno ricevuto un lotto (richiami).
 - Riquadro della dashboard con i lotti in scadenza entro N giorni (impostazione del
@@ -721,6 +730,9 @@ senza `purchasing`, D55), `other`.
 fornitore); strati di carico FIFO (valore esatto, ma rettifiche, resi e
 trasferimenti devono spezzare gli strati); orari delle sedi modificabili dal
 commerciante.
+
+Dettaglio di sedi, lotti, acquisti, scarico automatico, valore e trasferimenti
+nella [spec di G3](2026-10-12-magazzino-avanzato-design.md) (decisioni G3.1–G3.22).
 
 **Più avanti:** ordini a fornitore, inventario con conteggio guidato (10.5).
 
