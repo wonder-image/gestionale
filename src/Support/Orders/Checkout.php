@@ -864,7 +864,7 @@ final class Checkout
      *
      * @param array{order: array<string, mixed>, items: list<array<string, mixed>>} $recalculated
      */
-    private static function writeTaxSummaries(int $orderId, array $recalculated): void
+    public static function writeTaxSummaries(int $orderId, array $recalculated): void
     {
         sqlDelete(OrderTaxSummary::$table, 'order_id = '.$orderId);
 

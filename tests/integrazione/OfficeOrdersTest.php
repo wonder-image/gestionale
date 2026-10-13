@@ -141,7 +141,10 @@ check('riga libera e riga di testo: la libera si paga, quella di testo no', func
         $r = righe($ordine);
         $tipi = array_column($r, 'type');
 
+        $iva = Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary::find(['order_id' => $ordine]);
+
         return $tipi === ['product', 'custom', 'text']
+            && is_array($iva) && $iva !== []
             && round((float) Order::findById($ordine)['total'], 2) === 35.0
             && round((float) $r[2]['line_total'], 2) === 0.0;
     });

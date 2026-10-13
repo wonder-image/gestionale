@@ -12,6 +12,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -22,6 +23,7 @@ use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
+use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderLines;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
@@ -111,7 +113,8 @@ final class OfficeOrders
 
             self::writeLines($orderId, $lines);
             self::writeShipping($orderId, $shipping);
-            Cart::recalculate($orderId);
+            // Il riepilogo IVA come al checkout: la scheda e il PDF lo leggono.
+            Checkout::writeTaxSummaries($orderId, Cart::recalculate($orderId));
 
             return $orderId;
         });
@@ -165,6 +168,7 @@ final class OfficeOrders
             }
 
             sqlDelete(OrderItem::$table, 'order_id = '.$orderId);
+            sqlDelete(OrderTaxSummary::$table, 'order_id = '.$orderId);
             sqlDelete(OrderStatusLog::$table, 'order_id = '.$orderId);
             sqlDelete(Order::$table, 'id = '.$orderId);
         });
@@ -188,11 +192,14 @@ final class OfficeOrders
 
             // Una versione spenta dopo il salvataggio il ricalcolo la toglie:
             // la conferma la rifiuta invece di vendere un ordine diverso.
-            $removed = (array) (Cart::recalculate($orderId)['removed'] ?? []);
+            $recalculated = Cart::recalculate($orderId);
+            $removed = (array) ($recalculated['removed'] ?? []);
 
             if ($removed !== []) {
                 throw UserError::make('office_order.product_unknown', ['name' => (string) $removed[0]]);
             }
+
+            Checkout::writeTaxSummaries($orderId, $recalculated);
 
             $order = (array) Order::findById($orderId);
             $items = self::items($orderId);
@@ -418,6 +425,15 @@ final class OfficeOrders
             'tax_total' => $totals['tax_total'],
             'total' => $totals['total'],
         ], $orderId);
+
+        Checkout::writeTaxSummaries($orderId, [
+            'order' => (array) Order::findById($orderId),
+            // Come `Cart::contents()`: le righe di primo livello, senza quelle di testo.
+            'items' => array_values(array_filter(
+                self::items($orderId),
+                static fn (array $i): bool => (int) ($i['parent_item_id'] ?? 0) === 0 && (string) $i['type'] !== 'text'
+            )),
+        ]);
     }
 
     /**
