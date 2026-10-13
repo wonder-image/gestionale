@@ -47,8 +47,11 @@ final class Levels
         }
 
         $now = date('Y-m-d H:i:s');
+        $stock = self::rows(StockRow::class, $ids);
+        $expiries = self::expiries($stock);
+        $expired = [];
 
-        foreach (self::rows(StockRow::class, $ids) as $row) {
+        foreach ($stock as $row) {
             $id = (int) ($row['product_id'] ?? 0);
 
             if (isset($levels[$id])) {
@@ -56,6 +59,7 @@ final class Levels
                     $levels[$id]['quantity'] + (float) ($row['quantity'] ?? 0),
                     3
                 );
+                $expired[$id] = round(($expired[$id] ?? 0.0) + self::expiredPieces($row, $expiries, $now), 3);
             }
         }
 
@@ -68,7 +72,8 @@ final class Levels
         foreach ($levels as $id => $level) {
             $rows = $reservations[$id] ?? [];
             $levels[$id]['reserved'] = Availability::reserved($rows, $now);
-            $levels[$id]['available'] = Availability::of($level['quantity'], $rows, $now);
+            // I lotti scaduti ci sono ma non si vendono (G3.11).
+            $levels[$id]['available'] = Availability::of(round($level['quantity'] - ($expired[$id] ?? 0.0), 3), $rows, $now);
         }
 
         return $levels;
@@ -150,10 +155,12 @@ final class Levels
             return $levels;
         }
 
+        $stock = self::rows(StockRow::class, $ids);
         $perLocation = self::perLocation(
-            self::rows(StockRow::class, $ids),
+            $stock,
             self::rows(StockReservation::class, $ids),
-            date('Y-m-d H:i:s')
+            date('Y-m-d H:i:s'),
+            self::expiries($stock)
         );
 
         foreach ($ids as $id) {
@@ -173,13 +180,18 @@ final class Levels
      *
      * @param list<array<string, mixed>> $stockRows righe di `gst_stock`
      * @param list<array<string, mixed>> $reservationRows righe di `gst_stock_reservations`
+     * I pezzi dei lotti scaduti (G3.11) restano nella giacenza ma escono dal
+     * disponibile: `$expiries` dà la scadenza di ogni lotto, per id.
+     *
      * @param string|null $now `Y-m-d H:i:s`; null = adesso
+     * @param array<int, string> $expiries lotto → scadenza `Y-m-d`
      * @return array<int, array<int, array{quantity: float, reserved: float, available: float}>>
      */
-    public static function perLocation(array $stockRows, array $reservationRows, ?string $now = null): array
+    public static function perLocation(array $stockRows, array $reservationRows, ?string $now = null, array $expiries = []): array
     {
         $now ??= date('Y-m-d H:i:s');
         $quantities = [];
+        $expired = [];
         $reservations = [];
 
         foreach ($stockRows as $row) {
@@ -187,6 +199,10 @@ final class Levels
             $locationId = (int) ($row['location_id'] ?? 0);
             $quantities[$productId][$locationId] = round(
                 ($quantities[$productId][$locationId] ?? 0.0) + (float) ($row['quantity'] ?? 0),
+                3
+            );
+            $expired[$productId][$locationId] = round(
+                ($expired[$productId][$locationId] ?? 0.0) + self::expiredPieces($row, $expiries, $now),
                 3
             );
         }
@@ -207,12 +223,41 @@ final class Levels
                 $levels[$productId][$locationId] = [
                     'quantity' => $quantity,
                     'reserved' => Availability::reserved($rows, $now),
-                    'available' => Availability::of($quantity, $rows, $now),
+                    'available' => Availability::of(round($quantity - ($expired[$productId][$locationId] ?? 0.0), 3), $rows, $now),
                 ];
             }
         }
 
         return $levels;
+    }
+
+    /**
+     * Le scadenze dei lotti di queste righe, solo con «Lotti e scadenze»:
+     * spenta, niente scade.
+     *
+     * @param list<array<string, mixed>> $stockRows
+     * @return array<int, string>
+     */
+    private static function expiries(array $stockRows): array
+    {
+        if (!Gestionale::feature('batch_tracking')) {
+            return [];
+        }
+
+        try {
+            return StockBuckets::expiries(array_map(static fn (array $r): int => (int) ($r['batch_id'] ?? 0), $stockRows));
+        } catch (Throwable) {
+            return [];
+        }
+    }
+
+    /** I pezzi di una riga se il suo lotto è scaduto; zero altrimenti. */
+    private static function expiredPieces(array $row, array $expiries, string $now): float
+    {
+        $pieces = (float) ($row['quantity'] ?? 0);
+        $expiry = $expiries[(int) ($row['batch_id'] ?? 0)] ?? null;
+
+        return $pieces > 0 && StockPicking::isExpired($expiry, substr($now, 0, 10)) ? $pieces : 0.0;
     }
 
     /**

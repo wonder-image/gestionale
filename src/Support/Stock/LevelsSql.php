@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
+use Wonder\Plugin\Gestionale\Models\Stock\Batch;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
@@ -51,10 +52,26 @@ final class LevelsSql
             .' AND ('.self::never('r.expires_at')." OR r.expires_at > '".self::moment($now)."'))";
     }
 
-    /** Disponibili = giacenza − impegnati, come `Availability::of()`. */
-    public static function available(string $now, string $product = self::PRODUCT): string
+    /**
+     * Disponibili = giacenza − impegnati, come `Availability::of()`; con
+     * `$withExpired` (G3, «Lotti e scadenze») anche meno i lotti scaduti.
+     */
+    public static function available(string $now, string $product = self::PRODUCT, bool $withExpired = false): string
     {
-        return '(ROUND('.self::quantity($product).' - '.self::reserved($now, $product).', 3))';
+        return '(ROUND('.self::quantity($product).' - '.self::reserved($now, $product)
+            .($withExpired ? ' - '.self::expired($now, $product) : '').', 3))';
+    }
+
+    /**
+     * I pezzi nei lotti scaduti (G3.11), come `Levels`: secchi sopra zero il
+     * cui lotto ha una scadenza prima di oggi. Il giorno della scadenza no.
+     */
+    public static function expired(string $now, string $product = self::PRODUCT): string
+    {
+        return '(SELECT ROUND(COALESCE(SUM(s.quantity), 0), 3) FROM `'.StockRow::$table.'` s'
+            .' INNER JOIN `'.Batch::$table.'` b ON b.id = s.batch_id'
+            .' WHERE s.product_id = '.$product." AND s.deleted = 'false' AND s.quantity > 0"
+            ." AND b.expiry_date >= '1000-01-01' AND b.expiry_date < '".substr(self::moment($now), 0, 10)."')";
     }
 
     /**

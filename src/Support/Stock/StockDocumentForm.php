@@ -4,6 +4,8 @@ namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use JsonException;
 use Wonder\Backend\Support\FlashAlert;
+use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
@@ -22,6 +24,9 @@ final class StockDocumentForm
 
     /** Secondi in cui quello che si è messo da parte vale ancora: poi è un'altra bozza. */
     private const RESTORE_TTL = 600;
+
+    /** G3: i pezzi di riga oltre ai pezzi che tornano in pagina, se la riga li porta. */
+    private const RESTORABLE_KEYS = ['cost', 'batch_number', 'batch_expiry', 'batch_id', 'supplier_id'];
 
     /**
      * Salva la bozza e, con `intent = confirm`, la conferma.
@@ -108,7 +113,7 @@ final class StockDocumentForm
      * Quello che `remember()` ha messo da parte per questo tipo, una volta
      * sola; null se non c'è, è di un altro tipo o è vecchio.
      *
-     * @return array{header: array<string, int|string>, items: list<array{product_id: int, quantity: string, cost?: string}>}|null
+     * @return array{header: array<string, int|string>, items: list<array<string, int|string>>}|null
      */
     public static function recall(string $type): ?array
     {
@@ -134,8 +139,12 @@ final class StockDocumentForm
      * `StockDocumentRules::MAX_LINES`; un campo `lines` illeggibile non ne
      * lascia nessuna.
      *
+     * G3: costo, lotto, scadenza e le scelte dello scarico tornano anche
+     * loro, com'erano scritti. Una riga con le chiavi del lotto non è un
+     * doppione: la stessa versione sta su più righe, una per lotto.
+     *
      * @param array<string, mixed> $post
-     * @return array{header: array<string, int|string>, items: list<array{product_id: int, quantity: string, cost?: string}>}
+     * @return array{header: array<string, int|string>, items: list<array<string, int|string>>}
      */
     public static function restorable(array $post): array
     {
@@ -152,14 +161,22 @@ final class StockDocumentForm
             $id = is_array($line) ? ($line['product_id'] ?? null) : null;
             $id = is_int($id) ? $id : (is_string($id) && preg_match('/^[1-9]\d{0,9}$/D', trim($id)) === 1 ? (int) trim($id) : 0);
 
-            if ($id <= 0 || isset($seen[$id])) {
+            $lotti = is_array($line) && (array_key_exists('batch_number', $line) || array_key_exists('batch_id', $line));
+
+            if ($id <= 0 || (!$lotti && isset($seen[$id]))) {
                 continue;
             }
 
             $seen[$id] = true;
-            $items[] = ['product_id' => $id, 'quantity' => self::restorableText($line['quantity'] ?? '')]
-                // G3, Acquisti: il costo del carico, scritto com'era.
-                + (array_key_exists('cost', $line) ? ['cost' => self::restorableText($line['cost'])] : []);
+            $item = ['product_id' => $id, 'quantity' => self::restorableText($line['quantity'] ?? '')];
+
+            foreach (self::RESTORABLE_KEYS as $key) {
+                if (array_key_exists($key, $line)) {
+                    $item[$key] = self::restorableText($line[$key]);
+                }
+            }
+
+            $items[] = $item;
         }
 
         $header = self::header($post);
@@ -185,6 +202,11 @@ final class StockDocumentForm
      * Nell'inventario la riga porta anche `expected`, l'atteso salvato (o
      * null): l'editor lo mostra finché il contato e la sede restano quelli.
      *
+     * G3: con *Lotti e scadenze* lotto e scadenza del carico e il lotto
+     * scelto nello scarico (con il suo numero, anche se oggi non ha più
+     * pezzi); con *Acquisti* il fornitore scelto, con il nome. Spente, le
+     * chiavi non ci sono.
+     *
      * I pezzi in testo (`restorable()`) passano come sono: sono quelli che
      * aveva scritto chi ha inviato.
      *
@@ -197,6 +219,9 @@ final class StockDocumentForm
         $versions = $ids === [] ? [] : StockVersionSearch::describe($ids, $locationId);
         $lines = [];
         $dropped = 0;
+        $useBatches = Gestionale::feature('batch_tracking');
+        $useSuppliers = Gestionale::feature('purchasing');
+        $batches = $useBatches ? StockVersionSearch::batches(array_map(static fn (array $item): int => (int) ($item['batch_id'] ?? 0), $items)) : [];
 
         foreach ($items as $item) {
             $version = $versions[(int) $item['product_id']] ?? null;
@@ -218,6 +243,21 @@ final class StockDocumentForm
                     ? $item['cost']
                     : ($cost === null ? '' : str_replace('.', ',', (string) (round((float) $cost, 4) + 0))),
             ];
+            $batchId = (int) ($item['batch_id'] ?? 0);
+            $supplierId = (int) ($item['supplier_id'] ?? 0);
+
+            if ($useBatches) {
+                $lines[array_key_last($lines)] += [
+                    'batch_number' => (string) ($item['batch_number'] ?? ''),
+                    'batch_expiry' => (string) ($item['batch_expiry'] ?? ''),
+                    'batch_id' => $batchId,
+                    'batch_label' => $batches[$batchId]['number'] ?? '',
+                ];
+            }
+
+            if ($useSuppliers) {
+                $lines[array_key_last($lines)] += ['supplier_id' => $supplierId, 'supplier_label' => SupplierNames::of($supplierId)];
+            }
         }
 
         return ['lines' => $lines, 'dropped' => $dropped];

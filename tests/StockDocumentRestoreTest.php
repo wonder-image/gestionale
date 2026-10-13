@@ -111,4 +111,21 @@ check('G3, Acquisti: il costo del carico torna scritto com\'era, e il fornitore 
         && ($salvato['header']['supplier_document_date'] ?? null) === '2026-10-13';
 });
 
+check('G3, lotti: la stessa versione torna su più righe, una per lotto, con scadenza e scelte dello scarico', function () use ($post) {
+    $salvato = StockDocumentForm::restorable($post([
+        ['product_id' => 3, 'quantity' => '2', 'batch_number' => 'L1', 'batch_expiry' => '2027-01-31'],
+        ['product_id' => 3, 'quantity' => '1', 'batch_number' => 'L2', 'batch_expiry' => ''],
+        ['product_id' => 6, 'quantity' => '1', 'batch_id' => '9', 'supplier_id' => '0'],
+        ['product_id' => 5, 'quantity' => '1'],
+        ['product_id' => 5, 'quantity' => '4'],
+    ]));
+
+    return $salvato['items'] === [
+        ['product_id' => 3, 'quantity' => '2', 'batch_number' => 'L1', 'batch_expiry' => '2027-01-31'],
+        ['product_id' => 3, 'quantity' => '1', 'batch_number' => 'L2', 'batch_expiry' => ''],
+        ['product_id' => 6, 'quantity' => '1', 'batch_id' => '9', 'supplier_id' => '0'],
+        ['product_id' => 5, 'quantity' => '1'],
+    ];
+});
+
 summary();

@@ -46,4 +46,17 @@ check('senza database le sedi sono vuote, non un errore', fn () =>
     && Levels::byLocationForProducts([]) === []
 );
 
+check('G3: i pezzi di un lotto scaduto restano in giacenza ma escono dal disponibile', function () {
+    $righe = [
+        ['product_id' => 1, 'location_id' => 1, 'batch_id' => 7, 'quantity' => 4],
+        ['product_id' => 1, 'location_id' => 1, 'batch_id' => 8, 'quantity' => 3],
+        ['product_id' => 1, 'location_id' => 1, 'batch_id' => 0, 'quantity' => 1],
+    ];
+    $livelli = Levels::perLocation($righe, [], '2026-10-12 10:00:00', [7 => '2026-10-11', 8 => '2026-10-12']);
+    $senza = Levels::perLocation($righe, [], '2026-10-12 10:00:00');
+
+    return $livelli[1][1] === ['quantity' => 8.0, 'reserved' => 0.0, 'available' => 4.0]
+        && $senza[1][1] === ['quantity' => 8.0, 'reserved' => 0.0, 'available' => 8.0];
+});
+
 summary();

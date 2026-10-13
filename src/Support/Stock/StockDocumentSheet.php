@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use Wonder\App\Models\User\User;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -25,6 +26,9 @@ final class StockDocumentSheet
      * @param array<string, mixed> $document una riga di `gst_stock_documents`
      * Nel carico con «Acquisti» ogni riga ha anche `cost` e `line_total`, e
      * `supplier` dice fornitore e documento.
+     *
+     * G3: `source` dice lotto e scadenza del carico, lotto e fornitore scelti
+     * a mano nello scarico; vuota con le funzionalità spente o in automatico.
      *
      * @return array{lines: list<array{label: string, sku: string, quantity: string, expected: string, difference: string, tone: string, cost: string, line_total: string}>, total: string, costs: bool, supplier: string, confirmed: string, cancelled: string, location: string, reason: string, note: string}
      */
@@ -52,7 +56,7 @@ final class StockDocumentSheet
         $total = $counting ? StockDocumentEditor::stocktakeTotals(count($items), $counted, $differing) : StockDocumentEditor::totals(count($items), $pieces);
 
         return [
-            'lines' => self::lines($items, $counting, $costs),
+            'lines' => self::lines($items, $counting, $costs, (string) ($document['type'] ?? '')),
             'total' => $costs ? $total.' · '.StockValue::money((float) ($document['total_cost'] ?? 0)) : $total,
             'costs' => $costs,
             'supplier' => $costs ? self::supplier($document) : '',
@@ -66,10 +70,13 @@ final class StockDocumentSheet
 
     /**
      * @param list<array{product_id: int, quantity: ?float, expected_quantity?: ?float}> $items
-     * @return list<array{label: string, sku: string, quantity: string, expected: string, difference: string, tone: string}>
+     * @return list<array{label: string, sku: string, quantity: string, expected: string, difference: string, tone: string, source: string}>
      */
-    private static function lines(array $items, bool $counting, bool $costs = false): array
+    private static function lines(array $items, bool $counting, bool $costs = false, string $type = ''): array
     {
+        $useBatches = Gestionale::feature('batch_tracking') && in_array($type, ['receipt', 'issue'], true);
+        $useSuppliers = Gestionale::feature('purchasing') && $type === 'issue';
+        $batches = $useBatches ? StockVersionSearch::batches(array_map(static fn (array $item): int => (int) ($item['batch_id'] ?? 0), $items)) : [];
         $ids = array_values(array_unique(array_map(static fn (array $item): int => (int) $item['product_id'], $items)));
         $products = [];
 
@@ -83,7 +90,7 @@ final class StockDocumentSheet
 
         $models = ProductNames::models($products);
 
-        return array_map(static function (array $item) use ($products, $models, $counting, $costs): array {
+        return array_map(static function (array $item) use ($products, $models, $counting, $costs, $useBatches, $useSuppliers, $batches): array {
             $product = $products[(int) $item['product_id']] ?? null;
             $line = [
                 'label' => $product === null ? 'Versione eliminata' : self::text(ProductNames::full($product, $models)),
@@ -94,6 +101,7 @@ final class StockDocumentSheet
                 'tone' => '',
                 'cost' => '',
                 'line_total' => '',
+                'source' => self::source($item, $useBatches ? $batches : null, $useSuppliers),
             ];
 
             if ($costs) {
@@ -118,6 +126,43 @@ final class StockDocumentSheet
                 'tone' => $difference > 0 ? 'up' : ($difference < 0 ? 'down' : ''),
             ] + $line;
         }, $items);
+    }
+
+    /**
+     * «Lotto L24 · scade il 01/12/2026», «Lotto L7 · Fornitore Rossi»: quello
+     * che la riga dice da sé. Il numero del carico è sulla riga; quello del
+     * lotto scelto nello scarico si legge dal lotto.
+     *
+     * @param array<int, array{number: string, expiry: string}>|null $batches null = senza lotti
+     * @param bool $suppliers con la scelta del fornitore (scarico con *Acquisti*)
+     */
+    private static function source(array $item, ?array $batches, bool $suppliers): string
+    {
+        $parts = [];
+        $batchId = (int) ($item['batch_id'] ?? 0);
+        $number = trim((string) ($item['batch_number'] ?? ''));
+        $expiry = (string) ($item['batch_expiry'] ?? '');
+
+        if ($batches !== null) {
+            $number = $number !== '' ? $number : ($batches[$batchId]['number'] ?? '');
+            $expiry = $expiry !== '' ? $expiry : ($batches[$batchId]['expiry'] ?? '');
+
+            if ($number !== '') {
+                $parts[] = 'Lotto '.$number;
+            }
+
+            if ($number !== '' && $expiry !== '') {
+                $parts[] = 'scade il '.date('d/m/Y', (int) strtotime($expiry));
+            }
+        }
+
+        $supplierId = (int) ($item['supplier_id'] ?? 0);
+
+        if ($suppliers && $supplierId > 0) {
+            $parts[] = 'Fornitore '.SupplierNames::of($supplierId);
+        }
+
+        return self::text(implode(' · ', $parts));
     }
 
     /**

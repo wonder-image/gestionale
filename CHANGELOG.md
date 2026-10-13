@@ -7,6 +7,16 @@ versionamento semantico.
 
 ### Aggiunto
 
+- G3 piano 3a, **Lotti e scadenze** (funzionalità `batch_tracking`, ancora
+  non costruita: arriva accesa col piano 3b): interruttore *Gestisci lotti e
+  scadenze* nella scheda dell'articolo; nel carico caselle **Lotto** e
+  **Scadenza** e bottone **+ lotto** per le versioni che li gestiscono, lotto
+  trovato o creato alla conferma (`Batches`) e merce nel secchio del lotto;
+  nello scarico la scelta a mano del **lotto** e, con *Acquisti*, del
+  **fornitore** (vuota = automatico, prima il lotto che scade prima); i lotti
+  scaduti escono dal disponibile e hanno la colonna *Scaduti* nelle Giacenze;
+  lotto, scadenza e fornitore scelto sulle righe della scheda del documento.
+
 - G3 piano 2, **Acquisti** (funzionalità `purchasing`, inerte se spenta):
   carico con **Fornitore**, documento e data del fornitore in testata e
   **Costo** per riga (IVA esclusa) con il totale, riempito dal costo

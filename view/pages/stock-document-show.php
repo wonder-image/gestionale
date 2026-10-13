@@ -78,6 +78,9 @@ View::layout('backend.show', ['TITLE' => $resource::singular().' '.$number]);
                             <?php if ($line['sku'] !== '') { ?>
                             <div class="small text-body-secondary"><?=$e($line['sku'])?></div>
                             <?php } ?>
+                            <?php if (($line['source'] ?? '') !== '') { ?>
+                            <div class="small text-body-secondary"><?=$e($line['source'])?></div>
+                            <?php } ?>
                         </td>
                         <?php if ($counting) { ?>
                         <td class="text-end"<?=$numeric?>><?=$e($line['expected'])?></td>

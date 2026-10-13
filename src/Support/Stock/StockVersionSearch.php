@@ -8,10 +8,12 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Stock\Batch;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockLevelResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
+use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
 
 /**
  * Le versioni per la casella «Cerca o scansiona» dei documenti di magazzino
@@ -21,6 +23,10 @@ use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
  * sì, con il segno. SKU ed EAN non sono unici: il lettore dice se il codice è
  * di una versione, di più versioni o di nessuna, e la pagina aggiunge la riga
  * solo nel primo caso.
+ *
+ * G3: con *Acquisti* ogni versione porta anche `costs` e `suppliers`, con
+ * *Lotti e scadenze* `tracks_batches` e `lots` (da dove può uscire la merce
+ * nella sede). Spente, le chiavi non ci sono.
  *
  * @phpstan-type Version array{id: int, label: string, sku: string, ean: string, photo: string, stock: float, inactive: bool}
  */
@@ -188,8 +194,14 @@ final class StockVersionSearch
         $location = $locationId > 0 ? $locationId : Locations::mainId();
         $modelNames = ProductNames::models($products);
         $levels = Levels::byLocationForProducts(array_map('intval', array_column($products, 'id')));
+        $productIds = array_map('intval', array_column($products, 'id'));
+        $useBatches = Gestionale::feature('batch_tracking');
+        $useSuppliers = Gestionale::feature('purchasing');
         // G3, Acquisti: i costi per fornitore, per riempire il costo del carico.
-        $costs = Gestionale::feature('purchasing') ? self::costs(array_map('intval', array_column($products, 'id'))) : [];
+        $costs = $useSuppliers ? self::costs($productIds) : [];
+        // G3, lotti: quali versioni chiedono il lotto, e da dove può uscire la merce nello scarico.
+        $tracking = $useBatches ? array_flip(Batches::trackingProducts($productIds)) : [];
+        $buckets = $useBatches || $useSuppliers ? self::buckets($productIds, $location, $useBatches, $useSuppliers) : ['lots' => [], 'suppliers' => []];
         $versions = [];
 
         foreach ($products as $product) {
@@ -202,7 +214,9 @@ final class StockVersionSearch
                 'photo' => ProductPhotos::forModel((int) $product['product_model_id'], (int) ($product['product_variant_id'] ?? 0), $id),
                 'stock' => round((float) ($levels[$id][$location]['quantity'] ?? 0), 3),
                 'inactive' => (string) ($product['active'] ?? 'true') === 'false',
-            ] + (Gestionale::feature('purchasing') ? ['costs' => (object) ($costs[$id] ?? [])] : []);
+            ]
+                + ($useSuppliers ? ['costs' => (object) ($costs[$id] ?? []), 'suppliers' => $buckets['suppliers'][$id] ?? []] : [])
+                + ($useBatches ? ['tracks_batches' => isset($tracking[$id]), 'lots' => $buckets['lots'][$id] ?? []] : []);
         }
 
         return $versions;
@@ -226,6 +240,107 @@ final class StockVersionSearch
             if ($link['cost'] !== null && trim((string) $link['cost']) !== '') {
                 $out[(int) $link['product_id']][(int) $link['supplier_id']] = round((float) $link['cost'], 4);
             }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Da dove può uscire la merce nella sede, per la scelta a mano dello
+     * scarico (G3.12): i lotti con pezzi, nell'ordine in cui la merce esce
+     * (scadenza più vicina prima, gli scaduti segnati), e i fornitori con
+     * pezzi, per nome. I secchi 0 non si elencano: sono «automatico».
+     *
+     * @param list<int> $productIds
+     * @return array{lots: array<int, list<array{id: int, number: string, expiry: string, quantity: float, expired: bool}>>, suppliers: array<int, list<array{id: int, name: string, quantity: float}>>}
+     */
+    private static function buckets(array $productIds, int $locationId, bool $useBatches, bool $useSuppliers): array
+    {
+        $out = ['lots' => [], 'suppliers' => []];
+
+        if ($productIds === []) {
+            return $out;
+        }
+
+        $rows = self::rows(StockRow::find(
+            '`product_id` IN ('.implode(', ', $productIds).') AND `location_id` = '.$locationId
+            ." AND `quantity` > 0 AND `deleted` = 'false' AND (`batch_id` > 0 OR `supplier_id` > 0)"
+        ));
+        $lots = [];
+        $suppliers = [];
+
+        foreach ($rows as $row) {
+            $productId = (int) $row['product_id'];
+            $pieces = round((float) $row['quantity'], 3);
+            $batchId = (int) ($row['batch_id'] ?? 0);
+            $supplierId = (int) ($row['supplier_id'] ?? 0);
+
+            if ($useBatches && $batchId > 0) {
+                $lots[$productId][$batchId] = round(($lots[$productId][$batchId] ?? 0.0) + $pieces, 3);
+            }
+
+            if ($useSuppliers && $supplierId > 0) {
+                $suppliers[$productId][$supplierId] = round(($suppliers[$productId][$supplierId] ?? 0.0) + $pieces, 3);
+            }
+        }
+
+        $batches = self::batches(array_merge([], ...array_map('array_keys', array_values($lots))));
+        $today = date('Y-m-d');
+
+        foreach ($lots as $productId => $byBatch) {
+            $list = [];
+
+            foreach ($byBatch as $batchId => $pieces) {
+                $expiry = $batches[$batchId]['expiry'] ?? '';
+                $list[] = [
+                    'id' => $batchId,
+                    'number' => $batches[$batchId]['number'] ?? '#'.$batchId,
+                    'expiry' => $expiry,
+                    'quantity' => $pieces + 0.0,
+                    'expired' => StockPicking::isExpired($expiry, $today),
+                ];
+            }
+
+            usort($list, static fn (array $a, array $b): int => [$a['expiry'] === '', $a['expiry'], $a['id']] <=> [$b['expiry'] === '', $b['expiry'], $b['id']]);
+            $out['lots'][$productId] = $list;
+        }
+
+        foreach ($suppliers as $productId => $bySupplier) {
+            $list = [];
+
+            foreach ($bySupplier as $supplierId => $pieces) {
+                $list[] = ['id' => $supplierId, 'name' => SupplierNames::of($supplierId), 'quantity' => $pieces + 0.0];
+            }
+
+            usort($list, static fn (array $a, array $b): int => strnatcasecmp($a['name'], $b['name']) ?: $a['id'] <=> $b['id']);
+            $out['suppliers'][$productId] = $list;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Numero e scadenza dei lotti, per id.
+     *
+     * @param list<int> $ids
+     * @return array<int, array{number: string, expiry: string}>
+     */
+    public static function batches(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $out = [];
+
+        foreach (self::rows(Batch::find('`id` IN ('.implode(', ', $ids).") AND `deleted` IN ('true', 'false')")) as $batch) {
+            $expiry = substr(trim((string) ($batch['expiry_date'] ?? '')), 0, 10);
+            $out[(int) $batch['id']] = [
+                'number' => (string) ($batch['number'] ?? ''),
+                'expiry' => $expiry === '' || str_starts_with($expiry, '0000') ? '' : $expiry,
+            ];
         }
 
         return $out;

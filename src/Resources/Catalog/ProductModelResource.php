@@ -28,6 +28,7 @@ use Wonder\Elements\Components\QuickCreateButton;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
@@ -293,6 +294,9 @@ class ProductModelResource extends GestionaleResource
 
         // Solo con `backorders`: senza, i due campi non esistono.
         array_push($fields, ...static::backorderFields());
+
+        // Solo con `batch_tracking` (G3.9): senza, l'interruttore non esiste.
+        array_push($fields, ...static::batchFields());
 
         foreach (static::technicalAttributes() as $attribute) {
             $fields[] = static::technicalField($attribute);
@@ -1007,6 +1011,7 @@ HTML
                 ...static::returnInputs(),
                 ...static::shippingInputs(),
                 ...static::backorderInputs(),
+                ...static::batchInputs(),
             ])->columns(12)->columnSpan(12),
 
             // Un riquadro solo per il tipo fiscale: decide l'IVA, e in mezzo
@@ -1849,6 +1854,8 @@ HTML
         } else {
             unset($values['slug'], $values['position']);
         }
+
+        static::assertBatchesOff($id, $values);
 
         $sku = trim((string) ($values['sku'] ?? ''));
 
@@ -2731,6 +2738,60 @@ HTML
                 ->label('Accetta resi')
                 ->description('Il cliente può restituirlo dopo l\'acquisto.'),
         ];
+    }
+
+    /**
+     * «Gestisci lotti e scadenze» (G3.9): solo con la funzionalità. I suoi
+     * carichi chiedono lotto e scadenza; gli altri articoli non cambiano.
+     *
+     * @return list<object>
+     */
+    protected static function batchFields(): array
+    {
+        if (!Gestionale::feature('batch_tracking')) {
+            return [];
+        }
+
+        return [
+            FormField::key('track_batches')
+                ->toggle()
+                ->value('false')
+                ->label('Gestisci lotti e scadenze')
+                ->description('Nei carichi chiede lotto e scadenza; vende prima il lotto che scade prima.'),
+        ];
+    }
+
+    /** @return list<object> */
+    protected static function batchInputs(): array
+    {
+        // Un multiprodotto non ha giacenza sua: i lotti sono dei componenti.
+        if (!Gestionale::feature('batch_tracking') || static::sheetIsBundle((int) (static::currentId() ?? 0))) {
+            return [];
+        }
+
+        return [static::getInput('track_batches')->columnSpan(12)];
+    }
+
+    /**
+     * Spegnere «Gestisci lotti e scadenze» con pezzi ancora in un lotto
+     * lascerebbe quei pezzi a metà: si rifiuta (G3, spec §4.1).
+     */
+    public static function assertBatchesOff(int $modelId, array $values): void
+    {
+        // Come `backorderChoice()`: la chiave c'è e non è `true` = spento.
+        if ($modelId <= 0 || !Gestionale::feature('batch_tracking') || !array_key_exists('track_batches', $values) || $values['track_batches'] === 'true') {
+            return;
+        }
+
+        $rows = StockRow::find(
+            '`batch_id` > 0 AND `quantity` <> 0 AND `deleted` = \'false\' AND `product_id` IN (SELECT p.`id` FROM `'
+            .Product::$table.'` p WHERE p.`product_model_id` = '.$modelId.')',
+            1
+        );
+
+        if (is_array($rows) && $rows !== []) {
+            throw UserError::make('catalog.batches_in_stock');
+        }
     }
 
     /** @return list<object> */

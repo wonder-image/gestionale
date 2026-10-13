@@ -86,6 +86,7 @@ final class StockLevelResource extends GestionaleResource
             'stock_reserved' => 'Impegnati',
             'stock_available' => 'Disponibili',
             'stock_value' => 'Valore',
+            'stock_expired' => 'Scaduti',
         ];
     }
 
@@ -145,6 +146,16 @@ final class StockLevelResource extends GestionaleResource
                     ->hiddenDevice('mobile')
                     ->formatter(static fn (array $row): string => static::number($row[$key] ?? 0));
             }
+        }
+
+        if (Gestionale::feature('batch_tracking')) {
+            // I pezzi nei lotti scaduti (G3.11): ci sono, ma non si vendono.
+            $columns[] = TableColumn::key('stock_expired')
+                ->text()
+                ->size('little')
+                ->sortable()
+                ->hiddenDevice('mobile')
+                ->formatter(static fn (array $row): string => static::number($row['stock_expired'] ?? 0));
         }
 
         if (Gestionale::feature('purchasing')) {
@@ -232,7 +243,7 @@ final class StockLevelResource extends GestionaleResource
 
         if (Gestionale::feature('orders')) {
             $parts[] = LevelsSql::reserved($now).' AS stock_reserved';
-            $parts[] = LevelsSql::available($now).' AS stock_available';
+            $parts[] = LevelsSql::available($now, LevelsSql::PRODUCT, Gestionale::feature('batch_tracking')).' AS stock_available';
         }
 
         if (Gestionale::feature('low_stock_alerts')) {
@@ -241,6 +252,10 @@ final class StockLevelResource extends GestionaleResource
 
         if (Gestionale::feature('purchasing')) {
             $parts[] = LevelsSql::value().' AS stock_value';
+        }
+
+        if (Gestionale::feature('batch_tracking')) {
+            $parts[] = LevelsSql::expired($now).' AS stock_expired';
         }
 
         return implode(', ', $parts);
