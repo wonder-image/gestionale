@@ -22,13 +22,21 @@ final class StockDocumentEditor
      * versioni* con le scelte di `StockVersionSearch::scopeOptions()`.
      *
      * @param list<array<string, mixed>> $lines Version + `quantity` in testo (+ `expected` nell'inventario: `StockDocumentForm::editorLines()`)
+     * G3: `$costs` è *Acquisti* accesa, `$batches` *Lotti e scadenze*. Nel
+     * carico la colonna Costo e, per le versioni con i lotti, Lotto e
+     * Scadenza; nello scarico la scelta a mano del lotto e del fornitore
+     * (vuota = automatico). Spente, la tabella è quella di prima.
+     *
      * @param array{categories?: array<string, string>, brands?: array<string, string>} $scopes
      */
-    public static function render(array $lines, string $searchUrl, string $type = 'receipt', array $scopes = [], bool $costs = false): string
+    public static function render(array $lines, string $searchUrl, string $type = 'receipt', array $scopes = [], bool $costs = false, bool $batches = false): string
     {
         $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
         $lines = array_values($lines);
         $counting = $type === 'stocktake';
+        $lots = $batches && $type === 'receipt' ? 'input' : ($batches && $type === 'issue' ? 'pick' : '');
+        $pickSuppliers = $costs && $type === 'issue';
+        $source = implode(' · ', array_filter([$lots !== '' ? 'Lotto' : '', $lots === 'input' ? 'Scadenza' : '', $pickSuppliers ? 'Fornitore' : '']));
         // G3, Acquisti: costo e totale di riga solo nel carico.
         $costs = $costs && $type === 'receipt';
         $cost = 0.0;
@@ -58,11 +66,14 @@ final class StockDocumentEditor
             : '<th>Articolo</th>'
                 .'<th class="d-none d-md-table-cell text-end">Giacenza</th>'
                 .'<th class="text-end" style="width: 8rem">Pezzi</th>'
-                .($costs ? '<th class="text-end" style="width: 8rem">Costo</th><th class="d-none d-md-table-cell text-end">Totale</th>' : '');
+                .($costs ? '<th class="text-end" style="width: 8rem">Costo</th><th class="d-none d-md-table-cell text-end">Totale</th>' : '')
+                .($source !== '' ? '<th style="min-width: 14rem">'.$e($source).'</th>' : '');
 
         return '<div class="col-12" data-wi-stock-editor'
             .' data-mode="'.($counting ? 'stocktake' : 'pieces').'"'
             .($costs ? ' data-costs="1"' : '')
+            .($lots !== '' ? ' data-lots="'.$lots.'"' : '')
+            .($pickSuppliers ? ' data-suppliers="pick"' : '')
             .' data-search-url="'.$e($searchUrl).'"'
             .' data-max-lines="'.StockDocumentRules::MAX_LINES.'"'
             .' data-max-quantity="'.StockDocumentRules::MAX_QUANTITY.'"'
@@ -179,6 +190,8 @@ window.wiStockEditor = window.wiStockEditor || (function () {
     var DOWN = 'La ricerca non risponde: riprova.';
     var BAD = 'Controlla i pezzi della riga in rosso.';
     var CROWDED = ' righe: un documento ne tiene al massimo ';
+    var AUTO_LOT = 'Lotto automatico';
+    var AUTO_SUPPLIER = 'Fornitore automatico';
     // Come Numbers::fromForm(): lettere e valute solo in coda («3 pz», «5€»).
     // ES5 non ha \p{L}: bastano latino, greco, cirillico e i simboli di valuta.
     var TRAILING = /[A-Za-zªµºÀ-ɏͰ-ϿЀ-ӿ$¢-¥₠-⃏]+$/;
@@ -226,6 +239,13 @@ window.wiStockEditor = window.wiStockEditor || (function () {
     // Il costo come si scrive nella casella: «2,5», fino a quattro decimali.
     function costText(number) {
         return String(Math.round(number * 10000) / 10000).replace('.', ',');
+    }
+
+    // «2026-10-13» → «13/10/2026».
+    function day(date) {
+        var parts = String(date || '').split('-');
+
+        return parts.length === 3 ? parts[2] + '/' + parts[1] + '/' + parts[0] : String(date || '');
     }
 
     function totals(rows, pieces) {
@@ -297,6 +317,9 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         // G3, Acquisti: costo per riga nel carico, riempito dal fornitore della testata.
         var costing = root.getAttribute('data-costs') === '1';
         var supplier = form ? form.querySelector('[data-wi-stock-supplier]') : null;
+        // G3, lotti: `input` nel carico (Lotto e Scadenza), `pick` nello scarico (tendina); scelta del fornitore nello scarico.
+        var lotMode = root.getAttribute('data-lots') || '';
+        var pickSuppliers = root.getAttribute('data-suppliers') === 'pick';
         var scope = root.querySelector('[data-wi-stock-scope]');
         var scopeAdd = root.querySelector('[data-wi-stock-scope-add]');
         // La sede salvata: tornandoci, l'atteso salvato vale di nuovo (come in StockDocumentRules::expected()).
@@ -392,16 +415,90 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             }
         }
 
+        // L'ultima riga di quella versione: con i lotti ce ne possono essere più d'una.
         function byId(id) {
             var i;
 
-            for (i = 0; i < rows.length; i++) {
+            for (i = rows.length - 1; i >= 0; i--) {
                 if (rows[i].id === Number(id)) {
                     return rows[i];
                 }
             }
 
             return null;
+        }
+
+        // Invio in una casella della riga non invia il form: torna alla ricerca.
+        function stay(input) {
+            input.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    search.focus();
+                }
+            });
+        }
+
+        function choices(select, auto, items, text, keep, keepLabel) {
+            var found = false;
+            var option;
+            var i;
+
+            while (select.firstChild) {
+                select.removeChild(select.firstChild);
+            }
+
+            option = el('option', '', auto);
+            option.value = '';
+            select.appendChild(option);
+
+            for (i = 0; i < items.length; i++) {
+                option = el('option', items[i].expired ? 'text-danger' : '', text(items[i]));
+                option.value = String(items[i].id);
+                select.appendChild(option);
+                found = found || Number(items[i].id) === keep;
+            }
+
+            // La scelta salvata resta anche se oggi lì non ha più pezzi.
+            if (keep > 0 && !found && keepLabel) {
+                option = el('option', '', keepLabel + ' · nessun pezzo');
+                option.value = String(keep);
+                select.appendChild(option);
+                found = true;
+            }
+
+            select.value = found ? String(keep) : '';
+        }
+
+        // Le scelte dello scarico: i lotti con pezzi nella sede (gli scaduti in rosso) e i fornitori.
+        function sources(row, keepLabels) {
+            if (row.batch) {
+                choices(row.batch, AUTO_LOT, row.lots, function (lot) {
+                    return lot.number + (lot.expiry ? ' · ' + day(lot.expiry) : '') + ' · ' + format(Number(lot.quantity) || 0) + ' pz'
+                        + (lot.expired ? ' · scaduto' : '');
+                }, Number(row.batch.value || (keepLabels ? row.keep.batch_id : 0)) || 0, keepLabels ? row.keep.batch_label : '');
+                expiredMark(row);
+            }
+
+            if (row.supplier) {
+                choices(row.supplier, AUTO_SUPPLIER, row.suppliers, function (item) {
+                    return item.name + ' · ' + format(Number(item.quantity) || 0) + ' pz';
+                }, Number(row.supplier.value || (keepLabels ? row.keep.supplier_id : 0)) || 0, keepLabels ? row.keep.supplier_label : '');
+            }
+        }
+
+        function expiredMark(row) {
+            var i;
+            var red = false;
+
+            for (i = 0; i < row.lots.length; i++) {
+                red = red || (row.lots[i].expired && String(row.lots[i].id) === row.batch.value);
+            }
+
+            if (red) {
+                row.batch.classList.add('text-danger');
+            } else {
+                row.batch.classList.remove('text-danger');
+            }
         }
 
         function check(row) {
@@ -567,8 +664,12 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             search.focus();
         }
 
-        function append(version, quantity, cost) {
+        // `extra`: lotto, scadenza e scelte salvate della riga; `after`: la riga sotto cui va (+ lotto).
+        function append(version, quantity, cost, extra, after) {
             var row;
+            var lotCell;
+            var lotWrap;
+            var more;
             var tr;
             var article;
             var wrap;
@@ -585,7 +686,8 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 return null;
             }
 
-            row = {id: Number(version.id), label: String(version.label || '')};
+            extra = extra || {};
+            row = {id: Number(version.id), label: String(version.label || ''), version: version, tracks: version.tracks_batches === true};
             tr = el('tr');
             article = el('td');
             wrap = el('div', 'd-flex align-items-center gap-2');
@@ -645,7 +747,6 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                     }
                 });
             });
-            tools.appendChild(remove);
 
             row.tr = tr;
             row.input = input;
@@ -674,14 +775,89 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 tr.appendChild(row.lineTotal);
             }
 
+            // G3, lotti: Lotto e Scadenza nel carico, la scelta a mano nello scarico.
+            if (lotMode !== '' || pickSuppliers) {
+                lotCell = el('td');
+                lotWrap = el('div', 'd-flex flex-wrap gap-1');
+                lotCell.appendChild(lotWrap);
+                tr.appendChild(lotCell);
+
+                if (lotMode === 'input' && row.tracks) {
+                    row.lot = el('input', 'form-control form-control-sm');
+                    row.lot.type = 'text';
+                    row.lot.maxLength = 50;
+                    row.lot.placeholder = 'Lotto';
+                    row.lot.value = extra.batch_number == null ? '' : String(extra.batch_number);
+                    row.lot.setAttribute('aria-label', 'Lotto di ' + row.label);
+                    row.lot.style.width = '7rem';
+                    stay(row.lot);
+                    row.expiry = el('input', 'form-control form-control-sm');
+                    row.expiry.type = 'date';
+                    row.expiry.value = extra.batch_expiry == null ? '' : String(extra.batch_expiry);
+                    row.expiry.setAttribute('aria-label', 'Scadenza di ' + row.label);
+                    row.expiry.style.width = '9rem';
+                    stay(row.expiry);
+                    lotWrap.appendChild(row.lot);
+                    lotWrap.appendChild(row.expiry);
+                }
+
+                row.keep = {
+                    batch_id: Number(extra.batch_id) || 0,
+                    batch_label: String(extra.batch_label || ''),
+                    supplier_id: Number(extra.supplier_id) || 0,
+                    supplier_label: String(extra.supplier_label || '')
+                };
+
+                if (lotMode === 'pick' && row.tracks) {
+                    row.lots = version.lots || [];
+                    row.batch = el('select', 'form-select form-select-sm w-auto mw-100');
+                    row.batch.setAttribute('aria-label', 'Lotto di ' + row.label);
+                    row.batch.addEventListener('change', function () {
+                        expiredMark(row);
+                    });
+                    lotWrap.appendChild(row.batch);
+                }
+
+                if (pickSuppliers) {
+                    row.suppliers = version.suppliers || [];
+                    row.supplier = el('select', 'form-select form-select-sm w-auto mw-100');
+                    row.supplier.setAttribute('aria-label', 'Fornitore di ' + row.label);
+                    lotWrap.appendChild(row.supplier);
+                }
+
+                sources(row, true);
+
+                // Nel carico, un'altra riga della stessa versione, subito sotto, per un altro lotto.
+                if (row.lot) {
+                    more = el('button', 'btn btn-sm btn-link text-nowrap p-1', '+ lotto');
+                    more.type = 'button';
+                    more.setAttribute('aria-label', 'Un altro lotto di ' + row.label);
+                    more.addEventListener('click', function () {
+                        var fresh = append(row.version, '', row.cost ? row.cost.value : null, {}, byId(row.id));
+
+                        if (fresh) {
+                            fresh.lot.focus();
+                        }
+                    });
+                    tools.appendChild(more);
+                }
+            }
+
             if (counting) {
                 row.diff = el('td');
                 tr.appendChild(row.diff);
             }
 
+            tools.appendChild(remove);
             tr.appendChild(tools);
-            body.appendChild(tr);
-            rows.push(row);
+
+            if (after && after.tr.parentNode === body) {
+                body.insertBefore(tr, after.tr.nextSibling);
+                rows.splice(rows.indexOf(after) + 1, 0, row);
+            } else {
+                body.appendChild(tr);
+                rows.push(row);
+            }
             check(row);
             paint(row);
             refresh();
@@ -708,12 +884,18 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 check(row);
                 paint(row);
                 refresh();
-            } else if (!append(version, '1')) {
+            } else if (!(row = append(version, '1'))) {
                 return;
             }
 
             say('');
-            search.focus();
+
+            // Con i lotti, una riga ancora senza lotto vuole il lotto: il cursore va lì.
+            if (row.lot && trim(row.lot.value) === '') {
+                row.lot.focus();
+            } else {
+                search.focus();
+            }
         }
 
         // Il lettore: ogni Invio ha la sua risposta, letta nell'ordine delle letture.
@@ -790,10 +972,30 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             var out = [];
             var i;
 
+            var line;
+
+            // Le chiavi di costo, lotto e scelta solo se la riga ha le caselle: spente, la riga è quella di prima.
             for (i = 0; i < rows.length; i++) {
-                out.push(costing
-                    ? {product_id: rows[i].id, quantity: rows[i].input.value, cost: rows[i].cost.value}
-                    : {product_id: rows[i].id, quantity: rows[i].input.value});
+                line = {product_id: rows[i].id, quantity: rows[i].input.value};
+
+                if (rows[i].cost) {
+                    line.cost = rows[i].cost.value;
+                }
+
+                if (rows[i].lot) {
+                    line.batch_number = rows[i].lot.value;
+                    line.batch_expiry = rows[i].expiry.value;
+                }
+
+                if (rows[i].batch) {
+                    line.batch_id = rows[i].batch.value;
+                }
+
+                if (rows[i].supplier) {
+                    line.supplier_id = rows[i].supplier.value;
+                }
+
+                out.push(line);
             }
 
             return JSON.stringify(out);
@@ -862,7 +1064,10 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 var i;
 
                 for (i = 0; i < rows.length; i++) {
-                    ids.push(rows[i].id);
+                    if (ids.indexOf(rows[i].id) === -1) {
+                        ids.push(rows[i].id);
+                    }
+
                     paint(rows[i]);
                 }
 
@@ -877,12 +1082,22 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                     var j;
                     var row;
 
-                    for (j = 0; j < versions.length; j++) {
-                        row = byId(versions[j].id);
+                    var n;
 
-                        if (row) {
+                    // Tutte le righe della versione: con i lotti possono essere più d'una.
+                    for (j = 0; j < versions.length; j++) {
+                        for (n = 0; n < rows.length; n++) {
+                            row = rows[n];
+
+                            if (row.id !== Number(versions[j].id)) {
+                                continue;
+                            }
+
                             row.current = Number(versions[j].stock) || 0;
                             row.stock.textContent = format(row.current);
+                            row.lots = versions[j].lots || [];
+                            row.suppliers = versions[j].suppliers || [];
+                            sources(row, false);
                             paint(row);
                         }
                     }
@@ -950,7 +1165,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         }
 
         for (k = 0; k < initial.length; k++) {
-            append(initial[k], initial[k].quantity, initial[k].cost);
+            append(initial[k], initial[k].quantity, initial[k].cost, initial[k]);
         }
 
         // Cambiando fornitore, le caselle del costo ancora vuote prendono il suo.

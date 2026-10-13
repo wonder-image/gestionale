@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use JsonException;
 use Wonder\Backend\Support\FlashAlert;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
@@ -89,6 +90,11 @@ final class StockDocumentForm
      * Nell'inventario la riga porta anche `expected`, l'atteso salvato (o
      * null): l'editor lo mostra finché il contato e la sede restano quelli.
      *
+     * G3: con *Lotti e scadenze* lotto e scadenza del carico e il lotto
+     * scelto nello scarico (con il suo numero, anche se oggi non ha più
+     * pezzi); con *Acquisti* il fornitore scelto, con il nome. Spente, le
+     * chiavi non ci sono.
+     *
      * @param list<array{product_id: int, quantity: ?float, expected_quantity?: ?float}> $items
      * @return array{lines: list<array<string, mixed>>, dropped: int}
      */
@@ -98,6 +104,10 @@ final class StockDocumentForm
         $versions = $ids === [] ? [] : StockVersionSearch::describe($ids, $locationId);
         $lines = [];
         $dropped = 0;
+        $useBatches = Gestionale::feature('batch_tracking');
+        $useSuppliers = Gestionale::feature('purchasing');
+        $batches = $useBatches ? StockVersionSearch::batches(array_map(static fn (array $item): int => (int) ($item['batch_id'] ?? 0), $items)) : [];
+        $suppliers = $useSuppliers ? StockVersionSearch::supplierNames(array_map(static fn (array $item): int => (int) ($item['supplier_id'] ?? 0), $items)) : [];
 
         foreach ($items as $item) {
             $version = $versions[(int) $item['product_id']] ?? null;
@@ -116,6 +126,21 @@ final class StockDocumentForm
                 // G3, Acquisti: il costo salvato, come si scrive nella casella («2,5»).
                 'cost' => $cost === null ? '' : str_replace('.', ',', (string) (round((float) $cost, 4) + 0)),
             ];
+            $batchId = (int) ($item['batch_id'] ?? 0);
+            $supplierId = (int) ($item['supplier_id'] ?? 0);
+
+            if ($useBatches) {
+                $lines[array_key_last($lines)] += [
+                    'batch_number' => (string) ($item['batch_number'] ?? ''),
+                    'batch_expiry' => (string) ($item['batch_expiry'] ?? ''),
+                    'batch_id' => $batchId,
+                    'batch_label' => $batches[$batchId]['number'] ?? '',
+                ];
+            }
+
+            if ($useSuppliers) {
+                $lines[array_key_last($lines)] += ['supplier_id' => $supplierId, 'supplier_label' => $suppliers[$supplierId] ?? ''];
+            }
         }
 
         return ['lines' => $lines, 'dropped' => $dropped];

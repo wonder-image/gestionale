@@ -2,6 +2,7 @@
 
 use Wonder\Elements\Components\Tooltip;
 use Wonder\Http\Csrf;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentEditor;
@@ -96,7 +97,9 @@ $noteHelp = $purchases ? 'Per esempio chi ha consegnato o cosa mancava.' : $note
                 StockDocumentEditor::searchUrl(),
                 $type,
                 $type === 'stocktake' ? StockVersionSearch::scopeOptions() : [],
-                $purchases
+                // G3: i costi nel carico, la scelta del fornitore nello scarico; lotti e scadenze.
+                Gestionale::feature('purchasing'),
+                Gestionale::feature('batch_tracking')
             )?>
         </wi-card>
         <wi-card class="col-12">
