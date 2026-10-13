@@ -306,7 +306,7 @@ final class StockDocumentForm
      * ignorano le regole.
      *
      * @param array<string, mixed> $post
-     * @return array{location_id?: int, reason?: string, note?: string, supplier_id?: string, supplier_document_number?: string, supplier_document_date?: string}
+     * @return array{location_id?: int, to_location_id?: int, reason?: string, note?: string, supplier_id?: string, supplier_document_number?: string, supplier_document_date?: string}
      */
     private static function header(array $post): array
     {
@@ -314,6 +314,11 @@ final class StockDocumentForm
 
         if (array_key_exists('location_id', $post)) {
             $header['location_id'] = (int) $post['location_id'];
+        }
+
+        // G3.16: la sede d'arrivo del trasferimento.
+        if (array_key_exists('to_location_id', $post) && is_scalar($post['to_location_id'])) {
+            $header['to_location_id'] = (int) $post['to_location_id'];
         }
 
         // Il fornitore del carico (G3.7): la pagina li manda solo con «Acquisti».

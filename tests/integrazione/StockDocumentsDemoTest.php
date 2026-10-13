@@ -19,6 +19,8 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
+use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
 use Wonder\Plugin\Gestionale\Seeding\ContactsDemo;
 use Wonder\Plugin\Gestionale\Seeding\Demo;
@@ -26,6 +28,7 @@ use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Plugin\Gestionale\Seeding\StockDocumentsDemo;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocuments;
 use Wonder\Sql\Transaction;
 
@@ -55,6 +58,21 @@ $giacenze = static function () use ($righe): array {
 // `CatalogDemo` scrive foto sul disco e la transazione non le rimette: l'istantanea sì.
 $foto = Istantanea::di(rtrim((string) ($GLOBALS['ROOT'] ?? ''), '/').'/assets/upload'.ProductImages::folder());
 $esito = [];
+
+// Le funzionalità del sito non decidono il test: il primo giro è quello di
+// base (senza Acquisti, Più sedi e Lotti), il secondo quello di G3.
+$funzionalita = new ReflectionProperty(Wonder\Plugin\Gestionale\Gestionale::class, 'features');
+$conG3 = static function (bool $acceso) use ($funzionalita): void {
+    Wonder\Plugin\Gestionale\Gestionale::reset();
+    $funzionalita->setValue(null, [
+        ...Wonder\Plugin\Gestionale\Gestionale::features(),
+        'purchasing' => $acceso,
+        'multi_location' => $acceso,
+        'batch_tracking' => $acceso,
+    ]);
+    Locations::reset();
+};
+$conG3(false);
 
 try {
     Transaction::run(static function () use (&$esito, $righe, $giacenze): void {
@@ -116,7 +134,41 @@ try {
             $inventario = StockDocument::find(['code' => $codiceInventario, 'deleted' => 'false'], 1);
             sqlModify(StockDocument::$table, ['deleted' => 'true'], 'id', (int) $inventario['id']);
         };
-        StockDocumentsDemo::create();
+        // Il perché, quando un giro si ferma: le note della pulizia, i
+        // documenti e gli articoli di prova rimasti, i secchi delle versioni.
+        $diagnosi = static function (string $dove, array $note) use ($righe, $giacenze): void {
+            $documenti = array_map(
+                static fn (array $d): string => $d['code'].' '.$d['type'].' '.$d['status'].($d['deleted'] === 'true' ? ' (eliminato)' : ''),
+                $righe(StockDocument::class, "code LIKE '".str_replace('_', '\\_', DemoCode::prefixOf(StockDocument::class))."demo-%' AND deleted IN ('true', 'false')")
+            );
+            $articoli = array_map(
+                static fn (array $m): string => $m['code'].' «'.$m['name'].'»'.($m['deleted'] === 'true' ? ' (cancellato)' : '').(($m['track_batches'] ?? '') === 'true' ? ' (lotti)' : ''),
+                $righe(ProductModel::class, "code LIKE '".DemoCode::prefixOf(ProductModel::class)."demo-%' AND deleted IN ('true', 'false')")
+            );
+            $secchi = [];
+
+            foreach (array_keys($giacenze()) as $versione) {
+                foreach ($righe(StockRow::class, ['product_id' => $versione]) as $secchio) {
+                    $secchi[] = '#'.$versione.' sede '.$secchio['location_id'].' lotto '.$secchio['batch_id'].' fornitore '.$secchio['supplier_id'].' = '.$secchio['quantity'];
+                }
+            }
+
+            echo "\n  DIAGNOSI ".$dove."\n  note: ".($note === [] ? 'nessuna' : implode(' | ', $note))
+                ."\n  documenti di prova: ".($documenti === [] ? 'nessuno' : implode(' | ', $documenti))
+                ."\n  articoli di prova: ".($articoli === [] ? 'nessuno' : implode(' | ', $articoli))
+                ."\n  secchi: ".($secchi === [] ? 'nessuno' : implode(' | ', $secchi))
+                ."\n  feature: ".implode(', ', array_keys(array_filter(Wonder\Plugin\Gestionale\Gestionale::features())))."\n\n";
+        };
+        $note = DemoData::notes();
+
+        try {
+            StockDocumentsDemo::create();
+        } catch (UserError $errore) {
+            $diagnosi('dopo la pulizia', $note);
+
+            throw $errore;
+        }
+
         $elimina();
         $esito['rifatto'] = StockDocumentsDemo::create();
         $elimina();
@@ -125,8 +177,16 @@ try {
 
         // Senza articoli di prova non si crea niente e il comando lo dice.
         CatalogDemo::clear();
-        DemoData::notes();
-        $esito['senza_catalogo'] = StockDocumentsDemo::create();
+        $note = DemoData::notes();
+
+        try {
+            $esito['senza_catalogo'] = StockDocumentsDemo::create();
+        } catch (UserError $errore) {
+            $diagnosi('senza il catalogo di prova', $note);
+
+            throw $errore;
+        }
+
         $esito['nota'] = DemoData::notes();
 
         throw new Annulla();
@@ -134,6 +194,48 @@ try {
 } catch (Annulla) {
 } finally {
     Wonder\Plugin\Gestionale\Gestionale::reset();
+    $foto->ripristina();
+}
+
+// G3: con Acquisti, Più sedi e Lotti i dati di prova aggiungono il carico da
+// un fornitore, il carico con due lotti e un trasferimento in viaggio. La
+// pulizia li toglie tutti e la giacenza torna com'era: il trasferimento in
+// viaggio si annulla, e la merce rientra nella sede di partenza.
+$g3 = [];
+$conG3(true);
+
+try {
+    Transaction::run(static function () use (&$g3, $righe, $giacenze): void {
+        DemoData::reset();
+        Demo::registerAll();
+
+        foreach (DemoData::inClearOrder() as $dati) {
+            ($dati['clear'])();
+        }
+
+        ContactsDemo::create();
+        CatalogDemo::create();
+        DemoData::notes();
+        $g3['prima'] = $giacenze();
+        $g3['create'] = StockDocumentsDemo::create();
+        $g3['stati'] = [];
+
+        foreach (['carico-fornitore', 'carico-lotti', 'trasferimento'] as $ref) {
+            $documento = StockDocument::find(['code' => DemoCode::forModel(StockDocument::class, $ref), 'deleted' => 'false'], 1);
+            $g3['stati'][$ref] = is_array($documento) ? (string) ($documento['status'] ?? '') : '';
+        }
+
+        $g3['pulite'] = StockDocumentsDemo::clear();
+        $g3['note'] = DemoData::notes();
+        $g3['dopo_pulizia'] = $giacenze();
+        $g3['restano'] = count($righe(StockDocument::class, "code LIKE '".str_replace('_', '\\_', DemoCode::prefixOf(StockDocument::class))."demo-%' AND deleted IN ('true', 'false')"));
+
+        throw new Annulla();
+    });
+} catch (Annulla) {
+} finally {
+    Wonder\Plugin\Gestionale\Gestionale::reset();
+    Locations::reset();
     $foto->ripristina();
 }
 
@@ -213,5 +315,23 @@ check('un inventario di prova eliminato dal backend si rifà al giro dopo, e la 
 check('senza articoli di prova non crea niente e lascia una nota', fn () =>
     ($esito['senza_catalogo'] ?? -1) === 0 && ($esito['nota'] ?? []) !== []
 );
+
+check('G3: con Acquisti, Più sedi e Lotti crea anche il carico da un fornitore, quello con i lotti e un trasferimento in viaggio', fn () =>
+    ($g3['create'] ?? 0) === 6
+    && ($g3['stati'] ?? []) === ['carico-fornitore' => 'completed', 'carico-lotti' => 'completed', 'trasferimento' => 'in_transit']
+);
+
+check('G3: la pulizia annulla anche il trasferimento in viaggio, toglie tutti e sei i documenti e la giacenza torna com\'era', function () use ($g3, $variazioni) {
+    $ok = ($g3['pulite'] ?? 0) === 6 && ($g3['restano'] ?? -1) === 0
+        && $variazioni($g3['prima'] ?? [], $g3['dopo_pulizia'] ?? []) === [];
+
+    if (!$ok) {
+        throw new RuntimeException('pulite '.($g3['pulite'] ?? '?').', restano '.($g3['restano'] ?? '?')
+            .', variazioni '.json_encode($variazioni($g3['prima'] ?? [], $g3['dopo_pulizia'] ?? []))
+            .', note: '.implode(' | ', $g3['note'] ?? []));
+    }
+
+    return true;
+});
 
 summary();

@@ -15,7 +15,8 @@ use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentForm;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocuments;
 
 /**
- * *Annulla* e *Duplica* dalla scheda di un documento di magazzino (G2b-bis 4.2).
+ * *Annulla* e *Duplica* dalla scheda di un documento di magazzino (G2b-bis 4.2),
+ * e *Ricevi* del trasferimento (G3.16).
  *
  * Non ha una pagina sua: riceve il POST dei form nascosti della scheda e
  * della bozza, fa passare l'azione da `StockDocuments` e torna alla pagina
@@ -25,6 +26,7 @@ final class StockDocumentActionResource extends NavigationOnlyResource
 {
     public const CANCEL = 'annulla';
     public const DUPLICATE = 'duplica';
+    public const RECEIVE = 'ricevi';
 
     public static function path(): string
     {
@@ -103,6 +105,12 @@ final class StockDocumentActionResource extends NavigationOnlyResource
                 StockDocuments::cancel($documentId, ['user_id' => $userId, 'source' => 'user']);
 
                 return ['ok' => true, 'message' => $class::named().' '.(string) $document['number'].' è annullato.', 'url' => $class::viewUrl($documentId)];
+            }
+
+            if ($action === self::RECEIVE) {
+                StockDocuments::receive($documentId, ['user_id' => $userId, 'source' => 'user']);
+
+                return ['ok' => true, 'message' => $class::named().' '.(string) $document['number'].' è arrivato.', 'url' => $class::viewUrl($documentId)];
             }
 
             if ($action === self::DUPLICATE) {

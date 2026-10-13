@@ -128,4 +128,11 @@ check('G3, lotti: la stessa versione torna su più righe, una per lotto, con sca
     ];
 });
 
+check('G3, trasferimenti: la sede di destinazione torna con la testata', function () use ($post) {
+    $salvato = StockDocumentForm::restorable($post([['product_id' => 3, 'quantity' => '1']], ['location_id' => '1', 'to_location_id' => '2']));
+
+    return ($salvato['header']['location_id'] ?? null) === 1
+        && ($salvato['header']['to_location_id'] ?? null) === 2;
+});
+
 summary();

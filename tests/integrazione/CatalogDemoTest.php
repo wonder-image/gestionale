@@ -660,10 +660,26 @@ try {
 
         check('una seconda esecuzione non duplica niente', fn () => CatalogDemo::create() === 0);
 
-        check('la pulizia toglie solo le righe di prova', function () use ($stato, $prima) {
+        check('la pulizia toglie solo le righe di prova', function () use ($stato, $prima, $tutte) {
             CatalogDemo::clear();
+            $dopo = $stato();
+            $note = DemoData::notes();
 
-            return $stato() === $prima && DemoData::notes() === [];
+            if ($dopo === $prima && $note === []) {
+                return true;
+            }
+
+            // Il perché, quando non torna: le tabelle che non tornano come
+            // prima e le note della pulizia.
+            $diverse = [];
+
+            foreach ($tutte as $i => $model) {
+                if (($dopo[$i] ?? null) !== ($prima[$i] ?? null)) {
+                    $diverse[] = substr((string) strrchr($model, '\\'), 1).' '.($prima[$i] ?? '?').' → '.($dopo[$i] ?? '?');
+                }
+            }
+
+            throw new RuntimeException('tabelle: '.($diverse === [] ? 'come prima' : implode(', ', $diverse)).' · note: '.($note === [] ? 'nessuna' : implode(' | ', $note)));
         });
 
         check('una riga vera con lo stesso nome si usa, e la pulizia non la tocca', function () use ($conta, $demo) {
@@ -723,6 +739,10 @@ try {
                 && $demo(Category::class, 'accessori') === []
                 && $demo(ProductModel::class, 'cappello-di-lana') === []
                 && $note === ['Resta al suo posto 1 dato di prova ancora in uso: categoria «Abbigliamento».'];
+
+            if (!$ok) {
+                throw new RuntimeException('note: '.($note === [] ? 'nessuna' : implode(' | ', $note)));
+            }
 
             // Tolta la figlia vera, la pulizia porta via anche il padre.
             Category::delete($figliaId);

@@ -7,6 +7,8 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\App\Models\Config\SocietyLocation;
+use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Stock\Batch;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
@@ -14,13 +16,15 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocuments;
 use Wonder\Sql\Transaction;
 
 /**
  * Un carico e uno scarico di prova, confermati, e un inventario in bozza
  * (con *Acquisti* anche un carico da un fornitore, con *Lotti e scadenze* un
- * carico con due lotti su un terzo articolo)
+ * carico con due lotti su un terzo articolo, con *Più sedi* una sede di prova
+ * e un trasferimento in viaggio verso di lei)
  * sugli articoli di `CatalogDemo`: così Carichi e scarichi, Inventari e i
  * Movimenti non partono vuoti. L'inventario ha una riga contata con una
  * differenza e una non contata, e resta da confermare.
@@ -142,7 +146,76 @@ final class StockDocumentsDemo
             }
         }
 
+        // G3.16: una seconda sede di prova e un trasferimento in viaggio verso di lei.
+        if (Gestionale::feature('multi_location') && self::document('trasferimento') === []) {
+            Transaction::run(static function () use ($versions, $system): void {
+                $id = StockDocuments::create('transfer', [
+                    'to_location_id' => self::demoLocation(),
+                    'note' => 'Dati di prova',
+                ], [
+                    ['product_id' => $versions[0], 'quantity' => 2],
+                ], ['code' => DemoCode::forModel(StockDocument::class, 'trasferimento')]);
+                StockDocuments::confirm($id, $system);
+            });
+            $created++;
+        }
+
         return $created;
+    }
+
+    /** La sede di prova dei trasferimenti: c'è già, o nasce adesso con la sua riga del core. */
+    private static function demoLocation(): int
+    {
+        $code = DemoCode::forModel(Location::class, 'deposito');
+        $row = Location::find(['code' => $code, 'deleted' => 'false'], 1);
+
+        if (is_array($row) && isset($row['id'])) {
+            return (int) $row['id'];
+        }
+
+        $place = SocietyLocation::create([
+            'label' => 'Deposito di prova',
+            'slug' => 'demo-deposito-di-prova-'.substr(md5(uniqid('', true)), 0, 6),
+            'position' => 99,
+            'visible' => 'false',
+        ]);
+        $location = Location::create([
+            'code' => $code,
+            'society_location_id' => (int) ($place->insert_id ?? 0),
+            'has_stock' => 'true',
+            'active' => 'true',
+        ]);
+        Locations::reset();
+
+        return (int) ($location->insert_id ?? 0);
+    }
+
+    /**
+     * La sede di prova se non ha più movimenti: i suoi secchi a zero, la riga
+     * del gestionale e quella del core.
+     */
+    private static function clearLocation(): void
+    {
+        $row = Location::find(['code' => DemoCode::forModel(Location::class, 'deposito'), 'deleted' => 'false'], 1);
+
+        if (!is_array($row) || !isset($row['id'])) {
+            return;
+        }
+
+        $id = (int) $row['id'];
+
+        if (self::rows(StockMovement::find(['location_id' => $id], 1)) !== []) {
+            DemoData::note('La sede di prova resta: ha ancora dei movimenti.');
+
+            return;
+        }
+
+        Transaction::run(static function () use ($id, $row): void {
+            sqlDelete(StockRow::$table, 'location_id = '.$id.' AND quantity = 0');
+            sqlDelete(Location::$table, 'id = '.$id);
+            sqlDelete(SocietyLocation::$table, 'id = '.(int) $row['society_location_id']);
+        });
+        Locations::reset();
     }
 
     /** I lotti di prova cominciano così: la pulizia li ritrova. */
@@ -205,7 +278,13 @@ final class StockDocumentsDemo
         foreach (self::rows(StockDocument::find("code LIKE '".$prefix."demo-%' AND deleted IN ('true', 'false')", null, 'id', 'DESC')) as $document) {
             $id = (int) $document['id'];
 
-            if ((string) $document['status'] === 'completed' && (string) ($document['deleted'] ?? 'false') === 'false') {
+            // Anche il trasferimento in viaggio si annulla: togliere solo i suoi
+            // movimenti lascerebbe la merce fuori dalla sede di partenza, e il
+            // carico di prova non si annullerebbe più («la merce è già uscita»).
+            $status = (string) $document['status'];
+            $open = $status === 'completed' || ((string) $document['type'] === 'transfer' && $status === 'in_transit');
+
+            if ($open && (string) ($document['deleted'] ?? 'false') === 'false') {
                 try {
                     StockDocuments::cancel($id, ['source' => 'system']);
                 } catch (UserError) {
@@ -224,6 +303,7 @@ final class StockDocumentsDemo
         }
 
         self::clearBatches();
+        self::clearLocation();
 
         return $removed;
     }

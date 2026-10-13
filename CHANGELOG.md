@@ -7,6 +7,18 @@ versionamento semantico.
 
 ### Aggiunto
 
+- G3 piano 4, **Trasferimenti** (con *Più sedi*): documento in due passi,
+  **Invia** (la merce lascia la partenza ed è *in viaggio*) e **Ricevi**
+  (entra tutta all'arrivo), annullabile in viaggio e da ricevuto; lotto e
+  fornitore scelti a mano come nello scarico; la merce che non c'è non parte,
+  nemmeno con la vendita senza giacenza. Colonna **In viaggio** nelle
+  Giacenze; *Visualizza trasferimento* nei Movimenti. Il pannello delle
+  funzionalità **non spegne *Più sedi*** con pezzi fuori dalla sede principale
+  o trasferimenti in viaggio, e dice dove sono. Guida
+  `magazzino-trasferimenti.md`, ritocchi a *Sedi*, *Giacenze*, *Movimenti*.
+  `gestionale:demo` con *Più sedi* aggiunge una sede di prova e un
+  trasferimento in viaggio.
+
 - G3 piano 3b, **Lotti e scadenze** costruita (`batch_tracking`, da
   attivare): pagina **Magazzino → Lotti** con i pezzi, la scadenza colorata
   (rossa scaduto, gialla entro i giorni scelti) e i filtri *Stato* e *Sede*;
@@ -391,6 +403,11 @@ versionamento semantico.
 
 ### Corretto
 
+- `StockDocuments`: ripristinati sette metodi privati (`draft`, `locked`,
+  `location`, `isStockLocation`, `assertProducts`, `log`, `decimal`) persi in
+  un commit del piano 2 di G3; senza, carichi, scarichi e inventari andavano
+  in errore. Nuovo `SelfCallsTest`: ogni `self::metodo()` di `src` deve avere
+  il suo metodo.
 - Pulizia dei dati di prova del catalogo: un articolo o un attributo di prova
   già cancellato dal backend che qualcosa usa ancora resta in silenzio, come
   prima di guardare anche le righe cancellate. Prima `--fresh` lo nominava a

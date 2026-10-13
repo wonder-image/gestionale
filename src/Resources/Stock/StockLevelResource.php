@@ -87,6 +87,7 @@ final class StockLevelResource extends GestionaleResource
             'stock_available' => 'Disponibili',
             'stock_value' => 'Valore',
             'stock_expired' => 'Scaduti',
+            'stock_in_transit' => 'In viaggio',
         ];
     }
 
@@ -156,6 +157,16 @@ final class StockLevelResource extends GestionaleResource
                 ->sortable()
                 ->hiddenDevice('mobile')
                 ->formatter(static fn (array $row): string => static::number($row['stock_expired'] ?? 0));
+        }
+
+        if (static::showsInTransit()) {
+            // I pezzi partiti e non ancora arrivati (G3.16): fuori dal totale.
+            $columns[] = TableColumn::key('stock_in_transit')
+                ->text()
+                ->size('little')
+                ->sortable()
+                ->hiddenDevice('mobile')
+                ->formatter(static fn (array $row): string => static::number($row['stock_in_transit'] ?? 0));
         }
 
         if (Gestionale::feature('purchasing')) {
@@ -258,7 +269,17 @@ final class StockLevelResource extends GestionaleResource
             $parts[] = LevelsSql::expired($now).' AS stock_expired';
         }
 
+        if (static::showsInTransit()) {
+            $parts[] = LevelsSql::inTransit().' AS stock_in_transit';
+        }
+
         return implode(', ', $parts);
+    }
+
+    /** *In viaggio* serve con «Più sedi» e almeno due sedi: con una sola non si trasferisce. */
+    public static function showsInTransit(): bool
+    {
+        return Gestionale::feature('multi_location') && count(Locations::shown()) >= 2;
     }
 
     /**

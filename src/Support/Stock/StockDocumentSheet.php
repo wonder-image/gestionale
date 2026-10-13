@@ -50,7 +50,7 @@ final class StockDocumentSheet
             }
         }
 
-        $people = self::people($id);
+        $people = self::people($id, (string) ($document['type'] ?? ''));
         // G3, Acquisti: fornitore e costi del carico, solo con la funzionalità.
         $costs = (string) ($document['type'] ?? '') === 'receipt' && Gestionale::feature('purchasing');
         $total = $counting ? StockDocumentEditor::stocktakeTotals(count($items), $counted, $differing) : StockDocumentEditor::totals(count($items), $pieces);
@@ -60,9 +60,12 @@ final class StockDocumentSheet
             'total' => $costs ? $total.' · '.StockValue::money((float) ($document['total_cost'] ?? 0)) : $total,
             'costs' => $costs,
             'supplier' => $costs ? self::supplier($document) : '',
+            'sent' => $people['in_transit'] ?? '',
             'confirmed' => $people['completed'] ?? '',
             'cancelled' => $people['cancelled'] ?? '',
-            'location' => self::location((int) ($document['location_id'] ?? 0)),
+            'location' => (string) ($document['type'] ?? '') === 'transfer'
+                ? self::route((int) ($document['location_id'] ?? 0), (int) ($document['to_location_id'] ?? 0))
+                : self::location((int) ($document['location_id'] ?? 0)),
             'reason' => (string) ($document['type'] ?? '') === 'issue' ? Reasons::label((string) ($document['reason'] ?? '')) : '',
             'note' => self::text((string) ($document['note'] ?? '')),
         ];
@@ -74,8 +77,8 @@ final class StockDocumentSheet
      */
     private static function lines(array $items, bool $counting, bool $costs = false, string $type = ''): array
     {
-        $useBatches = Gestionale::feature('batch_tracking') && in_array($type, ['receipt', 'issue'], true);
-        $useSuppliers = Gestionale::feature('purchasing') && $type === 'issue';
+        $useBatches = Gestionale::feature('batch_tracking') && in_array($type, ['receipt', 'issue', 'transfer'], true);
+        $useSuppliers = Gestionale::feature('purchasing') && in_array($type, ['issue', 'transfer'], true);
         $batches = $useBatches ? StockVersionSearch::batches(array_map(static fn (array $item): int => (int) ($item['batch_id'] ?? 0), $items)) : [];
         $ids = array_values(array_unique(array_map(static fn (array $item): int => (int) $item['product_id'], $items)));
         $products = [];
@@ -200,14 +203,14 @@ final class StockDocumentSheet
      *
      * @return array<string, string> stato → frase
      */
-    private static function people(int $id): array
+    private static function people(int $id, string $type = ''): array
     {
         if ($id <= 0) {
             return [];
         }
 
         $logs = self::rows(StockDocumentStatusLog::find(
-            '`stock_document_id` = '.$id." AND `to_value` IN ('completed', 'cancelled') AND `deleted` = 'false'",
+            '`stock_document_id` = '.$id." AND `to_value` IN ('in_transit', 'completed', 'cancelled') AND `deleted` = 'false'",
             null,
             'id',
             'ASC'
@@ -230,12 +233,32 @@ final class StockDocumentSheet
             $who = $names[(int) ($log['user_id'] ?? 0)] ?? '';
             $time = strtotime((string) ($log['creation'] ?? ''));
 
-            $people[$status] = ($status === 'completed' ? 'Confermato' : 'Annullato')
+            // Il trasferimento si invia e si riceve (G3.16); gli altri si confermano.
+            $verb = match ($status) {
+                'in_transit' => 'Inviato',
+                'completed' => $type === 'transfer' ? 'Ricevuto' : 'Confermato',
+                default => 'Annullato',
+            };
+            $people[$status] = $verb
                 .($who !== '' ? ' da '.$who : '')
                 .($time !== false ? ' il '.date('d/m/Y', $time) : '');
         }
 
         return $people;
+    }
+
+    /** «Da Magazzino a Negozio Centro»: le due sedi del trasferimento, sempre. */
+    private static function route(int $from, int $to): string
+    {
+        $names = [];
+
+        foreach (Locations::shown() as $location) {
+            $names[(int) $location['id']] = $location['label'];
+        }
+
+        $name = static fn (int $id): string => $id > 0 ? ($names[$id] ?? 'Sede #'.$id) : '—';
+
+        return 'Da '.$name($from).' a '.$name($to);
     }
 
     /** Il nome della sede, solo da due sedi in su (come la colonna dell'elenco). */

@@ -365,6 +365,24 @@ servito da `http/backend/stock/batch-customers.php` sulla rotta
 primi dieci lotti con pezzi scaduti o in scadenza. Nei *Movimenti* la colonna
 *Lotto* legge il numero dalla select e la ricerca scende in `gst_batches`.
 
+**Trasferimenti (G3, piano 4).** Con `multi_location` c'è il quarto
+documento, `transfer` (`StockTransferResource`, *Magazzino → Trasferimenti*),
+con `to_location_id`: due sedi vive con *Giacenza*, diverse
+(`StockDocumentRules::assertTransferLocations()`). `confirm()` è **Invia**: un
+`transfer_out` per secchio con `StockOut::take()` e `no_backorder` (la vendita
+senza giacenza non apre il sotto zero, `Stock::apply()`), lotto e fornitore
+scelti come nello scarico; stato `in_transit`. `receive()` scrive un
+`transfer_in` all'arrivo per ogni `transfer_out`, stesso secchio, pezzi, costo
+e `reference_item_id`; stato `completed`. `cancel()` annulla anche da
+`in_transit`; per i trasferimenti blocca prima i secchi di tutte le coppie
+(versione, sede) in ordine, poi storna dall'ultimo movimento con
+`no_backorder` (lo storno di un `transfer_in` che non trova la merce è
+`stock_document.transfer_moved`). `LevelsSql::inTransit()` dà la colonna *In
+viaggio* delle Giacenze (da due sedi in su), fuori dal totale. La guardia del
+pannello è `FeatureGuards::assertAllowed($prima, $dopo)`, chiamata da
+`FeaturePanel::save()` sullo stato già passato dalle dipendenze: «Più sedi» non
+si spegne con pezzi fuori dalla principale o trasferimenti in viaggio.
+
 **Causali interne.** `Reasons::internal()` (oggi `batch_assignment`,
 «Assegnazione lotto») ha l'etichetta nei Movimenti ma non sta nelle tendine:
 le scelte a mano sono `Reasons::selectable()`, e la Rettifica rifiuta le

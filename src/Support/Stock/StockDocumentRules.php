@@ -22,13 +22,13 @@ final class StockDocumentRules
     /** Il costo più alto che `unit_cost` DECIMAL(10,4) tiene. */
     public const MAX_COST = 999999.9999;
 
-    /** I tipi che si creano oggi: `transfer` arriva con G3. */
-    public const TYPES = ['receipt', 'issue', 'stocktake'];
+    /** I tipi che si creano: `transfer` dal piano 4 di G3, con «Più sedi». */
+    public const TYPES = ['receipt', 'issue', 'stocktake', 'transfer'];
 
     /** @return array<string, string> */
     public static function labels(): array
     {
-        return ['receipt' => 'Carico', 'issue' => 'Scarico', 'stocktake' => 'Inventario'];
+        return ['receipt' => 'Carico', 'issue' => 'Scarico', 'stocktake' => 'Inventario', 'transfer' => 'Trasferimento'];
     }
 
     public static function exists(string $type): bool
@@ -49,6 +49,7 @@ final class StockDocumentRules
             'receipt' => 'Annullamento del carico',
             'issue' => 'Annullamento dello scarico',
             'stocktake' => "Annullamento dell'inventario",
+            'transfer' => 'Annullamento del trasferimento',
         ][$type] ?? '';
     }
 
@@ -225,6 +226,8 @@ final class StockDocumentRules
         return match ($type) {
             'receipt' => $quantity > 0 ? ['type' => 'purchase', 'reason' => '', 'quantity' => $quantity] : null,
             'issue' => $quantity > 0 ? ['type' => 'adjustment', 'reason' => $reason, 'quantity' => -$quantity] : null,
+            // G3.16: l'invio; l'arrivo nasce dai movimenti dell'invio (`StockDocuments::receive()`).
+            'transfer' => $quantity > 0 ? ['type' => 'transfer_out', 'reason' => '', 'quantity' => -$quantity] : null,
             'stocktake' => self::difference($quantity, (float) ($line['expected_quantity'] ?? 0)),
             default => null,
         };
@@ -243,6 +246,21 @@ final class StockDocumentRules
             'reason' => (string) ($movement['reason'] ?? ''),
             'quantity' => -round((float) $movement['quantity'], 3),
         ];
+    }
+
+    /**
+     * Le sedi di un trasferimento: due, diverse (G3.16). Che tengano merce lo
+     * controlla il servizio.
+     */
+    public static function assertTransferLocations(int $from, int $to): void
+    {
+        if ($to <= 0) {
+            throw UserError::make('stock_document.transfer_destination_required');
+        }
+
+        if ($from === $to) {
+            throw UserError::make('stock_document.transfer_same_location');
+        }
     }
 
     /**

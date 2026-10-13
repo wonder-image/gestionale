@@ -27,6 +27,18 @@ Quando le sedi che tengono la giacenza sono almeno due, i pezzi e la scorta
 minima di ogni articolo si scrivono sede per sede, dalla sua scheda (vedi [Con
 più sedi](catalogo-prodotti.md#con-piu-sedi)).
 
+## Da quale sede escono gli ordini
+
+Gli ordini del sito prendono sempre la merce dalla **sede principale**, anche
+quando il cliente sceglie di ritirare in un altro negozio: il punto di ritiro
+dice dove il cliente passa, non da quale magazzino esce la merce. Portala tu al
+punto di ritiro con un [trasferimento](magazzino-trasferimenti.md). Un reso,
+invece, rientra nella sede che scegli quando lo registri.
+
+Con più sedi la merce passa da una all'altra con i
+[trasferimenti](magazzino-trasferimenti.md). *Più sedi* non si spegne finché
+ci sono pezzi fuori dalla principale o trasferimenti in viaggio.
+
 ## Orari regolari
 
 1. Apri la sede e scorri fino a **Orari e chiusure**.

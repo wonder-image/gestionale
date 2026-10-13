@@ -31,8 +31,12 @@ $supplierId = (int) ($values['supplier_id'] ?? 0);
 $supplierNumber = html_entity_decode((string) ($values['supplier_document_number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 $supplierDate = substr((string) ($values['supplier_document_date'] ?? ''), 0, 10);
 $supplierDate = str_starts_with($supplierDate, '0000') ? '' : $supplierDate;
+// G3.16: il trasferimento sceglie partenza e arrivo fra le sedi vive che tengono merce.
+$alive = $type === 'transfer' ? Locations::alive() : [];
+$toLocationId = (int) ($values['to_location_id'] ?? 0);
 $noteHelp = match ($type) {
     'issue' => 'Per esempio a chi è andata la merce o perché.',
+    'transfer' => 'Per esempio chi porta la merce o con quale corriere.',
     'stocktake' => 'Per esempio quale scaffale o reparto hai contato.',
     default => 'Per esempio il numero della bolla o della fattura del fornitore.',
 };
@@ -46,7 +50,25 @@ $noteHelp = $purchases ? 'Per esempio chi ha consegnato o cosa mancava.' : $note
     <input type="hidden" name="lines" value="">
     <div class="row g-3">
         <wi-card class="col-12">
-            <?php if ($resource::showsLocation()) { ?>
+            <?php if ($type === 'transfer') { ?>
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="wi-doc-location">Da</label>
+                <select class="form-select" id="wi-doc-location" name="location_id" data-wi-stock-location>
+                    <?php foreach ($alive as $place) { ?>
+                    <option value="<?=$e($place['id'])?>"<?=$place['id'] === $locationId ? ' selected' : ''?>><?=$e($place['label'])?></option>
+                    <?php } ?>
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="wi-doc-to-location">A</label>
+                <select class="form-select" id="wi-doc-to-location" name="to_location_id">
+                    <option value="0">Scegli…</option>
+                    <?php foreach ($alive as $place) { ?>
+                    <option value="<?=$e($place['id'])?>"<?=$place['id'] === $toLocationId ? ' selected' : ''?>><?=$e($place['label'])?></option>
+                    <?php } ?>
+                </select>
+            </div>
+            <?php } elseif ($resource::showsLocation()) { ?>
             <div class="col-12 col-md-3">
                 <label class="form-label" for="wi-doc-location">Sede</label>
                 <select class="form-select" id="wi-doc-location" name="location_id" data-wi-stock-location>

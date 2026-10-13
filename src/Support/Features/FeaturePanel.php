@@ -73,6 +73,9 @@ final class FeaturePanel
         $created = self::ensureRows(array_keys($catalog));
         $current = self::state();
         $result = FeatureRules::apply($catalog, $current, $requested);
+        // G3.18: prima di scrivere, sullo stato già passato dalle dipendenze
+        // (così vale anche lo spegnimento a catena).
+        FeatureGuards::assertAllowed($current, $result['state']);
         $rows = array_column(self::rows(), null, 'feature_key');
         $changed = $created;
 

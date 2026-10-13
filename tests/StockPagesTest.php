@@ -200,7 +200,7 @@ check('una colonna per sede solo quando le sedi sono almeno due', function () us
     $due = $conSedi([['id' => 2, 'label' => 'Magazzino'], ['id' => 1, 'label' => 'Negozio']], [], $colonne);
 
     return $una === ['photo', 'model_name', 'sku', 'stock_quantity', 'actions']
-        && $due === ['photo', 'model_name', 'sku', 'stock_loc_2', 'stock_loc_1', 'stock_quantity', 'actions'];
+        && $due === ['photo', 'model_name', 'sku', 'stock_loc_2', 'stock_loc_1', 'stock_quantity', 'stock_in_transit', 'actions'];
 });
 
 check('le colonne di sede hanno il nome della sede, e il totale si chiama Totale', function () use ($conSedi) {
@@ -232,7 +232,7 @@ check('la select dà un alias a ogni numero, e nessuno in più', function () use
 
     sort($alias);
 
-    return $alias === ['model_name', 'stock_alert', 'stock_available', 'stock_loc_1', 'stock_loc_2', 'stock_quantity', 'stock_reserved'];
+    return $alias === ['model_name', 'stock_alert', 'stock_available', 'stock_in_transit', 'stock_loc_1', 'stock_loc_2', 'stock_quantity', 'stock_reserved'];
 });
 
 check('il filtro Scorta c\'è solo con gli avvisi di scorta minima', function () use ($conSedi) {
