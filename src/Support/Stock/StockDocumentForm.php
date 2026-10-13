@@ -108,7 +108,7 @@ final class StockDocumentForm
      * Quello che `remember()` ha messo da parte per questo tipo, una volta
      * sola; null se non c'è, è di un altro tipo o è vecchio.
      *
-     * @return array{header: array{location_id?: int, reason?: string, note?: string}, items: list<array{product_id: int, quantity: string}>}|null
+     * @return array{header: array<string, int|string>, items: list<array{product_id: int, quantity: string, cost?: string}>}|null
      */
     public static function recall(string $type): ?array
     {
@@ -135,7 +135,7 @@ final class StockDocumentForm
      * lascia nessuna.
      *
      * @param array<string, mixed> $post
-     * @return array{header: array{location_id?: int, reason?: string, note?: string}, items: list<array{product_id: int, quantity: string}>}
+     * @return array{header: array<string, int|string>, items: list<array{product_id: int, quantity: string, cost?: string}>}
      */
     public static function restorable(array $post): array
     {
@@ -157,11 +157,9 @@ final class StockDocumentForm
             }
 
             $seen[$id] = true;
-            $quantity = $line['quantity'] ?? '';
-            $items[] = [
-                'product_id' => $id,
-                'quantity' => is_string($quantity) || is_int($quantity) || is_float($quantity) ? mb_substr(trim((string) $quantity), 0, 32) : '',
-            ];
+            $items[] = ['product_id' => $id, 'quantity' => self::restorableText($line['quantity'] ?? '')]
+                // G3, Acquisti: il costo del carico, scritto com'era.
+                + (array_key_exists('cost', $line) ? ['cost' => self::restorableText($line['cost'])] : []);
         }
 
         $header = self::header($post);
@@ -171,6 +169,12 @@ final class StockDocumentForm
         }
 
         return ['header' => $header, 'items' => $items];
+    }
+
+    /** Un pezzo di riga scritto a mano, com'era: testo corto, o vuoto se non è un valore. */
+    private static function restorableText(mixed $value): string
+    {
+        return is_string($value) || is_int($value) || is_float($value) ? mb_substr(trim((string) $value), 0, 32) : '';
     }
 
     /**
@@ -204,9 +208,15 @@ final class StockDocumentForm
             }
 
             $expected = $item['expected_quantity'] ?? null;
+            $cost = $item['unit_cost'] ?? null;
             $lines[] = $version + [
                 'quantity' => is_string($item['quantity']) ? $item['quantity'] : self::quantityText($item['quantity']),
                 'expected' => $expected === null ? null : round((float) $expected, 3),
+                // G3, Acquisti: il costo salvato, come si scrive nella casella
+                // («2,5»), o quello in testo di un invio rimesso in pagina.
+                'cost' => is_string($item['cost'] ?? null)
+                    ? $item['cost']
+                    : ($cost === null ? '' : str_replace('.', ',', (string) (round((float) $cost, 4) + 0))),
             ];
         }
 
@@ -256,7 +266,7 @@ final class StockDocumentForm
      * ignorano le regole.
      *
      * @param array<string, mixed> $post
-     * @return array{location_id?: int, reason?: string, note?: string}
+     * @return array{location_id?: int, reason?: string, note?: string, supplier_id?: string, supplier_document_number?: string, supplier_document_date?: string}
      */
     private static function header(array $post): array
     {
@@ -266,7 +276,8 @@ final class StockDocumentForm
             $header['location_id'] = (int) $post['location_id'];
         }
 
-        foreach (['reason', 'note'] as $key) {
+        // Il fornitore del carico (G3.7): la pagina li manda solo con «Acquisti».
+        foreach (['reason', 'note', 'supplier_id', 'supplier_document_number', 'supplier_document_date'] as $key) {
             if (array_key_exists($key, $post) && is_scalar($post[$key])) {
                 $header[$key] = (string) $post[$key];
             }

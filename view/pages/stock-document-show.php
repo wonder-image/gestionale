@@ -30,7 +30,8 @@ $counting = (string) ($document['type'] ?? '') === 'stocktake';
 $numeric = ' style="font-variant-numeric: tabular-nums"';
 $tones = ['up' => ' text-success', 'down' => ' text-danger', '' => ''];
 $number = html_entity_decode((string) ($document['number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-$info = array_values(array_filter([$sheet['location'], $sheet['reason'], $sheet['note']], static fn (string $value): bool => $value !== ''));
+$info = array_values(array_filter([$sheet['supplier'], $sheet['location'], $sheet['reason'], $sheet['note']], static fn (string $value): bool => $value !== ''));
+$costs = $sheet['costs'];
 
 View::layout('backend.show', ['TITLE' => $resource::singular().' '.$number]);
 ?>
@@ -62,6 +63,10 @@ View::layout('backend.show', ['TITLE' => $resource::singular().' '.$number]);
                         <th class="text-end">Differenza</th>
                         <?php } else { ?>
                         <th class="text-end">Pezzi</th>
+                        <?php if ($costs) { ?>
+                        <th class="text-end">Costo</th>
+                        <th class="text-end">Totale</th>
+                        <?php } ?>
                         <?php } ?>
                     </tr>
                 </thead>
@@ -80,13 +85,17 @@ View::layout('backend.show', ['TITLE' => $resource::singular().' '.$number]);
                         <td class="text-end<?=$tones[$line['tone']] ?? ''?>"<?=$numeric?>><?=$e($line['difference'])?></td>
                         <?php } else { ?>
                         <td class="text-end"<?=$numeric?>><?=$e($line['quantity'])?></td>
+                        <?php if ($costs) { ?>
+                        <td class="text-end"<?=$numeric?>><?=$e($line['cost'])?></td>
+                        <td class="text-end"<?=$numeric?>><?=$e($line['line_total'])?></td>
+                        <?php } ?>
                         <?php } ?>
                     </tr>
                     <?php } ?>
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="<?=$counting ? 4 : 2?>" class="text-end text-body-secondary"><?=$e($sheet['total'])?></td>
+                        <td colspan="<?=$counting ? 4 : ($costs ? 4 : 2)?>" class="text-end text-body-secondary"><?=$e($sheet['total'])?></td>
                     </tr>
                 </tfoot>
             </table>

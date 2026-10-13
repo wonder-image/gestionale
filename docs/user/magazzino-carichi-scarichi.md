@@ -48,6 +48,10 @@ eliminano.
 Confermato, il carico prende numero e data, e nei
 [Movimenti](magazzino-movimenti.md) compare una riga per versione.
 
+Con *Acquisti* attiva il carico ha anche **Fornitore**, il suo documento e il
+**costo** di ogni riga: vedi [Acquisti e valore del
+magazzino](magazzino-acquisti.md).
+
 ## Con il lettore di codici a barre
 
 Il lettore scrive il codice nella casella **Cerca o scansiona** e preme

@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Seeding;
 
+use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
@@ -94,7 +96,38 @@ final class StockDocumentsDemo
             $created++;
         }
 
+        // G3, Acquisti: un carico da un fornitore di prova, con i costi.
+        if (Gestionale::feature('purchasing') && self::document('carico-fornitore') === []) {
+            $supplier = self::demoSupplier();
+
+            if ($supplier > 0) {
+                Transaction::run(static function () use ($versions, $system, $supplier): void {
+                    $id = StockDocuments::create('receipt', [
+                        'supplier_id' => (string) $supplier,
+                        'supplier_document_number' => 'DDT 42',
+                        'note' => 'Dati di prova',
+                    ], [
+                        ['product_id' => $versions[0], 'quantity' => 6, 'cost' => '4,50'],
+                        ['product_id' => $versions[1], 'quantity' => 4, 'cost' => '2'],
+                    ], ['code' => DemoCode::forModel(StockDocument::class, 'carico-fornitore')]);
+                    StockDocuments::confirm($id, $system);
+                });
+                $created++;
+            } else {
+                DemoData::note('Il carico da un fornitore di prova vuole le anagrafiche di prova: lancia il comando con i fornitori di prova.');
+            }
+        }
+
         return $created;
+    }
+
+    /** Il primo fornitore delle anagrafiche di prova, o 0. */
+    private static function demoSupplier(): int
+    {
+        $prefix = DemoCode::prefixOf(Contact::class);
+        $row = Contact::find("`code` LIKE '".$prefix."demo-%' AND `is_supplier` = 'true' AND `deleted` = 'false'", 1, 'id', 'ASC');
+
+        return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
     }
 
     /**

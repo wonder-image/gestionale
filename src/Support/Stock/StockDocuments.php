@@ -4,7 +4,11 @@ namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use DateTimeImmutable;
 use RuntimeException;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
+use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
@@ -45,8 +49,9 @@ final class StockDocuments
             $locationId = self::location((int) ($header['location_id'] ?? 0));
             $reason = StockDocumentRules::reason($type, (string) ($header['reason'] ?? ''));
             $wanted = StockDocumentRules::lines($lines);
+            $supplier = self::supplierFields($type, $header, null);
 
-            $created = StockDocument::create([
+            $created = StockDocument::create($supplier + [
                 'code' => trim((string) ($options['code'] ?? '')) ?: Code::make(StockDocument::class, Codes::STOCK_DOCUMENT),
                 'type' => $type,
                 'status' => 'draft',
@@ -92,7 +97,10 @@ final class StockDocuments
                 $old[$item['product_id']] = $item;
             }
 
-            StockDocument::update(['location_id' => $locationId, 'reason' => $reason, 'note' => $note], $id);
+            StockDocument::update(
+                self::supplierFields($type, $header, $document) + ['location_id' => $locationId, 'reason' => $reason, 'note' => $note],
+                $id
+            );
             self::writeItems($id, $type, $locationId, $wanted, $old, $locationId !== $before);
         });
     }
@@ -124,6 +132,9 @@ final class StockDocuments
             $ordered = $items;
             usort($ordered, static fn (array $x, array $y): int => $x['product_id'] <=> $y['product_id']);
 
+            $purchasing = Gestionale::feature('purchasing');
+            $supplierId = $type === 'receipt' && $purchasing ? (int) ($document['supplier_id'] ?? 0) : 0;
+
             foreach ($ordered as $item) {
                 $movement = StockDocumentRules::movement($type, $reason, $item);
 
@@ -131,14 +142,37 @@ final class StockDocuments
                     continue;
                 }
 
-                Stock::apply($movement + [
+                $base = [
                     'product_id' => $item['product_id'],
                     'location_id' => (int) $document['location_id'],
                     'reference_type' => 'stock_document',
                     'reference_id' => $id,
                     'reference_item_id' => (int) $item['id'],
                     'user_id' => $userId,
-                ]);
+                ];
+
+                if ($movement['quantity'] < 0) {
+                    // Scarico e inventario in meno: dai secchi, come la vendita (G3.13, G3.14).
+                    self::takeOut($movement, $base, $type === 'stocktake');
+
+                    continue;
+                }
+
+                if ($type !== 'receipt') {
+                    // Inventario in più: nel secchio 0, lotto e fornitore sconosciuti (G3.14).
+                    Stock::apply($movement + $base);
+
+                    continue;
+                }
+
+                // Lo stesso lock di vendite e scarichi, prima di ogni secchio: chi
+                // scrive sulla stessa versione si mette in fila invece di
+                // bloccarsi a vicenda fra il secchio del fornitore e il secchio 0.
+                StockBuckets::locked($item['product_id'], (int) $document['location_id']);
+                $cost = $purchasing ? $item['unit_cost'] : null;
+                Stock::apply($movement + $base + ['supplier_id' => $supplierId, 'unit_cost' => $cost ?? 0.0]);
+                self::compensate($base, 0, $supplierId, $movement['quantity'], $cost ?? 0.0);
+                self::rememberCost($item['product_id'], $supplierId, $cost);
             }
 
             StockDocument::update(['status' => 'completed', 'number' => $number, 'date' => $now->format('Y-m-d')], $id);
@@ -175,8 +209,10 @@ final class StockDocuments
             // In ordine di versione, come la conferma: due operazioni sugli
             // stessi articoli bloccano le righe di giacenza nello stesso
             // ordine e si mettono in fila invece di bloccarsi a vicenda.
+            // Dentro la stessa versione dall'ultimo al primo: la compensazione
+            // di un carico (G3.15) si storna prima del carico che l'ha data.
             usort($movements, static fn (array $x, array $y): int =>
-                [(int) $x['product_id'], (int) $x['id']] <=> [(int) $y['product_id'], (int) $y['id']]);
+                [(int) $x['product_id'], (int) $y['id']] <=> [(int) $y['product_id'], (int) $x['id']]);
 
             foreach ($movements as $movement) {
                 Stock::apply(StockDocumentRules::reversal($movement) + [
@@ -188,6 +224,9 @@ final class StockDocuments
                     'reference_id' => $id,
                     'reference_item_id' => (int) ($movement['reference_item_id'] ?? 0),
                     'user_id' => $userId,
+                    // Lo storno di una compensazione (G3.15) rimette il secchio 0
+                    // sotto zero com'era prima del carico: non è merce che manca.
+                    'allow_negative' => (string) ($movement['reason'] ?? '') === 'batch_assignment',
                 ]);
             }
 
@@ -224,19 +263,27 @@ final class StockDocuments
             $kept = array_map('intval', array_column($alive, 'id'));
             $lines = [];
 
+            // Con «Acquisti» il carico copiato tiene fornitore e costi, non il
+            // documento del fornitore: è un'altra consegna.
+            $purchase = $type === 'receipt' && Gestionale::feature('purchasing');
+
             foreach ($items as $item) {
                 if (in_array($item['product_id'], $kept, true)) {
-                    $lines[] = ['product_id' => $item['product_id'], 'quantity' => $item['quantity']];
+                    $lines[] = ['product_id' => $item['product_id'], 'quantity' => $item['quantity']]
+                        + ($purchase ? ['cost' => $item['unit_cost']] : []);
                 }
             }
 
             $locationId = (int) $document['location_id'];
+            $supplierId = (int) ($document['supplier_id'] ?? 0);
+            $supplierAlive = $purchase && $supplierId > 0
+                && self::rows(Contact::find(['id' => $supplierId, 'is_supplier' => 'true', 'deleted' => 'false'], 1)) !== [];
 
             return self::create($type, [
                 'location_id' => self::isStockLocation($locationId) ? $locationId : 0,
                 'reason' => (string) ($document['reason'] ?? ''),
                 'note' => (string) ($document['note'] ?? ''),
-            ], $lines, $options);
+            ] + ($purchase ? ['supplier_id' => $supplierAlive ? $supplierId : 0] : []), $lines, $options);
         });
     }
 
@@ -275,7 +322,7 @@ final class StockDocuments
     /**
      * Le righe del documento, nell'ordine.
      *
-     * @return list<array{id: int, product_id: int, quantity: ?float, expected_quantity: ?float, position: int}>
+     * @return list<array{id: int, product_id: int, quantity: ?float, expected_quantity: ?float, unit_cost: ?float, position: int}>
      */
     public static function items(int $id): array
     {
@@ -286,6 +333,7 @@ final class StockDocuments
             'product_id' => (int) $row['product_id'],
             'quantity' => self::nullable($row['quantity'] ?? null),
             'expected_quantity' => self::nullable($row['expected_quantity'] ?? null),
+            'unit_cost' => self::nullableCost($row['unit_cost'] ?? null),
             'position' => (int) $row['position'],
         ], $rows);
     }
@@ -304,6 +352,7 @@ final class StockDocuments
         $levels = $type === 'stocktake' ? Levels::byLocationForProducts($productIds) : [];
 
         sqlDelete(StockDocumentItem::$table, '`stock_document_id` = '.$id);
+        $total = 0.0;
 
         foreach ($lines as $i => $line) {
             $expected = $type === 'stocktake'
@@ -315,13 +364,27 @@ final class StockDocuments
                 )
                 : null;
 
+            // Il costo del carico (G3.7): quello scritto, o quello di prima se la
+            // pagina non l'ha mandato (Acquisti spenta tiene i dati, nascosti).
+            $cost = $type === 'receipt'
+                ? (array_key_exists('unit_cost', $line) ? $line['unit_cost'] : ($old[$line['product_id']]['unit_cost'] ?? null))
+                : null;
+            $lineTotal = $cost !== null && $line['quantity'] !== null ? round($cost * $line['quantity'], 2) : null;
+            $total += $lineTotal ?? 0.0;
+
             StockDocumentItem::create([
                 'stock_document_id' => $id,
                 'product_id' => $line['product_id'],
                 'quantity' => self::decimal($line['quantity']),
                 'expected_quantity' => self::decimal($expected),
+                'unit_cost' => $cost === null ? null : number_format($cost, 4, '.', ''),
+                'line_total' => $lineTotal === null ? null : number_format($lineTotal, 2, '.', ''),
                 'position' => $i + 1,
             ]);
+        }
+
+        if ($type === 'receipt') {
+            StockDocument::update(['total_cost' => number_format(round($total, 2), 2, '.', '')], $id);
         }
     }
 
@@ -395,6 +458,128 @@ final class StockDocuments
     private static function decimal(?float $value): ?string
     {
         return $value === null ? null : number_format($value, 3, '.', '');
+    }
+
+    /**
+     * Fornitore e documento del fornitore di un carico, da scrivere sul
+     * documento (G3.7). Solo per il carico e solo con «Acquisti»; con
+     * `$document` (la bozza che c'è) le chiavi che mancano tengono il valore
+     * di prima. Un fornitore che non è un contatto fornitore è un rifiuto.
+     *
+     * @param array<string, mixed> $header
+     * @param array<string, mixed>|null $document
+     * @return array<string, mixed>
+     */
+    private static function supplierFields(string $type, array $header, ?array $document): array
+    {
+        $keys = ['supplier_id', 'supplier_document_number', 'supplier_document_date'];
+
+        if ($type !== 'receipt' || !Gestionale::feature('purchasing')
+            || ($document !== null && array_intersect($keys, array_keys($header)) === [])) {
+            return [];
+        }
+
+        $stored = $document === null ? [] : array_intersect_key($document, array_flip($keys));
+        $fields = StockDocumentRules::supplierHeader(array_intersect_key($header, array_flip($keys)) + $stored);
+
+        if ($fields['supplier_id'] > 0
+            && self::rows(Contact::find(['id' => $fields['supplier_id'], 'is_supplier' => 'true', 'deleted' => 'false'], 1)) === []) {
+            throw UserError::make('stock_document.supplier_unknown');
+        }
+
+        $fields['supplier_document_date'] ??= '';
+
+        return $fields;
+    }
+
+    /**
+     * Le uscite di scarico e inventario (G3.13, G3.14), divise fra i secchi
+     * da `StockOut`; l'inventario prende anche i lotti scaduti: la merce che
+     * manca è quella che manca.
+     *
+     * @param array{type: string, reason: string, quantity: float} $movement quantità negativa
+     * @param array<string, mixed> $base
+     */
+    private static function takeOut(array $movement, array $base, bool $withExpired): void
+    {
+        StockOut::take($movement + $base, $withExpired);
+    }
+
+    /**
+     * La compensazione della vendita scoperta (G3.15): se il secchio 0 di
+     * questa versione e sede è sotto zero, il secchio appena caricato gli
+     * cede i pezzi, con due movimenti `batch_assignment`. Il secchio 0 non
+     * compensa sé stesso.
+     *
+     * @param array<string, mixed> $base
+     */
+    private static function compensate(array $base, int $batchId, int $supplierId, float $loaded, float $cost): void
+    {
+        if ($batchId === 0 && $supplierId === 0) {
+            return;
+        }
+
+        $zero = StockRow::findForUpdate([
+            'product_id' => (int) $base['product_id'],
+            'location_id' => (int) $base['location_id'],
+            'batch_id' => 0,
+            'supplier_id' => 0,
+            'deleted' => 'false',
+        ], 1);
+        $hole = is_array($zero) && isset($zero['quantity']) ? -round((float) $zero['quantity'], 3) : 0.0;
+        $moved = round(min($hole, $loaded), 3);
+
+        if ($moved <= 0) {
+            return;
+        }
+
+        $assignment = ['type' => 'adjustment', 'reason' => 'batch_assignment', 'unit_cost' => $cost] + $base;
+        Stock::apply(['quantity' => -$moved, 'batch_id' => $batchId, 'supplier_id' => $supplierId] + $assignment);
+        Stock::apply(['quantity' => $moved, 'batch_id' => 0, 'supplier_id' => 0] + $assignment);
+    }
+
+    /**
+     * Il costo del carico diventa il costo di oggi del fornitore per
+     * quell'opzione (G3.8): si aggiorna il legame, o si crea in fondo. Solo
+     * costi maggiori di zero: un costo non scritto non è un'informazione, e
+     * uno zero (merce omaggio) farebbe del fornitore il più conveniente per
+     * sempre.
+     */
+    private static function rememberCost(int $productId, int $supplierId, ?float $cost): void
+    {
+        if ($supplierId <= 0 || $cost === null || $cost <= 0) {
+            return;
+        }
+
+        $links = self::rows(ProductSupplier::find(['product_id' => $productId, 'deleted' => 'false']));
+        $value = number_format($cost, 4, '.', '');
+
+        foreach ($links as $link) {
+            if ((int) $link['supplier_id'] === $supplierId) {
+                ProductSupplier::update(['cost' => $value], (int) $link['id']);
+
+                return;
+            }
+        }
+
+        $position = 0;
+
+        foreach ($links as $link) {
+            $position = max($position, (int) ($link['position'] ?? 0) + 1);
+        }
+
+        ProductSupplier::create([
+            'product_id' => $productId,
+            'supplier_id' => $supplierId,
+            'supplier_sku' => '',
+            'cost' => $value,
+            'position' => $position,
+        ]);
+    }
+
+    private static function nullableCost(mixed $value): ?float
+    {
+        return $value === null || $value === '' ? null : round((float) $value, 4);
     }
 
     private static function nullable(mixed $value): ?float

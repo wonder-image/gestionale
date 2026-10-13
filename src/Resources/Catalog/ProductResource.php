@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Catalog;
 
+use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
+use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
@@ -615,7 +617,49 @@ class ProductResource extends ProductModelResource
         $parts[] = '<button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#'
             . static::ADJUST_MODAL . '"><i class="bi bi-pencil-square me-1"></i>Rettifica</button>';
 
-        return implode(' · ', $parts);
+        return implode(' · ', $parts) . static::stockBySupplier($productId);
+    }
+
+    /**
+     * G3, Acquisti: la giacenza per fornitore, tutte le sedi insieme
+     * («Rossi 3 · Bianchi 2 · senza fornitore 1»). Niente con la funzionalità
+     * spenta o con un fornitore solo, perché allora è la giacenza.
+     */
+    protected static function stockBySupplier(int $productId): string
+    {
+        if (!Gestionale::feature('purchasing')) {
+            return '';
+        }
+
+        $bySupplier = [];
+
+        try {
+            $rows = StockRow::find(['product_id' => $productId, 'deleted' => 'false']);
+        } catch (Throwable) {
+            return '';
+        }
+
+        foreach (!is_array($rows) || $rows === [] ? [] : (isset($rows['id']) ? [$rows] : $rows) as $row) {
+            if (is_array($row)) {
+                $id = (int) ($row['supplier_id'] ?? 0);
+                $bySupplier[$id] = round(($bySupplier[$id] ?? 0.0) + (float) ($row['quantity'] ?? 0), 3);
+            }
+        }
+
+        $bySupplier = array_filter($bySupplier, static fn (float $pieces): bool => $pieces != 0.0);
+
+        if (count($bySupplier) < 2) {
+            return '';
+        }
+
+        $parts = [];
+
+        foreach ($bySupplier as $id => $pieces) {
+            $name = $id > 0 ? SupplierNames::of($id) : 'senza fornitore';
+            $parts[] = static::escape($name) . ' ' . static::escape(static::plainNumber($pieces));
+        }
+
+        return '<div class="small text-body-secondary mt-1"><b>Per fornitore:</b> ' . implode(' · ', $parts) . '</div>';
     }
 
     /**

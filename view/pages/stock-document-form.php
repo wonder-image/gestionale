@@ -24,11 +24,18 @@ $reason = (string) ($values['reason'] ?? '');
 $note = html_entity_decode((string) ($values['note'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 $editor = (array) ($values['editor'] ?? []);
 $type = $resource::type();
+// G3, Acquisti: fornitore e documento del fornitore nel carico.
+$purchases = $resource::purchases();
+$supplierId = (int) ($values['supplier_id'] ?? 0);
+$supplierNumber = html_entity_decode((string) ($values['supplier_document_number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+$supplierDate = substr((string) ($values['supplier_document_date'] ?? ''), 0, 10);
+$supplierDate = str_starts_with($supplierDate, '0000') ? '' : $supplierDate;
 $noteHelp = match ($type) {
     'issue' => 'Per esempio a chi è andata la merce o perché.',
     'stocktake' => 'Per esempio quale scaffale o reparto hai contato.',
     default => 'Per esempio il numero della bolla o della fattura del fornitore.',
 };
+$noteHelp = $purchases ? 'Per esempio chi ha consegnato o cosa mancava.' : $noteHelp;
 
 \Wonder\View\View::layout('backend.form');
 ?>
@@ -59,6 +66,25 @@ $noteHelp = match ($type) {
                 </select>
             </div>
             <?php } ?>
+            <?php if ($purchases) { ?>
+            <div class="col-12 col-md-3">
+                <label class="form-label" for="wi-doc-supplier">Fornitore</label>
+                <select class="form-select" id="wi-doc-supplier" name="supplier_id" data-wi-stock-supplier>
+                    <option value="0">Nessuno</option>
+                    <?php foreach ($resource::supplierOptions($supplierId) as $id => $label) { ?>
+                    <option value="<?=$e($id)?>"<?=(int) $id === $supplierId ? ' selected' : ''?>><?=$e($label)?></option>
+                    <?php } ?>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="wi-doc-supplier-number">Documento <?=Tooltip::make('Il numero della bolla o della fattura del fornitore.')->render()?></label>
+                <input type="text" class="form-control" id="wi-doc-supplier-number" name="supplier_document_number" maxlength="50" value="<?=$e($supplierNumber)?>">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="wi-doc-supplier-date">Data</label>
+                <input type="date" class="form-control" id="wi-doc-supplier-date" name="supplier_document_date" value="<?=$e($supplierDate)?>">
+            </div>
+            <?php } ?>
             <div class="col-12 col-md">
                 <label class="form-label" for="wi-doc-note">Nota <?=Tooltip::make($noteHelp)->render()?></label>
                 <input type="text" class="form-control" id="wi-doc-note" name="note" maxlength="500" value="<?=$e($note)?>">
@@ -69,7 +95,8 @@ $noteHelp = match ($type) {
                 (array) ($editor['lines'] ?? []),
                 StockDocumentEditor::searchUrl(),
                 $type,
-                $type === 'stocktake' ? StockVersionSearch::scopeOptions() : []
+                $type === 'stocktake' ? StockVersionSearch::scopeOptions() : [],
+                $purchases
             )?>
         </wi-card>
         <wi-card class="col-12">

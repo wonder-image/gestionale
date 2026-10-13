@@ -193,4 +193,35 @@ check('atteso: una riga non contata non ha atteso', fn () =>
     Regole::expected(['quantity' => 5.0, 'expected_quantity' => 9.0], null, false, 8.0) === null
 );
 
+check('G3 Acquisti: senza costo la riga è quella di prima; col costo porta unit_cost', fn () =>
+    Regole::lines([$riga(5, '2')]) === [['product_id' => 5, 'quantity' => 2.0]]
+    && Regole::lines([['product_id' => 5, 'quantity' => '2', 'cost' => '2,50']]) === [['product_id' => 5, 'quantity' => 2.0, 'unit_cost' => 2.5]]
+    && Regole::lines([['product_id' => 5, 'quantity' => '2', 'cost' => '']]) === [['product_id' => 5, 'quantity' => 2.0, 'unit_cost' => null]]
+);
+
+check('G3 Acquisti: costo vuoto non è zero, zero scritto sì; quattro decimali', fn () =>
+    Regole::cost('', 1) === null
+    && Regole::cost(null, 1) === null
+    && Regole::cost('0', 1) === 0.0
+    && Regole::cost('1.234,5', 1) === 1234.5
+    && Regole::cost(0.123456, 1) === 0.1235
+);
+
+check('G3 Acquisti: un costo negativo, storto o troppo grande è un rifiuto con la riga', fn () =>
+    $rifiuto(fn () => Regole::cost('-1', 3)) === 'stock_document.invalid_cost'
+    && $rifiuto(fn () => Regole::cost('abc', 3)) === 'stock_document.invalid_cost'
+    && $rifiuto(fn () => Regole::cost('9999999', 3)) === 'stock_document.invalid_cost'
+    && $rifiuto(fn () => Regole::lines([['product_id' => 5, 'quantity' => '1', 'cost' => 'x']])) === 'stock_document.invalid_cost'
+);
+
+check('G3 Acquisti: la testata del fornitore si legge, la data deve esistere', fn () =>
+    Regole::supplierHeader([]) === ['supplier_id' => 0, 'supplier_document_number' => '', 'supplier_document_date' => null]
+    && Regole::supplierHeader(['supplier_id' => '12', 'supplier_document_number' => ' FT 7 ', 'supplier_document_date' => '2026-10-12'])
+        === ['supplier_id' => 12, 'supplier_document_number' => 'FT 7', 'supplier_document_date' => '2026-10-12']
+    && Regole::supplierHeader(['supplier_id' => '12abc'])['supplier_id'] === 0
+    && mb_strlen(Regole::supplierHeader(['supplier_document_number' => str_repeat('x', 80)])['supplier_document_number']) === 50
+    && $rifiuto(fn () => Regole::supplierHeader(['supplier_document_date' => '2026-02-30'])) === 'stock_document.invalid_date'
+    && $rifiuto(fn () => Regole::supplierHeader(['supplier_document_date' => '12/10/2026'])) === 'stock_document.invalid_date'
+);
+
 summary();
