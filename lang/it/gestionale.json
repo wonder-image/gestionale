@@ -75,7 +75,8 @@
                 "future_date": "La data dell'incasso è nel futuro: indica il giorno in cui il denaro è arrivato, oggi o prima.",
                 "invalid_date": "La data dell'incasso non è valida: usa il formato anno-mese-giorno, per esempio 2026-10-01.",
                 "over_balance": "L'importo supera quanto resta da incassare ({{residuo}}): scrivi al massimo quella cifra.",
-                "order_closed": "Quest'ordine è annullato: non si registrano incassi."
+                "order_closed": "Quest'ordine è annullato: non si registrano incassi.",
+                "installment_not_pending": "Questa rata non è più in attesa: forse è già stata pagata o annullata. Ricarica la pagina."
             },
             "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
             "category": {
@@ -145,6 +146,13 @@
             "payment_account": {
                 "in_use": "Questo conto è collegato a dei metodi di pagamento ({{count}}) e non si elimina: scollegalo dai metodi, oppure mettilo su «Non attivo».",
                 "invalid_iban": "L'IBAN non è valido: servono da 15 a 34 tra lettere e cifre, senza altri segni."
+            },
+            "payment_term": {
+                "no_installments": "Serve almeno una rata: aggiungi i giorni e la percentuale.",
+                "invalid_days": "Rata {{row}}: i giorni sono un numero intero da 0 a {{max}}.",
+                "invalid_percentage": "Rata {{row}}: la percentuale va da più di 0 a 100.",
+                "percentages_sum": "Le percentuali delle rate fanno {{sum}}%: devono fare 100%.",
+                "in_use": "Questa condizione è usata da ordini, clienti o pagamenti ({{count}}) e non si elimina: mettila su «Non attiva»."
             },
             "return": {
                 "order_not_returnable": "Su quest'ordine non si può registrare un reso: serve un ordine confermato, in lavorazione o completato, con i resi attivi.",
