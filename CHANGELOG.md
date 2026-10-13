@@ -331,6 +331,11 @@ versionamento semantico.
 
 ### Corretto
 
+- Dati di prova del catalogo: un articolo o un attributo di prova cancellato dal
+  backend (che lo segna e basta, tenendo il codice) non si rifaceva più e il
+  comando lo saltava. Ora si toglie davvero, con le sue righe figlie, e rinasce
+  da zero; `--fresh` toglie anche quelli cancellati. Se un multiprodotto o un
+  articolo vero lo usa ancora resta, e il comando lo dice.
 - Carichi, scarichi e inventari: un documento nuovo che non nasce (CSRF
   scaduto, sede sconosciuta, versione eliminata nel frattempo) riapre «Nuovo»
   con le righe, la sede, la causale e la nota appena scritte, i pezzi come

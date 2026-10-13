@@ -10,7 +10,9 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 
+use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
 use Wonder\Plugin\Gestionale\Seeding\ContactsDemo;
@@ -89,6 +91,69 @@ check('una riga di catalogo di prova cancellata torna al suo posto invece di ess
             $esito = $prima > 0
                 && $creata === 1
                 && $idDelCodice(Brand::class, 'maglificio-aurora') === $prima;
+
+            throw new Annulla();
+        });
+    } catch (Annulla) {
+    }
+
+    return $esito;
+});
+
+/*
+ * Articoli e attributi di prova si **rifanno da zero** (decisione del
+ * 2026-10-13): la riga cancellata si toglie davvero, con le sue righe figlie,
+ * e ne nasce una nuova. Rimetterla in vita riporterebbe anche versioni, foto
+ * e valori in uno stato che nessuno ricorda più.
+ */
+// La riga non c'è più nemmeno fra le cancellate.
+$sparita = static function (string $model, int $id): bool {
+    $riga = $model::find(['id' => $id, 'deleted' => ['true', 'false']], 1);
+
+    return !is_array($riga) || !isset($riga['id']);
+};
+
+check('un attributo di prova cancellato dal backend si rifà da zero, coi suoi valori', function () use ($cancella, $idDelCodice, $sparita) {
+    $esito = false;
+
+    try {
+        Transaction::run(static function () use (&$esito, $cancella, $idDelCodice, $sparita): void {
+            $attributo = new ReflectionMethod(CatalogDemo::class, 'attribute');
+            $attributo->invoke(null, 'colore');
+            $prima = $idDelCodice(Attribute::class, 'colore');
+            $usato = (new ReflectionMethod(CatalogDemo::class, 'attributeInUse'))->invoke(null, $prima);
+            $cancella(Attribute::class, $prima);
+            $creati = (int) $attributo->invoke(null, 'colore');
+            $dopo = $idDelCodice(Attribute::class, 'colore');
+
+            // Se un articolo lo usa, resta cancellato e il comando lo dice.
+            $esito = $prima > 0 && ($usato
+                ? $dopo === 0 && $creati === 0
+                : $dopo > 0 && $dopo !== $prima && $creati >= 1
+                    && $sparita(Attribute::class, $prima));
+
+            throw new Annulla();
+        });
+    } catch (Annulla) {
+    }
+
+    return $esito;
+});
+
+check('un articolo di prova cancellato dal backend si rifà da zero, con le sue opzioni', function () use ($cancella, $idDelCodice, $sparita) {
+    $esito = false;
+
+    try {
+        Transaction::run(static function () use (&$esito, $cancella, $idDelCodice, $sparita): void {
+            CatalogDemo::create();
+            $ref = 'cappello-di-lana';
+            $prima = $idDelCodice(ProductModel::class, $ref);
+            $cancella(ProductModel::class, $prima);
+            $creati = CatalogDemo::create();
+            $dopo = $idDelCodice(ProductModel::class, $ref);
+
+            $esito = $prima > 0 && $creati >= 1 && $dopo > 0 && $dopo !== $prima
+                && $sparita(ProductModel::class, $prima);
 
             throw new Annulla();
         });

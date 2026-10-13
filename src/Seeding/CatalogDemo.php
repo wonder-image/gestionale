@@ -643,6 +643,14 @@ final class CatalogDemo
             return 0;
         }
 
+        // Cancellato dal backend, tiene ancora il codice di prova: si toglie
+        // davvero e l'articolo rinasce pulito.
+        $deleted = self::deletedRow(ProductModel::class, DemoCode::forModel(ProductModel::class, $ref));
+
+        if ($deleted !== null && !self::dropModel($deleted)) {
+            return 0;
+        }
+
         $result = ProductModel::create([
             'code' => DemoCode::forModel(ProductModel::class, $ref),
             'name' => $name,
@@ -1049,6 +1057,15 @@ final class CatalogDemo
         $definition = self::ATTRIBUTES[$ref];
         $name = $definition['name'];
         $created = 0;
+
+        // Cancellato dal backend, tiene ancora il codice di prova: si toglie
+        // davvero (se niente lo usa più) e l'attributo rinasce coi suoi valori.
+        $deleted = self::deletedRow(Attribute::class, DemoCode::forModel(Attribute::class, $ref));
+
+        if ($deleted !== null && !self::dropAttribute($deleted)) {
+            return 0;
+        }
+
         $found = self::find(Attribute::class, $ref, $name);
 
         if ($found === null) {
@@ -1118,7 +1135,7 @@ final class CatalogDemo
         // foto, e sono loro a tenere occupati attributi e categorie.
         // I multiprodotti per primi: portano via le loro tre tabelle, e solo
         // dopo i loro componenti smettono di essere «in uso».
-        $models = self::ours(ProductModel::class);
+        $models = self::ours(ProductModel::class, true);
         usort($models, static fn (array $a, array $b): int => (($b['type'] ?? '') === 'bundle') <=> (($a['type'] ?? '') === 'bundle'));
 
         foreach ($models as $row) {
@@ -1179,7 +1196,7 @@ final class CatalogDemo
             $removed++;
         }
 
-        foreach (self::ours(Attribute::class) as $row) {
+        foreach (self::ours(Attribute::class, true) as $row) {
             $id = (int) $row['id'];
 
             // Gli articoli di prova sono già andati con i loro collegamenti:
@@ -1323,6 +1340,70 @@ final class CatalogDemo
     }
 
     /** Una cancellazione riuscita? Un errore del database conta come un no. */
+    /**
+     * La riga di prova col codice dato che il backend ha segnato come
+     * cancellata, o null. *Elimina* dell'elenco la segna e basta: il codice
+     * resta occupato e la riga non si potrebbe rifare.
+     *
+     * @param class-string<\Wonder\App\Model> $model
+     * @return array<string, mixed>|null
+     */
+    private static function deletedRow(string $model, string $code): ?array
+    {
+        $row = $model::find(['code' => $code, 'deleted' => 'true'], 1);
+
+        return is_array($row) && isset($row['id']) ? $row : null;
+    }
+
+    /**
+     * Toglie davvero un articolo di prova cancellato, con opzioni, varianti,
+     * foto e giacenza di prova, come la pulizia. Falso se resta (un
+     * multiprodotto vero lo usa ancora).
+     *
+     * @param array<string, mixed> $row
+     */
+    private static function dropModel(array $row): bool
+    {
+        $modelId = (int) $row['id'];
+
+        if (self::inBundle($modelId)) {
+            DemoData::note(DemoCode::label(ProductModel::class, (string) ($row['name'] ?? '')).' è cancellato ma un multiprodotto lo usa ancora: non si rifà.');
+
+            return false;
+        }
+
+        StockHistory::purge(array_map(
+            static fn (array $product): int => (int) ($product['id'] ?? 0),
+            self::listOf(Product::find(['product_model_id' => $modelId, 'deleted' => ['true', 'false']]))
+        ));
+
+        return self::remove(static fn () => ProductModelResource::deleteRecord($modelId));
+    }
+
+    /**
+     * Toglie davvero un attributo di prova cancellato, con i suoi valori.
+     * Falso se resta (un articolo vero lo usa ancora).
+     *
+     * @param array<string, mixed> $row
+     */
+    private static function dropAttribute(array $row): bool
+    {
+        $id = (int) $row['id'];
+
+        if (self::attributeInUse($id)) {
+            DemoData::note(DemoCode::label(Attribute::class, (string) ($row['name'] ?? '')).' è cancellato ma un articolo lo usa ancora: non si rifà.');
+
+            return false;
+        }
+
+        foreach (self::valuesOfAttribute($id) as $value) {
+            $valueId = (int) $value['id'];
+            self::remove(static fn () => AttributeValue::delete($valueId));
+        }
+
+        return self::remove(static fn () => Attribute::delete($id));
+    }
+
     private static function remove(callable $delete): bool
     {
         try {
@@ -1408,10 +1489,10 @@ final class CatalogDemo
      *
      * @return list<array<string, mixed>>
      */
-    private static function ours(string $model): array
+    private static function ours(string $model, bool $withDeleted = false): array
     {
         return array_values(array_filter(
-            self::rows($model),
+            $withDeleted ? self::listOf($model::find("deleted IN ('true', 'false')")) : self::rows($model),
             static fn (array $row): bool => DemoCode::ours(
                 $model,
                 (string) ($row['code'] ?? ''),
