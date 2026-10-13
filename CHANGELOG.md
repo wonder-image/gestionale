@@ -302,6 +302,12 @@ versionamento semantico.
 
 ### Cambiato
 
+- Il gestionale chiede `wonder-image/app` `^2.4.0-beta.2`: `Query::Conditions()`
+  del core toglie solo il `WHERE` iniziale, e *Giacenze* torna a escludere i
+  multiprodotti con una sottoquery invece di leggerne gli id prima, in PHP.
+  **Chi aggiorna deve avere il core almeno a `2.4.0-beta.2`.** Nel lock di
+  sviluppo del modulo sale anche `stripe/stripe-php` a 19, come chiede il core.
+
 - Checkout con Stripe: Apple Pay, Google Pay e Link sono anche fra le scelte del
   modulo, subito dopo la carta (`StripeMethods::choices()`), per chi chiede fattura
   o ritira in negozio e non può usare la barra rapida. Tipi dell'intento automatici
@@ -330,6 +336,19 @@ versionamento semantico.
   comando lo saltava. Ora si toglie davvero, con le sue righe figlie, e rinasce
   da zero; `--fresh` toglie anche quelli cancellati. Se un multiprodotto o un
   articolo vero lo usa ancora resta, e il comando lo dice.
+- Carichi, scarichi e inventari: un documento nuovo che non nasce (CSRF
+  scaduto, sede sconosciuta, versione eliminata nel frattempo) riapre «Nuovo»
+  con le righe, la sede, la causale e la nota appena scritte, i pezzi come
+  erano (`StockDocumentForm::remember()` e `recall()`), invece di ripartire
+  vuoto.
+- Dati di prova dei documenti di magazzino: creazione e conferma in una
+  transazione sola; `--fresh` toglie anche i documenti di prova eliminati dal
+  backend, e un giro dopo un'eliminazione li rifà invece di fermarsi sul
+  codice già preso.
+- Scheda di un documento confermato o annullato: «da …» resta anche quando
+  l'utente che l'ha confermato è stato eliminato.
+- Guida *Carichi e scarichi*: il pezzo in più su una riga che c'è già lo dà
+  solo il lettore; col clic il cursore va sui pezzi di quella riga.
 - Ritiro in una sede che non è la principale: la merce si prenotava e si
   scaricava dalla sede di ritiro, che non è un magazzino, e il checkout
   rispondeva «non disponibile» (o, con la vendita senza giacenza, la sede di

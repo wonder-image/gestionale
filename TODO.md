@@ -227,12 +227,12 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
         - [x] `StockDocuments::duplicate`: il `FOR UPDATE` sul documento d'origine non serve
         - [ ] Manca una prova vera di concorrenza e una del filtro *Tipo* attraverso l'elenco reale (SSP): da fare nel browser col piano 5
     - [x] Piano 5 Carichi e scarichi, pagine: menu, elenchi, bozza con i componenti, rotta JSON e indice `ean`, pagina in sola lettura, azioni, dati di prova — unito su main con gestionale#27 (27949e2, 2026-10-12); prove nel browser ancora da fare
-      - [ ] Ritocchi minori rimandati dalla revisione finale del piano 5:
-        - [ ] Se `create()` di un documento nuovo fallisce (CSRF, sede sconosciuta, versione eliminata nel frattempo) le righe scritte o lette si perdono: tenerle nel flash della sessione e riaprire l'editor con quelle
-        - [ ] Guida `magazzino-carichi-scarichi.md`, passo 4: il pezzo in più lo dà solo il lettore; col clic il cursore va sui pezzi della riga che c'è
-        - [ ] `StockDocumentsDemo::create`: creazione e conferma non sono atomiche, una bozza di prova rimasta a metà blocca i giri dopo
-        - [ ] `StockDocumentsDemo::clear()` non vede i documenti di prova eliminati (serve `deleted IN ('true','false')`)
-        - [ ] `StockDocumentSheet::people` legge `User::find` col filtro di default: un utente eliminato dopo perde il «da …»
+      - [x] Ritocchi minori rimandati dalla revisione finale del piano 5 (2026-10-12, ramo `ritocchi-carichi-scarichi`; test unitari verdi, i test d'integrazione toccati — `StockDocumentFormTest`, `StockDocumentsDemoTest` — vanno lanciati sul sito di prova):
+        - [x] Se `create()` di un documento nuovo fallisce (CSRF, sede sconosciuta, versione eliminata nel frattempo) le righe scritte o lette si perdono: tenerle nel flash della sessione e riaprire l'editor con quelle — `StockDocumentForm::remember()`/`recall()` (sessione, dieci minuti, stesso tipo), `mutateFormValues()` le ridisegna con i pezzi come erano scritti
+        - [x] Guida `magazzino-carichi-scarichi.md`, passo 4: il pezzo in più lo dà solo il lettore; col clic il cursore va sui pezzi della riga che c'è
+        - [x] `StockDocumentsDemo::create`: creazione e conferma non sono atomiche, una bozza di prova rimasta a metà blocca i giri dopo — ora in `Transaction::run()`; un documento di prova eliminato dal backend si toglie del tutto e si rifà
+        - [x] `StockDocumentsDemo::clear()` non vede i documenti di prova eliminati (serve `deleted IN ('true','false')`)
+        - [x] `StockDocumentSheet::people` legge `User::find` col filtro di default: un utente eliminato dopo perde il «da …»
     - [x] Piano 6 Inventario, pagine: Attesi · Contati · Differenza, *Aggiungi versioni*, limite di 500 righe, dati di prova, guida — [piano](docs/superpowers/plans/2026-10-12-inventario-pagine.md) eseguito sul ramo `g3-inventario` (2026-10-12); prova nel browser dell'utente da fare (spec §5, prova 5: un inventario di una categoria muove solo le righe contate con una differenza)
   - [ ] **G2c La scheda prodotto, secondo giro** — spec: `docs/superpowers/specs/2026-09-22-scheda-prodotto-secondo-giro-design.md` (sedici giri chiusi, decisioni P1–P128)
     - [x] Tredicesimo giro eseguito (spec §22, 2026-09-25, commit `0a04ef9`): fornitori dell'articolo, giacenza e scorta minima per sede (`gst_stock_thresholds`, via `gst_products.min_stock_quantity`), colonna «Scontato» nella griglia, personalizzazioni scritte in spec per G5. Architettura 4.3 aggiornata; G2b-bis §2 «la scorta minima è della versione» superata
@@ -341,12 +341,15 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 - [x] Dati di prova: `CatalogDemo::model()` e `CatalogDemo::attribute()` non rimettono al suo posto una riga cancellata dal backend, come fanno ora `ensure()` e `ContactsDemo::contact()` con `DemoCode::revive()`. Il loro ripristino tocca anche le righe figlie (versioni, immagini, valori dell'attributo), che restano cancellate: va deciso se rimetterle in vita insieme alla scheda o rifarle — **deciso il 2026-10-13: si rifanno da zero**. La riga di prova cancellata si toglie davvero (articolo con opzioni, varianti, foto e giacenza di prova; attributo con i suoi valori) e ne nasce una nuova; `--fresh` toglie anche quelle cancellate. Resta, con una nota, se qualcosa di vero la usa ancora
 
 - [ ] Finestre e campi scritti a mano invece dei componenti del core. `ProductResource::stockAdjustModal()` e `stockAdjustScript()` compongono la finestra della rettifica con HTML in stringa — `<div class="modal">`, `<input>`, `<button>` — al posto di `Modal`, `FormField` e `Button`. Il blocco è che la finestra ha una **form propria** (posta su `StockAdjustmentResource::submitUrl()`) e il `Modal` del core non ammette un `<form>` dentro: va prima aggiunto al core un modo di fare finestre con form, poi riscritte qui. Stesso debito, in piccolo, nei quattro widget della dashboard e in altri punti di `ProductModelResource`
+  - [x] La finestra della rettifica è fatta: `ProductResource::stockAdjustModal()` usa `Modal::form()` del core (`2.4.0-beta.2`), con i campi di `StockAdjustmentResource`; resta lo script che la porta fuori dalla form della scheda (2026-10-13)
+  - [ ] Restano i riquadri della home (`<wi-card>` in stringa, che il core dà per superato a favore di `Card`) e gli altri punti di `ProductModelResource`
 
 - [ ] Prezzi all'inglese nelle tabelle del core. `Backend\Table\Field` rende il tipo `price` con `number_format($v, 2, '.', '').'€'`: nella scheda dell'articolo la stessa pagina scrive «da 9,90 €» nel riquadro «Prodotto» (lo compone il modulo) e «9.90€» nella tabella delle opzioni (lo compone il core). Va deciso se il formato lo prende dalla lingua del sito o da un'impostazione, e sistemato nel core: riguarda tutte le tabelle, non solo il gestionale
+  - Deciso il 2026-10-13: il formato si prende **dalla lingua del sito**. Il core scrive già all'italiana da `7acc602d`; `wonder-image/app#75` lo fa seguire la lingua (`Wonder\Support\Money`). Da spuntare quando è unita
 
 ### Lavori preparatori in `wonder-image/app` (D58)
 
-- [ ] `Query::Conditions($cond, false)` (`app/class/Sql/Query.php:95-96`) toglie **ogni** `WHERE` dalla stringa, non solo quello iniziale: una condizione con una sottoquery si rompe in `Table::query()`. Aggirato in `StockLevelResource::bundleModelIds()` (gli id letti in PHP), da togliere quando il core è corretto
+- [x] `Query::Conditions($cond, false)` (`app/class/Sql/Query.php:95-96`) toglie **ogni** `WHERE` dalla stringa, non solo quello iniziale: una condizione con una sottoquery si rompe in `Table::query()`. Aggirato in `StockLevelResource::bundleModelIds()` (gli id letti in PHP), da togliere quando il core è corretto — corretto nel core (`ca845c2`, `wonder-image/app` `2.4.0-beta.2`, toglie solo il `WHERE` iniziale); il giro in `StockLevelResource` è tolto e il gestionale chiede `^2.4.0-beta.2` (2026-10-13)
 
 - [x] `Data\Fields\Number::sqlSchema()` torna `'length' => '10,2'` fisso e ignora `decimals()`: ogni colonna nata da `sqlColumnsFromDataSchema()` perde i decimali oltre il secondo (le quantità del magazzino, `gst_products.weight`). Nel modulo c'è il ripiego `Support\Columns::decimal()`
 - [x] `app/function/mail.php` riga 158: Brevo riceve `->replyTo($from, ...)` anche quando `$from` è vuoto — il ramo PHPMailer (riga 208) la guardia ce l'ha già. Le email senza mittente sono quelle dello scheduler e dei comandi
@@ -367,8 +370,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 
 - [x] Spostare questa spec in `gestionale/docs/superpowers/specs/` alla creazione del repository del gestionale (D15)
 - [ ] Creare i tre spazi GitBook con i sommari di D57: sviluppatori del gestionale, sviluppatori dell'ecommerce, commercianti (Project directory `guide`)
-- [ ] Riquadro standard "Inclusa / Da attivare su richiesta" per le pagine della guida commercianti (D32)
-- [ ] Comando che genera la tabella delle funzionalità da `config/features.php` (D32)
+- [x] Riquadro standard "Inclusa / Da attivare su richiesta" per le pagine della guida commercianti (D32) — verificato il 2026-10-12: ogni pagina di `docs/user/` (tranne README, SUMMARY e `funzionalita.md`, che ha «Configurata da Wonder Image») si apre con «**Inclusa.**» o «**Da attivare.**»
+- [x] Comando che genera la tabella delle funzionalità da `config/features.php` (D32) — è `gestionale:features-doc` (G1 piano 4), scrive fra i segni di `docs/user/funzionalita.md`
 - [ ] Guida sviluppatori: hook, dati passati alle pagine e alle email, classi dei PDF sostituibili (D52)
 - [ ] Guida sviluppatori: checklist di prova manuale prima di ogni rilascio, con gli account di prova di Stripe e Fatture in Cloud (D56)
 
