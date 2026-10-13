@@ -17,6 +17,12 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
  */
 final class StockDocumentForm
 {
+    /** Chiave di sessione di un documento nuovo che non è nato (`remember()`). */
+    public const RESTORE_KEY = 'gst_stock_document_restore';
+
+    /** Secondi in cui quello che si è messo da parte vale ancora: poi è un'altra bozza. */
+    private const RESTORE_TTL = 600;
+
     /**
      * Salva la bozza e, con `intent = confirm`, la conferma.
      *
@@ -82,6 +88,92 @@ final class StockDocumentForm
     }
 
     /**
+     * Un documento nuovo che non nasce (CSRF scaduto, sede sconosciuta,
+     * versione eliminata nel frattempo) non ha una bozza da riaprire: righe,
+     * sede, causale e nota restano in sessione e la prossima pagina «Nuovo»
+     * dello stesso tipo le ridisegna (`recall()`), invece di ripartire vuota.
+     *
+     * @param array<string, mixed> $post
+     */
+    public static function remember(string $type, array $post): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        $_SESSION[self::RESTORE_KEY] = ['type' => $type, 'at' => time()] + self::restorable($post);
+    }
+
+    /**
+     * Quello che `remember()` ha messo da parte per questo tipo, una volta
+     * sola; null se non c'è, è di un altro tipo o è vecchio.
+     *
+     * @return array{header: array{location_id?: int, reason?: string, note?: string}, items: list<array{product_id: int, quantity: string}>}|null
+     */
+    public static function recall(string $type): ?array
+    {
+        $saved = $_SESSION[self::RESTORE_KEY] ?? null;
+
+        if (!is_array($saved) || ($saved['type'] ?? '') !== $type) {
+            return null;
+        }
+
+        unset($_SESSION[self::RESTORE_KEY]);
+
+        if (time() - (int) ($saved['at'] ?? 0) > self::RESTORE_TTL) {
+            return null;
+        }
+
+        return ['header' => (array) ($saved['header'] ?? []), 'items' => array_values((array) ($saved['items'] ?? []))];
+    }
+
+    /**
+     * Il POST da rimettere nella pagina, letto con indulgenza: una riga torna
+     * com'era scritta anche quando è lei il rifiuto (pezzi «abc»). Restano le
+     * righe con una versione, una volta sola ciascuna e al massimo
+     * `StockDocumentRules::MAX_LINES`; un campo `lines` illeggibile non ne
+     * lascia nessuna.
+     *
+     * @param array<string, mixed> $post
+     * @return array{header: array{location_id?: int, reason?: string, note?: string}, items: list<array{product_id: int, quantity: string}>}
+     */
+    public static function restorable(array $post): array
+    {
+        $raw = $post['lines'] ?? null;
+        $lines = is_string($raw) ? json_decode($raw, true, 8) : null;
+        $items = [];
+        $seen = [];
+
+        foreach (is_array($lines) ? $lines : [] as $line) {
+            if (count($items) >= StockDocumentRules::MAX_LINES) {
+                break;
+            }
+
+            $id = is_array($line) ? ($line['product_id'] ?? null) : null;
+            $id = is_int($id) ? $id : (is_string($id) && preg_match('/^[1-9]\d{0,9}$/D', trim($id)) === 1 ? (int) trim($id) : 0);
+
+            if ($id <= 0 || isset($seen[$id])) {
+                continue;
+            }
+
+            $seen[$id] = true;
+            $quantity = $line['quantity'] ?? '';
+            $items[] = [
+                'product_id' => $id,
+                'quantity' => is_string($quantity) || is_int($quantity) || is_float($quantity) ? mb_substr(trim((string) $quantity), 0, 32) : '',
+            ];
+        }
+
+        $header = self::header($post);
+
+        if (isset($header['note'])) {
+            $header['note'] = mb_substr($header['note'], 0, 500);
+        }
+
+        return ['header' => $header, 'items' => $items];
+    }
+
+    /**
      * Le righe salvate come le disegna l'editor: la versione descritta (nome,
      * SKU, foto, giacenza della sede) più i pezzi in testo. Una riga la cui
      * versione non c'è più si toglie e si conta: la pagina lo dice.
@@ -89,7 +181,10 @@ final class StockDocumentForm
      * Nell'inventario la riga porta anche `expected`, l'atteso salvato (o
      * null): l'editor lo mostra finché il contato e la sede restano quelli.
      *
-     * @param list<array{product_id: int, quantity: ?float, expected_quantity?: ?float}> $items
+     * I pezzi in testo (`restorable()`) passano come sono: sono quelli che
+     * aveva scritto chi ha inviato.
+     *
+     * @param list<array{product_id: int, quantity: float|string|null, expected_quantity?: ?float}> $items
      * @return array{lines: list<array<string, mixed>>, dropped: int}
      */
     public static function editorLines(array $items, int $locationId): array
@@ -111,7 +206,7 @@ final class StockDocumentForm
             $expected = $item['expected_quantity'] ?? null;
             $cost = $item['unit_cost'] ?? null;
             $lines[] = $version + [
-                'quantity' => self::quantityText($item['quantity']),
+                'quantity' => is_string($item['quantity']) ? $item['quantity'] : self::quantityText($item['quantity']),
                 'expected' => $expected === null ? null : round((float) $expected, 3),
                 // G3, Acquisti: il costo salvato, come si scrive nella casella («2,5»).
                 'cost' => $cost === null ? '' : str_replace('.', ',', (string) (round((float) $cost, 4) + 0)),

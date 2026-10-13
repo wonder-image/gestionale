@@ -73,13 +73,11 @@ final class LowStockWidget implements HomeWidget
         $warning = $hasRecipients ? '' : self::noRecipients($canEditRecipients);
 
         if ($items === []) {
-            return <<<HTML
-<wi-card class="col-12">
+            return WidgetCard::wrap(<<<HTML
     <h5 class="mb-1"><i class="bi bi-box-seam"></i> Sotto scorta</h5>
     <p class="text-body-secondary small mb-0">Nessun prodotto sotto la scorta minima.</p>
     {$warning}
-</wi-card>
-HTML;
+HTML);
         }
 
         $rows = '';
@@ -118,8 +116,7 @@ HTML;
         };
         $url = htmlspecialchars(StockLevelResource::lowStockUrl(), ENT_QUOTES, 'UTF-8');
 
-        return <<<HTML
-<wi-card class="col-12">
+        return WidgetCard::wrap(<<<HTML
     <h5 class="mb-1 d-flex justify-content-between align-items-center gap-3">
         <span><i class="bi bi-box-seam"></i> Sotto scorta</span>
         <a class="btn btn-sm btn-secondary" href="{$url}">Apri le giacenze</a>
@@ -127,8 +124,7 @@ HTML;
     <ul class="list-group list-group-flush">{$rows}</ul>
     {$more}
     {$warning}
-</wi-card>
-HTML;
+HTML);
     }
 
     /**

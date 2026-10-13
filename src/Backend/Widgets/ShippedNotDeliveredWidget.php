@@ -59,14 +59,12 @@ final class ShippedNotDeliveredWidget implements HomeWidget
         $quante = $count === 1 ? '1 spedizione' : $count.' spedizioni';
         $url = htmlspecialchars(ShipmentResource::filteredUrl('non_consegnate'), ENT_QUOTES, 'UTF-8');
 
-        return <<<HTML
-<wi-card class="col-12">
+        return WidgetCard::wrap(<<<HTML
     <h5 class="mb-1 d-flex justify-content-between align-items-center gap-3">
         <span><i class="bi bi-hourglass-split"></i> Spedizioni in ritardo</span>
         <a class="btn btn-sm btn-secondary" href="{$url}">Apri le spedizioni</a>
     </h5>
     <p class="small mb-0">{$quante} partite da più di {$giorni} giorni e non ancora consegnate.</p>
-</wi-card>
-HTML;
+HTML);
     }
 }
