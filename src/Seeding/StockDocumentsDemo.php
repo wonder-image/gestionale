@@ -278,7 +278,13 @@ final class StockDocumentsDemo
         foreach (self::rows(StockDocument::find("code LIKE '".$prefix."demo-%' AND deleted IN ('true', 'false')", null, 'id', 'DESC')) as $document) {
             $id = (int) $document['id'];
 
-            if ((string) $document['status'] === 'completed' && (string) ($document['deleted'] ?? 'false') === 'false') {
+            // Anche il trasferimento in viaggio si annulla: togliere solo i suoi
+            // movimenti lascerebbe la merce fuori dalla sede di partenza, e il
+            // carico di prova non si annullerebbe più («la merce è già uscita»).
+            $status = (string) $document['status'];
+            $open = $status === 'completed' || ((string) $document['type'] === 'transfer' && $status === 'in_transit');
+
+            if ($open && (string) ($document['deleted'] ?? 'false') === 'false') {
                 try {
                     StockDocuments::cancel($id, ['source' => 'system']);
                 } catch (UserError) {
