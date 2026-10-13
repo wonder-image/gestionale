@@ -333,6 +333,11 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Ritocchi del magazzino (2026-10-12, ramo `ritocchi-magazzino`): destinatari della scorta minima nella card *Email* di Set Up → Impostazioni (tolta la pagina Gestionale → Impostazioni), elenco Giacenze che non si rompe più, «Visualizza» e scheda del movimento al posto di «Apri la versione». La prova nel browser aspetta l'utente
 - [ ] G9 Vendite da ufficio **senza la parte fiscale** — ordini da ufficio, preventivi con revisioni e PDF, condizioni a rate e scadenzario, DDT. La fattura differita TD24 e la fattura della merce consegnata prima del pagamento vanno con G8
 - [ ] G10 + E3 Abbonamenti — da ufficio e online; la parte E3 va anche in [`packages/ecommerce/TODO.md`](../ecommerce/TODO.md)
+  - [x] Spec: [spec](docs/superpowers/specs/2026-10-13-abbonamenti-design.md) sul ramo `g10-abbonamenti`. Decisioni G10.1–G10.19 approvate il 2026-10-13, tutte come consigliate. **Si unisce su `main` dopo la `1.0.0`**. Tre piani: catalogo dei piani → abbonamenti online con Stripe (E3) → abbonamenti da ufficio (dopo G9 piani 1 e 3: `PaymentSchedule` e `DocumentPdf`)
+  - [ ] Da chiedere prima del piano 2: chiavi di **prova** di Stripe sul sito di prova per i test online
+  - [ ] Piano 1 Catalogo dei piani
+  - [ ] Piano 2 Abbonamenti online (E3, gestionale ed ecommerce)
+  - [ ] Piano 3 Abbonamenti da ufficio
 
 **Fuori dal percorso della consegna (D61)**
 
