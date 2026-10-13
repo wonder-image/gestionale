@@ -70,7 +70,8 @@ sconti e spedizione. La bozza la ritrovi in *Ordini da ufficio* e negli **Ordini
 4. crea le rate della condizione di pagamento nello
    [Scadenzario](vendite-pagamenti-a-rate.md).
 
-Con **Alla conferma scrivi al cliente** parte l'email di conferma.
+Con **Alla conferma scrivi al cliente** parte l'email di conferma, con la
+conferma d'ordine in PDF allegata.
 
 **Elimina bozza** la toglie del tutto: una bozza non ha numero né movimenti.
 
@@ -82,6 +83,7 @@ Le righe non si modificano più. Dalla scheda dell'ordine:
   quello che **non è ancora partito** con una spedizione. La merce torna in
   magazzino, i totali e le rate si rifanno, e sotto la quantità della riga
   compare *annullati*. Annullando tutto si annulla l'ordine.
+* **PDF** — la conferma d'ordine, con le rate e le scadenze.
 * **Registra pagamento** — sulla rata più vicina, o dallo Scadenzario sulla
   rata che scegli.
 * Per la merce già consegnata: il [reso](vendite-resi.md), come per gli ordini

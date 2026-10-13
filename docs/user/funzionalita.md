@@ -35,7 +35,7 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Funzionalità | Area | A cosa serve | Serve prima |
 |---|---|---|---|
 | Ordini | Vendite | Gestione degli ordini con stati e scarico del magazzino. | — |
-| Preventivi | Vendite | Preventivi con PDF e revisioni, convertibili in ordine. | Ordini |
+| Preventivi | Vendite | Preventivi con PDF e revisioni: accettato, il preventivo diventa un ordine da ufficio. | Ordini, Vendita in ufficio |
 | Resi | Vendite | Richiesta, approvazione, motivo e ricarico a magazzino. | Ordini |
 | DDT | Vendite | Documento di trasporto per le consegne. | Ordini |
 | Abbonamenti | Vendite | Piani, rinnovi e cambio piano. | — |

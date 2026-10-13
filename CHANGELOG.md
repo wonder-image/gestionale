@@ -7,6 +7,18 @@ versionamento semantico.
 
 ### Aggiunto
 
+- G9 piano 3, **Preventivi** (funzionalità costruita, chiede *Vendita in
+  ufficio*): **Vendite → Preventivi** con la stessa pagina dell'ordine da
+  ufficio e la validità; **Invia al cliente** con numero, revisione e PDF
+  archiviato, email con il PDF allegato; una modifica dopo l'invio è una
+  revisione nuova; **Accettato** fa del preventivo una bozza d'ordine,
+  **Rifiutato**, scaduti segnati ogni mattina (attività *preventivi
+  scaduti*, spenta). PDF del preventivo e della **conferma d'ordine** (anche
+  allegata all'email di conferma e da scaricare sulla scheda), sostituibili
+  dal sito con l'hook `documentPdf`. *Validità dei preventivi* nelle
+  Impostazioni. Guida `vendite-preventivi.md`. **Chi aggiorna deve lanciare
+  `php forge update`.**
+
 - G9 piano 2, **Ordini da ufficio** (con *Vendita in ufficio*): **Vendite →
   Ordini da ufficio** con le bozze e **Nuovo ordine**: la bozza senza numero né merce impegnata (cliente con i
   dati della sua scheda, fatturazione, consegna con costo di spedizione a mano,

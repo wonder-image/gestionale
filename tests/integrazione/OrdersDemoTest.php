@@ -85,7 +85,7 @@ try {
         accendiFunzionalita(['orders', 'returns', 'customizations']);
         // Spenti per davvero: il sito di prova può averli accesi, e gli ordini
         // restano i sette di sempre.
-        spegniFunzionalita(['bundles', 'coupons', 'office_sales']);
+        spegniFunzionalita(['bundles', 'coupons', 'office_sales', 'quotes']);
         OrdersDemo::clear();
         CatalogDemo::clear();
         ContactsDemo::clear();
@@ -327,7 +327,7 @@ $cesti = [];
 try {
     Transaction::run(static function () use (&$cesti, $righe, $ordine, $agganciate): void {
         accendiFunzionalita(['orders', 'returns', 'bundles']);
-        spegniFunzionalita(['coupons', 'office_sales']);
+        spegniFunzionalita(['coupons', 'office_sales', 'quotes']);
         OrdersDemo::clear();
         CatalogDemo::clear();
         ContactsDemo::clear();
@@ -450,7 +450,7 @@ $senzaPersonalizzazioni = null;
 try {
     Transaction::run(static function () use (&$senzaResi, &$senzaPersonalizzazioni, $righe, $ordine): void {
         accendiFunzionalita(['orders']);
-        spegniFunzionalita(['coupons', 'office_sales']);
+        spegniFunzionalita(['coupons', 'office_sales', 'quotes']);
         // Spente per davvero: il sito di prova può averle accese.
         spegniFunzionalita(['customizations']);
         sqlModify(Feature::$table, ['enabled' => 'false'], 'feature_key', 'returns');
@@ -483,7 +483,7 @@ $rate = [];
 
 try {
     Transaction::run(static function () use (&$rate, $righe, $ordine): void {
-        accendiFunzionalita(['orders', 'office_sales']);
+        accendiFunzionalita(['orders', 'office_sales', 'quotes']);
         spegniFunzionalita(['bundles', 'coupons']);
         OrdersDemo::clear();
         CatalogDemo::clear();
@@ -498,6 +498,8 @@ try {
         $rate['ordine'] = $o;
         $rate['rate'] = Wonder\Plugin\Gestionale\Support\Payments\Installments::pending($id);
         $rate['bozza'] = $ordine('bozza-ufficio');
+        $rate['preventivo'] = $ordine('preventivo-inviato');
+        $rate['revisioni'] = count($righe(Wonder\Plugin\Gestionale\Models\Sales\OrderQuoteRevision::class, 'order_id = '.(int) ($rate['preventivo']['id'] ?? 0)));
         OrdersDemo::clear();
         $rate['dopo'] = count($righe(Wonder\Plugin\Gestionale\Models\Payments\Payment::class, 'order_id = '.$id));
 
@@ -509,11 +511,12 @@ try {
     $foto->ripristina();
 }
 
-check('con la vendita in ufficio nascono una bozza e un ordine da ufficio con due rate, la prima scaduta', function () use ($rate) {
+check('con la vendita in ufficio e i preventivi nascono una bozza, un preventivo inviato e un ordine con due rate, la prima scaduta', function () use ($rate) {
     $r = $rate['rate'] ?? [];
     $totale = round((float) ($rate['ordine']['total'] ?? 0), 2);
 
-    return ($rate['create'] ?? 0) === 9
+    return ($rate['create'] ?? 0) === 10
+        && ($rate['preventivo']['stage'] ?? '') === 'quote' && ($rate['preventivo']['status'] ?? '') === 'sent' && ($rate['revisioni'] ?? 0) === 1
         && ($rate['bozza']['status'] ?? '') === 'draft' && trim((string) ($rate['bozza']['order_number'] ?? '')) === ''
         && ($rate['ordine']['channel'] ?? '') === 'office'
         && trim((string) ($rate['ordine']['order_number'] ?? '')) !== ''

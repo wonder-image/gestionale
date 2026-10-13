@@ -15,6 +15,7 @@ use Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
+use Wonder\Plugin\Gestionale\Models\Sales\OrderQuoteRevision;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
@@ -27,6 +28,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
+use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
@@ -37,6 +39,7 @@ use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
+use Wonder\Plugin\Gestionale\Support\Sales\Quotes;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\App\Support\DefaultRows;
@@ -89,6 +92,8 @@ final class OrdersDemo
         'rate-ufficio' => ['method' => 'bank-transfer', 'end' => 'installments', 'days' => 62, 'company' => true, 'office' => true],
         // Una bozza da ufficio: senza numero, senza merce impegnata.
         'bozza-ufficio' => ['method' => 'bank-transfer', 'end' => 'draft', 'days' => 0, 'company' => true, 'office' => true],
+        // G9, a «Preventivi» accesa: un preventivo inviato, con il suo PDF.
+        'preventivo-inviato' => ['method' => 'bank-transfer', 'end' => 'quote_sent', 'days' => 0, 'company' => true, 'office' => true, 'quote' => true],
     ];
 
     public static function register(): void
@@ -107,11 +112,13 @@ final class OrdersDemo
         $bundles = Gestionale::feature('bundles');
         $coupons = Gestionale::feature('coupons');
         $office = Gestionale::feature('office_sales');
+        $quotes = Gestionale::feature('quotes');
         $missing = array_filter(
             array_keys(self::ORDERS),
             static fn (string $ref): bool => ($bundles || empty(self::ORDERS[$ref]['bundle']))
                 && ($coupons || empty(self::ORDERS[$ref]['coupon']))
                 && ($office || empty(self::ORDERS[$ref]['office']))
+                && ($quotes || empty(self::ORDERS[$ref]['quote']))
                 && self::find($ref) === []
         );
 
@@ -421,6 +428,7 @@ final class OrdersDemo
         }
 
         $method = self::method((string) $plan['method']);
+        $quote = !empty($plan['quote']);
         $orderId = OfficeOrders::save(0, [
             'customer_id' => $customer,
             'fulfillment_type' => 'shipping',
@@ -431,10 +439,15 @@ final class OrdersDemo
                 ['type' => 'product', 'product_id' => $product['id'], 'quantity' => '2'],
                 ['type' => 'custom', 'name' => 'Etichettatura personalizzata', 'quantity' => '1', 'unit_price' => '15'],
             ],
-        ]);
+        ], 0, $quote ? 'quote' : 'order');
 
         // Il codice col segno: serve a riconoscere l'ordine alla pulizia.
         Order::update(['code' => DemoCode::forModel(Order::class, $ref)], $orderId);
+
+        if ((string) $plan['end'] === 'quote_sent') {
+            // Niente email: il PDF resta nell'archivio, come se l'avesse mandato a mano.
+            Quotes::send($orderId, ['source' => 'system', 'notify' => false]);
+        }
 
         if ((string) $plan['end'] === 'installments') {
             OfficeOrders::confirm($orderId, [
@@ -605,6 +618,16 @@ final class OrdersDemo
             sqlDelete(Payment::$table, 'order_id = '.$id);
             sqlDelete(OrderStatusLog::$table, 'order_id = '.$id);
             sqlDelete(OrderTaxSummary::$table, 'order_id = '.$id);
+            // G9: le revisioni del preventivo, con il loro PDF.
+            foreach (self::rows(OrderQuoteRevision::find(['order_id' => $id])) as $revision) {
+                $file = DocumentFiles::path((string) ($revision['pdf_file'] ?? ''));
+
+                if ($file !== null) {
+                    @unlink($file);
+                }
+            }
+
+            sqlDelete(OrderQuoteRevision::$table, 'order_id = '.$id);
             sqlDelete(OrderItem::$table, 'order_id = '.$id);
             sqlDelete(Order::$table, 'id = '.$id);
         });
