@@ -61,6 +61,9 @@ final class OrderItem extends Model
             Column::key('unit')->length(10),
             // Prezzo
             Columns::decimal('quantity'),
+            // G9: quanto è stato annullato dopo la conferma. `quantity` è già
+            // al netto: ordinato = quantity + quantity_cancelled.
+            Columns::decimal('quantity_cancelled'),
             Column::key('price_source')->enum(static::PRICE_SOURCES)->default('base'),
             Column::key('discount_type')->enum(static::DISCOUNT_TYPES)->default('none'),
             Column::key('price_list_id')->int()->default(0),
@@ -71,6 +74,9 @@ final class OrderItem extends Model
             Column::key('tax_nature')->length(10),
             // Personalizzazione (G5): campo, etichetta, valore, file, sovrapprezzo
             Column::key('customization')->json(),
+            // G9, ordine da ufficio: lotto e fornitore scelti a mano (0 = automatico).
+            Column::key('batch_id')->int()->default(0),
+            Column::key('supplier_id')->int()->default(0),
         ];
     }
 
@@ -99,6 +105,7 @@ final class OrderItem extends Model
             Field::key('description')->text(),
             Field::key('unit')->text()->sanitize(false),
             Field::key('quantity')->number()->decimals(3),
+            Field::key('quantity_cancelled')->number()->decimals(3),
             Field::key('list_price')->number()->decimals(2),
             Field::key('unit_price')->number()->decimals(2),
             Field::key('price_source')->text()->sanitize(false),
@@ -114,6 +121,8 @@ final class OrderItem extends Model
             Field::key('customization')->json(),
             Field::key('customization_surcharge')->number()->decimals(2),
             Field::key('line_total')->number()->decimals(2),
+            Field::key('batch_id')->number()->decimals(0),
+            Field::key('supplier_id')->number()->decimals(0),
         ];
     }
 }
