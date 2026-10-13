@@ -81,7 +81,6 @@ return [
         'description' => 'Lotto e scadenza nei carichi, vendita dal lotto che scade prima, pagina Lotti con i clienti per i richiami.',
         'area' => 'Magazzino',
         'release' => 'G3',
-        'created' => false,
     ],
     'low_stock_alerts' => [
         'name' => 'Avvisi di scorta minima',
