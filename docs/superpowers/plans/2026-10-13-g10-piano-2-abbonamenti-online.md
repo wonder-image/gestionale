@@ -121,6 +121,14 @@ chiavi. Le chiamate a Stripe passano tutte da `SubscriptionGateway`, che nei tes
 - **Rimborsi** di un addebito di abbonamento: si fanno da Stripe; la notifica
   `charge.refunded` non trova un ordine e finisce in *Da controllare*, come oggi
   per un intento sconosciuto. La registrazione automatica arriva con G8.
+- **Coupon sugli abbonamenti:** il codice si scrive sul sito e passa a Stripe
+  come `discounts`; `allow_promotion_codes` è spento, così un codice scritto
+  sulla pagina di Stripe non salta le regole del gestionale. Valgono stato,
+  date, canale, clienti riservati; Stripe applica `max_redemptions` ed
+  `expires_at`. Utilizzi per cliente, primo ordine e spesa minima non valgono
+  per gli abbonamenti, e gli utilizzi non si contano in `Coupons::usedCount()`.
+- **Rinnovo non riuscito:** l'email parte al primo fallimento della fattura,
+  non a ogni nuovo tentativo di Stripe.
 - L'endpoint del webhook in Stripe deve ricevere gli eventi nuovi
   (`checkout.session.completed`, `customer.subscription.*`, `invoice.paid`,
   `invoice.payment_failed`): da scrivere nelle note di rilascio.

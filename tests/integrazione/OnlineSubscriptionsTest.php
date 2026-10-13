@@ -338,6 +338,34 @@ check('a fine vincolo senza disdetta l\'abbonamento passa al prezzo di rinnovo',
     return $esito['renewed'] === 1 && (int) Subscription::findById($id)['plan_price_id'] === (int) $p['mensile']['id'];
 }));
 
+check('fine vincolo recuperata: tre giorni dopo la disdetta passa comunque a Stripe', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $p = pianoOnline();
+    $avvio = inizia(cliente(), $p['annuale']);
+    $id = $avvio['subscription_id'];
+    SubscriptionEvents::apply(notifica('customer.subscription.created', abbonamentoStripe('sub_S9', $id, 'active', prezzoStripe($p['annuale']))));
+    OnlineSubscriptions::cancel($id);
+    Subscription::update([
+        'commitment_ends_at' => date('Y-m-d H:i:s', time() - 3 * 86400),
+        'current_period_end' => date('Y-m-d H:i:s', time() + 20 * 86400),
+    ], $id);
+    $esito = OnlineSubscriptions::commitments(new DateTimeImmutable());
+
+    return $esito['cancelled'] === 1 && $stripe->last('subscription.update') === ['id' => 'sub_S9', 'cancel_at_period_end' => true];
+}));
+
+check('il secondo tentativo fallito della stessa fattura non rimanda l\'email', fn () => prova(static function (): bool {
+    $p = pianoOnline();
+    $avvio = inizia(cliente(), $p['mensile']);
+    $id = $avvio['subscription_id'];
+    SubscriptionEvents::apply(notifica('customer.subscription.created', abbonamentoStripe('sub_S10', $id, 'active', prezzoStripe($p['mensile']))));
+    $posta = conPosta(static function () use ($id): void {
+        SubscriptionEvents::apply(notifica('invoice.payment_failed', fattura('in_g', 'sub_S10', $id, 0)));
+        SubscriptionEvents::apply(notifica('invoice.payment_failed', fattura('in_g', 'sub_S10', $id, 0)));
+    });
+
+    return count(array_filter($posta, static fn ($m) => str_starts_with($m['subject'], '[subscription.payment_failed] '))) === 1;
+}));
+
 check('riallineamento: il pending pagato si collega, l\'abbandonato oltre le 24 ore si chiude', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
     $p = pianoOnline();
     $pagato = inizia(cliente(), $p['mensile']);

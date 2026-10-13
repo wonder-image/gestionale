@@ -195,8 +195,11 @@ final class SubscriptionEvents
             return;
         }
 
-        SubscriptionStatus::move((int) $row['id'], 'past_due', $source, 'Rinnovo non riuscito');
-        SubscriptionNotifier::send('payment_failed', (int) $row['id']);
+        // Stripe riprova la stessa fattura più volte, ognuna con un evento suo:
+        // l'email parte al primo fallimento, non a ogni tentativo.
+        if (SubscriptionStatus::move((int) $row['id'], 'past_due', $source, 'Rinnovo non riuscito')) {
+            SubscriptionNotifier::send('payment_failed', (int) $row['id']);
+        }
     }
 
     /**

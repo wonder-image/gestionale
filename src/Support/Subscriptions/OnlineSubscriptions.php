@@ -267,9 +267,11 @@ final class OnlineSubscriptions
     }
 
     /**
-     * Fine vincolo (G10.13), una volta al giorno: nell'ultimo periodo del
+     * Fine vincolo (G10.13), una volta al giorno: dall'ultimo periodo del
      * vincolo la disdetta chiesta passa a Stripe; senza disdetta, con un
      * prezzo di rinnovo, l'abbonamento passa a quel prezzo dal rinnovo dopo.
+     * Ripetere la disdetta a Stripe non cambia niente, quindi un giorno saltato
+     * si recupera al giro dopo.
      *
      * @return array{cancelled: int, renewed: int}
      */
@@ -286,8 +288,9 @@ final class OnlineSubscriptions
             $end = strtotime((string) $row['commitment_ends_at']);
             $periodEnd = self::empty($row['current_period_end'] ?? '') ? 0 : strtotime((string) $row['current_period_end']);
 
-            // Solo nell'ultimo periodo del vincolo, e non dopo.
-            if ($periodEnd <= 0 || $end > $periodEnd || $end < $now->getTimestamp() - 86400) {
+            // Dall'ultimo periodo del vincolo in poi: se l'attività è rimasta
+            // ferma qualche giorno, recupera al primo giro.
+            if ($periodEnd <= 0 || $end > $periodEnd) {
                 continue;
             }
 

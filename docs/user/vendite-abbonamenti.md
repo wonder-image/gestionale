@@ -113,7 +113,8 @@ piani, e il cliente si abbona da solo:
 Lo stato lo decide Stripe: rinnovi pagati, rinnovi non riusciti e chiusure
 arrivano da soli, e ogni pagamento riuscito è una riga in **Pagamenti** della
 scheda. Il cliente riceve un'email quando l'abbonamento si attiva, quando un
-rinnovo non riesce (con il link per aggiornare la carta) e quando disdice.
+rinnovo non riesce (una volta, al primo tentativo: Stripe riprova da solo nei
+giorni dopo; c'è il link per aggiornare la carta) e quando disdice.
 
 Dall'**area cliente**, sezione *Abbonamenti*, il cliente:
 
