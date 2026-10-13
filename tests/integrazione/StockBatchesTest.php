@@ -312,8 +312,10 @@ check('riquadro: i lotti con pezzi scaduti o in scadenza, non quelli lontani né
         ['quantity' => '1', 'batch_number' => 'W-LONTANO', 'batch_expiry' => date('Y-m-d', strtotime('+400 days'))],
     ]);
     $html = (new ExpiringBatchesWidget())->render();
+    // I giorni sono quelli del sito di prova: domani conta solo da un giorno in su.
+    $domaniDentro = Wonder\Plugin\Gestionale\Support\Stock\BatchExpiry::days() >= 1;
 
-    return str_contains($html, 'W-SCADUTO') && str_contains($html, 'W-DOMANI') && !str_contains($html, 'W-LONTANO');
+    return str_contains($html, 'W-SCADUTO') && str_contains($html, 'W-DOMANI') === $domaniDentro && !str_contains($html, 'W-LONTANO');
 }));
 
 check('riquadro e pagina Lotti non esistono a funzionalità spenta', fn () => prova(static function (): bool {
