@@ -15,4 +15,9 @@ Route::area('api')->response('json')->backend()->translatable(false)
     ->name('api.gestionale.backend.')->prefix('/gestionale/backend')->group(function () {
         Route::get('/magazzino/versioni/', Gestionale::handlerPath('api/stock/versions.php'))
             ->name('stock.versions')->guarded()->permit(['admin', 'administrator']);
+        // G9: le ricerche della pagina *Nuovo ordine*.
+        Route::get('/vendite/versioni/', Gestionale::handlerPath('api/sales/versions.php'))
+            ->name('sales.versions')->guarded()->permit(['admin', 'administrator']);
+        Route::get('/vendite/clienti/', Gestionale::handlerPath('api/sales/customers.php'))
+            ->name('sales.customers')->guarded()->permit(['admin', 'administrator']);
     });
