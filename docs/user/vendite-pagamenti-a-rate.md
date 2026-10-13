@@ -46,8 +46,8 @@ Una condizione usata da un ordine o da un cliente non si elimina: mettila
 ## Sulla scheda del cliente
 
 Nel riquadro **Pagamento** della scheda scegli il **metodo** e la
-**condizione** che l'ordine da ufficio propone per quel cliente. La condizione
-compare solo se ne hai più di una attiva.
+**condizione** che l'[ordine da ufficio](vendite-ordini-da-ufficio.md) propone
+per quel cliente. La condizione compare solo se ne hai più di una attiva.
 
 ## Lo scadenzario
 

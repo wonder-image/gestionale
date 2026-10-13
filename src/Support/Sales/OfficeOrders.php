@@ -164,7 +164,10 @@ final class OfficeOrders
      * rifiuto col nome della versione), il numero, le rate. Con `notify` parte
      * l'email di conferma al cliente.
      *
-     * @param array{source?: string, user_id?: int, notify?: bool} $options
+     * `installments_from` fa partire le rate da un altro giorno (dati di
+     * prova, ordini ripresi da un altro gestionale); senza, da oggi.
+     *
+     * @param array{source?: string, user_id?: int, notify?: bool, installments_from?: \DateTimeImmutable} $options
      * @return array{order_id: int, order_number: string, installments: int}
      */
     public static function confirm(int $orderId, array $options = []): array
@@ -205,7 +208,7 @@ final class OfficeOrders
             return [
                 'order_id' => $orderId,
                 'order_number' => $number,
-                'installments' => count(Installments::create($orderId)),
+                'installments' => count(Installments::create($orderId, $options['installments_from'] ?? null)),
             ];
         });
 

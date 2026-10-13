@@ -23,7 +23,9 @@ numero si apre la scheda.
 In alto puoi filtrare per **Ordine**, **Pagamento**, **Evasione** e **Periodo**,
 e cercare per numero, nome, ragione sociale o email del cliente.
 Nell'elenco ci sono solo gli ordini veri: i carrelli ancora aperti non
-compaiono.
+compaiono. Con la **Vendita in ufficio** ci sono anche le bozze, con *Bozza* al
+posto del numero: si aprono e si confermano dalla loro pagina (vedi
+[Ordini da ufficio](vendite-ordini-da-ufficio.md)).
 
 ## La scheda
 
