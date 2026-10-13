@@ -115,17 +115,16 @@ try {
             $inventario = StockDocument::find(['code' => $codiceInventario], 1);
             StockDocuments::delete((int) $inventario['id']);
         };
-        $note = DemoData::notes();
-
-        try {
-            StockDocumentsDemo::create();
-        } catch (UserError $errore) {
-            // Il perché, quando il giro dopo la pulizia non riparte: le note
-            // della pulizia, i documenti di prova rimasti e i secchi delle
-            // versioni di prova.
+        // Il perché, quando un giro si ferma: le note della pulizia, i
+        // documenti e gli articoli di prova rimasti, i secchi delle versioni.
+        $diagnosi = static function (string $dove, array $note) use ($righe, $giacenze): void {
             $documenti = array_map(
                 static fn (array $d): string => $d['code'].' '.$d['type'].' '.$d['status'].($d['deleted'] === 'true' ? ' (eliminato)' : ''),
                 $righe(StockDocument::class, "code LIKE '".str_replace('_', '\\_', DemoCode::prefixOf(StockDocument::class))."demo-%' AND deleted IN ('true', 'false')")
+            );
+            $articoli = array_map(
+                static fn (array $m): string => $m['code'].' «'.$m['name'].'»'.($m['deleted'] === 'true' ? ' (cancellato)' : '').(($m['track_batches'] ?? '') === 'true' ? ' (lotti)' : ''),
+                $righe(ProductModel::class, "code LIKE '".DemoCode::prefixOf(ProductModel::class)."demo-%' AND deleted IN ('true', 'false')")
             );
             $secchi = [];
 
@@ -135,10 +134,18 @@ try {
                 }
             }
 
-            echo "\n  DIAGNOSI dopo la pulizia\n  note: ".($note === [] ? 'nessuna' : implode(' | ', $note))
+            echo "\n  DIAGNOSI ".$dove."\n  note: ".($note === [] ? 'nessuna' : implode(' | ', $note))
                 ."\n  documenti di prova: ".($documenti === [] ? 'nessuno' : implode(' | ', $documenti))
+                ."\n  articoli di prova: ".($articoli === [] ? 'nessuno' : implode(' | ', $articoli))
                 ."\n  secchi: ".($secchi === [] ? 'nessuno' : implode(' | ', $secchi))
                 ."\n  feature: ".implode(', ', array_keys(array_filter(Wonder\Plugin\Gestionale\Gestionale::features())))."\n\n";
+        };
+        $note = DemoData::notes();
+
+        try {
+            StockDocumentsDemo::create();
+        } catch (UserError $errore) {
+            $diagnosi('dopo la pulizia', $note);
 
             throw $errore;
         }
@@ -151,8 +158,16 @@ try {
 
         // Senza articoli di prova non si crea niente e il comando lo dice.
         CatalogDemo::clear();
-        DemoData::notes();
-        $esito['senza_catalogo'] = StockDocumentsDemo::create();
+        $note = DemoData::notes();
+
+        try {
+            $esito['senza_catalogo'] = StockDocumentsDemo::create();
+        } catch (UserError $errore) {
+            $diagnosi('senza il catalogo di prova', $note);
+
+            throw $errore;
+        }
+
         $esito['nota'] = DemoData::notes();
 
         throw new Annulla();
