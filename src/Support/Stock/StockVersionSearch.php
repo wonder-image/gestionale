@@ -8,13 +8,12 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Stock\Batch;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockLevelResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
-use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
 
 /**
  * Le versioni per la casella «Cerca o scansiona» dei documenti di magazzino
@@ -306,13 +305,11 @@ final class StockVersionSearch
             $out['lots'][$productId] = $list;
         }
 
-        $names = self::supplierNames(array_merge([], ...array_map('array_keys', array_values($suppliers))));
-
         foreach ($suppliers as $productId => $bySupplier) {
             $list = [];
 
             foreach ($bySupplier as $supplierId => $pieces) {
-                $list[] = ['id' => $supplierId, 'name' => $names[$supplierId] ?? '#'.$supplierId, 'quantity' => $pieces + 0.0];
+                $list[] = ['id' => $supplierId, 'name' => SupplierNames::of($supplierId), 'quantity' => $pieces + 0.0];
             }
 
             usort($list, static fn (array $a, array $b): int => strnatcasecmp($a['name'], $b['name']) ?: $a['id'] <=> $b['id']);
@@ -344,27 +341,6 @@ final class StockVersionSearch
                 'number' => (string) ($batch['number'] ?? ''),
                 'expiry' => $expiry === '' || str_starts_with($expiry, '0000') ? '' : $expiry,
             ];
-        }
-
-        return $out;
-    }
-
-    /**
-     * @param list<int> $ids
-     * @return array<int, string>
-     */
-    public static function supplierNames(array $ids): array
-    {
-        $ids = array_values(array_unique(array_filter($ids, static fn (int $id): bool => $id > 0)));
-
-        if ($ids === []) {
-            return [];
-        }
-
-        $out = [];
-
-        foreach (self::rows(Contact::find('`id` IN ('.implode(', ', $ids).") AND `deleted` IN ('true', 'false')")) as $contact) {
-            $out[(int) $contact['id']] = Contacts::displayName($contact);
         }
 
         return $out;

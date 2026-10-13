@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use Wonder\App\Models\User\User;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -76,7 +77,6 @@ final class StockDocumentSheet
         $useBatches = Gestionale::feature('batch_tracking') && in_array($type, ['receipt', 'issue'], true);
         $useSuppliers = Gestionale::feature('purchasing') && $type === 'issue';
         $batches = $useBatches ? StockVersionSearch::batches(array_map(static fn (array $item): int => (int) ($item['batch_id'] ?? 0), $items)) : [];
-        $suppliers = $useSuppliers ? StockVersionSearch::supplierNames(array_map(static fn (array $item): int => (int) ($item['supplier_id'] ?? 0), $items)) : [];
         $ids = array_values(array_unique(array_map(static fn (array $item): int => (int) $item['product_id'], $items)));
         $products = [];
 
@@ -90,7 +90,7 @@ final class StockDocumentSheet
 
         $models = ProductNames::models($products);
 
-        return array_map(static function (array $item) use ($products, $models, $counting, $costs, $useBatches, $useSuppliers, $batches, $suppliers): array {
+        return array_map(static function (array $item) use ($products, $models, $counting, $costs, $useBatches, $useSuppliers, $batches): array {
             $product = $products[(int) $item['product_id']] ?? null;
             $line = [
                 'label' => $product === null ? 'Versione eliminata' : self::text(ProductNames::full($product, $models)),
@@ -101,7 +101,7 @@ final class StockDocumentSheet
                 'tone' => '',
                 'cost' => '',
                 'line_total' => '',
-                'source' => self::source($item, $useBatches ? $batches : null, $useSuppliers ? $suppliers : null),
+                'source' => self::source($item, $useBatches ? $batches : null, $useSuppliers),
             ];
 
             if ($costs) {
@@ -134,9 +134,9 @@ final class StockDocumentSheet
      * lotto scelto nello scarico si legge dal lotto.
      *
      * @param array<int, array{number: string, expiry: string}>|null $batches null = senza lotti
-     * @param array<int, string>|null $suppliers null = senza scelta del fornitore
+     * @param bool $suppliers con la scelta del fornitore (scarico con *Acquisti*)
      */
-    private static function source(array $item, ?array $batches, ?array $suppliers): string
+    private static function source(array $item, ?array $batches, bool $suppliers): string
     {
         $parts = [];
         $batchId = (int) ($item['batch_id'] ?? 0);
@@ -158,8 +158,8 @@ final class StockDocumentSheet
 
         $supplierId = (int) ($item['supplier_id'] ?? 0);
 
-        if ($suppliers !== null && $supplierId > 0) {
-            $parts[] = 'Fornitore '.($suppliers[$supplierId] ?? '#'.$supplierId);
+        if ($suppliers && $supplierId > 0) {
+            $parts[] = 'Fornitore '.SupplierNames::of($supplierId);
         }
 
         return self::text(implode(' · ', $parts));

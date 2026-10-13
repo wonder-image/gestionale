@@ -323,6 +323,26 @@ meno passano da `StockOut::take()`, che divide con `StockPicking`.
 `StockVersionSearch::describe()` porta `costs` (fornitore → costo) per
 riempire il costo nell'editor.
 
+**Lotti e scadenze (G3, piano 3).** Con `batch_tracking` un articolo può
+avere `track_batches` (*Gestisci lotti e scadenze*, mai i multiprodotti; non
+si spegne con pezzi in un lotto: `catalog.batches_in_stock`).
+`Batches::trackingProducts()` dice quali versioni lo hanno (vuota a
+funzionalità spenta). Nel carico quelle versioni stanno su più righe con lotti
+diversi (`StockDocumentRules::lines($righe, $versioniConLotti)`,
+`stock_document.duplicate_batch`) e la conferma vuole il lotto su ogni riga
+(`batch_required`); `Batches::resolve()` trova o crea il lotto `(versione,
+numero)` (scadenza diversa = `batch.expiry_mismatch`, vuota non contraddice,
+su un lotto senza scadenza la scrive) e il `purchase` va nel secchio `(lotto,
+fornitore)`. Nello scarico la riga può portare `batch_id` e `supplier_id`
+scelti a mano (vuoti = automatico; un lotto di un'altra versione è
+`batch.wrong_product`), che passano a `StockOut::take()`. I lotti scaduti
+escono dal disponibile: `Levels::perLocation()` riceve le scadenze e torna
+anche `expired`, `LevelsSql::expired()` dà la colonna *Scaduti*.
+`StockVersionSearch::describe()` porta `tracks_batches` e `lots` (lotti con
+pezzi nella sede, in ordine di uscita, gli scaduti segnati) e, con
+*Acquisti*, `suppliers`: l'editor ne fa le caselle Lotto e Scadenza del carico
+e le tendine dello scarico.
+
 **Causali interne.** `Reasons::internal()` (oggi `batch_assignment`,
 «Assegnazione lotto») ha l'etichetta nei Movimenti ma non sta nelle tendine:
 le scelte a mano sono `Reasons::selectable()`, e la Rettifica rifiuta le

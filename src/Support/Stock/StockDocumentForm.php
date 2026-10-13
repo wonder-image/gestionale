@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Support\Stock;
 use JsonException;
 use Wonder\Backend\Support\FlashAlert;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
@@ -107,7 +108,6 @@ final class StockDocumentForm
         $useBatches = Gestionale::feature('batch_tracking');
         $useSuppliers = Gestionale::feature('purchasing');
         $batches = $useBatches ? StockVersionSearch::batches(array_map(static fn (array $item): int => (int) ($item['batch_id'] ?? 0), $items)) : [];
-        $suppliers = $useSuppliers ? StockVersionSearch::supplierNames(array_map(static fn (array $item): int => (int) ($item['supplier_id'] ?? 0), $items)) : [];
 
         foreach ($items as $item) {
             $version = $versions[(int) $item['product_id']] ?? null;
@@ -139,7 +139,7 @@ final class StockDocumentForm
             }
 
             if ($useSuppliers) {
-                $lines[array_key_last($lines)] += ['supplier_id' => $supplierId, 'supplier_label' => $suppliers[$supplierId] ?? ''];
+                $lines[array_key_last($lines)] += ['supplier_id' => $supplierId, 'supplier_label' => SupplierNames::of($supplierId)];
             }
         }
 
