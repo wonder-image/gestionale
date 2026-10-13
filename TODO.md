@@ -344,8 +344,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] La finestra della rettifica è fatta: `ProductResource::stockAdjustModal()` usa `Modal::form()` del core (`2.4.0-beta.2`), con i campi di `StockAdjustmentResource`; resta lo script che la porta fuori dalla form della scheda (2026-10-13)
   - [ ] Restano i riquadri della home (`<wi-card>` in stringa, che il core dà per superato a favore di `Card`) e gli altri punti di `ProductModelResource`
 
-- [ ] Prezzi all'inglese nelle tabelle del core. `Backend\Table\Field` rende il tipo `price` con `number_format($v, 2, '.', '').'€'`: nella scheda dell'articolo la stessa pagina scrive «da 9,90 €» nel riquadro «Prodotto» (lo compone il modulo) e «9.90€» nella tabella delle opzioni (lo compone il core). Va deciso se il formato lo prende dalla lingua del sito o da un'impostazione, e sistemato nel core: riguarda tutte le tabelle, non solo il gestionale
-  - Deciso il 2026-10-13: il formato si prende **dalla lingua del sito**. Il core scrive già all'italiana da `7acc602d`; `wonder-image/app#75` lo fa seguire la lingua (`Wonder\Support\Money`). Da spuntare quando è unita
+- [x] Prezzi all'inglese nelle tabelle del core. `Backend\Table\Field` rende il tipo `price` con `number_format($v, 2, '.', '').'€'`: nella scheda dell'articolo la stessa pagina scrive «da 9,90 €» nel riquadro «Prodotto» (lo compone il modulo) e «9.90€» nella tabella delle opzioni (lo compone il core). Va deciso se il formato lo prende dalla lingua del sito o da un'impostazione, e sistemato nel core: riguarda tutte le tabelle, non solo il gestionale
+  - Deciso il 2026-10-13: il formato si prende **dalla lingua del sito**. Il core scrive già all'italiana da `7acc602d`; `wonder-image/app#75` lo fa seguire la lingua (`Wonder\Support\Money`). Unita il 2026-10-13: arriva ai siti con la prossima release del core
 
 ### Lavori preparatori in `wonder-image/app` (D58)
 
