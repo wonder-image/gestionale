@@ -44,10 +44,10 @@ check('icone: la carta perde wallet e metodi separati, gli sconosciuti hanno l\'
     && StripeMethods::icons('klarna', []) === ['klarna']
     && StripeMethods::icons('kakao_pay', []) === ['genericbank']);
 
-check('icone dei wallet: Apple Pay e Google Pay la loro, Link nessuna', fn () =>
+check('icone dei wallet: Apple Pay, Google Pay e Link la loro', fn () =>
     StripeMethods::icons('apple_pay', []) === ['apple_pay']
     && StripeMethods::icons('google_pay', []) === ['google_pay']
-    && StripeMethods::icons('link', []) === []);
+    && StripeMethods::icons('link', []) === ['link']);
 
 check('i metodi Stripe aggiunti hanno la loro icona, e la carta mostra solo i circuiti', fn () =>
     StripeMethods::icons('amazon_pay', []) === ['amazon_pay']

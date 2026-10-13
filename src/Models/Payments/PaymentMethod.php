@@ -59,6 +59,7 @@ final class PaymentMethod extends Model
         'paypal' => 'PayPal',
         'google_pay' => 'Google Pay',
         'apple_pay' => 'Apple Pay',
+        'link' => 'Link',
         'klarna' => 'Klarna',
         'amazon_pay' => 'Amazon Pay',
         'revolut_pay' => 'Revolut Pay',

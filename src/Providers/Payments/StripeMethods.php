@@ -100,8 +100,6 @@ final class StripeMethods
     {
         return match ($choice) {
             'card' => array_values(array_intersect($rowIcons, self::CARD_ICONS)),
-            // Il set delle icone non ha Link: meglio nessuna che quella generica della banca.
-            'link' => [],
             default => isset(PaymentMethod::ICONS[$choice]) ? [$choice] : ['genericbank'],
         };
     }
