@@ -11,6 +11,8 @@ use Wonder\Plugin\Gestionale\Backend\Widgets\AttentionWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\ContactsWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\LowStockWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\SetupWidget;
+use Wonder\Plugin\Gestionale\Backend\Widgets\ShipmentsToCheckWidget;
+use Wonder\Plugin\Gestionale\Backend\Widgets\ShippedNotDeliveredWidget;
 use Wonder\Plugin\Gestionale\Gestionale;
 
 check('i due riquadri sono riquadri della home', fn () =>
@@ -305,6 +307,28 @@ check('i nomi delle versioni non possono iniettare markup', function () use ($ne
     $html = AttentionWidget::markup([], [$negativa(7, -1.0, 1, '<img src=x onerror=alert(1)>')]);
 
     return !str_contains($html, '<img') && str_contains($html, '&lt;img');
+});
+
+check('i riquadri della home escono in una Card del core, non più in <wi-card>', function () {
+    $item = ['product_id' => 1, 'article' => 'Maglia', 'option' => '', 'sku' => 'M1', 'threshold' => 5.0, 'available' => 2.0];
+    $riquadri = [
+        SetupWidget::markup([['key' => 'society', 'title' => 'Dati', 'description' => '', 'url' => '/backend/']]),
+        AttentionWidget::markup([]),
+        AttentionWidget::markup([['id' => 1, 'service' => 's', 'action' => 'a', 'message' => 'm', 'occurrences' => 1, 'last_seen_at' => '']]),
+        ContactsWidget::markup(3, 2),
+        LowStockWidget::markup([], true),
+        LowStockWidget::markup([$item], true),
+        ShipmentsToCheckWidget::markup(2),
+        ShippedNotDeliveredWidget::markup(2),
+    ];
+
+    foreach ($riquadri as $html) {
+        if (str_contains($html, '<wi-card') || !str_contains($html, '<div class="card border">')) {
+            return false;
+        }
+    }
+
+    return true;
 });
 
 summary();

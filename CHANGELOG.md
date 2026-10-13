@@ -302,6 +302,12 @@ versionamento semantico.
 
 ### Cambiato
 
+- Riquadri della home (*Primi passi*, *Da controllare*, *Sotto scorta*,
+  *Anagrafiche*, *Spedizioni da controllare*, *Spedizioni in ritardo*): la
+  cornice è una `Card` del core (`WidgetCard::wrap()`) al posto di
+  `<wi-card>`, che il core dà per dismesso. Esce già fatta dal server invece
+  di essere ricopiata dal JavaScript della lib al caricamento; il contenuto
+  non cambia.
 - Il gestionale chiede `wonder-image/app` `^2.4.0-beta.2`: `Query::Conditions()`
   del core toglie solo il `WHERE` iniziale, e *Giacenze* torna a escludere i
   multiprodotti con una sottoquery invece di leggerne gli id prima, in PHP.
