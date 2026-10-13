@@ -21,11 +21,11 @@ check('senza predefinita attiva vale la prima attiva', fn () =>
 check('nessuna configurazione attiva: nessun tipo', fn () =>
     StripeMethods::typesFrom([['active' => false, 'is_default' => true, 'card' => ['available' => true]]]) === []);
 
-check('le scelte: carta, poi gli altri in ordine alfabetico; Link sta nella barra rapida', fn () =>
-    StripeMethods::choices(['sepa_debit', 'card', 'klarna', 'link']) === ['card', 'klarna', 'sepa_debit']);
+check('le scelte: carta, poi i wallet, poi gli altri in ordine alfabetico', fn () =>
+    StripeMethods::choices(['sepa_debit', 'card', 'klarna', 'link', 'google_pay', 'apple_pay']) === ['card', 'apple_pay', 'google_pay', 'link', 'klarna', 'sepa_debit']);
 
-check('Apple Pay e Google Pay non sono scelte; la carta c\'è sempre', fn () =>
-    StripeMethods::choices(['apple_pay', 'google_pay', 'klarna']) === ['card', 'klarna'] && StripeMethods::choices([]) === ['card']);
+check('i wallet sono scelte solo se accesi; la carta c\'è sempre', fn () =>
+    StripeMethods::choices(['google_pay', 'klarna']) === ['card', 'google_pay', 'klarna'] && StripeMethods::choices([]) === ['card']);
 
 check('i metodi a voucher o a istruzioni (Multibanco…) non sono scelte: il pagamento resta in sospeso dopo il ritorno', fn () =>
     StripeMethods::choices(['card', 'multibanco', 'customer_balance', 'oxxo', 'boleto', 'konbini', 'klarna']) === ['card', 'klarna']);
@@ -33,6 +33,8 @@ check('i metodi a voucher o a istruzioni (Multibanco…) non sono scelte: il pag
 check('nomi: la carta tiene quello della riga, gli sconosciuti diventano leggibili', fn () =>
     StripeMethods::name('card', 'Carta di credito') === 'Carta di credito'
     && StripeMethods::name('link', 'x') === 'Link'
+    && StripeMethods::name('apple_pay', 'x') === 'Apple Pay'
+    && StripeMethods::name('google_pay', 'x') === 'Google Pay'
     && StripeMethods::name('klarna', 'x') === 'Klarna'
     && StripeMethods::name('sepa_debit', 'x') === 'Addebito SEPA'
     && StripeMethods::name('nuovo_metodo', 'x') === 'Nuovo metodo');
@@ -41,6 +43,11 @@ check('icone: la carta perde wallet e metodi separati, gli sconosciuti hanno l\'
     StripeMethods::icons('card', ['visa', 'master', 'google_pay', 'apple_pay', 'klarna', 'paypal']) === ['visa', 'master']
     && StripeMethods::icons('klarna', []) === ['klarna']
     && StripeMethods::icons('kakao_pay', []) === ['genericbank']);
+
+check('icone dei wallet: Apple Pay e Google Pay la loro, Link nessuna', fn () =>
+    StripeMethods::icons('apple_pay', []) === ['apple_pay']
+    && StripeMethods::icons('google_pay', []) === ['google_pay']
+    && StripeMethods::icons('link', []) === []);
 
 check('i metodi Stripe aggiunti hanno la loro icona, e la carta mostra solo i circuiti', fn () =>
     StripeMethods::icons('amazon_pay', []) === ['amazon_pay']
@@ -51,7 +58,8 @@ check('i metodi Stripe aggiunti hanno la loro icona, e la carta mostra solo i ci
     && StripeMethods::icons('afterpay_clearpay', []) === ['afterpay_clearpay']
     && StripeMethods::icons('card', ['visa', 'satispay', 'amazon_pay', 'master', 'genericbank']) === ['visa', 'master']);
 
-check('tipi dell\'intento: solo quello della scelta', fn () =>
-    StripeMethods::intentTypes('card') === ['card'] && StripeMethods::intentTypes('klarna') === ['klarna']);
+check('tipi dell\'intento: solo quello della scelta; per i wallet decide Stripe', fn () =>
+    StripeMethods::intentTypes('card') === ['card'] && StripeMethods::intentTypes('klarna') === ['klarna']
+    && StripeMethods::intentTypes('apple_pay') === [] && StripeMethods::intentTypes('google_pay') === [] && StripeMethods::intentTypes('link') === []);
 
 summary();
