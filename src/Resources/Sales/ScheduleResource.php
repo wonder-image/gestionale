@@ -11,8 +11,13 @@ use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionPaymentResource;
+use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionResource;
+use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Payments\DuePayments;
 
@@ -99,7 +104,9 @@ final class ScheduleResource extends GestionaleResource
             TableColumn::key('order_id')
                 ->text()
                 ->size('little')
-                ->formatter(static fn (array $row): string => static::orderLink((int) ($row['order_id'] ?? 0))),
+                ->formatter(static fn (array $row): string => (int) ($row['order_id'] ?? 0) === 0 && (int) ($row['subscription_id'] ?? 0) > 0
+                    ? static::subscriptionLink((int) $row['subscription_id'])
+                    : static::orderLink((int) ($row['order_id'] ?? 0))),
             TableColumn::key('note')->text()->hiddenDevice('mobile'),
             TableColumn::key('amount')->price()->size('little')->sortable(),
             TableColumn::key('payment_method_id')
@@ -115,11 +122,23 @@ final class ScheduleResource extends GestionaleResource
                 'registra' => [
                     'label' => 'Registra pagamento',
                     'href' => OrderPaymentResource::installmentUrlPattern('{order_id}', '{id}', static::listUrl()),
-                    'filter' => ['row' => ['status' => ['pending']]],
+                    'filter' => ['row' => ['status' => ['pending'], 'subscription_id' => ['0']]],
+                ],
+                // Le rate degli abbonamenti da ufficio (G10): stessa azione, la loro pagina.
+                'registra-abbonamento' => [
+                    'label' => 'Registra pagamento',
+                    'href' => SubscriptionPaymentResource::urlFor('{subscription_id}', '{id}', static::listUrl()),
+                    'filter' => ['row' => ['status' => ['pending'], 'order_id' => ['0']]],
                 ],
                 'ordine' => [
                     'label' => 'Visualizza ordine',
                     'href' => OrderResource::detailUrlPattern('{order_id}'),
+                    'filter' => ['row' => ['subscription_id' => ['0']]],
+                ],
+                'abbonamento' => [
+                    'label' => 'Visualizza abbonamento',
+                    'href' => SubscriptionResource::detailUrlPattern('{subscription_id}'),
+                    'filter' => ['row' => ['order_id' => ['0']]],
                 ],
             ]),
         ];
@@ -137,6 +156,11 @@ final class ScheduleResource extends GestionaleResource
                 'local_key' => 'order_id',
                 'foreign_key' => 'id',
                 'columns' => ['order_number', 'billing_business_name', 'billing_name', 'billing_surname', 'email'],
+            ], [
+                'table' => Subscription::$table,
+                'local_key' => 'subscription_id',
+                'foreign_key' => 'id',
+                'columns' => ['code', 'billing_business_name', 'billing_name', 'billing_surname'],
             ]])
             ->filterQuery(
                 'Stato',
@@ -168,7 +192,7 @@ final class ScheduleResource extends GestionaleResource
         return static::withFeature(parent::pageSchema()
             ->only(['list'])
             ->titles(['list' => 'Scadenzario'])
-            ->subtitles(['list' => 'Le rate degli ordini da incassare, dalla scadenza più vicina. In rosso le scadute, in giallo quelle che scadono a breve.']));
+            ->subtitles(['list' => 'Le rate degli ordini e degli abbonamenti da incassare, dalla scadenza più vicina. In rosso le scadute, in giallo quelle che scadono a breve.']));
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -225,12 +249,31 @@ final class ScheduleResource extends GestionaleResource
         };
     }
 
-    /** Il cliente della rata: quello dell'ordine, come lo mostrano gli Ordini. */
+    /** Il cliente della rata: quello dell'ordine, come lo mostrano gli Ordini, o quello dell'abbonamento. */
     public static function customerOf(array $row): string
     {
+        if ((int) ($row['order_id'] ?? 0) === 0 && (int) ($row['subscription_id'] ?? 0) > 0) {
+            $contact = (int) ($row['customer_id'] ?? 0) > 0 ? Contact::findById((int) $row['customer_id']) : null;
+
+            return is_array($contact) && $contact !== [] ? Contacts::displayName($contact) : '—';
+        }
+
         $order = static::orderOf((int) ($row['order_id'] ?? 0));
 
         return $order === [] ? '—' : OrderResource::customerName($order);
+    }
+
+    private static function subscriptionLink(int $subscriptionId): string
+    {
+        try {
+            $row = Subscription::findById($subscriptionId);
+        } catch (Throwable) {
+            $row = null;
+        }
+
+        $code = is_array($row) ? (string) ($row['code'] ?? '') : '';
+
+        return '<a href="'.static::escape(SubscriptionResource::detailUrl($subscriptionId)).'">'.static::escape($code !== '' ? $code : '#'.$subscriptionId).'</a>';
     }
 
     private static function orderLink(int $orderId): string
