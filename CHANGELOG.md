@@ -355,6 +355,11 @@ versionamento semantico.
 
 ### Corretto
 
+- Pulizia dei dati di prova del catalogo: un articolo o un attributo di prova
+  già cancellato dal backend che qualcosa usa ancora resta in silenzio, come
+  prima di guardare anche le righe cancellate. Prima `--fresh` lo nominava a
+  ogni giro fra i dati «ancora in uso» (per esempio i vecchi «Prova Colore» e
+  «Prova Taglia»).
 - Dati di prova del catalogo: un articolo o un attributo di prova cancellato dal
   backend (che lo segna e basta, tenendo il codice) non si rifaceva più e il
   comando lo saltava. Ora si toglie davvero, con le sue righe figlie, e rinasce
