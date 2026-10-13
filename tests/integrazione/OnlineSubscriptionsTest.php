@@ -82,7 +82,7 @@ function cliente(): int
 
 function inizia(int $cliente, array $prezzo, string $coupon = ''): array
 {
-    return OnlineSubscriptions::start($cliente, (string) $prezzo['code'], [], $coupon, ['success' => 'https://negozio.test/ok', 'cancel' => 'https://negozio.test/no']);
+    return OnlineSubscriptions::start($cliente, (string) $prezzo['code'], [], $coupon, ['success' => 'https://negozio.test/ok?abbonamento={SUBSCRIPTION}', 'cancel' => 'https://negozio.test/no']);
 }
 
 function rifiuto(callable $f): ?string
@@ -154,6 +154,7 @@ check('la sottoscrizione crea l\'abbonamento in attesa e la pagina di Stripe con
         && $sessione['mode'] === 'subscription' && $sessione['subscription_data']['trial_period_days'] === 14
         && $sessione['subscription_data']['metadata']['subscription_id'] === (string) $avvio['subscription_id']
         && $sessione['client_reference_id'] === $avvio['code']
+        && $sessione['success_url'] === 'https://negozio.test/ok?abbonamento='.$avvio['code']
         && $sessione['payment_method_types'] === ['card', 'link']
         && count($sessione['line_items'][0]['tax_rates'] ?? []) === ((float) $riga['tax_rate'] > 0 ? 1 : 0)
         && ExternalReferences::find('subscription', $avvio['subscription_id'], 'stripe', 'checkout_session', 'test') !== null;

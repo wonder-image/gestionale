@@ -46,7 +46,7 @@ final class OnlineSubscriptions
      * importi, Checkout Session di Stripe. Ridà l'URL della pagina di Stripe.
      *
      * @param array<string, mixed> $billing i campi `billing_` del form del sito
-     * @param array{success: string, cancel: string} $urls `{CHECKOUT_SESSION_ID}` resta a Stripe
+     * @param array{success: string, cancel: string} $urls `{SUBSCRIPTION}` diventa il codice dell'abbonamento; `{CHECKOUT_SESSION_ID}` resta a Stripe
      * @return array{subscription_id: int, code: string, url: string}
      */
     public static function start(int $customerId, string $planPriceCode, array $billing, string $couponCode, array $urls): array
@@ -105,6 +105,8 @@ final class OnlineSubscriptions
         }
 
         StatusLogger::record(SubscriptionStatusLog::class, $id, 'status', '', 'pending', 'api', null, 'Sottoscrizione dal sito');
+        // Il ritorno da Stripe porta il codice dell'abbonamento, che nasce solo adesso.
+        $urls = array_map(static fn ($url): string => str_replace('{SUBSCRIPTION}', rawurlencode((string) $row['code']), (string) $url), $urls);
 
         try {
             $session = self::checkoutSession($gateway, $row, $price, $coupon, $trial, (string) ($contact['email'] ?? ''), $urls);
