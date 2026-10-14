@@ -18,6 +18,8 @@ use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
 use Wonder\Plugin\Gestionale\Providers\Payments\SubscriptionGateway;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
@@ -77,7 +79,9 @@ final class OnlineSubscriptions
         $amounts = SubscriptionAmounts::of($price, $coupon, $taxRate, $includeTax, 0);
         $trial = (int) ($price['trial_days'] ?? 0) > 0 && !self::hadPlan($customerId, (int) $plan['id']) ? (int) $price['trial_days'] : 0;
 
+        // Il codice si dà qui: `create()` non lo genera, e serve a Stripe e al ritorno dal pagamento.
         $created = Subscription::create($billing + [
+            'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION),
             'customer_id' => $customerId,
             'plan_price_id' => (int) $price['id'],
             'channel' => 'online',

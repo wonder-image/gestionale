@@ -132,4 +132,14 @@ check('i link della rata e della scheda tengono i segnaposto del menu di riga', 
     && str_contains(Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionPaymentResource::urlFor('{subscription_id}', '{id}'), 'abbonamento={subscription_id}&rata={id}')
 );
 
+check('un prezzo nuovo del repeater nasce col suo codice, uno vecchio tiene il suo', function () {
+    $nuovo = PlanResource::prepareRepeaterRelationRow('prices', ['name' => 'Mensile'], ['name' => 'Mensile']);
+    $vecchio = PlanResource::prepareRepeaterRelationRow('prices', ['name' => 'Annuale'], ['id' => 7], ['id' => 7, 'code' => 'ppr_abc1234']);
+    $limite = PlanResource::prepareRepeaterRelationRow('features', ['feature_key' => 'max'], ['feature_key' => 'max']);
+
+    return str_starts_with((string) $nuovo['code'], 'ppr_') && strlen((string) $nuovo['code']) > 4
+        && $vecchio['code'] === 'ppr_abc1234'
+        && !array_key_exists('code', $limite);
+});
+
 summary();

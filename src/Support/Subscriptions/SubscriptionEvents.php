@@ -8,6 +8,8 @@ use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionPlanChange;
 use Wonder\Plugin\Gestionale\Models\System\ExternalReference;
 use Wonder\Plugin\Gestionale\Providers\Payments\PaymentEvent;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Sql\Transaction;
 
@@ -167,6 +169,7 @@ final class SubscriptionEvents
         if ($paid['amount'] > 0.0 && $reference !== '' && Ledger::byReference('stripe', $reference) === null) {
             // La verità dell'importo è Stripe: si scrive quello della fattura.
             Payment::create([
+                'code' => Code::make(Payment::class, Codes::PAYMENT),
                 'type' => 'payment',
                 'subscription_id' => $id,
                 'customer_id' => (int) ($row['customer_id'] ?? 0),
