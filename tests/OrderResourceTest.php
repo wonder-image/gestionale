@@ -57,7 +57,15 @@ check('i permessi dell\'elenco sono di admin e administrator', function () {
 check('l\'API è spenta', fn () => (bool) (OrderResource::apiSchema()->toArray()['enabled'] ?? true) === false);
 
 check('le colonne sono quelle dell\'elenco', fn () =>
-    $colonne === ['order_number', 'customer', 'total', 'ordered_at', 'status', 'payment_status', 'fulfillment_status', 'actions']
+    $colonne === ['order_number', 'channel', 'fulfillment_type', 'customer', 'total', 'ordered_at', 'status', 'payment_status', 'fulfillment_status', 'actions']
+);
+
+check('canale e consegna sono un\'icona con la parola nel tooltip', fn () =>
+    str_contains(OrderResource::channelCell('office'), 'bi-building') && str_contains(OrderResource::channelCell('office'), 'data-bs-title="Ufficio"')
+    && str_contains(OrderResource::channelCell('online'), 'data-bs-title="Online"')
+    && str_contains(OrderResource::fulfillmentCell('pickup'), 'data-bs-title="Ritiro in negozio"')
+    && str_contains(OrderResource::fulfillmentCell('shipping'), 'bi-truck')
+    && str_contains(OrderResource::fulfillmentCell('boh'), '—')
 );
 
 check('l\'elenco mostra solo gli ordini veri, non i carrelli', function () {
@@ -254,6 +262,28 @@ check('un ordine da incassare offre Registra pagamento, prima di Annulla, e lo a
     return $nomi === ['Segna evaso', 'Registra pagamento', 'Annulla']
         && str_contains((string) $pulsanti[1]['onclick'], OrderPaymentResource::MODAL_ID)
         && ($pulsanti[1]['href'] ?? '') === '#';
+});
+
+check('in testa alla scheda: il proforma come pulsante, le azioni raggruppate nel menu «Azioni»', function () {
+    $ordine = ['id' => 9, 'stage' => 'order', 'status' => 'confirmed', 'deleted' => 'false', 'fulfillment_status' => 'unfulfilled', 'payment_status' => 'unpaid'];
+    $testa = OrderResource::pageActions($ordine);
+    $menu = $testa[1] ?? [];
+    $voci = array_map(static fn (array $v): string => (string) $v['label'], $menu['items'] ?? []);
+
+    return count($testa) === 2
+        && ($testa[0]['label'] ?? '') === 'Proforma' && str_contains((string) $testa[0]['href'], '/9/proforma/')
+        && ($menu['label'] ?? '') === 'Azioni'
+        && $voci === ['Segna evaso', 'Registra pagamento', 'Annulla']
+        && ($menu['items'][2]['class'] ?? '') === 'text-danger'
+        && str_contains((string) $menu['items'][1]['onclick'], OrderPaymentResource::MODAL_ID);
+});
+
+check('una bozza o un annullato non hanno il proforma; un pulsante solo resta un pulsante', function () {
+    $bozza = OrderResource::pageActions(['id' => 9, 'stage' => 'order', 'channel' => 'office', 'status' => 'draft', 'deleted' => 'false']);
+    $annullato = OrderResource::documentButtons(['id' => 9, 'stage' => 'order', 'status' => 'cancelled', 'deleted' => 'false']);
+
+    return count($bozza) === 1 && ($bozza[0]['label'] ?? '') === 'Modifica bozza' && !isset($bozza[0]['items'])
+        && $annullato === [];
 });
 
 check('la finestra del pagamento posta a Registra pagamento con ordine e ritorno, e propone il residuo', function () {

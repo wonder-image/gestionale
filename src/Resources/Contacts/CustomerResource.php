@@ -25,6 +25,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\CustomerOrderTableResource;
@@ -333,13 +334,19 @@ class CustomerResource extends GestionaleResource
         // dietro al bottone «Modifica» in testata.
         return $pages
             ->enable(['view'])
-            ->view('show', Gestionale::viewPath('pages/customer-show.php'))
+            ->view('show', Gestionale::viewPath(static::sheetView()))
             ->actions('view', static fn (array $item): array => [[
                 'label' => 'Modifica',
                 'icon' => 'bi-pencil',
                 'class' => 'btn-warning btn-sm',
                 'href' => static::editUrlFor((int) ($item['id'] ?? 0)),
             ]]);
+    }
+
+    /** La vista della scheda in lettura: quella del cliente; il fornitore ha la sua. */
+    protected static function sheetView(): string
+    {
+        return 'pages/customer-show.php';
     }
 
     /** L'indirizzo della scheda in lettura; il ripiego è il percorso. */
@@ -425,6 +432,13 @@ class CustomerResource extends GestionaleResource
         if ($vendite) {
             $sinistra[] = $accordion('Ordini', CustomerOrderTableResource::embedForCustomer($id, $userId), true);
             $sinistra[] = $accordion('Prodotti nel carrello', OrderItemTableResource::embedMany($carrelli, 'Nessun prodotto nel carrello.'));
+        }
+
+        // Gli abbonamenti, dal sito e dall'ufficio, con la funzionalità accesa (G10).
+        if (Gestionale::feature('subscriptions')) {
+            $sinistra[] = $accordion('Abbonamenti', CustomerSheet::subscriptionsTable(
+                static::rowsOf(Subscription::class, ['customer_id' => $id, 'deleted' => 'false'])
+            ), true);
         }
 
         $destra = [

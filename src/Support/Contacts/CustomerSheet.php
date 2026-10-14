@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Contacts;
 
 use Wonder\Elements\Components\DataItem;
 use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
+use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionResource;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 
@@ -207,6 +208,36 @@ final class CustomerSheet
 
         return '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr>'
             .'<th>Codice</th><th>Sconto</th><th>Periodo</th><th>Usato</th><th>Stato</th>'
+            .'</tr></thead><tbody>'.$body.'</tbody></table></div>';
+    }
+
+    /**
+     * Gli abbonamenti del cliente, dal più recente: codice (alla scheda),
+     * piano, stato, prossimo rinnovo, importo e canale; o la frase se non ne ha.
+     *
+     * @param list<array<string, mixed>> $subscriptions
+     */
+    public static function subscriptionsTable(array $subscriptions): string
+    {
+        if ($subscriptions === []) {
+            return '<p class="text-muted mb-0">Nessun abbonamento per questo cliente.</p>';
+        }
+
+        usort($subscriptions, static fn (array $a, array $b): int => (int) $b['id'] <=> (int) $a['id']);
+        $body = '';
+
+        foreach ($subscriptions as $row) {
+            $code = OrderSheet::esc((string) ($row['code'] ?? ''));
+            $body .= '<tr><td class="fw-semibold"><a href="'.OrderSheet::esc(SubscriptionResource::detailUrl((int) $row['id'])).'">'.$code.'</a></td>'
+                .'<td>'.OrderSheet::esc(SubscriptionResource::planLabel((int) ($row['plan_price_id'] ?? 0))).'</td>'
+                .'<td>'.SubscriptionResource::statusBadge((string) ($row['status'] ?? '')).'</td>'
+                .'<td>'.OrderSheet::esc(self::day((string) ($row['next_renewal_at'] ?? ''))).'</td>'
+                .'<td class="text-end">'.OrderSheet::esc(OrderSheet::money((float) ($row['total'] ?? 0))).'</td>'
+                .'<td>'.OrderSheet::esc(SubscriptionResource::channelLabels()[(string) ($row['channel'] ?? '')] ?? '').'</td></tr>';
+        }
+
+        return '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr>'
+            .'<th>Codice</th><th>Piano</th><th>Stato</th><th>Prossimo rinnovo</th><th class="text-end">Importo</th><th>Canale</th>'
             .'</tr></thead><tbody>'.$body.'</tbody></table></div>';
     }
 

@@ -178,3 +178,5 @@ foreach ($lines as $line) {
     });
 })();
 </script>
+
+<?php \Wonder\View\View::end(); ?>

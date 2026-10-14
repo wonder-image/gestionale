@@ -65,4 +65,15 @@ check('trasferimenti: il filtro Sede guarda partenza e arrivo, solo id interi', 
     && StockTransferResource::locationFilter(['x']) === ''
 );
 
+check('elenchi dei documenti: il numero apre la scheda (la bozza la modifica), lo stato sta nella sua colonna', function () {
+    $confermato = StockTransferResource::numberCell(['id' => 7, 'type' => 'transfer', 'status' => 'in_transit', 'number' => '2026/100009']);
+    $bozza = StockTransferResource::numberCell(['id' => 8, 'type' => 'transfer', 'status' => 'draft', 'number' => '']);
+
+    return str_contains($confermato, '/7/">2026/100009</a>') && !str_contains($confermato, 'badge')
+        && str_contains($bozza, '/8/edit/') && str_contains($bozza, '>Bozza</a>') && !str_contains($bozza, 'badge')
+        && str_contains(StockTransferResource::statusCell(['status' => 'in_transit']), 'In viaggio')
+        && str_contains(StockTransferResource::statusCell(['status' => 'completed']), 'Ricevuto')
+        && str_contains(StockDocumentResource::statusCell(['status' => 'cancelled']), 'text-bg-danger');
+});
+
 summary();

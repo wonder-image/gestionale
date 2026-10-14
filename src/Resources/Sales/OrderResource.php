@@ -28,6 +28,8 @@ use Wonder\Plugin\Gestionale\Models\Shipping\Shipment;
 use Wonder\Plugin\Gestionale\Resources\Shipping\ShipmentResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
+use Wonder\Plugin\Gestionale\Support\Documents\OrderProforma;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
@@ -85,6 +87,8 @@ final class OrderResource extends GestionaleResource
     {
         return [
             'order_number' => 'Numero',
+            'channel' => 'Canale',
+            'fulfillment_type' => 'Consegna',
             'ordered_at' => 'Data',
             'customer' => 'Cliente',
             'total' => 'Totale',
@@ -106,6 +110,15 @@ final class OrderResource extends GestionaleResource
                 ->formatter(static fn (array $row): string => trim((string) ($row['order_number'] ?? '')) !== ''
                     ? static::escape((string) $row['order_number'])
                     : '<span class="text-body-secondary">Bozza</span>'),
+            // Da dove arriva e come si consegna: un'icona, la parola nel tooltip.
+            TableColumn::key('channel')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::channelCell((string) ($row['channel'] ?? ''))),
+            TableColumn::key('fulfillment_type')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::fulfillmentCell((string) ($row['fulfillment_type'] ?? ''))),
             TableColumn::key('customer')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(static::customerName($row)))
@@ -175,7 +188,7 @@ final class OrderResource extends GestionaleResource
             ->titles(['list' => 'Ordini', 'view' => 'Ordine'])
             ->subtitles(['list' => 'Gli ordini dei clienti, dal checkout alla consegna. Si consultano qui; ogni cambio passa dalle azioni della scheda.'])
             ->view('show', Gestionale::viewPath('pages/order-show.php'))
-            ->actions('view', static fn (array $item): array => static::actionsFor($item));
+            ->actions('view', static fn (array $item): array => static::pageActions($item));
     }
 
     /**
@@ -235,19 +248,111 @@ final class OrderResource extends GestionaleResource
         $incassa && $pulsanti[] = static::registerPaymentButton($order);
         $rende && $pulsanti[] = static::registerReturnButton($order);
 
-        // La conferma d'ordine in PDF, per un ordine da ufficio confermato (G9 §3.3).
+        return $pulsanti;
+    }
+
+    /**
+     * In testa alla scheda: i documenti in un menu, le azioni in un altro.
+     * Un gruppo con un pulsante solo resta un pulsante.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function pageActions(array $order): array
+    {
+        return [
+            ...HeaderActions::group(static::documentButtons($order), 'Documenti', 'bi-file-earmark-pdf'),
+            ...HeaderActions::group(static::actionsFor($order)),
+        ];
+    }
+
+    /**
+     * I PDF dell'ordine: la conferma (ordini da ufficio confermati, G9 §3.3) e
+     * il proforma (ogni ordine che non è bozza né annullato).
+     *
+     * @return list<array<string, string>>
+     */
+    public static function documentButtons(array $order): array
+    {
+        $id = (int) ($order['id'] ?? 0);
+        $pulsanti = [];
+
         if ((string) ($order['channel'] ?? '') === 'office'
             && in_array((string) ($order['status'] ?? ''), ['confirmed', 'processing', 'completed'], true)
             && Gestionale::feature('office_sales')) {
-            array_unshift($pulsanti, [
-                'label' => 'PDF',
+            $pulsanti[] = [
+                'label' => 'Conferma d\'ordine',
                 'icon' => 'bi-file-earmark-pdf',
                 'class' => 'btn-outline-secondary btn-sm',
-                'href' => OfficeOrderResource::pdfUrl((int) ($order['id'] ?? 0)),
-            ]);
+                'href' => OfficeOrderResource::pdfUrl($id),
+                'target' => '_blank',
+            ];
+        }
+
+        if (OrderProforma::available($order)) {
+            $pulsanti[] = [
+                'label' => 'Proforma',
+                'icon' => 'bi-file-earmark-text',
+                'class' => 'btn-outline-secondary btn-sm',
+                'href' => static::proformaUrl($id),
+                'target' => '_blank',
+            ];
         }
 
         return $pulsanti;
+    }
+
+    /** Le icone del canale: [icona, parola]. */
+    public const CHANNEL_ICONS = [
+        'online' => ['bi-globe2', 'Online'],
+        'office' => ['bi-building', 'Ufficio'],
+        'pos' => ['bi-shop', 'Cassa'],
+        'b2b_portal' => ['bi-briefcase', 'Portale B2B'],
+    ];
+
+    /** Le icone della consegna: [icona, parola]. */
+    public const FULFILLMENT_ICONS = [
+        'shipping' => ['bi-truck', 'Spedizione'],
+        'pickup' => ['bi-bag-check', 'Ritiro in negozio'],
+        'none' => ['bi-dash-circle', 'Niente da consegnare'],
+    ];
+
+    /** Il canale dell'ordine: un'icona con la parola nel tooltip. */
+    public static function channelCell(string $channel): string
+    {
+        return static::iconCell(self::CHANNEL_ICONS[$channel] ?? null);
+    }
+
+    /** Spedizione o ritiro: un'icona con la parola nel tooltip. */
+    public static function fulfillmentCell(string $type): string
+    {
+        return static::iconCell(self::FULFILLMENT_ICONS[$type] ?? null);
+    }
+
+    /** @param array{0: string, 1: string}|null $icon */
+    private static function iconCell(?array $icon): string
+    {
+        if ($icon === null) {
+            return '<span class="text-body-secondary">—</span>';
+        }
+
+        return '<i class="bi '.$icon[0].' text-muted" data-bs-toggle="tooltip" data-bs-title="'.static::escape($icon[1]).'" aria-label="'.static::escape($icon[1]).'"></i>';
+    }
+
+    /** Il proforma in PDF dell'ordine. */
+    public static function proformaUrl(int $id): string
+    {
+        return static::routeUrl('proforma', '/backend/'.static::path().'/'.$id.'/proforma/', ['id' => $id]);
+    }
+
+    /** *Proforma* della scheda: la rotta del PDF. */
+    public static function registerBackendRoutes(string $rootApp, string $slug): void
+    {
+        \Wonder\Http\Route::get('/{id}/proforma/', Gestionale::handlerPath('backend/sales/order-proforma-pdf.php'), [
+            'resource' => $slug,
+            'resource_action' => 'proforma',
+        ])->name('proforma')
+            ->permit(['admin', 'administrator'])
+            ->where('id', '[0-9]+');
     }
 
     /** Le funzionalità che cambiano le azioni offerte. @return array<string, bool> */
@@ -621,13 +726,12 @@ final class OrderResource extends GestionaleResource
             .' role="button" data-bs-toggle="modal" data-bs-target="#'.OrderNoteResource::MODAL_ID.'">'
             .'<i class="bi bi-pencil"></i></a>';
         $nota = static fn (string $v): string => trim($v) !== '' ? nl2br(static::escape($v)) : '';
-        $canali = ['online' => 'Online', 'office' => 'Ufficio', 'pos' => 'Cassa'];
         $canale = (string) ($order['channel'] ?? '');
 
         return [
             $dato('Numero', (string) ($order['order_number'] ?? '')),
             $dato('Data', static::date((string) ($order['ordered_at'] ?? ''))),
-            $dato('Canale', $canali[$canale] ?? $canale),
+            $dato('Canale', self::CHANNEL_ICONS[$canale][1] ?? $canale),
             $dato('Ordine', StatusLabels::badge('order', (string) ($order['status'] ?? '')), true),
             $dato('Pagamento', static::paymentBadge((string) ($order['payment_status'] ?? ''), OnlinePayments::inTest((int) ($order['id'] ?? 0))), true),
             $dato('Evasione', StatusLabels::badge('fulfillment', (string) ($order['fulfillment_status'] ?? '')), true),

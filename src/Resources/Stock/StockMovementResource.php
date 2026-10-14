@@ -116,7 +116,6 @@ final class StockMovementResource extends GestionaleResource
         if (static::showsLocation()) {
             $columns[] = TableColumn::key('location_id')
                 ->text()
-                ->size('little')
                 ->formatter(static fn (array $row): string => static::escape(static::locationLabel((int) ($row['location_id'] ?? 0))));
         }
 
@@ -124,7 +123,6 @@ final class StockMovementResource extends GestionaleResource
             // G3, Acquisti: il secchio da cui è uscita o in cui è entrata la merce.
             $columns[] = TableColumn::key('supplier_id')
                 ->text()
-                ->size('little')
                 ->hiddenDevice('mobile')
                 ->formatter(static fn (array $row): string => static::escape(SupplierNames::of((int) ($row['supplier_id'] ?? 0))));
         }
@@ -491,8 +489,8 @@ final class StockMovementResource extends GestionaleResource
 
     /**
      * Il numero, il link e l'etichetta del documento che ha causato il
-     * movimento. Il numero di un documento di magazzino resta testo: la sua
-     * scheda si apre dal menu ⋯ (spec §3). Tipo e numero arrivano da select();
+     * movimento, con il link alla sua scheda (ordine o documento di
+     * magazzino). Tipo e numero arrivano da select();
      * una riga senza quelle colonne (letta fuori dall'elenco) li legge dal
      * database.
      *
@@ -527,9 +525,10 @@ final class StockMovementResource extends GestionaleResource
             return ['', '', ''];
         }
 
+        // Un documento che ha mosso merce non è più una bozza: si apre la scheda.
         return [
             $number,
-            '',
+            StockDocumentResource::pageUrl(['id' => $id, 'type' => $type, 'status' => 'completed']),
             $reference === 'stock_document' ? StockDocumentRules::label($type) : StockDocumentRules::cancelLabel($type),
         ];
     }

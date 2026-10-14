@@ -13,6 +13,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Http\Csrf;
+use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Stock\StockValue;
 use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
@@ -70,6 +71,7 @@ abstract class StockDocumentResource extends GestionaleResource
             'difference_count' => 'Con differenza',
             'note' => 'Nota',
             'who_name' => 'Chi',
+            'status' => 'Stato',
             'supplier_id' => 'Fornitore',
             'total_cost' => 'Costo',
         ];
@@ -82,6 +84,11 @@ abstract class StockDocumentResource extends GestionaleResource
                 ->text()
                 ->size('little')
                 ->formatter(static fn (array $row): string => static::numberCell($row)),
+            // Lo stato in una colonna sua: il numero resta un link pulito.
+            TableColumn::key('status')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::statusCell($row)),
             TableColumn::key('sort_date')
                 ->text()
                 ->size('little')
@@ -92,14 +99,12 @@ abstract class StockDocumentResource extends GestionaleResource
         if (static::purchases()) {
             $columns[] = TableColumn::key('supplier_id')
                 ->text()
-                ->size('little')
                 ->formatter(static fn (array $row): string => static::escape(SupplierNames::of((int) ($row['supplier_id'] ?? 0))));
         }
 
         if (static::showsLocation() || static::type() === 'transfer') {
             $columns[] = TableColumn::key('location_id')
                 ->text()
-                ->size('little')
                 ->formatter(static fn (array $row): string => static::escape(static::locationOptions()[(string) ($row['location_id'] ?? '')] ?? ''));
         }
 
@@ -107,7 +112,6 @@ abstract class StockDocumentResource extends GestionaleResource
         if (static::type() === 'transfer') {
             $columns[] = TableColumn::key('to_location_id')
                 ->text()
-                ->size('little')
                 ->formatter(static fn (array $row): string => static::escape(static::locationOptions()[(string) ($row['to_location_id'] ?? '')] ?? ''));
         }
 
@@ -389,7 +393,7 @@ abstract class StockDocumentResource extends GestionaleResource
             ])
             ->view('form', Gestionale::viewPath('pages/stock-document-form.php'))
             ->view('show', Gestionale::viewPath('pages/stock-document-show.php'))
-            ->actions('view', static fn (array $item): array => static::headerActions($item));
+            ->actions('view', static fn (array $item): array => HeaderActions::group(static::headerActions($item)));
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -786,17 +790,37 @@ abstract class StockDocumentResource extends GestionaleResource
         ];
     }
 
-    /** Numero, o il badge *Bozza*; *Annullato* accanto al numero. */
-    protected static function numberCell(array $row): string
+    /**
+     * Il numero, che apre il documento: la bozza (che un numero non ce l'ha
+     * ancora) in modifica, gli altri nella scheda.
+     */
+    public static function numberCell(array $row): string
     {
-        $number = static::escape((string) ($row['number'] ?? ''));
+        $number = trim((string) ($row['number'] ?? ''));
+        $draft = (string) ($row['status'] ?? '') === 'draft';
+        $text = $number !== '' ? static::escape($number) : ($draft ? 'Bozza' : '—');
+        $url = (int) ($row['id'] ?? 0) > 0 ? static::pageUrl(['type' => static::type()] + $row) : '';
 
-        return match ((string) ($row['status'] ?? '')) {
-            'draft' => '<span class="badge text-bg-secondary">Bozza</span>',
-            'in_transit' => $number.' <span class="badge text-bg-warning">In viaggio</span>',
-            'cancelled' => $number.' <span class="badge text-bg-danger">Annullato</span>',
-            default => $number,
+        if ($url === '') {
+            return $text;
+        }
+
+        return '<a href="'.static::escape($url).'"'.($draft && $number === '' ? ' class="text-body-secondary"' : '').'>'.$text.'</a>';
+    }
+
+    /** Lo stato del documento, un badge nella sua colonna. */
+    public static function statusCell(array $row): string
+    {
+        $status = (string) ($row['status'] ?? '');
+        [$label, $color] = match ($status) {
+            'draft' => ['Bozza', 'secondary'],
+            'in_transit' => ['In viaggio', 'warning'],
+            'cancelled' => ['Annullato', 'danger'],
+            'completed' => [static::type() === 'transfer' ? 'Ricevuto' : 'Confermato', 'success'],
+            default => [$status, 'light'],
         };
+
+        return $label === '' ? '' : '<span class="badge text-bg-'.$color.'">'.static::escape($label).'</span>';
     }
 
     /** Il giorno della conferma; per una bozza, in grigio, quello della creazione. */

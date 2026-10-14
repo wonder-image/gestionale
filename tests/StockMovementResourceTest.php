@@ -440,16 +440,20 @@ check('il modello dell\'indirizzo della scheda tiene il segnaposto al posto dell
     && StockIssueResource::viewUrlPattern('__ID__') === str_replace('/8/', '/__ID__/', StockIssueResource::viewUrl(8))
 );
 
-check('Tipo legge il documento dalla riga, senza database', fn () =>
-    StockMovementResource::typeCellOf([
+check('Tipo legge il documento dalla riga, senza database, e il numero apre la sua scheda', function () {
+    $scarico = StockMovementResource::typeCellOf([
         'type' => 'adjustment', 'reference_type' => 'stock_document', 'reference_id' => 5,
         'document_type' => 'issue', 'document_number' => '2026/100003',
-    ]) === 'Scarico · 2026/100003'
-    && StockMovementResource::typeCellOf([
+    ]);
+    $annullo = StockMovementResource::typeCellOf([
         'type' => 'purchase', 'reference_type' => 'stock_document_cancel', 'reference_id' => 4,
         'document_type' => 'receipt', 'document_number' => '2026/100001',
-    ]) === 'Annullamento del carico · 2026/100001'
-);
+    ]);
+
+    return str_starts_with($scarico, 'Scarico · <a href="') && str_contains($scarico, '/5/">2026/100003</a>')
+        && !str_contains($scarico, '/edit/')
+        && str_starts_with($annullo, 'Annullamento del carico · <a href="') && str_contains($annullo, '/4/">2026/100001</a>');
+});
 
 check('Tipo con le colonne del documento vuote resta l\'etichetta del tipo', fn () =>
     StockMovementResource::typeCellOf([
