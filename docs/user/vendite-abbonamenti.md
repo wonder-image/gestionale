@@ -5,7 +5,8 @@ icon: arrow-repeat
 # Abbonamenti
 
 > **Da attivare.** Funzionalità *Abbonamenti*. Finché è spenta non vedi le
-> pagine *Piani* e *Abbonamenti*; i dati già scritti restano. Non si spegne
+> pagine *Catalogo → Abbonamenti* e *Vendite → Abbonamenti*; i dati già
+> scritti restano. Non si spegne
 > mentre ci sono abbonamenti in corso.
 
 ## A cosa servono
@@ -14,10 +15,11 @@ Un abbonamento è un **prezzo che si ripete**: il cliente paga ogni mese o ogni
 anno per un servizio. Gli abbonamenti sono **separati dagli ordini**: un rinnovo
 non crea un ordine, crea un pagamento.
 
-Le pagine sono due, in **Vendite**:
+Le pagine sono due:
 
-* **Piani**: cosa vendi, a quali prezzi e con quali limiti;
-* **Abbonamenti**: chi è abbonato, a cosa, e quando rinnova.
+* **Catalogo → Abbonamenti**: i piani, cioè cosa vendi, a quali prezzi e con
+  quali limiti;
+* **Vendite → Abbonamenti**: chi è abbonato, a cosa, e quando rinnova.
 
 > Gli abbonamenti nascono dal **sito**, con la funzionalità *Abbonamenti online*,
 > oppure **da ufficio**, con «Nuovo abbonamento» (vedi sotto).

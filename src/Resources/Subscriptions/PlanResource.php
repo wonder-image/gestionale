@@ -62,7 +62,7 @@ final class PlanResource extends GestionaleResource
 
     public static function titleLabel(): string
     {
-        return 'Piani';
+        return 'Abbonamenti';
     }
 
     public static function textSchema(): array
@@ -224,9 +224,9 @@ final class PlanResource extends GestionaleResource
         return parent::pageSchema()
             ->disable(['view'])
             ->titles([
-                'list' => 'Piani',
-                'create' => 'Nuovo piano',
-                'edit' => 'Modifica piano',
+                'list' => 'Abbonamenti',
+                'create' => 'Nuovo piano di abbonamento',
+                'edit' => 'Modifica piano di abbonamento',
             ]);
     }
 
@@ -243,9 +243,11 @@ final class PlanResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('vendite', 'Vendite', 'bi-receipt', 300, ['admin', 'administrator'])
-            ->title('Piani')
-            ->order(60)
+            // Nel Catalogo, come «Abbonamenti»: un piano è una cosa che si vende,
+            // come un prodotto. In Vendite resta l'elenco di chi è abbonato.
+            ->section('catalogo', 'Catalogo', 'bi-box-seam', 340, ['admin', 'administrator'])
+            ->title('Abbonamenti')
+            ->order(45)
             ->authority(['admin', 'administrator'])
             ->enabled(static::featureActive());
     }
