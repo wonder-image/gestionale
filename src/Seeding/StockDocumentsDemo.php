@@ -167,9 +167,17 @@ final class StockDocumentsDemo
     private static function demoLocation(): int
     {
         $code = DemoCode::forModel(Location::class, 'deposito');
-        $row = Location::find(['code' => $code, 'deleted' => 'false'], 1);
+        // Anche cancellata dal backend: il codice è unico, e una sede di prova
+        // tolta a mano si rimette in uso invece di crearne un'altra.
+        $row = Location::find("`code` = '".addslashes($code)."' AND `deleted` IN ('true', 'false')", 1);
 
         if (is_array($row) && isset($row['id'])) {
+            if ((string) ($row['deleted'] ?? 'false') !== 'false') {
+                Location::query()->Update(Location::$table, ['deleted' => 'false', 'active' => 'true'], 'id', (int) $row['id']);
+                SocietyLocation::query()->Update(SocietyLocation::$table, ['deleted' => 'false'], 'id', (int) $row['society_location_id']);
+                Locations::reset();
+            }
+
             return (int) $row['id'];
         }
 
@@ -196,7 +204,8 @@ final class StockDocumentsDemo
      */
     private static function clearLocation(): void
     {
-        $row = Location::find(['code' => DemoCode::forModel(Location::class, 'deposito'), 'deleted' => 'false'], 1);
+        // Anche cancellata dal backend: altrimenti il suo codice resterebbe occupato per sempre.
+        $row = Location::find("`code` = '".addslashes(DemoCode::forModel(Location::class, 'deposito'))."' AND `deleted` IN ('true', 'false')", 1);
 
         if (!is_array($row) || !isset($row['id'])) {
             return;
