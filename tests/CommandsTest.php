@@ -125,4 +125,17 @@ check('fuori dal locale i dati di prova non si creano', function () {
     return $esito === Command::FAILURE && str_contains($output->fetch(), 'solo in locale');
 });
 
+check('il comando ha --fresh (cancella e rifà) e --clear (cancella e basta)', function () {
+    $definizione = (new DemoCommand())->getDefinition();
+
+    return $definizione->hasOption('fresh') && $definizione->hasOption('clear');
+});
+
+check('anche con --clear fuori dal locale non si tocca niente', function () {
+    $output = new BufferedOutput();
+
+    return (new DemoCommand())->run(new ArrayInput(['--clear' => true]), $output) === Command::FAILURE
+        && str_contains($output->fetch(), 'solo in locale');
+});
+
 summary();

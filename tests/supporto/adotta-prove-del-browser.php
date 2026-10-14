@@ -116,4 +116,4 @@ Transaction::run(static function () use ($ordini, $abbonamenti): void {
     }
 });
 
-echo "Fatto. Ora: php forge gestionale:demo --fresh (dalla cartella del sito di prova).\n";
+echo "Fatto. Ora, dalla cartella del sito di prova: php forge gestionale:demo --clear (prima dei test d'integrazione) o --fresh (per rifare i dati di prova).\n";

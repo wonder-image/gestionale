@@ -7,6 +7,11 @@ versionamento semantico.
 
 ### Aggiunto
 
+- `php forge gestionale:demo --clear` cancella i dati di prova senza rifarli:
+  il sito torna come prima, ed è lo stato da cui partono i test
+  d'integrazione. La sede di prova cancellata dal backend si rimette in uso
+  invece di bloccare i dati di prova.
+
 - Le pagine **Nuovo ordine da ufficio**, **Nuovo preventivo** e del **DDT**
   si disegnano con i componenti del core (`Card`, `FormField`, `Button`):
   campi e pulsanti con lo stile del backend, conferme della lib, isola di
