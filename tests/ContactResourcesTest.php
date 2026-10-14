@@ -165,17 +165,23 @@ check('con gli acquisti bloccati un ruolo arrivato da fuori non conta', function
 
 $forza([]);
 
-check('i clienti hanno la scheda in lettura, i fornitori vanno diritti alla modifica', function () {
-    $clienti = CustomerResource::pageSchema()->toArray();
-    $fornitori = SupplierResource::pageSchema()->toArray();
+check('clienti e fornitori hanno ciascuno la sua scheda in lettura', function () {
+    $clienti = json_encode(CustomerResource::pageSchema()->toArray());
+    $fornitori = json_encode(SupplierResource::pageSchema()->toArray());
 
-    return CustomerResource::hasSheet() && !SupplierResource::hasSheet()
-        && json_encode($clienti) !== json_encode($fornitori)
-        && str_contains(json_encode($clienti), 'customer-show.php')
-        && !str_contains(json_encode($fornitori), 'customer-show.php');
+    return CustomerResource::hasSheet() && SupplierResource::hasSheet()
+        && str_contains($clienti, 'customer-show.php') && !str_contains($clienti, 'supplier-show.php')
+        && str_contains($fornitori, 'supplier-show.php') && !str_contains($fornitori, 'customer-show.php');
 });
 
-check('il nome in elenco apre la scheda per i clienti e la modifica per i fornitori', function () {
+check('la scheda del fornitore: carichi e articoli forniti, o la frase se non ce ne sono', fn () =>
+    str_contains(SupplierResource::receiptsTable([]), 'Nessun carico')
+    && str_contains(SupplierResource::productsTable([]), 'Nessun articolo')
+    && str_contains(SupplierResource::productsTable([['name' => 'Maglia — Blu', 'sku' => 'MAG-B', 'supplier_sku' => 'F-12', 'cost' => 4.5]]), 'F-12')
+    && SupplierResource::receipts(0) === [] && SupplierResource::supplied(0) === []
+);
+
+check('il nome in elenco apre la scheda, per i clienti e per i fornitori', function () {
     $link = static function (string $classe): string {
         foreach ($classe::tableSchema() as $c) {
             if ((string) $c->name === 'name') {
@@ -186,7 +192,7 @@ check('il nome in elenco apre la scheda per i clienti e la modifica per i fornit
         return '';
     };
 
-    return $link(CustomerResource::class) === 'view' && $link(SupplierResource::class) === 'modify';
+    return $link(CustomerResource::class) === 'view' && $link(SupplierResource::class) === 'view';
 });
 
 check('l\'indirizzo della scheda e quello della modifica sono diversi e portano l\'id', fn () =>

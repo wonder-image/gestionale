@@ -334,13 +334,19 @@ class CustomerResource extends GestionaleResource
         // dietro al bottone «Modifica» in testata.
         return $pages
             ->enable(['view'])
-            ->view('show', Gestionale::viewPath('pages/customer-show.php'))
+            ->view('show', Gestionale::viewPath(static::sheetView()))
             ->actions('view', static fn (array $item): array => [[
                 'label' => 'Modifica',
                 'icon' => 'bi-pencil',
                 'class' => 'btn-warning btn-sm',
                 'href' => static::editUrlFor((int) ($item['id'] ?? 0)),
             ]]);
+    }
+
+    /** La vista della scheda in lettura: quella del cliente; il fornitore ha la sua. */
+    protected static function sheetView(): string
+    {
+        return 'pages/customer-show.php';
     }
 
     /** L'indirizzo della scheda in lettura; il ripiego è il percorso. */
