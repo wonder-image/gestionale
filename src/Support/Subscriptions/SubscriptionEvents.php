@@ -184,7 +184,9 @@ final class SubscriptionEvents
             ]);
         }
 
-        if (in_array((string) $row['status'], ['pending', 'past_due', 'unpaid'], true) && $paid['amount'] > 0.0) {
+        // Il primo addebito dopo la prova chiude la prova: la notifica dello
+        // stato nuovo può arrivare dopo quella della fattura.
+        if (in_array((string) $row['status'], ['pending', 'trialing', 'past_due', 'unpaid'], true) && $paid['amount'] > 0.0) {
             SubscriptionStatus::move($id, 'active', $source, 'Pagamento riuscito');
         }
     }
