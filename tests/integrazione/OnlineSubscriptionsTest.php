@@ -24,6 +24,8 @@ use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionPlanChange;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Providers\Payments\PaymentEvent;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentEvents;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
@@ -64,9 +66,10 @@ function prova(callable $corpo): mixed
 /** Un piano visibile con un mensile (14 giorni di prova) e un annuale (vincolo 12 mesi). @return array{plan: int, mensile: array, annuale: array} */
 function pianoOnline(): array
 {
-    $plan = (int) (Plan::create(['name' => 'Pro', 'slug' => 'pro-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
-    $mensile = (int) (PlanPrice::create(['plan_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => 14, 'price' => '24.40', 'sale_price' => '0.00', 'active' => 'true', 'position' => 0])->insert_id ?? 0);
-    $annuale = (int) (PlanPrice::create(['plan_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'commitment_months' => 12, 'price' => '244.00', 'sale_price' => '0.00', 'renewal_plan_price_id' => $mensile, 'active' => 'true', 'position' => 1])->insert_id ?? 0);
+    // I codici come li dà la pagina dei piani: il negozio vende un prezzo dal suo `ppr_`.
+    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'name' => 'Pro', 'slug' => 'pro-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
+    $mensile = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => 14, 'price' => '24.40', 'sale_price' => '0.00', 'active' => 'true', 'position' => 0])->insert_id ?? 0);
+    $annuale = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'commitment_months' => 12, 'price' => '244.00', 'sale_price' => '0.00', 'renewal_plan_price_id' => $mensile, 'active' => 'true', 'position' => 1])->insert_id ?? 0);
 
     return ['plan' => $plan, 'mensile' => PlanPrice::findById($mensile), 'annuale' => PlanPrice::findById($annuale)];
 }
