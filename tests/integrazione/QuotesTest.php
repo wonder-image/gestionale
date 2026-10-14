@@ -37,7 +37,10 @@ function prova(callable $corpo): mixed
     $cartella = sys_get_temp_dir().'/gst-quotes-'.bin2hex(random_bytes(4));
     DocumentFiles::useBase($cartella);
     Mailer::useTransport(static function (string $to, string $subject, string $body, array $files = []) use (&$posta): bool {
-        $posta[] = ['to' => $to, 'subject' => $subject, 'files' => $files];
+        // Il contenuto si legge adesso: chi manda un allegato temporaneo lo
+        // cancella appena l'email è partita.
+        $contenuti = array_map(static fn (string $file): string => is_file($file) ? (string) file_get_contents($file) : '', array_keys($files));
+        $posta[] = ['to' => $to, 'subject' => $subject, 'files' => $files, 'contents' => $contenuti];
 
         return true;
     });
@@ -217,10 +220,12 @@ check('la conferma da ufficio con l\'email porta il PDF', function () {
 
         $ordine = OfficeOrders::save(0, ['customer_id' => cliente(), 'fulfillment_type' => 'pickup', 'lines' => [['type' => 'product', 'product_id' => articolo(5), 'quantity' => '1']]]);
         $numero = OfficeOrders::confirm($ordine, ['notify' => true])['order_number'];
+        $pdf = (string) ($posta[0]['contents'][0] ?? '');
         $file = (string) array_key_first($posta[0]['files'] ?? []);
 
+        // Il PDF arriva con l'email, e il temporaneo non resta sul disco.
         return count($posta) === 1 && str_contains($posta[0]['subject'], $numero)
-            && is_file($file) && str_starts_with((string) file_get_contents($file), '%PDF');
+            && str_starts_with($pdf, '%PDF') && !is_file($file);
     });
 });
 
