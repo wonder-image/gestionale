@@ -14,6 +14,8 @@ use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionPlanChange;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentData;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdfs;
@@ -82,7 +84,9 @@ final class OfficeSubscriptions
         $termId = (int) ($input['payment_term_id'] ?? 0) ?: (int) ($contact['payment_term_id'] ?? 0);
 
         $id = Transaction::run(static function () use ($billing, $customerId, $price, $coupon, $includeTax, $amounts, $taxId, $taxRate, $start, $trial, $firstPeriod, $commitment, $input, $userId, $methodId, $termId): int {
+            // Il codice si dà qui: `create()` non lo genera, e il proforma prende il nome da lui.
             $created = Subscription::create($billing + [
+                'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION),
                 'customer_id' => $customerId,
                 'plan_price_id' => (int) $price['id'],
                 'channel' => 'office',

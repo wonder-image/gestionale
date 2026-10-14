@@ -25,6 +25,8 @@ use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionActionResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionPaymentResource;
 use Wonder\Plugin\Gestionale\Seeding\OfficeSubscriptionsDemo;
 use Wonder\Plugin\Gestionale\Seeding\PlansDemo;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Payments\Installments;
@@ -57,9 +59,9 @@ function prova(callable $corpo): mixed
 /** @return array{plan: int, mensile: int, annuale: int} */
 function piano(int $prova = 0, int $vincolo = 0): array
 {
-    $plan = (int) (Plan::create(['name' => 'Ufficio', 'slug' => 'ufficio-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
-    $mensile = (int) (PlanPrice::create(['plan_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => '100.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
-    $annuale = (int) (PlanPrice::create(['plan_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'price' => '1000.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
+    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'name' => 'Ufficio', 'slug' => 'ufficio-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
+    $mensile = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => '100.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
+    $annuale = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'price' => '1000.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
 
     return ['plan' => $plan, 'mensile' => $mensile, 'annuale' => $annuale];
 }
@@ -158,16 +160,19 @@ check('nuovo periodo alla scadenza; il coupon di due mesi vale sui primi due', f
     $codice = 'UFF'.strtoupper(substr(uniqid(), -7));
     Coupon::create(['code' => $codice, 'discount_type' => 'percent', 'discount_value' => '50', 'applies_office' => 'true', 'active' => 'true', 'applies_subscriptions' => 'true', 'duration' => 'repeating', 'duration_months' => 2]);
     $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'plan_price_id' => $p['mensile'], 'starts_at' => '2026-01-01', 'coupon' => $codice]);
+    // Le rate si pagano: un abbonamento non pagato non apre periodi nuovi.
     $primo = (float) Subscription::findById($id)['total'];
+    paga($id);
     OfficeSubscriptions::daily(new DateTimeImmutable('2026-02-01'));
     $secondo = (float) Subscription::findById($id)['total'];
+    paga($id);
     OfficeSubscriptions::daily(new DateTimeImmutable('2026-03-01'));
     $terzo = (float) Subscription::findById($id)['total'];
     $ripetuto = OfficeSubscriptions::daily(new DateTimeImmutable('2026-03-01'));
 
     return round($primo, 2) === 50.0 && round($secondo, 2) === 50.0 && round($terzo, 2) === 100.0
         && $ripetuto['opened'] === 0
-        && count(rate($id)) === 3;
+        && count(rate($id, 'paid')) === 2 && count(rate($id)) === 1;
 }));
 
 check('rata scaduta: da pagare con un solo promemoria; oltre i giorni non pagato; incassata, attivo', fn () => prova(static function (): bool {

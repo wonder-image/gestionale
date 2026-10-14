@@ -8,6 +8,7 @@ use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
@@ -101,7 +102,14 @@ final class OfficeSubscriptionsDemo
             }
 
             $id = (int) $row['id'];
-            $removed += count(self::rows(Payment::find(['subscription_id' => $id])));
+            $payments = self::rows(Payment::find("subscription_id = ".$id." AND (deleted = 'false' OR deleted = 'true')"));
+            $removed += count($payments);
+
+            // Prima la storia delle rate: la chiave esterna non lascia andare il pagamento.
+            foreach ($payments as $payment) {
+                sqlDelete(PaymentStatusLog::$table, 'payment_id = '.(int) $payment['id']);
+            }
+
             sqlDelete(Payment::$table, 'subscription_id = '.$id);
             sqlDelete(SubscriptionStatusLog::$table, 'subscription_id = '.$id);
             sqlDelete(SubscriptionPlanChange::$table, 'subscription_id = '.$id);
