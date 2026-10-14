@@ -25,38 +25,61 @@ final class OfficeOrderForm
     private const HEADER_KEYS = [
         'customer_id', 'email', 'phone', 'location_id', 'shipping_method_id', 'payment_method_id', 'payment_term_id',
         'customer_note', 'internal_note', 'document_note', 'fulfillment_type', 'manual_discount_type',
-        'manual_discount_value', 'shipping_amount',
+        'manual_discount_value', 'shipping_amount', 'quote_expires_at',
     ];
 
     /**
      * Salva la bozza; con `intent = confirm` la conferma, con `delete` la
-     * elimina.
+     * elimina. Per un preventivo (`$stage` `quote`, piano 3) anche `send`,
+     * `accept` e `reject`.
      *
      * @param array<string, mixed> $post
-     * @return array{id: int, number: string, deleted: bool, error: string}
+     * @return array{id: int, number: string, deleted: bool, error: string, sent: string, accepted: bool, rejected: bool, email: string}
      */
-    public static function submit(int $id, array $post, int $userId): array
+    public static function submit(int $id, array $post, int $userId, string $stage = 'order'): array
     {
-        $result = ['id' => $id, 'number' => '', 'deleted' => false, 'error' => ''];
+        $result = ['id' => $id, 'number' => '', 'deleted' => false, 'error' => '', 'sent' => '', 'accepted' => false, 'rejected' => false, 'email' => ''];
         $intent = (string) ($post['intent'] ?? 'save');
+        $quote = $stage === 'quote';
+        $notify = (string) ($post['notify'] ?? '') === 'true';
 
         try {
             if ($intent === 'delete') {
-                OfficeOrders::delete($id);
+                $quote ? Quotes::delete($id) : OfficeOrders::delete($id);
                 $result['deleted'] = true;
+
+                return $result;
+            }
+
+            if ($quote && $intent === 'reject') {
+                Quotes::reject($id, ['user_id' => $userId]);
+                $result['rejected'] = true;
 
                 return $result;
             }
 
             $data = self::header($post);
             $data['lines'] = self::decode($post['lines'] ?? null);
-            $result['id'] = OfficeOrders::save($id, $data, $userId);
+            $result['id'] = OfficeOrders::save($id, $data, $userId, $stage);
+
+            if ($quote) {
+                if ($intent === 'send') {
+                    $sent = Quotes::send($result['id'], ['user_id' => $userId, 'notify' => $notify]);
+                    $result['sent'] = $sent['number'].($sent['revision'] > 1 ? ' rev. '.$sent['revision'] : '');
+                    $result['email'] = $sent['email'];
+                } elseif ($intent === 'accept') {
+                    Quotes::accept($result['id'], ['user_id' => $userId]);
+                    $result['accepted'] = true;
+                }
+
+                return $result;
+            }
 
             if ($intent === 'confirm') {
                 $result['number'] = OfficeOrders::confirm($result['id'], [
                     'user_id' => $userId,
                     'source' => 'user',
-                    'notify' => (string) ($post['notify'] ?? '') === 'true',
+                    'notify' => $notify,
                 ])['order_number'];
             }
         } catch (UserError $error) {
@@ -122,7 +145,7 @@ final class OfficeOrderForm
      *
      * @param array<string, mixed> $post
      */
-    public static function remember(array $post): void
+    public static function remember(array $post, string $stage = 'order'): void
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             return;
@@ -136,6 +159,7 @@ final class OfficeOrderForm
 
         $_SESSION[self::RESTORE_KEY] = [
             'at' => time(),
+            'stage' => $stage,
             'header' => self::header($post),
             'lines' => array_slice(array_values(array_filter($lines, 'is_array')), 0, OfficeOrderRules::MAX_LINES),
         ];
@@ -146,12 +170,18 @@ final class OfficeOrderForm
      *
      * @return array{header: array<string, string>, lines: list<array<string, mixed>>}|null
      */
-    public static function recall(): ?array
+    public static function recall(string $stage = 'order'): ?array
     {
         $saved = $_SESSION[self::RESTORE_KEY] ?? null;
+
+        // Quello di un preventivo non torna in un ordine nuovo, e viceversa.
+        if (!is_array($saved) || (string) ($saved['stage'] ?? 'order') !== $stage) {
+            return null;
+        }
+
         unset($_SESSION[self::RESTORE_KEY]);
 
-        if (!is_array($saved) || time() - (int) ($saved['at'] ?? 0) > self::RESTORE_TTL) {
+        if (time() - (int) ($saved['at'] ?? 0) > self::RESTORE_TTL) {
             return null;
         }
 

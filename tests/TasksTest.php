@@ -89,7 +89,17 @@ check('le attività hanno chiavi diverse', function () {
         $chiavi[] = $task->key();
     }
 
-    return $chiavi === array_values(array_unique($chiavi)) && count($chiavi) === 4;
+    return $chiavi === array_values(array_unique($chiavi)) && count($chiavi) === 5;
+});
+
+check('i preventivi scaduti: un\'attività del modulo, giornaliera e spenta (G9)', function () {
+    foreach (Gestionale::tasks() as $task) {
+        if ($task->key() === 'gestionale.quote_expiry') {
+            return $task->expression() === '10 5 * * *' && $task->enabled() === false;
+        }
+    }
+
+    return false;
 });
 
 check('il riallineamento con Stripe è un\'attività del modulo, oraria e spenta', function () {

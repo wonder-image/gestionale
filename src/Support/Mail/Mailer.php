@@ -30,19 +30,24 @@ final class Mailer
     /** Sempre lo stesso: il registro del core conta le ripetizioni sulla stessa riga. */
     private const ONLY_INVALID = 'L\'hook beforeEmailSend ha lasciato solo destinatari non validi.';
 
-    /** @var (callable(string, string, string): bool)|null */
+    /** @var (callable(string, string, string, array<string, string>): bool)|null */
     private static $transport = null;
 
     /** @var (callable(string, array): void)|null */
     private static $reporter = null;
 
     /**
+     * `$attachments` sono i file da allegare, percorso => nome con cui arriva
+     * (G9: il PDF del preventivo e della conferma). L'hook li vede e li può
+     * togliere.
+     *
      * @param list<string> $to
+     * @param array<string, string> $attachments
      * @return array{status: string, to: list<string>, sent: list<string>, failed: list<string>}
      */
-    public static function send(string $key, array $to, string $subject, string $body): array
+    public static function send(string $key, array $to, string $subject, string $body, array $attachments = []): array
     {
-        $original = ['to' => $to, 'subject' => $subject, 'body' => $body];
+        $original = ['to' => $to, 'subject' => $subject, 'body' => $body, 'attachments' => $attachments];
         $message = Extensions::filter('beforeEmailSend', $original, $key);
         $message = is_array($message) ? $message + $original : $original;
 
@@ -65,13 +70,14 @@ final class Mailer
 
         $subject = (string) $message['subject'];
         $body = (string) $message['body'];
+        $files = is_array($message['attachments'] ?? null) ? array_map('strval', $message['attachments']) : [];
         $transport = self::$transport ?? self::defaultTransport();
         $sent = [];
         $failed = [];
 
         foreach ($recipients as $address) {
             try {
-                if ($transport($address, $subject, $body) !== true) {
+                if ($transport($address, $subject, $body, $files) !== true) {
                     throw new RuntimeException('Il server di posta non ha accettato l\'email.');
                 }
 
@@ -180,10 +186,10 @@ final class Mailer
         };
     }
 
-    /** @return callable(string, string, string): bool */
+    /** @return callable(string, string, string, array<string, string>): bool */
     private static function defaultTransport(): callable
     {
-        return static function (string $to, string $subject, string $body): bool {
+        return static function (string $to, string $subject, string $body, array $attachments = []): bool {
             // Le funzioni globali del core ci sono solo nel sito avviato:
             // non in un comando `forge`, non nei test.
             if (!function_exists('sendMail')) {
@@ -192,7 +198,7 @@ final class Mailer
 
             // Su Brevo il core manda la risposta-a senza guardarla, e Brevo ne
             // rifiuta una vuota: l'email non partirebbe mai.
-            return (bool) sendMail(self::replyTo(), $to, $subject, self::shield($body));
+            return (bool) sendMail(self::replyTo(), $to, $subject, self::shield($body), $attachments === [] ? null : $attachments);
         };
     }
 }

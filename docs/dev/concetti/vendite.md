@@ -135,6 +135,50 @@ o l'area cliente del sito gli mostrerebbe gli ordini dell'ufficio.
   pagina, `OfficeOrderResource`); un ordine da ufficio confermato ha
   `cancel_lines`.
 
+## Preventivi e PDF (G9)
+
+Il preventivo è lo stesso documento della bozza d'ordine con `stage` `quote`:
+`OfficeOrders::save(..., 'quote')` lo scrive, `Quotes` lo invia (numero al
+primo invio, `quote_revision` +1, PDF in `gst_order_quote_revisions`),
+`accept()` lo fa diventare una bozza d'ordine (`stage` `order`, `status`
+`draft`), `expireDue()` (con `QuoteExpiryTask`) segna gli scaduti. Non prenota
+e non scarica mai.
+
+I PDF di vendita (`Support\Documents`):
+
+- `DocumentData::forOrder()` legge società, documento, righe, IVA e pagamento;
+- `DocumentPdf` disegna con `Wonder\Pdf` (FPDF, testo in Windows-1252 con
+  `text()`), `QuotePdf` e `OrderConfirmationPdf` cambiano titolo e dati;
+- `DocumentFiles` li tiene in `storage/gestionale/documents`, non pubblica:
+  si scaricano dalle rotte `…/preventivi/{id}/pdf/{rev}/` e
+  `…/ordine-da-ufficio/{id}/pdf/`.
+
+Il sito sostituisce un PDF con l'hook `documentPdf` di `GestionaleExtension`:
+
+```php
+final class MioGestionale extends GestionaleExtension
+{
+    public function documentPdf(string $type, string $class): string
+    {
+        return $type === 'quote' ? MioPreventivo::class : $class;
+    }
+}
+
+class MioPreventivo extends \Wonder\Plugin\Gestionale\Support\Documents\QuotePdf
+{
+    protected function notes(): void
+    {
+        parent::notes();
+        $this->section('Condizioni generali');
+        $this->pdf->MultiCell(180, 5, self::text('…'));
+    }
+}
+```
+
+Una classe che non esiste o non estende `DocumentPdf` non vale: resta quella
+del modulo. Le email `quote_sent` e `office_confirmed` portano il PDF
+allegato (`Mailer::send(..., $attachments)`).
+
 ## Le rate (G9)
 
 Una **rata** è una riga `payment` di `gst_payments` con `due_date`, scritta

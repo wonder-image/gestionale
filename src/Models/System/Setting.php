@@ -19,7 +19,8 @@ use Wonder\Sql\TableSchema as Column;
  * produzione. Lo stesso vale per `stripe_methods_cache`, la lettura dei metodi
  * del conto Stripe: è di quell'ambiente e quel conto, e per `batch_expiry_days`,
  * i giorni di preavviso dei lotti in scadenza scelti dal commerciante, e per
- * `payment_due_days`, quelli delle rate in scadenza (G9).
+ * `payment_due_days` e `quote_validity_days`, quelli delle rate in scadenza e
+ * della validità dei preventivi (G9).
  *
  * Qui stanno le scelte che si fanno una volta con il commercialista o in fase
  * di installazione. I moduli accesi aggiungono le loro coi riquadri di
@@ -33,7 +34,7 @@ final class Setting extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'low_stock_emails', 'stripe_methods_cache', 'batch_expiry_days', 'payment_due_days']);
+        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'low_stock_emails', 'stripe_methods_cache', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days']);
     }
 
     public static function tableSchema(): array
@@ -65,6 +66,8 @@ final class Setting extends Model
             Column::key('batch_expiry_days')->int()->default(30),
             // G9: i giorni dello scadenzario «in scadenza», del commerciante.
             Column::key('payment_due_days')->int()->default(7),
+            // G9: quanti giorni vale un preventivo appena fatto.
+            Column::key('quote_validity_days')->int()->default(30),
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -97,6 +100,7 @@ final class Setting extends Model
             Field::key('stripe_methods_cache')->text()->sanitize(false),
             Field::key('batch_expiry_days')->number()->decimals(0),
             Field::key('payment_due_days')->number()->decimals(0),
+            Field::key('quote_validity_days')->number()->decimals(0),
         ];
 
         foreach (SettingsSections::all() as $section) {

@@ -25,6 +25,13 @@ $json = static fn (mixed $value): string => (string) json_encode($value, JSON_HE
 // I testi salvati arrivano già passati da htmlspecialchars: si riportano come li ha scritti l'operatore.
 $v = static fn (string $key, string $default = ''): string => html_entity_decode((string) ($values[$key] ?? $default), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 $editing = (int) ($values['id'] ?? 0) > 0;
+// Preventivo (piano 3) o ordine: stessa pagina, parole e bottoni diversi.
+$quote = $resource::stage() === 'quote';
+$status = (string) ($values['status'] ?? 'draft');
+$neverSent = trim((string) ($values['quote_number'] ?? '')) === '';
+$revisions = $quote && $editing ? \Wonder\Plugin\Gestionale\Support\Sales\Quotes::revisions((int) $values['id']) : [];
+$expires = substr((string) ($values['quote_expires_at'] ?? ''), 0, 10);
+$expires = $expires === '' || str_starts_with($expires, '0000') ? substr(\Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders::defaultExpiry(), 0, 10) : $expires;
 $editor = (array) ($values['editor'] ?? []);
 $customerId = (int) ($values['customer_id'] ?? 0);
 $customer = $customerId > 0 ? Contact::findById($customerId) : null;
@@ -152,8 +159,16 @@ $card = static fn (string $title, string $body, string $help = '', string $attri
             .'<div class="col-12 col-md-3">'
                 .'<label class="form-label" for="wi-oo-manual_discount_value">Valore dello sconto</label>'
                 .'<input type="text" class="form-control" id="wi-oo-manual_discount_value" name="manual_discount_value" inputmode="decimal" value="'.$e($discountValue > 0 ? number_format($discountValue, 2, ',', '') : '').'">'
-            .'</div>',
-            'La condizione dice in quante rate e quando si paga: alla conferma nascono le rate nello Scadenzario.'
+            .'</div>'
+            .($quote
+                ? '<div class="col-12 col-md-3">'
+                    .'<label class="form-label" for="wi-oo-quote_expires_at">Valido fino al '.Tooltip::make('Inviato e non accettato entro questa data, il preventivo diventa scaduto.')->render().'</label>'
+                    .'<input type="date" class="form-control" id="wi-oo-quote_expires_at" name="quote_expires_at" value="'.$e($expires).'">'
+                .'</div>'
+                : ''),
+            $quote
+                ? 'La condizione dice in quante rate si pagherà: le rate nascono quando l\'ordine si conferma.'
+                : 'La condizione dice in quante rate e quando si paga: alla conferma nascono le rate nello Scadenzario.'
         )?>
         <?=$card('Note',
             '<div class="col-12 col-md-4"><label class="form-label" for="wi-oo-document_note">Nota stampata '.Tooltip::make('Compare sul documento che riceve il cliente.')->render().'</label>'
@@ -175,16 +190,54 @@ $card = static fn (string $title, string $body, string $help = '', string $attri
             'I totali dell\'ultimo salvataggio, con listino, campagne, sconti e spedizione. Dopo una modifica salva la bozza per vederli aggiornati.'
         )?>
         <?php } ?>
+        <?php if ($revisions !== []) { ?>
+        <?php
+            $righe = '';
+
+            foreach ($revisions as $revision) {
+                $righe .= '<tr>'
+                    .'<td>'.$e((int) $revision['revision']).'</td>'
+                    .'<td>'.$e(OrderSheet::date((string) ($revision['sent_at'] ?? ''))).'</td>'
+                    .'<td class="d-none d-md-table-cell">'.$e(trim((string) ($revision['sent_to'] ?? '')) !== '' ? (string) $revision['sent_to'] : 'Nessuna email').'</td>'
+                    .'<td class="text-end">'.$e(OrderSheet::money($revision['total'] ?? 0)).'</td>'
+                    .'<td class="text-end"><a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" href="'.$e(\Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource::revisionPdfUrl((int) $values['id'], (int) $revision['revision'])).'"><i class="bi bi-file-earmark-pdf"></i> PDF</a></td>'
+                    .'</tr>';
+            }
+        ?>
+        <?=$card('Revisioni inviate',
+            '<div class="col-12 table-responsive"><table class="table table-sm align-middle mb-0">'
+                .'<thead><tr><th>Rev.</th><th>Inviata il</th><th class="d-none d-md-table-cell">A</th><th class="text-end">Totale</th><th></th></tr></thead>'
+                .'<tbody>'.$righe.'</tbody></table></div>',
+            'Ogni invio archivia il PDF che il cliente ha ricevuto: non cambia più, anche se poi modifichi il preventivo.'
+        )?>
+        <?php } ?>
         <div class="col-12"><div class="card border"><div class="card-body d-flex flex-wrap align-items-center justify-content-end gap-2">
-            <?php if ($editing) { ?>
-            <button type="button" class="btn btn-outline-danger me-auto" data-wi-oo-delete><i class="bi bi-trash"></i> Elimina bozza</button>
+            <?php if ($quote) { ?>
+                <?php if ($editing && $neverSent && $status === 'draft') { ?>
+                <button type="button" class="btn btn-outline-danger me-auto" data-wi-oo-action="delete"><i class="bi bi-trash"></i> Elimina</button>
+                <?php } elseif ($editing && $status === 'sent') { ?>
+                <button type="button" class="btn btn-outline-danger me-auto" data-wi-oo-action="reject"><i class="bi bi-x-circle"></i> Rifiutato</button>
+                <?php } ?>
+                <div class="form-check me-2">
+                    <input class="form-check-input" type="checkbox" id="wi-oo-notify" name="notify" value="true" checked>
+                    <label class="form-check-label" for="wi-oo-notify">Manda l'email con il PDF</label>
+                </div>
+                <button type="submit" class="btn btn-outline-dark">Salva bozza</button>
+                <?php if ($editing && in_array($status, ['draft', 'sent'], true)) { ?>
+                <button type="button" class="btn btn-outline-success" data-wi-oo-action="accept"><i class="bi bi-check2-circle"></i> Accettato</button>
+                <?php } ?>
+                <button type="button" class="btn btn-dark" data-wi-oo-action="send"><i class="bi bi-send"></i> <?=$status === 'sent' ? 'Invia di nuovo' : 'Invia al cliente'?></button>
+            <?php } else { ?>
+                <?php if ($editing) { ?>
+                <button type="button" class="btn btn-outline-danger me-auto" data-wi-oo-action="delete"><i class="bi bi-trash"></i> Elimina bozza</button>
+                <?php } ?>
+                <div class="form-check me-2">
+                    <input class="form-check-input" type="checkbox" id="wi-oo-notify" name="notify" value="true">
+                    <label class="form-check-label" for="wi-oo-notify">Alla conferma scrivi al cliente</label>
+                </div>
+                <button type="submit" class="btn btn-outline-dark">Salva bozza</button>
+                <button type="button" class="btn btn-dark" data-wi-oo-action="confirm">Conferma ordine</button>
             <?php } ?>
-            <div class="form-check me-2">
-                <input class="form-check-input" type="checkbox" id="wi-oo-notify" name="notify" value="true">
-                <label class="form-check-label" for="wi-oo-notify">Alla conferma scrivi al cliente</label>
-            </div>
-            <button type="submit" class="btn btn-outline-dark">Salva bozza</button>
-            <button type="button" class="btn btn-dark" data-wi-oo-confirm>Conferma ordine</button>
         </div></div></div>
     </div>
 </form>
@@ -204,6 +257,16 @@ $card = static fn (string $title, string $body, string $help = '', string $attri
     var sending = false;
     var timer = null;
     var seq = 0;
+    // Le domande prima di ogni azione; `lines: false` = l'azione non salva le righe.
+    var actions = <?=$json($quote ? [
+        'send' => ['title' => 'Invia il preventivo', 'text' => $neverSent ? 'Il preventivo prende il numero e si archivia il suo PDF; con la casella spuntata il cliente lo riceve per email.' : 'Il preventivo si salva e, se è cambiato, diventa una revisione nuova con il suo PDF; con la casella spuntata il cliente lo riceve per email.', 'ok' => 'Invia', 'lines' => true],
+        'accept' => ['title' => 'Preventivo accettato', 'text' => 'Il preventivo si salva e diventa una bozza d\'ordine con le stesse righe: lì controlli consegna e pagamento e lo confermi.', 'ok' => 'Accettato', 'lines' => true],
+        'reject' => ['title' => 'Preventivo rifiutato', 'text' => 'Il preventivo si segna come rifiutato. Le modifiche non salvate di questa pagina si perdono; modificandolo dopo lo riapri.', 'ok' => 'Rifiutato', 'lines' => false],
+        'delete' => ['title' => 'Elimina preventivo', 'text' => 'Il preventivo non è mai stato inviato: si elimina con le sue righe.', 'ok' => 'Elimina', 'lines' => false],
+    ] : [
+        'confirm' => ['title' => 'Conferma ordine', 'text' => 'L\'ordine prende il numero, la merce esce dal magazzino e nascono le rate. Dopo le righe non si modificano più: si possono solo annullare.', 'ok' => 'Conferma ordine', 'lines' => true],
+        'delete' => ['title' => 'Elimina bozza', 'text' => 'La bozza si elimina con le sue righe. Non ha numero né movimenti di magazzino: non resta niente.', 'ok' => 'Elimina', 'lines' => false],
+    ])?>;
 
     function editor() {
         var root = form.querySelector('[data-wi-office-editor]');
@@ -346,7 +409,7 @@ $card = static fn (string $title, string $body, string $help = '', string $attri
     shippingShown();
 
     function lock(on) {
-        Array.prototype.forEach.call(form.querySelectorAll('button[type="submit"], [data-wi-oo-confirm], [data-wi-oo-delete]'), function (button) {
+        Array.prototype.forEach.call(form.querySelectorAll('button[type="submit"], [data-wi-oo-action]'), function (button) {
             button.disabled = on;
         });
         sending = on;
@@ -382,7 +445,7 @@ $card = static fn (string $title, string $body, string $help = '', string $attri
     }
 
     form.addEventListener('submit', function (event) {
-        if (intent.value === 'delete') {
+        if (actions[intent.value] && actions[intent.value].lines === false) {
             lines.value = '[]';
             lock(true);
 
@@ -396,37 +459,33 @@ $card = static fn (string $title, string $body, string $help = '', string $attri
     });
 
     form.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-wi-oo-action]');
+        var what = button ? button.getAttribute('data-wi-oo-action') : '';
+        var action = actions[what];
         var current;
 
-        if (event.target.closest('[data-wi-oo-confirm]')) {
+        if (!action || sending) {
+            return;
+        }
+
+        if (action.lines) {
             current = editor();
 
-            if (sending || !current || !current.validate()) {
+            if (!current || !current.validate()) {
                 return;
             }
-
-            ask({
-                title: 'Conferma ordine',
-                text: 'L\'ordine prende il numero, la merce esce dal magazzino e nascono le rate. Dopo le righe non si modificano più: si possono solo annullare.',
-                ok: 'Conferma ordine',
-                cancel: 'Torna alla bozza'
-            }).then(function (ok) {
-                if (ok) {
-                    send('confirm');
-                }
-            });
-        } else if (event.target.closest('[data-wi-oo-delete]')) {
-            ask({
-                title: 'Elimina bozza',
-                text: 'La bozza si elimina con le sue righe. Non ha numero né movimenti di magazzino: non resta niente.',
-                ok: 'Elimina',
-                cancel: 'Annulla'
-            }).then(function (ok) {
-                if (ok) {
-                    send('delete');
-                }
-            });
         }
+
+        ask({
+            title: action.title,
+            text: action.text,
+            ok: action.ok,
+            cancel: 'Indietro'
+        }).then(function (ok) {
+            if (ok) {
+                send(what);
+            }
+        });
     });
 
     window.addEventListener('pageshow', function (event) {
