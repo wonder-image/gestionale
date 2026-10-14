@@ -500,3 +500,5 @@ $card = static fn (string $title, string $body, string $help = '', string $attri
     });
 })();
 </script>
+
+<?php \Wonder\View\View::end(); ?>
