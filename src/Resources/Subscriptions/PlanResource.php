@@ -19,7 +19,9 @@ use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureGuards;
 use Wonder\Plugin\Gestionale\Support\Numbers;
@@ -330,6 +332,29 @@ final class PlanResource extends GestionaleResource
         }
 
         return $values;
+    }
+
+    /**
+     * Un prezzo nuovo nasce col suo codice (`ppr_…`): il repeater non lo fa
+     * da sé, e senza il negozio non ha l'indirizzo della sottoscrizione. Un
+     * prezzo che c'era già tiene il suo.
+     */
+    public static function prepareRepeaterRelationRow(
+        string $inputName,
+        array $payload,
+        array $row,
+        ?array $existingRow = null,
+        string $action = 'store',
+        string $context = 'backend'
+    ): array {
+        if ($inputName !== 'prices') {
+            return $payload;
+        }
+
+        $code = trim((string) ($existingRow['code'] ?? ''));
+        $payload['code'] = $code !== '' ? $code : Code::make(PlanPrice::class, Codes::PLAN_PRICE);
+
+        return $payload;
     }
 
     /**

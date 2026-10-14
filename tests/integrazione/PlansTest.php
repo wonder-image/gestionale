@@ -22,6 +22,8 @@ use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\PlanResource;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Plugin\Gestionale\Seeding\PlansDemo;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureGuards;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
@@ -54,12 +56,15 @@ function prova(callable $corpo): mixed
 /** Un piano con i suoi prezzi e limiti, salvati come li salva il repeater della pagina. Ridà l'id. */
 function piano(string $nome, array $prezzi, array $limiti = []): int
 {
-    $id = (int) (Plan::create(['name' => $nome, 'slug' => strtolower($nome).'-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
+    // Il codice del piano lo dà il form della pagina; qui si scrive a mano.
+    $id = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'name' => $nome, 'slug' => strtolower($nome).'-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
 
+    // Come la pagina: i prezzi nuovi prendono il codice da `prepareRepeaterRelationRow`.
     Repeater::syncRelatedRows(
         RepeaterRelation::make(PlanPrice::$table, 'plan_id')->model(PlanPrice::class)->positionKey('position'),
         $id,
-        PlanResource::prepareRepeaterRows('prices', $prezzi)
+        PlanResource::prepareRepeaterRows('prices', $prezzi),
+        static fn (array $payload, array $row, ?array $esistente): array => PlanResource::prepareRepeaterRelationRow('prices', $payload, $row, $esistente)
     );
 
     if ($limiti !== []) {
@@ -92,7 +97,7 @@ function cliente(): int
 function abbonamento(int $cliente, int $prezzo, string $stato): int
 {
     return (int) (Subscription::create([
-        'customer_id' => $cliente, 'plan_price_id' => $prezzo, 'channel' => 'office', 'provider' => 'manual',
+        'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION), 'customer_id' => $cliente, 'plan_price_id' => $prezzo, 'channel' => 'office', 'provider' => 'manual',
         'status' => $stato, 'total' => '19.00', 'started_at' => date('Y-m-d H:i:s'),
     ])->insert_id ?? 0);
 }
