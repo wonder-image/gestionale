@@ -134,4 +134,21 @@ check('i file stanno nella loro cartella, e un percorso con .. non passa', funct
     }
 });
 
+check('il proforma di un abbonamento: una riga col periodo, rate e nota, senza numero', function () {
+    $dati = Wonder\Plugin\Gestionale\Support\Documents\DocumentData::forSubscription([
+        'id' => 9, 'code' => 'sub_abc1234', 'billing_name' => 'Lucia', 'billing_surname' => 'Rossi', 'billing_city' => 'Torino',
+        'subtotal' => '24.40', 'discount_total' => '0.00', 'tax_rate' => '22.00', 'tax_total' => '4.40', 'total' => '24.40',
+        'payment_method_id' => 0, 'payment_term_id' => 0,
+    ], 'Pro - Mensile', '2026-11-01 00:00:00', '2026-12-01 00:00:00', [['due_date' => '2026-11-30', 'amount' => 24.4]]);
+    $pdf = DocumentPdfs::render('proforma', $dati);
+
+    return DocumentPdfs::classFor('proforma') === Wonder\Plugin\Gestionale\Support\Documents\ProformaPdf::class
+        && str_starts_with($pdf, '%PDF')
+        && $dati['items'][0]['name'] === 'Pro - Mensile - dal 01/11/2026 al 01/12/2026'
+        && $dati['order']['taxable_total'] === 20.0 && $dati['order']['fulfillment_type'] === 'none'
+        && $dati['payment']['installments'] === [['due_date' => '2026-11-30', 'amount' => 24.4]]
+        && $dati['meta']['Abbonamento'] === 'sub_abc1234'
+        && str_contains((string) $dati['order']['document_note'], 'non valido ai fini fiscali');
+});
+
 summary();

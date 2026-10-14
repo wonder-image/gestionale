@@ -64,6 +64,63 @@ final class DocumentData
     }
 
     /**
+     * I dati del proforma di un periodo di un abbonamento (G10 §3): una riga
+     * sola (piano, prezzo, periodo), i totali e l'IVA dell'abbonamento, le rate
+     * in attesa di quel periodo. Il proforma non ha numero: non è un documento
+     * fiscale.
+     *
+     * @param list<array{due_date: string, amount: float}> $installments le rate del periodo
+     * @return array<string, mixed>
+     */
+    public static function forSubscription(array $subscription, string $planLabel, string $periodStart, string $periodEnd, array $installments): array
+    {
+        $rate = (float) ($subscription['tax_rate'] ?? 0);
+        $subtotal = round((float) ($subscription['subtotal'] ?? 0), 2);
+        $order = $subscription + [
+            'fulfillment_type' => 'none',
+            'products_total' => $subtotal,
+            'taxable_total' => round((float) ($subscription['total'] ?? 0) - (float) ($subscription['tax_total'] ?? 0), 2),
+            'shipping_total' => 0,
+            'document_note' => 'Documento non valido ai fini fiscali: la fattura segue il pagamento.',
+        ];
+        $order['email'] = '';
+        $payment = self::payment(['payment_method_id' => $subscription['payment_method_id'] ?? 0, 'payment_term_id' => $subscription['payment_term_id'] ?? 0]);
+        $payment['installments'] = $installments;
+
+        return [
+            'society' => self::society(),
+            'order' => $order,
+            'items' => [[
+                'type' => 'product',
+                'name' => $planLabel.' - dal '.self::day($periodStart).' al '.self::day($periodEnd),
+                'quantity' => 1,
+                'unit_price' => $subtotal,
+                'line_total' => $subtotal,
+                'tax_rate' => $rate,
+            ]],
+            'taxes' => [[
+                'rate' => $rate,
+                'nature' => '',
+                'taxable' => (float) $order['taxable_total'],
+                'tax' => round((float) ($subscription['tax_total'] ?? 0), 2),
+                'total' => round((float) ($subscription['total'] ?? 0), 2),
+            ]],
+            'payment' => $payment,
+            'meta' => [
+                'Abbonamento' => (string) ($subscription['code'] ?? ''),
+                'Periodo' => self::day($periodStart).' - '.self::day($periodEnd),
+            ],
+        ];
+    }
+
+    private static function day(string $value): string
+    {
+        $value = substr(trim($value), 0, 10);
+
+        return $value === '' || str_starts_with($value, '0000') ? '' : implode('/', array_reverse(explode('-', $value)));
+    }
+
+    /**
      * La società come la scrive il core, in righe pronte.
      *
      * @return array<string, string>

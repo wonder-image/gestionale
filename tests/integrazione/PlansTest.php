@@ -257,6 +257,7 @@ check('importi di un periodo con un coupon vero, riletto dal database', function
 
 check('i piani di prova: due piani, quattro prezzi, quattro limiti; il secondo giro non rifà niente', function () {
     return prova(static function (): bool {
+        Wonder\Plugin\Gestionale\Seeding\OfficeSubscriptionsDemo::clear();
         PlansDemo::clear();
         $creati = PlansDemo::create();
         $secondo = PlansDemo::create();

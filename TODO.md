@@ -346,8 +346,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - [x] Gestionale (ramo `g10-piano-2`): `StripeCatalog`, `OnlineSubscriptions` (Checkout, cambio piano, disdetta col vincolo, portale, riallineamento, fine vincolo), notifiche in `SubscriptionEvents`, tre email, `online_subscriptions`. Test `OnlineSubscriptionsTest` sul Mac
     - [x] Ecommerce: pagina dei piani, sottoscrizione, area cliente (wonder-image/ecommerce#11, ramo `g10-abbonamenti-online`)
     - [ ] Prove con Stripe vero: aspettano le chiavi di prova sul sito di prova
-    - [ ] Dopo: *Cambia piano* e *Disdici* dal backend (piano 3); rimborsi degli abbonamenti registrati in automatico (G8)
-  - [ ] Piano 3 Abbonamenti da ufficio
+    - [ ] Dopo: rimborsi degli abbonamenti registrati in automatico (G8). *Cambia piano* e *Disdici* dal backend: fatti nel piano 3
+  - [x] Piano 3 Abbonamenti da ufficio ([piano](docs/superpowers/plans/2026-10-13-g10-piano-3-abbonamenti-da-ufficio.md), ramo `g10-piano-3` con `g9-piano-3` unito): *Nuovo abbonamento*, rate per periodo dalla condizione di pagamento, proforma PDF per email, promemoria, `past_due` → `unpaid` (impostazione), *Registra pagamento*, Scadenzario, *Cambia piano*/*Disdici*/*Annulla* dalla scheda (anche per gli online). Test `OfficeSubscriptionsTest` sul Mac
 
 **Fuori dal percorso della consegna (D61)**
 

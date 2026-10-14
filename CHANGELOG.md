@@ -7,6 +7,17 @@ versionamento semantico.
 
 ### Aggiunto
 
+- G10 piano 3, **Abbonamenti da ufficio**: **Nuovo abbonamento** (cliente,
+  prezzo, data d'inizio, metodo e condizione di pagamento, coupon); a ogni
+  periodo le **rate** della condizione di pagamento e il **proforma** PDF per
+  email; rata scaduta → *da pagare* con un promemoria, oltre i giorni
+  dell'impostazione **Giorni prima di «non pagato»** → *non pagato*;
+  **Registra pagamento** sulle rate, anche dallo **Scadenzario**, che ora
+  mostra le rate degli abbonamenti. Dalla scheda **Cambia piano**,
+  **Disdici** (anche per gli online), **Annulla** e **Rimanda il proforma**.
+  Attività **periodi e scadenze degli abbonamenti da ufficio**.
+  `gestionale:demo` aggiunge un abbonamento da ufficio su «Base».
+
 - G10 piano 2, **Abbonamenti online** (`online_subscriptions`, da attivare,
   richiede *Vendita online* e *Abbonamenti*): sottoscrizione con **Stripe
   Checkout** in modalità abbonamento (carta e Link), prova gratuita una volta

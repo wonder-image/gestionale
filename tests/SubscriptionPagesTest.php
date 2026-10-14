@@ -115,6 +115,23 @@ check('spegnere altre funzionalità non tocca gli abbonamenti', function () {
     return true;
 });
 
+check('le azioni della scheda: da ufficio tutte, online solo cambio e disdetta, chiuso niente', function () {
+    $ufficio = ['channel' => 'office', 'status' => 'active', 'auto_renew' => 'true', 'current_period_start' => '2026-10-01 00:00:00'];
+    $online = ['channel' => 'online', 'status' => 'active', 'auto_renew' => 'true', 'provider_reference' => 'sub_1'];
+
+    return array_keys(SubscriptionResource::availableActions($ufficio)) === ['change_plan', 'cancel', 'proforma', 'terminate']
+        && array_keys(SubscriptionResource::availableActions($online)) === ['change_plan', 'cancel']
+        && array_keys(SubscriptionResource::availableActions(['auto_renew' => 'false'] + $online)) === ['change_plan']
+        && array_keys(SubscriptionResource::availableActions(['provider_reference' => ''] + $online)) === []
+        && array_keys(SubscriptionResource::availableActions(['status' => 'unpaid'] + $ufficio)) === ['change_plan', 'cancel', 'proforma', 'terminate']
+        && SubscriptionResource::availableActions(['status' => 'cancelled'] + $ufficio) === [];
+});
+
+check('i link della rata e della scheda tengono i segnaposto del menu di riga', fn () =>
+    str_contains(SubscriptionResource::detailUrlPattern('{subscription_id}'), '/{subscription_id}/')
+    && str_contains(Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionPaymentResource::urlFor('{subscription_id}', '{id}'), 'abbonamento={subscription_id}&rata={id}')
+);
+
 check('un prezzo nuovo del repeater nasce col suo codice, uno vecchio tiene il suo', function () {
     $nuovo = PlanResource::prepareRepeaterRelationRow('prices', ['name' => 'Mensile'], ['name' => 'Mensile']);
     $vecchio = PlanResource::prepareRepeaterRelationRow('prices', ['name' => 'Annuale'], ['id' => 7], ['id' => 7, 'code' => 'ppr_abc1234']);

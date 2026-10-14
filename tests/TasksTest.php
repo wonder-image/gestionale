@@ -89,7 +89,19 @@ check('le attività hanno chiavi diverse', function () {
         $chiavi[] = $task->key();
     }
 
-    return $chiavi === array_values(array_unique($chiavi)) && count($chiavi) === 6;
+    return $chiavi === array_values(array_unique($chiavi)) && count($chiavi) === 7;
+});
+
+check('la fine del vincolo degli abbonamenti è un\'attività giornaliera e spenta', function () {
+    $task = new Wonder\Plugin\Gestionale\Scheduler\SubscriptionCommitmentTask();
+
+    return $task->key() === 'gestionale.subscription_commitments' && $task->expression() === '15 6 * * *' && $task->enabled() === false;
+});
+
+check('gli abbonamenti da ufficio hanno un\'attività giornaliera e spenta', function () {
+    $task = new Wonder\Plugin\Gestionale\Scheduler\OfficeSubscriptionsTask();
+
+    return $task->key() === 'gestionale.office_subscriptions' && $task->expression() === '20 6 * * *' && $task->enabled() === false;
 });
 
 check('i preventivi scaduti: un\'attività del modulo, giornaliera e spenta (G9)', function () {
@@ -100,12 +112,6 @@ check('i preventivi scaduti: un\'attività del modulo, giornaliera e spenta (G9)
     }
 
     return false;
-});
-
-check('la fine del vincolo degli abbonamenti è un\'attività giornaliera e spenta', function () {
-    $task = new Wonder\Plugin\Gestionale\Scheduler\SubscriptionCommitmentTask();
-
-    return $task->key() === 'gestionale.subscription_commitments' && $task->expression() === '15 6 * * *' && $task->enabled() === false;
 });
 
 check('il riallineamento con Stripe è un\'attività del modulo, oraria e spenta', function () {

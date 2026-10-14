@@ -8,6 +8,7 @@ use Wonder\App\Module\Contracts\ModuleTasks;
 use Wonder\Plugin\Gestionale\Scheduler\ExpiryTask;
 use Wonder\Plugin\Gestionale\Scheduler\QuoteExpiryTask;
 use Wonder\Plugin\Gestionale\Scheduler\ImagesTask;
+use Wonder\Plugin\Gestionale\Scheduler\OfficeSubscriptionsTask;
 use Wonder\Plugin\Gestionale\Scheduler\StockAlertsTask;
 use Wonder\Plugin\Gestionale\Scheduler\StripeReconcileTask;
 use Wonder\Plugin\Gestionale\Scheduler\SubscriptionCommitmentTask;
@@ -61,7 +62,7 @@ final class Gestionale implements ModuleInterface, ModuleTasks
      */
     public static function tasks(): iterable
     {
-        return [new ImagesTask(), new StockAlertsTask(), new ExpiryTask(), new StripeReconcileTask(), new QuoteExpiryTask(), new SubscriptionCommitmentTask()];
+        return [new ImagesTask(), new StockAlertsTask(), new ExpiryTask(), new StripeReconcileTask(), new QuoteExpiryTask(), new SubscriptionCommitmentTask(), new OfficeSubscriptionsTask()];
     }
 
     public static function assetPath(string $path = ''): string

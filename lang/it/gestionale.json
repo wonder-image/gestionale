@@ -190,7 +190,8 @@
                 "batch_expiry_days_invalid": "I giorni prima della scadenza vanno da 0 a 3650.",
                 "payment_due_days_invalid": "I giorni di preavviso per le scadenze vanno da 0 a 365.",
                 "quote_validity_days_invalid": "La validità dei preventivi va da 1 a 365 giorni.",
-                "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo."
+                "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo.",
+                "subscription_unpaid_days_invalid": "I giorni prima di «non pagato» vanno da 1 a 365."
             },
             "payment_method": {
                 "in_use": "Questo metodo è già su ordini o pagamenti ({{count}}) e non si elimina: mettilo su «Non attivo» e non si propone più."
@@ -332,7 +333,8 @@
                 "stripe_unavailable": "Il pagamento non si è aperto: riprova tra qualche minuto.",
                 "not_live": "Questo abbonamento non è in corso: non si può cambiare.",
                 "already_cancelled": "La disdetta di questo abbonamento è già registrata.",
-                "not_found": "Abbonamento non trovato."
+                "not_found": "Abbonamento non trovato.",
+                "customer_required": "Scegli il cliente dell'abbonamento."
             }
         },
         "emails": {
@@ -433,6 +435,16 @@
                     "title": "Disdetta registrata",
                     "intro": "Abbiamo registrato la disdetta del tuo abbonamento :plan: resta attivo fino al :end, poi non si rinnova.",
                     "button": "Vedi il tuo abbonamento"
+                },
+                "proforma": {
+                    "subject": "Abbonamento :plan: proforma del periodo :period",
+                    "title": "Il tuo abbonamento si rinnova",
+                    "intro": "In allegato il proforma del periodo :period del tuo abbonamento :plan: :total, con le scadenze e le coordinate per il pagamento."
+                },
+                "reminder": {
+                    "subject": "Abbonamento :plan: una rata è scaduta",
+                    "title": "Promemoria di pagamento",
+                    "intro": "Una rata del tuo abbonamento :plan è scaduta e non risulta ancora pagata. Se hai già pagato, non considerare questo messaggio."
                 }
             }
         }

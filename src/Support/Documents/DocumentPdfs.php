@@ -16,6 +16,7 @@ final class DocumentPdfs
         'quote' => QuotePdf::class,
         'order_confirmation' => OrderConfirmationPdf::class,
         'delivery_note' => DeliveryNotePdf::class,
+        'proforma' => ProformaPdf::class,
     ];
 
     /** @return class-string<DocumentPdf> */

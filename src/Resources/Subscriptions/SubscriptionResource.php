@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Subscriptions;
 
 use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
+use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
@@ -12,6 +13,8 @@ use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
+use Wonder\Elements\Components\Modal;
+use Wonder\Http\Route;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Gestionale;
@@ -28,9 +31,11 @@ use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 
 /**
- * «Abbonamenti» (G10 §1.2), in sola lettura: in G10.1 nessuno li crea dal
- * backend. Li scrivono le notifiche di Stripe (piano 2) e *Nuovo abbonamento*
- * da ufficio (piano 3).
+ * «Abbonamenti» (G10 §1.2): quelli del sito li scrivono le notifiche di Stripe
+ * (piano 2), quelli da ufficio *Nuovo abbonamento* (piano 3,
+ * `OfficeSubscriptionResource`). Dalla scheda: *Cambia piano*, *Disdici*,
+ * *Annulla* e *Rimanda il proforma* (`SubscriptionActionResource`), e
+ * *Registra* sulle rate (`SubscriptionPaymentResource`).
  *
  * L'elenco ha cliente, piano, stato, prossimo rinnovo, totale e canale, con i
  * filtri per stato e canale. La scheda ha il periodo, i pagamenti
@@ -155,6 +160,7 @@ final class SubscriptionResource extends GestionaleResource
             ->title('Abbonamenti')
             ->results()
             ->hideButtonAdd()
+            ->buttonCustomHtml('<a class="btn btn-dark btn-sm" href="'.static::escape(OfficeSubscriptionResource::submitUrl()).'"><i class="bi bi-plus-lg"></i> Nuovo abbonamento</a>')
             ->filterSearch()
             ->searchFields(['code', 'billing_name', 'billing_surname', 'billing_business_name', 'coupon_code'])
             ->filterCustom('Stato', 'status', ['' => 'Tutti'] + static::statusLabels())
@@ -167,8 +173,9 @@ final class SubscriptionResource extends GestionaleResource
             ->only(['list'])
             ->enable(['view'])
             ->titles(['list' => 'Abbonamenti', 'view' => 'Abbonamento'])
-            ->subtitles(['list' => 'Gli abbonamenti dei clienti, dal sito e dall\'ufficio. Si leggono e basta: li creano il sito e, da ufficio, il commerciante.'])
-            ->view('show', Gestionale::viewPath('pages/subscription-show.php'));
+            ->subtitles(['list' => 'Gli abbonamenti dei clienti, dal sito e dall\'ufficio. Quelli del sito li crea il cliente; quelli da ufficio, «Nuovo abbonamento».'])
+            ->view('show', Gestionale::viewPath('pages/subscription-show.php'))
+            ->actions('view', static fn (array $item): array => static::actionButtons($item));
     }
 
     public static function permissionSchema(): PermissionSchema
@@ -231,6 +238,9 @@ final class SubscriptionResource extends GestionaleResource
             $dato('Disdetta chiesta', static::day($row['cancel_requested_at'] ?? '')),
             $dato('Chiuso', static::day($row['cancelled_at'] ?? '')),
             $dato('Finito', static::day($row['ended_at'] ?? '')),
+            ...((string) ($row['channel'] ?? '') === 'office' && static::day($row['current_period_start'] ?? '') !== ''
+                ? [DataItem::make('Proforma del periodo', '<a href="'.static::escape(static::proformaUrl($id)).'" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Scarica il PDF</a>')->html(true)->columnSpan(12)]
+                : []),
         ])->columns(12)->columnSpan(12);
 
         $amounts = (new Card)->components([
@@ -251,6 +261,138 @@ final class SubscriptionResource extends GestionaleResource
             (new Container)->components([$main, $period, ...$tables])->columns(12)->columnSpan(8),
             (new Container)->components([$amounts])->columns(12)->columnSpan(4),
         ])->columns(12);
+    }
+
+    /**
+     * I pulsanti della scheda: *Cambia piano* e *Disdici* per gli abbonamenti
+     * in corso, *Annulla* e *Rimanda il proforma* per quelli da ufficio. Ogni
+     * pulsante apre la sua finestra (`modals()`).
+     *
+     * @param array<string, mixed> $row
+     * @return list<array<string, string>>
+     */
+    public static function actionButtons(array $row): array
+    {
+        $buttons = [];
+
+        foreach (static::availableActions($row) as $action => $label) {
+            $buttons[] = [
+                'label' => $label,
+                'icon' => ['change_plan' => 'bi-arrow-left-right', 'cancel' => 'bi-calendar-x', 'terminate' => 'bi-x-octagon', 'proforma' => 'bi-envelope'][$action],
+                'class' => ($action === 'terminate' ? 'btn-outline-danger' : 'btn-outline-dark').' btn-sm',
+                'href' => '#',
+                'onclick' => 'window.bootstrap.Modal.getOrCreateInstance(document.getElementById('.json_encode('wi-abbonamento-'.$action).')).show(); return false;',
+            ];
+        }
+
+        return $buttons;
+    }
+
+    /**
+     * Le azioni che valgono per quell'abbonamento, azione => etichetta.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, string>
+     */
+    public static function availableActions(array $row): array
+    {
+        $status = (string) ($row['status'] ?? '');
+        $office = (string) ($row['channel'] ?? '') === 'office';
+        $live = in_array($status, Subscription::LIVE, true) || ($office && $status === 'unpaid');
+        $online = !$office && trim((string) ($row['provider_reference'] ?? '')) !== '';
+        $actions = [];
+
+        if ($live && ($office || $online)) {
+            $actions['change_plan'] = 'Cambia piano';
+
+            if ((string) ($row['auto_renew'] ?? 'true') === 'true') {
+                $actions['cancel'] = 'Disdici';
+            }
+        }
+
+        if ($office && $status !== 'cancelled') {
+            if (static::day($row['current_period_start'] ?? '') !== '') {
+                $actions['proforma'] = 'Rimanda il proforma';
+            }
+
+            $actions['terminate'] = 'Annulla';
+        }
+
+        return $actions;
+    }
+
+    /** Le finestre di conferma delle azioni, da stampare sotto la scheda. @param array<string, mixed> $row */
+    public static function modals(array $row): string
+    {
+        $id = (int) ($row['id'] ?? 0);
+        $code = (string) ($row['code'] ?? '');
+        $html = '';
+
+        foreach (static::availableActions($row) as $action => $label) {
+            $components = match ($action) {
+                'change_plan' => [
+                    FormField::key('plan_price_id')
+                        ->select(array_diff_key(OfficeSubscriptionResource::priceOptions(), [(int) ($row['plan_price_id'] ?? 0) => true]))
+                        ->label('Nuovo piano')
+                        ->required()
+                        ->columnSpan(12),
+                    RichText::make(static::escape((string) ($row['channel'] ?? '') === 'office'
+                        ? 'Il nuovo prezzo vale dal prossimo periodo; le rate di quello in corso restano.'
+                        : 'Il cambio passa a Stripe subito; il nuovo prezzo vale dal prossimo rinnovo, senza conguagli.'))->class('mb-0')->columnSpan(12),
+                ],
+                'cancel' => [RichText::make(static::escape('L\'abbonamento non si rinnova più: resta attivo fino alla fine del periodo pagato (o alla fine del vincolo, se dura ancora). Il cliente riceve un\'email.'))->class('mb-0')->columnSpan(12)],
+                'terminate' => [
+                    RichText::make(static::escape('L\'abbonamento si chiude adesso e le rate in attesa si annullano. I pagamenti già arrivati restano: un rimborso si registra a parte.'))->class('mb-0')->columnSpan(12),
+                    FormField::key('reason')->text()->label('Motivo (facoltativo)')->columnSpan(12),
+                ],
+                default => [RichText::make(static::escape('Rimandi al cliente il proforma del periodo in corso, con le rate ancora da pagare.'))->class('mb-0')->columnSpan(12)],
+            };
+
+            $html .= Modal::make($label.': '.$code)
+                ->id('wi-abbonamento-'.$action)
+                ->form(SubscriptionActionResource::submitUrl(), hidden: ['subscription_id' => $id, 'action' => $action])
+                ->columns(12)
+                ->components($components)
+                ->cancel('Indietro')
+                ->submit($label, $action === 'terminate' ? 'danger' : 'primary')
+                ->render('bootstrap');
+        }
+
+        return $html;
+    }
+
+    /** Il proforma del periodo in corso, dall'archivio non pubblico. */
+    public static function proformaUrl(int $id): string
+    {
+        $fallback = '/backend/'.static::path().'/'.$id.'/proforma/';
+
+        if (!function_exists('__r')) {
+            return $fallback;
+        }
+
+        try {
+            $named = (string) __r('backend.resource.'.static::slug().'.proforma', ['id' => $id]);
+        } catch (Throwable) {
+            return $fallback;
+        }
+
+        return $named !== '' ? $named : $fallback;
+    }
+
+    public static function registerBackendRoutes(string $rootApp, string $slug): void
+    {
+        Route::get('/{id}/proforma/', Gestionale::handlerPath('backend/sales/proforma-pdf.php'), [
+            'resource' => $slug,
+            'resource_action' => 'proforma',
+        ])->name('proforma')
+            ->permit(['admin', 'administrator'])
+            ->where('id', '[0-9]+');
+    }
+
+    /** L'indirizzo della scheda con un segnaposto al posto dell'id, per i menu di riga. */
+    public static function detailUrlPattern(string $placeholder): string
+    {
+        return str_replace('987654321', $placeholder, static::detailUrl(987654321));
     }
 
     /** L'indirizzo della scheda; il percorso è il ripiego. */
@@ -295,15 +437,20 @@ final class SubscriptionResource extends GestionaleResource
         }
 
         $statuses = ['pending' => 'In attesa', 'paid' => 'Pagato', 'failed' => 'Non riuscito', 'cancelled' => 'Annullato'];
-        $html = '<table class="table table-sm align-middle mb-0"><thead><tr><th>Codice</th><th>Scadenza</th><th>Pagato il</th><th>Stato</th><th class="text-end">Importo</th></tr></thead><tbody>';
+        $html = '<table class="table table-sm align-middle mb-0"><thead><tr><th>Codice</th><th>Scadenza</th><th>Pagato il</th><th>Stato</th><th class="text-end">Importo</th><th></th></tr></thead><tbody>';
 
         foreach ($rows as $row) {
             $refund = (string) ($row['type'] ?? 'payment') === 'refund';
-            $html .= '<tr><td>'.static::escape((string) ($row['code'] ?? '')).($refund ? ' <span class="badge text-bg-light">Rimborso</span>' : '').'</td>'
+            $register = (string) ($row['status'] ?? '') === 'pending' && trim((string) ($row['due_date'] ?? '')) !== ''
+                ? '<a class="btn btn-sm btn-outline-success" href="'.static::escape(SubscriptionPaymentResource::urlFor((string) $subscriptionId, (string) (int) $row['id'], static::detailUrl($subscriptionId))).'">Registra</a>'
+                : '';
+            $html .= '<tr><td>'.static::escape((string) ($row['code'] ?? '')).($refund ? ' <span class="badge text-bg-light">Rimborso</span>' : '')
+                .(trim((string) ($row['note'] ?? '')) !== '' ? '<div class="small text-muted">'.static::escapeStored((string) $row['note']).'</div>' : '').'</td>'
                 .'<td>'.static::escape(static::day($row['due_date'] ?? '')).'</td>'
                 .'<td>'.static::escape(static::day($row['paid_at'] ?? '')).'</td>'
                 .'<td>'.static::escape($statuses[(string) ($row['status'] ?? '')] ?? (string) ($row['status'] ?? '')).'</td>'
-                .'<td class="text-end">'.static::escape(($refund ? '−' : '').OrderResource::money((float) ($row['amount'] ?? 0))).'</td></tr>';
+                .'<td class="text-end">'.static::escape(($refund ? '−' : '').OrderResource::money((float) ($row['amount'] ?? 0))).'</td>'
+                .'<td class="text-end">'.$register.'</td></tr>';
         }
 
         return $html.'</tbody></table>';

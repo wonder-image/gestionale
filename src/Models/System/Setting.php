@@ -20,7 +20,9 @@ use Wonder\Sql\TableSchema as Column;
  * del conto Stripe: è di quell'ambiente e quel conto, e per `batch_expiry_days`,
  * i giorni di preavviso dei lotti in scadenza scelti dal commerciante, e per
  * `payment_due_days` e `quote_validity_days`, quelli delle rate in scadenza e
- * della validità dei preventivi, e i dati di trasporto predefiniti dei DDT (G9).
+ * della validità dei preventivi e i dati di trasporto predefiniti dei DDT
+ * (G9), e per `subscription_unpaid_days`, dopo quanti giorni un abbonamento
+ * da ufficio con una rata scaduta è non pagato (G10).
  *
  * Qui stanno le scelte che si fanno una volta con il commercialista o in fase
  * di installazione. I moduli accesi aggiungono le loro coi riquadri di
@@ -34,7 +36,7 @@ final class Setting extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'low_stock_emails', 'stripe_methods_cache', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days', 'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms']);
+        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'low_stock_emails', 'stripe_methods_cache', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days', 'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days']);
     }
 
     public static function tableSchema(): array
@@ -73,6 +75,7 @@ final class Setting extends Model
             Column::key('delivery_carrier_id')->int()->default(0),
             Column::key('delivery_goods_appearance')->length(100),
             Column::key('delivery_freight_terms')->enum(['prepaid', 'collect'])->default('prepaid'),
+            Column::key('subscription_unpaid_days')->int()->default(15),
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -110,6 +113,7 @@ final class Setting extends Model
             Field::key('delivery_carrier_id')->number()->decimals(0),
             Field::key('delivery_goods_appearance')->text(),
             Field::key('delivery_freight_terms')->text()->sanitize(false),
+            Field::key('subscription_unpaid_days')->number()->decimals(0),
         ];
 
         foreach (SettingsSections::all() as $section) {
