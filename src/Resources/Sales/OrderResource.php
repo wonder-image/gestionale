@@ -32,6 +32,7 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentStatus;
+use Wonder\Plugin\Gestionale\Support\Sales\DeliveryNotes;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
 use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
@@ -208,6 +209,11 @@ final class OrderResource extends GestionaleResource
             $azioni = array_values(array_diff($azioni, [OrderActions::CANCEL_LINES]));
         }
 
+        // «Crea DDT» solo se c'è ancora qualcosa da mettere in un DDT.
+        if (in_array(OrderActions::CREATE_DELIVERY_NOTE, $azioni, true) && DeliveryNotes::proposal((int) ($order['id'] ?? 0)) === []) {
+            $azioni = array_values(array_diff($azioni, [OrderActions::CREATE_DELIVERY_NOTE]));
+        }
+
         foreach ($azioni as $azione) {
             // «Registra pagamento» e «Registra reso» stanno prima di Annulla.
             if ($azione === OrderActions::CANCEL) {
@@ -247,7 +253,7 @@ final class OrderResource extends GestionaleResource
     /** Le funzionalità che cambiano le azioni offerte. @return array<string, bool> */
     private static function actionFeatures(): array
     {
-        return ['returns' => Gestionale::feature('returns'), 'shipping' => Gestionale::feature('shipping')];
+        return ['returns' => Gestionale::feature('returns'), 'shipping' => Gestionale::feature('shipping'), 'delivery_notes' => Gestionale::feature('delivery_notes')];
     }
 
     /** «Registra reso» porta a una pagina con le righe da compilare: porta con sé il ritorno all'elenco, e la scheda lo rimette da sé. @return array<string, string> */

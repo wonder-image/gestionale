@@ -130,7 +130,8 @@ check('il modulo pulisce i suoi valori al salvataggio', function () {
 check('i campi del modulo seguono il resto della pagina: in produzione non si cambiano', function () {
     SettingsSections::use([new RiquadroDiProva()]);
 
-    return SettingResource::editableWhenReadonly() === ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days'];
+    return SettingResource::editableWhenReadonly() === ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days',
+        'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms'];
 });
 
 SettingsSections::use(null);

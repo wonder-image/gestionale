@@ -6,6 +6,8 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
+use Wonder\Plugin\Gestionale\Models\Sales\DeliveryNote;
+use Wonder\Plugin\Gestionale\Models\Sales\DeliveryNoteItem;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
@@ -36,6 +38,28 @@ final class DocumentData
             'items' => self::ordered($items),
             'taxes' => self::rows(OrderTaxSummary::find(['order_id' => $orderId])),
             'payment' => self::payment($order),
+        ];
+    }
+
+    /**
+     * I dati del DDT: la società, il DDT (con indirizzi e trasporto copiati),
+     * le sue righe e il numero dell'ordine.
+     *
+     * @return array<string, mixed>
+     */
+    public static function forDeliveryNote(int $id): array
+    {
+        $note = DeliveryNote::findById($id);
+        $note = is_array($note) ? $note : [];
+        $order = (int) ($note['order_id'] ?? 0) > 0 ? Order::findById((int) $note['order_id']) : null;
+
+        return [
+            'society' => self::society(),
+            'note' => $note,
+            'order' => is_array($order) ? $order : [],
+            'items' => self::rows(DeliveryNoteItem::find(['delivery_note_id' => $id, 'deleted' => 'false'], null, 'position', 'ASC')),
+            'taxes' => [],
+            'payment' => [],
         ];
     }
 

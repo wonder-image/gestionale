@@ -34,7 +34,7 @@ abstract class GestionaleExtension
 
     /**
      * La classe che disegna un PDF di vendita (G9): `$type` è `quote` o
-     * `order_confirmation` (con il piano 4 `delivery_note`). Torna `$class`
+     * `order_confirmation` o `delivery_note`. Torna `$class`
      * per lasciare quella del modulo, o il nome di una classe del sito che
      * estende `Support\Documents\DocumentPdf`.
      */

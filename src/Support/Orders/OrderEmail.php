@@ -26,7 +26,7 @@ final class OrderEmail
         'received', 'confirmed', 'reminder', 'cancelled', 'shipped', 'ready_for_pickup',
         'merchant_new', 'merchant_cancelled',
         // G9: il preventivo e la conferma da ufficio, con il PDF allegato.
-        'quote_sent', 'office_confirmed',
+        'quote_sent', 'office_confirmed', 'delivery_note_sent',
     ];
 
     /** Le righe di dettaglio sotto la frase, in ordine: parte del file di lingua → segnaposto. */
@@ -52,6 +52,7 @@ final class OrderEmail
             ':number' => (string) ($order['order_number'] ?? ''),
             ':quote' => trim((string) ($order['quote_number'] ?? '')).((int) ($order['quote_revision'] ?? 0) > 1 ? ' rev. '.(int) $order['quote_revision'] : ''),
             ':expires' => self::date((string) ($order['quote_expires_at'] ?? '')),
+            ':ddt' => trim((string) ($extra['ddt'] ?? '')),
             ':date' => self::date((string) ($order['ordered_at'] ?? '')),
             ':total' => self::money($order['total'] ?? 0).' €',
             ':deadline' => self::date((string) ($extra['deadline'] ?? '')),

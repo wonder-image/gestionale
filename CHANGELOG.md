@@ -7,6 +7,15 @@ versionamento semantico.
 
 ### Aggiunto
 
+- G9 piano 4, **DDT** (funzionalità costruita): **Crea DDT** sulla scheda di
+  un ordine confermato, bozza con le righe da consegnare (una per lotto),
+  luogo di consegna e trasporto (predefiniti in *Impostazioni → Vendite →
+  DDT*); **Emetti** con numero, data e PDF senza prezzi; **Annulla DDT**;
+  **Invia per email** con il PDF. **Vendite → DDT** con l'elenco. Le righe
+  evase contano il massimo fra DDT emessi e spedizioni, mai la somma
+  (`FulfilledLines`): la merce di un DDT non si rispedisce. Guida
+  `vendite-ddt.md`. **Chi aggiorna deve lanciare `php forge update`.**
+
 - G9 piano 3, **Preventivi** (funzionalità costruita, chiede *Vendita in
   ufficio*): **Vendite → Preventivi** con la stessa pagina dell'ordine da
   ufficio e la validità; **Invia al cliente** con numero, revisione e PDF

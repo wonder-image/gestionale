@@ -63,6 +63,27 @@ check('la conferma d\'ordine è un PDF, anche con molte righe su più pagine', f
     return str_starts_with($pdf, '%PDF') && substr_count($pdf, '/Type /Page') >= 3;
 });
 
+check('il DDT è un PDF senza prezzi, con lotto e trasporto', function () use ($dati) {
+    $ddt = [
+        'society' => $dati['society'],
+        'order' => ['order_number' => '2026-10-0012'],
+        'note' => [
+            'number' => '2026-10-0003', 'date' => '2026-10-13', 'reason' => 'sale', 'transport_by' => 'carrier', 'carrier_name' => 'BRT',
+            'transport_started_at' => '2026-10-13 09:30:00', 'goods_appearance' => 'Scatole', 'packages_count' => 2, 'gross_weight' => '12.500',
+            'freight_terms' => 'prepaid', 'billing_business_name' => 'Rossi & Figli Srl', 'billing_city' => 'Sesto', 'billing_country' => 'IT',
+            'shipping_street' => 'Via Milano', 'shipping_number' => '2', 'shipping_city' => 'Monza', 'shipping_country' => 'IT',
+        ],
+        'items' => [
+            ['description' => 'Maglia — Blu / M', 'sku' => 'MAG-B-M', 'batch_number' => 'L2026-01', 'quantity' => '2.000', 'unit' => 'pz'],
+            ['description' => 'Maglia — Blu / M', 'sku' => 'MAG-B-M', 'batch_number' => 'L2026-02', 'quantity' => '1.000', 'unit' => 'pz'],
+        ],
+        'taxes' => [], 'payment' => [],
+    ];
+    $pdf = DocumentPdfs::render('delivery_note', $ddt);
+
+    return str_starts_with($pdf, '%PDF') && DocumentPdfs::classFor('delivery_note') === Wonder\Plugin\Gestionale\Support\Documents\DeliveryNotePdf::class;
+});
+
 check('euro e accenti passano in Windows-1252, il resto si traslittera', fn () =>
     DocumentPdf::text('1.234,50 € è già') === "1.234,50 \x80 \xE8 gi\xE0"
     && DocumentPdf::text('Rossi &amp; Figli') === 'Rossi & Figli'
