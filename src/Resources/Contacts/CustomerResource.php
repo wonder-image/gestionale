@@ -25,6 +25,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\CustomerOrderTableResource;
@@ -425,6 +426,13 @@ class CustomerResource extends GestionaleResource
         if ($vendite) {
             $sinistra[] = $accordion('Ordini', CustomerOrderTableResource::embedForCustomer($id, $userId), true);
             $sinistra[] = $accordion('Prodotti nel carrello', OrderItemTableResource::embedMany($carrelli, 'Nessun prodotto nel carrello.'));
+        }
+
+        // Gli abbonamenti, dal sito e dall'ufficio, con la funzionalità accesa (G10).
+        if (Gestionale::feature('subscriptions')) {
+            $sinistra[] = $accordion('Abbonamenti', CustomerSheet::subscriptionsTable(
+                static::rowsOf(Subscription::class, ['customer_id' => $id, 'deleted' => 'false'])
+            ), true);
         }
 
         $destra = [
