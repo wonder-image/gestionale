@@ -256,6 +256,28 @@ check('un ordine da incassare offre Registra pagamento, prima di Annulla, e lo a
         && ($pulsanti[1]['href'] ?? '') === '#';
 });
 
+check('in testa alla scheda: il proforma come pulsante, le azioni raggruppate nel menu «Azioni»', function () {
+    $ordine = ['id' => 9, 'stage' => 'order', 'status' => 'confirmed', 'deleted' => 'false', 'fulfillment_status' => 'unfulfilled', 'payment_status' => 'unpaid'];
+    $testa = OrderResource::pageActions($ordine);
+    $menu = $testa[1] ?? [];
+    $voci = array_map(static fn (array $v): string => (string) $v['label'], $menu['items'] ?? []);
+
+    return count($testa) === 2
+        && ($testa[0]['label'] ?? '') === 'Proforma' && str_contains((string) $testa[0]['href'], '/9/proforma/')
+        && ($menu['label'] ?? '') === 'Azioni'
+        && $voci === ['Segna evaso', 'Registra pagamento', 'Annulla']
+        && ($menu['items'][2]['class'] ?? '') === 'text-danger'
+        && str_contains((string) $menu['items'][1]['onclick'], OrderPaymentResource::MODAL_ID);
+});
+
+check('una bozza o un annullato non hanno il proforma; un pulsante solo resta un pulsante', function () {
+    $bozza = OrderResource::pageActions(['id' => 9, 'stage' => 'order', 'channel' => 'office', 'status' => 'draft', 'deleted' => 'false']);
+    $annullato = OrderResource::documentButtons(['id' => 9, 'stage' => 'order', 'status' => 'cancelled', 'deleted' => 'false']);
+
+    return count($bozza) === 1 && ($bozza[0]['label'] ?? '') === 'Modifica bozza' && !isset($bozza[0]['items'])
+        && $annullato === [];
+});
+
 check('la finestra del pagamento posta a Registra pagamento con ordine e ritorno, e propone il residuo', function () {
     $html = OrderPaymentResource::modal(
         ['id' => 9, 'status' => 'confirmed', 'payment_status' => 'partially_paid', 'total' => '100.00', 'order_number' => '2026/0009', 'payment_method_id' => 2],

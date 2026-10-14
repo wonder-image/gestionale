@@ -10,6 +10,7 @@ use Wonder\Plugin\Gestionale\Extensions\GestionaleExtension;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdf;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdfs;
+use Wonder\Plugin\Gestionale\Support\Documents\OrderProforma;
 use Wonder\Plugin\Gestionale\Support\Documents\OrderConfirmationPdf;
 use Wonder\Plugin\Gestionale\Support\Documents\QuotePdf;
 
@@ -149,6 +150,22 @@ check('il proforma di un abbonamento: una riga col periodo, rate e nota, senza n
         && $dati['payment']['installments'] === [['due_date' => '2026-11-30', 'amount' => 24.4]]
         && $dati['meta']['Abbonamento'] === 'sub_abc1234'
         && str_contains((string) $dati['order']['document_note'], 'non valido ai fini fiscali');
+});
+
+check('il proforma di un ordine è un PDF; c\'è per gli ordini, non per bozze, annullati e preventivi', function () use ($dati) {
+    $dati['order'] = ['stage' => 'order', 'order_number' => '2026/100321', 'ordered_at' => '2026-10-14 09:00:00'] + $dati['order'];
+    $pdf = DocumentPdfs::render('order_proforma', $dati);
+    $ordine = ['id' => 7, 'stage' => 'order', 'status' => 'pending', 'deleted' => 'false', 'order_number' => '2026/100321'];
+
+    return DocumentPdfs::classFor('order_proforma') === Wonder\Plugin\Gestionale\Support\Documents\OrderProformaPdf::class
+        && str_starts_with($pdf, '%PDF')
+        && OrderProforma::available($ordine)
+        && OrderProforma::available(['status' => 'completed'] + $ordine)
+        && !OrderProforma::available(['status' => 'draft'] + $ordine)
+        && !OrderProforma::available(['status' => 'cancelled'] + $ordine)
+        && !OrderProforma::available(['stage' => 'quote'] + $ordine)
+        && !OrderProforma::available(['stage' => 'cart'] + $ordine)
+        && OrderProforma::fileName($ordine) === 'proforma-ordine-2026-100321.pdf';
 });
 
 summary();

@@ -1,0 +1,19 @@
+<?php
+
+/*
+ * Il proforma in PDF di un ordine, online o da ufficio, non in bozza né
+ * annullato. Non si archivia: si fa adesso, con l'ordine com'è. La rotta è
+ * della OrderResource; l'area cliente del sito usa la stessa regola.
+ */
+
+use Wonder\Plugin\Gestionale\Support\Documents\OrderProforma;
+
+$routeParameters = is_array($ROUTE_PARAMETERS ?? null) ? $ROUTE_PARAMETERS : [];
+$order = OrderProforma::order((int) ($routeParameters['id'] ?? 0));
+
+if ($order === null) {
+    http_response_code(404);
+    exit('Ordine non trovato');
+}
+
+OrderProforma::send($order);

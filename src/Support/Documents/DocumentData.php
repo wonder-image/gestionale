@@ -42,6 +42,22 @@ final class DocumentData
     }
 
     /**
+     * I dati del proforma di un ordine: quelli della conferma, con la nota che
+     * non vale ai fini fiscali davanti alle note dell'ordine.
+     *
+     * @return array<string, mixed>
+     */
+    public static function forOrderProforma(int $orderId): array
+    {
+        $data = self::forOrder($orderId);
+        $note = trim((string) ($data['order']['document_note'] ?? ''));
+        $data['order']['document_note'] = 'Documento non valido ai fini fiscali: la fattura segue il pagamento.'
+            .($note !== '' ? "\n\n".$note : '');
+
+        return $data;
+    }
+
+    /**
      * I dati del DDT: la società, il DDT (con indirizzi e trasporto copiati),
      * le sue righe e il numero dell'ordine.
      *

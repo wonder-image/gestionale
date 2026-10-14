@@ -28,6 +28,8 @@ use Wonder\Plugin\Gestionale\Models\Shipping\Shipment;
 use Wonder\Plugin\Gestionale\Resources\Shipping\ShipmentResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
+use Wonder\Plugin\Gestionale\Support\Documents\OrderProforma;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
@@ -175,7 +177,7 @@ final class OrderResource extends GestionaleResource
             ->titles(['list' => 'Ordini', 'view' => 'Ordine'])
             ->subtitles(['list' => 'Gli ordini dei clienti, dal checkout alla consegna. Si consultano qui; ogni cambio passa dalle azioni della scheda.'])
             ->view('show', Gestionale::viewPath('pages/order-show.php'))
-            ->actions('view', static fn (array $item): array => static::actionsFor($item));
+            ->actions('view', static fn (array $item): array => static::pageActions($item));
     }
 
     /**
@@ -235,19 +237,74 @@ final class OrderResource extends GestionaleResource
         $incassa && $pulsanti[] = static::registerPaymentButton($order);
         $rende && $pulsanti[] = static::registerReturnButton($order);
 
-        // La conferma d'ordine in PDF, per un ordine da ufficio confermato (G9 §3.3).
+        return $pulsanti;
+    }
+
+    /**
+     * In testa alla scheda: i documenti in un menu, le azioni in un altro.
+     * Un gruppo con un pulsante solo resta un pulsante.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function pageActions(array $order): array
+    {
+        return [
+            ...HeaderActions::group(static::documentButtons($order), 'Documenti', 'bi-file-earmark-pdf'),
+            ...HeaderActions::group(static::actionsFor($order)),
+        ];
+    }
+
+    /**
+     * I PDF dell'ordine: la conferma (ordini da ufficio confermati, G9 §3.3) e
+     * il proforma (ogni ordine che non è bozza né annullato).
+     *
+     * @return list<array<string, string>>
+     */
+    public static function documentButtons(array $order): array
+    {
+        $id = (int) ($order['id'] ?? 0);
+        $pulsanti = [];
+
         if ((string) ($order['channel'] ?? '') === 'office'
             && in_array((string) ($order['status'] ?? ''), ['confirmed', 'processing', 'completed'], true)
             && Gestionale::feature('office_sales')) {
-            array_unshift($pulsanti, [
-                'label' => 'PDF',
+            $pulsanti[] = [
+                'label' => 'Conferma d\'ordine',
                 'icon' => 'bi-file-earmark-pdf',
                 'class' => 'btn-outline-secondary btn-sm',
-                'href' => OfficeOrderResource::pdfUrl((int) ($order['id'] ?? 0)),
-            ]);
+                'href' => OfficeOrderResource::pdfUrl($id),
+                'target' => '_blank',
+            ];
+        }
+
+        if (OrderProforma::available($order)) {
+            $pulsanti[] = [
+                'label' => 'Proforma',
+                'icon' => 'bi-file-earmark-text',
+                'class' => 'btn-outline-secondary btn-sm',
+                'href' => static::proformaUrl($id),
+                'target' => '_blank',
+            ];
         }
 
         return $pulsanti;
+    }
+
+    /** Il proforma in PDF dell'ordine. */
+    public static function proformaUrl(int $id): string
+    {
+        return static::routeUrl('proforma', '/backend/'.static::path().'/'.$id.'/proforma/', ['id' => $id]);
+    }
+
+    /** *Proforma* della scheda: la rotta del PDF. */
+    public static function registerBackendRoutes(string $rootApp, string $slug): void
+    {
+        \Wonder\Http\Route::get('/{id}/proforma/', Gestionale::handlerPath('backend/sales/order-proforma-pdf.php'), [
+            'resource' => $slug,
+            'resource_action' => 'proforma',
+        ])->name('proforma')
+            ->permit(['admin', 'administrator'])
+            ->where('id', '[0-9]+');
     }
 
     /** Le funzionalità che cambiano le azioni offerte. @return array<string, bool> */
