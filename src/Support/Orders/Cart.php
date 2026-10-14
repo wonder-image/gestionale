@@ -774,7 +774,10 @@ final class Cart
 
         // Il ricalcolo vale anche per le bozze dell'ufficio (G9): non hanno
         // merce prenotata dietro, e i prezzi si rifanno finché si confermano.
-        if ($drafts && (string) $row['status'] === 'draft' && in_array((string) $row['stage'], ['order', 'quote'], true)) {
+        // Solo quelle dell'ufficio: anche il carrello nasce `draft`, e un
+        // carrello diventato ordine non si riprezza.
+        if ($drafts && (string) $row['status'] === 'draft' && (string) ($row['channel'] ?? '') === 'office'
+            && in_array((string) $row['stage'], ['order', 'quote'], true)) {
             return $row;
         }
 
