@@ -28,6 +28,7 @@ use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
+use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 
 /**
@@ -175,7 +176,7 @@ final class SubscriptionResource extends GestionaleResource
             ->titles(['list' => 'Abbonamenti', 'view' => 'Abbonamento'])
             ->subtitles(['list' => 'Gli abbonamenti dei clienti, dal sito e dall\'ufficio. Quelli del sito li crea il cliente; quelli da ufficio, «Nuovo abbonamento».'])
             ->view('show', Gestionale::viewPath('pages/subscription-show.php'))
-            ->actions('view', static fn (array $item): array => static::actionButtons($item));
+            ->actions('view', static fn (array $item): array => HeaderActions::group(static::actionButtons($item)));
     }
 
     public static function permissionSchema(): PermissionSchema

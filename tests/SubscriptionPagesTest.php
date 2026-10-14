@@ -142,4 +142,14 @@ check('un prezzo nuovo del repeater nasce col suo codice, uno vecchio tiene il s
         && !array_key_exists('code', $limite);
 });
 
+check('in testa alla scheda le azioni stanno nel menu «Azioni»; Annulla in rosso', function () {
+    $ufficio = ['id' => 5, 'channel' => 'office', 'status' => 'active', 'auto_renew' => 'true', 'current_period_start' => '2026-10-01 00:00:00'];
+    $menu = Wonder\Plugin\Gestionale\Support\Backend\HeaderActions::group(SubscriptionResource::actionButtons($ufficio));
+    $voci = $menu[0]['items'] ?? [];
+
+    return count($menu) === 1 && $menu[0]['label'] === 'Azioni'
+        && array_column($voci, 'label') === array_values(SubscriptionResource::availableActions($ufficio))
+        && $voci[3]['class'] === 'text-danger' && str_contains($voci[0]['onclick'], 'wi-abbonamento-change_plan');
+});
+
 summary();

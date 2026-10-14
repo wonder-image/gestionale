@@ -13,6 +13,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Http\Csrf;
+use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Stock\StockValue;
 use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
@@ -389,7 +390,7 @@ abstract class StockDocumentResource extends GestionaleResource
             ])
             ->view('form', Gestionale::viewPath('pages/stock-document-form.php'))
             ->view('show', Gestionale::viewPath('pages/stock-document-show.php'))
-            ->actions('view', static fn (array $item): array => static::headerActions($item));
+            ->actions('view', static fn (array $item): array => HeaderActions::group(static::headerActions($item)));
     }
 
     public static function navigationSchema(): NavigationSchema
