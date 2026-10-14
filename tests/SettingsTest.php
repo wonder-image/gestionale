@@ -50,8 +50,10 @@ check('le email per gli ordini stanno in Set Up, vicino a quelle degli errori', 
 });
 
 check('le email per gli ordini e per gli avvisi restano nel loro ambiente e si cambiano anche in produzione', fn () =>
-    array_diff(['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days', 'subscription_unpaid_days'], Setting::syncSchema()->excludeColumns) === []
-    && SettingResource::editableWhenReadonly() === ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days', 'subscription_unpaid_days']
+    array_diff(['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days',
+        'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days'], Setting::syncSchema()->excludeColumns) === []
+    && SettingResource::editableWhenReadonly() === ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days',
+        'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days']
 );
 
 check('ogni campo email dice quali email riceve', function () {

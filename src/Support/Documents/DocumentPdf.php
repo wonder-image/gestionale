@@ -393,11 +393,13 @@ abstract class DocumentPdf
     {
         $this->head = [$widths, $labels];
         $labels ??= ['Descrizione', 'Q.tà', 'Prezzo', 'Sconto', 'IVA', 'Totale'];
+        // Le intestazioni come i valori: quelle della tabella delle righe da `aligns()`.
+        $aligns = count($widths) === count($this->columns()) ? $this->aligns() : [];
         $this->pdf->SetFont('Helvetica', 'B', 8);
         $this->pdf->SetFillColor(240, 240, 240);
 
         foreach ($labels as $i => $label) {
-            $this->pdf->Cell($widths[$i], 6, self::text($label), 'B', 0, $i === 0 ? 'L' : 'R', true);
+            $this->pdf->Cell($widths[$i], 6, self::text($label), 'B', 0, $aligns[$i] ?? ($i === 0 ? 'L' : 'R'), true);
         }
 
         $this->pdf->Ln();

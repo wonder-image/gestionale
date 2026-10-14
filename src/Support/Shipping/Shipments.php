@@ -21,6 +21,8 @@ use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
+use Wonder\Plugin\Gestionale\Support\Sales\DeliveryNotes;
+use Wonder\Plugin\Gestionale\Support\Sales\FulfilledLines;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Sql\Transaction;
 
@@ -48,7 +50,7 @@ final class Shipments
     {
         $items = self::items($orderId);
 
-        return ShippableLines::remaining(self::describe($items), self::assigned($orderId));
+        return self::toShip($orderId, $items, self::assigned($orderId));
     }
 
     /**
@@ -86,7 +88,7 @@ final class Shipments
 
             // Prima il blocco delle righe, poi il conto di quanto è già assegnato.
             $items = self::items($orderId, true);
-            $remaining = ShippableLines::remaining(self::describe($items), self::assigned($orderId, true));
+            $remaining = self::toShip($orderId, $items, self::assigned($orderId, true));
 
             foreach ($wanted as $itemId => $quantity) {
                 if (!isset($remaining[$itemId]) || $quantity > $remaining[$itemId] + 0.0005) {
@@ -232,7 +234,7 @@ final class Shipments
             }
 
             $remaining = array_filter(
-                ShippableLines::remaining(self::describe($items), $assigned),
+                self::toShip($orderId, $items, $assigned),
                 static fn (float $quantity): bool => $quantity > 0.0005
             );
 
@@ -479,11 +481,12 @@ final class Shipments
             }
 
             $ordered = ShippableLines::remaining(self::describe(self::items($orderId)), []);
-            $counted = self::assigned($orderId, false, true);
+            // G9.15: evaso è il massimo fra spedito e DDT emessi, mai la somma.
+            $done = FulfilledLines::of($ordered, DeliveryNotes::inNotes($orderId), self::assigned($orderId, false, true));
             $lines = [];
 
             foreach ($ordered as $itemId => $quantity) {
-                $lines[] = ['ordered' => $quantity, 'shipped' => $counted[$itemId] ?? 0.0];
+                $lines[] = ['ordered' => $quantity, 'shipped' => $done[$itemId] ?? 0.0];
             }
 
             $target = ShipmentFlow::fulfillment(
@@ -727,6 +730,24 @@ final class Shipments
         }
 
         return $items;
+    }
+
+    /**
+     * Quanto resta da spedire di ogni riga: l'ordinato spedibile meno il
+     * massimo fra spedizioni e DDT emessi (G9.15). Con un DDT che ha già
+     * consegnato la merce non si fa anche la spedizione.
+     *
+     * @param list<array<string, mixed>> $items
+     * @param array<int, float> $assigned
+     * @return array<int, float>
+     */
+    private static function toShip(int $orderId, array $items, array $assigned): array
+    {
+        return FulfilledLines::remaining(
+            ShippableLines::remaining(self::describe($items), []),
+            DeliveryNotes::inNotes($orderId),
+            $assigned
+        );
     }
 
     /** @return list<array<string, mixed>> */

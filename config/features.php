@@ -31,11 +31,10 @@ return [
     ],
     'delivery_notes' => [
         'name' => 'DDT',
-        'description' => 'Documento di trasporto per le consegne.',
+        'description' => 'Documento di trasporto per le consegne, con i lotti e il PDF.',
         'area' => 'Vendite',
         'requires' => ['orders'],
         'release' => 'G9',
-        'created' => false,
     ],
     'subscriptions' => [
         'name' => 'Abbonamenti',
