@@ -497,6 +497,7 @@ try {
         $id = (int) ($o['id'] ?? 0);
         $rate['ordine'] = $o;
         $rate['rate'] = Wonder\Plugin\Gestionale\Support\Payments\Installments::pending($id);
+        $rate['bozza'] = $ordine('bozza-ufficio');
         OrdersDemo::clear();
         $rate['dopo'] = count($righe(Wonder\Plugin\Gestionale\Models\Payments\Payment::class, 'order_id = '.$id));
 
@@ -508,12 +509,14 @@ try {
     $foto->ripristina();
 }
 
-check('con la vendita in ufficio nasce l\'ordine da ufficio con due rate, la prima scaduta', function () use ($rate) {
+check('con la vendita in ufficio nascono una bozza e un ordine da ufficio con due rate, la prima scaduta', function () use ($rate) {
     $r = $rate['rate'] ?? [];
     $totale = round((float) ($rate['ordine']['total'] ?? 0), 2);
 
-    return ($rate['create'] ?? 0) === 8
+    return ($rate['create'] ?? 0) === 9
+        && ($rate['bozza']['status'] ?? '') === 'draft' && trim((string) ($rate['bozza']['order_number'] ?? '')) === ''
         && ($rate['ordine']['channel'] ?? '') === 'office'
+        && trim((string) ($rate['ordine']['order_number'] ?? '')) !== ''
         && ($rate['ordine']['status'] ?? '') === 'confirmed'
         && count($r) === 2
         && $r[0]['due_date'] < date('Y-m-d')

@@ -7,6 +7,20 @@ versionamento semantico.
 
 ### Aggiunto
 
+- G9 piano 2, **Ordini da ufficio** (con *Vendita in ufficio*): **Vendite →
+  Ordini da ufficio** con le bozze e **Nuovo ordine**: la bozza senza numero né merce impegnata (cliente con i
+  dati della sua scheda, fatturazione, consegna con costo di spedizione a mano,
+  sede, righe da «Cerca o scansiona» con prezzo e sconto di riga, righe libere
+  e di testo, lotto e fornitore, disponibile della sede, sconto sul totale,
+  note). **Conferma** con il numero, la merce che esce (rifiuto col nome se
+  manca, salvo vendita senza giacenza), le rate e l'email facoltativa;
+  **Elimina bozza**. Negli Ordini le bozze col badge e il filtro, e **Annulla
+  righe** sugli ordini da ufficio confermati: la merce rientra, totali e rate
+  si rifanno. Guida `vendite-ordini-da-ufficio.md`. Corretto il ricalcolo del
+  carrello con uno sconto di riga: il prezzo a mano sta in
+  `manual_unit_price` e lo sconto non si applica più due volte.
+  **Chi aggiorna deve lanciare `php forge update`.**
+
 - G9 piano 1, **Condizioni di pagamento e scadenzario**: *Set Up → Pagamenti
   → Condizioni di pagamento* con le rate (giorni, fine mese, percentuale che
   fa 100), tre già pronte (rimessa diretta, bonifico 30 gg fine mese, RiBa

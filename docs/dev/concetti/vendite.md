@@ -14,6 +14,7 @@ comando la cambia a mano: chiamano il servizio.
 | `status` e `fulfillment_status` dell'ordine | `Lifecycle::confirm()`, `cancel()`, `fulfill()` | `Support\Orders` |
 | `payment_status` dell'ordine | `Ledger::sync()`, chiamato da `register()`, `refund()`, `fail()` | `Support\Payments` |
 | Prenotazione, scarico e rientro della merce | `Allocation::reserve()`, `release()`, `commit()`, `restore()`, `returnGoods()` | `Support\Stock` |
+| Bozza d'ordine da ufficio, conferma, annullo di righe | `OfficeOrders::save()`, `confirm()`, `delete()`, `cancelLines()` | `Support\Sales` |
 | Rate di un ordine (righe `pending` con `due_date`) | `Installments::create()`, `register()`, `registerOnOrder()`, `recalculate()` | `Support\Payments` |
 | Stato del reso e sue righe | `Returns::register()`, `complete()`, `cancel()` | `Support\Returns` |
 | Giacenza e movimenti | `Stock::apply()` (vedi [Magazzino](magazzino.md)) | `Support\Stock` |
@@ -108,6 +109,32 @@ massima è quella della madre, e il rientro passa da `Allocation::returnGoods()`
 sulle sole figlie. La pulizia dei dati di prova (`OrdersDemo`) restituisce la
 merce di `OrderLines::goods()`, mai quella della madre.
 
+## L'ordine da ufficio (G9)
+
+La bozza è un ordine vero: `stage` `order`, `status` `draft`, `channel`
+`office`, senza `order_number` e senza prenotazioni. `user_id` è l'account del
+cliente sul sito, come online (l'operatore sta nello storico): mai l'operatore,
+o l'area cliente del sito gli mostrerebbe gli ordini dell'ufficio.
+
+- `OfficeOrders::save()` riscrive testata e righe a ogni salvataggio (prodotto,
+  `custom`, `text`; la spedizione a mano è una riga `shipping` `manual`) e
+  chiama `Cart::recalculate()`, che accetta le bozze. Il prezzo scritto a mano
+  sta in `manual_unit_price`, **prima** dello sconto di riga: rileggere
+  `unit_price` come prezzo a mano sconterebbe due volte.
+- `OfficeOrderRules` è pura: righe dell'editor, testata, cosa chiede la
+  conferma, quanto si annulla dopo.
+- `confirm()` controlla la giacenza della sede per versione
+  (`Levels::forSale`) e rifiuta col nome (salvo vendita senza giacenza), poi
+  numero, `Lifecycle::confirm()` con `payment => false` (lotto e fornitore
+  della riga vanno allo scarico) e `Installments::create()`.
+- `cancelLines()` annulla al massimo quanto non è assegnato a una spedizione
+  (`Shipments::remaining()`): `quantity` scende, `quantity_cancelled` sale, la
+  merce rientra con `Allocation::restore()`, i totali si rifanno con i prezzi
+  scritti e le rate con `Installments::recalculate()`. Tutto = `Lifecycle::cancel()`.
+- In `OrderActions` la bozza da ufficio non ha azioni (si apre nella sua
+  pagina, `OfficeOrderResource`); un ordine da ufficio confermato ha
+  `cancel_lines`.
+
 ## Le rate (G9)
 
 Una **rata** è una riga `payment` di `gst_payments` con `due_date`, scritta
@@ -174,10 +201,12 @@ vedi [Errori e log](errori.md).
   `accendiFunzionalita(['orders', 'returns'])`. Si lavora dentro una
   transazione che alla fine si annulla, così il database del sito di prova
   resta com'era.
-- Con `office_sales` accesa, `gestionale:demo` crea anche «rate-ufficio»:
-  un ordine da ufficio in RiBa 30/60 con le rate che partono 31 giorni prima
-  dell'inizio del mese: la prima è sempre scaduta, la seconda no, qualunque
-  sia il giorno. `tests/integrazione/InstallmentsTest.php` prova i conti delle
+- Con `office_sales` accesa, `gestionale:demo` crea anche due ordini da
+  ufficio dal flusso vero: «bozza-ufficio» e «rate-ufficio», confermato in
+  RiBa 30/60 con le rate che partono 31 giorni prima dell'inizio del mese
+  (`installments_from`): la prima è sempre scaduta, la seconda no, qualunque
+  sia il giorno. `tests/integrazione/OfficeOrdersTest.php` prova bozza,
+  conferma e annullo di righe. `tests/integrazione/InstallmentsTest.php` prova i conti delle
   rate sul database.
 - Per spegnere una funzionalità solo dentro la prova:
   `sqlModify(Feature::$table, ['enabled' => 'false'], 'feature_key', 'returns')`

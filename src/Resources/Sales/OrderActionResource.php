@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
+use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
 use Wonder\Plugin\Gestionale\Support\Shipping\Shipments;
 
 /**
@@ -131,6 +132,7 @@ final class OrderActionResource extends NavigationOnlyResource
                 OrderActions::UPDATE_SHIPMENT => static::updateShipment($orderId, $name, $source, $values),
                 OrderActions::READY => static::ready($orderId, $name, $source, $values),
                 OrderActions::PICKED_UP => static::pickedUp($orderId, $name, $source, $values),
+                OrderActions::CANCEL_LINES => static::cancelLines($orderId, $name, $source, $values),
                 default => ['ok' => false, 'message' => 'Azione non riconosciuta.'],
             };
         } catch (UserError $error) {
@@ -168,6 +170,22 @@ final class OrderActionResource extends NavigationOnlyResource
 
         header('Location: '.($orderId > 0 ? OrderResource::detailUrl($orderId, $back !== '' ? $back : null) : OrderResource::listUrl()));
         exit();
+    }
+
+    /**
+     * «Annulla righe» di un ordine da ufficio (G9 §2.5): le quantità
+     * arrivano come `qty`.
+     *
+     * @param array{source: string, user_id: int} $source
+     * @param array<string, mixed> $values
+     */
+    private static function cancelLines(int $orderId, string $name, array $source, array $values): array
+    {
+        $esito = OfficeOrders::cancelLines($orderId, (array) ($values['qty'] ?? []), $source);
+
+        return ['ok' => true, 'message' => $esito['cancelled_order']
+            ? $name.' è annullato: tutte le righe sono state annullate e la merce è tornata in magazzino.'
+            : ($esito['lines'] === 1 ? 'Una riga annullata' : $esito['lines'].' righe annullate').': la merce è tornata in magazzino, i totali e le rate sono aggiornati.'];
     }
 
     /** @param array{source: string, user_id: int} $source */

@@ -33,10 +33,10 @@ use Wonder\Plugin\Gestionale\Support\Orders\Cart;
 use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderLines;
-use Wonder\Plugin\Gestionale\Support\Payments\Installments;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
+use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\App\Support\DefaultRows;
@@ -87,6 +87,8 @@ final class OrdersDemo
         // G9, a «Vendita in ufficio» accesa: un ordine da ufficio in RiBa 30/60, la prima rata già scaduta.
         // Le rate partono 31 giorni prima dell'inizio del mese (fino a 61 giorni fa): l'ordine è di prima.
         'rate-ufficio' => ['method' => 'bank-transfer', 'end' => 'installments', 'days' => 62, 'company' => true, 'office' => true],
+        // Una bozza da ufficio: senza numero, senza merce impegnata.
+        'bozza-ufficio' => ['method' => 'bank-transfer', 'end' => 'draft', 'days' => 0, 'company' => true, 'office' => true],
     ];
 
     public static function register(): void
@@ -134,6 +136,14 @@ final class OrdersDemo
         try {
             foreach (self::ORDERS as $ref => $plan) {
                 if (!in_array($ref, $missing, true)) {
+                    continue;
+                }
+
+                // G9: gli ordini da ufficio nascono dalla loro pagina, non dal carrello.
+                if (!empty($plan['office'])) {
+                    $created += self::office($ref, $plan, $products[$turn % count($products)]);
+                    $turn++;
+
                     continue;
                 }
 
@@ -261,7 +271,6 @@ final class OrdersDemo
             'fulfilled' => self::fulfilled($orderId, $ref),
             'cancelled' => Lifecycle::cancel($orderId, ['reason' => 'Ordine di prova annullato', 'notify' => false, 'merchant_notice' => false, 'source' => 'system']),
             'partial' => self::partial($orderId, (float) $placed['total']),
-            'installments' => self::installments($orderId),
             default => null,
         };
 
@@ -383,13 +392,18 @@ final class OrdersDemo
     }
 
     /**
-     * Da ufficio, in RiBa 30/60 gg fine mese. Le rate partono da 31 giorni
-     * prima dell'inizio del mese: la prima scade a fine del mese scorso (già
-     * scaduta), la seconda a fine di questo o del prossimo. Contare i giorni
-     * da oggi no: col fine mese, metà dei giorni del mese la prima rata non
-     * sarebbe ancora scaduta.
+     * Un ordine da ufficio dal flusso vero (`OfficeOrders`): due pezzi e una
+     * riga libera, per l'azienda di prova. Con `end` `installments` si
+     * conferma in RiBa 30/60 gg fine mese, con le rate che partono da 31
+     * giorni prima dell'inizio del mese: la prima scade a fine del mese scorso
+     * (già scaduta), la seconda a fine di questo o del prossimo. Contare i
+     * giorni da oggi no: col fine mese, metà dei giorni del mese la prima rata
+     * non sarebbe ancora scaduta. Con `draft` resta bozza.
+     *
+     * @param array<string, mixed> $plan
+     * @param array{id: int} $product
      */
-    private static function installments(int $orderId): void
+    private static function office(string $ref, array $plan, array $product): int
     {
         $term = PaymentTerm::find(['code' => 'riba-30-60-fm', 'deleted' => 'false'], 1);
 
@@ -398,9 +412,39 @@ final class OrdersDemo
             $term = PaymentTerm::find(['code' => 'riba-30-60-fm', 'deleted' => 'false'], 1);
         }
 
-        Order::update(['channel' => 'office', 'payment_term_id' => (int) ($term['id'] ?? 0)], $orderId);
-        Lifecycle::confirm($orderId, ['payment' => false, 'notify' => false, 'source' => 'system']);
-        Installments::create($orderId, (new DateTimeImmutable('first day of this month'))->setTime(0, 0)->modify('-31 days'));
+        $customer = self::customer('rossi-abbigliamento');
+
+        if ($customer <= 0) {
+            DemoData::note('L\'ordine da ufficio «'.$ref.'» vende all\'azienda di prova: crea prima i contatti e rilancia il comando.');
+
+            return 0;
+        }
+
+        $method = self::method((string) $plan['method']);
+        $orderId = OfficeOrders::save(0, [
+            'customer_id' => $customer,
+            'fulfillment_type' => 'shipping',
+            'payment_method_id' => (int) ($method['id'] ?? 0),
+            'payment_term_id' => (int) ($term['id'] ?? 0),
+            'document_note' => 'Consegna al magazzino, dal lunedì al venerdì.',
+            'lines' => [
+                ['type' => 'product', 'product_id' => $product['id'], 'quantity' => '2'],
+                ['type' => 'custom', 'name' => 'Etichettatura personalizzata', 'quantity' => '1', 'unit_price' => '15'],
+            ],
+        ]);
+
+        // Il codice col segno: serve a riconoscere l'ordine alla pulizia.
+        Order::update(['code' => DemoCode::forModel(Order::class, $ref)], $orderId);
+
+        if ((string) $plan['end'] === 'installments') {
+            OfficeOrders::confirm($orderId, [
+                'source' => 'system',
+                'installments_from' => (new DateTimeImmutable('first day of this month'))->setTime(0, 0)->modify('-31 days'),
+            ]);
+            Order::update(['ordered_at' => date('Y-m-d H:i:s', strtotime('-'.(int) $plan['days'].' days'))], $orderId);
+        }
+
+        return 1;
     }
 
     /**
