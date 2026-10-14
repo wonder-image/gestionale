@@ -12,6 +12,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Accordion;
+use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
@@ -87,8 +88,9 @@ final class OrderResource extends GestionaleResource
     {
         return [
             'order_number' => 'Numero',
-            'channel' => 'Canale',
-            'fulfillment_type' => 'Consegna',
+            // Le due colonne di icone non hanno titolo: la parola è nel tooltip, e restano strette.
+            'channel' => '',
+            'fulfillment_type' => '',
             'ordered_at' => 'Data',
             'customer' => 'Cliente',
             'total' => 'Totale',
@@ -192,19 +194,29 @@ final class OrderResource extends GestionaleResource
     }
 
     /**
-     * I pulsanti in testa alla scheda: le azioni che valgono per lo stato
-     * dell'ordine. Il ritorno all'elenco è la chevron del titolo. Ogni azione
-     * apre la sua finestra di conferma, che `actionModals()` disegna in fondo
-     * alla scheda.
+     * Le azioni sull'ordine, nell'ordine dei pulsanti: prima quelle che lo
+     * portano avanti, poi quelle del menu «Altro». Il ritorno all'elenco è la
+     * chevron del titolo. Ogni azione apre la sua finestra di conferma, che
+     * `actionModals()` disegna in fondo alla scheda.
      *
      * @return list<array<string, string>>
      */
     public static function actionsFor(array $order): array
     {
-        $pulsanti = [];
+        return [...static::primaryActions($order), ...static::otherActions($order)];
+    }
 
+    /**
+     * Le azioni che cambiano lo stato dell'ordine, una per pulsante, sempre a
+     * vista: Conferma, l'evasione (Segna evaso, Crea spedizione, Pronto per il
+     * ritiro, Ritirato) e Registra pagamento.
+     *
+     * @return list<array<string, string>>
+     */
+    public static function primaryActions(array $order): array
+    {
         // La bozza da ufficio si apre nella sua pagina: lì si conferma o si elimina (G9).
-        if ((string) ($order['channel'] ?? '') === 'office' && (string) ($order['status'] ?? '') === 'draft') {
+        if (static::isOfficeDraft($order)) {
             return [[
                 'label' => 'Modifica bozza',
                 'icon' => 'bi-pencil-square',
@@ -213,47 +225,52 @@ final class OrderResource extends GestionaleResource
             ]];
         }
 
-        $azioni = OrderActions::available($order, static::actionFeatures());
-        $incassa = OrderActions::canRegisterPayment($order);
-        $rende = OrderActions::canRegisterReturn($order, ['returns' => Gestionale::feature('returns')]);
+        $pulsanti = [];
 
-        // «Annulla righe» solo se c'è qualcosa che non è ancora partito.
-        if (in_array(OrderActions::CANCEL_LINES, $azioni, true) && static::cancellable($order) === []) {
-            $azioni = array_values(array_diff($azioni, [OrderActions::CANCEL_LINES]));
-        }
-
-        // «Crea DDT» solo se c'è ancora qualcosa da mettere in un DDT.
-        if (in_array(OrderActions::CREATE_DELIVERY_NOTE, $azioni, true) && DeliveryNotes::proposal((int) ($order['id'] ?? 0)) === []) {
-            $azioni = array_values(array_diff($azioni, [OrderActions::CREATE_DELIVERY_NOTE]));
-        }
-
-        foreach ($azioni as $azione) {
-            // «Registra pagamento» e «Registra reso» stanno prima di Annulla.
-            if ($azione === OrderActions::CANCEL) {
-                $incassa && $pulsanti[] = static::registerPaymentButton($order);
-                $rende && $pulsanti[] = static::registerReturnButton($order);
-                $incassa = $rende = false;
+        foreach (OrderActions::available($order, static::actionFeatures()) as $azione) {
+            if (!in_array($azione, self::NOT_PRIMARY, true)) {
+                $pulsanti[] = static::modalButton($azione);
             }
-
-            $pulsanti[] = [
-                'label' => OrderActions::label($azione),
-                'icon' => OrderActions::icon($azione),
-                'class' => OrderActions::buttonClass($azione).' btn-sm',
-                'href' => '#',
-                'onclick' => 'window.bootstrap.Modal.getOrCreateInstance(document.getElementById('
-                    .json_encode(static::actionModalId($azione)).')).show(); return false;',
-            ];
         }
 
-        $incassa && $pulsanti[] = static::registerPaymentButton($order);
-        $rende && $pulsanti[] = static::registerReturnButton($order);
+        if (OrderActions::canRegisterPayment($order)) {
+            $pulsanti[] = static::registerPaymentButton($order);
+        }
 
         return $pulsanti;
     }
 
     /**
-     * In testa alla scheda: i documenti in un menu, le azioni in un altro.
-     * Un gruppo con un pulsante solo resta un pulsante.
+     * Le azioni del menu «Altro»: Registra reso e Annulla. Annullare le righe
+     * sta nella tabella delle righe, una per una.
+     *
+     * @return list<array<string, string>>
+     */
+    public static function otherActions(array $order): array
+    {
+        if (static::isOfficeDraft($order)) {
+            return [];
+        }
+
+        $pulsanti = [];
+
+        if (OrderActions::canRegisterReturn($order, ['returns' => Gestionale::feature('returns')])) {
+            $pulsanti[] = static::registerReturnButton($order);
+        }
+
+        if (in_array(OrderActions::CANCEL, OrderActions::available($order, static::actionFeatures()), true)) {
+            $pulsanti[] = static::modalButton(OrderActions::CANCEL);
+        }
+
+        return $pulsanti;
+    }
+
+    /** Le azioni che non sono pulsanti a vista: Annulla sta in «Altro», il DDT in «Documenti», Annulla righe nella tabella. */
+    private const NOT_PRIMARY = [OrderActions::CANCEL, OrderActions::CANCEL_LINES, OrderActions::CREATE_DELIVERY_NOTE];
+
+    /**
+     * In testa alla scheda: il menu «Documenti», i pulsanti che portano avanti
+     * l'ordine e il menu «Altro». Un documento solo resta un pulsante.
      *
      * @return list<array<string, mixed>>
      */
@@ -261,13 +278,15 @@ final class OrderResource extends GestionaleResource
     {
         return [
             ...HeaderActions::group(static::documentButtons($order), 'Documenti', 'bi-file-earmark-pdf'),
-            ...HeaderActions::group(static::actionsFor($order)),
+            ...static::primaryActions($order),
+            ...HeaderActions::group(static::otherActions($order), 'Altro', 'bi-three-dots-vertical', true),
         ];
     }
 
     /**
-     * I PDF dell'ordine: la conferma (ordini da ufficio confermati, G9 §3.3) e
-     * il proforma (ogni ordine che non è bozza né annullato).
+     * I documenti dell'ordine: il proforma (che è anche la conferma d'ordine
+     * da mandare al cliente), dalla bozza in poi, e «Crea DDT» quando resta
+     * qualcosa da mettere in un DDT.
      *
      * @return list<array<string, string>>
      */
@@ -276,19 +295,7 @@ final class OrderResource extends GestionaleResource
         $id = (int) ($order['id'] ?? 0);
         $pulsanti = [];
 
-        if ((string) ($order['channel'] ?? '') === 'office'
-            && in_array((string) ($order['status'] ?? ''), ['confirmed', 'processing', 'completed'], true)
-            && Gestionale::feature('office_sales')) {
-            $pulsanti[] = [
-                'label' => 'Conferma d\'ordine',
-                'icon' => 'bi-file-earmark-pdf',
-                'class' => 'btn-outline-secondary btn-sm',
-                'href' => OfficeOrderResource::pdfUrl($id),
-                'target' => '_blank',
-            ];
-        }
-
-        if (OrderProforma::available($order)) {
+        if (OrderProforma::availableInBackend($order)) {
             $pulsanti[] = [
                 'label' => 'Proforma',
                 'icon' => 'bi-file-earmark-text',
@@ -298,7 +305,37 @@ final class OrderResource extends GestionaleResource
             ];
         }
 
+        if (!static::isOfficeDraft($order)
+            && in_array(OrderActions::CREATE_DELIVERY_NOTE, OrderActions::available($order, static::actionFeatures()), true)
+            && DeliveryNotes::proposal($id) !== []) {
+            $pulsanti[] = static::modalButton(OrderActions::CREATE_DELIVERY_NOTE);
+        }
+
         return $pulsanti;
+    }
+
+    /** La bozza di un ordine da ufficio: si lavora nella sua pagina. */
+    private static function isOfficeDraft(array $order): bool
+    {
+        return (string) ($order['channel'] ?? '') === 'office' && (string) ($order['status'] ?? '') === 'draft';
+    }
+
+    /** Il pulsante di un'azione: apre la sua finestra di conferma. @return array<string, string> */
+    private static function modalButton(string $azione): array
+    {
+        return [
+            'label' => OrderActions::label($azione),
+            'icon' => OrderActions::icon($azione),
+            'class' => OrderActions::buttonClass($azione).' btn-sm',
+            'href' => '#',
+            'onclick' => static::openModal(static::actionModalId($azione)),
+        ];
+    }
+
+    /** Il clic che apre una finestra di Bootstrap. */
+    public static function openModal(string $id): string
+    {
+        return 'window.bootstrap.Modal.getOrCreateInstance(document.getElementById('.json_encode($id).')).show(); return false;';
     }
 
     /** Le icone del canale: [icona, parola]. */
@@ -383,8 +420,7 @@ final class OrderResource extends GestionaleResource
             'icon' => 'bi-cash-coin',
             'class' => 'btn-outline-success btn-sm',
             'href' => '#',
-            'onclick' => 'window.bootstrap.Modal.getOrCreateInstance(document.getElementById('
-                .json_encode(OrderPaymentResource::MODAL_ID).')).show(); return false;',
+            'onclick' => static::openModal(OrderPaymentResource::MODAL_ID),
         ];
     }
 
@@ -411,9 +447,14 @@ final class OrderResource extends GestionaleResource
             OrderPaymentResource::activeMethods()
         );
 
-        // «Segna spedita» ha una finestra per ogni spedizione dell'ordine.
+        // Le azioni delle spedizioni hanno una finestra per spedizione, dal menu ⋯ della tabella.
         if (Gestionale::feature('shipping')) {
             $html .= ShipmentResource::modals(static::rowsOf(Shipment::class, $per, 'id'), $back);
+        }
+
+        // «Chiudi» e «Annulla» dei resi ricevuti, dal menu ⋯ della tabella dei resi.
+        if (Gestionale::feature('returns')) {
+            $html .= OrderReturnTableResource::modals((int) ($order['id'] ?? 0), $back);
         }
 
         return $html;
@@ -450,7 +491,7 @@ final class OrderResource extends GestionaleResource
             }
 
             if ($azione === OrderActions::CANCEL_LINES) {
-                $html .= static::cancelLinesModal($order, $items, $back);
+                $html .= static::cancelLineModals($order, $items, $back);
 
                 continue;
             }
@@ -472,6 +513,7 @@ final class OrderResource extends GestionaleResource
 
         if ($incassa) {
             $html .= OrderPaymentResource::modal($order, $payments, $methods, $back);
+            $html .= OrderPaymentResource::installmentModals($order, $payments, $methods, $back);
         }
 
         return $html;
@@ -492,43 +534,56 @@ final class OrderResource extends GestionaleResource
         return OfficeOrders::cancellableQuantities($order, static::rowsOf(OrderItem::class, ['order_id' => (int) ($order['id'] ?? 0)], 'position'));
     }
 
+    /** L'id della finestra «Annulla riga» di una riga. */
+    public static function cancelLineModalId(int $itemId): string
+    {
+        return 'wi-ordine-annulla-riga-'.$itemId;
+    }
+
     /**
-     * «Annulla righe»: una casella per riga ancora annullabile, vuota. La
-     * merce rientra in magazzino, totali e rate si rifanno.
+     * «Annulla riga»: una finestra per ogni riga ancora annullabile, che si
+     * apre dal menu ⋯ della riga. La quantità parte da tutto quello che si può
+     * annullare; scrivine meno per annullarne una parte. La merce rientra in
+     * magazzino, totali e rate si rifanno.
      *
      * @param list<array<string, mixed>> $items
      */
-    public static function cancelLinesModal(array $order, array $items, string $back): string
+    public static function cancelLineModals(array $order, array $items, string $back): string
     {
-        $remaining = OfficeOrders::cancellableQuantities($order, $items);
         $names = array_column($items, 'name', 'id');
-        $campi = [];
+        $numero = html_entity_decode(trim((string) ($order['order_number'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $html = '';
 
-        foreach ($remaining as $itemId => $quantita) {
+        foreach (OfficeOrders::cancellableQuantities($order, $items) as $itemId => $quantita) {
+            if ($quantita <= 0) {
+                continue;
+            }
+
             $nome = html_entity_decode((string) ($names[$itemId] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $campi[] = FormField::key('qty_'.(int) $itemId)->text()
-                ->label($nome.' (al massimo '.OrderSheet::number($quantita).')')
-                ->attribute('inputmode="decimal"')
-                ->columnSpan(12);
+            $html .= Modal::make(trim('Annulla riga: '.$nome))
+                ->id(static::cancelLineModalId((int) $itemId))
+                ->help('Si annulla solo quello che non è ancora partito: la merce torna in magazzino, i totali e le rate si rifanno. Annullando tutte le righe si annulla l\'ordine.')
+                ->form(OrderActionResource::submitUrl(), hidden: [
+                    'order_id' => (int) ($order['id'] ?? 0),
+                    'action' => OrderActions::CANCEL_LINES,
+                    'torna' => $back,
+                ])
+                ->columns(12)
+                ->components([
+                    RichText::make(static::escape('Ordine '.$numero))->class('small text-body-secondary mb-0')->columnSpan(12),
+                    FormField::key('qty_'.(int) $itemId)->text()
+                        ->label('Quantità da annullare (al massimo '.OrderSheet::number($quantita).')')
+                        ->value(OrderSheet::number($quantita))
+                        ->attribute('inputmode="decimal"')
+                        ->required()
+                        ->columnSpan(12),
+                ])
+                ->cancel('Indietro')
+                ->submit('Annulla riga', 'danger')
+                ->render('bootstrap');
         }
 
-        if ($campi === []) {
-            return '';
-        }
-
-        return Modal::make(trim('Annulla righe: ordine '.html_entity_decode(trim((string) ($order['order_number'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8')))
-            ->id(static::actionModalId(OrderActions::CANCEL_LINES))
-            ->help('Scrivi quanto annullare di ogni riga: la merce torna in magazzino, i totali e le rate si rifanno. Si annulla solo quello che non è ancora partito; annullando tutto si annulla l\'ordine.')
-            ->form(OrderActionResource::submitUrl(), hidden: [
-                'order_id' => (int) ($order['id'] ?? 0),
-                'action' => OrderActions::CANCEL_LINES,
-                'torna' => $back,
-            ])
-            ->columns(12)
-            ->components($campi)
-            ->cancel('Indietro')
-            ->submit(OrderActions::label(OrderActions::CANCEL_LINES), 'danger')
-            ->render('bootstrap');
+        return $html;
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -555,6 +610,35 @@ final class OrderResource extends GestionaleResource
     public static function pageTitle(array $order): string
     {
         return trim('Ordine '.trim((string) ($order['order_number'] ?? '')));
+    }
+
+    /** Sotto il titolo: «Creato il 14/10/2026 10:30 · Online». */
+    public static function pageSubtitle(array $order): string
+    {
+        $quando = (string) ($order['ordered_at'] ?? '');
+        $quando = $quando === '' || str_starts_with($quando, '0000') ? (string) ($order['creation'] ?? '') : $quando;
+        $canale = (string) ($order['channel'] ?? '');
+        $parti = [];
+
+        if ($quando !== '' && !str_starts_with($quando, '0000')) {
+            $parti[] = 'Creato il '.static::date($quando);
+        }
+
+        if (isset(self::CHANNEL_ICONS[$canale])) {
+            $parti[] = self::CHANNEL_ICONS[$canale][1];
+        }
+
+        return implode(' · ', $parti);
+    }
+
+    /** Come arriva la merce, per la riga degli stati: «Spedizione», «Ritiro» o «Consegna». */
+    public static function fulfillmentLabel(string $type): string
+    {
+        return match ($type) {
+            'pickup' => 'Ritiro',
+            'none' => 'Consegna',
+            default => 'Spedizione',
+        };
     }
 
     /** L'indirizzo dell'elenco, dalla rotta con il nome; il percorso è il ripiego. */
@@ -662,7 +746,7 @@ final class OrderResource extends GestionaleResource
                     'L\'imposta si calcola sul totale imponibile di ogni aliquota, non riga per riga.'),
             ]),
             $tabella('Righe', OrderItemTableResource::embed($id), true),
-            $tabella('Pagamenti', OrderPaymentTableResource::embed($id)),
+            $tabella('Pagamenti', static::paymentsToolbar($order).OrderPaymentTableResource::embed($id)),
         ];
 
         if (Gestionale::feature('returns')) {
@@ -676,6 +760,24 @@ final class OrderResource extends GestionaleResource
         $componenti[] = $tabella('Storico', OrderHistoryTableResource::embed($id));
 
         return (new Container)->components($componenti)->columns(12);
+    }
+
+    /** Sopra la tabella dei pagamenti, «Registra pagamento» finché c'è da incassare: apre la finestra della scheda. */
+    public static function paymentsToolbar(array $order): string
+    {
+        if (!OrderActions::canRegisterPayment($order)) {
+            return '';
+        }
+
+        return '<div class="d-flex justify-content-end mb-2">'
+            .Button::make('Registra pagamento')
+                ->opensModal(OrderPaymentResource::MODAL_ID)
+                ->variant('success')
+                ->outline()
+                ->size('sm')
+                ->schema('inline', true)
+                ->render('bootstrap')
+            .'</div>';
     }
 
     /** L'indirizzo della scheda del cliente di un ordine; vuoto se l'ordine non ha un cliente registrato. */
@@ -694,9 +796,9 @@ final class OrderResource extends GestionaleResource
     }
 
     /**
-     * L'intestazione: numero, data, canale, i tre stati, il cliente, gli
-     * indirizzi, il metodo di pagamento (e chi l'ha gestito) e le note, un
-     * `DataItem` ciascuno.
+     * L'intestazione: i tre stati, il cliente, gli indirizzi, il metodo di
+     * pagamento (e chi l'ha gestito) e le note, un `DataItem` ciascuno. Numero,
+     * data e canale stanno nel titolo e nel sottotitolo della pagina.
      *
      * @param array<int, string> $metodi
      * @param list<array<string, mixed>> $payments i pagamenti dell'ordine
@@ -726,20 +828,18 @@ final class OrderResource extends GestionaleResource
             .' role="button" data-bs-toggle="modal" data-bs-target="#'.OrderNoteResource::MODAL_ID.'">'
             .'<i class="bi bi-pencil"></i></a>';
         $nota = static fn (string $v): string => trim($v) !== '' ? nl2br(static::escape($v)) : '';
-        $canale = (string) ($order['channel'] ?? '');
+        $consegna = (string) ($order['fulfillment_type'] ?? 'shipping');
 
+        // Numero, data e canale stanno nel titolo e sotto: la prima riga sono gli stati.
         return [
-            $dato('Numero', (string) ($order['order_number'] ?? '')),
-            $dato('Data', static::date((string) ($order['ordered_at'] ?? ''))),
-            $dato('Canale', self::CHANNEL_ICONS[$canale][1] ?? $canale),
             $dato('Ordine', StatusLabels::badge('order', (string) ($order['status'] ?? '')), true),
             $dato('Pagamento', static::paymentBadge((string) ($order['payment_status'] ?? ''), OnlinePayments::inTest((int) ($order['id'] ?? 0))), true),
-            $dato('Evasione', StatusLabels::badge('fulfillment', (string) ($order['fulfillment_status'] ?? '')), true),
+            $dato(static::fulfillmentLabel($consegna), StatusLabels::fulfillmentBadge($consegna, (string) ($order['fulfillment_status'] ?? '')), true),
             $dato('Cliente', static::customerLink($order), true),
             $dato('Email', (string) ($order['email'] ?? '')),
             $dato('Telefono', (string) ($order['phone'] ?? '')),
             $dato('Fatturazione', OrderSheet::address($order, 'billing'), true),
-            $dato('Spedizione', OrderSheet::address($order, 'shipping'), true),
+            $dato('Indirizzo di spedizione', OrderSheet::address($order, 'shipping'), true),
             $dato('Metodo di pagamento', PaymentMethod::choiceLabel((string) ($online['provider_method'] ?? ''), $metodi[(int) ($order['payment_method_id'] ?? 0)] ?? '')),
             ...($online === [] ? [] : [$dato('Gestito da', OrderPaymentTableResource::providerName((string) $online['provider']))]),
             $dato('Nota del cliente', $nota((string) ($order['customer_note'] ?? '')), true),

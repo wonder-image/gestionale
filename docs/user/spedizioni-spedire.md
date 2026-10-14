@@ -23,9 +23,15 @@ tutte le quantità sono partite, e *parzialmente evaso* finché ne manca una par
 3. Scegli cosa fare: **Lasciala in attesa** (la prepari e la spedisci dopo) oppure
    **Segna subito spedita**.
 
-Una spedizione in attesa si spedisce dal suo pulsante **Segna spedita**: se non
-hai ancora scritto corriere e tracking, te li chiede in quel momento. Al cliente
-parte un'email con il link per seguire il pacco.
+Una spedizione in attesa si spedisce con **Segna spedita**: se non hai ancora
+scritto corriere e tracking, te li chiede in quel momento. Al cliente parte
+un'email con il link per seguire il pacco.
+
+Le azioni di una spedizione stanno in due posti, sempre le stesse: in alto a
+destra nella **scheda della spedizione** (*Annulla spedizione* nel menu
+**Altro**), e nel menu **⋯** in fondo alla sua riga, nel riquadro
+*Spedizioni* della scheda dell'ordine. Ognuna apre una finestra che chiede
+conferma.
 
 ### Perché «Segna evaso» non c'è più
 

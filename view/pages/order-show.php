@@ -23,7 +23,7 @@ if ((string) ($ordine['stage'] ?? '') !== 'order') {
     exit;
 }
 
-View::layout('backend.show', ['TITLE' => OrderResource::pageTitle($ordine)]);
+View::layout('backend.show', ['TITLE' => OrderResource::pageTitle($ordine), 'SUBTITLE' => OrderResource::pageSubtitle($ordine)]);
 
 echo ResourceFormLayoutRenderer::renderLayout(OrderResource::showLayoutSchema($ordine));
 

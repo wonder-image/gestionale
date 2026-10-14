@@ -6,8 +6,9 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 
 /**
  * Il proforma di un ordine (online o da ufficio): quando c'è, come si chiama
- * il file, e il PDF. Lo usano la scheda dell'ordine nel backend e l'area
- * cliente del sito, con la stessa regola.
+ * il file, e il PDF. Lo usano la scheda dell'ordine nel backend, che lo
+ * offre già dalla bozza, e l'area cliente del sito, che lo offre a ordine
+ * confermato.
  */
 final class OrderProforma
 {
@@ -21,6 +22,20 @@ final class OrderProforma
             && (string) ($order['stage'] ?? '') === 'order'
             && (string) ($order['deleted'] ?? 'false') === 'false'
             && !in_array((string) ($order['status'] ?? ''), self::EXCLUDED_STATUSES, true);
+    }
+
+    /**
+     * Nel backend il proforma c'è dalla bozza in poi: è anche la conferma
+     * d'ordine da mandare al cliente. Non per l'ordine annullato.
+     *
+     * @param array<string, mixed> $order
+     */
+    public static function availableInBackend(array $order): bool
+    {
+        return (int) ($order['id'] ?? 0) > 0
+            && (string) ($order['stage'] ?? '') === 'order'
+            && (string) ($order['deleted'] ?? 'false') === 'false'
+            && (string) ($order['status'] ?? '') !== 'cancelled';
     }
 
     /** @param array<string, mixed> $order */
@@ -52,11 +67,15 @@ final class OrderProforma
         exit;
     }
 
-    /** L'ordine, se ha il proforma; altrimenti null. @return array<string, mixed>|null */
-    public static function order(int $orderId): ?array
+    /** L'ordine, se ha il proforma; altrimenti null. Con `$backend` vale la regola del backend. @return array<string, mixed>|null */
+    public static function order(int $orderId, bool $backend = false): ?array
     {
         $order = $orderId > 0 ? Order::findById($orderId) : null;
 
-        return is_array($order) && self::available($order) ? $order : null;
+        if (!is_array($order) || $order === []) {
+            return null;
+        }
+
+        return ($backend ? self::availableInBackend($order) : self::available($order)) ? $order : null;
     }
 }

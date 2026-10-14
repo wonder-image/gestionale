@@ -82,7 +82,7 @@ function schedaHtml(int $ordine): string
     return layoutHtml(OrderResource::showLayoutSchema((array) Order::findById($ordine)));
 }
 
-check('la scheda mostra numero, cliente, totale e riepilogo IVA; il nome è escapato', function () {
+check('il numero sta nel titolo; la scheda mostra cliente, totale e riepilogo IVA; il nome è escapato', function () {
     return prova(static function (): bool {
         $ordine = ordineDiProva(122.0);
         Order::update([
@@ -92,7 +92,7 @@ check('la scheda mostra numero, cliente, totale e riepilogo IVA; il nome è esca
         OrderTaxSummary::create(['order_id' => $ordine, 'rate' => '22.00', 'taxable' => '100.00', 'tax' => '22.00', 'total' => '122.00']);
         $html = schedaHtml($ordine);
 
-        return str_contains($html, '2025/777') && str_contains($html, '122,00 €')
+        return OrderResource::pageTitle((array) Order::findById($ordine)) === 'Ordine 2025/777' && str_contains($html, '122,00 €')
             && str_contains($html, '22%') && str_contains($html, '&lt;b&gt;x&lt;/b&gt;')
             && !str_contains($html, '<b>x</b>');
     });

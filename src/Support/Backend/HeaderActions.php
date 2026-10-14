@@ -8,19 +8,21 @@ namespace Wonder\Plugin\Gestionale\Support\Backend;
  * Una scheda con tante azioni (ordine, abbonamento, documento di magazzino)
  * metteva in fila cinque o sei pulsanti: qui diventano le voci di un menu a
  * tendina del core (il descrittore con `items` di `PageActionNormalizer`).
- * Un pulsante solo resta un pulsante: un menu con una voce è un clic in più.
+ * Un pulsante solo resta un pulsante: un menu con una voce è un clic in più,
+ * salvo un menu che tiene da parte di proposito, come «Altro» con Annulla.
  */
 final class HeaderActions
 {
     /**
      * @param list<array<string, string>> $buttons i pulsanti come li dà la Resource (`label`, `icon`, `class`, `href`, `onclick`)
+     * @param bool $alwaysMenu anche un pulsante solo va nel menu
      * @return list<array<string, mixed>>
      */
-    public static function group(array $buttons, string $label = 'Azioni', string $icon = 'bi-three-dots-vertical'): array
+    public static function group(array $buttons, string $label = 'Azioni', string $icon = 'bi-three-dots-vertical', bool $alwaysMenu = false): array
     {
         $buttons = array_values(array_filter($buttons, static fn ($button): bool => is_array($button) && trim((string) ($button['label'] ?? '')) !== ''));
 
-        if (count($buttons) <= 1) {
+        if ($buttons === [] || (count($buttons) === 1 && !$alwaysMenu)) {
             return $buttons;
         }
 
