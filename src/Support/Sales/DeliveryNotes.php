@@ -115,7 +115,12 @@ final class DeliveryNotes
     {
         Transaction::run(static function () use ($id, $header, $quantities): void {
             self::draft($id);
-            DeliveryNote::update(self::headerValues($header), $id);
+            // Solo le quantità, senza testata: un UPDATE senza campi è un errore SQL.
+            $values = self::headerValues($header);
+
+            if ($values !== []) {
+                DeliveryNote::update($values, $id);
+            }
 
             foreach (self::items($id) as $item) {
                 $itemId = (int) $item['id'];
