@@ -14,6 +14,7 @@ comando la cambia a mano: chiamano il servizio.
 | `status` e `fulfillment_status` dell'ordine | `Lifecycle::confirm()`, `cancel()`, `fulfill()` | `Support\Orders` |
 | `payment_status` dell'ordine | `Ledger::sync()`, chiamato da `register()`, `refund()`, `fail()` | `Support\Payments` |
 | Prenotazione, scarico e rientro della merce | `Allocation::reserve()`, `release()`, `commit()`, `restore()`, `returnGoods()` | `Support\Stock` |
+| Rate di un ordine (righe `pending` con `due_date`) | `Installments::create()`, `register()`, `registerOnOrder()`, `recalculate()` | `Support\Payments` |
 | Stato del reso e sue righe | `Returns::register()`, `complete()`, `cancel()` | `Support\Returns` |
 | Giacenza e movimenti | `Stock::apply()` (vedi [Magazzino](magazzino.md)) | `Support\Stock` |
 
@@ -107,6 +108,30 @@ massima è quella della madre, e il rientro passa da `Allocation::returnGoods()`
 sulle sole figlie. La pulizia dei dati di prova (`OrdersDemo`) restituisce la
 merce di `OrderLines::goods()`, mai quella della madre.
 
+## Le rate (G9)
+
+Una **rata** è una riga `payment` di `gst_payments` con `due_date`, scritta
+**in attesa** (`pending`, `provider` `manual`, `note` «Rata 1 di 2»). Le righe
+senza scadenza (il checkout, il bonifico a mano) non sono rate e
+`Installments` non le tocca, salvo una: alla `create()` la richiesta di
+pagamento aperta senza scadenza si annulla, perché la sostituiscono le rate.
+
+- Le condizioni stanno in `gst_payment_terms` e `gst_payment_term_installments`
+  (giorni, fine mese, percentuale); `PaymentTermRules` le valida.
+- `PaymentSchedule::of($rate, $totale, $da)` è **pura**: scadenze e importi,
+  l'ultima rata col resto. La userà anche G10 per gli abbonamenti da ufficio.
+- `InstallmentMath` è **pura**: dice cosa scrivere per un incasso su una rata
+  (uguale, minore col resto alla stessa scadenza, maggiore che scala le
+  successive) e per il ricalcolo proporzionale. `Installments` scrive e chiude
+  con `Ledger::sync()`.
+- `OrderPaymentResource` passa da `Installments` quando l'ordine ha rate in
+  attesa: `Ledger::register()` scriverebbe un incasso a parte e le rate
+  resterebbero aperte. Per lo stesso motivo `Ledger` non adotta una rata come
+  riga aperta del checkout.
+- Lo scadenzario (`ScheduleResource`) e il riquadro (`DuePaymentsWidget`)
+  leggono con `DuePayments`; i giorni di preavviso sono `payment_due_days`
+  delle impostazioni, fuori dal sync.
+
 ## Il reso
 
 `Returns::register($ordine, $righe, $opzioni)` fa tutto dentro una transazione,
@@ -149,6 +174,11 @@ vedi [Errori e log](errori.md).
   `accendiFunzionalita(['orders', 'returns'])`. Si lavora dentro una
   transazione che alla fine si annulla, così il database del sito di prova
   resta com'era.
+- Con `office_sales` accesa, `gestionale:demo` crea anche «rate-ufficio»:
+  un ordine da ufficio in RiBa 30/60 con le rate che partono 31 giorni prima
+  dell'inizio del mese: la prima è sempre scaduta, la seconda no, qualunque
+  sia il giorno. `tests/integrazione/InstallmentsTest.php` prova i conti delle
+  rate sul database.
 - Per spegnere una funzionalità solo dentro la prova:
   `sqlModify(Feature::$table, ['enabled' => 'false'], 'feature_key', 'returns')`
   seguito da `Gestionale::reset()`.

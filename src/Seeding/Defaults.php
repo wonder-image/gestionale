@@ -10,6 +10,8 @@ use Wonder\Plugin\Custom\Fattura\Valori\Natura;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentTermInstallment;
 use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRate;
@@ -50,6 +52,7 @@ final class Defaults implements ModuleDefaults
         self::settings($rows);
         self::location($rows);
         self::paymentMethods($rows);
+        self::paymentTerms($rows);
         self::carriers($rows);
         self::shipping($rows);
     }
@@ -237,6 +240,63 @@ final class Defaults implements ModuleDefaults
             'is_pos' => 'false',
             'active' => 'true',
         ]]);
+    }
+
+    /**
+     * Le tre condizioni di pagamento più comuni (G9). Le rate nascono solo
+     * insieme alla loro condizione: una condizione che c'era già, magari
+     * cambiata dal commerciante, non si tocca.
+     */
+    private static function paymentTerms(DefaultRows $rows): void
+    {
+        $terms = [
+            'rimessa-diretta' => ['Rimessa diretta', 'TP02', 1, [[0, 'false', 100]]],
+            'bonifico-30-fm' => ['Bonifico 30 gg fine mese', 'TP02', 2, [[30, 'true', 100]]],
+            'riba-30-60-fm' => ['RiBa 30/60 gg fine mese', 'TP01', 3, [[30, 'true', 50], [60, 'true', 50]]],
+        ];
+
+        $before = [];
+
+        foreach (array_keys($terms) as $code) {
+            $found = PaymentTerm::find(['code' => $code], 1);
+            $before[$code] = is_array($found) && $found !== [];
+        }
+
+        $rows->ensure(PaymentTerm::class, 'code', array_map(
+            static fn (string $code, array $term): array => [
+                'code' => $code,
+                'name' => $term[0],
+                'sdi_condition' => $term[1],
+                'active' => 'true',
+                'position' => $term[2],
+            ],
+            array_keys($terms),
+            $terms
+        ));
+
+        foreach ($terms as $code => $term) {
+            if ($before[$code]) {
+                continue;
+            }
+
+            $row = PaymentTerm::find(['code' => $code], 1);
+            $id = is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+
+            if ($id <= 0) {
+                continue;
+            }
+
+            foreach ($term[3] as $i => [$days, $endOfMonth, $percentage]) {
+                PaymentTermInstallment::create([
+                    'payment_term_id' => $id,
+                    'days' => $days,
+                    'end_of_month' => $endOfMonth,
+                    'percentage' => $percentage,
+                    'position' => $i + 1,
+                ]);
+                $rows->count(1);
+            }
+        }
     }
 
     /**

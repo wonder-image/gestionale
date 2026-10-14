@@ -7,6 +7,21 @@ versionamento semantico.
 
 ### Aggiunto
 
+- G9 piano 1, **Condizioni di pagamento e scadenzario**: *Set Up → Pagamenti
+  → Condizioni di pagamento* con le rate (giorni, fine mese, percentuale che
+  fa 100), tre già pronte (rimessa diretta, bonifico 30 gg fine mese, RiBa
+  30/60); una condizione in uso non si elimina. Le rate di un ordine sono
+  pagamenti in attesa con la scadenza (`Installments`): un incasso minore
+  lascia il resto alla stessa scadenza, uno maggiore scala le rate dopo; il
+  registro libero sull'ordine chiude prima la rata più vicina. Con *Vendita in
+  ufficio*: **Vendite → Scadenzario** (filtri *Scadute*, *In scadenza*,
+  *Tutte in attesa*, *Pagate*; *Registra pagamento* sulla rata), riquadro
+  della home **Pagamenti in scadenza**, *Giorni di preavviso per le scadenze*
+  nelle Impostazioni, metodo e condizione predefiniti sulla scheda del
+  cliente. Guida `vendite-pagamenti-a-rate.md`. `gestionale:demo` con
+  *Vendita in ufficio* aggiunge un ordine da ufficio con due rate, una
+  scaduta. **Chi aggiorna deve lanciare `php forge update`.**
+
 - G3 piano 4, **Trasferimenti** (con *Più sedi*): documento in due passi,
   **Invia** (la merce lascia la partenza ed è *in viaggio*) e **Ricevi**
   (entra tutta all'arrivo), annullabile in viaggio e da ricevuto; lotto e

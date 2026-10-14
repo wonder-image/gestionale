@@ -54,6 +54,7 @@ final class Codes
     // Pagamenti (configurazione)
     public const PAYMENT_METHOD = 'pme_';
     public const PAYMENT_ACCOUNT = 'pac_';
+    public const PAYMENT_TERM = 'ptm_';
 
     // Spedizioni
     public const CARRIER = 'car_';
