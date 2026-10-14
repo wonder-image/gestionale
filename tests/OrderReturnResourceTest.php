@@ -128,15 +128,18 @@ check('la sede si sceglie solo se ce n\'è più d\'una', function () {
         && str_contains($due, 'Deposito &lt;1&gt;') && str_contains($due, '<option value="5" selected');
 });
 
-check('la tabella dei resi offre Chiudi e Annulla solo per un reso ricevuto', function () {
+check('la tabella dei resi offre Chiudi e Annulla solo per un reso ricevuto, nel menu ⋯ che apre le finestre', function () {
     $azioni = array_values(array_filter(
         OrderReturnTableResource::tableSchema(),
         static fn ($c): bool => (string) $c->name === 'actions'
     ))[0]->schema['formatter'];
     $ricevuto = $azioni(['id' => 7, 'order_id' => 9, 'status' => 'received']);
 
-    return str_contains($ricevuto, 'name="action" value="complete"') && str_contains($ricevuto, 'name="action" value="cancel"')
-        && str_contains($ricevuto, 'name="return_id" value="7"') && str_contains($ricevuto, 'Chiudi') && str_contains($ricevuto, 'Annulla')
+    return str_contains($ricevuto, 'bi-three-dots') && str_contains($ricevuto, 'data-bs-toggle="dropdown"')
+        && str_contains($ricevuto, 'data-bs-target="#'.OrderReturnTableResource::modalId(7, 'complete').'"')
+        && str_contains($ricevuto, 'data-bs-target="#'.OrderReturnTableResource::modalId(7, 'cancel').'"')
+        && str_contains($ricevuto, 'Chiudi') && str_contains($ricevuto, 'Annulla')
+        && !str_contains($ricevuto, '<form')
         && $azioni(['id' => 7, 'order_id' => 9, 'status' => 'completed']) === ''
         && $azioni(['id' => 7, 'order_id' => 9, 'status' => 'cancelled']) === '';
 });

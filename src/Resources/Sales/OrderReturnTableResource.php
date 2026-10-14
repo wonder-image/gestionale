@@ -4,11 +4,12 @@ namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
 use Throwable;
 use Wonder\App\ResourceSchema\TableColumn;
-use Wonder\Elements\Components\Button;
+use Wonder\Elements\Components\Modal;
+use Wonder\Elements\Components\RichText;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
-use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\Plugin\Gestionale\Support\Backend\RowMenu;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
 /** I resi dell'ordine: la tabella c'è solo con la funzionalità «returns». */
@@ -51,7 +52,7 @@ final class OrderReturnTableResource extends OrderSectionResource
             'status' => 'Stato',
             'requested_at' => 'Data',
             'lines' => 'Righe',
-            'actions' => 'Azioni',
+            'actions' => '',
         ];
     }
 
@@ -107,38 +108,74 @@ final class OrderReturnTableResource extends OrderSectionResource
         return implode(', ', $testi);
     }
 
+    /** Le azioni di un reso ricevuto: [azione, parola, variante, frase della conferma]. */
+    private const ACTIONS = [
+        ['complete', 'Chiudi', 'success', 'Il reso si chiude: la merce rientrata resta in magazzino e il reso non si cambia più.'],
+        ['cancel', 'Annulla', 'danger', 'Il reso si annulla: la merce rientrata esce di nuovo dal magazzino.'],
+    ];
+
+    /** L'id della finestra di un'azione su un reso. */
+    public static function modalId(int $returnId, string $action): string
+    {
+        return 'wi-reso-'.$action.'-'.$returnId;
+    }
+
     /**
-     * «Chiudi» e «Annulla» di un reso ricevuto: due piccoli moduli che postano
-     * a «Registra reso», che è l'unico a parlare con `Returns`. Per un reso già
-     * chiuso o annullato non c'è niente da fare.
+     * Il menu ⋯ di un reso ricevuto: «Chiudi» e «Annulla» aprono la loro
+     * finestra di conferma. Per un reso già chiuso o annullato non c'è niente
+     * da fare.
      *
      * @param array<string, mixed> $row
      */
-    private static function actionsOf(array $row): string
+    public static function actionsOf(array $row): string
     {
         if ((string) ($row['status'] ?? '') !== 'received') {
             return '';
         }
 
-        $orderId = (int) ($row['order_id'] ?? 0);
-        $torna = StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '');
-        $pulsante = static fn (string $action, string $label, string $variant): Button => Button::post(OrderReturnResource::submitUrl(), $label)
-            ->hidden([
-                'action' => $action,
-                'return_id' => (int) ($row['id'] ?? 0),
-                'order_id' => $orderId,
-                'back' => $torna,
-            ])
-            ->variant($variant)
-            ->outline()
-            ->size('sm')
-            ->schema('inline', true)
-            ->formAttributes(['class' => 'd-inline']);
+        $id = (int) ($row['id'] ?? 0);
 
-        return $pulsante('complete', 'Chiudi', 'success')->render('bootstrap').' '
-            .$pulsante('cancel', 'Annulla', 'danger')
-                ->confirm('Confermi l\'annullamento di questo reso?', title: 'Annulla reso', ok: 'Annulla reso', variant: 'danger')
-                ->render('bootstrap');
+        return RowMenu::render(array_map(static fn (array $azione): array => [
+            'label' => $azione[1],
+            'icon' => $azione[0] === 'cancel' ? 'bi bi-x-circle' : 'bi bi-check2-circle',
+            'modal' => static::modalId($id, $azione[0]),
+            'danger' => $azione[0] === 'cancel',
+        ], self::ACTIONS));
+    }
+
+    /**
+     * Le finestre dei resi ricevuti dell'ordine: postano a «Registra reso»,
+     * che è l'unico a parlare con `Returns`.
+     */
+    public static function modals(int $orderId, string $back): string
+    {
+        if ($orderId <= 0 || !static::featureActive()) {
+            return '';
+        }
+
+        $html = '';
+
+        foreach (static::rowsOf(SalesReturn::class, ['order_id' => $orderId, 'status' => 'received'], 'id') as $reso) {
+            $id = (int) ($reso['id'] ?? 0);
+            $nome = html_entity_decode((string) (($reso['number'] ?? '') !== '' ? $reso['number'] : ($reso['code'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+            foreach (self::ACTIONS as [$azione, $parola, $variante, $frase]) {
+                $html .= Modal::make(trim($parola.' il reso '.$nome))
+                    ->id(static::modalId($id, $azione))
+                    ->form(OrderReturnResource::submitUrl(), hidden: [
+                        'action' => $azione,
+                        'return_id' => $id,
+                        'order_id' => $orderId,
+                        'back' => $back,
+                    ])
+                    ->components([RichText::make(static::escape($frase))->class('mb-0')])
+                    ->cancel('Indietro')
+                    ->submit($parola.' reso', $variante)
+                    ->render('bootstrap');
+            }
+        }
+
+        return $html;
     }
 
     protected static function emptyText(): string

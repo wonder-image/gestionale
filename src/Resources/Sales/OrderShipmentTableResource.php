@@ -53,7 +53,7 @@ final class OrderShipmentTableResource extends OrderSectionResource
             'lines' => 'Contenuto',
             'carrier_id' => 'Corriere',
             'tracking_number' => 'Tracking',
-            'actions' => 'Azioni',
+            'actions' => '',
         ];
     }
 
@@ -86,6 +86,7 @@ final class OrderShipmentTableResource extends OrderSectionResource
                 ->formatter(static fn (array $row): string => ShipmentResource::trackingHtml($row)),
             TableColumn::key('actions')
                 ->text()
+                ->size('little')
                 ->formatter(static fn (array $row): string => ShipmentResource::actionsHtml($row, $back())),
         ];
     }

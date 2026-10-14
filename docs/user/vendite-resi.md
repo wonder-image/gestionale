@@ -48,8 +48,9 @@ basta.
 
 ## Chiudere e annullare
 
-Nel riquadro **Resi** della scheda ogni reso ha **Numero**, **Stato**, **Data**,
-**Righe** e **Azioni**. Un reso *Ricevuto* ha due pulsanti:
+Nel riquadro **Resi** della scheda ogni reso ha **Numero**, **Stato**, **Data**
+e **Righe**. Un reso *Ricevuto* ha in fondo il menu **⋯** con due voci, che
+chiedono conferma in una finestra:
 
 * **Chiudi** — hai finito con quella pratica: il reso passa a *Completato*.
 * **Annulla** — l'hai registrato per sbaglio. Si può **solo se nessuna riga è

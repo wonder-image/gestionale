@@ -9,6 +9,9 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
+use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
+use Wonder\Plugin\Gestionale\Support\Documents\OrderProforma;
+use Wonder\Plugin\Gestionale\Support\Orders\StatusLabels;
 use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 
 $pagine = OrderResource::pageSchema()->toArray();
@@ -264,27 +267,87 @@ check('un ordine da incassare offre Registra pagamento, prima di Annulla, e lo a
         && ($pulsanti[1]['href'] ?? '') === '#';
 });
 
-check('in testa alla scheda: il proforma come pulsante, le azioni raggruppate nel menu «Azioni»', function () {
+check('in testa alla scheda: «Documenti», le azioni di stato come pulsanti, «Altro» con Annulla', function () {
     $ordine = ['id' => 9, 'stage' => 'order', 'status' => 'confirmed', 'deleted' => 'false', 'fulfillment_status' => 'unfulfilled', 'payment_status' => 'unpaid'];
     $testa = OrderResource::pageActions($ordine);
-    $menu = $testa[1] ?? [];
-    $voci = array_map(static fn (array $v): string => (string) $v['label'], $menu['items'] ?? []);
+    $nomi = array_map(static fn (array $v): string => (string) $v['label'], $testa);
+    $altro = $testa[3] ?? [];
 
-    return count($testa) === 2
-        && ($testa[0]['label'] ?? '') === 'Proforma' && str_contains((string) $testa[0]['href'], '/9/proforma/')
-        && ($menu['label'] ?? '') === 'Azioni'
-        && $voci === ['Segna evaso', 'Registra pagamento', 'Annulla']
-        && ($menu['items'][2]['class'] ?? '') === 'text-danger'
-        && str_contains((string) $menu['items'][1]['onclick'], OrderPaymentResource::MODAL_ID);
+    return $nomi === ['Proforma', 'Segna evaso', 'Registra pagamento', 'Altro']
+        && str_contains((string) $testa[0]['href'], '/9/proforma/') && ($testa[0]['target'] ?? '') === '_blank'
+        && !isset($testa[1]['items']) && str_contains((string) $testa[2]['onclick'], OrderPaymentResource::MODAL_ID)
+        && array_map(static fn (array $v): string => (string) $v['label'], $altro['items'] ?? []) === ['Annulla']
+        && ($altro['items'][0]['class'] ?? '') === 'text-danger';
 });
 
-check('una bozza o un annullato non hanno il proforma; un pulsante solo resta un pulsante', function () {
+check('«Altro» resta un menu anche con una voce sola; «Documenti» con un documento solo è un pulsante', function () {
+    $menu = HeaderActions::group([['label' => 'Annulla', 'class' => 'btn-outline-danger', 'href' => '#']], 'Altro', 'bi-three-dots-vertical', true);
+    $pulsante = HeaderActions::group([['label' => 'Proforma', 'href' => '/p']], 'Documenti');
+
+    return count($menu) === 1 && ($menu[0]['label'] ?? '') === 'Altro' && count($menu[0]['items'] ?? []) === 1
+        && count($pulsante) === 1 && ($pulsante[0]['label'] ?? '') === 'Proforma' && !isset($pulsante[0]['items'])
+        && HeaderActions::group([], 'Altro', 'bi-x', true) === [];
+});
+
+check('la bozza ha il proforma e «Modifica bozza»; l\'annullato non ha il proforma', function () {
     $bozza = OrderResource::pageActions(['id' => 9, 'stage' => 'order', 'channel' => 'office', 'status' => 'draft', 'deleted' => 'false']);
     $annullato = OrderResource::documentButtons(['id' => 9, 'stage' => 'order', 'status' => 'cancelled', 'deleted' => 'false']);
 
-    return count($bozza) === 1 && ($bozza[0]['label'] ?? '') === 'Modifica bozza' && !isset($bozza[0]['items'])
+    return array_map(static fn (array $v): string => (string) $v['label'], $bozza) === ['Proforma', 'Modifica bozza']
+        && !isset($bozza[0]['items']) && !isset($bozza[1]['items'])
         && $annullato === [];
 });
+
+check('il proforma del backend vale dalla bozza, quello del sito dalla conferma', function () {
+    $base = ['id' => 9, 'stage' => 'order', 'deleted' => 'false'];
+
+    return OrderProforma::availableInBackend(['status' => 'draft'] + $base)
+        && OrderProforma::availableInBackend(['status' => 'confirmed'] + $base)
+        && !OrderProforma::availableInBackend(['status' => 'cancelled'] + $base)
+        && !OrderProforma::availableInBackend(['status' => 'draft', 'stage' => 'quote'] + $base)
+        && !OrderProforma::available(['status' => 'draft'] + $base)
+        && OrderProforma::fileName(['id' => 9, 'order_number' => '']) === 'proforma-ordine-9.pdf';
+});
+
+check('il sottotitolo dice quando e da dove; la riga degli stati dice come arriva la merce', fn () =>
+    OrderResource::pageSubtitle(['ordered_at' => '2026-10-14 10:30:00', 'channel' => 'online']) === 'Creato il 14/10/2026 10:30 · Online'
+    && OrderResource::pageSubtitle(['ordered_at' => '', 'creation' => '2026-10-01 09:00:00', 'channel' => 'office']) === 'Creato il 01/10/2026 09:00 · Ufficio'
+    && OrderResource::pageSubtitle([]) === ''
+    && OrderResource::fulfillmentLabel('shipping') === 'Spedizione'
+    && OrderResource::fulfillmentLabel('pickup') === 'Ritiro'
+    && OrderResource::fulfillmentLabel('none') === 'Consegna'
+    && str_contains(StatusLabels::fulfillmentBadge('shipping', 'unfulfilled'), 'Da spedire')
+    && str_contains(StatusLabels::fulfillmentBadge('pickup', 'fulfilled'), 'Ritirato')
+    && str_contains(StatusLabels::fulfillmentBadge('pickup', 'ready_for_pickup'), 'Pronto per il ritiro')
+    && str_contains(StatusLabels::fulfillmentBadge('shipping', 'fulfilled'), 'text-bg-success')
+);
+
+check('le colonne Canale e Consegna dell\'elenco non hanno titolo', fn () =>
+    OrderResource::labelSchema()['channel'] === '' && OrderResource::labelSchema()['fulfillment_type'] === ''
+);
+
+check('le rate in attesa hanno la loro finestra di pagamento, con la rata e il suo importo', function () {
+    $html = OrderPaymentResource::installmentModals(
+        ['id' => 9, 'payment_method_id' => 2],
+        [
+            ['id' => 31, 'type' => 'payment', 'status' => 'pending', 'amount' => '50.00', 'due_date' => '2026-11-30', 'note' => 'Rata 1 di 2'],
+            ['id' => 32, 'type' => 'payment', 'status' => 'paid', 'amount' => '50.00'],
+        ],
+        [1 => 'Bonifico', 2 => 'Contanti'],
+        '/torna/'
+    );
+
+    return str_contains($html, 'id="'.OrderPaymentResource::installmentModalId(31).'"')
+        && !str_contains($html, OrderPaymentResource::installmentModalId(32))
+        && str_contains($html, 'name="payment_id" value="31"')
+        && str_contains($html, 'value="50,00"') && str_contains($html, '30/11/2026')
+        && str_contains($html, 'Rata 1 di 2');
+});
+
+check('sopra i pagamenti c\'è «Registra pagamento» finché c\'è da incassare', fn () =>
+    str_contains(OrderResource::paymentsToolbar(['status' => 'confirmed', 'payment_status' => 'unpaid']), 'data-bs-target="#'.OrderPaymentResource::MODAL_ID.'"')
+    && OrderResource::paymentsToolbar(['status' => 'confirmed', 'payment_status' => 'paid']) === ''
+);
 
 check('la finestra del pagamento posta a Registra pagamento con ordine e ritorno, e propone il residuo', function () {
     $html = OrderPaymentResource::modal(

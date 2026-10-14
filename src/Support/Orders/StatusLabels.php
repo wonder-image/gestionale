@@ -39,6 +39,13 @@ final class StatusLabels
         'fulfilled' => ['Evaso', 'success'],
     ];
 
+    /** Le parole dell'evasione per come arriva la merce: i colori restano quelli di `FULFILLMENT`. */
+    private const FULFILLMENT_WORDS = [
+        'shipping' => ['unfulfilled' => 'Da spedire', 'partially_fulfilled' => 'Spedito in parte', 'fulfilled' => 'Spedito'],
+        'pickup' => ['unfulfilled' => 'Da preparare', 'ready_for_pickup' => 'Pronto per il ritiro', 'fulfilled' => 'Ritirato'],
+        'none' => ['unfulfilled' => 'Da consegnare', 'partially_fulfilled' => 'Consegnato in parte', 'fulfilled' => 'Consegnato'],
+    ];
+
     private const SHIPMENT = [
         'pending' => ['In attesa', 'warning'],
         'label_created' => ['Etichetta creata', 'info'],
@@ -69,6 +76,31 @@ final class StatusLabels
     public static function fulfillment(string $status): array
     {
         return self::pick(self::FULFILLMENT, $status);
+    }
+
+    /**
+     * Lo stato dell'evasione con le parole di come arriva la merce: «Da
+     * spedire», «Spedito in parte», «Spedito» per la spedizione; «Da
+     * preparare», «Pronto per il ritiro», «Ritirato» per il ritiro; «Da
+     * consegnare», «Consegnato» senza nessuna delle due.
+     *
+     * @return array{label: string, color: string}
+     */
+    public static function fulfillmentFor(string $type, string $status): array
+    {
+        $words = self::FULFILLMENT_WORDS[$type] ?? self::FULFILLMENT_WORDS['shipping'];
+        $entry = self::fulfillment($status);
+
+        return isset($words[$status]) ? ['label' => $words[$status], 'color' => $entry['color']] : $entry;
+    }
+
+    /** Il badge di `fulfillmentFor()`. */
+    public static function fulfillmentBadge(string $type, string $status): string
+    {
+        $entry = self::fulfillmentFor($type, $status);
+
+        return '<span class="badge text-bg-'.$entry['color'].'">'
+            .htmlspecialchars($entry['label'], ENT_QUOTES, 'UTF-8').'</span>';
     }
 
     /** @return array{label: string, color: string} */

@@ -240,4 +240,34 @@ check('modificare la spedizione vale finché ha ancora qualcosa da dire: non per
         && !$puo('pickup', 'picked_up') && !$puo('pickup', 'cancelled');
 });
 
+check('la scheda della spedizione ha le azioni in testa: «Annulla spedizione» nel menu «Altro»', function () {
+    $attesa = ShipmentResource::pageActions(['id' => 5, 'order_id' => 9, 'type' => 'delivery', 'status' => 'pending']);
+    $nomi = array_map(static fn (array $v): string => (string) $v['label'], $attesa);
+    $altro = end($attesa);
+
+    return $nomi === ['Segna spedita', 'Modifica spedizione', 'Altro']
+        && str_contains((string) $attesa[0]['onclick'], ShipmentResource::shipModalId(5))
+        && str_contains((string) $attesa[1]['onclick'], ShipmentResource::editModalId(5))
+        && ($altro['items'][0]['label'] ?? '') === 'Annulla spedizione'
+        && str_contains((string) ($altro['items'][0]['onclick'] ?? ''), ShipmentResource::actionModalId(5, OrderActions::CANCEL_SHIPMENT));
+});
+
+check('una spedizione in viaggio offre «Segna consegnata» e la modifica; una consegnata solo la modifica', function () {
+    $nomi = static fn (array $s): array => array_map(static fn (array $v): string => (string) $v['label'], ShipmentResource::pageActions($s));
+
+    return $nomi(['id' => 5, 'type' => 'delivery', 'status' => 'in_transit']) === ['Segna consegnata', 'Modifica spedizione']
+        && $nomi(['id' => 5, 'type' => 'delivery', 'status' => 'delivered']) === ['Modifica spedizione']
+        && $nomi(['id' => 5, 'type' => 'pickup', 'status' => 'pending']) === ['Pronto per il ritiro', 'Modifica spedizione', 'Altro'];
+});
+
+check('nella tabella dell\'ordine le stesse azioni stanno nel menu ⋯ e aprono le finestre', function () {
+    $html = ShipmentResource::actionsHtml(['id' => 5, 'order_id' => 9, 'type' => 'delivery', 'status' => 'pending']);
+
+    return str_contains($html, 'bi-three-dots')
+        && str_contains($html, 'data-bs-target="#'.ShipmentResource::shipModalId(5).'"')
+        && str_contains($html, 'data-bs-target="#'.ShipmentResource::actionModalId(5, OrderActions::CANCEL_SHIPMENT).'"')
+        && !str_contains($html, '<form')
+        && ShipmentResource::actionsHtml(['id' => 5, 'type' => 'delivery', 'status' => 'cancelled']) === '';
+});
+
 summary();
