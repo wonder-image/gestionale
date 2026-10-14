@@ -139,6 +139,66 @@ final class OrderPaymentResource extends NavigationOnlyResource
             ->render('bootstrap');
     }
 
+    /** L'id della finestra «Registra pagamento» di una rata. */
+    public static function installmentModalId(int $paymentId): string
+    {
+        return self::MODAL_ID.'-rata-'.$paymentId;
+    }
+
+    /** La rata in attesa: un incasso previsto, non ancora arrivato. */
+    public static function isPendingInstallment(array $payment): bool
+    {
+        return (string) ($payment['type'] ?? 'payment') !== 'refund' && (string) ($payment['status'] ?? '') === 'pending';
+    }
+
+    /**
+     * Le finestre «Registra pagamento» delle rate in attesa, una per rata: si
+     * aprono dal menu ⋯ della rata nella tabella dei pagamenti. Postano come
+     * la finestra dell'ordine, con la rata (`payment_id`): l'importo parte da
+     * quello della rata.
+     *
+     * @param list<array<string, mixed>> $payments i pagamenti dell'ordine
+     * @param array<int, string> $methods nome del metodo per id
+     */
+    public static function installmentModals(array $order, array $payments, array $methods, string $back): string
+    {
+        $predefinito = (int) ($order['payment_method_id'] ?? 0);
+        $scelto = isset($methods[$predefinito]) ? $predefinito : (int) (array_key_first($methods) ?? 0);
+        $html = '';
+
+        foreach ($payments as $rata) {
+            if (!static::isPendingInstallment($rata) || (int) ($rata['id'] ?? 0) <= 0) {
+                continue;
+            }
+
+            $scadenza = substr((string) ($rata['due_date'] ?? ''), 0, 10);
+            $scadenza = $scadenza === '' || str_starts_with($scadenza, '0000') ? '' : date('d/m/Y', (int) strtotime($scadenza));
+            $nota = html_entity_decode(trim((string) ($rata['note'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $riepilogo = '<b>Rata</b> '.OrderSheet::esc(OrderSheet::money((float) ($rata['amount'] ?? 0)))
+                .($scadenza !== '' ? ' · <b>Scadenza</b> '.OrderSheet::esc($scadenza) : '')
+                .($nota !== '' ? ' · '.OrderSheet::esc($nota) : '');
+
+            $html .= Modal::make(trim('Registra pagamento: rata'.($scadenza !== '' ? ' del '.$scadenza : '')))
+                ->id(static::installmentModalId((int) $rata['id']))
+                ->help(static::HELP)
+                ->form(static::submitUrl(), hidden: ['order_id' => (int) ($order['id'] ?? 0), 'payment_id' => (int) $rata['id'], 'back' => $back])
+                ->columns(12)
+                ->components([
+                    RichText::make($riepilogo)->class('small mb-0')->columnSpan(12),
+                    FormField::key('amount')->text()->label('Importo (€)')->value(static::moneyField((float) ($rata['amount'] ?? 0)))
+                        ->attribute('inputmode="decimal"')->required()->columnSpan(6),
+                    FormField::key('paid_at')->dateInput()->label('Data')->value(date('d/m/Y'))->required()->columnSpan(6),
+                    FormField::key('payment_method_id')->select($methods)->label('Metodo')->value((string) ((int) ($rata['payment_method_id'] ?? 0) ?: $scelto))->columnSpan(6),
+                    FormField::key('reference')->text()->label('Riferimento')->columnSpan(6),
+                ])
+                ->cancel('Indietro')
+                ->submit('Registra', 'success')
+                ->render('bootstrap');
+        }
+
+        return $html;
+    }
+
     /** I metodi di pagamento attivi, per id: la scelta della finestra. @return array<int, string> */
     public static function activeMethods(): array
     {

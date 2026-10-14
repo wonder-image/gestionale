@@ -16,9 +16,10 @@ storico restano sempre coerenti con lo stato.
 
 ## L'elenco
 
-*Vendite → Ordini*. Ogni riga ha **Numero**, due icone (il **canale**: sito,
-ufficio o cassa; la **consegna**: spedizione o ritiro in negozio; passa sopra
-con il mouse per leggerle), **Cliente**, **Totale**, **Data** e tre etichette
+*Vendite → Ordini*. Ogni riga ha **Numero**, due icone senza titolo di colonna
+(il **canale**: sito, ufficio o cassa; la **consegna**: spedizione o ritiro in
+negozio; passa sopra con il mouse per leggerle), **Cliente**, **Totale**,
+**Data** e tre etichette
 colorate: **Ordine**, **Pagamento**, **Evasione**. Cliccando il numero si apre
 la scheda.
 
@@ -31,16 +32,38 @@ posto del numero: si aprono e si confermano dalla loro pagina (vedi
 
 ## La scheda
 
-Mostra, in alto, numero, data, canale (*Online*, *Ufficio*, *Cassa*), i tre
-stati, il **cliente** (un link: apre la sua scheda, se è in anagrafica),
-gli indirizzi di **Fatturazione** e di consegna, il metodo di pagamento e le
-note. A destra i **Totali** e il **Riepilogo IVA**. Sotto, quattro riquadri a
-tendina:
+Il numero sta nel titolo; sotto, in piccolo, *Creato il* con data e ora e il
+canale (*Online*, *Ufficio*, *Cassa*). La prima riga della scheda sono i tre
+stati: **Ordine**, **Pagamento** e come arriva la merce — **Spedizione**
+(*Da spedire*, *Spedito in parte*, *Spedito*), **Ritiro** (*Da preparare*,
+*Pronto per il ritiro*, *Ritirato*) o **Consegna** per un ordine senza nessuna
+delle due. Poi il **cliente** (un link: apre la sua scheda, se è in
+anagrafica), gli indirizzi di **Fatturazione** e di spedizione, il metodo di
+pagamento e le note. A destra i **Totali** e il **Riepilogo IVA**. Sotto, i
+riquadri a tendina:
 
 * **Righe** — cosa ha comprato, con quantità e prezzi (aperto di default);
 * **Pagamenti** — il denaro arrivato o in arrivo ([vedi Pagamenti](vendite-pagamenti.md));
 * **Resi** — la merce tornata indietro, solo con i resi attivi ([vedi Resi](vendite-resi.md));
+* **Spedizioni** — i pacchi e i ritiri, con le spedizioni attive ([vedi Spedire](spedizioni-spedire.md));
 * **Storico** — ogni cambio di stato, con chi o cosa l'ha fatto.
+
+### Il menu ⋯ delle tabelle
+
+In fondo a una riga delle tabelle c'è un menu **⋯** quando su quella riga si
+può fare qualcosa. Ogni voce apre una finestra che dice cosa farà:
+
+* **Righe** — *Annulla riga*, per un ordine da ufficio confermato: la
+  quantità parte da tutto quello che non è ancora partito; scrivine meno per
+  annullarne una parte. La merce torna in magazzino, totali e rate si
+  rifanno ([vedi Ordini da ufficio](vendite-ordini-da-ufficio.md)).
+* **Pagamenti** — *Registra pagamento* su una rata in attesa, con l'importo
+  della rata. Sopra la tabella c'è anche il pulsante **Registra pagamento**,
+  finché c'è da incassare.
+* **Resi** — *Chiudi* e *Annulla* un reso ricevuto.
+* **Spedizioni** — le azioni della spedizione: *Segna spedita*, *Segna
+  consegnata*, *Pronto per il ritiro*, *Ritirato*, *Modifica spedizione* e
+  *Annulla spedizione*.
 
 ### Le note
 
@@ -67,29 +90,40 @@ qualunque ordine arrivino le due cose.
 
 ## I pulsanti
 
-In alto a destra ci sono due menu: **Documenti** e **Azioni**. Quando c'è una
-voce sola resta un pulsante.
+In alto a destra, da sinistra a destra:
 
-In **Documenti** trovi i PDF dell'ordine:
+1. il menu **Documenti**: i PDF e i documenti dell'ordine;
+2. i pulsanti che **portano avanti** l'ordine, sempre a vista;
+3. il menu **Altro**: *Registra reso* e *Annulla*.
+
+Compaiono solo i pulsanti che valgono per lo stato dell'ordine. Quando
+*Documenti* ha una voce sola resta un pulsante.
+
+In **Documenti**:
 
 * **Proforma** — righe, totali, IVA e come pagare (metodo, rate, IBAN), con la
-  scritta «non valido ai fini fiscali». C'è per ogni ordine, dal sito o
-  dall'ufficio, che non è una bozza né annullato. Si fa al momento, con
-  l'ordine com'è: dopo una modifica è già aggiornato. Il cliente lo scarica
-  anche dalla sua area del sito.
-* **Conferma d'ordine** — solo per gli ordini da ufficio confermati (vedi
-  [Ordini da ufficio](vendite-ordini-da-ufficio.md)).
+  scritta «non valido ai fini fiscali». È anche la conferma d'ordine da
+  mandare al cliente. C'è per ogni ordine, dal sito o dall'ufficio, **anche in
+  bozza**; non per un ordine annullato. Si fa al momento, con l'ordine com'è:
+  dopo una modifica è già aggiornato. Il cliente lo scarica anche dalla sua
+  area del sito, a ordine confermato.
+* **Crea DDT** — con i DDT attivi, finché resta merce da mettere in un DDT
+  ([vedi DDT](vendite-ddt.md)).
 
-In **Azioni** compaiono solo quelle che valgono per lo stato in cui si trova
-l'ordine. Ognuna apre una finestra che dice **prima** cosa farà.
+Ogni pulsante e ogni voce apre una finestra che dice **prima** cosa farà.
 
-| Pulsante | Quando | Cosa fa |
-|---|---|---|
-| **Conferma** | ordine in attesa | Conferma l'ordine e **scarica** i pezzi dal magazzino. Non registra denaro: l'incasso si scrive a parte con *Registra pagamento*. |
-| **Segna evaso** | confermato, non ancora evaso | Segna l'ordine come evaso. Il magazzino **non cambia**: la merce era già uscita alla conferma. |
-| **Registra pagamento** | c'è ancora da incassare | Apre la finestra del pagamento ([vedi Pagamenti](vendite-pagamenti.md)). |
-| **Registra reso** | ordine confermato o chiuso, con i resi attivi | Porta alla pagina del reso ([vedi Resi](vendite-resi.md)). |
-| **Annulla** | in attesa o confermato | Annulla l'ordine. Se era in attesa **libera** i pezzi prenotati; se era confermato li **rimette in magazzino**, tranne quelli già resi con un reso (sono già rientrati, o erano rotti). |
+| Pulsante | Dove | Quando | Cosa fa |
+|---|---|---|---|
+| **Conferma** | a vista | ordine in attesa | Conferma l'ordine e **scarica** i pezzi dal magazzino. Non registra denaro: l'incasso si scrive a parte con *Registra pagamento*. |
+| **Segna evaso** | a vista | confermato, non ancora evaso, con le spedizioni spente | Segna l'ordine come evaso. Il magazzino **non cambia**: la merce era già uscita alla conferma. |
+| **Crea spedizione** | a vista | con le spedizioni attive, finché resta merce da spedire | Crea un pacco con le quantità da spedire. |
+| **Pronto per il ritiro** / **Ritirato** | a vista | ritiro in negozio, con le spedizioni attive | Segna il ritiro pronto (e avvisa il cliente), poi ritirato. |
+| **Registra pagamento** | a vista | c'è ancora da incassare | Apre la finestra del pagamento ([vedi Pagamenti](vendite-pagamenti.md)). |
+| **Registra reso** | Altro | ordine confermato o chiuso, con i resi attivi | Porta alla pagina del reso ([vedi Resi](vendite-resi.md)). |
+| **Annulla** | Altro | in attesa o confermato | Annulla l'ordine. Se era in attesa **libera** i pezzi prenotati; se era confermato li **rimette in magazzino**, tranne quelli già resi con un reso (sono già rientrati, o erano rotti). |
+
+Una **bozza da ufficio** ha *Proforma* e **Modifica bozza**, che apre la sua
+pagina: lì si completa, si conferma o si elimina.
 
 > **Il denaro già incassato non si rimborsa da qui.** Se annulli un ordine
 > pagato, la finestra ti ricorda quanto c'è da restituire: il rimborso lo

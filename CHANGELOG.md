@@ -7,6 +7,21 @@ versionamento semantico.
 
 ### Aggiunto
 
+- Scheda ordine riordinata: in testa il menu **Documenti** (*Proforma*, che
+  vale anche come conferma d'ordine ed è disponibile **già dalla bozza**;
+  *Crea DDT*), i pulsanti che portano avanti l'ordine sempre a vista
+  (*Conferma*, *Segna evaso*, *Crea spedizione*, *Pronto per il ritiro*,
+  *Ritirato*, *Registra pagamento*) e il menu **Altro** (*Registra reso*,
+  *Annulla*). Il numero sta nel titolo, sotto **Creato il … · canale**; la
+  riga degli stati dice **Spedizione**, **Ritiro** o **Consegna** al posto di
+  *Evasione*. Nelle tabelle della scheda il menu **⋯** in fondo alla riga:
+  *Annulla riga* sulle righe di un ordine da ufficio (al posto di *Annulla
+  righe*), *Registra pagamento* sulle rate in attesa (e il pulsante sopra i
+  pagamenti), *Chiudi*/*Annulla* sui resi, le azioni delle spedizioni, ognuna
+  con la sua finestra di conferma. Nella **scheda della spedizione** le
+  azioni stanno in alto a destra. Nell'elenco ordini le colonne delle icone
+  *Canale* e *Consegna* non hanno titolo.
+
 - Ritocchi dalla prova nel browser: **Proforma** dell'ordine in PDF (ogni
   ordine non bozza né annullato, anche dal sito; tipo `order_proforma`); in
   testa alle schede di ordine, abbonamento e documento di magazzino i

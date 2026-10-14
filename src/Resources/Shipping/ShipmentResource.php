@@ -11,7 +11,6 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Accordion;
-use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
@@ -28,6 +27,8 @@ use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
+use Wonder\Plugin\Gestionale\Support\Backend\RowMenu;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Orders\StatusLabels;
@@ -212,7 +213,8 @@ final class ShipmentResource extends GestionaleResource
             ->enable(['view'])
             ->titles(['list' => 'Spedizioni', 'view' => 'Spedizione'])
             ->subtitles(['list' => 'I pacchi e i ritiri di tutti gli ordini. Si consultano qui; ogni cambio passa dalle azioni dell\'ordine o della scheda.'])
-            ->view('show', Gestionale::viewPath('pages/shipment-show.php')));
+            ->view('show', Gestionale::viewPath('pages/shipment-show.php'))
+            ->actions('view', static fn (array $item): array => static::pageActions($item)));
     }
 
     public static function permissionSchema(): PermissionSchema
@@ -372,57 +374,107 @@ final class ShipmentResource extends GestionaleResource
         return 'wi-spedizione-modifica-'.$shipmentId;
     }
 
+    /** L'id della finestra di conferma di un'azione su una spedizione. */
+    public static function actionModalId(int $shipmentId, string $action): string
+    {
+        return 'wi-spedizione-'.str_replace('_', '-', $action).'-'.$shipmentId;
+    }
+
     /**
-     * I pulsanti di una spedizione secondo il suo stato: «Segna spedita» apre
-     * la sua finestra (corriere e tracking), gli altri sono piccoli moduli che
+     * Le azioni di una spedizione secondo il suo stato, ognuna con la finestra
+     * che apre: «Segna spedita» chiede corriere e tracking, «Modifica
+     * spedizione» stato, corriere e tracking, le altre una conferma. Tutte
      * postano a `OrderActionResource`, l'unica porta delle azioni.
+     *
+     * @param array<string, mixed> $shipment
+     * @return list<array{action: string, label: string, icon: string, class: string, modal: string, danger: bool}>
+     */
+    public static function actions(array $shipment): array
+    {
+        $id = (int) ($shipment['id'] ?? 0);
+        $azioni = [];
+        $voce = static fn (string $azione, string $modal): array => [
+            'action' => $azione,
+            'label' => OrderActions::label($azione),
+            'icon' => OrderActions::icon($azione),
+            'class' => OrderActions::buttonClass($azione).' btn-sm',
+            'modal' => $modal,
+            'danger' => $azione === OrderActions::CANCEL_SHIPMENT,
+        ];
+
+        foreach (OrderActions::shipmentActions($shipment) as $azione) {
+            $azioni[] = $voce($azione, $azione === OrderActions::SHIP ? static::shipModalId($id) : static::actionModalId($id, $azione));
+        }
+
+        if (OrderActions::canEditShipment($shipment)) {
+            $azioni[] = $voce(OrderActions::UPDATE_SHIPMENT, static::editModalId($id));
+        }
+
+        // Annullare sta in fondo, dopo la modifica.
+        usort($azioni, static fn (array $a, array $b): int => (int) $a['danger'] <=> (int) $b['danger']);
+
+        return $azioni;
+    }
+
+    /**
+     * Il menu ⋯ di una spedizione nella tabella della scheda dell'ordine: le
+     * stesse azioni della scheda della spedizione.
      *
      * @param array<string, mixed> $shipment
      */
     public static function actionsHtml(array $shipment, string $back = ''): string
     {
-        $id = (int) ($shipment['id'] ?? 0);
-        $html = [];
+        return RowMenu::render(array_map(static fn (array $azione): array => [
+            'label' => $azione['label'],
+            'icon' => 'bi '.$azione['icon'],
+            'modal' => $azione['modal'],
+            'danger' => $azione['danger'],
+        ], static::actions($shipment)));
+    }
 
-        foreach (OrderActions::shipmentActions($shipment) as $azione) {
-            if ($azione === OrderActions::SHIP) {
-                $html[] = '<button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#'
-                    .static::escape(static::shipModalId($id)).'">'.static::escape(OrderActions::label($azione)).'</button>';
+    /**
+     * In testa alla scheda della spedizione: le azioni come pulsanti,
+     * «Annulla spedizione» nel menu «Altro».
+     *
+     * @param array<string, mixed> $shipment
+     * @return list<array<string, mixed>>
+     */
+    public static function pageActions(array $shipment): array
+    {
+        $pulsanti = [];
+        $altro = [];
 
-                continue;
+        foreach (static::actions($shipment) as $azione) {
+            $pulsante = [
+                'label' => $azione['label'],
+                'icon' => $azione['icon'],
+                'class' => $azione['class'],
+                'href' => '#',
+                'onclick' => OrderResource::openModal($azione['modal']),
+            ];
+
+            if ($azione['danger']) {
+                $altro[] = $pulsante;
+            } else {
+                $pulsanti[] = $pulsante;
             }
-
-            $pulsante = Button::post(OrderActionResource::submitUrl(), OrderActions::label($azione))
-                ->hidden([
-                    'order_id' => (int) ($shipment['order_id'] ?? 0),
-                    'shipment_id' => $id,
-                    'action' => $azione,
-                    'torna' => $back,
-                ])
-                ->variant(OrderActions::variant($azione))
-                ->outline()
-                ->size('sm')
-                ->schema('inline', true)
-                ->formAttributes(['class' => 'd-inline']);
-
-            if ($azione === OrderActions::CANCEL_SHIPMENT) {
-                $pulsante = $pulsante->confirm(
-                    'Annulli questa spedizione? Le quantità tornano da spedire.',
-                    title: 'Annulla spedizione',
-                    ok: 'Annulla spedizione',
-                    variant: 'danger'
-                );
-            }
-
-            $html[] = $pulsante->render('bootstrap');
         }
 
-        if (OrderActions::canEditShipment($shipment)) {
-            $html[] = '<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#'
-                .static::escape(static::editModalId($id)).'">'.static::escape(OrderActions::label(OrderActions::UPDATE_SHIPMENT)).'</button>';
-        }
+        return [...$pulsanti, ...HeaderActions::group($altro, 'Altro', 'bi-three-dots-vertical', true)];
+    }
 
-        return implode(' ', $html);
+    /** La frase della finestra di conferma di un'azione su una spedizione. */
+    private static function actionSentence(string $action, array $shipment): string
+    {
+        $codice = html_entity_decode((string) ($shipment['code'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return match ($action) {
+            OrderActions::READY => 'Il ritiro '.$codice.' risulta pronto: il cliente riceve l\'avviso che può passare.',
+            OrderActions::PICKED_UP => 'Il cliente ha ritirato '.$codice.': le righe risultano consegnate.',
+            OrderActions::DELIVER => 'La spedizione '.$codice.' risulta consegnata al cliente.',
+            OrderActions::CANCEL_SHIPMENT => 'La spedizione '.$codice.' si annulla: le quantità tornano da spedire.',
+            default => '',
+        };
     }
 
     /**
@@ -440,6 +492,12 @@ final class ShipmentResource extends GestionaleResource
             if (OrderActions::canEditShipment($shipment)) {
                 $corrieri ??= static::carrierOptions();
                 $html .= static::editModal($shipment, $corrieri, $back);
+            }
+
+            foreach (OrderActions::shipmentActions($shipment) as $azione) {
+                if ($azione !== OrderActions::SHIP) {
+                    $html .= static::confirmModal($shipment, $azione, $back);
+                }
             }
 
             if (!in_array(OrderActions::SHIP, OrderActions::shipmentActions($shipment), true)) {
@@ -470,6 +528,27 @@ final class ShipmentResource extends GestionaleResource
         }
 
         return $html;
+    }
+
+    /** La finestra di conferma di Pronto per il ritiro, Ritirato, Segna consegnata o Annulla spedizione. */
+    private static function confirmModal(array $shipment, string $action, string $back): string
+    {
+        $id = (int) ($shipment['id'] ?? 0);
+
+        return Modal::make(trim(OrderActions::label($action).': '.html_entity_decode((string) ($shipment['code'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')))
+            ->id(static::actionModalId($id, $action))
+            ->form(OrderActionResource::submitUrl(), hidden: [
+                'order_id' => (int) ($shipment['order_id'] ?? 0),
+                'shipment_id' => $id,
+                'action' => $action,
+                'torna' => $back,
+            ])
+            ->components([
+                RichText::make(static::escape(static::actionSentence($action, $shipment)))->class('mb-0'),
+            ])
+            ->cancel('Indietro')
+            ->submit(OrderActions::label($action), OrderActions::variant($action))
+            ->render('bootstrap');
     }
 
     /**
@@ -573,20 +652,17 @@ final class ShipmentResource extends GestionaleResource
     // ── La scheda ────────────────────────────────────────────────────────
 
     /**
-     * La scheda di una spedizione: l'intestazione, i pulsanti, le righe e lo
-     * storico degli stati.
+     * La scheda di una spedizione: l'intestazione, le righe e lo storico
+     * degli stati. Le azioni stanno in testa alla pagina (`pageActions()`).
      *
      * @param array<string, mixed> $shipment
      */
     public static function showLayoutSchema(array $shipment): Container
     {
         $id = (int) ($shipment['id'] ?? 0);
-        $back = StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '');
         $dato = static fn (string $etichetta, string $valore, bool $html = false): DataItem => DataItem::make($etichetta, $valore)
             ->html($html)
             ->columnSpan(['default' => 12, 'sm' => 4]);
-        $azioni = static::actionsHtml($shipment, $back);
-
         $intestazione = [
             $dato('Codice', (string) ($shipment['code'] ?? '')),
             $dato('Ordine', static::orderLink((int) ($shipment['order_id'] ?? 0)), true),
@@ -598,10 +674,6 @@ final class ShipmentResource extends GestionaleResource
             $dato('Consegnata il', OrderSheet::date((string) ($shipment['delivered_at'] ?? ''))),
             $dato('Nota', nl2br(static::escape(html_entity_decode((string) ($shipment['note'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'))) ?: '—', true),
         ];
-
-        if ($azioni !== '') {
-            $intestazione[] = RichText::make($azioni)->tag('div')->columnSpan(12);
-        }
 
         return (new Container)->columns(12)->components([
             (new Card)->components($intestazione)->columns(12)->columnSpan(12),

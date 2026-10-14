@@ -79,11 +79,13 @@ conferma d'ordine in PDF allegata.
 
 Le righe non si modificano più. Dalla scheda dell'ordine:
 
-* **Annulla righe** — scrivi quanto annullare di ogni riga. Si annulla solo
-  quello che **non è ancora partito** con una spedizione. La merce torna in
+* **Annulla riga** — dal menu **⋯** della riga, nel riquadro *Righe*: scrivi
+  quanto annullare (parte da tutto quello che si può). Si annulla solo quello
+  che **non è ancora partito** con una spedizione. La merce torna in
   magazzino, i totali e le rate si rifanno, e sotto la quantità della riga
-  compare *annullati*. Annullando tutto si annulla l'ordine.
-* **PDF** — la conferma d'ordine, con le rate e le scadenze.
+  compare *annullati*. Annullando tutte le righe si annulla l'ordine.
+* **Documenti → Proforma** — la conferma d'ordine da mandare al cliente, con
+  le rate e le scadenze. C'è già dalla bozza.
 * **Registra pagamento** — sulla rata più vicina, o dallo Scadenzario sulla
   rata che scegli.
 * Per la merce già consegnata: il [reso](vendite-resi.md), come per gli ordini

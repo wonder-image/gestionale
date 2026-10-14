@@ -21,8 +21,8 @@ use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
  * sono Resource senza pagina e senza menu: esistono per essere incorporate.
  */
 $sezioni = [
-    OrderItemTableResource::class => [OrderItem::class, 'ordine-righe', ['photo', 'name', 'quantity', 'unit_price', 'discount_value', 'tax_rate', 'line_total']],
-    OrderPaymentTableResource::class => [Payment::class, 'ordine-pagamenti', ['code', 'type', 'amount', 'status', 'paid_at', 'payment_method_id', 'provider', 'provider_reference']],
+    OrderItemTableResource::class => [OrderItem::class, 'ordine-righe', ['photo', 'name', 'quantity', 'unit_price', 'discount_value', 'tax_rate', 'line_total', 'actions']],
+    OrderPaymentTableResource::class => [Payment::class, 'ordine-pagamenti', ['code', 'type', 'amount', 'status', 'paid_at', 'payment_method_id', 'provider', 'provider_reference', 'actions']],
     OrderReturnTableResource::class => [SalesReturn::class, 'ordine-resi', ['number', 'status', 'requested_at', 'lines', 'actions']],
     OrderHistoryTableResource::class => [OrderStatusLog::class, 'ordine-storico', ['creation', 'field', 'from_value', 'to_value', 'source', 'user_id']],
 ];
@@ -62,6 +62,14 @@ foreach ($sezioni as $classe => [$model, $percorso, $colonne]) {
         return $nomi === $colonne;
     });
 }
+
+check('il menu ⋯ delle righe e dei pagamenti non ha titolo, e senza azioni la cella è vuota', fn () =>
+    OrderItemTableResource::labelSchema()['actions'] === ''
+    && OrderPaymentTableResource::labelSchema()['actions'] === ''
+    && OrderItemTableResource::actionsOf(['id' => 0, 'order_id' => 9]) === ''
+    && OrderPaymentTableResource::actionsOf(['id' => 4, 'order_id' => 9, 'type' => 'payment', 'status' => 'paid']) === ''
+    && OrderPaymentTableResource::actionsOf(['id' => 4, 'order_id' => 9, 'type' => 'refund', 'status' => 'pending']) === ''
+);
 
 check('Righe: la prima colonna è la foto, e arriva da un formatter', function () {
     $foto = OrderItemTableResource::tableSchema()[0];

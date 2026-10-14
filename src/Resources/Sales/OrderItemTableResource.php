@@ -3,9 +3,12 @@
 namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
+use Wonder\Plugin\Gestionale\Support\Backend\RowMenu;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
+use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
 /** Le righe dell'ordine, con la foto del prodotto. */
@@ -51,6 +54,7 @@ final class OrderItemTableResource extends OrderSectionResource
             'discount_value' => 'Sconto',
             'tax_rate' => 'IVA',
             'line_total' => 'Totale',
+            'actions' => '',
         ];
     }
 
@@ -88,7 +92,48 @@ final class OrderItemTableResource extends OrderSectionResource
                 ->price()
                 ->size('little')
                 ->formatter(static fn (array $row): string => static::priceCell($row, 'line_total')),
+            TableColumn::key('actions')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::actionsOf($row)),
         ];
+    }
+
+    /** Le quantità ancora annullabili per ordine, lette una volta per pagina. @var array<int, array<int, float>> */
+    private static array $cancellable = [];
+
+    /**
+     * Il menu ⋯ della riga: «Annulla riga» per la riga di un ordine da
+     * ufficio confermato che non è ancora partita (G9 §2.5). Apre la finestra
+     * che la scheda disegna con `OrderResource::cancelLineModals()`.
+     */
+    public static function actionsOf(array $row): string
+    {
+        $itemId = (int) ($row['id'] ?? 0);
+        $orderId = (int) ($row['order_id'] ?? 0);
+
+        if ($itemId <= 0 || $orderId <= 0) {
+            return '';
+        }
+
+        if (!isset(self::$cancellable[$orderId])) {
+            $order = Order::findById($orderId);
+            $order = is_array($order) ? $order : [];
+            self::$cancellable[$orderId] = $order !== [] && in_array(OrderActions::CANCEL_LINES, OrderActions::available($order), true)
+                ? OrderResource::cancellable($order)
+                : [];
+        }
+
+        if ((self::$cancellable[$orderId][$itemId] ?? 0.0) <= 0.0) {
+            return '';
+        }
+
+        return RowMenu::render([[
+            'label' => 'Annulla riga',
+            'icon' => 'bi bi-x-square',
+            'modal' => OrderResource::cancelLineModalId($itemId),
+            'danger' => true,
+        ]]);
     }
 
     /**
