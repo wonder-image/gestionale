@@ -5,18 +5,29 @@ namespace Wonder\Plugin\Gestionale\Resources\Sales;
 use Throwable;
 use Wonder\App\LegacyGlobals;
 use Wonder\App\ResourceSchema\ApiSchema;
+use Wonder\App\ResourceSchema\FormField;
+use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Backend\Support\FlashAlert;
+use Wonder\Elements\Components\Button;
+use Wonder\Elements\Components\Card;
+use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\DataItem;
+use Wonder\Elements\Components\RichText;
+use Wonder\Elements\Components\SectionTitle;
+use Wonder\Elements\Form\Form;
 use Wonder\Http\Csrf;
 use Wonder\Http\Route;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Sales\DeliveryNote;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Resources\System\SettingResource;
+use Wonder\Plugin\Gestionale\Support\Documents\DeliveryNotePdf;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Sales\DeliveryNotes;
@@ -182,6 +193,162 @@ final class DeliveryNoteResource extends GestionaleResource
         $values['order'] = static::orderOf((int) ($values['order_id'] ?? 0));
 
         return $values;
+    }
+
+    /**
+     * La pagina del DDT con i componenti del core: documento, luogo di
+     * consegna, trasporto, righe e pulsanti, in `Card` con `FormField`. Da
+     * emesso o annullato i campi sono spenti. I pulsanti postano `intent`;
+     * quelli che non tornano indietro chiedono conferma con la lib.
+     *
+     * @param array<string, mixed> $values i valori di `mutateFormValues()`
+     */
+    public static function formLayoutFor(array $values): Form
+    {
+        $status = (string) ($values['status'] ?? 'draft');
+        $draft = $status === 'draft';
+        $v = static fn (string $key): string => html_entity_decode((string) ($values[$key] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $campo = static function (Input $field, int $span) use ($draft): Input {
+            $field->columnSpan(['default' => 12, 'md' => $span]);
+
+            return $draft ? $field : $field->disabled();
+        };
+        $riquadro = static fn (string $titolo, string $aiuto, array $componenti): Card => (new Card)->components([
+            $aiuto === '' ? SectionTitle::make($titolo)->columnSpan(12) : SectionTitle::make($titolo)->tooltip($aiuto)->columnSpan(12),
+            ...$componenti,
+        ])->columns(12)->columnSpan(12);
+        $numero = static fn (mixed $value): string => (float) $value > 0 ? OrderSheet::number($value) : '';
+        $partenza = substr(str_replace(' ', 'T', (string) ($values['transport_started_at'] ?? '')), 0, 16);
+        $order = (array) ($values['order'] ?? []);
+        $dato = static fn (string $etichetta, string $valore, bool $html = false): DataItem => DataItem::make($etichetta, $valore)
+            ->html($html)
+            ->columnSpan(['default' => 6, 'md' => 4]);
+
+        return (new Form)->components([
+            $riquadro('Documento', 'Il DDT accompagna la merce: non muove il magazzino, che è già uscito alla conferma dell\'ordine. Emesso, prende numero e data e non si modifica più.', [
+                $dato('Stato', static::badge($status), true),
+                $dato('Numero', trim((string) ($values['number'] ?? '')) ?: '—'),
+                $dato('Data', substr(OrderSheet::date((string) ($values['date'] ?? '')), 0, 10) ?: '—'),
+                $dato('Ordine', $order !== []
+                    ? '<a href="'.static::escape(OrderResource::detailUrl((int) $order['id'])).'">'.static::escape((string) ($order['order_number'] ?? '')).'</a>'
+                    : '—', true),
+                $dato('Destinatario', static::customerOf($values) ?: '—'),
+            ]),
+            $riquadro('Luogo di consegna', 'Dove va la merce: parte dall\'ordine e si può cambiare finché il DDT è in bozza.', [
+                $campo(FormField::key('shipping_name')->text()->label('Destinatario: nome')->value($v('shipping_name')), 3),
+                $campo(FormField::key('shipping_surname')->text()->label('Cognome')->value($v('shipping_surname')), 3),
+                $campo(FormField::key('shipping_street')->text()->label('Via')->value($v('shipping_street')), 4),
+                $campo(FormField::key('shipping_number')->text()->label('Civico')->value($v('shipping_number')), 2),
+                $campo(FormField::key('shipping_cap')->text()->label('CAP')->value($v('shipping_cap')), 2),
+                $campo(FormField::key('shipping_city')->text()->label('Città')->value($v('shipping_city')), 4),
+                $campo(FormField::key('shipping_province')->text()->label('Provincia')->value($v('shipping_province')), 3),
+                $campo(FormField::key('shipping_country')->text()->label('Paese')->value($v('shipping_country') ?: 'IT'), 3),
+            ]),
+            $riquadro('Trasporto', 'I valori di partenza si scelgono in Impostazioni → DDT. L\'inizio del trasporto vuoto è il momento dell\'emissione.', [
+                $campo(FormField::key('transport_by')->select(DeliveryNotePdf::TRANSPORT_BY)->label('A cura del')->value((string) ($values['transport_by'] ?? 'sender')), 3),
+                $campo(FormField::key('carrier_id')->select(['0' => 'Nessuno'] + SettingResource::carriers())->label('Vettore')->value((string) ($values['carrier_id'] ?? '0')), 3),
+                $campo(FormField::key('transport_started_at')->textDatetime()->label('Inizio trasporto')->value(str_starts_with($partenza, '0000') ? '' : $partenza), 3),
+                $campo(FormField::key('freight_terms')->select(DeliveryNotePdf::FREIGHT_TERMS)->label('Porto')->value((string) ($values['freight_terms'] ?? 'prepaid')), 3),
+                $campo(FormField::key('goods_appearance')->text()->label('Aspetto dei beni')->value($v('goods_appearance')), 3),
+                $campo(FormField::key('packages_count')->number()->label('Colli')->value((int) ($values['packages_count'] ?? 0) > 0 ? (string) (int) $values['packages_count'] : ''), 3),
+                $campo(FormField::key('gross_weight')->text()->label('Peso lordo (kg)')->value($numero($values['gross_weight'] ?? 0))->attribute('inputmode="decimal"'), 3),
+                $campo(FormField::key('net_weight')->text()->label('Peso netto (kg)')->value($numero($values['net_weight'] ?? 0))->attribute('inputmode="decimal"'), 3),
+                $campo(FormField::key('document_note')->textarea()->label('Note')->value($v('document_note')), 12),
+            ]),
+            $riquadro('Righe', $draft ? 'Le righe vengono dall\'ordine, una per lotto. Abbassa la quantità per consegnare una parte; zero toglie la riga. Il resto si mette in un altro DDT.' : '', static::lineComponents((array) ($values['lines'] ?? []), $draft)),
+            (new Card)->components([
+                RichText::make(static::buttonsHtml($values))->tag('div')->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+        ])->columns(12);
+    }
+
+    /**
+     * Una riga del DDT: descrizione, codice e lotto, e la quantità da
+     * consegnare (`qty_<riga>`), modificabile solo in bozza.
+     *
+     * @param list<array<string, mixed>> $lines
+     * @return list<object>
+     */
+    private static function lineComponents(array $lines, bool $draft): array
+    {
+        if ($lines === []) {
+            return [RichText::make('<p class="text-body-secondary mb-0">Nessuna riga.</p>')->tag('div')->columnSpan(12)];
+        }
+
+        $out = [];
+
+        foreach ($lines as $line) {
+            $descrizione = static::escapeStored((string) ($line['description'] ?? ''));
+            $dettagli = array_filter([
+                trim((string) ($line['sku'] ?? '')) !== '' ? 'Codice '.static::escapeStored((string) $line['sku']) : '',
+                trim((string) ($line['batch_number'] ?? '')) !== '' ? 'Lotto '.static::escapeStored((string) $line['batch_number']) : '',
+            ]);
+            $unita = trim((string) ($line['unit'] ?? ''));
+            $quantita = OrderSheet::number($line['quantity'] ?? 0);
+
+            $out[] = RichText::make('<div class="fw-semibold">'.$descrizione.'</div>'
+                .($dettagli !== [] ? '<div class="small text-body-secondary">'.implode(' · ', $dettagli).'</div>' : ''))
+                ->tag('div')
+                ->columnSpan(['default' => 12, 'md' => 8]);
+            $out[] = $draft
+                ? FormField::key('qty_'.(int) $line['id'])->text()
+                    ->label('Quantità'.($unita !== '' ? ' ('.$unita.')' : ''))
+                    ->value($quantita)
+                    ->attribute('inputmode="decimal"')
+                    ->columnSpan(['default' => 12, 'md' => 4])
+                : DataItem::make('Quantità', trim($quantita.' '.$unita))->columnSpan(['default' => 12, 'md' => 4]);
+        }
+
+        return $out;
+    }
+
+    /**
+     * I pulsanti in fondo: in bozza *Salva bozza* (il primo, così Invio
+     * salva), *Emetti* ed *Elimina bozza*; da emesso *Annulla DDT*, *Invia per
+     * email* e il PDF. Postano `intent`; le azioni che non tornano indietro
+     * chiedono conferma con la lib, e l'isola di salvataggio copia solo
+     * *Salva bozza* ed *Emetti*.
+     */
+    private static function buttonsHtml(array $values): string
+    {
+        $id = (int) ($values['id'] ?? 0);
+        $status = (string) ($values['status'] ?? 'draft');
+        $invia = static fn (string $intent, string $label, string $variant, bool $outline, string $icon = ''): Button => ($icon === ''
+            ? Button::make($label)
+            : Button::make($label)->icon($icon))
+            ->type('submit')
+            ->attr('name', 'intent')
+            ->attr('value', $intent)
+            ->variant($variant)
+            ->outline($outline)
+            ->schema('inline', true);
+        $pulsanti = [];
+
+        if ($status === 'draft') {
+            $pulsanti[] = $invia('save', 'Salva bozza', 'dark', true);
+            $pulsanti[] = $invia('issue', 'Emetti', 'dark', false, 'bi bi-check2-circle')
+                ->confirm('Il DDT prende numero e data e si archivia il PDF; l\'ordine risulta evaso per queste righe. Dopo non si modifica più: si può solo annullare.', title: 'Emetti il DDT', ok: 'Emetti', variant: 'primary');
+            $pulsanti[] = $invia('delete', 'Elimina bozza', 'danger', true, 'bi bi-trash')
+                ->attr('class', 'order-first me-auto')
+                ->attr('data-wi-save-bar-ignore', true)
+                ->confirm('La bozza del DDT si elimina: le righe restano da consegnare.', title: 'Elimina bozza', ok: 'Elimina');
+        } elseif ($status === 'issued') {
+            $pulsanti[] = $invia('send', 'Invia per email', 'secondary', true, 'bi bi-envelope')
+                ->attr('data-wi-save-bar-ignore', true)
+                ->confirm('Il cliente riceve il DDT in PDF all\'indirizzo dell\'ordine.', title: 'Invia per email', ok: 'Invia', variant: 'primary');
+            $pulsanti[] = $invia('cancel', 'Annulla DDT', 'danger', true, 'bi bi-x-circle')
+                ->attr('class', 'order-first me-auto')
+                ->attr('data-wi-save-bar-ignore', true)
+                ->confirm('Il DDT resta con il suo numero, annullato: le sue righe tornano da consegnare e l\'evasione dell\'ordine torna indietro.', title: 'Annulla DDT', ok: 'Annulla DDT');
+        }
+
+        if ($status !== 'draft' && trim((string) ($values['pdf_file'] ?? '')) !== '') {
+            $pulsanti[] = Button::to(static::pdfUrl($id), 'PDF')->icon('bi bi-file-earmark-pdf')->variant('dark')->blank()->schema('inline', true);
+        }
+
+        return '<div class="d-flex flex-wrap align-items-center justify-content-end gap-2">'
+            .implode('', array_map(static fn (Button $b): string => $b->render('bootstrap'), $pulsanti))
+            .'</div>';
     }
 
     /**
