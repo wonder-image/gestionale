@@ -19,6 +19,10 @@ use Wonder\Sql\TableSchema as Column;
  * nelle quattro tabelle collegate (come le campagne) e i clienti assegnati in
  * `CouponCustomer`; `applies_to_all` rende inutile la selezione dei prodotti.
  *
+ * Con `applies_subscriptions` vale anche per gli abbonamenti (G10.6), per il
+ * tempo detto da `duration` e `duration_months`; per gli ordini quelle colonne
+ * non contano.
+ *
  * Non si sincronizza: è lavoro del commerciante.
  */
 final class Coupon extends Model
@@ -26,6 +30,9 @@ final class Coupon extends Model
     public static string $table = 'gst_coupons';
     public static string $folder = 'gestionale/models';
     public static string $icon = 'bi bi-ticket-perforated';
+
+    /** Per gli abbonamenti: il primo addebito, N mesi, sempre. Sugli ordini non conta. */
+    public const DURATIONS = ['once', 'repeating', 'forever'];
 
     public static function syncSchema(): ?SyncSchema
     {
@@ -50,6 +57,10 @@ final class Coupon extends Model
             Column::key('applies_online')->enum(['true', 'false'])->default('true'),
             Column::key('applies_office')->enum(['true', 'false'])->default('false'),
             Column::key('applies_pos')->enum(['true', 'false'])->default('false'),
+            // Abbonamenti (G10.6): se vale per i piani e per quanto, a ogni rinnovo.
+            Column::key('applies_subscriptions')->enum(['true', 'false'])->default('false'),
+            Column::key('duration')->enum(static::DURATIONS)->default('once'),
+            Column::key('duration_months')->int()->default(0),
             Column::key('active')->enum(['true', 'false'])->default('true'),
             Column::key('note')->type('TEXT'),
         ];
@@ -73,6 +84,9 @@ final class Coupon extends Model
             Field::key('applies_online')->text()->sanitize(false),
             Field::key('applies_office')->text()->sanitize(false),
             Field::key('applies_pos')->text()->sanitize(false),
+            Field::key('applies_subscriptions')->text()->sanitize(false),
+            Field::key('duration')->text()->sanitize(false),
+            Field::key('duration_months')->number()->decimals(0),
             Field::key('active')->text()->sanitize(false),
             Field::key('note')->text(),
         ];

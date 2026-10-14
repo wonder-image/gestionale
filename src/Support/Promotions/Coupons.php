@@ -444,7 +444,8 @@ final class Coupons
      * codice mancante o già preso (anche da un coupon eliminato, il codice è
      * unico per sempre), tipo che a mano non si sceglie, percentuale fuori da
      * 0-100, importo non positivo, date capovolte, clienti riservati che non
-     * esistono. La spedizione gratuita non ha valore da controllare.
+     * esistono, spedizione gratuita o mesi mancanti su un coupon degli
+     * abbonamenti. La spedizione gratuita non ha valore da controllare.
      *
      * @param array<string, mixed> $draft code, discount_type, discount_value, starts_at, ends_at, customers
      */
@@ -479,6 +480,18 @@ final class Coupons
 
         if ($type === 'amount' && $value <= 0.0) {
             throw UserError::make('coupon.amount_not_positive');
+        }
+
+        // Sugli abbonamenti (G10.6): niente spedizione gratuita, e «per N
+        // mesi» vuole i mesi.
+        if ((string) ($draft['applies_subscriptions'] ?? 'false') === 'true') {
+            if ($type === 'free_shipping') {
+                throw UserError::make('coupon.subscriptions_free_shipping');
+            }
+
+            if ((string) ($draft['duration'] ?? 'once') === 'repeating' && (int) ($draft['duration_months'] ?? 0) < 1) {
+                throw UserError::make('coupon.duration_months_required');
+            }
         }
 
         $starts = trim((string) ($draft['starts_at'] ?? ''));

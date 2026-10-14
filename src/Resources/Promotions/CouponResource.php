@@ -100,6 +100,9 @@ class CouponResource extends GestionaleResource
             'applies_online' => 'Sito',
             'applies_office' => 'Ufficio',
             'applies_pos' => 'Cassa',
+            'applies_subscriptions' => 'Vale per gli abbonamenti',
+            'duration' => 'Durata',
+            'duration_months' => 'Mesi',
             'customers' => 'Clienti riservati',
             'status' => 'Stato',
             'note' => 'Note',
@@ -138,6 +141,7 @@ class CouponResource extends GestionaleResource
             FormField::key('applies_online')->toggle()->value(Channels::defaults()['applies_online'])->label('Sito'),
             FormField::key('applies_office')->toggle()->value(Channels::defaults()['applies_office'])->label('Ufficio'),
             FormField::key('applies_pos')->toggle()->value(Channels::defaults()['applies_pos'])->label('Cassa'),
+            ...static::subscriptionFields(),
             ...static::scopeFields(),
             FormField::key('customers')
                 ->selectSearch(static::customerOptions(), true)
@@ -208,7 +212,20 @@ class CouponResource extends GestionaleResource
             ])->columns(12)->columnSpan(12),
         ];
 
-        $left = [$main, $rules, $scope];
+        $left = [$main, $rules];
+
+        if (Gestionale::feature('subscriptions')) {
+            $left[] = (new Card)->components([
+                SectionTitle::make('Abbonamenti')
+                    ->tooltip('Acceso, il coupon vale anche per gli abbonamenti, con uno sconto in percentuale o in importo: sul primo addebito, per qualche mese (un annuale lo prende solo sul primo addebito se i mesi sono meno di dodici) o per sempre. Sugli ordini la durata non conta.')
+                    ->columnSpan(12),
+                static::getInput('applies_subscriptions')->columnSpan(4),
+                static::getInput('duration')->columnSpan(4),
+                static::getInput('duration_months')->columnSpan(4),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        $left[] = $scope;
 
         return (new Form)->components([
             (new Container)->components($left)->columns(12)->columnSpan(8),
@@ -304,6 +321,9 @@ class CouponResource extends GestionaleResource
             static::sheetRow('Utilizzi per cliente', $limit('usage_limit_per_customer'))->columnSpan(6),
             static::sheetRow('Solo sul primo ordine', $yes('first_order_only'))->columnSpan(6),
             static::sheetRow('Non sui prodotti già scontati', $yes('exclude_discounted_products'))->columnSpan(6),
+            ...(Gestionale::feature('subscriptions')
+                ? [static::sheetRow('Abbonamenti', static::durationLabel($row))->columnSpan(6)]
+                : []),
         ])->columns(12)->columnSpan(12);
 
         $customers = array_map(
@@ -391,6 +411,74 @@ class CouponResource extends GestionaleResource
         return $used.' / '.($limit > 0 ? $limit : '∞');
     }
 
+    /** «No», «Sì, sul primo addebito», «Sì, per 3 mesi», «Sì, per sempre». */
+    public static function durationLabel(array $row): string
+    {
+        if ((string) ($row['applies_subscriptions'] ?? 'false') !== 'true') {
+            return 'No';
+        }
+
+        $months = (int) ($row['duration_months'] ?? 0);
+
+        return match ((string) ($row['duration'] ?? 'once')) {
+            'forever' => 'Sì, per sempre',
+            'repeating' => 'Sì, per '.$months.($months === 1 ? ' mese' : ' mesi'),
+            default => 'Sì, sul primo addebito',
+        };
+    }
+
+    /**
+     * I campi degli abbonamenti, solo con `subscriptions` accesa. I mesi si
+     * vedono solo con la durata «Per N mesi».
+     *
+     * @return list<FormField>
+     */
+    protected static function subscriptionFields(): array
+    {
+        if (!Gestionale::feature('subscriptions')) {
+            return [];
+        }
+
+        return [
+            FormField::key('applies_subscriptions')->toggle()->value('false')->label('Vale per gli abbonamenti'),
+            FormField::key('duration')
+                ->select(['once' => 'Sul primo addebito', 'repeating' => 'Per N mesi', 'forever' => 'Per sempre'])
+                ->value('once')
+                ->label('Durata'),
+            FormField::key('duration_months')->number()->label('Mesi')->visibleWhen('duration', 'repeating'),
+        ];
+    }
+
+    /**
+     * Le colonne degli abbonamenti pronte da scrivere. Con `subscriptions`
+     * spenta i campi non ci sono: restano i valori di prima, altrimenti un
+     * salvataggio li azzererebbe. Spento l'interruttore, la durata torna «una
+     * volta» senza mesi; i mesi valgono solo per «Per N mesi».
+     *
+     * @param array<string, mixed> $values
+     * @param array<string, mixed>|null $old
+     * @return array<string, mixed>
+     */
+    public static function subscriptionValues(array $values, ?array $old): array
+    {
+        if (!Gestionale::feature('subscriptions')) {
+            foreach (['applies_subscriptions' => 'false', 'duration' => 'once', 'duration_months' => 0] as $column => $default) {
+                $values[$column] = $old !== null && isset($old[$column]) ? $old[$column] : $default;
+            }
+
+            return $values;
+        }
+
+        $on = ($values['applies_subscriptions'] ?? 'false') === 'true';
+        $duration = in_array((string) ($values['duration'] ?? ''), Coupon::DURATIONS, true) ? (string) $values['duration'] : 'once';
+
+        $values['applies_subscriptions'] = $on ? 'true' : 'false';
+        $values['duration'] = $on ? $duration : 'once';
+        $values['duration_months'] = $on && $duration === 'repeating' ? max(0, (int) ($values['duration_months'] ?? 0)) : 0;
+
+        return $values;
+    }
+
     public static function statusLabel(array $row, string $now): string
     {
         return [
@@ -428,6 +516,8 @@ class CouponResource extends GestionaleResource
         $values['discount_value'] = $values['discount_type'] === 'free_shipping'
             ? '0.00'
             : (Numbers::fromForm($values['discount_value'] ?? null) ?? '');
+
+        $values = static::subscriptionValues($values, $oldValues);
 
         Coupons::validate(
             ['customers' => static::readCustomers((array) $_POST)] + $values,

@@ -41,7 +41,6 @@ return [
         'description' => 'Piani, rinnovi e cambio piano.',
         'area' => 'Vendite',
         'release' => 'G10',
-        'created' => false,
     ],
     'bundles' => [
         'name' => 'Multiprodotto',

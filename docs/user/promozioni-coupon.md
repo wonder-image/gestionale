@@ -39,6 +39,15 @@ Si gestiscono in **Promozioni → Coupon**.
   *Funzionalità → Canali di vendita* (vedi [Canali di vendita](canali-di-vendita.md)):
   con un solo canale acceso la sezione non c'è e il coupon vale per quello.
 
+## Abbonamenti
+
+Con la funzionalità *Abbonamenti* accesa, la scheda ha il riquadro
+**Abbonamenti**: acceso **Vale per gli abbonamenti**, il coupon si usa anche
+sui piani, con una **durata**: sul primo addebito, per un certo numero di mesi
+o per sempre. Solo sconti in percentuale o in importo: la spedizione gratuita
+non vale per gli abbonamenti. Sugli ordini la durata non conta. Vedi
+[Abbonamenti](vendite-abbonamenti.md).
+
 ## Quali prodotti e quali clienti
 
 * **Tutto il catalogo**, oppure **Solo la selezione**: categorie (con le loro

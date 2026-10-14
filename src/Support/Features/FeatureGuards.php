@@ -7,14 +7,17 @@ use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions;
 
 /**
  * Le funzionalità che non si spengono con dei dati in giro (G3.18).
  *
- * Oggi una sola: «Più sedi» non si spegne con pezzi in una sede che non è la
- * principale, o con trasferimenti in viaggio. Spenta, quella merce non si
- * vedrebbe più da nessuna parte e la vetrina venderebbe solo la principale.
- * Vale anche quando si spegnerebbe a catena, per una dipendenza tolta.
+ * «Più sedi» non si spegne con pezzi in una sede che non è la principale, o
+ * con trasferimenti in viaggio. Spenta, quella merce non si vedrebbe più da
+ * nessuna parte e la vetrina venderebbe solo la principale. «Abbonamenti» non
+ * si spegne con abbonamenti vivi: spenta, nessuno vedrebbe più i rinnovi che
+ * continuano a correre. Vale anche quando si spegnerebbe a catena, per una
+ * dipendenza tolta.
  * «Acquisti» e «Lotti e scadenze» si spengono sempre: i dati restano,
  * nascosti, e tornano alla riaccensione.
  */
@@ -29,15 +32,33 @@ final class FeatureGuards
      */
     public static function assertAllowed(array $current, array $next): void
     {
-        if (($current['multi_location'] ?? false) !== true || ($next['multi_location'] ?? false) !== false) {
-            return;
+        if (self::turnsOff('multi_location', $current, $next)) {
+            $where = self::where(self::locationsWithStock(), self::transfersInTransit());
+
+            if ($where !== '') {
+                throw UserError::make('feature.multi_location_in_use', ['where' => $where]);
+            }
         }
 
-        $where = self::where(self::locationsWithStock(), self::transfersInTransit());
+        if (self::turnsOff('subscriptions', $current, $next)) {
+            $live = Subscriptions::liveCount();
 
-        if ($where !== '') {
-            throw UserError::make('feature.multi_location_in_use', ['where' => $where]);
+            if ($live > 0) {
+                throw UserError::make('feature.subscriptions_in_use', ['count' => self::subscriptionsLabel($live)]);
+            }
         }
+    }
+
+    /** «c'è 1 abbonamento in corso», «ci sono 3 abbonamenti in corso». Pura. */
+    public static function subscriptionsLabel(int $count): string
+    {
+        return $count === 1 ? 'c\'è 1 abbonamento in corso' : 'ci sono '.$count.' abbonamenti in corso';
+    }
+
+    /** @param array<string, bool> $current @param array<string, bool> $next */
+    private static function turnsOff(string $key, array $current, array $next): bool
+    {
+        return ($current[$key] ?? false) === true && ($next[$key] ?? false) === false;
     }
 
     /**

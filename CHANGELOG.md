@@ -7,6 +7,19 @@ versionamento semantico.
 
 ### Aggiunto
 
+- G10 piano 1, **Abbonamenti** costruita (`subscriptions`, da attivare):
+  pagina **Vendite → Piani** con i prezzi in un repeater (intervallo, mesi
+  per addebito, vincolo, prova, prezzo scontato, prezzo di rinnovo) e i limiti
+  a coppie chiave/valore; un prezzo usato da un abbonamento non si toglie, un
+  piano con abbonamenti in corso non si elimina. Pagina **Vendite →
+  Abbonamenti** in sola lettura, con filtri per stato e canale e scheda con
+  periodo, importi, pagamenti, cambi di piano e storia. Coupon: **Vale per gli
+  abbonamenti** con la durata (primo addebito, N mesi, per sempre).
+  `Subscriptions::limit()` per il sito; il pannello **non spegne
+  *Abbonamenti*** con abbonamenti in corso. Guida `vendite-abbonamenti.md` e
+  guida sviluppatori `concetti/abbonamenti.md`. `gestionale:demo` crea i piani
+  «Base» e «Pro».
+
 - G9 piano 4, **DDT** (funzionalità costruita): **Crea DDT** sulla scheda di
   un ordine confermato, bozza con le righe da consegnare (una per lotto),
   luogo di consegna e trasporto (predefiniti in *Impostazioni → Vendite →
