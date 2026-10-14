@@ -7,6 +7,17 @@ versionamento semantico.
 
 ### Aggiunto
 
+- Ritocchi dalla prova nel browser: **Proforma** dell'ordine in PDF (ogni
+  ordine non bozza né annullato, anche dal sito; tipo `order_proforma`); in
+  testa alle schede di ordine, abbonamento e documento di magazzino i
+  pulsanti stanno nei menu **Documenti** e **Azioni**; *Piani* diventa
+  **Catalogo → Abbonamenti**; negli Ordini le icone del **canale** e della
+  **consegna** con il tooltip; gli **abbonamenti** nella scheda del cliente;
+  la **scheda del fornitore** con carichi e articoli forniti; negli elenchi di
+  magazzino il numero apre il documento e lo **stato** ha la sua colonna.
+  Corretto: le pagine *Nuovo ordine da ufficio*, *Nuovo preventivo* e del
+  **DDT** uscivano senza stile (il layout non si chiudeva).
+
 - G10 piano 3, **Abbonamenti da ufficio**: **Nuovo abbonamento** (cliente,
   prezzo, data d'inizio, metodo e condizione di pagamento, coupon); a ogni
   periodo le **rate** della condizione di pagamento e il **proforma** PDF per

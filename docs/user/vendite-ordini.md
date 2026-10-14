@@ -16,9 +16,11 @@ storico restano sempre coerenti con lo stato.
 
 ## L'elenco
 
-*Vendite → Ordini*. Ogni riga ha **Numero**, **Cliente**, **Totale**, **Data** e
-tre etichette colorate: **Ordine**, **Pagamento**, **Evasione**. Cliccando il
-numero si apre la scheda.
+*Vendite → Ordini*. Ogni riga ha **Numero**, due icone (il **canale**: sito,
+ufficio o cassa; la **consegna**: spedizione o ritiro in negozio; passa sopra
+con il mouse per leggerle), **Cliente**, **Totale**, **Data** e tre etichette
+colorate: **Ordine**, **Pagamento**, **Evasione**. Cliccando il numero si apre
+la scheda.
 
 In alto puoi filtrare per **Ordine**, **Pagamento**, **Evasione** e **Periodo**,
 e cercare per numero, nome, ragione sociale o email del cliente.
@@ -65,8 +67,21 @@ qualunque ordine arrivino le due cose.
 
 ## I pulsanti
 
-In testa alla scheda compaiono solo quelli che valgono per lo stato in cui
-si trova l'ordine. Ognuno apre una finestra che dice **prima** cosa farà.
+In alto a destra ci sono due menu: **Documenti** e **Azioni**. Quando c'è una
+voce sola resta un pulsante.
+
+In **Documenti** trovi i PDF dell'ordine:
+
+* **Proforma** — righe, totali, IVA e come pagare (metodo, rate, IBAN), con la
+  scritta «non valido ai fini fiscali». C'è per ogni ordine, dal sito o
+  dall'ufficio, che non è una bozza né annullato. Si fa al momento, con
+  l'ordine com'è: dopo una modifica è già aggiornato. Il cliente lo scarica
+  anche dalla sua area del sito.
+* **Conferma d'ordine** — solo per gli ordini da ufficio confermati (vedi
+  [Ordini da ufficio](vendite-ordini-da-ufficio.md)).
+
+In **Azioni** compaiono solo quelle che valgono per lo stato in cui si trova
+l'ordine. Ognuna apre una finestra che dice **prima** cosa farà.
 
 | Pulsante | Quando | Cosa fa |
 |---|---|---|

@@ -60,8 +60,15 @@ scheda ma non dagli ordini già fatti, che ne conservano una copia.
 In alto le **statistiche** e, a destra, i **dati di fatturazione** (codice
 fiscale, e per un'azienda partita IVA, SDI e PEC, più l'indirizzo). Sotto, **tutti
 i suoi dati** — tipo, nome, ruolo, stato, email, telefono, accesso al sito e note
-— e gli **indirizzi di consegna**. Poi gli ordini, il carrello e, in fondo, i
-coupon.
+— e gli **indirizzi di consegna**. Poi gli ordini, il carrello, gli
+**abbonamenti** (con la funzionalità *Abbonamenti*) e, in fondo, i coupon.
+
+## La scheda del fornitore
+
+Dall'elenco dei fornitori il nome apre la sua scheda, come per i clienti:
+**tutti i suoi dati**, i **dati di fatturazione**, gli ultimi **carichi**
+ricevuti da lui (il numero apre il carico) e gli **articoli forniti**, con il
+suo codice e il costo. Per cambiare qualcosa c'è **Modifica** in alto.
 
 ## Eliminare o disattivare
 
