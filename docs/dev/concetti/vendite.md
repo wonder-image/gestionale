@@ -14,6 +14,8 @@ comando la cambia a mano: chiamano il servizio.
 | `status` e `fulfillment_status` dell'ordine | `Lifecycle::confirm()`, `cancel()`, `fulfill()` | `Support\Orders` |
 | `payment_status` dell'ordine | `Ledger::sync()`, chiamato da `register()`, `refund()`, `fail()` | `Support\Payments` |
 | Prenotazione, scarico e rientro della merce | `Allocation::reserve()`, `release()`, `commit()`, `restore()`, `returnGoods()` | `Support\Stock` |
+| Bozza d'ordine da ufficio, conferma, annullo di righe | `OfficeOrders::save()`, `confirm()`, `delete()`, `cancelLines()` | `Support\Sales` |
+| Rate di un ordine (righe `pending` con `due_date`) | `Installments::create()`, `register()`, `registerOnOrder()`, `recalculate()` | `Support\Payments` |
 | Stato del reso e sue righe | `Returns::register()`, `complete()`, `cancel()` | `Support\Returns` |
 | Giacenza e movimenti | `Stock::apply()` (vedi [Magazzino](magazzino.md)) | `Support\Stock` |
 
@@ -107,6 +109,115 @@ massima è quella della madre, e il rientro passa da `Allocation::returnGoods()`
 sulle sole figlie. La pulizia dei dati di prova (`OrdersDemo`) restituisce la
 merce di `OrderLines::goods()`, mai quella della madre.
 
+## L'ordine da ufficio (G9)
+
+La bozza è un ordine vero: `stage` `order`, `status` `draft`, `channel`
+`office`, senza `order_number` e senza prenotazioni. `user_id` è l'account del
+cliente sul sito, come online (l'operatore sta nello storico): mai l'operatore,
+o l'area cliente del sito gli mostrerebbe gli ordini dell'ufficio.
+
+- `OfficeOrders::save()` riscrive testata e righe a ogni salvataggio (prodotto,
+  `custom`, `text`; la spedizione a mano è una riga `shipping` `manual`) e
+  chiama `Cart::recalculate()`, che accetta le bozze. Il prezzo scritto a mano
+  sta in `manual_unit_price`, **prima** dello sconto di riga: rileggere
+  `unit_price` come prezzo a mano sconterebbe due volte.
+- `OfficeOrderRules` è pura: righe dell'editor, testata, cosa chiede la
+  conferma, quanto si annulla dopo.
+- `confirm()` controlla la giacenza della sede per versione
+  (`Levels::forSale`) e rifiuta col nome (salvo vendita senza giacenza), poi
+  numero, `Lifecycle::confirm()` con `payment => false` (lotto e fornitore
+  della riga vanno allo scarico) e `Installments::create()`.
+- `cancelLines()` annulla al massimo quanto non è assegnato a una spedizione
+  (`Shipments::remaining()`): `quantity` scende, `quantity_cancelled` sale, la
+  merce rientra con `Allocation::restore()`, i totali si rifanno con i prezzi
+  scritti e le rate con `Installments::recalculate()`. Tutto = `Lifecycle::cancel()`.
+- In `OrderActions` la bozza da ufficio non ha azioni (si apre nella sua
+  pagina, `OfficeOrderResource`); un ordine da ufficio confermato ha
+  `cancel_lines`.
+
+## DDT e righe evase (G9)
+
+`DeliveryNotes` è la sola porta del DDT: `createFromOrder()` (le righe di
+merce non ancora in un DDT emesso, divise per lotto con
+`StockMovements::netOut()`), `saveDraft()`, `issue()` (numero, data, PDF in
+`storage/gestionale/documents/delivery-notes/`), `cancel()`, `delete()`,
+`send()`. Non muove il magazzino.
+
+Una riga è evasa per `FulfilledLines::of($ordinato, $nei DDT emessi,
+$spedito)`: il **massimo**, mai la somma. La usano `Shipments::remaining()`
+(non si spedisce quello che un DDT ha consegnato), `Shipments::syncOrder()`
+(lo stato di evasione, che resta il solo a scriverlo e che chiamano anche
+`issue()` e `cancel()` del DDT) e *Annulla righe*. Il PDF è
+`DeliveryNotePdf` (tipo `delivery_note` dell'hook `documentPdf`).
+
+## Preventivi e PDF (G9)
+
+Il preventivo è lo stesso documento della bozza d'ordine con `stage` `quote`:
+`OfficeOrders::save(..., 'quote')` lo scrive, `Quotes` lo invia (numero al
+primo invio, `quote_revision` +1, PDF in `gst_order_quote_revisions`),
+`accept()` lo fa diventare una bozza d'ordine (`stage` `order`, `status`
+`draft`), `expireDue()` (con `QuoteExpiryTask`) segna gli scaduti. Non prenota
+e non scarica mai.
+
+I PDF di vendita (`Support\Documents`):
+
+- `DocumentData::forOrder()` legge società, documento, righe, IVA e pagamento;
+- `DocumentPdf` disegna con `Wonder\Pdf` (FPDF, testo in Windows-1252 con
+  `text()`), `QuotePdf` e `OrderConfirmationPdf` cambiano titolo e dati;
+- `DocumentFiles` li tiene in `storage/gestionale/documents`, non pubblica:
+  si scaricano dalle rotte `…/preventivi/{id}/pdf/{rev}/` e
+  `…/ordine-da-ufficio/{id}/pdf/`.
+
+Il sito sostituisce un PDF con l'hook `documentPdf` di `GestionaleExtension`:
+
+```php
+final class MioGestionale extends GestionaleExtension
+{
+    public function documentPdf(string $type, string $class): string
+    {
+        return $type === 'quote' ? MioPreventivo::class : $class;
+    }
+}
+
+class MioPreventivo extends \Wonder\Plugin\Gestionale\Support\Documents\QuotePdf
+{
+    protected function notes(): void
+    {
+        parent::notes();
+        $this->section('Condizioni generali');
+        $this->pdf->MultiCell(180, 5, self::text('…'));
+    }
+}
+```
+
+Una classe che non esiste o non estende `DocumentPdf` non vale: resta quella
+del modulo. Le email `quote_sent` e `office_confirmed` portano il PDF
+allegato (`Mailer::send(..., $attachments)`).
+
+## Le rate (G9)
+
+Una **rata** è una riga `payment` di `gst_payments` con `due_date`, scritta
+**in attesa** (`pending`, `provider` `manual`, `note` «Rata 1 di 2»). Le righe
+senza scadenza (il checkout, il bonifico a mano) non sono rate e
+`Installments` non le tocca, salvo una: alla `create()` la richiesta di
+pagamento aperta senza scadenza si annulla, perché la sostituiscono le rate.
+
+- Le condizioni stanno in `gst_payment_terms` e `gst_payment_term_installments`
+  (giorni, fine mese, percentuale); `PaymentTermRules` le valida.
+- `PaymentSchedule::of($rate, $totale, $da)` è **pura**: scadenze e importi,
+  l'ultima rata col resto. La userà anche G10 per gli abbonamenti da ufficio.
+- `InstallmentMath` è **pura**: dice cosa scrivere per un incasso su una rata
+  (uguale, minore col resto alla stessa scadenza, maggiore che scala le
+  successive) e per il ricalcolo proporzionale. `Installments` scrive e chiude
+  con `Ledger::sync()`.
+- `OrderPaymentResource` passa da `Installments` quando l'ordine ha rate in
+  attesa: `Ledger::register()` scriverebbe un incasso a parte e le rate
+  resterebbero aperte. Per lo stesso motivo `Ledger` non adotta una rata come
+  riga aperta del checkout.
+- Lo scadenzario (`ScheduleResource`) e il riquadro (`DuePaymentsWidget`)
+  leggono con `DuePayments`; i giorni di preavviso sono `payment_due_days`
+  delle impostazioni, fuori dal sync.
+
 ## Il reso
 
 `Returns::register($ordine, $righe, $opzioni)` fa tutto dentro una transazione,
@@ -149,6 +260,13 @@ vedi [Errori e log](errori.md).
   `accendiFunzionalita(['orders', 'returns'])`. Si lavora dentro una
   transazione che alla fine si annulla, così il database del sito di prova
   resta com'era.
+- Con `office_sales` accesa, `gestionale:demo` crea anche due ordini da
+  ufficio dal flusso vero: «bozza-ufficio» e «rate-ufficio», confermato in
+  RiBa 30/60 con le rate che partono 31 giorni prima dell'inizio del mese
+  (`installments_from`): la prima è sempre scaduta, la seconda no, qualunque
+  sia il giorno. `tests/integrazione/OfficeOrdersTest.php` prova bozza,
+  conferma e annullo di righe. `tests/integrazione/InstallmentsTest.php` prova i conti delle
+  rate sul database.
 - Per spegnere una funzionalità solo dentro la prova:
   `sqlModify(Feature::$table, ['enabled' => 'false'], 'feature_key', 'returns')`
   seguito da `Gestionale::reset()`.

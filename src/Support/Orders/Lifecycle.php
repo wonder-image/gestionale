@@ -100,6 +100,9 @@ final class Lifecycle
                     'location_id' => (int) ($order['location_id'] ?? 0),
                     'order_id' => $orderId,
                     'order_item_id' => (int) $item['id'],
+                    // G9: lotto e fornitore scelti a mano dall'ufficio (0 = automatico).
+                    'batch_id' => (int) ($item['batch_id'] ?? 0),
+                    'supplier_id' => (int) ($item['supplier_id'] ?? 0),
                     // Col contrassegno la merce esce prima dell'incasso: è il
                     // patto di quel metodo, non una svista.
                     'payment_ok' => $paymentStatus === 'paid' || $timing === PaymentTiming::ON_DELIVERY,

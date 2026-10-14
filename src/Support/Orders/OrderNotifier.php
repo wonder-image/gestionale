@@ -27,9 +27,10 @@ final class OrderNotifier
 
     /**
      * @param array{instructions?: string, deadline?: string, url?: string, order_url?: string, account_url?: string, carrier?: string, tracking?: string, location?: string} $extra
+     * @param array<string, string> $attachments percorso => nome (G9: il PDF)
      * @return array{status: string, to: list<string>, sent: list<string>, failed: list<string>}
      */
-    public static function send(string $key, int $orderId, array $extra = []): array
+    public static function send(string $key, int $orderId, array $extra = [], array $attachments = []): array
     {
         $order = Order::findById($orderId);
 
@@ -46,14 +47,15 @@ final class OrderNotifier
         $method = (int) ($order['payment_method_id'] ?? 0) > 0
             ? PaymentMethod::findById((int) $order['payment_method_id'])
             : null;
-        $email = OrderEmail::compose($key, $order, self::items($orderId), $extra + OrderEmailExtras::for($key, $order) + [
+        // L'email del DDT non mostra righe e prezzi: il documento è allegato.
+        $email = OrderEmail::compose($key, $order, $key === 'delivery_note_sent' ? [] : self::items($orderId), $extra + OrderEmailExtras::for($key, $order) + [
             'method' => is_array($method) ? (string) ($method['name'] ?? '') : '',
             'instructions' => is_array($method) ? (string) ($method['instructions'] ?? '') : '',
             'bank' => self::bankAccount($method),
             'order_url' => in_array($key, OrderEmail::MERCHANT_KEYS, true) ? OrderResource::detailUrl($orderId) : '',
         ]);
 
-        return Mailer::send('order.'.$key, $to, $email['subject'], $email['body']);
+        return Mailer::send('order.'.$key, $to, $email['subject'], $email['body'], $attachments);
     }
 
     /**

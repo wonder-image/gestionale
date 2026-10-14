@@ -25,24 +25,31 @@ final class OrderActions
     public const DELIVER = 'deliver';
     public const CANCEL_SHIPMENT = 'cancel_shipment';
     public const UPDATE_SHIPMENT = 'update_shipment';
+    // G9: le righe di un ordine da ufficio confermato, non ancora partite.
+    public const CANCEL_LINES = 'cancel_lines';
+    // G9: la bozza del DDT, dalla scheda di un ordine confermato.
+    public const CREATE_DELIVERY_NOTE = 'create_delivery_note';
 
     private const LABELS = [
         self::CONFIRM => 'Conferma', self::FULFILL => 'Segna evaso', self::CANCEL => 'Annulla',
         self::CREATE_SHIPMENT => 'Crea spedizione', self::READY => 'Pronto per il ritiro', self::PICKED_UP => 'Ritirato',
         self::SHIP => 'Segna spedita', self::DELIVER => 'Segna consegnata', self::CANCEL_SHIPMENT => 'Annulla spedizione',
-        self::UPDATE_SHIPMENT => 'Modifica spedizione',
+        self::UPDATE_SHIPMENT => 'Modifica spedizione', self::CANCEL_LINES => 'Annulla righe',
+        self::CREATE_DELIVERY_NOTE => 'Crea DDT',
     ];
     private const CLASSES = [
         self::CONFIRM => 'btn-success', self::FULFILL => 'btn-primary', self::CANCEL => 'btn-outline-danger',
         self::CREATE_SHIPMENT => 'btn-primary', self::READY => 'btn-primary', self::PICKED_UP => 'btn-success',
         self::SHIP => 'btn-primary', self::DELIVER => 'btn-success', self::CANCEL_SHIPMENT => 'btn-outline-danger',
-        self::UPDATE_SHIPMENT => 'btn-outline-primary',
+        self::UPDATE_SHIPMENT => 'btn-outline-primary', self::CANCEL_LINES => 'btn-outline-danger',
+        self::CREATE_DELIVERY_NOTE => 'btn-outline-primary',
     ];
     private const ICONS = [
         self::CONFIRM => 'bi-check2-circle', self::FULFILL => 'bi-box-seam', self::CANCEL => 'bi-x-circle',
         self::CREATE_SHIPMENT => 'bi-box-seam', self::READY => 'bi-bag-check', self::PICKED_UP => 'bi-check2-circle',
         self::SHIP => 'bi-truck', self::DELIVER => 'bi-check2-circle', self::CANCEL_SHIPMENT => 'bi-x-circle',
-        self::UPDATE_SHIPMENT => 'bi-pencil',
+        self::UPDATE_SHIPMENT => 'bi-pencil', self::CANCEL_LINES => 'bi-x-square',
+        self::CREATE_DELIVERY_NOTE => 'bi-file-earmark-text',
     ];
 
     /**
@@ -59,7 +66,14 @@ final class OrderActions
     public static function available(array $order, array $features = []): array
     {
         $status = (string) ($order['status'] ?? '');
+        $office = (string) ($order['channel'] ?? '') === 'office';
         $azioni = [];
+
+        // La bozza da ufficio si conferma, si modifica e si elimina dalla sua
+        // pagina (G9): la conferma di qui non darebbe il numero né le rate.
+        if ($office && $status === 'draft') {
+            return [];
+        }
 
         if (in_array($status, ['draft', 'pending'], true)) {
             $azioni[] = self::CONFIRM;
@@ -67,6 +81,15 @@ final class OrderActions
 
         if (in_array($status, ['confirmed', 'processing'], true)) {
             array_push($azioni, ...self::fulfillmentActions($order, $features));
+        }
+
+        // Il DDT anche a ordine chiuso: la merce può partire dopo l'incasso.
+        if (!empty($features['delivery_notes']) && in_array($status, ['confirmed', 'processing', 'completed'], true)) {
+            $azioni[] = self::CREATE_DELIVERY_NOTE;
+        }
+
+        if ($office && in_array($status, ['confirmed', 'processing'], true)) {
+            $azioni[] = self::CANCEL_LINES;
         }
 
         if (in_array($status, ['draft', 'pending', 'confirmed', 'processing'], true)) {
@@ -230,6 +253,7 @@ final class OrderActions
             self::FULFILL => 'Segna l\'ordine come evaso: il magazzino non cambia, la merce è già uscita alla conferma.',
             self::READY => 'Segna l\'ordine pronto per il ritiro e avvisa il cliente: il magazzino non cambia.',
             self::PICKED_UP => 'Segna l\'ordine ritirato dal cliente: l\'ordine risulta evaso.',
+            self::CREATE_DELIVERY_NOTE => 'Crea la bozza del DDT con le righe non ancora consegnate: poi completi il trasporto e lo emetti. Il magazzino non cambia.',
             default => '',
         };
     }

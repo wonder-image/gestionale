@@ -85,7 +85,7 @@ try {
         accendiFunzionalita(['orders', 'returns', 'customizations']);
         // Spenti per davvero: il sito di prova può averli accesi, e gli ordini
         // restano i sette di sempre.
-        spegniFunzionalita(['bundles', 'coupons']);
+        spegniFunzionalita(['bundles', 'coupons', 'office_sales', 'quotes', 'delivery_notes']);
         OrdersDemo::clear();
         CatalogDemo::clear();
         ContactsDemo::clear();
@@ -327,7 +327,7 @@ $cesti = [];
 try {
     Transaction::run(static function () use (&$cesti, $righe, $ordine, $agganciate): void {
         accendiFunzionalita(['orders', 'returns', 'bundles']);
-        spegniFunzionalita(['coupons']);
+        spegniFunzionalita(['coupons', 'office_sales', 'quotes', 'delivery_notes']);
         OrdersDemo::clear();
         CatalogDemo::clear();
         ContactsDemo::clear();
@@ -450,7 +450,7 @@ $senzaPersonalizzazioni = null;
 try {
     Transaction::run(static function () use (&$senzaResi, &$senzaPersonalizzazioni, $righe, $ordine): void {
         accendiFunzionalita(['orders']);
-        spegniFunzionalita(['coupons']);
+        spegniFunzionalita(['coupons', 'office_sales', 'quotes', 'delivery_notes']);
         // Spente per davvero: il sito di prova può averle accese.
         spegniFunzionalita(['customizations']);
         sqlModify(Feature::$table, ['enabled' => 'false'], 'feature_key', 'returns');
@@ -477,5 +477,57 @@ try {
 check('con i resi spenti l\'ordine evaso non ne ha', fn () => $senzaResi === 0);
 
 check('con le personalizzazioni spente nessuna riga ne ha una', fn () => $senzaPersonalizzazioni === 0);
+
+// Con la vendita in ufficio accesa (G9): un ordine in più, da ufficio, con le rate della RiBa.
+$rate = [];
+
+try {
+    Transaction::run(static function () use (&$rate, $righe, $ordine): void {
+        accendiFunzionalita(['orders', 'office_sales', 'quotes', 'delivery_notes']);
+        spegniFunzionalita(['bundles', 'coupons']);
+        OrdersDemo::clear();
+        CatalogDemo::clear();
+        ContactsDemo::clear();
+        ContactsDemo::create();
+        CatalogDemo::create();
+        DemoData::notes();
+
+        $rate['create'] = OrdersDemo::create();
+        $o = $ordine('rate-ufficio');
+        $id = (int) ($o['id'] ?? 0);
+        $rate['ordine'] = $o;
+        $rate['rate'] = Wonder\Plugin\Gestionale\Support\Payments\Installments::pending($id);
+        $rate['bozza'] = $ordine('bozza-ufficio');
+        $rate['preventivo'] = $ordine('preventivo-inviato');
+        $rate['ddt'] = $righe(Wonder\Plugin\Gestionale\Models\Sales\DeliveryNote::class, "order_id = {$id} AND status = 'issued'");
+        $rate['revisioni'] = count($righe(Wonder\Plugin\Gestionale\Models\Sales\OrderQuoteRevision::class, 'order_id = '.(int) ($rate['preventivo']['id'] ?? 0)));
+        OrdersDemo::clear();
+        $rate['dopo'] = count($righe(Wonder\Plugin\Gestionale\Models\Payments\Payment::class, 'order_id = '.$id))
+            + count($righe(Wonder\Plugin\Gestionale\Models\Sales\DeliveryNote::class, 'order_id = '.$id));
+
+        throw new Annulla();
+    });
+} catch (Annulla) {
+} finally {
+    Wonder\Plugin\Gestionale\Gestionale::reset();
+    $foto->ripristina();
+}
+
+check('con la vendita in ufficio e i preventivi nascono una bozza, un preventivo inviato e un ordine con due rate, la prima scaduta', function () use ($rate) {
+    $r = $rate['rate'] ?? [];
+    $totale = round((float) ($rate['ordine']['total'] ?? 0), 2);
+
+    return ($rate['create'] ?? 0) === 10
+        && ($rate['preventivo']['stage'] ?? '') === 'quote' && ($rate['preventivo']['status'] ?? '') === 'sent' && ($rate['revisioni'] ?? 0) === 1
+        && count($rate['ddt'] ?? []) === 1
+        && ($rate['bozza']['status'] ?? '') === 'draft' && trim((string) ($rate['bozza']['order_number'] ?? '')) === ''
+        && ($rate['ordine']['channel'] ?? '') === 'office'
+        && trim((string) ($rate['ordine']['order_number'] ?? '')) !== ''
+        && ($rate['ordine']['status'] ?? '') === 'confirmed'
+        && count($r) === 2
+        && $r[0]['due_date'] < date('Y-m-d')
+        && round($r[0]['amount'] + $r[1]['amount'], 2) === $totale
+        && ($rate['dopo'] ?? -1) === 0;
+});
 
 summary();

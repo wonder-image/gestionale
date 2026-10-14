@@ -17,6 +17,8 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
+use Wonder\Plugin\Gestionale\Support\Sales\DeliveryNotes;
+use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
 use Wonder\Plugin\Gestionale\Support\Shipping\Shipments;
 
 /**
@@ -103,7 +105,7 @@ final class OrderActionResource extends NavigationOnlyResource
      * `after` (`ship` = segna subito spedita) e `shipment_id`. Una spedizione indicata deve essere di quest'ordine.
      *
      * @param array<string, mixed> $values
-     * @return array{ok: bool, message: string}
+     * @return array{ok: bool, message: string, url?: string}
      */
     public static function run(string $action, int $orderId, int $userId, array $values = []): array
     {
@@ -131,6 +133,8 @@ final class OrderActionResource extends NavigationOnlyResource
                 OrderActions::UPDATE_SHIPMENT => static::updateShipment($orderId, $name, $source, $values),
                 OrderActions::READY => static::ready($orderId, $name, $source, $values),
                 OrderActions::PICKED_UP => static::pickedUp($orderId, $name, $source, $values),
+                OrderActions::CANCEL_LINES => static::cancelLines($orderId, $name, $source, $values),
+                OrderActions::CREATE_DELIVERY_NOTE => static::createDeliveryNote($orderId, $source),
                 default => ['ok' => false, 'message' => 'Azione non riconosciuta.'],
             };
         } catch (UserError $error) {
@@ -166,8 +170,43 @@ final class OrderActionResource extends NavigationOnlyResource
             FlashAlert::custom('Attenzione', $result['message'], 'warning');
         }
 
-        header('Location: '.($orderId > 0 ? OrderResource::detailUrl($orderId, $back !== '' ? $back : null) : OrderResource::listUrl()));
+        // Un'azione che apre un'altra pagina (la bozza del DDT) ci porta lì.
+        $url = $result['ok'] && (string) ($result['url'] ?? '') !== '' ? (string) $result['url'] : null;
+        header('Location: '.($url ?? ($orderId > 0 ? OrderResource::detailUrl($orderId, $back !== '' ? $back : null) : OrderResource::listUrl())));
         exit();
+    }
+
+    /**
+     * «Crea DDT» (G9 §4.2): la bozza nasce e si apre la sua pagina.
+     *
+     * @param array{source: string, user_id: int} $source
+     * @return array{ok: bool, message: string, url: string}
+     */
+    private static function createDeliveryNote(int $orderId, array $source): array
+    {
+        if (!Gestionale::feature('delivery_notes')) {
+            return ['ok' => false, 'message' => 'I DDT non sono attivi.'];
+        }
+
+        $id = DeliveryNotes::createFromOrder($orderId, $source);
+
+        return ['ok' => true, 'message' => 'Bozza del DDT creata: completa il trasporto ed emettila.', 'url' => DeliveryNoteResource::editUrl($id)];
+    }
+
+    /**
+     * «Annulla righe» di un ordine da ufficio (G9 §2.5): le quantità
+     * arrivano come `qty`.
+     *
+     * @param array{source: string, user_id: int} $source
+     * @param array<string, mixed> $values
+     */
+    private static function cancelLines(int $orderId, string $name, array $source, array $values): array
+    {
+        $esito = OfficeOrders::cancelLines($orderId, (array) ($values['qty'] ?? []), $source);
+
+        return ['ok' => true, 'message' => $esito['cancelled_order']
+            ? $name.' è annullato: tutte le righe sono state annullate e la merce è tornata in magazzino.'
+            : ($esito['lines'] === 1 ? 'Una riga annullata' : $esito['lines'].' righe annullate').': la merce è tornata in magazzino, i totali e le rate sono aggiornati.'];
     }
 
     /** @param array{source: string, user_id: int} $source */
