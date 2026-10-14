@@ -33,6 +33,56 @@ versionamento semantico.
   guida sviluppatori `concetti/abbonamenti.md`. `gestionale:demo` crea i piani
   «Base» e «Pro».
 
+- G9 piano 4, **DDT** (funzionalità costruita): **Crea DDT** sulla scheda di
+  un ordine confermato, bozza con le righe da consegnare (una per lotto),
+  luogo di consegna e trasporto (predefiniti in *Impostazioni → Vendite →
+  DDT*); **Emetti** con numero, data e PDF senza prezzi; **Annulla DDT**;
+  **Invia per email** con il PDF. **Vendite → DDT** con l'elenco. Le righe
+  evase contano il massimo fra DDT emessi e spedizioni, mai la somma
+  (`FulfilledLines`): la merce di un DDT non si rispedisce. Guida
+  `vendite-ddt.md`. **Chi aggiorna deve lanciare `php forge update`.**
+
+- G9 piano 3, **Preventivi** (funzionalità costruita, chiede *Vendita in
+  ufficio*): **Vendite → Preventivi** con la stessa pagina dell'ordine da
+  ufficio e la validità; **Invia al cliente** con numero, revisione e PDF
+  archiviato, email con il PDF allegato; una modifica dopo l'invio è una
+  revisione nuova; **Accettato** fa del preventivo una bozza d'ordine,
+  **Rifiutato**, scaduti segnati ogni mattina (attività *preventivi
+  scaduti*, spenta). PDF del preventivo e della **conferma d'ordine** (anche
+  allegata all'email di conferma e da scaricare sulla scheda), sostituibili
+  dal sito con l'hook `documentPdf`. *Validità dei preventivi* nelle
+  Impostazioni. Guida `vendite-preventivi.md`. **Chi aggiorna deve lanciare
+  `php forge update`.**
+
+- G9 piano 2, **Ordini da ufficio** (con *Vendita in ufficio*): **Vendite →
+  Ordini da ufficio** con le bozze e **Nuovo ordine**: la bozza senza numero né merce impegnata (cliente con i
+  dati della sua scheda, fatturazione, consegna con costo di spedizione a mano,
+  sede, righe da «Cerca o scansiona» con prezzo e sconto di riga, righe libere
+  e di testo, lotto e fornitore, disponibile della sede, sconto sul totale,
+  note). **Conferma** con il numero, la merce che esce (rifiuto col nome se
+  manca, salvo vendita senza giacenza), le rate e l'email facoltativa;
+  **Elimina bozza**. Negli Ordini le bozze col badge e il filtro, e **Annulla
+  righe** sugli ordini da ufficio confermati: la merce rientra, totali e rate
+  si rifanno. Guida `vendite-ordini-da-ufficio.md`. Corretto il ricalcolo del
+  carrello con uno sconto di riga: il prezzo a mano sta in
+  `manual_unit_price` e lo sconto non si applica più due volte.
+  **Chi aggiorna deve lanciare `php forge update`.**
+
+- G9 piano 1, **Condizioni di pagamento e scadenzario**: *Set Up → Pagamenti
+  → Condizioni di pagamento* con le rate (giorni, fine mese, percentuale che
+  fa 100), tre già pronte (rimessa diretta, bonifico 30 gg fine mese, RiBa
+  30/60); una condizione in uso non si elimina. Le rate di un ordine sono
+  pagamenti in attesa con la scadenza (`Installments`): un incasso minore
+  lascia il resto alla stessa scadenza, uno maggiore scala le rate dopo; il
+  registro libero sull'ordine chiude prima la rata più vicina. Con *Vendita in
+  ufficio*: **Vendite → Scadenzario** (filtri *Scadute*, *In scadenza*,
+  *Tutte in attesa*, *Pagate*; *Registra pagamento* sulla rata), riquadro
+  della home **Pagamenti in scadenza**, *Giorni di preavviso per le scadenze*
+  nelle Impostazioni, metodo e condizione predefiniti sulla scheda del
+  cliente. Guida `vendite-pagamenti-a-rate.md`. `gestionale:demo` con
+  *Vendita in ufficio* aggiunge un ordine da ufficio con due rate, una
+  scaduta. **Chi aggiorna deve lanciare `php forge update`.**
+
 - G3 piano 4, **Trasferimenti** (con *Più sedi*): documento in due passi,
   **Invia** (la merce lascia la partenza ed è *in viaggio*) e **Ricevi**
   (entra tutta all'arrivo), annullabile in viaggio e da ricevuto; lotto e

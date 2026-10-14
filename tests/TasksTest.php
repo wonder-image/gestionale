@@ -89,7 +89,17 @@ check('le attività hanno chiavi diverse', function () {
         $chiavi[] = $task->key();
     }
 
-    return $chiavi === array_values(array_unique($chiavi)) && count($chiavi) === 5;
+    return $chiavi === array_values(array_unique($chiavi)) && count($chiavi) === 6;
+});
+
+check('i preventivi scaduti: un\'attività del modulo, giornaliera e spenta (G9)', function () {
+    foreach (Gestionale::tasks() as $task) {
+        if ($task->key() === 'gestionale.quote_expiry') {
+            return $task->expression() === '10 5 * * *' && $task->enabled() === false;
+        }
+    }
+
+    return false;
 });
 
 check('la fine del vincolo degli abbonamenti è un\'attività giornaliera e spenta', function () {
