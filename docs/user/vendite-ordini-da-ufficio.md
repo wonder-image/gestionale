@@ -70,7 +70,7 @@ sconti e spedizione. La bozza la ritrovi in *Ordini da ufficio* e negli **Ordini
 4. crea le rate della condizione di pagamento nello
    [Scadenzario](vendite-pagamenti-a-rate.md).
 
-Con **Alla conferma scrivi al cliente** parte l'email di conferma, con la
+Con l'interruttore **Alla conferma scrivi al cliente** acceso parte l'email di conferma, con la
 conferma d'ordine in PDF allegata.
 
 **Elimina bozza** la toglie del tutto: una bozza non ha numero né movimenti.

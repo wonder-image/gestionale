@@ -30,8 +30,8 @@ cambi); su ogni preventivo la puoi spostare.
 1. dà al preventivo il **numero** (al primo invio);
 2. crea il **PDF** e lo archivia: è quello che il cliente riceve, e non
    cambia più;
-3. con **Manda l'email con il PDF** spuntata, il cliente riceve l'email con il
-   PDF allegato. Senza spunta, o se il cliente non ha un'email, scarichi il PDF
+3. con l'interruttore **Manda l'email con il PDF** acceso, il cliente riceve
+   l'email con il PDF allegato. Spento, o se il cliente non ha un'email, scarichi il PDF
    da **Revisioni inviate** e lo mandi tu.
 
 Il preventivo passa a **Inviato**.
