@@ -159,6 +159,13 @@ return [
         'requires' => ['orders'],
         'release' => 'G6',
     ],
+    'online_subscriptions' => [
+        'name' => 'Abbonamenti online',
+        'description' => 'Il sito vende i piani: pagina dei piani, sottoscrizione con Stripe e abbonamenti nell\'area cliente.',
+        'area' => 'Canali di vendita',
+        'requires' => ['online_sales', 'subscriptions'],
+        'release' => 'G10',
+    ],
     'pos' => [
         'name' => 'Vendita in cassa',
         'description' => 'Vendita in sede con documento commerciale e corrispettivi.',

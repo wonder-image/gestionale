@@ -1,0 +1,9 @@
+{
+    "id": "in_old1",
+    "object": "invoice",
+    "amount_paid": 0,
+    "currency": "eur",
+    "created": 1760000000,
+    "subscription": "sub_old1",
+    "subscription_details": {"metadata": {"subscription_id": "7"}}
+}

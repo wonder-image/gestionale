@@ -58,9 +58,41 @@ if ($max !== null && is_numeric($max) && $progetti >= (int) $max) {
 
 Solo coupon con `applies_subscriptions` e sconto in percentuale o importo.
 
+## Abbonamenti online (Stripe)
+
+Funzionalità `online_subscriptions` (richiede `online_sales` e
+`subscriptions`).
+
+- **Chiamate a Stripe** solo da `SubscriptionGateways::get()`: è
+  `StripeBilling`, con le chiavi di `StripeProvider::billing()`. Nei test,
+  `SubscriptionGateways::use(new FakeSubscriptionGateway())`
+  (`tests/supporto/`).
+- **`StripeCatalog`**: prodotto, prezzo, aliquota, coupon e codice
+  promozionale, creati alla prima occorrenza e salvati in
+  `gst_external_references`. Un prezzo cambiato ha un'altra impronta
+  (`price:2490-month-1-eur`), quindi è un prezzo nuovo in Stripe.
+- **`OnlineSubscriptions`**:
+  - `start()` crea l'abbonamento `pending` e la Checkout Session (metadati
+    `subscription_id`);
+  - `changePlan()`, `cancel()`, `portalUrl()`;
+  - `reconcile()` (oraria, dentro `StripeReconcileTask`) e `commitments()`
+    (`SubscriptionCommitmentTask`).
+- **Notifiche**: `PaymentEvents` passa a `SubscriptionEvents` i tipi
+  `checkout.session.completed`, `customer.subscription.*`, `invoice.paid` e
+  `invoice.payment_failed`. Qui non si chiama Stripe: si legge l'oggetto, nelle
+  due forme dell'API (`StripeSubscriptionData`). Gli intenti delle fatture
+  (`payment_intent.*` senza `order_id`) si lasciano stare.
+- **Pagamenti**: `invoice.paid` scrive una riga di `gst_payments` già `paid`,
+  con `subscription_id`, `order_id = 0` e `provider_reference` = id della
+  fattura.
+- **Stati**: li scrive solo `SubscriptionStatus::move()`, con la storia.
+
 ## Provare
 
 - Unitari: `PlanPriceRulesTest`, `SubscriptionAmountsTest`,
-  `SubscriptionModelsTest`, `SubscriptionPagesTest`.
-- Integrazione: `php tests/integrazione/PlansTest.php` (dopo `php forge update`).
+  `SubscriptionModelsTest`, `SubscriptionPagesTest`, `StripeCatalogTest`,
+  `StripeSubscriptionDataTest`.
+- Integrazione: `php tests/integrazione/PlansTest.php` e
+  `php tests/integrazione/OnlineSubscriptionsTest.php` (dopo `php forge update`;
+  Stripe finto, notifiche simulate).
 - Dati di prova: `php forge gestionale:demo` crea i piani «Base» e «Pro».

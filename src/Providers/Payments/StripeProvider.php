@@ -283,6 +283,18 @@ final class StripeProvider implements PaymentProvider
         $this->intents($this->environment())->cancel($reference);
     }
 
+    /**
+     * Gli abbonamenti (G10) sull'ambiente dato, o su quello attivo: stesse
+     * chiavi e stesso conto collegato dei pagamenti.
+     */
+    public function billing(?string $environment = null): StripeBilling
+    {
+        $environment = in_array($environment, ['live', 'test'], true) ? $environment : $this->environment();
+        $keys = $this->keys($environment);
+
+        return new StripeBilling($keys['secret'], $keys['account'], $environment);
+    }
+
     private function api(): object
     {
         return $this->api ?? Credentials::api();

@@ -7,6 +7,7 @@ use Wonder\Plugin\Gestionale\Providers\Payments\PaymentEvent;
 use Wonder\Plugin\Gestionale\Providers\Payments\PaymentProvider;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Providers\ProviderEvents;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionEvents;
 
 /**
  * Gli eventi che il gateway manda: firma, registro e smistamento.
@@ -65,6 +66,20 @@ final class PaymentEvents
 
     private static function apply(string $provider, PaymentEvent $event, string $source): void
     {
+        if (SubscriptionEvents::handles($event->type)) {
+            SubscriptionEvents::apply($event, $source);
+
+            return;
+        }
+
+        // Gli intenti delle fatture degli abbonamenti (G10) non hanno un ordine:
+        // il loro incasso lo registra `invoice.paid`. Gli intenti del checkout
+        // portano sempre `order_id` nei metadati.
+        if (str_starts_with($event->type, 'payment_intent.') && $event->orderId === 0
+            && Ledger::byReference($provider, $event->reference) === null) {
+            return;
+        }
+
         match ($event->type) {
             'payment_intent.succeeded' => OnlinePayments::succeeded($provider, $event->reference, $event->amount, $event->currency, $event->orderId, $source),
             'payment_intent.payment_failed' => OnlinePayments::fail($provider, $event->reference, 'Pagamento non riuscito'),

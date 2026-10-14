@@ -1,0 +1,19 @@
+{
+    "id": "sub_basil1",
+    "object": "subscription",
+    "status": "trialing",
+    "customer": "cus_9",
+    "start_date": 1760000000,
+    "trial_end": 1761209600,
+    "cancel_at_period_end": false,
+    "cancel_at": null,
+    "canceled_at": null,
+    "ended_at": null,
+    "metadata": {"subscription_id": "42", "subscription_code": "sub_abc1234"},
+    "items": {"object": "list", "data": [{
+        "id": "si_1",
+        "current_period_start": 1760000000,
+        "current_period_end": 1761209600,
+        "price": {"id": "price_77", "object": "price"}
+    }]}
+}

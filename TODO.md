@@ -342,7 +342,11 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Spec: [spec](docs/superpowers/specs/2026-10-13-abbonamenti-design.md) sul ramo `g10-abbonamenti`. Decisioni G10.1–G10.19 approvate il 2026-10-13, tutte come consigliate. **Si unisce su `main` dopo la `1.0.0`**. Tre piani: catalogo dei piani → abbonamenti online con Stripe (E3) → abbonamenti da ufficio (dopo G9 piani 1 e 3: `PaymentSchedule` e `DocumentPdf`)
   - [ ] Da chiedere prima del piano 2: chiavi di **prova** di Stripe sul sito di prova per i test online
   - [x] Piano 1 Catalogo dei piani ([piano](docs/superpowers/plans/2026-10-13-g10-piano-1-catalogo-dei-piani.md), ramo `g10-piano-1`): *Vendite → Piani* con prezzi e limiti, *Vendite → Abbonamenti* in lettura, `SubscriptionAmounts`, coupon con durata, `Subscriptions::limit()`, guardia del pannello, piani di prova. Test d'integrazione `PlansTest` sul Mac e prova nel browser da fare
-  - [ ] Piano 2 Abbonamenti online (E3, gestionale ed ecommerce)
+  - [ ] Piano 2 Abbonamenti online (E3, gestionale ed ecommerce) ([piano](docs/superpowers/plans/2026-10-13-g10-piano-2-abbonamenti-online.md))
+    - [x] Gestionale (ramo `g10-piano-2`): `StripeCatalog`, `OnlineSubscriptions` (Checkout, cambio piano, disdetta col vincolo, portale, riallineamento, fine vincolo), notifiche in `SubscriptionEvents`, tre email, `online_subscriptions`. Test `OnlineSubscriptionsTest` sul Mac
+    - [x] Ecommerce: pagina dei piani, sottoscrizione, area cliente (wonder-image/ecommerce#11, ramo `g10-abbonamenti-online`)
+    - [ ] Prove con Stripe vero: aspettano le chiavi di prova sul sito di prova
+    - [ ] Dopo: *Cambia piano* e *Disdici* dal backend (piano 3); rimborsi degli abbonamenti registrati in automatico (G8)
   - [ ] Piano 3 Abbonamenti da ufficio
 
 **Fuori dal percorso della consegna (D61)**

@@ -7,6 +7,19 @@ versionamento semantico.
 
 ### Aggiunto
 
+- G10 piano 2, **Abbonamenti online** (`online_subscriptions`, da attivare,
+  richiede *Vendita online* e *Abbonamenti*): sottoscrizione con **Stripe
+  Checkout** in modalità abbonamento (carta e Link), prova gratuita una volta
+  per cliente e per piano, codici sconto passati a Stripe con la loro durata;
+  piani, prezzi, aliquote e coupon creati in Stripe alla prima occorrenza.
+  Le notifiche `checkout.session.completed`, `customer.subscription.*`,
+  `invoice.paid` e `invoice.payment_failed` decidono stato, periodo e
+  pagamenti (una riga di pagamento per rinnovo pagato). Cambio piano senza
+  conguagli, disdetta a fine periodo o a fine vincolo, prezzo di rinnovo a fine
+  vincolo (attività **fine vincolo degli abbonamenti**), riallineamento orario
+  e chiusura degli abbandonati dopo 24 ore. Email di attivazione, rinnovo non
+  riuscito e disdetta.
+
 - G10 piano 1, **Abbonamenti** costruita (`subscriptions`, da attivare):
   pagina **Vendite → Piani** con i prezzi in un repeater (intervallo, mesi
   per addebito, vincolo, prova, prezzo scontato, prezzo di rinnovo) e i limiti
