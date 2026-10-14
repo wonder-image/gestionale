@@ -222,17 +222,18 @@ check('carico e suo storno: tipo, numero e indirizzo della scheda dalle colonne 
         StockDocuments::cancel($id);
         [$iniziale, $carico, $storno] = movimentiConDocumento($prodotto) + [[], [], []];
         $url = StockReceiptResource::viewUrl($id);
+        $link = '<a href="'.htmlspecialchars($url, ENT_QUOTES).'">'.htmlspecialchars($numero, ENT_QUOTES).'</a>';
 
         return $iniziale['document_type'] === null && $iniziale['document_url'] === null
             && $carico['document_type'] === 'receipt' && $carico['document_number'] === $numero && $carico['document_url'] === $url
             && $storno['document_type'] === 'receipt' && $storno['document_number'] === $numero && $storno['document_url'] === $url
-            && celleDi($carico)['type'] === 'Carico · '.htmlspecialchars($numero, ENT_QUOTES)
-            && celleDi($storno)['type'] === 'Annullamento del carico · '.htmlspecialchars($numero, ENT_QUOTES)
-            && !str_contains(celleDi($carico)['type'], '<a')
+            // Il numero apre la scheda del carico, anche dallo storno.
+            && celleDi($carico)['type'] === 'Carico · '.$link
+            && celleDi($storno)['type'] === 'Annullamento del carico · '.$link
             // La scheda del movimento legge un record solo, senza le colonne
             // calcolate: Tipo passa da one() e dice lo stesso.
             && StockMovementResource::typeCellOf(array_diff_key($carico, array_flip(['document_type', 'document_number', 'document_url'])))
-                === 'Carico · '.htmlspecialchars($numero, ENT_QUOTES);
+                === 'Carico · '.$link;
     });
 });
 
@@ -245,7 +246,7 @@ check('uno scarico porta alla scheda dello scarico', function () {
 
         return ($scarico['document_type'] ?? '') === 'issue'
             && ($scarico['document_url'] ?? '') === StockIssueResource::viewUrl($id)
-            && celleDi($scarico)['type'] === 'Scarico · '.htmlspecialchars($numero, ENT_QUOTES);
+            && celleDi($scarico)['type'] === 'Scarico · <a href="'.htmlspecialchars(StockIssueResource::viewUrl($id), ENT_QUOTES).'">'.htmlspecialchars($numero, ENT_QUOTES).'</a>';
     });
 });
 

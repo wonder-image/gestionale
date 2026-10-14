@@ -278,12 +278,14 @@ check('pageSchema: la scheda con il suo template, titolo «Carico»', function (
         && ((array) StockIssueResource::pageSchema()->get('titles'))['view'] === 'Scarico';
 });
 
-check('intestazione: Duplica e Annulla sul confermato, solo Duplica sull\'annullato', function () {
+check('intestazione: Duplica e Annulla nel menu «Azioni» sul confermato, solo Duplica sull\'annullato', function () {
     $azioni = ((array) StockReceiptResource::pageSchema()->get('actions'))['view'] ?? null;
-    $etichette = static fn (array $item): array => array_column(is_callable($azioni) ? $azioni($item) : (array) $azioni, 'label');
+    $testa = static fn (array $item): array => is_callable($azioni) ? $azioni($item) : (array) $azioni;
+    $confermato = $testa(['id' => 7, 'status' => 'completed']);
 
-    return $etichette(['id' => 7, 'status' => 'completed']) === ['Duplica', 'Annulla']
-        && $etichette(['id' => 7, 'status' => 'cancelled']) === ['Duplica'];
+    return array_column($confermato, 'label') === ['Azioni']
+        && array_column($confermato[0]['items'] ?? [], 'label') === ['Duplica', 'Annulla']
+        && array_column($testa(['id' => 7, 'status' => 'cancelled']), 'label') === ['Duplica'];
 });
 
 check('hiddenForms: il form di Annulla con la domanda solo sul confermato; Duplica sempre', function () {

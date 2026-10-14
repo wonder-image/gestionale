@@ -18,6 +18,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Resources\Stock\StockIssueResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockMovementResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
@@ -584,8 +585,11 @@ check('Movimenti: la cella Tipo legge il documento e lo storno', function () {
         $mov = righe(StockMovement::class, "reference_type = 'stock_document' AND reference_id = ".$id)[0];
         $storno = righe(StockMovement::class, "reference_type = 'stock_document_cancel' AND reference_id = ".$id)[0];
 
-        return StockMovementResource::typeCellOf($mov) === 'Scarico · '.$numero
-            && StockMovementResource::typeCellOf($storno) === 'Annullamento dello scarico · '.$numero;
+        // Il numero apre la scheda dello scarico, anche dallo storno.
+        $link = '<a href="'.htmlspecialchars(StockIssueResource::viewUrl($id), ENT_QUOTES).'">'.htmlspecialchars($numero, ENT_QUOTES).'</a>';
+
+        return StockMovementResource::typeCellOf($mov) === 'Scarico · '.$link
+            && StockMovementResource::typeCellOf($storno) === 'Annullamento dello scarico · '.$link;
     });
 });
 
