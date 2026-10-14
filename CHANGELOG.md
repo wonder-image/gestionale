@@ -7,6 +7,14 @@ versionamento semantico.
 
 ### Aggiunto
 
+- Le pagine **Nuovo ordine da ufficio**, **Nuovo preventivo** e del **DDT**
+  si disegnano con i componenti del core (`Card`, `FormField`, `Button`):
+  campi e pulsanti con lo stile del backend, conferme della lib, isola di
+  salvataggio; indirizzo e costo di spedizione compaiono solo con la
+  spedizione, il valore dello sconto solo se c'è uno sconto. L'invio al
+  cliente è un interruttore. L'editor delle righe dell'ordine resta quello di
+  prima.
+
 - Scheda ordine riordinata: in testa il menu **Documenti** (*Proforma*, che
   vale anche come conferma d'ordine ed è disponibile **già dalla bozza**;
   *Crea DDT*), i pulsanti che portano avanti l'ordine sempre a vista
