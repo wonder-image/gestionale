@@ -339,6 +339,11 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Piano 4 [DDT](docs/superpowers/plans/2026-10-13-g9-piano-4-ddt.md) **fatto** (2026-10-13, ramo `g9-piano-4`): `DeliveryNotes` (bozza dall'ordine per lotto, emissione con PDF, annullo, invio), `FulfilledLines` usata da spedizioni, evasione e *Annulla righe*, pagina *DDT*, *Crea DDT* sull'ordine, predefiniti del trasporto. `delivery_notes` costruita. Test d'integrazione `DeliveryNotesTest` da lanciare sul sito di prova
   - [ ] Dopo G9 (dalla spec, §8): nell'editor dell'ufficio le personalizzazioni, le scelte dei multiprodotti, il coupon e il *Nuovo cliente* senza uscire dalla pagina (piano 2); *Annulla righe* dei multiprodotti; annullando un ordine con DDT emessi, annullare anche i DDT (oggi restano emessi); DDT da trasferimento fra sedi, correzione del lotto nel DDT in bozza, spedizione creata da un DDT, promemoria delle rate scadute; nell'ecommerce, l'accettazione del preventivo dal cliente (link nell'email, area cliente)
 - [ ] G10 + E3 Abbonamenti — da ufficio e online; la parte E3 va anche in [`packages/ecommerce/TODO.md`](../ecommerce/TODO.md)
+  - [x] Spec: [spec](docs/superpowers/specs/2026-10-13-abbonamenti-design.md) sul ramo `g10-abbonamenti`. Decisioni G10.1–G10.19 approvate il 2026-10-13, tutte come consigliate. **Si unisce su `main` dopo la `1.0.0`**. Tre piani: catalogo dei piani → abbonamenti online con Stripe (E3) → abbonamenti da ufficio (dopo G9 piani 1 e 3: `PaymentSchedule` e `DocumentPdf`)
+  - [ ] Da chiedere prima del piano 2: chiavi di **prova** di Stripe sul sito di prova per i test online
+  - [ ] Piano 1 Catalogo dei piani
+  - [ ] Piano 2 Abbonamenti online (E3, gestionale ed ecommerce)
+  - [ ] Piano 3 Abbonamenti da ufficio
 
 **Fuori dal percorso della consegna (D61)**
 
