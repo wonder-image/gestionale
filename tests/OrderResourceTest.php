@@ -57,7 +57,15 @@ check('i permessi dell\'elenco sono di admin e administrator', function () {
 check('l\'API è spenta', fn () => (bool) (OrderResource::apiSchema()->toArray()['enabled'] ?? true) === false);
 
 check('le colonne sono quelle dell\'elenco', fn () =>
-    $colonne === ['order_number', 'customer', 'total', 'ordered_at', 'status', 'payment_status', 'fulfillment_status', 'actions']
+    $colonne === ['order_number', 'channel', 'fulfillment_type', 'customer', 'total', 'ordered_at', 'status', 'payment_status', 'fulfillment_status', 'actions']
+);
+
+check('canale e consegna sono un\'icona con la parola nel tooltip', fn () =>
+    str_contains(OrderResource::channelCell('office'), 'bi-building') && str_contains(OrderResource::channelCell('office'), 'data-bs-title="Ufficio"')
+    && str_contains(OrderResource::channelCell('online'), 'data-bs-title="Online"')
+    && str_contains(OrderResource::fulfillmentCell('pickup'), 'data-bs-title="Ritiro in negozio"')
+    && str_contains(OrderResource::fulfillmentCell('shipping'), 'bi-truck')
+    && str_contains(OrderResource::fulfillmentCell('boh'), '—')
 );
 
 check('l\'elenco mostra solo gli ordini veri, non i carrelli', function () {

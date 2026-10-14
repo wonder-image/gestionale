@@ -87,6 +87,8 @@ final class OrderResource extends GestionaleResource
     {
         return [
             'order_number' => 'Numero',
+            'channel' => 'Canale',
+            'fulfillment_type' => 'Consegna',
             'ordered_at' => 'Data',
             'customer' => 'Cliente',
             'total' => 'Totale',
@@ -108,6 +110,15 @@ final class OrderResource extends GestionaleResource
                 ->formatter(static fn (array $row): string => trim((string) ($row['order_number'] ?? '')) !== ''
                     ? static::escape((string) $row['order_number'])
                     : '<span class="text-body-secondary">Bozza</span>'),
+            // Da dove arriva e come si consegna: un'icona, la parola nel tooltip.
+            TableColumn::key('channel')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::channelCell((string) ($row['channel'] ?? ''))),
+            TableColumn::key('fulfillment_type')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => static::fulfillmentCell((string) ($row['fulfillment_type'] ?? ''))),
             TableColumn::key('customer')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(static::customerName($row)))
@@ -288,6 +299,43 @@ final class OrderResource extends GestionaleResource
         }
 
         return $pulsanti;
+    }
+
+    /** Le icone del canale: [icona, parola]. */
+    public const CHANNEL_ICONS = [
+        'online' => ['bi-globe2', 'Online'],
+        'office' => ['bi-building', 'Ufficio'],
+        'pos' => ['bi-shop', 'Cassa'],
+        'b2b_portal' => ['bi-briefcase', 'Portale B2B'],
+    ];
+
+    /** Le icone della consegna: [icona, parola]. */
+    public const FULFILLMENT_ICONS = [
+        'shipping' => ['bi-truck', 'Spedizione'],
+        'pickup' => ['bi-bag-check', 'Ritiro in negozio'],
+        'none' => ['bi-dash-circle', 'Niente da consegnare'],
+    ];
+
+    /** Il canale dell'ordine: un'icona con la parola nel tooltip. */
+    public static function channelCell(string $channel): string
+    {
+        return static::iconCell(self::CHANNEL_ICONS[$channel] ?? null);
+    }
+
+    /** Spedizione o ritiro: un'icona con la parola nel tooltip. */
+    public static function fulfillmentCell(string $type): string
+    {
+        return static::iconCell(self::FULFILLMENT_ICONS[$type] ?? null);
+    }
+
+    /** @param array{0: string, 1: string}|null $icon */
+    private static function iconCell(?array $icon): string
+    {
+        if ($icon === null) {
+            return '<span class="text-body-secondary">—</span>';
+        }
+
+        return '<i class="bi '.$icon[0].' text-muted" data-bs-toggle="tooltip" data-bs-title="'.static::escape($icon[1]).'" aria-label="'.static::escape($icon[1]).'"></i>';
     }
 
     /** Il proforma in PDF dell'ordine. */
@@ -678,13 +726,12 @@ final class OrderResource extends GestionaleResource
             .' role="button" data-bs-toggle="modal" data-bs-target="#'.OrderNoteResource::MODAL_ID.'">'
             .'<i class="bi bi-pencil"></i></a>';
         $nota = static fn (string $v): string => trim($v) !== '' ? nl2br(static::escape($v)) : '';
-        $canali = ['online' => 'Online', 'office' => 'Ufficio', 'pos' => 'Cassa'];
         $canale = (string) ($order['channel'] ?? '');
 
         return [
             $dato('Numero', (string) ($order['order_number'] ?? '')),
             $dato('Data', static::date((string) ($order['ordered_at'] ?? ''))),
-            $dato('Canale', $canali[$canale] ?? $canale),
+            $dato('Canale', self::CHANNEL_ICONS[$canale][1] ?? $canale),
             $dato('Ordine', StatusLabels::badge('order', (string) ($order['status'] ?? '')), true),
             $dato('Pagamento', static::paymentBadge((string) ($order['payment_status'] ?? ''), OnlinePayments::inTest((int) ($order['id'] ?? 0))), true),
             $dato('Evasione', StatusLabels::badge('fulfillment', (string) ($order['fulfillment_status'] ?? '')), true),
