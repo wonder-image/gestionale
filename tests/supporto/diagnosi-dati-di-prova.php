@@ -96,8 +96,13 @@ try {
         Demo::registerAll();
 
         foreach (DemoData::inClearOrder() as $dati) {
-            $tolti = (int) ($dati['clear'])();
-            echo '· '.$dati['title'].': '.$tolti." tolti\n";
+            // Una pulizia che si rompe non ferma le altre: si dice e si va avanti.
+            try {
+                $tolti = (int) ($dati['clear'])();
+                echo '· '.$dati['title'].': '.$tolti." tolti\n";
+            } catch (Throwable $e) {
+                echo '· '.$dati['title'].': errore — '.trim($e->getMessage())."\n";
+            }
 
             foreach (DemoData::notes() as $nota) {
                 echo '    nota: '.$nota."\n";
