@@ -236,16 +236,15 @@ check('Chiudi e Annulla dalla tabella tornano all\'elenco, non a una scheda dent
         [$ordine, $riga] = ordineVenduto(3);
         OrderReturnResource::run($ordine, moduloReso($riga, '1', 'changed_mind', ''), 1);
         $reso = resiDi($ordine)[0];
-        $azioni = array_values(array_filter(
-            OrderReturnTableResource::tableSchema(),
-            static fn ($c): bool => (string) $c->name === 'actions'
-        ))[0]->schema['formatter'];
+        // Il menu ⋯ della riga apre le finestre della scheda: sono loro a postare, con il ritorno.
         $_GET['torna'] = '/backend/ordini/?page=2';
-        $html = $azioni($reso);
+        $html = OrderResource::actionModalsFor((array) Order::findById($ordine));
         unset($_GET['torna']);
 
-        return str_contains($html, 'name="back" value="/backend/ordini/?page=2"')
-            && !str_contains($html, OrderResource::detailUrl($ordine));
+        return str_contains($html, 'id="'.OrderReturnTableResource::modalId((int) $reso['id'], 'complete').'"')
+            && str_contains($html, 'id="'.OrderReturnTableResource::modalId((int) $reso['id'], 'cancel').'"')
+            && substr_count($html, 'name="back" value="/backend/ordini/?page=2"') >= 2
+            && !str_contains($html, 'name="back" value="'.htmlspecialchars(OrderResource::detailUrl($ordine), ENT_QUOTES).'"');
     });
 });
 

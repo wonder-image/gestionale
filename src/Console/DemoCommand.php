@@ -16,8 +16,10 @@ use Wonder\Plugin\Gestionale\Seeding\Demo;
  * Si rifiuta di partire fuori dal locale: sono dati finti, e in produzione
  * finirebbero davanti ai clienti. `--fresh` cancella quelli di prima prima di
  * rifarli: solo le righe col segno dei dati di prova nel codice (vedi
- * `DemoCode`) e quelle con i vecchi nomi `Prova …`. Una riga di prova che
- * qualcosa di vero usa ancora resta al suo posto, e il comando lo dice.
+ * `DemoCode`) e quelle con i vecchi nomi `Prova …`. `--clear` li cancella e
+ * basta, senza rifarli: il sito torna come prima dei dati di prova (i test
+ * d'integrazione partono da lì). Una riga di prova che qualcosa di vero usa
+ * ancora resta al suo posto, e il comando lo dice.
  */
 final class DemoCommand extends Command
 {
@@ -26,7 +28,8 @@ final class DemoCommand extends Command
         $this
             ->setName('gestionale:demo')
             ->setDescription('Crea i dati di prova del gestionale (solo in locale)')
-            ->addOption('fresh', null, InputOption::VALUE_NONE, 'Cancella i dati di prova già creati');
+            ->addOption('fresh', null, InputOption::VALUE_NONE, 'Cancella i dati di prova già creati')
+            ->addOption('clear', null, InputOption::VALUE_NONE, 'Cancella i dati di prova e non li rifà');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -47,7 +50,8 @@ final class DemoCommand extends Command
             return Command::SUCCESS;
         }
 
-        $fresh = (bool) $input->getOption('fresh');
+        $clear = (bool) $input->getOption('clear');
+        $fresh = $clear || (bool) $input->getOption('fresh');
 
         // Prima si toglie tutto, dall'ultimo registrato al primo: gli ordini
         // vanno via prima degli articoli che hanno venduto. Poi si crea, nell'ordine
@@ -58,6 +62,10 @@ final class DemoCommand extends Command
                 $output->writeln("Cancellati {$removed} dati di «{$data['title']}».");
                 self::writeNotes($output);
             }
+        }
+
+        if ($clear) {
+            return Command::SUCCESS;
         }
 
         foreach ($registry as $data) {

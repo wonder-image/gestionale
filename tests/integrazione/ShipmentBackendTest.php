@@ -234,6 +234,16 @@ check('un\'azione sconosciuta è una frase, non un errore', fn () => prova(stati
     return azione('vola', $ordine)['ok'] === false;
 }));
 
+/**
+ * Le spedizioni già sul sito di prova (le prove nel browser) escono dai
+ * conteggi: si segnano cancellate dentro la transazione del test, che poi si
+ * annulla.
+ */
+function senzaSpedizioniDelSito(): void
+{
+    Shipment::query()->Update(Shipment::$table, ['deleted' => 'true'], 'deleted', 'false');
+}
+
 /** Una spedizione con stato e data di partenza dati, su un ordine nuovo. */
 function spedizioneCon(string $stato, ?string $partita = null): int
 {
@@ -252,6 +262,7 @@ function spedizioneCon(string $stato, ?string $partita = null): int
 
 check('i conteggi della bacheca: da controllare = eccezione e consegna fallita, e basta', fn () => prova(static function (): bool {
     accendiFunzionalita(['orders', 'shipping']);
+    senzaSpedizioniDelSito();
     $zero = ShipmentAlerts::toCheck();
     spedizioneCon('exception');
     spedizioneCon('failed_attempt');
@@ -264,6 +275,7 @@ check('i conteggi della bacheca: da controllare = eccezione e consegna fallita, 
 
 check('partite da più di sette giorni e non consegnate: il bordo è stretto', fn () => prova(static function (): bool {
     accendiFunzionalita(['orders', 'shipping']);
+    senzaSpedizioniDelSito();
     $giorni = static fn (int $ore): string => date('Y-m-d H:i:s', time() - $ore * 3600);
 
     spedizioneCon('in_transit', $giorni(7 * 24 - 2));      // quasi sette giorni: no
@@ -278,6 +290,7 @@ check('partite da più di sette giorni e non consegnate: il bordo è stretto', f
 
 check('i riquadri disegnano i conteggi veri e a zero tacciono', fn () => prova(static function (): bool {
     accendiFunzionalita(['orders', 'shipping']);
+    senzaSpedizioniDelSito();
     $vuoto = (new ShipmentsToCheckWidget)->render() === '' && (new ShippedNotDeliveredWidget)->render() === '';
     spedizioneCon('exception');
     spedizioneCon('in_transit', date('Y-m-d H:i:s', time() - 9 * 86400));
