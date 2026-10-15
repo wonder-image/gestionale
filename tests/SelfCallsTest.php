@@ -10,7 +10,8 @@ require __DIR__ . '/harness.php';
  * della classe chiama ancora: PHP lo scopre solo quando la riga gira, e molte
  * di quelle righe girano solo con il database (i test d'integrazione). Qui si
  * legge il sorgente: ogni `self::nome(` deve avere `function nome(` nello
- * stesso file. Le classi del modulo non usano trait, quindi basta il file.
+ * stesso file, o in un trait che la classe usa (`use Nome;` nel corpo,
+ * cercato nella stessa cartella: i trait del modulo stanno accanto alle classi).
  */
 check('in src ogni chiamata self:: ha il suo metodo nello stesso file', function () {
     $mancanti = [];
@@ -22,6 +23,14 @@ check('in src ogni chiamata self:: ha il suo metodo nello stesso file', function
         }
 
         $sorgente = (string) file_get_contents($file->getPathname());
+
+        preg_match_all('/^    use\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/m', $sorgente, $trait);
+        foreach ($trait[1] as $nome) {
+            $percorso = $file->getPath().'/'.$nome.'.php';
+            if (is_file($percorso)) {
+                $sorgente .= (string) file_get_contents($percorso);
+            }
+        }
         preg_match_all('/self::([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $sorgente, $chiamate);
 
         foreach (array_unique($chiamate[1]) as $metodo) {

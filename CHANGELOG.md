@@ -7,6 +7,13 @@ versionamento semantico.
 
 ### Aggiunto
 
+- `php forge gestionale:demo` crea anche una vetrina: l'«Impermeabile da città»
+  con tutto quello che un articolo può avere (12 versioni su colore, taglia e
+  materiale, marchio, imballo, dimensioni, descrizione, scheda tecnica,
+  personalizzazioni facoltative e obbligatorie, fornitori, una versione
+  disattivata e una ordinabile anche esaurita), l'«Ombrello pieghevole» in
+  offerta e il multiprodotto «Kit pioggia» con un componente fisso e due
+  gruppi a scelta. La pulizia toglie solo questi tre articoli.
 - `php forge gestionale:demo --clear` cancella i dati di prova senza rifarli:
   il sito torna come prima, ed è lo stato da cui partono i test
   d'integrazione. La sede di prova cancellata dal backend si rimette in uso
