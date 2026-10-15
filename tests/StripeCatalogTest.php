@@ -94,4 +94,32 @@ check('il finto rispetta le chiavi di idempotenza, come Stripe', function () {
     return $a['id'] === $b['id'] && $a['id'] !== $c['id'] && $finto->count('price.create') === 3;
 });
 
+check('con il sovrapprezzo delle personalizzazioni: importo più alto, senza sovrapprezzo l\'impronta di prima', fn () =>
+    StripeCatalog::cents($mensile, 2.0) === 2690
+    && StripeCatalog::fingerprint($mensile, 0.0, 0) === '2490-month-1-eur'
+    && StripeCatalog::fingerprint(['billing_interval' => 'year', 'term_months' => 12] + $mensile, 2.0) === '2690-year-1-eur'
+    && StripeCatalog::fingerprint(['sale_price' => '19.90'] + $mensile, 1.5) === '2140-month-1-eur'
+);
+
+check('due righe uguali: posti 0 e 1, impronte diverse (Stripe non vuole lo stesso prezzo due volte)', function () use ($mensile) {
+    $slots = StripeCatalog::slots([
+        ['plan_price_id' => 7, 'surcharge' => 0.0],
+        ['plan_price_id' => 7, 'surcharge' => 0.0],
+        ['plan_price_id' => 7, 'surcharge' => 2.0],
+        ['plan_price_id' => 8, 'surcharge' => 0.0],
+        ['plan_price_id' => 7, 'surcharge' => 0.0],
+    ]);
+
+    return $slots === [0, 1, 0, 0, 2]
+        && StripeCatalog::fingerprint($mensile, 0.0, 1) === '2490-month-1-eur-s1'
+        && StripeCatalog::fingerprint($mensile, 0.0, 1) !== StripeCatalog::fingerprint($mensile);
+});
+
+check('il prezzo Stripe col sovrapprezzo: importo con il sovrapprezzo, che resta nei metadati', function () use ($mensile) {
+    $p = StripeCatalog::priceParams($mensile, 'prod_1', 2.0);
+
+    return $p['unit_amount'] === 2690
+        && $p['metadata'] === ['plan_price_id' => '7', 'plan_price_code' => 'ppr_abc1234', 'surcharge' => '2.00'];
+});
+
 summary();
