@@ -330,7 +330,10 @@
                 "renewal_invalid": "Il prezzo di rinnovo di «{{name}}» deve essere un altro prezzo, già salvato, di un piano attivo.",
                 "price_in_use": "Il prezzo «{{name}}» è usato da un abbonamento e non si toglie: spegnilo.",
                 "in_use": "Il piano non si elimina, {{count}}: spegnilo.",
-                "feature_duplicate": "Il limite «{{key}}» è scritto due volte: tienine uno."
+                "feature_duplicate": "Il limite «{{key}}» è scritto due volte: tienine uno.",
+                "link_self": "Un piano non si lega a se stesso.",
+                "link_depth": "I legami vanno a un livello solo: un piano si lega a piani che non si legano a nulla, e un piano a cui altri si legano non si lega a sua volta.",
+                "has_children": "Il piano non si elimina: {{names}} si legano a lui. Togli il legame dalla loro scheda."
             },
             "subscription": {
                 "unavailable": "Gli abbonamenti online non sono disponibili in questo momento.",

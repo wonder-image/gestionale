@@ -6315,7 +6315,7 @@ HTML)->tag('div');
      *
      * Il nome arriva da chi vende: si scrive come testo, mai come HTML.
      */
-    protected static function customizationScript(): RichText
+    public static function customizationScript(): RichText
     {
         $risorsa = json_encode(CustomizationResource::slug());
 

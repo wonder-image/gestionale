@@ -293,7 +293,7 @@ class CustomizationResource extends GestionaleResource
     {
         return ApiSchema::for(static::class)
             ->only(['store'])
-            ->fields('store', ['name', 'kind', 'surcharge']);
+            ->fields('store', ['name', 'kind', 'surcharge', 'scope']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -308,13 +308,15 @@ class CustomizationResource extends GestionaleResource
     /**
      * I campi del modal «Nuova personalizzazione» della scheda articolo: il
      * nome, il tipo — testo o numero: una scelta ha bisogno delle sue
-     * opzioni e si fa dalla sua pagina — e il sovrapprezzo.
+     * opzioni e si fa dalla sua pagina — e il sovrapprezzo. Dalla scheda del
+     * piano (`$scope` «subscriptions») porta anche lo scope nascosto, che fa
+     * nascere la personalizzazione per gli abbonamenti.
      *
      * @return list<\Wonder\App\ResourceSchema\Input>
      */
-    public static function quickCreateFields(): array
+    public static function quickCreateFields(string $scope = 'products'): array
     {
-        return [
+        $fields = [
             FormField::key('name')->text()->label('Nome')->required()->columnSpan(12),
             FormField::key('kind')
                 ->select(array_diff_key(static::kinds(), ['choice' => true]))
@@ -324,6 +326,12 @@ class CustomizationResource extends GestionaleResource
                 ->columnSpan(12),
             FormField::key('surcharge')->price()->decimal(2)->value('0.00')->label('Sovrapprezzo')->columnSpan(12),
         ];
+
+        if ($scope === 'subscriptions') {
+            $fields[] = FormField::key('scope')->hidden()->value('subscriptions');
+        }
+
+        return $fields;
     }
 
     /**
@@ -333,6 +341,8 @@ class CustomizationResource extends GestionaleResource
      * {@see QUICK_MAX_LENGTH} caratteri: le opzioni di una scelta si
      * preparano dalla pagina della personalizzazione. Il resto lo decide il
      * server — attivo, zero decimali —, qualunque cosa porti la richiesta.
+     * Con `scope` «subscriptions» nasce per gli abbonamenti, altrimenti per
+     * i prodotti.
      *
      * @param array<string, mixed> $values
      * @return array<string, mixed>
@@ -346,6 +356,7 @@ class CustomizationResource extends GestionaleResource
         }
 
         $kind = ($values['kind'] ?? null) === 'number' ? 'number' : 'text';
+        $forSubscriptions = ($values['scope'] ?? null) === 'subscriptions';
         $surcharge = $values['surcharge'] ?? null;
 
         if ($surcharge === null || (is_string($surcharge) && trim($surcharge) === '')) {
@@ -369,6 +380,8 @@ class CustomizationResource extends GestionaleResource
             'decimals' => 0,
             'surcharge' => $surcharge,
             'active' => 'true',
+            'for_products' => $forSubscriptions ? 'false' : 'true',
+            'for_subscriptions' => $forSubscriptions ? 'true' : 'false',
         ];
     }
 
@@ -421,7 +434,10 @@ class CustomizationResource extends GestionaleResource
             $values['decimals'] = $isNumber ? (int) $values['decimals'] : 0;
         }
 
-        $values = static::scopeValues($values, $context === 'api' ? [] : (array) $_POST, $oldValues);
+        // Lo store API ha già gli interruttori da quickCreateValues().
+        if ($context !== 'api') {
+            $values = static::scopeValues($values, (array) $_POST, $oldValues);
+        }
         $id = (int) ($oldValues['id'] ?? 0);
         static::assertScopes(
             $values,
