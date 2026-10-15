@@ -84,8 +84,9 @@ final class DocumentData
      * voce per riga addebitata (nome col suo periodo, quantità, importi), i
      * crediti come voci di sconto in negativo, i totali dell'abbonamento,
      * l'IVA per aliquota (`tax_summaries` se c'è, altrimenti quella
-     * dell'abbonamento) e le rate in attesa del periodo. Il proforma non ha
-     * numero: non è un documento fiscale.
+     * dell'abbonamento) e le rate in attesa del periodo. Il credito usato
+     * scala il totale da pagare (mai sotto zero); se copre tutto, la nota lo
+     * dice. Il proforma non ha numero: non è un documento fiscale.
      *
      * @param list<array{name: string, quantity: int, unit_price: float, line_total: float, tax_rate: float}> $lines
      * @param list<array{name: string, amount: float}> $credits
@@ -106,6 +107,17 @@ final class DocumentData
             'document_note' => 'Documento non valido ai fini fiscali: la fattura segue il pagamento.',
         ];
         $order['email'] = '';
+        $credit = round(array_sum(array_map(static fn (array $c): float => (float) $c['amount'], $credits)), 2);
+
+        if ($credit > 0.0) {
+            $order['discount_total'] = $credit;
+            $order['total'] = max(0.0, round((float) ($subscription['total'] ?? 0) - $credit, 2));
+        }
+
+        if ($credit > 0.0 && $installments === []) {
+            $order['document_note'] = 'Niente da pagare: il credito dei servizi tolti copre il periodo. '.$order['document_note'];
+        }
+
         $payment = self::payment(['payment_method_id' => $subscription['payment_method_id'] ?? 0, 'payment_term_id' => $subscription['payment_term_id'] ?? 0]);
         $payment['installments'] = $installments;
         $items = [];

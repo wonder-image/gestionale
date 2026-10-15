@@ -302,4 +302,53 @@ check('a un abbonamento non pagato non si aggiunge niente', fn () => prova(stati
     return rifiuto(static fn () => SubscriptionItems::add($a['id'], ['plan_price_id' => $a['hosting']], 'free')) === 'subscription.not_live';
 }));
 
+/** Il credito ancora da usare del servizio tolto. */
+function credito(int $abbonamento): float
+{
+    foreach (storia($abbonamento) as $cambio) {
+        if ((string) $cambio['action'] === 'removed') {
+            return round((float) $cambio['credit_left'], 2);
+        }
+    }
+
+    return -1.0;
+}
+
+/** Quante volte è stato segnalato un credito non usato. */
+function segnalazioni(): int
+{
+    $righe = \Wonder\App\Models\System\ErrorReport::find(['service' => 'subscriptions', 'action' => 'credit_left']);
+    $righe = is_array($righe) ? (isset($righe['id']) ? [$righe] : $righe) : [];
+
+    return array_sum(array_map(static fn ($riga): int => (int) ($riga['occurrences'] ?? 0), $righe));
+}
+
+check('il credito copre il rinnovo del dominio: nessuna rata, proforma lo stesso, restano 3,48', fn () => prova(static function (): bool {
+    $a = abbonamento('2026-07-15');
+    SubscriptionItems::remove((int) rigaDi($a['id'], $a['assistenza'])['id'], 'credit', 0, 'user', new DateTimeImmutable('2026-07-30'));
+    avanza($a['id'], '2026-12-15');
+    OfficeSubscriptions::daily(new DateTimeImmutable('2027-01-15'));
+
+    return importi($a['id']) === [] && credito($a['id']) === 3.48
+        && DocumentFiles::path(OfficeSubscriptions::proformaFile($a['id'], '2027-01-15')) !== null;
+}));
+
+check('il periodo dopo usa i 3,48 rimasti: rata di 8,52', fn () => prova(static function (): bool {
+    $a = abbonamento('2026-07-15');
+    SubscriptionItems::remove((int) rigaDi($a['id'], $a['assistenza'])['id'], 'credit', 0, 'user', new DateTimeImmutable('2026-07-30'));
+    avanza($a['id'], '2027-12-15');
+    OfficeSubscriptions::daily(new DateTimeImmutable('2028-01-15'));
+
+    return importi($a['id']) === [8.52] && credito($a['id']) === 0.0;
+}));
+
+check('annullo con un credito aperto: una segnalazione', fn () => prova(static function (): bool {
+    $a = abbonamento('2026-07-15');
+    SubscriptionItems::remove((int) rigaDi($a['id'], $a['assistenza'])['id'], 'credit', 0, 'user', new DateTimeImmutable('2026-07-30'));
+    $prima = segnalazioni();
+    OfficeSubscriptions::terminate($a['id']);
+
+    return stato($a['id']) === 'cancelled' && segnalazioni() === $prima + 1;
+}));
+
 summary();

@@ -194,7 +194,7 @@ final class SubscriptionActionResource extends NavigationOnlyResource
                         return ['ok' => false, 'message' => 'Non c\'è un periodo da mandare.'];
                     }
 
-                    $file = OfficeSubscriptions::proforma($row, (string) $row['current_period_start'], (string) $row['current_period_end']);
+                    $file = OfficeSubscriptions::archivedProforma($row);
                     $path = DocumentFiles::path($file);
                     $sent = SubscriptionNotifier::send('proforma', $subscriptionId, $path === null ? [] : [$path => OfficeSubscriptions::proformaName($row)]);
 

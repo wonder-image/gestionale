@@ -8,9 +8,11 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItemChange;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -141,9 +143,11 @@ final class OfficeSubscriptions
     /**
      * Apre il periodo che comincia in `$from`: dura quanto la riga più corta,
      * si addebitano le righe il cui periodo parte quel giorno (il coupon conta
-     * gli addebiti dalla data di rinnovo), le `pending` diventano attive, poi
-     * rate in attesa dalla condizione di pagamento e proforma per email. Un
-     * periodo già aperto non si riapre.
+     * gli addebiti dalla data di rinnovo), le `pending` diventano attive, i
+     * crediti dei servizi tolti scalano il totale ({@see useCredits()}), poi
+     * rate in attesa dalla condizione di pagamento sul resto e proforma per
+     * email (anche quando il credito copre tutto). Un periodo già aperto non
+     * si riapre.
      *
      * @return array{payments: list<int>, file: string, email: string}
      */
@@ -155,7 +159,7 @@ final class OfficeSubscriptions
             $current = self::day((string) ($row['current_period_start'] ?? ''));
 
             if ($current !== null && $current->format('Y-m-d') === $start->format('Y-m-d')) {
-                return ['payments' => [], 'row' => $row, 'end' => (string) $row['current_period_end']];
+                return ['payments' => [], 'credits' => [], 'row' => $row, 'end' => (string) $row['current_period_end']];
             }
 
             $period = SubscriptionItems::forPeriod($row, $start);
@@ -191,19 +195,21 @@ final class OfficeSubscriptions
             Subscription::update($values, $subscriptionId);
             $row = $values + $row;
             $label = 'Abbonamento '.(string) ($row['code'] ?? '').', dal '.$start->format('d/m/Y').' al '.$end->format('d/m/Y');
-            $ids = (float) $amounts['total'] > 0.0
-                ? Installments::createForSubscription($row, (float) $amounts['total'], $start, $label)
+            $credits = self::useCredits($subscriptionId, (float) $amounts['total']);
+            $due = round((float) $amounts['total'] - array_sum(array_column($credits, 'amount')), 2);
+            $ids = $due > 0.0
+                ? Installments::createForSubscription($row, $due, $start, $label)
                 : [];
 
-            return ['payments' => $ids, 'row' => $row, 'end' => $end->format('Y-m-d H:i:s')];
+            return ['payments' => $ids, 'credits' => $credits, 'row' => $row, 'end' => $end->format('Y-m-d H:i:s')];
         });
 
         $file = '';
         $email = 'skipped';
 
-        if ($result['payments'] !== []) {
+        if ($result['payments'] !== [] || $result['credits'] !== []) {
             try {
-                $file = self::proforma($result['row'], (string) $result['row']['current_period_start'], $result['end']);
+                $file = self::proforma($result['row'], (string) $result['row']['current_period_start'], $result['end'], $result['credits']);
                 $path = DocumentFiles::path($file);
                 $email = SubscriptionNotifier::send('proforma', $subscriptionId, $path === null ? [] : [$path => self::proformaName($result['row'])])['status'];
             } catch (Throwable $error) {
@@ -217,13 +223,16 @@ final class OfficeSubscriptions
     }
 
     /**
-     * Il proforma del periodo in corso, archiviato e ristampato se manca: una
-     * voce per riga addebitata, col periodo della riga.
+     * Il proforma del periodo in corso, archiviato: una voce per riga
+     * addebitata, col periodo della riga, e una voce di sconto per ogni
+     * credito usato. Lo scrive l'apertura del periodo; rimandato, si usa
+     * quello archiviato ({@see archivedProforma()}).
      *
      * @param array<string, mixed> $row
+     * @param list<array{name: string, amount: float}> $credits
      * @return string il percorso relativo in `DocumentFiles`
      */
-    public static function proforma(array $row, string $periodStart, string $periodEnd): string
+    public static function proforma(array $row, string $periodStart, string $periodEnd, array $credits = []): string
     {
         $installments = array_values(array_map(
             static fn (array $r): array => ['due_date' => $r['due_date'], 'amount' => $r['amount']],
@@ -248,9 +257,81 @@ final class OfficeSubscriptions
             ];
         }
 
-        $data = DocumentData::forSubscription(['tax_summaries' => $amounts['tax_summaries']] + $row, $lines, [], $periodStart, $periodEnd, $installments);
+        $data = DocumentData::forSubscription(['tax_summaries' => $amounts['tax_summaries']] + $row, $lines, $credits, $periodStart, $periodEnd, $installments);
 
         return DocumentFiles::save(self::proformaFile((int) $row['id'], $periodStart), DocumentPdfs::render('proforma', $data));
+    }
+
+    /**
+     * Il proforma archiviato del periodo, o uno nuovo se manca (senza i
+     * crediti: quelli li conosce solo l'apertura del periodo).
+     *
+     * @param array<string, mixed> $row
+     */
+    public static function archivedProforma(array $row): string
+    {
+        $file = self::proformaFile((int) $row['id'], (string) $row['current_period_start']);
+
+        return DocumentFiles::path($file) !== null
+            ? $file
+            : self::proforma($row, (string) $row['current_period_start'], (string) $row['current_period_end']);
+    }
+
+    /**
+     * Usa i crediti aperti dell'abbonamento, dal più vecchio, fino a
+     * `$total`: scala `credit_left` di ognuno e torna le voci di sconto per
+     * il proforma. Va chiamata dentro la transazione che blocca
+     * l'abbonamento.
+     *
+     * @return list<array{name: string, amount: float}>
+     */
+    private static function useCredits(int $subscriptionId, float $total): array
+    {
+        $left = round($total, 2);
+        $used = [];
+
+        foreach (self::openCredits($subscriptionId) as $change) {
+            if ($left <= 0.0) {
+                break;
+            }
+
+            $amount = min($left, round((float) $change['credit_left'], 2));
+            SubscriptionItemChange::update(['credit_left' => number_format((float) $change['credit_left'] - $amount, 2, '.', '')], (int) $change['id']);
+            $left = round($left - $amount, 2);
+            $price = PlanPrice::findById((int) $change['old_plan_price_id']);
+            $plan = is_array($price) ? Plan::findById((int) ($price['plan_id'] ?? 0)) : null;
+            $used[] = [
+                'name' => 'Credito '.(is_array($plan) ? (string) ($plan['name'] ?? '') : 'di un servizio').' del '.self::day((string) $change['effective_at'])?->format('d/m/Y'),
+                'amount' => $amount,
+            ];
+        }
+
+        return $used;
+    }
+
+    /**
+     * I cambi con credito ancora da usare, dal più vecchio.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function openCredits(int $subscriptionId): array
+    {
+        return self::rows(SubscriptionItemChange::find(
+            '`subscription_id` = '.$subscriptionId." AND `deleted` = 'false' AND `credit_left` > 0",
+            null,
+            'effective_at',
+            'ASC'
+        ));
+    }
+
+    /** Un abbonamento chiuso con crediti non usati va in *Da controllare*. */
+    private static function reportCredits(int $subscriptionId): void
+    {
+        $left = round(array_sum(array_map(static fn (array $c): float => (float) $c['credit_left'], self::openCredits($subscriptionId))), 2);
+
+        if ($left > 0.0) {
+            Errors::report('subscriptions', 'credit_left', 'Credito di '.number_format($left, 2, ',', '.').' € non usato', ['subscription' => $subscriptionId]);
+        }
     }
 
     public static function proformaFile(int $subscriptionId, string $periodStart): string
@@ -496,6 +577,7 @@ final class OfficeSubscriptions
             ], $subscriptionId);
             SubscriptionStatus::move($subscriptionId, 'cancelled', 'user', $reason !== '' ? $reason : 'Annullato dal commerciante', $userId ?: null);
         });
+        self::reportCredits($subscriptionId);
     }
 
     /**
@@ -530,6 +612,7 @@ final class OfficeSubscriptions
                     && !self::endingAfter($id, $periodEnd)) {
                     Subscription::update(['ended_at' => $periodEnd->format('Y-m-d H:i:s'), 'cancelled_at' => date('Y-m-d H:i:s')], $id);
                     SubscriptionStatus::move($id, 'cancelled', 'cron', 'Fine del periodo dopo la disdetta');
+                    self::reportCredits($id);
                     $done['ended']++;
 
                     continue;
@@ -606,6 +689,7 @@ final class OfficeSubscriptions
 
         Subscription::update(['auto_renew' => 'false', 'next_renewal_at' => '', 'ended_at' => $today->format('Y-m-d H:i:s'), 'cancelled_at' => date('Y-m-d H:i:s')], $id);
         SubscriptionStatus::move($id, 'cancelled', 'cron', 'Nessun servizio in corso');
+        self::reportCredits($id);
 
         return true;
     }
