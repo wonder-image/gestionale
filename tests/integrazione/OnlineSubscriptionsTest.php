@@ -21,7 +21,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionPlanChange;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItemChange;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Providers\Payments\PaymentEvent;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -33,6 +33,7 @@ use Wonder\Plugin\Gestionale\Support\Providers\ExternalReferences;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\OnlineSubscriptions;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionEvents;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionGateways;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionItems;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -289,9 +290,9 @@ check('cambio piano: Stripe senza conguagli, una riga sola anche quando torna la
     SubscriptionEvents::apply(notifica('customer.subscription.updated', abbonamentoStripe('sub_S4', $id, 'active', prezzoStripe($p['annuale']))));
 
     return $chiamata['proration_behavior'] === 'none' && $chiamata['items'][0]['id'] === 'si_'.$id
-        && (int) Subscription::findById($id)['plan_price_id'] === (int) $p['annuale']['id']
+        && SubscriptionItems::priceIdOf($id) === (int) $p['annuale']['id']
         && round((float) Subscription::findById($id)['total'], 2) === 244.0
-        && count(righe(SubscriptionPlanChange::class, ['subscription_id' => $id])) === 1;
+        && count(righe(SubscriptionItemChange::class, ['subscription_id' => $id])) === 1;
 }));
 
 check('disdetta fuori dal vincolo: a fine periodo in Stripe, con l\'email; la notifica non riaccende il rinnovo', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
@@ -339,7 +340,7 @@ check('a fine vincolo senza disdetta l\'abbonamento passa al prezzo di rinnovo',
     Subscription::update(['current_period_end' => (string) Subscription::findById($id)['commitment_ends_at']], $id);
     $esito = OnlineSubscriptions::commitments(new DateTimeImmutable());
 
-    return $esito['renewed'] === 1 && (int) Subscription::findById($id)['plan_price_id'] === (int) $p['mensile']['id'];
+    return $esito['renewed'] === 1 && SubscriptionItems::priceIdOf($id) === (int) $p['mensile']['id'];
 }));
 
 check('fine vincolo recuperata: tre giorni dopo la disdetta passa comunque a Stripe', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {

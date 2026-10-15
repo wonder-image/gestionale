@@ -32,6 +32,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Sql\Transaction;
 
@@ -88,7 +89,7 @@ if ($prodotti !== []) {
 $piani = ids(diProva(Plan::class));
 $prezzi = $piani === [] ? [] : ids(righe(PlanPrice::find('`plan_id` IN ('.implode(',', $piani).") AND `deleted` IN ('true', 'false')")));
 $abbonamenti = $prezzi === [] ? [] : array_values(array_filter(
-    righe(Subscription::find('`plan_price_id` IN ('.implode(',', $prezzi).") AND `deleted` IN ('true', 'false')")),
+    righe(Subscription::find('`id` IN (SELECT `subscription_id` FROM `'.SubscriptionItem::$table.'` WHERE `plan_price_id` IN ('.implode(',', $prezzi).")) AND `deleted` IN ('true', 'false')")),
     static fn (array $row): bool => !DemoCode::is((string) ($row['code'] ?? ''))
 ));
 

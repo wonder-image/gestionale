@@ -6,6 +6,7 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
 
 /**
  * Letture degli abbonamenti che servono al resto del gestionale e al sito.
@@ -53,7 +54,7 @@ final class Subscriptions
             return null;
         }
 
-        $price = PlanPrice::findById((int) ($subscription['plan_price_id'] ?? 0));
+        $price = PlanPrice::findById(SubscriptionItems::priceIdOf($subscription));
         $planId = is_array($price) ? (int) ($price['plan_id'] ?? 0) : 0;
 
         if ($planId <= 0) {
@@ -65,9 +66,15 @@ final class Subscriptions
         return $feature === null ? null : (string) ($feature['feature_value'] ?? '');
     }
 
-    /** Quanti abbonamenti vivi in tutto, o su quei prezzi. @param list<int>|null $priceIds */
+    /**
+     * Quanti abbonamenti vivi in tutto; con `$priceIds`, quante righe vive di
+     * abbonamenti vivi su quei prezzi.
+     *
+     * @param list<int>|null $priceIds
+     */
     public static function liveCount(?array $priceIds = null): int
     {
+        $table = Subscription::$table;
         $where = "`status` IN ('".implode("','", Subscription::LIVE)."') AND `deleted` = 'false'";
 
         if ($priceIds !== null) {
@@ -77,18 +84,19 @@ final class Subscriptions
                 return 0;
             }
 
-            $where .= ' AND `plan_price_id` IN ('.implode(',', $ids).')';
+            $table = SubscriptionItem::$table;
+            $where = SubscriptionItems::liveWhere().' AND `plan_price_id` IN ('.implode(',', $ids).')';
         }
 
         try {
-            return (int) sqlCount(Subscription::$table, $where);
+            return (int) sqlCount($table, $where);
         } catch (Throwable) {
             return 0;
         }
     }
 
     /**
-     * I prezzi, fra quelli dati, usati da almeno un abbonamento, anche chiuso:
+     * I prezzi, fra quelli dati, usati da almeno una riga d'abbonamento, anche chiusa:
      * un abbonamento chiuso è storia, e il suo prezzo deve restare leggibile.
      *
      * @param list<int> $priceIds
@@ -102,7 +110,7 @@ final class Subscriptions
             return [];
         }
 
-        $rows = self::rows(Subscription::find(
+        $rows = self::rows(SubscriptionItem::find(
             '`plan_price_id` IN ('.implode(',', $ids).") AND `deleted` = 'false'",
             null,
             null,

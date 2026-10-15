@@ -23,13 +23,14 @@ use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionPlanChange;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItemChange;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionItems;
 
 /**
  * «Abbonamenti» (G10 §1.2): quelli del sito li scrivono le notifiche di Stripe
@@ -84,7 +85,7 @@ final class SubscriptionResource extends GestionaleResource
         return [
             'code' => 'Codice',
             'customer_id' => 'Cliente',
-            'plan_price_id' => 'Piano',
+            'plan' => 'Piano',
             'status' => 'Stato',
             'next_renewal_at' => 'Prossimo rinnovo',
             'total' => 'Totale',
@@ -132,9 +133,10 @@ final class SubscriptionResource extends GestionaleResource
             TableColumn::key('customer_id')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(static::customerName((int) ($row['customer_id'] ?? 0)))),
-            TableColumn::key('plan_price_id')
+            // Non è una colonna: il piano è quello della riga principale.
+            TableColumn::key('plan')
                 ->text()
-                ->formatter(static fn (array $row): string => static::escape(static::planLabel((int) ($row['plan_price_id'] ?? 0)))),
+                ->formatter(static fn (array $row): string => static::escape(static::planLabel(SubscriptionItems::priceIdOf($row)))),
             TableColumn::key('status')
                 ->text()
                 ->size('little')
@@ -221,7 +223,7 @@ final class SubscriptionResource extends GestionaleResource
             SectionTitle::make('Abbonamento')->columnSpan(12),
             $dato('Stato', static::statusBadge((string) ($row['status'] ?? '')), true),
             $dato('Cliente', $customer, true),
-            $dato('Piano', static::planLabel((int) ($row['plan_price_id'] ?? 0))),
+            $dato('Piano', static::planLabel(SubscriptionItems::priceIdOf($row))),
             $dato('Canale', static::channelLabels()[(string) ($row['channel'] ?? '')] ?? ''),
             $dato('Pagamento', (string) ($row['provider'] ?? '') === 'stripe' ? 'Stripe' : 'Registrato a mano'),
             $dato('Rinnovo automatico', (string) ($row['auto_renew'] ?? 'true') === 'true' ? 'Sì' : 'No'),
@@ -333,7 +335,7 @@ final class SubscriptionResource extends GestionaleResource
             $components = match ($action) {
                 'change_plan' => [
                     FormField::key('plan_price_id')
-                        ->select(array_diff_key(OfficeSubscriptionResource::priceOptions(), [(int) ($row['plan_price_id'] ?? 0) => true]))
+                        ->select(array_diff_key(OfficeSubscriptionResource::priceOptions(), [SubscriptionItems::priceIdOf($row) => true]))
                         ->label('Nuovo piano')
                         ->required()
                         ->columnSpan(12),
@@ -460,7 +462,7 @@ final class SubscriptionResource extends GestionaleResource
     /** I cambi di piano, dal più recente. */
     public static function changesHtml(int $subscriptionId): string
     {
-        $rows = $subscriptionId > 0 ? static::rowsOf(SubscriptionPlanChange::class, ['subscription_id' => $subscriptionId], 'id', 'DESC') : [];
+        $rows = $subscriptionId > 0 ? static::rowsOf(SubscriptionItemChange::class, ['subscription_id' => $subscriptionId], 'id', 'DESC') : [];
 
         if ($rows === []) {
             return '<p class="text-muted mb-0">Nessun cambio di piano.</p>';

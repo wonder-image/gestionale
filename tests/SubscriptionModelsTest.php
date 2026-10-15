@@ -11,7 +11,8 @@ use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionPlanChange;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItemChange;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 
 $colonne = static function (string $model): array {
@@ -24,14 +25,15 @@ $colonne = static function (string $model): array {
     return $nomi;
 };
 
-$tutti = [Plan::class, PlanFeature::class, PlanPrice::class, Subscription::class, SubscriptionPlanChange::class, SubscriptionStatusLog::class];
+$tutti = [Plan::class, PlanFeature::class, PlanPrice::class, Subscription::class, SubscriptionItem::class, SubscriptionItemChange::class, SubscriptionStatusLog::class];
 
 check('le tabelle hanno il prefisso del gestionale', fn () =>
     Plan::$table === 'gst_plans'
     && PlanFeature::$table === 'gst_plan_features'
     && PlanPrice::$table === 'gst_plan_prices'
     && Subscription::$table === 'gst_subscriptions'
-    && SubscriptionPlanChange::$table === 'gst_subscription_plan_changes'
+    && SubscriptionItem::$table === 'gst_subscription_items'
+    && SubscriptionItemChange::$table === 'gst_subscription_item_changes'
     && SubscriptionStatusLog::$table === 'gst_subscription_status_logs'
 );
 
@@ -54,13 +56,21 @@ check('ogni tabella ha le sue colonne', function () use ($colonne) {
             'price', 'sale_price', 'renewal_plan_price_id', 'active', 'position',
         ],
         Subscription::class => [
-            'code', 'customer_id', 'plan_price_id', 'channel', 'status', 'provider', 'payment_method_id',
+            'code', 'customer_id', 'channel', 'status', 'provider', 'payment_method_id',
             'payment_term_id', 'coupon_id', 'coupon_code', 'billing_country', 'prices_include_tax', 'subtotal',
             'discount_total', 'tax_id', 'tax_country', 'tax_rate', 'tax_total', 'total', 'currency', 'started_at',
             'trial_ends_at', 'commitment_ends_at', 'current_period_start', 'current_period_end', 'next_renewal_at',
             'auto_renew', 'cancel_requested_at', 'cancelled_at', 'ended_at', 'provider_reference', 'environment', 'note',
         ],
-        SubscriptionPlanChange::class => ['subscription_id', 'old_plan_price_id', 'new_plan_price_id', 'user_id', 'source', 'changed_at'],
+        SubscriptionItem::class => [
+            'subscription_id', 'plan_price_id', 'parent_item_id', 'quantity', 'status', 'customization', 'unit_price',
+            'customization_total', 'subtotal', 'tax_total', 'total', 'tax_id', 'tax_rate', 'starts_at',
+            'commitment_ends_at', 'ends_at', 'provider_reference', 'provider_price', 'position',
+        ],
+        SubscriptionItemChange::class => [
+            'subscription_id', 'item_id', 'action', 'old_plan_price_id', 'new_plan_price_id', 'billing', 'amount',
+            'credit_left', 'effective_at', 'user_id', 'source', 'changed_at', 'note',
+        ],
         SubscriptionStatusLog::class => ['subscription_id', 'field', 'from_value', 'to_value', 'source', 'user_id', 'message'],
     ];
 
@@ -110,6 +120,18 @@ check('il pagamento sa già a quale abbonamento appartiene', function () use ($c
 
 check('la durata del coupon ha tre valori, il primo è il predefinito', fn () =>
     Coupon::DURATIONS === ['once', 'repeating', 'forever']
+);
+
+check('l\'abbonamento non ha più il prezzo: sta nelle righe', fn () =>
+    !in_array('plan_price_id', $colonne(Subscription::class), true)
+    && !array_key_exists('ind_plan_price', Subscription::tablePseudos())
+);
+
+check('stati delle righe, azioni e scelte della storia', fn () =>
+    SubscriptionItem::STATUSES === ['pending', 'active', 'ending', 'ended']
+    && SubscriptionItem::LIVE === ['active', 'ending']
+    && SubscriptionItemChange::ACTIONS === ['added', 'removed', 'changed', 'customized']
+    && SubscriptionItemChange::BILLINGS === ['prorate', 'free', 'next_period', 'period_end', 'credit', '']
 );
 
 summary();

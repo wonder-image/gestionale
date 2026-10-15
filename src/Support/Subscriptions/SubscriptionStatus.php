@@ -33,6 +33,7 @@ final class SubscriptionStatus
         }
 
         Subscription::update(['status' => $to], $subscriptionId);
+        SubscriptionItems::follow($subscriptionId, $from, $to);
         StatusLogger::record(SubscriptionStatusLog::class, $subscriptionId, 'status', $from, $to, $source, $userId, $message);
 
         return true;

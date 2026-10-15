@@ -12,7 +12,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionPlanChange;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
@@ -83,7 +83,6 @@ final class OnlineSubscriptions
         $created = Subscription::create($billing + [
             'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION),
             'customer_id' => $customerId,
-            'plan_price_id' => (int) $price['id'],
             'channel' => 'online',
             'status' => 'pending',
             'provider' => 'stripe',
@@ -107,6 +106,8 @@ final class OnlineSubscriptions
         if (!is_array($row)) {
             throw new \RuntimeException('Abbonamento non scritto.');
         }
+
+        SubscriptionItems::open($row, $price);
 
         StatusLogger::record(SubscriptionStatusLog::class, $id, 'status', '', 'pending', 'api', null, 'Sottoscrizione dal sito');
         // Il ritorno da Stripe porta il codice dell'abbonamento, che nasce solo adesso.
@@ -141,7 +142,7 @@ final class OnlineSubscriptions
             throw UserError::make('subscription.price_unavailable');
         }
 
-        if ($newPriceId === (int) $row['plan_price_id']) {
+        if ($newPriceId === SubscriptionItems::priceIdOf($row)) {
             return;
         }
 
@@ -161,15 +162,8 @@ final class OnlineSubscriptions
 
         $gateway->updateSubscription((string) $row['provider_reference'], ['items' => [$item], 'proration_behavior' => 'none']);
 
-        SubscriptionPlanChange::create([
-            'subscription_id' => $subscriptionId,
-            'old_plan_price_id' => (int) $row['plan_price_id'],
-            'new_plan_price_id' => $newPriceId,
-            'user_id' => (int) ($userId ?? 0),
-            'source' => StatusLogger::normalizeSource($source),
-            'changed_at' => date('Y-m-d H:i:s'),
-        ]);
-        Subscription::update(['plan_price_id' => $newPriceId] + self::amountsFor(['plan_price_id' => $newPriceId] + $row), $subscriptionId);
+        SubscriptionItems::changePrice($row, $price, StatusLogger::normalizeSource($source), (int) ($userId ?? 0));
+        Subscription::update(self::amountsFor($row, $newPriceId), $subscriptionId);
     }
 
     /**
@@ -308,10 +302,11 @@ final class OnlineSubscriptions
                     continue;
                 }
 
-                $price = PlanPrice::findById((int) $row['plan_price_id']);
+                $current = SubscriptionItems::priceIdOf($row);
+                $price = PlanPrice::findById($current);
                 $renewal = is_array($price) ? (int) ($price['renewal_plan_price_id'] ?? 0) : 0;
 
-                if ($renewal > 0 && $renewal !== (int) $row['plan_price_id']) {
+                if ($renewal > 0 && $renewal !== $current) {
                     self::changePlan((int) $row['id'], $renewal, 'cron');
                     $done['renewed']++;
                 }
@@ -324,15 +319,16 @@ final class OnlineSubscriptions
     }
 
     /**
-     * Gli importi del periodo per la riga così com'è (prezzo, coupon,
-     * aliquota): per il prossimo addebito, contando quelli già pagati.
+     * Gli importi del periodo per l'abbonamento così com'è (prezzo della riga
+     * principale, o `$priceId`; coupon, aliquota): per il prossimo addebito,
+     * contando quelli già pagati.
      *
      * @param array<string, mixed> $row
      * @return array{subtotal: string, discount_total: string, tax_total: string, total: string}
      */
-    public static function amountsFor(array $row): array
+    public static function amountsFor(array $row, ?int $priceId = null): array
     {
-        $price = PlanPrice::findById((int) ($row['plan_price_id'] ?? 0));
+        $price = PlanPrice::findById($priceId ?? SubscriptionItems::priceIdOf($row));
         $coupon = (int) ($row['coupon_id'] ?? 0) > 0 ? Coupon::findById((int) $row['coupon_id']) : null;
         $charges = (int) ($row['id'] ?? 0) > 0
             ? (int) sqlCount(Payment::$table, '`subscription_id` = '.(int) $row['id']." AND `type` = 'payment' AND `status` = 'paid' AND `deleted` = 'false'")
@@ -368,7 +364,8 @@ final class OnlineSubscriptions
 
         return (int) sqlCount(
             Subscription::$table,
-            '`customer_id` = '.$customerId.' AND `plan_price_id` IN ('.implode(',', $prices).")"
+            '`customer_id` = '.$customerId
+            .' AND `id` IN (SELECT `subscription_id` FROM `'.SubscriptionItem::$table.'` WHERE `plan_price_id` IN ('.implode(',', $prices).") AND `deleted` = 'false')"
             ." AND `started_at` IS NOT NULL AND `started_at` > '1000-01-01' AND `deleted` = 'false'"
         ) > 0;
     }

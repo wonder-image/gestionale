@@ -11,7 +11,6 @@ use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionPlanChange;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -88,7 +87,6 @@ final class OfficeSubscriptions
             $created = Subscription::create($billing + [
                 'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION),
                 'customer_id' => $customerId,
-                'plan_price_id' => (int) $price['id'],
                 'channel' => 'office',
                 'status' => $trial > 0 ? 'trialing' : 'active',
                 'provider' => 'manual',
@@ -119,6 +117,12 @@ final class OfficeSubscriptions
                 throw new RuntimeException('Abbonamento non scritto.');
             }
 
+            SubscriptionItems::open(
+                ['id' => $id, 'status' => $trial > 0 ? 'trialing' : 'active', 'tax_id' => $taxId, 'tax_rate' => $taxRate, 'prices_include_tax' => $includeTax ? 'true' : 'false'],
+                $price,
+                $start,
+                $commitment > 0 ? $firstPeriod->modify('+'.$commitment.' months') : null
+            );
             StatusLogger::record(SubscriptionStatusLog::class, $id, 'status', '', $trial > 0 ? 'trialing' : 'active', 'user', $userId ?: null, 'Abbonamento da ufficio');
 
             return $id;
@@ -142,7 +146,7 @@ final class OfficeSubscriptions
     {
         $result = Transaction::run(static function () use ($subscriptionId, $from): array {
             $row = self::lock($subscriptionId);
-            $price = PlanPrice::findById((int) $row['plan_price_id']);
+            $price = PlanPrice::findById(SubscriptionItems::priceIdOf($row));
 
             if (!is_array($price)) {
                 throw new RuntimeException('Prezzo dell\'abbonamento sconosciuto.');
@@ -179,7 +183,7 @@ final class OfficeSubscriptions
 
             Subscription::update($values, $subscriptionId);
             $row = $values + $row;
-            $label = 'Abbonamento '.self::planLabel((int) $row['plan_price_id']).', dal '.$start->format('d/m/Y').' al '.$end->format('d/m/Y');
+            $label = 'Abbonamento '.self::planLabel(SubscriptionItems::priceIdOf($row)).', dal '.$start->format('d/m/Y').' al '.$end->format('d/m/Y');
             $ids = (float) $amounts['total'] > 0.0
                 ? Installments::createForSubscription($row, (float) $amounts['total'], $start, $label)
                 : [];
@@ -220,7 +224,7 @@ final class OfficeSubscriptions
                 static fn (array $r): bool => $r['due_date'] >= substr($periodStart, 0, 10)
             )
         ));
-        $data = DocumentData::forSubscription($row, self::planLabel((int) $row['plan_price_id']), $periodStart, $periodEnd, $installments);
+        $data = DocumentData::forSubscription($row, self::planLabel(SubscriptionItems::priceIdOf($row)), $periodStart, $periodEnd, $installments);
 
         return DocumentFiles::save(self::proformaFile((int) $row['id'], $periodStart), DocumentPdfs::render('proforma', $data));
     }
@@ -268,19 +272,7 @@ final class OfficeSubscriptions
             throw UserError::make('subscription.price_unavailable');
         }
 
-        if ($newPriceId === (int) $row['plan_price_id']) {
-            return;
-        }
-
-        SubscriptionPlanChange::create([
-            'subscription_id' => $subscriptionId,
-            'old_plan_price_id' => (int) $row['plan_price_id'],
-            'new_plan_price_id' => $newPriceId,
-            'user_id' => $userId,
-            'source' => 'user',
-            'changed_at' => date('Y-m-d H:i:s'),
-        ]);
-        Subscription::update(['plan_price_id' => $newPriceId], $subscriptionId);
+        SubscriptionItems::changePrice($row, $price, 'user', $userId);
     }
 
     /**

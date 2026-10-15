@@ -12,7 +12,8 @@ use Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionPlanChange;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItemChange;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\OfficeSubscriptions;
@@ -112,7 +113,8 @@ final class OfficeSubscriptionsDemo
 
             sqlDelete(Payment::$table, 'subscription_id = '.$id);
             sqlDelete(SubscriptionStatusLog::$table, 'subscription_id = '.$id);
-            sqlDelete(SubscriptionPlanChange::$table, 'subscription_id = '.$id);
+            sqlDelete(SubscriptionItemChange::$table, 'subscription_id = '.$id);
+            sqlDelete(SubscriptionItem::$table, 'subscription_id = '.$id);
             sqlDelete(Subscription::$table, 'id = '.$id);
             $removed++;
         }

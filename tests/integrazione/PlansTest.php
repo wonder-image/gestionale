@@ -22,6 +22,7 @@ use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanLink;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\PlanResource;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Plugin\Gestionale\Seeding\PlansDemo;
@@ -100,10 +101,13 @@ function cliente(): int
 
 function abbonamento(int $cliente, int $prezzo, string $stato): int
 {
-    return (int) (Subscription::create([
-        'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION), 'customer_id' => $cliente, 'plan_price_id' => $prezzo, 'channel' => 'office', 'provider' => 'manual',
+    $id = (int) (Subscription::create([
+        'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION), 'customer_id' => $cliente, 'channel' => 'office', 'provider' => 'manual',
         'status' => $stato, 'total' => '19.00', 'started_at' => date('Y-m-d H:i:s'),
     ])->insert_id ?? 0);
+    SubscriptionItem::create(['subscription_id' => $id, 'plan_price_id' => $prezzo, 'quantity' => 1, 'status' => 'active', 'total' => '19.00', 'position' => 1]);
+
+    return $id;
 }
 
 /** Il salvataggio della pagina fino ai controlli: ridà la chiave del rifiuto, o null. */

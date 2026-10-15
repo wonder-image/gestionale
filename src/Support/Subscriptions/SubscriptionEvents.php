@@ -5,7 +5,7 @@ namespace Wonder\Plugin\Gestionale\Support\Subscriptions;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionPlanChange;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
 use Wonder\Plugin\Gestionale\Models\System\ExternalReference;
 use Wonder\Plugin\Gestionale\Providers\Payments\PaymentEvent;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -91,11 +91,18 @@ final class SubscriptionEvents
 
             if ($live && self::empty($row['started_at'] ?? '')) {
                 $values['started_at'] = $data['started_at'] ?? date('Y-m-d H:i:s');
-                $price = PlanPrice::findById((int) $row['plan_price_id']);
+                $item = SubscriptionItems::main((int) $row['id']);
+                $price = PlanPrice::findById((int) ($item['plan_price_id'] ?? 0));
                 $months = is_array($price) ? (int) ($price['commitment_months'] ?? 0) : 0;
+                $itemValues = ['starts_at' => $values['started_at']];
 
                 if ($months > 0) {
                     $values['commitment_ends_at'] = date('Y-m-d H:i:s', (int) strtotime('+'.$months.' months', (int) strtotime($values['started_at'])));
+                    $itemValues['commitment_ends_at'] = $values['commitment_ends_at'];
+                }
+
+                if ($item !== null) {
+                    SubscriptionItem::update($itemValues, (int) $item['id']);
                 }
             }
 
@@ -106,18 +113,11 @@ final class SubscriptionEvents
 
             $priceId = $data['price'] !== '' ? self::planPriceOf($data['price']) : 0;
 
-            if ($priceId > 0 && $priceId !== (int) $row['plan_price_id']) {
-                // Cambiato altrove (portale, dashboard): si registra come un cambio di piano.
-                SubscriptionPlanChange::create([
-                    'subscription_id' => (int) $row['id'],
-                    'old_plan_price_id' => (int) $row['plan_price_id'],
-                    'new_plan_price_id' => $priceId,
-                    'user_id' => 0,
-                    'source' => $source,
-                    'changed_at' => date('Y-m-d H:i:s'),
-                ]);
-                $values['plan_price_id'] = $priceId;
-                $values += OnlineSubscriptions::amountsFor(['plan_price_id' => $priceId] + $row);
+            $newPrice = $priceId > 0 ? PlanPrice::findById($priceId) : null;
+
+            // Cambiato altrove (portale, dashboard): si registra come un cambio di piano.
+            if (is_array($newPrice) && SubscriptionItems::changePrice($row, $newPrice, $source)) {
+                $values += OnlineSubscriptions::amountsFor($row, $priceId);
             }
 
             Subscription::update($values, $id);

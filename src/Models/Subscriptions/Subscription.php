@@ -11,8 +11,9 @@ use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
 
 /**
- * Un abbonamento (G10 §1.1): un cliente, un prezzo di un piano, il periodo in
- * corso e il prossimo rinnovo. È separato dagli ordini (D17): un rinnovo non
+ * Un abbonamento (G10 §1.1): un cliente, il periodo in corso e il prossimo
+ * rinnovo; i servizi, cioè i prezzi dei piani, sono le sue righe
+ * (`SubscriptionItem`, G10b). È separato dagli ordini (D17): un rinnovo non
  * crea un ordine, crea un pagamento (`gst_payments.subscription_id`).
  *
  * Gli stati sono quelli di §4.13 dell'architettura, dichiarati tutti qui anche
@@ -56,7 +57,6 @@ final class Subscription extends Model
                 'code', 'subtotal', 'discount_total', 'tax_total', 'total',
             ]),
             Column::key('customer_id')->int()->default(0),
-            Column::key('plan_price_id')->int()->default(0),
             Column::key('channel')->enum(static::CHANNELS)->default('online'),
             Column::key('status')->enum(static::STATUSES)->default('pending'),
             Column::key('provider')->enum(static::PROVIDERS)->default('stripe'),
@@ -90,7 +90,6 @@ final class Subscription extends Model
     {
         return [
             'ind_customer' => ['index' => 'customer_id'],
-            'ind_plan_price' => ['index' => 'plan_price_id'],
             'ind_status' => ['index' => 'status'],
             'ind_provider_reference' => ['index' => 'provider_reference'],
         ];
@@ -101,7 +100,6 @@ final class Subscription extends Model
         return [
             Field::key('code')->text()->uniqueCode(Codes::SUBSCRIPTION),
             Field::key('customer_id')->number()->decimals(0),
-            Field::key('plan_price_id')->number()->decimals(0),
             Field::key('channel')->text()->sanitize(false),
             Field::key('status')->text()->sanitize(false),
             Field::key('provider')->text()->sanitize(false),

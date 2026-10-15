@@ -37,7 +37,7 @@ final class SubscriptionNotifier
         }
 
         $email = SubscriptionEmail::compose($key, $subscription, [
-            'plan' => SubscriptionResource::planLabel((int) ($subscription['plan_price_id'] ?? 0)),
+            'plan' => SubscriptionResource::planLabel(SubscriptionItems::priceIdOf($subscription)),
             'account_url' => self::accountUrl(),
         ]);
 
