@@ -346,7 +346,10 @@
                 "not_live": "Questo abbonamento non è in corso: non si può cambiare.",
                 "already_cancelled": "La disdetta di questo abbonamento è già registrata.",
                 "not_found": "Abbonamento non trovato.",
-                "customer_required": "Scegli il cliente dell'abbonamento."
+                "customer_required": "Scegli il cliente dell'abbonamento.",
+                "items_required": "Aggiungi almeno un servizio all'abbonamento.",
+                "parent_required": "Il servizio «{{name}}» si appoggia a un altro: scegli a quale.",
+                "parent_invalid": "Il servizio «{{name}}» non si appoggia a quello scelto."
             },
             "mcp": {
                 "auth": {

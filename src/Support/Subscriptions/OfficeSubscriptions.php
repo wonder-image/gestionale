@@ -11,6 +11,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -46,9 +47,12 @@ final class OfficeSubscriptions
     public const UNPAID_DAYS = 15;
 
     /**
-     * Crea l'abbonamento e, se non c'è prova, apre il primo periodo.
+     * Crea l'abbonamento con le sue righe e, se non c'è prova, apre il primo
+     * periodo. La prova è la più lunga fra i prezzi scelti; ogni riga ha il
+     * vincolo del suo prezzo e quello dell'abbonamento è il più lontano.
+     * `plan_price_id` da solo vale come una riga sola.
      *
-     * @param array{customer_id: int, plan_price_id: int, starts_at?: string, payment_method_id?: int, payment_term_id?: int, coupon?: string, note?: string, user_id?: int} $input
+     * @param array{customer_id: int, items?: list<array{plan_price_id: int, quantity?: int, customization?: array<int|string, mixed>, parent?: int}>, plan_price_id?: int, starts_at?: string, payment_method_id?: int, payment_term_id?: int, coupon?: string, note?: string, user_id?: int} $input
      */
     public static function create(array $input): int
     {
@@ -61,30 +65,32 @@ final class OfficeSubscriptions
 
         Subscriptions::assertRoom($customerId);
 
-        $price = PlanPrice::findById((int) ($input['plan_price_id'] ?? 0));
-        $plan = is_array($price) ? Plan::findById((int) $price['plan_id']) : null;
+        $items = $input['items'] ?? null;
 
-        if (!is_array($price) || (string) ($price['active'] ?? 'false') !== 'true' || (string) ($price['deleted'] ?? 'false') !== 'false'
-            || !is_array($plan) || (string) ($plan['active'] ?? 'false') !== 'true') {
-            throw UserError::make('subscription.price_unavailable');
+        if (!is_array($items) && (int) ($input['plan_price_id'] ?? 0) > 0) {
+            $items = [['plan_price_id' => (int) $input['plan_price_id']]];
         }
 
         $start = self::day((string) ($input['starts_at'] ?? '')) ?? new DateTimeImmutable('today');
+        $billing = OnlineSubscriptions::billingFor([], $contact);
+        $includeTax = (string) (Setting::current()['catalog_prices_include_tax'] ?? 'true') === 'true';
+        $lines = SubscriptionItems::prepare(is_array($items) ? $items : [], $billing, $includeTax);
         $coupon = trim((string) ($input['coupon'] ?? '')) !== ''
             ? OnlineSubscriptions::couponFor((string) $input['coupon'], $customerId, $start->format('Y-m-d H:i:s'), 'office')
             : null;
-        $billing = OnlineSubscriptions::billingFor([], $contact);
-        [$taxId, $taxRate] = OnlineSubscriptions::taxFor((int) ($plan['tax_category_id'] ?? 0), $billing);
-        $includeTax = (string) (Setting::current()['catalog_prices_include_tax'] ?? 'true') === 'true';
-        $amounts = SubscriptionAmounts::of($price, $coupon, $taxRate, $includeTax, 0);
-        $trial = max(0, (int) ($price['trial_days'] ?? 0));
+        $term = min(array_column($lines, 'term'));
+        $amounts = SubscriptionAmounts::ofItems($lines, $coupon, $includeTax, 0, $term);
+        $rates = array_values(array_unique(array_map(static fn (array $line): string => number_format((float) $line['tax_rate'], 2, '.', ''), $lines)));
+        // L'aliquota dell'abbonamento è un riepilogo: quella delle righe se è una sola, altrimenti 0.
+        [$taxId, $taxRate] = count($rates) === 1 ? [(int) $lines[0]['tax_id'], (float) $rates[0]] : [0, 0.0];
+        $trial = max(array_column($lines, 'trial_days'));
         $firstPeriod = $start->modify('+'.$trial.' days');
-        $commitment = (int) ($price['commitment_months'] ?? 0);
+        $commitment = max(array_column($lines, 'commitment_months'));
         $userId = (int) ($input['user_id'] ?? 0);
         $methodId = (int) ($input['payment_method_id'] ?? 0) ?: (int) ($contact['payment_method_id'] ?? 0);
         $termId = (int) ($input['payment_term_id'] ?? 0) ?: (int) ($contact['payment_term_id'] ?? 0);
 
-        $id = Transaction::run(static function () use ($billing, $customerId, $price, $coupon, $includeTax, $amounts, $taxId, $taxRate, $start, $trial, $firstPeriod, $commitment, $input, $userId, $methodId, $termId): int {
+        $id = Transaction::run(static function () use ($billing, $customerId, $lines, $coupon, $includeTax, $amounts, $taxId, $taxRate, $start, $trial, $firstPeriod, $commitment, $input, $userId, $methodId, $termId): int {
             // Il codice si dà qui: `create()` non lo genera, e il proforma prende il nome da lui.
             $created = Subscription::create($billing + [
                 'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION),
@@ -119,12 +125,8 @@ final class OfficeSubscriptions
                 throw new RuntimeException('Abbonamento non scritto.');
             }
 
-            SubscriptionItems::open(
-                ['id' => $id, 'status' => $trial > 0 ? 'trialing' : 'active', 'tax_id' => $taxId, 'tax_rate' => $taxRate, 'prices_include_tax' => $includeTax ? 'true' : 'false'],
-                $price,
-                $start,
-                $commitment > 0 ? SubscriptionProration::addMonths($firstPeriod, $commitment) : null
-            );
+            // In prova i servizi sono già in uso (e contano per i limiti): le righe nascono attive.
+            SubscriptionItems::insert($id, $lines, 'active', $start, $firstPeriod, 'user', $userId);
             StatusLogger::record(SubscriptionStatusLog::class, $id, 'status', '', $trial > 0 ? 'trialing' : 'active', 'user', $userId ?: null, 'Abbonamento da ufficio');
 
             return $id;
@@ -138,9 +140,11 @@ final class OfficeSubscriptions
     }
 
     /**
-     * Apre il periodo che comincia in `$from`: rate in attesa dalla
-     * condizione di pagamento, importi del periodo (il coupon conta i mesi
-     * dall'inizio), proforma per email. Un periodo già aperto non si riapre.
+     * Apre il periodo che comincia in `$from`: dura quanto la riga più corta,
+     * si addebitano le righe il cui periodo parte quel giorno (il coupon conta
+     * gli addebiti dalla data di rinnovo), le `pending` diventano attive, poi
+     * rate in attesa dalla condizione di pagamento e proforma per email. Un
+     * periodo già aperto non si riapre.
      *
      * @return array{payments: list<int>, file: string, email: string}
      */
@@ -148,12 +152,6 @@ final class OfficeSubscriptions
     {
         $result = Transaction::run(static function () use ($subscriptionId, $from): array {
             $row = self::lock($subscriptionId);
-            $price = PlanPrice::findById(SubscriptionItems::priceIdOf($row));
-
-            if (!is_array($price)) {
-                throw new RuntimeException('Prezzo dell\'abbonamento sconosciuto.');
-            }
-
             $start = $from->setTime(0, 0);
             $current = self::day((string) ($row['current_period_start'] ?? ''));
 
@@ -161,12 +159,14 @@ final class OfficeSubscriptions
                 return ['payments' => [], 'row' => $row, 'end' => (string) $row['current_period_end']];
             }
 
-            $term = max(1, (int) ($price['term_months'] ?? 1));
-            $end = SubscriptionProration::addMonths($start, $term);
-            $first = self::day((string) (($row['trial_ends_at'] ?? '') ?: ($row['started_at'] ?? ''))) ?? $start;
-            $charge = intdiv(max(0, SubscriptionProration::monthsBetween($first, $start)), $term);
-            $coupon = (int) ($row['coupon_id'] ?? 0) > 0 ? Coupon::findById((int) $row['coupon_id']) : null;
-            $amounts = SubscriptionAmounts::of($price, is_array($coupon) && $coupon !== [] ? $coupon : null, (float) $row['tax_rate'], (string) $row['prices_include_tax'] === 'true', $charge);
+            $period = SubscriptionItems::forPeriod($row, $start);
+
+            if ($period['items'] === []) {
+                throw new RuntimeException('Abbonamento senza righe in corso.');
+            }
+
+            $end = SubscriptionProration::addMonths($start, $period['term']);
+            $amounts = self::periodAmounts($row, $start, $period);
 
             $values = [
                 'current_period_start' => $start->format('Y-m-d H:i:s'),
@@ -183,9 +183,15 @@ final class OfficeSubscriptions
                 StatusLogger::record(SubscriptionStatusLog::class, $subscriptionId, 'status', 'trialing', 'active', 'cron', null, 'Fine della prova');
             }
 
+            foreach ($period['items'] as $item) {
+                if ((string) $item['status'] === 'pending') {
+                    SubscriptionItem::update(['status' => 'active'], (int) $item['id']);
+                }
+            }
+
             Subscription::update($values, $subscriptionId);
             $row = $values + $row;
-            $label = 'Abbonamento '.self::planLabel(SubscriptionItems::priceIdOf($row)).', dal '.$start->format('d/m/Y').' al '.$end->format('d/m/Y');
+            $label = 'Abbonamento '.(string) ($row['code'] ?? '').', dal '.$start->format('d/m/Y').' al '.$end->format('d/m/Y');
             $ids = (float) $amounts['total'] > 0.0
                 ? Installments::createForSubscription($row, (float) $amounts['total'], $start, $label)
                 : [];
@@ -212,7 +218,8 @@ final class OfficeSubscriptions
     }
 
     /**
-     * Il proforma del periodo in corso, archiviato e ristampato se manca.
+     * Il proforma del periodo in corso, archiviato e ristampato se manca: una
+     * voce per riga addebitata, col periodo della riga.
      *
      * @param array<string, mixed> $row
      * @return string il percorso relativo in `DocumentFiles`
@@ -226,7 +233,23 @@ final class OfficeSubscriptions
                 static fn (array $r): bool => $r['due_date'] >= substr($periodStart, 0, 10)
             )
         ));
-        $data = DocumentData::forSubscription($row, self::planLabel(SubscriptionItems::priceIdOf($row)), $periodStart, $periodEnd, $installments);
+        $start = self::day($periodStart) ?? new DateTimeImmutable('today');
+        $period = SubscriptionItems::forPeriod($row, $start);
+        $amounts = self::periodAmounts($row, $start, $period);
+        $lines = [];
+
+        foreach ($period['charged'] as $index => $charged) {
+            $line = $amounts['lines'][$index];
+            $lines[] = [
+                'name' => SubscriptionItems::label($charged['item']).' - dal '.$charged['start']->format('d/m/Y').' al '.$charged['end']->format('d/m/Y'),
+                'quantity' => max(1, (int) ($charged['item']['quantity'] ?? 1)),
+                'unit_price' => (float) $line['unit_price'],
+                'line_total' => (float) $line['line_total'],
+                'tax_rate' => (float) $line['tax_rate'],
+            ];
+        }
+
+        $data = DocumentData::forSubscription(['tax_summaries' => $amounts['tax_summaries']] + $row, $lines, [], $periodStart, $periodEnd, $installments);
 
         return DocumentFiles::save(self::proformaFile((int) $row['id'], $periodStart), DocumentPdfs::render('proforma', $data));
     }
@@ -234,6 +257,40 @@ final class OfficeSubscriptions
     public static function proformaFile(int $subscriptionId, string $periodStart): string
     {
         return 'proformas/'.$subscriptionId.'-'.str_replace('-', '', substr($periodStart, 0, 10)).'.pdf';
+    }
+
+    /**
+     * Gli importi delle righe addebitate nel periodo che parte in `$start`,
+     * col coupon dell'abbonamento contato sugli addebiti della riga più corta.
+     *
+     * @param array<string, mixed> $row
+     * @param array{term: int, items: list<array<string, mixed>>, charged: list<array<string, mixed>>} $period da `SubscriptionItems::forPeriod()`
+     * @return array<string, mixed> come `SubscriptionAmounts::ofItems()`
+     */
+    private static function periodAmounts(array $row, DateTimeImmutable $start, array $period): array
+    {
+        $anchor = self::day((string) (($row['trial_ends_at'] ?? '') ?: ($row['started_at'] ?? ''))) ?? $start;
+        $coupon = (int) ($row['coupon_id'] ?? 0) > 0 ? Coupon::findById((int) $row['coupon_id']) : null;
+        $lines = [];
+
+        foreach ($period['charged'] as $charged) {
+            $quantity = max(1, (int) ($charged['item']['quantity'] ?? 1));
+            // Il sovrapprezzo resta quello scelto alla nascita della riga: la riga lo tiene per quantità.
+            $lines[] = [
+                'price' => $charged['price'],
+                'quantity' => $quantity,
+                'surcharge' => round((float) ($charged['item']['customization_total'] ?? 0) / $quantity, 2),
+                'tax_rate' => (float) ($charged['item']['tax_rate'] ?? 0),
+            ];
+        }
+
+        return SubscriptionAmounts::ofItems(
+            $lines,
+            is_array($coupon) && $coupon !== [] ? $coupon : null,
+            (string) ($row['prices_include_tax'] ?? 'true') === 'true',
+            SubscriptionProration::chargeIndex($anchor, $period['term'], $start),
+            $period['term']
+        );
     }
 
     /** @param array<string, mixed> $row */
@@ -451,15 +508,6 @@ final class OfficeSubscriptions
         }
 
         return $row;
-    }
-
-    private static function planLabel(int $planPriceId): string
-    {
-        $price = PlanPrice::findById($planPriceId);
-        $plan = is_array($price) ? Plan::findById((int) $price['plan_id']) : null;
-        $decode = static fn (mixed $v): string => trim(html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-
-        return trim((is_array($plan) ? $decode($plan['name']).' - ' : '').(is_array($price) ? $decode($price['name']) : ''), ' -');
     }
 
     private static function day(string $value): ?DateTimeImmutable

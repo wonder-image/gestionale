@@ -8,6 +8,7 @@ require __DIR__ . '/harness.php';
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
+use Wonder\Plugin\Gestionale\Resources\Subscriptions\OfficeSubscriptionResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\PlanResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionResource;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureGuards;
@@ -150,6 +151,12 @@ check('in testa alla scheda le azioni stanno nel menu «Azioni»; Annulla in ros
     return count($menu) === 1 && $menu[0]['label'] === 'Azioni'
         && array_column($voci, 'label') === array_values(SubscriptionResource::availableActions($ufficio))
         && $voci[3]['class'] === 'text-danger' && str_contains($voci[0]['onclick'], 'wi-abbonamento-change_plan');
+});
+
+check('nel nuovo abbonamento la riga madre si sceglie per numero, da «Nessuno» a «Riga 20»', function () {
+    $opzioni = OfficeSubscriptionResource::parentOptions();
+
+    return count($opzioni) === 21 && $opzioni[''] === 'Nessuno' && $opzioni['1'] === 'Riga 1' && $opzioni['20'] === 'Riga 20';
 });
 
 summary();

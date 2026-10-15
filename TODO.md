@@ -425,6 +425,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 Fuori dal primo rilascio; progettate a grandi linee o solo annotate.
 
 - [ ] Carte regalo vendute (D36)
+- [ ] Nuovo abbonamento da ufficio: le colonne delle personalizzazioni si vedono su ogni riga del repeater (dietro «Avanzate»), perché `visibleWhen` non vale dentro una riga; mostrarle solo per il piano scelto quando il core lo permette (G10b)
 - [ ] Etichette con codice a barre, con i formati precaricati (D30, D59)
 - [ ] Rimborsi dei resi: importo per riga, spedizione, gateway, nota di credito (D40)
 - [ ] Note di credito manuali e automatiche (D40, D45)
