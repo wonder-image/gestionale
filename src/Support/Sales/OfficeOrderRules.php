@@ -157,6 +157,10 @@ final class OfficeOrderRules
             throw UserError::make('office_order.no_rows');
         }
 
+        if (!self::billingComplete($order)) {
+            throw UserError::make('office_order.billing_required');
+        }
+
         if ((string) ($order['fulfillment_type'] ?? '') === 'shipping') {
             foreach (['shipping_street', 'shipping_city', 'shipping_country'] as $key) {
                 if (trim((string) ($order[$key] ?? '')) === '') {
@@ -164,6 +168,23 @@ final class OfficeOrderRules
                 }
             }
         }
+    }
+
+    /**
+     * La fatturazione basta per un documento: a chi (ragione sociale per
+     * un'azienda, nome o cognome per un privato) e dove (via, città, paese).
+     *
+     * @param array<string, mixed> $order la testata, con le chiavi `billing_*`
+     */
+    public static function billingComplete(array $order): bool
+    {
+        $has = static fn (string $key): bool => trim((string) ($order['billing_'.$key] ?? '')) !== '';
+
+        $who = (string) ($order['billing_type'] ?? '') === 'business'
+            ? $has('business_name')
+            : $has('name') || $has('surname');
+
+        return $who && $has('street') && $has('city') && $has('country');
     }
 
     /**

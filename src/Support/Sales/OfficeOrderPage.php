@@ -78,17 +78,19 @@ final class OfficeOrderPage
         ];
 
         $sinistra = [
-            $riquadro('Cliente', 'Scegliendo il cliente si riempiono fatturazione, consegna e pagamento dalla sua scheda. Il cliente nuovo si crea in un\'altra scheda; poi cercalo qui.', [
+            (new Card)->components([
+                RichText::make('<div class="d-flex align-items-center justify-content-between gap-2">'
+                    .SectionTitle::make('Cliente')->tooltip('Scegliendo il cliente si riempiono fatturazione, consegna e pagamento dalla sua scheda. Il cliente nuovo si crea in un\'altra scheda; poi cercalo qui.')->render('bootstrap')
+                    .Button::to(self::newCustomerUrl(), 'Nuovo cliente')->icon('bi bi-person-plus')->variant('secondary')->outline()->size('sm')->blank()->render('bootstrap')
+                    .'</div>')->tag('div')->columnSpan(12),
                 FormField::key('customer_id')->searchText(OfficeOrderEditor::customersUrl())
                     ->valueLabel(self::customerLabel($customerId))
                     ->emptyText('Nessun cliente trovato: crealo con «Nuovo cliente».')
                     ->label('Cliente')
                     ->value($customerId > 0 ? (string) $customerId : '')
                     ->columnSpan(12),
-                RichText::make(Button::to(self::newCustomerUrl(), 'Nuovo cliente')->icon('bi bi-person-plus')->variant('secondary')->outline()->size('sm')->blank()->schema('inline', true)->render('bootstrap'))
-                    ->tag('div')->columnSpan(12),
                 ...$nascosti,
-            ]),
+            ])->columns(12)->columnSpan(12),
             self::panel('Contatti', 'contacts', OfficeCustomerPanel::CONTACTS_MODAL),
             self::panel('Fatturazione', 'billing', OfficeCustomerPanel::BILLING_MODAL),
             self::panel('Indirizzi di consegna', 'addresses', ''),
@@ -321,9 +323,10 @@ final class OfficeOrderPage
         $pulsanti = [$invia('save', 'Salva bozza', 'dark', true)];
 
         if ($quote) {
-            if ($editing && in_array($status, ['draft', 'sent'], true)) {
-                $pulsanti[] = $invia('accept', 'Accettato', 'success', true, 'bi bi-check2-circle')
-                    ->confirm('Il preventivo si salva e diventa una bozza d\'ordine con le stesse righe: lì controlli consegna e pagamento e lo confermi.', title: 'Preventivo accettato', ok: 'Accettato', variant: 'success');
+            // Anche su un preventivo nuovo: prima si salva, poi passa a ordine.
+            if (in_array($status, ['draft', 'sent'], true)) {
+                $pulsanti[] = $invia('accept', 'Trasforma in ordine', 'success', true, 'bi bi-arrow-right-circle')
+                    ->confirm('Il cliente ha accettato: il preventivo si salva e diventa una bozza d\'ordine con le stesse righe. Lì controlli consegna e pagamento e lo confermi.', title: 'Trasforma in ordine', ok: 'Trasforma in ordine', variant: 'success');
             }
 
             $pulsanti[] = $invia('send', $status === 'sent' ? 'Invia di nuovo' : 'Invia al cliente', 'dark', false, 'bi bi-send')

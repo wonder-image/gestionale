@@ -36,6 +36,9 @@ class OfficeOrderResource extends GestionaleResource
     public static string $model = Order::class;
     public static string $docsPage = 'vendite/vendite-ordini-da-ufficio';
 
+    /** Il rifiuto dell'ultimo invio, mostrato sopra il form alla riapertura. */
+    public const ERROR_KEY = 'gestionale_office_error';
+
     public static function path(): string
     {
         return 'app/gestionale/ordine-da-ufficio';
@@ -191,6 +194,13 @@ class OfficeOrderResource extends GestionaleResource
     public static function formNotices(array $values, string $mode): array
     {
         $notices = parent::formNotices($values, $mode);
+        $error = (string) ($_SESSION[self::ERROR_KEY] ?? '');
+        unset($_SESSION[self::ERROR_KEY]);
+
+        if ($error !== '') {
+            $notices[] = ['level' => 'danger', 'message' => $error];
+        }
+
         $dropped = (int) ($values['editor']['dropped'] ?? 0);
 
         if ($dropped > 0) {
@@ -219,6 +229,10 @@ class OfficeOrderResource extends GestionaleResource
 
         if ($result['ok']) {
             FlashAlert::saved($result['message']);
+        } elseif (session_status() === PHP_SESSION_ACTIVE) {
+            // Il rifiuto resta sopra il form finché la pagina non si riapre:
+            // un toast che sparisce non basta a capire perché non si conferma.
+            $_SESSION[self::ERROR_KEY] = $result['message'];
         } else {
             FlashAlert::custom('Attenzione', $result['message'], 'warning');
         }

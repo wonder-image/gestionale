@@ -93,8 +93,9 @@ final class StockDocumentEditor
             .'<div class="table-responsive mt-3">'
             .'<table class="table table-sm align-middle mb-0">'
             .'<thead><tr>'
+            .'<th style="width: 1.5rem"><span class="visually-hidden">Sposta</span></th>'
             .$head
-            .'<th style="width: 4.5rem"><span class="visually-hidden">Sposta o togli</span></th>'
+            .'<th style="width: 4.5rem"><span class="visually-hidden">Togli</span></th>'
             .'</tr></thead>'
             .'<tbody data-wi-stock-rows></tbody>'
             .'</table>'
@@ -692,6 +693,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             var input;
             var tools;
             var remove;
+            var grip;
 
             if (rows.length >= maxLines) {
                 say(root.getAttribute('data-max-message'), 'error');
@@ -767,6 +769,12 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             row.saved = version.expected == null ? null : Number(version.expected);
             row.savedCount = parse(quantity);
             row.stock = el('td', 'd-none d-md-table-cell text-end text-nowrap', format(row.current));
+            grip = tr.appendChild(el('td', 'pe-0'));
+
+            if (window.wiRowDrag) {
+                grip.appendChild(window.wiRowDrag.handle());
+            }
+
             tr.appendChild(article);
             tr.appendChild(row.stock);
             tr.appendChild(cell);
@@ -859,10 +867,6 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             if (counting) {
                 row.diff = el('td');
                 tr.appendChild(row.diff);
-            }
-
-            if (window.wiRowDrag) {
-                tools.insertBefore(window.wiRowDrag.handle(), tools.firstChild);
             }
 
             tools.appendChild(remove);

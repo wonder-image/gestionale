@@ -194,7 +194,8 @@ try {
         });
     }
 
-    // Un cliente nuovo: testata dalla sua scheda, riquadri, il predefinito spuntato.
+    // Un cliente nuovo: testata dalla sua scheda, riquadri, spuntato il
+    // predefinito (o l'unico indirizzo che c'è).
     form.addEventListener('wi:search-select', function (event) {
         if (!event.target.contains(customerId)) {
             return;
@@ -205,7 +206,8 @@ try {
 
             fill(data.customer || {});
             panels(data);
-            main = state.addresses.filter(function (a) { return a.is_default; })[0];
+            main = state.addresses.filter(function (a) { return a.is_default; })[0]
+                || (state.addresses.length === 1 ? state.addresses[0] : null);
             check(main ? main.id : 0);
             ship();
         });
@@ -231,6 +233,27 @@ try {
     });
 
     // Le finestre si aprono sul cliente scelto, con i valori della scheda.
+    function setType(modal, value) {
+        var radio = modal.querySelector('[name="type"][value="' + value + '"]');
+        var input = radio || modal.querySelector('[name="type"]:not([type=hidden])');
+
+        if (!input) {
+            return;
+        }
+
+        if (radio) {
+            radio.checked = true;
+        } else {
+            input.value = value;
+        }
+
+        input.dispatchEvent(new Event('change', {bubbles: true}));
+
+        if (input.tagName === 'SELECT' && window.jQuery) {
+            window.jQuery(input).trigger('change');
+        }
+    }
+
     document.addEventListener('show.bs.modal', function (event) {
         var modal = event.target;
         var $ = window.jQuery;
@@ -270,6 +293,11 @@ try {
                 $(input).trigger('change');
             }
         });
+
+        // Fatturazione senza tipologia: si parte da Società.
+        if (modal.id === modals[1] && !state.contact.type) {
+            setType(modal, 'business');
+        }
 
         country = modal.querySelector('[name="country"]');
         province = modal.querySelector('[name="province"]');
@@ -466,6 +494,52 @@ try {
     });
     form.addEventListener('wi:office-change', requote);
 
+    // Gli indirizzi di consegna servono solo quando si spedisce.
+    function delivery() {
+        var type = form.querySelector('[name="fulfillment_type"]');
+        var panel = document.querySelector('[data-wi-oo-panel="addresses"]');
+        var card = panel ? panel.closest('.card') : null;
+
+        if (card) {
+            card.classList.toggle('d-none', !!type && type.value !== 'shipping');
+        }
+    }
+
+    form.addEventListener('change', function (event) {
+        if (event.target && event.target.name === 'fulfillment_type') {
+            delivery();
+        }
+    });
+    delivery();
+
+    // Come `OfficeOrderRules::billingComplete()`: chi e dove.
+    function billingComplete() {
+        var has = function (key) { return String((field('billing_' + key) || {}).value || '').trim() !== ''; };
+        var who = (field('billing_type') || {}).value === 'business' ? has('business_name') : has('name') || has('surname');
+
+        return who && has('street') && has('city') && has('country');
+    }
+
+    // Prima di confermare: cliente, fatturazione e, se si spedisce, la consegna.
+    function confirmable() {
+        var type = form.querySelector('[name="fulfillment_type"]');
+        var missing = function (key) { return String((field('shipping_' + key) || {}).value || '').trim() === ''; };
+
+        if (customerId.value === '') {
+            return 'Scegli il cliente dell\'ordine.';
+        }
+
+        if (!billingComplete()) {
+            return 'Completa la fatturazione del cliente (intestatario, via, città e paese) prima di confermare.';
+        }
+
+        if ((!type || type.value === 'shipping') && ['street', 'city', 'country'].some(missing)) {
+            return 'L\'ordine si spedisce: spunta o aggiungi l\'indirizzo di consegna.';
+        }
+
+        return '';
+    }
+
     panels(<?=$json($panel ?: null)?>);
 
     if (state.contact) {
@@ -479,6 +553,7 @@ try {
     form.addEventListener('submit', function (event) {
         var intent = event.submitter ? event.submitter.value : 'save';
         var current;
+        var problem;
 
         if (withoutLines.indexOf(intent) !== -1) {
             lines.value = '[]';
@@ -487,8 +562,13 @@ try {
         }
 
         current = editor();
+        problem = intent === 'confirm' ? confirmable() : '';
 
-        if (!current || !current.validate()) {
+        if (problem !== '') {
+            toast(problem);
+        }
+
+        if (problem !== '' || !current || !current.validate()) {
             event.preventDefault();
             event.stopImmediatePropagation();
 

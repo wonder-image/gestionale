@@ -56,6 +56,7 @@ final class OfficeOrderEditor
             .'<div class="table-responsive mt-3">'
             .'<table class="table table-sm align-middle mb-0">'
             .'<thead><tr>'
+            .'<th style="width: 1.5rem"><span class="visually-hidden">Sposta</span></th>'
             .'<th style="min-width: 14rem">Articolo</th>'
             .'<th class="d-none d-md-table-cell text-end">Disponibili</th>'
             .'<th class="text-end" style="width: 7rem">Quantità</th>'
@@ -63,7 +64,7 @@ final class OfficeOrderEditor
             .'<th style="width: 11rem">Sconto</th>'
             .($source !== '' ? '<th style="min-width: 12rem">'.$e($source).'</th>' : '')
             .'<th class="text-end d-none d-md-table-cell" style="width: 7rem">Totale</th>'
-            .'<th style="width: 4.5rem"><span class="visually-hidden">Sposta o togli</span></th>'
+            .'<th style="width: 2.5rem"><span class="visually-hidden">Togli</span></th>'
             .'</tr></thead>'
             .'<tbody data-wi-office-rows></tbody>'
             .'</table>'
@@ -451,7 +452,18 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
             return cell;
         }
 
-        // La maniglia per trascinare la riga e la X per toglierla.
+        // La maniglia per trascinare la riga, in testa.
+        function dragCell() {
+            var cell = el('td', 'pe-0');
+
+            if (window.wiRowDrag) {
+                cell.appendChild(window.wiRowDrag.handle());
+            }
+
+            return cell;
+        }
+
+        // La X per togliere la riga.
         function removeCell(row) {
             var cell = el('td', 'text-end text-nowrap');
             var button = el('button', 'btn btn-sm btn-link text-danger');
@@ -465,10 +477,6 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
                 refresh();
                 search.focus();
             });
-            if (window.wiRowDrag) {
-                cell.appendChild(window.wiRowDrag.handle());
-            }
-
             cell.appendChild(button);
 
             return cell;
@@ -498,6 +506,7 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
                 row.name.placeholder = 'Testo che compare nell\'ordine';
                 name.colSpan = cols + 1;
                 name.appendChild(row.name);
+                tr.appendChild(dragCell());
                 tr.appendChild(name);
                 tr.appendChild(removeCell(row));
                 rows.push(row);
@@ -532,6 +541,7 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
                 name.appendChild(row.warning);
             }
 
+            tr.appendChild(dragCell());
             tr.appendChild(name);
             tr.appendChild(el('td', 'd-none d-md-table-cell text-end', type === 'product' ? format(Number(row.version.available) || 0) : ''));
             row.quantity = input('form-control form-control-sm text-end', line.quantity != null ? shown(line.quantity, false) : '1', 'Quantità');

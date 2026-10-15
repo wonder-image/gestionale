@@ -184,7 +184,7 @@ JS;
 waiting.slice().reverse().forEach(function (answer) { answer(); });
 setTimeout(function () {
     console.log(JSON.stringify({
-        rows: parts.rows.children.map(function (tr) { var input = tr.children[2].children[0]; return [input.getAttribute('aria-label'), input.value]; }),
+        rows: parts.rows.children.map(function (tr) { var input = tr.children[3].children[0]; return [input.getAttribute('aria-label'), input.value]; }),
         box: parts.search.value,
         message: parts.message.textContent
     }));
@@ -297,8 +297,8 @@ window.fetch = function (url) {
 JS;
     $run = <<<'JS'
 var ed = root.wiStockEditor;
-function row(i) { var tr = parts.rows.children[i]; return [tr.children[1].textContent, tr.children[2].children[0].value, tr.children[3].textContent]; }
-function input(i) { return parts.rows.children[i].children[2].children[0]; }
+function row(i) { var tr = parts.rows.children[i]; return [tr.children[2].textContent, tr.children[3].children[0].value, tr.children[4].textContent]; }
+function input(i) { return parts.rows.children[i].children[3].children[0]; }
 function wait() { return new Promise(function (r) { setTimeout(r, 10); }); }
 var out = {};
 out.start = [row(0), row(1), parts.totals.textContent, ed.words()];

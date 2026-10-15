@@ -69,13 +69,13 @@ check('la bozza d\'ordine: Salva per primo, Conferma con la conferma della lib, 
         && !str_contains($nuova, 'onclick=');
 });
 
-check('il preventivo: Invia, Accettato, Elimina o Rifiutato secondo lo stato, la scadenza, l\'email accesa', function () use ($bozza, $pagina) {
+check('il preventivo: Invia, Trasforma in ordine, Elimina o Rifiutato secondo lo stato, la scadenza, l\'email accesa', function () use ($bozza, $pagina) {
     $nuovo = $pagina(QuoteResource::class, $bozza);
     $bozzaSalvata = $pagina(QuoteResource::class, ['id' => 7, 'quote_number' => ''] + $bozza);
     $inviato = $pagina(QuoteResource::class, ['id' => 7, 'status' => 'sent', 'quote_number' => 'P-2026-1'] + $bozza);
 
     return str_contains($nuovo, 'value="send"') && str_contains($nuovo, 'Invia al cliente')
-        && !str_contains($nuovo, 'value="accept"') && str_contains($nuovo, 'name="quote_expires_at"')
+        && str_contains($nuovo, 'value="accept"') && str_contains($nuovo, 'Trasforma in ordine') && str_contains($nuovo, 'name="quote_expires_at"')
         && preg_match('/name="notify" value="true"[^>]*checked/', $nuovo) === 1
         && str_contains($bozzaSalvata, 'value="accept"') && str_contains($bozzaSalvata, 'value="delete"') && !str_contains($bozzaSalvata, 'value="reject"')
         && str_contains($inviato, 'value="reject"') && !str_contains($inviato, 'value="delete"') && str_contains($inviato, 'Invia di nuovo');

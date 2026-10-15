@@ -122,7 +122,10 @@ final class OfficeCustomerPanel
                 ->text(self::line($address))
                 ->actions(
                     ContactAddressResource::openButton('Modifica', 'btn-outline-secondary btn-sm', $address),
-                    Button::make('Elimina')
+                    Button::make('')
+                        ->icon('bi bi-trash')
+                        ->attr('aria-label', 'Elimina l\'indirizzo «'.$nome.'»')
+                        ->attr('title', 'Elimina')
                         ->variant('danger')
                         ->outline()
                         ->size('sm')
