@@ -233,6 +233,12 @@ try {
     });
 
     // Le finestre si aprono sul cliente scelto, con i valori della scheda.
+    function billingEmpty() {
+        return ['business_name', 'cf', 'pi', 'street'].every(function (key) {
+            return !String(state.contact[key] || '').trim();
+        });
+    }
+
     function setType(modal, value) {
         var radio = modal.querySelector('[name="type"][value="' + value + '"]');
         var input = radio || modal.querySelector('[name="type"]:not([type=hidden])');
@@ -294,9 +300,10 @@ try {
             }
         });
 
-        // Fatturazione senza tipologia: si parte da Società.
-        if (modal.id === modals[1] && !state.contact.type) {
-            setType(modal, 'business');
+        // La tipologia va scelta a parte (le caselle a spunta sopra si
+        // saltano); con la fatturazione ancora vuota si parte da Società.
+        if (modal.id === modals[1]) {
+            setType(modal, billingEmpty() ? 'business' : (state.contact.type || 'business'));
         }
 
         country = modal.querySelector('[name="country"]');
