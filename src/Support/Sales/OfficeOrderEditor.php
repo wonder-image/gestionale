@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Sales;
 
 use Throwable;
+use Wonder\Backend\Support\RowDrag;
 
 /**
  * Le righe del nuovo ordine da ufficio (G9 §2.2), sul modello di
@@ -62,7 +63,7 @@ final class OfficeOrderEditor
             .'<th style="width: 11rem">Sconto</th>'
             .($source !== '' ? '<th style="min-width: 12rem">'.$e($source).'</th>' : '')
             .'<th class="text-end d-none d-md-table-cell" style="width: 7rem">Totale</th>'
-            .'<th style="width: 3rem"><span class="visually-hidden">Togli</span></th>'
+            .'<th style="width: 4.5rem"><span class="visually-hidden">Sposta o togli</span></th>'
             .'</tr></thead>'
             .'<tbody data-wi-office-rows></tbody>'
             .'</table>'
@@ -71,6 +72,7 @@ final class OfficeOrderEditor
             .'<div class="text-end fw-semibold mt-2" data-wi-office-totals></div>'
             .'<script type="application/json" data-wi-office-lines>'.$json($lines).'</script>'
             .'<script type="application/json" data-wi-office-taxes>'.$json($taxes).'</script>'
+            .RowDrag::script()
             .'<script>'.self::script().'</script>'
             .'</div>';
     }
@@ -253,6 +255,17 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
             initial = [];
         }
 
+        // Righe spostate: l'ordine di `rows` segue quello della tabella,
+        // perché il salvataggio numera le posizioni in quell'ordine.
+        if (window.wiRowDrag) {
+            window.wiRowDrag(body, function () {
+                var order = Array.prototype.slice.call(body.children);
+
+                rows.sort(function (a, b) { return order.indexOf(a.tr) - order.indexOf(b.tr); });
+                refresh();
+            });
+        }
+
         function say(text, tone) {
             message.textContent = text || '';
             message.className = 'small mt-1 ' + (tone === 'error' ? 'text-danger' : 'text-body-secondary');
@@ -426,8 +439,9 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
             return cell;
         }
 
+        // La maniglia per trascinare la riga e la X per toglierla.
         function removeCell(row) {
-            var cell = el('td', 'text-end');
+            var cell = el('td', 'text-end text-nowrap');
             var button = el('button', 'btn btn-sm btn-link text-danger');
 
             button.type = 'button';
@@ -439,6 +453,10 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
                 refresh();
                 search.focus();
             });
+            if (window.wiRowDrag) {
+                cell.appendChild(window.wiRowDrag.handle());
+            }
+
             cell.appendChild(button);
 
             return cell;
@@ -621,6 +639,7 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
             }
 
             empty.classList.toggle('d-none', rows.length > 0);
+            root.dispatchEvent(new CustomEvent('wi:office-change', {bubbles: true}));
             summary.textContent = rows.length ? count + ' ' + (count === 1 ? 'riga' : 'righe') + ' · ' + money(sum) + ' prima di spedizione e sconti' : '';
         }
 
