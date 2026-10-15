@@ -117,8 +117,8 @@ final class SubscriptionActionResource extends NavigationOnlyResource
             }
         }
 
-        if (str_ends_with($action, '_item') && !$office) {
-            return ['ok' => false, 'message' => 'I servizi di un abbonamento online si cambiano da Stripe: arriva con il prossimo aggiornamento.'];
+        if (str_ends_with($action, '_item') && !$office && trim((string) ($row['provider_reference'] ?? '')) === '') {
+            return ['ok' => false, 'message' => 'L\'abbonamento non è ancora partito su Stripe: i servizi si cambiano dopo il primo pagamento.'];
         }
 
         if ($itemId > 0 && in_array($action, ['change_item', 'remove_item', 'customize_item'], true)
@@ -141,7 +141,9 @@ final class SubscriptionActionResource extends NavigationOnlyResource
                     ], $billing, $userId);
 
                     return ['ok' => true, 'message' => match ($billing) {
-                        'prorate' => 'Servizio aggiunto: la quota fino al suo rinnovo è una rata, col proforma al cliente.',
+                        'prorate' => $office
+                            ? 'Servizio aggiunto: la quota fino al suo rinnovo è una rata, col proforma al cliente.'
+                            : 'Servizio aggiunto: Stripe addebita subito la quota sulla carta del cliente.',
                         'free' => 'Servizio aggiunto senza addebiti fino al suo rinnovo.',
                         default => 'Servizio aggiunto: parte con il prossimo periodo.',
                     }];
@@ -165,7 +167,7 @@ final class SubscriptionActionResource extends NavigationOnlyResource
                     $removed = SubscriptionItems::remove($itemId, $billing, $userId);
 
                     return ['ok' => true, 'message' => $billing === 'credit'
-                        ? 'Servizio tolto: la parte non goduta resta come credito.'
+                        ? ($office ? 'Servizio tolto: la parte non goduta resta come credito.' : 'Servizio tolto: Stripe mette il credito sulla prossima fattura.')
                         : 'Servizio tolto: resta attivo fino al '.OrderSheet::date($removed['ends_at']).'.'];
 
                 case 'customize_item':

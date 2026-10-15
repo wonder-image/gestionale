@@ -358,10 +358,13 @@ final class SubscriptionResource extends GestionaleResource
         return $html.static::itemModals($row);
     }
 
-    /** Si cambiano i servizi da qui: abbonamento da ufficio in corso. @param array<string, mixed> $row */
+    /** Si cambiano i servizi da qui: abbonamento in corso, da ufficio o già su Stripe. @param array<string, mixed> $row */
     public static function itemsEditable(array $row): bool
     {
-        return (string) ($row['channel'] ?? '') === 'office' && in_array((string) ($row['status'] ?? ''), Subscription::LIVE, true);
+        $office = (string) ($row['channel'] ?? '') === 'office';
+
+        return ($office || trim((string) ($row['provider_reference'] ?? '')) !== '')
+            && in_array((string) ($row['status'] ?? ''), Subscription::LIVE, true);
     }
 
     /**
@@ -437,6 +440,7 @@ final class SubscriptionResource extends GestionaleResource
         }
 
         $id = (int) ($row['id'] ?? 0);
+        $office = (string) ($row['channel'] ?? '') === 'office';
         $items = SubscriptionItems::forSubscription($id);
         $labels = static::itemLabels($items);
         $live = array_filter($items, static fn (array $item): bool => in_array((string) $item['status'], ['pending', 'active'], true));
@@ -462,7 +466,9 @@ final class SubscriptionResource extends GestionaleResource
                 ->select(['prorate' => 'Quota ora fino al rinnovo del servizio', 'free' => 'Gratis fino al rinnovo', 'next_period' => 'Dal prossimo periodo'])
                 ->value('prorate')
                 ->label('Conguaglio')
-                ->tooltip('Quota ora: una rata per i giorni fino al rinnovo del servizio, col suo proforma. Gratis: niente fino al rinnovo. Dal prossimo periodo: il servizio parte col prossimo periodo dell\'abbonamento.')
+                ->tooltip(($office
+                    ? 'Quota ora: una rata per i giorni fino al rinnovo del servizio, col suo proforma.'
+                    : 'Quota ora: Stripe addebita subito i giorni fino al rinnovo sulla carta del cliente.').' Gratis: niente fino al rinnovo. Dal prossimo periodo: il servizio parte col prossimo periodo dell\'abbonamento.')
                 ->columnSpan(12),
             ...static::customizationFields(null),
         ], 'Aggiungi');
@@ -490,7 +496,9 @@ final class SubscriptionResource extends GestionaleResource
                     ->select(['prorate' => 'Conguaglio ora', 'free' => 'Subito, senza conguaglio', 'next_period' => 'Dal prossimo rinnovo del servizio'])
                     ->value('prorate')
                     ->label('Quando')
-                    ->tooltip('Conguaglio ora: un credito per i giorni non goduti del prezzo vecchio e una rata per la quota del nuovo. Subito: il nuovo prezzo vale da oggi, senza conti. Dal prossimo rinnovo: cambia a fine periodo del servizio.')
+                    ->tooltip(($office
+                        ? 'Conguaglio ora: un credito per i giorni non goduti del prezzo vecchio e una rata per la quota del nuovo.'
+                        : 'Conguaglio ora: Stripe fa i conti dei giorni e addebita subito la differenza.').' Subito: il nuovo prezzo vale da oggi, senza conti. Dal prossimo rinnovo: cambia a fine periodo del servizio.')
                     ->columnSpan(12),
                 ...static::customizationFields(null),
                 RichText::make(static::escape('Le personalizzazioni lasciate vuote restano quelle di prima, se il nuovo piano le ha.'))->class('mb-0 small text-muted')->columnSpan(12),

@@ -133,6 +133,7 @@ check('i servizi si cambiano dalla scheda solo da ufficio e con l\'abbonamento i
     && SubscriptionResource::itemsEditable(['channel' => 'office', 'status' => 'trialing'])
     && !SubscriptionResource::itemsEditable(['channel' => 'office', 'status' => 'unpaid'])
     && !SubscriptionResource::itemsEditable(['channel' => 'online', 'status' => 'active'])
+    && SubscriptionResource::itemsEditable(['channel' => 'online', 'status' => 'active', 'provider_reference' => 'sub_1'])
 );
 
 check('i link della rata e della scheda tengono i segnaposto del menu di riga', fn () =>

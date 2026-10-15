@@ -106,6 +106,16 @@ versionamento semantico.
   risultato, rilancialo con `--togli-vecchie` per togliere
   `gst_product_model_customizations` e `gst_subscription_plan_changes`.
   `plan_price_id` di `gst_subscriptions` resta fino ad allora.
+- G10b parte 2, **servizi degli abbonamenti online**: ogni riga è una
+  subscription item di Stripe (`metadata.item_id`); il Checkout ha una riga per
+  servizio con `billing_mode=flexible`. Dalla card **Servizi** *Aggiungi*
+  (`subscription_items.create`, quota con `always_invoice`), *Togli* col credito
+  (`create_prorations`) e *Cambia* (`subscription_items.update`); quello che vale
+  dal rinnovo va in un solo *Subscription Schedule* (`end_behavior=release`),
+  tolto prima di una disdetta. Le righe di prima di G10b prendono il loro `si_`
+  da Stripe alla prima modifica. *Cambia piano* cambia la riga principale.
+  `OnlineSubscriptions::quote()` dà la quota dall'anteprima di Stripe. Errori
+  nuovi `subscription.stripe_failed` e `subscription.last_item_online`.
 - G10 piano 3, **Abbonamenti da ufficio**: **Nuovo abbonamento** (cliente,
   prezzo, data d'inizio, metodo e condizione di pagamento, coupon); a ogni
   periodo le **rate** della condizione di pagamento e il **proforma** PDF per

@@ -166,7 +166,8 @@ giorni dopo; c'è il link per aggiornare la carta) e quando disdice.
 Dall'**area cliente**, sezione *Abbonamenti*, il cliente:
 
 * **cambia piano**: subito, il nuovo prezzo vale dal rinnovo dopo, senza
-  conguagli; il codice sconto resta;
+  conguagli; il codice sconto resta. Con più servizi cambia il servizio
+  principale;
 * **disdice**: l'abbonamento resta attivo fino alla fine del periodo pagato e
   poi non si rinnova. Durante un **vincolo** la disdetta si registra e vale alla
   fine del vincolo;
@@ -241,8 +242,27 @@ Sempre dalla scheda:
   arrivati restano.
 * **Rimanda il proforma** e scarica il PDF del periodo in corso.
 
-*Disdici* c'è anche per gli abbonamenti online, e passa a Stripe. Le azioni
-della card *Servizi*, per ora, ci sono solo sugli abbonamenti da ufficio.
+*Disdici* c'è anche per gli abbonamenti online, e passa a Stripe.
+
+### Servizi di un abbonamento online
+
+La card **Servizi** vale anche per gli abbonamenti online, appena Stripe li ha
+fatti partire. Ogni riga è un servizio anche su Stripe, e i conti li fa Stripe
+sulla carta del cliente:
+
+* **Aggiungi servizio** con *Quota ora*: Stripe addebita subito i giorni fino al
+  rinnovo; se la carta non passa il servizio non si aggiunge. *Gratis fino al
+  rinnovo*: niente ora. *Dal prossimo periodo*: il servizio entra al rinnovo.
+* **Cambia**: *Conguaglio ora* fa addebitare subito la differenza; *Subito,
+  senza conguaglio* e *Dal prossimo rinnovo* come da ufficio.
+* **Togli** *Subito, con un credito*: Stripe mette il credito sulla fattura
+  dopo. L'**ultimo** servizio non si toglie così: è una disdetta, con
+  *Disdici*.
+
+Le modifiche che valgono dal rinnovo Stripe le tiene in un **programma** dei
+rinnovi dell'abbonamento: compare nella pagina dell'abbonamento in Stripe e non
+va toccato a mano. Una *Disdetta* lo toglie. Se Stripe non risponde, la scheda
+dice di riprovare e non cambia niente.
 
 > **Per chi installa.** Accendi l'attività **Gestionale: periodi e scadenze
 > degli abbonamenti da ufficio**: apre i periodi, chiude i disdetti e segue le
