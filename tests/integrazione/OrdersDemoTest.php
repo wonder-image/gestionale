@@ -520,7 +520,7 @@ check('con la vendita in ufficio e i preventivi nascono una bozza, un preventivo
     return ($rate['create'] ?? 0) === 10
         && ($rate['preventivo']['stage'] ?? '') === 'quote' && ($rate['preventivo']['status'] ?? '') === 'sent' && ($rate['revisioni'] ?? 0) === 1
         && count($rate['ddt'] ?? []) === 1
-        && ($rate['bozza']['status'] ?? '') === 'draft' && trim((string) ($rate['bozza']['order_number'] ?? '')) === ''
+        && ($rate['bozza']['status'] ?? '') === 'draft' && trim((string) ($rate['bozza']['order_number'] ?? '')) !== ''
         && ($rate['ordine']['channel'] ?? '') === 'office'
         && trim((string) ($rate['ordine']['order_number'] ?? '')) !== ''
         && ($rate['ordine']['status'] ?? '') === 'confirmed'

@@ -17,8 +17,10 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Backend\RowMenu;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderForm;
+use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderPage;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 
 /**
@@ -85,13 +87,24 @@ class OfficeOrderResource extends GestionaleResource
     public static function tableSchema(): array
     {
         return [
+            // Il numero c'è dal primo salvataggio; le bozze di prima ne sono senza.
+            TableColumn::key('order_number')
+                ->text()
+                ->size('little')
+                ->link('edit')
+                ->formatter(static fn (array $row): string => trim((string) ($row['order_number'] ?? '')) !== ''
+                    ? static::escape((string) $row['order_number'])
+                    : '<span class="text-body-secondary">Bozza</span>'),
             TableColumn::key('customer')
                 ->text()
                 ->link('edit')
                 ->formatter(static fn (array $row): string => static::escape(OrderResource::customerName($row))),
             TableColumn::key('total')->price()->size('little'),
             TableColumn::key('creation')->date()->size('medium')->hiddenDevice('mobile'),
-            TableColumn::key('actions')->button()->actions(['edit']),
+            TableColumn::key('actions')
+                ->text()
+                ->size('little')
+                ->formatter(static fn (array $row): string => RowMenu::render(static::rowActions($row))),
         ];
     }
 
@@ -102,7 +115,7 @@ class OfficeOrderResource extends GestionaleResource
             ->results()
             ->buttonAdd(true, 'Nuovo ordine')
             ->filterSearch()
-            ->searchFields(['billing_name', 'billing_surname', 'billing_business_name', 'email']);
+            ->searchFields(['order_number', 'billing_name', 'billing_surname', 'billing_business_name', 'email']);
     }
 
     /**
@@ -125,11 +138,89 @@ class OfficeOrderResource extends GestionaleResource
             ->only(['list', 'create', 'store', 'edit', 'update'])
             ->titles(['list' => 'Ordini da ufficio', 'create' => 'Nuovo ordine', 'edit' => 'Bozza d\'ordine'])
             ->subtitles([
-                'list' => 'Le bozze degli ordini fatti dall\'ufficio. Confermate, passano negli Ordini con il loro numero.',
-                'create' => 'Un ordine fatto dall\'ufficio: si salva come bozza, senza numero e senza toccare il magazzino, finché non lo confermi.',
-                'edit' => 'La bozza non ha numero e non tocca il magazzino: alla conferma la merce esce e nascono le rate.',
+                'list' => 'Le bozze degli ordini fatti dall\'ufficio. Confermate, passano negli Ordini con lo stesso numero.',
+                'create' => 'Un ordine fatto dall\'ufficio: si salva come bozza, con il suo numero, senza toccare il magazzino finché non lo confermi.',
+                'edit' => 'La bozza non tocca il magazzino: alla conferma la merce esce e nascono le rate. Il numero resta lo stesso.',
             ])
-            ->view('form', Gestionale::viewPath('pages/office-order-form.php')));
+            ->view('form', Gestionale::viewPath('pages/office-order-form.php'))
+            ->actions('create', static fn (array $item): array => static::headerActions($item))
+            ->actions('edit', static fn (array $item): array => static::headerActions($item)));
+    }
+
+    /**
+     * In testa, accanto a *Guida*: il PDF da stampare e le azioni della
+     * pagina (`OfficeOrderPage::headerActions()`).
+     *
+     * @return list<array<string, string>>
+     */
+    public static function headerActions(array $values): array
+    {
+        $id = (int) ($values['id'] ?? 0);
+        $actions = [];
+
+        if ($id > 0) {
+            $actions[] = static::stage() === 'quote'
+                ? ['label' => 'Stampa', 'icon' => 'bi-printer', 'class' => 'btn-outline-dark btn-sm', 'href' => QuoteResource::printUrl($id), 'target' => '_blank']
+                : ['label' => 'Proforma', 'icon' => 'bi-printer', 'class' => 'btn-outline-dark btn-sm', 'href' => OrderResource::proformaUrl($id), 'target' => '_blank'];
+        }
+
+        return [...$actions, ...OfficeOrderPage::headerActions(static::stage() === 'quote', $values)];
+    }
+
+    /**
+     * Il menu ⋯ di una bozza nell'elenco. Le azioni partono senza aprirla:
+     * la conferma non scrive al cliente (per farlo si conferma dalla pagina).
+     *
+     * @param array<string, mixed> $row
+     * @return list<array<string, mixed>>
+     */
+    public static function rowActions(array $row): array
+    {
+        $id = (int) ($row['id'] ?? 0);
+
+        return [
+            ['label' => 'Modifica', 'icon' => 'bi bi-pencil', 'href' => static::editUrl($id)],
+            ['label' => 'Conferma ordine', 'icon' => 'bi bi-check2-circle', 'href' => static::actionUrl($id, 'confirm'), 'post' => true,
+                'confirm' => 'La merce esce dal magazzino e nascono le rate; il numero resta quello della bozza. Il cliente non riceve email: per scrivergli conferma dalla pagina.',
+                'confirm_title' => 'Conferma ordine', 'confirm_ok' => 'Conferma ordine', 'confirm_variant' => 'primary'],
+            ['label' => 'Elimina', 'icon' => 'bi bi-trash', 'danger' => true, 'href' => static::actionUrl($id, 'delete'), 'post' => true,
+                'confirm' => 'La bozza si elimina con le sue righe. Non ha movimenti di magazzino; il suo numero non si riusa.',
+                'confirm_title' => 'Elimina bozza', 'confirm_ok' => 'Elimina', 'confirm_variant' => 'danger'],
+        ];
+    }
+
+    /** Le azioni che il menu ⋯ dell'elenco manda in POST. @return list<string> */
+    public static function listIntents(): array
+    {
+        return ['confirm', 'delete'];
+    }
+
+    /** L'indirizzo POST di un'azione del menu ⋯. */
+    public static function actionUrl(int $id, string $intent): string
+    {
+        return static::routeUrl('action', '/backend/'.static::path().'/'.$id.'/azione/'.$intent.'/', ['id' => $id, 'intent' => $intent]);
+    }
+
+    /**
+     * Un'azione del menu ⋯: sulla bozza com'è, senza salvarla, poi il
+     * messaggio e la pagina giusta come dal form. Un errore riapre la bozza
+     * con il motivo in testa.
+     */
+    public static function runAction(int $id, string $intent): never
+    {
+        $order = $id > 0 ? Order::findById($id) : null;
+
+        if (!static::featureActive() || !in_array($intent, static::listIntents(), true) || !is_array($order) || !isset($order['id'])
+            || (string) ($order['deleted'] ?? 'false') !== 'false' || (string) ($order['stage'] ?? '') !== static::stage()) {
+            http_response_code(404);
+            exit('Non trovato');
+        }
+
+        $result = Csrf::verify()
+            ? static::handleSubmit(['intent' => $intent, 'notify' => $intent === 'send' ? 'true' : 'false'], $id, static::currentUserId(), false)
+            : ['ok' => false, 'message' => UserError::make('stock_document.expired')->getMessage(), 'url' => static::listUrl()];
+
+        static::finish($result);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -227,6 +318,16 @@ class OfficeOrderResource extends GestionaleResource
             OfficeOrderForm::remember($values, static::stage());
         }
 
+        static::finish($result);
+    }
+
+    /**
+     * Il messaggio e il redirect di un invio.
+     *
+     * @param array{ok: bool, message: string, url: string} $result
+     */
+    protected static function finish(array $result): never
+    {
         if ($result['ok']) {
             FlashAlert::saved($result['message']);
         } elseif (session_status() === PHP_SESSION_ACTIVE) {
@@ -250,12 +351,12 @@ class OfficeOrderResource extends GestionaleResource
      * @param array<string, mixed> $post
      * @return array{ok: bool, message: string, url: string}
      */
-    public static function handleSubmit(array $post, int $id, int $userId): array
+    public static function handleSubmit(array $post, int $id, int $userId, bool $save = true): array
     {
-        $result = OfficeOrderForm::submit($id, $post, $userId, static::stage());
+        $result = OfficeOrderForm::submit($id, $post, $userId, static::stage(), $save);
 
         if ($result['deleted']) {
-            return ['ok' => true, 'message' => 'Bozza eliminata.', 'url' => OrderResource::listUrl()];
+            return ['ok' => true, 'message' => 'Bozza eliminata.', 'url' => static::listUrl()];
         }
 
         if ($result['error'] !== '') {
@@ -301,6 +402,20 @@ class OfficeOrderResource extends GestionaleResource
         ])->name('pdf')
             ->permit(['admin', 'administrator'])
             ->where('id', '[0-9]+');
+
+        static::registerActionRoute($slug);
+    }
+
+    /** Il POST delle azioni del menu ⋯ (`runAction()`). */
+    protected static function registerActionRoute(string $slug): void
+    {
+        \Wonder\Http\Route::post('/{id}/azione/{intent}/', Gestionale::handlerPath('backend/sales/'.(static::stage() === 'quote' ? 'quote' : 'office-order').'-action.php'), [
+            'resource' => $slug,
+            'resource_action' => 'action',
+        ])->name('action')
+            ->permit(['admin', 'administrator'])
+            ->where('id', '[0-9]+')
+            ->where('intent', '[a-z]+');
     }
 
     /** Il metodo di pagamento si sceglie fra quelli che valgono in ufficio. @return array<int, string> */
@@ -347,6 +462,11 @@ class OfficeOrderResource extends GestionaleResource
         }
 
         return $out;
+    }
+
+    public static function listUrl(): string
+    {
+        return static::routeUrl('list', '/backend/'.static::path().'/');
     }
 
     public static function editUrl(int $id): string

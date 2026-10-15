@@ -21,16 +21,20 @@ consegna, righe, pagamento, sconto e note, più la data **Valido fino al**.
 Parte dai giorni scelti in *Impostazioni → Vendite → Preventivi* (30 se non li
 cambi); su ogni preventivo la puoi spostare.
 
-**Salva bozza** lo salva senza numero.
+**Salva bozza** lo salva. Al primo salvataggio il preventivo prende il suo
+**numero**, lo stesso che avrà quando diventa ordine: la numerazione è quella
+degli ordini, quindi un preventivo eliminato o rifiutato lascia un buco.
+
+**Stampa**, in alto vicino a *Guida*, apre il PDF del preventivo com'è adesso,
+anche prima di inviarlo.
 
 ## Inviare
 
 **Invia al cliente**:
 
-1. dà al preventivo il **numero** (al primo invio);
-2. crea il **PDF** e lo archivia: è quello che il cliente riceve, e non
+1. crea il **PDF** e lo archivia: è quello che il cliente riceve, e non
    cambia più;
-3. con l'interruttore **Manda l'email con il PDF** acceso, il cliente riceve
+2. con l'interruttore **Manda l'email con il PDF** acceso, il cliente riceve
    l'email con il PDF allegato. Spento, o se il cliente non ha un'email, scarichi il PDF
    da **Revisioni inviate** e lo mandi tu.
 
@@ -47,7 +51,7 @@ revisione nuova.
 ## Accettato, rifiutato, scaduto
 
 * **Accettato** — il preventivo diventa una **bozza d'ordine** con le stesse
-  righe e il numero di preventivo. Ti porta alla sua pagina: controlla
+  righe e lo stesso numero, che resta anche a ordine confermato. Ti porta alla sua pagina: controlla
   consegna e pagamento e premi **Conferma ordine**, come per ogni
   [ordine da ufficio](vendite-ordini-da-ufficio.md).
 * **Rifiutato** — il cliente ha detto no. Se cambia idea, modificalo: torna da
@@ -64,6 +68,11 @@ il suo PDF: rifiutalo o lascialo scadere.
 
 *Vendite → Preventivi* mostra numero e revisione, cliente, totale, stato e
 validità, con il filtro per stato e la ricerca per numero, nome o email.
+Dal menu **⋯** di ogni riga: **Trasforma in ordine**, **Invia al cliente**
+(l'email parte subito, con il PDF) ed **Elimina**, ognuno quando si può.
+
+In testa alla pagina del preventivo, vicino a *Guida*, ci sono gli stessi
+bottoni: **Trasforma in ordine**, **Invia al cliente** ed **Elimina**.
 
 ## La conferma d'ordine in PDF
 

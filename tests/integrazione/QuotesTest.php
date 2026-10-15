@@ -101,13 +101,14 @@ function rifiuto(callable $f): ?string
     return null;
 }
 
-check('il preventivo nasce bozza, senza numero, con la sua validità', function () {
+check('il preventivo nasce bozza, col numero dell\'ordine, con la sua validità', function () {
     return prova(static function (): bool {
         $id = preventivo(articolo(5));
         $o = Order::findById($id);
 
         return (string) $o['stage'] === 'quote' && (string) $o['status'] === 'draft'
-            && trim((string) ($o['quote_number'] ?? '')) === ''
+            && trim((string) ($o['quote_number'] ?? '')) !== ''
+            && (string) $o['quote_number'] === (string) $o['order_number']
             && str_starts_with((string) $o['quote_expires_at'], '2026-12-31')
             && round((float) $o['total'], 2) === 40.0;
     });
@@ -118,12 +119,13 @@ check('l\'invio: numero, revisione 1, PDF archiviato, email con l\'allegato', fu
         global $posta;
 
         $id = preventivo(articolo(5));
+        $numero = (string) Order::findById($id)['quote_number'];
         $esito = Quotes::send($id, ['user_id' => 0]);
         $o = Order::findById($id);
         $revisioni = Quotes::revisions($id);
         $pdf = DocumentFiles::path((string) $revisioni[0]['pdf_file']);
 
-        return $esito['revision'] === 1 && $esito['number'] !== ''
+        return $esito['revision'] === 1 && $esito['number'] === $numero
             && (string) $o['status'] === 'sent' && (int) $o['quote_revision'] === 1
             && count($revisioni) === 1 && $pdf !== null && str_starts_with((string) file_get_contents($pdf), '%PDF')
             && count($posta) === 1 && str_contains($posta[0]['subject'], $esito['number'])
@@ -166,9 +168,9 @@ check('accettato: lo stesso documento è una bozza d\'ordine con le stesse righe
         $o = Order::findById($id);
 
         return (string) $o['stage'] === 'order' && (string) $o['status'] === 'draft'
-            && (string) $o['quote_number'] === $numero
+            && (string) $o['quote_number'] === $numero && (string) $o['order_number'] === $numero
             && count(OrderItem::find(['order_id' => $id, 'deleted' => 'false']) ?: []) === $righe
-            && OfficeOrders::confirm($id)['order_number'] !== '';
+            && OfficeOrders::confirm($id)['order_number'] === $numero;
     });
 });
 

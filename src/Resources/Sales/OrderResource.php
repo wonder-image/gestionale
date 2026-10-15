@@ -108,7 +108,7 @@ final class OrderResource extends GestionaleResource
                 ->size('little')
                 ->sortable()
                 ->link('view')
-                // La bozza da ufficio non ha ancora un numero (G9).
+                // Le bozze da ufficio di prima del numero unico ne sono senza.
                 ->formatter(static fn (array $row): string => trim((string) ($row['order_number'] ?? '')) !== ''
                     ? static::escape((string) $row['order_number'])
                     : '<span class="text-body-secondary">Bozza</span>'),

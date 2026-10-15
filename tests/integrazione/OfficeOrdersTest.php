@@ -101,13 +101,13 @@ function bozza(int $prodotto, float $pezzi, array $extra = [], array $testata = 
     ], 0);
 }
 
-check('la bozza nasce senza numero, da ufficio, con gli indirizzi del cliente', function () {
+check('la bozza nasce col numero, da ufficio, con gli indirizzi del cliente', function () {
     return prova(static function (): bool {
         $ordine = bozza(articolo(5), 2);
         $o = Order::findById($ordine);
 
         return (string) $o['status'] === 'draft' && (string) $o['channel'] === 'office'
-            && trim((string) ($o['order_number'] ?? '')) === ''
+            && trim((string) ($o['order_number'] ?? '')) !== ''
             && (string) $o['billing_city'] === 'Milano' && (string) $o['shipping_street'] === 'Via Torino'
             && round((float) $o['total'], 2) === 20.0;
     });
@@ -171,15 +171,16 @@ check('salvare di nuovo riscrive le righe e la bozza resta una', function () {
     });
 });
 
-check('conferma: numero, merce che esce, rate in attesa', function () {
+check('conferma: stesso numero della bozza, merce che esce, rate in attesa', function () {
     return prova(static function (): bool {
         $prodotto = articolo(5);
         $ordine = bozza($prodotto, 2);
+        $numero = (string) Order::findById($ordine)['order_number'];
         $esito = OfficeOrders::confirm($ordine, ['user_id' => 0]);
         $o = Order::findById($ordine);
         $uscite = StockMovement::find(['reference_type' => 'order', 'reference_id' => $ordine, 'type' => 'sale']);
 
-        return $esito['order_number'] !== '' && (string) $o['status'] === 'confirmed' && (string) $o['order_number'] === $esito['order_number']
+        return $numero !== '' && $esito['order_number'] === $numero && (string) $o['status'] === 'confirmed' && (string) $o['order_number'] === $esito['order_number']
             && is_array($uscite) && $uscite !== []
             && Levels::of($prodotto)['quantity'] === 3.0
             && count(Installments::pending($ordine)) === 1
@@ -191,10 +192,11 @@ check('la merce che manca: rifiuto col nome, e niente cambia', function () {
     return prova(static function (): bool {
         $prodotto = articolo(1);
         $ordine = bozza($prodotto, 3);
+        $numero = (string) Order::findById($ordine)['order_number'];
 
         return rifiuto(static fn () => OfficeOrders::confirm($ordine)) === 'office_order.out_of_stock'
             && (string) Order::findById($ordine)['status'] === 'draft'
-            && trim((string) (Order::findById($ordine)['order_number'] ?? '')) === ''
+            && (string) Order::findById($ordine)['order_number'] === $numero
             && Levels::of($prodotto)['quantity'] === 1.0;
     });
 });

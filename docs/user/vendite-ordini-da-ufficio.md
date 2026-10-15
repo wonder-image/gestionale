@@ -10,14 +10,16 @@ icon: pen-to-square
 ## A cosa serve
 
 Fare un ordine dal gestionale: al telefono, per email, per un cliente che
-compra a rate o a cui fai un prezzo suo. L'ordine nasce come **bozza**: non ha
-numero e non tocca il magazzino, e lo puoi modificare quanto vuoi. Quando lo
-**confermi** prende il numero, la merce esce e nascono le
+compra a rate o a cui fai un prezzo suo. L'ordine nasce come **bozza**: prende il
+**numero** al primo salvataggio, non tocca il magazzino e lo puoi modificare
+quanto vuoi. Quando lo **confermi** tiene lo stesso numero, la merce esce e nascono le
 [rate](vendite-pagamenti-a-rate.md).
 
 ## Nuovo ordine
 
 *Vendite → Ordini da ufficio* elenca le bozze; **Nuovo ordine** ne apre una.
+Dal menu **⋯** di ogni bozza: **Conferma ordine** (senza email al cliente) ed
+**Elimina**.
 
 * **Cliente** — cercalo per nome, email o partita IVA. Scegliendolo si
   riempiono fatturazione, consegna, metodo e condizione di pagamento dalla sua
@@ -57,8 +59,8 @@ ufficio non si scelgono ancora: vendili come riga libera.
 ### Salvare e confermare
 
 **Salva bozza** salva tutto e mostra i **totali** veri, con listino, campagne,
-sconti e spedizione. La bozza la ritrovi in *Ordini da ufficio* e negli **Ordini**, con
-*Bozza* al posto del numero.
+sconti e spedizione. La bozza la ritrovi in *Ordini da ufficio* e negli **Ordini**, già col suo
+numero.
 
 **Conferma ordine**:
 
@@ -66,14 +68,16 @@ sconti e spedizione. La bozza la ritrovi in *Ordini da ufficio* e negli **Ordini
    spedisce, l'indirizzo;
 2. controlla la merce della sede: se manca si ferma e ti dice quale articolo e
    quanti ne hai. Fanno eccezione gli articoli che si vendono senza giacenza;
-3. dà il numero all'ordine e fa uscire la merce;
+3. fa uscire la merce; il numero resta quello della bozza;
 4. crea le rate della condizione di pagamento nello
    [Scadenzario](vendite-pagamenti-a-rate.md).
 
 Con l'interruttore **Alla conferma scrivi al cliente** acceso parte l'email di conferma, con la
 conferma d'ordine in PDF allegata.
 
-**Elimina bozza** la toglie del tutto: una bozza non ha numero né movimenti.
+**Conferma ordine**, **Elimina bozza** e **Proforma** stanno in alto, vicino a
+*Guida*. **Elimina bozza** la toglie del tutto: una bozza non ha movimenti, e
+il suo numero resta un buco nella numerazione.
 
 ## Dopo la conferma
 
