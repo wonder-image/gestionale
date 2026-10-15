@@ -4,18 +4,19 @@ namespace Wonder\Plugin\Gestionale\Support\Subscriptions;
 
 use DateTimeImmutable;
 use Throwable;
-use Wonder\Plugin\Gestionale\Models\System\Setting;
-use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
 /**
  * Letture degli abbonamenti che servono al resto del gestionale e al sito.
  *
- * `limit()` è il punto d'ingresso dei limiti del piano (G10.7): il sito lo
- * chiama quando un cliente crea qualcosa che il piano limita. Un piano più
+ * `limit()` è il punto d'ingresso dei limiti del piano (G10.7, sommati su
+ * tutte le righe con G10b): il sito lo chiama quando un cliente crea qualcosa
+ * che il piano limita. Un piano più
  * basso non toglie niente: il controllo vale solo alla creazione.
  */
 final class Subscriptions
@@ -117,30 +118,49 @@ final class Subscriptions
     }
 
     /**
-     * Il valore del limite `$key` dal piano dell'abbonamento vivo del cliente;
-     * `null` se il cliente non ha un abbonamento vivo o il piano non dichiara
-     * quel limite. Il valore è il testo scritto nel piano: lo interpreta il
-     * sito (`5`, `illimitato`).
+     * Il valore del limite `$key` per il cliente: i piani di **tutte** le righe
+     * vive dei suoi abbonamenti vivi, messi insieme da `PlanFeatureMerge`
+     * (numeri sommati per quantità, «illimitato» vince). `null` se nessuna
+     * riga viva ha un piano che dichiara quel limite. Il valore è testo: lo
+     * interpreta il sito (`5`, `illimitato`).
      */
     public static function limit(int $customerId, string $key): ?string
     {
-        $subscription = self::live($customerId);
         $key = trim($key);
 
-        if ($subscription === null || $key === '') {
+        if ($customerId <= 0 || $key === '') {
             return null;
         }
 
-        $price = PlanPrice::findById(SubscriptionItems::priceIdOf($subscription));
-        $planId = is_array($price) ? (int) ($price['plan_id'] ?? 0) : 0;
+        $items = self::rows(SubscriptionItem::find(
+            "`status` IN ('".implode("','", SubscriptionItem::LIVE)."') AND `deleted` = 'false'"
+                .' AND `subscription_id` IN (SELECT `id` FROM `'.Subscription::$table.'` WHERE `customer_id` = '.$customerId
+                ." AND `status` IN ('".implode("','", Subscription::LIVE)."') AND `deleted` = 'false')"
+        ));
+        $values = [];
+        $plans = [];
 
-        if ($planId <= 0) {
-            return null;
+        foreach ($items as $item) {
+            $priceId = (int) ($item['plan_price_id'] ?? 0);
+
+            if (!array_key_exists($priceId, $plans)) {
+                $price = $priceId > 0 ? PlanPrice::findById($priceId) : null;
+                $planId = is_array($price) ? (int) ($price['plan_id'] ?? 0) : 0;
+                $feature = $planId > 0 ? (self::rows(PlanFeature::find(['plan_id' => $planId, 'feature_key' => $key, 'deleted' => 'false'], 1))[0] ?? null) : null;
+                $plans[$priceId] = $feature === null ? null : (string) ($feature['feature_value'] ?? '');
+            }
+
+            if ($plans[$priceId] !== null) {
+                $values[] = [
+                    'value' => $plans[$priceId],
+                    'quantity' => (int) ($item['quantity'] ?? 1),
+                    'at' => trim((string) ($item['starts_at'] ?? '')) !== '' && !str_starts_with((string) $item['starts_at'], '0000')
+                        ? (string) $item['starts_at'] : (string) ($item['creation'] ?? ''),
+                ];
+            }
         }
 
-        $feature = self::rows(PlanFeature::find(['plan_id' => $planId, 'feature_key' => $key, 'deleted' => 'false'], 1))[0] ?? null;
-
-        return $feature === null ? null : (string) ($feature['feature_value'] ?? '');
+        return PlanFeatureMerge::merge($values);
     }
 
     /**

@@ -226,6 +226,20 @@ check('limit(): dal piano dell\'abbonamento vivo; null senza, o con uno chiuso',
     });
 });
 
+check('limit(): i limiti di più righe vive si sommano, le righe chiuse no', function () use ($mensile) {
+    return prova(static function () use ($mensile): bool {
+        $cinque = (int) prezziDi(piano('Cinque', [$mensile], [['feature_key' => 'max_progetti', 'feature_value' => '5']]))[0]['id'];
+        $dieci = (int) prezziDi(piano('Dieci', [$mensile], [['feature_key' => 'max_progetti', 'feature_value' => '10']]))[0]['id'];
+        $persona = cliente();
+        $id = abbonamento($persona, $cinque, 'active');
+        SubscriptionItem::create(['subscription_id' => $id, 'plan_price_id' => $dieci, 'quantity' => 1, 'status' => 'active', 'total' => '19.00', 'position' => 2]);
+        $somma = Subscriptions::limit($persona, 'max_progetti');
+        SubscriptionItem::create(['subscription_id' => $id, 'plan_price_id' => $dieci, 'quantity' => 1, 'status' => 'ended', 'total' => '19.00', 'position' => 3]);
+
+        return $somma === '15' && Subscriptions::limit($persona, 'max_progetti') === '15';
+    });
+});
+
 check('«Abbonamenti» non si spegne con abbonamenti in corso', function () use ($mensile) {
     return prova(static function () use ($mensile): bool {
         abbonamento(cliente(), (int) prezziDi(piano('Guardia', [$mensile]))[0]['id'], 'active');
