@@ -15,13 +15,12 @@ use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentResource;
-use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderEditor;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\OfficeSubscriptions;
 
 /**
@@ -93,7 +92,9 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
     public static function formSchema(): array
     {
         return [
-            FormField::key('customer_id')->selectSearch(static::customerOptions())->label('Cliente')->required(),
+            FormField::key('customer_id')->searchText(OfficeOrderEditor::customersUrl())
+                ->emptyText('Nessun cliente trovato: crealo dai Contatti.')
+                ->label('Cliente')->required(),
             FormField::key('plan_price_id')->select(static::priceOptions())->label('Piano e prezzo')->required(),
             FormField::key('starts_at')->dateInput()->value(date('d/m/Y'))->label('Dal')->required(),
             FormField::key('payment_method_id')->select(['' => 'Quello del cliente'] + OrderPaymentResource::activeMethods())->label('Metodo di pagamento'),
@@ -169,20 +170,6 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
         }
 
         exit();
-    }
-
-    /** I clienti, id => nome, in ordine di nome. @return array<int, string> */
-    public static function customerOptions(): array
-    {
-        $names = [];
-
-        foreach (static::rows(Contact::class, ['is_customer' => 'true']) as $row) {
-            $names[(int) $row['id']] = Contacts::displayName($row);
-        }
-
-        asort($names, SORT_NATURAL | SORT_FLAG_CASE);
-
-        return $names;
     }
 
     /** I prezzi attivi dei piani attivi, «Piano — Prezzo». @return array<int, string> */
