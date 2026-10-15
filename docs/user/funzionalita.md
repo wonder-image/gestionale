@@ -40,7 +40,7 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | DDT | Vendite | Documento di trasporto per le consegne, con i lotti e il PDF. | Ordini |
 | Abbonamenti | Vendite | Piani, rinnovi e cambio piano. | — |
 | Multiprodotto | Catalogo | Prodotti composti da altri prodotti: vendendoli si scaricano i componenti. | — |
-| Personalizzazione | Catalogo | Campi compilati al momento della vendita, con eventuale sovrapprezzo. | Ordini |
+| Personalizzazione | Catalogo | Campi compilati al momento della vendita, con eventuale sovrapprezzo, sui prodotti e sui piani degli abbonamenti. | Ordini o Abbonamenti |
 | Etichette | Catalogo | Etichette con codice a barre e prezzo in PDF. | — |
 | Più sedi | Magazzino | Altre sedi con giacenze proprie e trasferimenti. | — |
 | Acquisti | Magazzino | Fornitori e costi d'acquisto nei prodotti e nei carichi, valore del magazzino. | — |

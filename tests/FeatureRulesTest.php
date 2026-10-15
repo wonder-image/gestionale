@@ -74,4 +74,62 @@ check('dipendenze e dipendenti del catalogo vero', function () {
         && in_array('backorders', FeatureRules::dependents($vero, 'orders'), true);
 });
 
+// G10b.4: Personalizzazione con Ordini OPPURE Abbonamenti.
+$conAlternative = FeatureCatalog::fromArray([
+    'orders' => ['name' => 'Ordini', 'area' => 'Vendite'],
+    'subscriptions' => ['name' => 'Abbonamenti', 'area' => 'Vendite'],
+    'customizations' => ['name' => 'Personalizzazione', 'area' => 'Catalogo', 'requires_any' => ['orders', 'subscriptions']],
+]);
+
+check('requires_any: accesa senza alternative attive tira su la prima', function () use ($conAlternative) {
+    $esito = FeatureRules::apply($conAlternative, [], ['customizations' => true]);
+
+    return $esito['state'] === ['orders' => true, 'subscriptions' => false, 'customizations' => true];
+});
+
+check('requires_any: con gli abbonamenti accesi non tira su gli ordini', function () use ($conAlternative) {
+    $esito = FeatureRules::apply($conAlternative, ['subscriptions' => true], ['customizations' => true]);
+
+    return $esito['state'] === ['orders' => false, 'subscriptions' => true, 'customizations' => true]
+        && $esito['unlocked'] === ['customizations'];
+});
+
+check('requires_any: spenta una alternativa resta accesa con l\'altra', function () use ($conAlternative) {
+    $attuale = ['orders' => true, 'subscriptions' => true, 'customizations' => true];
+    $esito = FeatureRules::apply($conAlternative, $attuale, ['orders' => false]);
+
+    return $esito['state'] === ['orders' => false, 'subscriptions' => true, 'customizations' => true]
+        && $esito['locked'] === ['orders'];
+});
+
+check('requires_any: spente tutte le alternative si spegne', function () use ($conAlternative) {
+    $attuale = ['orders' => true, 'subscriptions' => false, 'customizations' => true];
+    $esito = FeatureRules::apply($conAlternative, $attuale, ['orders' => false]);
+
+    return $esito['state']['customizations'] === false
+        && $esito['locked'] === ['orders', 'customizations'];
+});
+
+check('requires_any: a catena con le dipendenze normali', function () {
+    $catalogo = FeatureCatalog::fromArray([
+        'orders' => ['name' => 'Ordini', 'area' => 'Vendite'],
+        'subscriptions' => ['name' => 'Abbonamenti', 'area' => 'Vendite'],
+        'customizations' => ['name' => 'Personalizzazione', 'area' => 'Catalogo', 'requires_any' => ['orders', 'subscriptions']],
+        'engraving' => ['name' => 'Incisione', 'area' => 'Catalogo', 'requires' => ['customizations']],
+    ]);
+    $su = FeatureRules::apply($catalogo, [], ['engraving' => true]);
+    $giu = FeatureRules::apply($catalogo, $su['state'], ['orders' => false]);
+
+    return $su['state'] === ['orders' => true, 'subscriptions' => false, 'customizations' => true, 'engraving' => true]
+        && $giu['state'] === ['orders' => false, 'subscriptions' => false, 'customizations' => false, 'engraving' => false];
+});
+
+check('nel catalogo vero la Personalizzazione va con Ordini o Abbonamenti', function () {
+    $vero = FeatureCatalog::all();
+
+    return $vero['customizations']['requires'] === []
+        && $vero['customizations']['requires_any'] === ['orders', 'subscriptions']
+        && FeatureRules::dependencies($vero, 'customizations') === [];
+});
+
 summary();

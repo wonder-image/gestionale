@@ -105,4 +105,48 @@ check('nel catalogo vero quelle già costruite non sono segnate come future', fu
         && $catalogo['carriers']['created'] === false;
 });
 
+check('requires_any normalizzata, vuota di serie', function () {
+    $catalogo = FeatureCatalog::fromArray([
+        'a' => ['name' => 'A', 'area' => 'X'],
+        'b' => ['name' => 'B', 'area' => 'X'],
+        'c' => ['name' => 'C', 'area' => 'X', 'requires_any' => ['a', ' ', 'b']],
+    ]);
+
+    return $catalogo['a']['requires_any'] === [] && $catalogo['c']['requires_any'] === ['a', 'b'];
+});
+
+check('requires_any inesistente rifiutata', function () {
+    try {
+        FeatureCatalog::fromArray(['a' => ['name' => 'A', 'area' => 'X', 'requires_any' => ['manca']]]);
+    } catch (RuntimeException $e) {
+        return str_contains($e->getMessage(), 'manca');
+    }
+
+    return false;
+});
+
+check('requires_any circolare rifiutata', function () {
+    try {
+        FeatureCatalog::fromArray([
+            'a' => ['name' => 'A', 'area' => 'X', 'requires_any' => ['b']],
+            'b' => ['name' => 'B', 'area' => 'X', 'requires' => ['a']],
+        ]);
+    } catch (RuntimeException $e) {
+        return str_contains($e->getMessage(), 'circolare');
+    }
+
+    return false;
+});
+
+check('nomi di ciò che serve prima, con le alternative unite', function () {
+    $catalogo = FeatureCatalog::fromArray([
+        'a' => ['name' => 'Ordini', 'area' => 'X'],
+        'b' => ['name' => 'Abbonamenti', 'area' => 'X'],
+        'm' => ['name' => 'Magazzino', 'area' => 'X'],
+        'c' => ['name' => 'C', 'area' => 'X', 'requires' => ['m'], 'requires_any' => ['a', 'b']],
+    ]);
+
+    return FeatureCatalog::requiredNames($catalogo, $catalogo['c']) === ['Magazzino', 'Ordini o Abbonamenti'];
+});
+
 summary();

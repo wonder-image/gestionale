@@ -33,10 +33,7 @@ final class FeaturePanel
                 'description' => $feature['description'],
                 'enabled' => $state[$key] ?? false,
                 'settings' => $settings[$key] ?? [],
-                'requires' => array_map(
-                    static fn (string $required): string => $catalog[$required]['name'] ?? $required,
-                    $feature['requires']
-                ),
+                'requires' => FeatureCatalog::requiredNames($catalog, $feature),
                 'module' => $feature['module'],
                 // Un modulo non abilitato blocca l'interruttore: la riga si
                 // vedrebbe sbloccata senza esserlo davvero.

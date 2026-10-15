@@ -27,9 +27,7 @@ final class FeatureRules
         // Prima gli sblocchi chiesti: portano su le dipendenze che mancano.
         foreach (array_keys($catalog) as $key) {
             if (($requested[$key] ?? false) === true && ($current[$key] ?? false) !== true) {
-                foreach (self::dependencies($catalog, $key) as $dependency) {
-                    $state[$dependency] = true;
-                }
+                self::pull($catalog, $state, $key, []);
             }
         }
 
@@ -42,14 +40,19 @@ final class FeatureRules
             }
         }
 
-        // Chiusura finale: nessuna funzionalità resta attiva senza le sue dipendenze.
-        foreach (array_keys($catalog) as $key) {
-            foreach (self::dependencies($catalog, $key) as $dependency) {
-                if ($state[$key] === true && ($state[$dependency] ?? false) !== true) {
+        // Chiusura finale: nessuna funzionalità resta attiva senza le sue
+        // dipendenze o senza almeno una delle `requires_any`. Si ripete finché
+        // qualcosa si spegne: una alternativa spenta può portarsi dietro una catena.
+        do {
+            $changed = false;
+
+            foreach (array_keys($catalog) as $key) {
+                if ($state[$key] === true && !self::satisfied($catalog, $state, $key)) {
                     $state[$key] = false;
+                    $changed = true;
                 }
             }
-        }
+        } while ($changed);
 
         $unlocked = [];
         $locked = [];
@@ -67,7 +70,77 @@ final class FeatureRules
         return ['state' => $state, 'unlocked' => $unlocked, 'locked' => $locked];
     }
 
-    /** Dipendenze diritte e indirette di una funzionalità. @return list<string> */
+    /**
+     * Accende le dipendenze di una funzionalità, a catena. Per le `requires_any`
+     * va bene quella già accesa; se non ce n'è nessuna si accende la prima
+     * della lista.
+     *
+     * @param array<string, bool> $state
+     * @param list<string> $path
+     */
+    private static function pull(array $catalog, array &$state, string $key, array $path): void
+    {
+        if (in_array($key, $path, true)) {
+            return;
+        }
+
+        $path[] = $key;
+
+        foreach ($catalog[$key]['requires'] ?? [] as $required) {
+            $state[(string) $required] = true;
+            self::pull($catalog, $state, (string) $required, $path);
+        }
+
+        $any = array_map('strval', (array) ($catalog[$key]['requires_any'] ?? []));
+
+        if ($any === []) {
+            return;
+        }
+
+        $chosen = null;
+
+        foreach ($any as $candidate) {
+            if (($state[$candidate] ?? false) === true) {
+                $chosen = $candidate;
+                break;
+            }
+        }
+
+        $chosen ??= $any[0];
+        $state[$chosen] = true;
+        self::pull($catalog, $state, $chosen, $path);
+    }
+
+    /** Le dipendenze dirette accese e, se ce ne sono, almeno una `requires_any`. */
+    private static function satisfied(array $catalog, array $state, string $key): bool
+    {
+        foreach ($catalog[$key]['requires'] ?? [] as $required) {
+            if (($state[(string) $required] ?? false) !== true) {
+                return false;
+            }
+        }
+
+        $any = (array) ($catalog[$key]['requires_any'] ?? []);
+
+        if ($any === []) {
+            return true;
+        }
+
+        foreach ($any as $required) {
+            if (($state[(string) $required] ?? false) === true) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Dipendenze obbligatorie, dirette e indirette, di una funzionalità. Le
+     * `requires_any` restano fuori: nessuna delle alternative è obbligatoria.
+     *
+     * @return list<string>
+     */
     public static function dependencies(array $catalog, string $key, array $path = []): array
     {
         if (in_array($key, $path, true)) {
@@ -85,7 +158,13 @@ final class FeatureRules
         return array_values(array_unique($dependencies));
     }
 
-    /** Funzionalità che dipendono da questa, anche a catena. @return list<string> */
+    /**
+     * Funzionalità che dipendono per forza da questa, anche a catena. Chi la
+     * ha fra le `requires_any` si spegne solo se non resta accesa un'altra
+     * alternativa: lo decide la chiusura finale di `apply()`.
+     *
+     * @return list<string>
+     */
     public static function dependents(array $catalog, string $key, array $path = []): array
     {
         if (in_array($key, $path, true)) {
