@@ -349,7 +349,10 @@
                 "customer_required": "Scegli il cliente dell'abbonamento.",
                 "items_required": "Aggiungi almeno un servizio all'abbonamento.",
                 "parent_required": "Il servizio «{{name}}» si appoggia a un altro: scegli a quale.",
-                "parent_invalid": "Il servizio «{{name}}» non si appoggia a quello scelto."
+                "parent_invalid": "Il servizio «{{name}}» non si appoggia a quello scelto.",
+                "item_not_live": "Questo servizio non è in corso: non si può cambiare.",
+                "item_committed": "Il servizio è in vincolo fino al {{date}}: si toglie a fine vincolo.",
+                "link_broken": "Il piano «{{name}}» non va con i legami di questa riga (il servizio a cui si appoggia o quelli che si appoggiano a lei): togli o cambia prima quelli."
             },
             "mcp": {
                 "auth": {

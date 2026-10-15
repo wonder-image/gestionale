@@ -8,7 +8,6 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
@@ -165,7 +164,7 @@ final class OfficeSubscriptions
                 throw new RuntimeException('Abbonamento senza righe in corso.');
             }
 
-            $end = SubscriptionProration::addMonths($start, $period['term']);
+            $end = $period['end'];
             $amounts = self::periodAmounts($row, $start, $period);
 
             $values = [
@@ -269,27 +268,161 @@ final class OfficeSubscriptions
      */
     private static function periodAmounts(array $row, DateTimeImmutable $start, array $period): array
     {
-        $anchor = self::day((string) (($row['trial_ends_at'] ?? '') ?: ($row['started_at'] ?? ''))) ?? $start;
         $coupon = (int) ($row['coupon_id'] ?? 0) > 0 ? Coupon::findById((int) $row['coupon_id']) : null;
         $lines = [];
 
         foreach ($period['charged'] as $charged) {
-            $quantity = max(1, (int) ($charged['item']['quantity'] ?? 1));
-            // Il sovrapprezzo resta quello scelto alla nascita della riga: la riga lo tiene per quantità.
-            $lines[] = [
-                'price' => $charged['price'],
-                'quantity' => $quantity,
-                'surcharge' => round((float) ($charged['item']['customization_total'] ?? 0) / $quantity, 2),
-                'tax_rate' => (float) ($charged['item']['tax_rate'] ?? 0),
-            ];
+            // Il sovrapprezzo resta quello della riga; una riga che parte a metà del suo periodo paga la quota.
+            $lines[] = SubscriptionItems::amountLine(
+                $charged['item'],
+                $charged['price'],
+                isset($charged['row_start']) ? [$charged['start'], $charged['row_start'], $charged['end']] : null
+            );
         }
 
         return SubscriptionAmounts::ofItems(
             $lines,
             is_array($coupon) && $coupon !== [] ? $coupon : null,
             (string) ($row['prices_include_tax'] ?? 'true') === 'true',
-            SubscriptionProration::chargeIndex($anchor, $period['term'], $start),
+            SubscriptionProration::chargeIndex(SubscriptionItems::anchor($row), $period['term'], $start),
             $period['term']
+        );
+    }
+
+    /**
+     * I conti di una riga aggiunta o cambiata a periodo in corso (§4.1, §4.3):
+     * il periodo dell'abbonamento si accorcia se la riga rinnova prima, e con
+     * `prorate` la quota fino alla fine del periodo della riga diventa una
+     * rata. In prova e con `free` o `next_period` niente rate. Va chiamata
+     * dentro la transazione che blocca l'abbonamento.
+     *
+     * @param array<string, mixed> $subscription
+     * @param array<string, mixed> $item la riga, già scritta col prezzo nuovo
+     * @return array{amount: string, payments: list<int>}
+     */
+    public static function itemAdded(array $subscription, array $item, string $billing, DateTimeImmutable $at): array
+    {
+        $none = ['amount' => '0.00', 'payments' => []];
+
+        if ((string) $subscription['status'] === 'trialing' || $billing === 'next_period') {
+            return $none;
+        }
+
+        $price = PlanPrice::findById((int) $item['plan_price_id']);
+
+        if (!is_array($price)) {
+            return $none;
+        }
+
+        $term = max(1, (int) ($price['term_months'] ?? 1));
+        [$rowStart, $rowEnd] = SubscriptionProration::rowPeriod(SubscriptionItems::anchor($subscription), $term, $at);
+        $periodEnd = self::day((string) ($subscription['current_period_end'] ?? ''));
+
+        if ($periodEnd !== null && $periodEnd > $rowEnd) {
+            // La riga nuova rinnova prima: il periodo dell'abbonamento finisce con lei.
+            $values = ['current_period_end' => $rowEnd->format('Y-m-d H:i:s')];
+
+            if ((string) ($subscription['auto_renew'] ?? 'true') === 'true') {
+                $values['next_renewal_at'] = $rowEnd->format('Y-m-d H:i:s');
+            }
+
+            Subscription::update($values, (int) $subscription['id']);
+        }
+
+        if ($billing !== 'prorate') {
+            return $none;
+        }
+
+        $amounts = self::quotaAmounts($subscription, $item, $price, $at, $rowStart, $rowEnd);
+
+        if ((float) $amounts['total'] <= 0.0) {
+            return $none;
+        }
+
+        $label = 'Abbonamento '.(string) ($subscription['code'] ?? '').', '.SubscriptionItems::label($item)
+            .' dal '.$at->format('d/m/Y').' al '.$rowEnd->format('d/m/Y');
+
+        return [
+            'amount' => $amounts['total'],
+            'payments' => Installments::createForSubscription($subscription, (float) $amounts['total'], $at, $label),
+        ];
+    }
+
+    /**
+     * Il proforma della quota di una riga: le sue rate, archiviato a parte e
+     * spedito al cliente. Un PDF o un'email che non partono non disfano le
+     * rate: l'errore va nel registro.
+     *
+     * @param list<int> $paymentIds
+     * @return array{file: string, email: string}
+     */
+    public static function quotaProforma(int $subscriptionId, int $itemId, DateTimeImmutable $at, array $paymentIds): array
+    {
+        try {
+            $row = Subscription::findById($subscriptionId);
+            $item = SubscriptionItem::findById($itemId);
+            $price = is_array($item) ? PlanPrice::findById((int) $item['plan_price_id']) : null;
+
+            if (!is_array($row) || !is_array($item) || !is_array($price)) {
+                return ['file' => '', 'email' => 'skipped'];
+            }
+
+            [$rowStart, $rowEnd] = SubscriptionProration::rowPeriod(SubscriptionItems::anchor($row), max(1, (int) ($price['term_months'] ?? 1)), $at);
+            $amounts = self::quotaAmounts($row, $item, $price, $at, $rowStart, $rowEnd);
+            $line = $amounts['lines'][0];
+            $installments = [];
+
+            foreach ($paymentIds as $paymentId) {
+                $payment = Payment::findById($paymentId);
+
+                if (is_array($payment)) {
+                    $installments[] = ['due_date' => $payment['due_date'], 'amount' => $payment['amount']];
+                }
+            }
+
+            $data = DocumentData::forSubscription(
+                ['tax_summaries' => $amounts['tax_summaries']] + $row,
+                [[
+                    'name' => SubscriptionItems::label($item).' - dal '.$at->format('d/m/Y').' al '.$rowEnd->format('d/m/Y'),
+                    'quantity' => max(1, (int) ($item['quantity'] ?? 1)),
+                    'unit_price' => (float) $line['unit_price'],
+                    'line_total' => (float) $line['line_total'],
+                    'tax_rate' => (float) $line['tax_rate'],
+                ]],
+                [],
+                $at->format('Y-m-d H:i:s'),
+                $rowEnd->format('Y-m-d H:i:s'),
+                $installments
+            );
+            $stamp = $at->format('Ymd');
+            $file = DocumentFiles::save('proformas/'.$subscriptionId.'-'.$stamp.'-'.$itemId.'.pdf', DocumentPdfs::render('proforma', $data));
+            $path = DocumentFiles::path($file);
+            $name = 'Proforma-'.preg_replace('/[^A-Za-z0-9-]+/', '-', (string) $row['code']).'-'.$stamp.'-'.$itemId.'.pdf';
+
+            return ['file' => $file, 'email' => SubscriptionNotifier::send('proforma', $subscriptionId, $path === null ? [] : [$path => $name])['status']];
+        } catch (Throwable $error) {
+            Errors::internal($error, 'subscriptions.quota_proforma', ['subscription' => $subscriptionId, 'item' => $itemId]);
+
+            return ['file' => '', 'email' => 'failed'];
+        }
+    }
+
+    /**
+     * La quota di una riga da `$at` alla fine del suo periodo, senza coupon.
+     *
+     * @param array<string, mixed> $subscription
+     * @param array<string, mixed> $item
+     * @param array<string, mixed> $price
+     * @return array<string, mixed> come `SubscriptionAmounts::ofItems()`
+     */
+    private static function quotaAmounts(array $subscription, array $item, array $price, DateTimeImmutable $at, DateTimeImmutable $rowStart, DateTimeImmutable $rowEnd): array
+    {
+        return SubscriptionAmounts::ofItems(
+            [SubscriptionItems::amountLine($item, $price, [$at, $rowStart, $rowEnd])],
+            null,
+            (string) ($subscription['prices_include_tax'] ?? 'true') === 'true',
+            0,
+            max(1, (int) ($price['term_months'] ?? 1))
         );
     }
 
@@ -315,23 +448,6 @@ final class OfficeSubscriptions
 
         Installments::register($paymentId, $amount, $options + ['source' => 'user']);
         self::settle($subscriptionId, (int) ($options['user_id'] ?? 0));
-    }
-
-    /**
-     * Cambia piano: il nuovo prezzo vale dal periodo dopo (G10.13), senza
-     * conguagli; le rate del periodo in corso restano.
-     */
-    public static function changePlan(int $subscriptionId, int $newPriceId, int $userId = 0): void
-    {
-        $row = self::live($subscriptionId);
-        $price = PlanPrice::findById($newPriceId);
-        $plan = is_array($price) ? Plan::findById((int) $price['plan_id']) : null;
-
-        if (!is_array($price) || (string) ($price['active'] ?? 'false') !== 'true' || !is_array($plan) || (string) ($plan['active'] ?? 'false') !== 'true') {
-            throw UserError::make('subscription.price_unavailable');
-        }
-
-        SubscriptionItems::changePrice($row, $price, 'user', $userId);
     }
 
     /**
@@ -398,11 +514,20 @@ final class OfficeSubscriptions
         foreach ($rows as $row) {
             try {
                 $id = (int) $row['id'];
+
+                if (self::dailyItems($row, $today)) {
+                    $done['ended']++;
+
+                    continue;
+                }
+
+                $row = Subscription::findById($id) ?: $row;
                 $renewal = self::day((string) ($row['next_renewal_at'] ?? ''));
                 $periodEnd = self::day((string) ($row['current_period_end'] ?? ''));
 
-                // Disdetto: alla fine del periodo (e del vincolo) finisce.
-                if ((string) $row['auto_renew'] !== 'true' && $periodEnd !== null && $periodEnd <= $today && !self::committed($row, $periodEnd)) {
+                // Disdetto: alla fine del periodo (e del vincolo) finisce, se nessun servizio va oltre.
+                if ((string) $row['auto_renew'] !== 'true' && $periodEnd !== null && $periodEnd <= $today && !self::committed($row, $periodEnd)
+                    && !self::endingAfter($id, $periodEnd)) {
                     Subscription::update(['ended_at' => $periodEnd->format('Y-m-d H:i:s'), 'cancelled_at' => date('Y-m-d H:i:s')], $id);
                     SubscriptionStatus::move($id, 'cancelled', 'cron', 'Fine del periodo dopo la disdetta');
                     $done['ended']++;
@@ -437,6 +562,66 @@ final class OfficeSubscriptions
         }
 
         return $done;
+    }
+
+    /**
+     * Le righe nel giro giornaliero, prima dei periodi: le `ending` arrivate
+     * alla fine si chiudono, i prezzi di rinnovo a fine vincolo e i cambi
+     * «dal prossimo periodo» arrivati al giorno si applicano (con le loro
+     * quote). Senza più righe in corso l'abbonamento finisce.
+     *
+     * @param array<string, mixed> $row
+     * @return bool true se l'abbonamento è finito
+     */
+    private static function dailyItems(array $row, DateTimeImmutable $today): bool
+    {
+        $id = (int) $row['id'];
+
+        foreach (SubscriptionItems::forSubscription($id, ['ending']) as $item) {
+            $ends = self::day((string) ($item['ends_at'] ?? ''));
+
+            if ($ends !== null && $ends <= $today) {
+                SubscriptionItem::update(['status' => 'ended'], (int) $item['id']);
+            }
+        }
+
+        if ((string) $row['status'] !== 'unpaid') {
+            $applied = Transaction::run(static function () use ($id, $today): array {
+                $locked = self::lock($id);
+                SubscriptionItems::scheduleRenewals($locked, $today);
+
+                return SubscriptionItems::applyScheduled($locked, $today);
+            });
+
+            foreach ($applied as $change) {
+                if ($change['payments'] !== []) {
+                    self::quotaProforma($id, $change['item'], $change['at'], $change['payments']);
+                }
+            }
+        }
+
+        if (SubscriptionItems::forSubscription($id, ['pending', 'active', 'ending']) !== []) {
+            return false;
+        }
+
+        Subscription::update(['auto_renew' => 'false', 'next_renewal_at' => '', 'ended_at' => $today->format('Y-m-d H:i:s'), 'cancelled_at' => date('Y-m-d H:i:s')], $id);
+        SubscriptionStatus::move($id, 'cancelled', 'cron', 'Nessun servizio in corso');
+
+        return true;
+    }
+
+    /** Una riga che si sta chiudendo dopo `$date`: l'abbonamento va avanti fino a lei. */
+    private static function endingAfter(int $subscriptionId, DateTimeImmutable $date): bool
+    {
+        foreach (SubscriptionItems::forSubscription($subscriptionId, ['ending']) as $item) {
+            $ends = self::day((string) ($item['ends_at'] ?? ''));
+
+            if ($ends !== null && $ends > $date) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** I giorni dell'impostazione «Giorni prima di non pagato». */

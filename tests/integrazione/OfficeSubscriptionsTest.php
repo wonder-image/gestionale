@@ -36,6 +36,7 @@ use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Payments\Installments;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\OfficeSubscriptions;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionItems;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -290,10 +291,14 @@ check('annulla: chiuso subito, le rate in attesa annullate', fn () => prova(stat
     return $esito['ok'] && stato($id) === 'cancelled' && rate($id) === [] && count(rate($id, 'cancelled')) === 2;
 }));
 
-check('cambio piano: il prezzo nuovo vale dal periodo dopo', fn () => prova(static function (): bool {
+check('cambio del servizio dal prossimo rinnovo: il prezzo nuovo vale dal periodo dopo', fn () => prova(static function (): bool {
     $p = piano();
     $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'plan_price_id' => $p['mensile'], 'starts_at' => '2026-03-01']);
-    $esito = SubscriptionActionResource::run('change_plan', $id, ['plan_price_id' => $p['annuale']], 0);
+    $esito = SubscriptionActionResource::run('change_item', $id, [
+        'item_id' => (int) SubscriptionItems::main($id)['id'],
+        'plan_price_id' => $p['annuale'],
+        'billing' => 'next_period',
+    ], 0);
     $adesso = round((float) Subscription::findById($id)['total'], 2);
     OfficeSubscriptions::daily(new DateTimeImmutable('2026-04-01'));
     $riga = Subscription::findById($id);
