@@ -94,6 +94,41 @@ final class StripeBilling implements SubscriptionGateway
         return $this->client()->billingPortal->sessions->create($params, $this->options())->toArray();
     }
 
+    public function createSubscriptionItem(array $params, string $idempotencyKey): array
+    {
+        return $this->client()->subscriptionItems->create($params, $this->options($idempotencyKey))->toArray();
+    }
+
+    public function updateSubscriptionItem(string $id, array $params): array
+    {
+        return $this->client()->subscriptionItems->update($id, $params, $this->options())->toArray();
+    }
+
+    public function deleteSubscriptionItem(string $id, array $params): array
+    {
+        return $this->client()->subscriptionItems->delete($id, $params, $this->options())->toArray();
+    }
+
+    public function createSubscriptionSchedule(array $params, string $idempotencyKey): array
+    {
+        return $this->client()->subscriptionSchedules->create($params, $this->options($idempotencyKey))->toArray();
+    }
+
+    public function updateSubscriptionSchedule(string $id, array $params): array
+    {
+        return $this->client()->subscriptionSchedules->update($id, $params, $this->options())->toArray();
+    }
+
+    public function retrieveSubscriptionSchedule(string $id): array
+    {
+        return $this->client()->subscriptionSchedules->retrieve($id, [], $this->options())->toArray();
+    }
+
+    public function previewInvoice(array $params): array
+    {
+        return $this->client()->invoices->createPreview($params, $this->options())->toArray();
+    }
+
     private function client(): StripeClient
     {
         return $this->client ??= new StripeClient(['api_key' => $this->secretKey, 'stripe_version' => Stripe::API_VERSION]);

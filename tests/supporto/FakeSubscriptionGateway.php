@@ -20,6 +20,9 @@ final class FakeSubscriptionGateway implements SubscriptionGateway
 
     private int $next = 0;
 
+    /** L'`amount_due` delle anteprime, in centesimi: lo sceglie il test. */
+    public int $previewAmountDue = 0;
+
     public function __construct(public string $env = 'test', public bool $isConnected = true)
     {
     }
@@ -104,6 +107,52 @@ final class FakeSubscriptionGateway implements SubscriptionGateway
         $this->calls[] = ['billing_portal.session', $params];
 
         return ['id' => 'bps_'.(++$this->next), 'url' => 'https://billing.stripe.test/p/'.$this->next] + $params;
+    }
+
+    public function createSubscriptionItem(array $params, string $idempotencyKey): array
+    {
+        return $this->make('si_fake', 'subscription_item', $params, $idempotencyKey);
+    }
+
+    public function updateSubscriptionItem(string $id, array $params): array
+    {
+        $this->calls[] = ['subscription_item.update', ['id' => $id] + $params];
+
+        return $this->objects[$id] = array_replace($this->objects[$id] ?? ['id' => $id, 'object' => 'subscription_item'], $params);
+    }
+
+    public function deleteSubscriptionItem(string $id, array $params): array
+    {
+        $this->calls[] = ['subscription_item.delete', ['id' => $id] + $params];
+        unset($this->objects[$id]);
+
+        return ['id' => $id, 'object' => 'subscription_item', 'deleted' => true];
+    }
+
+    public function createSubscriptionSchedule(array $params, string $idempotencyKey): array
+    {
+        return $this->make('sub_sched_fake', 'subscription_schedule', $params, $idempotencyKey);
+    }
+
+    public function updateSubscriptionSchedule(string $id, array $params): array
+    {
+        $this->calls[] = ['subscription_schedule.update', ['id' => $id] + $params];
+
+        return $this->objects[$id] = array_replace($this->objects[$id] ?? ['id' => $id, 'object' => 'subscription_schedule'], $params);
+    }
+
+    public function retrieveSubscriptionSchedule(string $id): array
+    {
+        $this->calls[] = ['subscription_schedule.retrieve', ['id' => $id]];
+
+        return $this->objects[$id] ?? throw new RuntimeException('Schedule sconosciuto: '.$id);
+    }
+
+    public function previewInvoice(array $params): array
+    {
+        $this->calls[] = ['invoice.preview', $params];
+
+        return ['object' => 'invoice', 'amount_due' => $this->previewAmountDue, 'lines' => ['data' => []]];
     }
 
     /** Quante chiamate di quel tipo. */
