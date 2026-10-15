@@ -198,7 +198,7 @@ final class OnlineSubscriptions
         $gateway->updateSubscription((string) $row['provider_reference'], ['items' => [$item], 'proration_behavior' => 'none']);
 
         SubscriptionItems::changePrice($row, $price, StatusLogger::normalizeSource($source), (int) ($userId ?? 0));
-        Subscription::update(self::amountsFor($row, $newPriceId), $subscriptionId);
+        Subscription::update(self::amountsFor($row), $subscriptionId);
     }
 
     /**
@@ -354,26 +354,37 @@ final class OnlineSubscriptions
     }
 
     /**
-     * Gli importi del periodo per l'abbonamento così com'è (prezzo della riga
-     * principale, o `$priceId`; coupon, aliquota): per il prossimo addebito,
-     * contando quelli già pagati.
+     * Gli importi del periodo per l'abbonamento così com'è: le righe non
+     * chiuse coi loro prezzi, quantità e sovrapprezzi, il coupon contato sugli
+     * addebiti già pagati e sulla durata più corta.
      *
      * @param array<string, mixed> $row
      * @return array{subtotal: string, discount_total: string, tax_total: string, total: string}
      */
-    public static function amountsFor(array $row, ?int $priceId = null): array
+    public static function amountsFor(array $row): array
     {
-        $price = PlanPrice::findById($priceId ?? SubscriptionItems::priceIdOf($row));
+        $lines = [];
+        $terms = [];
+
+        foreach (SubscriptionItems::forSubscription((int) ($row['id'] ?? 0), ['pending', 'active', 'ending']) as $item) {
+            $price = PlanPrice::findById((int) $item['plan_price_id']);
+
+            if (is_array($price) && (int) ($price['id'] ?? 0) > 0) {
+                $lines[] = SubscriptionItems::amountLine($item, $price);
+                $terms[] = max(1, (int) ($price['term_months'] ?? 1));
+            }
+        }
+
         $coupon = (int) ($row['coupon_id'] ?? 0) > 0 ? Coupon::findById((int) $row['coupon_id']) : null;
         $charges = (int) ($row['id'] ?? 0) > 0
             ? (int) sqlCount(Payment::$table, '`subscription_id` = '.(int) $row['id']." AND `type` = 'payment' AND `status` = 'paid' AND `deleted` = 'false'")
             : 0;
-        $amounts = SubscriptionAmounts::of(
-            is_array($price) ? $price : [],
+        $amounts = SubscriptionAmounts::ofItems(
+            $lines,
             is_array($coupon) && $coupon !== [] ? $coupon : null,
-            (float) ($row['tax_rate'] ?? 0),
             (string) ($row['prices_include_tax'] ?? 'true') === 'true',
-            $charges
+            $charges,
+            $terms === [] ? 1 : min($terms)
         );
 
         return [

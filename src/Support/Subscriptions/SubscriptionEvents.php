@@ -73,7 +73,7 @@ final class SubscriptionEvents
 
         $id = (int) $row['id'];
 
-        Transaction::run(static function () use ($row, $id, $data, $source): void {
+        Transaction::run(static function () use ($row, $id, $data, $source, $deleted): void {
             // Una disdetta chiesta durante il vincolo resta tale: Stripe la riceve a fine vincolo.
             $renews = $data['auto_renew'] && self::empty($row['cancel_requested_at'] ?? '');
             $values = [
@@ -88,21 +88,15 @@ final class SubscriptionEvents
             }
 
             $live = in_array($data['status'], Subscription::LIVE, true);
+            // Un abbonamento chiuso non tocca le righe: le chiude `SubscriptionStatus`.
+            $changed = !$deleted && self::syncItems($row, $data['items'], $source);
 
             if ($live && self::empty($row['started_at'] ?? '')) {
                 $values['started_at'] = $data['started_at'] ?? date('Y-m-d H:i:s');
-                $item = SubscriptionItems::main((int) $row['id']);
-                $price = PlanPrice::findById((int) ($item['plan_price_id'] ?? 0));
-                $months = is_array($price) ? (int) ($price['commitment_months'] ?? 0) : 0;
-                $itemValues = ['starts_at' => $values['started_at']];
+                $commitment = self::startItems($id, $values['started_at']);
 
-                if ($months > 0) {
-                    $values['commitment_ends_at'] = date('Y-m-d H:i:s', (int) strtotime('+'.$months.' months', (int) strtotime($values['started_at'])));
-                    $itemValues['commitment_ends_at'] = $values['commitment_ends_at'];
-                }
-
-                if ($item !== null) {
-                    SubscriptionItem::update($itemValues, (int) $item['id']);
+                if ($commitment !== '') {
+                    $values['commitment_ends_at'] = $commitment;
                 }
             }
 
@@ -111,13 +105,8 @@ final class SubscriptionEvents
                 ? $data['current_period_end']
                 : '';
 
-            $priceId = $data['price'] !== '' ? self::planPriceOf($data['price']) : 0;
-
-            $newPrice = $priceId > 0 ? PlanPrice::findById($priceId) : null;
-
-            // Cambiato altrove (portale, dashboard): si registra come un cambio di piano.
-            if (is_array($newPrice) && SubscriptionItems::changePrice($row, $newPrice, $source)) {
-                $values += OnlineSubscriptions::amountsFor($row, $priceId);
+            if ($changed) {
+                $values += OnlineSubscriptions::amountsFor($row);
             }
 
             Subscription::update($values, $id);
@@ -245,6 +234,130 @@ final class SubscriptionEvents
         $row = Subscription::find(['code' => $code, 'environment' => $environment, 'deleted' => 'false'], 1);
 
         return is_array($row) && (int) ($row['id'] ?? 0) > 0 ? $row : null;
+    }
+
+    /**
+     * Allinea le righe agli item di Stripe. Ogni item trova la sua riga dal
+     * `metadata.item_id`, poi dal suo `si_`, poi dal prezzo Stripe scritto al
+     * checkout (le righe del checkout non hanno metadati); un item solo e una
+     * riga sola rimasti si abbinano (abbonamenti di prima delle righe). Un
+     * prezzo diverso cambia la riga; un item senza riga ne crea una; una riga
+     * già legata a Stripe che non ha più il suo item si chiude. Le righe in
+     * attesa senza item (un cambio dal prossimo periodo) restano. Ridà `true`
+     * se gli importi vanno rifatti.
+     *
+     * @param array<string, mixed> $row
+     * @param list<array{id: string, price: string, quantity: int, item_id: int}> $remote
+     */
+    private static function syncItems(array $row, array $remote, string $source): bool
+    {
+        $open = [];
+
+        foreach (SubscriptionItems::forSubscription((int) $row['id']) as $item) {
+            if ((string) $item['status'] !== 'ended') {
+                $open[(int) $item['id']] = $item;
+            }
+        }
+
+        $matched = [];
+        $left = [];
+
+        foreach ($remote as $one) {
+            $hit = $one['item_id'] > 0 && isset($open[$one['item_id']]) && !isset($matched[$one['item_id']]) ? $one['item_id'] : 0;
+
+            foreach ($hit === 0 && $one['id'] !== '' ? $open : [] as $itemId => $item) {
+                if (!isset($matched[$itemId]) && (string) ($item['provider_reference'] ?? '') === $one['id']) {
+                    $hit = $itemId;
+                    break;
+                }
+            }
+
+            if ($hit > 0) {
+                $matched[$hit] = $one;
+            } else {
+                $left[] = $one;
+            }
+        }
+
+        $free = static function (int $itemId, array $item) use (&$matched): bool {
+            return !isset($matched[$itemId]) && trim((string) ($item['provider_reference'] ?? '')) === '';
+        };
+
+        foreach ($left as $index => $one) {
+            foreach ($open as $itemId => $item) {
+                if ($one['price'] !== '' && $free($itemId, $item) && (string) ($item['provider_price'] ?? '') === $one['price']) {
+                    $matched[$itemId] = $one;
+                    unset($left[$index]);
+                    break;
+                }
+            }
+        }
+
+        if (count($left) === 1) {
+            $candidates = array_filter($open, static fn (array $item, int $itemId): bool => $free($itemId, $item) && in_array((string) $item['status'], SubscriptionItem::LIVE, true), ARRAY_FILTER_USE_BOTH);
+
+            if (count($candidates) === 1) {
+                $matched[(int) array_key_first($candidates)] = array_shift($left);
+            }
+        }
+
+        $changed = false;
+
+        foreach ($matched as $itemId => $one) {
+            $item = $open[$itemId];
+            SubscriptionItem::update(['provider_reference' => $one['id'], 'provider_price' => $one['price']], $itemId);
+            $priceId = $one['price'] !== '' ? self::planPriceOf($one['price']) : 0;
+            $price = $priceId > 0 && $priceId !== (int) $item['plan_price_id'] ? PlanPrice::findById($priceId) : null;
+
+            // Cambiato altrove (portale, dashboard): si registra come un cambio della riga.
+            if (is_array($price) && SubscriptionItems::changePrice($row, $price, $source, 0, $item)) {
+                $changed = true;
+            }
+        }
+
+        foreach ($left as $one) {
+            $priceId = $one['price'] !== '' ? self::planPriceOf($one['price']) : 0;
+            $price = $priceId > 0 ? PlanPrice::findById($priceId) : null;
+
+            if (is_array($price) && (int) ($price['id'] ?? 0) > 0) {
+                SubscriptionItems::fromProvider($row, $price, $one['quantity'], $one['id'], $one['price'], $source);
+                $changed = true;
+            }
+        }
+
+        foreach ($open as $itemId => $item) {
+            if (!isset($matched[$itemId]) && trim((string) ($item['provider_reference'] ?? '')) !== ''
+                && in_array((string) $item['status'], SubscriptionItem::LIVE, true)) {
+                SubscriptionItems::endFromProvider($item, $source);
+                $changed = true;
+            }
+        }
+
+        return $changed;
+    }
+
+    /**
+     * La prima attivazione: le righe non chiuse partono da `$startedAt`, col
+     * vincolo del loro prezzo. Ridà il vincolo più lontano, '' se nessuno.
+     */
+    private static function startItems(int $subscriptionId, string $startedAt): string
+    {
+        $latest = '';
+
+        foreach (SubscriptionItems::forSubscription($subscriptionId, ['pending', 'active', 'ending']) as $item) {
+            $price = PlanPrice::findById((int) $item['plan_price_id']);
+            $months = is_array($price) ? (int) ($price['commitment_months'] ?? 0) : 0;
+            $itemValues = ['starts_at' => $startedAt];
+
+            if ($months > 0) {
+                $itemValues['commitment_ends_at'] = date('Y-m-d H:i:s', (int) strtotime('+'.$months.' months', (int) strtotime($startedAt)));
+                $latest = max($latest, $itemValues['commitment_ends_at']);
+            }
+
+            SubscriptionItem::update($itemValues, (int) $item['id']);
+        }
+
+        return $latest;
     }
 
     /** Il prezzo del piano che ha quel prezzo Stripe; 0 se nessuno. */

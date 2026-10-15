@@ -21,6 +21,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItemChange;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Providers\Payments\PaymentEvent;
@@ -456,6 +457,91 @@ check('più di 20 servizi: rifiutato prima di scrivere e di chiamare Stripe', fn
 
     return $errore === 'subscription.too_many_items' && $stripe->count('checkout.session.create') === 0
         && righe(Subscription::class, ['customer_id' => $persona]) === [];
+}));
+
+/** Un abbonamento Stripe con questi item: [si_, prezzo Stripe, quantità, item_id nei metadati]. */
+function conItem(string $id, int $locale, string $stato, array $item): array
+{
+    $oggetto = abbonamentoStripe($id, $locale, $stato, '');
+    $inizio = time();
+    $oggetto['items']['data'] = array_map(static fn (array $uno): array => [
+        'id' => $uno[0], 'price' => ['id' => $uno[1]], 'quantity' => $uno[2] ?? 1,
+        'metadata' => isset($uno[3]) ? ['item_id' => (string) $uno[3]] : [],
+        'current_period_start' => $inizio, 'current_period_end' => $inizio + 30 * 86400,
+    ], $item);
+
+    return $oggetto;
+}
+
+/** Tre servizi venduti online e partiti su Stripe: ridà [id, righe, prezzi Stripe]. */
+function treServiziAttivi(string $sub): array
+{
+    $dominio = servizioOnline('Dominio', 12, '12.20');
+    $hosting = servizioOnline('Hosting', 12, '61.00');
+    $assistenza = servizioOnline('Assistenza', 1, '10.00');
+    PlanPrice::update(['commitment_months' => 12], (int) $hosting['id']);
+    $avvio = iniziaServizi(cliente(), [
+        ['price_code' => (string) $dominio['code']],
+        ['price_code' => (string) $hosting['code'], 'quantity' => 2],
+        ['price_code' => (string) $assistenza['code'], 'quantity' => 3],
+    ]);
+    $id = $avvio['subscription_id'];
+    $prezzi = array_column(SubscriptionItems::forSubscription($id), 'provider_price');
+    // Le righe del Checkout arrivano senza metadati: si riconoscono dal prezzo Stripe.
+    SubscriptionEvents::apply(notifica('customer.subscription.created', conItem($sub, $id, 'incomplete', [['si_a', $prezzi[0]], ['si_b', $prezzi[1], 2], ['si_c', $prezzi[2], 3]])));
+
+    return [$id, SubscriptionItems::forSubscription($id), $prezzi];
+}
+
+check('più servizi su Stripe: gli item trovano le righe dal prezzo, poi partono insieme col vincolo di ognuna', fn () => prova(static function (): bool {
+    [$id, $prima, $prezzi] = treServiziAttivi('sub_M1');
+    SubscriptionEvents::apply(notifica('customer.subscription.updated', conItem('sub_M1', $id, 'active', [['si_a', $prezzi[0]], ['si_b', $prezzi[1], 2], ['si_c', $prezzi[2], 3]])));
+    $dopo = SubscriptionItems::forSubscription($id);
+    $abbonamento = Subscription::findById($id);
+    $vincoli = array_map(static fn (array $r): bool => trim((string) $r['commitment_ends_at']) !== '' && !str_starts_with((string) $r['commitment_ends_at'], '0000'), $dopo);
+
+    return array_column($prima, 'provider_reference') === ['si_a', 'si_b', 'si_c'] && array_unique(array_column($prima, 'status')) === ['pending']
+        && array_unique(array_column($dopo, 'status')) === ['active'] && count($dopo) === 3
+        && array_unique(array_column($dopo, 'starts_at')) === [(string) $abbonamento['started_at']]
+        && $vincoli === [false, true, false]
+        && (string) $abbonamento['commitment_ends_at'] === (string) $dopo[1]['commitment_ends_at']
+        && round((float) $abbonamento['total'], 2) === round(array_sum(array_map(static fn (array $r): float => (float) $r['total'], $dopo)), 2)
+        && count(righe(SubscriptionItemChange::class, ['subscription_id' => $id, 'action' => 'changed'])) === 0;
+}));
+
+check('più servizi su Stripe: un item tolto chiude la riga, uno con item_id e un altro prezzo la cambia, uno nuovo la crea', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    [$id, $righe, $prezzi] = treServiziAttivi('sub_M2');
+    SubscriptionEvents::apply(notifica('customer.subscription.updated', conItem('sub_M2', $id, 'active', [['si_a', $prezzi[0]], ['si_b', $prezzi[1], 2], ['si_c', $prezzi[2], 3]])));
+    $catalogo = new Wonder\Plugin\Gestionale\Support\Subscriptions\StripeCatalog($stripe);
+    $premium = servizioOnline('Assistenza premium', 1, '25.00');
+    $backup = servizioOnline('Backup', 1, '5.00');
+    // Dal portale: tolto il dominio, l'assistenza passa a premium (item_id nei metadati), il backup è nuovo.
+    SubscriptionEvents::apply(notifica('customer.subscription.updated', conItem('sub_M2', $id, 'active', [
+        ['si_b', $prezzi[1], 2],
+        ['si_c', $catalogo->priceFor((int) $premium['id']), 3, (int) $righe[2]['id']],
+        ['si_d', $catalogo->priceFor((int) $backup['id']), 4],
+    ])));
+    $dopo = SubscriptionItems::forSubscription($id);
+    $vive = SubscriptionItems::forSubscription($id, ['active']);
+    $abbonamento = Subscription::findById($id);
+    $storia = static fn (string $azione): array => righe(SubscriptionItemChange::class, ['subscription_id' => $id, 'action' => $azione]);
+    $assistenza = SubscriptionItem::findById((int) $righe[2]['id']);
+    $nuova = end($dopo);
+
+    // Una seconda notifica uguale non cambia niente.
+    SubscriptionEvents::apply(notifica('customer.subscription.updated', conItem('sub_M2', $id, 'active', [
+        ['si_b', $prezzi[1], 2],
+        ['si_c', $catalogo->priceFor((int) $premium['id']), 3, (int) $righe[2]['id']],
+        ['si_d', $catalogo->priceFor((int) $backup['id']), 4],
+    ])));
+
+    return count($dopo) === 4 && (string) $dopo[0]['status'] === 'ended' && trim((string) $dopo[0]['ends_at']) !== ''
+        && count($vive) === 3
+        && (int) $assistenza['plan_price_id'] === (int) $premium['id'] && (int) $assistenza['quantity'] === 3 && round((float) $assistenza['subtotal'], 2) === 75.0
+        && (int) $nuova['plan_price_id'] === (int) $backup['id'] && (int) $nuova['quantity'] === 4 && (string) $nuova['provider_reference'] === 'si_d'
+        && count($storia('removed')) === 1 && count($storia('changed')) === 1 && count($storia('added')) === 4
+        && round((float) $abbonamento['total'], 2) === round(array_sum(array_map(static fn (array $r): float => (float) $r['total'], $vive)), 2)
+        && count(SubscriptionItems::forSubscription($id)) === 4 && count($storia('changed')) === 1 && count($storia('removed')) === 1;
 }));
 
 check('limite: un abbonamento attivo blocca, un pending online di 30 ore no', fn () => prova(static function (): bool {

@@ -1045,23 +1045,25 @@ final class SubscriptionItems
     }
 
     /**
-     * Cambia il prezzo della riga principale e lo scrive nella storia
-     * (`changed`, dal periodo dopo). Gli importi della riga seguono il prezzo
-     * nuovo. Ridà `false` se il prezzo è già quello.
+     * Cambia il prezzo di una riga (la principale, se non è data) e lo scrive
+     * nella storia (`changed`, dal periodo dopo). Gli importi della riga
+     * seguono il prezzo nuovo, con la sua quantità e il suo sovrapprezzo.
+     * Ridà `false` se il prezzo è già quello.
      *
      * @param array<string, mixed> $subscription
      * @param array<string, mixed> $price il prezzo nuovo
+     * @param array<string, mixed>|null $item
      */
-    public static function changePrice(array $subscription, array $price, string $source, int $userId = 0): bool
+    public static function changePrice(array $subscription, array $price, string $source, int $userId = 0, ?array $item = null): bool
     {
-        $item = self::main((int) $subscription['id']);
+        $item ??= self::main((int) $subscription['id']);
         $old = (int) ($item['plan_price_id'] ?? 0);
 
         if ($item === null || $old === (int) $price['id']) {
             return false;
         }
 
-        $amounts = SubscriptionAmounts::of($price, null, (float) ($item['tax_rate'] ?? 0), (string) ($subscription['prices_include_tax'] ?? 'true') === 'true', 0);
+        $amounts = SubscriptionAmounts::ofItems([self::amountLine($item, $price)], null, (string) ($subscription['prices_include_tax'] ?? 'true') === 'true', 0, max(1, (int) ($price['term_months'] ?? 1)));
         $now = date('Y-m-d H:i:s');
 
         SubscriptionItemChange::create([
@@ -1080,13 +1082,77 @@ final class SubscriptionItems
         ]);
         SubscriptionItem::update([
             'plan_price_id' => (int) $price['id'],
-            'unit_price' => $amounts['unit_price'],
+            'unit_price' => $amounts['lines'][0]['unit_price'],
             'subtotal' => $amounts['subtotal'],
             'tax_total' => $amounts['tax_total'],
             'total' => $amounts['total'],
         ], (int) $item['id']);
 
         return true;
+    }
+
+    /**
+     * Una riga aggiunta fuori dal gestionale (portale, dashboard di Stripe):
+     * `active` da subito, all'aliquota dell'abbonamento, con la sua voce
+     * `added` nella storia. Ridà l'id della riga.
+     *
+     * @param array<string, mixed> $subscription
+     * @param array<string, mixed> $price
+     */
+    public static function fromProvider(array $subscription, array $price, int $quantity, string $reference, string $providerPrice, string $source): int
+    {
+        $subscriptionId = (int) $subscription['id'];
+        $item = ['quantity' => max(1, $quantity), 'customization_total' => 0, 'tax_rate' => (float) ($subscription['tax_rate'] ?? 0)];
+        $amounts = SubscriptionAmounts::ofItems([self::amountLine($item, $price)], null, (string) ($subscription['prices_include_tax'] ?? 'true') === 'true', 0, max(1, (int) ($price['term_months'] ?? 1)));
+        $now = new DateTimeImmutable();
+        $months = max(0, (int) ($price['commitment_months'] ?? 0));
+        $positions = array_map(static fn (array $row): int => (int) $row['position'], self::forSubscription($subscriptionId));
+        $created = SubscriptionItem::create([
+            'subscription_id' => $subscriptionId,
+            'plan_price_id' => (int) $price['id'],
+            'parent_item_id' => 0,
+            'quantity' => $item['quantity'],
+            'status' => 'active',
+            'customization' => '',
+            'unit_price' => $amounts['lines'][0]['unit_price'],
+            'customization_total' => '0.00',
+            'subtotal' => $amounts['subtotal'],
+            'tax_total' => $amounts['tax_total'],
+            'total' => $amounts['total'],
+            'tax_id' => (int) ($subscription['tax_id'] ?? 0),
+            'tax_rate' => number_format($item['tax_rate'], 2, '.', ''),
+            'starts_at' => $now->format('Y-m-d H:i:s'),
+            'commitment_ends_at' => $months > 0 ? SubscriptionProration::addMonths($now, $months)->format('Y-m-d H:i:s') : '',
+            'provider_reference' => $reference,
+            'provider_price' => $providerPrice,
+            'position' => ($positions === [] ? 0 : max($positions)) + 1,
+        ]);
+        $id = (int) ($created->insert_id ?? 0);
+
+        if ($id <= 0) {
+            throw new RuntimeException('Riga dell\'abbonamento non scritta.');
+        }
+
+        self::history($subscriptionId, $id, 'added', 0, (int) $price['id'], '', 0.0, 0.0, $now, 0, $source);
+
+        return $id;
+    }
+
+    /**
+     * Una riga tolta fuori dal gestionale: `ended` da adesso (o dalla fine
+     * già fissata), con la voce `removed` se non era già in chiusura.
+     *
+     * @param array<string, mixed> $item
+     */
+    public static function endFromProvider(array $item, string $source): void
+    {
+        $now = new DateTimeImmutable();
+        $end = self::date((string) ($item['ends_at'] ?? '')) ?? $now;
+        SubscriptionItem::update(['status' => 'ended', 'ends_at' => $end->format('Y-m-d H:i:s')], (int) $item['id']);
+
+        if ((string) $item['status'] !== 'ending') {
+            self::history((int) $item['subscription_id'], (int) $item['id'], 'removed', (int) $item['plan_price_id'], 0, '', 0.0, 0.0, $end, 0, $source);
+        }
     }
 
     /**
