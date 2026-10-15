@@ -791,8 +791,8 @@ abstract class StockDocumentResource extends GestionaleResource
     }
 
     /**
-     * Il numero, che apre il documento: la bozza (che un numero non ce l'ha
-     * ancora) in modifica, gli altri nella scheda.
+     * Il numero, che apre il documento: la bozza in modifica, gli altri nella
+     * scheda. Le bozze di prima della numerazione al salvataggio non l'hanno.
      */
     public static function numberCell(array $row): string
     {

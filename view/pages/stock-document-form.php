@@ -42,7 +42,12 @@ $noteHelp = match ($type) {
 };
 $noteHelp = $purchases ? 'Per esempio chi ha consegnato o cosa mancava.' : $noteHelp;
 
-\Wonder\View\View::layout('backend.form');
+$number = html_entity_decode(trim((string) ($values['number'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+$title = (string) (((array) $resource::pageSchema()->get('titles'))['edit'] ?? '');
+
+// Il numero nel titolo, dal primo salvataggio: «Bozza di carico 2026/000012».
+\Wonder\View\View::layout('backend.form', (int) ($values['id'] ?? 0) > 0 && $number !== '' && $title !== '' ? ['TITLE' => $title.' '.$number] : []);
 ?>
 <form id="wi-doc-form" method="POST" action="<?=$e($FORM_ACTION ?? '')?>" autocomplete="off">
     <?=Csrf::fieldFor('post')?>

@@ -21,8 +21,10 @@ Ogni riga è un documento: **Numero**, **Data**, **Sede** (con più sedi),
 fatto. In alto i filtri *Stato* (*Bozze*, *Confermati*, *Annullati*),
 *Periodo*, *Sede* e, negli scarichi, *Causale*.
 
-Una bozza non ha ancora numero e la sua data è quella in cui l'hai creata:
-numero e data del documento arrivano con la conferma. I tre
+Il documento prende il numero al primo salvataggio e lo tiene fino alla
+conferma; lo vedi anche nel titolo della pagina. Una bozza eliminata lascia
+un buco nella numerazione. La data della bozza è quella in cui l'hai creata:
+la data del documento arriva con la conferma. I tre
 puntini in fondo alla riga aprono il documento (*Modifica* per una bozza,
 *Visualizza* per gli altri), lo duplicano o, solo per una bozza, lo
 eliminano.
@@ -45,7 +47,7 @@ eliminano.
    finito. La conferma chiede «{pezzi} pezzi in {righe} righe entrano in
    magazzino. Dopo non si modifica più: si può solo annullare.».
 
-Confermato, il carico prende numero e data, e nei
+Confermato, il carico prende la data, e nei
 [Movimenti](magazzino-movimenti.md) compare una riga per versione.
 
 Con *Acquisti* attiva il carico ha anche **Fornitore**, il suo documento e il

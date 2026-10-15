@@ -57,6 +57,8 @@ final class StockDocuments
                 'code' => trim((string) ($options['code'] ?? '')) ?: Code::make(StockDocument::class, Codes::STOCK_DOCUMENT),
                 'type' => $type,
                 'status' => 'draft',
+                // Il numero dal primo salvataggio, come l'ordine: la bozza cancellata lascia il buco.
+                'number' => DocumentSequences::next(StockDocumentRules::sequence($type)),
                 'location_id' => $locationId,
                 'reason' => $reason,
                 'note' => trim((string) ($header['note'] ?? '')),
@@ -114,7 +116,7 @@ final class StockDocuments
     /**
      * Conferma la bozza: numero, data, stato, log e un movimento per riga, in
      * una transazione sola. Uno scarico che porterebbe sotto zero si ferma con
-     * `stock.insufficient` e la bozza resta com'era, senza numero.
+     * `stock.insufficient` e la bozza resta com'era.
      *
      * @param array{user_id?: int, source?: string} $options
      * @return string il numero del documento
@@ -140,7 +142,8 @@ final class StockDocuments
             $userId = (int) ($options['user_id'] ?? 0);
             $source = StatusLogger::normalizeSource((string) ($options['source'] ?? 'user'));
             $now = new DateTimeImmutable();
-            $number = DocumentSequences::next(StockDocumentRules::sequence($type), $now);
+            // Il numero è della bozza; le bozze di prima ne prendono uno adesso.
+            $number = trim((string) ($document['number'] ?? '')) ?: DocumentSequences::next(StockDocumentRules::sequence($type), $now);
 
             // In ordine di versione, non di riga: vedi `cancel()`.
             $ordered = $items;

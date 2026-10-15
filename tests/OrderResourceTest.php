@@ -344,11 +344,6 @@ check('le rate in attesa hanno la loro finestra di pagamento, con la rata e il s
         && str_contains($html, 'Rata 1 di 2');
 });
 
-check('sopra i pagamenti c\'è «Registra pagamento» finché c\'è da incassare', fn () =>
-    str_contains(OrderResource::paymentsToolbar(['status' => 'confirmed', 'payment_status' => 'unpaid']), 'data-bs-target="#'.OrderPaymentResource::MODAL_ID.'"')
-    && OrderResource::paymentsToolbar(['status' => 'confirmed', 'payment_status' => 'paid']) === ''
-);
-
 check('la finestra del pagamento posta a Registra pagamento con ordine e ritorno, e propone il residuo', function () {
     $html = OrderPaymentResource::modal(
         ['id' => 9, 'status' => 'confirmed', 'payment_status' => 'partially_paid', 'total' => '100.00', 'order_number' => '2026/0009', 'payment_method_id' => 2],

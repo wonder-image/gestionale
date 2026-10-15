@@ -11,7 +11,7 @@ icon: pen-to-square
 
 Fare un ordine dal gestionale: al telefono, per email, per un cliente che
 compra a rate o a cui fai un prezzo suo. L'ordine nasce come **bozza**: prende il
-**numero** al primo salvataggio, non tocca il magazzino e lo puoi modificare
+**numero** al primo salvataggio (lo vedi nel titolo, *Bozza d'ordine 2026/100390*), non tocca il magazzino e lo puoi modificare
 quanto vuoi. Quando lo **confermi** tiene lo stesso numero, la merce esce e nascono le
 [rate](vendite-pagamenti-a-rate.md).
 

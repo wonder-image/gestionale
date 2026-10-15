@@ -23,7 +23,8 @@ cambi); su ogni preventivo la puoi spostare.
 
 **Salva bozza** lo salva. Al primo salvataggio il preventivo prende il suo
 **numero**, lo stesso che avrà quando diventa ordine: la numerazione è quella
-degli ordini, quindi un preventivo eliminato o rifiutato lascia un buco.
+degli ordini, quindi un preventivo eliminato o rifiutato lascia un buco. Il
+numero lo vedi anche nel titolo della pagina, per esempio *Preventivo 2026/100390*.
 
 **Stampa**, in alto vicino a *Guida*, apre il PDF del preventivo com'è adesso,
 anche prima di inviarlo.

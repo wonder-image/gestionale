@@ -89,6 +89,11 @@ final class OfficeOrderPage
                     ->label('Cliente')
                     ->value($customerId > 0 ? (string) $customerId : '')
                     ->columnSpan(12),
+                // Sotto il cliente, a chi va l'email: il PDF del preventivo o la conferma.
+                FormField::key('notify')->toggle()
+                    ->label($quote ? 'Manda l\'email con il PDF' : 'Alla conferma scrivi al cliente')
+                    ->value($quote ? 'true' : 'false')
+                    ->columnSpan(12),
                 ...$nascosti,
             ])->columns(12)->columnSpan(12),
             self::panel('Contatti', 'contacts', OfficeCustomerPanel::CONTACTS_MODAL),
@@ -159,11 +164,7 @@ final class OfficeOrderPage
         }
 
         $pulsanti = (new Card)->components([
-            FormField::key('notify')->toggle()
-                ->label($quote ? 'Manda l\'email con il PDF' : 'Alla conferma scrivi al cliente')
-                ->value($quote ? 'true' : 'false')
-                ->columnSpan(['default' => 12, 'md' => 4]),
-            RichText::make(self::buttonsHtml($quote, $values))->tag('div')->columnSpan(['default' => 12, 'md' => 8]),
+            RichText::make(self::buttonsHtml($quote, $values))->tag('div')->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
         return (new Form)->components([

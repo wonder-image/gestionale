@@ -43,7 +43,8 @@ filtri sono *Stato*, *Periodo* e *Sede*.
 Una riga **lasciata vuota** non è uno zero: non è stata contata e non muove
 niente. Uno zero scritto, invece, vuol dire «non ce n'è nessuno».
 
-Confermato, l'inventario prende numero e data, e nei
+L'inventario prende il numero al primo salvataggio, come carichi e scarichi.
+Confermato, prende la data, e nei
 [Movimenti](magazzino-movimenti.md) compare un movimento con causale
 *Inventario* per ogni riga contata con una differenza. Le righe che tornano
 non muovono niente.
