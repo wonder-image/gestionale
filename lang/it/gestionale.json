@@ -348,6 +348,7 @@
                 "not_found": "Abbonamento non trovato.",
                 "customer_required": "Scegli il cliente dell'abbonamento.",
                 "items_required": "Aggiungi almeno un servizio all'abbonamento.",
+                "too_many_items": "Un abbonamento online ha al più {{max}} servizi: togline qualcuno.",
                 "parent_required": "Il servizio «{{name}}» si appoggia a un altro: scegli a quale.",
                 "parent_invalid": "Il servizio «{{name}}» non si appoggia a quello scelto.",
                 "item_not_live": "Questo servizio non è in corso: non si può cambiare.",
