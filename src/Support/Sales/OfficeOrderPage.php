@@ -89,6 +89,11 @@ final class OfficeOrderPage
                     ->label('Cliente')
                     ->value($customerId > 0 ? (string) $customerId : '')
                     ->columnSpan(12),
+                // Sotto il cliente, a chi va l'email: il PDF del preventivo o la conferma.
+                FormField::key('notify')->toggle()
+                    ->label($quote ? 'Manda l\'email con il PDF' : 'Alla conferma scrivi al cliente')
+                    ->value($quote ? 'true' : 'false')
+                    ->columnSpan(12),
                 ...$nascosti,
             ])->columns(12)->columnSpan(12),
             self::panel('Contatti', 'contacts', OfficeCustomerPanel::CONTACTS_MODAL),
@@ -159,11 +164,7 @@ final class OfficeOrderPage
         }
 
         $pulsanti = (new Card)->components([
-            FormField::key('notify')->toggle()
-                ->label($quote ? 'Manda l\'email con il PDF' : 'Alla conferma scrivi al cliente')
-                ->value($quote ? 'true' : 'false')
-                ->columnSpan(['default' => 12, 'md' => 4]),
-            RichText::make(self::buttonsHtml($quote, $values))->tag('div')->columnSpan(['default' => 12, 'md' => 8]),
+            RichText::make(self::buttonsHtml($quote, $values))->tag('div')->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
         return (new Form)->components([
@@ -302,53 +303,103 @@ final class OfficeOrderPage
     }
 
     /**
-     * I pulsanti in fondo. *Salva bozza* è il primo, così Invio salva; quelli
-     * che cancellano stanno a sinistra e l'isola di salvataggio non li copia.
+     * Le azioni sulla pagina, nell'ordine della testa: per il preventivo
+     * *Trasforma in ordine*, *Invia al cliente* ed *Elimina*; per la bozza
+     * *Conferma ordine* ed *Elimina bozza*. *Rifiutato* resta in fondo.
+     *
+     * @return list<array{intent: string, label: string, icon: string, variant: string, outline: bool, header: bool, confirm: array{0: string, 1: string, 2: string, 3: string}}>
      */
-    private static function buttonsHtml(bool $quote, array $values): string
+    public static function intents(bool $quote, array $values): array
     {
         $editing = (int) ($values['id'] ?? 0) > 0;
         $status = (string) ($values['status'] ?? 'draft');
-        $neverSent = trim((string) ($values['quote_number'] ?? '')) === '';
-        $invia = static fn (string $intent, string $label, string $variant, bool $outline, string $icon = ''): Button => ($icon === ''
-            ? Button::make($label)
-            : Button::make($label)->icon($icon))
-            ->type('submit')
-            ->attr('name', 'intent')
-            ->attr('value', $intent)
-            ->variant($variant)
-            ->outline($outline)
-            ->schema('inline', true);
-        $aSinistra = static fn (Button $button): Button => $button->attr('class', 'order-first me-auto')->attr('data-wi-save-bar-ignore', true);
-        $pulsanti = [$invia('save', 'Salva bozza', 'dark', true)];
+        $neverSent = (int) ($values['quote_revision'] ?? 0) === 0;
+        $intents = [];
 
         if ($quote) {
             // Anche su un preventivo nuovo: prima si salva, poi passa a ordine.
             if (in_array($status, ['draft', 'sent'], true)) {
-                $pulsanti[] = $invia('accept', 'Trasforma in ordine', 'success', true, 'bi bi-arrow-right-circle')
-                    ->confirm('Il cliente ha accettato: il preventivo si salva e diventa una bozza d\'ordine con le stesse righe. Lì controlli consegna e pagamento e lo confermi.', title: 'Trasforma in ordine', ok: 'Trasforma in ordine', variant: 'success');
+                $intents[] = ['intent' => 'accept', 'label' => 'Trasforma in ordine', 'icon' => 'bi bi-arrow-right-circle', 'variant' => 'success', 'outline' => true, 'header' => true,
+                    'confirm' => ['Il cliente ha accettato: il preventivo si salva e diventa una bozza d\'ordine con le stesse righe e lo stesso numero. Lì controlli consegna e pagamento e lo confermi.', 'Trasforma in ordine', 'Trasforma in ordine', 'success']];
             }
 
-            $pulsanti[] = $invia('send', $status === 'sent' ? 'Invia di nuovo' : 'Invia al cliente', 'dark', false, 'bi bi-send')
-                ->confirm($neverSent
-                    ? 'Il preventivo prende il numero e si archivia il suo PDF; con l\'interruttore acceso il cliente lo riceve per email.'
-                    : 'Il preventivo si salva e, se è cambiato, diventa una revisione nuova con il suo PDF; con l\'interruttore acceso il cliente lo riceve per email.', title: 'Invia il preventivo', ok: 'Invia', variant: 'primary');
+            $intents[] = ['intent' => 'send', 'label' => $status === 'sent' ? 'Invia di nuovo' : 'Invia al cliente', 'icon' => 'bi bi-send', 'variant' => 'dark', 'outline' => false, 'header' => true,
+                'confirm' => [$neverSent
+                    ? 'Il preventivo si salva e si archivia il suo PDF; con l\'interruttore acceso il cliente lo riceve per email.'
+                    : 'Il preventivo si salva e, se è cambiato, diventa una revisione nuova con il suo PDF; con l\'interruttore acceso il cliente lo riceve per email.', 'Invia il preventivo', 'Invia', 'primary']];
 
             if ($editing && $neverSent && $status === 'draft') {
-                $pulsanti[] = $aSinistra($invia('delete', 'Elimina', 'danger', true, 'bi bi-trash'))
-                    ->confirm('Il preventivo non è mai stato inviato: si elimina con le sue righe.', title: 'Elimina preventivo', ok: 'Elimina');
+                $intents[] = ['intent' => 'delete', 'label' => 'Elimina', 'icon' => 'bi bi-trash', 'variant' => 'danger', 'outline' => true, 'header' => true,
+                    'confirm' => ['Il preventivo non è mai stato inviato: si elimina con le sue righe.', 'Elimina preventivo', 'Elimina', 'danger']];
             } elseif ($editing && $status === 'sent') {
-                $pulsanti[] = $aSinistra($invia('reject', 'Rifiutato', 'danger', true, 'bi bi-x-circle'))
-                    ->confirm('Il preventivo si segna come rifiutato. Le modifiche non salvate di questa pagina si perdono; modificandolo dopo lo riapri.', title: 'Preventivo rifiutato', ok: 'Rifiutato');
+                $intents[] = ['intent' => 'reject', 'label' => 'Rifiutato', 'icon' => 'bi bi-x-circle', 'variant' => 'danger', 'outline' => true, 'header' => false,
+                    'confirm' => ['Il preventivo si segna come rifiutato. Le modifiche non salvate di questa pagina si perdono; modificandolo dopo lo riapri.', 'Preventivo rifiutato', 'Rifiutato', 'danger']];
             }
-        } else {
-            $pulsanti[] = $invia('confirm', 'Conferma ordine', 'dark', false, 'bi bi-check2-circle')
-                ->confirm('L\'ordine prende il numero, la merce esce dal magazzino e nascono le rate. Dopo le righe non si modificano più: si possono solo annullare.', title: 'Conferma ordine', ok: 'Conferma ordine', variant: 'primary');
 
-            if ($editing) {
-                $pulsanti[] = $aSinistra($invia('delete', 'Elimina bozza', 'danger', true, 'bi bi-trash'))
-                    ->confirm('La bozza si elimina con le sue righe. Non ha numero né movimenti di magazzino: non resta niente.', title: 'Elimina bozza', ok: 'Elimina');
+            return $intents;
+        }
+
+        $intents[] = ['intent' => 'confirm', 'label' => 'Conferma ordine', 'icon' => 'bi bi-check2-circle', 'variant' => 'dark', 'outline' => false, 'header' => true,
+            'confirm' => ['La bozza si salva, la merce esce dal magazzino e nascono le rate; il numero resta quello della bozza. Dopo le righe non si modificano più: si possono solo annullare.', 'Conferma ordine', 'Conferma ordine', 'primary']];
+
+        if ($editing) {
+            $intents[] = ['intent' => 'delete', 'label' => 'Elimina bozza', 'icon' => 'bi bi-trash', 'variant' => 'danger', 'outline' => true, 'header' => true,
+                'confirm' => ['La bozza si elimina con le sue righe. Non ha movimenti di magazzino; il suo numero non si riusa.', 'Elimina bozza', 'Elimina', 'danger']];
+        }
+
+        return $intents;
+    }
+
+    /**
+     * I pulsanti in testa, accanto a *Guida*: ognuno preme il suo gemello
+     * nascosto nel form, così l'invio porta le righe e passa dalla conferma
+     * della lib come prima.
+     *
+     * @return list<array<string, string>>
+     */
+    public static function headerActions(bool $quote, array $values): array
+    {
+        $actions = [];
+
+        foreach (self::intents($quote, $values) as $intent) {
+            if (!$intent['header']) {
+                continue;
             }
+
+            $actions[] = [
+                'label' => $intent['label'],
+                'icon' => str_replace('bi ', '', $intent['icon']),
+                'class' => 'btn-'.($intent['outline'] ? 'outline-' : '').$intent['variant'].' btn-sm',
+                'onclick' => "document.querySelector('form button[name=intent][value=".$intent['intent']."]').click()",
+            ];
+        }
+
+        return $actions;
+    }
+
+    /**
+     * I pulsanti del form. *Salva bozza* è il primo, così Invio salva; quelli
+     * della testa ci sono ma nascosti, e l'isola di salvataggio non li copia.
+     */
+    private static function buttonsHtml(bool $quote, array $values): string
+    {
+        $pulsanti = [Button::make('Salva bozza')
+            ->type('submit')->attr('name', 'intent')->attr('value', 'save')
+            ->variant('dark')->outline(true)->schema('inline', true)];
+
+        foreach (self::intents($quote, $values) as $intent) {
+            [$message, $title, $ok, $variant] = $intent['confirm'];
+            $pulsanti[] = Button::make($intent['label'])
+                ->icon($intent['icon'])
+                ->type('submit')
+                ->attr('name', 'intent')
+                ->attr('value', $intent['intent'])
+                ->variant($intent['variant'])
+                ->outline($intent['outline'])
+                ->attr('class', $intent['header'] ? 'd-none' : 'order-first me-auto')
+                ->attr('data-wi-save-bar-ignore', true)
+                ->schema('inline', true)
+                ->confirm($message, title: $title, ok: $ok, variant: $variant);
         }
 
         return '<div class="d-flex flex-wrap align-items-center justify-content-end gap-2">'

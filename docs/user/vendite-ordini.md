@@ -58,8 +58,8 @@ può fare qualcosa. Ogni voce apre una finestra che dice cosa farà:
   annullarne una parte. La merce torna in magazzino, totali e rate si
   rifanno ([vedi Ordini da ufficio](vendite-ordini-da-ufficio.md)).
 * **Pagamenti** — *Registra pagamento* su una rata in attesa, con l'importo
-  della rata. Sopra la tabella c'è anche il pulsante **Registra pagamento**,
-  finché c'è da incassare.
+  della rata. Per un pagamento libero c'è **Registra pagamento** in alto,
+  fra le azioni della scheda.
 * **Resi** — *Chiudi* e *Annulla* un reso ricevuto.
 * **Spedizioni** — le azioni della spedizione: *Segna spedita*, *Segna
   consegnata*, *Pronto per il ritiro*, *Ritirato*, *Modifica spedizione* e

@@ -2,6 +2,7 @@
 
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
 use Wonder\Http\Csrf;
+use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeCustomerPanel;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderEditor;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderPage;
@@ -26,7 +27,12 @@ $resource = $RESOURCE_CLASS;
 $values = (array) ($VALUES ?? []);
 $json = static fn (mixed $value): string => (string) json_encode($value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
 
-View::layout('backend.form');
+// Il numero nel titolo, dal primo salvataggio: «Preventivo 2026/100390».
+$number = is_a($resource, QuoteResource::class, true) ? QuoteResource::number($values) : trim((string) ($values['order_number'] ?? ''));
+$title = (string) (((array) $resource::pageSchema()->get('titles'))['edit'] ?? '');
+$number = html_entity_decode($number, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+View::layout('backend.form', (int) ($values['id'] ?? 0) > 0 && $number !== '' && $title !== '' ? ['TITLE' => $title.' '.$number] : []);
 
 echo ResourceFormLayoutRenderer::render(OfficeOrderPage::layout($resource, $values), [
     'id' => 'wi-oo-form',

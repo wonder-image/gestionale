@@ -16,7 +16,10 @@ use Wonder\View\View;
 $values = (array) ($VALUES ?? []);
 $draft = (string) ($values['status'] ?? 'draft') === 'draft';
 
-View::layout('backend.form');
+$number = html_entity_decode(trim((string) ($values['number'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+// L'emesso ha il numero nel titolo; la bozza non ce l'ha ancora.
+View::layout('backend.form', $number !== '' ? ['TITLE' => 'DDT '.$number] : []);
 
 echo ResourceFormLayoutRenderer::render(DeliveryNoteResource::formLayoutFor($values), [
     'id' => 'wi-dn-form',

@@ -31,12 +31,13 @@ final class OfficeOrderForm
     /**
      * Salva la bozza; con `intent = confirm` la conferma, con `delete` la
      * elimina. Per un preventivo (`$stage` `quote`, piano 3) anche `send`,
-     * `accept` e `reject`.
+     * `accept` e `reject`. Con `$save` falso (il menu ⋯ dell'elenco) agisce
+     * sulla bozza com'è, senza salvarla prima.
      *
      * @param array<string, mixed> $post
      * @return array{id: int, number: string, deleted: bool, error: string, sent: string, accepted: bool, rejected: bool, email: string}
      */
-    public static function submit(int $id, array $post, int $userId, string $stage = 'order'): array
+    public static function submit(int $id, array $post, int $userId, string $stage = 'order', bool $save = true): array
     {
         $result = ['id' => $id, 'number' => '', 'deleted' => false, 'error' => '', 'sent' => '', 'accepted' => false, 'rejected' => false, 'email' => ''];
         $intent = (string) ($post['intent'] ?? 'save');
@@ -58,9 +59,11 @@ final class OfficeOrderForm
                 return $result;
             }
 
-            $data = self::header($post);
-            $data['lines'] = self::decode($post['lines'] ?? null);
-            $result['id'] = OfficeOrders::save($id, $data, $userId, $stage);
+            if ($save) {
+                $data = self::header($post);
+                $data['lines'] = self::decode($post['lines'] ?? null);
+                $result['id'] = OfficeOrders::save($id, $data, $userId, $stage);
+            }
 
             if ($quote) {
                 if ($intent === 'send') {

@@ -100,7 +100,7 @@ function secondaSede(): int
 
 $utente = 1;
 
-check('creare: la bozza nasce senza numero né data, con le sue righe in ordine', function () use ($utente) {
+check('creare: la bozza nasce col numero e senza data, con le sue righe in ordine', function () use ($utente) {
     return prova(static function () use ($utente): bool {
         [$a, $b] = [articolo(), articolo()];
         $id = StockDocuments::create('receipt', ['note' => ' Merce di ottobre '], [
@@ -112,7 +112,7 @@ check('creare: la bozza nasce senza numero né data, con le sue righe in ordine'
         $righe = StockDocuments::items($id);
 
         return $doc['status'] === 'draft'
-            && in_array($doc['number'] ?? null, [null, ''], true)
+            && (string) ($doc['number'] ?? '') !== ''
             && in_array($doc['date'] ?? null, [null, ''], true)
             && (int) $doc['location_id'] === Locations::mainId()
             && (int) $doc['user_id'] === $utente
@@ -291,22 +291,25 @@ check('confermare: lo scarico toglie con la sua causale', function () {
     });
 });
 
-check('confermare: ogni tipo ha la sua sequenza, senza buchi dopo una conferma fermata', function () {
+check('confermare: ogni tipo ha la sua sequenza, il numero è della bozza e la conferma fermata lo tiene', function () {
     return prova(static function (): bool {
         [$a, $b] = [articolo(10), articolo(1)];
         $primo = StockDocuments::confirm(StockDocuments::create('issue', ['reason' => 'gift'], [['product_id' => $a, 'quantity' => '1']]));
         $fermo = StockDocuments::create('issue', ['reason' => 'gift'], [['product_id' => $b, 'quantity' => '5']]);
+        $numeroFermo = (string) StockDocument::findById($fermo)['number'];
         $errore = rifiuto(fn () => StockDocuments::confirm($fermo));
         $secondo = StockDocuments::confirm(StockDocuments::create('issue', ['reason' => 'gift'], [['product_id' => $a, 'quantity' => '1']]));
         $carico = StockDocuments::confirm(StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '1']]));
 
         return $errore === 'stock.insufficient'
-            && $secondo === seguente($primo)
+            && $numeroFermo === seguente($primo)
+            && (string) StockDocument::findById($fermo)['number'] === $numeroFermo
+            && $secondo === seguente($numeroFermo)
             && $carico !== '';
     });
 });
 
-check('confermare: fermata da stock.insufficient non lascia numero, movimenti né log', function () {
+check('confermare: fermata da stock.insufficient resta bozza, senza movimenti né log', function () {
     return prova(static function (): bool {
         [$a, $b] = [articolo(10), articolo(1)];
         $id = StockDocuments::create('issue', ['reason' => 'damaged'], [
@@ -318,7 +321,7 @@ check('confermare: fermata da stock.insufficient non lascia numero, movimenti n�
 
         return $errore === 'stock.insufficient'
             && $doc['status'] === 'draft'
-            && in_array($doc['number'] ?? null, [null, ''], true)
+            && in_array($doc['date'] ?? null, [null, ''], true)
             && righe(StockMovement::class, "reference_type = 'stock_document' AND reference_id = ".$id) === []
             && righe(StockDocumentStatusLog::class, 'stock_document_id = '.$id) === []
             && count(StockDocuments::items($id)) === 2
@@ -492,7 +495,7 @@ function rifiutoDiCancellazione(callable $fn): ?string
     return null;
 }
 
-check('duplicare: una bozza nuova con sede, causale, nota e righe; senza numero', function () use ($utente) {
+check('duplicare: una bozza nuova con sede, causale, nota e righe; col numero suo', function () use ($utente) {
     return prova(static function () use ($utente): bool {
         [$a, $b] = [articolo(10), articolo(10)];
         $id = StockDocuments::create('issue', ['reason' => 'internal_use', 'note' => 'Vetrina'], [
@@ -507,7 +510,7 @@ check('duplicare: una bozza nuova con sede, causale, nota e righe; senza numero'
 
         return $copia !== $id
             && $doc['type'] === 'issue' && $doc['status'] === 'draft'
-            && in_array($doc['number'] ?? null, [null, ''], true)
+            && (string) ($doc['number'] ?? '') !== '' && $doc['number'] !== StockDocument::findById($id)['number']
             && $doc['reason'] === 'internal_use' && $doc['note'] === 'Vetrina'
             && (int) $doc['user_id'] === $utente
             && array_column($righe, 'product_id') === [$a, $b]

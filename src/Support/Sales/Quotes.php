@@ -19,7 +19,7 @@ use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Sql\Transaction;
 
 /**
- * Il preventivo dopo la bozza (G9 §3.1): invio con numero, revisione e PDF
+ * Il preventivo dopo la bozza (G9 §3.1): invio con revisione e PDF
  * archiviato, accettazione (diventa una bozza d'ordine, lo stesso documento),
  * rifiuto e scadenza. La bozza la scrive `OfficeOrders::save()` con lo
  * `stage` `quote`.
@@ -29,8 +29,8 @@ use Wonder\Sql\Transaction;
 final class Quotes
 {
     /**
-     * Invia il preventivo. Da bozza: il numero al primo invio, la revisione
-     * +1, il PDF archiviato, `sent`. Già inviato e non cambiato: si rimanda
+     * Invia il preventivo. Da bozza: la revisione +1, il PDF archiviato,
+     * `sent`; il numero l'ha già dal primo salvataggio. Già inviato e non cambiato: si rimanda
      * l'ultima revisione, senza farne un'altra. Con `notify` (predefinito)
      * parte l'email al cliente con il PDF.
      *
@@ -63,13 +63,16 @@ final class Quotes
 
             self::assertSendable($order, self::items($orderId));
 
-            $number = trim((string) ($order['quote_number'] ?? ''));
-            $number = $number !== '' ? $number : DocumentSequences::next('quote');
+            // Il numero c'è dal primo salvataggio (`OfficeOrders::save()`); un
+            // preventivo di prima lo prende qui, dalla sequenza degli ordini.
+            $number = trim((string) ($order['quote_number'] ?? '')) ?: trim((string) ($order['order_number'] ?? ''));
+            $number = $number !== '' ? $number : DocumentSequences::next('order');
             $revision = (int) ($order['quote_revision'] ?? 0) + 1;
             $expires = trim((string) ($order['quote_expires_at'] ?? ''));
 
             Order::update([
                 'quote_number' => $number,
+                'order_number' => trim((string) ($order['order_number'] ?? '')) ?: $number,
                 'quote_revision' => $revision,
                 'quote_sent_at' => date('Y-m-d H:i:s'),
                 'quote_expires_at' => $expires !== '' && !str_starts_with($expires, '0000') ? $expires : OfficeOrders::defaultExpiry(),
@@ -161,15 +164,16 @@ final class Quotes
     }
 
     /**
-     * Un preventivo mai inviato si elimina; uno inviato no: il cliente ha il
-     * suo PDF, e il numero resta (si rifiuta o si lascia scadere).
+     * Un preventivo mai inviato si elimina, e il suo numero resta un buco
+     * nella sequenza; uno inviato no: il cliente ha il suo PDF (si rifiuta o
+     * si lascia scadere).
      */
     public static function delete(int $orderId): void
     {
         Transaction::run(static function () use ($orderId): void {
             $order = self::lock($orderId);
 
-            if ((string) $order['status'] !== 'draft' || trim((string) ($order['quote_number'] ?? '')) !== '') {
+            if ((string) $order['status'] !== 'draft' || (int) ($order['quote_revision'] ?? 0) > 0) {
                 throw UserError::make('quote.cannot_delete');
             }
 

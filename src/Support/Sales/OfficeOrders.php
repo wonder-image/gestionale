@@ -49,10 +49,11 @@ use Wonder\Sql\Transaction;
  * d'ordine, la conferma e ne annulla le righe dopo.
  *
  * La bozza è un ordine vero (`stage` `order`, `status` `draft`, `channel`
- * `office`) senza numero e senza merce dietro: niente prenotazione, i prezzi si
- * rifanno a ogni salvataggio con il motore del carrello. La conferma scarica
+ * `office`) senza merce dietro: niente prenotazione, i prezzi si rifanno a ogni
+ * salvataggio con il motore del carrello. Il numero lo prende al primo
+ * salvataggio e lo tiene fino all'ordine confermato. La conferma scarica
  * direttamente (`Lifecycle::confirm()` senza pagamento: le rate ne prendono il
- * posto) e dà il numero. Dopo, le righe non si modificano: si annullano.
+ * posto). Dopo, le righe non si modificano: si annullano.
  */
 final class OfficeOrders
 {
@@ -106,6 +107,17 @@ final class OfficeOrders
 
             if ($stage === 'quote') {
                 $values['quote_expires_at'] = $expires ?? (string) ($order['quote_expires_at'] ?? '') ?: self::defaultExpiry();
+            }
+
+            // Il numero nasce al primo salvataggio e resta lo stesso da
+            // preventivo a bozza a ordine confermato: una sola sequenza, quella
+            // degli ordini, così non si scontra con gli ordini del sito.
+            if (trim((string) ($order['order_number'] ?? '')) === '') {
+                $values['order_number'] = DocumentSequences::next('order');
+            }
+
+            if ($stage === 'quote' && trim((string) ($order['quote_number'] ?? '')) === '') {
+                $values['quote_number'] = $values['order_number'] ?? (string) $order['order_number'];
             }
 
             if ($order !== null && (string) $order['status'] !== 'draft') {
@@ -202,7 +214,7 @@ final class OfficeOrders
 
     /**
      * Conferma la bozza: ricalcolo e controlli, la merce che esce (o il
-     * rifiuto col nome della versione), il numero, le rate. Con `notify` parte
+     * rifiuto col nome della versione), la data dell'ordine, le rate. Con `notify` parte
      * l'email di conferma al cliente.
      *
      * `installments_from` fa partire le rate da un altro giorno (dati di
@@ -235,7 +247,8 @@ final class OfficeOrders
             $locationId = (int) ($order['location_id'] ?? 0) > 0 ? (int) $order['location_id'] : Locations::mainId();
             self::assertStock($items, $locationId);
 
-            $number = DocumentSequences::next('order');
+            // Il numero l'ha già dal primo salvataggio; le bozze di prima no.
+            $number = trim((string) ($order['order_number'] ?? '')) ?: DocumentSequences::next('order');
             Order::update([
                 'order_number' => $number,
                 'ordered_at' => date('Y-m-d H:i:s'),

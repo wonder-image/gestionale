@@ -21,7 +21,10 @@ class OrderConfirmationPdf extends DocumentPdf
         return [
             'Numero' => trim((string) ($order['order_number'] ?? '')),
             'Data' => static::date((string) ($order['ordered_at'] ?? '')),
-            'Preventivo' => trim((string) ($order['quote_number'] ?? '')),
+            // Solo i preventivi di prima avevano un numero loro: oggi è lo stesso dell'ordine.
+            'Preventivo' => trim((string) ($order['quote_number'] ?? '')) !== trim((string) ($order['order_number'] ?? ''))
+                ? trim((string) ($order['quote_number'] ?? ''))
+                : '',
         ] + ($this->data['meta'] ?? []);
     }
 }

@@ -19,7 +19,7 @@ class QuotePdf extends DocumentPdf
         $revision = (int) ($order['quote_revision'] ?? 0);
 
         return [
-            'Numero' => trim((string) ($order['quote_number'] ?? '')).($revision > 1 ? ' rev. '.$revision : ''),
+            'Numero' => (trim((string) ($order['quote_number'] ?? '')) ?: trim((string) ($order['order_number'] ?? ''))).($revision > 1 ? ' rev. '.$revision : ''),
             'Data' => static::date((string) (($order['quote_sent_at'] ?? '') ?: date('Y-m-d'))),
             'Valido fino al' => static::date((string) ($order['quote_expires_at'] ?? '')),
         ] + ($this->data['meta'] ?? []);

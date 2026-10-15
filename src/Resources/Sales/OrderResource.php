@@ -12,7 +12,6 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Accordion;
-use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
@@ -108,7 +107,7 @@ final class OrderResource extends GestionaleResource
                 ->size('little')
                 ->sortable()
                 ->link('view')
-                // La bozza da ufficio non ha ancora un numero (G9).
+                // Le bozze da ufficio di prima del numero unico ne sono senza.
                 ->formatter(static fn (array $row): string => trim((string) ($row['order_number'] ?? '')) !== ''
                     ? static::escape((string) $row['order_number'])
                     : '<span class="text-body-secondary">Bozza</span>'),
@@ -746,7 +745,7 @@ final class OrderResource extends GestionaleResource
                     'L\'imposta si calcola sul totale imponibile di ogni aliquota, non riga per riga.'),
             ]),
             $tabella('Righe', OrderItemTableResource::embed($id), true),
-            $tabella('Pagamenti', static::paymentsToolbar($order).OrderPaymentTableResource::embed($id)),
+            $tabella('Pagamenti', OrderPaymentTableResource::embed($id)),
         ];
 
         if (Gestionale::feature('returns')) {
@@ -760,24 +759,6 @@ final class OrderResource extends GestionaleResource
         $componenti[] = $tabella('Storico', OrderHistoryTableResource::embed($id));
 
         return (new Container)->components($componenti)->columns(12);
-    }
-
-    /** Sopra la tabella dei pagamenti, «Registra pagamento» finché c'è da incassare: apre la finestra della scheda. */
-    public static function paymentsToolbar(array $order): string
-    {
-        if (!OrderActions::canRegisterPayment($order)) {
-            return '';
-        }
-
-        return '<div class="d-flex justify-content-end mb-2">'
-            .Button::make('Registra pagamento')
-                ->opensModal(OrderPaymentResource::MODAL_ID)
-                ->variant('success')
-                ->outline()
-                ->size('sm')
-                ->schema('inline', true)
-                ->render('bootstrap')
-            .'</div>';
     }
 
     /** L'indirizzo della scheda del cliente di un ordine; vuoto se l'ordine non ha un cliente registrato. */

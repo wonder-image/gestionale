@@ -81,6 +81,20 @@ check('il preventivo: Invia, Trasforma in ordine, Elimina o Rifiutato secondo lo
         && str_contains($inviato, 'value="reject"') && !str_contains($inviato, 'value="delete"') && str_contains($inviato, 'Invia di nuovo');
 });
 
+check('in testa vicino a Guida: i bottoni premono il gemello nascosto del form', function () use ($bozza, $pagina) {
+    $intenti = static fn (array $azioni): array => array_map(static fn (array $a): string => preg_replace('/.*value=(\w+).*/', '$1', $a['onclick']), $azioni);
+    $preventivo = OfficeOrderPage::headerActions(true, ['id' => 7] + $bozza);
+    $inviato = OfficeOrderPage::headerActions(true, ['id' => 7, 'status' => 'sent', 'quote_revision' => 1] + $bozza);
+    $ordine = OfficeOrderPage::headerActions(false, ['id' => 7] + $bozza);
+    $form = $pagina(QuoteResource::class, ['id' => 7] + $bozza);
+
+    return $intenti($preventivo) === ['accept', 'send', 'delete']
+        && $intenti($inviato) === ['accept', 'send']
+        && $intenti($ordine) === ['confirm', 'delete']
+        && $intenti(OfficeOrderPage::headerActions(false, $bozza)) === ['confirm']
+        && preg_match('/<button[^>]*value="send"[^>]*class="[^"]*d-none|class="[^"]*d-none[^"]*"[^>]*value="send"/', $form) === 1;
+});
+
 check('le azioni che non salvano le righe sono Rifiutato ed Elimina', fn () =>
     OfficeOrderPage::WITHOUT_LINES === ['reject', 'delete']
 );
