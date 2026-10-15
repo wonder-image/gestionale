@@ -339,6 +339,7 @@
             "subscription": {
                 "unavailable": "Gli abbonamenti online non sono disponibili in questo momento.",
                 "account_required": "Per abbonarti accedi al tuo account o creane uno.",
+                "interval_mismatch": "Questi servizi non si rinnovano insieme: la durata di ognuno deve essere un multiplo della più corta (mensile e annuale sì, bimestrale e trimestrale no).",
                 "limit_reached": "C'è già un abbonamento in corso ({{code}}): i servizi nuovi si aggiungono a quello, dalla sezione Abbonamenti.",
                 "price_unavailable": "Questo piano non è più disponibile: scegline un altro.",
                 "stripe_unavailable": "Il pagamento non si è aperto: riprova tra qualche minuto.",

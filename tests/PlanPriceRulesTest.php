@@ -62,6 +62,26 @@ check('il rinnovo è un altro prezzo, tra quelli ammessi', fn () =>
     && $rifiuto(['renewal_plan_price_id' => 0] + $mensile) === null
 );
 
+check('servizi insieme: ogni durata è multipla della più corta', function () {
+    $errore = static function (array $mesi): ?string {
+        try {
+            PlanPriceRules::assertIntervals($mesi);
+        } catch (\Wonder\Plugin\Gestionale\Support\Errors\UserError $e) {
+            return $e->key();
+        }
+
+        return null;
+    };
+
+    return $errore([1, 3, 12]) === null
+        && $errore([2, 3]) === 'subscription.interval_mismatch'
+        && $errore([12, 1]) === null
+        && $errore([12, 24]) === null
+        && $errore([12, 18]) === 'subscription.interval_mismatch'
+        && $errore([]) === null
+        && $errore([6]) === null;
+});
+
 check('i mesi proposti: 1 per il mensile, 12 per l\'annuale', fn () =>
     PlanPriceRules::defaultTerm('month') === 1
     && PlanPriceRules::defaultTerm('year') === 12
