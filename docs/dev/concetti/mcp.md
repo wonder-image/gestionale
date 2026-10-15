@@ -15,11 +15,26 @@ con gli stessi Model, le stesse regole e gli stessi permessi del backend.
 
 ## Autenticazione
 
-Il token è quello di `api_users`, con le stesse verifiche di `Endpoint.php`:
-HTTPS, `Authorization: Bearer <token>`, JWT firmato con la chiave dell'app,
-utente attivo con l'autorità `api_internal_user`, riga del token attiva, IP e
-domini permessi. Senza token o con un token non valido risponde 401 con
-`WWW-Authenticate: Bearer`.
+Ci sono due modi di autenticarsi, entrambi con `Authorization: Bearer <token>`.
+
+- **OAuth** (consigliato): connettore remoto su claude.ai o altri client MCP
+  (ChatGPT, Cursor, Claude Code). L'URL è `https://<sito>/api/gestionale/mcp`;
+  login e consenso si fanno nel browser, senza copiare token. La risorsa è
+  registrata con `OAuth::resource()` in `config/routes/route.api.php`, la
+  verifica è di `ResourceGuard::authenticate()` del framework. Il 401 senza
+  token annuncia `resource_metadata`, da cui il client scopre l'authorization
+  server. L'URL da incollare compare anche nella pagina backend "Connessioni
+  MCP". Dettagli, `.env` e deploy: `docs/app/piattaforma/oauth.md` del framework.
+- **JWT `api_users`**: resta per le integrazioni server-to-server. Stesse
+  verifiche di `Endpoint.php`: HTTPS, JWT firmato con la chiave dell'app,
+  utente attivo con l'autorità `api_internal_user`, riga del token attiva, IP e
+  domini permessi. Senza token o con un token non valido risponde 401 con
+  `WWW-Authenticate: Bearer`.
+
+Il modulo richiede una versione di `wonder-image/app` con OAuth: al rilascio
+va alzato il vincolo in `composer.json` (oggi `^2.4.0-beta.3 || dev-main`).
+Dopo l'aggiornamento serve `php forge update`: crea le tabelle `oauth_*` e la
+colonna `mcp_logs.oauth_grant_id`.
 
 ## Strumenti e permessi
 
@@ -58,6 +73,17 @@ torna indietro.
 
 ## Collegare Claude Code
 
+Con OAuth (consigliato):
+
+```bash
+claude mcp add --transport http wonder-gestionale https://<sito>/api/gestionale/mcp
+```
+
+Al primo uso Claude Code apre il browser per login e consenso. L'utente deve
+avere `administrator` (o i ruoli degli strumenti che servono).
+
+Alternativa con token JWT:
+
 1. Un utente con `administrator` (o i ruoli degli strumenti che servono) e
    `api_internal_user`, con il suo token in `api_users`.
 2. Dal sito:
@@ -66,7 +92,7 @@ torna indietro.
    claude mcp add -s local --transport http wonder-gestionale https://<sito>/api/gestionale/mcp/ --header "Authorization: Bearer <token>"
    ```
 
-3. `claude mcp list` deve mostrare il server connesso.
+`claude mcp list` deve mostrare il server connesso.
 
 ## Prove
 
