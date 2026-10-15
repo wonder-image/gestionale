@@ -59,6 +59,8 @@ final class OfficeSubscriptions
             throw UserError::make('subscription.customer_required');
         }
 
+        Subscriptions::assertRoom($customerId);
+
         $price = PlanPrice::findById((int) ($input['plan_price_id'] ?? 0));
         $plan = is_array($price) ? Plan::findById((int) $price['plan_id']) : null;
 

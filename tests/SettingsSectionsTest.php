@@ -131,7 +131,7 @@ check('i campi del modulo seguono il resto della pagina: in produzione non si ca
     SettingsSections::use([new RiquadroDiProva()]);
 
     return SettingResource::editableWhenReadonly() === ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days',
-        'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days'];
+        'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days', 'subscriptions_per_customer'];
 });
 
 SettingsSections::use(null);

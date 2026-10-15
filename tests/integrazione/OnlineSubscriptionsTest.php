@@ -186,7 +186,7 @@ check('rifiuti: senza account, già abbonato, piano nascosto', fn () => prova(st
     Plan::update(['visible_online' => 'false'], $p['plan']);
     $nascosto = rifiuto(static fn () => inizia(cliente(), $p['mensile']));
 
-    return $senza === 'subscription.account_required' && $doppio === 'subscription.already_active' && $nascosto === 'subscription.price_unavailable';
+    return $senza === 'subscription.account_required' && $doppio === 'subscription.limit_reached' && $nascosto === 'subscription.price_unavailable';
 }));
 
 check('la prova si usa una volta per piano: un pending abbandonato non conta', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {

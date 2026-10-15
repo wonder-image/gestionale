@@ -2,7 +2,10 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Subscriptions;
 
+use DateTimeImmutable;
 use Throwable;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
@@ -37,6 +40,80 @@ final class Subscriptions
         ));
 
         return $rows[0] ?? null;
+    }
+
+    /**
+     * Quanti abbonamenti in corso può avere un cliente (G10b.12): 0 è senza
+     * limite; senza impostazioni vale 1.
+     */
+    public static function perCustomer(): int
+    {
+        try {
+            $setting = Setting::current();
+        } catch (Throwable) {
+            return 1;
+        }
+
+        $value = is_array($setting) ? ($setting['subscriptions_per_customer'] ?? null) : null;
+
+        return $value === null || $value === '' ? 1 : max(0, (int) $value);
+    }
+
+    /**
+     * Rifiuta un abbonamento nuovo se il cliente è già al limite
+     * (`subscription.limit_reached`, col codice del suo abbonamento più
+     * recente). Lo chiamano l'avvio online e «Nuovo abbonamento» da ufficio.
+     *
+     * @throws UserError
+     */
+    public static function assertRoom(int $customerId): void
+    {
+        $limit = self::perCustomer();
+
+        if ($limit === 0 || $customerId <= 0) {
+            return;
+        }
+
+        $rows = self::rows(Subscription::find(
+            '`customer_id` = '.$customerId." AND `status` IN ('".implode("','", [...Subscription::LIVE, 'pending'])."') AND `deleted` = 'false'",
+            null,
+            'id',
+            'DESC'
+        ));
+        $now = new DateTimeImmutable();
+        $counted = array_values(array_filter($rows, static fn (array $row): bool => self::countsFor([$row], $now) === 1));
+
+        if (count($counted) >= $limit) {
+            throw UserError::make('subscription.limit_reached', ['code' => (string) ($counted[0]['code'] ?? '')]);
+        }
+    }
+
+    /**
+     * Quanti di questi abbonamenti contano per il limite per cliente: gli stati
+     * vivi e i `pending`, tranne i `pending` online creati da più di 24 ore
+     * (un Checkout abbandonato non blocca il cliente).
+     *
+     * @param list<array<string, mixed>> $rows status, channel, creation
+     */
+    public static function countsFor(array $rows, DateTimeImmutable $now): int
+    {
+        $limit = $now->modify('-24 hours');
+        $count = 0;
+
+        foreach ($rows as $row) {
+            $status = (string) ($row['status'] ?? '');
+
+            if (in_array($status, Subscription::LIVE, true)) {
+                $count++;
+            } elseif ($status === 'pending') {
+                $created = trim((string) ($row['creation'] ?? ''));
+                $stale = (string) ($row['channel'] ?? '') === 'online' && $created !== '' && !str_starts_with($created, '0000')
+                    && new DateTimeImmutable($created) < $limit;
+                $count += $stale ? 0 : 1;
+            }
+        }
+
+        return $count;
     }
 
     /**

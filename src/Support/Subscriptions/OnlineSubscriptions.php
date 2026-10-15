@@ -68,9 +68,7 @@ final class OnlineSubscriptions
         $price = self::sellablePrice($planPriceCode);
         $plan = Plan::findById((int) $price['plan_id']);
 
-        if (Subscriptions::live($customerId) !== null) {
-            throw UserError::make('subscription.already_active');
-        }
+        Subscriptions::assertRoom($customerId);
 
         $coupon = trim($couponCode) !== '' ? self::couponFor($couponCode, $customerId) : null;
         $billing = self::billingFor($billing, $contact);
