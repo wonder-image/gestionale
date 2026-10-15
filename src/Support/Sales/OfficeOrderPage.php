@@ -369,7 +369,7 @@ final class OfficeOrderPage
                 'label' => $intent['label'],
                 'icon' => str_replace('bi ', '', $intent['icon']),
                 'class' => 'btn-'.($intent['outline'] ? 'outline-' : '').$intent['variant'].' btn-sm',
-                'onclick' => "document.querySelector('#wi-oo-form [name=intent][value=".$intent['intent']."]').click()",
+                'onclick' => "document.querySelector('form button[name=intent][value=".$intent['intent']."]').click()",
             ];
         }
 
