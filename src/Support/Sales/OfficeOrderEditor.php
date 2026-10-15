@@ -95,6 +95,12 @@ final class OfficeOrderEditor
         return self::route('api.gestionale.backend.sales.customer_save', '/api/gestionale/backend/vendite/clienti/salva/');
     }
 
+    /** Il costo di spedizione del listino per la bozza (POST, JSON). */
+    public static function shippingQuoteUrl(): string
+    {
+        return self::route('api.gestionale.backend.sales.shipping_quote', '/api/gestionale/backend/vendite/spedizione/');
+    }
+
     private static function route(string $name, string $fallback): string
     {
         if (!function_exists('__r')) {
@@ -783,6 +789,18 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
                         supplier_id: row.supplier ? row.supplier.value : 0
                     };
                 }));
+            },
+            // Le righe come le pesa la spedizione: articolo, quantità e
+            // totale stimato.
+            estimate: function () {
+                return rows.filter(function (row) { return row.type !== 'text'; }).map(function (row) {
+                    return {
+                        type: row.type,
+                        product_id: row.type === 'product' ? row.version.id : 0,
+                        quantity: parse(row.quantity.value) || 0,
+                        line_total: lineTotal(row) || 0
+                    };
+                });
             },
             count: function () {
                 return rows.length;

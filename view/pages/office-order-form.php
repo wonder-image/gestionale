@@ -54,6 +54,7 @@ try {
     var lines = form.querySelector('[data-wi-oo-lines]');
     var customersUrl = <?=$json(OfficeOrderEditor::customersUrl())?>;
     var saveUrl = <?=$json(OfficeOrderEditor::customerSaveUrl())?>;
+    var quoteUrl = <?=$json(OfficeOrderEditor::shippingQuoteUrl())?>;
     var modals = <?=$json([OfficeCustomerPanel::CONTACTS_MODAL, OfficeCustomerPanel::BILLING_MODAL, \Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource::MODAL_ID])?>;
     var shippingKeys = <?=$json(\Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders::shippingKeys())?>;
     var billingKeys = <?=$json(\Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders::billingKeys())?>;
@@ -367,11 +368,111 @@ try {
         });
     });
 
+    // Con un metodo di spedizione scelto il costo è quello del listino: si
+    // ricalcola quando cambiano metodo, destinazione o righe, e il campo
+    // resta bloccato. All'invio si svuota, così il salvataggio rifà il
+    // listino invece di scrivere un costo a mano.
+    var amount = form.querySelector('[data-wi-oo-shipping-amount]');
+    var amountNote = null;
+    var quoteSeq = 0;
+    var quoteTimer = null;
+
+    function method() {
+        var type = form.querySelector('[name="fulfillment_type"]');
+        var select = form.querySelector('[name="shipping_method_id"]');
+
+        return select && (!type || type.value === 'shipping') ? (parseInt(select.value, 10) || 0) : 0;
+    }
+
+    function note(text) {
+        if (!amountNote) {
+            amountNote = document.createElement('div');
+            amountNote.className = 'form-text';
+            (amount.closest('.form-floating') || amount).insertAdjacentElement('afterend', amountNote);
+        }
+
+        amountNote.textContent = text;
+        amountNote.classList.toggle('d-none', text === '');
+    }
+
+    function quote() {
+        var id = method();
+        var current = editor();
+        var body;
+        var mine;
+
+        if (!amount) {
+            return;
+        }
+
+        if (id <= 0) {
+            if (amount.readOnly) {
+                amount.readOnly = false;
+                amount.value = '';
+            }
+
+            note('');
+
+            return;
+        }
+
+        amount.readOnly = true;
+        body = new FormData();
+        body.append('shipping_method_id', String(id));
+        body.append('lines', JSON.stringify(current && current.estimate ? current.estimate() : []));
+        ['country', 'province', 'city', 'cap', 'street'].forEach(function (key) {
+            ['shipping_', 'billing_'].forEach(function (prefix) {
+                var node = field(prefix + key) || form.querySelector('[name="' + prefix + key + '"]');
+
+                if (node) {
+                    body.append(prefix + key, node.value);
+                }
+            });
+        });
+        mine = ++quoteSeq;
+
+        window.fetch(quoteUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {Accept: 'application/json', 'X-WI-CSRF': (document.querySelector('meta[name="wi-csrf"]') || {}).content || ''},
+            body: body
+        }).then(function (response) {
+            return response.json();
+        }).then(function (data) {
+            if (mine !== quoteSeq || method() <= 0) {
+                return;
+            }
+
+            amount.value = data.ok ? String(data.amount).replace('.', ',') : '';
+            note(data.ok ? (data.free ? 'Gratis per la soglia del listino.' : 'Dal listino del metodo.') : (data.message || ''));
+        }, function () {
+            if (mine === quoteSeq) {
+                note('Il costo del listino non risponde: riprova.');
+            }
+        });
+    }
+
+    function requote() {
+        window.clearTimeout(quoteTimer);
+        quoteTimer = window.setTimeout(quote, 350);
+    }
+
+    form.addEventListener('change', function (event) {
+        var name = event.target && event.target.name ? event.target.name : '';
+
+        if (name === 'shipping_method_id' || name === 'fulfillment_type' || /^(shipping|billing)_(country|province|city|cap|street)$/.test(name)) {
+            requote();
+        }
+    });
+    form.addEventListener('wi:office-change', requote);
+
     panels(<?=$json($panel ?: null)?>);
 
     if (state.contact) {
         matchSaved();
     }
+
+    quote();
 
     // All'invio le righe dell'editor vanno nel campo `lines`; la conferma
     // l'ha già chiesta la lib, e il pulsante premuto porta il suo `intent`.
@@ -399,6 +500,10 @@ try {
         }
 
         lines.value = current.serialize();
+
+        if (amount && amount.readOnly) {
+            amount.value = '';
+        }
     }, true);
 })();
 </script>

@@ -136,6 +136,11 @@ final class OfficeOrderForm
             }
         }
 
+        // Col ritiro la sede è quella dove passa il cliente.
+        if (($out['fulfillment_type'] ?? '') === 'pickup' && is_scalar($post['pickup_location_id'] ?? null)) {
+            $out['location_id'] = (string) $post['pickup_location_id'];
+        }
+
         return $out;
     }
 

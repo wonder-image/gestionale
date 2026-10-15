@@ -25,6 +25,7 @@ use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdfs;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
 use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
@@ -749,6 +750,11 @@ final class OfficeOrders
         }
 
         if ((int) ($values['location_id'] ?? 0) > 0 && !in_array((int) $values['location_id'], array_column(Locations::alive(), 'id'), true)) {
+            throw UserError::make('stock_document.location_unknown');
+        }
+
+        if ((string) ($values['fulfillment_type'] ?? '') === 'pickup' && (int) ($values['location_id'] ?? 0) > 0
+            && PickupPoints::find((int) $values['location_id']) === null) {
             throw UserError::make('stock_document.location_unknown');
         }
 

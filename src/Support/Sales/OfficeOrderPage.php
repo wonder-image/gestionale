@@ -16,6 +16,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
 /**
@@ -51,6 +52,17 @@ final class OfficeOrderPage
         ])->columns(12)->columnSpan(12);
         $locations = $resource::locations();
         $shippingMethods = $resource::shippingMethods();
+        $pickupPoints = [];
+
+        try {
+            foreach (PickupPoints::all() as $point) {
+                $pickupPoints[(string) $point['id']] = trim($point['name'].($point['address'] !== '' ? ' — '.$point['address'] : ''), ' —');
+            }
+        } catch (Throwable) {
+            $pickupPoints = [];
+        }
+
+        $pickup = (string) ($values['fulfillment_type'] ?? '') === 'pickup' ? (string) ($values['location_id'] ?? '0') : '0';
         $terms = $resource::paymentTerms();
         $discountValue = (float) ($values['manual_discount_value'] ?? 0);
         $paese = static fn (string $key): string => $v($key) !== '' ? $v($key) : 'IT';
@@ -93,15 +105,18 @@ final class OfficeOrderPage
                     Gestionale::feature('purchasing')
                 ))->tag('div')->columnSpan(12),
             ]),
-            $riquadro('Consegna', 'Con la spedizione la merce va all\'indirizzo spuntato a sinistra (senza spunta, a quello di fatturazione); con il ritiro esce dalla sede scelta. Il costo di spedizione vuoto è quello del listino del metodo: scrivilo per fissarlo a mano, anche zero.', array_values(array_filter([
+            $riquadro('Consegna', 'Con la spedizione la merce va all\'indirizzo spuntato a sinistra (senza spunta, a quello di fatturazione); con il ritiro il cliente passa dalla sede scelta. Con un metodo scelto il costo è quello del listino; con «Nessuno» lo scrivi a mano, anche zero.', array_values(array_filter([
                 self::field(FormField::key('fulfillment_type')->select(['shipping' => 'Spedizione', 'pickup' => 'Ritiro in sede', 'none' => 'Nessuna consegna']), 'fulfillment_type', 'Come arriva la merce', 3, (string) ($values['fulfillment_type'] ?? 'shipping')),
                 $locations !== []
-                    ? self::field(FormField::key('location_id')->select($locations), 'location_id', 'Sede che evade', 3, (string) ($values['location_id'] ?? ''))->attribute('data-wi-office-location')
+                    ? self::field(FormField::key('location_id')->select($locations), 'location_id', 'Sede che evade', 3, (string) ($values['location_id'] ?? ''))->attribute('data-wi-office-location')->hiddenWhen('fulfillment_type', 'pickup')
+                    : null,
+                $pickupPoints !== []
+                    ? self::field(FormField::key('pickup_location_id')->select(['0' => 'Scegli la sede'] + $pickupPoints), 'pickup_location_id', 'Sede del ritiro', 6, $pickup)->visibleWhen('fulfillment_type', 'pickup')
                     : null,
                 $shippingMethods !== []
                     ? self::field(FormField::key('shipping_method_id')->select(['0' => 'Nessuno'] + $shippingMethods), 'shipping_method_id', 'Metodo di spedizione', 3, (string) ($values['shipping_method_id'] ?? '0'))->visibleWhen('fulfillment_type', 'shipping')
                     : null,
-                self::field(FormField::key('shipping_amount')->text(), 'shipping_amount', 'Costo di spedizione (€)', 3, $v('shipping_amount'))->attribute('inputmode="decimal"')->visibleWhen('fulfillment_type', 'shipping'),
+                self::field(FormField::key('shipping_amount')->text(), 'shipping_amount', 'Costo di spedizione (€)', 3, $v('shipping_amount'))->attribute('inputmode="decimal"')->attribute('data-wi-oo-shipping-amount')->visibleWhen('fulfillment_type', 'shipping'),
             ]))),
             $riquadro('Pagamento e sconto', $quote
                 ? 'La condizione dice in quante rate si pagherà: le rate nascono quando l\'ordine si conferma.'
