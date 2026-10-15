@@ -644,4 +644,28 @@ check('limite: un abbonamento attivo blocca, un pending online di 30 ore no', fn
     return $bloccato === 'subscription.limit_reached' && $nuovo['subscription_id'] !== $vecchio['subscription_id'];
 }));
 
+check('il riepilogo del negozio: righe e primo addebito senza scrivere niente; intervalli e prezzi nascosti rifiutati', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $mensile = servizioOnline('Hosting', 1, '12.20');
+    $annuale = servizioOnline('Dominio', 12, '24.40');
+    $contatto = Contact::findById(cliente());
+    $righeScritte = static fn (): int => (int) SubscriptionItem::query()->mysqli->query('SELECT COUNT(*) FROM `'.SubscriptionItem::$table.'`')->fetch_row()[0];
+    $prima = $righeScritte();
+    $riepilogo = OnlineSubscriptions::preview($contatto, [['price_code' => $mensile['code'], 'quantity' => 2], ['price_code' => $annuale['code']]], [], '');
+    $righe = OnlineSubscriptions::lines([['price_code' => $mensile['code']]], $riepilogo['billing']);
+
+    $bimestre = servizioOnline('Backup', 2, '5.00');
+    $trimestre = servizioOnline('Assistenza', 3, '9.00');
+    $intervalli = rifiuto(static fn () => OnlineSubscriptions::lines([['price_code' => $bimestre['code']], ['price_code' => $trimestre['code']]], []));
+    $nascosto = servizioOnline('Interno', 1, '1.00');
+    sqlModify(Plan::$table, ['visible_online' => 'false'], 'id', (int) $nascosto['plan_id']);
+    $troppi = rifiuto(static fn () => OnlineSubscriptions::lines(array_fill(0, OnlineSubscriptions::MAX_ITEMS + 1, ['price_code' => $mensile['code']]), []));
+
+    return count($riepilogo['lines']) === 2 && $riepilogo['lines'][0]['quantity'] === 2 && $riepilogo['billing']['billing_country'] === 'IT'
+        && abs((float) $riepilogo['amounts']['total'] - 48.80) < 0.001 && $riepilogo['coupon'] === null
+        && count($righe) === 1 && $righeScritte() === $prima && $stripe->count('checkout.session.create') === 0
+        && $intervalli === 'subscription.interval_mismatch'
+        && rifiuto(static fn () => OnlineSubscriptions::lines([['price_code' => $nascosto['code']]], [])) === 'subscription.price_unavailable'
+        && $troppi === 'subscription.too_many_items';
+}));
+
 summary();

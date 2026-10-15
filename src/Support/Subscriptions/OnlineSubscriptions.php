@@ -75,27 +75,12 @@ final class OnlineSubscriptions
             throw UserError::make('subscription.account_required');
         }
 
-        $items = is_string($items) ? [['price_code' => $items]] : array_values(array_filter($items, 'is_array'));
-
-        if (count($items) > self::MAX_ITEMS) {
-            throw UserError::make('subscription.too_many_items', ['max' => (string) self::MAX_ITEMS]);
-        }
-
-        // Il sito vende dal codice `ppr_` di un piano visibile online; le righe vogliono l'id.
-        $items = array_map(static fn (array $item): array => [
-            'plan_price_id' => (int) self::sellablePrice((string) ($item['price_code'] ?? ''))['id'],
-            'quantity' => (int) ($item['quantity'] ?? 1),
-            'customization' => is_array($item['customization'] ?? null) ? $item['customization'] : [],
-            'parent' => (int) ($item['parent'] ?? -1),
-        ], $items);
-
+        $items = is_string($items) ? [['price_code' => $items]] : $items;
+        // Il controllo del numero viene prima del limite: è un errore della richiesta, non del cliente.
+        self::countItems($items);
         Subscriptions::assertRoom($customerId);
 
-        $coupon = trim($couponCode) !== '' ? self::couponFor($couponCode, $customerId) : null;
-        $billing = self::billingFor($billing, $contact);
-        $includeTax = (string) (Setting::current()['catalog_prices_include_tax'] ?? 'true') === 'true';
-        $lines = SubscriptionItems::prepare($items, $billing, $includeTax);
-        $amounts = SubscriptionAmounts::ofItems($lines, $coupon, $includeTax, 0, min(array_column($lines, 'term')));
+        ['lines' => $lines, 'amounts' => $amounts, 'coupon' => $coupon, 'billing' => $billing, 'include_tax' => $includeTax] = self::preview($contact, $items, $billing, $couponCode);
         $rates = array_values(array_unique(array_map(static fn (array $line): string => number_format((float) $line['tax_rate'], 2, '.', ''), $lines)));
         // L'aliquota dell'abbonamento è un riepilogo: quella delle righe se è una sola, altrimenti 0.
         [$taxId, $taxRate] = count($rates) === 1 ? [(int) $lines[0]['tax_id'], (float) $rates[0]] : [0, 0.0];
@@ -567,6 +552,69 @@ final class OnlineSubscriptions
         }
 
         return $price;
+    }
+
+    /**
+     * Le righe chieste dal sito, controllate e preparate come in
+     * {@see SubscriptionItems::prepare()}: prezzi dal codice `ppr_` di un piano
+     * visibile online, al più {@see MAX_ITEMS}. Il negozio le usa per
+     * controllare la selezione mentre il cliente la compone.
+     *
+     * @param list<array{price_code: string, quantity?: int, customization?: array<int|string, mixed>, parent?: int}> $items `parent` = indice di un'altra riga, -1 se nessuna
+     * @param array<string, mixed> $billing la fatturazione completa ({@see billingFor()}), per l'aliquota
+     * @return list<array<string, mixed>>
+     * @throws UserError
+     */
+    public static function lines(array $items, array $billing): array
+    {
+        $items = self::countItems($items);
+        $includeTax = (string) (Setting::current()['catalog_prices_include_tax'] ?? 'true') === 'true';
+
+        // Il sito vende dal codice `ppr_`; le righe vogliono l'id.
+        return SubscriptionItems::prepare(array_map(static fn (array $item): array => [
+            'plan_price_id' => (int) self::sellablePrice((string) ($item['price_code'] ?? ''))['id'],
+            'quantity' => (int) ($item['quantity'] ?? 1),
+            'customization' => is_array($item['customization'] ?? null) ? $item['customization'] : [],
+            'parent' => (int) ($item['parent'] ?? -1),
+        ], $items), $billing, $includeTax);
+    }
+
+    /**
+     * Il riepilogo prima del pagamento: righe, importi del primo addebito col
+     * coupon, fatturazione completata dalla scheda del cliente. Non scrive niente.
+     *
+     * @param array<string, mixed> $contact la scheda del cliente
+     * @param list<array{price_code: string, quantity?: int, customization?: array<int|string, mixed>, parent?: int}> $items
+     * @param array<string, mixed> $billing i campi `billing_` del form
+     * @return array{lines: list<array<string, mixed>>, amounts: array<string, mixed>, coupon: array<string, mixed>|null, billing: array<string, string>, include_tax: bool}
+     * @throws UserError
+     */
+    public static function preview(array $contact, array $items, array $billing, string $couponCode): array
+    {
+        $customerId = (int) ($contact['id'] ?? 0);
+        $coupon = trim($couponCode) !== '' ? self::couponFor($couponCode, $customerId) : null;
+        $billing = self::billingFor($billing, $contact);
+        $includeTax = (string) (Setting::current()['catalog_prices_include_tax'] ?? 'true') === 'true';
+        $lines = self::lines($items, $billing);
+        $amounts = SubscriptionAmounts::ofItems($lines, $coupon, $includeTax, 0, min(array_column($lines, 'term')));
+
+        return ['lines' => $lines, 'amounts' => $amounts, 'coupon' => $coupon, 'billing' => $billing, 'include_tax' => $includeTax];
+    }
+
+    /**
+     * @param array<mixed> $items
+     * @return list<array<string, mixed>>
+     * @throws UserError `subscription.too_many_items`
+     */
+    private static function countItems(array $items): array
+    {
+        $items = array_values(array_filter($items, 'is_array'));
+
+        if (count($items) > self::MAX_ITEMS) {
+            throw UserError::make('subscription.too_many_items', ['max' => (string) self::MAX_ITEMS]);
+        }
+
+        return $items;
     }
 
     /**
