@@ -70,7 +70,7 @@ class OfficeOrderResource extends GestionaleResource
 
     public static function labelSchema(): array
     {
-        return ['customer' => 'Cliente', 'total' => 'Totale', 'creation' => 'Creata', 'last_modified' => 'Modificata'];
+        return ['order_number' => 'Numero', 'customer' => 'Cliente', 'total' => 'Totale', 'creation' => 'Creata', 'last_modified' => 'Modificata'];
     }
 
     /** `order` qui, `quote` per i preventivi (`QuoteResource`): la pagina e il servizio sono gli stessi. */
