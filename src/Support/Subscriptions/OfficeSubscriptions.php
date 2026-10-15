@@ -108,7 +108,7 @@ final class OfficeSubscriptions
                 'currency' => 'EUR',
                 'started_at' => $start->format('Y-m-d H:i:s'),
                 'trial_ends_at' => $trial > 0 ? $firstPeriod->format('Y-m-d H:i:s') : '',
-                'commitment_ends_at' => $commitment > 0 ? $firstPeriod->modify('+'.$commitment.' months')->format('Y-m-d H:i:s') : '',
+                'commitment_ends_at' => $commitment > 0 ? SubscriptionProration::addMonths($firstPeriod, $commitment)->format('Y-m-d H:i:s') : '',
                 'next_renewal_at' => $firstPeriod->format('Y-m-d H:i:s'),
                 'auto_renew' => 'true',
                 'note' => trim((string) ($input['note'] ?? '')),
@@ -123,7 +123,7 @@ final class OfficeSubscriptions
                 ['id' => $id, 'status' => $trial > 0 ? 'trialing' : 'active', 'tax_id' => $taxId, 'tax_rate' => $taxRate, 'prices_include_tax' => $includeTax ? 'true' : 'false'],
                 $price,
                 $start,
-                $commitment > 0 ? $firstPeriod->modify('+'.$commitment.' months') : null
+                $commitment > 0 ? SubscriptionProration::addMonths($firstPeriod, $commitment) : null
             );
             StatusLogger::record(SubscriptionStatusLog::class, $id, 'status', '', $trial > 0 ? 'trialing' : 'active', 'user', $userId ?: null, 'Abbonamento da ufficio');
 
@@ -162,9 +162,9 @@ final class OfficeSubscriptions
             }
 
             $term = max(1, (int) ($price['term_months'] ?? 1));
-            $end = $start->modify('+'.$term.' months');
+            $end = SubscriptionProration::addMonths($start, $term);
             $first = self::day((string) (($row['trial_ends_at'] ?? '') ?: ($row['started_at'] ?? ''))) ?? $start;
-            $charge = intdiv(max(0, self::monthsBetween($first, $start)), $term);
+            $charge = intdiv(max(0, SubscriptionProration::monthsBetween($first, $start)), $term);
             $coupon = (int) ($row['coupon_id'] ?? 0) > 0 ? Coupon::findById((int) $row['coupon_id']) : null;
             $amounts = SubscriptionAmounts::of($price, is_array($coupon) && $coupon !== [] ? $coupon : null, (float) $row['tax_rate'], (string) $row['prices_include_tax'] === 'true', $charge);
 
@@ -471,13 +471,6 @@ final class OfficeSubscriptions
         }
 
         return new DateTimeImmutable($value);
-    }
-
-    private static function monthsBetween(DateTimeImmutable $from, DateTimeImmutable $to): int
-    {
-        $diff = $from->diff($to);
-
-        return ($diff->invert === 1 ? -1 : 1) * ($diff->y * 12 + $diff->m);
     }
 
     private static function daysBetween(DateTimeImmutable $from, DateTimeImmutable $to): int
