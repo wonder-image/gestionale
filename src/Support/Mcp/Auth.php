@@ -89,14 +89,7 @@ final class Auth
     /** @param array<string, mixed> $server */
     public static function bearer(array $server): string
     {
-        $header = $server['HTTP_AUTHORIZATION'] ?? $server['REDIRECT_HTTP_AUTHORIZATION'] ?? null;
-
-        if (!$header && function_exists('getallheaders')) {
-            $headers = getallheaders();
-            $header = $headers['Authorization'] ?? $headers['authorization'] ?? null;
-        }
-
-        return is_string($header) && preg_match('/Bearer\s(\S+)/', $header, $matches) ? $matches[1] : '';
+        return \Wonder\OAuth\ResourceGuard::bearer($server);
     }
 
     /** @return list<string> */
