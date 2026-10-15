@@ -14,7 +14,9 @@
         "php": "^8.2"
     },
     "dependencies": {
-        "modules": []
+        "modules": [
+            "customer-account"
+        ]
     },
     "paths": {
         "src": "src",

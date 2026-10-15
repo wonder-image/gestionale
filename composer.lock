@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d76ac15441d04c865cd8d1ffeda9088c",
+    "content-hash": "86e9228850ae74bc592601dd7bae4fa5",
     "packages": [
         {
             "name": "chillerlan/php-qrcode",
@@ -3342,13 +3342,46 @@
                 "symlink": true,
                 "relative": true
             }
+        },
+        {
+            "name": "wonder-image/customer-account",
+            "version": "dev-refactor/customer-account",
+            "dist": {
+                "type": "path",
+                "url": "../customer-account",
+                "reference": "4d3465629757343ce43526d8c81c2bbc33e5eadf"
+            },
+            "require": {
+                "php": "^8.2",
+                "wonder-image/app": "^2.4.0-beta.3 || dev-main"
+            },
+            "type": "library",
+            "extra": {
+                "wonder": {
+                    "module": true
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Wonder\\Plugin\\CustomerAccount\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Account cliente persistente per wonder-image/app: schede contatto, collegamento utente, fatturazione e indirizzi di spedizione.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
         }
     ],
     "packages-dev": [],
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
-        "wonder-image/app": 20
+        "wonder-image/app": 20,
+        "wonder-image/customer-account": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,

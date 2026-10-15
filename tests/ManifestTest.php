@@ -34,7 +34,7 @@ check('richiede il core 2.2.12 e PHP 8.2', fn () =>
     && ($manifest->frameworkCompatibility()['php'] ?? '') === '^8.2'
 );
 
-check('il modulo dichiara i suoi comandi e nessuna dipendenza', fn () =>
+check('il modulo dichiara i suoi comandi e dipende solo da customer-account', fn () =>
     $manifest->consoleCommands() === [
         'Wonder\\Plugin\\Gestionale\\Console\\DemoCommand',
         'Wonder\\Plugin\\Gestionale\\Console\\ImagesCommand',
@@ -42,7 +42,7 @@ check('il modulo dichiara i suoi comandi e nessuna dipendenza', fn () =>
         'Wonder\\Plugin\\Gestionale\\Console\\StockAlertsCommand',
         'Wonder\\Plugin\\Gestionale\\Console\\VariantSlugsCommand',
     ]
-    && (array) $manifest->get('dependencies.modules', []) === []
+    && (array) $manifest->get('dependencies.modules', []) === ['customer-account']
 );
 
 summary();
