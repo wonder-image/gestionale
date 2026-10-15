@@ -126,6 +126,7 @@ final class Server
                 'tool' => $tool,
                 'user_id' => $caller->userId,
                 'api_user_id' => $caller->apiUserId,
+                'oauth_grant_id' => $caller->oauthGrantId,
                 'subject_id' => (int) ($outcome['subject'] ?? $arguments['id'] ?? $arguments['product_id'] ?? $arguments['order_id'] ?? 0),
                 'arguments' => self::json($arguments),
                 'state_before' => array_key_exists('before', $outcome ?? []) ? self::json($outcome['before']) : '',

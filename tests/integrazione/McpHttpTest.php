@@ -56,13 +56,35 @@ check('GET: 405 con Allow: POST', static function () use ($http): bool {
     return $status === 405 && stripos($headers, 'Allow: POST') !== false;
 });
 
-check('senza token: 401 con WWW-Authenticate', static function () use ($http, $rpc): bool {
+check('senza token: 401 con resource_metadata e senza error', static function () use ($http, $rpc): bool {
     [$status, $headers] = $http('POST', $rpc('ping'), null);
+    $www = preg_match('/^WWW-Authenticate:\s*(.*)$/mi', $headers, $m) ? $m[1] : '';
 
-    return $status === 401 && stripos($headers, 'WWW-Authenticate: Bearer') !== false;
+    return $status === 401
+        && str_starts_with($www, 'Bearer ')
+        && str_contains($www, 'resource_metadata="')
+        && str_contains($www, '/.well-known/oauth-protected-resource/api/gestionale/mcp"')
+        && !str_contains($www, 'error=');
 });
 
 check('token falso: 401', static fn (): bool => $http('POST', $rpc('ping'), 'abc.def.ghi')[0] === 401);
+
+$wwwAuth = static fn (string $headers): string => preg_match('/^WWW-Authenticate:\s*(.*)$/mi', $headers, $m) ? trim($m[1]) : '';
+
+// Anche il percorso JWT risponde 401 con resource_metadata e invalid_token.
+check('JWT non valido: 401 con resource_metadata e invalid_token', static function () use ($http, $rpc, $wwwAuth): bool {
+    [$status, $headers] = $http('POST', $rpc('tools/list'), 'eyJhbGciOiJIUzI1NiJ9.e30.x');
+    $www = $wwwAuth($headers);
+
+    return $status === 401 && str_contains($www, 'resource_metadata="') && str_contains($www, 'error="invalid_token"');
+});
+
+check('wio_at_ inesistente: 401 invalid_token', static function () use ($http, $rpc, $wwwAuth): bool {
+    [$status, $headers] = $http('POST', $rpc('tools/list'), 'wio_at_'.str_repeat('0', 16).'.'.str_repeat('0', 64));
+    $www = $wwwAuth($headers);
+
+    return $status === 401 && str_contains($www, 'resource_metadata="') && str_contains($www, 'error="invalid_token"');
+});
 
 if ($token === '') {
     echo "  · manca l'utente MCP con il suo token: salto le prove autenticate\n";
@@ -107,6 +129,40 @@ check('products_search e product_get', static function () use ($http, $rpc, $tok
     $product = json_decode($got['result']['content'][0]['text'] ?? 'null', true);
 
     return ($got['result']['isError'] ?? true) === false && ($product['id'] ?? 0) === $list[0]['id'];
+});
+
+\Wonder\OAuth\OAuth::resource('/api/gestionale/mcp', 'Gestionale');
+
+/** @return array{0: string, 1: int, 2: string} client_id, grant_id, access token */
+$oauthToken = static function () use ($user): array {
+    $store = \Wonder\OAuth\OAuth::store();
+    $client = (new \Wonder\OAuth\ClientRegistry($store))->register(['client_name' => 'test-integrazione', 'redirect_uris' => ['http://localhost/callback']], '127.0.0.1')['client_id'];
+    $issuer = new \Wonder\OAuth\TokenIssuer($store);
+    $grant = $issuer->grantFor((int) $user->id, $client, \Wonder\OAuth\ResourceRegistry::findByPath('/api/gestionale/mcp')['url']);
+
+    return [$client, $grant, $issuer->issue($grant)['access_token']];
+};
+$oauthCleanup = static function (string $client, int $grant): void {
+    $store = \Wonder\OAuth\OAuth::store();
+    $store->revokeGrant($grant, date('Y-m-d H:i:s'));
+    $store->deleteClient($client);
+};
+
+check('wio_at_ valido: tools/list risponde', static function () use ($http, $rpc, $oauthToken, $oauthCleanup): bool {
+    [$client, $grant, $access] = $oauthToken();
+    [$status, , $body] = $http('POST', $rpc('tools/list'), $access);
+    $oauthCleanup($client, $grant);
+
+    return $status === 200 && isset(json_decode($body, true)['result']['tools']);
+});
+
+check('wio_at_ revocato: 401 invalid_token', static function () use ($http, $rpc, $wwwAuth, $oauthToken, $oauthCleanup): bool {
+    [$client, $grant, $access] = $oauthToken();
+    \Wonder\OAuth\OAuth::store()->revokeGrant($grant, date('Y-m-d H:i:s'));
+    [$status, $headers] = $http('POST', $rpc('tools/list'), $access);
+    $oauthCleanup($client, $grant);
+
+    return $status === 401 && str_contains($wwwAuth($headers), 'error="invalid_token"');
 });
 
 summary();

@@ -17,6 +17,7 @@ use Wonder\Http\UrlParser;
 final class Auth
 {
     public const AUTHORITY = 'api_internal_user';
+    private const RESOURCE = '/api/gestionale/mcp';
 
     /**
      * @param array<string, mixed> $server
@@ -32,6 +33,21 @@ final class Auth
 
         if ($bearer === '') {
             throw McpError::make('auth.missing', 401);
+        }
+
+        if (str_starts_with($bearer, 'wio_at_')) {
+            try {
+                $oauth = \Wonder\OAuth\ResourceGuard::authenticate(self::RESOURCE, $server);
+            } catch (\Wonder\OAuth\OAuthException) {
+                // Token OAuth non valido, scaduto, revocato o per un'altra risorsa.
+                // L'header WWW-Authenticate lo costruisce mcp.php.
+                throw McpError::make('auth.invalid', 401);
+            }
+
+            // I permessi vengono dall'utente del grant, non dal client.
+            $authority = array_values(array_map('strval', (array) ($oauth->user->authority ?? [])));
+
+            return new Caller($oauth->userId, null, $authority, (string) UrlParser::requestIp($server), $oauth->grantId);
         }
 
         try {
