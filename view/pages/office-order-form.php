@@ -2,6 +2,7 @@
 
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
 use Wonder\Http\Csrf;
+use Wonder\Plugin\Gestionale\Support\Sales\OfficeCustomerPanel;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderEditor;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderPage;
 use Wonder\View\View;
@@ -11,7 +12,13 @@ use Wonder\View\View;
  * di `OfficeOrderPage::layout()`, con i componenti del core. Posta alle rotte
  * `store`/`update` del core, che la Resource intercetta in
  * `mutateRequestValues()`: le righe viaggiano nel solo campo `lines`, scritto
- * qui sotto all'invio. Lo script cerca anche il cliente e ne riempie i dati.
+ * qui sotto all'invio.
+ *
+ * La colonna del cliente (Contatti, Fatturazione, Indirizzi di consegna) la
+ * disegna `OfficeCustomerPanel`: le sue finestre salvano sulla scheda del
+ * cliente con una chiamata JSON e i riquadri si ridisegnano dalla risposta.
+ * L'indirizzo spuntato scrive i campi nascosti `shipping_*` dell'ordine;
+ * senza spunta si copiano quelli di fatturazione.
  */
 
 /** @var class-string<\Wonder\Plugin\Gestionale\Resources\Sales\OfficeOrderResource> $resource */
@@ -27,6 +34,17 @@ echo ResourceFormLayoutRenderer::render(OfficeOrderPage::layout($resource, $valu
     'attributes' => ['autocomplete' => 'off', 'data-wi-save-bar' => true],
     'footer' => Csrf::fieldFor('post'),
 ]);
+
+// Le finestre vanno fuori dal form dell'ordine.
+echo OfficeCustomerPanel::modals(OfficeOrderEditor::customerSaveUrl());
+
+$customerId = (int) ($values['customer_id'] ?? 0);
+
+try {
+    $panel = $customerId > 0 ? OfficeCustomerPanel::payload($customerId) : [];
+} catch (Throwable) {
+    $panel = [];
+}
 ?>
 <script>
 (function () {
@@ -35,13 +53,15 @@ echo ResourceFormLayoutRenderer::render(OfficeOrderPage::layout($resource, $valu
     var form = document.getElementById('wi-oo-form');
     var lines = form.querySelector('[data-wi-oo-lines]');
     var customersUrl = <?=$json(OfficeOrderEditor::customersUrl())?>;
-    var customerId = form.querySelector('[data-wi-oo-customer-id]');
-    var customerSearch = form.querySelector('[data-wi-oo-customer-search]');
-    var customerResults = form.querySelector('[data-wi-oo-customer-results]');
-    var customerMessage = form.querySelector('[data-wi-oo-customer-message]');
+    var saveUrl = <?=$json(OfficeOrderEditor::customerSaveUrl())?>;
+    var modals = <?=$json([OfficeCustomerPanel::CONTACTS_MODAL, OfficeCustomerPanel::BILLING_MODAL, \Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource::MODAL_ID])?>;
+    var shippingKeys = <?=$json(\Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders::shippingKeys())?>;
+    var billingKeys = <?=$json(\Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders::billingKeys())?>;
+    var customerId = form.querySelector('[name="customer_id"][data-wi-remote-search-value]');
     // Le azioni che non salvano le righe.
     var withoutLines = <?=$json(OfficeOrderPage::WITHOUT_LINES)?>;
-    var timer = null;
+    var EMPTY = '<p class="text-muted small mb-0">Scegli un cliente.</p>';
+    var state = {contact: null, addresses: []};
     var seq = 0;
 
     function editor() {
@@ -50,10 +70,112 @@ echo ResourceFormLayoutRenderer::render(OfficeOrderPage::layout($resource, $valu
         return root ? root.wiOfficeEditor : null;
     }
 
-    function get(params, done) {
+    function toast(message) {
+        if (typeof window.alertToast === 'function') {
+            window.alertToast('custom', 'error', 'Errore', message);
+        } else {
+            window.alert(message);
+        }
+    }
+
+    function field(key) {
+        return form.querySelector('[data-wi-oo-field="' + key + '"]');
+    }
+
+    function set(key, value) {
+        var node = field(key);
+
+        if (!node || value === null || value === undefined) {
+            return;
+        }
+
+        if (node.tagName === 'SELECT' && !node.querySelector('option[value="' + String(value) + '"]')) {
+            return;
+        }
+
+        node.value = String(value);
+        node.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+
+    // I dati della scheda del cliente riempiono la testata.
+    function fill(customer) {
+        Object.keys(customer).forEach(function (key) {
+            set(key, customer[key]);
+        });
+    }
+
+    function panels(data) {
+        var html = (data && data.html) || {};
+
+        ['contacts', 'billing', 'addresses'].forEach(function (key) {
+            var node = document.querySelector('[data-wi-oo-panel="' + key + '"]');
+
+            if (node) {
+                node.innerHTML = html[key] || EMPTY;
+            }
+        });
+
+        state.contact = (data && data.contact) || null;
+        state.addresses = (data && data.addresses) || [];
+        document.querySelectorAll('[data-wi-oo-edit]').forEach(function (button) {
+            button.disabled = !state.contact;
+        });
+    }
+
+    function boxes() {
+        return Array.prototype.slice.call(document.querySelectorAll('[data-wi-oo-panel="addresses"] input[name="oo_address"]'));
+    }
+
+    function checked() {
+        var box = boxes().filter(function (b) { return b.checked; })[0];
+
+        return box ? parseInt(box.value, 10) : 0;
+    }
+
+    function check(id) {
+        boxes().forEach(function (box) {
+            box.checked = parseInt(box.value, 10) === id;
+        });
+    }
+
+    function addressOf(id) {
+        return state.addresses.filter(function (a) { return a.id === id; })[0] || null;
+    }
+
+    // La consegna dell'ordine: l'indirizzo spuntato, o quello di fatturazione.
+    function ship() {
+        var address = addressOf(checked());
+
+        shippingKeys.forEach(function (key) {
+            var value = '';
+
+            if (address) {
+                value = address[key];
+            } else if (billingKeys.indexOf(key) !== -1) {
+                value = (field('billing_' + key) || {}).value || '';
+            }
+
+            set('shipping_' + key, value);
+        });
+    }
+
+    // La bozza riaperta: si spunta l'indirizzo uguale a quello salvato.
+    // Se nessuno combacia la consegna salvata resta com'è.
+    function matchSaved() {
+        var same = function (a, key) {
+            return String(a[key] || '').trim().toLowerCase() === String((field('shipping_' + key) || {}).value || '').trim().toLowerCase();
+        };
+        var found = state.addresses.filter(function (a) {
+            return ['street', 'number', 'cap', 'city'].every(function (key) { return same(a, key); });
+        })[0];
+
+        check(found ? found.id : 0);
+    }
+
+    function load(id, done) {
         var mine = ++seq;
 
-        window.fetch(customersUrl + (customersUrl.indexOf('?') === -1 ? '?' : '&') + params, {
+        window.fetch(customersUrl + (customersUrl.indexOf('?') === -1 ? '?' : '&') + 'id=' + encodeURIComponent(id), {
             credentials: 'same-origin',
             headers: {Accept: 'application/json'}
         }).then(function (response) {
@@ -67,101 +189,189 @@ echo ResourceFormLayoutRenderer::render(OfficeOrderPage::layout($resource, $valu
                 done(data || {});
             }
         }, function () {
-            customerMessage.textContent = 'La ricerca non risponde: riprova.';
+            toast('La scheda del cliente non risponde: riprova.');
         });
     }
 
-    function closeCustomers() {
-        customerResults.classList.add('d-none');
-
-        while (customerResults.firstChild) {
-            customerResults.removeChild(customerResults.firstChild);
-        }
-    }
-
-    // I dati della scheda del cliente riempiono la testata.
-    function fill(customer) {
-        Object.keys(customer).forEach(function (key) {
-            var node = form.querySelector('[data-wi-oo-field="' + key + '"]');
-
-            if (!node || customer[key] === null || customer[key] === undefined) {
-                return;
-            }
-
-            if (node.tagName === 'SELECT' && !node.querySelector('option[value="' + String(customer[key]) + '"]')) {
-                return;
-            }
-
-            node.value = String(customer[key]);
-            node.dispatchEvent(new Event('change', {bubbles: true}));
-        });
-    }
-
-    function pick(item) {
-        customerId.value = String(item.id);
-        customerSearch.value = item.label;
-        customerMessage.textContent = item.detail || '';
-        closeCustomers();
-        get('id=' + encodeURIComponent(item.id), function (data) {
-            fill(data.customer || {});
-        });
-    }
-
-    customerSearch.addEventListener('input', function () {
-        var q = customerSearch.value.replace(/^\s+|\s+$/g, '');
-
-        window.clearTimeout(timer);
-        customerId.value = '';
-
-        if (q.length < 2) {
-            closeCustomers();
-
+    // Un cliente nuovo: testata dalla sua scheda, riquadri, il predefinito spuntato.
+    form.addEventListener('wi:search-select', function (event) {
+        if (!event.target.contains(customerId)) {
             return;
         }
 
-        timer = window.setTimeout(function () {
-            get('q=' + encodeURIComponent(q), function (data) {
-                var found = data.customers || [];
+        load(event.detail.id, function (data) {
+            var main;
 
-                closeCustomers();
-                customerMessage.textContent = found.length ? '' : 'Nessun cliente trovato: crealo con «Nuovo cliente».';
-
-                found.forEach(function (item) {
-                    var button = document.createElement('button');
-                    var name = document.createElement('div');
-                    var detail = document.createElement('div');
-
-                    button.type = 'button';
-                    button.className = 'list-group-item list-group-item-action';
-                    name.textContent = item.label;
-                    detail.className = 'small text-body-secondary';
-                    detail.textContent = item.detail || '';
-                    button.appendChild(name);
-                    button.appendChild(detail);
-                    button.addEventListener('click', function () {
-                        pick(item);
-                    });
-                    customerResults.appendChild(button);
-                });
-
-                customerResults.classList.toggle('d-none', found.length === 0);
-            });
-        }, 250);
+            fill(data.customer || {});
+            panels(data);
+            main = state.addresses.filter(function (a) { return a.is_default; })[0];
+            check(main ? main.id : 0);
+            ship();
+        });
     });
 
-    customerSearch.addEventListener('keydown', function (event) {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-        } else if (event.key === 'Escape') {
-            closeCustomers();
+    customerId.addEventListener('change', function () {
+        if (customerId.value === '') {
+            ++seq;
+            panels(null);
         }
     });
 
+    // La spunta fa da scelta singola: toglierla torna alla fatturazione.
+    document.addEventListener('change', function (event) {
+        var box = event.target;
+
+        if (!box.matches || !box.matches('[data-wi-oo-panel="addresses"] input[name="oo_address"]')) {
+            return;
+        }
+
+        check(box.checked ? parseInt(box.value, 10) : 0);
+        ship();
+    });
+
+    // Le finestre si aprono sul cliente scelto, con i valori della scheda.
+    document.addEventListener('show.bs.modal', function (event) {
+        var modal = event.target;
+        var $ = window.jQuery;
+        var target;
+        var country;
+        var province;
+
+        if (modals.indexOf(modal.id) === -1 || !state.contact) {
+            return;
+        }
+
+        target = modal.querySelector('[name="contact_id"]');
+
+        if (target) {
+            target.value = state.contact.id;
+        }
+
+        if (modal.id === modals[2]) {
+            return;
+        }
+
+        Object.keys(state.contact).forEach(function (key) {
+            var input = modal.querySelector('[name="' + key + '"]:not([type=hidden])');
+
+            if (!input || key === 'province') {
+                return;
+            }
+
+            if (input.type === 'checkbox' || input.type === 'radio') {
+                return;
+            }
+
+            input.value = state.contact[key] == null ? '' : state.contact[key];
+            input.dispatchEvent(new Event('change', {bubbles: true}));
+
+            if (input.tagName === 'SELECT' && $) {
+                $(input).trigger('change');
+            }
+        });
+
+        country = modal.querySelector('[name="country"]');
+        province = modal.querySelector('[name="province"]');
+
+        if (country && province && typeof window.searchStates === 'function') {
+            window.searchStates(country, state.contact.province || '');
+        }
+    });
+
+    function post(body, done) {
+        var meta = document.querySelector('meta[name="wi-csrf"]');
+
+        window.fetch(saveUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {Accept: 'application/json', 'X-WI-CSRF': meta ? meta.content : ''},
+            body: body
+        }).then(function (response) {
+            return response.json().catch(function () { return {ok: false, message: 'HTTP ' + response.status}; });
+        }).then(function (data) {
+            if (!data.ok) {
+                toast(data.message || 'Non salvato.');
+
+                return;
+            }
+
+            done(data);
+        }, function () {
+            toast('Il salvataggio non risponde: riprova.');
+        });
+    }
+
+    // Dopo un salvataggio: i riquadri nuovi, e la testata dell'ordine
+    // allineata alla scheda (solo la parte che la finestra ha cambiato).
+    function saved(action, data) {
+        var customer = data.customer || {};
+        var keep = checked();
+
+        panels(data);
+
+        if (action === 'contacts') {
+            set('email', customer.email);
+            set('phone', customer.phone);
+        } else if (action === 'billing') {
+            billingKeys.forEach(function (key) { set('billing_' + key, customer['billing_' + key]); });
+        }
+
+        if (action === 'save' && data.id) {
+            keep = data.id;
+        } else if (action === 'delete' && !addressOf(keep)) {
+            keep = 0;
+        }
+
+        check(keep);
+        ship();
+    }
+
+    document.addEventListener('submit', function (event) {
+        var target = event.target;
+        var modal = target.closest ? target.closest('.modal') : null;
+        var body;
+        var action;
+
+        if (!modal || modals.indexOf(modal.id) === -1) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        body = new FormData(target);
+        action = String(body.get('action') || '');
+        post(body, function (data) {
+            if (window.bootstrap && window.bootstrap.Modal) {
+                window.bootstrap.Modal.getOrCreateInstance(modal).hide();
+            }
+
+            saved(action, data);
+        });
+    }, true);
+
+    // Elimina: la conferma l'ha già chiesta la lib, poi parte il clic.
     document.addEventListener('click', function (event) {
-        if (!customerResults.contains(event.target) && event.target !== customerSearch) {
-            closeCustomers();
+        var button = event.target.closest ? event.target.closest('[data-wi-oo-address-delete]') : null;
+        var body;
+
+        if (!button || !state.contact) {
+            return;
         }
+
+        body = new FormData();
+        body.append('action', 'delete');
+        body.append('contact_id', state.contact.id);
+        body.append('address_id', button.getAttribute('data-wi-oo-address-delete'));
+        post(body, function (data) {
+            saved('delete', data);
+        });
     });
+
+    panels(<?=$json($panel ?: null)?>);
+
+    if (state.contact) {
+        matchSaved();
+    }
 
     // All'invio le righe dell'editor vanno nel campo `lines`; la conferma
     // l'ha già chiesta la lib, e il pulsante premuto porta il suo `intent`.

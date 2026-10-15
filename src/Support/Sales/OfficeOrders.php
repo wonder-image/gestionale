@@ -859,14 +859,14 @@ final class OfficeOrders
     }
 
     /** @return list<string> le chiavi della fatturazione, senza prefisso */
-    private static function billingKeys(): array
+    public static function billingKeys(): array
     {
         return ['country', 'province', 'city', 'cap', 'street', 'number', 'more', 'phone_prefix', 'phone',
             'name', 'surname', 'type', 'business_name', 'cf', 'pi', 'sdi', 'pec'];
     }
 
     /** @return list<string> le chiavi della consegna, senza prefisso */
-    private static function shippingKeys(): array
+    public static function shippingKeys(): array
     {
         return ['country', 'province', 'city', 'cap', 'street', 'number', 'more', 'phone_prefix', 'phone',
             'name', 'surname', 'place_id', 'lat', 'lng'];

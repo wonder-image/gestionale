@@ -89,6 +89,12 @@ final class OfficeOrderEditor
         return self::route('api.gestionale.backend.sales.customers', '/api/gestionale/backend/vendite/clienti/');
     }
 
+    /** Dove le finestre del cliente salvano la sua scheda (POST, JSON). */
+    public static function customerSaveUrl(): string
+    {
+        return self::route('api.gestionale.backend.sales.customer_save', '/api/gestionale/backend/vendite/clienti/salva/');
+    }
+
     private static function route(string $name, string $fallback): string
     {
         if (!function_exists('__r')) {

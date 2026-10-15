@@ -163,7 +163,7 @@ final class ContactAddressResource extends NavigationOnlyResource
      * dice com'è andata.
      *
      * @param array<string, mixed> $values
-     * @return array{ok: bool, message: string}
+     * @return array{ok: bool, message: string, id?: int}
      */
     public static function run(string $action, int $contactId, int $addressId, array $values = []): array
     {
@@ -405,7 +405,7 @@ final class ContactAddressResource extends NavigationOnlyResource
     /**
      * @param array<string, mixed>|null $existing
      * @param array<string, string> $clean
-     * @return array{ok: bool, message: string}
+     * @return array{ok: bool, message: string, id?: int}
      */
     private static function save(int $contactId, ?array $existing, array $clean): array
     {
@@ -438,7 +438,7 @@ final class ContactAddressResource extends NavigationOnlyResource
 
         static::ensureDefault($contactId);
 
-        return ['ok' => true, 'message' => $existing === null ? 'Indirizzo aggiunto.' : 'Indirizzo salvato.'];
+        return ['ok' => true, 'message' => $existing === null ? 'Indirizzo aggiunto.' : 'Indirizzo salvato.', 'id' => $id];
     }
 
     /** @return array{ok: bool, message: string} */

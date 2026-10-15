@@ -28,25 +28,32 @@ $bozza = [
 // L'editor delle righe legge le categorie fiscali dal database: qui ne basta il contenitore.
 $pagina = static fn (string $resource, array $values): string => ResourceFormLayoutRenderer::renderLayout(OfficeOrderPage::layout($resource, $values, '<div data-wi-office-editor></div>'));
 
-check('la testata ha i campi del core, con i valori e l\'aggancio per lo script', function () use ($bozza, $pagina) {
+check('la testata: ricerca del cliente, dati nascosti per lo script, i tre riquadri del cliente', function () use ($bozza, $pagina) {
     $html = $pagina(OfficeOrderResource::class, $bozza);
 
-    return preg_match('/<select[^>]*name="billing_type"[^>]*data-wi-oo-field="billing_type"|<select[^>]*data-wi-oo-field="billing_type"[^>]*name="billing_type"/', $html) === 1
-        && str_contains($html, 'value="Rossi &amp; figli"')
-        && str_contains($html, 'data-wi-oo-field="billing_country"') && str_contains($html, 'value="IT"')
-        && str_contains($html, 'name="customer_id"') && str_contains($html, 'data-wi-oo-customer-id')
-        && str_contains($html, 'data-wi-oo-customer-search') && str_contains($html, 'data-wi-oo-customer-results')
+    return preg_match('/<input[^>]*type="hidden"[^>]*name="billing_business_name"[^>]*value="Rossi &amp; figli"[^>]*data-wi-oo-field="billing_business_name"/', $html) === 1
+        && str_contains($html, 'data-wi-oo-field="billing_country"') && str_contains($html, 'data-wi-oo-field="shipping_street"')
+        && str_contains($html, 'name="customer_id"') && str_contains($html, 'data-wi-remote-search-value')
+        && str_contains($html, 'data-wi-remote-search') && str_contains($html, 'data-wi-remote-search-results')
+        && str_contains($html, 'data-wi-oo-panel="contacts"') && str_contains($html, 'data-wi-oo-panel="billing"')
+        && str_contains($html, 'data-wi-oo-panel="addresses"') && substr_count($html, 'data-wi-oo-edit') === 2
+        && !str_contains($html, 'data-wi-oo-customer-')
         && str_contains($html, 'name="lines"') && str_contains($html, 'data-wi-oo-lines')
         && str_contains($html, 'data-wi-office-editor')
         && str_contains($html, 'value="5,00"')
         && str_contains($html, 'Consegna &lt;b&gt;presto&lt;/b&gt;') && !str_contains($html, '<b>presto</b>');
 });
 
-check('indirizzo e costo di spedizione si vedono solo con la spedizione, lo sconto solo se c\'è', function () use ($bozza, $pagina) {
+check('la consegna sta sotto le righe e sopra il pagamento, l\'indirizzo non è più a vista', function () use ($bozza, $pagina) {
     $html = $pagina(OfficeOrderResource::class, $bozza);
+    $righe = strpos($html, 'data-wi-office-editor');
+    $consegna = strpos($html, 'name="fulfillment_type"');
+    $pagamento = strpos($html, 'name="payment_method_id"');
 
-    return str_contains($html, 'name="shipping_street"')
-        && substr_count($html, 'fulfillment_type') >= 3
+    return $righe !== false && $consegna !== false && $pagamento !== false
+        && $righe < $consegna && $consegna < $pagamento
+        && !preg_match('/<input[^>]*type="text"[^>]*name="shipping_street"/', $html)
+        && str_contains($html, 'name="shipping_amount"')
         && str_contains($html, 'manual_discount_type');
 });
 
@@ -59,7 +66,7 @@ check('la bozza d\'ordine: Salva per primo, Conferma con la conferma della lib, 
         && !str_contains($nuova, 'value="delete"') && str_contains($salvata, 'value="delete"')
         && str_contains($nuova, 'data-wi-confirm')
         && str_contains($nuova, 'name="notify"') && !preg_match('/name="notify" value="true"[^>]*checked/', $nuova)
-        && !str_contains($nuova, '<script');
+        && !str_contains($nuova, 'onclick=');
 });
 
 check('il preventivo: Invia, Accettato, Elimina o Rifiutato secondo lo stato, la scadenza, l\'email accesa', function () use ($bozza, $pagina) {
