@@ -329,17 +329,27 @@ check('dalla pagina: registra pagamento sulla rata', fn () => prova(static funct
     return $esito['ok'] && rate($id) === [] && Installments::pendingForSubscription($id) === [];
 }));
 
-check('dati di prova: un abbonamento da ufficio con la sua rata, e la pulizia lo toglie', fn () => prova(static function (): bool {
+check('dati di prova: due abbonamenti da ufficio con le rate, uno coi tre servizi, e la pulizia li toglie', fn () => prova(static function (): bool {
     OfficeSubscriptionsDemo::clear();
     PlansDemo::create();
     $creati = OfficeSubscriptionsDemo::create();
     $secondo = OfficeSubscriptionsDemo::create();
     $riga = Subscription::find(['code' => 'sub_demo-ufficio', 'deleted' => 'false'], 1);
+    $servizi = Subscription::find(['code' => 'sub_demo-servizi', 'deleted' => 'false'], 1);
+    $righe = is_array($servizi) && isset($servizi['id']) ? righe((int) $servizi['id']) : [];
     $tolti = OfficeSubscriptionsDemo::clear();
 
-    return ($creati >= 2 || Wonder\Plugin\Gestionale\Console\Demo\DemoData::notes() !== []) && $secondo === 0
-        && (!is_array($riga) || $riga === [] || (string) $riga['channel'] === 'office')
-        && $tolti >= ($creati > 0 ? 2 : 0);
+    // Senza i contatti di prova non crea niente e lo dice.
+    if ($creati === 0) {
+        return Wonder\Plugin\Gestionale\Console\Demo\DemoData::notes() !== [] && $secondo === 0 && $tolti === 0;
+    }
+
+    return $creati >= 4 && $secondo === 0
+        && (string) $riga['channel'] === 'office'
+        && count($righe) === 3
+        && (int) $righe[1]['parent_item_id'] === (int) $righe[0]['id']
+        && str_contains((string) $righe[0]['customization'], 'annaverdi.it')
+        && $tolti === $creati;
 }));
 
 check('più servizi: dominio, hosting legato e assistenza su un abbonamento, rinnovo al mese, prima rata la somma', fn () => prova(static function (): bool {

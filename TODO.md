@@ -356,6 +356,10 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - [ ] Prove con Stripe vero: aspettano le chiavi di prova sul sito di prova
     - [ ] Dopo: rimborsi degli abbonamenti registrati in automatico (G8). *Cambia piano* e *Disdici* dal backend: fatti nel piano 3
   - [x] Piano 3 Abbonamenti da ufficio ([piano](docs/superpowers/plans/2026-10-13-g10-piano-3-abbonamenti-da-ufficio.md), ramo `g10-piano-3` con `g9-piano-3` unito): *Nuovo abbonamento*, rate per periodo dalla condizione di pagamento, proforma PDF per email, promemoria, `past_due` → `unpaid` (impostazione), *Registra pagamento*, Scadenzario, *Cambia piano*/*Disdici*/*Annulla* dalla scheda (anche per gli online). Test `OfficeSubscriptionsTest` sul Mac
+  - [ ] G10b Abbonamenti con più servizi ([spec](docs/superpowers/specs/2026-10-15-abbonamenti-con-servizi-design.md), [piano](docs/superpowers/plans/2026-10-15-abbonamenti-con-servizi.md), ramo `abbonamenti-con-servizi`, sito di prova `ecommerce-site-servizi`)
+    - [x] Parte 1, gestionale da ufficio: righe e storia, legami fra piani, personalizzazioni dei piani, card *Servizi*, limite per cliente, dati di prova, script di migrazione, guide
+    - [ ] Parte 2: Stripe e online (una subscription item per riga), ecommerce, revisione finale
+    - [ ] Prova nel browser
 
 **Fuori dal percorso della consegna (D61)**
 

@@ -3,10 +3,14 @@
 namespace Wonder\Plugin\Gestionale\Seeding;
 
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
+use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanLink;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
+use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Positions;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions;
@@ -16,20 +20,27 @@ use Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions;
  * uno annuale e due limiti. Il mensile di «Pro» ha quattordici giorni di
  * prova; l'annuale di «Pro» un anno di vincolo.
  *
+ * E tre servizi da comporre in un abbonamento (G10b): «Dominio .it» annuale
+ * con la personalizzazione «Nome del dominio» (testo, obbligatoria),
+ * «Hosting» annuale che si lega a «Dominio .it», «Assistenza» mensile.
+ *
  * Il segno di prova sta nel codice del piano e dei prezzi (`pln_demo-base`,
  * `ppr_demo-base-mensile`). La pulizia toglie piani, prezzi e limiti col
  * segno, ma non un piano con un prezzo usato da un abbonamento: quello resta
- * e il comando lo dice.
+ * e il comando lo dice. Toglie anche i legami dei piani e la personalizzazione
+ * di prova, quando nessun piano la usa più.
  */
 final class PlansDemo
 {
     public const KEY = 'piani';
 
+    private const DOMAIN_NAME = 'nome-dominio';
+
     public static function register(): void
     {
         DemoData::register(
             self::KEY,
-            'Due piani di abbonamento (Base e Pro) con prezzi mensile e annuale',
+            'Due piani di abbonamento (Base e Pro) e tre servizi (Dominio .it, Hosting, Assistenza)',
             static fn (): int => self::create(),
             static fn (): int => self::clear()
         );
@@ -40,11 +51,15 @@ final class PlansDemo
     {
         $created = 0;
         $tax = self::ordinaryTaxCategoryId();
+        $customization = self::domainName($created);
+        $ids = [];
 
         foreach (self::plans() as $ref => $plan) {
             $code = DemoCode::forModel(Plan::class, $ref);
+            $found = self::find(Plan::class, $code);
 
-            if (self::find(Plan::class, $code) !== null) {
+            if ($found !== null) {
+                $ids[$ref] = (int) $found['id'];
                 continue;
             }
 
@@ -66,6 +81,7 @@ final class PlansDemo
                 continue;
             }
 
+            $ids[$ref] = $id;
             $created++;
             $position = 0;
 
@@ -95,6 +111,18 @@ final class PlansDemo
                     $created++;
                 }
             }
+
+            $parent = $ids[$plan['parent'] ?? ''] ?? 0;
+
+            if ($parent > 0 && self::rows(PlanLink::find(['plan_id' => $id, 'parent_plan_id' => $parent])) === []) {
+                PlanLink::create(['plan_id' => $id, 'parent_plan_id' => $parent]);
+                $created++;
+            }
+
+            if (!empty($plan['domain_name']) && $customization > 0 && self::rows(CustomizationLink::find(['plan_id' => $id, 'customization_id' => $customization, 'deleted' => 'false'])) === []) {
+                CustomizationLink::create(['plan_id' => $id, 'customization_id' => $customization, 'is_required' => 'true', 'position' => 1]);
+                $created++;
+            }
         }
 
         return $created;
@@ -118,7 +146,12 @@ final class PlansDemo
                 continue;
             }
 
-            $removed += count($prices) + count(self::rows(PlanFeature::find(['plan_id' => $id])));
+            $removed += count($prices) + count(self::rows(PlanFeature::find(['plan_id' => $id])))
+                + count(self::rows(CustomizationLink::find("plan_id = {$id} AND (deleted = 'false' OR deleted = 'true')")))
+                + count(self::rows(PlanLink::find("plan_id = {$id} OR parent_plan_id = {$id}")));
+            // Prima i legami: le chiavi esterne non lasciano andare il piano.
+            sqlDelete(CustomizationLink::$table, 'plan_id = '.$id);
+            sqlDelete(PlanLink::$table, 'plan_id = '.$id.' OR parent_plan_id = '.$id);
             sqlDelete(PlanFeature::$table, 'plan_id = '.$id);
             sqlDelete(PlanPrice::$table, 'plan_id = '.$id);
             sqlDelete(Plan::$table, 'id = '.$id);
@@ -129,11 +162,57 @@ final class PlansDemo
             DemoData::note('Piani di prova lasciati, hanno abbonamenti: '.implode(', ', $kept).'.');
         }
 
+        $customization = Customization::find(['code' => DemoCode::forModel(Customization::class, self::DOMAIN_NAME), 'deleted' => 'false'], 1);
+
+        // Resta finché un piano (di prova lasciato o vero) la usa.
+        if (is_array($customization) && isset($customization['id'])
+            && self::rows(CustomizationLink::find(['customization_id' => (int) $customization['id'], 'deleted' => 'false'])) === []) {
+            try {
+                CustomizationResource::deleteRecord((int) $customization['id']);
+                $removed++;
+            } catch (\Throwable) {
+                DemoData::note('Personalizzazione di prova lasciata: «Nome del dominio».');
+            }
+        }
+
         return $removed;
     }
 
+    /** La personalizzazione «Nome del dominio», creata se manca. @return int il suo id */
+    private static function domainName(int &$created): int
+    {
+        $code = DemoCode::forModel(Customization::class, self::DOMAIN_NAME);
+        $found = self::find(Customization::class, $code);
+
+        if ($found !== null) {
+            return (int) $found['id'];
+        }
+
+        $id = DemoCode::revive(Customization::class, $code);
+
+        if ($id > 0) {
+            return $id;
+        }
+
+        $result = Customization::create([
+            'code' => $code,
+            'name' => 'Nome del dominio',
+            'label' => 'Nome del dominio',
+            'help_text' => 'Senza www, per esempio annaverdi.it',
+            'kind' => 'text',
+            'max_length' => 63,
+            'active' => 'true',
+            'for_products' => 'false',
+            'for_subscriptions' => 'true',
+        ]);
+        $id = !empty($result->success) ? (int) ($result->insert_id ?? 0) : 0;
+        $created += $id > 0 ? 1 : 0;
+
+        return $id;
+    }
+
     /**
-     * @return array<string, array{values: array<string, mixed>, prices: array<string, array<string, mixed>>, features: array<string, string>}>
+     * @return array<string, array{values: array<string, mixed>, prices: array<string, array<string, mixed>>, features: array<string, string>, parent?: string, domain_name?: bool}>
      */
     private static function plans(): array
     {
@@ -153,6 +232,29 @@ final class PlansDemo
                     'annuale' => ['name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'commitment_months' => 12, 'trial_days' => 0, 'price' => '249.00'],
                 ],
                 'features' => ['max_progetti' => '20', 'supporto' => 'prioritario'],
+            ],
+            'dominio' => [
+                'values' => ['name' => 'Dominio .it', 'description' => 'La registrazione del dominio, rinnovata ogni anno.'],
+                'prices' => [
+                    'annuale' => ['name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'commitment_months' => 0, 'trial_days' => 0, 'price' => '12.20'],
+                ],
+                'features' => [],
+                'domain_name' => true,
+            ],
+            'hosting' => [
+                'values' => ['name' => 'Hosting', 'description' => 'Lo spazio del sito sul dominio scelto.'],
+                'prices' => [
+                    'annuale' => ['name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'commitment_months' => 0, 'trial_days' => 0, 'price' => '61.00'],
+                ],
+                'features' => [],
+                'parent' => 'dominio',
+            ],
+            'assistenza' => [
+                'values' => ['name' => 'Assistenza', 'description' => 'Aggiornamenti e assistenza via email, ogni mese.'],
+                'prices' => [
+                    'mensile' => ['name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'commitment_months' => 0, 'trial_days' => 0, 'price' => '10.00'],
+                ],
+                'features' => [],
             ],
         ];
     }

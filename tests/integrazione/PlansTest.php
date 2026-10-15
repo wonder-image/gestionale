@@ -288,7 +288,7 @@ check('importi di un periodo con un coupon vero, riletto dal database', function
     });
 });
 
-check('i piani di prova: due piani, quattro prezzi, quattro limiti; il secondo giro non rifà niente', function () {
+check('i piani di prova: due piani e tre servizi, sette prezzi, quattro limiti, i legami; il secondo giro non rifà niente', function () {
     return prova(static function (): bool {
         Wonder\Plugin\Gestionale\Seeding\OfficeSubscriptionsDemo::clear();
         PlansDemo::clear();
@@ -296,13 +296,22 @@ check('i piani di prova: due piani, quattro prezzi, quattro limiti; il secondo g
         $secondo = PlansDemo::create();
         $pro = Plan::find(['code' => DemoCode::forModel(Plan::class, 'pro'), 'deleted' => 'false'], 1);
         $prezzi = is_array($pro) ? prezziDi((int) $pro['id']) : [];
+        $dominio = (int) (Plan::find(['code' => DemoCode::forModel(Plan::class, 'dominio'), 'deleted' => 'false'], 1)['id'] ?? 0);
+        $hosting = (int) (Plan::find(['code' => DemoCode::forModel(Plan::class, 'hosting'), 'deleted' => 'false'], 1)['id'] ?? 0);
+        $nome = CustomizationLink::find(['plan_id' => $dominio, 'deleted' => 'false'], 1);
+        $madri = PlanLinks::parentsOf($hosting);
         $tolti = PlansDemo::clear();
         $sparito = Plan::find(['code' => DemoCode::forModel(Plan::class, 'pro')], 1);
+        $personalizzazione = Customization::find(['code' => DemoCode::forModel(Customization::class, 'nome-dominio')], 1);
 
-        return $creati === 10 && $secondo === 0
+        // 2 piani + 4 prezzi + 4 limiti; 3 servizi + 3 prezzi; la personalizzazione, il suo legame, «Si lega a».
+        return $creati === 19 && $secondo === 0
             && count($prezzi) === 2 && (int) $prezzi[0]['trial_days'] === 14 && (int) $prezzi[1]['commitment_months'] === 12
-            && $tolti === 10
-            && (!is_array($sparito) || $sparito === []);
+            && $dominio > 0 && $madri === [$dominio]
+            && is_array($nome) && (string) ($nome['is_required'] ?? '') === 'true'
+            && $tolti === 19
+            && (!is_array($sparito) || $sparito === [])
+            && (!is_array($personalizzazione) || $personalizzazione === []);
     });
 });
 
