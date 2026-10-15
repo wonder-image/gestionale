@@ -302,10 +302,12 @@ check('cambio piano: Stripe senza conguagli, una riga sola anche quando torna la
     SubscriptionEvents::apply(notifica('customer.subscription.created', abbonamentoStripe('sub_S4', $id, 'active', prezzoStripe($p['mensile']))));
     $stripe->objects['sub_S4'] = abbonamentoStripe('sub_S4', $id, 'active', prezzoStripe($p['mensile']));
     OnlineSubscriptions::changePlan($id, (int) $p['annuale']['id'], 'api');
-    $chiamata = $stripe->last('subscription.update');
+    $chiamata = $stripe->last('subscription_item.update');
     SubscriptionEvents::apply(notifica('customer.subscription.updated', abbonamentoStripe('sub_S4', $id, 'active', prezzoStripe($p['annuale']))));
 
-    return $chiamata['proration_behavior'] === 'none' && $chiamata['items'][0]['id'] === 'si_'.$id
+    return $chiamata['id'] === 'si_'.$id && $chiamata['proration_behavior'] === 'none'
+        && str_starts_with((string) $chiamata['price'], 'price_') && $chiamata['price'] !== prezzoStripe($p['mensile'])
+        && $stripe->count('subscription.update') === 0
         && SubscriptionItems::priceIdOf($id) === (int) $p['annuale']['id']
         && round((float) Subscription::findById($id)['total'], 2) === 244.0
         && count(righe(SubscriptionItemChange::class, ['subscription_id' => $id, 'action' => 'changed'])) === 1;
@@ -542,6 +544,89 @@ check('più servizi su Stripe: un item tolto chiude la riga, uno con item_id e u
         && count($storia('removed')) === 1 && count($storia('changed')) === 1 && count($storia('added')) === 4
         && round((float) $abbonamento['total'], 2) === round(array_sum(array_map(static fn (array $r): float => (float) $r['total'], $vive)), 2)
         && count(SubscriptionItems::forSubscription($id)) === 4 && count($storia('changed')) === 1 && count($storia('removed')) === 1;
+}));
+
+/** treServiziAttivi partiti davvero, con l'abbonamento anche nel finto Stripe. */
+function treServiziPartiti(FakeSubscriptionGateway $stripe, string $sub): array
+{
+    [$id, $righe, $prezzi] = treServiziAttivi($sub);
+    $oggetto = conItem($sub, $id, 'active', [['si_a', $prezzi[0], 1, (int) $righe[0]['id']], ['si_b', $prezzi[1], 2, (int) $righe[1]['id']], ['si_c', $prezzi[2], 3, (int) $righe[2]['id']]]);
+    SubscriptionEvents::apply(notifica('customer.subscription.updated', $oggetto));
+    $stripe->objects[$sub] = $oggetto;
+
+    return [$id, SubscriptionItems::forSubscription($id), $prezzi];
+}
+
+check('online, un servizio in più col conguaglio: un item su Stripe fatturato subito, con l\'id della riga', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    [$id] = treServiziPartiti($stripe, 'sub_I1');
+    $backup = servizioOnline('Backup', 1, '5.00');
+    $nuova = SubscriptionItems::add($id, ['plan_price_id' => (int) $backup['id'], 'quantity' => 2], 'prorate', 0, 'api');
+    $chiamata = $stripe->last('subscription_item.create');
+    $riga = SubscriptionItem::findById($nuova);
+
+    return $chiamata['subscription'] === 'sub_I1' && $chiamata['proration_behavior'] === 'always_invoice'
+        && $chiamata['payment_behavior'] === 'error_if_incomplete' && (int) $chiamata['quantity'] === 2
+        && $chiamata['metadata']['item_id'] === (string) $nuova
+        && str_starts_with((string) $riga['provider_reference'], 'si_fake_') && (string) $riga['provider_price'] === $chiamata['price']
+        && (string) $riga['status'] === 'active';
+}));
+
+check('online, un servizio tolto col credito: item cancellato su Stripe col conguaglio', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    [$id, $righe] = treServiziPartiti($stripe, 'sub_I2');
+    SubscriptionItems::remove((int) $righe[2]['id'], 'credit', 0, 'api');
+    $chiamata = $stripe->last('subscription_item.delete');
+
+    return $chiamata === ['id' => 'si_c', 'proration_behavior' => 'create_prorations']
+        && (string) SubscriptionItem::findById((int) $righe[2]['id'])['status'] === 'ended';
+}));
+
+check('online, due cambi al prossimo periodo: uno schedule solo, aggiornato a ogni cambio', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    [$id, $righe] = treServiziPartiti($stripe, 'sub_I3');
+    $premium = servizioOnline('Assistenza premium', 1, '25.00');
+    $backup = servizioOnline('Backup', 1, '5.00');
+    SubscriptionItems::change((int) $righe[2]['id'], (int) $premium['id'], 'next_period', [], 0, 'api');
+    SubscriptionItems::add($id, ['plan_price_id' => (int) $backup['id']], 'next_period', 0, 'api');
+    $ultimo = $stripe->last('subscription_schedule.update');
+    $fasi = $ultimo['phases'] ?? [];
+
+    return $stripe->count('subscription_schedule.create') === 1 && $stripe->count('subscription_schedule.update') >= 2
+        && $ultimo['end_behavior'] === 'release' && count($fasi) >= 2 && count($fasi) <= 10
+        && $stripe->count('subscription_item.create') === 0 && $stripe->count('subscription_item.update') === 0
+        && (string) SubscriptionItem::findById((int) $righe[2]['id'])['plan_price_id'] === (string) $righe[2]['plan_price_id'];
+}));
+
+check('online, il preventivo del conguaglio viene dall\'anteprima di Stripe', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    [$id] = treServiziPartiti($stripe, 'sub_I4');
+    $backup = servizioOnline('Backup', 1, '5.00');
+    $stripe->previewAmountDue = 437;
+    $preventivo = OnlineSubscriptions::quote($id, ['plan_price_id' => (int) $backup['id']]);
+    $richiesta = $stripe->last('invoice.preview');
+
+    return round((float) $preventivo['amount'], 2) === 4.37 && $richiesta['subscription'] === 'sub_I4'
+        && ($richiesta['subscription_details']['proration_behavior'] ?? $richiesta['proration_behavior'] ?? null) === 'always_invoice'
+        && count(SubscriptionItems::forSubscription($id)) === 3;
+}));
+
+check('online, Stripe rifiuta il servizio in più: niente riga e niente storia', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    [$id] = treServiziPartiti($stripe, 'sub_I5');
+    $backup = servizioOnline('Backup', 1, '5.00');
+    $prima = count(righe(SubscriptionItemChange::class, ['subscription_id' => $id]));
+    $stripe->failNext = 'subscription_item.create';
+    $errore = rifiuto(static fn () => SubscriptionItems::add($id, ['plan_price_id' => (int) $backup['id']], 'prorate', 0, 'api'));
+
+    return $errore === 'subscription.stripe_failed' && count(SubscriptionItems::forSubscription($id)) === 3
+        && count(righe(SubscriptionItemChange::class, ['subscription_id' => $id])) === $prima;
+}));
+
+check('online, l\'ultimo servizio non si toglie col credito: è una disdetta', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $p = pianoOnline();
+    $avvio = inizia(cliente(), $p['mensile']);
+    $id = $avvio['subscription_id'];
+    SubscriptionEvents::apply(notifica('customer.subscription.created', abbonamentoStripe('sub_I6', $id, 'active', prezzoStripe($p['mensile']))));
+    $riga = SubscriptionItems::main($id);
+    $errore = rifiuto(static fn () => SubscriptionItems::remove((int) $riga['id'], 'credit', 0, 'api'));
+
+    return $errore === 'subscription.last_item_online' && $stripe->count('subscription_item.delete') === 0;
 }));
 
 check('limite: un abbonamento attivo blocca, un pending online di 30 ore no', fn () => prova(static function (): bool {

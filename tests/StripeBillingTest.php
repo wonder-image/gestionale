@@ -83,6 +83,12 @@ check('gli schedule: crea, cambia, rileggi', function () use ($billing, $http, $
     return $creato && $cambiato && $chiamata('get', '/v1/subscription_schedules/sub_sched_1');
 });
 
+check('staccare uno schedule: POST /v1/subscription_schedules/{id}/release', function () use ($billing, $http, $chiamata) {
+    $billing->releaseSubscriptionSchedule('sub_sched_1');
+
+    return $chiamata('post', '/v1/subscription_schedules/sub_sched_1/release') && $http->header('Stripe-Account') === 'acct_1';
+});
+
 check('l\'anteprima della fattura: POST /v1/invoices/create_preview', function () use ($billing, $chiamata) {
     $anteprima = $billing->previewInvoice(['subscription' => 'sub_1']);
 
@@ -119,6 +125,21 @@ check('il finto: gli schedule hanno un id sub_sched_fake_N, si cambiano e si ril
     return str_starts_with($schedule['id'], 'sub_sched_fake_') && $riletto['end_behavior'] === 'release'
         && $riletto['from_subscription'] === 'sub_1' && $fake->count('subscription_schedule.update') === 1
         && $fake->count('subscription_schedule.retrieve') === 1;
+});
+
+check('il finto: lo schedule staccato è released, failNext fa fallire una chiamata sola', function () use ($fake) {
+    $schedule = $fake->createSubscriptionSchedule(['from_subscription' => 'sub_2'], 'k3');
+    $fake->releaseSubscriptionSchedule($schedule['id']);
+    $fake->failNext = 'subscription_item.create';
+    try {
+        $fake->createSubscriptionItem(['price' => 'price_1'], 'k4');
+        $fallita = false;
+    } catch (RuntimeException) {
+        $fallita = true;
+    }
+
+    return $fake->retrieveSubscriptionSchedule($schedule['id'])['status'] === 'released' && $fallita
+        && $fake->failNext === null && isset($fake->createSubscriptionItem(['price' => 'price_1'], 'k5')['id']);
 });
 
 check('il finto: l\'anteprima ha amount_due, quello impostato dal test', function () use ($fake) {

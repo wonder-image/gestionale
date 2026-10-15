@@ -428,7 +428,18 @@ final class SubscriptionItems
 
             self::raiseCommitment($subscription, $commitment);
             $row = SubscriptionItem::findById($id);
-            $charged = OfficeSubscriptions::itemAdded($subscription, is_array($row) ? $row : ['id' => $id], $trial ? 'free' : $billing, $at);
+            $row = is_array($row) ? $row : ['id' => $id];
+
+            if (self::online($subscription)) {
+                // Online paga Stripe: niente rate qui, la quota la fattura lui.
+                self::history($subscriptionId, $id, 'added', 0, (int) $line['price']['id'], $billing, 0.0, 0.0, $startsAt, $userId, $source);
+                Subscription::update(OnlineSubscriptions::amountsFor($subscription), $subscriptionId);
+                OnlineSubscriptions::itemAdded($subscription, $row, $trial ? 'free' : $billing);
+
+                return ['id' => $id, 'payments' => []];
+            }
+
+            $charged = OfficeSubscriptions::itemAdded($subscription, $row, $trial ? 'free' : $billing, $at);
             self::history($subscriptionId, $id, 'added', 0, (int) $line['price']['id'], $billing, $charged['amount'], 0.0, $startsAt, $userId, $source);
 
             return ['id' => $id, 'payments' => $charged['payments']];
@@ -469,6 +480,15 @@ final class SubscriptionItems
                 self::forSubscription($subscriptionId, ['pending', 'active']),
                 static fn (array $row): bool => (int) $row['parent_item_id'] === $itemId
             ))];
+
+            $online = self::online($subscription);
+            $removing = array_map(static fn (array $row): int => (int) $row['id'], $rows);
+            $remaining = array_filter(self::forSubscription($subscriptionId, ['pending', 'active']), static fn (array $row): bool => !in_array((int) $row['id'], $removing, true));
+
+            if ($online && $billing === 'credit' && $remaining === []) {
+                // Online l'ultimo servizio si toglie solo a fine periodo: è una disdetta.
+                throw UserError::make('subscription.last_item_online');
+            }
 
             if ($billing === 'credit') {
                 foreach ($rows as $row) {
@@ -515,11 +535,21 @@ final class SubscriptionItems
                 }
 
                 SubscriptionItem::update(['status' => $status, 'ends_at' => $end->format('Y-m-d H:i:s')], (int) $row['id']);
-                self::history($subscriptionId, (int) $row['id'], 'removed', (int) $row['plan_price_id'], 0, $billing, $credit, $credit, $end, $userId, $source);
+                self::history($subscriptionId, (int) $row['id'], 'removed', (int) $row['plan_price_id'], 0, $billing, $online ? 0.0 : $credit, $online ? 0.0 : $credit, $end, $userId, $source);
                 $removed[] = (int) $row['id'];
             }
 
+            if ($online) {
+                Subscription::update(OnlineSubscriptions::amountsFor($subscription), $subscriptionId);
+
+                // L'ultimo servizio a fine periodo è una disdetta: la passa a Stripe cancel(), dopo.
+                if ($remaining !== []) {
+                    OnlineSubscriptions::itemRemoved($subscription, $rows, $billing);
+                }
+            }
+
             return [
+                'online' => $online,
                 'ends_at' => ($motherEnd ?? $at)->format('Y-m-d H:i:s'),
                 'removed' => $removed,
                 'last' => self::forSubscription($subscriptionId, ['pending', 'active']) === [],
@@ -527,7 +557,11 @@ final class SubscriptionItems
             ];
         });
 
-        if ($done['last']) {
+        if ($done['last'] && $done['online']) {
+            if ($done['auto_renew']) {
+                OnlineSubscriptions::cancel($subscriptionId, $source, $userId);
+            }
+        } elseif ($done['last']) {
             if ($billing === 'credit') {
                 OfficeSubscriptions::terminate($subscriptionId, $userId, 'Tolto l\'ultimo servizio');
             } elseif ($done['auto_renew']) {
@@ -602,11 +636,24 @@ final class SubscriptionItems
             if ($charging && $billing === 'next_period') {
                 self::scheduleChange($subscriptionId, $item, (int) $price['id'], Customizations::encode($resolved['fields']), $rowEnd, $userId, $source);
 
+                if (self::online($subscription)) {
+                    OnlineSubscriptions::reschedule($subscription);
+                }
+
                 return ['payments' => []];
             }
 
             $credit = $charging && $billing === 'prorate' ? SubscriptionProration::quota((float) $item['total'], $at, $rowStart, $rowEnd) : 0.0;
             $updated = self::applyPrice($subscription, $item, $price, $plan, $resolved, $at);
+
+            if (self::online($subscription)) {
+                self::history($subscriptionId, $itemId, 'changed', (int) $item['plan_price_id'], (int) $price['id'], $billing, 0.0, 0.0, $at, $userId, $source);
+                Subscription::update(OnlineSubscriptions::amountsFor($subscription), $subscriptionId);
+                OnlineSubscriptions::itemChanged($subscription, $updated, (int) $price['id'], $charging ? $billing : 'free');
+
+                return ['payments' => []];
+            }
+
             $charged = OfficeSubscriptions::itemAdded($subscription, $updated, $charging ? $billing : 'free', $at);
             self::history($subscriptionId, $itemId, 'changed', (int) $item['plan_price_id'], (int) $price['id'], $billing, $charged['amount'], $credit, $at, $userId, $source);
 
@@ -732,8 +779,13 @@ final class SubscriptionItems
         }
 
         $before = implode(' · ', Customizations::lines($item));
-        self::applyPrice($subscription, $item, $price, $plan, $resolved, null);
+        $updated = self::applyPrice($subscription, $item, $price, $plan, $resolved, null);
         self::history((int) $subscription['id'], (int) $item['id'], 'customized', (int) $price['id'], (int) $price['id'], '', 0.0, 0.0, new DateTimeImmutable('today'), $userId, $source, $before);
+
+        if (self::online($subscription)) {
+            Subscription::update(OnlineSubscriptions::amountsFor($subscription), (int) $subscription['id']);
+            OnlineSubscriptions::itemChanged($subscription, $updated, (int) $price['id'], 'free');
+        }
     }
 
     /**
@@ -798,6 +850,21 @@ final class SubscriptionItems
         self::history($subscriptionId, (int) $item['id'], 'changed', (int) $item['plan_price_id'], $newPriceId, 'next_period', 0.0, 0.0, $effective, $userId, $source, $customization);
     }
 
+    /**
+     * Il cambio «dal prossimo periodo» che aspetta ancora la riga: l'ultimo
+     * cambio, se è `next_period` e parte dal prezzo che la riga ha adesso.
+     *
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>|null la voce della storia
+     */
+    public static function scheduledChange(array $item): ?array
+    {
+        $last = self::lastChange((int) ($item['id'] ?? 0));
+
+        return $last !== null && (string) $last['billing'] === 'next_period' && (int) $last['old_plan_price_id'] === (int) ($item['plan_price_id'] ?? 0)
+            && (int) $last['new_plan_price_id'] !== (int) $last['old_plan_price_id'] ? $last : null;
+    }
+
     /** @return array<string, mixed>|null l'ultimo cambio di prezzo della riga */
     private static function lastChange(int $itemId): ?array
     {
@@ -856,11 +923,18 @@ final class SubscriptionItems
             throw UserError::make('subscription.not_live');
         }
 
-        if ((string) ($row['channel'] ?? '') !== 'office') {
-            throw new RuntimeException('Le righe degli abbonamenti online si cambiano da OnlineSubscriptions.');
+        // Online le righe si cambiano anche su Stripe: serve l'abbonamento di là.
+        if (self::online($row) && trim((string) ($row['provider_reference'] ?? '')) === '') {
+            throw UserError::make('subscription.not_live');
         }
 
         return $row;
+    }
+
+    /** Un abbonamento online: le righe passano anche da Stripe ({@see OnlineSubscriptions}). @param array<string, mixed> $subscription */
+    private static function online(array $subscription): bool
+    {
+        return (string) ($subscription['channel'] ?? '') !== 'office';
     }
 
     /**
@@ -1061,6 +1135,19 @@ final class SubscriptionItems
 
         if ($item === null || $old === (int) $price['id']) {
             return false;
+        }
+
+        $scheduled = self::scheduledChange($item);
+        $plan = Plan::findById((int) ($price['plan_id'] ?? 0));
+
+        if ($scheduled !== null && (int) $scheduled['new_plan_price_id'] === (int) $price['id'] && is_array($plan)) {
+            // Il cambio «dal prossimo periodo» che Stripe ha appena fatto: già nella storia.
+            $fields = Customizations::decode((string) ($scheduled['note'] ?? ''));
+            $surcharge = number_format(array_sum(array_map(static fn (array $f): float => (float) $f['surcharge'], $fields)), 2, '.', '');
+            $effective = self::date((string) ($scheduled['effective_at'] ?? '')) ?? new DateTimeImmutable();
+            self::applyPrice($subscription, $item, $price, $plan, ['fields' => $fields, 'surcharge' => $surcharge], $effective);
+
+            return true;
         }
 
         $amounts = SubscriptionAmounts::ofItems([self::amountLine($item, $price)], null, (string) ($subscription['prices_include_tax'] ?? 'true') === 'true', 0, max(1, (int) ($price['term_months'] ?? 1)));

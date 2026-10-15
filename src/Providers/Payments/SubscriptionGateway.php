@@ -73,6 +73,9 @@ interface SubscriptionGateway
     /** @return array<string, mixed> */
     public function retrieveSubscriptionSchedule(string $id): array;
 
+    /** @return array<string, mixed> lo schedule staccato: l'abbonamento resta com'è */
+    public function releaseSubscriptionSchedule(string $id): array;
+
     /** @return array<string, mixed> la fattura che uscirebbe, senza crearla: `amount_due` è il conguaglio */
     public function previewInvoice(array $params): array;
 }

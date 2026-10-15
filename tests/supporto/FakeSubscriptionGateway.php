@@ -20,6 +20,9 @@ final class FakeSubscriptionGateway implements SubscriptionGateway
 
     private int $next = 0;
 
+    /** La prossima chiamata di questo tipo (`subscription_item.create`…) fallisce, come una carta rifiutata. */
+    public ?string $failNext = null;
+
     /** L'`amount_due` delle anteprime, in centesimi: lo sceglie il test. */
     public int $previewAmountDue = 0;
 
@@ -117,6 +120,7 @@ final class FakeSubscriptionGateway implements SubscriptionGateway
     public function updateSubscriptionItem(string $id, array $params): array
     {
         $this->calls[] = ['subscription_item.update', ['id' => $id] + $params];
+        $this->fail('subscription_item.update');
 
         return $this->objects[$id] = array_replace($this->objects[$id] ?? ['id' => $id, 'object' => 'subscription_item'], $params);
     }
@@ -124,6 +128,7 @@ final class FakeSubscriptionGateway implements SubscriptionGateway
     public function deleteSubscriptionItem(string $id, array $params): array
     {
         $this->calls[] = ['subscription_item.delete', ['id' => $id] + $params];
+        $this->fail('subscription_item.delete');
         unset($this->objects[$id]);
 
         return ['id' => $id, 'object' => 'subscription_item', 'deleted' => true];
@@ -146,6 +151,13 @@ final class FakeSubscriptionGateway implements SubscriptionGateway
         $this->calls[] = ['subscription_schedule.retrieve', ['id' => $id]];
 
         return $this->objects[$id] ?? throw new RuntimeException('Schedule sconosciuto: '.$id);
+    }
+
+    public function releaseSubscriptionSchedule(string $id): array
+    {
+        $this->calls[] = ['subscription_schedule.release', ['id' => $id]];
+
+        return $this->objects[$id] = array_replace($this->objects[$id] ?? ['id' => $id, 'object' => 'subscription_schedule'], ['status' => 'released']);
     }
 
     public function previewInvoice(array $params): array
@@ -173,10 +185,20 @@ final class FakeSubscriptionGateway implements SubscriptionGateway
         return null;
     }
 
+    private function fail(string $type): void
+    {
+        if ($this->failNext === $type) {
+            $this->failNext = null;
+
+            throw new RuntimeException('Stripe finto: '.$type.' rifiutata');
+        }
+    }
+
     /** @return array<string, mixed> */
     private function make(string $prefix, string $object, array $params, string $key): array
     {
         $this->calls[] = [$object.'.create', $params + ['_key' => $key]];
+        $this->fail($object.'.create');
 
         if ($key !== '' && isset($this->byKey[$key])) {
             return $this->byKey[$key];

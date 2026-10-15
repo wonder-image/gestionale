@@ -305,7 +305,14 @@ final class SubscriptionEvents
 
         foreach ($matched as $itemId => $one) {
             $item = $open[$itemId];
-            SubscriptionItem::update(['provider_reference' => $one['id'], 'provider_price' => $one['price']], $itemId);
+            $values = ['provider_reference' => $one['id'], 'provider_price' => $one['price']];
+
+            // Una riga in attesa che Stripe ha messo (lo schedule al rinnovo) parte adesso.
+            if ((string) $item['status'] === 'pending' && !self::empty($row['started_at'] ?? '')) {
+                $values['status'] = 'active';
+            }
+
+            SubscriptionItem::update($values, $itemId);
             $priceId = $one['price'] !== '' ? self::planPriceOf($one['price']) : 0;
             $price = $priceId > 0 && $priceId !== (int) $item['plan_price_id'] ? PlanPrice::findById($priceId) : null;
 

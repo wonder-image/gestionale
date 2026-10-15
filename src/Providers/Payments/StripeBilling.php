@@ -124,6 +124,11 @@ final class StripeBilling implements SubscriptionGateway
         return $this->client()->subscriptionSchedules->retrieve($id, [], $this->options())->toArray();
     }
 
+    public function releaseSubscriptionSchedule(string $id): array
+    {
+        return $this->client()->subscriptionSchedules->release($id, [], $this->options())->toArray();
+    }
+
     public function previewInvoice(array $params): array
     {
         return $this->client()->invoices->createPreview($params, $this->options())->toArray();
