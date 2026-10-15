@@ -16,7 +16,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
@@ -489,7 +489,7 @@ final class ShowcaseDemo
             return;
         }
 
-        ProductModelCustomization::create([
+        CustomizationLink::create([
             'product_model_id' => $modelId,
             'customization_id' => $id,
             'is_required' => $required ? 'true' : 'false',
@@ -580,7 +580,7 @@ final class ShowcaseDemo
             + self::countOf(ProductImage::class, $modelId)
             + self::countOf(ProductModelCategory::class, $modelId)
             + self::countOf(ProductModelTag::class, $modelId)
-            + self::countOf(ProductModelCustomization::class, $modelId)
+            + self::countOf(CustomizationLink::class, $modelId)
             + self::countOf(BundleComponent::class, $modelId)
             + self::supplierLinksOf($modelId);
 

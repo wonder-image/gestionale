@@ -10,7 +10,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
@@ -214,7 +214,7 @@ check('l\'elenco mostra se la personalizzazione è usata e nasconde l\'elimina s
     return $posizione !== false
         && $posizione < array_search('actions', $chiavi, true)
         && ($schema['name'] ?? '') === 'empty'
-        && ($schema['tables'] ?? []) === [ProductModelCustomization::$table]
+        && ($schema['tables'] ?? []) === [CustomizationLink::$table]
         && ($schema['column'] ?? '') === 'customization_id';
 });
 

@@ -156,8 +156,14 @@
                 "few_options": "Una scelta ha bisogno di almeno due opzioni.",
                 "surcharge": "Il sovrapprezzo non può essere negativo.",
                 "kind": "Scegli se è un testo, un numero o una scelta.",
-                "in_use": "È collegata ad articoli ({{count}}) e non si elimina: disattivala, e non si propone più.",
-                "quick_name": "Scrivi il nome della personalizzazione."
+                "in_use": "È collegata ad articoli o piani ({{count}}) e non si elimina: disattivala, e non si propone più.",
+                "quick_name": "Scrivi il nome della personalizzazione.",
+                "link_target": "Un collegamento va a un articolo oppure a un piano, non a tutti e due né a nessuno.",
+                "scope_required": "Accendi almeno uno fra «Per i prodotti» e «Per gli abbonamenti».",
+                "linked_products": "È collegata ad articoli ({{count}}): toglila dalle loro schede prima di spegnere «Per i prodotti».",
+                "linked_plans": "È collegata a piani d'abbonamento ({{count}}): toglila dalle loro schede prima di spegnere «Per gli abbonamenti».",
+                "not_for_products": "«{{name}}» non è per i prodotti: accendi «Per i prodotti» nella sua scheda.",
+                "not_for_subscriptions": "«{{name}}» non è per gli abbonamenti: accendi «Per gli abbonamenti» nella sua scheda."
             },
             "product": {
                 "sku_taken": "Questo SKU è già in catalogo, su un altro articolo o su un'altra opzione in vendita: cambialo.",

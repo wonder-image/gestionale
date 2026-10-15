@@ -8,7 +8,8 @@ require __DIR__ . '/harness.php';
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Support\Codes;
 
 $colonne = static function (string $model): array {
@@ -35,21 +36,21 @@ check('le tabelle hanno il prefisso del gestionale e la loro cartella', fn () =>
     Customization::$table === 'gst_customizations'
     && Customization::$folder === 'gestionale/customizations'
     && CustomizationOption::$table === 'gst_customization_options'
-    && ProductModelCustomization::$table === 'gst_product_model_customizations'
-    && ProductModelCustomization::$folder === 'gestionale/models'
+    && CustomizationLink::$table === 'gst_customization_links'
+    && CustomizationLink::$folder === 'gestionale/models'
 );
 
 check('le personalizzazioni non viaggiano con il deploy', fn () =>
     Customization::syncSchema() === null
     && CustomizationOption::syncSchema() === null
-    && ProductModelCustomization::syncSchema() === null
+    && CustomizationLink::syncSchema() === null
 );
 
 check('ogni tabella ha le sue colonne', function () use ($colonne) {
     $attese = [
-        Customization::class => ['code', 'name', 'label', 'help_text', 'kind', 'max_length', 'decimals', 'surcharge', 'active', 'position'],
+        Customization::class => ['code', 'name', 'label', 'help_text', 'kind', 'max_length', 'decimals', 'surcharge', 'active', 'for_products', 'for_subscriptions', 'position'],
         CustomizationOption::class => ['customization_id', 'label', 'surcharge', 'position'],
-        ProductModelCustomization::class => ['product_model_id', 'customization_id', 'is_required', 'surcharge', 'position'],
+        CustomizationLink::class => ['product_model_id', 'plan_id', 'customization_id', 'is_required', 'surcharge', 'position'],
     ];
 
     foreach ($attese as $model => $nomi) {
@@ -72,7 +73,7 @@ check('il tipo è testo, numero o scelta e parte da testo', function () use ($co
 });
 
 check('il sovrapprezzo per articolo può mancare: vuoto vale quello della personalizzazione', function () use ($colonne) {
-    $colonna = $colonne(ProductModelCustomization::class)['surcharge'];
+    $colonna = $colonne(CustomizationLink::class)['surcharge'];
 
     return $colonna->getSchema('type') === 'DECIMAL'
         && $colonna->getSchema('length') === '12,2'
@@ -81,7 +82,7 @@ check('il sovrapprezzo per articolo può mancare: vuoto vale quello della person
 
 check('attiva parte da vera e obbligatoria da falsa', function () use ($colonne) {
     return $colonne(Customization::class)['active']->getSchema('default') === 'true'
-        && $colonne(ProductModelCustomization::class)['is_required']->getSchema('default') === 'false';
+        && $colonne(CustomizationLink::class)['is_required']->getSchema('default') === 'false';
 });
 
 check('il sovrapprezzo ha due decimali veri', function () use ($colonne) {
@@ -98,14 +99,14 @@ check('il sovrapprezzo ha due decimali veri', function () use ($colonne) {
 
 check('le chiavi esterne puntano alla personalizzazione e all\'articolo', function () use ($colonne) {
     return $colonne(CustomizationOption::class)['customization_id']->getSchema('foreign_table') === Customization::$table
-        && $colonne(ProductModelCustomization::class)['customization_id']->getSchema('foreign_table') === Customization::$table
-        && $colonne(ProductModelCustomization::class)['product_model_id']->getSchema('foreign_table') === ProductModel::$table;
+        && $colonne(CustomizationLink::class)['customization_id']->getSchema('foreign_table') === Customization::$table
+        && $colonne(CustomizationLink::class)['product_model_id']->getSchema('foreign_table') === ProductModel::$table;
 });
 
 check('gli indici dei collegamenti ci sono', function () {
     return array_key_exists('ind_customization', CustomizationOption::tablePseudos())
-        && array_key_exists('ind_model', ProductModelCustomization::tablePseudos())
-        && array_key_exists('ind_customization', ProductModelCustomization::tablePseudos());
+        && array_key_exists('ind_model', CustomizationLink::tablePseudos())
+        && array_key_exists('ind_customization', CustomizationLink::tablePseudos());
 });
 
 check('il codice della personalizzazione ha il suo prefisso', function () use ($campo) {
@@ -117,7 +118,7 @@ check('il codice della personalizzazione ha il suo prefisso', function () use ($
 check('nessuna colonna usa una parola riservata di MySQL', function () use ($colonne) {
     $riservate = ['key', 'group', 'order', 'index', 'default'];
 
-    foreach ([Customization::class, CustomizationOption::class, ProductModelCustomization::class] as $model) {
+    foreach ([Customization::class, CustomizationOption::class, CustomizationLink::class] as $model) {
         foreach (array_keys($colonne($model)) as $nome) {
             if (in_array(strtolower((string) $nome), $riservate, true)) {
                 return false;
@@ -126,6 +127,28 @@ check('nessuna colonna usa una parola riservata di MySQL', function () use ($col
     }
 
     return true;
+});
+
+check('un legame va a un articolo o a un piano: le due chiavi possono mancare', function () use ($colonne) {
+    $legame = $colonne(CustomizationLink::class);
+
+    return $legame['plan_id']->getSchema('foreign_table') === Plan::$table
+        && Plan::$table === 'gst_plans'
+        && $legame['plan_id']->getSchema('null') !== false
+        && $legame['product_model_id']->getSchema('null') !== false
+        && $legame['customization_id']->getSchema('null') === false
+        && array_key_exists('ind_plan', CustomizationLink::tablePseudos());
+});
+
+check('una personalizzazione nasce per i prodotti e non per gli abbonamenti', function () use ($colonne, $campo) {
+    $colonna = $colonne(Customization::class);
+
+    return $colonna['for_products']->getSchema('enum') === ['true', 'false']
+        && $colonna['for_products']->getSchema('default') === 'true'
+        && $colonna['for_subscriptions']->getSchema('default') === 'false'
+        && $campo(Customization::class, 'for_products') !== null
+        && $campo(Customization::class, 'for_subscriptions') !== null
+        && $campo(CustomizationLink::class, 'plan_id') !== null;
 });
 
 summary();

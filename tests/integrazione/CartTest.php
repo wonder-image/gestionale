@@ -18,7 +18,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroupOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -466,8 +466,8 @@ check('personalizzazione disattivata: la riga esce e il nome è in removed', fun
 });
 
 check('collegamento tolto all\'articolo: la riga esce', function () {
-    $dopo = ricalcoloDopo(static fn (int $id, int $m, int $c) => ProductModelCustomization::query()
-        ->Update(ProductModelCustomization::$table, ['deleted' => 'true'], 'id', $c));
+    $dopo = ricalcoloDopo(static fn (int $id, int $m, int $c) => CustomizationLink::query()
+        ->Update(CustomizationLink::$table, ['deleted' => 'true'], 'id', $c));
     Gestionale::reset();
 
     return $dopo['items'] === [] && count($dopo['removed']) === 1;

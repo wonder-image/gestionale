@@ -13,7 +13,7 @@ require __DIR__.'/supporto/compra.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Sql\Transaction;
@@ -198,7 +198,7 @@ check('una mai usata sparisce anche con opzioni e collegamenti nel cestino, senz
         $opzione = opzioniDi($id)[0];
         CustomizationOption::query()->Update(CustomizationOption::$table, ['deleted' => 'true'], 'id', (int) $opzione['id']);
         $collegamento = collegaPersonalizzazione(modelloDi(articoloConGiacenza(1, 'PZ-C-'.uniqid())), $id);
-        ProductModelCustomization::query()->Update(ProductModelCustomization::$table, ['deleted' => 'true'], 'id', $collegamento);
+        CustomizationLink::query()->Update(CustomizationLink::$table, ['deleted' => 'true'], 'id', $collegamento);
         $chiave = errore(static fn () => CustomizationResource::deleteRecord($id));
         $riga = Customization::find(['id' => $id, 'deleted' => ['true', 'false']], 1);
 

@@ -4,19 +4,19 @@ namespace Wonder\Plugin\Gestionale\Support\Catalog;
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 
 /**
- * Le personalizzazioni di un articolo: quali sono, cosa si può scrivere, quanto
+ * Le personalizzazioni di un articolo o di un piano d'abbonamento: quali sono, cosa si può scrivere, quanto
  * costano e come si salvano sulla riga d'ordine.
  *
  * Il server è l'unico a decidere: chi compra manda per ogni personalizzazione
  * un testo o l'id di un'opzione, e qui si controlla, si prezza e si prepara la
  * copia che resta sulla riga, con le etichette di allora. {@see check()} è pura
- * e si prova senza database; {@see forModel()} è la sola che legge dal
- * database.
+ * e si prova senza database; {@see forModel()} e {@see forPlan()} sono le sole
+ * che leggono dal database.
  *
  * **Connessione latin1.** Il sito parla latin1 con MySQL: un'emoji o una
  * lettera fuori da latin1 scritta così com'è tornerebbe come `?`. {@see encode()}
@@ -33,22 +33,45 @@ final class Customizations
     public const MAX_DECIMALS = 6;
 
     /**
-     * Le personalizzazioni attive di un articolo, nell'ordine in cui il cliente
-     * le vede.
+     * Le personalizzazioni attive di un articolo con «Per i prodotti» acceso,
+     * nell'ordine in cui il cliente le vede.
      *
      * @return list<array{id:int, name:string, label:string, help_text:string, kind:string, max_length:int, decimals:int, surcharge:string, required:bool, options:list<array{id:int, label:string, surcharge:string}>}>
      */
     public static function forModel(int $modelId): array
     {
-        if ($modelId <= 0) {
+        return self::linked('product_model_id', $modelId, 'for_products');
+    }
+
+    /**
+     * Le personalizzazioni attive di un piano d'abbonamento, come
+     * {@see forModel()}: solo quelle con «Per gli abbonamenti» acceso.
+     *
+     * @return list<array{id:int, name:string, label:string, help_text:string, kind:string, max_length:int, decimals:int, surcharge:string, required:bool, options:list<array{id:int, label:string, surcharge:string}>}>
+     */
+    public static function forPlan(int $planId): array
+    {
+        return self::linked('plan_id', $planId, 'for_subscriptions');
+    }
+
+    /**
+     * I legami di un articolo o di un piano (`$column` = `product_model_id` o
+     * `plan_id`), letti con le personalizzazioni attive che hanno acceso
+     * l'interruttore `$scope`.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function linked(string $column, int $id, string $scope): array
+    {
+        if ($id <= 0) {
             return [];
         }
 
-        $links = ProductModelCustomization::find(['product_model_id' => $modelId, 'deleted' => 'false'], null, 'position', 'ASC');
+        $links = CustomizationLink::find([$column => $id, 'deleted' => 'false'], null, 'position', 'ASC');
         $out = [];
 
-        foreach (is_array($links) ? $links : [] as $link) {
-            $row = Customization::find(['id' => (int) $link['customization_id'], 'deleted' => 'false', 'active' => 'true'], 1);
+        foreach (is_array($links) ? (isset($links['id']) ? [$links] : $links) : [] as $link) {
+            $row = Customization::find(['id' => (int) $link['customization_id'], 'deleted' => 'false', 'active' => 'true', $scope => 'true'], 1);
 
             if (!is_array($row) || !isset($row['id'])) {
                 continue;
@@ -99,6 +122,19 @@ final class Customizations
     public static function resolve(int $modelId, array $values): array
     {
         return self::check(self::forModel($modelId), $values);
+    }
+
+    /**
+     * Come {@see resolve()}, sulle personalizzazioni di un piano.
+     *
+     * @param  array<int|string, mixed> $values
+     * @return array{fields:list<array{customization_id:int, label:string, value:string, option_id:int, surcharge:string}>, surcharge:string}
+     *
+     * @throws UserError con l'id della personalizzazione sbagliata in `field()`
+     */
+    public static function resolvePlan(int $planId, array $values): array
+    {
+        return self::check(self::forPlan($planId), $values);
     }
 
     /**
