@@ -215,13 +215,13 @@ check('aggiungo l\'hosting dal prossimo rinnovo: parte al periodo dopo e paga fi
     $prima = riga($hosting);
     $subito = importi($a['id']);
     OfficeSubscriptions::daily(new DateTimeImmutable('2026-08-15'));
-    $importi = importi($a['id']);
-    sort($importi);
 
+    // Un periodo solo: l'assistenza del mese e l'hosting fino all'anniversario
+    // (120 × 153/365) nella stessa rata.
     return (string) $prima['status'] === 'pending' && giorno((string) $prima['starts_at']) === '2026-08-15'
         && $subito === []
         && (string) riga($hosting)['status'] === 'active'
-        && $importi === [30.0, 50.3];
+        && importi($a['id']) === [80.3];
 }));
 
 check('tolgo il dominio a fine periodo: anche l\'hosting finisce all\'anniversario e non si addebita', fn () => prova(static function (): bool {

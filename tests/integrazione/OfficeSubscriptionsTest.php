@@ -291,21 +291,30 @@ check('annulla: chiuso subito, le rate in attesa annullate', fn () => prova(stat
     return $esito['ok'] && stato($id) === 'cancelled' && rate($id) === [] && count(rate($id, 'cancelled')) === 2;
 }));
 
-check('cambio del servizio dal prossimo rinnovo: il prezzo nuovo vale dal periodo dopo', fn () => prova(static function (): bool {
+check('cambio del servizio dal prossimo rinnovo: il prezzo nuovo vale dal periodo dopo, fino all\'anniversario', fn () => prova(static function (): bool {
+    // Il cambio parte da oggi: il periodo in corso deve contenere oggi.
+    $inizio = (new DateTimeImmutable('first day of this month'))->setTime(0, 0);
+    $rinnovo = $inizio->modify('+1 month');
+    $anniversario = $inizio->modify('+1 year');
     $p = piano();
-    $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'plan_price_id' => $p['mensile'], 'starts_at' => '2026-03-01']);
+    $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'plan_price_id' => $p['mensile'], 'starts_at' => $inizio->format('Y-m-d')]);
+    paga($id);
     $esito = SubscriptionActionResource::run('change_item', $id, [
         'item_id' => (int) SubscriptionItems::main($id)['id'],
         'plan_price_id' => $p['annuale'],
         'billing' => 'next_period',
     ], 0);
     $adesso = round((float) Subscription::findById($id)['total'], 2);
-    OfficeSubscriptions::daily(new DateTimeImmutable('2026-04-01'));
+    OfficeSubscriptions::daily($rinnovo);
     $riga = Subscription::findById($id);
+    $servizio = SubscriptionItems::main($id);
+    // L'annuale rinnova all'anniversario dell'abbonamento: dal rinnovo a lì, una quota.
+    $quota = round(1000 * $rinnovo->diff($anniversario)->days / $inizio->diff($anniversario)->days, 2);
 
     return $esito['ok'] && $adesso === 100.0
-        && round((float) $riga['total'], 2) === 1000.0
-        && substr((string) $riga['current_period_end'], 0, 10) === '2027-04-01';
+        && (int) $servizio['plan_price_id'] === $p['annuale'] && round((float) $servizio['total'], 2) === 1000.0
+        && substr((string) $riga['current_period_end'], 0, 10) === $anniversario->format('Y-m-d')
+        && array_map(static fn (array $r): float => round((float) $r['amount'], 2), rate($id)) === [$quota];
 }));
 
 check('dalla pagina: registra pagamento sulla rata', fn () => prova(static function (): bool {

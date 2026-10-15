@@ -57,6 +57,9 @@ final class Subscription extends Model
                 'code', 'subtotal', 'discount_total', 'tax_total', 'total',
             ]),
             Column::key('customer_id')->int()->default(0),
+            // Il prezzo di prima di G10b: resta finché lo script di
+            // migrazione non ha creato le righe, poi si toglie.
+            Column::key('plan_price_id')->int()->default(0),
             Column::key('channel')->enum(static::CHANNELS)->default('online'),
             Column::key('status')->enum(static::STATUSES)->default('pending'),
             Column::key('provider')->enum(static::PROVIDERS)->default('stripe'),

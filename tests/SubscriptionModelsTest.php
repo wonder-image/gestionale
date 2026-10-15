@@ -102,7 +102,9 @@ check('gli stati sono tutti dichiarati, e quelli vivi sono un sottoinsieme', fn 
 check('ogni colonna ha il suo campo, e viceversa', function () use ($tutti, $colonne) {
     foreach ($tutti as $model) {
         $campi = array_map(static fn ($field): string => (string) $field->key, $model::dataSchema());
-        $tabella = $colonne($model);
+        // Il prezzo di prima di G10b resta nella tabella, senza campo, finché
+        // lo script di migrazione non ha creato le righe.
+        $tabella = array_values(array_diff($colonne($model), $model === Subscription::class ? ['plan_price_id'] : []));
 
         if (array_diff($campi, $tabella) !== [] || array_diff($tabella, $campi) !== []) {
             echo '    '.$model.': '.implode(', ', array_merge(array_diff($campi, $tabella), array_diff($tabella, $campi)))."\n";
@@ -123,7 +125,7 @@ check('la durata del coupon ha tre valori, il primo è il predefinito', fn () =>
 );
 
 check('l\'abbonamento non ha più il prezzo: sta nelle righe', fn () =>
-    !in_array('plan_price_id', $colonne(Subscription::class), true)
+    !in_array('plan_price_id', array_map(static fn ($field): string => (string) $field->key, Subscription::dataSchema()), true)
     && !array_key_exists('ind_plan_price', Subscription::tablePseudos())
 );
 

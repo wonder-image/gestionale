@@ -22,6 +22,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
@@ -649,9 +650,11 @@ final class PlanResource extends GestionaleResource
     }
 
     /**
-     * Con il piano se ne vanno i suoi legami «Si lega a» e le sue
-     * personalizzazioni, anche a funzionalità spenta: la chiave esterna non
-     * lascerebbe eliminare il piano.
+     * Con il piano se ne vanno i suoi prezzi, i suoi limiti, i suoi legami
+     * «Si lega a» e le sue personalizzazioni, anche a funzionalità spenta:
+     * la chiave esterna non lascerebbe eliminare il piano. Un prezzo che la
+     * riga di un abbonamento chiuso ancora nomina resta, segnato eliminato,
+     * e con lui il piano.
      */
     public static function deleteRecord(int|string $id): object
     {
@@ -666,8 +669,42 @@ final class PlanResource extends GestionaleResource
                 CustomizationLink::delete((int) $link['id']);
             }
 
-            return parent::deleteRecord($planId);
+            foreach (static::rowsOf(PlanFeature::class, ['plan_id' => $planId, 'deleted' => ['true', 'false']]) as $feature) {
+                PlanFeature::delete((int) $feature['id']);
+            }
+
+            $kept = false;
+
+            foreach (static::allPriceIds($planId) as $priceId) {
+                if (static::rowsOf(SubscriptionItem::class, ['plan_price_id' => $priceId, 'deleted' => ['true', 'false']]) === []) {
+                    PlanPrice::delete($priceId);
+                } else {
+                    PlanPrice::query()->Update(PlanPrice::$table, ['deleted' => 'true'], 'id', $priceId);
+                    $kept = true;
+                }
+            }
+
+            if (!$kept) {
+                return parent::deleteRecord($planId);
+            }
+
+            $result = Plan::query()->Update(Plan::$table, ['deleted' => 'true'], 'id', $planId);
+
+            return (object) ['success' => !empty($result->success), 'table' => Plan::$table, 'id' => $planId];
         });
+    }
+
+    /**
+     * Tutti i prezzi del piano, anche quelli tolti dal repeater.
+     *
+     * @return list<int>
+     */
+    private static function allPriceIds(int $planId): array
+    {
+        return array_map(
+            static fn (array $row): int => (int) $row['id'],
+            static::rowsOf(PlanPrice::class, ['plan_id' => $planId, 'deleted' => ['true', 'false']])
+        );
     }
 
     /**

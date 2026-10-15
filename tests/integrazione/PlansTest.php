@@ -203,8 +203,19 @@ check('un piano con abbonamenti vivi non si elimina; con soli chiusi sì', funct
         abbonamento($persona, (int) prezziDi($vivo)[0]['id'], 'past_due');
         abbonamento($persona, (int) prezziDi($chiuso)[0]['id'], 'unpaid');
 
-        return str_starts_with((string) rifiuto(static fn () => PlanResource::assertDeletable($vivo)), 'refusal:')
-            && rifiuto(static fn () => PlanResource::assertDeletable($chiuso)) === null;
+        $libero = piano('Libero', [$mensile], [['feature_key' => 'max_progetti', 'feature_value' => '5']]);
+        $prezzoChiuso = (int) prezziDi($chiuso)[0]['id'];
+
+        $rifiutoVivo = (string) rifiuto(static fn () => PlanResource::assertDeletable($vivo));
+        PlanResource::deleteRecord($chiuso);
+        PlanResource::deleteRecord($libero);
+
+        // Il prezzo nominato dalla storia resta, segnato eliminato; quello libero se ne va.
+        return str_starts_with($rifiutoVivo, 'refusal:')
+            && Plan::findById($chiuso) === [] && Plan::find(['id' => $chiuso, 'deleted' => 'true']) !== []
+            && PlanPrice::find(['id' => $prezzoChiuso, 'deleted' => 'true']) !== []
+            && Plan::find(['id' => $libero, 'deleted' => ['true', 'false']]) === []
+            && PlanPrice::find(['plan_id' => $libero, 'deleted' => ['true', 'false']]) === [];
     });
 });
 

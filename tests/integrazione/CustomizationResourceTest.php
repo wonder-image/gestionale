@@ -177,7 +177,7 @@ check('eliminare una personalizzazione su un articolo dice quanti la usano', fun
         collegaPersonalizzazione(modelloDi(articoloConGiacenza(1, 'PZ-R-'.uniqid())), $id);
         $messaggio = errore(static fn () => CustomizationResource::deleteRecord($id));
 
-        return str_contains($messaggio, 'ad articoli (1)') && is_array(Customization::find(['id' => $id], 1))
+        return str_contains($messaggio, 'ad articoli o piani (1)') && is_array(Customization::find(['id' => $id], 1))
             && CustomizationResource::usage($id) === 1;
     });
 });
