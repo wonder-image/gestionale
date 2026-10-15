@@ -89,7 +89,7 @@ check('le attività hanno chiavi diverse', function () {
         $chiavi[] = $task->key();
     }
 
-    return $chiavi === array_values(array_unique($chiavi)) && count($chiavi) === 7;
+    return $chiavi === array_values(array_unique($chiavi)) && count($chiavi) === 8;
 });
 
 check('la fine del vincolo degli abbonamenti è un\'attività giornaliera e spenta', function () {

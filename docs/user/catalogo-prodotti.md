@@ -548,3 +548,48 @@ Un articolo che ha già **movimenti di magazzino non si elimina**: quei moviment
 sono la storia del tuo magazzino, e resterebbero a parlare di qualcosa che non
 esiste più. Se non lo vendi più, mettilo in **Bozza**: l'elenco resta pulito e
 la storia pure.
+
+## Scaricare l'elenco
+
+Nell'elenco dei prodotti, il pulsante **Esporta** scarica tutti gli articoli in
+un foglio: **Excel (.xlsx)** oppure **CSV (.csv)**. C'è una riga per ogni
+opzione in vendita, con codice articolo, SKU, EAN, prezzi, quanti ne hai
+disponibili, se è pubblicato, online e attivo, categorie, link e foto. Escono
+anche le bozze, e i filtri dell'elenco non contano: il foglio è sempre
+completo. Lo può scaricare chi vede l'elenco.
+
+Se il tuo negozio li ha, nello stesso pulsante trovi anche i file per i
+cataloghi di fuori:
+
+- **Catalogo Meta (.csv)**: da caricare in Commerce Manager per Facebook e
+  Instagram (Catalogo → Origini dei dati → Aggiungi articoli → Carica file);
+- **Google Merchant Center (.xml)**: da caricare in Merchant Center come
+  origine dati di prodotto.
+
+In questi file entra solo quello che si compra sul sito: articoli pubblicati e
+online, opzioni attive con prezzo, foto e pagina. Il prezzo è quello che paga
+il cliente, IVA compresa e con lo sconto in corso. Il marchio, se l'articolo
+non ne ha uno, è il nome del negozio.
+
+### Il feed che si aggiorna da solo
+
+Invece di caricare il file a mano, puoi dare a Google e a Meta un **indirizzo
+fisso**: lo trovi in **Funzionalità → Esportazioni**, sotto la voce accesa,
+come «Indirizzo del feed» (per esempio
+`https://iltuonegozio.it/shared/feeds/google-merchant.xml`). Il file a
+quell'indirizzo si riscrive da solo con prezzi e giacenze aggiornati.
+
+- In **Merchant Center**: Prodotti → Origini dati → Aggiungi origine dati →
+  *Recupero pianificato* (o "File da un URL"), e incolli l'indirizzo.
+- In **Commerce Manager**: Catalogo → Origini dei dati → Aggiungi articoli →
+  *Feed di dati* → *Feed programmato*, e incolli l'indirizzo
+  (`.../shared/feeds/catalogo-meta.csv`).
+
+Accanto all'indirizzo scegli **ogni quanto aggiornarlo**: ogni ora, ogni 6 ore
+(di serie) o una volta al giorno, e vedi quando è stato aggiornato l'ultima
+volta. Google e Meta passano a prenderlo una volta al giorno, all'ora che
+imposti da loro: ogni 6 ore basta perché trovino sempre dati freschi. Se la
+voce viene spenta, il file sparisce dall'indirizzo.
+
+Quali file vedi nel pulsante lo decide chi ha installato il gestionale: se ti
+serve un file che non c'è, chiedilo a loro.

@@ -174,4 +174,43 @@ return [
         'release' => 'futura',
         'created' => false,
     ],
+    // Esportazioni del catalogo (D64): l'«Esporta» dei prodotti offre solo quelle concesse.
+    'export_xlsx' => [
+        'name' => 'Esportazione Excel',
+        'description' => 'Scarica i prodotti in Excel (.xlsx): una riga per opzione, intestazioni in italiano.',
+        'area' => 'Esportazioni',
+        'release' => 'D64',
+    ],
+    'export_csv' => [
+        'name' => 'Esportazione CSV',
+        'description' => 'Scarica i prodotti in CSV (.csv) standard: virgola, UTF-8, punto nei decimali.',
+        'area' => 'Esportazioni',
+        'release' => 'D64',
+    ],
+    'export_meta' => [
+        'name' => 'Catalogo Meta',
+        'description' => 'Scarica il file per il catalogo di Facebook e Instagram (.csv con i campi di Meta).',
+        'area' => 'Esportazioni',
+        'release' => 'D64',
+    ],
+    'export_google' => [
+        'name' => 'Google Merchant Center',
+        'description' => 'Scarica il feed per Google Merchant Center (.xml RSS con i campi g:).',
+        'area' => 'Esportazioni',
+        'release' => 'D64',
+    ],
+    'export_tiktok' => [
+        'name' => 'TikTok Shop',
+        'description' => 'Sincronizzazione del catalogo con TikTok Shop.',
+        'area' => 'Esportazioni',
+        'release' => 'futura',
+        'created' => false,
+    ],
+    'export_amazon' => [
+        'name' => 'Amazon',
+        'description' => 'Sincronizzazione del catalogo con Amazon.',
+        'area' => 'Esportazioni',
+        'release' => 'futura',
+        'created' => false,
+    ],
 ];

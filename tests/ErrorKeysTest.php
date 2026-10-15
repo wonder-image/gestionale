@@ -25,6 +25,15 @@ $chiavi = static function (): array {
         foreach ($uso[1] as $chiave) {
             $trovate[$chiave] = true;
         }
+
+        // Il server MCP: `McpError::make('x')` e `self::text('x')` leggono `mcp.x`.
+        if (str_contains($file->getPathname(), '/Support/Mcp/')) {
+            preg_match_all('/(?:McpError::make|self::text)\(\s*[\'"]([a-z0-9_.]+)[\'"]/', (string) file_get_contents($file->getPathname()), $mcp);
+
+            foreach ($mcp[1] as $chiave) {
+                $trovate['mcp.'.$chiave] = true;
+            }
+        }
     }
 
     ksort($trovate);

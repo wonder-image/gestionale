@@ -12,6 +12,7 @@ require __DIR__.'/../harness.php';
 
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Models\System\FeatureLog;
+use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductFeeds;
 use Wonder\Plugin\Gestionale\Support\Features\FeaturePanel;
 use Wonder\Sql\Transaction;
 
@@ -110,6 +111,18 @@ check('una riga che c\'è già non viene duplicata', static function (): bool {
         FeaturePanel::save([CHIAVE => true], 0);
 
         return $prima === count(righe(CHIAVE)) && $prima === 1;
+    });
+});
+
+check('la frequenza del feed si salva e resta ai salvataggi dopo', static function (): bool {
+    return prova(static function (): bool {
+        FeaturePanel::save([], 0, ['export_google' => ['every' => 24]]);
+        $salvata = ProductFeeds::every('google');
+        FeaturePanel::save([], 0);
+
+        return $salvata === 24
+            && ProductFeeds::every('google') === 24
+            && (FeaturePanel::settings()['export_google']['every'] ?? null) === 24;
     });
 });
 

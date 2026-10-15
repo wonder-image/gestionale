@@ -63,6 +63,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Packages;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
+use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductExports;
 use Wonder\Plugin\Gestionale\Support\Catalog\SaleUnits;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\VersionName;
@@ -1269,6 +1270,9 @@ HTML
         $layout = parent::tableLayoutSchema()
             ->filterSearch()
             ->searchFields(['name', 'sku'])
+            // «Esporta» (D64): solo i file concessi dal pannello Funzionalità, area «Esportazioni».
+            ->download(ProductExports::granted())
+            ->downloadUsing(static fn (string $format) => ProductExports::send($format))
             ->filterCustom('Stato', 'visible', ['' => 'Tutti', 'true' => 'Pubblicato', 'false' => 'Bozza'])
             ->filterQuery('Marchio', 'marchio', static::brandFilterOptions(), static fn (array $values): string => static::brandCondition($values))
             ->filterQuery('Categoria', 'categoria', static::categoryFilterOptions(), static fn (array $values): string => static::categoryCondition($values));

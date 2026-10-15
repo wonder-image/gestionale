@@ -2197,7 +2197,7 @@ quando si realizza.
 - **Spedizioni:** zone per CAP, orari di ritiro prenotabili, tariffe in tempo reale
   dal corriere, prenotazione del ritiro del corriere, tracking per singolo collo
   (D41, D42).
-- **Marketplace e feed**, compreso Google Merchant (D7, D23).
+- **Marketplace e feed**, compreso Google Merchant (D7, D23), Catalogo Meta, TikTok Shop e Amazon; l'esportazione prodotti (D64) ne prepara le righe.
 - **Dati aziendali da Google** (nel core): cron che verifica orari e chiusure sulla
   scheda Google tramite il Place ID, Place ID dall'autocomplete dell'indirizzo, embed
   automatico della mappa (spec dei prerequisiti del core, E7).
@@ -2301,6 +2301,7 @@ Il testo originale di ogni decisione è nel commit `4fa9852`.
 | D61 | Sequenza rivista per la consegna del primo negozio | D59 | 10.3 |
 | D62 | View sigillate, slot e divisione di E1 in tre fette | D11, D52 | 2.3, 7, 10.2, 10.3 |
 | D63 | Lavori in parallelo alla consegna: G3, G9 senza parte fiscale, G10 + E3 | D61 | 3.4, 10.3, 10.4 |
+| D64 | Esportazione prodotti (.xlsx, .csv, Catalogo Meta, Google Merchant Center) dall'«Esporta» della tabella; ogni file è una funzionalità dell'area «Esportazioni»; Meta e Google anche come feed a indirizzo fisso in `shared/feeds/`, riscritti dall'attività `gestionale.product_feeds` con la frequenza scelta nel pannello (di serie 6 ore); le API restano a parte | D7, D23 | 3.4, 10.5 |
 
 ## Appendice B — Vincoli del framework (verificati il 2026-09-11 e il 2026-09-16)
 

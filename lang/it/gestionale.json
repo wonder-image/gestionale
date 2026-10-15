@@ -336,6 +336,42 @@
                 "already_cancelled": "La disdetta di questo abbonamento è già registrata.",
                 "not_found": "Abbonamento non trovato.",
                 "customer_required": "Scegli il cliente dell'abbonamento."
+            },
+            "mcp": {
+                "auth": {
+                    "https": "Il server MCP risponde solo in HTTPS.",
+                    "missing": "Manca il token: invia l'intestazione Authorization: Bearer <token>.",
+                    "invalid": "Token non valido.",
+                    "user": "L'utente di questo token non esiste o non è attivo.",
+                    "token": "Token non valido, revocato o non attivo.",
+                    "ip": "Questo token non vale da questo indirizzo IP.",
+                    "domain": "Questo token non vale per questo dominio."
+                },
+                "invalid_request": "Richiesta JSON-RPC non valida.",
+                "object": "`{{field}}` deve essere un oggetto.",
+                "method": "Metodo non supportato: {{method}}.",
+                "unknown_tool": "Strumento sconosciuto: {{name}}.",
+                "internal": "Errore interno: riprova; se si ripete, guarda il log del server.",
+                "parse": "Il corpo della richiesta non è JSON valido.",
+                "nothing_to_change": "Nessun campo da modificare.",
+                "sale_price": "Il prezzo scontato deve essere minore del prezzo.",
+                "not_negative": "`{{field}}` deve essere un numero non negativo.",
+                "reason": "Causale non ammessa.",
+                "stock_unchanged": "La giacenza è già questa: nessun movimento.",
+                "main_category": "`main_category_id` deve essere tra le categorie scelte.",
+                "status": "Stato d'ordine non valido.",
+                "action_unavailable": "Azione non disponibile per questo ordine adesso. Disponibili: {{available}}.",
+                "action_failed": "Azione non riuscita.",
+                "product_not_found": "Prodotto {{id}} non trovato.",
+                "category_not_found": "Categoria {{id}} non trovata.",
+                "order_not_found": "Ordine {{id}} non trovato.",
+                "id": "`{{field}}` deve essere un id intero positivo.",
+                "required": "`{{field}}` è obbligatorio.",
+                "boolean": "`{{field}}` deve essere true o false.",
+                "category_loop": "Una categoria non può stare dentro sé stessa o dentro una sua sottocategoria.",
+                "save_failed": "Salvataggio non riuscito (campi: {{fields}}).",
+                "unit": "Unità di vendita non ammessa. Ammesse: {{units}}.",
+                "tax_category": "Tipo di IVA {{id}} non trovato o non visibile."
             }
         },
         "emails": {

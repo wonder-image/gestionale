@@ -8,6 +8,10 @@ Route::area('api')->response('json')->frontend()->translatable(false)
         // Niente sessione e niente CSRF: vale la firma di Stripe sul corpo.
         Route::post('/stripe/webhook/', Gestionale::handlerPath('api/stripe/webhook.php'))
             ->name('stripe.webhook');
+        // Server MCP: niente sessione, vale il token di `api_users`; i
+        // permessi si controllano strumento per strumento.
+        Route::post('/mcp/', Gestionale::handlerPath('api/mcp.php'))->name('mcp');
+        Route::get('/mcp/', Gestionale::handlerPath('api/mcp.php'))->name('mcp.get');
     });
 
 // Il backend del gestionale: con la sessione e i permessi delle pagine.

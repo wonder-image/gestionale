@@ -7,6 +7,39 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Server MCP** su `/api/gestionale/mcp/` (Streamable HTTP, solo POST,
+  JSON-RPC): un agente IA (Claude Code, Claude Desktop…) elenca, crea e
+  modifica prodotti, prezzi, giacenze e categorie e cambia lo stato degli
+  ordini. `product_create` crea articolo, opzione e versione come la scheda
+  del backend (obbligatori nome e prezzo; unità, IVA e visibilità di serie);
+  `products_list` elenca le versioni a pagine, per categoria e attive.
+  Token di `api_users` (stesse verifiche di `Endpoint.php`), strumenti
+  filtrati con i permessi delle Resource, ogni scrittura registrata in
+  `gst_mcp_logs` (`McpLog`) con prima e dopo. Vedi
+  `docs/dev/concetti/mcp.md`.
+
+- **Esporta** nella tabella prodotti: scarica tutti gli articoli non
+  cancellati in Excel (.xlsx) o in .csv, una riga per opzione in vendita, con
+  codice articolo, SKU, EAN, prezzi, disponibili, stati, categorie, link e
+  foto. Passa dalla rotta `export` della risorsa con un gestore proprio
+  (`downloadUsing()`, wonder-image/app) (D64).
+- **Catalogo Meta** (.csv) e **Google Merchant Center** (.xml RSS) nello stesso
+  «Esporta»: solo ciò che si compra sul sito, prezzi IVA compresa con la
+  campagna in corso, `id` uguale a quello del pixel (D64).
+- Area **Esportazioni** nel pannello Funzionalità (`export_xlsx`,
+  `export_csv`, `export_meta`, `export_google`; TikTok Shop e Amazon previste):
+  «Esporta» offre solo i file concessi. Registro in
+  `Support\Catalog\Exports\ProductExports`, scrittura in
+  `Support\Export\Delimited` (csv/tsv), `XmlFeed` (rss) e `Download` (D64).
+- **Feed a indirizzo fisso** per Google Merchant Center e Catalogo Meta:
+  con `export_google`/`export_meta` sbloccate, l'attività
+  `gestionale.product_feeds` (ogni ora, al minuto 7) riscrive
+  `shared/feeds/google-merchant.xml` e `shared/feeds/catalogo-meta.csv` quando
+  sono scaduti; bloccate, il file viene cancellato. Il pannello Funzionalità
+  mostra l'indirizzo, l'ultimo aggiornamento e fa scegliere ogni quanto
+  aggiornare (ogni ora, ogni 6 ore — di serie — o una volta al giorno), salvato
+  nella nuova colonna `settings` (json) di `gst_features`
+  (`Support\Catalog\Exports\ProductFeeds`, `Scheduler\ProductFeedsTask`) (D64).
 - `php forge gestionale:demo` crea anche una vetrina: l'«Impermeabile da città»
   con tutto quello che un articolo può avere (12 versioni su colore, taglia e
   materiale, marchio, imballo, dimensioni, descrizione, scheda tecnica,

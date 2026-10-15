@@ -9,7 +9,7 @@ use Wonder\Sql\TableSchema as Column;
 
 /**
  * Stato di una funzionalità. Il catalogo (nome, area, dipendenze) sta nel
- * codice: qui c'è solo se è sbloccata, da chi e quando.
+ * codice: qui c'è solo se è sbloccata, da chi e quando, e le sue scelte.
  */
 final class Feature extends Model
 {
@@ -27,6 +27,8 @@ final class Feature extends Model
         return [
             Column::key('feature_key')->length(100)->null(false)->unique(),
             Column::key('enabled')->enum(['true', 'false'])->default('false'),
+            // Le scelte della funzionalità, oltre all'interruttore (es. ogni quanto si riscrive un feed).
+            Column::key('settings')->json(),
             ...static::sqlColumnsFromDataSchema(['changed_at']),
             Column::key('changed_by')->int(),
         ];
@@ -37,6 +39,7 @@ final class Feature extends Model
         return [
             Field::key('feature_key')->text()->readonlyOnUpdate()->immutableOnUpdate(),
             Field::key('enabled')->text()->sanitize(false),
+            Field::key('settings')->json(),
             Field::key('changed_at')->date(),
             Field::key('changed_by')->number()->decimals(0),
         ];

@@ -127,6 +127,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
   - [x] Push di `main` di `wonder-image/app`, rilasci fino a `v2.4.0-beta.1` e ramo remoto `feature/prerequisiti-moduli-gestionale` cancellato (verificato il 2026-09-29)
 - [ ] D60 (2026-09-18): vendita senza giacenza per prodotto con giacenza sotto zero (funzionalità `backorders`, G4) e prefisso delle tabelle `gst_`; spec di architettura aggiornata (1316556)
 - [x] D63 (2026-10-12): **G3, G9 senza parte fiscale e G10 + E3 in parallelo alla consegna**, che resta al 2026-10-29; spec di architettura §3.4, §10.3, §10.4 e appendice A aggiornate
+- [x] D64 (2026-10-15): **esportazione prodotti** (.xlsx e .csv standard) dall'«Esporta» della tabella prodotti (`download()` + `downloadUsing()` del core), una riga per opzione in vendita, tutti gli articoli non cancellati con le colonne di stato. Poi: file per **Catalogo Meta** (.csv) e **Google Merchant Center** (.xml), e area «Esportazioni» nel pannello Funzionalità che decide quali file offre «Esporta» (`ProductExports`, `Delimited`, `XmlFeed`). Poi (stesso giorno): **feed a indirizzo fisso** in `shared/feeds/` riscritti dall'attività `gestionale.product_feeds`, con indirizzo, ultimo aggiornamento e frequenza (1/6/24 ore, di serie 6) nel pannello Funzionalità (`ProductFeeds`, colonna `settings` di `gst_features`). Restano da fare le API (Content API, Catalog API) e TikTok Shop/Amazon
 - [ ] D61 (2026-09-29): **sequenza rivista per la consegna del primo negozio** (entro il 2026-10-29). Il negozio vende da una sede sola, con spedizioni, coupon e sconti, prodotti composti e personalizzabili; senza fatturazione elettronica. G3 e i documenti di magazzino (G2b-bis piani 4-6) escono dal percorso della consegna: restano dietro i loro interruttori (`multi_location`, `purchasing`, `batch_tracking` spenti) e la merce entra con la rettifica rapida. Vincolo su G4: prenotazione e scarico passano da **un unico servizio**, che riceve già sede, lotto e fornitore anche se `gst_stock.batch_id` e `supplier_id` restano a zero, così G3 toccherà solo quel punto. Spec di architettura §10.3 aggiornata
 - [x] G1 Fondamenta (chiuso il 2026-09-21)
   - Spec: `docs/superpowers/specs/2026-09-18-fondamenta-gestionale-design.md`
@@ -429,6 +430,12 @@ Fuori dal primo rilascio; progettate a grandi linee o solo annotate.
 - [ ] Magazzino: ordini a fornitore, inventario con conteggio guidato, soglia di scorta minima per sede (D27, D29)
 - [ ] Anagrafiche: più utenti della stessa azienda sul portale B2B, referenti aziendali, gruppi di clienti (D31)
 - [ ] Marketplace e feed, compreso Google Merchant (D7, D23)
+  - [ ] Sincronizzazione con Google Merchant Center via Content API (il feed a indirizzo fisso c'è già: `shared/feeds/google-merchant.xml`, D64)
+  - [ ] Sincronizzazione con il Catalogo Meta (Facebook e Instagram) via Catalog API (il feed programmato c'è già: `shared/feeds/catalogo-meta.csv`, D64)
+  - [ ] Feed: `google_product_category` per categoria, colore/taglia/materiale dagli attributi, spedizione e lingue
+  - [ ] Esportazioni personalizzabili per sito (colonne e filtri), sopra il registro `ProductExports`
+  - [ ] Sincronizzazione con TikTok Shop (funzionalità `export_tiktok` prevista)
+  - [ ] Sincronizzazione con Amazon (funzionalità `export_amazon` prevista)
 - [ ] Dati aziendali da Google (core): cron che verifica orari e chiusure dalla scheda Google tramite Place ID, Place ID dall'autocomplete, embed automatico della mappa
 - [ ] Spedizioni: zone per CAP, orari di ritiro prenotabili (D41)
 - [ ] Spedizioni: tariffe in tempo reale dal corriere, prenotazione del ritiro del corriere, tracking per singolo collo (D42)

@@ -22,6 +22,7 @@ final class FeaturePanel
     {
         $catalog = FeatureCatalog::all();
         $state = self::state();
+        $settings = self::settings();
         $modules = self::modules();
         $areas = [];
 
@@ -31,6 +32,7 @@ final class FeaturePanel
                 'name' => $feature['name'],
                 'description' => $feature['description'],
                 'enabled' => $state[$key] ?? false,
+                'settings' => $settings[$key] ?? [],
                 'requires' => array_map(
                     static fn (string $required): string => $catalog[$required]['name'] ?? $required,
                     $feature['requires']
@@ -60,14 +62,31 @@ final class FeaturePanel
         return $state;
     }
 
+    /** Le scelte salvate: chiave → impostazioni. @return array<string, array<string, mixed>> */
+    public static function settings(): array
+    {
+        $settings = [];
+
+        foreach (self::rows() as $row) {
+            $value = $row['settings'] ?? null;
+            $value = is_string($value) ? json_decode($value, true) : $value;
+            $settings[(string) ($row['feature_key'] ?? '')] = is_array($value) ? $value : [];
+        }
+
+        return $settings;
+    }
+
     /**
      * Salva le spunte del form, applica le regole delle dipendenze e scrive lo
-     * storico. Restituisce i nomi di ciò che è cambiato.
+     * storico. Restituisce i nomi di ciò che è cambiato. Le scelte delle
+     * funzionalità (`$settings`, chiave → impostazioni) si salvano a parte:
+     * non passano dalle dipendenze e non vanno nello storico.
      *
      * @param array<string, bool> $requested
+     * @param array<string, array<string, mixed>> $settings
      * @return array{unlocked: list<string>, locked: list<string>}
      */
-    public static function save(array $requested, int $userId): array
+    public static function save(array $requested, int $userId, array $settings = []): array
     {
         $catalog = FeatureCatalog::all();
         $created = self::ensureRows(array_keys($catalog));
@@ -106,6 +125,8 @@ final class FeaturePanel
             $changed = true;
         }
 
+        $changed = self::saveSettings($rows, $settings) || $changed;
+
         if ($changed) {
             // La tabella si sincronizza: il file di sync deve seguire subito.
             TableSync::autoExport();
@@ -140,6 +161,32 @@ final class FeaturePanel
                 sqlInsert(Feature::$table, ['feature_key' => $key, 'enabled' => 'false']);
             }
 
+            $changed = true;
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Scrive le scelte cambiate, unite a quelle già salvate. Restituisce se ha scritto.
+     *
+     * @param array<string, array<string, mixed>> $rows righe per chiave
+     * @param array<string, array<string, mixed>> $settings
+     */
+    private static function saveSettings(array $rows, array $settings): bool
+    {
+        $current = self::settings();
+        $changed = false;
+
+        foreach ($settings as $key => $values) {
+            $row = $rows[$key] ?? null;
+            $merged = array_merge($current[$key] ?? [], $values);
+
+            if ($row === null || $merged === ($current[$key] ?? [])) {
+                continue;
+            }
+
+            sqlModify(Feature::$table, ['settings' => json_encode($merged, JSON_UNESCAPED_UNICODE)], 'id', (int) $row['id']);
             $changed = true;
         }
 

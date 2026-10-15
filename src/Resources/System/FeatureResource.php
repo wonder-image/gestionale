@@ -16,6 +16,7 @@ use Wonder\Elements\Form\Form;
 use Wonder\App\LegacyGlobals;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
+use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductFeeds;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureCatalog;
 use Wonder\Plugin\Gestionale\Support\Features\FeaturePanel;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -79,10 +80,51 @@ final class FeatureResource extends NavigationOnlyResource
                 }
 
                 $fields[] = $field;
+                array_push($fields, ...static::feedFields($feature, $readonly));
             }
         }
 
         return $fields;
+    }
+
+    /**
+     * Sotto l'interruttore di un feed (Meta, Google): ogni quanto si riscrive
+     * e l'indirizzo da dare alla piattaforma. Si vedono a funzionalità accesa.
+     *
+     * @return list<\Wonder\App\ResourceSchema\Input>
+     */
+    private static function feedFields(array $feature, bool $readonly): array
+    {
+        $feed = ProductFeeds::forFeature($feature['key']);
+
+        if ($feed === null || !$feature['created']) {
+            return [];
+        }
+
+        $every = FormField::key($feature['key'].'_every')
+            ->select(array_map('strval', ProductFeeds::EVERY))
+            ->label('Aggiorna il feed')
+            ->value((string) ProductFeeds::every($feed, $feature['settings']))
+            ->visibleWhen($feature['key'], 'true');
+
+        if ($readonly || !$feature['available']) {
+            $every->disabled();
+        }
+
+        $url = FormField::key($feature['key'].'_url')
+            ->text()
+            ->label('Indirizzo del feed')
+            ->value(ProductFeeds::url($feed))
+            ->readonly()
+            ->visibleWhen($feature['key'], 'true');
+
+        return [$every, $url];
+    }
+
+    /** Le chiavi dei campi del feed sotto l'interruttore, vuote se non è un feed. @return list<string> */
+    private static function feedKeys(string $feature): array
+    {
+        return ProductFeeds::forFeature($feature) === null ? [] : [$feature.'_every', $feature.'_url'];
     }
 
     public static function formLayoutSchema(): ?Form
@@ -94,6 +136,10 @@ final class FeatureResource extends NavigationOnlyResource
 
             foreach ($features as $feature) {
                 $components[] = static::getInput($feature['key'])->columnSpan(12);
+
+                foreach (static::feedKeys($feature['created'] ? $feature['key'] : '') as $key) {
+                    $components[] = static::getInput($key)->columnSpan(12);
+                }
             }
 
             $cards[] = (new Card)->components($components)->columns(12)->columnSpan(1);
@@ -134,6 +180,7 @@ final class FeatureResource extends NavigationOnlyResource
     public static function submitFormPage(array $values): string
     {
         $requested = [];
+        $settings = [];
 
         $state = FeaturePanel::state();
 
@@ -143,12 +190,19 @@ final class FeatureResource extends NavigationOnlyResource
             $requested[$key] = $feature['created']
                 ? ($values[$key] ?? 'false') === 'true'
                 : ($state[$key] ?? false);
+
+            // Ogni quanto si riscrive il feed: solo una scelta dell'elenco.
+            $every = (int) ($values[$key.'_every'] ?? 0);
+
+            if (ProductFeeds::forFeature($key) !== null && isset(ProductFeeds::EVERY[$every])) {
+                $settings[$key]['every'] = $every;
+            }
         }
 
         $user = LegacyGlobals::get('USER');
 
         try {
-            $changes = FeaturePanel::save($requested, is_object($user) ? (int) ($user->id ?? 0) : 0);
+            $changes = FeaturePanel::save($requested, is_object($user) ? (int) ($user->id ?? 0) : 0, $settings);
         } catch (UserError $error) {
             // G3.18: un rifiuto è un avviso, non il messaggio verde del salvataggio.
             if (headers_sent()) {
@@ -202,6 +256,15 @@ final class FeatureResource extends NavigationOnlyResource
 
         if (!$feature['available']) {
             $parts[] = 'Serve il modulo '.$feature['module'].'.';
+        }
+
+        $feed = $feature['created'] ? ProductFeeds::forFeature($feature['key']) : null;
+
+        if ($feed !== null) {
+            $written = ProductFeeds::writtenAt($feed);
+            $parts[] = 'Accesa, il feed si aggiorna da solo: '
+                .mb_strtolower(ProductFeeds::EVERY[ProductFeeds::every($feed, $feature['settings'])])
+                .'. Ultimo aggiornamento: '.($written === null ? 'non ancora' : date('d/m/Y H:i', $written)).'.';
         }
 
         return trim(implode(' ', array_filter($parts)));
