@@ -106,6 +106,9 @@ versionamento semantico.
   risultato, rilancialo con `--togli-vecchie` per togliere
   `gst_product_model_customizations` e `gst_subscription_plan_changes`.
   `plan_price_id` di `gst_subscriptions` resta fino ad allora.
+- G10b parte 3, per il negozio: `OnlineSubscriptions::lines()` prepara e
+  controlla una selezione di più servizi (madri, personalizzazioni, intervalli)
+  e `preview()` ne dà gli importi del primo addebito, prima di Stripe.
 - G10b parte 2, **servizi degli abbonamenti online**: ogni riga è una
   subscription item di Stripe (`metadata.item_id`); il Checkout ha una riga per
   servizio con `billing_mode=flexible`. Dalla card **Servizi** *Aggiungi*

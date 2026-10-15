@@ -360,8 +360,8 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
     - [x] Parte 1, gestionale da ufficio: righe e storia, legami fra piani, personalizzazioni dei piani, card *Servizi*, limite per cliente, dati di prova, script di migrazione, guide
     - [x] Parte 2, Stripe e online: una subscription item per riga, card *Servizi* anche online, Schedule per i cambi dal rinnovo, guide
     - [ ] Prova a mano su Stripe in modalità test (la fa l'utente, sul sito di prova con le chiavi di prova): 1) area cliente → abbonati a Dominio + Hosting + Assistenza mensile in un solo Checkout (carta 4242…); 2) in Stripe l'abbonamento ha tre item con `metadata.item_id` e nella scheda tre righe *Attive*; 3) dalla card *Servizi* aggiungi Backup con *Quota ora* → fattura immediata in Stripe; 4) togli Assistenza *Subito, con un credito* → credito sulla prossima fattura; 5) cambia Hosting *Dal prossimo rinnovo* → in Stripe compare lo Schedule con due fasi; 6) *Disdici* → lo Schedule è rilasciato e l'abbonamento ha «si annulla a fine periodo»
-    - [ ] Parte 3: ecommerce (selezione, riepilogo, area cliente), revisione finale
-    - [ ] Prova nel browser
+    - [x] Parte 3: ecommerce (selezione, riepilogo, area cliente), revisione finale. Rami NON uniti né spinti
+    - [ ] Prova nel browser sul sito di prova `ecommerce-site-servizi` (la fa l'utente): 1) `/abbonamenti/` → scegli Hosting, poi Dominio sotto l'Hosting, poi togli l'Hosting dal riepilogo → va via anche il Dominio; 2) due prezzi con intervalli diversi → errore sul secondo; 3) riepilogo con coupon → Stripe Checkout con una riga per servizio; 4) area cliente → Abbonamenti: righe con quantità e date, figlie rientrate; 5) *Aggiungi servizio* → *Calcola l'importo* mostra la quota, *Conferma* la addebita subito; 6) *Togli* su una madre → la conferma nomina le figlie, poi «resta attivo fino al…»; 7) *Cambia* → subito, con la differenza; 8) al limite di abbonamenti la pagina dei piani porta ad *Aggiungi servizio*
 
 **Fuori dal percorso della consegna (D61)**
 
