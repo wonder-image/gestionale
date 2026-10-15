@@ -16,6 +16,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
 /**
@@ -51,61 +52,51 @@ final class OfficeOrderPage
         ])->columns(12)->columnSpan(12);
         $locations = $resource::locations();
         $shippingMethods = $resource::shippingMethods();
+        $pickupPoints = [];
+
+        try {
+            foreach (PickupPoints::all() as $point) {
+                $pickupPoints[(string) $point['id']] = trim($point['name'].($point['address'] !== '' ? ' — '.$point['address'] : ''), ' —');
+            }
+        } catch (Throwable) {
+            $pickupPoints = [];
+        }
+
+        $pickup = (string) ($values['fulfillment_type'] ?? '') === 'pickup' ? (string) ($values['location_id'] ?? '0') : '0';
         $terms = $resource::paymentTerms();
         $discountValue = (float) ($values['manual_discount_value'] ?? 0);
         $paese = static fn (string $key): string => $v($key) !== '' ? $v($key) : 'IT';
 
+        $customerId = (int) ($values['customer_id'] ?? 0);
+        // Testata dell'ordine nascosta: la riempiono la scheda del cliente e
+        // l'indirizzo spuntato, e la posta il form come prima.
+        $nascosti = [
+            self::hidden('email', $v('email')),
+            self::hidden('phone', $v('phone')),
+            ...array_map(static fn (string $k): Input => self::hidden('billing_'.$k, $v('billing_'.$k)), OfficeOrders::billingKeys()),
+            ...array_map(static fn (string $k): Input => self::hidden('shipping_'.$k, $v('shipping_'.$k)), OfficeOrders::shippingKeys()),
+        ];
+
+        $sinistra = [
+            (new Card)->components([
+                RichText::make('<div class="d-flex align-items-center justify-content-between gap-2">'
+                    .SectionTitle::make('Cliente')->tooltip('Scegliendo il cliente si riempiono fatturazione, consegna e pagamento dalla sua scheda. Il cliente nuovo si crea in un\'altra scheda; poi cercalo qui.')->render('bootstrap')
+                    .Button::to(self::newCustomerUrl(), 'Nuovo cliente')->icon('bi bi-person-plus')->variant('secondary')->outline()->size('sm')->blank()->render('bootstrap')
+                    .'</div>')->tag('div')->columnSpan(12),
+                FormField::key('customer_id')->searchText(OfficeOrderEditor::customersUrl())
+                    ->valueLabel(self::customerLabel($customerId))
+                    ->emptyText('Nessun cliente trovato: crealo con «Nuovo cliente».')
+                    ->label('Cliente')
+                    ->value($customerId > 0 ? (string) $customerId : '')
+                    ->columnSpan(12),
+                ...$nascosti,
+            ])->columns(12)->columnSpan(12),
+            self::panel('Contatti', 'contacts', OfficeCustomerPanel::CONTACTS_MODAL),
+            self::panel('Fatturazione', 'billing', OfficeCustomerPanel::BILLING_MODAL),
+            self::panel('Indirizzi di consegna', 'addresses', ''),
+        ];
+
         $componenti = [
-            $riquadro('Cliente', 'Scegliendo il cliente si riempiono fatturazione, consegna e pagamento dalla sua scheda: puoi cambiarli per questo ordine. Il cliente nuovo si crea in un\'altra scheda; poi cercalo qui.', [
-                FormField::key('customer_id')->hidden()->value((string) ((int) ($values['customer_id'] ?? 0) ?: ''))->attribute('data-wi-oo-customer-id'),
-                FormField::key('customer_search')->text()->label('Cliente')->value(self::customerLabel((int) ($values['customer_id'] ?? 0)))
-                    ->attribute('data-wi-oo-customer-search autocomplete="off"')
-                    ->columnSpan(['default' => 12, 'md' => 6]),
-                RichText::make('<div class="d-flex h-100 align-items-center">'
-                    .Button::to(self::newCustomerUrl(), 'Nuovo cliente')->icon('bi bi-person-plus')->variant('secondary')->outline()->blank()->schema('inline', true)->render('bootstrap')
-                    .'</div>')->tag('div')->columnSpan(['default' => 12, 'md' => 6]),
-                RichText::make('<div class="list-group shadow-sm d-none" data-wi-oo-customer-results></div>'
-                    .'<div class="small text-body-secondary" data-wi-oo-customer-message></div>')->tag('div')->columnSpan(12),
-                self::field(FormField::key('email')->email(), 'email', 'Email', 6, $v('email')),
-                $campo('phone', 'Telefono', 6),
-            ]),
-            $riquadro('Fatturazione', '', [
-                self::field(FormField::key('billing_type')->select(['private' => 'Privato', 'business' => 'Azienda']), 'billing_type', 'Tipo', 3, (string) ($values['billing_type'] ?? 'private')),
-                $campo('billing_business_name', 'Ragione sociale', 9),
-                $campo('billing_name', 'Nome'),
-                $campo('billing_surname', 'Cognome'),
-                $campo('billing_cf', 'Codice fiscale'),
-                $campo('billing_pi', 'Partita IVA'),
-                $campo('billing_sdi', 'Codice SDI'),
-                self::field(FormField::key('billing_pec')->email(), 'billing_pec', 'PEC', 3, $v('billing_pec')),
-                $campo('billing_street', 'Via', 4),
-                $campo('billing_number', 'Civico', 2),
-                $campo('billing_cap', 'CAP', 2),
-                $campo('billing_city', 'Città', 4),
-                $campo('billing_province', 'Provincia', 6),
-                self::field(FormField::key('billing_country')->text(), 'billing_country', 'Paese', 6, $paese('billing_country')),
-            ]),
-            $riquadro('Consegna', 'Con la spedizione serve l\'indirizzo di consegna; con il ritiro la merce esce dalla sede scelta. Il costo di spedizione vuoto è quello del listino del metodo: scrivilo per fissarlo a mano, anche zero.', array_values(array_filter([
-                self::field(FormField::key('fulfillment_type')->select(['shipping' => 'Spedizione', 'pickup' => 'Ritiro in sede', 'none' => 'Nessuna consegna']), 'fulfillment_type', 'Come arriva la merce', 3, (string) ($values['fulfillment_type'] ?? 'shipping')),
-                $locations !== []
-                    ? self::field(FormField::key('location_id')->select($locations), 'location_id', 'Sede che evade', 3, (string) ($values['location_id'] ?? ''))->attribute('data-wi-office-location')
-                    : null,
-                $shippingMethods !== []
-                    ? self::field(FormField::key('shipping_method_id')->select(['0' => 'Nessuno'] + $shippingMethods), 'shipping_method_id', 'Metodo di spedizione', 3, (string) ($values['shipping_method_id'] ?? '0'))->visibleWhen('fulfillment_type', 'shipping')
-                    : null,
-                self::field(FormField::key('shipping_amount')->text(), 'shipping_amount', 'Costo di spedizione (€)', 3, $v('shipping_amount'))->attribute('inputmode="decimal"')->visibleWhen('fulfillment_type', 'shipping'),
-                (new Container)->components([
-                    $campo('shipping_name', 'Destinatario: nome'),
-                    $campo('shipping_surname', 'Cognome'),
-                    $campo('shipping_phone', 'Telefono', 6),
-                    $campo('shipping_street', 'Via', 4),
-                    $campo('shipping_number', 'Civico', 2),
-                    $campo('shipping_cap', 'CAP', 2),
-                    $campo('shipping_city', 'Città', 4),
-                    $campo('shipping_province', 'Provincia', 6),
-                    self::field(FormField::key('shipping_country')->text(), 'shipping_country', 'Paese', 6, $paese('shipping_country')),
-                ])->columns(12)->columnSpan(12)->visibleWhen('fulfillment_type', 'shipping'),
-            ]))),
             $riquadro('Righe', 'Prezzo vuoto = quello del listino o della campagna in corso. Lo sconto vale sulla riga. «Disponibili» è la merce della sede: se non basta la conferma si ferma, salvo gli articoli che si vendono senza giacenza.', [
                 FormField::key('lines')->hidden()->value('')->attribute('data-wi-oo-lines'),
                 RichText::make($editor ?? OfficeOrderEditor::render(
@@ -116,6 +107,19 @@ final class OfficeOrderPage
                     Gestionale::feature('purchasing')
                 ))->tag('div')->columnSpan(12),
             ]),
+            $riquadro('Consegna', 'Con la spedizione la merce va all\'indirizzo spuntato a sinistra (senza spunta, a quello di fatturazione); con il ritiro il cliente passa dalla sede scelta. Con un metodo scelto il costo è quello del listino; con «Nessuno» lo scrivi a mano, anche zero.', array_values(array_filter([
+                self::field(FormField::key('fulfillment_type')->select(['shipping' => 'Spedizione', 'pickup' => 'Ritiro in sede', 'none' => 'Nessuna consegna']), 'fulfillment_type', 'Come arriva la merce', 3, (string) ($values['fulfillment_type'] ?? 'shipping')),
+                $locations !== []
+                    ? self::field(FormField::key('location_id')->select($locations), 'location_id', 'Sede che evade', 3, (string) ($values['location_id'] ?? ''))->attribute('data-wi-office-location')->hiddenWhen('fulfillment_type', 'pickup')
+                    : null,
+                $pickupPoints !== []
+                    ? self::field(FormField::key('pickup_location_id')->select(['0' => 'Scegli la sede'] + $pickupPoints), 'pickup_location_id', 'Sede del ritiro', 6, $pickup)->visibleWhen('fulfillment_type', 'pickup')
+                    : null,
+                $shippingMethods !== []
+                    ? self::field(FormField::key('shipping_method_id')->select(['0' => 'Nessuno'] + $shippingMethods), 'shipping_method_id', 'Metodo di spedizione', 3, (string) ($values['shipping_method_id'] ?? '0'))->visibleWhen('fulfillment_type', 'shipping')
+                    : null,
+                self::field(FormField::key('shipping_amount')->text(), 'shipping_amount', 'Costo di spedizione (€)', 3, $v('shipping_amount'))->attribute('inputmode="decimal"')->attribute('data-wi-oo-shipping-amount')->visibleWhen('fulfillment_type', 'shipping'),
+            ]))),
             $riquadro('Pagamento e sconto', $quote
                 ? 'La condizione dice in quante rate si pagherà: le rate nascono quando l\'ordine si conferma.'
                 : 'La condizione dice in quante rate e quando si paga: alla conferma nascono le rate nello Scadenzario.', array_values(array_filter([
@@ -154,7 +158,7 @@ final class OfficeOrderPage
             }
         }
 
-        $componenti[] = (new Card)->components([
+        $pulsanti = (new Card)->components([
             FormField::key('notify')->toggle()
                 ->label($quote ? 'Manda l\'email con il PDF' : 'Alla conferma scrivi al cliente')
                 ->value($quote ? 'true' : 'false')
@@ -162,7 +166,11 @@ final class OfficeOrderPage
             RichText::make(self::buttonsHtml($quote, $values))->tag('div')->columnSpan(['default' => 12, 'md' => 8]),
         ])->columns(12)->columnSpan(12);
 
-        return (new Form)->components($componenti)->columns(12);
+        return (new Form)->components([
+            (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components($sinistra),
+            (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components($componenti),
+            $pulsanti,
+        ])->columns(12);
     }
 
     /** Un campo della testata: etichetta, valore, larghezza e l'aggancio per lo script (`data-wi-oo-field`). */
@@ -172,6 +180,38 @@ final class OfficeOrderPage
             ->value($value)
             ->attribute('data-wi-oo-field="'.htmlspecialchars($key, ENT_QUOTES, 'UTF-8').'"')
             ->columnSpan(['default' => 12, 'md' => $span]);
+    }
+
+    /** Un campo nascosto della testata, con l'aggancio per lo script. */
+    private static function hidden(string $key, string $value): Input
+    {
+        return FormField::key($key)->hidden()->value($value)
+            ->attribute('data-wi-oo-field="'.htmlspecialchars($key, ENT_QUOTES, 'UTF-8').'"');
+    }
+
+    /**
+     * Un riquadro della colonna del cliente: lo riempie lo script dalla
+     * scheda (`data-wi-oo-panel`), e «Modifica» apre la sua finestra.
+     */
+    private static function panel(string $title, string $key, string $modal): Card
+    {
+        $modifica = $modal === '' ? '' : Button::make('Modifica')
+            ->icon('bi bi-pencil')
+            ->variant('secondary')
+            ->outline()
+            ->size('sm')
+            ->attr('data-bs-toggle', 'modal')
+            ->attr('data-bs-target', '#'.$modal)
+            ->attr('data-wi-oo-edit', true)
+            ->attr('disabled', true)
+            ->render('bootstrap');
+
+        return (new Card)->components([
+            RichText::make('<div class="d-flex align-items-center justify-content-between gap-2">'
+                .SectionTitle::make($title)->render('bootstrap').$modifica.'</div>')->tag('div')->columnSpan(12),
+            RichText::make('<div data-wi-oo-panel="'.$key.'"><p class="text-muted small mb-0">Scegli un cliente.</p></div>')
+                ->tag('div')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
     }
 
     /** Il nome del cliente scelto, nel campo di ricerca. */
@@ -283,9 +323,10 @@ final class OfficeOrderPage
         $pulsanti = [$invia('save', 'Salva bozza', 'dark', true)];
 
         if ($quote) {
-            if ($editing && in_array($status, ['draft', 'sent'], true)) {
-                $pulsanti[] = $invia('accept', 'Accettato', 'success', true, 'bi bi-check2-circle')
-                    ->confirm('Il preventivo si salva e diventa una bozza d\'ordine con le stesse righe: lì controlli consegna e pagamento e lo confermi.', title: 'Preventivo accettato', ok: 'Accettato', variant: 'success');
+            // Anche su un preventivo nuovo: prima si salva, poi passa a ordine.
+            if (in_array($status, ['draft', 'sent'], true)) {
+                $pulsanti[] = $invia('accept', 'Trasforma in ordine', 'success', true, 'bi bi-arrow-right-circle')
+                    ->confirm('Il cliente ha accettato: il preventivo si salva e diventa una bozza d\'ordine con le stesse righe. Lì controlli consegna e pagamento e lo confermi.', title: 'Trasforma in ordine', ok: 'Trasforma in ordine', variant: 'success');
             }
 
             $pulsanti[] = $invia('send', $status === 'sent' ? 'Invia di nuovo' : 'Invia al cliente', 'dark', false, 'bi bi-send')

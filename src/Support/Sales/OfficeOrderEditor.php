@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Sales;
 
 use Throwable;
+use Wonder\Backend\Support\RowDrag;
 
 /**
  * Le righe del nuovo ordine da ufficio (G9 §2.2), sul modello di
@@ -55,6 +56,7 @@ final class OfficeOrderEditor
             .'<div class="table-responsive mt-3">'
             .'<table class="table table-sm align-middle mb-0">'
             .'<thead><tr>'
+            .'<th style="width: 1.5rem"><span class="visually-hidden">Sposta</span></th>'
             .'<th style="min-width: 14rem">Articolo</th>'
             .'<th class="d-none d-md-table-cell text-end">Disponibili</th>'
             .'<th class="text-end" style="width: 7rem">Quantità</th>'
@@ -62,7 +64,7 @@ final class OfficeOrderEditor
             .'<th style="width: 11rem">Sconto</th>'
             .($source !== '' ? '<th style="min-width: 12rem">'.$e($source).'</th>' : '')
             .'<th class="text-end d-none d-md-table-cell" style="width: 7rem">Totale</th>'
-            .'<th style="width: 3rem"><span class="visually-hidden">Togli</span></th>'
+            .'<th style="width: 2.5rem"><span class="visually-hidden">Togli</span></th>'
             .'</tr></thead>'
             .'<tbody data-wi-office-rows></tbody>'
             .'</table>'
@@ -71,6 +73,7 @@ final class OfficeOrderEditor
             .'<div class="text-end fw-semibold mt-2" data-wi-office-totals></div>'
             .'<script type="application/json" data-wi-office-lines>'.$json($lines).'</script>'
             .'<script type="application/json" data-wi-office-taxes>'.$json($taxes).'</script>'
+            .RowDrag::script()
             .'<script>'.self::script().'</script>'
             .'</div>';
     }
@@ -85,6 +88,18 @@ final class OfficeOrderEditor
     public static function customersUrl(): string
     {
         return self::route('api.gestionale.backend.sales.customers', '/api/gestionale/backend/vendite/clienti/');
+    }
+
+    /** Dove le finestre del cliente salvano la sua scheda (POST, JSON). */
+    public static function customerSaveUrl(): string
+    {
+        return self::route('api.gestionale.backend.sales.customer_save', '/api/gestionale/backend/vendite/clienti/salva/');
+    }
+
+    /** Il costo di spedizione del listino per la bozza (POST, JSON). */
+    public static function shippingQuoteUrl(): string
+    {
+        return self::route('api.gestionale.backend.sales.shipping_quote', '/api/gestionale/backend/vendite/spedizione/');
     }
 
     private static function route(string $name, string $fallback): string
@@ -251,6 +266,17 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
             initial = JSON.parse(root.querySelector('[data-wi-office-lines]').textContent) || [];
         } catch (error) {
             initial = [];
+        }
+
+        // Righe spostate: l'ordine di `rows` segue quello della tabella,
+        // perché il salvataggio numera le posizioni in quell'ordine.
+        if (window.wiRowDrag) {
+            window.wiRowDrag(body, function () {
+                var order = Array.prototype.slice.call(body.children);
+
+                rows.sort(function (a, b) { return order.indexOf(a.tr) - order.indexOf(b.tr); });
+                refresh();
+            });
         }
 
         function say(text, tone) {
@@ -426,8 +452,20 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
             return cell;
         }
 
+        // La maniglia per trascinare la riga, in testa.
+        function dragCell() {
+            var cell = el('td', 'pe-0');
+
+            if (window.wiRowDrag) {
+                cell.appendChild(window.wiRowDrag.handle());
+            }
+
+            return cell;
+        }
+
+        // La X per togliere la riga.
         function removeCell(row) {
-            var cell = el('td', 'text-end');
+            var cell = el('td', 'text-end text-nowrap');
             var button = el('button', 'btn btn-sm btn-link text-danger');
 
             button.type = 'button';
@@ -468,6 +506,7 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
                 row.name.placeholder = 'Testo che compare nell\'ordine';
                 name.colSpan = cols + 1;
                 name.appendChild(row.name);
+                tr.appendChild(dragCell());
                 tr.appendChild(name);
                 tr.appendChild(removeCell(row));
                 rows.push(row);
@@ -502,6 +541,7 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
                 name.appendChild(row.warning);
             }
 
+            tr.appendChild(dragCell());
             tr.appendChild(name);
             tr.appendChild(el('td', 'd-none d-md-table-cell text-end', type === 'product' ? format(Number(row.version.available) || 0) : ''));
             row.quantity = input('form-control form-control-sm text-end', line.quantity != null ? shown(line.quantity, false) : '1', 'Quantità');
@@ -621,6 +661,7 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
             }
 
             empty.classList.toggle('d-none', rows.length > 0);
+            root.dispatchEvent(new CustomEvent('wi:office-change', {bubbles: true}));
             summary.textContent = rows.length ? count + ' ' + (count === 1 ? 'riga' : 'righe') + ' · ' + money(sum) + ' prima di spedizione e sconti' : '';
         }
 
@@ -758,6 +799,18 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
                         supplier_id: row.supplier ? row.supplier.value : 0
                     };
                 }));
+            },
+            // Le righe come le pesa la spedizione: articolo, quantità e
+            // totale stimato.
+            estimate: function () {
+                return rows.filter(function (row) { return row.type !== 'text'; }).map(function (row) {
+                    return {
+                        type: row.type,
+                        product_id: row.type === 'product' ? row.version.id : 0,
+                        quantity: parse(row.quantity.value) || 0,
+                        line_total: lineTotal(row) || 0
+                    };
+                });
             },
             count: function () {
                 return rows.length;

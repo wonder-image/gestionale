@@ -25,6 +25,7 @@ use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdfs;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
 use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
@@ -752,6 +753,11 @@ final class OfficeOrders
             throw UserError::make('stock_document.location_unknown');
         }
 
+        if ((string) ($values['fulfillment_type'] ?? '') === 'pickup' && (int) ($values['location_id'] ?? 0) > 0
+            && PickupPoints::find((int) $values['location_id']) === null) {
+            throw UserError::make('stock_document.location_unknown');
+        }
+
         return $values;
     }
 
@@ -859,14 +865,14 @@ final class OfficeOrders
     }
 
     /** @return list<string> le chiavi della fatturazione, senza prefisso */
-    private static function billingKeys(): array
+    public static function billingKeys(): array
     {
         return ['country', 'province', 'city', 'cap', 'street', 'number', 'more', 'phone_prefix', 'phone',
             'name', 'surname', 'type', 'business_name', 'cf', 'pi', 'sdi', 'pec'];
     }
 
     /** @return list<string> le chiavi della consegna, senza prefisso */
-    private static function shippingKeys(): array
+    public static function shippingKeys(): array
     {
         return ['country', 'province', 'city', 'cap', 'street', 'number', 'more', 'phone_prefix', 'phone',
             'name', 'surname', 'place_id', 'lat', 'lng'];

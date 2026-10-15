@@ -81,6 +81,7 @@
                 "customer_required": "Scegli il cliente dell'ordine.",
                 "no_rows": "Aggiungi almeno una riga con un prodotto o una riga libera.",
                 "address_required": "L'ordine si spedisce: scrivi l'indirizzo di consegna (via, città e paese).",
+                "billing_required": "Completa la fatturazione del cliente (intestatario, via, città e paese) prima di confermare.",
                 "out_of_stock": "Di «{{name}}» ne hai {{available}} e l'ordine ne chiede {{wanted}}: l'ordine non si conferma. Carica la merce, riduci la riga o toglila.",
                 "customer_unknown": "Il cliente scelto non c'è più: ricarica la pagina e sceglilo di nuovo.",
                 "product_unknown": "Una versione dell'ordine non si vende più: «{{name}}». Toglila e riprova.",

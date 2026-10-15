@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use Throwable;
+use Wonder\Backend\Support\RowDrag;
 
 /**
  * La tabella delle righe della bozza con la casella «Cerca o scansiona»
@@ -92,8 +93,9 @@ final class StockDocumentEditor
             .'<div class="table-responsive mt-3">'
             .'<table class="table table-sm align-middle mb-0">'
             .'<thead><tr>'
+            .'<th style="width: 1.5rem"><span class="visually-hidden">Sposta</span></th>'
             .$head
-            .'<th style="width: 3rem"><span class="visually-hidden">Togli</span></th>'
+            .'<th style="width: 4.5rem"><span class="visually-hidden">Togli</span></th>'
             .'</tr></thead>'
             .'<tbody data-wi-stock-rows></tbody>'
             .'</table>'
@@ -101,6 +103,7 @@ final class StockDocumentEditor
             .'<p class="text-body-secondary my-3'.($lines === [] ? '' : ' d-none').'" data-wi-stock-empty>Nessuna riga: cerca una versione o scansiona un codice.</p>'
             .'<div class="text-end fw-semibold mt-2" data-wi-stock-totals>'.$e($counting ? self::stocktakeTotals(count($lines), $counted, $differing) : self::totals(count($lines), $pieces).($costs ? ' · '.StockValue::money(round($cost, 2)) : '')).'</div>'
             .'<script type="application/json" data-wi-stock-lines>'.$json.'</script>'
+            .RowDrag::script()
             .'<script>'.self::script().'</script>'
             .'</div>';
     }
@@ -328,6 +331,16 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         var rows = [];
         var timer = null;
         var seq = 0;
+
+        // Righe spostate: `rows` segue l'ordine della tabella, quello che si salva.
+        if (window.wiRowDrag) {
+            window.wiRowDrag(body, function () {
+                var order = Array.prototype.slice.call(body.children);
+
+                rows.sort(function (a, b) { return order.indexOf(a.tr) - order.indexOf(b.tr); });
+                refresh();
+            });
+        }
         var scans = null;
         var initial = [];
         var k;
@@ -680,6 +693,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             var input;
             var tools;
             var remove;
+            var grip;
 
             if (rows.length >= maxLines) {
                 say(root.getAttribute('data-max-message'), 'error');
@@ -695,7 +709,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             text = el('div', 'min-w-0');
             cell = el('td', 'text-end');
             input = el('input', 'form-control form-control-sm text-end');
-            tools = el('td', 'text-end');
+            tools = el('td', 'text-end text-nowrap');
             remove = el('button', 'btn btn-sm btn-link text-danger p-1');
 
             if (version.photo) {
@@ -755,6 +769,12 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             row.saved = version.expected == null ? null : Number(version.expected);
             row.savedCount = parse(quantity);
             row.stock = el('td', 'd-none d-md-table-cell text-end text-nowrap', format(row.current));
+            grip = tr.appendChild(el('td', 'pe-0'));
+
+            if (window.wiRowDrag) {
+                grip.appendChild(window.wiRowDrag.handle());
+            }
+
             tr.appendChild(article);
             tr.appendChild(row.stock);
             tr.appendChild(cell);

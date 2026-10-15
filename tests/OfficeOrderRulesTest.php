@@ -76,14 +76,17 @@ check('la testata: consegna e sconto sul totale', fn () =>
     && $rifiuto(fn () => OfficeOrderRules::header(['manual_discount_type' => 'percent', 'manual_discount_value' => '101'])) === 'office_order.invalid_order_discount'
 );
 
-check('la conferma vuole bozza, cliente, una riga e l\'indirizzo se si spedisce', function () use ($rifiuto) {
-    $bozza = ['status' => 'draft', 'customer_id' => 5, 'fulfillment_type' => 'shipping', 'shipping_street' => 'Via Roma', 'shipping_city' => 'Milano', 'shipping_country' => 'IT'];
+check('la conferma vuole bozza, cliente, fatturazione, una riga e l\'indirizzo se si spedisce', function () use ($rifiuto) {
+    $bozza = ['status' => 'draft', 'customer_id' => 5, 'fulfillment_type' => 'shipping', 'shipping_street' => 'Via Roma', 'shipping_city' => 'Milano', 'shipping_country' => 'IT',
+        'billing_type' => 'private', 'billing_name' => 'Anna', 'billing_street' => 'Via Roma', 'billing_city' => 'Milano', 'billing_country' => 'IT'];
     $righe = [['type' => 'product', 'quantity' => '1.000', 'parent_item_id' => 0]];
 
     return $rifiuto(fn () => OfficeOrderRules::assertConfirmable($bozza, $righe)) === null
         && $rifiuto(fn () => OfficeOrderRules::assertConfirmable(['status' => 'confirmed'] + $bozza, $righe)) === 'office_order.not_draft'
         && $rifiuto(fn () => OfficeOrderRules::assertConfirmable(['customer_id' => 0] + $bozza, $righe)) === 'office_order.customer_required'
         && $rifiuto(fn () => OfficeOrderRules::assertConfirmable($bozza, [['type' => 'text', 'quantity' => 0]])) === 'office_order.no_rows'
+        && $rifiuto(fn () => OfficeOrderRules::assertConfirmable(['billing_street' => ''] + $bozza, $righe)) === 'office_order.billing_required'
+        && $rifiuto(fn () => OfficeOrderRules::assertConfirmable(['billing_type' => 'business'] + $bozza, $righe)) === 'office_order.billing_required'
         && $rifiuto(fn () => OfficeOrderRules::assertConfirmable(['shipping_city' => ''] + $bozza, $righe)) === 'office_order.address_required'
         && $rifiuto(fn () => OfficeOrderRules::assertConfirmable(['fulfillment_type' => 'pickup', 'shipping_city' => ''] + $bozza, $righe)) === null;
 });

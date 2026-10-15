@@ -20,4 +20,8 @@ Route::area('api')->response('json')->backend()->translatable(false)
             ->name('sales.versions')->guarded()->permit(['admin', 'administrator']);
         Route::get('/vendite/clienti/', Gestionale::handlerPath('api/sales/customers.php'))
             ->name('sales.customers')->guarded()->permit(['admin', 'administrator']);
+        Route::post('/vendite/clienti/salva/', Gestionale::handlerPath('api/sales/customer-save.php'))
+            ->name('sales.customer_save')->guarded()->permit(['admin', 'administrator']);
+        Route::post('/vendite/spedizione/', Gestionale::handlerPath('api/sales/shipping-quote.php'))
+            ->name('sales.shipping_quote')->guarded()->permit(['admin', 'administrator']);
     });
