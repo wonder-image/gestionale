@@ -23,7 +23,7 @@ $campi = static fn (string $resource): array => array_map(
     $resource::formSchema()
 );
 
-check('le tre pagine stanno sotto Spedizioni, dietro la funzionalità, solo per l\'admin', function () {
+check('le tre pagine stanno sotto Spedizioni, dietro la funzionalità, solo per Wonder Image', function () {
     $attese = [
         [CarrierResource::class, Carrier::class, 'app/gestionale/corrieri'],
         [ShippingZoneResource::class, ShippingZone::class, 'app/gestionale/zone-di-spedizione'],
@@ -37,7 +37,7 @@ check('le tre pagine stanno sotto Spedizioni, dietro la funzionalità, solo per 
             || $resource::$model !== $model
             || $resource::path() !== $path
             || ($menu['section_key'] ?? '') !== 'set-up'
-            || ($menu['authority'] ?? []) !== ['admin', 'administrator']
+            || ($menu['authority'] ?? []) !== ['admin']
             || str_starts_with($resource::$docsPage, 'spedizioni/') === false) {
             return false;
         }

@@ -79,7 +79,7 @@ check('la scheda si apre con gli stessi permessi dell\'elenco', function () {
     sort($azioni);
 
     return $azioni === ['list', 'view']
-        && ($backend['view'] ?? []) === ['admin', 'administrator'];
+        && ($backend['view'] ?? []) === ['admin', 'administrator', 'warehouse', 'sales'];
 });
 
 check('con una sede sola le colonne sono quelle della spec, senza Sede', function () use ($conSedi, $unaSede, $nomiColonne) {

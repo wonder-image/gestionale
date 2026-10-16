@@ -13,6 +13,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
@@ -138,7 +139,7 @@ final class TaxCategoryResource extends GestionaleResource
     public static function permissionSchema(): PermissionSchema
     {
         return PermissionSchema::for(static::class)
-            ->backendCrud(['admin']);
+            ->access(Gestionale::area('fiscale'));
     }
 
     /**
@@ -158,10 +159,10 @@ final class TaxCategoryResource extends GestionaleResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('set-up')
-            ->group('iva', 'IVA', 50, ['admin'])
+            ->group('iva', 'IVA', 50)
             ->title('Tipi fiscali')
             ->order(10)
-            ->authority(['admin']);
+            ->access(Gestionale::area('fiscale'));
     }
 
     /** La posizione la mette il backend, in fondo all'elenco. */

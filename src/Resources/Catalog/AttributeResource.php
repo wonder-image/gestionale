@@ -15,6 +15,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
@@ -289,7 +290,7 @@ class AttributeResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('catalogo'));
     }
 
     /**
@@ -310,7 +311,7 @@ class AttributeResource extends GestionaleResource
             ->inSection('catalogo')
             ->title('Attributi')
             ->order(43)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('catalogo'));
     }
 
     /** Vero quando quell'attributo si sceglie da un elenco di valori. */

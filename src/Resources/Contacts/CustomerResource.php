@@ -528,16 +528,16 @@ class CustomerResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('anagrafiche', 'Anagrafiche', 'bi-people', 320, ['admin', 'administrator'])
+            ->section('anagrafiche', 'Anagrafiche', 'bi-people', 320)
             ->title(static::titleLabel())
             ->order(10)
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('contatti'))
             ->enabled(static::featureActive());
     }
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('contatti'));
     }
 
     public static function apiSchema(): ApiSchema

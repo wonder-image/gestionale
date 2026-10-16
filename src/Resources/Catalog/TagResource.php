@@ -13,6 +13,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
@@ -121,7 +122,7 @@ final class TagResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('catalogo'));
     }
 
     public static function apiSchema(): ApiSchema
@@ -135,7 +136,7 @@ final class TagResource extends GestionaleResource
             ->inSection('catalogo')
             ->title('Tag')
             ->order(42)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('catalogo'));
     }
 
     /** Lo slug nasce dal nome alla creazione e poi non si tocca più. */

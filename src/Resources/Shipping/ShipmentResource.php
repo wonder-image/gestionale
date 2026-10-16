@@ -219,7 +219,7 @@ final class ShipmentResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['list', 'view'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('spedizioni'), ['list', 'view']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -228,7 +228,7 @@ final class ShipmentResource extends GestionaleResource
             ->inSection('vendite')
             ->title('Spedizioni')
             ->order(20)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('spedizioni'));
     }
 
     public static function apiSchema(): ApiSchema

@@ -15,6 +15,7 @@ use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
@@ -86,7 +87,7 @@ final class SubscriptionPaymentResource extends NavigationOnlyResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['edit', 'update'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('vendite'), ['edit', 'update']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -94,7 +95,7 @@ final class SubscriptionPaymentResource extends NavigationOnlyResource
         return NavigationSchema::for(static::class)
             ->inSection('vendite')
             ->title('Registra pagamento')
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('vendite'))
             ->enabled(false);
     }
 

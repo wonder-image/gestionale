@@ -13,6 +13,7 @@ use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Custom\Fattura\Valori\Pagamento;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
@@ -236,7 +237,7 @@ final class PaymentMethodResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('impostazioni_pagamenti'));
     }
 
     public static function apiSchema(): ApiSchema
@@ -248,10 +249,10 @@ final class PaymentMethodResource extends GestionaleResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('set-up')
-            ->group('pagamenti', 'Pagamenti', 60, ['admin'])
+            ->group('pagamenti', 'Pagamenti', 60)
             ->title('Metodi di pagamento')
             ->order(10)
-            ->authority(['admin']);
+            ->access(Gestionale::area('impostazioni_pagamenti'));
     }
 
     /** La posizione la mette il backend, in fondo all'elenco. */

@@ -25,14 +25,14 @@ check('ogni pagina ha il suo model e il suo percorso', fn () =>
     && TagResource::path() === 'app/gestionale/tag'
 );
 
-check('il catalogo sta nella sua sezione, per tutti e due i ruoli', function () {
+check('il catalogo sta nella sua sezione, per l\'amministratore, in lettura anche per vendite e magazzino', function () {
     foreach ([BrandResource::class, CategoryResource::class, TagResource::class] as $resource) {
         if (($resource::navigationSchema()->toArray()['section_key'] ?? '') !== 'catalogo') {
             return false;
         }
 
         foreach ($resource::permissionSchema()->toArray()['backend'] ?? [] as $authorities) {
-            if ($authorities !== [] && $authorities !== ['admin', 'administrator']) {
+            if ($authorities !== [] && !in_array($authorities, [['admin', 'administrator'], ['admin', 'administrator', 'sales', 'warehouse']], true)) {
                 return false;
             }
         }

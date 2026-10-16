@@ -393,7 +393,7 @@ final class PlanResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('catalogo'));
     }
 
     public static function apiSchema(): ApiSchema
@@ -406,10 +406,10 @@ final class PlanResource extends GestionaleResource
         return NavigationSchema::for(static::class)
             // Nel Catalogo, come «Abbonamenti»: un piano è una cosa che si vende,
             // come un prodotto. In Vendite resta l'elenco di chi è abbonato.
-            ->section('catalogo', 'Catalogo', 'bi-box-seam', 340, ['admin', 'administrator'])
+            ->section('catalogo', 'Catalogo', 'bi-box-seam', 340)
             ->title('Abbonamenti')
             ->order(45)
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('catalogo'))
             ->enabled(static::featureActive());
     }
 

@@ -1820,7 +1820,7 @@ HTML
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('catalogo'));
     }
 
     public static function apiSchema(): ApiSchema
@@ -1834,7 +1834,7 @@ HTML
             ->inSection('catalogo')
             ->title('Prodotti')
             ->order(38)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('catalogo'));
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
+use Wonder\App\Permission\Access;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\TableColumn;
@@ -197,7 +198,7 @@ final class QuoteResource extends OfficeOrderResource
             ->inSection('vendite')
             ->title('Preventivi')
             ->order(11)
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('vendite'))
             ->enabled(static::featureActive());
     }
 
@@ -290,7 +291,7 @@ final class QuoteResource extends OfficeOrderResource
             'resource' => $slug,
             'resource_action' => 'print',
         ])->name('print')
-            ->permit(['admin', 'administrator'])
+            ->permit(Access::roles(Gestionale::area('vendite'), 'view'))
             ->where('id', '[0-9]+');
 
         static::registerActionRoute($slug);
@@ -299,7 +300,7 @@ final class QuoteResource extends OfficeOrderResource
             'resource' => $slug,
             'resource_action' => 'pdf',
         ])->name('pdf')
-            ->permit(['admin', 'administrator'])
+            ->permit(Access::roles(Gestionale::area('vendite'), 'view'))
             ->where('id', '[0-9]+')
             ->where('revision', '[0-9]+');
     }

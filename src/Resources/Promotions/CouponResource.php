@@ -365,16 +365,16 @@ class CouponResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('promozioni'));
     }
 
     public static function navigationSchema(): NavigationSchema
     {
         return parent::navigationSchema()
-            ->section('promozioni', 'Promozioni', 'bi-percent', 360, ['admin', 'administrator'])
+            ->section('promozioni', 'Promozioni', 'bi-percent', 360)
             ->title('Coupon')
             ->order(20)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('promozioni'));
     }
 
     /** «20 %», «12,5 %», «10,00 €» o «Spedizione gratuita». */

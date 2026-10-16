@@ -12,6 +12,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
@@ -131,7 +132,7 @@ final class PaymentAccountResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('impostazioni_pagamenti'));
     }
 
     public static function apiSchema(): ApiSchema
@@ -143,10 +144,10 @@ final class PaymentAccountResource extends GestionaleResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('set-up')
-            ->group('pagamenti', 'Pagamenti', 60, ['admin'])
+            ->group('pagamenti', 'Pagamenti', 60)
             ->title('Conti di pagamento')
             ->order(20)
-            ->authority(['admin']);
+            ->access(Gestionale::area('impostazioni_pagamenti'));
     }
 
     /** L'IBAN si salva come lo si confronta: senza spazi e in maiuscolo. */

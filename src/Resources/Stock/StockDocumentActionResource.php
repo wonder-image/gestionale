@@ -9,6 +9,7 @@ use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\Http\Csrf;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentForm;
@@ -56,7 +57,7 @@ final class StockDocumentActionResource extends NavigationOnlyResource
     /** Le pagine-form leggono `edit` (apertura) e `update` (invio): come Carichi e Scarichi. */
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['edit', 'update'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('magazzino'), ['edit', 'update']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -65,7 +66,7 @@ final class StockDocumentActionResource extends NavigationOnlyResource
         return NavigationSchema::for(static::class)
             ->inSection('magazzino')
             ->title('Azione sul documento di magazzino')
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('magazzino'))
             ->enabled(false);
     }
 

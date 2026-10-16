@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Backend\Widgets;
 
 use Throwable;
+use Wonder\App\Permission\Access;
 use Wonder\Backend\Contracts\HomeWidget;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockLevelResource;
@@ -26,7 +27,7 @@ final class StockValueWidget implements HomeWidget
 
     public function authorities(): array
     {
-        return ['admin', 'administrator'];
+        return Access::viewers(Gestionale::area('magazzino'));
     }
 
     public function order(): int

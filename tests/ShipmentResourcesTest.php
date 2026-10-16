@@ -23,14 +23,14 @@ $ordine = static fn (string $evasione = 'unfulfilled', string $tipo = 'shipping'
 ];
 $conSpedizioni = ['shipping' => true];
 
-check('la pagina Spedizioni sta nella sezione Vendite, dietro la funzionalità, solo per l\'admin', function () {
+check('la pagina Spedizioni sta nella sezione Vendite, dietro la funzionalità, per chi lavora le spedizioni', function () {
     $menu = ShipmentResource::navigationSchema()->toArray();
 
     return ShipmentResource::$feature === 'shipping'
         && ShipmentResource::$model === Shipment::class
         && ShipmentResource::path() === 'app/gestionale/spedizioni'
         && ($menu['section_key'] ?? '') === 'vendite'
-        && ($menu['authority'] ?? []) === ['admin', 'administrator']
+        && ($menu['authority'] ?? []) === ['admin', 'administrator', 'sales', 'warehouse']
         && str_starts_with(ShipmentResource::$docsPage, 'spedizioni/');
 });
 
@@ -157,14 +157,14 @@ check('il tracking si legge come testo anche se porta HTML, e il link è cliccab
         && !str_contains($falso, '<a ');
 });
 
-check('i due riquadri della bacheca sono per l\'admin e stanno dopo «Sotto scorta»', function () {
+check('i due riquadri della bacheca sono di chi lavora le spedizioni e stanno dopo «Sotto scorta»', function () {
     $widgets = (require __DIR__ . '/../config/module.php')['backend']['home_widgets'];
     $dopo = array_search(LowStockWidget::class, $widgets, true);
 
     return is_subclass_of(ShipmentsToCheckWidget::class, HomeWidget::class)
         && is_subclass_of(ShippedNotDeliveredWidget::class, HomeWidget::class)
-        && (new ShipmentsToCheckWidget)->authorities() === ['admin', 'administrator']
-        && (new ShippedNotDeliveredWidget)->authorities() === ['admin', 'administrator']
+        && (new ShipmentsToCheckWidget)->authorities() === ['admin', 'administrator', 'sales', 'warehouse']
+        && (new ShippedNotDeliveredWidget)->authorities() === ['admin', 'administrator', 'sales', 'warehouse']
         && (new ShipmentsToCheckWidget)->order() > (new LowStockWidget)->order()
         && (new ShippedNotDeliveredWidget)->order() > (new ShipmentsToCheckWidget)->order()
         && array_search(ShipmentsToCheckWidget::class, $widgets, true) === $dopo + 1

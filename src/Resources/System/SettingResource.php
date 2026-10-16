@@ -416,7 +416,7 @@ final class SettingResource extends SingletonResource
     public static function permissionSchema(): PermissionSchema
     {
         return PermissionSchema::for(static::class)
-            ->backend(['list', 'edit', 'update'], ['admin']);
+            ->access(Gestionale::area('impostazioni'), ['list', 'edit', 'update']);
     }
 
     public static function apiSchema(): ApiSchema
@@ -431,7 +431,7 @@ final class SettingResource extends SingletonResource
             ->inGroup('gestionale')
             ->title('Impostazioni')
             ->order(10)
-            ->authority(['admin']);
+            ->access(Gestionale::area('impostazioni'));
     }
 
     /**

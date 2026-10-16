@@ -281,7 +281,7 @@ class CustomizationResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('catalogo'));
     }
 
     /**
@@ -302,7 +302,7 @@ class CustomizationResource extends GestionaleResource
             ->inSection('catalogo')
             ->title('Personalizzazioni')
             ->order(44)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('catalogo'));
     }
 
     /**

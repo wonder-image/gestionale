@@ -20,7 +20,7 @@ check('la rotta delle versioni c\'è, con il suo file', function () {
     $rotte = (string) file_get_contents(__DIR__.'/../config/routes/route.api.php');
 
     return str_contains($rotte, "->name('stock.versions')")
-        && str_contains($rotte, "->permit(['admin', 'administrator'])")
+        && str_contains($rotte, "->permit(Access::roles(Gestionale::area('magazzino'), 'create'))")
         && is_file(Gestionale::handlerPath('api/stock/versions.php'));
 });
 
