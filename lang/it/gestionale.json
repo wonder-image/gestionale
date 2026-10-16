@@ -371,7 +371,23 @@
                 "category_loop": "Una categoria non può stare dentro sé stessa o dentro una sua sottocategoria.",
                 "save_failed": "Salvataggio non riuscito (campi: {{fields}}).",
                 "unit": "Unità di vendita non ammessa. Ammesse: {{units}}.",
-                "tax_category": "Tipo di IVA {{id}} non trovato o non visibile."
+                "tax_category": "Tipo di IVA {{id}} non trovato o non visibile.",
+                "missing_fields": "Mancano campi obbligatori: {{fields}}. Chiedili all'utente, non inventarli.",
+                "feature_off": "La funzione `{{feature}}` non è attiva in questo gestionale.",
+                "attribute_not_found": "Attributo {{id}} non trovato.",
+                "attribute_type": "Tipo di attributo non ammesso. Ammessi: {{types}}.",
+                "attribute_no_values": "Solo gli attributi a elenco (select, color, pattern, icon) hanno valori: testo e numero no.",
+                "attribute_axis": "«{{name}}» crea le opzioni in vendita: si cambia dalla scheda dell'articolo, generando le opzioni.",
+                "attribute_level": "«{{name}}» va su un'opzione con foto, e questo prodotto non ne ha una.",
+                "attribute_single": "«{{name}}» ha un solo valore: passa un testo o un numero, non un elenco.",
+                "attribute_number": "«{{name}}» vuole un numero.",
+                "value_not_found": "Valore {{id}} non trovato tra quelli dell'attributo {{attribute}}.",
+                "customization_not_found": "Personalizzazione {{id}} non trovata.",
+                "customization_options": "Solo una personalizzazione di tipo `choice` ha opzioni.",
+                "option_not_found": "Opzione {{id}} non trovata tra quelle della personalizzazione.",
+                "quotes_disabled": "I preventivi non sono attivi in questo gestionale.",
+                "quote_not_found": "Preventivo {{id}} non trovato.",
+                "customer_not_found": "Cliente {{id}} non trovato tra i contatti."
             }
         },
         "emails": {

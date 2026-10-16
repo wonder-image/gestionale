@@ -10,8 +10,10 @@ con gli stessi Model, le stesse regole e gli stessi permessi del backend.
   (niente batch, sessioni o stream). `GET` risponde 405, una notifica 202 senza
   corpo, il resto 200 in JSON.
 - Codice in `src/Support/Mcp/`: `Auth` (token), `Caller` (chi chiama),
-  `Server` (protocollo), `Tools` (strumenti), `McpError` (errori tradotti in
-  `gestionale.errors.mcp.*`).
+  `Server` (protocollo), `Tools` (strumenti di catalogo e ordini, e l'elenco
+  di tutti), `CatalogTools` (attributi e personalizzazioni), `QuoteTools`
+  (preventivi), `ToolSupport` (schemi e lettura degli argomenti, in comune),
+  `McpError` (errori tradotti in `gestionale.errors.mcp.*`).
 
 ## Autenticazione
 
@@ -58,10 +60,50 @@ non lo può chiamare.
 | `orders_list` | ultimi ordini con le azioni disponibili | OrderResource `list` |
 | `order_get` | un ordine con le righe | OrderResource `view` |
 | `order_action` | conferma, annulla, evadi, pronto per il ritiro, ritirato | OrderActionResource `update` |
+| `attributes_list` | attributi con tipo, uso, unità e valori; `sales_axis` dice se crea le opzioni in vendita | AttributeResource `list` |
+| `attribute_create` | nuovo attributo: obbligatori `name`, `type`, `level`; facoltativi unità (solo testo e numero), gruppo, visibile, filtrabile, `values` | AttributeResource `store` |
+| `attribute_update` | nome, tipo, uso, unità, gruppo, visibile, filtrabile; `values` con `id` rinomina, senza aggiunge | AttributeResource `update` |
+| `product_set_attributes` | valori degli attributi di una versione, ognuno sul suo livello (articolo, opzione con foto, versione) | ProductResource `update` |
+| `customizations_list` | personalizzazioni con opzioni e numero di articoli che le usano | CustomizationResource `list` |
+| `customization_create` | nuova personalizzazione: obbligatori `name` e `kind`; `text` vuole `max_length`, `number` `decimals`, `choice` almeno 2 `options` | CustomizationResource `store` |
+| `customization_update` | campi da cambiare; `options` è l'elenco completo | CustomizationResource `update` |
+| `product_set_customizations` | elenco completo delle personalizzazioni dell'articolo di una versione, con obbligatoria e sovrapprezzo proprio | ProductResource `update` |
+| `quote_create` | preventivo in bozza: obbligatori `customer_id` e `lines` (righe `product`, `custom`, `text`); facoltativi consegna, pagamento, sconto, scadenza, note | QuoteResource `store` |
+| `quote_get` | un preventivo con stato, revisione, scadenza, totali e righe | QuoteResource `edit` |
 
 Le liste restituiscono al massimo 50 righe. Le scritture girano in una
 transazione; un errore delle regole torna come risultato con `isError`, non
 come errore del protocollo.
+
+Le regole sono quelle delle schede del backend:
+
+- un attributo passa da `AttributeResource::mutateRequestValues()`: niente
+  cambio di uso su un attributo assegnato, niente tipo libero sotto a dei
+  valori, testo e numero solo su articolo e versione;
+- gli attributi a elenco con uso `variant` o `product` sono gli assi delle
+  opzioni in vendita: li scrive solo il generatore delle opzioni, e
+  `product_set_attributes` li rifiuta (`attribute_axis`);
+- una personalizzazione passa da `Customizations::assertDefinition()`; con la
+  funzione `customizations` spenta gli strumenti che scrivono rispondono
+  `feature_off`;
+- un preventivo è un ordine con `stage` `quote`, scritto da
+  `OfficeOrders::save()` come fa l'editor (numero, scadenza predefinita,
+  ricalcolo). Servono le funzioni `quotes` e `office_sales`. Da MCP nasce solo
+  la bozza: l'invio al cliente, con PDF ed email, si fa dal backend.
+
+### Campi obbligatori
+
+Il protocollo che il server parla (`2025-03-26`, senza sessioni) non ha
+l'elicitation, quindi i valori obbligatori si chiedono così:
+
+- ogni schema dichiara i suoi `required`;
+- `Server::call()` controlla i `required` prima di eseguire lo strumento.
+  Quelli assenti, `null`, stringa vuota o elenco vuoto tornano tutti insieme
+  in un solo errore `missing_fields`. Lo stesso errore copre i campi che
+  dipendono da altri: il `max_length` di un testo, la quantità di una riga;
+- le istruzioni di `initialize` e il testo dell'errore dicono al client di
+  chiedere quei valori all'utente, non di inventarli. Nessuno strumento
+  sceglie un valore obbligatorio da sé.
 
 ## Registro
 
@@ -96,8 +138,9 @@ Alternativa con token JWT:
 
 ## Prove
 
-- `php tests/integrazione/McpServerTest.php`: protocollo, permessi e tutti
-  gli strumenti; le scritture tornano indietro alla fine.
+- `php tests/integrazione/McpServerTest.php`: protocollo, permessi, campi
+  mancanti e tutti gli strumenti, compresi attributi, personalizzazioni e
+  preventivi; le scritture tornano indietro alla fine.
 - `php tests/integrazione/McpHttpTest.php`: il server vero via HTTPS. Usa
   l'utente `WI_TEST_MCP_USER` (di serie `@mcp`); senza, salta le prove
   autenticate.
