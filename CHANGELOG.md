@@ -528,6 +528,13 @@ versionamento semantico.
 
 ### Cambiato
 
+- **Contatti da `wonder-image/customer-account`**: `Contact` e `ContactAddress`
+  del gestionale estendono i modelli del nuovo modulo (non più quelli di
+  `wonder-image/app`) e aggiungono solo i campi commerciali. Il modulo è una
+  dipendenza (`dependencies.modules`) da abilitare in `modules.php` prima del
+  gestionale. Tabelle e dati non cambiano; «Clienti» resta l'unica voce del
+  menu su `contacts`.
+
 - Scheda articolo: i menu *Aggiungi un attributo* e *Aggiungi caratteristica*
   escono dal `Dropdown` del core (`ProductModelResource::addMenu()`) invece che
   da HTML in stringa. Aspetto e voci restano quelli di prima. Chiede il core con
