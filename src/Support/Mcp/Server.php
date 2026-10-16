@@ -122,7 +122,7 @@ final class Server
     private static function log(string $tool, array $arguments, Caller $caller, ?array $outcome, ?string $failure): void
     {
         try {
-            McpLog::create([
+            $row = [
                 'tool' => $tool,
                 'user_id' => $caller->userId,
                 'api_user_id' => $caller->apiUserId,
@@ -133,7 +133,14 @@ final class Server
                 'success' => $failure === null ? 'true' : 'false',
                 'error' => (string) $failure,
                 'ip' => $caller->ip,
-            ]);
+            ];
+
+            // La colonna esiste solo dopo la migrazione: la si scrive solo per i token OAuth.
+            if ($caller->oauthGrantId !== null) {
+                $row['oauth_grant_id'] = $caller->oauthGrantId;
+            }
+
+            McpLog::create($row);
         } catch (Throwable $error) {
             error_log('[mcp] registro non scritto: '.$error->getMessage());
         }

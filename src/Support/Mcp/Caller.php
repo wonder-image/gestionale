@@ -3,17 +3,18 @@
 namespace Wonder\Plugin\Gestionale\Support\Mcp;
 
 /**
- * Chi chiama il server MCP: l'utente del token di `api_users`, con i ruoli del
- * suo profilo. I permessi degli strumenti si leggono da qui.
+ * Chi chiama il server MCP: l'utente del token di `api_users` oppure del grant OAuth
+ * (`oauthGrantId`, senza `apiUserId`), con i ruoli del suo profilo. I permessi degli strumenti si leggono da qui.
  */
 final class Caller
 {
     /** @param list<string> $authority */
     public function __construct(
         public readonly int $userId,
-        public readonly int $apiUserId,
+        public readonly ?int $apiUserId,
         public readonly array $authority,
         public readonly string $ip = '',
+        public readonly ?int $oauthGrantId = null,
     ) {}
 
     /**
