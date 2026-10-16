@@ -13,6 +13,7 @@ use Wonder\App\Support\GoogleMaps;
 use Wonder\Backend\Support\FlashAlert;
 use Wonder\Elements\Components\Modal;
 use Wonder\Http\Csrf;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
@@ -68,7 +69,7 @@ final class ContactAddressResource extends NavigationOnlyResource
     /** Le pagine-form leggono `edit` (apertura) e `update` (invio). */
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['edit', 'update'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('contatti'), ['edit', 'update']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -77,7 +78,7 @@ final class ContactAddressResource extends NavigationOnlyResource
         return NavigationSchema::for(static::class)
             ->inSection('anagrafiche')
             ->title('Indirizzi di consegna')
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('contatti'))
             ->enabled(false);
     }
 

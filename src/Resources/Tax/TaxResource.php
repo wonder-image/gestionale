@@ -14,6 +14,7 @@ use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Custom\Fattura\Valori\Natura;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 
@@ -145,7 +146,7 @@ final class TaxResource extends GestionaleResource
     public static function permissionSchema(): PermissionSchema
     {
         return PermissionSchema::for(static::class)
-            ->backend(['list', 'create', 'store', 'edit', 'update'], ['admin']);
+            ->access(Gestionale::area('fiscale'), ['list', 'create', 'store', 'edit', 'update']);
     }
 
     public static function apiSchema(): ApiSchema
@@ -160,7 +161,7 @@ final class TaxResource extends GestionaleResource
             ->inGroup('iva')
             ->title('Aliquote')
             ->order(20)
-            ->authority(['admin']);
+            ->access(Gestionale::area('fiscale'));
     }
 
     /** Un'aliquota cancellata lascerebbe senza IVA i documenti che la usano. */

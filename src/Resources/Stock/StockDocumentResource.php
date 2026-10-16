@@ -399,16 +399,16 @@ abstract class StockDocumentResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('magazzino', 'Magazzino', 'bi-boxes', 400, ['admin', 'administrator'])
+            ->section('magazzino', 'Magazzino', 'bi-boxes', 400)
             ->title(static::titleLabel())
             ->order(static::navigationOrder())
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('magazzino'));
     }
 
     public static function permissionSchema(): PermissionSchema
     {
         return PermissionSchema::for(static::class)
-            ->backend(['list', 'create', 'store', 'view', 'edit', 'update', 'delete'], ['admin', 'administrator']);
+            ->access(Gestionale::area('magazzino'), ['list', 'create', 'store', 'view', 'edit', 'update', 'delete']);
     }
 
     public static function apiSchema(): ApiSchema

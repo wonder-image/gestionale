@@ -16,6 +16,7 @@ use Wonder\Elements\Components\QuickCreateButton;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
@@ -609,17 +610,17 @@ HTML)->tag('div');
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('impostazioni_spedizioni'));
     }
 
     public static function navigationSchema(): NavigationSchema
     {
         return parent::navigationSchema()
             ->inSection('set-up')
-            ->group('spedizioni', 'Spedizioni', 70, ['admin', 'administrator'])
+            ->group('spedizioni', 'Spedizioni', 70)
             ->title('Metodi di spedizione')
             ->order(10)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('impostazioni_spedizioni'));
     }
 
     /** I nomi delle zone con un listino acceso, per l'elenco. */

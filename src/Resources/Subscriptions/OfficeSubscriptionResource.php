@@ -80,7 +80,7 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['edit', 'update'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('vendite'), ['edit', 'update']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -88,7 +88,7 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
         return NavigationSchema::for(static::class)
             ->inSection('vendite')
             ->title('Nuovo abbonamento')
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('vendite'))
             ->enabled(false);
     }
 

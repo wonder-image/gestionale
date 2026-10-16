@@ -9,6 +9,7 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
@@ -201,7 +202,7 @@ final class ScheduleResource extends GestionaleResource
             ->inSection('vendite')
             ->title('Scadenzario')
             ->order(15)
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('vendite'))
             ->enabled(static::featureActive());
     }
 
@@ -212,7 +213,7 @@ final class ScheduleResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['list'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('vendite'), ['list']);
     }
 
     public static function listUrl(): string

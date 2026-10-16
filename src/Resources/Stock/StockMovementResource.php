@@ -622,16 +622,16 @@ final class StockMovementResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('magazzino', 'Magazzino', 'bi-boxes', 400, ['admin', 'administrator'])
+            ->section('magazzino', 'Magazzino', 'bi-boxes', 400)
             ->title('Movimenti')
             ->order(50)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('magazzino'));
     }
 
     public static function permissionSchema(): PermissionSchema
     {
         // Solo elenco e scheda: le altre azioni non esistono nemmeno come rotta.
-        return PermissionSchema::for(static::class)->backend(['list', 'view'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('magazzino'), ['list', 'view']);
     }
 
     public static function apiSchema(): ApiSchema

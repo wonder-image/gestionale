@@ -4,8 +4,10 @@ namespace Wonder\Plugin\Gestionale\Backend\Widgets;
 
 use Throwable;
 use Wonder\App\LegacyGlobals;
+use Wonder\App\Permission\Access;
 use Wonder\App\Support\Errors\ErrorReporter;
 use Wonder\Backend\Contracts\HomeWidget;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStockEmail;
 use Wonder\Plugin\Gestionale\Support\Stock\NegativeStock;
@@ -31,7 +33,7 @@ final class AttentionWidget implements HomeWidget
 
     public function authorities(): array
     {
-        return ['admin', 'administrator'];
+        return Access::viewers(Gestionale::area('vendite'));
     }
 
     public function order(): int

@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Backend\Widgets;
 
 use Throwable;
 use Wonder\App\LegacyGlobals;
+use Wonder\App\Permission\Access;
 use Wonder\Backend\Contracts\HomeWidget;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
@@ -36,7 +37,7 @@ final class LowStockWidget implements HomeWidget
 
     public function authorities(): array
     {
-        return ['admin', 'administrator'];
+        return Access::viewers(Gestionale::area('magazzino'));
     }
 
     public function order(): int

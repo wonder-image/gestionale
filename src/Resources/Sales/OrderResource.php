@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
 use DateTimeImmutable;
 use Throwable;
+use Wonder\App\Permission\Access;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -387,7 +388,7 @@ final class OrderResource extends GestionaleResource
             'resource' => $slug,
             'resource_action' => 'proforma',
         ])->name('proforma')
-            ->permit(['admin', 'administrator'])
+            ->permit(Access::roles(Gestionale::area('vendite'), 'view'))
             ->where('id', '[0-9]+');
     }
 
@@ -588,16 +589,16 @@ final class OrderResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('vendite', 'Vendite', 'bi-receipt', 300, ['admin', 'administrator'])
+            ->section('vendite', 'Vendite', 'bi-receipt', 300)
             ->title('Ordini')
             ->order(10)
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('vendite'))
             ->enabled(static::featureActive());
     }
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['list', 'view'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('vendite'), ['list', 'view']);
     }
 
     public static function apiSchema(): ApiSchema

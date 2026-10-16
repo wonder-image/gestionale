@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale;
 use Wonder\App\Module\ConfigRepository;
 use Wonder\App\Module\Contracts\ModuleInterface;
 use Wonder\App\Module\Contracts\ModuleTasks;
+use Wonder\App\Permission\Access;
 use Wonder\Plugin\Gestionale\Scheduler\ExpiryTask;
 use Wonder\Plugin\Gestionale\Scheduler\QuoteExpiryTask;
 use Wonder\Plugin\Gestionale\Scheduler\ImagesTask;
@@ -77,7 +78,9 @@ final class Gestionale implements ModuleInterface, ModuleTasks
         if (self::$config === null) {
             $defaults = require self::root().'/config/module.php';
             $site = class_exists(ConfigRepository::class) ? ConfigRepository::for(self::SLUG) : [];
-            self::$config = array_replace_recursive((array) $defaults, (array) $site);
+            self::$config = method_exists(ConfigRepository::class, 'merge')
+                ? ConfigRepository::merge((array) $defaults, (array) $site)
+                : array_replace_recursive((array) $defaults, (array) $site);
         }
 
         if ($key === null) {
@@ -95,6 +98,24 @@ final class Gestionale implements ModuleInterface, ModuleTasks
         }
 
         return $current;
+    }
+
+    /**
+     * Nome completo di un'area permessi del gestionale (`gestionale:catalogo`).
+     *
+     * Le aree sono in `permissions` di config/module.php; il core le carica dai
+     * moduli attivi. Se il modulo non è nel registro (test, comandi) le definisce
+     * qui dalla configurazione.
+     */
+    public static function area(string $key): string
+    {
+        $area = self::SLUG.':'.$key;
+
+        if (!Access::has($area)) {
+            Access::defineMany((array) self::config('permissions', []), self::SLUG);
+        }
+
+        return $area;
     }
 
     /** Stato effettivo di tutte le funzionalità, calcolato una volta per richiesta. */

@@ -11,6 +11,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Shipping\Carrier;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
@@ -122,17 +123,17 @@ final class CarrierResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('impostazioni_spedizioni'));
     }
 
     public static function navigationSchema(): NavigationSchema
     {
         return parent::navigationSchema()
             ->inSection('set-up')
-            ->group('spedizioni', 'Spedizioni', 70, ['admin', 'administrator'])
+            ->group('spedizioni', 'Spedizioni', 70)
             ->title('Corrieri')
             ->order(30)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('impostazioni_spedizioni'));
     }
 
     /** Il corriere è `manual` (i corrieri collegati sono futuri) e la posizione la mette il backend, in fondo all'elenco. */

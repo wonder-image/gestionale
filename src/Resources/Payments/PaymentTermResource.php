@@ -15,6 +15,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTermInstallment;
@@ -183,7 +184,7 @@ final class PaymentTermResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('impostazioni_pagamenti'));
     }
 
     public static function apiSchema(): ApiSchema
@@ -195,10 +196,10 @@ final class PaymentTermResource extends GestionaleResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('set-up')
-            ->group('pagamenti', 'Pagamenti', 60, ['admin'])
+            ->group('pagamenti', 'Pagamenti', 60)
             ->title('Condizioni di pagamento')
             ->order(30)
-            ->authority(['admin']);
+            ->access(Gestionale::area('impostazioni_pagamenti'));
     }
 
     /** «30 gg fm 50% · 60 gg fm 50%», per l'elenco. */

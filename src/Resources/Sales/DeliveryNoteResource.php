@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
 use Throwable;
 use Wonder\App\LegacyGlobals;
+use Wonder\App\Permission\Access;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\Input;
@@ -171,13 +172,13 @@ final class DeliveryNoteResource extends GestionaleResource
             ->inSection('vendite')
             ->title('DDT')
             ->order(25)
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('vendite'))
             ->enabled(static::featureActive());
     }
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['list', 'edit', 'update'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('vendite'), ['list', 'edit', 'update']);
     }
 
     public static function apiSchema(): ApiSchema
@@ -492,7 +493,7 @@ final class DeliveryNoteResource extends GestionaleResource
             'resource' => $slug,
             'resource_action' => 'pdf',
         ])->name('pdf')
-            ->permit(['admin', 'administrator'])
+            ->permit(Access::roles(Gestionale::area('vendite'), 'view'))
             ->where('id', '[0-9]+');
     }
 

@@ -308,16 +308,16 @@ final class StockLevelResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('magazzino', 'Magazzino', 'bi-boxes', 400, ['admin', 'administrator'])
+            ->section('magazzino', 'Magazzino', 'bi-boxes', 400)
             ->title('Giacenze')
             ->order(10)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('magazzino'));
     }
 
     public static function permissionSchema(): PermissionSchema
     {
         // Solo `list`: da qui non cambia nessun numero.
-        return PermissionSchema::for(static::class)->backend(['list'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('magazzino'), ['list']);
     }
 
     public static function apiSchema(): ApiSchema

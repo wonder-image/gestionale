@@ -6,6 +6,7 @@ use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Positions;
@@ -72,7 +73,7 @@ final class AttributeValueResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('catalogo'));
     }
 
     /**

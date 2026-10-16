@@ -1,5 +1,6 @@
 <?php
 
+use Wonder\App\Permission\Access;
 use Wonder\Http\Route;
 use Wonder\Plugin\Gestionale\Gestionale;
 
@@ -21,14 +22,14 @@ Route::area('api')->response('json')->frontend()->translatable(false)
 Route::area('api')->response('json')->backend()->translatable(false)
     ->name('api.gestionale.backend.')->prefix('/gestionale/backend')->group(function () {
         Route::get('/magazzino/versioni/', Gestionale::handlerPath('api/stock/versions.php'))
-            ->name('stock.versions')->guarded()->permit(['admin', 'administrator']);
+            ->name('stock.versions')->guarded()->permit(Access::roles(Gestionale::area('magazzino'), 'create'));
         // G9: le ricerche della pagina *Nuovo ordine*.
         Route::get('/vendite/versioni/', Gestionale::handlerPath('api/sales/versions.php'))
-            ->name('sales.versions')->guarded()->permit(['admin', 'administrator']);
+            ->name('sales.versions')->guarded()->permit(Access::roles(Gestionale::area('vendite'), 'create'));
         Route::get('/vendite/clienti/', Gestionale::handlerPath('api/sales/customers.php'))
-            ->name('sales.customers')->guarded()->permit(['admin', 'administrator']);
+            ->name('sales.customers')->guarded()->permit(Access::roles(Gestionale::area('vendite'), 'create'));
         Route::post('/vendite/clienti/salva/', Gestionale::handlerPath('api/sales/customer-save.php'))
-            ->name('sales.customer_save')->guarded()->permit(['admin', 'administrator']);
+            ->name('sales.customer_save')->guarded()->permit(Access::roles(Gestionale::area('vendite'), 'create'));
         Route::post('/vendite/spedizione/', Gestionale::handlerPath('api/sales/shipping-quote.php'))
-            ->name('sales.shipping_quote')->guarded()->permit(['admin', 'administrator']);
+            ->name('sales.shipping_quote')->guarded()->permit(Access::roles(Gestionale::area('vendite'), 'create'));
     });

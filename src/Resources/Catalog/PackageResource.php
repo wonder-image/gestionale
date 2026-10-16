@@ -12,6 +12,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Package;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Packages;
@@ -171,7 +172,7 @@ final class PackageResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('impostazioni_spedizioni'));
     }
 
     /** Solo `store`, per il "+" del riquadro Spedizione della scheda prodotto. */
@@ -186,10 +187,10 @@ final class PackageResource extends GestionaleResource
     {
         return NavigationSchema::for(static::class)
             ->inSection('set-up')
-            ->group('spedizioni', 'Spedizioni', 70, ['admin', 'administrator'])
+            ->group('spedizioni', 'Spedizioni', 70)
             ->title('Imballaggi')
             ->order(40)
-            ->authority(['admin']);
+            ->access(Gestionale::area('impostazioni_spedizioni'));
     }
 
     /** La posizione la mette il pannello; il codice lo genera il core. */

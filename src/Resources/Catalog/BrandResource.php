@@ -13,6 +13,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
@@ -129,7 +130,7 @@ final class BrandResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('catalogo'));
     }
 
     /**
@@ -148,11 +149,11 @@ final class BrandResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('catalogo', 'Catalogo', 'bi-box-seam', 340, ['admin', 'administrator'])
+            ->section('catalogo', 'Catalogo', 'bi-box-seam', 340)
             ->inSection('catalogo')
             ->title('Marchi')
             ->order(40)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('catalogo'));
     }
 
     /** Lo slug nasce dal nome alla creazione e poi non si tocca più. */

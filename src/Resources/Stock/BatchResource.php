@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Resources\Stock;
 
 use Throwable;
+use Wonder\App\Permission\Access;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -324,17 +325,17 @@ final class BatchResource extends GestionaleResource
             'resource' => $slug,
             'resource_action' => 'customers',
         ])->name('customers')
-            ->permit(['admin', 'administrator'])
+            ->permit(Access::roles(Gestionale::area('magazzino'), 'view'))
             ->where('id', '[0-9]+');
     }
 
     public static function navigationSchema(): NavigationSchema
     {
         return NavigationSchema::for(static::class)
-            ->section('magazzino', 'Magazzino', 'bi-boxes', 400, ['admin', 'administrator'])
+            ->section('magazzino', 'Magazzino', 'bi-boxes', 400)
             ->title('Lotti')
             ->order(45)
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('magazzino'))
             ->enabled(static::featureActive());
     }
 
@@ -345,7 +346,7 @@ final class BatchResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['list', 'view', 'edit', 'update', 'delete'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('magazzino'), ['list', 'view', 'edit', 'update', 'delete']);
     }
 
     public static function viewUrl(int $id): string

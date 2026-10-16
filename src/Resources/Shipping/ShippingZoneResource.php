@@ -16,6 +16,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRate;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRateBracket;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZone;
@@ -187,17 +188,17 @@ final class ShippingZoneResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('impostazioni_spedizioni'));
     }
 
     public static function navigationSchema(): NavigationSchema
     {
         return parent::navigationSchema()
             ->inSection('set-up')
-            ->group('spedizioni', 'Spedizioni', 70, ['admin', 'administrator'])
+            ->group('spedizioni', 'Spedizioni', 70)
             ->title('Zone di spedizione')
             ->order(20)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('impostazioni_spedizioni'));
     }
 
     /**

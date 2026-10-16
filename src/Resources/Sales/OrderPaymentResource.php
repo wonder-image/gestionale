@@ -16,6 +16,7 @@ use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
@@ -222,7 +223,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
     /** Le pagine-form leggono `edit` (apertura) e `update` (invio): le azioni toccano denaro e magazzino, come l'elenco. */
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['edit', 'update'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('vendite'), ['edit', 'update']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -231,7 +232,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
         return NavigationSchema::for(static::class)
             ->inSection('vendite')
             ->title('Registra pagamento')
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('vendite'))
             ->enabled(false);
     }
 

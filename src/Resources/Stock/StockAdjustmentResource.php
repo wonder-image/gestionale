@@ -178,7 +178,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
         return NavigationSchema::for(static::class)
             ->inSection('magazzino')
             ->title('Rettifica')
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('magazzino'))
             ->enabled(false);
     }
 

@@ -12,6 +12,25 @@ return [
         // deve toccare (aliquote, tipi fiscali, regole).
         'developer_url' => 'https://wonder-image.gitbook.io/wonder-image-gestionale',
     ],
+    // Aree permessi del gestionale (Wonder\App\Permission\Access), lette dalle
+    // Resource con `access(Gestionale::area('<area>'))`. `admin` (Wonder Image)
+    // è sempre incluso. Una regola è una lista di ruoli (tutte le azioni) o una
+    // mappa per azione: view, create, edit, delete; `*` vale per le altre.
+    // Per cambiarle nel sito: `permissions` in custom/config/modules/gestionale.php,
+    // ogni area indicata sostituisce per intero quella di default.
+    'permissions' => [
+        'catalogo' => ['*' => ['administrator'], 'view' => ['administrator', 'sales', 'warehouse']],
+        'contatti' => ['administrator', 'sales'],
+        'vendite' => ['*' => ['administrator', 'sales'], 'view' => ['administrator', 'sales', 'warehouse']],
+        'spedizioni' => ['administrator', 'sales', 'warehouse'],
+        'promozioni' => ['administrator'],
+        'magazzino' => ['*' => ['administrator', 'warehouse'], 'view' => ['administrator', 'warehouse', 'sales']],
+        // Solo Wonder Image finché non le concede al commerciante.
+        'impostazioni_spedizioni' => [],
+        'impostazioni_pagamenti' => [],
+        'fiscale' => [],
+        'impostazioni' => [],
+    ],
     // Riquadri della home del backend (Wonder\Backend\Contracts\HomeWidget).
     'backend' => [
         'home_widgets' => [

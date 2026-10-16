@@ -45,10 +45,10 @@ check('gli ordini si leggono e basta: niente aggiungi, modifica o elimina', func
     return !in_array('add', $attive, true) && !in_array('edit', $attive, true) && !in_array('delete', $attive, true);
 });
 
-check('la voce sta nella sezione Vendite, riservata all\'amministratore', function () {
+check('la voce sta nella sezione Vendite, visibile a chi lavora gli ordini', function () {
     $nav = OrderResource::navigationSchema()->toArray();
 
-    return ($nav['section_key'] ?? '') === 'vendite' && ($nav['authority'] ?? []) === ['admin', 'administrator'];
+    return ($nav['section_key'] ?? '') === 'vendite' && ($nav['authority'] ?? []) === ['admin', 'administrator', 'sales', 'warehouse'];
 });
 
 check('i permessi dell\'elenco sono di admin e administrator', function () {
@@ -441,14 +441,14 @@ check('un ordine senza azioni non porta finestre', fn () =>
 /** I permessi di un'area backend, come li legge il registro delle rotte. */
 $permessi = static fn (string $resource): array => (array) ($resource::permissionSchema()->toArray()['backend'] ?? []);
 
-check('la scheda dell\'ordine è riservata come l\'elenco: admin e administrator', fn () =>
-    ($permessi(OrderResource::class)['view'] ?? []) === ['admin', 'administrator']
+check('la scheda dell\'ordine è aperta a chi vede l\'elenco: anche vendite e magazzino', fn () =>
+    ($permessi(OrderResource::class)['view'] ?? []) === ['admin', 'administrator', 'sales', 'warehouse']
 );
 
-check('le azioni e il pagamento (pagine-form: edit e update) sono di admin e administrator', function () use ($permessi) {
+check('le azioni e il pagamento (pagine-form: edit e update) sono di admin, administrator e vendite', function () use ($permessi) {
     foreach ([OrderActionResource::class, OrderPaymentResource::class] as $resource) {
         foreach (['edit', 'update'] as $azione) {
-            if (($permessi($resource)[$azione] ?? []) !== ['admin', 'administrator']) {
+            if (($permessi($resource)[$azione] ?? []) !== ['admin', 'administrator', 'sales']) {
                 return false;
             }
         }

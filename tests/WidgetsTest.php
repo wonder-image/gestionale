@@ -25,9 +25,9 @@ check('i Primi passi sono roba di chi installa', fn () =>
     && (new SetupWidget)->authorities() === ['admin']
 );
 
-check('"Da controllare" lo vedono tutti e due', fn () =>
+check('"Da controllare" lo vede chi vede le vendite', fn () =>
     (new AttentionWidget)->title() === 'Da controllare'
-    && (new AttentionWidget)->authorities() === ['admin', 'administrator']
+    && (new AttentionWidget)->authorities() === ['admin', 'administrator', 'sales', 'warehouse']
 );
 
 check('i Primi passi vengono prima', fn () =>
@@ -88,7 +88,7 @@ check('i testi degli errori non possono iniettare markup', function () {
 check('il riquadro delle anagrafiche è un riquadro della home', fn () =>
     is_subclass_of(ContactsWidget::class, HomeWidget::class)
     && (new ContactsWidget)->title() === 'Anagrafiche'
-    && (new ContactsWidget)->authorities() === ['admin', 'administrator']
+    && (new ContactsWidget)->authorities() === ['admin', 'administrator', 'sales']
 );
 
 check('le anagrafiche vengono dopo le cose da controllare', fn () =>
@@ -127,7 +127,7 @@ $sottoScorta = static fn (string $article, string $option, float $available, flo
 check('il riquadro Sotto scorta sta fra Da controllare e Anagrafiche', fn () =>
     is_subclass_of(LowStockWidget::class, HomeWidget::class)
     && (new LowStockWidget)->title() === 'Sotto scorta'
-    && (new LowStockWidget)->authorities() === ['admin', 'administrator']
+    && (new LowStockWidget)->authorities() === ['admin', 'administrator', 'warehouse', 'sales']
     && (new LowStockWidget)->order() > (new AttentionWidget)->order()
     && (new LowStockWidget)->order() < (new ContactsWidget)->order()
 );

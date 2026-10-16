@@ -9,6 +9,7 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaign;
@@ -135,13 +136,13 @@ final class CampaignProductTableResource extends GestionaleResource
         return NavigationSchema::for(static::class)
             ->inSection('promozioni')
             ->title(static::titleLabel())
-            ->authority(['admin', 'administrator'])
+            ->access(Gestionale::area('promozioni'))
             ->enabled(false);
     }
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backend(['list'], ['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('promozioni'), ['list']);
     }
 
     public static function apiSchema(): ApiSchema

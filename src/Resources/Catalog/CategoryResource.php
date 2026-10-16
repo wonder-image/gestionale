@@ -13,6 +13,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
@@ -156,7 +157,7 @@ final class CategoryResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('catalogo'));
     }
 
     /**
@@ -179,7 +180,7 @@ final class CategoryResource extends GestionaleResource
             ->inSection('catalogo')
             ->title('Categorie')
             ->order(41)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('catalogo'));
     }
 
     /** Slug alla creazione, e nessun anello nell'albero. */

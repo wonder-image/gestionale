@@ -137,5 +137,51 @@ Lo stato viaggia con `shared/sync-data.json` al deploy.
 
 | Ruolo | Chi | Cosa fa |
 |---|---|---|
-| `admin` | Wonder Image | sblocca le funzionalità, configura la parte tecnica |
-| `administrator` | commerciante | usa solo le funzionalità attive |
+| `admin` | Wonder Image | sblocca le funzionalità, configura la parte tecnica, vede tutto |
+| `administrator` | commerciante | usa solo le funzionalità attive, nelle aree che gli sono concesse |
+| `sales` | Vendite | ordini, preventivi, clienti e spedizioni; legge catalogo e magazzino |
+| `warehouse` | Magazzino | giacenze, lotti e documenti di magazzino, spedizioni; legge catalogo e ordini |
+
+`sales` e `warehouse` sono definiti in `config/permissions.php` e li assegna
+`admin` o `administrator` dalla gestione utenti.
+
+## Aree permessi
+
+Le pagine del gestionale sono raggruppate in aree (`Wonder\App\Permission\Access`,
+vedi *Aree di accesso* nella documentazione del core). Ogni Resource legge la
+sua con `access(Gestionale::area('<area>'))`, sia nei permessi sia nel menu;
+anche i riquadri della home e le API del backend usano le aree.
+
+I default sono in `permissions` di `config/module.php`. `admin` è sempre incluso.
+
+| Area | Pagine | Chi (default) |
+|---|---|---|
+| `catalogo` | prodotti, modelli, categorie, marchi, tag, attributi, personalizzazioni, piani | `administrator`; in lettura anche `sales`, `warehouse` |
+| `contatti` | clienti, fornitori, indirizzi | `administrator`, `sales` |
+| `vendite` | ordini, preventivi, ordini d'ufficio, DDT, scadenzario, abbonamenti | `administrator`, `sales`; in lettura anche `warehouse` |
+| `spedizioni` | spedizioni | `administrator`, `sales`, `warehouse` |
+| `promozioni` | coupon, campagne di sconto | `administrator` |
+| `magazzino` | giacenze, movimenti, lotti, documenti, rettifiche | `administrator`, `warehouse`; in lettura anche `sales` |
+| `impostazioni_spedizioni` | metodi, zone, corrieri, imballi | solo `admin` |
+| `impostazioni_pagamenti` | conti, metodi, termini di pagamento | solo `admin` |
+| `fiscale` | aliquote, categorie e regole IVA | solo `admin` |
+| `impostazioni` | impostazioni e funzionalità del gestionale | solo `admin` |
+
+Una regola è una lista di ruoli (vale per tutte le azioni) o una mappa per
+azione (`view`, `create`, `edit`, `delete`, `*` per le altre). Le Resource
+in sola lettura restano tali: `access()` riceve le azioni che la pagina ha.
+
+Per cambiare un'area in un sito, in `custom/config/modules/gestionale.php`:
+
+```php
+return [
+    'permissions' => [
+        // Il commerciante gestisce anche le impostazioni di spedizione.
+        'impostazioni_spedizioni' => ['administrator'],
+        // Le vendite non vedono più il magazzino.
+        'magazzino' => ['administrator', 'warehouse'],
+    ],
+];
+```
+
+Ogni area indicata sostituisce per intero quella di default; le altre restano.

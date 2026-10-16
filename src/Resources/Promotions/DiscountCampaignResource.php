@@ -301,16 +301,16 @@ class DiscountCampaignResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->backendCrud(['admin', 'administrator']);
+        return PermissionSchema::for(static::class)->access(Gestionale::area('promozioni'));
     }
 
     public static function navigationSchema(): NavigationSchema
     {
         return parent::navigationSchema()
-            ->section('promozioni', 'Promozioni', 'bi-percent', 360, ['admin', 'administrator'])
+            ->section('promozioni', 'Promozioni', 'bi-percent', 360)
             ->title('Campagne di sconto')
             ->order(10)
-            ->authority(['admin', 'administrator']);
+            ->access(Gestionale::area('promozioni'));
     }
 
     /** «20 %», «12,5 %» o «10,00 €». */
