@@ -10,7 +10,10 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
 
+use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
+use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
@@ -186,6 +189,16 @@ try {
                 && $r['model']['categories'][0]['id'] === $categoria && $r['model']['categories'][0]['main'] === true;
         });
 
+        check('i campi obbligatori mancanti si elencano tutti, senza eseguire lo strumento', static function () use ($chiama, $admin): bool {
+            $preventivo = $chiama('quote_create', [], $admin)['result'] ?? [];
+            $attributo = $chiama('attribute_create', ['name' => 'Solo nome'], $admin)['result'] ?? [];
+            $testo = static fn (array $r): string => (string) ($r['content'][0]['text'] ?? '');
+
+            return ($preventivo['isError'] ?? false) === true && str_contains($testo($preventivo), 'customer_id') && str_contains($testo($preventivo), 'lines')
+                && ($attributo['isError'] ?? false) === true && str_contains($testo($attributo), 'type') && str_contains($testo($attributo), 'level')
+                && !str_contains($testo($attributo), 'name');
+        });
+
         check('product_create vuole nome e prezzo', static function () use ($chiama, $admin): bool {
             return ($chiama('product_create', ['name' => 'Senza prezzo'], $admin)['result']['isError'] ?? false) === true
                 && ($chiama('product_create', ['price' => 3], $admin)['result']['isError'] ?? false) === true;
@@ -252,6 +265,125 @@ try {
 
             return true;
         });
+
+        // ── Attributi ──
+
+        $attributo = 0;
+        $valori = [];
+
+        check('attribute_create crea un attributo a elenco con i suoi valori', static function () use ($chiama, $dati, $admin, &$attributo, &$valori): bool {
+            $r = $dati($chiama('attribute_create', ['name' => 'Materiale MCP '.uniqid(), 'type' => 'select', 'level' => 'model', 'unit' => 'cm', 'values' => [['label' => 'Legno'], ['label' => 'Ferro']]], $admin));
+            $attributo = (int) ($r['id'] ?? 0);
+            $valori = array_column($r['values'] ?? [], 'id');
+            $row = Attribute::findById($attributo);
+
+            return $attributo > 0 && str_starts_with((string) $row['code'], 'att_') && str_starts_with($r['slug'], 'materiale-mcp-')
+                && $r['unit'] === '' && $r['sales_axis'] === false && array_column($r['values'], 'label') === ['Legno', 'Ferro'];
+        });
+
+        check('attribute_create rifiuta valori su un testo e un testo sulle opzioni', static function () use ($chiama, $admin): bool {
+            $errore = static fn (array $args): bool => ($chiama('attribute_create', $args, $admin)['result']['isError'] ?? false) === true;
+
+            return $errore(['name' => 'Nota', 'type' => 'text', 'level' => 'model', 'values' => [['label' => 'x']]])
+                && $errore(['name' => 'Nota', 'type' => 'text', 'level' => 'variant']);
+        });
+
+        check('attribute_update rinomina un valore e ne aggiunge uno', static function () use ($chiama, $dati, $admin, &$attributo, &$valori): bool {
+            $r = $dati($chiama('attribute_update', ['id' => $attributo, 'is_filterable' => false, 'values' => [['id' => $valori[0], 'label' => 'Legno di noce'], ['label' => 'Vetro']]], $admin));
+
+            return $r['is_filterable'] === false && array_column($r['values'], 'label') === ['Legno di noce', 'Ferro', 'Vetro'];
+        });
+
+        check('product_set_attributes scrive sull\'articolo e controlla i valori', static function () use ($chiama, $dati, $admin, &$nuovo, &$attributo, &$valori): bool {
+            $r = $dati($chiama('product_set_attributes', ['product_id' => $nuovo, 'attributes' => [(string) $attributo => [$valori[0], $valori[1]]]], $admin));
+            $altro = $chiama('product_set_attributes', ['product_id' => $nuovo, 'attributes' => [(string) $attributo => 99999999]], $admin);
+            $scritti = array_values(array_filter($r['attributes']['model'] ?? [], static fn (array $a): bool => $a['attribute_id'] === $attributo));
+
+            return count($scritti) === 1 && $scritti[0]['value_ids'] === [$valori[0], $valori[1]]
+                && ($altro['result']['isError'] ?? false) === true;
+        });
+
+        check('product_set_attributes scrive un numero senza togliere gli altri attributi', static function () use ($chiama, $dati, $admin, &$nuovo, &$attributo, &$valori): bool {
+            $peso = $dati($chiama('attribute_create', ['name' => 'Peso MCP '.uniqid(), 'type' => 'number', 'level' => 'model'], $admin));
+            $r = $dati($chiama('product_set_attributes', ['product_id' => $nuovo, 'attributes' => [(string) $peso['id'] => '2,5']], $admin));
+            $per = array_column($r['attributes']['model'] ?? [], null, 'attribute_id');
+
+            return ($per[$peso['id']]['number'] ?? null) === 2.5
+                && ($per[$attributo]['value_ids'] ?? []) === [$valori[0], $valori[1]];
+        });
+
+        check('product_set_attributes non tocca gli assi delle opzioni in vendita', static function () use ($chiama, $dati, $admin, &$nuovo): bool {
+            $asse = $dati($chiama('attribute_create', ['name' => 'Taglia MCP '.uniqid(), 'type' => 'select', 'level' => 'product', 'values' => [['label' => 'S']]], $admin));
+            $r = $chiama('product_set_attributes', ['product_id' => $nuovo, 'attributes' => [(string) $asse['id'] => $asse['values'][0]['id']]], $admin);
+
+            return $asse['sales_axis'] === true && ($r['result']['isError'] ?? false) === true;
+        });
+
+        // ── Personalizzazioni ──
+
+        if (Gestionale::feature('customizations')) {
+            check('customization_create: una scelta vuole almeno due opzioni', static function () use ($chiama, $dati, $admin, &$nuovo): bool {
+                $una = $chiama('customization_create', ['name' => 'Colore filo', 'kind' => 'choice', 'options' => [['label' => 'Rosso']]], $admin);
+                $due = $dati($chiama('customization_create', ['name' => 'Colore filo', 'kind' => 'choice', 'surcharge' => 5, 'options' => [['label' => 'Rosso'], ['label' => 'Oro', 'surcharge' => 2.5]]], $admin));
+                $assegnata = $dati($chiama('product_set_customizations', ['product_id' => $nuovo, 'customizations' => [['customization_id' => $due['id'], 'required' => true]]], $admin));
+
+                return ($una['result']['isError'] ?? false) === true
+                    && str_starts_with($due['code'], 'cus_') && $due['surcharge'] === 0.0 && count($due['options']) === 2 && $due['options'][1]['surcharge'] === 2.5
+                    && count($assegnata['customizations']) === 1;
+            });
+
+            check('customization_create: un testo senza lunghezza massima chiede il campo', static function () use ($chiama, $admin): bool {
+                $r = $chiama('customization_create', ['name' => 'Incisione', 'kind' => 'text'], $admin)['result'] ?? [];
+
+                return ($r['isError'] ?? false) === true && str_contains((string) ($r['content'][0]['text'] ?? ''), 'max_length');
+            });
+
+            check('customization_update da scelta a testo toglie le opzioni', static function () use ($chiama, $dati, $admin): bool {
+                $c = $dati($chiama('customization_create', ['name' => 'Iniziali', 'kind' => 'choice', 'options' => [['label' => 'A'], ['label' => 'B']]], $admin));
+                $r = $dati($chiama('customization_update', ['id' => $c['id'], 'kind' => 'text', 'max_length' => 3], $admin));
+
+                return $r['kind'] === 'text' && $r['max_length'] === 3 && $r['options'] === [];
+            });
+        } else {
+            echo "    · personalizzazioni spente: salto\n";
+        }
+
+        // ── Preventivi ──
+
+        $cliente = Contact::find(['deleted' => 'false'], 1, 'id', 'DESC');
+        $cliente = is_array($cliente) && isset($cliente['id']) ? (int) $cliente['id'] : 0;
+
+        if (Gestionale::feature('quotes') && Gestionale::feature('office_sales') && $cliente > 0) {
+            check('quote_create nomina i campi mancanti delle righe', static function () use ($chiama, $admin, $cliente, $pid): bool {
+                $r = $chiama('quote_create', ['customer_id' => $cliente, 'lines' => [['type' => 'product', 'product_id' => $pid], ['type' => 'custom', 'name' => 'Montaggio']]], $admin)['result'] ?? [];
+                $testo = (string) ($r['content'][0]['text'] ?? '');
+
+                return ($r['isError'] ?? false) === true && str_contains($testo, 'lines[0].quantity') && str_contains($testo, 'lines[1].unit_price');
+            });
+
+            // Un articolo semplice nuovo: da ufficio non si vendono né i
+            // multiprodotti né gli articoli con personalizzazioni obbligatorie.
+            check('quote_create crea un preventivo in bozza, fuori dagli ordini', static function () use ($chiama, $dati, $admin, $cliente): bool {
+                $semplice = (int) ($dati($chiama('product_create', ['name' => 'Da preventivo '.uniqid(), 'price' => 10], $admin))['id'] ?? 0);
+                $r = $dati($chiama('quote_create', ['customer_id' => $cliente, 'lines' => [
+                    ['type' => 'product', 'product_id' => $semplice, 'quantity' => 2],
+                    ['type' => 'custom', 'name' => 'Montaggio', 'quantity' => 1, 'unit_price' => 40],
+                    ['type' => 'text', 'name' => 'Consegna in 10 giorni'],
+                ]], $admin));
+                $letto = $dati($chiama('quote_get', ['id' => (int) ($r['id'] ?? 0)], $admin));
+                $ordini = array_column((array) $dati($chiama('orders_list', ['limit' => 50], $admin)), 'id');
+
+                return $r['stage'] === 'quote' && $r['status'] === 'draft' && $r['customer_id'] === $cliente && $r['quote_number'] !== ''
+                    && count($letto['items']) >= 3 && !in_array($r['id'], $ordini, true)
+                    && ($chiama('order_get', ['id' => $r['id']], $admin)['result']['isError'] ?? false) === true;
+            });
+
+            check('quote_create rifiuta un cliente che non c\'è', static function () use ($chiama, $admin, $pid): bool {
+                return ($chiama('quote_create', ['customer_id' => 99999999, 'lines' => [['type' => 'product', 'product_id' => $pid, 'quantity' => 1]]], $admin)['result']['isError'] ?? false) === true;
+            });
+        } else {
+            echo "    · preventivi spenti o nessun contatto: salto\n";
+        }
 
         throw new Annulla();
     });

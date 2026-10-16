@@ -47,6 +47,8 @@ use Wonder\Sql\Transaction;
  */
 final class Tools
 {
+    use ToolSupport;
+
     /** Le azioni d'ordine che cambiano solo lo stato: le altre vogliono finestre e righe. */
     public const ORDER_ACTIONS = [
         OrderActions::CONFIRM, OrderActions::CANCEL, OrderActions::FULFILL,
@@ -209,7 +211,7 @@ final class Tools
                 'write' => true,
                 'run' => self::orderAction(...),
             ],
-        ];
+        ] + CatalogTools::all() + QuoteTools::all();
     }
 
     /**
@@ -662,18 +664,6 @@ final class Tools
     // ── Righe ────────────────────────────────────────────────────────────
 
     /** @return array<string, mixed> */
-    private static function productRow(int $id): array
-    {
-        $row = Product::findById($id);
-
-        if (!is_array($row) || $row === [] || (string) ($row['deleted'] ?? 'false') === 'true') {
-            throw McpError::make('product_not_found', 0, ['id' => $id]);
-        }
-
-        return $row;
-    }
-
-    /** @return array<string, mixed> */
     private static function categoryRow(int $id): array
     {
         $row = $id > 0 ? Category::findById($id) : null;
@@ -802,71 +792,10 @@ final class Tools
 
     // ── Argomenti ────────────────────────────────────────────────────────
 
-    /**
-     * @param array<string, mixed> $properties
-     * @param list<string> $required
-     * @return array<string, mixed>
-     */
-    private static function schema(array $properties, array $required): array
-    {
-        // Un oggetto vuoto deve restare `{}` nel JSON, non `[]`.
-        return ['type' => 'object', 'properties' => (object) $properties, 'additionalProperties' => false]
-            + ($required !== [] ? ['required' => $required] : []);
-    }
-
     /** @return list<string> */
     private static function reasons(): array
     {
         return array_values(array_diff(array_keys(Reasons::all()), Reasons::internal()));
-    }
-
-    private static function int(array $args, string $key): int
-    {
-        $value = $args[$key] ?? null;
-
-        if (!is_int($value) && !(is_string($value) && ctype_digit($value)) || (int) $value <= 0) {
-            throw McpError::make('id', 0, ['field' => $key]);
-        }
-
-        return (int) $value;
-    }
-
-    private static function string(array $args, string $key): string
-    {
-        $value = $args[$key] ?? null;
-
-        if (!is_string($value) || trim($value) === '') {
-            throw McpError::make('required', 0, ['field' => $key]);
-        }
-
-        return $value;
-    }
-
-    private static function flag(mixed $value, string $key): string
-    {
-        if (!is_bool($value)) {
-            throw McpError::make('boolean', 0, ['field' => $key]);
-        }
-
-        return $value ? 'true' : 'false';
-    }
-
-    private static function price(mixed $value, string $key): ?float
-    {
-        if ($value === null && $key === 'sale_price') {
-            return null;
-        }
-
-        if (!is_int($value) && !is_float($value) || $value < 0) {
-            throw McpError::make('not_negative', 0, ['field' => $key]);
-        }
-
-        return round((float) $value, 2);
-    }
-
-    private static function nullable(mixed $value): ?float
-    {
-        return $value === null || trim((string) $value) === '' ? null : round((float) $value, 2);
     }
 
     /** Il padre di una categoria: 0 è la radice, mai sé stessa né un suo discendente. */
@@ -883,37 +812,4 @@ final class Tools
 
         return $parent;
     }
-
-    private static function saved(object $result): object
-    {
-        if (empty($result->success)) {
-            throw McpError::make('save_failed', 0, ['fields' => self::reason($result)]);
-        }
-
-        return $result;
-    }
-
-    private static function reason(object $result): string
-    {
-        $messages = [];
-
-        foreach ((array) ($result->response ?? []) as $key => $field) {
-            if (is_object($field) && method_exists($field, 'isValid') && !$field->isValid()) {
-                $messages[] = $key;
-            }
-        }
-
-        return $messages !== [] ? implode(', ', $messages) : '-';
-    }
-
-    /** @return list<array<string, mixed>> */
-    private static function rows(mixed $rows): array
-    {
-        if (!is_array($rows) || $rows === []) {
-            return [];
-        }
-
-        return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
-    }
-
 }

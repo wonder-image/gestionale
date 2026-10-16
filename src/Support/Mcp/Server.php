@@ -48,7 +48,7 @@ final class Server
                 'protocolVersion' => is_string($params['protocolVersion'] ?? null) ? $params['protocolVersion'] : self::PROTOCOL,
                 'capabilities' => ['tools' => ['listChanged' => false]],
                 'serverInfo' => ['name' => self::NAME, 'version' => self::VERSION],
-                'instructions' => 'Gestionale del negozio: prodotti (versioni vendibili), prezzi, giacenze, categorie e stato degli ordini. Gli id dei prodotti sono quelli delle versioni; cerca con products_search prima di modificare.',
+                'instructions' => 'Gestionale del negozio: prodotti (versioni vendibili), prezzi, giacenze, categorie, attributi, personalizzazioni, stato degli ordini e preventivi. Gli id dei prodotti sono quelli delle versioni; cerca con products_search prima di modificare. Non inventare mai i valori obbligatori (nomi, tipi, clienti, righe, quantità, prezzi): se l\'utente non li ha detti chiediglieli, e se uno strumento risponde con un elenco di campi mancanti chiedi all\'utente proprio quelli.',
             ]),
             'ping' => self::result($id, (object) []),
             'tools/list' => self::result($id, ['tools' => self::list($caller)]),
@@ -96,9 +96,16 @@ final class Server
 
         $outcome = null;
         $failure = null;
+        $missing = self::missing($tool['schema'], $arguments);
 
         try {
-            $outcome = ($tool['run'])($arguments, $caller);
+            if ($missing !== []) {
+                // I valori obbligatori li dà l'utente: si dicono tutti quelli
+                // che mancano, così il client li chiede invece di inventarli.
+                $failure = self::text('missing_fields', ['fields' => implode(', ', $missing)]);
+            } else {
+                $outcome = ($tool['run'])($arguments, $caller);
+            }
         } catch (McpError $error) {
             $failure = $error->getMessage();
         } catch (UserError $error) {
@@ -117,6 +124,27 @@ final class Server
         return self::result($id, $failure === null
             ? ['content' => [['type' => 'text', 'text' => self::json($outcome['result'] ?? null)]], 'isError' => false]
             : ['content' => [['type' => 'text', 'text' => $failure]], 'isError' => true]);
+    }
+
+    /**
+     * I campi `required` dello schema che non sono arrivati, o sono arrivati
+     * vuoti.
+     *
+     * @return list<string>
+     */
+    public static function missing(array $schema, array $arguments): array
+    {
+        $missing = [];
+
+        foreach ((array) ($schema['required'] ?? []) as $key) {
+            $value = $arguments[$key] ?? null;
+
+            if ($value === null || $value === [] || (is_string($value) && trim($value) === '')) {
+                $missing[] = (string) $key;
+            }
+        }
+
+        return $missing;
     }
 
     private static function log(string $tool, array $arguments, Caller $caller, ?array $outcome, ?string $failure): void
