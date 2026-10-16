@@ -3349,7 +3349,7 @@
             "dist": {
                 "type": "path",
                 "url": "../customer-account",
-                "reference": "4d3465629757343ce43526d8c81c2bbc33e5eadf"
+                "reference": "ddcc511836e042013a277fe5e9f0e0aec42166c4"
             },
             "require": {
                 "php": "^8.2",
