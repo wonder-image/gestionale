@@ -91,6 +91,13 @@ una funzionalità qui e un ramo in `ProductExports::body()`; le classi pure
 `Support\Export\Delimited` (csv/tsv), `XmlFeed` (rss 2.0 con namespace) e
 `Download` (intestazioni dello scaricamento) fanno la scrittura.
 
+Clienti e fornitori hanno il loro «Esporta» con `export_contacts_xlsx` e
+`export_contacts_csv` (registro `Support\Contacts\ContactExports`): stesse
+colonne della rubrica di `wonder-image/customer-account` (`ContactExport`:
+anagrafica, recapiti, fatturazione, stato, creazione), celle scritte come
+testo (`downloadAsText()` del core), tutte le righe dell'elenco senza i filtri
+della tabella. Le due funzionalità sono bloccate di serie.
+
 I feed leggono due impostazioni facoltative del modulo: `exports.currency`
 (codice ISO, di serie `EUR`) e `exports.country` (il paese con cui si sceglie
 l'aliquota per portare i prezzi al lordo quando il catalogo è senza IVA, di

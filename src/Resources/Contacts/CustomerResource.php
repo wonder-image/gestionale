@@ -30,6 +30,8 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\CustomerOrderTableResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource;
+use Wonder\Plugin\CustomerAccount\Support\ContactExport;
+use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerStats;
@@ -297,7 +299,8 @@ class CustomerResource extends GestionaleResource
     public static function tableLayoutSchema(): TableLayoutSchema
     {
         $contactTable = Contact::$table;
-        return parent::tableLayoutSchema()->select(
+        $formats = ContactExports::granted();
+        $layout = parent::tableLayoutSchema()->select(
             "(SELECT GROUP_CONCAT(DISTINCT af.provider ORDER BY af.provider SEPARATOR ',')
                 FROM auth_federated af
                 WHERE af.user_id = {$contactTable}.user_id AND af.deleted = 'false') AS auth_providers,
@@ -305,7 +308,13 @@ class CustomerResource extends GestionaleResource
                 WHERE u.id = {$contactTable}.user_id
                   AND u.deleted = 'false'
                   AND COALESCE(u.password, '') <> '') AS has_local_password"
-        );
+        )
+            ->download($formats)->downloadAsText();
+
+        // Senza formati concessi l'«Esporta» non c'è: niente colonne da preparare.
+        return $formats === [] ? $layout : $layout
+            ->downloadColumns(ContactExport::columns(static::labelSchema(), [Contacts::class, 'displayName']))
+            ->downloadFileName(create_link(static::titleLabel()).'-'.date('Y-m-d'));
     }
 
     /**

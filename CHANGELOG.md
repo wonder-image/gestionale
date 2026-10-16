@@ -18,6 +18,11 @@ versionamento semantico.
   `gst_mcp_logs` (`McpLog`) con prima e dopo. Vedi
   `docs/dev/concetti/mcp.md`.
 
+- **Esporta** in clienti e fornitori: Excel (.xlsx) e CSV con le colonne di
+  `ContactExport` (wonder-image/customer-account) e celle in testo, dietro le
+  funzionalità `export_contacts_xlsx` / `export_contacts_csv` dell'area
+  Esportazioni (`Support\Contacts\ContactExports`).
+
 - **Esporta** nella tabella prodotti: scarica tutti gli articoli non
   cancellati in Excel (.xlsx) o in .csv, una riga per opzione in vendita, con
   codice articolo, SKU, EAN, prezzi, disponibili, stati, categorie, link e
@@ -560,6 +565,13 @@ versionamento semantico.
   commerciante; l'anteprima del checkout mostra solo i provider collegati.
 
 ### Cambiato
+
+- **Contatti da `wonder-image/customer-account`**: `Contact` e `ContactAddress`
+  del gestionale estendono i modelli del nuovo modulo (non più quelli di
+  `wonder-image/app`) e aggiungono solo i campi commerciali. Il modulo è una
+  dipendenza (`dependencies.modules`) da abilitare in `modules.php` prima del
+  gestionale. Tabelle e dati non cambiano; «Clienti» resta l'unica voce del
+  menu su `contacts`.
 
 - Scheda articolo: i menu *Aggiungi un attributo* e *Aggiungi caratteristica*
   escono dal `Dropdown` del core (`ProductModelResource::addMenu()`) invece che

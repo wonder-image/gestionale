@@ -2,8 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Models\Contacts;
 
-/** Compatibility entrypoint; shared storage is owned by wonder-image/app. */
-final class Contact extends \Wonder\App\Models\Contacts\Contact
+/** Compatibility entrypoint; shared storage is owned by wonder-image/customer-account. */
+final class Contact extends \Wonder\Plugin\CustomerAccount\Models\Contact
 {
     public static string $folder = 'gestionale/contacts';
 

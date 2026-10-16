@@ -132,8 +132,8 @@ check('solo i Model proprietari del modulo usano il prefisso gst_', function () 
         }
 
         $shared = [
-            'Wonder\\Plugin\\Gestionale\\Models\\Contacts\\Contact' => \Wonder\App\Models\Contacts\Contact::class,
-            'Wonder\\Plugin\\Gestionale\\Models\\Contacts\\ContactAddress' => \Wonder\App\Models\Contacts\ContactAddress::class,
+            'Wonder\\Plugin\\Gestionale\\Models\\Contacts\\Contact' => \Wonder\Plugin\CustomerAccount\Models\Contact::class,
+            'Wonder\\Plugin\\Gestionale\\Models\\Contacts\\ContactAddress' => \Wonder\Plugin\CustomerAccount\Models\ContactAddress::class,
             'Wonder\\Plugin\\Gestionale\\Models\\System\\ExternalReference' => \Wonder\App\Models\System\ExternalReference::class,
         ];
         if (isset($shared[$classe])) {

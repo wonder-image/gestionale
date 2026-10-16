@@ -5,12 +5,20 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
-        "wonder-image/app": "^2.4.0-beta.3 || dev-main"
+        "wonder-image/app": "^2.4.0-beta.3 || dev-main",
+        "wonder-image/customer-account": "@dev"
     },
     "repositories": [
         {
             "type": "path",
             "url": "../app",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
+            "type": "path",
+            "url": "../customer-account",
             "options": {
                 "symlink": true
             }
