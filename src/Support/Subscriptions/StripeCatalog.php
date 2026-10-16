@@ -30,8 +30,15 @@ final class StripeCatalog
     {
     }
 
-    /** L'id del prezzo Stripe per quel prezzo del piano, creato se manca. */
-    public function priceFor(int $planPriceId): string
+    /**
+     * L'id del prezzo Stripe per quel prezzo del piano, creato se manca.
+     *
+     * Con il sovrapprezzo delle personalizzazioni (per unità) l'importo è un
+     * altro, quindi un altro prezzo. `$slot` distingue le righe uguali dello
+     * stesso abbonamento: Stripe non accetta lo stesso prezzo su due righe
+     * (`slots()`).
+     */
+    public function priceFor(int $planPriceId, float $surcharge = 0.0, int $slot = 0): string
     {
         $price = PlanPrice::findById($planPriceId);
 
@@ -40,7 +47,7 @@ final class StripeCatalog
         }
 
         $env = $this->gateway->environment();
-        $fingerprint = static::fingerprint($price);
+        $fingerprint = static::fingerprint($price, $surcharge, $slot);
         $object = 'price:'.$fingerprint;
         $saved = ExternalReferences::find('plan_price', $planPriceId, 'stripe', $object, $env);
 
@@ -50,7 +57,7 @@ final class StripeCatalog
 
         $product = $this->productFor((int) $price['plan_id']);
         $created = $this->gateway->createPrice(
-            static::priceParams($price, $product),
+            static::priceParams($price, $product, $surcharge),
             'plan-price-'.(string) $price['code'].'-'.$fingerprint.'-'.$env
         );
         ExternalReferences::save('plan_price', $planPriceId, 'stripe', $object, (string) $created['id'], $env);
@@ -165,21 +172,53 @@ final class StripeCatalog
         return (string) $created['id'];
     }
 
-    /** Il prezzo dell'impronta: quello scontato se più basso, in centesimi. @param array<string, mixed> $price */
-    public static function cents(array $price): int
+    /**
+     * Il prezzo dell'impronta in centesimi: quello scontato se più basso, più
+     * il sovrapprezzo delle personalizzazioni.
+     *
+     * @param array<string, mixed> $price
+     */
+    public static function cents(array $price, float $surcharge = 0.0): int
     {
         $amount = round((float) ($price['price'] ?? 0), 2);
         $sale = round((float) ($price['sale_price'] ?? 0), 2);
 
-        return (int) round(($sale > 0.0 && $sale < $amount ? $sale : $amount) * 100);
+        return (int) round(($sale > 0.0 && $sale < $amount ? $sale : $amount) * 100) + (int) round(max(0.0, $surcharge) * 100);
     }
 
-    /** «2490-month-1-eur»: cambia, e il prezzo in Stripe è un altro. @param array<string, mixed> $price */
-    public static function fingerprint(array $price): string
+    /**
+     * «2490-month-1-eur»: cambia, e il prezzo in Stripe è un altro. Il posto
+     * di una riga ripetuta va in coda («-s1»); senza sovrapprezzo né posto è
+     * l'impronta di prima, e i prezzi già creati si riusano.
+     *
+     * @param array<string, mixed> $price
+     */
+    public static function fingerprint(array $price, float $surcharge = 0.0, int $slot = 0): string
     {
         [$interval, $count] = static::recurring($price);
 
-        return static::cents($price).'-'.$interval.'-'.$count.'-eur';
+        return static::cents($price, $surcharge).'-'.$interval.'-'.$count.'-eur'.($slot > 0 ? '-s'.$slot : '');
+    }
+
+    /**
+     * Per ogni riga, quante righe prima di lei hanno lo stesso prezzo del
+     * piano e lo stesso sovrapprezzo: il posto da passare a `priceFor()`.
+     *
+     * @param list<array{plan_price_id: int, surcharge: float}> $rows
+     * @return list<int>
+     */
+    public static function slots(array $rows): array
+    {
+        $seen = [];
+        $slots = [];
+
+        foreach ($rows as $row) {
+            $key = (int) $row['plan_price_id'].'-'.(int) round(max(0.0, (float) $row['surcharge']) * 100);
+            $slots[] = $seen[$key] ?? 0;
+            $seen[$key] = ($seen[$key] ?? 0) + 1;
+        }
+
+        return $slots;
     }
 
     /** @param array<string, mixed> $price @return array{0: string, 1: int} */
@@ -193,17 +232,22 @@ final class StripeCatalog
     }
 
     /** @param array<string, mixed> $price @return array<string, mixed> */
-    public static function priceParams(array $price, string $productId): array
+    public static function priceParams(array $price, string $productId, float $surcharge = 0.0): array
     {
         [$interval, $count] = static::recurring($price);
+        $metadata = ['plan_price_id' => (string) (int) $price['id'], 'plan_price_code' => (string) ($price['code'] ?? '')];
+
+        if ($surcharge > 0.0) {
+            $metadata['surcharge'] = number_format($surcharge, 2, '.', '');
+        }
 
         return [
             'product' => $productId,
-            'unit_amount' => static::cents($price),
+            'unit_amount' => static::cents($price, $surcharge),
             'currency' => 'eur',
             'recurring' => ['interval' => $interval, 'interval_count' => $count],
             'nickname' => trim((string) ($price['name'] ?? '')),
-            'metadata' => ['plan_price_id' => (string) (int) $price['id'], 'plan_price_code' => (string) ($price['code'] ?? '')],
+            'metadata' => $metadata,
         ];
     }
 

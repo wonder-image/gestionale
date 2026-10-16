@@ -4,7 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Features;
 
 /**
  * Stato effettivo di una funzionalità: sbloccata, con tutte le dipendenze
- * attive e il modulo richiesto abilitato. Classe pura: riceve catalogo, righe
+ * attive (e almeno una delle `requires_any`) e il modulo richiesto abilitato. Classe pura: riceve catalogo, righe
  * e moduli, non legge il database.
  */
 final class FeatureState
@@ -56,6 +56,18 @@ final class FeatureState
             }
         }
 
-        return true;
+        $any = (array) ($catalog[$key]['requires_any'] ?? []);
+
+        if ($any === []) {
+            return true;
+        }
+
+        foreach ($any as $required) {
+            if (self::active($catalog, $unlocked, $modules, (string) $required, $path)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

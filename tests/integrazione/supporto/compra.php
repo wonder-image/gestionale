@@ -10,7 +10,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
@@ -169,7 +169,7 @@ function personalizzazioneDiProva(array $valori = [], array $opzioni = []): int
 /** Collega una personalizzazione a un modello; ridà l'id del collegamento. */
 function collegaPersonalizzazione(int $modello, int $personalizzazione, bool $obbligatoria = false, int $posizione = 1, ?string $sovrapprezzo = null): int
 {
-    $collegamento = ProductModelCustomization::create(($sovrapprezzo === null ? [] : ['surcharge' => $sovrapprezzo]) + [
+    $collegamento = CustomizationLink::create(($sovrapprezzo === null ? [] : ['surcharge' => $sovrapprezzo]) + [
         'product_model_id' => $modello,
         'customization_id' => $personalizzazione,
         'is_required' => $obbligatoria ? 'true' : 'false',

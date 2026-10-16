@@ -2110,6 +2110,10 @@ unisce su `main` prima della `1.0.0` resta **inerte a interruttori spenti**
 `subscriptions`, `online_subscriptions`): con gli interruttori spenti il negozio si
 comporta esattamente come prima, altrimenti il parallelo mette a rischio la consegna.
 
+**D65 (2026-10-15):** la `1.0.0` esce dopo la chiusura di G9, G10 + E3 e della
+documentazione GitBook; il sito del primo cliente va in produzione prima,
+senza aspettarla.
+
 ### 10.4 Dopo il primo rilascio (D59)
 
 1. **Starter** da `boilerplates/ecommerce-site` (2.3).

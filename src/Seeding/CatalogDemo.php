@@ -11,7 +11,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroup;
 use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroupOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Models\Catalog\Package;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -419,13 +419,13 @@ final class CatalogDemo
             return 0;
         }
 
-        $link = ProductModelCustomization::find(['product_model_id' => $modelId, 'customization_id' => $id, 'deleted' => 'false'], 1);
+        $link = CustomizationLink::find(['product_model_id' => $modelId, 'customization_id' => $id, 'deleted' => 'false'], 1);
 
         if (is_array($link) && isset($link['id'])) {
             return 0;
         }
 
-        return !empty(ProductModelCustomization::create([
+        return !empty(CustomizationLink::create([
             'product_model_id' => $modelId,
             'customization_id' => $id,
             'is_required' => 'false',

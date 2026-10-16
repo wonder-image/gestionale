@@ -15,8 +15,9 @@ use Wonder\Sql\TableSchema as Column;
  *
  * `max_length` vale solo per `text`, `decimals` solo per `number`; le opzioni di una `choice` stanno in
  * `gst_customization_options`. Il sovrapprezzo di una scelta è quello della
- * personalizzazione più quello dell'opzione. Il collegamento agli articoli sta
- * in `gst_product_model_customizations`.
+ * personalizzazione più quello dell'opzione. Il collegamento agli articoli e ai
+ * piani d'abbonamento sta in `gst_customization_links`; `for_products` e
+ * `for_subscriptions` dicono a quali dei due si può collegare.
  *
  * Non si sincronizza: è lavoro del commerciante.
  */
@@ -43,6 +44,8 @@ final class Customization extends Model
             Column::key('decimals')->int(),
             Columns::decimal('surcharge', '12,2'),
             Column::key('active')->enum(['true', 'false'])->default('true'),
+            Column::key('for_products')->enum(['true', 'false'])->default('true'),
+            Column::key('for_subscriptions')->enum(['true', 'false'])->default('false'),
             Column::key('position')->int(),
         ];
     }
@@ -59,6 +62,8 @@ final class Customization extends Model
             Field::key('decimals')->number()->decimals(0),
             Field::key('surcharge')->number()->decimals(2),
             Field::key('active')->text()->sanitize(false),
+            Field::key('for_products')->text()->sanitize(false),
+            Field::key('for_subscriptions')->text()->sanitize(false),
             Field::key('position')->number()->decimals(0),
         ];
     }

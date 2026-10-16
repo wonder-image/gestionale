@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Subscriptions;
 
+use DateTimeImmutable;
 use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
@@ -23,24 +24,32 @@ use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionPlanChange;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItemChange;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
+use Wonder\Plugin\Gestionale\Support\Backend\RowMenu;
+use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionItems;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionProration;
 
 /**
  * «Abbonamenti» (G10 §1.2): quelli del sito li scrivono le notifiche di Stripe
  * (piano 2), quelli da ufficio *Nuovo abbonamento* (piano 3,
- * `OfficeSubscriptionResource`). Dalla scheda: *Cambia piano*, *Disdici*,
- * *Annulla* e *Rimanda il proforma* (`SubscriptionActionResource`), e
- * *Registra* sulle rate (`SubscriptionPaymentResource`).
+ * `OfficeSubscriptionResource`). Dalla scheda: *Disdici*, *Annulla* e
+ * *Rimanda il proforma*; nella card «Servizi» *Aggiungi servizio* e, per
+ * riga, *Cambia*, *Togli* e *Correggi personalizzazioni*
+ * (`SubscriptionActionResource`); *Registra* sulle rate
+ * (`SubscriptionPaymentResource`).
  *
  * L'elenco ha cliente, piano, stato, prossimo rinnovo, totale e canale, con i
  * filtri per stato e canale. La scheda ha il periodo, i pagamenti
- * (`gst_payments.subscription_id`), i cambi di piano e la storia degli stati.
+ * (`gst_payments.subscription_id`), i servizi con la loro storia
+ * (`SubscriptionItemChange`) e la storia degli stati.
  */
 final class SubscriptionResource extends GestionaleResource
 {
@@ -84,7 +93,7 @@ final class SubscriptionResource extends GestionaleResource
         return [
             'code' => 'Codice',
             'customer_id' => 'Cliente',
-            'plan_price_id' => 'Piano',
+            'plan' => 'Piano',
             'status' => 'Stato',
             'next_renewal_at' => 'Prossimo rinnovo',
             'total' => 'Totale',
@@ -132,9 +141,10 @@ final class SubscriptionResource extends GestionaleResource
             TableColumn::key('customer_id')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(static::customerName((int) ($row['customer_id'] ?? 0)))),
-            TableColumn::key('plan_price_id')
+            // Non è una colonna: il piano è quello della riga principale.
+            TableColumn::key('plan')
                 ->text()
-                ->formatter(static fn (array $row): string => static::escape(static::planLabel((int) ($row['plan_price_id'] ?? 0)))),
+                ->formatter(static fn (array $row): string => static::escape(static::planLabel(SubscriptionItems::priceIdOf($row)))),
             TableColumn::key('status')
                 ->text()
                 ->size('little')
@@ -201,7 +211,7 @@ final class SubscriptionResource extends GestionaleResource
 
     /**
      * La scheda: abbonamento e periodo a sinistra, importi a destra; sotto
-     * pagamenti, cambi di piano e storia degli stati.
+     * servizi, pagamenti, storia dei servizi e storia degli stati.
      *
      * @param array<string, mixed> $row
      */
@@ -221,7 +231,7 @@ final class SubscriptionResource extends GestionaleResource
             SectionTitle::make('Abbonamento')->columnSpan(12),
             $dato('Stato', static::statusBadge((string) ($row['status'] ?? '')), true),
             $dato('Cliente', $customer, true),
-            $dato('Piano', static::planLabel((int) ($row['plan_price_id'] ?? 0))),
+            $dato('Piano', static::planLabel(SubscriptionItems::priceIdOf($row))),
             $dato('Canale', static::channelLabels()[(string) ($row['channel'] ?? '')] ?? ''),
             $dato('Pagamento', (string) ($row['provider'] ?? '') === 'stripe' ? 'Stripe' : 'Registrato a mano'),
             $dato('Rinnovo automatico', (string) ($row['auto_renew'] ?? 'true') === 'true' ? 'Sì' : 'No'),
@@ -253,8 +263,9 @@ final class SubscriptionResource extends GestionaleResource
         ])->columns(12)->columnSpan(12);
 
         $tables = [
+            static::tableCard('Servizi', static::itemsHtml($row)),
             static::tableCard('Pagamenti', static::paymentsHtml($id)),
-            static::tableCard('Cambi di piano', static::changesHtml($id)),
+            static::tableCard('Storia dei servizi', static::changesHtml($id)),
             static::tableCard('Storia', static::historyHtml($id)),
         ];
 
@@ -265,8 +276,7 @@ final class SubscriptionResource extends GestionaleResource
     }
 
     /**
-     * I pulsanti della scheda: *Cambia piano* e *Disdici* per gli abbonamenti
-     * in corso, *Annulla* e *Rimanda il proforma* per quelli da ufficio. Ogni
+     * I pulsanti della scheda: *Disdici* per gli abbonamenti in corso, *Annulla* e *Rimanda il proforma* per quelli da ufficio. Ogni
      * pulsante apre la sua finestra (`modals()`).
      *
      * @param array<string, mixed> $row
@@ -279,7 +289,7 @@ final class SubscriptionResource extends GestionaleResource
         foreach (static::availableActions($row) as $action => $label) {
             $buttons[] = [
                 'label' => $label,
-                'icon' => ['change_plan' => 'bi-arrow-left-right', 'cancel' => 'bi-calendar-x', 'terminate' => 'bi-x-octagon', 'proforma' => 'bi-envelope'][$action],
+                'icon' => ['cancel' => 'bi-calendar-x', 'terminate' => 'bi-x-octagon', 'proforma' => 'bi-envelope'][$action],
                 'class' => ($action === 'terminate' ? 'btn-outline-danger' : 'btn-outline-dark').' btn-sm',
                 'href' => '#',
                 'onclick' => 'window.bootstrap.Modal.getOrCreateInstance(document.getElementById('.json_encode('wi-abbonamento-'.$action).')).show(); return false;',
@@ -303,12 +313,8 @@ final class SubscriptionResource extends GestionaleResource
         $online = !$office && trim((string) ($row['provider_reference'] ?? '')) !== '';
         $actions = [];
 
-        if ($live && ($office || $online)) {
-            $actions['change_plan'] = 'Cambia piano';
-
-            if ((string) ($row['auto_renew'] ?? 'true') === 'true') {
-                $actions['cancel'] = 'Disdici';
-            }
+        if ($live && ($office || $online) && (string) ($row['auto_renew'] ?? 'true') === 'true') {
+            $actions['cancel'] = 'Disdici';
         }
 
         if ($office && $status !== 'cancelled') {
@@ -331,16 +337,6 @@ final class SubscriptionResource extends GestionaleResource
 
         foreach (static::availableActions($row) as $action => $label) {
             $components = match ($action) {
-                'change_plan' => [
-                    FormField::key('plan_price_id')
-                        ->select(array_diff_key(OfficeSubscriptionResource::priceOptions(), [(int) ($row['plan_price_id'] ?? 0) => true]))
-                        ->label('Nuovo piano')
-                        ->required()
-                        ->columnSpan(12),
-                    RichText::make(static::escape((string) ($row['channel'] ?? '') === 'office'
-                        ? 'Il nuovo prezzo vale dal prossimo periodo; le rate di quello in corso restano.'
-                        : 'Il cambio passa a Stripe subito; il nuovo prezzo vale dal prossimo rinnovo, senza conguagli.'))->class('mb-0')->columnSpan(12),
-                ],
                 'cancel' => [RichText::make(static::escape('L\'abbonamento non si rinnova più: resta attivo fino alla fine del periodo pagato (o alla fine del vincolo, se dura ancora). Il cliente riceve un\'email.'))->class('mb-0')->columnSpan(12)],
                 'terminate' => [
                     RichText::make(static::escape('L\'abbonamento si chiude adesso e le rate in attesa si annullano. I pagamenti già arrivati restano: un rimborso si registra a parte.'))->class('mb-0')->columnSpan(12),
@@ -359,7 +355,231 @@ final class SubscriptionResource extends GestionaleResource
                 ->render('bootstrap');
         }
 
+        return $html.static::itemModals($row);
+    }
+
+    /** Si cambiano i servizi da qui: abbonamento in corso, da ufficio o già su Stripe. @param array<string, mixed> $row */
+    public static function itemsEditable(array $row): bool
+    {
+        $office = (string) ($row['channel'] ?? '') === 'office';
+
+        return ($office || trim((string) ($row['provider_reference'] ?? '')) !== '')
+            && in_array((string) ($row['status'] ?? ''), Subscription::LIVE, true);
+    }
+
+    /**
+     * I servizi dell'abbonamento, nell'ordine delle righe: servizio con le
+     * personalizzazioni, stato, quantità, importo del periodo pieno,
+     * prossimo rinnovo della riga, fine vincolo e la riga a cui si appoggia.
+     * Sopra, *Aggiungi servizio*; per riga in corso il menu delle azioni.
+     *
+     * @param array<string, mixed> $row
+     */
+    public static function itemsHtml(array $row): string
+    {
+        $id = (int) ($row['id'] ?? 0);
+        $items = SubscriptionItems::forSubscription($id);
+        $editable = static::itemsEditable($row);
+        $html = $editable
+            ? '<div class="text-end mb-2"><button type="button" class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#wi-servizio-add"><i class="bi bi-plus-lg"></i> Aggiungi servizio</button></div>'
+            : '';
+
+        if ($items === []) {
+            return $html.'<p class="text-muted mb-0">Nessun servizio.</p>';
+        }
+
+        $labels = static::itemLabels($items);
+        $statuses = ['pending' => 'Da avviare', 'active' => 'Attivo', 'ending' => 'In chiusura', 'ended' => 'Finito'];
+        $anchor = SubscriptionItems::anchor($row);
+        $today = new DateTimeImmutable('today');
+        $html .= '<table class="table table-sm align-middle mb-0"><thead><tr><th>Servizio</th><th>Stato</th><th class="text-end">Q.tà</th><th class="text-end">Importo</th><th>Prossimo rinnovo</th><th>Fine vincolo</th><th></th></tr></thead><tbody>';
+
+        foreach ($items as $item) {
+            $itemId = (int) $item['id'];
+            $status = (string) ($item['status'] ?? '');
+            $parent = (int) ($item['parent_item_id'] ?? 0);
+            $lines = Customizations::lines($item);
+            $renewal = match ($status) {
+                'pending' => static::day($item['starts_at'] ?? ''),
+                'active' => date('d/m/Y', SubscriptionProration::rowPeriod($anchor, static::termOfPrice((int) $item['plan_price_id']), $today)[1]->getTimestamp()),
+                'ending' => 'Finisce il '.static::day($item['ends_at'] ?? ''),
+                default => '',
+            };
+            $menu = $editable && $status === 'active' ? RowMenu::render(array_filter([
+                ['label' => 'Cambia', 'icon' => 'bi bi-arrow-left-right', 'modal' => 'wi-servizio-change-'.$itemId],
+                static::planCustomizations((int) $item['plan_price_id']) !== []
+                    ? ['label' => 'Correggi personalizzazioni', 'icon' => 'bi bi-pencil', 'modal' => 'wi-servizio-customize-'.$itemId]
+                    : null,
+                ['label' => 'Togli', 'icon' => 'bi bi-x-lg', 'modal' => 'wi-servizio-remove-'.$itemId, 'danger' => true],
+            ])) : '';
+
+            $html .= '<tr><td>'.static::escape(static::planLabel((int) $item['plan_price_id']))
+                .implode('', array_map(static fn (string $line): string => '<div class="small text-muted">'.static::escape($line).'</div>', $lines))
+                .($parent > 0 ? '<div class="small text-muted">Si appoggia a: '.static::escape($labels[$parent] ?? '#'.$parent).'</div>' : '')
+                .'</td><td>'.static::escape($statuses[$status] ?? $status).'</td>'
+                .'<td class="text-end">'.(int) ($item['quantity'] ?? 1).'</td>'
+                .'<td class="text-end">'.static::escape(OrderResource::money((float) ($item['total'] ?? 0))).'</td>'
+                .'<td>'.static::escape($renewal).'</td>'
+                .'<td>'.static::escape(static::day($item['commitment_ends_at'] ?? '')).'</td>'
+                .'<td class="text-end">'.$menu.'</td></tr>';
+        }
+
+        return $html.'</tbody></table>';
+    }
+
+    /**
+     * Le finestre dei servizi: *Aggiungi servizio* e, per ogni riga attiva,
+     * *Cambia*, *Togli* e *Correggi personalizzazioni*.
+     *
+     * @param array<string, mixed> $row
+     */
+    public static function itemModals(array $row): string
+    {
+        if (!static::itemsEditable($row)) {
+            return '';
+        }
+
+        $id = (int) ($row['id'] ?? 0);
+        $office = (string) ($row['channel'] ?? '') === 'office';
+        $items = SubscriptionItems::forSubscription($id);
+        $labels = static::itemLabels($items);
+        $live = array_filter($items, static fn (array $item): bool => in_array((string) $item['status'], ['pending', 'active'], true));
+        $today = new DateTimeImmutable('today');
+        $modal = static fn (string $modalId, string $title, string $action, array $hidden, array $components, string $submit, string $variant = 'primary'): string => Modal::make($title)
+            ->id($modalId)
+            ->form(SubscriptionActionResource::submitUrl(), hidden: ['subscription_id' => $id, 'action' => $action] + $hidden)
+            ->columns(12)
+            ->components($components)
+            ->cancel('Indietro')
+            ->submit($submit, $variant)
+            ->render('bootstrap');
+
+        $html = $modal('wi-servizio-add', 'Aggiungi servizio: '.(string) ($row['code'] ?? ''), 'add_item', [], [
+            FormField::key('plan_price_id')->select(OfficeSubscriptionResource::priceOptions())->label('Servizio')->required()->columnSpan(8),
+            FormField::key('quantity')->number()->decimal(0)->value('1')->label('Quantità')->columnSpan(4),
+            FormField::key('parent_item_id')
+                ->select(['' => 'Nessuno'] + array_intersect_key($labels, array_flip(array_map(static fn (array $item): int => (int) $item['id'], $live))))
+                ->label('Si appoggia a')
+                ->tooltip('Per un servizio che si lega a un altro (l\'hosting al suo dominio): la riga a cui si appoggia.')
+                ->columnSpan(12),
+            FormField::key('billing')
+                ->select(['prorate' => 'Quota ora fino al rinnovo del servizio', 'free' => 'Gratis fino al rinnovo', 'next_period' => 'Dal prossimo periodo'])
+                ->value('prorate')
+                ->label('Conguaglio')
+                ->tooltip(($office
+                    ? 'Quota ora: una rata per i giorni fino al rinnovo del servizio, col suo proforma.'
+                    : 'Quota ora: Stripe addebita subito i giorni fino al rinnovo sulla carta del cliente.').' Gratis: niente fino al rinnovo. Dal prossimo periodo: il servizio parte col prossimo periodo dell\'abbonamento.')
+                ->columnSpan(12),
+            ...static::customizationFields(null),
+        ], 'Aggiungi');
+
+        foreach ($items as $item) {
+            if ((string) $item['status'] !== 'active') {
+                continue;
+            }
+
+            $itemId = (int) $item['id'];
+            $name = $labels[$itemId] ?? '';
+            $hidden = ['item_id' => $itemId];
+            $children = array_values(array_filter($live, static fn (array $child): bool => (int) ($child['parent_item_id'] ?? 0) === $itemId));
+            $commitment = static::day($item['commitment_ends_at'] ?? '');
+            $committed = $commitment !== '' && (string) $item['commitment_ends_at'] > $today->format('Y-m-d H:i:s');
+            $values = Customizations::valuesOf(Customizations::decode($item['customization'] ?? ''));
+
+            $html .= $modal('wi-servizio-change-'.$itemId, 'Cambia: '.$name, 'change_item', $hidden, [
+                FormField::key('plan_price_id')
+                    ->select(array_diff_key(OfficeSubscriptionResource::priceOptions(), [(int) $item['plan_price_id'] => true]))
+                    ->label('Nuovo prezzo')
+                    ->required()
+                    ->columnSpan(12),
+                FormField::key('billing')
+                    ->select(['prorate' => 'Conguaglio ora', 'free' => 'Subito, senza conguaglio', 'next_period' => 'Dal prossimo rinnovo del servizio'])
+                    ->value('prorate')
+                    ->label('Quando')
+                    ->tooltip(($office
+                        ? 'Conguaglio ora: un credito per i giorni non goduti del prezzo vecchio e una rata per la quota del nuovo.'
+                        : 'Conguaglio ora: Stripe fa i conti dei giorni e addebita subito la differenza.').' Subito: il nuovo prezzo vale da oggi, senza conti. Dal prossimo rinnovo: cambia a fine periodo del servizio.')
+                    ->columnSpan(12),
+                ...static::customizationFields(null),
+                RichText::make(static::escape('Le personalizzazioni lasciate vuote restano quelle di prima, se il nuovo piano le ha.'))->class('mb-0 small text-muted')->columnSpan(12),
+            ], 'Cambia');
+
+            $html .= $modal('wi-servizio-remove-'.$itemId, 'Togli: '.$name, 'remove_item', $hidden, [
+                FormField::key('billing')
+                    ->select($committed
+                        ? ['period_end' => 'A fine vincolo ('.$commitment.')']
+                        : ['period_end' => 'A fine periodo', 'credit' => 'Subito, con un credito per i giorni non goduti'])
+                    ->value('period_end')
+                    ->label('Quando')
+                    ->columnSpan(12),
+                ...($committed ? [RichText::make(static::escape('Il servizio è in vincolo fino al '.$commitment.': si toglie a fine vincolo.'))->class('mb-0')->columnSpan(12)] : []),
+                ...($children !== [] ? [RichText::make(static::escape('Si tolgono insieme anche: '.implode(', ', array_map(static fn (array $child): string => $labels[(int) $child['id']] ?? '', $children)).'.'))->class('mb-0')->columnSpan(12)] : []),
+            ], 'Togli', 'danger');
+
+            if (static::planCustomizations((int) $item['plan_price_id']) !== []) {
+                $html .= $modal('wi-servizio-customize-'.$itemId, 'Correggi: '.$name, 'customize_item', $hidden, [
+                    ...static::customizationFields((int) $item['plan_price_id'], $values),
+                    RichText::make(static::escape('Un sovrapprezzo diverso vale dal prossimo periodo.'))->class('mb-0 small text-muted')->columnSpan(12),
+                ], 'Salva');
+            }
+        }
+
         return $html;
+    }
+
+    /**
+     * I campi delle personalizzazioni (`customization_<id>`): quelle del piano
+     * del prezzo con i valori di adesso, oppure, senza prezzo, quelle di tutti
+     * i piani attivi coi nomi dei piani che le chiedono.
+     *
+     * @param array<int, string> $values
+     * @return list<FormField>
+     */
+    protected static function customizationFields(?int $planPriceId, array $values = []): array
+    {
+        $definitions = $planPriceId === null ? OfficeSubscriptionResource::customizationColumns() : static::planCustomizations($planPriceId);
+        $fields = [];
+
+        foreach ($definitions as $definition) {
+            $field = FormField::key('customization_'.(int) $definition['id']);
+            $field = $definition['kind'] === 'choice'
+                ? $field->select(['' => 'Nessuna'] + array_column($definition['options'], 'label', 'id'))
+                : ($definition['kind'] === 'number' ? $field->number()->decimal((int) $definition['decimals']) : $field->text());
+            $value = (string) ($values[(int) $definition['id']] ?? '');
+
+            $fields[] = ($value !== '' ? $field->value($value) : $field)
+                ->label((string) $definition['label'].(isset($definition['plans']) ? ' ('.implode(', ', $definition['plans']).')' : ''))
+                ->columnSpan(6);
+        }
+
+        return $fields;
+    }
+
+    /** Le personalizzazioni del piano di un prezzo. @return list<array<string, mixed>> */
+    protected static function planCustomizations(int $planPriceId): array
+    {
+        $price = $planPriceId > 0 ? PlanPrice::findById($planPriceId) : null;
+
+        return is_array($price) && (int) ($price['plan_id'] ?? 0) > 0 ? Customizations::forPlan((int) $price['plan_id']) : [];
+    }
+
+    /** Id della riga => «Piano — prezzo · personalizzazioni». @param list<array<string, mixed>> $items @return array<int, string> */
+    protected static function itemLabels(array $items): array
+    {
+        $labels = [];
+
+        foreach ($items as $item) {
+            $labels[(int) $item['id']] = SubscriptionItems::label($item);
+        }
+
+        return $labels;
+    }
+
+    protected static function termOfPrice(int $planPriceId): int
+    {
+        $price = $planPriceId > 0 ? PlanPrice::findById($planPriceId) : null;
+
+        return max(1, (int) (is_array($price) ? ($price['term_months'] ?? 1) : 1));
     }
 
     /** Il proforma del periodo in corso, dall'archivio non pubblico. */
@@ -457,21 +677,36 @@ final class SubscriptionResource extends GestionaleResource
         return $html.'</tbody></table>';
     }
 
-    /** I cambi di piano, dal più recente. */
+    /** La storia dei servizi (aggiunti, tolti, cambiati, corretti), dalla più recente. */
     public static function changesHtml(int $subscriptionId): string
     {
-        $rows = $subscriptionId > 0 ? static::rowsOf(SubscriptionPlanChange::class, ['subscription_id' => $subscriptionId], 'id', 'DESC') : [];
+        $rows = $subscriptionId > 0 ? static::rowsOf(SubscriptionItemChange::class, ['subscription_id' => $subscriptionId], 'id', 'DESC') : [];
 
         if ($rows === []) {
-            return '<p class="text-muted mb-0">Nessun cambio di piano.</p>';
+            return '<p class="text-muted mb-0">Nessun cambio ai servizi.</p>';
         }
 
-        $html = '<table class="table table-sm align-middle mb-0"><thead><tr><th>Quando</th><th>Da</th><th>A</th><th>Da dove</th></tr></thead><tbody>';
+        $actions = ['added' => 'Aggiunto', 'removed' => 'Tolto', 'changed' => 'Cambiato', 'customized' => 'Corretto'];
+        $billings = [
+            'prorate' => 'Quota', 'free' => 'Gratis', 'next_period' => 'Dal prossimo periodo',
+            'period_end' => 'A fine periodo', 'credit' => 'Con credito',
+        ];
+        $html = '<table class="table table-sm align-middle mb-0"><thead><tr><th>Quando</th><th>Cosa</th><th>Servizio</th><th>Conguaglio</th><th class="text-end">Importo</th><th>Da dove</th></tr></thead><tbody>';
 
         foreach ($rows as $row) {
-            $html .= '<tr><td>'.static::escape(static::day($row['changed_at'] ?? '')).'</td>'
-                .'<td>'.static::escape(static::planLabel((int) ($row['old_plan_price_id'] ?? 0))).'</td>'
-                .'<td>'.static::escape(static::planLabel((int) ($row['new_plan_price_id'] ?? 0))).'</td>'
+            $old = static::planLabel((int) ($row['old_plan_price_id'] ?? 0));
+            $new = static::planLabel((int) ($row['new_plan_price_id'] ?? 0));
+            $service = $old !== '' && $new !== '' && $old !== $new ? $old.' → '.$new : ($new !== '' ? $new : $old);
+            $amount = (float) ($row['amount'] ?? 0);
+            $credit = (float) ($row['credit_left'] ?? 0);
+            $effective = static::day($row['effective_at'] ?? '');
+            $html .= '<tr><td>'.static::escape(static::day($row['changed_at'] ?? '')).($effective !== '' && $effective !== static::day($row['changed_at'] ?? '') ? '<div class="small text-muted">dal '.static::escape($effective).'</div>' : '').'</td>'
+                .'<td>'.static::escape($actions[(string) ($row['action'] ?? '')] ?? (string) ($row['action'] ?? '')).'</td>'
+                .'<td>'.static::escape($service)
+                .(trim((string) ($row['note'] ?? '')) !== '' ? '<div class="small text-muted">'.static::escapeStored((string) $row['note']).'</div>' : '').'</td>'
+                .'<td>'.static::escape($billings[(string) ($row['billing'] ?? '')] ?? '').'</td>'
+                .'<td class="text-end">'.static::escape($amount > 0 ? OrderResource::money($amount) : '')
+                .($credit > 0 ? '<div class="small text-muted">credito da usare '.static::escape(OrderResource::money($credit)).'</div>' : '').'</td>'
                 .'<td>'.static::escape(static::sourceLabel((string) ($row['source'] ?? ''))).'</td></tr>';
         }
 

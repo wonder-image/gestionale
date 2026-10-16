@@ -50,9 +50,10 @@ return [
     ],
     'customizations' => [
         'name' => 'Personalizzazione',
-        'description' => 'Campi compilati al momento della vendita, con eventuale sovrapprezzo.',
+        'description' => 'Campi compilati al momento della vendita, con eventuale sovrapprezzo, sui prodotti e sui piani degli abbonamenti.',
         'area' => 'Catalogo',
-        'requires' => ['orders'],
+        // G10b.4: serve almeno una delle due.
+        'requires_any' => ['orders', 'subscriptions'],
         'release' => 'G5',
     ],
     'barcode_labels' => [

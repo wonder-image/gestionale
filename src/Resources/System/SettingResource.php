@@ -84,6 +84,7 @@ final class SettingResource extends SingletonResource
             'delivery_goods_appearance' => 'Aspetto dei beni',
             'delivery_freight_terms' => 'Porto',
             'subscription_unpaid_days' => 'Giorni prima di «non pagato»',
+            'subscriptions_per_customer' => 'Abbonamenti in corso per cliente',
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -144,7 +145,10 @@ final class SettingResource extends SingletonResource
                 ]
                 : []),
             ...(Gestionale::feature('subscriptions')
-                ? [FormField::key('subscription_unpaid_days')->number()->decimal(0)->value(15)->label('Giorni prima di «non pagato»')]
+                ? [
+                    FormField::key('subscription_unpaid_days')->number()->decimal(0)->value(15)->label('Giorni prima di «non pagato»'),
+                    FormField::key('subscriptions_per_customer')->number()->decimal(0)->value(1)->label('Abbonamenti in corso per cliente'),
+                ]
                 : []),
         ];
 
@@ -244,10 +248,11 @@ final class SettingResource extends SingletonResource
         }
 
         if (Gestionale::feature('subscriptions')) {
-            $out[] = SectionTitle::make('Abbonamenti da ufficio')
-                ->tooltip('Quanti giorni dopo la scadenza di una rata non pagata l\'abbonamento passa da «da pagare» a «non pagato». L\'annullamento lo decidi tu dalla scheda dell\'abbonamento.')
+            $out[] = SectionTitle::make('Abbonamenti')
+                ->tooltip('«Giorni prima di «non pagato»»: quanti giorni dopo la scadenza di una rata non pagata un abbonamento da ufficio passa da «da pagare» a «non pagato»; l\'annullamento lo decidi tu dalla scheda. «Abbonamenti in corso per cliente»: quanti ne può avere un cliente insieme, online e da ufficio (0 = senza limite); al limite i servizi nuovi si aggiungono a quello che c\'è.')
                 ->columnSpan(12);
             $out[] = static::getInput('subscription_unpaid_days')->columnSpan(4);
+            $out[] = static::getInput('subscriptions_per_customer')->columnSpan(4);
         }
 
         return $out;
@@ -305,7 +310,7 @@ final class SettingResource extends SingletonResource
     public static function editableWhenReadonly(): array
     {
         return ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days',
-            'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days'];
+            'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days', 'subscriptions_per_customer'];
     }
 
     /** I corrieri attivi, per il vettore predefinito del DDT. @return array<int, string> */
@@ -371,6 +376,22 @@ final class SettingResource extends SingletonResource
 
         if ($number === null || !is_numeric($number) || (float) $number !== floor((float) $number) || (float) $number < 1 || (float) $number > 365) {
             throw UserError::make('settings.subscription_unpaid_days_invalid');
+        }
+
+        return (int) $number;
+    }
+
+    /** Gli abbonamenti in corso per cliente (G10b): un intero da 0 (senza limite) in su, o un rifiuto; vuoto vale 1. */
+    public static function perCustomer(mixed $value): int
+    {
+        if ($value === null || is_string($value) && trim($value) === '') {
+            return 1;
+        }
+
+        $number = Numbers::fromForm($value);
+
+        if ($number === null || !is_numeric($number) || (float) $number !== floor((float) $number) || (float) $number < 0 || (float) $number > 1000) {
+            throw UserError::make('settings.subscriptions_per_customer_invalid');
         }
 
         return (int) $number;
@@ -463,9 +484,16 @@ final class SettingResource extends SingletonResource
 
         // G10, abbonamenti da ufficio: da 1 a 365 giorni; vuoto torna ai 15 di partenza.
         if (!Gestionale::feature('subscriptions')) {
-            unset($values['subscription_unpaid_days']);
-        } elseif (array_key_exists('subscription_unpaid_days', $values)) {
-            $values['subscription_unpaid_days'] = static::unpaidDays($values['subscription_unpaid_days']);
+            unset($values['subscription_unpaid_days'], $values['subscriptions_per_customer']);
+        } else {
+            if (array_key_exists('subscription_unpaid_days', $values)) {
+                $values['subscription_unpaid_days'] = static::unpaidDays($values['subscription_unpaid_days']);
+            }
+
+            // G10b: 0 vuol dire senza limite; vuoto torna a 1.
+            if (array_key_exists('subscriptions_per_customer', $values)) {
+                $values['subscriptions_per_customer'] = static::perCustomer($values['subscriptions_per_customer']);
+            }
         }
 
         // G9, scadenzario: da 0 a 365 giorni; vuoto torna ai 7 di partenza.

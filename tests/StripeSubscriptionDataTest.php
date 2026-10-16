@@ -38,6 +38,26 @@ check('disdetto a fine periodo: non rinnova più, ma resta attivo', function () 
     return $d['status'] === 'active' && $d['auto_renew'] === false;
 });
 
+check('più servizi: un item per voce con prezzo, quantità, riga e periodo; in alto il periodo che finisce prima', function () use ($leggi) {
+    $d = StripeSubscriptionData::subscription([
+        'id' => 'sub_m', 'status' => 'active',
+        'items' => ['data' => [
+            ['id' => 'si_a', 'quantity' => 1, 'price' => ['id' => 'price_a'], 'metadata' => ['item_id' => '7'], 'current_period_start' => 1760000000, 'current_period_end' => 1791536000],
+            ['id' => 'si_b', 'quantity' => 3, 'price' => 'price_b', 'current_period_start' => 1760000000, 'current_period_end' => 1762678400],
+        ]],
+    ]);
+    $basil = StripeSubscriptionData::subscription($leggi('subscription-basil'));
+    $old = StripeSubscriptionData::subscription($leggi('subscription-old'));
+
+    return count($d['items']) === 2
+        && $d['items'][0] === ['id' => 'si_a', 'price' => 'price_a', 'quantity' => 1, 'item_id' => 7, 'period_start' => date('Y-m-d H:i:s', 1760000000), 'period_end' => date('Y-m-d H:i:s', 1791536000)]
+        && $d['items'][1]['price'] === 'price_b' && $d['items'][1]['quantity'] === 3 && $d['items'][1]['item_id'] === 0
+        && $d['current_period_end'] === date('Y-m-d H:i:s', 1762678400) && $d['price'] === 'price_b'
+        && count($basil['items']) === 1 && $basil['items'][0]['id'] === 'si_1' && $basil['items'][0]['quantity'] === 1
+        && $old['items'][0]['period_end'] === null && $old['current_period_end'] === date('Y-m-d H:i:s', 1762678400)
+        && StripeSubscriptionData::subscription(['status' => 'active'])['items'] === [];
+});
+
 check('gli stati di Stripe finiscono tutti in uno stato del gestionale', function () {
     foreach (StripeSubscriptionData::STATUSES as $nostro) {
         if (!in_array($nostro, Subscription::STATUSES, true)) {

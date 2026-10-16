@@ -27,7 +27,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
@@ -98,7 +98,7 @@ $tutte = [
     Brand::class, Category::class, Tag::class, Attribute::class, AttributeValue::class,
     ProductModel::class, ProductVariant::class, Product::class, ProductImage::class,
     Package::class,
-    Customization::class, CustomizationOption::class, ProductModelCustomization::class,
+    Customization::class, CustomizationOption::class, CustomizationLink::class,
     BundleComponent::class, BundleGroup::class, BundleGroupOption::class,
 ];
 $stato = static fn (): array => array_map($conta, $tutte);
@@ -615,8 +615,8 @@ try {
         });
 
         check('le personalizzazioni sono collegate, facoltative, a due articoli di prova', function () use ($demo, $idDi, $righe) {
-            $a = $righe(ProductModelCustomization::class, ['customization_id' => $idDi(Customization::class, 'incisione')]);
-            $b = $righe(ProductModelCustomization::class, ['customization_id' => $idDi(Customization::class, 'confezione-regalo')]);
+            $a = $righe(CustomizationLink::class, ['customization_id' => $idDi(Customization::class, 'incisione')]);
+            $b = $righe(CustomizationLink::class, ['customization_id' => $idDi(Customization::class, 'confezione-regalo')]);
 
             return count($a) === 1 && count($b) === 1
                 && (int) $a[0]['product_model_id'] === $idDi(ProductModel::class, 'maglietta-girocollo')
@@ -766,7 +766,7 @@ try {
                 'position' => 1,
             ]);
             $veroId = (int) ($vero->insert_id ?? 0);
-            ProductModelCustomization::create([
+            CustomizationLink::create([
                 'product_model_id' => $veroId, 'customization_id' => $incisione, 'is_required' => 'false', 'position' => 1,
             ]);
 
@@ -781,8 +781,8 @@ try {
                 && str_contains($note, 'personalizzazione «Incisione»');
 
             // Tolto il collegamento vero, la pulizia porta via anche l'incisione.
-            foreach ($righe(ProductModelCustomization::class, ['customization_id' => $incisione]) as $link) {
-                ProductModelCustomization::delete((int) $link['id']);
+            foreach ($righe(CustomizationLink::class, ['customization_id' => $incisione]) as $link) {
+                CustomizationLink::delete((int) $link['id']);
             }
 
             CatalogDemo::clear();

@@ -80,18 +80,25 @@ final class DocumentData
     }
 
     /**
-     * I dati del proforma di un periodo di un abbonamento (G10 §3): una riga
-     * sola (piano, prezzo, periodo), i totali e l'IVA dell'abbonamento, le rate
-     * in attesa di quel periodo. Il proforma non ha numero: non è un documento
-     * fiscale.
+     * I dati del proforma di un periodo di un abbonamento (G10 §3, G10b): una
+     * voce per riga addebitata (nome col suo periodo, quantità, importi), i
+     * crediti come voci di sconto in negativo, i totali dell'abbonamento,
+     * l'IVA per aliquota (`tax_summaries` se c'è, altrimenti quella
+     * dell'abbonamento) e le rate in attesa del periodo. Il credito usato
+     * scala il totale da pagare (mai sotto zero); se copre tutto, la nota lo
+     * dice. Il proforma non ha numero: non è un documento fiscale.
      *
+     * @param list<array{name: string, quantity: int, unit_price: float, line_total: float, tax_rate: float}> $lines
+     * @param list<array{name: string, amount: float}> $credits
      * @param list<array{due_date: string, amount: float}> $installments le rate del periodo
      * @return array<string, mixed>
      */
-    public static function forSubscription(array $subscription, string $planLabel, string $periodStart, string $periodEnd, array $installments): array
+    public static function forSubscription(array $subscription, array $lines, array $credits, string $periodStart, string $periodEnd, array $installments): array
     {
         $rate = (float) ($subscription['tax_rate'] ?? 0);
         $subtotal = round((float) ($subscription['subtotal'] ?? 0), 2);
+        $summaries = is_array($subscription['tax_summaries'] ?? null) ? $subscription['tax_summaries'] : [];
+        unset($subscription['tax_summaries']);
         $order = $subscription + [
             'fulfillment_type' => 'none',
             'products_total' => $subtotal,
@@ -100,27 +107,65 @@ final class DocumentData
             'document_note' => 'Documento non valido ai fini fiscali: la fattura segue il pagamento.',
         ];
         $order['email'] = '';
+        $credit = round(array_sum(array_map(static fn (array $c): float => (float) $c['amount'], $credits)), 2);
+
+        if ($credit > 0.0) {
+            $order['discount_total'] = $credit;
+            $order['total'] = max(0.0, round((float) ($subscription['total'] ?? 0) - $credit, 2));
+        }
+
+        if ($credit > 0.0 && $installments === []) {
+            $order['document_note'] = 'Niente da pagare: il credito dei servizi tolti copre il periodo. '.$order['document_note'];
+        }
+
         $payment = self::payment(['payment_method_id' => $subscription['payment_method_id'] ?? 0, 'payment_term_id' => $subscription['payment_term_id'] ?? 0]);
         $payment['installments'] = $installments;
+        $items = [];
 
-        return [
-            'society' => self::society(),
-            'order' => $order,
-            'items' => [[
+        foreach ($lines as $line) {
+            $items[] = [
                 'type' => 'product',
-                'name' => $planLabel.' - dal '.self::day($periodStart).' al '.self::day($periodEnd),
+                'name' => (string) $line['name'],
+                'quantity' => max(1, (int) $line['quantity']),
+                'unit_price' => round((float) $line['unit_price'], 2),
+                'line_total' => round((float) $line['line_total'], 2),
+                'tax_rate' => (float) $line['tax_rate'],
+            ];
+        }
+
+        foreach ($credits as $credit) {
+            $amount = round((float) $credit['amount'], 2);
+            $items[] = [
+                'type' => 'discount',
+                'name' => (string) $credit['name'],
                 'quantity' => 1,
-                'unit_price' => $subtotal,
-                'line_total' => $subtotal,
-                'tax_rate' => $rate,
-            ]],
-            'taxes' => [[
+                'unit_price' => -$amount,
+                'line_total' => -$amount,
+                'tax_rate' => 0.0,
+            ];
+        }
+
+        $taxes = $summaries !== []
+            ? array_map(static fn (array $summary): array => [
+                'rate' => (float) ($summary['rate'] ?? 0),
+                'nature' => (string) ($summary['nature'] ?? ''),
+                'taxable' => round((float) ($summary['taxable'] ?? 0), 2),
+                'tax' => round((float) ($summary['tax'] ?? 0), 2),
+                'total' => round((float) ($summary['total'] ?? 0), 2),
+            ], array_values($summaries))
+            : [[
                 'rate' => $rate,
                 'nature' => '',
                 'taxable' => (float) $order['taxable_total'],
                 'tax' => round((float) ($subscription['tax_total'] ?? 0), 2),
                 'total' => round((float) ($subscription['total'] ?? 0), 2),
-            ]],
+            ]];
+
+        return [
+            'society' => self::society(),
+            'order' => $order,
+            'items' => $items,
+            'taxes' => $taxes,
             'payment' => $payment,
             'meta' => [
                 'Abbonamento' => (string) ($subscription['code'] ?? ''),

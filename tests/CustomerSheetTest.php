@@ -114,8 +114,8 @@ check('i coupon: un cliente senza coupon o non valido ha una lista vuota', fn ()
 
 check('gli abbonamenti del cliente: il più recente in alto, codice alla scheda, stato e importo', function () {
     $html = CustomerSheet::subscriptionsTable([
-        ['id' => 3, 'code' => 'sub_vecchio', 'plan_price_id' => 0, 'status' => 'cancelled', 'next_renewal_at' => '', 'total' => '10.00', 'channel' => 'office'],
-        ['id' => 8, 'code' => 'sub_nuovo', 'plan_price_id' => 0, 'status' => 'active', 'next_renewal_at' => '2026-11-01 00:00:00', 'total' => '24.40', 'channel' => 'online'],
+        ['id' => 3, 'code' => 'sub_vecchio', 'status' => 'cancelled', 'next_renewal_at' => '', 'total' => '10.00', 'channel' => 'office'],
+        ['id' => 8, 'code' => 'sub_nuovo', 'status' => 'active', 'next_renewal_at' => '2026-11-01 00:00:00', 'total' => '24.40', 'channel' => 'online'],
     ]);
 
     return strpos($html, 'sub_nuovo') < strpos($html, 'sub_vecchio')

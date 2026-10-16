@@ -13,11 +13,18 @@ use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\Support\Repeater;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\QuickCreateButton;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
+use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
@@ -26,9 +33,11 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureGuards;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Positions;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\PlanLinks;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\PlanPriceRules;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxCategories;
+use Wonder\Sql\Transaction;
 
 /**
  * «Piani» (G10 §1.2): i piani di abbonamento con i loro prezzi e i limiti.
@@ -89,6 +98,8 @@ final class PlanResource extends GestionaleResource
             'active' => 'Stato',
             'prices' => 'Prezzi',
             'features' => 'Limiti',
+            'parent_plans' => 'Si lega a',
+            'customizations' => 'Personalizzazioni',
         ];
     }
 
@@ -100,8 +111,12 @@ final class PlanResource extends GestionaleResource
 
     public static function formSchema(): array
     {
-        return [
+        $planId = (int) (static::currentId() ?? 0);
+        $fields = [
             FormField::key('name')->text()->label('Nome')->required(),
+            FormField::key('parent_plans')
+                ->selectSearch(static::parentOptions($planId), true)
+                ->label('Si lega a'),
             FormField::key('description')->textarea()->label('Descrizione'),
             FormField::key('tax_category_id')
                 ->select(['' => "Nessuno: vale l'aliquota di ripiego"] + TaxCategories::options())
@@ -166,6 +181,37 @@ final class PlanResource extends GestionaleResource
                 ->repeaterDeleteConfirmClass('btn btn-danger')
                 ->label(''),
         ];
+
+        // Le personalizzazioni del piano (G10b): la stessa tabella dei legami
+        // degli articoli, con `plan_id`. Spenta la funzionalità il campo non
+        // c'è, e salvare il piano non tocca i legami.
+        if (Gestionale::feature('customizations')) {
+            $fields[] = FormField::key('customizations')
+                ->repeater([
+                    RepeaterColumn::key('id')->hidden(),
+                    RepeaterColumn::key('customization_id')
+                        ->select(static::customizationOptions($planId))
+                        ->label('Personalizzazione')
+                        ->columnFill(),
+                    RepeaterColumn::key('is_required')
+                        ->select(['false' => 'No', 'true' => 'Sì'])
+                        ->label('Obbligatoria')
+                        ->columnSpan(2),
+                ])
+                ->relation(
+                    RepeaterRelation::make(CustomizationLink::$table, 'plan_id')
+                        ->model(CustomizationLink::class)
+                        ->positionKey('position')
+                        ->softDelete(false)
+                )
+                ->nested()
+                ->repeaterSortable()
+                ->repeaterStartEmpty()
+                ->repeaterAddLabel('Aggiungi personalizzazione')
+                ->label('');
+        }
+
+        return $fields;
     }
 
     public static function formLayoutSchema(): ?Form
@@ -174,13 +220,14 @@ final class PlanResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Piano')
-                        ->tooltip('Il nome e la descrizione li vede il cliente nella pagina dei piani. Il tipo fiscale dà l\'aliquota (solo IVA italiana). «Nascosto» toglie il piano dalla pagina pubblica ma lo lascia agli abbonati e all\'ufficio; «Spento» non si propone più a nessuno.')
+                        ->tooltip('Il nome e la descrizione li vede il cliente nella pagina dei piani. Il tipo fiscale dà l\'aliquota (solo IVA italiana). «Nascosto» toglie il piano dalla pagina pubblica ma lo lascia agli abbonati e all\'ufficio; «Spento» non si propone più a nessuno. «Si lega a»: il piano si compra solo insieme a un abbonamento di uno di questi, come l\'hosting col dominio, e va sullo stesso abbonamento. Un livello solo: si scelgono piani che non si legano a nulla.')
                         ->columnSpan(12),
                     static::getInput('name')->columnSpan(6),
                     static::getInput('tax_category_id')->columnSpan(6),
                     static::getInput('description')->columnSpan(12),
-                    static::getInput('visible_online')->columnSpan(6),
-                    static::getInput('active')->columnSpan(6),
+                    static::getInput('visible_online')->columnSpan(4),
+                    static::getInput('active')->columnSpan(4),
+                    static::getInput('parent_plans')->columnSpan(4),
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
                     SectionTitle::make('Prezzi')
@@ -194,8 +241,122 @@ final class PlanResource extends GestionaleResource
                         ->columnSpan(12),
                     static::getInput('features')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
+                ...(Gestionale::feature('customizations') ? [static::customizationsCard()] : []),
             ])->columns(12)->columnSpan(12),
         ]);
+    }
+
+    /**
+     * Il riquadro «Personalizzazioni»: la lista e «Nuova personalizzazione»,
+     * che ne crea una per gli abbonamenti senza lasciare la scheda.
+     */
+    protected static function customizationsCard(): object
+    {
+        return static::foldable(
+            'Personalizzazioni',
+            [
+                static::getInput('customizations')->columnSpan(12),
+                QuickCreateButton::make(CustomizationResource::class)
+                    ->text('Nuova personalizzazione')
+                    ->label('name')
+                    ->layout(static fn (): Container => (new Container)
+                        ->columns(12)
+                        ->components(CustomizationResource::quickCreateFields('subscriptions')))
+                    ->size('sm')
+                    ->id(ProductModelResource::CUSTOMIZATION_BUTTON)
+                    ->columnSpan(12),
+                ProductModelResource::customizationScript()->columnSpan(12),
+            ],
+            'Campi che il cliente compila abbonandosi, come il nome del dominio. Si propongono quelle «Per gli abbonamenti». Il sovrapprezzo, che si imposta dalla personalizzazione, si somma al prezzo di ogni periodo.'
+        );
+    }
+
+    /**
+     * I piani a cui questo si può legare: quelli attivi che non si legano a
+     * nulla, lui escluso, per posizione. Le madri già salvate restano anche
+     * se nel frattempo spente, con la scritta.
+     *
+     * @return array<string, string>
+     */
+    public static function parentOptions(int $planId): array
+    {
+        $links = PlanLinks::existing();
+        $current = $links[$planId] ?? [];
+        $options = [];
+
+        foreach (static::rowsOf(Plan::class, [], 'position') as $plan) {
+            $id = (int) $plan['id'];
+            $name = trim((string) ($plan['name'] ?? ''));
+
+            if ($id === $planId) {
+                continue;
+            }
+
+            if (in_array($id, $current, true)) {
+                $options[(string) $id] = ($plan['active'] ?? 'true') === 'true' ? $name : $name.' (spento)';
+            } elseif (($plan['active'] ?? 'true') === 'true' && ($links[$id] ?? []) === []) {
+                $options[(string) $id] = $name;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * Le personalizzazioni che si possono scegliere per il piano: attive e
+     * «Per gli abbonamenti», per nome, e le disattivate già collegate.
+     *
+     * @return array<string, string>
+     */
+    public static function customizationOptions(int $planId): array
+    {
+        $linked = [];
+
+        if ($planId > 0) {
+            foreach (static::rowsOf(CustomizationLink::class, ['plan_id' => $planId]) as $link) {
+                $linked[(int) $link['customization_id']] = true;
+            }
+        }
+
+        $options = ['' => '—'];
+
+        foreach (static::rowsOf(Customization::class, [], 'name') as $row) {
+            $id = (int) $row['id'];
+            $name = (string) ($row['name'] ?? '');
+
+            if (($row['active'] ?? 'true') === 'true' && ($row['for_subscriptions'] ?? 'false') === 'true') {
+                $options[(string) $id] = $name;
+            } elseif (isset($linked[$id])) {
+                $options[(string) $id] = $name.' (disattivata)';
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * Una personalizzazione si collega a un piano solo se è «Per gli
+     * abbonamenti»: la lista propone solo quelle, ma la richiesta può
+     * portarne un'altra.
+     *
+     * @param array<int|string, mixed> $rows le righe postate del repeater
+     * @throws UserError `customization.not_for_subscriptions`
+     */
+    public static function assertCustomizationRows(int $planId, array $rows): void
+    {
+        $allowed = static::customizationOptions($planId);
+
+        foreach ($rows as $row) {
+            $id = is_array($row) ? trim((string) ($row['customization_id'] ?? '')) : '';
+
+            if ($id !== '' && !isset($allowed[$id])) {
+                $customization = Customization::find(['id' => (int) $id], 1);
+
+                throw UserError::make('customization.not_for_subscriptions', [
+                    'name' => is_array($customization) ? (string) ($customization['name'] ?? $id) : $id,
+                ]);
+            }
+        }
     }
 
     public static function tableSchema(): array
@@ -323,6 +484,14 @@ final class PlanResource extends GestionaleResource
 
         static::assertKeptPrices($planId, $prices);
         static::assertFeatures(static::prepareRepeaterRows('features', Repeater::rowsFromRequest('features', (array) $_POST), $action));
+        PlanLinks::assert($planId, PlanLinks::normalize((array) ($_POST['parent_plans'] ?? [])), PlanLinks::existing());
+
+        if (Gestionale::feature('customizations')) {
+            static::assertCustomizationRows($planId, (array) ($_POST['customizations'] ?? []));
+        }
+
+        // Le madri non sono una colonna: le scrivono afterStore() e afterUpdate().
+        unset($values['parent_plans']);
 
         $values['tax_category_id'] = (int) ($values['tax_category_id'] ?? 0) > 0 ? (int) $values['tax_category_id'] : '';
 
@@ -334,6 +503,28 @@ final class PlanResource extends GestionaleResource
         }
 
         return $values;
+    }
+
+    /** Riempie «Si lega a», che non sta nella tabella del piano. */
+    public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
+    {
+        $id = (int) ($values['id'] ?? 0);
+
+        if ($mode === 'edit' && $id > 0) {
+            $values['parent_plans'] = array_map('strval', PlanLinks::parentsOf($id));
+        }
+
+        return $values;
+    }
+
+    public static function afterStore(object $result, array $values = []): void
+    {
+        PlanLinks::sync((int) ($result->insert_id ?? 0), PlanLinks::normalize((array) ($_POST['parent_plans'] ?? [])));
+    }
+
+    public static function afterUpdate(int|string $id, object $result, array $values = []): void
+    {
+        PlanLinks::sync((int) $id, PlanLinks::normalize((array) ($_POST['parent_plans'] ?? [])));
     }
 
     /**
@@ -369,6 +560,24 @@ final class PlanResource extends GestionaleResource
         string $action = 'store',
         string $context = 'backend'
     ): array {
+        // Una personalizzazione si collega una volta sola: senza scelta o già
+        // vista, la riga non conta.
+        if ($inputName === 'customizations') {
+            $seen = [];
+
+            return array_values(array_filter($rows, static function ($row) use (&$seen): bool {
+                $id = is_array($row) ? trim((string) ($row['customization_id'] ?? '')) : '';
+
+                if ($id === '' || isset($seen[$id])) {
+                    return false;
+                }
+
+                $seen[$id] = true;
+
+                return true;
+            }));
+        }
+
         $clean = [];
 
         foreach ($rows as $row) {
@@ -414,7 +623,10 @@ final class PlanResource extends GestionaleResource
         return $clean;
     }
 
-    /** Un piano con abbonamenti vivi non si elimina: si spegne. */
+    /**
+     * Un piano con abbonamenti vivi non si elimina: si spegne. Nemmeno uno a
+     * cui altri piani si legano: il legame si toglie dalla loro scheda.
+     */
     public static function assertDeletable(int|string $id): void
     {
         $count = Subscriptions::liveCount(Subscriptions::priceIds((int) $id));
@@ -422,6 +634,77 @@ final class PlanResource extends GestionaleResource
         if ($count > 0) {
             throw UserError::refusal('plan.in_use', ['count' => FeatureGuards::subscriptionsLabel($count)]);
         }
+
+        $children = [];
+
+        foreach (PlanLinks::existing() as $child => $parents) {
+            if (in_array((int) $id, $parents, true)) {
+                $plan = Plan::findById($child);
+                $children[] = '«'.(is_array($plan) ? trim((string) ($plan['name'] ?? '')) : '#'.$child).'»';
+            }
+        }
+
+        if ($children !== []) {
+            throw UserError::refusal('plan.has_children', ['names' => implode(', ', $children)]);
+        }
+    }
+
+    /**
+     * Con il piano se ne vanno i suoi prezzi, i suoi limiti, i suoi legami
+     * «Si lega a» e le sue personalizzazioni, anche a funzionalità spenta:
+     * la chiave esterna non lascerebbe eliminare il piano. Un prezzo che la
+     * riga di un abbonamento chiuso ancora nomina resta, segnato eliminato,
+     * e con lui il piano.
+     */
+    public static function deleteRecord(int|string $id): object
+    {
+        $planId = (int) $id;
+
+        static::assertDeletable($planId);
+
+        return Transaction::run(static function () use ($planId): object {
+            PlanLinks::forget($planId);
+
+            foreach (static::rowsOf(CustomizationLink::class, ['plan_id' => $planId, 'deleted' => ['true', 'false']]) as $link) {
+                CustomizationLink::delete((int) $link['id']);
+            }
+
+            foreach (static::rowsOf(PlanFeature::class, ['plan_id' => $planId, 'deleted' => ['true', 'false']]) as $feature) {
+                PlanFeature::delete((int) $feature['id']);
+            }
+
+            $kept = false;
+
+            foreach (static::allPriceIds($planId) as $priceId) {
+                if (static::rowsOf(SubscriptionItem::class, ['plan_price_id' => $priceId, 'deleted' => ['true', 'false']]) === []) {
+                    PlanPrice::delete($priceId);
+                } else {
+                    PlanPrice::query()->Update(PlanPrice::$table, ['deleted' => 'true'], 'id', $priceId);
+                    $kept = true;
+                }
+            }
+
+            if (!$kept) {
+                return parent::deleteRecord($planId);
+            }
+
+            $result = Plan::query()->Update(Plan::$table, ['deleted' => 'true'], 'id', $planId);
+
+            return (object) ['success' => !empty($result->success), 'table' => Plan::$table, 'id' => $planId];
+        });
+    }
+
+    /**
+     * Tutti i prezzi del piano, anche quelli tolti dal repeater.
+     *
+     * @return list<int>
+     */
+    private static function allPriceIds(int $planId): array
+    {
+        return array_map(
+            static fn (array $row): int => (int) $row['id'],
+            static::rowsOf(PlanPrice::class, ['plan_id' => $planId, 'deleted' => ['true', 'false']])
+        );
     }
 
     /**

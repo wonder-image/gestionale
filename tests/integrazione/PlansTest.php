@@ -13,12 +13,16 @@ require __DIR__.'/supporto/compra.php';
 
 use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\Support\Repeater;
+use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanLink;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\PlanResource;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Plugin\Gestionale\Seeding\PlansDemo;
@@ -27,6 +31,7 @@ use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureGuards;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\PlanLinks;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionAmounts;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions;
 use Wonder\Sql\Transaction;
@@ -96,10 +101,13 @@ function cliente(): int
 
 function abbonamento(int $cliente, int $prezzo, string $stato): int
 {
-    return (int) (Subscription::create([
-        'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION), 'customer_id' => $cliente, 'plan_price_id' => $prezzo, 'channel' => 'office', 'provider' => 'manual',
+    $id = (int) (Subscription::create([
+        'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION), 'customer_id' => $cliente, 'channel' => 'office', 'provider' => 'manual',
         'status' => $stato, 'total' => '19.00', 'started_at' => date('Y-m-d H:i:s'),
     ])->insert_id ?? 0);
+    SubscriptionItem::create(['subscription_id' => $id, 'plan_price_id' => $prezzo, 'quantity' => 1, 'status' => 'active', 'total' => '19.00', 'position' => 1]);
+
+    return $id;
 }
 
 /** Il salvataggio della pagina fino ai controlli: ridà la chiave del rifiuto, o null. */
@@ -195,8 +203,19 @@ check('un piano con abbonamenti vivi non si elimina; con soli chiusi sì', funct
         abbonamento($persona, (int) prezziDi($vivo)[0]['id'], 'past_due');
         abbonamento($persona, (int) prezziDi($chiuso)[0]['id'], 'unpaid');
 
-        return str_starts_with((string) rifiuto(static fn () => PlanResource::assertDeletable($vivo)), 'refusal:')
-            && rifiuto(static fn () => PlanResource::assertDeletable($chiuso)) === null;
+        $libero = piano('Libero', [$mensile], [['feature_key' => 'max_progetti', 'feature_value' => '5']]);
+        $prezzoChiuso = (int) prezziDi($chiuso)[0]['id'];
+
+        $rifiutoVivo = (string) rifiuto(static fn () => PlanResource::assertDeletable($vivo));
+        PlanResource::deleteRecord($chiuso);
+        PlanResource::deleteRecord($libero);
+
+        // Il prezzo nominato dalla storia resta, segnato eliminato; quello libero se ne va.
+        return str_starts_with($rifiutoVivo, 'refusal:')
+            && Plan::findById($chiuso) === [] && Plan::find(['id' => $chiuso, 'deleted' => 'true']) !== []
+            && PlanPrice::find(['id' => $prezzoChiuso, 'deleted' => 'true']) !== []
+            && Plan::find(['id' => $libero, 'deleted' => ['true', 'false']]) === []
+            && PlanPrice::find(['plan_id' => $libero, 'deleted' => ['true', 'false']]) === [];
     });
 });
 
@@ -215,6 +234,20 @@ check('limit(): dal piano dell\'abbonamento vivo; null senza, o con uno chiuso',
             && Subscriptions::limit($chiuso, 'max_progetti') === null
             && Subscriptions::limit($nessuno, 'max_progetti') === null
             && Subscriptions::live($vivo) !== null;
+    });
+});
+
+check('limit(): i limiti di più righe vive si sommano, le righe chiuse no', function () use ($mensile) {
+    return prova(static function () use ($mensile): bool {
+        $cinque = (int) prezziDi(piano('Cinque', [$mensile], [['feature_key' => 'max_progetti', 'feature_value' => '5']]))[0]['id'];
+        $dieci = (int) prezziDi(piano('Dieci', [$mensile], [['feature_key' => 'max_progetti', 'feature_value' => '10']]))[0]['id'];
+        $persona = cliente();
+        $id = abbonamento($persona, $cinque, 'active');
+        SubscriptionItem::create(['subscription_id' => $id, 'plan_price_id' => $dieci, 'quantity' => 1, 'status' => 'active', 'total' => '19.00', 'position' => 2]);
+        $somma = Subscriptions::limit($persona, 'max_progetti');
+        SubscriptionItem::create(['subscription_id' => $id, 'plan_price_id' => $dieci, 'quantity' => 1, 'status' => 'ended', 'total' => '19.00', 'position' => 3]);
+
+        return $somma === '15' && Subscriptions::limit($persona, 'max_progetti') === '15';
     });
 });
 
@@ -255,7 +288,7 @@ check('importi di un periodo con un coupon vero, riletto dal database', function
     });
 });
 
-check('i piani di prova: due piani, quattro prezzi, quattro limiti; il secondo giro non rifà niente', function () {
+check('i piani di prova: due piani e tre servizi, sette prezzi, quattro limiti, i legami; il secondo giro non rifà niente', function () {
     return prova(static function (): bool {
         Wonder\Plugin\Gestionale\Seeding\OfficeSubscriptionsDemo::clear();
         PlansDemo::clear();
@@ -263,13 +296,95 @@ check('i piani di prova: due piani, quattro prezzi, quattro limiti; il secondo g
         $secondo = PlansDemo::create();
         $pro = Plan::find(['code' => DemoCode::forModel(Plan::class, 'pro'), 'deleted' => 'false'], 1);
         $prezzi = is_array($pro) ? prezziDi((int) $pro['id']) : [];
+        $dominio = (int) (Plan::find(['code' => DemoCode::forModel(Plan::class, 'dominio'), 'deleted' => 'false'], 1)['id'] ?? 0);
+        $hosting = (int) (Plan::find(['code' => DemoCode::forModel(Plan::class, 'hosting'), 'deleted' => 'false'], 1)['id'] ?? 0);
+        $nome = CustomizationLink::find(['plan_id' => $dominio, 'deleted' => 'false'], 1);
+        $madri = PlanLinks::parentsOf($hosting);
         $tolti = PlansDemo::clear();
         $sparito = Plan::find(['code' => DemoCode::forModel(Plan::class, 'pro')], 1);
+        $personalizzazione = Customization::find(['code' => DemoCode::forModel(Customization::class, 'nome-dominio')], 1);
 
-        return $creati === 10 && $secondo === 0
+        // 2 piani + 4 prezzi + 4 limiti; 3 servizi + 3 prezzi; la personalizzazione, il suo legame, «Si lega a».
+        return $creati === 19 && $secondo === 0
             && count($prezzi) === 2 && (int) $prezzi[0]['trial_days'] === 14 && (int) $prezzi[1]['commitment_months'] === 12
-            && $tolti === 10
-            && (!is_array($sparito) || $sparito === []);
+            && $dominio > 0 && $madri === [$dominio]
+            && is_array($nome) && (string) ($nome['is_required'] ?? '') === 'true'
+            && $tolti === 19
+            && (!is_array($sparito) || $sparito === [])
+            && (!is_array($personalizzazione) || $personalizzazione === []);
+    });
+});
+
+check('«Si lega a»: Hosting salvato col Dominio ha una riga di legame, riletta nel form', function () use ($annuale) {
+    return prova(static function () use ($annuale): bool {
+        $dominio = piano('Dominio', [$annuale]);
+        $hosting = piano('Hosting', [$annuale]);
+        $_POST = ['parent_plans' => [(string) $dominio]];
+        PlanResource::afterUpdate($hosting, (object) []);
+        $righe = PlanLink::find(['plan_id' => $hosting]);
+        $righe = is_array($righe) ? (isset($righe['id']) ? [$righe] : array_values($righe)) : [];
+        $form = PlanResource::mutateFormValues(['id' => $hosting], 'edit');
+
+        // Togliere la madre cancella la riga.
+        $_POST = ['parent_plans' => []];
+        PlanResource::afterUpdate($hosting, (object) []);
+
+        return count($righe) === 1 && (int) $righe[0]['parent_plan_id'] === $dominio
+            && $form['parent_plans'] === [(string) $dominio]
+            && PlanLinks::parentsOf($hosting) === [];
+    });
+});
+
+check('«Si lega a» a un livello solo, mai a sé; le opzioni non propongono figli né il piano stesso', function () use ($annuale) {
+    return prova(static function () use ($annuale): bool {
+        $dominio = piano('Dominio', [$annuale]);
+        $hosting = piano('Hosting', [$annuale]);
+        $backup = piano('Backup', [$annuale]);
+        PlanLinks::sync($hosting, [$dominio]);
+        $opzioni = PlanResource::parentOptions($backup);
+
+        return rifiutoPagina(['name' => 'Dominio', 'prices' => [$annuale], 'parent_plans' => [(string) $dominio]], $dominio) === 'plan.link_self'
+            && rifiutoPagina(['name' => 'Backup', 'prices' => [$annuale], 'parent_plans' => [(string) $hosting]], $backup) === 'plan.link_depth'
+            && rifiutoPagina(['name' => 'Dominio', 'prices' => [$annuale], 'parent_plans' => [(string) $backup]], $dominio) === 'plan.link_depth'
+            && rifiutoPagina(['name' => 'Backup', 'prices' => [$annuale], 'parent_plans' => [(string) $dominio]], $backup) === null
+            && isset($opzioni[(string) $dominio]) && !isset($opzioni[(string) $hosting]) && !isset($opzioni[(string) $backup]);
+    });
+});
+
+check('un piano a cui altri si legano non si elimina; eliminato il figlio, il legame se ne va', function () use ($annuale) {
+    return prova(static function () use ($annuale): bool {
+        $dominio = piano('Dominio', [$annuale]);
+        $hosting = piano('Hosting', [$annuale]);
+        PlanLinks::sync($hosting, [$dominio]);
+        $rifiutoMadre = (string) rifiuto(static fn () => PlanResource::assertDeletable($dominio));
+        PlanResource::deleteRecord($hosting);
+
+        return str_starts_with($rifiutoMadre, 'refusal:') && str_contains($rifiutoMadre, 'Hosting')
+            && PlanLinks::parentsOf($hosting) === []
+            && rifiuto(static fn () => PlanResource::assertDeletable($dominio)) === null;
+    });
+});
+
+check('le personalizzazioni del piano: solo quelle «Per gli abbonamenti», scritte con plan_id', function () use ($annuale) {
+    return prova(static function () use ($annuale): bool {
+        accendiFunzionalita(['customizations']);
+        $piano = piano('Dominio', [$annuale]);
+        $nome = (int) (Customization::create(['name' => 'Nome del dominio', 'label' => 'Nome del dominio', 'kind' => 'text', 'max_length' => 63, 'active' => 'true', 'for_products' => 'false', 'for_subscriptions' => 'true'])->insert_id ?? 0);
+        $incisione = (int) (Customization::create(['name' => 'Incisione', 'label' => 'Incisione', 'kind' => 'text', 'max_length' => 20, 'active' => 'true', 'for_products' => 'true', 'for_subscriptions' => 'false'])->insert_id ?? 0);
+        $opzioni = PlanResource::customizationOptions($piano);
+
+        Repeater::syncRelatedRows(
+            RepeaterRelation::make(CustomizationLink::$table, 'plan_id')->model(CustomizationLink::class)->positionKey('position')->softDelete(false),
+            $piano,
+            PlanResource::prepareRepeaterRows('customizations', [['customization_id' => (string) $nome, 'is_required' => 'true'], ['customization_id' => (string) $nome, 'is_required' => 'false']])
+        );
+        $legami = CustomizationLink::find(['plan_id' => $piano]);
+        $legami = is_array($legami) ? (isset($legami['id']) ? [$legami] : array_values($legami)) : [];
+
+        return isset($opzioni[(string) $nome]) && !isset($opzioni[(string) $incisione])
+            && count($legami) === 1 && (int) $legami[0]['customization_id'] === $nome && $legami[0]['is_required'] === 'true'
+            && (int) ($legami[0]['product_model_id'] ?? 0) === 0
+            && rifiutoPagina(['name' => 'Dominio', 'prices' => [$annuale], 'customizations' => [['customization_id' => (string) $incisione]]], $piano) === 'customization.not_for_subscriptions';
     });
 });
 

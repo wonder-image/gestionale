@@ -54,4 +54,28 @@ interface SubscriptionGateway
 
     /** @return array<string, mixed> */
     public function createPortalSession(array $params): array;
+
+    /** @return array<string, mixed> un servizio in più sull'abbonamento */
+    public function createSubscriptionItem(array $params, string $idempotencyKey): array;
+
+    /** @return array<string, mixed> */
+    public function updateSubscriptionItem(string $id, array $params): array;
+
+    /** @return array<string, mixed> */
+    public function deleteSubscriptionItem(string $id, array $params): array;
+
+    /** @return array<string, mixed> le fasi di un abbonamento (un cambio dal prossimo rinnovo) */
+    public function createSubscriptionSchedule(array $params, string $idempotencyKey): array;
+
+    /** @return array<string, mixed> */
+    public function updateSubscriptionSchedule(string $id, array $params): array;
+
+    /** @return array<string, mixed> */
+    public function retrieveSubscriptionSchedule(string $id): array;
+
+    /** @return array<string, mixed> lo schedule staccato: l'abbonamento resta com'è */
+    public function releaseSubscriptionSchedule(string $id): array;
+
+    /** @return array<string, mixed> la fattura che uscirebbe, senza crearla: `amount_due` è il conguaglio */
+    public function previewInvoice(array $params): array;
 }

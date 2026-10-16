@@ -14,7 +14,10 @@ final class FeatureCatalog
     /**
      * @param array<string, array<string, mixed>> $package
      * @param array<string, array<string, mixed>> $extra voci aggiunte dal sito
-     * @return array<string, array{key: string, name: string, description: string, area: string, requires: list<string>, module: string, release: string, created: bool}>
+     * `requires` vuole tutte le funzionalità della lista, `requires_any`
+     * almeno una (la Personalizzazione va con Ordini o con Abbonamenti).
+     *
+     * @return array<string, array{key: string, name: string, description: string, area: string, requires: list<string>, requires_any: list<string>, module: string, release: string, created: bool}>
      */
     public static function fromArray(array $package, array $extra = []): array
     {
@@ -40,6 +43,10 @@ final class FeatureCatalog
                     'requires' => array_values(array_filter(
                         array_map('strval', (array) ($feature['requires'] ?? [])),
                         static fn (string $value): bool => trim($value) !== ''
+                    )),
+                    'requires_any' => array_values(array_filter(
+                        array_map(static fn ($value): string => trim((string) $value), (array) ($feature['requires_any'] ?? [])),
+                        static fn (string $value): bool => $value !== ''
                     )),
                     'module' => trim((string) ($feature['module'] ?? '')),
                     'release' => trim((string) ($feature['release'] ?? '')),
@@ -67,7 +74,7 @@ final class FeatureCatalog
     public static function assertValid(array $catalog): void
     {
         foreach ($catalog as $key => $feature) {
-            foreach ($feature['requires'] as $required) {
+            foreach (self::edges($feature) as $required) {
                 if (!isset($catalog[$required])) {
                     throw new RuntimeException("La funzionalità {$key} dipende da {$required}, che non esiste");
                 }
@@ -88,8 +95,33 @@ final class FeatureCatalog
 
         $path[] = $key;
 
-        foreach ($catalog[$key]['requires'] ?? [] as $required) {
+        foreach (self::edges($catalog[$key] ?? []) as $required) {
             self::assertNoCycle($catalog, $required, $path);
         }
+    }
+
+    /**
+     * I nomi di ciò che serve prima, per il pannello e la documentazione: le
+     * obbligatorie una per una, le alternative unite («Ordini o Abbonamenti»).
+     *
+     * @return list<string>
+     */
+    public static function requiredNames(array $catalog, array $feature): array
+    {
+        $name = static fn (string $key): string => (string) ($catalog[$key]['name'] ?? $key);
+        $names = array_map($name, array_map('strval', (array) ($feature['requires'] ?? [])));
+        $any = array_map('strval', (array) ($feature['requires_any'] ?? []));
+
+        if ($any !== []) {
+            $names[] = implode(' o ', array_map($name, $any));
+        }
+
+        return array_values($names);
+    }
+
+    /** Tutte le funzionalità da cui dipende, obbligatorie o alternative. @return list<string> */
+    private static function edges(array $feature): array
+    {
+        return array_values(array_unique([...($feature['requires'] ?? []), ...($feature['requires_any'] ?? [])]));
     }
 }

@@ -7,6 +7,7 @@ use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionResource;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionItems;
 
 /**
  * La scheda del cliente: statistiche in HTML, dati in `DataItem`.
@@ -229,7 +230,7 @@ final class CustomerSheet
         foreach ($subscriptions as $row) {
             $code = OrderSheet::esc((string) ($row['code'] ?? ''));
             $body .= '<tr><td class="fw-semibold"><a href="'.OrderSheet::esc(SubscriptionResource::detailUrl((int) $row['id'])).'">'.$code.'</a></td>'
-                .'<td>'.OrderSheet::esc(SubscriptionResource::planLabel((int) ($row['plan_price_id'] ?? 0))).'</td>'
+                .'<td>'.OrderSheet::esc(SubscriptionResource::planLabel(SubscriptionItems::priceIdOf($row))).'</td>'
                 .'<td>'.SubscriptionResource::statusBadge((string) ($row['status'] ?? '')).'</td>'
                 .'<td>'.OrderSheet::esc(self::day((string) ($row['next_renewal_at'] ?? ''))).'</td>'
                 .'<td class="text-end">'.OrderSheet::esc(OrderSheet::money((float) ($row['total'] ?? 0))).'</td>'

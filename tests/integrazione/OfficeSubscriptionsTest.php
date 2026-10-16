@@ -13,14 +13,19 @@ require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
 require __DIR__.'/supporto/posta.php';
 
+use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTermInstallment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanLink;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
+use Wonder\Plugin\Gestionale\Resources\Subscriptions\OfficeSubscriptionResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionActionResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionPaymentResource;
 use Wonder\Plugin\Gestionale\Seeding\OfficeSubscriptionsDemo;
@@ -31,6 +36,7 @@ use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Payments\Installments;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\OfficeSubscriptions;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionItems;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -116,6 +122,50 @@ function rifiuto(callable $f): ?string
     }
 
     return null;
+}
+
+/**
+ * Un piano con un prezzo solo.
+ *
+ * @return array{plan: int, price: int}
+ */
+function servizio(string $nome, int $mesi, string $prezzo, int $prova = 0, int $vincolo = 0): array
+{
+    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'name' => $nome, 'slug' => 'srv-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
+    $price = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => $mesi === 12 ? 'Annuale' : 'Ogni '.$mesi.' mesi', 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
+
+    return ['plan' => $plan, 'price' => $price];
+}
+
+/**
+ * Dominio annuale col nome obbligatorio, hosting annuale legato al dominio,
+ * assistenza mensile.
+ *
+ * @return array{dominio: array{plan: int, price: int}, hosting: array{plan: int, price: int}, assistenza: array{plan: int, price: int}, nome: int}
+ */
+function servizi(): array
+{
+    $dominio = servizio('Dominio .it', 12, '12.20');
+    $hosting = servizio('Hosting', 12, '61.00');
+    $assistenza = servizio('Assistenza', 1, '10.00');
+    $nome = (int) (Customization::create(['name' => 'Nome del dominio', 'label' => 'Nome del dominio', 'kind' => 'text', 'max_length' => 63, 'active' => 'true', 'for_products' => 'false', 'for_subscriptions' => 'true'])->insert_id ?? 0);
+    CustomizationLink::create(['plan_id' => $dominio['plan'], 'customization_id' => $nome, 'is_required' => 'true', 'position' => 1]);
+    PlanLink::create(['plan_id' => $hosting['plan'], 'parent_plan_id' => $dominio['plan']]);
+
+    return ['dominio' => $dominio, 'hosting' => $hosting, 'assistenza' => $assistenza, 'nome' => $nome];
+}
+
+/** @return list<array<string, mixed>> */
+function righe(int $abbonamento): array
+{
+    $rows = SubscriptionItem::find(['subscription_id' => $abbonamento, 'deleted' => 'false'], null, 'position', 'ASC');
+
+    return is_array($rows) ? (isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'))) : [];
+}
+
+function totale(int $abbonamento): float
+{
+    return round((float) Subscription::findById($abbonamento)['total'], 2);
 }
 
 check('creato: attivo, due rate a 30 e 60 giorni, proforma archiviato e mandato', fn () => prova(static function (): bool {
@@ -241,17 +291,30 @@ check('annulla: chiuso subito, le rate in attesa annullate', fn () => prova(stat
     return $esito['ok'] && stato($id) === 'cancelled' && rate($id) === [] && count(rate($id, 'cancelled')) === 2;
 }));
 
-check('cambio piano: il prezzo nuovo vale dal periodo dopo', fn () => prova(static function (): bool {
+check('cambio del servizio dal prossimo rinnovo: il prezzo nuovo vale dal periodo dopo, fino all\'anniversario', fn () => prova(static function (): bool {
+    // Il cambio parte da oggi: il periodo in corso deve contenere oggi.
+    $inizio = (new DateTimeImmutable('first day of this month'))->setTime(0, 0);
+    $rinnovo = $inizio->modify('+1 month');
+    $anniversario = $inizio->modify('+1 year');
     $p = piano();
-    $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'plan_price_id' => $p['mensile'], 'starts_at' => '2026-03-01']);
-    $esito = SubscriptionActionResource::run('change_plan', $id, ['plan_price_id' => $p['annuale']], 0);
+    $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'plan_price_id' => $p['mensile'], 'starts_at' => $inizio->format('Y-m-d')]);
+    paga($id);
+    $esito = SubscriptionActionResource::run('change_item', $id, [
+        'item_id' => (int) SubscriptionItems::main($id)['id'],
+        'plan_price_id' => $p['annuale'],
+        'billing' => 'next_period',
+    ], 0);
     $adesso = round((float) Subscription::findById($id)['total'], 2);
-    OfficeSubscriptions::daily(new DateTimeImmutable('2026-04-01'));
+    OfficeSubscriptions::daily($rinnovo);
     $riga = Subscription::findById($id);
+    $servizio = SubscriptionItems::main($id);
+    // L'annuale rinnova all'anniversario dell'abbonamento: dal rinnovo a lì, una quota.
+    $quota = round(1000 * $rinnovo->diff($anniversario)->days / $inizio->diff($anniversario)->days, 2);
 
     return $esito['ok'] && $adesso === 100.0
-        && round((float) $riga['total'], 2) === 1000.0
-        && substr((string) $riga['current_period_end'], 0, 10) === '2027-04-01';
+        && (int) $servizio['plan_price_id'] === $p['annuale'] && round((float) $servizio['total'], 2) === 1000.0
+        && substr((string) $riga['current_period_end'], 0, 10) === $anniversario->format('Y-m-d')
+        && array_map(static fn (array $r): float => round((float) $r['amount'], 2), rate($id)) === [$quota];
 }));
 
 check('dalla pagina: registra pagamento sulla rata', fn () => prova(static function (): bool {
@@ -266,17 +329,132 @@ check('dalla pagina: registra pagamento sulla rata', fn () => prova(static funct
     return $esito['ok'] && rate($id) === [] && Installments::pendingForSubscription($id) === [];
 }));
 
-check('dati di prova: un abbonamento da ufficio con la sua rata, e la pulizia lo toglie', fn () => prova(static function (): bool {
+check('dati di prova: due abbonamenti da ufficio con le rate, uno coi tre servizi, e la pulizia li toglie', fn () => prova(static function (): bool {
     OfficeSubscriptionsDemo::clear();
     PlansDemo::create();
     $creati = OfficeSubscriptionsDemo::create();
     $secondo = OfficeSubscriptionsDemo::create();
     $riga = Subscription::find(['code' => 'sub_demo-ufficio', 'deleted' => 'false'], 1);
+    $servizi = Subscription::find(['code' => 'sub_demo-servizi', 'deleted' => 'false'], 1);
+    $righe = is_array($servizi) && isset($servizi['id']) ? righe((int) $servizi['id']) : [];
     $tolti = OfficeSubscriptionsDemo::clear();
 
-    return ($creati >= 2 || Wonder\Plugin\Gestionale\Console\Demo\DemoData::notes() !== []) && $secondo === 0
-        && (!is_array($riga) || $riga === [] || (string) $riga['channel'] === 'office')
-        && $tolti >= ($creati > 0 ? 2 : 0);
+    // Senza i contatti di prova non crea niente e lo dice.
+    if ($creati === 0) {
+        return Wonder\Plugin\Gestionale\Console\Demo\DemoData::notes() !== [] && $secondo === 0 && $tolti === 0;
+    }
+
+    return $creati >= 4 && $secondo === 0
+        && (string) $riga['channel'] === 'office'
+        && count($righe) === 3
+        && (int) $righe[1]['parent_item_id'] === (int) $righe[0]['id']
+        && str_contains((string) $righe[0]['customization'], 'annaverdi.it')
+        && $tolti === $creati;
+}));
+
+check('più servizi: dominio, hosting legato e assistenza su un abbonamento, rinnovo al mese, prima rata la somma', fn () => prova(static function (): bool {
+    $s = servizi();
+    $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'starts_at' => '2026-03-01', 'items' => [
+        ['plan_price_id' => $s['dominio']['price'], 'customization' => [$s['nome'] => 'esempio.it']],
+        ['plan_price_id' => $s['hosting']['price'], 'parent' => 0],
+        ['plan_price_id' => $s['assistenza']['price'], 'quantity' => 2],
+    ]]);
+    $righe = righe($id);
+    $riga = Subscription::findById($id);
+    $rate = rate($id);
+    $somma = round(array_sum(array_map(static fn (array $r): float => (float) $r['total'], $righe)), 2);
+
+    return count($righe) === 3
+        && array_column($righe, 'status') === ['active', 'active', 'active']
+        && (int) $righe[1]['parent_item_id'] === (int) $righe[0]['id'] && (int) $righe[0]['parent_item_id'] === 0
+        && (int) $righe[2]['quantity'] === 2
+        && str_contains((string) $righe[0]['customization'], 'esempio.it')
+        && substr((string) $riga['current_period_end'], 0, 10) === '2026-04-01'
+        && $somma === totale($id) && totale($id) > 0.0
+        && count($rate) === 1 && round((float) $rate[0]['amount'], 2) === totale($id)
+        && DocumentFiles::path(OfficeSubscriptions::proformaFile($id, '2026-03-01')) !== null;
+}));
+
+check('più servizi: senza il nome del dominio, hosting senza dominio o intervalli che non si incastrano non si crea', fn () => prova(static function (): bool {
+    $s = servizi();
+    $cliente = azienda();
+    $senzaNome = rifiuto(static fn () => OfficeSubscriptions::create(['customer_id' => $cliente, 'items' => [['plan_price_id' => $s['dominio']['price']]]]));
+    $senzaMadre = rifiuto(static fn () => OfficeSubscriptions::create(['customer_id' => $cliente, 'items' => [['plan_price_id' => $s['hosting']['price']]]]));
+    $madreSbagliata = rifiuto(static fn () => OfficeSubscriptions::create(['customer_id' => $cliente, 'items' => [
+        ['plan_price_id' => $s['assistenza']['price']],
+        ['plan_price_id' => $s['hosting']['price'], 'parent' => 0],
+    ]]));
+    $vuoto = rifiuto(static fn () => OfficeSubscriptions::create(['customer_id' => $cliente, 'items' => []]));
+    $bimestrale = servizio('Bimestrale', 2, '20.00');
+    $trimestrale = servizio('Trimestrale', 3, '30.00');
+    $intervalli = rifiuto(static fn () => OfficeSubscriptions::create(['customer_id' => $cliente, 'items' => [
+        ['plan_price_id' => $bimestrale['price']], ['plan_price_id' => $trimestrale['price']],
+    ]]));
+
+    return $senzaNome === 'customization.required' && $senzaMadre === 'subscription.parent_required'
+        && $madreSbagliata === 'subscription.parent_invalid' && $vuoto === 'subscription.items_required'
+        && $intervalli === 'subscription.interval_mismatch'
+        && !isset(((array) Subscription::find(['customer_id' => $cliente, 'deleted' => 'false'], 1))['id']);
+}));
+
+check('più servizi: al secondo mese si addebita solo l\'assistenza, al tredicesimo tutti e tre', fn () => prova(static function (): bool {
+    $s = servizi();
+    $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'starts_at' => '2026-01-01', 'items' => [
+        ['plan_price_id' => $s['dominio']['price'], 'customization' => [$s['nome'] => 'esempio.it']],
+        ['plan_price_id' => $s['hosting']['price'], 'parent' => 0],
+        ['plan_price_id' => $s['assistenza']['price']],
+    ]]);
+    $primo = totale($id);
+    $assistenza = round((float) righe($id)[2]['total'], 2);
+    $mesi = [];
+
+    for ($mese = 2; $mese <= 13; $mese++) {
+        paga($id);
+        $giorno = (new DateTimeImmutable('2026-01-01'))->modify('+'.($mese - 1).' months');
+        OfficeSubscriptions::daily($giorno);
+        $mesi[$mese] = totale($id);
+    }
+
+    return $mesi[2] === $assistenza && $mesi[12] === $assistenza && $mesi[13] === $primo
+        && substr((string) Subscription::findById($id)['current_period_start'], 0, 10) === '2027-01-01';
+}));
+
+check('più servizi: con la prova le righe sono già attive e nessuna rata fino al primo periodo', fn () => prova(static function (): bool {
+    $conProva = servizio('Gestionale', 1, '30.00', 14);
+    $altro = servizio('Backup', 1, '5.00');
+    $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'starts_at' => '2026-03-01', 'items' => [
+        ['plan_price_id' => $conProva['price']], ['plan_price_id' => $altro['price']],
+    ]]);
+    $riga = Subscription::findById($id);
+    $prima = [stato($id), count(rate($id)), array_column(righe($id), 'status')];
+    OfficeSubscriptions::daily(new DateTimeImmutable('2026-03-15'));
+
+    return $prima === ['trialing', 0, ['active', 'active']]
+        && substr((string) $riga['trial_ends_at'], 0, 10) === '2026-03-15'
+        && stato($id) === 'active' && count(rate($id)) === 1 && totale($id) === 35.0;
+}));
+
+check('più servizi: un secondo abbonamento allo stesso cliente supera il limite di uno', fn () => prova(static function (): bool {
+    $p = piano();
+    $cliente = azienda();
+    OfficeSubscriptions::create(['customer_id' => $cliente, 'plan_price_id' => $p['mensile'], 'starts_at' => '2026-03-01']);
+
+    return rifiuto(static fn () => OfficeSubscriptions::create(['customer_id' => $cliente, 'items' => [['plan_price_id' => $p['annuale']]]])) === 'subscription.limit_reached';
+}));
+
+check('dalla pagina: le righe del repeater diventano servizi, con la madre per numero di riga', fn () => prova(static function (): bool {
+    $s = servizi();
+    $righe = OfficeSubscriptionResource::itemsFrom([
+        ['plan_price_id' => (string) $s['dominio']['price'], 'quantity' => '1', 'parent' => '', 'customization_'.$s['nome'] => 'esempio.it'],
+        ['plan_price_id' => '', 'quantity' => '1'],
+        ['plan_price_id' => (string) $s['hosting']['price'], 'quantity' => '0', 'parent' => '1', 'customization_'.$s['nome'] => 'non-suo.it'],
+        ['plan_price_id' => (string) $s['assistenza']['price'], 'parent' => '2'],
+    ]);
+
+    return count($righe) === 3
+        && $righe[0] === ['plan_price_id' => $s['dominio']['price'], 'quantity' => 1, 'customization' => [$s['nome'] => 'esempio.it'], 'parent' => -1]
+        && $righe[1]['parent'] === 0 && $righe[1]['quantity'] === 1 && $righe[1]['customization'] === []
+        && $righe[2]['parent'] === -2;
 }));
 
 summary();

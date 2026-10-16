@@ -12,7 +12,10 @@ require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
+use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Sql\Transaction;
@@ -75,11 +78,38 @@ check('forModel non ridà una personalizzazione disattivata', function () {
     });
 });
 
+check('forModel non ridà una personalizzazione con «Per i prodotti» spento', function () {
+    return prova(static function (): bool {
+        $modello = modelloDi(articoloConGiacenza(1, 'PZ-F-'.uniqid()));
+        $soloPiani = personalizzazioneDiProva(['for_products' => 'false', 'for_subscriptions' => 'true']);
+        collegaPersonalizzazione($modello, $soloPiani);
+
+        return Customizations::forModel($modello) === [];
+    });
+});
+
+check('forPlan ridà la personalizzazione del piano con obbligo e sovrapprezzo del legame', function () {
+    return prova(static function (): bool {
+        $piano = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'name' => 'Dominio', 'slug' => 'dominio-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
+        $nome = personalizzazioneDiProva(['name' => 'Nome a dominio', 'surcharge' => '4.00', 'for_products' => 'false', 'for_subscriptions' => 'true']);
+        $soloProdotti = personalizzazioneDiProva();
+        CustomizationLink::create(['plan_id' => $piano, 'customization_id' => $nome, 'is_required' => 'true', 'surcharge' => '1.50', 'position' => 1]);
+        CustomizationLink::create(['plan_id' => $piano, 'customization_id' => $soloProdotti, 'is_required' => 'false', 'position' => 2]);
+
+        $lista = Customizations::forPlan($piano);
+
+        return count($lista) === 1
+            && $lista[0]['id'] === $nome
+            && $lista[0]['required'] === true
+            && $lista[0]['surcharge'] === '1.50';
+    });
+});
+
 check('forModel non ridà un collegamento cancellato', function () {
     return prova(static function (): bool {
         $modello = modelloDi(articoloConGiacenza(1, 'PZ-C-'.uniqid()));
         $collegamento = collegaPersonalizzazione($modello, personalizzazioneDiProva());
-        ProductModelCustomization::query()->Update(ProductModelCustomization::$table, ['deleted' => 'true'], 'id', $collegamento);
+        CustomizationLink::query()->Update(CustomizationLink::$table, ['deleted' => 'true'], 'id', $collegamento);
 
         return Customizations::forModel($modello) === [];
     });
