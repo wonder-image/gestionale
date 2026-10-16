@@ -188,6 +188,17 @@ return [
         'area' => 'Esportazioni',
         'release' => 'D64',
     ],
+    // Esportazioni dell'anagrafica: l'«Esporta» di clienti e fornitori offre solo quelle concesse.
+    'export_contacts_xlsx' => [
+        'name' => 'Esportazione contatti Excel',
+        'description' => 'Scarica clienti e fornitori in Excel (.xlsx): anagrafica, recapiti e fatturazione, celle come testo.',
+        'area' => 'Esportazioni',
+    ],
+    'export_contacts_csv' => [
+        'name' => 'Esportazione contatti CSV',
+        'description' => 'Scarica clienti e fornitori in CSV (.csv): UTF-8, virgola, senza celle lette come formula.',
+        'area' => 'Esportazioni',
+    ],
     'export_meta' => [
         'name' => 'Catalogo Meta',
         'description' => 'Scarica il file per il catalogo di Facebook e Instagram (.csv con i campi di Meta).',

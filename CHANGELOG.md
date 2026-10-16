@@ -18,6 +18,11 @@ versionamento semantico.
   `gst_mcp_logs` (`McpLog`) con prima e dopo. Vedi
   `docs/dev/concetti/mcp.md`.
 
+- **Esporta** in clienti e fornitori: Excel (.xlsx) e CSV con le colonne di
+  `ContactExport` (wonder-image/customer-account) e celle in testo, dietro le
+  funzionalità `export_contacts_xlsx` / `export_contacts_csv` dell'area
+  Esportazioni (`Support\Contacts\ContactExports`).
+
 - **Esporta** nella tabella prodotti: scarica tutti gli articoli non
   cancellati in Excel (.xlsx) o in .csv, una riga per opzione in vendita, con
   codice articolo, SKU, EAN, prezzi, disponibili, stati, categorie, link e
