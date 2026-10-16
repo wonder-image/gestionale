@@ -10,7 +10,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
@@ -121,7 +121,7 @@ check('l\'API accetta solo lo store, con nome e sovrapprezzo', function () {
     return ($schema['routes']['store'] ?? false) === true
         && ($schema['routes']['index'] ?? true) === false
         && ($schema['routes']['destroy'] ?? true) === false
-        && ($schema['fields']['store'] ?? []) === ['name', 'kind', 'surcharge'];
+        && ($schema['fields']['store'] ?? []) === ['name', 'kind', 'surcharge', 'scope'];
 });
 
 check('quickCreateValues dà un testo da 100 caratteri e attivo, col sovrapprezzo scritto', function () {
@@ -156,6 +156,29 @@ check('il modal offre Testo e Numero: una scelta ha bisogno delle sue opzioni e 
 
     return $tipo !== null
         && array_keys((array) ($tipo->get('options') ?? [])) === ['text', 'number'];
+});
+
+check('quickCreateValues fa una personalizzazione per i prodotti, o per gli abbonamenti dalla scheda del piano', function () {
+    $prodotti = CustomizationResource::quickCreateValues(['name' => 'X']);
+    $piani = CustomizationResource::quickCreateValues(['name' => 'X', 'scope' => 'subscriptions']);
+
+    return $prodotti['for_products'] === 'true' && $prodotti['for_subscriptions'] === 'false'
+        && $piani['for_products'] === 'false' && $piani['for_subscriptions'] === 'true';
+});
+
+check('il modal della scheda del piano porta lo scope nascosto, quello dell\'articolo no', function () {
+    $scope = static function (array $campi): ?string {
+        foreach ($campi as $campo) {
+            if ((string) $campo->name === 'scope') {
+                return (string) ($campo->get('value') ?? '');
+            }
+        }
+
+        return null;
+    };
+
+    return $scope(CustomizationResource::quickCreateFields('subscriptions')) === 'subscriptions'
+        && $scope(CustomizationResource::quickCreateFields()) === null;
 });
 
 check('quickCreateValues senza sovrapprezzo è gratis', function () {
@@ -214,7 +237,7 @@ check('l\'elenco mostra se la personalizzazione è usata e nasconde l\'elimina s
     return $posizione !== false
         && $posizione < array_search('actions', $chiavi, true)
         && ($schema['name'] ?? '') === 'empty'
-        && ($schema['tables'] ?? []) === [ProductModelCustomization::$table]
+        && ($schema['tables'] ?? []) === [CustomizationLink::$table]
         && ($schema['column'] ?? '') === 'customization_id';
 });
 

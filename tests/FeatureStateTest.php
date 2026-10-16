@@ -46,4 +46,19 @@ check('lo stato contiene tutte le chiavi del catalogo', fn () =>
     array_keys(FeatureState::resolve($catalogo, [], [])) === array_keys($catalogo)
 );
 
+$conAlternative = FeatureCatalog::fromArray([
+    'orders' => ['name' => 'Ordini', 'area' => 'Vendite'],
+    'subscriptions' => ['name' => 'Abbonamenti', 'area' => 'Vendite'],
+    'customizations' => ['name' => 'Personalizzazione', 'area' => 'Catalogo', 'requires_any' => ['orders', 'subscriptions']],
+]);
+
+check('requires_any: attiva con una sola delle alternative', fn () =>
+    FeatureState::resolve($conAlternative, ['subscriptions' => true, 'customizations' => true], [])['customizations'] === true
+    && FeatureState::resolve($conAlternative, ['orders' => true, 'customizations' => true], [])['customizations'] === true
+);
+
+check('requires_any: spenta senza nessuna alternativa', fn () =>
+    FeatureState::resolve($conAlternative, ['customizations' => true], [])['customizations'] === false
+);
+
 summary();

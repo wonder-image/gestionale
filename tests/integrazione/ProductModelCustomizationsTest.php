@@ -1,5 +1,5 @@
 <?php
-/** php tests/integrazione/ProductModelCustomizationsTest.php */
+/** php tests/integrazione/CustomizationLinksTest.php */
 
 define('SITE', getenv('WI_TEST_SITE') ?: '/Users/andreamarinoni/Developer/boilerplates/ecommerce-site');
 
@@ -12,7 +12,7 @@ require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Sql\Transaction;
 
@@ -40,7 +40,7 @@ function prova(callable $corpo): mixed
 /** I collegamenti di un articolo, anche nel cestino, nell'ordine. @return list<array<string, mixed>> */
 function collegamenti(int $modello): array
 {
-    $righe = ProductModelCustomization::find(['product_model_id' => $modello, 'deleted' => ['true', 'false']], null, 'position', 'ASC');
+    $righe = CustomizationLink::find(['product_model_id' => $modello, 'deleted' => ['true', 'false']], null, 'position', 'ASC');
 
     if (!is_array($righe) || $righe === []) {
         return [];

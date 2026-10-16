@@ -15,6 +15,9 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
  * - il prezzo di rinnovo, se c'è, è un altro prezzo di un piano vivo: chi
  *   chiama passa gli id ammessi.
  *
+ * - servizi insieme in un abbonamento: durate multiple della più corta
+ *   ({@see assertIntervals()}, G10b).
+ *
  * I numeri arrivano già letti dal form, col punto decimale.
  */
 final class PlanPriceRules
@@ -61,6 +64,31 @@ final class PlanPriceRules
 
         if ($renewal > 0 && ($renewal === (int) ($price['id'] ?? 0) || !in_array($renewal, $renewalIds, true))) {
             throw UserError::make('plan.renewal_invalid', ['name' => (string) $price['name']]);
+        }
+    }
+
+    /**
+     * I servizi di uno stesso abbonamento hanno una data di rinnovo sola
+     * (G10b): ogni durata in mesi è multipla della più corta, così i rinnovi
+     * lunghi cadono su quelli corti (mensile + annuale sì, 2 + 3 mesi no).
+     *
+     * @param list<int> $terms i `term_months` dei prezzi
+     * @throws UserError `subscription.interval_mismatch`
+     */
+    public static function assertIntervals(array $terms): void
+    {
+        $terms = array_values(array_filter(array_map('intval', $terms), static fn (int $term): bool => $term > 0));
+
+        if (count($terms) < 2) {
+            return;
+        }
+
+        $shortest = min($terms);
+
+        foreach ($terms as $term) {
+            if ($term % $shortest !== 0) {
+                throw UserError::make('subscription.interval_mismatch');
+            }
         }
     }
 

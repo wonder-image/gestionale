@@ -8,6 +8,8 @@ require __DIR__ . '/harness.php';
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Resources\System\SettingResource;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions;
 use Wonder\Sql\TableSchema as Column;
 
 $colonne = static function (string $model): array {
@@ -51,9 +53,9 @@ check('le email per gli ordini stanno in Set Up, vicino a quelle degli errori', 
 
 check('le email per gli ordini e per gli avvisi restano nel loro ambiente e si cambiano anche in produzione', fn () =>
     array_diff(['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days',
-        'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days'], Setting::syncSchema()->excludeColumns) === []
+        'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days', 'subscriptions_per_customer'], Setting::syncSchema()->excludeColumns) === []
     && SettingResource::editableWhenReadonly() === ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days',
-        'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days']
+        'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days', 'subscriptions_per_customer']
 );
 
 check('ogni campo email dice quali email riceve', function () {
@@ -206,6 +208,45 @@ check('l\'interruttore delle spedizioni si cambia dal form, con la sua etichetta
 
     return in_array('shipping_sync', $campi, true)
         && trim((string) (SettingResource::labelSchema()['shipping_sync'] ?? '')) !== '';
+});
+
+check('abbonamenti in corso per cliente: vuoto vale 1, 0 è senza limite, un negativo o un decimale si rifiutano', function () {
+    $rifiuto = static function (mixed $valore): ?string {
+        try {
+            SettingResource::perCustomer($valore);
+        } catch (UserError $e) {
+            return $e->key();
+        }
+
+        return null;
+    };
+
+    return SettingResource::perCustomer('') === 1 && SettingResource::perCustomer(null) === 1
+        && SettingResource::perCustomer('0') === 0 && SettingResource::perCustomer('3') === 3
+        && $rifiuto('-1') === 'settings.subscriptions_per_customer_invalid'
+        && $rifiuto('1,5') === 'settings.subscriptions_per_customer_invalid'
+        && $rifiuto('tanti') === 'settings.subscriptions_per_customer_invalid';
+});
+
+check('abbonamenti in corso per cliente: contano i vivi e i pending, non un Checkout abbandonato da più di 24 ore', function () {
+    $adesso = new DateTimeImmutable('2026-10-15 12:00:00');
+    $riga = static fn (string $stato, string $canale, string $creato): array => ['status' => $stato, 'channel' => $canale, 'creation' => $creato];
+    $contati = [
+        $riga('active', 'online', '2025-01-01 00:00:00'),
+        $riga('trialing', 'online', '2026-10-01 00:00:00'),
+        $riga('past_due', 'office', '2026-01-01 00:00:00'),
+        $riga('pending', 'office', '2026-01-01 00:00:00'),
+        $riga('pending', 'online', '2026-10-15 10:00:00'),
+    ];
+    $esclusi = [
+        $riga('pending', 'online', '2026-10-14 06:00:00'),
+        $riga('unpaid', 'office', '2026-10-01 00:00:00'),
+        $riga('cancelled', 'online', '2026-10-15 11:00:00'),
+    ];
+
+    return Subscriptions::countsFor($contati, $adesso) === 5
+        && Subscriptions::countsFor($esclusi, $adesso) === 0
+        && Subscriptions::countsFor([...$contati, ...$esclusi], $adesso) === 5;
 });
 
 summary();

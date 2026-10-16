@@ -38,7 +38,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroup;
 use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroupOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
@@ -347,8 +347,8 @@ class ProductModelResource extends GestionaleResource
                         ->columnSpan(2),
                 ])
                 ->relation(
-                    RepeaterRelation::make(ProductModelCustomization::$table, 'product_model_id')
-                        ->model(ProductModelCustomization::class)
+                    RepeaterRelation::make(CustomizationLink::$table, 'product_model_id')
+                        ->model(CustomizationLink::class)
                         ->positionKey('position')
                         ->softDelete(false)
                 )
@@ -1960,6 +1960,10 @@ HTML
         // fornitore che la pagina non propone o un costo che non è un numero
         // si fermano qui, non a metà del salvataggio.
         static::assertSupplierRows($id, (array) $_POST, $values['has_variants'] === 'true');
+
+        if (Gestionale::feature('customizations')) {
+            static::assertCustomizationRows($id, (array) ($_POST['customizations'] ?? []));
+        }
 
         return static::withoutExtras($values);
     }
@@ -4584,8 +4588,8 @@ HTML
 
             // I collegamenti alle personalizzazioni, anche a funzionalità
             // spenta: la chiave esterna non lascerebbe eliminare l'articolo.
-            foreach (static::rowsOf(ProductModelCustomization::class, ['product_model_id' => $modelId, 'deleted' => ['true', 'false']]) as $link) {
-                ProductModelCustomization::delete((int) $link['id']);
+            foreach (static::rowsOf(CustomizationLink::class, ['product_model_id' => $modelId, 'deleted' => ['true', 'false']]) as $link) {
+                CustomizationLink::delete((int) $link['id']);
             }
 
             // Anche le opzioni tolte dalla griglia, prima delle varianti: una
@@ -6221,10 +6225,35 @@ HTML)->tag('div');
     }
 
     /**
+     * Una personalizzazione si collega a un articolo solo se è «Per i
+     * prodotti»: la lista propone solo quelle, ma la richiesta può portarne
+     * un'altra.
+     *
+     * @param array<int|string, mixed> $rows le righe postate del repeater
+     * @throws UserError `customization.not_for_products`
+     */
+    public static function assertCustomizationRows(int $modelId, array $rows): void
+    {
+        $proposte = static::customizationOptions($modelId);
+
+        foreach ($rows as $row) {
+            $id = is_array($row) ? trim((string) ($row['customization_id'] ?? '')) : '';
+
+            if ($id !== '' && !isset($proposte[$id])) {
+                $nome = Customization::find(['id' => (int) $id], 1);
+
+                throw UserError::make('customization.not_for_products', [
+                    'name' => is_array($nome) ? (string) ($nome['name'] ?? $id) : $id,
+                ]);
+            }
+        }
+    }
+
+    /**
      * Le personalizzazioni che si possono scegliere per l'articolo: quelle
-     * attive per nome, e le disattivate che l'articolo ha già collegate, con
-     * la scritta (altrimenti il collegamento sparirebbe dalla lista senza che
-     * nessuno l'abbia tolto).
+     * attive e «Per i prodotti», per nome, e le disattivate che l'articolo ha
+     * già collegate, con la scritta (altrimenti il collegamento sparirebbe
+     * dalla lista senza che nessuno l'abbia tolto).
      *
      * @return array<string, string>
      */
@@ -6233,7 +6262,7 @@ HTML)->tag('div');
         $collegate = [];
 
         if ($modelId > 0) {
-            foreach (static::rowsOf(ProductModelCustomization::class, ['product_model_id' => $modelId]) as $link) {
+            foreach (static::rowsOf(CustomizationLink::class, ['product_model_id' => $modelId]) as $link) {
                 $collegate[(int) $link['customization_id']] = true;
             }
         }
@@ -6244,7 +6273,7 @@ HTML)->tag('div');
             $id = (int) $row['id'];
             $nome = (string) ($row['name'] ?? '');
 
-            if (($row['active'] ?? 'true') === 'true') {
+            if (($row['active'] ?? 'true') === 'true' && ($row['for_products'] ?? 'true') === 'true') {
                 $voci[(string) $id] = $nome;
             } elseif (isset($collegate[$id])) {
                 $voci[(string) $id] = $nome.' (disattivata)';
@@ -6286,7 +6315,7 @@ HTML)->tag('div');
      *
      * Il nome arriva da chi vende: si scrive come testo, mai come HTML.
      */
-    protected static function customizationScript(): RichText
+    public static function customizationScript(): RichText
     {
         $risorsa = json_encode(CustomizationResource::slug());
 

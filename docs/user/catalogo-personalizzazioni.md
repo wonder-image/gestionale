@@ -4,9 +4,10 @@ icon: pencil-square
 
 # Personalizzazioni
 
-> **Da attivare.** Funzionalità *Personalizzazione*, che richiede gli *Ordini*.
-> Finché è spenta non vedi né la pagina, né il riquadro nella scheda
-> dell'articolo. I dati già scritti restano.
+> **Da attivare.** Funzionalità *Personalizzazione*, che richiede gli *Ordini*
+> o gli *Abbonamenti* (basta uno dei due). Finché è spenta non vedi né la
+> pagina, né il riquadro nella scheda dell'articolo o del piano. I dati già
+> scritti restano.
 
 ## A cosa servono
 
@@ -16,7 +17,28 @@ un biglietto. Non è un'opzione in vendita (quelle hanno una giacenza e un
 codice): è un campo in più, che può far salire il prezzo.
 
 Si scrivono una volta sola, in **Catalogo → Personalizzazioni**, e poi si
-collegano agli articoli che le prevedono.
+collegano agli articoli o ai piani d'abbonamento che le prevedono: il nome del
+dominio da registrare, per esempio, è una personalizzazione del piano
+*Dominio .it*.
+
+## Per i prodotti, per gli abbonamenti
+
+Ogni personalizzazione ha due interruttori, che dicono dove si può collegare:
+
+* **Per i prodotti**: agli articoli del catalogo. Si vede con gli *Ordini*
+  accesi.
+* **Per gli abbonamenti**: ai piani d'abbonamento. Si vede con gli
+  *Abbonamenti* accesi.
+
+Almeno uno dei due va acceso. Una personalizzazione nuova nasce «Per i
+prodotti»; quella creata al volo dalla scheda di un piano nasce «Per gli
+abbonamenti».
+
+Un interruttore **non si spegne** finché la personalizzazione è collegata a
+qualcosa di quel tipo: il gestionale rifiuta e dice a quanti articoli o a
+quanti piani. Toglila prima dalle loro schede. Allo stesso modo, a un articolo
+si collega solo una personalizzazione «Per i prodotti», e a un piano solo una
+«Per gli abbonamenti».
 
 ## Testo, numero o scelta
 
@@ -75,7 +97,8 @@ Disattivare è la via giusta quando non la vuoi più vendere.
 Nell'elenco, l'icona della cartella dice se la personalizzazione è **usata** da
 qualche articolo (piena) o **non usata** (vuota). Se è usata il pulsante
 «Elimina» non c'è, e se arrivi lo stesso a chiederlo il gestionale rifiuta e
-dice **a quanti** articoli. Toglila prima dagli articoli, oppure disattivala. Una mai usata si elimina
+dice **a quanti** articoli o piani. Toglila prima dalle loro schede, oppure
+disattivala. Una mai usata si elimina
 insieme alle sue opzioni, senza altro da fare.
 
 ## Come si collega a un articolo
@@ -90,3 +113,14 @@ personalizzazioni.
 
 Il cliente la compila nella pagina dell'articolo e la ritrova nel carrello, nel
 riepilogo dell'ordine e nelle email.
+
+## Come si collega a un piano d'abbonamento
+
+Dalla scheda del piano, nel riquadro **Personalizzazioni**, allo stesso modo:
+**«Aggiungi personalizzazione»**, la scelta e, per ognuna, se è
+**obbligatoria**. L'elenco propone solo quelle «Per gli abbonamenti».
+
+Il valore lo scrive chi compra il servizio (o tu, aggiungendolo da ufficio) e
+resta sulla riga dell'abbonamento: lo vedi nella card **Servizi** e lo cambi con
+**«Correggi personalizzazioni»** (vedi [Abbonamenti](vendite-abbonamenti.md)).
+Il sovrapprezzo vale **per ogni periodo** del servizio, per la quantità.

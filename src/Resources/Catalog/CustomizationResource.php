@@ -18,7 +18,8 @@ use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -31,13 +32,15 @@ use Wonder\Sql\Transaction;
  * biglietto — quello che il cliente aggiunge a un articolo e che non è una
  * delle sue opzioni in vendita.
  *
- * Si scrivono una volta qui e si collegano agli articoli dalla loro scheda.
+ * Si scrivono una volta qui e si collegano agli articoli e ai piani
+ * d'abbonamento dalla loro scheda: «Per i prodotti» e «Per gli abbonamenti»
+ * dicono dove si possono collegare.
  * Un **testo** lo scrive il cliente (con un massimo di caratteri), un
  * **numero** con i decimali stabiliti qui, una **scelta** la fa fra le
  * opzioni preparate qui. Il sovrapprezzo della
  * personalizzazione e quello dell'opzione scelta si sommano.
  *
- * Una personalizzazione già su qualche articolo non si elimina: si
+ * Una personalizzazione già su qualche articolo o piano non si elimina: si
  * disattiva, e smette di essere offerta.
  */
 class CustomizationResource extends GestionaleResource
@@ -47,6 +50,12 @@ class CustomizationResource extends GestionaleResource
     public static string $orderColumn = 'position';
     public static string $orderDirection = 'ASC';
     public static string $docsPage = 'catalogo/catalogo-personalizzazioni';
+
+    /** Gli interruttori di «Dove si usa», con la funzionalità che li mostra. */
+    public const SCOPES = ['for_products' => 'orders', 'for_subscriptions' => 'subscriptions'];
+
+    /** Il valore di un interruttore in una personalizzazione nuova. */
+    public const SCOPE_DEFAULTS = ['for_products' => 'true', 'for_subscriptions' => 'false'];
 
     /** Quanti caratteri può scrivere il cliente in una personalizzazione nata dal modal. */
     public const QUICK_MAX_LENGTH = 100;
@@ -134,6 +143,14 @@ class CustomizationResource extends GestionaleResource
                 ->value('true')
                 ->label('Stato')
                 ->required(),
+            FormField::key('for_products')
+                ->toggle()
+                ->value('true')
+                ->label('Per i prodotti'),
+            FormField::key('for_subscriptions')
+                ->toggle()
+                ->value('false')
+                ->label('Per gli abbonamenti'),
             FormField::key('options')
                 ->repeater([
                     RepeaterColumn::key('id')->hidden(),
@@ -194,11 +211,32 @@ class CustomizationResource extends GestionaleResource
             static::getInput('surcharge')->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
+        // Un interruttore si vede solo con la sua funzionalità accesa; quello
+        // nascosto tiene il valore salvato (vedi `mutateRequestValues()`).
+        $scopes = [];
+
+        foreach (static::SCOPES as $key => $feature) {
+            if (Gestionale::feature($feature)) {
+                $scopes[] = static::getInput($key)->columnSpan(12);
+            }
+        }
+
+        $right = [$details];
+
+        if ($scopes !== []) {
+            $right[] = (new Card)->components([
+                SectionTitle::make('Dove si usa')
+                    ->tooltip('Dove la puoi collegare: alla scheda degli articoli, a quella dei piani d\'abbonamento o a tutte e due. Per spegnere un interruttore togli prima i collegamenti che ha già.')
+                    ->columnSpan(12),
+                ...$scopes,
+            ])->columns(12)->columnSpan(12);
+        }
+
         // `columns(12)` anche sul Form: la larghezza di un figlio si calcola
         // sulle colonne del padre.
         return (new Form)->components([
             (new Container)->components([$main, $options])->columns(12)->columnSpan(8),
-            (new Container)->components([$details])->columns(12)->columnSpan(4),
+            (new Container)->components($right)->columns(12)->columnSpan(4),
         ])->columns(12);
     }
 
@@ -218,7 +256,7 @@ class CustomizationResource extends GestionaleResource
             TableColumn::key('usage')
                 ->schema('function', [
                     'name' => 'empty',
-                    'tables' => [ProductModelCustomization::$table],
+                    'tables' => [CustomizationLink::$table],
                     'column' => 'customization_id',
                 ]),
             TableColumn::key('active')
@@ -255,7 +293,7 @@ class CustomizationResource extends GestionaleResource
     {
         return ApiSchema::for(static::class)
             ->only(['store'])
-            ->fields('store', ['name', 'kind', 'surcharge']);
+            ->fields('store', ['name', 'kind', 'surcharge', 'scope']);
     }
 
     public static function navigationSchema(): NavigationSchema
@@ -270,13 +308,15 @@ class CustomizationResource extends GestionaleResource
     /**
      * I campi del modal «Nuova personalizzazione» della scheda articolo: il
      * nome, il tipo — testo o numero: una scelta ha bisogno delle sue
-     * opzioni e si fa dalla sua pagina — e il sovrapprezzo.
+     * opzioni e si fa dalla sua pagina — e il sovrapprezzo. Dalla scheda del
+     * piano (`$scope` «subscriptions») porta anche lo scope nascosto, che fa
+     * nascere la personalizzazione per gli abbonamenti.
      *
      * @return list<\Wonder\App\ResourceSchema\Input>
      */
-    public static function quickCreateFields(): array
+    public static function quickCreateFields(string $scope = 'products'): array
     {
-        return [
+        $fields = [
             FormField::key('name')->text()->label('Nome')->required()->columnSpan(12),
             FormField::key('kind')
                 ->select(array_diff_key(static::kinds(), ['choice' => true]))
@@ -286,6 +326,12 @@ class CustomizationResource extends GestionaleResource
                 ->columnSpan(12),
             FormField::key('surcharge')->price()->decimal(2)->value('0.00')->label('Sovrapprezzo')->columnSpan(12),
         ];
+
+        if ($scope === 'subscriptions') {
+            $fields[] = FormField::key('scope')->hidden()->value('subscriptions');
+        }
+
+        return $fields;
     }
 
     /**
@@ -295,6 +341,8 @@ class CustomizationResource extends GestionaleResource
      * {@see QUICK_MAX_LENGTH} caratteri: le opzioni di una scelta si
      * preparano dalla pagina della personalizzazione. Il resto lo decide il
      * server — attivo, zero decimali —, qualunque cosa porti la richiesta.
+     * Con `scope` «subscriptions» nasce per gli abbonamenti, altrimenti per
+     * i prodotti.
      *
      * @param array<string, mixed> $values
      * @return array<string, mixed>
@@ -308,6 +356,7 @@ class CustomizationResource extends GestionaleResource
         }
 
         $kind = ($values['kind'] ?? null) === 'number' ? 'number' : 'text';
+        $forSubscriptions = ($values['scope'] ?? null) === 'subscriptions';
         $surcharge = $values['surcharge'] ?? null;
 
         if ($surcharge === null || (is_string($surcharge) && trim($surcharge) === '')) {
@@ -331,6 +380,8 @@ class CustomizationResource extends GestionaleResource
             'decimals' => 0,
             'surcharge' => $surcharge,
             'active' => 'true',
+            'for_products' => $forSubscriptions ? 'false' : 'true',
+            'for_subscriptions' => $forSubscriptions ? 'true' : 'false',
         ];
     }
 
@@ -383,6 +434,17 @@ class CustomizationResource extends GestionaleResource
             $values['decimals'] = $isNumber ? (int) $values['decimals'] : 0;
         }
 
+        // Lo store API ha già gli interruttori da quickCreateValues().
+        if ($context !== 'api') {
+            $values = static::scopeValues($values, (array) $_POST, $oldValues);
+        }
+        $id = (int) ($oldValues['id'] ?? 0);
+        static::assertScopes(
+            $values,
+            $id > 0 ? static::linkCount($id, 'product_model_id') : 0,
+            $id > 0 ? static::linkCount($id, 'plan_id') : 0
+        );
+
         if ($action === 'store') {
             $values['position'] = Positions::next(Customization::$table);
         } else {
@@ -428,17 +490,72 @@ class CustomizationResource extends GestionaleResource
         return parent::syncRepeaterRelations($parentId, $post, $files, $action, $context);
     }
 
-    /** Quanti articoli la usano. */
+    /**
+     * I due interruttori come vanno scritti: quello postato se il form lo
+     * mostrava, altrimenti quello salvato, altrimenti quello di serie.
+     *
+     * @param array<string, mixed> $values
+     * @param array<string, mixed> $post
+     * @param array<string, mixed>|null $oldValues
+     * @return array<string, mixed>
+     */
+    public static function scopeValues(array $values, array $post, ?array $oldValues = null): array
+    {
+        foreach (static::SCOPE_DEFAULTS as $key => $default) {
+            $shown = Gestionale::feature(static::SCOPES[$key]) && array_key_exists($key, $post);
+            $value = $shown ? ($values[$key] ?? $post[$key]) : ($oldValues[$key] ?? $default);
+            $values[$key] = (string) $value === 'true' ? 'true' : 'false';
+        }
+
+        return $values;
+    }
+
+    /**
+     * Almeno uno dei due interruttori acceso, e nessuno spento finché ha
+     * collegamenti: un articolo o un piano si terrebbero una personalizzazione
+     * che non potrebbero più avere.
+     *
+     * @param array<string, mixed> $values
+     * @throws UserError
+     */
+    public static function assertScopes(array $values, int $products, int $plans): void
+    {
+        $forProducts = ($values['for_products'] ?? 'false') === 'true';
+        $forSubscriptions = ($values['for_subscriptions'] ?? 'false') === 'true';
+
+        if (!$forProducts && !$forSubscriptions) {
+            throw UserError::make('customization.scope_required');
+        }
+
+        if (!$forProducts && $products > 0) {
+            throw UserError::make('customization.linked_products', ['count' => $products]);
+        }
+
+        if (!$forSubscriptions && $plans > 0) {
+            throw UserError::make('customization.linked_plans', ['count' => $plans]);
+        }
+    }
+
+    /** Quanti articoli e piani la usano. */
     public static function usage(int $id): int
     {
         if ($id <= 0) {
             return 0;
         }
 
-        return count(static::rowsOf(ProductModelCustomization::class, ['customization_id' => $id]));
+        return count(static::rowsOf(CustomizationLink::class, ['customization_id' => $id]));
     }
 
-    /** Una personalizzazione su qualche articolo si disattiva, non si elimina. */
+    /** Quanti collegamenti vivi ha verso gli articoli (`product_model_id`) o i piani (`plan_id`). */
+    public static function linkCount(int $id, string $column): int
+    {
+        return count(array_filter(
+            static::rowsOf(CustomizationLink::class, ['customization_id' => $id]),
+            static fn (array $row): bool => (int) ($row[$column] ?? 0) > 0
+        ));
+    }
+
+    /** Una personalizzazione su qualche articolo o piano si disattiva, non si elimina. */
     public static function assertDeletable(int|string $id): void
     {
         $count = static::usage((int) $id);
@@ -463,7 +580,7 @@ class CustomizationResource extends GestionaleResource
             // Anche quelle nel cestino: la chiave esterna le vede comunque. I
             // collegamenti rimasti sono tutti nel cestino (`assertDeletable`
             // ha rifiutato quelli vivi).
-            foreach ([CustomizationOption::class, ProductModelCustomization::class] as $model) {
+            foreach ([CustomizationOption::class, CustomizationLink::class] as $model) {
                 foreach (static::rowsOf($model, ['customization_id' => $id, 'deleted' => ['true', 'false']]) as $row) {
                     $model::delete((int) $row['id']);
                 }

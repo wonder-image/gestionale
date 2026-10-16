@@ -156,8 +156,14 @@
                 "few_options": "Una scelta ha bisogno di almeno due opzioni.",
                 "surcharge": "Il sovrapprezzo non può essere negativo.",
                 "kind": "Scegli se è un testo, un numero o una scelta.",
-                "in_use": "È collegata ad articoli ({{count}}) e non si elimina: disattivala, e non si propone più.",
-                "quick_name": "Scrivi il nome della personalizzazione."
+                "in_use": "È collegata ad articoli o piani ({{count}}) e non si elimina: disattivala, e non si propone più.",
+                "quick_name": "Scrivi il nome della personalizzazione.",
+                "link_target": "Un collegamento va a un articolo oppure a un piano, non a tutti e due né a nessuno.",
+                "scope_required": "Accendi almeno uno fra «Per i prodotti» e «Per gli abbonamenti».",
+                "linked_products": "È collegata ad articoli ({{count}}): toglila dalle loro schede prima di spegnere «Per i prodotti».",
+                "linked_plans": "È collegata a piani d'abbonamento ({{count}}): toglila dalle loro schede prima di spegnere «Per gli abbonamenti».",
+                "not_for_products": "«{{name}}» non è per i prodotti: accendi «Per i prodotti» nella sua scheda.",
+                "not_for_subscriptions": "«{{name}}» non è per gli abbonamenti: accendi «Per gli abbonamenti» nella sua scheda."
             },
             "product": {
                 "sku_taken": "Questo SKU è già in catalogo, su un altro articolo o su un'altra opzione in vendita: cambialo.",
@@ -192,7 +198,8 @@
                 "payment_due_days_invalid": "I giorni di preavviso per le scadenze vanno da 0 a 365.",
                 "quote_validity_days_invalid": "La validità dei preventivi va da 1 a 365 giorni.",
                 "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo.",
-                "subscription_unpaid_days_invalid": "I giorni prima di «non pagato» vanno da 1 a 365."
+                "subscription_unpaid_days_invalid": "I giorni prima di «non pagato» vanno da 1 a 365.",
+                "subscriptions_per_customer_invalid": "Gli abbonamenti in corso per cliente sono un numero intero da 0 (senza limite) in su."
             },
             "payment_method": {
                 "in_use": "Questo metodo è già su ordini o pagamenti ({{count}}) e non si elimina: mettilo su «Non attivo» e non si propone più."
@@ -324,18 +331,31 @@
                 "renewal_invalid": "Il prezzo di rinnovo di «{{name}}» deve essere un altro prezzo, già salvato, di un piano attivo.",
                 "price_in_use": "Il prezzo «{{name}}» è usato da un abbonamento e non si toglie: spegnilo.",
                 "in_use": "Il piano non si elimina, {{count}}: spegnilo.",
-                "feature_duplicate": "Il limite «{{key}}» è scritto due volte: tienine uno."
+                "feature_duplicate": "Il limite «{{key}}» è scritto due volte: tienine uno.",
+                "link_self": "Un piano non si lega a se stesso.",
+                "link_depth": "I legami vanno a un livello solo: un piano si lega a piani che non si legano a nulla, e un piano a cui altri si legano non si lega a sua volta.",
+                "has_children": "Il piano non si elimina: {{names}} si legano a lui. Togli il legame dalla loro scheda."
             },
             "subscription": {
                 "unavailable": "Gli abbonamenti online non sono disponibili in questo momento.",
                 "account_required": "Per abbonarti accedi al tuo account o creane uno.",
-                "already_active": "Hai già un abbonamento in corso: per cambiarlo vai nella sezione Abbonamenti del tuo account.",
+                "interval_mismatch": "Questi servizi non si rinnovano insieme: la durata di ognuno deve essere un multiplo della più corta (mensile e annuale sì, bimestrale e trimestrale no).",
+                "limit_reached": "C'è già un abbonamento in corso ({{code}}): i servizi nuovi si aggiungono a quello, dalla sezione Abbonamenti.",
                 "price_unavailable": "Questo piano non è più disponibile: scegline un altro.",
                 "stripe_unavailable": "Il pagamento non si è aperto: riprova tra qualche minuto.",
                 "not_live": "Questo abbonamento non è in corso: non si può cambiare.",
                 "already_cancelled": "La disdetta di questo abbonamento è già registrata.",
                 "not_found": "Abbonamento non trovato.",
-                "customer_required": "Scegli il cliente dell'abbonamento."
+                "customer_required": "Scegli il cliente dell'abbonamento.",
+                "items_required": "Aggiungi almeno un servizio all'abbonamento.",
+                "too_many_items": "Un abbonamento online ha al più {{max}} servizi: togline qualcuno.",
+                "parent_required": "Il servizio «{{name}}» si appoggia a un altro: scegli a quale.",
+                "parent_invalid": "Il servizio «{{name}}» non si appoggia a quello scelto.",
+                "item_not_live": "Questo servizio non è in corso: non si può cambiare.",
+                "item_committed": "Il servizio è in vincolo fino al {{date}}: si toglie a fine vincolo.",
+                "link_broken": "Il piano «{{name}}» non va con i legami di questa riga (il servizio a cui si appoggia o quelli che si appoggiano a lei): togli o cambia prima quelli.",
+                "last_item_online": "L'ultimo servizio di un abbonamento online non si toglie con il credito: disdici l'abbonamento.",
+                "stripe_failed": "Stripe non ha accettato la modifica: riprova tra qualche minuto."
             },
             "mcp": {
                 "auth": {

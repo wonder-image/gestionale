@@ -76,4 +76,55 @@ check('il coupon non applicato non sconta neanche l\'annuale', function () use (
     return $a['total'] === '244.00' && $a['taxable_total'] === '200.00';
 });
 
+$dominio = ['price' => '12.00', 'sale_price' => '', 'term_months' => 12];
+$hosting = ['price' => '60.00', 'sale_price' => '', 'term_months' => 12];
+
+check('più righe: dominio con sovrapprezzo e due hosting fanno 134,00', function () use ($dominio, $hosting) {
+    $a = SubscriptionAmounts::ofItems([
+        ['price' => $dominio, 'quantity' => 1, 'surcharge' => 2.0, 'tax_rate' => 22.0],
+        ['price' => $hosting, 'quantity' => 2, 'surcharge' => 0.0, 'tax_rate' => 22.0],
+    ], null, true, 0, 12);
+
+    return $a['subtotal'] === '134.00' && $a['total'] === '134.00' && $a['discount_total'] === '0.00'
+        && $a['tax_total'] === '24.16' && count($a['tax_summaries']) === 1
+        && $a['lines'][0]['unit_price'] === '14.00' && $a['lines'][0]['customization_total'] === '2.00'
+        && $a['lines'][0]['line_total'] === '14.00'
+        && $a['lines'][1]['unit_price'] === '60.00' && $a['lines'][1]['line_total'] === '120.00'
+        && $a['lines'][1]['customization_total'] === '0.00' && $a['lines'][1]['tax_rate'] === 22.0;
+});
+
+check('due aliquote danno due riepiloghi dell\'imposta', function () use ($dominio, $hosting) {
+    $a = SubscriptionAmounts::ofItems([
+        ['price' => $dominio, 'quantity' => 1, 'surcharge' => 0.0, 'tax_rate' => 22.0],
+        ['price' => $hosting, 'quantity' => 1, 'surcharge' => 0.0, 'tax_rate' => 4.0],
+    ], null, true, 0, 12);
+
+    return count($a['tax_summaries']) === 2 && $a['total'] === '72.00';
+});
+
+check('un coupon del 10% per sempre sconta il totale delle righe', function () use ($dominio, $hosting, $coupon) {
+    $a = SubscriptionAmounts::ofItems([
+        ['price' => $dominio, 'quantity' => 1, 'surcharge' => 0.0, 'tax_rate' => 22.0],
+        ['price' => $hosting, 'quantity' => 1, 'surcharge' => 0.0, 'tax_rate' => 22.0],
+    ], $coupon(['discount_value' => '10.00', 'duration' => 'forever']), true, 3, 12);
+
+    return $a['coupon_applied'] === true && $a['discount_total'] === '7.20' && $a['total'] === '64.80';
+});
+
+check('un coupon una volta non vale sul secondo addebito, anche a più righe', function () use ($dominio, $hosting, $coupon) {
+    $a = SubscriptionAmounts::ofItems([
+        ['price' => $dominio, 'quantity' => 1, 'surcharge' => 0.0, 'tax_rate' => 22.0],
+        ['price' => $hosting, 'quantity' => 1, 'surcharge' => 0.0, 'tax_rate' => 22.0],
+    ], $coupon(), true, 1, 12);
+
+    return $a['coupon_applied'] === false && $a['discount_total'] === '0.00' && $a['total'] === '72.00';
+});
+
+check('of() su una riga dà gli stessi numeri di ofItems()', function () use ($dominio) {
+    $uno = SubscriptionAmounts::of($dominio, null, 22.0, true);
+    $piu = SubscriptionAmounts::ofItems([['price' => $dominio, 'quantity' => 1, 'surcharge' => 0.0, 'tax_rate' => 22.0]], null, true, 0, 12);
+
+    return $uno['total'] === $piu['total'] && $uno['tax_total'] === $piu['tax_total'] && $uno['subtotal'] === $piu['subtotal'];
+});
+
 summary();

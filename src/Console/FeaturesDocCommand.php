@@ -62,10 +62,7 @@ final class FeaturesDocCommand extends Command
         $rows = ['| Funzionalità | Area | A cosa serve | Serve prima |', '|---|---|---|---|'];
 
         foreach (FeatureCatalog::all() as $feature) {
-            $requires = array_map(
-                static fn (string $key): string => FeatureCatalog::all()[$key]['name'] ?? $key,
-                (array) ($feature['requires'] ?? [])
-            );
+            $requires = FeatureCatalog::requiredNames(FeatureCatalog::all(), $feature);
 
             $rows[] = '| '.$feature['name']
                 .' | '.$feature['area']

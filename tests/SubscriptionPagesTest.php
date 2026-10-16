@@ -8,6 +8,7 @@ require __DIR__ . '/harness.php';
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
+use Wonder\Plugin\Gestionale\Resources\Subscriptions\OfficeSubscriptionResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\PlanResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionResource;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureGuards;
@@ -115,17 +116,25 @@ check('spegnere altre funzionalità non tocca gli abbonamenti', function () {
     return true;
 });
 
-check('le azioni della scheda: da ufficio tutte, online solo cambio e disdetta, chiuso niente', function () {
+check('le azioni della scheda: da ufficio tutte, online solo la disdetta, chiuso niente', function () {
     $ufficio = ['channel' => 'office', 'status' => 'active', 'auto_renew' => 'true', 'current_period_start' => '2026-10-01 00:00:00'];
     $online = ['channel' => 'online', 'status' => 'active', 'auto_renew' => 'true', 'provider_reference' => 'sub_1'];
 
-    return array_keys(SubscriptionResource::availableActions($ufficio)) === ['change_plan', 'cancel', 'proforma', 'terminate']
-        && array_keys(SubscriptionResource::availableActions($online)) === ['change_plan', 'cancel']
-        && array_keys(SubscriptionResource::availableActions(['auto_renew' => 'false'] + $online)) === ['change_plan']
+    return array_keys(SubscriptionResource::availableActions($ufficio)) === ['cancel', 'proforma', 'terminate']
+        && array_keys(SubscriptionResource::availableActions($online)) === ['cancel']
+        && array_keys(SubscriptionResource::availableActions(['auto_renew' => 'false'] + $online)) === []
         && array_keys(SubscriptionResource::availableActions(['provider_reference' => ''] + $online)) === []
-        && array_keys(SubscriptionResource::availableActions(['status' => 'unpaid'] + $ufficio)) === ['change_plan', 'cancel', 'proforma', 'terminate']
+        && array_keys(SubscriptionResource::availableActions(['status' => 'unpaid'] + $ufficio)) === ['cancel', 'proforma', 'terminate']
         && SubscriptionResource::availableActions(['status' => 'cancelled'] + $ufficio) === [];
 });
+
+check('i servizi si cambiano dalla scheda solo da ufficio e con l\'abbonamento in corso', fn () =>
+    SubscriptionResource::itemsEditable(['channel' => 'office', 'status' => 'active'])
+    && SubscriptionResource::itemsEditable(['channel' => 'office', 'status' => 'trialing'])
+    && !SubscriptionResource::itemsEditable(['channel' => 'office', 'status' => 'unpaid'])
+    && !SubscriptionResource::itemsEditable(['channel' => 'online', 'status' => 'active'])
+    && SubscriptionResource::itemsEditable(['channel' => 'online', 'status' => 'active', 'provider_reference' => 'sub_1'])
+);
 
 check('i link della rata e della scheda tengono i segnaposto del menu di riga', fn () =>
     str_contains(SubscriptionResource::detailUrlPattern('{subscription_id}'), '/{subscription_id}/')
@@ -149,7 +158,13 @@ check('in testa alla scheda le azioni stanno nel menu «Azioni»; Annulla in ros
 
     return count($menu) === 1 && $menu[0]['label'] === 'Azioni'
         && array_column($voci, 'label') === array_values(SubscriptionResource::availableActions($ufficio))
-        && $voci[3]['class'] === 'text-danger' && str_contains($voci[0]['onclick'], 'wi-abbonamento-change_plan');
+        && $voci[2]['class'] === 'text-danger' && str_contains($voci[0]['onclick'], 'wi-abbonamento-cancel');
+});
+
+check('nel nuovo abbonamento la riga madre si sceglie per numero, da «Nessuno» a «Riga 20»', function () {
+    $opzioni = OfficeSubscriptionResource::parentOptions();
+
+    return count($opzioni) === 21 && $opzioni[''] === 'Nessuno' && $opzioni['1'] === 'Riga 1' && $opzioni['20'] === 'Riga 20';
 });
 
 summary();

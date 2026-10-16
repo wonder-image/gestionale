@@ -86,6 +86,39 @@ versionamento semantico.
   Corretto: le pagine *Nuovo ordine da ufficio*, *Nuovo preventivo* e del
   **DDT** uscivano senza stile (il layout non si chiudeva).
 
+- G10b parte 1, **abbonamenti con più servizi**: un abbonamento ha delle
+  righe (`gst_subscription_items`, una per servizio, con quantità, importi e
+  personalizzazioni) e la loro storia (`gst_subscription_item_changes`); ogni
+  riga rinnova dalla data d'inizio a multipli del suo intervallo. Piani con
+  **Si lega a** (`gst_plan_links`, un livello) e **personalizzazioni**: la
+  tabella dei legami diventa `gst_customization_links` (articoli e piani), la
+  personalizzazione ha gli interruttori *Per i prodotti* / *Per gli
+  abbonamenti* e la funzionalità chiede *Ordini* **o** *Abbonamenti*. Da
+  ufficio, *Nuovo abbonamento* con le righe e, nella card **Servizi** della
+  scheda, *Aggiungi servizio* (quota ora, gratis o dal prossimo periodo),
+  *Cambia*, *Togli* (a fine periodo o subito con un credito) e *Correggi
+  personalizzazioni*; il credito riduce il proforma dopo. Impostazione
+  **Abbonamenti in corso per cliente** (di serie 1). Dati di prova: tre servizi
+  (Dominio .it, Hosting, Assistenza) e un abbonamento con le tre righe. Guide
+  `vendite-abbonamenti.md` e `catalogo-personalizzazioni.md`.
+  **Dopo `php forge update`** lancia `php tests/supporto/migra-abbonamenti-con-servizi.php`
+  (copia legami, una riga per abbonamento, storia dei cambi); verificato il
+  risultato, rilancialo con `--togli-vecchie` per togliere
+  `gst_product_model_customizations` e `gst_subscription_plan_changes`.
+  `plan_price_id` di `gst_subscriptions` resta fino ad allora.
+- G10b parte 3, per il negozio: `OnlineSubscriptions::lines()` prepara e
+  controlla una selezione di più servizi (madri, personalizzazioni, intervalli)
+  e `preview()` ne dà gli importi del primo addebito, prima di Stripe.
+- G10b parte 2, **servizi degli abbonamenti online**: ogni riga è una
+  subscription item di Stripe (`metadata.item_id`); il Checkout ha una riga per
+  servizio con `billing_mode=flexible`. Dalla card **Servizi** *Aggiungi*
+  (`subscription_items.create`, quota con `always_invoice`), *Togli* col credito
+  (`create_prorations`) e *Cambia* (`subscription_items.update`); quello che vale
+  dal rinnovo va in un solo *Subscription Schedule* (`end_behavior=release`),
+  tolto prima di una disdetta. Le righe di prima di G10b prendono il loro `si_`
+  da Stripe alla prima modifica. *Cambia piano* cambia la riga principale.
+  `OnlineSubscriptions::quote()` dà la quota dall'anteprima di Stripe. Errori
+  nuovi `subscription.stripe_failed` e `subscription.last_item_online`.
 - G10 piano 3, **Abbonamenti da ufficio**: **Nuovo abbonamento** (cliente,
   prezzo, data d'inizio, metodo e condizione di pagamento, coupon); a ogni
   periodo le **rate** della condizione di pagamento e il **proforma** PDF per

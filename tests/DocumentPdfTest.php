@@ -135,19 +135,31 @@ check('i file stanno nella loro cartella, e un percorso con .. non passa', funct
     }
 });
 
-check('il proforma di un abbonamento: una riga col periodo, rate e nota, senza numero', function () {
+check('il proforma di un abbonamento: una voce per riga col periodo, crediti in negativo, IVA per aliquota, senza numero', function () {
     $dati = Wonder\Plugin\Gestionale\Support\Documents\DocumentData::forSubscription([
         'id' => 9, 'code' => 'sub_abc1234', 'billing_name' => 'Lucia', 'billing_surname' => 'Rossi', 'billing_city' => 'Torino',
-        'subtotal' => '24.40', 'discount_total' => '0.00', 'tax_rate' => '22.00', 'tax_total' => '4.40', 'total' => '24.40',
+        'subtotal' => '34.40', 'discount_total' => '0.00', 'tax_rate' => '0.00', 'tax_total' => '6.00', 'total' => '34.40',
         'payment_method_id' => 0, 'payment_term_id' => 0,
-    ], 'Pro - Mensile', '2026-11-01 00:00:00', '2026-12-01 00:00:00', [['due_date' => '2026-11-30', 'amount' => 24.4]]);
+        'tax_summaries' => [
+            ['rate' => 22.0, 'nature' => '', 'taxable' => 20.0, 'tax' => 4.4, 'total' => 24.4],
+            ['rate' => 10.0, 'nature' => '', 'taxable' => 16.0, 'tax' => 1.6, 'total' => 17.6],
+        ],
+    ], [
+        ['name' => 'Pro - Mensile - dal 01/11/2026 al 01/12/2026', 'quantity' => 1, 'unit_price' => 24.4, 'line_total' => 24.4, 'tax_rate' => 22.0],
+        ['name' => 'Assistenza - Mensile - dal 01/11/2026 al 01/12/2026', 'quantity' => 2, 'unit_price' => 8.8, 'line_total' => 17.6, 'tax_rate' => 10.0],
+    ], [['name' => 'Credito per Backup tolto', 'amount' => 7.6]], '2026-11-01 00:00:00', '2026-12-01 00:00:00', [['due_date' => '2026-11-30', 'amount' => 34.4]]);
     $pdf = DocumentPdfs::render('proforma', $dati);
 
     return DocumentPdfs::classFor('proforma') === Wonder\Plugin\Gestionale\Support\Documents\ProformaPdf::class
         && str_starts_with($pdf, '%PDF')
+        && count($dati['items']) === 3
         && $dati['items'][0]['name'] === 'Pro - Mensile - dal 01/11/2026 al 01/12/2026'
-        && $dati['order']['taxable_total'] === 20.0 && $dati['order']['fulfillment_type'] === 'none'
-        && $dati['payment']['installments'] === [['due_date' => '2026-11-30', 'amount' => 24.4]]
+        && $dati['items'][1]['quantity'] === 2 && $dati['items'][1]['tax_rate'] === 10.0
+        && $dati['items'][2]['type'] === 'discount' && $dati['items'][2]['line_total'] === -7.6
+        && count($dati['taxes']) === 2 && $dati['taxes'][1]['rate'] === 10.0
+        && !isset($dati['order']['tax_summaries'])
+        && $dati['order']['taxable_total'] === 28.4 && $dati['order']['fulfillment_type'] === 'none'
+        && $dati['payment']['installments'] === [['due_date' => '2026-11-30', 'amount' => 34.4]]
         && $dati['meta']['Abbonamento'] === 'sub_abc1234'
         && str_contains((string) $dati['order']['document_note'], 'non valido ai fini fiscali');
 });
