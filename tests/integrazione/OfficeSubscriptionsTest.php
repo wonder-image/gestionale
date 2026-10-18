@@ -457,4 +457,18 @@ check('dalla pagina: le righe del repeater diventano servizi, con la madre per n
         && $righe[2]['parent'] === -2;
 }));
 
+check('scheda: le finestre dei servizi si aprono, con l\'aiuto accanto al titolo', fn () => prova(static function (): bool {
+    $s = servizi();
+    $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'starts_at' => '2026-03-01', 'items' => [
+        ['plan_price_id' => $s['dominio']['price'], 'customization' => [$s['nome'] => 'esempio.it']],
+        ['plan_price_id' => $s['hosting']['price'], 'parent' => 0],
+    ]]);
+    $html = \Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionResource::itemModals(Subscription::findById($id));
+
+    return str_contains($html, 'id="wi-servizio-add"')
+        && substr_count($html, 'wi-servizio-change-') >= 2
+        && str_contains($html, 'Si appoggia a')
+        && str_contains($html, 'Gratis: niente fino al rinnovo');
+}));
+
 summary();

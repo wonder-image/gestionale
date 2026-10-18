@@ -446,8 +446,9 @@ final class SubscriptionResource extends GestionaleResource
         $labels = static::itemLabels($items);
         $live = array_filter($items, static fn (array $item): bool => in_array((string) $item['status'], ['pending', 'active'], true));
         $today = new DateTimeImmutable('today');
-        $modal = static fn (string $modalId, string $title, string $action, array $hidden, array $components, string $submit, string $variant = 'primary'): string => Modal::make($title)
+        $modal = static fn (string $modalId, string $title, string $action, array $hidden, array $components, string $submit, string $variant = 'primary', string $help = ''): string => Modal::make($title)
             ->id($modalId)
+            ->help($help)
             ->form(SubscriptionActionResource::submitUrl(), hidden: ['subscription_id' => $id, 'action' => $action] + $hidden)
             ->columns(12)
             ->components($components)
@@ -461,18 +462,17 @@ final class SubscriptionResource extends GestionaleResource
             FormField::key('parent_item_id')
                 ->select(['' => 'Nessuno'] + array_intersect_key($labels, array_flip(array_map(static fn (array $item): int => (int) $item['id'], $live))))
                 ->label('Si appoggia a')
-                ->tooltip('Per un servizio che si lega a un altro (l\'hosting al suo dominio): la riga a cui si appoggia.')
                 ->columnSpan(12),
             FormField::key('billing')
                 ->select(['prorate' => 'Quota ora fino al rinnovo del servizio', 'free' => 'Gratis fino al rinnovo', 'next_period' => 'Dal prossimo periodo'])
                 ->value('prorate')
                 ->label('Conguaglio')
-                ->tooltip(($office
-                    ? 'Quota ora: una rata per i giorni fino al rinnovo del servizio, col suo proforma.'
-                    : 'Quota ora: Stripe addebita subito i giorni fino al rinnovo sulla carta del cliente.').' Gratis: niente fino al rinnovo. Dal prossimo periodo: il servizio parte col prossimo periodo dell\'abbonamento.')
                 ->columnSpan(12),
             ...static::customizationFields(null),
-        ], 'Aggiungi');
+        ], 'Aggiungi', help: '«Si appoggia a»: per un servizio che si lega a un altro (l\'hosting al suo dominio), la riga a cui si appoggia. '
+            .($office
+                ? 'Conguaglio, quota ora: una rata per i giorni fino al rinnovo del servizio, col suo proforma.'
+                : 'Conguaglio, quota ora: Stripe addebita subito i giorni fino al rinnovo sulla carta del cliente.').' Gratis: niente fino al rinnovo. Dal prossimo periodo: il servizio parte col prossimo periodo dell\'abbonamento.');
 
         foreach ($items as $item) {
             if ((string) $item['status'] !== 'active') {
@@ -497,13 +497,12 @@ final class SubscriptionResource extends GestionaleResource
                     ->select(['prorate' => 'Conguaglio ora', 'free' => 'Subito, senza conguaglio', 'next_period' => 'Dal prossimo rinnovo del servizio'])
                     ->value('prorate')
                     ->label('Quando')
-                    ->tooltip(($office
-                        ? 'Conguaglio ora: un credito per i giorni non goduti del prezzo vecchio e una rata per la quota del nuovo.'
-                        : 'Conguaglio ora: Stripe fa i conti dei giorni e addebita subito la differenza.').' Subito: il nuovo prezzo vale da oggi, senza conti. Dal prossimo rinnovo: cambia a fine periodo del servizio.')
                     ->columnSpan(12),
                 ...static::customizationFields(null),
                 RichText::make(static::escape('Le personalizzazioni lasciate vuote restano quelle di prima, se il nuovo piano le ha.'))->class('mb-0 small text-muted')->columnSpan(12),
-            ], 'Cambia');
+            ], 'Cambia', help: ($office
+                ? 'Conguaglio ora: un credito per i giorni non goduti del prezzo vecchio e una rata per la quota del nuovo.'
+                : 'Conguaglio ora: Stripe fa i conti dei giorni e addebita subito la differenza.').' Subito: il nuovo prezzo vale da oggi, senza conti. Dal prossimo rinnovo: cambia a fine periodo del servizio.');
 
             $html .= $modal('wi-servizio-remove-'.$itemId, 'Togli: '.$name, 'remove_item', $hidden, [
                 FormField::key('billing')
