@@ -3,6 +3,9 @@
 namespace Wonder\Plugin\Gestionale\Support\Setup;
 
 use Throwable;
+use Wonder\App\Support\GoogleCloud\GoogleApi;
+use Wonder\App\Support\GoogleCloud\GoogleApis;
+use Wonder\Plugin\Gestionale\Gestionale;
 
 /**
  * Controlli dei "Primi passi": cosa manca perché il gestionale sia pronto.
@@ -61,8 +64,10 @@ final class SetupChecks
     }
 
     /**
-     * Cosa serve da Google Cloud a questo progetto: un passo per servizio,
-     * aperto finché manca una delle sue credenziali.
+     * Cosa serve da Google Cloud: le API obbligatorie del registro del core
+     * (core, moduli, sito) con una credenziale vuota. Le API che dipendono
+     * dagli stessi campi formano un passo solo: Maps JavaScript e Places
+     * chiedono la stessa chiave pubblica.
      *
      * @param array<string, mixed> $credentials
      * @return list<array{key: string, title: string, description: string, url: string}>
@@ -70,35 +75,72 @@ final class SetupChecks
     private static function google(array $credentials): array
     {
         $url = self::route('backend.resource.app-config-credentials.list', [], '/backend/app/config/credentials/');
-        $steps = [
-            'google_maps' => [
-                'fields' => ['gcp_client_api_key'],
-                'title' => 'Collega Google Maps',
-                'description' => 'Nella Google Cloud Console attiva Maps JavaScript API e Places API (New) e crea una chiave API limitata ai referrer HTTP del sito: va in «Chiave pubblica» e completa gli indirizzi nei form.',
-            ],
-            'google_recaptcha' => [
-                'fields' => ['gcp_project_id', 'gcp_api_key', 'g_recaptcha_site_key'],
-                'title' => 'Collega reCAPTCHA',
-                'description' => 'Attiva reCAPTCHA Enterprise API, crea una chiave del sito per il dominio e una chiave API senza limiti di referrer: ID progetto, «Chiave privata» e «Chiave sito» proteggono i form.',
-            ],
-            'google_oauth' => [
-                'fields' => ['google_oauth_client_id'],
-                'title' => 'Collega Accedi con Google',
-                'description' => 'In Google Auth Platform crea un ID client OAuth 2.0 di tipo «Applicazione web» con il dominio del sito tra le origini JavaScript autorizzate: va in «Google Client ID».',
-            ],
-        ];
+        $groups = [];
+
+        foreach (GoogleApis::missing($credentials) as $api) {
+            $groups[$api->getKeyType().'|'.implode(',', $api->getFields())][] = $api;
+        }
+
         $pending = [];
 
-        foreach ($steps as $key => $step) {
-            foreach ($step['fields'] as $field) {
-                if (trim((string) ($credentials[$field] ?? '')) === '') {
-                    $pending[] = ['key' => $key, 'title' => $step['title'], 'description' => $step['description'], 'url' => $url];
-                    break;
-                }
-            }
+        foreach ($groups as $apis) {
+            $first = $apis[0];
+            $names = implode(', ', array_unique(array_map(static fn (GoogleApi $api): string => $api->getName(), $apis)));
+            $purposes = array_filter(array_map(static fn (GoogleApi $api): string => self::coreText($api->getPurpose()), $apis));
+
+            $pending[] = [
+                'key' => str_starts_with($first->key(), 'google_') ? $first->key() : 'google_'.$first->key(),
+                'title' => self::text('setup.google.title', ['apis' => $names]),
+                'description' => trim(implode(' ', $purposes).' '.self::text('setup.google.'.$first->getKeyType(), ['apis' => $names])),
+                'url' => $url,
+            ];
         }
 
         return $pending;
+    }
+
+    /**
+     * Testo del modulo: dal framework se è avviato, altrimenti dal file lang
+     * del modulo (test, comandi).
+     *
+     * @param array<string, string> $replacements
+     */
+    private static function text(string $path, array $replacements = []): string
+    {
+        $text = self::coreText('gestionale.'.$path);
+
+        if ($text === '') {
+            $data = json_decode((string) @file_get_contents(Gestionale::root().'/lang/it/gestionale.json'), true);
+            $node = $data['gestionale'] ?? null;
+
+            foreach (explode('.', $path) as $step) {
+                $node = is_array($node) ? ($node[$step] ?? null) : null;
+            }
+
+            $text = is_string($node) ? $node : $path;
+        }
+
+        foreach ($replacements as $name => $value) {
+            $text = str_replace('{{'.$name.'}}', $value, $text);
+        }
+
+        return $text;
+    }
+
+    /** Testo dal framework, vuoto se non è avviato o la chiave manca. */
+    private static function coreText(string $key): string
+    {
+        if (!function_exists('__t')) {
+            return '';
+        }
+
+        try {
+            $text = __t($key);
+        } catch (Throwable) {
+            return '';
+        }
+
+        return is_string($text) && $text !== $key ? trim($text) : '';
     }
 
     /**
