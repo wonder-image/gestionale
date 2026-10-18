@@ -37,7 +37,7 @@ final class SetupWidget implements HomeWidget
             self::society(),
             self::location(),
             Setting::current(),
-            (array) Credentials::api()
+            Credentials::storedApi()
         ));
     }
 
