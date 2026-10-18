@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\App\Credentials;
 use Wonder\App\Module\Contracts\ModuleGoogleApis;
 use Wonder\App\Support\GoogleCloud\GoogleApis;
 use Wonder\Plugin\Gestionale\Gestionale;
@@ -140,6 +141,33 @@ check('Accedi con Google chiede un ID client OAuth 2.0 per applicazione web', fu
     return array_column($voci, 'key') === ['google_oauth']
         && str_contains($voci[0]['description'], 'ID client OAuth 2.0')
         && str_contains($voci[0]['description'], 'origini JavaScript autorizzate');
+});
+
+// Il riquadro legge le credenziali salvate: una chiave pubblica vuota non
+// deve sembrare compilata perché c'è la privata.
+check('solo la chiave privata salvata: il passo Maps resta aperto', function () use ($completi) {
+    $precedenti = array_intersect_key($_ENV, array_flip(['GCP_API_KEY', 'GCP_CLIENT_API_KEY']));
+    unset($_ENV['GCP_CLIENT_API_KEY']);
+    $_ENV['GCP_API_KEY'] = 'chiave_privata_prova';
+
+    try {
+        $chiavi = static fn (array $credenziali) => array_column(
+            SetupChecks::pending($completi['society'], $completi['location'], $completi['settings'], $credenziali),
+            'key'
+        );
+
+        return in_array('google_maps_javascript', $chiavi(Credentials::storedApi()), true);
+    } finally {
+        unset($_ENV['GCP_API_KEY'], $_ENV['GCP_CLIENT_API_KEY']);
+        $_ENV += $precedenti;
+    }
+});
+
+check('il riquadro Primi passi passa le credenziali salvate', function () {
+    $sorgente = (string) file_get_contents(__DIR__.'/../src/Backend/Widgets/SetupWidget.php');
+
+    return str_contains($sorgente, 'Credentials::storedApi()')
+        && !str_contains($sorgente, 'Credentials::api()');
 });
 
 unlink($sandbox.'/custom/config/google-apis.php');
