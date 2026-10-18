@@ -520,6 +520,14 @@
                     "intro": "Una rata del tuo abbonamento :plan è scaduta e non risulta ancora pagata. Se hai già pagato, non considerare questo messaggio."
                 }
             }
+        },
+        "setup": {
+            "google": {
+                "title": "Collega {{apis}}",
+                "browser": "Nella Google Cloud Console abilita {{apis}} e crea una chiave API limitata ai referrer HTTP del sito: va in «Chiave pubblica».",
+                "server": "Nella Google Cloud Console abilita {{apis}} e crea una chiave API limitata a queste API: con l'ID progetto va in «Chiave privata».",
+                "oauth": "In Google Auth Platform crea un ID client OAuth 2.0 di tipo «Applicazione web» con il dominio del sito tra le origini JavaScript autorizzate: va in «Google Client ID»."
+            }
         }
     }
 }

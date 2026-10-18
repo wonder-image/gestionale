@@ -4,8 +4,10 @@ namespace Wonder\Plugin\Gestionale;
 
 use Wonder\App\Module\ConfigRepository;
 use Wonder\App\Module\Contracts\ModuleInterface;
+use Wonder\App\Module\Contracts\ModuleGoogleApis;
 use Wonder\App\Module\Contracts\ModuleTasks;
 use Wonder\App\Permission\Access;
+use Wonder\App\Support\GoogleCloud\GoogleApi;
 use Wonder\Plugin\Gestionale\Scheduler\ExpiryTask;
 use Wonder\Plugin\Gestionale\Scheduler\QuoteExpiryTask;
 use Wonder\Plugin\Gestionale\Scheduler\ImagesTask;
@@ -19,7 +21,7 @@ use Wonder\Plugin\Gestionale\Scheduler\SubscriptionCommitmentTask;
  * Entrypoint del modulo: percorsi, configurazione, guida e attività
  * pianificate.
  */
-final class Gestionale implements ModuleInterface, ModuleTasks
+final class Gestionale implements ModuleInterface, ModuleTasks, ModuleGoogleApis
 {
     public const SLUG = 'gestionale';
 
@@ -65,6 +67,20 @@ final class Gestionale implements ModuleInterface, ModuleTasks
     public static function tasks(): iterable
     {
         return [new ImagesTask(), new StockAlertsTask(), new ExpiryTask(), new StripeReconcileTask(), new QuoteExpiryTask(), new SubscriptionCommitmentTask(), new OfficeSubscriptionsTask(), new ProductFeedsTask()];
+    }
+
+    /**
+     * Le API Google che servono al gestionale: autocompletamento degli
+     * indirizzi nelle schede di contatti e clienti, e Accedi con Google per
+     * l'area clienti di customer-account. reCAPTCHA è già obbligatoria nel core.
+     */
+    public static function googleApis(): iterable
+    {
+        return [
+            GoogleApi::make('maps_javascript')->required()->usedBy(self::SLUG),
+            GoogleApi::make('places')->required()->usedBy(self::SLUG),
+            GoogleApi::make('google_oauth')->required()->usedBy(self::SLUG),
+        ];
     }
 
     public static function assetPath(string $path = ''): string
