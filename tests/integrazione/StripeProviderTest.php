@@ -502,6 +502,25 @@ check('livemode in disaccordo con la firma: ambiente vuoto', function () {
     return $evento !== null && $evento->environment === '';
 });
 
+check('webhook Connect: tiene gli eventi del conto collegato di questo sito', function () {
+    $test = eventoStripe('payment_intent.succeeded', [], ['account' => 'acct_prova_test']);
+    $live = eventoStripe('payment_intent.succeeded', [], ['account' => 'acct_prova_live', 'livemode' => true]);
+    $provider = new StripeProvider(chiavi());
+
+    return $provider->event($test, firmaStripe($test, 'whsec_prova_test'))?->environment === 'test'
+        && $provider->event($live, firmaStripe($live, 'whsec_prova_live'))?->environment === 'live';
+});
+
+check('webhook Connect: l\'evento di un altro conto collegato non si tocca', function () {
+    $altro = eventoStripe('payment_intent.succeeded', [], ['account' => 'acct_altro_negozio']);
+    // Il conto live non vale per un evento firmato col segreto di test.
+    $scambiato = eventoStripe('payment_intent.succeeded', [], ['account' => 'acct_prova_live']);
+    $provider = new StripeProvider(chiavi());
+
+    return $provider->event($altro, firmaStripe($altro, 'whsec_prova_test'))?->environment === ''
+        && $provider->event($scambiato, firmaStripe($scambiato, 'whsec_prova_test'))?->environment === '';
+});
+
 check('rimborso con l\'elenco nella carica', function () {
     $corpo = eventoStripe('charge.refunded');
     $evento = (new StripeProvider(chiavi()))->event($corpo, firmaStripe($corpo, 'whsec_prova_test'));

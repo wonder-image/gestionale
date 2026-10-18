@@ -251,7 +251,18 @@ final class StripeProvider implements PaymentProvider
         }
 
         // Il segreto dice l'ambiente; se l'evento ne dice un altro, non si tocca nulla.
-        return $this->replay($data, (bool) ($data['livemode'] ?? false) === ($verifiedBy === 'live') ? $verifiedBy : '');
+        $environment = (bool) ($data['livemode'] ?? false) === ($verifiedBy === 'live') ? $verifiedBy : '';
+
+        // Il webhook Connect della piattaforma porta gli eventi di tutti i
+        // conti collegati: si tengono solo quelli del conto di questo sito.
+        // Senza `account` viene da un endpoint sul conto stesso.
+        $account = (string) ($data['account'] ?? '');
+
+        if ($account !== '' && $account !== $this->keys($verifiedBy)['account']) {
+            $environment = '';
+        }
+
+        return $this->replay($data, $environment);
     }
 
     public function replay(array $payload, string $environment): ?PaymentEvent
