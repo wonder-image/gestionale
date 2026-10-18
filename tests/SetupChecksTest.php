@@ -6,7 +6,19 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\App\Credentials;
+use Wonder\App\Module\Contracts\ModuleGoogleApis;
+use Wonder\App\Support\GoogleCloud\GoogleApis;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Setup\SetupChecks;
+
+// Il registro delle API Google legge il sito da ROOT: qui il sito dichiara
+// le API del gestionale, come farebbe il modulo abilitato.
+$previousRoot = $GLOBALS['ROOT'] ?? null;
+$sandbox = sys_get_temp_dir().'/gestionale-setup-test-'.uniqid();
+mkdir($sandbox.'/custom/config', 0777, true);
+file_put_contents($sandbox.'/custom/config/google-apis.php', "<?php return Wonder\\Plugin\\Gestionale\\Gestionale::googleApis();");
+$GLOBALS['ROOT'] = $sandbox;
+GoogleApis::reset();
 
 $completi = [
     'society' => ['legal_name' => 'Rossi srl', 'pi' => '01234567890', 'email' => 'info@rossi.it'],
@@ -79,19 +91,29 @@ check('con le credenziali Google a posto non resta niente da fare', fn () =>
     SetupChecks::pending($completi['society'], $completi['location'], $completi['settings'], $google) === []
 );
 
+check('il gestionale dichiara obbligatorie Maps JavaScript, Places e l\'ID client OAuth', function () {
+    $keys = array_map(static fn ($api) => $api->key(), [...Gestionale::googleApis()]);
+
+    return is_subclass_of(Gestionale::class, ModuleGoogleApis::class)
+        && $keys === ['maps_javascript', 'places', 'google_oauth']
+        && array_keys(GoogleApis::required()) === ['recaptcha_enterprise', 'maps_javascript', 'places', 'google_oauth'];
+});
+
 check('senza credenziali Google ci sono tre passi, in ordine', fn () =>
     array_column(SetupChecks::pending($completi['society'], $completi['location'], $completi['settings'], []), 'key')
-        === ['google_maps', 'google_recaptcha', 'google_oauth']
+        === ['google_recaptcha_enterprise', 'google_maps_javascript', 'google_oauth']
 );
 
-check('la chiave pubblica chiede Maps JavaScript API e Places API (New)', function () use ($completi, $google) {
+check('la chiave pubblica è un passo solo per Maps JavaScript API e Places API (New)', function () use ($completi, $google) {
     $credenziali = $google;
     $credenziali['gcp_client_api_key'] = '  ';
     $voci = SetupChecks::pending($completi['society'], $completi['location'], $completi['settings'], $credenziali);
 
-    return array_column($voci, 'key') === ['google_maps']
+    return array_column($voci, 'key') === ['google_maps_javascript']
+        && str_contains($voci[0]['title'], 'Maps JavaScript API, Places API (New)')
         && str_contains($voci[0]['description'], 'Maps JavaScript API')
         && str_contains($voci[0]['description'], 'Places API (New)')
+        && str_contains($voci[0]['description'], '«Chiave pubblica»')
         && $voci[0]['url'] === '/backend/app/config/credentials/';
 });
 
@@ -101,8 +123,9 @@ check('reCAPTCHA vuole ID progetto, chiave privata e chiave del sito', function 
         $credenziali[$campo] = '';
         $voci = SetupChecks::pending($completi['society'], $completi['location'], $completi['settings'], $credenziali);
 
-        if (array_column($voci, 'key') !== ['google_recaptcha']
-            || !str_contains($voci[0]['description'], 'reCAPTCHA Enterprise API')) {
+        if (array_column($voci, 'key') !== ['google_recaptcha_enterprise']
+            || !str_contains($voci[0]['description'], 'reCAPTCHA Enterprise API')
+            || !str_contains($voci[0]['description'], '«Chiave privata»')) {
             return false;
         }
     }
@@ -133,7 +156,7 @@ check('solo la chiave privata salvata: il passo Maps resta aperto', function () 
             'key'
         );
 
-        return in_array('google_maps', $chiavi(Credentials::storedApi()), true);
+        return in_array('google_maps_javascript', $chiavi(Credentials::storedApi()), true);
     } finally {
         unset($_ENV['GCP_API_KEY'], $_ENV['GCP_CLIENT_API_KEY']);
         $_ENV += $precedenti;
@@ -146,5 +169,12 @@ check('il riquadro Primi passi passa le credenziali salvate', function () {
     return str_contains($sorgente, 'Credentials::storedApi()')
         && !str_contains($sorgente, 'Credentials::api()');
 });
+
+unlink($sandbox.'/custom/config/google-apis.php');
+rmdir($sandbox.'/custom/config');
+rmdir($sandbox.'/custom');
+rmdir($sandbox);
+$GLOBALS['ROOT'] = $previousRoot;
+GoogleApis::reset();
 
 summary();
