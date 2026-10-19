@@ -72,4 +72,9 @@ check('un DDT annullato non ha pulsanti d\'azione', function () use ($bozza, $ht
 
 check('senza righe la pagina lo dice', fn () => str_contains($html(['lines' => []] + $bozza), 'Nessuna riga.'));
 
+check('la bozza ha l\'azienda di chi riceve', function () use ($bozza, $html) {
+    return str_contains($html([...$bozza, 'shipping_business_name' => 'Rossi Srl']), 'name="shipping_business_name"')
+        && str_contains($html([...$bozza, 'shipping_business_name' => 'Rossi Srl']), 'value="Rossi Srl"');
+});
+
 summary();

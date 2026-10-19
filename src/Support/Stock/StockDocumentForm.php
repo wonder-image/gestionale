@@ -233,7 +233,8 @@ final class StockDocumentForm
             }
 
             $expected = $item['expected_quantity'] ?? null;
-            $cost = $item['unit_cost'] ?? null;
+            // Con «IVA inclusa» la casella mostra il costo com'era scritto, non il netto.
+            $cost = $item['entered_cost'] ?? $item['unit_cost'] ?? null;
             $lines[] = $version + [
                 'quantity' => is_string($item['quantity']) ? $item['quantity'] : self::quantityText($item['quantity']),
                 'expected' => $expected === null ? null : round((float) $expected, 3),
@@ -306,7 +307,7 @@ final class StockDocumentForm
      * ignorano le regole.
      *
      * @param array<string, mixed> $post
-     * @return array{location_id?: int, to_location_id?: int, reason?: string, note?: string, supplier_id?: string, supplier_document_number?: string, supplier_document_date?: string}
+     * @return array{location_id?: int, to_location_id?: int, reason?: string, note?: string, supplier_id?: string, supplier_document_number?: string, supplier_document_date?: string, prices_include_tax?: string}
      */
     private static function header(array $post): array
     {
@@ -322,7 +323,8 @@ final class StockDocumentForm
         }
 
         // Il fornitore del carico (G3.7): la pagina li manda solo con «Acquisti».
-        foreach (['reason', 'note', 'supplier_id', 'supplier_document_number', 'supplier_document_date'] as $key) {
+        // «Prezzi IVA inclusa» del carico, anche lui solo con «Acquisti».
+        foreach (['reason', 'note', 'supplier_id', 'supplier_document_number', 'supplier_document_date', 'prices_include_tax'] as $key) {
             if (array_key_exists($key, $post) && is_scalar($post[$key])) {
                 $header[$key] = (string) $post[$key];
             }

@@ -63,7 +63,7 @@ final class Order extends Model
         return AddressExtension::billing('billing_', countryDefault: 'IT')->withLink(false);
     }
 
-    /** La consegna: destinatario, telefono, place ID e coordinate; nessun dato fiscale o aziendale. */
+    /** La consegna: destinatario, telefono, place ID e coordinate; nessun dato fiscale. */
     public static function shippingAddress(): AddressExtension
     {
         return AddressExtension::simple('shipping_', countryDefault: 'IT')
@@ -71,6 +71,23 @@ final class Order extends Model
             ->withContactName()
             ->withPhone()
             ->withGeo();
+    }
+
+    /**
+     * Le colonne della consegna: l'indirizzo più l'azienda che riceve, facoltativa
+     * (un privato può farsi spedire in ufficio). Ordini e DDT le prendono da qui.
+     *
+     * @return list<Column>
+     */
+    public static function shippingTableSchema(): array
+    {
+        return [Column::key('shipping_business_name'), ...static::shippingAddress()->tableSchema()];
+    }
+
+    /** @return list<Field> */
+    public static function shippingDataSchema(): array
+    {
+        return [Field::key('shipping_business_name')->text(), ...static::shippingAddress()->dataSchema()];
     }
 
     /** Gli ordini sono la storia di questo ambiente, non configurazione. */
@@ -108,7 +125,7 @@ final class Order extends Model
             Column::key('email')->length(150),
             Column::key('phone')->length(50),
             ...static::billingAddress()->tableSchema(),
-            ...static::shippingAddress()->tableSchema(),
+            ...static::shippingTableSchema(),
             Column::key('price_list_id')->int()->default(0),
             Column::key('prices_include_tax')->enum(['true', 'false'])->default('true'),
             // Consegna
@@ -172,7 +189,7 @@ final class Order extends Model
             Field::key('email')->email(),
             Field::key('phone')->text()->sanitize(false),
             ...static::billingAddress()->dataSchema(),
-            ...static::shippingAddress()->dataSchema(),
+            ...static::shippingDataSchema(),
             Field::key('price_list_id')->number()->decimals(0),
             Field::key('prices_include_tax')->text()->sanitize(false),
             Field::key('fulfillment_type')->text()->sanitize(false),

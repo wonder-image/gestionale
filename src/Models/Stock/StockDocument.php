@@ -53,6 +53,8 @@ final class StockDocument extends Model
             Column::key('reason')->length(30),
             Column::key('status')->enum(static::STATUSES)->default('draft'),
             Columns::decimal('total_cost', '10,2'),
+            // G3, Acquisti: i costi del carico scritti con l'IVA; il totale resta senza.
+            Column::key('prices_include_tax')->enum(['true', 'false'])->default('false'),
             Column::key('note')->type('TEXT'),
             Column::key('user_id')->int(),
         ];
@@ -82,6 +84,7 @@ final class StockDocument extends Model
             Field::key('reason')->text()->sanitize(false),
             Field::key('status')->text()->sanitize(false),
             Field::key('total_cost')->number()->decimals(2),
+            Field::key('prices_include_tax')->text()->sanitize(false),
             Field::key('note')->text(),
             Field::key('user_id')->number()->decimals(0),
         ];

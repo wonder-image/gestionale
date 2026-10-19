@@ -180,4 +180,13 @@ check('il proforma di un ordine è un PDF; c\'è per gli ordini, non per bozze, 
         && OrderProforma::fileName($ordine) === 'proforma-ordine-2026-100321.pdf';
 });
 
+check('l\'azienda è la prima riga dell\'indirizzo di spedizione, e manca se non c\'è', function () use ($dati) {
+    $righe = new ReflectionMethod(DocumentPdf::class, 'shippingLines');
+    $pdf = new QuotePdf($dati);
+    $con = $righe->invoke($pdf, [...$dati['order'], 'shipping_business_name' => 'Rossi &amp; Figli Srl']);
+    $senza = $righe->invoke($pdf, $dati['order']);
+
+    return $con[0] === 'Rossi & Figli Srl' && $con[1] === 'Marco' && $senza[0] === 'Marco';
+});
+
 summary();

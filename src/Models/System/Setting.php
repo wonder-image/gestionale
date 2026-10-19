@@ -24,7 +24,8 @@ use Wonder\Sql\TableSchema as Column;
  * (G9), e per `subscription_unpaid_days`, dopo quanti giorni un abbonamento
  * da ufficio con una rata scaduta è non pagato (G10), e per
  * `subscriptions_per_customer`, quanti abbonamenti in corso può avere un
- * cliente (G10b, 0 = senza limite).
+ * cliente (G10b, 0 = senza limite), e per `stock_prices_include_tax`, se i
+ * costi dei carichi si scrivono con l'IVA o senza (si parte senza).
  *
  * Qui stanno le scelte che si fanno una volta con il commercialista o in fase
  * di installazione. I moduli accesi aggiungono le loro coi riquadri di
@@ -38,7 +39,7 @@ final class Setting extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'low_stock_emails', 'stripe_methods_cache', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days', 'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days', 'subscriptions_per_customer']);
+        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'low_stock_emails', 'stripe_methods_cache', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days', 'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days', 'subscriptions_per_customer', 'stock_prices_include_tax']);
     }
 
     public static function tableSchema(): array
@@ -68,6 +69,8 @@ final class Setting extends Model
             Column::key('stripe_methods_cache')->type('TEXT'),
             // G3: i giorni del riquadro dei lotti in scadenza, del commerciante.
             Column::key('batch_expiry_days')->int()->default(30),
+            // G3, Acquisti: come si scrivono i costi nei carichi nuovi; si salvano sempre senza IVA.
+            Column::key('stock_prices_include_tax')->enum(['true', 'false'])->default('false'),
             // G9: i giorni dello scadenzario «in scadenza», del commerciante.
             Column::key('payment_due_days')->int()->default(7),
             // G9: quanti giorni vale un preventivo appena fatto.
@@ -110,6 +113,7 @@ final class Setting extends Model
             Field::key('low_stock_emails')->text(),
             Field::key('stripe_methods_cache')->text()->sanitize(false),
             Field::key('batch_expiry_days')->number()->decimals(0),
+            Field::key('stock_prices_include_tax')->text()->sanitize(false),
             Field::key('payment_due_days')->number()->decimals(0),
             Field::key('quote_validity_days')->number()->decimals(0),
             Field::key('delivery_transport_by')->text()->sanitize(false),

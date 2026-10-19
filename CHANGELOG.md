@@ -7,6 +7,18 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Azienda negli indirizzi**: campo facoltativo «Ragione sociale / Azienda»
+  negli indirizzi dei contatti (`business_name`) e nella spedizione di ordini
+  e DDT (`shipping_business_name`); il PDF lo stampa come prima riga
+  dell'indirizzo di spedizione.
+
+- **Costi dei carichi IVA esclusa o inclusa**: impostazione
+  `stock_prices_include_tax` (di serie esclusa) e scelta per documento
+  (`prices_include_tax`). Con IVA inclusa il costo si scorpora con
+  l'aliquota dell'articolo (`PurchaseTax`), fissata sulla riga
+  (`tax_rate`) accanto al costo scritto (`entered_cost`); `unit_cost`,
+  movimenti e costo del fornitore restano sempre netti.
+
 - **Server MCP** su `/api/gestionale/mcp/` (Streamable HTTP, solo POST,
   JSON-RPC): un agente IA (Claude Code, Claude Desktop…) elenca, crea e
   modifica prodotti, prezzi, giacenze e categorie e cambia lo stato degli

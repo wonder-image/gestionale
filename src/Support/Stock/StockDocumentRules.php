@@ -379,7 +379,24 @@ final class StockDocumentRules
     }
 
     /**
-     * Il costo di una riga di carico, IVA esclusa: vuoto = non lo so (null,
+     * Il costo IVA esclusa di un costo scritto IVA inclusa, scorporato con
+     * l'aliquota dell'articolo: 1,22 al 22% = 1,0000. Il magazzino tiene
+     * sempre il netto.
+     */
+    public static function net(float $entered, float $rate): float
+    {
+        return $rate > 0 ? round($entered / (1 + $rate / 100), 4) : round($entered, 4);
+    }
+
+    /** «IVA inclusa» dalla pagina o dalla bozza: 'true', true o 1; tutto il resto è esclusa. */
+    public static function includesTax(mixed $value): bool
+    {
+        return $value === true || $value === 1 || in_array(strtolower(trim((string) $value)), ['true', '1'], true);
+    }
+
+    /**
+     * Il costo di una riga di carico, così come è scritto (IVA esclusa, o
+     * inclusa se il documento lo dice): vuoto = non lo so (null,
      * non zero); «2,50» si legge; negativo o storto è un rifiuto.
      */
     public static function cost(mixed $value, int $row): ?float

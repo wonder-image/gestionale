@@ -247,7 +247,7 @@ final class OfficeCustomerPanel
     {
         $out = ['id' => (int) ($address['id'] ?? 0), 'is_default' => (string) ($address['is_default'] ?? '') === 'true'];
 
-        foreach (['country', 'province', 'city', 'cap', 'street', 'number', 'more', 'phone_prefix', 'phone', 'name', 'surname', 'place_id', 'lat', 'lng'] as $key) {
+        foreach (OfficeOrders::shippingKeys() as $key) {
             $out[$key] = (string) ($address[$key] ?? '');
         }
 
@@ -262,7 +262,7 @@ final class OfficeCustomerPanel
         $citta = trim($get('cap').' '.$get('city').($get('province') !== '' ? ' ('.$get('province').')' : ''));
         $chi = trim($get('name').' '.$get('surname'));
 
-        return implode(' · ', array_filter([$chi, $via, $citta, $get('country')], static fn (string $s): bool => $s !== ''));
+        return implode(' · ', array_filter([$get('business_name'), $chi, $via, $citta, $get('country')], static fn (string $s): bool => $s !== ''));
     }
 
     /** @return array<string, mixed>|null */

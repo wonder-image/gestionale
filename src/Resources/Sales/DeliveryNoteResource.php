@@ -236,6 +236,7 @@ final class DeliveryNoteResource extends GestionaleResource
                 $dato('Destinatario', static::customerOf($values) ?: '—'),
             ]),
             $riquadro('Luogo di consegna', 'Dove va la merce: parte dall\'ordine e si può cambiare finché il DDT è in bozza.', [
+                $campo(FormField::key('shipping_business_name')->text()->label('Ragione sociale / Azienda')->value($v('shipping_business_name')), 12),
                 $campo(FormField::key('shipping_name')->text()->label('Destinatario: nome')->value($v('shipping_name')), 3),
                 $campo(FormField::key('shipping_surname')->text()->label('Cognome')->value($v('shipping_surname')), 3),
                 $campo(FormField::key('shipping_street')->text()->label('Via')->value($v('shipping_street')), 4),

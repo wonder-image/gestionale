@@ -167,4 +167,12 @@ check('la finestra ha l\'aiuto di Google sulla via e place ID e coordinate nasco
         && str_contains($html, 'GEO=["place_id","lat","lng"]');
 });
 
+check('l\'azienda è facoltativa e si tiene, tagliata come gli altri campi', function () use ($valido) {
+    $con = ContactAddressResource::clean([...$valido, 'business_name' => '  Rossi Srl  ']);
+
+    return $con['business_name'] === 'Rossi Srl'
+        && ContactAddressResource::problem($con) === null
+        && ContactAddressResource::problem(ContactAddressResource::clean($valido)) === null;
+});
+
 summary();

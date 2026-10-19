@@ -14,6 +14,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
@@ -49,7 +50,7 @@ final class StockDocuments
             $locationId = self::location((int) ($header['location_id'] ?? 0));
             $reason = StockDocumentRules::reason($type, (string) ($header['reason'] ?? ''));
             $wanted = StockDocumentRules::lines($lines, self::batchProducts($type, $lines));
-            $supplier = self::supplierFields($type, $header, null);
+            $supplier = self::supplierFields($type, $header, null) + self::priceFields($type, $header, null);
             // G3.16: la sede d'arrivo del trasferimento.
             $destination = $type === 'transfer' ? ['to_location_id' => self::destination((int) ($header['to_location_id'] ?? 0), $locationId)] : [];
 
@@ -70,7 +71,7 @@ final class StockDocuments
                 throw new RuntimeException('Documento di magazzino non creato: '.json_encode($created));
             }
 
-            self::writeItems($id, $type, $locationId, $wanted, [], false);
+            self::writeItems($id, $type, $locationId, $wanted, [], false, ($supplier['prices_include_tax'] ?? 'false') === 'true');
 
             return $id;
         });
@@ -105,11 +106,14 @@ final class StockDocuments
                 ? ['to_location_id' => self::destination((int) ($header['to_location_id'] ?? $document['to_location_id'] ?? 0), $locationId)]
                 : [];
 
+            $prices = self::priceFields($type, $header, $document);
+            $inclusive = ($prices['prices_include_tax'] ?? (string) ($document['prices_include_tax'] ?? 'false')) === 'true';
+
             StockDocument::update(
-                self::supplierFields($type, $header, $document) + $destination + ['location_id' => $locationId, 'reason' => $reason, 'note' => $note],
+                self::supplierFields($type, $header, $document) + $prices + $destination + ['location_id' => $locationId, 'reason' => $reason, 'note' => $note],
                 $id
             );
-            self::writeItems($id, $type, $locationId, $wanted, $old, $locationId !== $before);
+            self::writeItems($id, $type, $locationId, $wanted, $old, $locationId !== $before, $inclusive);
         });
     }
 
@@ -370,8 +374,9 @@ final class StockDocuments
 
             foreach ($items as $item) {
                 if (in_array($item['product_id'], $kept, true)) {
+                    // Il costo com'era scritto: con «IVA inclusa» si riscorpora adesso.
                     $lines[] = ['product_id' => $item['product_id'], 'quantity' => $item['quantity']]
-                        + ($purchase ? ['cost' => $item['unit_cost']] : []);
+                        + ($purchase ? ['cost' => $item['entered_cost'] ?? $item['unit_cost']] : []);
                 }
             }
 
@@ -392,7 +397,10 @@ final class StockDocuments
                 'location_id' => $from,
                 'reason' => (string) ($document['reason'] ?? ''),
                 'note' => (string) ($document['note'] ?? ''),
-            ] + $destination + ($purchase ? ['supplier_id' => $supplierAlive ? $supplierId : 0] : []), $lines, $options);
+            ] + $destination + ($purchase ? [
+                'supplier_id' => $supplierAlive ? $supplierId : 0,
+                'prices_include_tax' => (string) ($document['prices_include_tax'] ?? 'false'),
+            ] : []), $lines, $options);
         });
     }
 
@@ -431,7 +439,7 @@ final class StockDocuments
     /**
      * Le righe del documento, nell'ordine.
      *
-     * @return list<array{id: int, product_id: int, quantity: ?float, expected_quantity: ?float, unit_cost: ?float, position: int}>
+     * @return list<array{id: int, product_id: int, quantity: ?float, expected_quantity: ?float, unit_cost: ?float, entered_cost: ?float, tax_rate: ?float, position: int}>
      */
     public static function items(int $id): array
     {
@@ -443,6 +451,9 @@ final class StockDocuments
             'quantity' => self::nullable($row['quantity'] ?? null),
             'expected_quantity' => self::nullable($row['expected_quantity'] ?? null),
             'unit_cost' => self::nullableCost($row['unit_cost'] ?? null),
+            // Con «IVA inclusa»: il costo com'era scritto e l'aliquota usata per scorporarlo.
+            'entered_cost' => self::nullableCost($row['entered_cost'] ?? null),
+            'tax_rate' => ($row['tax_rate'] ?? null) === null || $row['tax_rate'] === '' ? null : round((float) $row['tax_rate'], 2),
             'batch_number' => (string) ($row['batch_number'] ?? ''),
             'batch_expiry' => self::date($row['batch_expiry'] ?? null),
             'batch_id' => (int) ($row['batch_id'] ?? 0),
@@ -458,11 +469,13 @@ final class StockDocuments
      * @param list<array{product_id: int, quantity: ?float}> $lines già passate da `StockDocumentRules::lines()`
      * @param array<int, array{quantity: ?float, expected_quantity: ?float}> $old le righe di prima, per versione
      */
-    private static function writeItems(int $id, string $type, int $locationId, array $lines, array $old, bool $locationChanged): void
+    private static function writeItems(int $id, string $type, int $locationId, array $lines, array $old, bool $locationChanged, bool $inclusive = false): void
     {
         $productIds = array_column($lines, 'product_id');
         self::assertProducts($productIds);
         $levels = $type === 'stocktake' ? Levels::byLocationForProducts($productIds) : [];
+        // I costi scritti IVA inclusa si scorporano qui, con l'aliquota di adesso, che resta sulla riga.
+        $rates = $type === 'receipt' && $inclusive ? PurchaseTax::rates($productIds) : [];
 
         sqlDelete(StockDocumentItem::$table, '`stock_document_id` = '.$id);
         $total = 0.0;
@@ -479,9 +492,24 @@ final class StockDocuments
 
             // Il costo del carico (G3.7): quello scritto, o quello di prima se la
             // pagina non l'ha mandato (Acquisti spenta tiene i dati, nascosti).
-            $cost = $type === 'receipt'
-                ? (array_key_exists('unit_cost', $line) ? $line['unit_cost'] : ($old[$line['product_id']]['unit_cost'] ?? null))
-                : null;
+            $cost = null;
+            $entered = null;
+            $rate = null;
+
+            if ($type === 'receipt' && array_key_exists('unit_cost', $line)) {
+                $cost = $line['unit_cost'];
+
+                if ($inclusive && $cost !== null) {
+                    $entered = $cost;
+                    $rate = $rates[$line['product_id']] ?? 0.0;
+                    $cost = StockDocumentRules::net($entered, $rate);
+                }
+            } elseif ($type === 'receipt') {
+                $cost = $old[$line['product_id']]['unit_cost'] ?? null;
+                $entered = $old[$line['product_id']]['entered_cost'] ?? null;
+                $rate = $old[$line['product_id']]['tax_rate'] ?? null;
+            }
+
             $lineTotal = $cost !== null && $line['quantity'] !== null ? round($cost * $line['quantity'], 2) : null;
             $total += $lineTotal ?? 0.0;
 
@@ -505,6 +533,8 @@ final class StockDocuments
                 'supplier_id' => in_array($type, ['issue', 'transfer'], true) ? (int) $lot['supplier_id'] : 0,
                 'unit_cost' => $cost === null ? null : number_format($cost, 4, '.', ''),
                 'line_total' => $lineTotal === null ? null : number_format($lineTotal, 2, '.', ''),
+                'entered_cost' => $entered === null ? null : number_format($entered, 4, '.', ''),
+                'tax_rate' => $rate === null ? null : number_format($rate, 2, '.', ''),
                 'position' => $i + 1,
             ]);
         }
@@ -689,6 +719,32 @@ final class StockDocuments
         $fields['supplier_document_date'] ??= '';
 
         return $fields;
+    }
+
+    /**
+     * «Prezzi IVA inclusa» del carico (solo con «Acquisti»). Nella bozza nuova
+     * parte dall'impostazione del negozio; in quella che c'è, se la pagina non
+     * lo manda, resta com'era.
+     *
+     * @param array<string, mixed> $header
+     * @param array<string, mixed>|null $document
+     * @return array{prices_include_tax?: string}
+     */
+    private static function priceFields(string $type, array $header, ?array $document): array
+    {
+        if ($type !== 'receipt' || !Gestionale::feature('purchasing')) {
+            return [];
+        }
+
+        if (array_key_exists('prices_include_tax', $header)) {
+            return ['prices_include_tax' => StockDocumentRules::includesTax($header['prices_include_tax']) ? 'true' : 'false'];
+        }
+
+        if ($document !== null) {
+            return [];
+        }
+
+        return ['prices_include_tax' => StockDocumentRules::includesTax(Setting::current()['stock_prices_include_tax'] ?? 'false') ? 'true' : 'false'];
     }
 
     /**

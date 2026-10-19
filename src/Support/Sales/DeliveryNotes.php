@@ -472,7 +472,7 @@ final class DeliveryNotes
     {
         return array_map(
             static fn (object $column): string => (string) $column->name,
-            [...Order::billingAddress()->tableSchema(), ...Order::shippingAddress()->tableSchema()]
+            [...Order::billingAddress()->tableSchema(), ...Order::shippingTableSchema()]
         );
     }
 
