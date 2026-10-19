@@ -9,12 +9,17 @@ Spec: `docs/superpowers/specs/2026-10-19-ordine-in-pagamento-design.md`.
   `packages/app/ecommerce/pagamento-riprova`, ramo
   `fix/pagamento-riprova-stesso-ordine`. Si committa lì, NON si spinge; i due
   rami si uniscono insieme.
-- Test sempre con `WONDER_NO_MAIL=1` e
-  `php -d auto_prepend_file=<prepend del sito di prova>`; per l'ecommerce il
+- Test sempre con `WONDER_NO_MAIL=1` e `php -d auto_prepend_file=prepend.php`,
+  dove `prepend.php` (nello scratchpad) carica
+  `boilerplates/ecommerce-site/vendor/autoload.php` e aggiunge una classmap che
+  punta `Wonder\Plugin\Gestionale\` e `Wonder\Plugin\Ecommerce\` ai `src/`
+  dei due worktree (esclusi `Models/` e `Resources/`), poi restituisce il loader; per l'ecommerce il
   symlink temporaneo `packages/app/ecommerce/gestionale` → worktree del
   gestionale, tolto alla fine.
 - DB condiviso `ecommerce_site`: l'enum si allarga con `forge update` sul sito
   `ecommerce-site-rifiuto` (solo aggiunta, sicuro per gli altri worktree).
+  `forge update` importa il sync e sovrascrive funzionalità, colori e sedi accesi
+  dal backend: esportare o confrontare prima.
 - Ogni task: test che fallisce prima, poi codice, poi suite del file, poi commit
   con `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
@@ -42,8 +47,8 @@ Prove: numero e email una volta con due chiamate; `alert` su `abandoned`.
 `payment_intent.processing`; `Reconcile` gestisce PROCESSING. Testo «pagamento
 in elaborazione» nell'email `received`. Prove: processing → pending + email;
 poi succeeded → paid; poi fallimento → resta pending, pagamento fallito.
-Regola DELAYED (spec §3.4) scritta nello stesso metodo dietro il controllo sul
-tipo di `next_action`, senza attivare i metodi.
+La regola DELAYED (spec §3.4) resta solo nella spec: niente codice per metodi
+non attivi.
 
 ## Task 5 — `Lifecycle::abandon()` ed `Expiry` (gestionale)
 

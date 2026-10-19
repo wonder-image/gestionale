@@ -78,11 +78,13 @@ dell'ordine (il commerciante ci lavora); «pagamento in elaborazione» è lo sta
 
 Metodo nuovo `Lifecycle::receive(int $orderId, string $reason): bool`:
 
-- `UPDATE gst_orders SET status = 'pending', order_number = ?, ordered_at = NOW()
-  WHERE id = ? AND status = 'awaiting_payment'` nella stessa transazione in cui
-  si chiede `DocumentSequences::next('order')` (il numero esistente si riusa, come
-  oggi). Se le righe toccate sono 0 non fa niente e restituisce false: webhook,
-  ritorno (`settle`) e `Reconcile` possono arrivare insieme, il numero e le email
+- In una `Transaction::run`, nell'ordine: `Order::findForUpdate` della riga (lo
+  stesso schema di `Ledger::fail` con `Payment::findForUpdate`); se lo stato non
+  è `awaiting_payment` esce con false senza toccare niente; solo dopo chiede
+  `DocumentSequences::next('order')` (il numero esistente si riusa, come oggi) e
+  scrive `status = 'pending'`, `order_number`, `ordered_at = NOW()`. Webhook,
+  ritorno (`settle`) e `Reconcile` possono arrivare insieme: il secondo aspetta
+  il lock, trova `pending` ed esce, quindi nessun numero bruciato e le email
   partono una volta sola.
 - Scrive `StatusLogger` (`awaiting_payment → pending`) e, se la prenotazione è
   IMMEDIATE, la porta alla durata DEFERRED quando il pagamento non è ancora
@@ -142,14 +144,26 @@ Metodo nuovo `Lifecycle::abandon(int $orderId, string $reason): bool`, solo da
 Sostituisce `OnlinePayment::dropPending()` (ecommerce) e il ramo online di
 `Expiry`.
 
+**Il cliente che torna dopo l'abbandono** (es. dopo i 30 minuti della
+prenotazione IMMEDIATE) non perde il carrello: se l'ordine della sessione è
+`abandoned`, `OnlinePayment::reopen` lo riporta a carrello sulla stessa riga
+(`Lifecycle::reopen` accetta anche `abandoned`: intento, merce e coupon sono già
+liberati, cambia solo `stage = 'cart'`, `status = 'draft'`) e lo unisce a un
+carrello nato nel frattempo con `Cart::merge`, come oggi. La disponibilità si
+ricontrolla al «Paga», come per ogni carrello.
+
 ## 5. Scadenza: `Expiry`
 
 - Un `awaiting_payment` con la prenotazione scaduta → `abandon()`; se restituisce
   false lo salta (lo promuoveranno webhook o `Reconcile`).
 - `WAITING` resta `['pending']`: la scadenza `order_payment_wait_days` con
-  promemoria vale per bonifico manuale e DELAYED. `$silent` e
-  `waitsForOnlinePayment` spariscono: un ordine online non pagato non è più
-  `pending`.
+  promemoria vale per bonifico manuale e DELAYED.
+- `deadline()` salta (niente promemoria, niente annullo) un ordine `pending` il
+  cui pagamento aperto ha l'intento SUCCEEDED o in elaborazione: un SEPA può
+  restare in elaborazione fino a ~14 giorni e il cliente ha già pagato. Si usa
+  lo stesso controllo di `cancelIntent` (`order.payment_in_progress`).
+- `$silent` e `waitsForOnlinePayment` spariscono: un ordine online non pagato non
+  è più `pending`, e quello in elaborazione lo copre il punto sopra.
 
 ## 6. Checkout sempre modificabile (ecommerce)
 
@@ -166,13 +180,19 @@ Sostituisce `OnlinePayment::dropPending()` (ecommerce) e il ramo online di
     «pagamento in corso» (`order.payment_in_progress`);
   - ordine già `pending` (DELAYED con istruzioni) → l'ordine sta nell'area
     cliente, il checkout parte da un carrello nuovo.
+- La riapertura per una modifica scrive sul pagamento aperto il fallimento con
+  la ragione «Ordine modificato dal cliente» (`Ledger::fail($id, $message)`),
+  distinta da quella di un rifiuto: nella storia del pagamento (punto 14) i
+  rifiuti restano riconoscibili.
 - Il bottone «Modifica l'ordine» e il suo testo spariscono da `checkout.js` e
   dalle viste; dopo un rifiuto il form resta lì, si riprova o si modifica.
 - `PaymentMismatch` in `succeeded()` copre la corsa fra una modifica e un incasso
   dell'intento vecchio.
 - `CheckoutPlacement`: l'express sopra un ordine in pagamento chiama `reopen`
   come oggi; un nuovo checkout con un ordine in pagamento non riapribile chiama
-  `abandon()` al posto di `dropPending()`.
+  `abandon()` al posto di `dropPending()`. Un ordine manuale `pending`
+  (bonifico) in sessione non si tocca più: è già del commerciante, la barra
+  rapida e il checkout partono da un carrello nuovo.
 
 ## 7. Dove gli stati nuovi non devono comparire
 
@@ -239,3 +259,5 @@ nel backend, con i rifiuti nella storia del pagamento.
   pagamento», non «In attesa»; «Modifica l'ordine» non c'è; l'abbandono è
   `abandoned`, non `cancelled`. Va aggiunta una nota che rimanda qui.
 - `docs/dev/concetti/vendite.md`: stati dell'ordine e flusso online.
+- Punto 13 (stesso ramo): la barra rapida che riportava a carrello un ordine
+  normale `pending` ora lo lascia stare (§6); «Modifica l'ordine» sparisce.
