@@ -49,6 +49,7 @@ final class ExpiryTask extends AbstractTask
             'released' => $result['released'],
             'reminded' => $result['reminded'],
             'cancelled' => $result['cancelled'],
+            'abandoned' => $result['abandoned'],
         ];
     }
 }

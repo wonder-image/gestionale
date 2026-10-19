@@ -582,7 +582,7 @@ check('l\'annullo rilascia l\'utilizzo e il coupon torna usabile; annullare di n
     });
 });
 
-check('la scadenza dell\'ordine in attesa rilascia l\'utilizzo', function () {
+check('l\'abbandono dell\'ordine in pagamento rilascia l\'utilizzo', function () {
     return prova(static function (): bool {
         $s = scenario();
         $c = coupon();
@@ -592,7 +592,7 @@ check('la scadenza dell\'ordine in attesa rilascia l\'utilizzo', function () {
         senzaPosta(static fn () => Expiry::run(date('Y-m-d H:i:s', strtotime('+60 days'))));
         $usi = utilizzi($c['id']);
 
-        return (string) riga($esito['order_id'])['status'] === 'cancelled'
+        return (string) riga($esito['order_id'])['status'] === 'abandoned'
             && count($usi) === 1 && trim((string) ($usi[0]['released_at'] ?? '')) !== '';
     });
 });

@@ -160,6 +160,9 @@ final class OnlinePayments
         $received = Lifecycle::receive($rowOrder, ['source' => $source, 'reason' => 'Pagamento in elaborazione']);
 
         if ($received) {
+            // Il cliente ha pagato, la banca deve solo confermare: la merce
+            // non scade mentre aspetta (un SEPA impiega giorni).
+            Allocation::keep($rowOrder);
             OrderNotifier::send('processing', $rowOrder);
             OrderNotifier::send('merchant_new', $rowOrder);
         }
