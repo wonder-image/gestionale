@@ -98,7 +98,8 @@ check('Product::image(): misura scelta, sempre contain, skeleton e alt', functio
         && $card->getSchema('fit-cover') === false
         && $card->getSchema('skeleton') === true
         && $thumb->getSchema('default-size') === 240
-        && str_contains((string) ($thumb->getSchema('attributes')['alt'] ?? ''), 'Maglia');
+        && ($card->getSchema('attributes')['alt'] ?? null) === ''
+        && ($thumb->getSchema('attributes')['alt'] ?? null) === 'Maglia';
 });
 
 summary();

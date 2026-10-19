@@ -64,8 +64,9 @@ final class Product extends Model
 
         $image->size($size)->fitContain();
 
-        // Non `alt()`: escapa già lui e il renderer escapa di nuovo (&amp;#039;).
-        return $alt !== '' ? $image->attr('alt', $alt) : $image;
+        // Sempre un alt, vuoto per le miniature decorative. Non `alt()`: escapa
+        // già lui e il renderer escapa di nuovo (&amp;#039;).
+        return $image->attr('alt', $alt);
     }
 
     public static function syncSchema(): ?SyncSchema
