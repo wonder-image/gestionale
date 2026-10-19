@@ -44,6 +44,7 @@ final class Attributes
     /** Come si scrive il suo valore. */
     public const TYPES = [
         'select' => 'Elenco',
+        'button' => 'Bottone',
         'color' => 'Colore',
         'pattern' => 'Fantasia',
         'icon' => 'Icona',
@@ -54,10 +55,11 @@ final class Attributes
     /**
      * I tipi che si scelgono da un elenco di valori.
      *
-     * Un Elenco ha solo il nome del valore, un Colore anche il codice, una
-     * Fantasia anche l'immagine, un'Icona un'immagine sua.
+     * Un Elenco ha solo il nome del valore, un Bottone pure ma nel negozio si
+     * sceglie da una fila di bottoni, un Colore anche il codice, una Fantasia
+     * anche l'immagine, un'Icona un'immagine sua.
      */
-    public const VALUE_TYPES = ['select', 'color', 'pattern', 'icon'];
+    public const VALUE_TYPES = ['select', 'button', 'color', 'pattern', 'icon'];
 
     /** I tipi che si scrivono sul prodotto, e che hanno un'unità di misura. */
     public const UNIT_TYPES = ['number', 'text'];

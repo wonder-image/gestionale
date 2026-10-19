@@ -16,6 +16,7 @@ check('elenco, colore, fantasia e icona hanno dei valori', fn () =>
     Attributes::usesValues('select')
     && Attributes::usesValues('color')
     && Attributes::usesValues('pattern')
+    && Attributes::usesValues('button')
     && Attributes::usesValues('icon')
     && !Attributes::usesValues('text')
     && !Attributes::usesValues('number')
@@ -100,7 +101,8 @@ check('i tipi hanno un nome da leggere', fn () =>
     Attributes::types()['select'] === 'Elenco'
     && Attributes::types()['pattern'] === 'Fantasia'
     && Attributes::types()['icon'] === 'Icona'
-    && array_keys(Attributes::types()) === ['select', 'color', 'pattern', 'icon', 'text', 'number']
+    && Attributes::types()['button'] === 'Bottone'
+    && array_keys(Attributes::types()) === ['select', 'button', 'color', 'pattern', 'icon', 'text', 'number']
 );
 
 check('un colore si mostra con il suo pallino', fn () =>

@@ -68,7 +68,7 @@ final class CatalogTools
                 'run' => self::attributesList(...),
             ],
             'attribute_create' => [
-                'description' => 'Crea un attributo. Obbligatori nome, tipo e uso: se l\'utente non li ha detti, chiediglieli, non sceglierli tu. Tipi: '.implode(', ', array_keys(Attributes::TYPES)).'. Testo e numero ammettono solo gli usi `model` e `product`. `values` sono i valori di un tipo a elenco (select, color, pattern, icon).',
+                'description' => 'Crea un attributo. Obbligatori nome, tipo e uso: se l\'utente non li ha detti, chiediglieli, non sceglierli tu. Tipi: '.implode(', ', array_keys(Attributes::TYPES)).'. Testo e numero ammettono solo gli usi `model` e `product`. `values` sono i valori di un tipo a elenco (select, button, color, pattern, icon).',
                 'schema' => self::schema([
                     'name' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 150],
                     'type' => ['type' => 'string', 'enum' => array_keys(Attributes::TYPES)],

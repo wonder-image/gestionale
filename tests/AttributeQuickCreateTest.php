@@ -89,7 +89,7 @@ check('uso, filtro e stato li decide il server, non la richiesta', function () u
 });
 
 check('un attributo con dei valori non nasce dalla scheda prodotto', function () use ($rifiuto) {
-    foreach (['select', 'color', 'pattern', 'icon', 'altro'] as $tipo) {
+    foreach (['select', 'button', 'color', 'pattern', 'icon', 'altro'] as $tipo) {
         if ($rifiuto(['name' => 'Colore', 'type' => $tipo]) !== 'attribute.quick_type') {
             return false;
         }

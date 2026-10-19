@@ -33,7 +33,8 @@ use Wonder\Plugin\Gestionale\Support\Positions;
  * L'uso si sceglie qui, e dice dove finisce il valore. I valori di un
  * attributo a elenco si scrivono nella scheda, come righe. La scheda chiede
  * solo quello che serve al tipo, e cambia mentre lo si sceglie, senza salvare:
- * un Elenco ha il nome del valore, un Colore anche il codice, una Fantasia
+ * un Elenco ha il nome del valore, come un Bottone (nel negozio un gruppo di
+ * bottoni a scelta singola), un Colore anche il codice, una Fantasia
  * anche l'immagine, un'Icona un'immagine sua; Testo e Numero non hanno
  * valori, ma un'unità di misura.
  *
@@ -223,7 +224,7 @@ class AttributeResource extends GestionaleResource
         $cards = [
             (new Card)->components([
                 SectionTitle::make('Attributo')
-                    ->tooltip('L\'uso dice dove si sceglie il valore. «Scheda tecnica dell\'articolo»: uno per articolo, come il Materiale. «Opzione da scegliere»: fa nascere le opzioni in vendita, come la Taglia. «Opzione con foto proprie»: come la Taglia, ma ogni valore ha le sue foto, come il Colore. Il tipo decide cosa chiedono i valori: un Elenco solo il nome, un Colore anche il pallino, una Fantasia anche l\'immagine, un\'Icona un\'immagine sua. Testo e Numero si scrivono a mano, con l\'unità di misura, e non creano opzioni. Quando un attributo è già sugli articoli il suo uso non cambia più.')
+                    ->tooltip('L\'uso dice dove si sceglie il valore. «Scheda tecnica dell\'articolo»: uno per articolo, come il Materiale. «Opzione da scegliere»: fa nascere le opzioni in vendita, come la Taglia. «Opzione con foto proprie»: come la Taglia, ma ogni valore ha le sue foto, come il Colore. Il tipo decide cosa chiedono i valori: un Elenco solo il nome, un Bottone pure, ma nel negozio i valori stanno tutti in vista in una fila di bottoni, un Colore anche il pallino, una Fantasia anche l\'immagine, un\'Icona un\'immagine sua. Testo e Numero si scrivono a mano, con l\'unità di misura, e non creano opzioni. Quando un attributo è già sugli articoli il suo uso non cambia più.')
                     ->columnSpan(12),
                 // L'unità in fondo alla riga: quando il tipo non la usa sparisce
                 // e il vuoto resta in coda, non in mezzo.
