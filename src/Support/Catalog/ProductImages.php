@@ -163,6 +163,24 @@ final class ProductImages
     }
 
     /**
+     * Vero quando la foto si può mostrare in vetrina.
+     *
+     * Non serve che le misure siano pronte: finché la coda non le genera il
+     * motore delle immagini ripiega sul file originale. Restano fuori le foto
+     * che la coda non è riuscita a lavorare e i file che non sono immagini.
+     */
+    public static function isShowable(array $image): bool
+    {
+        if ((string) ($image['status'] ?? '') === 'failed') {
+            return false;
+        }
+
+        $extension = strtolower(pathinfo(self::fileName($image), PATHINFO_EXTENSION));
+
+        return in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'svg'], true);
+    }
+
+    /**
      * @param list<array<string, mixed>> $images
      * @return list<array<string, mixed>>
      */

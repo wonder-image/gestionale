@@ -10,24 +10,25 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
  * La foto da mostrare accanto a un articolo, in elenco o in una scheda.
  *
  * Applica `ProductImages::for()` — la regola dell'ereditarietà, che sta in un
- * posto solo — e restituisce l'indirizzo della prima foto pronta. `pick()` è
+ * posto solo — e restituisce l'indirizzo della prima foto mostrabile (anche in coda:
+ * il motore delle immagini ripiega sull'originale). `pick()` è
  * pura e si prova senza database; `forModel()` e `forProduct()` leggono le
  * immagini una volta sola per articolo, perché una tabella chiede la foto riga
  * per riga.
  */
 final class ProductPhotos
 {
-    /** @var array<int, list<array<string, mixed>>> le foto pronte, per articolo */
-    private static array $ready = [];
+    /** @var array<int, list<array<string, mixed>>> le foto, per articolo */
+    private static array $images = [];
 
     /**
      * @param list<array<string, mixed>> $images tutte le immagini dell'articolo
      */
     public static function pick(array $images, int $variantId, int $productId): string
     {
-        $ready = array_values(array_filter($images, [ProductImages::class, 'isReady']));
+        $showable = array_values(array_filter($images, [ProductImages::class, 'isShowable']));
 
-        foreach (ProductImages::for($ready, $variantId, $productId) as $image) {
+        foreach (ProductImages::for($showable, $variantId, $productId) as $image) {
             if (($url = ProductImages::url($image)) !== '') {
                 return $url;
             }
@@ -43,9 +44,9 @@ final class ProductPhotos
             return '';
         }
 
-        self::$ready[$modelId] ??= self::load($modelId);
+        self::$images[$modelId] ??= self::load($modelId);
 
-        return self::pick(self::$ready[$modelId], $variantId, $productId);
+        return self::pick(self::$images[$modelId], $variantId, $productId);
     }
 
     /** La foto di una versione, dal suo id; vuota se la versione non esiste più. */
