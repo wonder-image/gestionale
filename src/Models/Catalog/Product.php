@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Models\Catalog;
 use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Elements\Media\Image;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Sql\TableSchema as Column;
 
@@ -36,6 +37,37 @@ final class Product extends Model
     public static string $table = 'gst_products';
     public static string $folder = 'gestionale/models';
     public static string $icon = 'bi bi-upc-scan';
+
+    /** Le misure già pronte per la foto di un prodotto: miniatura, scheda, galleria, zoom. */
+    public const IMAGE_THUMB = 240;
+    public const IMAGE_CARD = 480;
+    public const IMAGE_GALLERY = 960;
+    public const IMAGE_ZOOM = 1920;
+
+    /**
+     * La foto di un prodotto, pronta da stampare ovunque: vetrina, carrello, checkout, account.
+     *
+     * È `__ri()` — srcset, webp e skeleton — con la misura da mostrare (una
+     * delle costanti `IMAGE_*` o un numero) e sempre `fitContain()`: una foto
+     * di prodotto non si taglia. Se la misura non è stata ancora generata il
+     * motore ripiega sulla più vicina, o sul file originale; lo skeleton se ne
+     * va quando l'immagine ha finito di caricare.
+     *
+     * `Product::image($url, Product::IMAGE_THUMB, $name)->displaySizes('72px')`
+     */
+    public static function image(string $src, int $size = self::IMAGE_CARD, string $alt = ''): Image
+    {
+        // Fuori dal sito (test, comandi) `__ri()` non c'è: stessa immagine, senza varianti.
+        $image = function_exists('__ri') && defined('RESPONSIVE_IMAGE_SIZES')
+            ? __ri($src)
+            : Image::src($src)->skeleton()->notDraggable()->loading();
+
+        $image->size($size)->fitContain();
+
+        // Sempre un alt, vuoto per le miniature decorative. Non `alt()`: escapa
+        // già lui e il renderer escapa di nuovo (&amp;#039;).
+        return $image->attr('alt', $alt);
+    }
 
     public static function syncSchema(): ?SyncSchema
     {

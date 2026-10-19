@@ -207,10 +207,12 @@ check('la foto: vince quella dell\'opzione, poi del colore, poi dell\'articolo',
         && ProductPhotos::pick([], 6, 8) === '';
 });
 
-check('la foto: un\'immagine non ancora pronta non si mostra', function () {
-    $non = ['id' => 1, 'product_id' => 0, 'product_variant_id' => 0, 'position' => 1, 'status' => 'queued', 'file' => 'x.jpg'];
+check('la foto: in coda si mostra (ripiega sull\'originale), fallita o non immagine no', function () {
+    $foto = static fn (string $status, string $file): array => ['id' => 1, 'product_id' => 0, 'product_variant_id' => 0, 'position' => 1, 'status' => $status, 'file' => $file];
 
-    return ProductPhotos::pick([$non], 0, 1) === '';
+    return ProductPhotos::pick([$foto('pending', 'x.jpg')], 0, 1) === '/assets/upload/app/gestionale/prodotti/x.jpg'
+        && ProductPhotos::pick([$foto('failed', 'x.jpg')], 0, 1) === ''
+        && ProductPhotos::pick([$foto('ready', 'x.mp4')], 0, 1) === '';
 });
 
 $colonna = static fn (string $nome): Closure => array_values(array_filter(

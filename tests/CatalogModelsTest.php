@@ -7,6 +7,7 @@ require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
+use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Sql\TableSchema as Column;
@@ -86,6 +87,19 @@ check('marchi e categorie hanno posizione e visibilità', function () use ($colo
 
     return isset($brand['position'], $brand['visible'], $brand['logo'])
         && isset($category['position'], $category['visible'], $category['image']);
+});
+
+check('Product::image(): misura scelta, sempre contain, skeleton e alt', function () {
+    $card = Product::image('/assets/upload/x.png');
+    $thumb = Product::image('/assets/upload/x.png', Product::IMAGE_THUMB, 'Maglia');
+
+    return $card->getSchema('default-size') === Product::IMAGE_CARD
+        && $card->getSchema('fit-contain') === true
+        && $card->getSchema('fit-cover') === false
+        && $card->getSchema('skeleton') === true
+        && $thumb->getSchema('default-size') === 240
+        && ($card->getSchema('attributes')['alt'] ?? null) === ''
+        && ($thumb->getSchema('attributes')['alt'] ?? null) === 'Maglia';
 });
 
 summary();
