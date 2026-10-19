@@ -428,7 +428,7 @@
                 "paid": {
                     "subject": "Abbiamo ricevuto il pagamento dell'ordine :number",
                     "title": "Grazie, il pagamento è arrivato",
-                    "intro": "Abbiamo ricevuto il pagamento dell'ordine :number del :date. Controlliamo la disponibilità e ti scriviamo appena l'ordine è confermato."
+                    "intro": "Abbiamo ricevuto il pagamento dell'ordine :number del :date."
                 },
                 "confirmed": {
                     "subject": "Ordine :number confermato",
