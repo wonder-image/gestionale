@@ -238,6 +238,24 @@ try {
             return count($list) <= 3 && $order['id'] === $list[0]['id'] && is_array($order['items']);
         });
 
+        check('orders_list e order_get non mostrano gli ordini in pagamento né gli abbandonati', static function () use ($chiama, $dati, $admin): bool {
+            foreach ((array) $dati($chiama('orders_list', ['limit' => 50], $admin)) as $order) {
+                if (in_array($order['status'] ?? '', ['awaiting_payment', 'abandoned'], true)) {
+                    return false;
+                }
+            }
+
+            $row = Order::find(['stage' => 'order', 'status' => 'awaiting_payment'], 1, 'id', 'DESC');
+
+            if (!is_array($row) || !isset($row['id'])) {
+                echo "    · nessun ordine in pagamento nel DB di prova\n";
+
+                return true;
+            }
+
+            return ($chiama('order_get', ['id' => (int) $row['id']], $admin)['result']['isError'] ?? false) === true;
+        });
+
         check('order_action rifiuta un\'azione non disponibile', static function () use ($chiama, $admin): bool {
             $row = Order::find(['stage' => 'order', 'status' => 'cancelled'], 1, 'id', 'DESC');
 

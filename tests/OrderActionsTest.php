@@ -31,6 +31,11 @@ check('un ordine chiuso o annullato non ha azioni', fn () =>
     && OrderActions::available($ordine('cancelled'), []) === []
 );
 
+check('un ordine in pagamento o abbandonato non ha azioni', fn () =>
+    OrderActions::available($ordine('awaiting_payment'), []) === []
+    && OrderActions::available($ordine('abandoned'), []) === []
+);
+
 check('i pezzi si contano dalle righe prodotto, al singolare e al plurale', function () use ($ordine) {
     $uno = [['type' => 'product', 'quantity' => '1.000']];
     $tre = [['type' => 'product', 'quantity' => '2.000'], ['type' => 'product', 'quantity' => '1.000'], ['type' => 'shipping', 'quantity' => '1.000']];
