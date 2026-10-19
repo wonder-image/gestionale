@@ -159,6 +159,11 @@ final class StockDocumentRules
                 $wanted['tax_rate'] = self::rate($line['tax_rate'], $row);
             }
 
+            // Scelta dal menu: l'aliquota del gestionale, che vince sul valore.
+            if (array_key_exists('tax_id', $line)) {
+                $wanted['tax_id'] = self::choice($line['tax_id']);
+            }
+
             $lines[] = $wanted;
         }
 

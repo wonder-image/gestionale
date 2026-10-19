@@ -320,8 +320,8 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         var counting = root.getAttribute('data-mode') === 'stocktake';
         // G3, Acquisti: costo per riga nel carico, riempito dal fornitore della testata.
         var costing = root.getAttribute('data-costs') === '1';
-        // Le aliquote che il carico fa scegliere (PurchaseTax::choices()).
-        var rates = costing ? JSON.parse(root.getAttribute('data-rates') || '[]').map(Number) : [];
+        // Le aliquote del gestionale (PurchaseTax::choices()): {id, rate, label, visible}.
+        var rates = costing ? JSON.parse(root.getAttribute('data-rates') || '[]') : [];
         var supplier = form ? form.querySelector('[data-wi-stock-supplier]') : null;
         // Costi scritti IVA inclusa: il magazzino tiene il netto, scorporato con l'aliquota della versione.
         var prices = form ? form.querySelector('[data-wi-stock-prices]') : null;
@@ -524,8 +524,6 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             var bad = value !== null && !(value >= 0 && value <= maxQuantity);
             var cost;
             var badCost = false;
-            var rate;
-            var badRate = false;
 
             if (bad) {
                 row.input.classList.add('is-invalid');
@@ -544,51 +542,63 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 }
             }
 
-            // L'aliquota d'acquisto: da 0 a 100, come StockDocumentRules::rate().
-            if (row.tax) {
-                rate = parse(row.tax.value.replace('%', ''));
-                badRate = rate !== null && !(rate >= 0 && rate <= 100);
-
-                if (badRate) {
-                    row.tax.classList.add('is-invalid');
-                } else {
-                    row.tax.classList.remove('is-invalid');
-                }
-            }
-
-            return !bad && !badCost && !badRate;
+            return !bad && !badCost;
         }
 
         function inclusive() {
             return !!prices && prices.value === 'true';
         }
 
-        // Il menu delle aliquote, con quella della riga scelta: se non è tra le
-        // aliquote del gestionale (cambiate dopo) si aggiunge, per non perderla.
-        function rateOptions(select, current) {
-            var list = rates.slice();
+        // Il menu delle aliquote visibili, con quella della riga scelta: per id,
+        // o per valore se la riga ha solo il valore. Una nascosta compare solo
+        // se la riga la usa già; un valore che non è più un'aliquota si aggiunge,
+        // per non perderlo.
+        function rateOptions(select, currentId, current) {
+            var chosen = null;
             var option;
             var i;
 
-            if (current === null) {
-                select.appendChild(el('option', '', '—')).value = '';
-            } else if (list.indexOf(current) === -1) {
-                list.push(current);
-                list.sort(function (a, b) { return b - a; });
+            for (i = 0; i < rates.length; i++) {
+                if (rates[i].id === currentId) {
+                    chosen = rates[i];
+                }
             }
 
-            for (i = 0; i < list.length; i++) {
-                option = select.appendChild(el('option', '', format(list[i]) + '%'));
-                option.value = String(list[i]);
-                option.selected = list[i] === current;
+            for (i = 0; chosen === null && current !== null && i < rates.length; i++) {
+                if (rates[i].visible && Number(rates[i].rate) === current) {
+                    chosen = rates[i];
+                }
+            }
+
+            if (current === null && chosen === null) {
+                option = select.appendChild(el('option', '', '—'));
+                option.value = '';
+                option.setAttribute('data-rate', '');
+            } else if (chosen === null) {
+                option = select.appendChild(el('option', '', format(current) + '%'));
+                option.value = '';
+                option.setAttribute('data-rate', String(current));
+                option.selected = true;
+            }
+
+            for (i = 0; i < rates.length; i++) {
+                if (!rates[i].visible && rates[i] !== chosen) {
+                    continue;
+                }
+
+                option = select.appendChild(el('option', '', rates[i].label));
+                option.value = String(rates[i].id);
+                option.setAttribute('data-rate', String(rates[i].rate));
+                option.selected = rates[i] === chosen;
             }
         }
 
-        // L'aliquota d'acquisto della riga: quella scelta, o vuota = quella di vendita.
+        // L'aliquota d'acquisto della riga: il valore di quella scelta.
         function rateOf(row) {
-            var value = row.tax ? parse(row.tax.value.replace('%', '')) : null;
+            var option = row.tax ? row.tax.options[row.tax.selectedIndex] : null;
+            var value = option ? option.getAttribute('data-rate') : '';
 
-            return value === null || isNaN(value) || value < 0 || value > 100 ? row.rate : value;
+            return value === '' || value == null ? null : Number(value);
         }
 
         // Come StockDocumentRules::net(): il netto di un costo scritto, a quattro decimali.
@@ -859,7 +869,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 row.rate = version.tax_rate == null || version.tax_rate === '' ? null : parse(String(version.tax_rate));
                 row.tax = el('select', 'form-select form-select-sm');
                 row.tax.style.minWidth = '5.5rem';
-                rateOptions(row.tax, row.rate == null || isNaN(row.rate) ? null : row.rate);
+                rateOptions(row.tax, Number(version.tax_id || 0), row.rate == null || isNaN(row.rate) ? null : row.rate);
                 row.tax.setAttribute('aria-label', 'Aliquota IVA d\'acquisto di ' + row.label);
                 row.tax.addEventListener('change', function () {
                     check(row);
@@ -1094,7 +1104,8 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
                 if (rows[i].cost) {
                     line.cost = rows[i].cost.value;
-                    line.tax_rate = rows[i].tax.value;
+                    line.tax_id = rows[i].tax.value;
+                    line.tax_rate = rateOf(rows[i]) === null ? '' : String(rateOf(rows[i]));
                 }
 
                 if (rows[i].lot) {

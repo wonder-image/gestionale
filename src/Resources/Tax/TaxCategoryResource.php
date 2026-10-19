@@ -121,7 +121,12 @@ final class TaxCategoryResource extends GestionaleResource
                 ->badgeOff('No', 'bi-dash', 'secondary')
                 ->size('little'),
             TableColumn::key('visible')->visibleBadge()->size('little'),
-            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+            TableColumn::key('actions')->button()->actions([
+                'edit',
+                // L'etichetta segue lo stato della riga; il core inverte la colonna.
+                'visible' => ['label' => ['true' => 'Nascondi', 'false' => 'Mostra'], 'request' => 'boolean'],
+                'delete',
+            ]),
         ];
     }
 

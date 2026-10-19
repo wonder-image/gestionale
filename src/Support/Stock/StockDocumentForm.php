@@ -26,7 +26,7 @@ final class StockDocumentForm
     private const RESTORE_TTL = 600;
 
     /** G3: i pezzi di riga oltre ai pezzi che tornano in pagina, se la riga li porta. */
-    private const RESTORABLE_KEYS = ['cost', 'tax_rate', 'batch_number', 'batch_expiry', 'batch_id', 'supplier_id'];
+    private const RESTORABLE_KEYS = ['cost', 'tax_rate', 'tax_id', 'batch_number', 'batch_expiry', 'batch_id', 'supplier_id'];
 
     /**
      * Salva la bozza e, con `intent = confirm`, la conferma.
@@ -249,6 +249,8 @@ final class StockDocumentForm
                 $lines[array_key_last($lines)]['tax_rate'] = is_string($item['tax_rate'])
                     ? $item['tax_rate']
                     : str_replace('.', ',', (string) (round((float) $item['tax_rate'], 2) + 0));
+                // E l'aliquota del gestionale: senza, il menu sceglie per valore.
+                $lines[array_key_last($lines)]['tax_id'] = (int) ($item['tax_id'] ?? 0);
             }
 
             $batchId = (int) ($item['batch_id'] ?? 0);

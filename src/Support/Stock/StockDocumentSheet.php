@@ -142,7 +142,11 @@ final class StockDocumentSheet
         }
 
         $rate = (float) $item['tax_rate'];
-        $tax = $rate > 0 ? 'IVA '.rtrim(rtrim(number_format($rate, 2, ',', ''), '0'), ',').'%' : 'senza aliquota';
+        // Con l'aliquota del gestionale anche la natura: «IVA 0% N2.1».
+        $chosen = PurchaseTax::find((int) ($item['tax_id'] ?? 0));
+        $tax = $chosen !== null
+            ? 'IVA '.$chosen['label']
+            : ($rate > 0 ? 'IVA '.rtrim(rtrim(number_format($rate, 2, ',', ''), '0'), ',').'%' : 'senza aliquota');
         $entered = $item['entered_cost'] ?? null;
 
         return $entered === null ? $tax : 'Scritto '.StockValue::money((float) $entered).' · '.$tax;

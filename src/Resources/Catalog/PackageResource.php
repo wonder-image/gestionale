@@ -137,7 +137,12 @@ final class PackageResource extends GestionaleResource
                 ->badgeOn('In uso', 'bi-check-lg', 'success')
                 ->badgeOff('Fermo', 'bi-pause', 'secondary')
                 ->size('little'),
-            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+            TableColumn::key('actions')->button()->actions([
+                'edit',
+                // L'etichetta segue lo stato della riga; il core inverte la colonna.
+                'active' => ['label' => ['true' => 'Ferma', 'false' => 'Rimetti in uso'], 'request' => 'boolean'],
+                'delete',
+            ]),
         ];
     }
 

@@ -25,6 +25,17 @@ final class PurchaseTax
      */
     public static function rates(array $productIds): array
     {
+        return array_map(static fn (array $tax): float => $tax['rate'], self::taxes($productIds));
+    }
+
+    /**
+     * Come `rates()`, con l'aliquota che la dà: il carico la propone già scelta.
+     *
+     * @param list<int> $productIds versioni
+     * @return array<int, array{id: int, rate: float}> per versione; manca quella senza aliquota
+     */
+    public static function taxes(array $productIds): array
+    {
         $productIds = array_values(array_unique(array_filter(array_map('intval', $productIds), static fn (int $id): bool => $id > 0)));
 
         if ($productIds === []) {
@@ -40,7 +51,7 @@ final class PurchaseTax
             $taxes = [];
 
             foreach (self::rows(Tax::find(['deleted' => 'false'])) as $tax) {
-                $taxes[(int) $tax['id']] = (float) ($tax['rate'] ?? 0);
+                $taxes[(int) $tax['id']] = round((float) ($tax['rate'] ?? 0), 2);
             }
         } catch (Throwable) {
             return [];
@@ -60,7 +71,7 @@ final class PurchaseTax
             $taxId = TaxResolver::resolve($rules, $country, 'private', $category, $fallback);
 
             if (isset($taxes[$taxId])) {
-                $out[(int) $product['id']] = $taxes[$taxId];
+                $out[(int) $product['id']] = ['id' => $taxId, 'rate' => $taxes[$taxId]];
             }
         }
 
@@ -68,23 +79,63 @@ final class PurchaseTax
     }
 
     /**
-     * Le aliquote che il carico fa scegliere: una per valore, dalla più alta, 0
-     * compreso (le nature N1-N7 sono tutte 0%: per il costo conta il valore).
+     * Le aliquote del gestionale per il menu del carico, dalla più alta: tutte,
+     * con `visible` a dire quali si propongono (una nascosta compare solo
+     * sulla riga che la usa già). Le nature a 0% si riconoscono dalla sigla.
      *
-     * @return list<float>
+     * @return list<array{id: int, rate: float, label: string, visible: bool}>
      */
     public static function choices(): array
     {
         try {
-            $rates = array_map(static fn (array $tax): float => round((float) ($tax['rate'] ?? 0), 2), self::rows(Tax::find(['deleted' => 'false'])));
+            $taxes = self::rows(Tax::find(['deleted' => 'false']));
         } catch (Throwable) {
-            $rates = [];
+            return [];
         }
 
-        $rates = array_values(array_unique(array_merge($rates, [0.0]), SORT_REGULAR));
-        rsort($rates);
+        $out = array_map(static fn (array $tax): array => self::choice($tax), $taxes);
 
-        return $rates;
+        usort($out, static fn (array $a, array $b): int => [$b['rate'], $a['label']] <=> [$a['rate'], $b['label']]);
+
+        return $out;
+    }
+
+    /**
+     * Un'aliquota del gestionale, anche nascosta, o null se non c'è.
+     *
+     * @return array{id: int, rate: float, label: string, visible: bool}|null
+     */
+    public static function find(int $id): ?array
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        try {
+            $rows = self::rows(Tax::find(['id' => $id, 'deleted' => 'false']));
+        } catch (Throwable) {
+            return null;
+        }
+
+        return $rows === [] ? null : self::choice($rows[0]);
+    }
+
+    /**
+     * @param array<string, mixed> $tax
+     * @return array{id: int, rate: float, label: string, visible: bool}
+     */
+    private static function choice(array $tax): array
+    {
+        $rate = round((float) ($tax['rate'] ?? 0), 2);
+        $nature = trim((string) ($tax['nature'] ?? ''));
+        $percent = str_replace('.', ',', (string) ($rate + 0)).'%';
+
+        return [
+            'id' => (int) $tax['id'],
+            'rate' => $rate,
+            'label' => $nature === '' ? $percent : $percent.' '.$nature,
+            'visible' => ($tax['visible'] ?? 'true') !== 'false',
+        ];
     }
 
     /** @return list<array<string, mixed>> */

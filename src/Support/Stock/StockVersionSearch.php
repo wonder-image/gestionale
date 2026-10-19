@@ -200,7 +200,7 @@ final class StockVersionSearch
         // G3, Acquisti: i costi per fornitore, per riempire il costo del carico.
         $costs = $useSuppliers ? self::costs($productIds) : [];
         // E l'aliquota, per scorporare l'IVA dai costi scritti IVA inclusa.
-        $rates = $useSuppliers ? PurchaseTax::rates($productIds) : [];
+        $rates = $useSuppliers ? PurchaseTax::taxes($productIds) : [];
         // G3, lotti: quali versioni chiedono il lotto, e da dove può uscire la merce nello scarico.
         $tracking = $useBatches ? array_flip(Batches::trackingProducts($productIds)) : [];
         $buckets = $useBatches || $useSuppliers ? self::buckets($productIds, $location, $useBatches, $useSuppliers) : ['lots' => [], 'suppliers' => []];
@@ -217,7 +217,7 @@ final class StockVersionSearch
                 'stock' => round((float) ($levels[$id][$location]['quantity'] ?? 0), 3),
                 'inactive' => (string) ($product['active'] ?? 'true') === 'false',
             ]
-                + ($useSuppliers ? ['costs' => (object) ($costs[$id] ?? []), 'suppliers' => $buckets['suppliers'][$id] ?? [], 'tax_rate' => $rates[$id] ?? null] : [])
+                + ($useSuppliers ? ['costs' => (object) ($costs[$id] ?? []), 'suppliers' => $buckets['suppliers'][$id] ?? [], 'tax_rate' => $rates[$id]['rate'] ?? null, 'tax_id' => $rates[$id]['id'] ?? 0] : [])
                 + ($useBatches ? ['tracks_batches' => isset($tracking[$id]), 'lots' => $buckets['lots'][$id] ?? []] : []);
         }
 

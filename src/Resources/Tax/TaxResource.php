@@ -128,7 +128,11 @@ final class TaxResource extends GestionaleResource
             TableColumn::key('rate')->text(),
             TableColumn::key('nature')->text()->size('little'),
             TableColumn::key('visible')->visibleBadge()->size('little'),
-            TableColumn::key('actions')->button()->actions(['edit']),
+            TableColumn::key('actions')->button()->actions([
+                'edit',
+                // L'etichetta segue lo stato della riga; il core inverte la colonna.
+                'visible' => ['label' => ['true' => 'Nascondi', 'false' => 'Mostra'], 'request' => 'boolean'],
+            ]),
         ];
     }
 

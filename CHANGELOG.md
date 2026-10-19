@@ -20,10 +20,16 @@ versionamento semantico.
   movimenti e costo del fornitore restano sempre netti.
 
 - **Aliquota IVA d'acquisto per riga** nei carichi: colonna «IVA %» con
-  un menu delle aliquote (`PurchaseTax::choices()`, più lo 0%), di serie
-  quella di vendita dell'articolo. Serve quando acquisto e vendita hanno
-  IVA diverse (es. forfettario che compra da una srl). L'aliquota si
-  salva in `tax_rate` anche con IVA esclusa e passa nelle copie.
+  un menu delle aliquote visibili (`PurchaseTax::choices()`, con la natura
+  per quelle a 0%), di serie quella di vendita dell'articolo. Serve quando
+  acquisto e vendita hanno IVA diverse (es. forfettario che compra da una
+  srl). La riga salva l'aliquota scelta (`tax_id`) e il suo valore
+  (`tax_rate`) anche con IVA esclusa; entrambi passano nelle copie e la
+  stampa riporta l'etichetta (es. «IVA 0% N2.1»).
+
+- **Stato dalle liste**: nei 3 puntini di aliquote IVA e tipi fiscali
+  (Nascondi/Mostra), metodi, conti e condizioni di pagamento e corrieri
+  (Disattiva/Attiva) e imballaggi (Ferma/Rimetti in uso).
 
 - **Server MCP** su `/api/gestionale/mcp/` (Streamable HTTP, solo POST,
   JSON-RPC): un agente IA (Claude Code, Claude Desktop…) elenca, crea e

@@ -48,6 +48,9 @@ final class StockDocumentItem extends Model
             // ha scorporato, fermata al salvataggio. NULL nelle righe senza IVA.
             Columns::decimal('entered_cost', '10,4')->null(true),
             Columns::decimal('tax_rate', '5,2')->null(true),
+            // L'aliquota del gestionale scelta sulla riga (le nature a 0% sono
+            // tutte uguali per il costo, non per chi legge il carico); 0 = solo il valore.
+            Column::key('tax_id')->int()->default(0),
             Columns::decimal('line_total', '10,2'),
             Column::key('position')->int()->default(0),
         ];
@@ -75,6 +78,7 @@ final class StockDocumentItem extends Model
             Field::key('unit_cost')->number()->decimals(4),
             Field::key('entered_cost')->number()->decimals(4),
             Field::key('tax_rate')->number()->decimals(2),
+            Field::key('tax_id')->number()->decimals(0),
             Field::key('line_total')->number()->decimals(2),
             Field::key('position')->number()->decimals(0),
         ];

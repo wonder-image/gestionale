@@ -376,7 +376,7 @@ final class StockDocuments
                 if (in_array($item['product_id'], $kept, true)) {
                     // Il costo com'era scritto: con «IVA inclusa» si riscorpora adesso.
                     $lines[] = ['product_id' => $item['product_id'], 'quantity' => $item['quantity']]
-                        + ($purchase ? ['cost' => $item['entered_cost'] ?? $item['unit_cost'], 'tax_rate' => $item['tax_rate']] : []);
+                        + ($purchase ? ['cost' => $item['entered_cost'] ?? $item['unit_cost'], 'tax_rate' => $item['tax_rate'], 'tax_id' => $item['tax_id']] : []);
                 }
             }
 
@@ -439,7 +439,7 @@ final class StockDocuments
     /**
      * Le righe del documento, nell'ordine.
      *
-     * @return list<array{id: int, product_id: int, quantity: ?float, expected_quantity: ?float, unit_cost: ?float, entered_cost: ?float, tax_rate: ?float, position: int}>
+     * @return list<array{id: int, product_id: int, quantity: ?float, expected_quantity: ?float, unit_cost: ?float, entered_cost: ?float, tax_rate: ?float, tax_id: int, position: int}>
      */
     public static function items(int $id): array
     {
@@ -454,6 +454,7 @@ final class StockDocuments
             // Con «IVA inclusa»: il costo com'era scritto e l'aliquota usata per scorporarlo.
             'entered_cost' => self::nullableCost($row['entered_cost'] ?? null),
             'tax_rate' => ($row['tax_rate'] ?? null) === null || $row['tax_rate'] === '' ? null : round((float) $row['tax_rate'], 2),
+            'tax_id' => (int) ($row['tax_id'] ?? 0),
             'batch_number' => (string) ($row['batch_number'] ?? ''),
             'batch_expiry' => self::date($row['batch_expiry'] ?? null),
             'batch_id' => (int) ($row['batch_id'] ?? 0),
@@ -475,7 +476,7 @@ final class StockDocuments
         self::assertProducts($productIds);
         $levels = $type === 'stocktake' ? Levels::byLocationForProducts($productIds) : [];
         // L'aliquota d'acquisto non scritta sulla riga è quella di vendita dell'articolo, adesso.
-        $rates = $type === 'receipt' ? PurchaseTax::rates($productIds) : [];
+        $rates = $type === 'receipt' ? PurchaseTax::taxes($productIds) : [];
 
         sqlDelete(StockDocumentItem::$table, '`stock_document_id` = '.$id);
         $total = 0.0;
@@ -495,12 +496,14 @@ final class StockDocuments
             $cost = null;
             $entered = null;
             $rate = null;
+            $taxId = 0;
 
             if ($type === 'receipt' && array_key_exists('unit_cost', $line)) {
                 $cost = $line['unit_cost'];
                 // L'IVA del prodotto acquistato resta sulla riga, IVA esclusa o inclusa:
                 // può non essere quella di vendita (un forfettario compra con IVA).
-                $rate = $line['tax_rate'] ?? $rates[$line['product_id']] ?? null;
+                // Prima l'aliquota scelta dal menu, poi il valore scritto, poi quella di vendita.
+                [$taxId, $rate] = self::purchaseTax($line, $rates[$line['product_id']] ?? null, $i + 1);
 
                 // I costi scritti IVA inclusa si scorporano con quell'aliquota.
                 if ($inclusive && $cost !== null) {
@@ -511,6 +514,7 @@ final class StockDocuments
                 $cost = $old[$line['product_id']]['unit_cost'] ?? null;
                 $entered = $old[$line['product_id']]['entered_cost'] ?? null;
                 $rate = $old[$line['product_id']]['tax_rate'] ?? null;
+                $taxId = (int) ($old[$line['product_id']]['tax_id'] ?? 0);
             }
 
             $lineTotal = $cost !== null && $line['quantity'] !== null ? round($cost * $line['quantity'], 2) : null;
@@ -538,6 +542,7 @@ final class StockDocuments
                 'line_total' => $lineTotal === null ? null : number_format($lineTotal, 2, '.', ''),
                 'entered_cost' => $entered === null ? null : number_format($entered, 4, '.', ''),
                 'tax_rate' => $rate === null ? null : number_format($rate, 2, '.', ''),
+                'tax_id' => $taxId,
                 'position' => $i + 1,
             ]);
         }
@@ -545,6 +550,33 @@ final class StockDocuments
         if ($type === 'receipt') {
             StockDocument::update(['total_cost' => number_format(round($total, 2), 2, '.', '')], $id);
         }
+    }
+
+    /**
+     * L'aliquota d'acquisto di una riga del carico, come [id, valore].
+     *
+     * @param array<string, mixed> $line
+     * @param array{id: int, rate: float}|null $sale quella di vendita dell'articolo
+     * @return array{0: int, 1: ?float}
+     */
+    private static function purchaseTax(array $line, ?array $sale, int $row): array
+    {
+        if ((int) ($line['tax_id'] ?? 0) > 0) {
+            $tax = PurchaseTax::find((int) $line['tax_id']);
+
+            if ($tax === null) {
+                throw UserError::make('stock_document.invalid_rate', ['row' => $row]);
+            }
+
+            return [$tax['id'], $tax['rate']];
+        }
+
+        if (($line['tax_rate'] ?? null) !== null) {
+            // Solo il valore: se è quello di vendita, l'aliquota è la stessa.
+            return [$sale !== null && $sale['rate'] === $line['tax_rate'] ? $sale['id'] : 0, $line['tax_rate']];
+        }
+
+        return $sale === null ? [0, null] : [$sale['id'], $sale['rate']];
     }
 
     /** @param list<int> $productIds */

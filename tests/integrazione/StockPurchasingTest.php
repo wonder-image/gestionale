@@ -266,6 +266,37 @@ check('l\'aliquota d\'acquisto si cambia per riga: scorpora con quella e resta a
         && $rifiuto;
 }));
 
+check('l\'aliquota scelta dal menu resta sulla riga con la sua natura, anche nella copia', fn () => prova(static function () use ($utente): bool {
+    accendiFunzionalita(['purchasing']);
+    $a = articoloConGiacenza(1, 'TST-ACQ-IVA-5');
+    $scelte = PurchaseTax::choices();
+    $dieci = array_values(array_filter($scelte, static fn (array $t): bool => $t['rate'] === 10.0))[0] ?? null;
+    $zero = array_values(array_filter($scelte, static fn (array $t): bool => $t['rate'] === 0.0 && str_contains($t['label'], 'N')))[0] ?? null;
+
+    if ($dieci === null || $zero === null) {
+        return false;
+    }
+
+    // L'id vince sul valore mandato insieme.
+    $id = StockDocuments::create('receipt', ['prices_include_tax' => 'true'], [['product_id' => $a, 'quantity' => '1', 'cost' => '1,10', 'tax_id' => (string) $dieci['id'], 'tax_rate' => '22']], ['user_id' => $utente]);
+    $dieciRiga = StockDocuments::items($id)[0];
+    StockDocuments::saveDraft($id, [], [['product_id' => $a, 'quantity' => '1', 'cost' => '1,10', 'tax_id' => (string) $zero['id']]]);
+    $zeroRiga = StockDocuments::items($id)[0];
+    $copia = StockDocuments::items(StockDocuments::duplicate($id, ['user_id' => $utente]))[0];
+    $rifiuto = false;
+
+    try {
+        StockDocuments::saveDraft($id, [], [['product_id' => $a, 'quantity' => '1', 'cost' => '1', 'tax_id' => '999999999']]);
+    } catch (UserError $e) {
+        $rifiuto = str_contains($e->getMessage(), 'aliquota');
+    }
+
+    return $dieciRiga['tax_id'] === $dieci['id'] && $dieciRiga['tax_rate'] === 10.0 && $dieciRiga['unit_cost'] === 1.0
+        && $zeroRiga['tax_id'] === $zero['id'] && $zeroRiga['tax_rate'] === 0.0 && $zeroRiga['unit_cost'] === 1.1
+        && $copia['tax_id'] === $zero['id']
+        && $rifiuto;
+}));
+
 check('il duplicato del carico IVA inclusa riparte dallo scritto, non dal netto', fn () => prova(static function () use ($utente): bool {
     accendiFunzionalita(['purchasing']);
     $a = articoloConGiacenza(1, 'TST-ACQ-IVA-3');
