@@ -12,6 +12,8 @@ use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
+use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
+use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 
 /**
  * Il denaro che passa da un gateway: l'avvio dell'intento e quello che il
@@ -58,7 +60,7 @@ final class OnlinePayments
     {
         $order = Order::findById($orderId);
 
-        if (!is_array($order) || (string) ($order['status'] ?? '') !== 'pending') {
+        if (!is_array($order) || (string) ($order['status'] ?? '') !== 'awaiting_payment') {
             throw new RuntimeException("Ordine {$orderId} non più da pagare.");
         }
 
@@ -83,16 +85,102 @@ final class OnlinePayments
 
     /**
      * Il gateway ha incassato: si controlla che il denaro sia proprio
-     * dell'ordine, poi si registra e si conferma.
+     * dell'ordine, poi si registra.
      *
-     * L'incasso si scrive prima della conferma e per conto suo: se la
-     * conferma cade, il denaro resta registrato e il prossimo passaggio
-     * (rinvio del webhook, riallineamento) trova la riga già pagata e
-     * conferma soltanto.
+     * Non si conferma: l'ordine pagato resta «in attesa» finché il
+     * commerciante non controlla la merce e lo conferma dal backend
+     * (`Lifecycle::confirm`, che trova il pagamento già registrato). Chi
+     * ripassa (rinvio del webhook, riallineamento, pagina di ritorno) trova la
+     * riga già pagata e non riavvisa.
      *
-     * @return array<string, mixed> l'esito di `Lifecycle::confirm`
+     * @return array{order_id: int, status: string, payment_status?: string, changed: bool}
      */
     public static function succeeded(string $provider, string $reference, int $amount, string $currency, int $orderId, string $source): array
+    {
+        [$row, $rowOrder, $order, $expected] = self::matching($provider, $reference, $amount, $currency, $orderId);
+
+        // Letto prima di scrivere: chi ripassa su una riga già pagata non riavvisa.
+        $alreadyPaid = (string) $row['status'] === 'paid';
+
+        // Il cliente ha pagato: l'ordine «In pagamento» diventa del commerciante,
+        // con numero e data. Chi arriva secondo lo trova già ricevuto.
+        Lifecycle::receive($rowOrder, ['source' => $source, 'reason' => 'Pagamento riuscito']);
+
+        Ledger::register([
+            'order_id' => $rowOrder,
+            'amount' => $amount / 100,
+            'currency' => $expected,
+            'provider' => $provider,
+            'provider_reference' => $reference,
+            'source' => $source,
+        ]);
+
+        $current = Order::findById($rowOrder);
+        $current = is_array($current) ? $current : $order;
+        $status = (string) ($current['status'] ?? '');
+
+        if (in_array($status, ['cancelled', 'abandoned'], true)) {
+            // Il cliente ha pagato un ordine già annullato o abbandonato: il
+            // denaro va restituito dalla dashboard del gateway.
+            if (!$alreadyPaid) {
+                self::alert($provider, 'payment.cancelled_order', "Incasso {$reference} sull'ordine annullato {$rowOrder}: va rimborsato.", ['order_id' => $rowOrder]);
+            }
+
+            return ['order_id' => $rowOrder, 'status' => $status, 'changed' => false];
+        }
+
+        // L'ordine resta «in attesa»: lo conferma il commerciante dal backend,
+        // dopo aver visto che la merce c'è. Intanto la merce messa da parte non
+        // scade più, e il cliente e il commerciante sanno del pagamento.
+        if (!$alreadyPaid && $status === 'pending') {
+            Allocation::keep($rowOrder);
+            OrderNotifier::send('paid', $rowOrder);
+            OrderNotifier::send('merchant_paid', $rowOrder);
+        }
+
+        return [
+            'order_id' => $rowOrder,
+            'status' => $status,
+            'payment_status' => (string) ($current['payment_status'] ?? ''),
+            'changed' => !$alreadyPaid,
+        ];
+    }
+
+    /**
+     * Il gateway ha preso in carico il pagamento ma l'esito arriva dopo
+     * (SEPA): l'ordine diventa del commerciante, con numero e data, e cliente
+     * e commerciante lo sanno. Il pagamento resta da incassare; a `succeeded`
+     * partono le email del pagamento.
+     *
+     * @return array{order_id: int, status: string, changed: bool}
+     */
+    public static function processing(string $provider, string $reference, int $amount, string $currency, int $orderId, string $source): array
+    {
+        [, $rowOrder] = self::matching($provider, $reference, $amount, $currency, $orderId);
+        $received = Lifecycle::receive($rowOrder, ['source' => $source, 'reason' => 'Pagamento in elaborazione']);
+
+        if ($received) {
+            // Il cliente ha pagato, la banca deve solo confermare: la merce
+            // non scade mentre aspetta (un SEPA impiega giorni).
+            Allocation::keep($rowOrder);
+            OrderNotifier::send('processing', $rowOrder);
+            OrderNotifier::send('merchant_new', $rowOrder);
+        }
+
+        return [
+            'order_id' => $rowOrder,
+            'status' => (string) (Order::findById($rowOrder)['status'] ?? ''),
+            'changed' => $received,
+        ];
+    }
+
+    /**
+     * La riga e l'ordine dell'intento, dopo aver controllato che importo,
+     * valuta e ordine siano quelli del gestionale.
+     *
+     * @return array{0: array<string, mixed>, 1: int, 2: array<string, mixed>, 3: string}
+     */
+    private static function matching(string $provider, string $reference, int $amount, string $currency, int $orderId): array
     {
         $row = Ledger::byReference($provider, $reference);
 
@@ -124,35 +212,15 @@ final class OnlinePayments
             throw new PaymentMismatch("Intento {$reference}: valuta {$currency} al posto di {$expected}.");
         }
 
-        // Letto prima di scrivere: chi ripassa su una riga già pagata non riavvisa.
-        $alreadyPaid = (string) $row['status'] === 'paid';
-
-        Ledger::register([
-            'order_id' => $rowOrder,
-            'amount' => $amount / 100,
-            'currency' => $expected,
-            'provider' => $provider,
-            'provider_reference' => $reference,
-            'source' => $source,
-        ]);
-
-        if ((string) $order['status'] === 'cancelled') {
-            // Il cliente ha pagato un ordine già annullato: il denaro va
-            // restituito dalla dashboard del gateway.
-            if (!$alreadyPaid) {
-                self::alert($provider, 'payment.cancelled_order', "Incasso {$reference} sull'ordine annullato {$rowOrder}: va rimborsato.", ['order_id' => $rowOrder]);
-            }
-
-            return ['order_id' => $rowOrder, 'status' => 'cancelled', 'changed' => false];
+        if ((string) ($order['stage'] ?? '') !== 'order') {
+            // Tornato carrello (il cliente ha cambiato il checkout): `Lifecycle::reopen`
+            // annulla l'intento prima di riaprire, quindi qui arriva solo un
+            // incasso che il gateway ha preso lo stesso. Niente denaro su un
+            // carrello: il commerciante lo rimborsa, e riprovare non serve.
+            throw new PaymentMismatch("Incasso {$reference} sull'ordine {$rowOrder}, tornato carrello: va rimborsato.");
         }
 
-        return Lifecycle::confirm($rowOrder, [
-            'provider' => $provider,
-            'provider_reference' => $reference,
-            'amount' => $amount / 100,
-            'source' => $source,
-            'merchant_notice' => true,
-        ]);
+        return [$row, $rowOrder, $order, $expected];
     }
 
     /**
@@ -186,8 +254,10 @@ final class OnlinePayments
     /**
      * Il tentativo non è andato: la riga si segna fallita e l'ordine resta in
      * attesa. L'intento resta riusabile: il cliente riprova sullo stesso.
+     * Con `$attempt` ogni tentativo rifiutato resta nella storia del
+     * pagamento (`Ledger::fail`).
      */
-    public static function fail(string $provider, string $reference, string $message): void
+    public static function fail(string $provider, string $reference, string $message, string $attempt = ''): void
     {
         $row = Ledger::byReference($provider, $reference);
 
@@ -196,7 +266,13 @@ final class OnlinePayments
             return;
         }
 
-        Ledger::fail((int) $row['id'], $message);
+        Ledger::fail((int) $row['id'], $message, $attempt);
+
+        if ((string) (Order::findById((int) $row['order_id'])['status'] ?? '') === 'pending') {
+            // L'ordine era già del commerciante (pagamento in elaborazione):
+            // resta suo, e il commerciante deve sapere che il denaro non arriva.
+            self::alert($provider, 'payment.failed_after_processing', "Pagamento {$reference} dell'ordine {$row['order_id']} non riuscito dopo l'elaborazione: l'ordine resta da incassare.", ['order_id' => (int) $row['order_id']]);
+        }
     }
 
     /**

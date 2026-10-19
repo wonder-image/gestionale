@@ -7,16 +7,21 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
+use Wonder\Plugin\Gestionale\Providers\Payments\PaymentState;
 use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
+use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Throwable;
 
 /**
  * Il giro che tiene pulito il magazzino: chi non paga libera la merce.
+ * L'ordine già pagato che aspetta la conferma del commerciante non si tocca.
  *
- * Tre cose, in quest'ordine. Le prenotazioni scadute si liberano — la carta
- * abbandonata dopo mezz'ora, il bonifico che non arriva. A metà dell'attesa
+ * Tre cose, in quest'ordine. Le prenotazioni scadute si liberano — il
+ * bonifico che non arriva — e l'ordine online «In pagamento» con la
+ * prenotazione scaduta si abbandona (`Lifecycle::abandon()`: niente email,
+ * l'intento si annulla). A metà dell'attesa
  * parte un promemoria, una volta sola. Alla fine dell'attesa l'ordine si
  * annulla, e per annullarlo si passa da `Lifecycle::cancel()` come tutti gli
  * altri: un annullamento scritto qui a mano lascerebbe la storia dell'ordine
@@ -34,20 +39,38 @@ final class Expiry
     private const WAITING = ['pending'];
 
     /**
-     * @return array{released: int, reminded: int, cancelled: int, orders: list<int>}
+     * @return array{released: int, reminded: int, cancelled: int, abandoned: int, orders: list<int>}
      */
     public static function run(?string $now = null): array
     {
         $now ??= date('Y-m-d H:i:s');
         $settings = Setting::current();
         $days = (int) ($settings['order_payment_wait_days'] ?? 7);
-        $result = ['released' => 0, 'reminded' => 0, 'cancelled' => 0, 'orders' => []];
+        $result = ['released' => 0, 'reminded' => 0, 'cancelled' => 0, 'abandoned' => 0, 'orders' => []];
 
         foreach (self::expiredOrders($now) as $orderId) {
             try {
                 $order = Order::findById($orderId);
 
-                if (!is_array($order) || !in_array((string) $order['status'], self::WAITING, true)) {
+                if (!is_array($order) || self::paid($order)) {
+                    continue;
+                }
+
+                if ((string) $order['status'] === 'awaiting_payment') {
+                    // Con il pagamento partito `abandon` restituisce false:
+                    // lo promuovono il webhook o `Reconcile`.
+                    if (Lifecycle::abandon($orderId, ['reason' => 'Pagamento non completato', 'source' => 'cron'])) {
+                        // `abandon` libera le prenotazioni attive; quelle
+                        // scadute si chiudono qui, o il giro dopo le ritrova.
+                        $result['released'] += Allocation::expire($orderId);
+                        ++$result['abandoned'];
+                        $result['orders'][] = $orderId;
+                    }
+
+                    continue;
+                }
+
+                if (!in_array((string) $order['status'], self::WAITING, true)) {
                     continue;
                 }
 
@@ -59,6 +82,10 @@ final class Expiry
 
         foreach (self::waitingOrders() as $order) {
             $orderId = (int) $order['id'];
+
+            if (self::paid($order) || self::paymentInProgress($orderId)) {
+                continue;
+            }
 
             // Un ordine che non si riesce a chiudere non deve tenere fermi
             // gli altri: resta dov'è, finisce nel log, e il giro dopo riprova.
@@ -76,7 +103,7 @@ final class Expiry
      * Un ordine in attesa: il promemoria a metà, l'annullamento alla fine.
      *
      * @param array<string, mixed> $order
-     * @param array{released: int, reminded: int, cancelled: int, orders: list<int>} $result
+     * @param array{released: int, reminded: int, cancelled: int, abandoned: int, orders: list<int>} $result
      */
     private static function deadline(array $order, int $days, string $now, array &$result): void
     {
@@ -89,24 +116,20 @@ final class Expiry
 
         $deadline = $ordered + $days * 86400;
         $moment = strtotime($now);
-        // Con il pagamento online il cliente non ha ricevuto «ricevuto» e il
-        // commerciante non ha ricevuto l'avviso di nuovo ordine: aspettavano
-        // l'incasso. Un ordine mai annunciato non si sollecita né si annuncia
-        // annullato; l'intento sul gateway si chiude comunque, dal `cancel`.
-        $silent = self::waitsForOnlinePayment($orderId);
 
         if ($moment >= $deadline) {
             Lifecycle::cancel($orderId, [
                 'reason' => 'Pagamento non ricevuto entro il termine',
                 'source' => 'cron',
-            ] + ($silent ? ['notify' => false] : ['merchant_notice' => true]));
+                'merchant_notice' => true,
+            ]);
             ++$result['cancelled'];
             $result['orders'][] = $orderId;
 
             return;
         }
 
-        if (!$silent && $moment >= $ordered + (int) floor($days * 86400 / 2) && !self::reminded($orderId)) {
+        if ($moment >= $ordered + (int) floor($days * 86400 / 2) && !self::reminded($orderId)) {
             OrderNotifier::send('reminder', $orderId, [
                 'deadline' => date('Y-m-d H:i:s', $deadline),
             ]);
@@ -161,12 +184,47 @@ final class Expiry
         ]));
     }
 
-    /** L'ordine aspetta un incasso online (riga di un gateway non ancora pagata)? */
-    private static function waitsForOnlinePayment(int $orderId): bool
+    /**
+     * Il cliente ha già pagato e il gateway sta incassando (un SEPA resta in
+     * elaborazione fino a ~14 giorni): l'ordine non si sollecita né si annulla.
+     * Lo stesso controllo con cui `Lifecycle` non annulla un intento.
+     */
+    private static function paymentInProgress(int $orderId): bool
     {
         $payment = OnlinePayments::payment($orderId);
+        $reference = (string) ($payment['provider_reference'] ?? '');
 
-        return $payment !== null && (string) $payment['status'] !== 'paid';
+        if ($payment === null || (string) $payment['status'] === 'paid' || $reference === '') {
+            return false;
+        }
+
+        $gateway = PaymentProviders::get((string) $payment['provider']);
+
+        if ($gateway === null || (string) ($payment['environment'] ?? 'live') !== $gateway->environment()) {
+            return false;
+        }
+
+        try {
+            $state = $gateway->status($reference)->status;
+        } catch (Throwable $error) {
+            // Gateway muto: meglio aspettare un giro che annullare un pagato.
+            Errors::internal($error, 'expiry.payment_status', ['order_id' => $orderId]);
+
+            return true;
+        }
+
+        return in_array($state, [PaymentState::SUCCEEDED, PaymentState::PROCESSING], true);
+    }
+
+    /**
+     * Pagato e ancora «in attesa»: aspetta la conferma del commerciante, non
+     * il denaro. Non si sollecita, non si annulla e la merce resta sua.
+     *
+     * @param array<string, mixed> $order
+     */
+    private static function paid(array $order): bool
+    {
+        return (string) ($order['payment_status'] ?? '') === 'paid';
     }
 
     /** Il promemoria di questo ordine è già partito? */

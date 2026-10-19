@@ -41,6 +41,7 @@ final class Order extends Model
     public const STATUSES = [
         'draft', 'sent', 'rejected', 'expired',
         'pending', 'confirmed', 'processing', 'completed', 'cancelled',
+        'awaiting_payment', 'abandoned',
     ];
 
     /** Gli stati di un ordine vero: senza quelli del preventivo. */

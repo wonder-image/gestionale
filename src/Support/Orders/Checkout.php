@@ -333,25 +333,33 @@ final class Checkout
                 ++$reserved;
             }
 
-            $number = DocumentSequences::next('order');
+            $provider = PaymentMethod::ledgerProvider((string) ($method['provider'] ?? ''));
+            // Col gateway il cliente non ha ancora pagato: l'ordine resta «In
+            // pagamento», senza numero né data, finché non ha fatto la sua parte
+            // (`Lifecycle::receive`). Un ordine riaperto torna col suo numero.
+            $online = $provider !== 'manual';
+            $status = $online ? 'awaiting_payment' : 'pending';
+            $number = trim((string) ($cart['order_number'] ?? ''));
+            $number = $number !== '' || $online ? $number : DocumentSequences::next('order');
+            // `user_id` è l'account di chi compra (anche l'ospite appena
+            // creato): senza, l'email di conferma non sa a chi offrire il
+            // link all'area riservata o alla scelta della password.
             Order::update([
                 'stage' => 'order',
-                'status' => 'pending',
-                'order_number' => $number,
-                'ordered_at' => date('Y-m-d H:i:s'),
-            ], $cartId);
+                'status' => $status,
+            ] + ($number !== '' ? ['order_number' => $number] : [])
+              + ($online ? [] : ['ordered_at' => date('Y-m-d H:i:s')])
+              + ((int) ($data['user_id'] ?? 0) > 0 ? ['user_id' => (int) $data['user_id']] : []), $cartId);
 
             StatusLogger::record(
                 OrderStatusLog::class,
                 $cartId,
                 'status',
                 (string) $cart['status'],
-                'pending',
+                $status,
                 (string) ($data['source'] ?? 'user'),
                 (int) ($data['user_id'] ?? 0) ?: null
             );
-
-            $provider = PaymentMethod::ledgerProvider((string) ($method['provider'] ?? ''));
 
             $payment = Ledger::open([
                 'order_id' => $cartId,
@@ -375,7 +383,7 @@ final class Checkout
                 'total' => (string) $order['total'],
                 'reserved' => $reserved,
                 'timing' => $timing,
-                'status' => 'pending',
+                'status' => $status,
                 'provider' => $provider,
             ];
         });

@@ -95,7 +95,7 @@ final class CustomerOrderTableResource extends OrderSectionResource
     {
         $mine = '`customer_id` = '.$customerId.($userId > 0 ? ' OR `user_id` = '.$userId : '');
 
-        return "`stage` = 'order' AND ({$mine})";
+        return "`stage` = 'order' AND `status` NOT IN ('awaiting_payment', 'abandoned') AND ({$mine})";
     }
 
     protected static function emptyText(): string

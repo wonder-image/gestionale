@@ -12,7 +12,7 @@ check('ogni stato dell\'ordine ha la sua etichetta e il suo colore', function ()
     foreach (Order::STATUSES as $stato) {
         $voce = StatusLabels::order($stato);
 
-        if ($voce['label'] === $stato || $voce['color'] === 'secondary' && !in_array($stato, ['draft', 'expired'], true)) {
+        if ($voce['label'] === $stato || $voce['color'] === 'secondary' && !in_array($stato, ['draft', 'expired', 'awaiting_payment'], true)) {
             return false;
         }
     }

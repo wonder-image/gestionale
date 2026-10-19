@@ -86,6 +86,14 @@ function arriva(FakePaymentProvider $finto, PaymentEvent $evento): int
     return PaymentEvents::handle($finto, '{}', 'valida');
 }
 
+function pagatoInAttesa(int $ordine): bool
+{
+    // Pagato online, resta «in attesa»: lo conferma il commerciante.
+    $riga = Order::findById($ordine);
+
+    return (string) ($riga['status'] ?? '') === 'pending' && (string) ($riga['payment_status'] ?? '') === 'paid';
+}
+
 function stato(int $ordine): string
 {
     return (string) (Order::findById($ordine)['status'] ?? '');
@@ -126,7 +134,7 @@ check('succeeded conferma l\'ordine e chiude la stessa riga', fn () => prova(sta
     $righe = righe($ordine);
 
     return $esito === 200
-        && stato($ordine) === 'confirmed'
+        && pagatoInAttesa($ordine)
         && count($righe) === 1
         && (int) $righe[0]['id'] === $pagamento
         && $righe[0]['status'] === 'paid'
@@ -182,7 +190,7 @@ check('carta rifiutata: riga fallita, ordine in attesa; poi lo stesso intento ri
 
     return $fallita === 'failed'
         && $attesa === 'pending'
-        && stato($ordine) === 'confirmed'
+        && pagatoInAttesa($ordine)
         && count(righe($ordine)) === 1;
 }));
 
@@ -221,19 +229,24 @@ check('un tipo che non serve si segna elaborato', fn () => prova(static function
 
 check('un errore nostro risponde 500; l\'evento fallito si rielabora e riesce', fn () => prova(static function () use ($finto): bool {
     [$ordine, , $intento] = intentoAperto(50.0);
-    $evento = evento('payment_intent.succeeded', $intento, $ordine, 5000);
-    // Un carrello non si conferma: `Lifecycle::confirm` lancia.
-    Order::update(['stage' => 'cart'], $ordine);
-    $primo = arriva($finto, $evento);
-    $riga = ProviderEvents::find('stripe', $evento->id, 'test');
-    Order::update(['stage' => 'order'], $ordine);
-    $secondo = arriva($finto, $evento);
+    arriva($finto, evento('payment_intent.succeeded', $intento, $ordine, 5000));
+    // Un rimborso che non è una riga fa cadere il nostro codice: non è un
+    // dato incoerente del gateway, quindi si risponde 500 e si riprova.
+    $rotto = evento('charge.refunded', $intento, $ordine, 5000, ['refunds' => ['rotto']]);
+    $primo = arriva($finto, $rotto);
+    $riga = ProviderEvents::find('stripe', $rotto->id, 'test');
+    $buono = evento('charge.refunded', $intento, $ordine, 5000, [
+        'id' => $rotto->id,
+        'refunds' => [['id' => 're_'.uniqid(), 'amount' => 1000, 'status' => 'succeeded']],
+    ]);
+    $secondo = arriva($finto, $buono);
 
     return $primo === 500
         && ($riga['status'] ?? '') === 'failed'
         && (int) ($riga['attempts'] ?? 0) === 1
         && $secondo === 200
-        && stato($ordine) === 'confirmed';
+        && (ProviderEvents::find('stripe', $rotto->id, 'test')['status'] ?? '') === 'processed'
+        && count(righe($ordine, 'refund')) === 1;
 }));
 
 check('un evento incoerente avvisa il commerciante con payment.review', fn () => prova(static function () use ($finto): bool {
