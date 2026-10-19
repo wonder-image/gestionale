@@ -76,11 +76,16 @@ final class Ledger
      * Segna fallito un pagamento e ricalcola l'ordine: una carta rifiutata non
      * lascia l'ordine «in attesa» per sempre.
      *
+     * Con `$attempt` (il tentativo che il gateway ha rifiutato) ogni rifiuto
+     * resta nella storia del pagamento, anche sulla riga già fallita: chi
+     * riprova tre volte lascia tre righe. Lo stesso tentativo, raccontato dal
+     * webhook e dal browser, se ne scrive una sola.
+     *
      * @return string il nuovo `payment_status` dell'ordine
      */
-    public static function fail(int $paymentId, string $message = ''): string
+    public static function fail(int $paymentId, string $message = '', string $attempt = ''): string
     {
-        return Transaction::run(static function () use ($paymentId, $message): string {
+        return Transaction::run(static function () use ($paymentId, $message, $attempt): string {
             $row = Payment::findForUpdate(['id' => $paymentId], 1);
 
             if (!is_array($row) || $row === []) {
@@ -94,7 +99,11 @@ final class Ledger
                 throw UserError::make('payment.already_paid');
             }
 
-            self::move($row, 'failed', $message);
+            if ($attempt === '') {
+                self::move($row, 'failed', $message);
+            } elseif (!self::attempted($paymentId, $attempt)) {
+                self::move($row, 'failed', $message, '', ['attempt' => $attempt], true);
+            }
 
             return self::sync((int) $row['order_id']);
         });
@@ -320,15 +329,18 @@ final class Ledger
     /**
      * Porta una riga già scritta a un altro stato, e lo annota.
      *
-     * Chi è già in quello stato non si tocca: è la notifica ripetuta.
+     * Chi è già in quello stato non si tocca: è la notifica ripetuta. Con
+     * `$always` si annota lo stesso, senza riscrivere la riga: è un altro
+     * tentativo rifiutato.
      *
      * @param array<string, mixed> $row
+     * @param array<string, mixed>|null $response
      */
-    private static function move(array $row, string $status, string $message = '', string $paidAt = ''): void
+    private static function move(array $row, string $status, string $message = '', string $paidAt = '', ?array $response = null, bool $always = false): void
     {
         $before = (string) $row['status'];
 
-        if ($before === $status) {
+        if ($before === $status && !$always) {
             return;
         }
 
@@ -338,7 +350,9 @@ final class Ledger
             $changes['paid_at'] = $paidAt !== '' ? $paidAt : date('Y-m-d H:i:s');
         }
 
-        Payment::update($changes, (int) $row['id']);
+        if ($before !== $status) {
+            Payment::update($changes, (int) $row['id']);
+        }
 
         StatusLogger::record(
             PaymentStatusLog::class,
@@ -348,8 +362,26 @@ final class Ledger
             $status,
             'system',
             null,
-            $message
+            $message,
+            $response
         );
+    }
+
+    /** Se quel tentativo rifiutato è già nella storia del pagamento. */
+    private static function attempted(int $paymentId, string $attempt): bool
+    {
+        $rows = PaymentStatusLog::find(['payment_id' => $paymentId, 'to_value' => 'failed']);
+        $rows = is_array($rows) && isset($rows['id']) ? [$rows] : array_filter((array) $rows, 'is_array');
+
+        foreach ($rows as $log) {
+            $response = json_decode((string) ($log['response'] ?? ''), true);
+
+            if (is_array($response) && (string) ($response['attempt'] ?? '') === $attempt) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

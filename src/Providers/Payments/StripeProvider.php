@@ -33,6 +33,24 @@ final class StripeProvider implements PaymentProvider
         'canceled' => PaymentState::CANCELED,
     ];
 
+    /** Il motivo di un rifiuto, dal `decline_code` o dal `code` di Stripe. */
+    private const FAILURES = [
+        'insufficient_funds' => 'fondi insufficienti',
+        'generic_decline' => 'rifiutata dalla banca',
+        'do_not_honor' => 'rifiutata dalla banca',
+        'card_declined' => 'rifiutata dalla banca',
+        'lost_card' => 'carta smarrita',
+        'stolen_card' => 'carta rubata',
+        'expired_card' => 'carta scaduta',
+        'incorrect_cvc' => 'codice di sicurezza errato',
+        'incorrect_number' => 'numero della carta errato',
+        'card_velocity_exceeded' => 'limite della carta superato',
+        'fraudulent' => 'sospetta frode',
+        'authentication_required' => 'verifica della banca non completata',
+        'payment_intent_authentication_failure' => 'verifica della banca non completata',
+        'processing_error' => 'errore della banca, da riprovare',
+    ];
+
     /** Quanto vale la lettura dei tipi accesi nel conto, in secondi. */
     public const CACHE_SECONDS = 600;
 
@@ -214,13 +232,43 @@ final class StripeProvider implements PaymentProvider
     public function status(string $reference): PaymentState
     {
         $intent = $this->intents($this->environment())->get($reference);
+        [$failure, $attempt] = self::failure($intent->toArray());
 
         return new PaymentState(
             self::STATES[(string) $intent->status] ?? PaymentState::OTHER,
             (int) (($intent->amount_received ?? 0) ?: $intent->amount),
             strtolower((string) $intent->currency),
-            (int) ($intent->metadata['order_id'] ?? 0)
+            (int) ($intent->metadata['order_id'] ?? 0),
+            $failure,
+            $attempt
         );
+    }
+
+    /**
+     * Il motivo leggibile dell'ultimo tentativo rifiutato e chi lo identifica:
+     * l'addebito, o senza addebito (verifica della banca fallita) il metodo
+     * provato col codice. Vuoti se nessun tentativo è stato rifiutato: un
+     * intento nuovo è anche lui «da pagare».
+     *
+     * @param array<string, mixed> $intent
+     * @return array{0: string, 1: string}
+     */
+    private static function failure(array $intent): array
+    {
+        $error = $intent['last_payment_error'] ?? null;
+
+        if (!is_array($error) || $error === []) {
+            return ['', ''];
+        }
+
+        $code = (string) ($error['decline_code'] ?? '') ?: (string) ($error['code'] ?? '');
+        $reason = self::FAILURES[$code] ?? trim((string) ($error['message'] ?? ''));
+        $text = 'Pagamento rifiutato'.($reason !== '' ? ': '.$reason : '').($code !== '' ? " ({$code})" : '');
+        $method = $error['payment_method'] ?? '';
+        $method = is_array($method) ? (string) ($method['id'] ?? '') : (string) $method;
+        $attempt = (string) ($error['charge'] ?? '') ?: ($method !== '' ? $method.':'.$code : '');
+
+        return [$text, $attempt];
     }
 
     public function event(string $raw, string $signature): ?PaymentEvent
@@ -274,6 +322,7 @@ final class StripeProvider implements PaymentProvider
         }
 
         $isCharge = ($object['object'] ?? '') === 'charge';
+        [$failure, $attempt] = $isCharge ? ['', ''] : self::failure($object);
 
         return new PaymentEvent(
             (string) $payload['id'],
@@ -285,7 +334,9 @@ final class StripeProvider implements PaymentProvider
             (int) ($object['metadata']['order_id'] ?? 0),
             $isCharge && $environment !== '' ? $this->refunds($object, $environment) : [],
             (string) ($isCharge ? ($object['id'] ?? '') : ($object['latest_charge'] ?? '')),
-            $payload
+            $payload,
+            $failure,
+            $attempt
         );
     }
 

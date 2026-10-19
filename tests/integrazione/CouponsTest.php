@@ -545,7 +545,8 @@ check('first_order_only: chi ha già ordinato è rifiutato al checkout anche se 
     return prova(static function (): bool {
         $s = scenario();
         $senzaCoupon = altroCarrello($s);
-        ordina($senzaCoupon, datiCheckout('veterano@example.com'));
+        // Pagato: un ordine ancora «In pagamento» non è un ordine fatto.
+        Lifecycle::receive(ordina($senzaCoupon, datiCheckout('veterano@example.com'))['order_id']);
 
         $c = coupon(['first_order_only' => 'true']);
         Coupons::apply($s['cart'], $c['code']);
@@ -581,7 +582,7 @@ check('l\'annullo rilascia l\'utilizzo e il coupon torna usabile; annullare di n
     });
 });
 
-check('la scadenza dell\'ordine in attesa rilascia l\'utilizzo', function () {
+check('l\'abbandono dell\'ordine in pagamento rilascia l\'utilizzo', function () {
     return prova(static function (): bool {
         $s = scenario();
         $c = coupon();
@@ -591,7 +592,7 @@ check('la scadenza dell\'ordine in attesa rilascia l\'utilizzo', function () {
         senzaPosta(static fn () => Expiry::run(date('Y-m-d H:i:s', strtotime('+60 days'))));
         $usi = utilizzi($c['id']);
 
-        return (string) riga($esito['order_id'])['status'] === 'cancelled'
+        return (string) riga($esito['order_id'])['status'] === 'abandoned'
             && count($usi) === 1 && trim((string) ($usi[0]['released_at'] ?? '')) !== '';
     });
 });

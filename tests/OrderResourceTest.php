@@ -77,6 +77,23 @@ check('l\'elenco mostra solo gli ordini veri, non i carrelli', function () {
     return str_contains($condizione, "stage = 'order'") && str_contains($condizione, "deleted = 'false'");
 });
 
+check('l\'elenco non mostra gli ordini in pagamento', fn () =>
+    str_contains((string) (OrderResource::querySchema()['condition'] ?? ''), "status <> 'awaiting_payment'")
+);
+
+check('il filtro Pagamenti nasconde gli abbandonati e li mostra solo su richiesta', function () {
+    foreach ((array) (OrderResource::tableLayoutSchema()->toArray()['custom_filters'] ?? []) as $f) {
+        if (($f['column'] ?? '') === 'payment_view') {
+            return array_keys((array) $f['array']) === ['active', 'failed']
+                && ($f['where'])(['failed']) === "status = 'abandoned'"
+                && ($f['where'])(['active']) === "status <> 'abandoned'"
+                && ($f['where'])([]) === "status <> 'abandoned'";
+        }
+    }
+
+    return false;
+});
+
 check('i filtri usano gli stati del Model', fn () =>
     array_diff($filtro('payment_status'), ['', ...Order::PAYMENT_STATUSES]) === []
     && count($filtro('payment_status')) === count(Order::PAYMENT_STATUSES) + 1

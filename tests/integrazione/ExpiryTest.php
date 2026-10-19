@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
+use Wonder\Plugin\Gestionale\Providers\Payments\PaymentState;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Expiry;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
@@ -51,7 +52,7 @@ function soloLaProva(): void
     $db = Order::query()->mysqli;
     $adesso = $db->real_escape_string(date('Y-m-d H:i:s'));
 
-    $db->query('UPDATE '.Order::$table." SET deleted = 'true' WHERE stage = 'order' AND status = 'pending' AND deleted = 'false'");
+    $db->query('UPDATE '.Order::$table." SET deleted = 'true' WHERE stage = 'order' AND status IN ('pending', 'awaiting_payment') AND deleted = 'false'");
     $db->query('UPDATE '.StockReservation::$table." SET deleted = 'true'"
         ." WHERE released_at IS NULL AND expires_at IS NOT NULL AND expires_at <= '{$adesso}' AND deleted = 'false'");
 }
@@ -311,60 +312,115 @@ function giorniDiAttesa(): int
 }
 
 /**
- * Un ordine in attesa con la riga di pagamento online già legata a un intento.
+ * Un ordine online «In pagamento» (senza numero né data) con la riga di
+ * pagamento già legata a un intento.
  *
  * @return array{0: int, 1: string}
  */
-function ordineOnlineInAttesa(string $orderedAt): array
+function ordineOnlineInPagamento(string $expiresAt): array
 {
-    [$ordine] = ordineInAttesa($orderedAt, date('Y-m-d H:i:s', strtotime('+1 day')));
+    [$ordine] = ordineInAttesa(date('Y-m-d H:i:s'), $expiresAt);
+    Order::update(['status' => 'awaiting_payment', 'order_number' => '', 'ordered_at' => null], $ordine);
     Ledger::open(['order_id' => $ordine, 'amount' => 40.0, 'provider' => 'stripe']);
 
     return [$ordine, OnlinePayments::start($ordine)->reference];
 }
 
-check('ordine online a metà termine: nessun promemoria e nessun segno di «ricordato»', function () {
-    $finto = new FakePaymentProvider();
-    PaymentProviders::register($finto);
+function traUnGiorno(): string
+{
+    return date('Y-m-d H:i:s', strtotime('+1 day'));
+}
 
-    try {
-        return prova(static function (): bool {
-            commercianteScrivea('negozio@example.com');
-            [$ordine] = ordineOnlineInAttesa(date('Y-m-d H:i:s', strtotime('-'.max(1, (int) ceil(giorniDiAttesa() / 2)).' days')));
+function unOraFa(): string
+{
+    return date('Y-m-d H:i:s', strtotime('-1 hour'));
+}
 
-            [$esito, $partite] = conPosta(static fn (): array => Expiry::run());
-
-            return $esito['reminded'] === 0
-                && !in_array($ordine, $esito['orders'], true)
-                && $partite === []
-                && (int) sqlCount(
-                    OrderStatusLog::$table,
-                    "order_id = {$ordine} AND field = 'payment_reminder' AND deleted = 'false'"
-                ) === 0
-                && (string) Order::findById($ordine)['status'] === 'pending';
-        });
-    } finally {
-        PaymentProviders::reset();
-    }
-});
-
-check('ordine online scaduto: si annulla in silenzio e l\'intento si annulla sul fornitore', function () {
+check('in pagamento con la prenotazione scaduta: abbandonato in silenzio, intento annullato, merce libera', function () {
     $finto = new FakePaymentProvider();
     PaymentProviders::register($finto);
 
     try {
         return prova(static function () use ($finto): bool {
             commercianteScrivea('negozio@example.com');
-            [$ordine, $intento] = ordineOnlineInAttesa(date('Y-m-d H:i:s', strtotime('-'.(giorniDiAttesa() + 1).' days')));
+            [$ordine, $intento] = ordineOnlineInPagamento(unOraFa());
 
             [$esito, $partite] = conPosta(static fn (): array => Expiry::run());
 
-            return $esito['cancelled'] === 1
+            return $esito['abandoned'] === 1
+                && $esito['cancelled'] === 0
                 && in_array($ordine, $esito['orders'], true)
-                && (string) Order::findById($ordine)['status'] === 'cancelled'
-                // Né al cliente né al commerciante: l'ordine non era mai stato «ricevuto».
+                && (string) Order::findById($ordine)['status'] === 'abandoned'
                 && $partite === []
-                && $finto->cancelled === [$intento];
+                && $finto->cancelled === [$intento]
+                && (int) sqlCount(StockReservation::$table, "order_id = {$ordine} AND released_at IS NULL AND deleted = 'false'") === 0;
+        });
+    } finally {
+        PaymentProviders::reset();
+    }
+});
+
+check('in pagamento scaduto ma Stripe sta incassando: resta in pagamento', function () {
+    $finto = new FakePaymentProvider();
+    PaymentProviders::register($finto);
+
+    try {
+        return prova(static function () use ($finto): bool {
+            [$ordine, $intento] = ordineOnlineInPagamento(unOraFa());
+            $finto->failCancel = true;
+            $finto->states[$intento] = new PaymentState(PaymentState::SUCCEEDED);
+
+            [$esito, $partite] = conPosta(static fn (): array => Expiry::run());
+
+            return $esito['abandoned'] === 0
+                && (string) Order::findById($ordine)['status'] === 'awaiting_payment'
+                && $partite === [];
+        });
+    } finally {
+        PaymentProviders::reset();
+    }
+});
+
+check('in pagamento con la prenotazione ancora buona: non si tocca', function () {
+    $finto = new FakePaymentProvider();
+    PaymentProviders::register($finto);
+
+    try {
+        return prova(static function () use ($finto): bool {
+            [$ordine] = ordineOnlineInPagamento(traUnGiorno());
+
+            [$esito] = conPosta(static fn (): array => Expiry::run());
+
+            return $esito['abandoned'] === 0
+                && (string) Order::findById($ordine)['status'] === 'awaiting_payment'
+                && $finto->cancelled === [];
+        });
+    } finally {
+        PaymentProviders::reset();
+    }
+});
+
+check('in elaborazione oltre il termine: niente promemoria, niente annullo, la merce resta presa', function () {
+    $finto = new FakePaymentProvider();
+    PaymentProviders::register($finto);
+
+    try {
+        return prova(static function () use ($finto): bool {
+            commercianteScrivea('negozio@example.com');
+            [$ordine, $intento] = ordineOnlineInPagamento(traUnGiorno());
+            conPosta(static fn (): array => OnlinePayments::processing('stripe', $intento, 4000, 'eur', $ordine, 'webhook'));
+            Order::update(['ordered_at' => date('Y-m-d H:i:s', strtotime('-'.(giorniDiAttesa() + 1).' days'))], $ordine);
+            $finto->states[$intento] = new PaymentState(PaymentState::PROCESSING);
+
+            [$esito, $partite] = conPosta(static fn (): array => Expiry::run(date('Y-m-d H:i:s', strtotime('+2 days'))));
+            $prenotazione = StockReservation::find(['order_id' => $ordine, 'deleted' => 'false'], 1);
+
+            return !in_array($ordine, $esito['orders'], true)
+                && $esito['reminded'] === 0
+                && $partite === []
+                && (string) Order::findById($ordine)['status'] === 'pending'
+                && trim((string) ($prenotazione['released_at'] ?? '')) === ''
+                && $finto->cancelled === [];
         });
     } finally {
         PaymentProviders::reset();
@@ -378,7 +434,7 @@ check('pagato online: la merce non scade più, partono «pagato» al cliente e l
     try {
         return prova(static function (): bool {
             commercianteScrivea('negozio@example.com');
-            [$ordine, $intento] = ordineOnlineInAttesa(date('Y-m-d H:i:s'));
+            [$ordine, $intento] = ordineOnlineInPagamento(traUnGiorno());
 
             [$esito, $partite] = conPosta(static fn (): array => OnlinePayments::succeeded('stripe', $intento, 4000, 'eur', $ordine, 'webhook'));
             [, $ripasso] = conPosta(static fn (): array => OnlinePayments::succeeded('stripe', $intento, 4000, 'eur', $ordine, 'webhook'));
@@ -390,6 +446,33 @@ check('pagato online: la merce non scade più, partono «pagato» al cliente e l
                 && trim((string) ($prenotazione['expires_at'] ?? '')) === ''
                 && $partite === ['cliente@example.com', 'negozio@example.com']
                 && $ripasso === [];
+        });
+    } finally {
+        PaymentProviders::reset();
+    }
+});
+
+check('pagato online e poi confermato dal commerciante: la merce esce, il pagamento non si riscrive', function () {
+    $finto = new FakePaymentProvider();
+    PaymentProviders::register($finto);
+
+    try {
+        return prova(static function (): bool {
+            [$ordine, $intento] = ordineOnlineInPagamento(traUnGiorno());
+            conPosta(static fn (): array => OnlinePayments::succeeded('stripe', $intento, 4000, 'eur', $ordine, 'webhook'));
+            $prodotto = (int) OrderItem::find(['order_id' => $ordine, 'deleted' => 'false'], 1)['product_id'];
+            $prima = Levels::of($prodotto);
+            $pagamenti = (int) sqlCount(Wonder\Plugin\Gestionale\Models\Payments\Payment::$table, "order_id = {$ordine} AND deleted = 'false'");
+
+            conPosta(static fn () => Lifecycle::confirm($ordine));
+            $riga = Order::findById($ordine);
+            $dopo = Levels::of($prodotto);
+
+            return (string) $riga['status'] === 'confirmed'
+                && (string) $riga['payment_status'] === 'paid'
+                && (int) sqlCount(Wonder\Plugin\Gestionale\Models\Payments\Payment::$table, "order_id = {$ordine} AND deleted = 'false'") === $pagamenti
+                && (int) sqlCount(StockReservation::$table, "order_id = {$ordine} AND released_at IS NULL AND deleted = 'false'") === 0
+                && $dopo['quantity'] < $prima['quantity'];
         });
     } finally {
         PaymentProviders::reset();

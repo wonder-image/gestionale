@@ -63,7 +63,8 @@ final class Reconcile
             $pending = (string) $payment['status'] === 'pending';
             $context = ['order' => $orderId, 'reference' => $reference];
 
-            if ((string) (Order::findById($orderId)['status'] ?? '') !== 'pending') {
+            // «In pagamento» compreso: un webhook perso non lascia l'ordine fuori.
+            if (!in_array((string) (Order::findById($orderId)['status'] ?? ''), ['awaiting_payment', 'pending'], true)) {
                 continue;
             }
 
@@ -73,6 +74,10 @@ final class Reconcile
                 if ($state->status === PaymentState::SUCCEEDED) {
                     OnlinePayments::succeeded($code, $reference, $state->amount, $state->currency, $state->orderId, 'cron');
                     ++$done;
+                } elseif ($state->status === PaymentState::PROCESSING) {
+                    if (OnlinePayments::processing($code, $reference, $state->amount, $state->currency, $state->orderId, 'cron')['changed']) {
+                        ++$done;
+                    }
                 } elseif ($state->status === PaymentState::CANCELED && $pending) {
                     OnlinePayments::fail($code, $reference, 'Pagamento annullato');
                     ++$done;

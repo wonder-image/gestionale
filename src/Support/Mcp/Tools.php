@@ -593,7 +593,7 @@ final class Tools
 
     private static function ordersList(array $args): array
     {
-        $conditions = ["`deleted` = 'false'", "`stage` = 'order'"];
+        $conditions = ["`deleted` = 'false'", "`stage` = 'order'", "`status` NOT IN ('awaiting_payment', 'abandoned')"];
         $status = (string) ($args['status'] ?? '');
 
         if ($status !== '') {
@@ -680,7 +680,7 @@ final class Tools
     {
         $row = Order::findById($id);
 
-        if (!is_array($row) || $row === [] || (string) ($row['deleted'] ?? 'false') === 'true' || (string) ($row['stage'] ?? '') !== 'order') {
+        if (!is_array($row) || $row === [] || (string) ($row['deleted'] ?? 'false') === 'true' || (string) ($row['stage'] ?? '') !== 'order' || (string) ($row['status'] ?? '') === 'awaiting_payment') {
             throw McpError::make('order_not_found', 0, ['id' => $id]);
         }
 

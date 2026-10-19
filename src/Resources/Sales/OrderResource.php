@@ -161,6 +161,15 @@ final class OrderResource extends GestionaleResource
             ->filterCustom('Ordine', 'status', static::options('order', Gestionale::feature('office_sales') ? ['draft', ...Order::LIVE_STATUSES] : Order::LIVE_STATUSES))
             ->filterCustom('Pagamento', 'payment_status', static::options('payment', Order::PAYMENT_STATUSES))
             ->filterCustom('Evasione', 'fulfillment_status', static::options('fulfillment', Order::FULFILLMENT_STATUSES))
+            // Gli ordini abbandonati al pagamento stanno fuori dall'elenco:
+            // si guardano solo chiedendoli.
+            ->filterQuery(
+                'Pagamenti',
+                'payment_view',
+                ['active' => 'Ordini', 'failed' => 'Pagamenti non riusciti'],
+                static fn (array $values): string => ($values[0] ?? '') === 'failed' ? "status = 'abandoned'" : "status <> 'abandoned'",
+                value: 'active'
+            )
             ->filterQuery(
                 'Periodo',
                 'periodo',
@@ -177,7 +186,8 @@ final class OrderResource extends GestionaleResource
     public static function querySchema(): array
     {
         $schema = parent::querySchema();
-        $schema['condition'] = "deleted = 'false' AND stage = 'order'";
+        // «In pagamento» non è ancora un ordine per il commerciante.
+        $schema['condition'] = "deleted = 'false' AND stage = 'order' AND status <> 'awaiting_payment'";
 
         return $schema;
     }

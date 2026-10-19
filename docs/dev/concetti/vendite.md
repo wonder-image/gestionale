@@ -31,9 +31,49 @@ Per questo chi legge i movimenti trova sempre il motivo (`sale`,
 2. **Ordine** — `Checkout::place()` trasforma il carrello in ordine `pending` e
    prenota la merce con `Allocation::reserve()`. La giacenza non cambia: la
    merce è solo messa da parte.
+   Con un metodo online (`provider` diverso da `manual`) l'ordine nasce
+   **«In pagamento»** (`awaiting_payment`): niente numero, niente
+   `ordered_at`, niente email. Non compare al commerciante (lista ordini,
+   cliente, MCP) né al cliente (area account). Diventa `pending` con
+   `Lifecycle::receive()`, chiamato da `OnlinePayments::succeeded()` o
+   `processing()` (SEPA, `payment_intent.processing`): un solo UPDATE
+   condizionato dà numero, `ordered_at`, email «ricevuto» al cliente e avviso
+   al commerciante, una volta sola anche con webhook e ritorno insieme. Con il
+   pagamento in elaborazione l'email lo dice; l'incasso arriva poi col webhook.
+   **Abbandono** — `Lifecycle::abandon()` porta un `awaiting_payment` ad
+   **«Abbandonato»** (`abandoned`): annulla l'intento, libera merce, pagamenti
+   aperti e coupon, nessuna email. Se l'intento è riuscito o in elaborazione
+   restituisce false e l'ordine resta. Lo chiamano `Expiry` (prenotazione
+   scaduta) e il checkout (nuovo ordine sopra uno in pagamento). Gli abbandonati
+   si vedono solo col filtro «Pagamenti non riusciti» della lista ordini.
 3. **Conferma** — `Lifecycle::confirm()` scarica la merce (`Allocation::commit()`),
    manda l'email al cliente e, se è passato un pagamento, lo registra col
    `Ledger`. Confermare **non** registra denaro da solo.
+   Un ordine pagato online **non si conferma da solo**:
+   `OnlinePayments::succeeded` registra l'incasso e lascia l'ordine `pending`
+   con `payment_status` `paid`. La merce resta prenotata senza scadenza
+   (`Allocation::keep()`), `Expiry` lo salta, e partono «pagato» al cliente e
+   l'avviso al commerciante. Lo conferma il commerciante dal backend, dopo aver
+   controllato che la merce ci sia.
+   **Riapertura** — `Lifecycle::reopen()` riporta a carrello, sulla stessa
+   riga, un ordine `awaiting_payment` o `abandoned` (il checkout lo chiama da
+   solo al primo cambio, dal carrello e dal coupon; sull'abbandonato cambia solo
+   lo stadio). Sul pagamento aperto scrive la ragione «Ordine modificato dal
+   cliente», distinta da un rifiuto. Libera le prenotazioni, segna come falliti i pagamenti aperti,
+   rilascia il coupon e annulla gli intenti **prima** di toccare l'ordine. Se
+   l'annullo non riesce rilegge lo stato: già annullato riapre, pagamento
+   partito (`succeeded`/`processing`) dà `order.payment_in_progress`, altro dà
+   `order.reopen_retry`; in entrambi i casi l'ordine resta. Il numero resta:
+   il `Checkout::place()` successivo riusa l'`order_number`. Con denaro
+   incassato non riapre. Un incasso arrivato comunque su un ordine tornato
+   carrello è un `PaymentMismatch` («va rimborsato»): un solo avviso al
+   commerciante.
+   **Rifiuti** — ogni rifiuto della banca resta nella storia del pagamento:
+   `PaymentState`/`PaymentEvent` portano `failure` (il motivo) e `attempt`
+   (l'id del tentativo, da `last_payment_error`), e `Ledger::fail` scrive una
+   riga `failed` per tentativo, saltando lo stesso tentativo già scritto (dal
+   webhook o dal checkout). La lista pagamenti mostra l'ultimo motivo e
+   « · N tentativi».
 4. **Evasione** — `Lifecycle::fulfill()` cambia solo `fulfillment_status`: la
    merce è già uscita alla conferma.
 5. **Annullo** — `Lifecycle::cancel()` libera la prenotazione se l'ordine era
@@ -41,7 +81,9 @@ Per questo chi legge i movimenti trova sempre il motivo (`sale`,
    incassato non si rimborsa da qui: lo fa il gateway con `Ledger::refund()`.
 6. **Scadenze** — `Expiry::run()` gira ogni ora (`ExpiryTask`, cron
    `0 * * * *`): manda il promemoria agli ordini che aspettano il pagamento e
-   annulla quelli scaduti, secondo `order_payment_wait_days`.
+   annulla quelli scaduti, secondo `order_payment_wait_days` (bonifico
+   manuale). Abbandona gli `awaiting_payment` con la prenotazione scaduta e
+   salta i `pending` il cui intento è riuscito o in elaborazione.
 
 ### Le personalizzazioni sulla riga
 

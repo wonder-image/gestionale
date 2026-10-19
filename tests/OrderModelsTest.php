@@ -57,6 +57,7 @@ check('un enum solo tiene preventivo e ordine', fn () =>
     Order::STATUSES === [
         'draft', 'sent', 'rejected', 'expired',
         'pending', 'confirmed', 'processing', 'completed', 'cancelled',
+        'awaiting_payment', 'abandoned',
     ]
     && Order::PAYMENT_STATUSES === [
         'unpaid', 'pending', 'partially_paid', 'paid', 'partially_refunded', 'refunded',

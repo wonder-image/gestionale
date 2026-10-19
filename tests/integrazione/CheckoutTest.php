@@ -131,7 +131,7 @@ check('il carrello diventa un ordine numerato, con la merce impegnata', function
 
         $esito = senzaPosta(static fn (): array => Checkout::place(
             $carrello,
-            datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE))
+            datiCheckout(metodoDiProva(PaymentTiming::DEFERRED))
         ));
 
         $ordine = Order::findById($esito['order_id']);
@@ -511,6 +511,7 @@ check('confermare col riferimento del gateway chiude il pagamento aperto, senza 
             $carrello,
             datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE))
         ));
+        Lifecycle::receive($carrello);
 
         senzaPosta(static fn (): array => Wonder\Plugin\Gestionale\Support\Orders\Lifecycle::confirm($carrello, [
             'provider' => 'stripe',
@@ -702,9 +703,9 @@ check('place dice se l\'email al cliente è partita, col bonifico e col contrass
     });
 });
 
-// «Modifica l'ordine»: l'ordine torna carrello sulla stessa riga e il nuovo
-// invio tiene il suo numero, senza annullati né buchi nella numerazione.
-check('Modifica l\'ordine: torna carrello sulla stessa riga e il nuovo invio tiene il numero', function () {
+// Il cliente cambia il checkout prima di pagare: l'ordine «In pagamento»
+// torna carrello sulla stessa riga, senza numero bruciato né annullati.
+check('cambiare il checkout prima di pagare: torna carrello sulla stessa riga, senza numero', function () {
     return prova(static function (): bool {
         [$carrello, $prodotto] = carrelloPronto();
         $metodo = metodoDiProva(PaymentTiming::IMMEDIATE);
@@ -712,26 +713,66 @@ check('Modifica l\'ordine: torna carrello sulla stessa riga e il nuovo invio tie
         $primo = senzaPosta(static fn (): array => Checkout::place($carrello, datiCheckout($metodo)));
         $pagamento = (int) (Payment::find(['order_id' => $carrello, 'status' => 'pending', 'deleted' => 'false'], 1)['id'] ?? 0);
 
-        $riaperto = Lifecycle::reopen($carrello, ['source' => 'ecommerce', 'reason' => 'Modifica l\'ordine']);
+        $riaperto = Lifecycle::reopen($carrello, ['source' => 'ecommerce', 'reason' => 'Ordine modificato dal cliente']);
         $riga = Order::findById($carrello);
         $liberoDopo = Levels::of($prodotto)['available'];
         $storia = (int) sqlCount(
             Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog::$table,
-            "order_id = {$carrello} AND field = 'status' AND from_value = 'pending' AND to_value = 'draft' AND deleted = 'false'"
+            "order_id = {$carrello} AND field = 'status' AND from_value = 'awaiting_payment' AND to_value = 'draft' AND deleted = 'false'"
         );
 
         $secondo = senzaPosta(static fn (): array => Checkout::place($carrello, datiCheckout($metodo)));
 
         return $riaperto['order_id'] === $carrello
+            && $primo['order_number'] === ''
             && $riga['stage'] === 'cart'
             && $riga['status'] === 'draft'
             && $liberoDopo === $libero
             && (string) (Payment::findById($pagamento)['status'] ?? '') === 'failed'
             && $storia === 1
             && $secondo['order_id'] === $carrello
-            && $secondo['order_number'] === $primo['order_number']
-            && Order::findById($carrello)['status'] === 'pending'
+            && $secondo['order_number'] === ''
+            && Order::findById($carrello)['status'] === 'awaiting_payment'
             && Levels::of($prodotto)['available'] === round($libero - 2, 3);
+    });
+});
+
+// Webhook e pagina di ritorno insieme: il numero si prende una volta sola.
+check('receive dà numero e data una volta: il secondo trova l\'ordine già ricevuto', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        senzaPosta(static fn (): array => Checkout::place($carrello, datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE))));
+        $prima = Order::findById($carrello);
+
+        $uno = Lifecycle::receive($carrello, ['source' => 'webhook']);
+        $numero = (string) Order::findById($carrello)['order_number'];
+        $due = Lifecycle::receive($carrello, ['source' => 'return']);
+        $dopo = Order::findById($carrello);
+
+        return trim((string) $prima['order_number']) === ''
+            && trim((string) $prima['ordered_at']) === ''
+            && $uno === true
+            && $due === false
+            && preg_match('#^\d{4}/\d{2}\d{4}$#', $numero) === 1
+            && (string) $dopo['order_number'] === $numero
+            && (string) $dopo['status'] === 'pending'
+            && trim((string) $dopo['ordered_at']) !== '';
+    });
+});
+
+// L'ordine manuale è già del commerciante: il cliente non lo riapre.
+check('un ordine in attesa con bonifico non torna carrello', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        senzaPosta(static fn (): array => Checkout::place($carrello, datiCheckout(metodoDiProva(PaymentTiming::DEFERRED))));
+
+        try {
+            Lifecycle::reopen($carrello);
+        } catch (Wonder\Plugin\Gestionale\Support\Errors\UserError $errore) {
+            return Order::findById($carrello)['stage'] === 'order';
+        }
+
+        return false;
     });
 });
 
@@ -798,7 +839,8 @@ check('con la carta l\'ordine nasce in silenzio: le email aspettano l\'incasso',
         });
 
         return $esito['provider'] === 'stripe'
-            && $esito['status'] === 'pending'
+            && $esito['status'] === 'awaiting_payment'
+            && $esito['order_number'] === ''
             && $esito['customer_email_sent'] === false
             && $posta === [];
     });
@@ -808,6 +850,7 @@ check('la conferma con merchant_notice avvisa cliente e commerciante, una volta'
     return prova(static function (): bool {
         [$carrello] = carrelloPronto();
         $ordine = senzaPosta(static fn (): array => Checkout::place($carrello, datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE))))['order_id'];
+        Lifecycle::receive($ordine);
         $posta = chiRiceve(static function () use ($ordine): void {
             Lifecycle::confirm($ordine, ['payment' => false, 'merchant_notice' => true]);
             Lifecycle::confirm($ordine, ['payment' => false, 'merchant_notice' => true]);
