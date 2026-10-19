@@ -743,6 +743,12 @@ final class Cart
         $decode = static function (array $item): array {
             $item['customization'] = Customizations::decode($item['customization'] ?? '');
 
+            // Righe nate senza foto (resize ancora in coda quando si aggiungevano):
+            // la foto di adesso, solo in lettura.
+            if (trim((string) ($item['image'] ?? '')) === '' && (int) ($item['product_id'] ?? 0) > 0) {
+                $item['image'] = ProductPhotos::forProduct((int) $item['product_id']);
+            }
+
             return $item;
         };
         $top = array_values(array_filter($all, static fn (array $item): bool => (int) ($item['parent_item_id'] ?? 0) === 0));
