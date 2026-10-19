@@ -100,6 +100,14 @@ function salvato(FakePaymentProvider $finto, PaymentEvent $evento, string $stato
     $finto->replays[$evento->id] = $evento;
 }
 
+function pagatoInAttesa(int $ordine): bool
+{
+    // Pagato online, resta «in attesa»: lo conferma il commerciante.
+    $riga = Order::findById($ordine);
+
+    return (string) ($riga['status'] ?? '') === 'pending' && (string) ($riga['payment_status'] ?? '') === 'paid';
+}
+
 function stato(int $ordine): string
 {
     return (string) (Order::findById($ordine)['status'] ?? '');
@@ -122,7 +130,7 @@ check('l\'intento riuscito di cui non è arrivato il webhook conferma l\'ordine'
     $finto->states[$intento] = riuscito($ordine);
     Reconcile::run($finto);
 
-    return stato($ordine) === 'confirmed' && riga($pagamento) === 'paid';
+    return pagatoInAttesa($ordine) && riga($pagamento) === 'paid';
 }));
 
 check('anche dopo una carta rifiutata: il secondo tentativo riuscito si recupera', fn () => prova(static function () use ($finto): bool {
@@ -131,7 +139,7 @@ check('anche dopo una carta rifiutata: il secondo tentativo riuscito si recupera
     $finto->states[$intento] = riuscito($ordine);
     Reconcile::run($finto);
 
-    return stato($ordine) === 'confirmed';
+    return pagatoInAttesa($ordine);
 }));
 
 check('l\'intento annullato chiude la riga in attesa', fn () => prova(static function () use ($finto): bool {
@@ -188,7 +196,7 @@ check('un evento ricevuto da più di 10 minuti si rielabora', fn () => prova(sta
     salvato($finto, $evento, 'received', 0, 700);
     Reconcile::run($finto);
 
-    return stato($ordine) === 'confirmed' && evStato($evento)[0] === 'processed';
+    return pagatoInAttesa($ordine) && evStato($evento)[0] === 'processed';
 }));
 
 check('un evento appena ricevuto lo lascia al webhook', fn () => prova(static function () use ($finto): bool {
@@ -210,7 +218,7 @@ check('un evento fallito aspetta il suo turno: 5 minuti dopo il primo tentativo'
     sqlModify(ProviderEvent::$table, ['last_modified' => date('Y-m-d H:i:s', time() - 360)], 'id', (int) ProviderEvents::find('stripe', $presto->id, 'test')['id']);
     Reconcile::run($finto);
 
-    return $primo === 'pending' && stato($ordine) === 'confirmed';
+    return $primo === 'pending' && pagatoInAttesa($ordine);
 }));
 
 check('al quarto tentativo l\'evento non si riprova più', fn () => prova(static function () use ($finto): bool {

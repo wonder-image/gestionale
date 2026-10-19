@@ -14,6 +14,7 @@ use Throwable;
 
 /**
  * Il giro che tiene pulito il magazzino: chi non paga libera la merce.
+ * L'ordine già pagato che aspetta la conferma del commerciante non si tocca.
  *
  * Tre cose, in quest'ordine. Le prenotazioni scadute si liberano — la carta
  * abbandonata dopo mezz'ora, il bonifico che non arriva. A metà dell'attesa
@@ -47,7 +48,7 @@ final class Expiry
             try {
                 $order = Order::findById($orderId);
 
-                if (!is_array($order) || !in_array((string) $order['status'], self::WAITING, true)) {
+                if (!is_array($order) || !in_array((string) $order['status'], self::WAITING, true) || self::paid($order)) {
                     continue;
                 }
 
@@ -59,6 +60,10 @@ final class Expiry
 
         foreach (self::waitingOrders() as $order) {
             $orderId = (int) $order['id'];
+
+            if (self::paid($order)) {
+                continue;
+            }
 
             // Un ordine che non si riesce a chiudere non deve tenere fermi
             // gli altri: resta dov'è, finisce nel log, e il giro dopo riprova.
@@ -167,6 +172,17 @@ final class Expiry
         $payment = OnlinePayments::payment($orderId);
 
         return $payment !== null && (string) $payment['status'] !== 'paid';
+    }
+
+    /**
+     * Pagato e ancora «in attesa»: aspetta la conferma del commerciante, non
+     * il denaro. Non si sollecita, non si annulla e la merce resta sua.
+     *
+     * @param array<string, mixed> $order
+     */
+    private static function paid(array $order): bool
+    {
+        return (string) ($order['payment_status'] ?? '') === 'paid';
     }
 
     /** Il promemoria di questo ordine è già partito? */

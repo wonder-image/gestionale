@@ -333,7 +333,9 @@ final class Checkout
                 ++$reserved;
             }
 
-            $number = DocumentSequences::next('order');
+            // Un ordine riaperto (`Lifecycle::reopen`) torna col suo numero: niente buchi.
+            $number = trim((string) ($cart['order_number'] ?? ''));
+            $number = $number !== '' ? $number : DocumentSequences::next('order');
             // `user_id` è l'account di chi compra (anche l'ospite appena
             // creato): senza, l'email di conferma non sa a chi offrire il
             // link all'area riservata o alla scelta della password.

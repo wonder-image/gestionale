@@ -702,6 +702,60 @@ check('place dice se l\'email al cliente è partita, col bonifico e col contrass
     });
 });
 
+// «Modifica l'ordine»: l'ordine torna carrello sulla stessa riga e il nuovo
+// invio tiene il suo numero, senza annullati né buchi nella numerazione.
+check('Modifica l\'ordine: torna carrello sulla stessa riga e il nuovo invio tiene il numero', function () {
+    return prova(static function (): bool {
+        [$carrello, $prodotto] = carrelloPronto();
+        $metodo = metodoDiProva(PaymentTiming::IMMEDIATE);
+        $libero = Levels::of($prodotto)['available'];
+        $primo = senzaPosta(static fn (): array => Checkout::place($carrello, datiCheckout($metodo)));
+        $pagamento = (int) (Payment::find(['order_id' => $carrello, 'status' => 'pending', 'deleted' => 'false'], 1)['id'] ?? 0);
+
+        $riaperto = Lifecycle::reopen($carrello, ['source' => 'ecommerce', 'reason' => 'Modifica l\'ordine']);
+        $riga = Order::findById($carrello);
+        $liberoDopo = Levels::of($prodotto)['available'];
+        $storia = (int) sqlCount(
+            Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog::$table,
+            "order_id = {$carrello} AND field = 'status' AND from_value = 'pending' AND to_value = 'draft' AND deleted = 'false'"
+        );
+
+        $secondo = senzaPosta(static fn (): array => Checkout::place($carrello, datiCheckout($metodo)));
+
+        return $riaperto['order_id'] === $carrello
+            && $riga['stage'] === 'cart'
+            && $riga['status'] === 'draft'
+            && $liberoDopo === $libero
+            && (string) (Payment::findById($pagamento)['status'] ?? '') === 'failed'
+            && $storia === 1
+            && $secondo['order_id'] === $carrello
+            && $secondo['order_number'] === $primo['order_number']
+            && Order::findById($carrello)['status'] === 'pending'
+            && Levels::of($prodotto)['available'] === round($libero - 2, 3);
+    });
+});
+
+check('un ordine già pagato non torna carrello', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        senzaPosta(static fn (): array => Checkout::place($carrello, datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE))));
+        Wonder\Plugin\Gestionale\Support\Payments\Ledger::register([
+            'order_id' => $carrello,
+            'amount' => (float) Order::findById($carrello)['total'],
+            'provider' => 'manual',
+            'source' => 'manual',
+        ]);
+
+        try {
+            Lifecycle::reopen($carrello);
+        } catch (UserError) {
+            return Order::findById($carrello)['stage'] === 'order';
+        }
+
+        return false;
+    });
+});
+
 /** Corre il corpo segnando chi riceve posta; il commerciante è `negozio@example.com`. */
 function chiRiceve(callable $corpo): array
 {

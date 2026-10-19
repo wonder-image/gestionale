@@ -276,6 +276,93 @@ final class Lifecycle
     }
 
     /**
+     * L'ordine in attesa torna carrello sulla stessa riga: il cliente vuole
+     * cambiarlo prima di pagare («Modifica l'ordine»).
+     *
+     * Come un annullo senza l'annullo: la merce prenotata torna disponibile,
+     * il pagamento aperto decade (l'intento si annulla dopo il commit), il
+     * coupon rimette l'utilizzo. Numero e codice restano: al checkout
+     * successivo `Checkout::create` riusa l'`order_number`, così non restano
+     * ordini annullati né buchi nella numerazione. Con denaro incassato non si
+     * riapre.
+     *
+     * @param array{customer_id?: int, cart_token?: string, source?: string, user_id?: int, reason?: string} $context
+     * @return array{order_id: int, changed: bool}
+     */
+    public static function reopen(int $orderId, array $context = []): array
+    {
+        $result = Transaction::run(static function () use ($orderId, $context): array {
+            $order = self::order($orderId);
+            $status = (string) $order['status'];
+
+            if ($status !== 'pending') {
+                throw UserError::make('order.not_reopenable');
+            }
+
+            $payments = self::payments($orderId);
+
+            foreach ($payments as $payment) {
+                // «In verifica» lo vede chi chiama, rileggendo l'intento.
+                if ((string) $payment['status'] === 'paid') {
+                    throw UserError::make('order.not_reopenable');
+                }
+            }
+
+            $reason = trim((string) ($context['reason'] ?? ''));
+            $source = (string) ($context['source'] ?? 'system');
+            Allocation::release(['order_id' => $orderId]);
+            $intents = [];
+
+            foreach ($payments as $payment) {
+                $paymentStatus = (string) $payment['status'];
+
+                if ($paymentStatus === 'pending') {
+                    Ledger::fail((int) $payment['id'], $reason !== '' ? $reason : 'Ordine riaperto');
+                }
+
+                if (in_array($paymentStatus, ['pending', 'failed'], true) && ($intent = self::openIntent($payment)) !== null) {
+                    $intents[] = $intent;
+                }
+            }
+
+            Coupons::release($orderId);
+            $token = trim((string) ($context['cart_token'] ?? ''));
+            Order::update([
+                'stage' => 'cart',
+                'status' => 'draft',
+                'customer_id' => max(0, (int) ($context['customer_id'] ?? $order['customer_id'] ?? 0)),
+                'last_activity_at' => date('Y-m-d H:i:s'),
+            ] + ($token !== '' ? ['cart_token' => $token] : []), $orderId);
+            StatusLogger::record(
+                OrderStatusLog::class,
+                $orderId,
+                'status',
+                $status,
+                'draft',
+                $source,
+                (int) ($context['user_id'] ?? 0) ?: null,
+                $reason
+            );
+
+            return ['order_id' => $orderId, 'changed' => true, 'intents' => $intents];
+        });
+
+        foreach ($result['intents'] as [$provider, $reference]) {
+            try {
+                PaymentProviders::get($provider)?->cancel($reference);
+            } catch (Throwable $error) {
+                // Se il cliente pagasse lo stesso, `OnlinePayments::succeeded`
+                // trova un carrello e avvisa il commerciante del rimborso.
+                Errors::internal($error, 'orders.reopen_intent', ['order' => $orderId, 'reference' => $reference]);
+            }
+        }
+
+        unset($result['intents']);
+
+        return $result;
+    }
+
+    /**
      * Il fornitore e l'intento della riga, se c'è un intento online ancora da
      * chiudere nell'ambiente in cui il fornitore gira adesso.
      *
