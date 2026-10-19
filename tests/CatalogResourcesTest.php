@@ -153,6 +153,7 @@ check('la pagina degli attributi sta nel catalogo', fn () =>
 
 check('i valori servono a elenco, colore, fantasia e icona', fn () =>
     AttributeResource::usesValues(['type' => 'select'])
+    && AttributeResource::usesValues(['type' => 'button'])
     && AttributeResource::usesValues(['type' => 'color'])
     && AttributeResource::usesValues(['type' => 'pattern'])
     && AttributeResource::usesValues(['type' => 'icon'])
@@ -168,7 +169,7 @@ check('il riquadro dei valori c\'è sempre e segue il tipo', function () {
     return count($riquadri) === 2
         && $valori !== null
         && $valori->getAttr('data-visible-when') === 'type'
-        && $valori->getAttr('data-visible-when-values') === 'select,color,pattern,icon'
+        && $valori->getAttr('data-visible-when-values') === 'select,button,color,pattern,icon'
         && $valori->getAttr('data-wi-conditional-container') === 'true';
 });
 
@@ -331,7 +332,7 @@ check('l\'uso di un attributo già sugli articoli non cambia', function () {
 });
 
 check('le due caselle dell\'uso seguono il tipo', fn () =>
-    AttributeResource::getInput('level')->conditionalAttributes()['data-visible-when-values'] === 'select,color,pattern,icon'
+    AttributeResource::getInput('level')->conditionalAttributes()['data-visible-when-values'] === 'select,button,color,pattern,icon'
     && AttributeResource::getInput('level_text')->conditionalAttributes()['data-visible-when-values'] === 'number,text'
     && array_keys((array) AttributeResource::getInput('level_text')->get('options')) === ['model', 'product']
 );

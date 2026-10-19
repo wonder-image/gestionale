@@ -81,7 +81,7 @@ check('i valori appartengono a un attributo', function () use ($colonne) {
 });
 
 check('tipo e livello sono elenchi chiusi', function () use ($colonne) {
-    return $colonne(Attribute::class)['type']->getSchema('enum') === ['select', 'color', 'pattern', 'icon', 'text', 'number']
+    return $colonne(Attribute::class)['type']->getSchema('enum') === ['select', 'button', 'color', 'pattern', 'icon', 'text', 'number']
         && $colonne(Attribute::class)['level']->getSchema('enum') === ['model', 'variant', 'product'];
 });
 
