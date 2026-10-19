@@ -11,6 +11,7 @@ use Wonder\Plugin\Gestionale\Providers\Payments\PaymentStart;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
+use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 
@@ -59,7 +60,7 @@ final class OnlinePayments
     {
         $order = Order::findById($orderId);
 
-        if (!is_array($order) || (string) ($order['status'] ?? '') !== 'pending') {
+        if (!is_array($order) || (string) ($order['status'] ?? '') !== 'awaiting_payment') {
             throw new RuntimeException("Ordine {$orderId} non più da pagare.");
         }
 
@@ -137,6 +138,10 @@ final class OnlinePayments
         // Letto prima di scrivere: chi ripassa su una riga già pagata non riavvisa.
         $alreadyPaid = (string) $row['status'] === 'paid';
 
+        // Il cliente ha pagato: l'ordine «In pagamento» diventa del commerciante,
+        // con numero e data. Chi arriva secondo lo trova già ricevuto.
+        Lifecycle::receive($rowOrder, ['source' => $source, 'reason' => 'Pagamento riuscito']);
+
         Ledger::register([
             'order_id' => $rowOrder,
             'amount' => $amount / 100,
@@ -150,14 +155,14 @@ final class OnlinePayments
         $current = is_array($current) ? $current : $order;
         $status = (string) ($current['status'] ?? '');
 
-        if ($status === 'cancelled') {
-            // Il cliente ha pagato un ordine già annullato: il denaro va
-            // restituito dalla dashboard del gateway.
+        if (in_array($status, ['cancelled', 'abandoned'], true)) {
+            // Il cliente ha pagato un ordine già annullato o abbandonato: il
+            // denaro va restituito dalla dashboard del gateway.
             if (!$alreadyPaid) {
                 self::alert($provider, 'payment.cancelled_order', "Incasso {$reference} sull'ordine annullato {$rowOrder}: va rimborsato.", ['order_id' => $rowOrder]);
             }
 
-            return ['order_id' => $rowOrder, 'status' => 'cancelled', 'changed' => false];
+            return ['order_id' => $rowOrder, 'status' => $status, 'changed' => false];
         }
 
         // L'ordine resta «in attesa»: lo conferma il commerciante dal backend,

@@ -51,9 +51,11 @@ $finto = new FakePaymentProvider();
 PaymentProviders::register($finto);
 
 /** L'ordine come lo lascia `Checkout::place` con un metodo Stripe. */
+/** L'ordine online appena inviato: «In pagamento», col pagamento aperto. */
 function ordineStripe(float $totale = 50.0): array
 {
     $ordine = ordineDiProva($totale);
+    Order::update(['status' => 'awaiting_payment'], $ordine);
     $pagamento = Ledger::open(['order_id' => $ordine, 'amount' => $totale, 'provider' => 'stripe'])['payment_id'];
 
     return [$ordine, $pagamento];
@@ -353,9 +355,9 @@ check('reopen: se Stripe non annulla, riapre solo un intento già annullato', fn
 
     return $esiti === [
         '|cart|draft|failed',
-        'order.payment_in_progress|order|pending|pending',
-        'order.payment_in_progress|order|pending|pending',
-        'order.reopen_retry|order|pending|pending',
+        'order.payment_in_progress|order|awaiting_payment|pending',
+        'order.payment_in_progress|order|awaiting_payment|pending',
+        'order.reopen_retry|order|awaiting_payment|pending',
     ];
 }));
 
@@ -373,6 +375,82 @@ check('un incasso su un ordine tornato carrello avvisa una volta e non si riprov
         && count($avvisi) === 1
         && str_contains($avvisi[0]['body'], 'tornato carrello')
         && (OnlinePayments::payment($ordine)['status'] ?? '') === 'failed';
+}));
+
+check('il primo incasso dà all\'ordine numero e data, e lo passa al commerciante', fn () => prova(static function (): bool {
+    [$ordine, , $intento] = intentoLegato();
+    destinatariCommerciante('');
+    $prima = Order::findById($ordine);
+
+    OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+    $dopo = Order::findById($ordine);
+
+    return (string) $prima['status'] === 'awaiting_payment'
+        && (string) $dopo['status'] === 'pending'
+        && trim((string) $dopo['order_number']) !== ''
+        && trim((string) $dopo['ordered_at']) !== '';
+}));
+
+check('un incasso su un ordine abbandonato avvisa il commerciante e non lo riapre', fn () => prova(static function (): bool {
+    [$ordine, , $intento] = intentoLegato();
+    Lifecycle::abandon($ordine);
+    destinatariCommerciante('negozio@example.com');
+    $esito = [];
+
+    $avvisi = avvisiPagamento(conPosta(static function () use ($ordine, $intento, &$esito): void {
+        $esito = OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+    }));
+
+    return count($avvisi) === 1
+        && ($esito['status'] ?? '') === 'abandoned'
+        && (string) Order::findById($ordine)['status'] === 'abandoned'
+        && trim((string) Order::findById($ordine)['order_number']) === '';
+}));
+
+check('abandon annulla l\'intento, chiude la riga e non scrive se Stripe sta incassando', fn () => prova(static function () use ($finto): bool {
+    [$ordine, $pagamento] = ordineStripe();
+    $avvio = OnlinePayments::start($ordine);
+    $uno = Lifecycle::abandon($ordine, ['reason' => 'Prenotazione scaduta']);
+    $abbandonato = Order::findById($ordine);
+
+    [$altro] = ordineStripe();
+    $intento = OnlinePayments::start($altro)->reference;
+    $finto->failCancel = true;
+    $finto->states[$intento] = new PaymentState(PaymentState::PROCESSING, 5000, 'eur', $altro);
+
+    try {
+        $due = Lifecycle::abandon($altro);
+    } finally {
+        $finto->failCancel = false;
+        unset($finto->states[$intento]);
+    }
+
+    return $uno === true
+        && in_array($avvio->reference, $finto->cancelled, true)
+        && (string) $abbandonato['status'] === 'abandoned'
+        && (string) $abbandonato['stage'] === 'order'
+        && (string) (Payment::findById($pagamento)['status'] ?? '') === 'failed'
+        && Lifecycle::abandon($ordine) === false
+        && $due === false
+        && (string) Order::findById($altro)['status'] === 'awaiting_payment';
+}));
+
+check('l\'ordine abbandonato torna carrello senza richiamare Stripe', fn () => prova(static function () use ($finto): bool {
+    [$ordine] = ordineStripe();
+    OnlinePayments::start($ordine);
+    Lifecycle::abandon($ordine);
+    $annullati = count($finto->cancelled);
+    $finto->failCancel = true;
+
+    try {
+        Lifecycle::reopen($ordine, ['reason' => 'Ordine modificato dal cliente']);
+    } finally {
+        $finto->failCancel = false;
+    }
+
+    $riga = Order::findById($ordine);
+
+    return $riga['stage'] === 'cart' && $riga['status'] === 'draft' && count($finto->cancelled) === $annullati;
 }));
 
 PaymentProviders::reset();

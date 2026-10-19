@@ -21,6 +21,8 @@ final class StatusLabels
         'processing' => ['In lavorazione', 'info'],
         'completed' => ['Completato', 'success'],
         'cancelled' => ['Annullato', 'danger'],
+        'awaiting_payment' => ['In pagamento', 'secondary'],
+        'abandoned' => ['Abbandonato', 'dark'],
     ];
 
     private const PAYMENT = [

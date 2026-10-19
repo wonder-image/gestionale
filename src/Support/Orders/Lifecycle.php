@@ -9,6 +9,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
 use Wonder\Plugin\Gestionale\Providers\Payments\PaymentState;
 use Throwable;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
+use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
@@ -39,6 +40,12 @@ use Wonder\Sql\Transaction;
  */
 final class Lifecycle
 {
+    /**
+     * L'ordine online che il cliente sta pagando e quello lasciato a metà: non
+     * sono ancora del commerciante, quindi il cliente li riapre a piacere.
+     */
+    private const PAYMENT_PENDING = ['awaiting_payment', 'abandoned'];
+
     /** Gli stati da cui si può ancora confermare. */
     private const CONFIRMABLE = ['draft', 'pending'];
 
@@ -277,8 +284,125 @@ final class Lifecycle
     }
 
     /**
-     * L'ordine in attesa torna carrello sulla stessa riga: il cliente vuole
-     * cambiarlo prima di pagare («Modifica l'ordine»).
+     * Il cliente ha fatto la sua parte: l'ordine online «In pagamento» diventa
+     * «In attesa» del commerciante, con numero e data.
+     *
+     * Webhook, pagina di ritorno e riallineamento possono arrivare insieme: la
+     * riga si blocca prima di chiedere il numero, così il secondo trova
+     * l'ordine già ricevuto, esce con false e non brucia un numero. Le email le
+     * manda chi chiama, solo con true.
+     *
+     * @param array{source?: string, user_id?: int, reason?: string} $options
+     */
+    public static function receive(int $orderId, array $options = []): bool
+    {
+        return Transaction::run(static function () use ($orderId, $options): bool {
+            $order = self::order($orderId);
+
+            if ((string) $order['status'] !== 'awaiting_payment') {
+                return false;
+            }
+
+            $number = trim((string) ($order['order_number'] ?? ''));
+            Order::update([
+                'status' => 'pending',
+                'order_number' => $number !== '' ? $number : DocumentSequences::next('order'),
+                'ordered_at' => date('Y-m-d H:i:s'),
+            ], $orderId);
+            StatusLogger::record(
+                OrderStatusLog::class,
+                $orderId,
+                'status',
+                'awaiting_payment',
+                'pending',
+                (string) ($options['source'] ?? 'system'),
+                (int) ($options['user_id'] ?? 0) ?: null,
+                trim((string) ($options['reason'] ?? ''))
+            );
+
+            return true;
+        });
+    }
+
+    /**
+     * L'ordine online lasciato a metà: «Abbandonato», senza email.
+     *
+     * L'intento si annulla prima, come in `reopen()`: se il cliente sta pagando
+     * (o ha pagato) l'ordine resta com'è e lo prende il webhook. Poi merce,
+     * pagamento aperto e coupon tornano liberi. Restituisce false se l'ordine
+     * non è (più) in pagamento o se l'intento non si è potuto chiudere.
+     *
+     * @param array{reason?: string, source?: string, user_id?: int} $options
+     */
+    public static function abandon(int $orderId, array $options = []): bool
+    {
+        $intents = Transaction::run(static function () use ($orderId): ?array {
+            $order = self::order($orderId);
+
+            if ((string) $order['status'] !== 'awaiting_payment') {
+                return null;
+            }
+
+            $intents = [];
+
+            foreach (self::payments($orderId) as $payment) {
+                if (in_array((string) $payment['status'], ['pending', 'failed'], true) && ($intent = self::openIntent($payment)) !== null) {
+                    $intents[] = $intent;
+                }
+            }
+
+            return $intents;
+        });
+
+        if ($intents === null) {
+            return false;
+        }
+
+        try {
+            foreach ($intents as [$provider, $reference]) {
+                self::cancelIntent($orderId, $provider, $reference);
+            }
+        } catch (UserError) {
+            // Pagamento partito o gateway muto: si riprova al prossimo giro.
+            return false;
+        }
+
+        return Transaction::run(static function () use ($orderId, $options): bool {
+            $order = self::order($orderId);
+
+            if ((string) $order['status'] !== 'awaiting_payment') {
+                return false;
+            }
+
+            $reason = trim((string) ($options['reason'] ?? '')) ?: 'Ordine abbandonato';
+            Allocation::release(['order_id' => $orderId]);
+
+            foreach (self::payments($orderId) as $payment) {
+                if ((string) $payment['status'] === 'pending') {
+                    Ledger::fail((int) $payment['id'], $reason);
+                }
+            }
+
+            Coupons::release($orderId);
+            Order::update(['status' => 'abandoned', 'cancelled_at' => date('Y-m-d H:i:s')], $orderId);
+            StatusLogger::record(
+                OrderStatusLog::class,
+                $orderId,
+                'status',
+                'awaiting_payment',
+                'abandoned',
+                (string) ($options['source'] ?? 'system'),
+                (int) ($options['user_id'] ?? 0) ?: null,
+                $reason
+            );
+
+            return true;
+        });
+    }
+
+    /**
+     * L'ordine «In pagamento» (o abbandonato) torna carrello sulla stessa
+     * riga: il cliente ha cambiato qualcosa nel checkout prima di pagare.
      *
      * Come un annullo senza l'annullo: la merce prenotata torna disponibile,
      * il pagamento aperto decade (l'intento si annulla prima), il
@@ -298,7 +422,14 @@ final class Lifecycle
         $intents = Transaction::run(static function () use ($orderId): array {
             $intents = [];
 
-            foreach (self::reopenable($orderId)[1] as $payment) {
+            [$order, $payments] = self::reopenable($orderId);
+
+            // L'abbandonato ha già chiuso tutto: torna solo carrello.
+            if ((string) $order['status'] === 'abandoned') {
+                return [];
+            }
+
+            foreach ($payments as $payment) {
                 if (in_array((string) $payment['status'], ['pending', 'failed'], true) && ($intent = self::openIntent($payment)) !== null) {
                     $intents[] = $intent;
                 }
@@ -348,8 +479,9 @@ final class Lifecycle
     }
 
     /**
-     * L'ordine e i suoi pagamenti, se si può ancora riaprire: in attesa e
-     * senza denaro incassato.
+     * L'ordine e i suoi pagamenti, se si può ancora riaprire: in pagamento (o
+     * abbandonato) e senza denaro incassato. Un ordine «In attesa» è già del
+     * commerciante.
      *
      * @return array{0: array<string, mixed>, 1: list<array<string, mixed>>}
      */
@@ -357,7 +489,7 @@ final class Lifecycle
     {
         $order = self::order($orderId);
 
-        if ((string) $order['status'] !== 'pending') {
+        if (!in_array((string) $order['status'], self::PAYMENT_PENDING, true)) {
             throw UserError::make('order.not_reopenable');
         }
 

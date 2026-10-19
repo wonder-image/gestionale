@@ -545,7 +545,8 @@ check('first_order_only: chi ha già ordinato è rifiutato al checkout anche se 
     return prova(static function (): bool {
         $s = scenario();
         $senzaCoupon = altroCarrello($s);
-        ordina($senzaCoupon, datiCheckout('veterano@example.com'));
+        // Pagato: un ordine ancora «In pagamento» non è un ordine fatto.
+        Lifecycle::receive(ordina($senzaCoupon, datiCheckout('veterano@example.com'))['order_id']);
 
         $c = coupon(['first_order_only' => 'true']);
         Coupons::apply($s['cart'], $c['code']);
