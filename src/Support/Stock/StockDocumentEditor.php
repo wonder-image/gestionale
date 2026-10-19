@@ -68,12 +68,12 @@ final class StockDocumentEditor
             : '<th>Articolo</th>'
                 .'<th class="d-none d-md-table-cell text-end">Giacenza</th>'
                 .'<th class="text-end" style="width: 8rem">Pezzi</th>'
-                .($costs ? '<th class="text-end" style="width: 8rem">Costo</th><th class="d-none d-md-table-cell text-end">Totale</th>' : '')
+                .($costs ? '<th class="text-end" style="width: 8rem">Costo</th><th class="text-end text-nowrap" style="width: 5.5rem">IVA %</th><th class="d-none d-md-table-cell text-end">Totale</th>' : '')
                 .($source !== '' ? '<th style="min-width: 14rem">'.$e($source).'</th>' : '');
 
         return '<div class="col-12" data-wi-stock-editor'
             .' data-mode="'.($counting ? 'stocktake' : 'pieces').'"'
-            .($costs ? ' data-costs="1"' : '')
+            .($costs ? ' data-costs="1" data-rates="'.$e((string) json_encode(PurchaseTax::choices())).'"' : '')
             .($lots !== '' ? ' data-lots="'.$lots.'"' : '')
             .($pickSuppliers ? ' data-suppliers="pick"' : '')
             .' data-search-url="'.$e($searchUrl).'"'
@@ -320,6 +320,8 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         var counting = root.getAttribute('data-mode') === 'stocktake';
         // G3, Acquisti: costo per riga nel carico, riempito dal fornitore della testata.
         var costing = root.getAttribute('data-costs') === '1';
+        // Le aliquote che il carico fa scegliere (PurchaseTax::choices()).
+        var rates = costing ? JSON.parse(root.getAttribute('data-rates') || '[]').map(Number) : [];
         var supplier = form ? form.querySelector('[data-wi-stock-supplier]') : null;
         // Costi scritti IVA inclusa: il magazzino tiene il netto, scorporato con l'aliquota della versione.
         var prices = form ? form.querySelector('[data-wi-stock-prices]') : null;
@@ -522,6 +524,8 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             var bad = value !== null && !(value >= 0 && value <= maxQuantity);
             var cost;
             var badCost = false;
+            var rate;
+            var badRate = false;
 
             if (bad) {
                 row.input.classList.add('is-invalid');
@@ -540,16 +544,56 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 }
             }
 
-            return !bad && !badCost;
+            // L'aliquota d'acquisto: da 0 a 100, come StockDocumentRules::rate().
+            if (row.tax) {
+                rate = parse(row.tax.value.replace('%', ''));
+                badRate = rate !== null && !(rate >= 0 && rate <= 100);
+
+                if (badRate) {
+                    row.tax.classList.add('is-invalid');
+                } else {
+                    row.tax.classList.remove('is-invalid');
+                }
+            }
+
+            return !bad && !badCost && !badRate;
         }
 
         function inclusive() {
             return !!prices && prices.value === 'true';
         }
 
+        // Il menu delle aliquote, con quella della riga scelta: se non è tra le
+        // aliquote del gestionale (cambiate dopo) si aggiunge, per non perderla.
+        function rateOptions(select, current) {
+            var list = rates.slice();
+            var option;
+            var i;
+
+            if (current === null) {
+                select.appendChild(el('option', '', '—')).value = '';
+            } else if (list.indexOf(current) === -1) {
+                list.push(current);
+                list.sort(function (a, b) { return b - a; });
+            }
+
+            for (i = 0; i < list.length; i++) {
+                option = select.appendChild(el('option', '', format(list[i]) + '%'));
+                option.value = String(list[i]);
+                option.selected = list[i] === current;
+            }
+        }
+
+        // L'aliquota d'acquisto della riga: quella scelta, o vuota = quella di vendita.
+        function rateOf(row) {
+            var value = row.tax ? parse(row.tax.value.replace('%', '')) : null;
+
+            return value === null || isNaN(value) || value < 0 || value > 100 ? row.rate : value;
+        }
+
         // Come StockDocumentRules::net(): il netto di un costo scritto, a quattro decimali.
         function net(row, cost) {
-            var rate = inclusive() ? Number(row.rate || 0) : 0;
+            var rate = inclusive() ? Number(rateOf(row) || 0) : 0;
 
             return rate > 0 ? Math.round(cost / (1 + rate / 100) * 10000) / 10000 : cost;
         }
@@ -571,7 +615,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
             value = Number(value);
 
-            return costText(inclusive() && row.rate > 0 ? value * (1 + row.rate / 100) : value);
+            return costText(inclusive() && rateOf(row) > 0 ? value * (1 + rateOf(row) / 100) : value);
         }
 
         // Il netto della riga: quello che il magazzino terrà.
@@ -618,10 +662,9 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
             if (row.netInfo) {
                 unit = row.cost ? parse(row.cost.value) : null;
-                row.netInfo.textContent = !inclusive() ? ''
-                    : row.rate == null ? 'senza aliquota: nessuno scorporo'
-                    : unit === null || isNaN(unit) || unit < 0 ? 'IVA ' + format(row.rate) + '%'
-                    : 'imponibile ' + costText(net(row, unit)) + ' · IVA ' + format(row.rate) + '%';
+                row.netInfo.textContent = !inclusive() || unit === null || isNaN(unit) || unit < 0 ? ''
+                    : rateOf(row) == null ? 'senza aliquota: nessuno scorporo'
+                    : 'imponibile ' + costText(net(row, unit));
             }
 
             if (!counting) {
@@ -812,7 +855,17 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
             if (costing) {
                 row.costs = version.costs || {};
-                row.rate = version.tax_rate == null ? null : Number(version.tax_rate);
+                // L'aliquota di vendita dell'articolo, o quella salvata sulla riga: si può cambiare.
+                row.rate = version.tax_rate == null || version.tax_rate === '' ? null : parse(String(version.tax_rate));
+                row.tax = el('select', 'form-select form-select-sm');
+                row.tax.style.minWidth = '5.5rem';
+                rateOptions(row.tax, row.rate == null || isNaN(row.rate) ? null : row.rate);
+                row.tax.setAttribute('aria-label', 'Aliquota IVA d\'acquisto di ' + row.label);
+                row.tax.addEventListener('change', function () {
+                    check(row);
+                    paint(row);
+                    refresh();
+                });
                 row.cost = el('input', 'form-control form-control-sm text-end');
                 row.cost.type = 'text';
                 row.cost.inputMode = 'decimal';
@@ -828,6 +881,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                 costCell = tr.appendChild(el('td', 'text-end'));
                 costCell.appendChild(row.cost);
                 costCell.appendChild(row.netInfo);
+                tr.appendChild(el('td', 'text-end')).appendChild(row.tax);
                 tr.appendChild(row.lineTotal);
             }
 
@@ -892,6 +946,10 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                         var fresh = append(row.version, '', row.cost ? row.cost.value : null, {}, byId(row.id));
 
                         if (fresh) {
+                            if (fresh.tax) {
+                                fresh.tax.value = row.tax.value;
+                            }
+
                             fresh.lot.focus();
                         }
                     });
@@ -1036,6 +1094,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
                 if (rows[i].cost) {
                     line.cost = rows[i].cost.value;
+                    line.tax_rate = rows[i].tax.value;
                 }
 
                 if (rows[i].lot) {

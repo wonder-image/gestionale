@@ -67,6 +67,26 @@ final class PurchaseTax
         return $out;
     }
 
+    /**
+     * Le aliquote che il carico fa scegliere: una per valore, dalla più alta, 0
+     * compreso (le nature N1-N7 sono tutte 0%: per il costo conta il valore).
+     *
+     * @return list<float>
+     */
+    public static function choices(): array
+    {
+        try {
+            $rates = array_map(static fn (array $tax): float => round((float) ($tax['rate'] ?? 0), 2), self::rows(Tax::find(['deleted' => 'false'])));
+        } catch (Throwable) {
+            $rates = [];
+        }
+
+        $rates = array_values(array_unique(array_merge($rates, [0.0]), SORT_REGULAR));
+        rsort($rates);
+
+        return $rates;
+    }
+
     /** @return list<array<string, mixed>> */
     private static function rows(mixed $result): array
     {

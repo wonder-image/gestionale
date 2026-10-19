@@ -235,7 +235,35 @@ check('la bozza nuova parte dall\'impostazione; tornando a IVA esclusa lo scorpo
 
     return $nuovo === $prima
         && $inclusa['entered_cost'] === 2.5 && $inclusa['tax_rate'] !== null
-        && $esclusa['entered_cost'] === null && $esclusa['tax_rate'] === null && $esclusa['unit_cost'] === 2.5;
+        // IVA esclusa: niente scorporo, ma l'aliquota del prodotto resta sulla riga.
+        && $esclusa['entered_cost'] === null && $esclusa['tax_rate'] === $inclusa['tax_rate'] && $esclusa['unit_cost'] === 2.5;
+}));
+
+check('l\'aliquota d\'acquisto si cambia per riga: scorpora con quella e resta anche IVA esclusa', fn () => prova(static function () use ($utente): bool {
+    accendiFunzionalita(['purchasing']);
+    $a = articoloConGiacenza(1, 'TST-ACQ-IVA-4');
+    // Un forfettario vende senza IVA ma compra con il 10%: la riga dice 10, non l'aliquota di vendita.
+    $id = StockDocuments::create('receipt', ['prices_include_tax' => 'true'], [['product_id' => $a, 'quantity' => '2', 'cost' => '1,10', 'tax_rate' => '10']], ['user_id' => $utente]);
+    $inclusa = StockDocuments::items($id)[0];
+    StockDocuments::saveDraft($id, ['prices_include_tax' => 'false'], [['product_id' => $a, 'quantity' => '2', 'cost' => '1,10', 'tax_rate' => '4%']]);
+    $esclusa = StockDocuments::items($id)[0];
+    $copia = StockDocuments::duplicate($id, ['user_id' => $utente]);
+    StockDocuments::saveDraft($id, [], [['product_id' => $a, 'quantity' => '2', 'cost' => '1,10', 'tax_rate' => '']]);
+    $vuota = StockDocuments::items($id)[0];
+    $rifiuto = false;
+
+    try {
+        StockDocuments::saveDraft($id, [], [['product_id' => $a, 'quantity' => '2', 'cost' => '1,10', 'tax_rate' => '150']]);
+    } catch (UserError $e) {
+        $rifiuto = str_contains($e->getMessage(), 'aliquota');
+    }
+
+    return $inclusa['tax_rate'] === 10.0 && $inclusa['entered_cost'] === 1.1 && $inclusa['unit_cost'] === 1.0
+        && $esclusa['tax_rate'] === 4.0 && $esclusa['entered_cost'] === null && $esclusa['unit_cost'] === 1.1
+        && StockDocuments::items($copia)[0]['tax_rate'] === 4.0
+        // Vuota = l'aliquota di vendita dell'articolo.
+        && $vuota['tax_rate'] === (isset(PurchaseTax::rates([$a])[$a]) ? round(PurchaseTax::rates([$a])[$a], 2) : null)
+        && $rifiuto;
 }));
 
 check('il duplicato del carico IVA inclusa riparte dallo scritto, non dal netto', fn () => prova(static function () use ($utente): bool {

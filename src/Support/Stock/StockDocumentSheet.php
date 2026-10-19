@@ -134,20 +134,18 @@ final class StockDocumentSheet
         }, $items);
     }
 
-    /** «Scritto 1,22 € · IVA 22%» per la riga scritta IVA inclusa, vuoto altrimenti. */
+    /** «Scritto 1,22 € · IVA 22%» per la riga scritta IVA inclusa, «IVA 22%» con l'aliquota sola, vuoto senza. */
     private static function costNote(array $item): string
     {
-        $entered = $item['entered_cost'] ?? null;
-
-        if ($entered === null || ($item['tax_rate'] ?? null) === null) {
+        if (($item['tax_rate'] ?? null) === null) {
             return '';
         }
 
         $rate = (float) $item['tax_rate'];
+        $tax = $rate > 0 ? 'IVA '.rtrim(rtrim(number_format($rate, 2, ',', ''), '0'), ',').'%' : 'senza aliquota';
+        $entered = $item['entered_cost'] ?? null;
 
-        return 'Scritto '.StockValue::money((float) $entered).' · '.($rate > 0
-            ? 'IVA '.rtrim(rtrim(number_format($rate, 2, ',', ''), '0'), ',').'%'
-            : 'senza aliquota');
+        return $entered === null ? $tax : 'Scritto '.StockValue::money((float) $entered).' · '.$tax;
     }
 
     /**

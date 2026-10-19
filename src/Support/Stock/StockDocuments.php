@@ -376,7 +376,7 @@ final class StockDocuments
                 if (in_array($item['product_id'], $kept, true)) {
                     // Il costo com'era scritto: con «IVA inclusa» si riscorpora adesso.
                     $lines[] = ['product_id' => $item['product_id'], 'quantity' => $item['quantity']]
-                        + ($purchase ? ['cost' => $item['entered_cost'] ?? $item['unit_cost']] : []);
+                        + ($purchase ? ['cost' => $item['entered_cost'] ?? $item['unit_cost'], 'tax_rate' => $item['tax_rate']] : []);
                 }
             }
 
@@ -474,8 +474,8 @@ final class StockDocuments
         $productIds = array_column($lines, 'product_id');
         self::assertProducts($productIds);
         $levels = $type === 'stocktake' ? Levels::byLocationForProducts($productIds) : [];
-        // I costi scritti IVA inclusa si scorporano qui, con l'aliquota di adesso, che resta sulla riga.
-        $rates = $type === 'receipt' && $inclusive ? PurchaseTax::rates($productIds) : [];
+        // L'aliquota d'acquisto non scritta sulla riga è quella di vendita dell'articolo, adesso.
+        $rates = $type === 'receipt' ? PurchaseTax::rates($productIds) : [];
 
         sqlDelete(StockDocumentItem::$table, '`stock_document_id` = '.$id);
         $total = 0.0;
@@ -498,11 +498,14 @@ final class StockDocuments
 
             if ($type === 'receipt' && array_key_exists('unit_cost', $line)) {
                 $cost = $line['unit_cost'];
+                // L'IVA del prodotto acquistato resta sulla riga, IVA esclusa o inclusa:
+                // può non essere quella di vendita (un forfettario compra con IVA).
+                $rate = $line['tax_rate'] ?? $rates[$line['product_id']] ?? null;
 
+                // I costi scritti IVA inclusa si scorporano con quell'aliquota.
                 if ($inclusive && $cost !== null) {
                     $entered = $cost;
-                    $rate = $rates[$line['product_id']] ?? 0.0;
-                    $cost = StockDocumentRules::net($entered, $rate);
+                    $cost = StockDocumentRules::net($entered, $rate ?? 0.0);
                 }
             } elseif ($type === 'receipt') {
                 $cost = $old[$line['product_id']]['unit_cost'] ?? null;

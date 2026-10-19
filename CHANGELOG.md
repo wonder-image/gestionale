@@ -19,6 +19,12 @@ versionamento semantico.
   (`tax_rate`) accanto al costo scritto (`entered_cost`); `unit_cost`,
   movimenti e costo del fornitore restano sempre netti.
 
+- **Aliquota IVA d'acquisto per riga** nei carichi: colonna «IVA %» con
+  un menu delle aliquote (`PurchaseTax::choices()`, più lo 0%), di serie
+  quella di vendita dell'articolo. Serve quando acquisto e vendita hanno
+  IVA diverse (es. forfettario che compra da una srl). L'aliquota si
+  salva in `tax_rate` anche con IVA esclusa e passa nelle copie.
+
 - **Server MCP** su `/api/gestionale/mcp/` (Streamable HTTP, solo POST,
   JSON-RPC): un agente IA (Claude Code, Claude Desktop…) elenca, crea e
   modifica prodotti, prezzi, giacenze e categorie e cambia lo stato degli

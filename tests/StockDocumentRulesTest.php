@@ -236,6 +236,18 @@ check('G3 Acquisti: un costo negativo, storto o troppo grande è un rifiuto con 
     && $rifiuto(fn () => Regole::lines([['product_id' => 5, 'quantity' => '1', 'cost' => 'x']])) === 'stock_document.invalid_cost'
 );
 
+check('Aliquota d\'acquisto della riga: vuota = quella di vendita, «4,5%» si legge, fuori da 0-100 è un rifiuto', fn () =>
+    Regole::rate('', 1) === null
+    && Regole::rate(null, 1) === null
+    && Regole::rate('0', 1) === 0.0
+    && Regole::rate('22', 1) === 22.0
+    && Regole::rate('4,5%', 1) === 4.5
+    && Regole::lines([['product_id' => 5, 'quantity' => '1', 'cost' => '1', 'tax_rate' => '10']])[0]['tax_rate'] === 10.0
+    && $rifiuto(fn () => Regole::rate('-1', 2)) === 'stock_document.invalid_rate'
+    && $rifiuto(fn () => Regole::rate('101', 2)) === 'stock_document.invalid_rate'
+    && $rifiuto(fn () => Regole::rate('abc', 2)) === 'stock_document.invalid_rate'
+);
+
 check('G3 Acquisti: la testata del fornitore si legge, la data deve esistere', fn () =>
     Regole::supplierHeader([]) === ['supplier_id' => 0, 'supplier_document_number' => '', 'supplier_document_date' => null]
     && Regole::supplierHeader(['supplier_id' => '12', 'supplier_document_number' => ' FT 7 ', 'supplier_document_date' => '2026-10-12'])

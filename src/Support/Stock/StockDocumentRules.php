@@ -154,6 +154,11 @@ final class StockDocumentRules
                 $wanted['unit_cost'] = self::cost($line['cost'], $row);
             }
 
+            // L'aliquota IVA d'acquisto della riga: vuota = quella di vendita dell'articolo.
+            if (array_key_exists('tax_rate', $line)) {
+                $wanted['tax_rate'] = self::rate($line['tax_rate'], $row);
+            }
+
             $lines[] = $wanted;
         }
 
@@ -412,6 +417,26 @@ final class StockDocumentRules
         }
 
         return round($cost, 4);
+    }
+
+    /**
+     * L'aliquota IVA d'acquisto di una riga di carico, in percentuale: vuoto =
+     * non scritta (si usa quella di vendita); «22», «4,5» e 0 si leggono; fuori
+     * da 0-100 o storta è un rifiuto.
+     */
+    public static function rate(mixed $value, int $row): ?float
+    {
+        if ($value === null || (is_string($value) && trim(str_replace('%', '', $value)) === '')) {
+            return null;
+        }
+
+        $rate = is_int($value) || is_float($value) ? (float) $value : Stocktake::quantity(str_replace('%', '', (string) $value));
+
+        if ($rate === null || !is_finite($rate) || $rate < 0 || $rate > 100) {
+            throw UserError::make('stock_document.invalid_rate', ['row' => $row]);
+        }
+
+        return round($rate, 2);
     }
 
     private static function quantity(mixed $value, int $row): ?float

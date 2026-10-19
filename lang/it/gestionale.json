@@ -34,6 +34,7 @@
                 "expired": "La pagina è scaduta: ricaricala e riprova.",
                 "location_unknown": "La sede scelta non è più del magazzino: ricarica la pagina e riprova.",
                 "invalid_cost": "La riga {{row}} ha un costo che non va: scrivi un numero da zero in su, per esempio 2,50.",
+                "invalid_rate": "La riga {{row}} ha un'aliquota IVA che non va: scrivi un numero da 0 a 100, per esempio 22.",
                 "invalid_date": "La data del documento del fornitore non va: sceglila dal calendario.",
                 "supplier_unknown": "Il fornitore scelto non c'è più fra i fornitori: ricarica la pagina e scegline un altro.",
                 "duplicate_batch": "La stessa versione con lo stesso lotto compare due volte (riga {{row}}): tienine una sola, o cambia il lotto.",

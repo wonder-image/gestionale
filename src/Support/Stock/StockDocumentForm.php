@@ -26,7 +26,7 @@ final class StockDocumentForm
     private const RESTORE_TTL = 600;
 
     /** G3: i pezzi di riga oltre ai pezzi che tornano in pagina, se la riga li porta. */
-    private const RESTORABLE_KEYS = ['cost', 'batch_number', 'batch_expiry', 'batch_id', 'supplier_id'];
+    private const RESTORABLE_KEYS = ['cost', 'tax_rate', 'batch_number', 'batch_expiry', 'batch_id', 'supplier_id'];
 
     /**
      * Salva la bozza e, con `intent = confirm`, la conferma.
@@ -244,6 +244,13 @@ final class StockDocumentForm
                     ? $item['cost']
                     : ($cost === null ? '' : str_replace('.', ',', (string) (round((float) $cost, 4) + 0))),
             ];
+            // L'aliquota d'acquisto salvata (o rimessa in pagina) vince su quella di vendita della versione.
+            if (($item['tax_rate'] ?? null) !== null && $item['tax_rate'] !== '') {
+                $lines[array_key_last($lines)]['tax_rate'] = is_string($item['tax_rate'])
+                    ? $item['tax_rate']
+                    : str_replace('.', ',', (string) (round((float) $item['tax_rate'], 2) + 0));
+            }
+
             $batchId = (int) ($item['batch_id'] ?? 0);
             $supplierId = (int) ($item['supplier_id'] ?? 0);
 
