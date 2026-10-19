@@ -12,7 +12,8 @@ use Wonder\Sql\TableSchema as Column;
 /**
  * Una zona di spedizione: un gruppo di aree (paese, provincia) con gli stessi
  * listini. Le aree stanno in `ShippingZoneArea`. A pari specificità, vince la
- * zona con la `position` minore.
+ * zona con la `position` minore. Una zona disattiva non copre nessuna
+ * destinazione, ma tiene aree e listini per quando si riaccende.
  *
  * Viaggia col deploy solo con l'interruttore delle spedizioni (`ShippingSync`).
  */
@@ -33,6 +34,7 @@ final class ShippingZone extends Model
             ...static::sqlColumnsFromDataSchema(['code']),
             Column::key('name'),
             Column::key('position')->int(),
+            Column::key('active')->enum(['true', 'false'])->default('true'),
         ];
     }
 
@@ -42,6 +44,7 @@ final class ShippingZone extends Model
             Field::key('code')->text()->uniqueCode(Codes::SHIPPING_ZONE),
             Field::key('name')->text()->sanitizeFirst(),
             Field::key('position')->number()->decimals(0),
+            Field::key('active')->text()->sanitize(false),
         ];
     }
 }

@@ -13,7 +13,8 @@ use Wonder\Sql\TableSchema as Column;
  *
  * La corrispondenza è esatta: se la combinazione non c'è si usa l'aliquota di
  * ripiego delle impostazioni fiscali. Una sola regola per combinazione, ed è
- * l'indice unico a garantirlo.
+ * l'indice unico a garantirlo. Una regola disattiva resta lì ma non si applica:
+ * per quella combinazione vale il ripiego.
  */
 final class TaxRule extends Model
 {
@@ -37,6 +38,7 @@ final class TaxRule extends Model
             Column::key('tax_category_id')->int()->null(false)->foreign(TaxCategory::$table)
                 ->unique(['country', 'customer_type', 'tax_category_id']),
             Column::key('tax_id')->int()->null(false)->foreign(Tax::$table),
+            Column::key('active')->enum(['true', 'false'])->default('true'),
         ];
     }
 
@@ -48,6 +50,7 @@ final class TaxRule extends Model
             Field::key('customer_type')->text()->sanitize(false),
             Field::key('tax_category_id')->number()->decimals(0),
             Field::key('tax_id')->number()->decimals(0),
+            Field::key('active')->text()->sanitize(false),
         ];
     }
 }

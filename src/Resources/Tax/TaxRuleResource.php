@@ -65,6 +65,8 @@ final class TaxRuleResource extends GestionaleResource
             'last' => 'ultime',
             'all' => 'tutte',
             'article' => 'le',
+            'full' => 'attiva',
+            'empty' => 'non attiva',
             'this' => 'questa',
         ];
     }
@@ -77,6 +79,7 @@ final class TaxRuleResource extends GestionaleResource
             'customer_type' => 'Tipo di cliente',
             'tax_category_id' => 'Tipo fiscale',
             'tax_id' => 'Aliquota',
+            'active' => 'Stato',
         ];
     }
 
@@ -97,6 +100,10 @@ final class TaxRuleResource extends GestionaleResource
                 ->select(static::taxes())
                 ->label('Aliquota')
                 ->required(),
+            FormField::key('active')
+                ->select(['true' => 'Attiva', 'false' => 'Non attiva'])
+                ->value('true')
+                ->label('Stato'),
         ];
     }
 
@@ -106,12 +113,13 @@ final class TaxRuleResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Regola')
-                        ->tooltip('Una sola regola per paese, tipo di cliente e tipo fiscale. Il codice lo compone il gestionale con quello che scegli qui.')
+                        ->tooltip('Una sola regola per paese, tipo di cliente e tipo fiscale. Il codice lo compone il gestionale con quello che scegli qui. Una regola non attiva non si applica: per quella combinazione vale l\'aliquota di ripiego.')
                         ->columnSpan(12),
                     static::getInput('country')->columnSpan(6),
                     static::getInput('customer_type')->columnSpan(6),
                     static::getInput('tax_category_id')->columnSpan(6),
                     static::getInput('tax_id')->columnSpan(6),
+                    static::getInput('active')->columnSpan(6),
                 ])->columns(12)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ]);
@@ -140,7 +148,17 @@ final class TaxRuleResource extends GestionaleResource
                 ->formatter(static fn (array $row): string => static::escape(
                     static::taxes()[(string) ($row['tax_id'] ?? '')] ?? '—'
                 )),
-            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+            TableColumn::key('active')
+                ->booleanBadge()
+                ->badgeOn('Attiva', 'bi-check-circle', 'success')
+                ->badgeOff('Non attiva', 'bi-dash-circle', 'secondary')
+                ->size('little'),
+            TableColumn::key('actions')->button()->actions([
+                'edit',
+                // L'etichetta segue lo stato della riga; il core inverte la colonna.
+                'active' => ['label' => ['true' => 'Disattiva', 'false' => 'Attiva'], 'request' => 'boolean'],
+                'delete',
+            ]),
         ];
     }
 

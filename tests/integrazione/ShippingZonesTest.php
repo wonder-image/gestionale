@@ -124,4 +124,17 @@ check('una zona eliminata è ignorata', fn () => prova(static function (): bool 
         && ShippingZones::overlaps($it) === [];
 }));
 
+check('una zona disattiva non copre niente e non contende le aree', fn () => prova(static function (): bool {
+    $it = zonaDiProva('Italia', 2, [['IT', '']]);
+    $spenta = zonaDiProva('Spenta', 1, [['IT', '']]);
+    $isola = zonaDiProva('Isola spenta', 3, [['IT', 'CA']]);
+    ShippingZone::query()->Update(ShippingZone::$table, ['active' => 'false'], 'id', $spenta);
+    ShippingZone::query()->Update(ShippingZone::$table, ['active' => 'false'], 'id', $isola);
+
+    return ShippingZones::resolve('IT', 'MI') === $it
+        && ShippingZones::resolve('IT', 'CA') === $it
+        && ShippingZones::overlaps($it) === []
+        && ShippingZones::overlaps($spenta) === ['Italia'];
+}));
+
 summary();

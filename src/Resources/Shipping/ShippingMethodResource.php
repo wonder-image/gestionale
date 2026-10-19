@@ -240,6 +240,8 @@ final class ShippingMethodResource extends GestionaleResource
     {
         $id = (int) $zone['id'];
         $title = (string) ($zone['name'] ?? '');
+        // Il listino di una zona spenta resta modificabile, ma non spedisce.
+        $label = ($zone['active'] ?? 'true') === 'false' ? $title.' (zona non attiva)' : $title;
         $name = static fn (string $field): string => 'rate_'.$id.'_'.$field;
 
         $remove = '<button type="button" class="btn btn-sm btn-link text-body-secondary p-0" data-wi-zone-remove="'.$id.'"'
@@ -249,7 +251,7 @@ final class ShippingMethodResource extends GestionaleResource
 
         return (new Container)
             ->components([
-                SectionTitle::make($title)->columnSpan(9),
+                SectionTitle::make($label)->columnSpan(9),
                 RichText::make($remove)->tag('div')->class('text-end')->columnSpan(3),
                 static::getInput($name('on'))->columnSpan(12),
                 static::getInput($name('price_type'))->columnSpan(3),

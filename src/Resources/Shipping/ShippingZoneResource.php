@@ -77,6 +77,7 @@ final class ShippingZoneResource extends GestionaleResource
         return [
             'name' => 'Nome',
             'areas' => 'Aree',
+            'active' => 'Stato',
         ];
     }
 
@@ -84,6 +85,10 @@ final class ShippingZoneResource extends GestionaleResource
     {
         return [
             FormField::key('name')->text()->label('Nome')->required(),
+            FormField::key('active')
+                ->select(['true' => 'Attiva', 'false' => 'Non attiva'])
+                ->value('true')
+                ->label('Stato'),
             FormField::key('areas')
                 ->repeater([
                     RepeaterColumn::key('id')->hidden(),
@@ -147,9 +152,10 @@ final class ShippingZoneResource extends GestionaleResource
 
         $components[] = (new Card)->components([
             SectionTitle::make('Zona')
-                ->tooltip('Il nome serve a te, per riconoscerla nei listini (per esempio «Italia», «Isole», «Europa»).')
+                ->tooltip('Il nome serve a te, per riconoscerla nei listini (per esempio «Italia», «Isole», «Europa»). Una zona non attiva non copre nessuna destinazione, ma tiene aree e listini per quando la riaccendi.')
                 ->columnSpan(12),
             static::getInput('name')->columnSpan(6),
+            static::getInput('active')->columnSpan(3),
         ])->columns(12)->columnSpan(12);
 
         $components[] = (new Card)->components([
@@ -171,7 +177,17 @@ final class ShippingZoneResource extends GestionaleResource
             TableColumn::key('areas')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(static::areasLabel((int) ($row['id'] ?? 0)))),
-            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+            TableColumn::key('active')
+                ->booleanBadge()
+                ->badgeOn('Attiva', 'bi-check-circle', 'success')
+                ->badgeOff('Non attiva', 'bi-dash-circle', 'secondary')
+                ->size('little'),
+            TableColumn::key('actions')->button()->actions([
+                'edit',
+                // L'etichetta segue lo stato della riga; il core inverte la colonna.
+                'active' => ['label' => ['true' => 'Disattiva', 'false' => 'Attiva'], 'request' => 'boolean'],
+                'delete',
+            ]),
         ];
     }
 

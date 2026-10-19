@@ -7,8 +7,9 @@ namespace Wonder\Plugin\Gestionale\Support\Tax;
  * cliente, regola con corrispondenza esatta.
  *
  * Niente regole a scaglioni o con caratteri jolly: o la combinazione c'è, o si
- * usa l'aliquota di ripiego scelta nelle impostazioni fiscali. Classe pura, le
- * regole arrivano già lette dal database.
+ * usa l'aliquota di ripiego scelta nelle impostazioni fiscali. Una regola
+ * disattiva è come se non ci fosse. Classe pura, le regole arrivano già lette
+ * dal database.
  */
 final class TaxResolver
 {
@@ -33,7 +34,7 @@ final class TaxResolver
 
             $taxId = (int) ($rule['tax_id'] ?? 0);
 
-            if ($taxId <= 0) {
+            if ($taxId <= 0 || (string) ($rule['active'] ?? 'true') === 'false') {
                 continue;
             }
 

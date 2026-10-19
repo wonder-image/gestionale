@@ -45,4 +45,13 @@ check('con due regole uguali vince la prima', fn () =>
     ], 'IT', 'private', 1, 99) === 10
 );
 
+check('una regola disattiva non vale: si usa il ripiego', fn () =>
+    TaxResolver::resolve([
+        ['country' => 'IT', 'customer_type' => 'private', 'tax_category_id' => 1, 'tax_id' => 10, 'active' => 'false'],
+    ], 'IT', 'private', 1, 99) === 99
+    && TaxResolver::resolve([
+        ['country' => 'IT', 'customer_type' => 'private', 'tax_category_id' => 1, 'tax_id' => 10, 'active' => 'true'],
+    ], 'IT', 'private', 1, 99) === 10
+);
+
 summary();

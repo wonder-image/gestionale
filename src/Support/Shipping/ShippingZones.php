@@ -13,7 +13,7 @@ final class ShippingZones
     /**
      * La zona più specifica per la destinazione: una zona con la provincia
      * batte una zona con il solo paese; a pari specificità vince la `position`
-     * minore. `null` se nessuna zona la copre.
+     * minore. `null` se nessuna zona attiva la copre.
      */
     public static function resolve(string $country, string $province): ?int
     {
@@ -24,7 +24,7 @@ final class ShippingZones
             return null;
         }
 
-        $zones = self::zones();
+        $zones = array_filter(self::zones(), self::active(...));
         $best = null;
 
         foreach (self::areas(array_keys($zones)) as $area) {
@@ -49,7 +49,8 @@ final class ShippingZones
     }
 
     /**
-     * I nomi delle altre zone che hanno almeno un'area uguale a una di questa.
+     * I nomi delle altre zone attive che hanno almeno un'area uguale a una di
+     * questa: una zona spenta non contende niente.
      *
      * @return list<string>
      */
@@ -65,7 +66,7 @@ final class ShippingZones
 
             if ($id === $zoneId) {
                 $mine[$key] = true;
-            } else {
+            } elseif (self::active($zones[$id])) {
                 $others[$key][$id] = true;
             }
         }
@@ -78,6 +79,11 @@ final class ShippingZones
         }
 
         return array_values($names);
+    }
+
+    private static function active(array $zone): bool
+    {
+        return (string) ($zone['active'] ?? 'true') !== 'false';
     }
 
     private static function code(string $value, int $length): string

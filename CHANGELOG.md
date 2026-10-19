@@ -31,6 +31,13 @@ versionamento semantico.
   (Nascondi/Mostra), metodi, conti e condizioni di pagamento e corrieri
   (Disattiva/Attiva) e imballaggi (Ferma/Rimetti in uso).
 
+- **Stato di regole IVA e zone di spedizione** (`active`, di serie
+  attiva), con la voce Disattiva/Attiva nei 3 puntini. Una regola
+  disattiva non si applica (`TaxResolver` passa all'aliquota di ripiego);
+  una zona disattiva non copre nessuna destinazione e non conta negli
+  avvisi di aree doppie, ma tiene aree e listini. Nella scheda del metodo
+  di spedizione il suo listino porta «(zona non attiva)».
+
 - **Server MCP** su `/api/gestionale/mcp/` (Streamable HTTP, solo POST,
   JSON-RPC): un agente IA (Claude Code, Claude Desktop…) elenca, crea e
   modifica prodotti, prezzi, giacenze e categorie e cambia lo stato degli
