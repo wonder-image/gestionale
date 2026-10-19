@@ -86,4 +86,15 @@ final class ProductNames
 
         return $names['option'] !== '' ? $article.' — '.$names['option'] : $article;
     }
+
+    /**
+     * Il nome da mostrare in un errore: articolo e variante («Calzini — XL»),
+     * come nel carrello; senza nomi, lo SKU.
+     */
+    public static function label(array $product): string
+    {
+        $name = self::full($product, self::models([$product]));
+
+        return $name !== '' ? $name : (string) ($product['sku'] ?? '');
+    }
 }

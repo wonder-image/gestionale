@@ -175,6 +175,20 @@ try {
             return false;
         });
 
+        check('l\'errore di giacenza nomina articolo e variante, come il carrello', function () use ($productId) {
+            Product::update(['name' => 'XL'], $productId);
+
+            try {
+                Stock::apply(['product_id' => $productId, 'quantity' => -1000, 'reason' => 'inventory']);
+            } catch (UserError $e) {
+                return str_contains($e->getMessage(), 'Prova Rettifica — XL');
+            } finally {
+                Product::update(['name' => 'Prova rettifica'], $productId);
+            }
+
+            return false;
+        });
+
         check('i decimali arrivano interi fino al database', function () use ($productId) {
             // La colonna è DECIMAL(10,3): mezzo etto non deve sparire in un
             // arrotondamento.

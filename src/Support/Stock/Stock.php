@@ -87,9 +87,7 @@ final class Stock
 
             if ($after < 0 && $quantity < 0 && !$negative) {
                 throw UserError::make('stock.insufficient', [
-                    'product' => trim((string) ($product['name'] ?? '')) !== ''
-                        ? (string) $product['name']
-                        : (string) ($product['sku'] ?? ''),
+                    'product' => ProductNames::label($product),
                 ]);
             }
 

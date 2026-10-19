@@ -634,9 +634,7 @@ final class Allocation
     /** Il nome che legge una persona, o lo SKU se il nome manca. */
     private static function label(array $product): string
     {
-        $name = trim((string) ($product['name'] ?? ''));
-
-        return $name !== '' ? $name : (string) ($product['sku'] ?? '');
+        return ProductNames::label($product);
     }
 
     /** La forma che il database accetta sempre: punto, non virgola. */
