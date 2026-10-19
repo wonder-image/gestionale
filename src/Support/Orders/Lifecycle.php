@@ -352,7 +352,7 @@ final class Lifecycle
                 PaymentProviders::get($provider)?->cancel($reference);
             } catch (Throwable $error) {
                 // Se il cliente pagasse lo stesso, `OnlinePayments::succeeded`
-                // trova un carrello e avvisa il commerciante del rimborso.
+                // trova un carrello e lancia: l'evento si riprova e resta nel log.
                 Errors::internal($error, 'orders.reopen_intent', ['order' => $orderId, 'reference' => $reference]);
             }
         }
