@@ -31,6 +31,21 @@ Per questo chi legge i movimenti trova sempre il motivo (`sale`,
 2. **Ordine** — `Checkout::place()` trasforma il carrello in ordine `pending` e
    prenota la merce con `Allocation::reserve()`. La giacenza non cambia: la
    merce è solo messa da parte.
+   Con un metodo online (`provider` diverso da `manual`) l'ordine nasce
+   **«In pagamento»** (`awaiting_payment`): niente numero, niente
+   `ordered_at`, niente email. Non compare al commerciante (lista ordini,
+   cliente, MCP) né al cliente (area account). Diventa `pending` con
+   `Lifecycle::receive()`, chiamato da `OnlinePayments::succeeded()` o
+   `processing()` (SEPA, `payment_intent.processing`): un solo UPDATE
+   condizionato dà numero, `ordered_at`, email «ricevuto» al cliente e avviso
+   al commerciante, una volta sola anche con webhook e ritorno insieme. Con il
+   pagamento in elaborazione l'email lo dice; l'incasso arriva poi col webhook.
+   **Abbandono** — `Lifecycle::abandon()` porta un `awaiting_payment` ad
+   **«Abbandonato»** (`abandoned`): annulla l'intento, libera merce, pagamenti
+   aperti e coupon, nessuna email. Se l'intento è riuscito o in elaborazione
+   restituisce false e l'ordine resta. Lo chiamano `Expiry` (prenotazione
+   scaduta) e il checkout (nuovo ordine sopra uno in pagamento). Gli abbandonati
+   si vedono solo col filtro «Pagamenti non riusciti» della lista ordini.
 3. **Conferma** — `Lifecycle::confirm()` scarica la merce (`Allocation::commit()`),
    manda l'email al cliente e, se è passato un pagamento, lo registra col
    `Ledger`. Confermare **non** registra denaro da solo.
@@ -41,8 +56,10 @@ Per questo chi legge i movimenti trova sempre il motivo (`sale`,
    l'avviso al commerciante. Lo conferma il commerciante dal backend, dopo aver
    controllato che la merce ci sia.
    **Riapertura** — `Lifecycle::reopen()` riporta a carrello, sulla stessa
-   riga, un ordine `pending` non ancora pagato («Modifica l'ordine» nel
-   checkout). Libera le prenotazioni, segna come falliti i pagamenti aperti,
+   riga, un ordine `awaiting_payment` o `abandoned` (il checkout lo chiama da
+   solo al primo cambio, dal carrello e dal coupon; sull'abbandonato cambia solo
+   lo stadio). Sul pagamento aperto scrive la ragione «Ordine modificato dal
+   cliente», distinta da un rifiuto. Libera le prenotazioni, segna come falliti i pagamenti aperti,
    rilascia il coupon e annulla gli intenti **prima** di toccare l'ordine. Se
    l'annullo non riesce rilegge lo stato: già annullato riapre, pagamento
    partito (`succeeded`/`processing`) dà `order.payment_in_progress`, altro dà
@@ -64,7 +81,9 @@ Per questo chi legge i movimenti trova sempre il motivo (`sale`,
    incassato non si rimborsa da qui: lo fa il gateway con `Ledger::refund()`.
 6. **Scadenze** — `Expiry::run()` gira ogni ora (`ExpiryTask`, cron
    `0 * * * *`): manda il promemoria agli ordini che aspettano il pagamento e
-   annulla quelli scaduti, secondo `order_payment_wait_days`.
+   annulla quelli scaduti, secondo `order_payment_wait_days` (bonifico
+   manuale). Abbandona gli `awaiting_payment` con la prenotazione scaduta e
+   salta i `pending` il cui intento è riuscito o in elaborazione.
 
 ### Le personalizzazioni sulla riga
 

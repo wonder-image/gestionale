@@ -266,6 +266,13 @@ conferma l'ordine dal backend (§6).
 
 ## 8. Pagina di ritorno, «Paga ora» e ordini abbandonati
 
+> **Superato in parte (2026-10-19)** da
+> `2026-10-19-ordine-in-pagamento-design.md`: l'ordine online nasce «In
+> pagamento» (`awaiting_payment`, senza numero) e diventa «In attesa» solo
+> all'incasso o all'elaborazione; «Modifica l'ordine» non c'è più (il checkout
+> si riapre da solo al primo cambio); l'abbandono è `abandoned`, non
+> `cancelled`.
+
 **Pagina di ritorno** `ecommerce.checkout.return` (GET, con `payment_intent` nella
 query):
 
