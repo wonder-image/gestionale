@@ -7,6 +7,7 @@ namespace Wonder\Plugin\Gestionale\Providers\Payments;
  *
  * `environment` è quello del segreto che ha verificato la firma; vuoto quando
  * l'evento dice un ambiente diverso: in quel caso non si tocca niente.
+ * `failure` e `attempt` come in `PaymentState`.
  */
 final class PaymentEvent
 {
@@ -25,6 +26,8 @@ final class PaymentEvent
         public readonly array $refunds = [],
         public readonly string $chargeId = '',
         public readonly array $payload = [],
+        public readonly string $failure = '',
+        public readonly string $attempt = '',
     ) {
     }
 }

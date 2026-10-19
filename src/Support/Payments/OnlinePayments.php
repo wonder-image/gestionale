@@ -127,10 +127,11 @@ final class OnlinePayments
         }
 
         if ((string) ($order['stage'] ?? '') !== 'order') {
-            // Tornato carrello con «Modifica l'ordine» mentre l'incasso arrivava:
-            // niente denaro su un carrello. L'evento si riprova e trova l'ordine
-            // di nuovo inviato, o resta fallito nel log.
-            throw new RuntimeException("Intento {$reference}: l'ordine {$rowOrder} è tornato carrello.");
+            // Tornato carrello con «Modifica l'ordine»: `Lifecycle::reopen`
+            // annulla l'intento prima di riaprire, quindi qui arriva solo un
+            // incasso che il gateway ha preso lo stesso. Niente denaro su un
+            // carrello: il commerciante lo rimborsa, e riprovare non serve.
+            throw new PaymentMismatch("Incasso {$reference} sull'ordine {$rowOrder}, tornato carrello: va rimborsato.");
         }
 
         // Letto prima di scrivere: chi ripassa su una riga già pagata non riavvisa.
@@ -207,8 +208,10 @@ final class OnlinePayments
     /**
      * Il tentativo non è andato: la riga si segna fallita e l'ordine resta in
      * attesa. L'intento resta riusabile: il cliente riprova sullo stesso.
+     * Con `$attempt` ogni tentativo rifiutato resta nella storia del
+     * pagamento (`Ledger::fail`).
      */
-    public static function fail(string $provider, string $reference, string $message): void
+    public static function fail(string $provider, string $reference, string $message, string $attempt = ''): void
     {
         $row = Ledger::byReference($provider, $reference);
 
@@ -217,7 +220,7 @@ final class OnlinePayments
             return;
         }
 
-        Ledger::fail((int) $row['id'], $message);
+        Ledger::fail((int) $row['id'], $message, $attempt);
     }
 
     /**

@@ -6,6 +6,7 @@ use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
+use Wonder\Plugin\Gestionale\Providers\Payments\PaymentState;
 use Throwable;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -280,7 +281,7 @@ final class Lifecycle
      * cambiarlo prima di pagare («Modifica l'ordine»).
      *
      * Come un annullo senza l'annullo: la merce prenotata torna disponibile,
-     * il pagamento aperto decade (l'intento si annulla dopo il commit), il
+     * il pagamento aperto decade (l'intento si annulla prima), il
      * coupon rimette l'utilizzo. Numero e codice restano: al checkout
      * successivo `Checkout::create` riusa l'`order_number`, così non restano
      * ordini annullati né buchi nella numerazione. Con denaro incassato non si
@@ -291,37 +292,35 @@ final class Lifecycle
      */
     public static function reopen(int $orderId, array $context = []): array
     {
-        $result = Transaction::run(static function () use ($orderId, $context): array {
-            $order = self::order($orderId);
-            $status = (string) $order['status'];
+        // L'intento si chiude prima di toccare l'ordine: se il cliente ha
+        // pagato nel frattempo, il denaro trova ancora l'ordine e non un
+        // carrello. Se il gateway non risponde l'ordine resta com'è.
+        $intents = Transaction::run(static function () use ($orderId): array {
+            $intents = [];
 
-            if ($status !== 'pending') {
-                throw UserError::make('order.not_reopenable');
-            }
-
-            $payments = self::payments($orderId);
-
-            foreach ($payments as $payment) {
-                // «In verifica» lo vede chi chiama, rileggendo l'intento.
-                if ((string) $payment['status'] === 'paid') {
-                    throw UserError::make('order.not_reopenable');
+            foreach (self::reopenable($orderId)[1] as $payment) {
+                if (in_array((string) $payment['status'], ['pending', 'failed'], true) && ($intent = self::openIntent($payment)) !== null) {
+                    $intents[] = $intent;
                 }
             }
 
+            return $intents;
+        });
+
+        foreach ($intents as [$provider, $reference]) {
+            self::cancelIntent($orderId, $provider, $reference);
+        }
+
+        return Transaction::run(static function () use ($orderId, $context): array {
+            [$order, $payments] = self::reopenable($orderId);
+            $status = (string) $order['status'];
             $reason = trim((string) ($context['reason'] ?? ''));
             $source = (string) ($context['source'] ?? 'system');
             Allocation::release(['order_id' => $orderId]);
-            $intents = [];
 
             foreach ($payments as $payment) {
-                $paymentStatus = (string) $payment['status'];
-
-                if ($paymentStatus === 'pending') {
+                if ((string) $payment['status'] === 'pending') {
                     Ledger::fail((int) $payment['id'], $reason !== '' ? $reason : 'Ordine riaperto');
-                }
-
-                if (in_array($paymentStatus, ['pending', 'failed'], true) && ($intent = self::openIntent($payment)) !== null) {
-                    $intents[] = $intent;
                 }
             }
 
@@ -344,22 +343,70 @@ final class Lifecycle
                 $reason
             );
 
-            return ['order_id' => $orderId, 'changed' => true, 'intents' => $intents];
+            return ['order_id' => $orderId, 'changed' => true];
         });
+    }
 
-        foreach ($result['intents'] as [$provider, $reference]) {
-            try {
-                PaymentProviders::get($provider)?->cancel($reference);
-            } catch (Throwable $error) {
-                // Se il cliente pagasse lo stesso, `OnlinePayments::succeeded`
-                // trova un carrello e lancia: l'evento si riprova e resta nel log.
-                Errors::internal($error, 'orders.reopen_intent', ['order' => $orderId, 'reference' => $reference]);
+    /**
+     * L'ordine e i suoi pagamenti, se si può ancora riaprire: in attesa e
+     * senza denaro incassato.
+     *
+     * @return array{0: array<string, mixed>, 1: list<array<string, mixed>>}
+     */
+    private static function reopenable(int $orderId): array
+    {
+        $order = self::order($orderId);
+
+        if ((string) $order['status'] !== 'pending') {
+            throw UserError::make('order.not_reopenable');
+        }
+
+        $payments = self::payments($orderId);
+
+        foreach ($payments as $payment) {
+            // «In verifica» lo vede chi chiama, rileggendo l'intento.
+            if ((string) $payment['status'] === 'paid') {
+                throw UserError::make('order.not_reopenable');
             }
         }
 
-        unset($result['intents']);
+        return [$order, $payments];
+    }
 
-        return $result;
+    /**
+     * Annulla l'intento prima di riaprire. Se l'annullo non va si rilegge:
+     * già annullato va bene; incassato o in lavorazione non si riapre; per il
+     * resto (gateway che non risponde) si chiede di riprovare.
+     */
+    private static function cancelIntent(int $orderId, string $provider, string $reference): void
+    {
+        $gateway = PaymentProviders::get($provider);
+
+        if ($gateway === null) {
+            return;
+        }
+
+        try {
+            $gateway->cancel($reference);
+
+            return;
+        } catch (Throwable $error) {
+            Errors::internal($error, 'orders.reopen_intent', ['order' => $orderId, 'reference' => $reference]);
+        }
+
+        try {
+            $state = $gateway->status($reference)->status;
+        } catch (Throwable) {
+            $state = '';
+        }
+
+        if ($state === PaymentState::CANCELED) {
+            return;
+        }
+
+        throw UserError::make(in_array($state, [PaymentState::SUCCEEDED, PaymentState::PROCESSING], true)
+            ? 'order.payment_in_progress'
+            : 'order.reopen_retry');
     }
 
     /**

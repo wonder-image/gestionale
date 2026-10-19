@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Sales;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
+use Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\Payments\PaymentMethodResource;
 use Wonder\Plugin\Gestionale\Support\Backend\RowMenu;
@@ -79,7 +80,7 @@ final class OrderPaymentTableResource extends OrderSectionResource
             TableColumn::key('status')
                 ->text()
                 ->size('little')
-                ->formatter(static fn (array $row): string => OrderSheet::paymentBadge((string) ($row['status'] ?? ''))),
+                ->formatter(static fn (array $row): string => static::statusOf($row)),
             TableColumn::key('paid_at')
                 ->text()
                 ->size('medium')
@@ -129,6 +130,33 @@ final class OrderPaymentTableResource extends OrderSectionResource
             'icon' => 'bi bi-cash-coin',
             'modal' => OrderPaymentResource::installmentModalId((int) $row['id']),
         ]]);
+    }
+
+    /**
+     * Lo stato, e sotto un pagamento fallito il perché: l'ultimo motivo
+     * scritto nella sua storia e quanti tentativi sono stati rifiutati.
+     */
+    public static function statusOf(array $row): string
+    {
+        $status = (string) ($row['status'] ?? '');
+        $html = OrderSheet::paymentBadge($status);
+
+        if ($status !== 'failed' || (int) ($row['id'] ?? 0) <= 0) {
+            return $html;
+        }
+
+        $logs = PaymentStatusLog::find(['payment_id' => (int) $row['id'], 'to_value' => 'failed'], null, 'id', 'DESC');
+        $logs = is_array($logs) && isset($logs['id']) ? [$logs] : array_values(array_filter((array) $logs, 'is_array'));
+        $message = trim((string) ($logs[0]['message'] ?? ''));
+
+        if ($message === '') {
+            return $html;
+        }
+
+        $count = count($logs);
+
+        return $html.'<div class="small text-body-secondary mt-1">'.static::escape($message)
+            .($count > 1 ? ' · '.$count.' tentativi' : '').'</div>';
     }
 
     protected static function emptyText(): string
