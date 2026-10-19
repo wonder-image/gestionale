@@ -149,6 +149,20 @@ check('il carrello diventa un ordine numerato, con la merce impegnata', function
     });
 });
 
+// L'email di conferma di un pagamento online legge l'account dall'ordine:
+// senza, l'ospite non riceve il link per scegliere la password.
+check('l\'ordine ricorda l\'account di chi compra', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        $esito = senzaPosta(static fn (): array => Checkout::place(
+            $carrello,
+            ['user_id' => 424242] + datiCheckout(metodoDiProva(PaymentTiming::IMMEDIATE))
+        ));
+
+        return (int) Order::findById($esito['order_id'])['user_id'] === 424242;
+    });
+});
+
 check('il pagamento nasce in attesa per l\'importo dell\'ordine', function () {
     return prova(static function (): bool {
         [$carrello] = carrelloPronto();
