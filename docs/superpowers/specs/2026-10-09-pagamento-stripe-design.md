@@ -240,10 +240,16 @@ Con `connected('stripe')` falso, il metodo non compare.
 - Se Stripe rifiuta (carta, 3DS fallito), il modulo resta bloccato e l'ordine
   resta in attesa: il cliente riprova con un'altra carta sullo stesso intento
   (`StripeProvider::start` lo riusa). Compare «Modifica l'ordine».
+- Ogni rifiuto finisce nella storia del pagamento, una riga per tentativo col
+  motivo della banca, anche senza webhook: il JS chiama
+  `ecommerce.checkout.declined` (POST, CSRF, limite per ordine), il server legge
+  lo stato da Stripe e `OnlinePayments::fail` lo scrive; il webhook dello stesso
+  tentativo non lo duplica.
 - «Modifica l'ordine» chiama `ecommerce.checkout.reopen` (POST, CSRF):
   `OnlinePayment::reopen` → `Lifecycle::reopen` riporta l'ordine a carrello
   **sulla stessa riga** (prenotazioni liberate, pagamento aperto fallito, coupon
-  rilasciato, intento annullato dopo il commit). Un carrello nato nel frattempo
+  rilasciato). L'intento si annulla **prima**: se il pagamento è partito nel
+  frattempo l'ordine resta e si va al ritorno. Un carrello nato nel frattempo
   si unisce con `Cart::merge`. Il prossimo «Paga» o «Ordina» lo rifà ordine con
   lo **stesso numero** (`Checkout` riusa `order_number`): niente ordini
   annullati né buchi nella numerazione. Se intanto il denaro è arrivato, si va

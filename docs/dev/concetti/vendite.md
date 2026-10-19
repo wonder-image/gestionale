@@ -43,9 +43,20 @@ Per questo chi legge i movimenti trova sempre il motivo (`sale`,
    **Riapertura** — `Lifecycle::reopen()` riporta a carrello, sulla stessa
    riga, un ordine `pending` non ancora pagato («Modifica l'ordine» nel
    checkout). Libera le prenotazioni, segna come falliti i pagamenti aperti,
-   rilascia il coupon e annulla gli intenti dopo il commit. Il numero resta:
+   rilascia il coupon e annulla gli intenti **prima** di toccare l'ordine. Se
+   l'annullo non riesce rilegge lo stato: già annullato riapre, pagamento
+   partito (`succeeded`/`processing`) dà `order.payment_in_progress`, altro dà
+   `order.reopen_retry`; in entrambi i casi l'ordine resta. Il numero resta:
    il `Checkout::place()` successivo riusa l'`order_number`. Con denaro
-   incassato non riapre.
+   incassato non riapre. Un incasso arrivato comunque su un ordine tornato
+   carrello è un `PaymentMismatch` («va rimborsato»): un solo avviso al
+   commerciante.
+   **Rifiuti** — ogni rifiuto della banca resta nella storia del pagamento:
+   `PaymentState`/`PaymentEvent` portano `failure` (il motivo) e `attempt`
+   (l'id del tentativo, da `last_payment_error`), e `Ledger::fail` scrive una
+   riga `failed` per tentativo, saltando lo stesso tentativo già scritto (dal
+   webhook o dal checkout). La lista pagamenti mostra l'ultimo motivo e
+   « · N tentativi».
 4. **Evasione** — `Lifecycle::fulfill()` cambia solo `fulfillment_status`: la
    merce è già uscita alla conferma.
 5. **Annullo** — `Lifecycle::cancel()` libera la prenotazione se l'ordine era
