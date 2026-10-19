@@ -480,6 +480,61 @@ check('succeeded accetta il residuo quando parte dell\'ordine è già pagata', f
     return (OnlinePayments::succeeded('stripe', $intento, 4000, 'eur', $ordine, 'webhook')['payment_status'] ?? '') === 'paid';
 }));
 
+/** Le chiavi delle email partite, nell'ordine. */
+function chiaviPosta(array $partite): array
+{
+    return array_map(static fn (array $p): string => preg_match('/^\[([^\]]+)\]/', $p['subject'], $m) ? $m[1] : '', $partite);
+}
+
+check('processing: l\'ordine arriva al commerciante col numero, una volta sola', fn () => prova(static function (): bool {
+    [$ordine, , $intento] = intentoLegato();
+    Order::update(['email' => 'cliente@example.com'], $ordine);
+    destinatariCommerciante('negozio@example.com');
+    $esiti = [];
+
+    $partite = conPosta(static function () use ($ordine, $intento, &$esiti): void {
+        $esiti[] = OnlinePayments::processing('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+        $esiti[] = OnlinePayments::processing('stripe', $intento, 5000, 'eur', $ordine, 'cron');
+    });
+    $dopo = Order::findById($ordine);
+
+    return chiaviPosta($partite) === ['order.processing', 'order.merchant_new']
+        && $esiti[0]['changed'] === true && $esiti[1]['changed'] === false
+        && (string) $dopo['status'] === 'pending'
+        && trim((string) $dopo['order_number']) !== ''
+        && (OnlinePayments::payment($ordine)['status'] ?? '') !== 'paid';
+}));
+
+check('processing e poi succeeded: pagato, ordine in attesa, email del pagamento', fn () => prova(static function (): bool {
+    [$ordine, , $intento] = intentoLegato();
+    Order::update(['email' => 'cliente@example.com'], $ordine);
+    destinatariCommerciante('negozio@example.com');
+    OnlinePayments::processing('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+
+    $partite = conPosta(static function () use ($ordine, $intento): void {
+        OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+    });
+
+    return chiaviPosta($partite) === ['order.paid', 'order.merchant_paid']
+        && (string) Order::findById($ordine)['status'] === 'pending'
+        && (OnlinePayments::payment($ordine)['status'] ?? '') === 'paid';
+}));
+
+check('fallimento dopo processing: ordine in attesa, pagamento fallito, avviso', fn () => prova(static function (): bool {
+    [$ordine, , $intento] = intentoLegato();
+    destinatariCommerciante('negozio@example.com');
+    OnlinePayments::processing('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+
+    $avvisi = avvisiPagamento(conPosta(static function () use ($intento): void {
+        OnlinePayments::fail('stripe', $intento, 'Addebito SEPA respinto');
+    }));
+
+    return count($avvisi) === 1
+        && str_contains($avvisi[0]['body'], 'dopo l&#039;elaborazione')
+        && (string) Order::findById($ordine)['status'] === 'pending'
+        && (OnlinePayments::payment($ordine)['status'] ?? '') === 'failed';
+}));
+
 check('nessuna email vera: finiti i test la posta resta quella finta', static fn (): bool => (new ReflectionProperty(\Wonder\Plugin\Gestionale\Support\Mail\Mailer::class, 'transport'))->getValue() !== null);
 
 summary();

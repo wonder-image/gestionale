@@ -420,6 +420,11 @@
                     "title": "Grazie, l'ordine è arrivato",
                     "intro": "Abbiamo registrato il tuo ordine :number del :date. Appena il pagamento risulta, te lo confermiamo."
                 },
+                "processing": {
+                    "subject": "Abbiamo ricevuto il tuo ordine :number",
+                    "title": "Grazie, l'ordine è arrivato",
+                    "intro": "Abbiamo registrato il tuo ordine :number del :date. Il pagamento è in elaborazione: appena la banca lo conferma, te lo scriviamo."
+                },
                 "paid": {
                     "subject": "Abbiamo ricevuto il pagamento dell'ordine :number",
                     "title": "Grazie, il pagamento è arrivato",

@@ -97,43 +97,7 @@ final class OnlinePayments
      */
     public static function succeeded(string $provider, string $reference, int $amount, string $currency, int $orderId, string $source): array
     {
-        $row = Ledger::byReference($provider, $reference);
-
-        if ($row === null) {
-            throw new PaymentMismatch("Intento {$reference} senza un pagamento nel gestionale.");
-        }
-
-        $rowOrder = (int) $row['order_id'];
-        $order = Order::findById($rowOrder);
-
-        if ($orderId !== $rowOrder || !is_array($order)) {
-            throw new PaymentMismatch("Intento {$reference}: ordine {$orderId} al posto di {$rowOrder}.");
-        }
-
-        if ($amount !== (int) round((float) $row['amount'] * 100)) {
-            throw new PaymentMismatch("Intento {$reference}: {$amount} centesimi al posto di ".(int) round((float) $row['amount'] * 100).'.');
-        }
-
-        // La riga può essere vecchia: l'incasso deve coprire ancora quanto resta dell'ordine.
-        $due = self::dueCents($order, (int) $row['id']);
-
-        if ($amount !== $due) {
-            throw new PaymentMismatch("Intento {$reference}: {$amount} centesimi, all'ordine ne restano {$due}.");
-        }
-
-        $expected = (string) ($order['currency'] ?? '') ?: 'EUR';
-
-        if (strtolower($currency) !== strtolower($expected)) {
-            throw new PaymentMismatch("Intento {$reference}: valuta {$currency} al posto di {$expected}.");
-        }
-
-        if ((string) ($order['stage'] ?? '') !== 'order') {
-            // Tornato carrello con «Modifica l'ordine»: `Lifecycle::reopen`
-            // annulla l'intento prima di riaprire, quindi qui arriva solo un
-            // incasso che il gateway ha preso lo stesso. Niente denaro su un
-            // carrello: il commerciante lo rimborsa, e riprovare non serve.
-            throw new PaymentMismatch("Incasso {$reference} sull'ordine {$rowOrder}, tornato carrello: va rimborsato.");
-        }
+        [$row, $rowOrder, $order, $expected] = self::matching($provider, $reference, $amount, $currency, $orderId);
 
         // Letto prima di scrivere: chi ripassa su una riga già pagata non riavvisa.
         $alreadyPaid = (string) $row['status'] === 'paid';
@@ -183,6 +147,80 @@ final class OnlinePayments
     }
 
     /**
+     * Il gateway ha preso in carico il pagamento ma l'esito arriva dopo
+     * (SEPA): l'ordine diventa del commerciante, con numero e data, e cliente
+     * e commerciante lo sanno. Il pagamento resta da incassare; a `succeeded`
+     * partono le email del pagamento.
+     *
+     * @return array{order_id: int, status: string, changed: bool}
+     */
+    public static function processing(string $provider, string $reference, int $amount, string $currency, int $orderId, string $source): array
+    {
+        [, $rowOrder] = self::matching($provider, $reference, $amount, $currency, $orderId);
+        $received = Lifecycle::receive($rowOrder, ['source' => $source, 'reason' => 'Pagamento in elaborazione']);
+
+        if ($received) {
+            OrderNotifier::send('processing', $rowOrder);
+            OrderNotifier::send('merchant_new', $rowOrder);
+        }
+
+        return [
+            'order_id' => $rowOrder,
+            'status' => (string) (Order::findById($rowOrder)['status'] ?? ''),
+            'changed' => $received,
+        ];
+    }
+
+    /**
+     * La riga e l'ordine dell'intento, dopo aver controllato che importo,
+     * valuta e ordine siano quelli del gestionale.
+     *
+     * @return array{0: array<string, mixed>, 1: int, 2: array<string, mixed>, 3: string}
+     */
+    private static function matching(string $provider, string $reference, int $amount, string $currency, int $orderId): array
+    {
+        $row = Ledger::byReference($provider, $reference);
+
+        if ($row === null) {
+            throw new PaymentMismatch("Intento {$reference} senza un pagamento nel gestionale.");
+        }
+
+        $rowOrder = (int) $row['order_id'];
+        $order = Order::findById($rowOrder);
+
+        if ($orderId !== $rowOrder || !is_array($order)) {
+            throw new PaymentMismatch("Intento {$reference}: ordine {$orderId} al posto di {$rowOrder}.");
+        }
+
+        if ($amount !== (int) round((float) $row['amount'] * 100)) {
+            throw new PaymentMismatch("Intento {$reference}: {$amount} centesimi al posto di ".(int) round((float) $row['amount'] * 100).'.');
+        }
+
+        // La riga può essere vecchia: l'incasso deve coprire ancora quanto resta dell'ordine.
+        $due = self::dueCents($order, (int) $row['id']);
+
+        if ($amount !== $due) {
+            throw new PaymentMismatch("Intento {$reference}: {$amount} centesimi, all'ordine ne restano {$due}.");
+        }
+
+        $expected = (string) ($order['currency'] ?? '') ?: 'EUR';
+
+        if (strtolower($currency) !== strtolower($expected)) {
+            throw new PaymentMismatch("Intento {$reference}: valuta {$currency} al posto di {$expected}.");
+        }
+
+        if ((string) ($order['stage'] ?? '') !== 'order') {
+            // Tornato carrello (il cliente ha cambiato il checkout): `Lifecycle::reopen`
+            // annulla l'intento prima di riaprire, quindi qui arriva solo un
+            // incasso che il gateway ha preso lo stesso. Niente denaro su un
+            // carrello: il commerciante lo rimborsa, e riprovare non serve.
+            throw new PaymentMismatch("Incasso {$reference} sull'ordine {$rowOrder}, tornato carrello: va rimborsato.");
+        }
+
+        return [$row, $rowOrder, $order, $expected];
+    }
+
+    /**
      * Qualcosa nel denaro va guardato a mano dal commerciante (di solito un
      * rimborso dalla dashboard del gateway). Resta la traccia tecnica e parte
      * un'email ai destinatari delle notifiche del negozio. Non lancia mai:
@@ -226,6 +264,12 @@ final class OnlinePayments
         }
 
         Ledger::fail((int) $row['id'], $message, $attempt);
+
+        if ((string) (Order::findById((int) $row['order_id'])['status'] ?? '') === 'pending') {
+            // L'ordine era già del commerciante (pagamento in elaborazione):
+            // resta suo, e il commerciante deve sapere che il denaro non arriva.
+            self::alert($provider, 'payment.failed_after_processing', "Pagamento {$reference} dell'ordine {$row['order_id']} non riuscito dopo l'elaborazione: l'ordine resta da incassare.", ['order_id' => (int) $row['order_id']]);
+        }
     }
 
     /**

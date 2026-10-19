@@ -82,6 +82,7 @@ final class PaymentEvents
 
         match ($event->type) {
             'payment_intent.succeeded' => OnlinePayments::succeeded($provider, $event->reference, $event->amount, $event->currency, $event->orderId, $source),
+            'payment_intent.processing' => OnlinePayments::processing($provider, $event->reference, $event->amount, $event->currency, $event->orderId, $source),
             'payment_intent.payment_failed' => OnlinePayments::fail($provider, $event->reference, $event->failure !== '' ? $event->failure : 'Pagamento non riuscito', $event->attempt),
             'payment_intent.canceled' => OnlinePayments::fail($provider, $event->reference, 'Pagamento annullato'),
             'charge.refunded' => OnlinePayments::refunded($provider, $event->reference, $event->refunds, $event->currency, $source),
