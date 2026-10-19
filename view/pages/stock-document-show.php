@@ -91,7 +91,12 @@ View::layout('backend.show', ['TITLE' => $resource::singular().' '.$number]);
                         <?php } else { ?>
                         <td class="text-end"<?=$numeric?>><?=$e($line['quantity'])?></td>
                         <?php if ($costs) { ?>
-                        <td class="text-end"<?=$numeric?>><?=$e($line['cost'])?></td>
+                        <td class="text-end"<?=$numeric?>>
+                            <?=$e($line['cost'])?>
+                            <?php if (($line['cost_note'] ?? '') !== '') { ?>
+                            <div class="small text-body-secondary"><?=$e($line['cost_note'])?></div>
+                            <?php } ?>
+                        </td>
                         <td class="text-end"<?=$numeric?>><?=$e($line['line_total'])?></td>
                         <?php } ?>
                         <?php } ?>

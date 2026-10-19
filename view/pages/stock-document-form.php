@@ -3,9 +3,11 @@
 use Wonder\Elements\Components\Tooltip;
 use Wonder\Http\Csrf;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentEditor;
+use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentRules;
 use Wonder\Plugin\Gestionale\Support\Stock\StockVersionSearch;
 
 /*
@@ -31,6 +33,10 @@ $supplierId = (int) ($values['supplier_id'] ?? 0);
 $supplierNumber = html_entity_decode((string) ($values['supplier_document_number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 $supplierDate = substr((string) ($values['supplier_document_date'] ?? ''), 0, 10);
 $supplierDate = str_starts_with($supplierDate, '0000') ? '' : $supplierDate;
+// I costi scritti IVA esclusa o inclusa: la bozza nuova parte dall'impostazione del negozio.
+$pricesIncludeTax = StockDocumentRules::includesTax(
+    $values['prices_include_tax'] ?? (Setting::current()['stock_prices_include_tax'] ?? 'false')
+);
 // G3.16: il trasferimento sceglie partenza e arrivo fra le sedi vive che tengono merce.
 $alive = $type === 'transfer' ? Locations::alive() : [];
 $toLocationId = (int) ($values['to_location_id'] ?? 0);
@@ -111,6 +117,13 @@ $title = (string) (((array) $resource::pageSchema()->get('titles'))['edit'] ?? '
             <div class="col-6 col-md-2">
                 <label class="form-label" for="wi-doc-supplier-date">Data</label>
                 <input type="date" class="form-control" id="wi-doc-supplier-date" name="supplier_document_date" value="<?=$e($supplierDate)?>">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="wi-doc-prices">Costi <?=Tooltip::make('Come scrivi i costi delle righe. Con «IVA inclusa» il magazzino scorpora l\'IVA con l\'aliquota di ogni articolo e tiene il costo netto.')->render()?></label>
+                <select class="form-select" id="wi-doc-prices" name="prices_include_tax" data-wi-stock-prices>
+                    <option value="false"<?=$pricesIncludeTax ? '' : ' selected'?>>IVA esclusa</option>
+                    <option value="true"<?=$pricesIncludeTax ? ' selected' : ''?>>IVA inclusa</option>
+                </select>
             </div>
             <?php } ?>
             <div class="col-12 col-md">

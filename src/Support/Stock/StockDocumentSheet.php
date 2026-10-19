@@ -104,6 +104,7 @@ final class StockDocumentSheet
                 'tone' => '',
                 'cost' => '',
                 'line_total' => '',
+                'cost_note' => '',
                 'source' => self::source($item, $useBatches ? $batches : null, $useSuppliers),
             ];
 
@@ -111,6 +112,8 @@ final class StockDocumentSheet
                 $cost = $item['unit_cost'] ?? null;
                 $line['cost'] = $cost === null ? '—' : StockValue::money((float) $cost);
                 $line['line_total'] = $cost === null || $item['quantity'] === null ? '—' : StockValue::money(round((float) $cost * (float) $item['quantity'], 2));
+                // Scritto IVA inclusa: il costo è l'imponibile, sotto quello scritto e l'aliquota.
+                $line['cost_note'] = self::costNote($item);
             }
 
             if (!$counting) {
@@ -129,6 +132,22 @@ final class StockDocumentSheet
                 'tone' => $difference > 0 ? 'up' : ($difference < 0 ? 'down' : ''),
             ] + $line;
         }, $items);
+    }
+
+    /** «Scritto 1,22 € · IVA 22%» per la riga scritta IVA inclusa, vuoto altrimenti. */
+    private static function costNote(array $item): string
+    {
+        $entered = $item['entered_cost'] ?? null;
+
+        if ($entered === null || ($item['tax_rate'] ?? null) === null) {
+            return '';
+        }
+
+        $rate = (float) $item['tax_rate'];
+
+        return 'Scritto '.StockValue::money((float) $entered).' · '.($rate > 0
+            ? 'IVA '.rtrim(rtrim(number_format($rate, 2, ',', ''), '0'), ',').'%'
+            : 'senza aliquota');
     }
 
     /**

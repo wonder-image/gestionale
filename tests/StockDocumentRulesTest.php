@@ -282,4 +282,18 @@ check('G3 lotti: scadenza valida o vuota; lotto e fornitore scelti sono interi',
     && Regole::batchNumber(str_repeat('a', 80)) === str_repeat('a', 50)
 );
 
+check('net() scorpora l\'IVA dal costo scritto, a quattro decimali', fn () =>
+    Regole::net(1.22, 22.0) === 1.0
+    && Regole::net(2.50, 22.0) === 2.0492
+    && Regole::net(1.10, 10.0) === 1.0
+    && Regole::net(1.04, 4.0) === 1.0
+    && Regole::net(2.50, 0.0) === 2.5
+    && Regole::net(0.0, 22.0) === 0.0
+);
+
+check('includesTax() legge sì e no come li scrivono form e database', fn () =>
+    Regole::includesTax('true') && Regole::includesTax(true) && Regole::includesTax(1) && Regole::includesTax(' TRUE ')
+    && !Regole::includesTax('false') && !Regole::includesTax(null) && !Regole::includesTax('') && !Regole::includesTax(false)
+);
+
 summary();

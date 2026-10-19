@@ -888,7 +888,7 @@ final class OfficeOrders
     public static function shippingKeys(): array
     {
         return ['country', 'province', 'city', 'cap', 'street', 'number', 'more', 'phone_prefix', 'phone',
-            'name', 'surname', 'place_id', 'lat', 'lng'];
+            'business_name', 'name', 'surname', 'place_id', 'lat', 'lng'];
     }
 
     /** @return array<string, mixed> */

@@ -480,6 +480,7 @@ abstract class DocumentPdf
         }
 
         return array_values(array_filter([
+            $g('business_name'),
             trim($g('name').' '.$g('surname')),
             trim($g('street').' '.$g('number')),
             trim($g('cap').' '.$g('city').($g('province') !== '' ? ' ('.$g('province').')' : '').' '.($g('country') !== 'IT' ? $g('country') : '')),

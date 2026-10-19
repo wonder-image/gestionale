@@ -18,7 +18,9 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
+use Wonder\Plugin\Gestionale\Support\Stock\PurchaseTax;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
+use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentRules;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocuments;
 use Wonder\Plugin\Gestionale\Support\Stock\StockOut;
 use Wonder\Sql\Transaction;
@@ -196,6 +198,55 @@ check('il valore della colonna (LevelsSql) è quello di StockValue, anche con un
 
     // Secchio 0: 1 pezzo al costo più basso (3); 2 pezzi a 3; 1 pezzo senza costo.
     return $colonna === 9.0 && $valore === ['value' => 9.0, 'pieces' => 4.0, 'uncosted' => 1.0];
+}));
+
+check('il carico scritto IVA inclusa tiene il costo netto, con lo scritto e l\'aliquota sulla riga', fn () => prova(static function () use ($utente): bool {
+    accendiFunzionalita(['purchasing']);
+    $f = fornitore('Fornitore G3 IVA inclusa');
+    $a = articoloConGiacenza(1, 'TST-ACQ-IVA-1');
+    $aliquota = PurchaseTax::rates([$a])[$a] ?? 0.0;
+    $netto = StockDocumentRules::net(1.22, $aliquota);
+    $id = StockDocuments::create('receipt', ['supplier_id' => (string) $f, 'prices_include_tax' => 'true'], [
+        ['product_id' => $a, 'quantity' => '10', 'cost' => '1,22'],
+    ], ['user_id' => $utente]);
+    $doc = StockDocument::findById($id);
+    $riga = StockDocuments::items($id)[0];
+    StockDocuments::confirm($id, ['user_id' => $utente]);
+    $mov = movimentiDi($id);
+    $legame = ProductSupplier::find(['product_id' => $a, 'supplier_id' => $f, 'deleted' => 'false'], 1);
+
+    return $doc['prices_include_tax'] === 'true'
+        && $riga['entered_cost'] === 1.22 && $riga['tax_rate'] === round($aliquota, 2) && $riga['unit_cost'] === $netto
+        && (float) StockDocument::findById($id)['total_cost'] === round($netto * 10, 2)
+        && (float) $mov[0]['unit_cost'] === $netto
+        && is_array($legame) && (float) $legame['cost'] === $netto;
+}));
+
+check('la bozza nuova parte dall\'impostazione; tornando a IVA esclusa lo scorporo sparisce', fn () => prova(static function () use ($utente): bool {
+    accendiFunzionalita(['purchasing']);
+    $a = articoloConGiacenza(1, 'TST-ACQ-IVA-2');
+    $prima = (string) (Wonder\Plugin\Gestionale\Models\System\Setting::current()['stock_prices_include_tax'] ?? 'false');
+    $id = StockDocuments::create('receipt', [], [['product_id' => $a, 'quantity' => '1', 'cost' => '2,50']], ['user_id' => $utente]);
+    $nuovo = StockDocument::findById($id)['prices_include_tax'];
+    StockDocuments::saveDraft($id, ['prices_include_tax' => 'true'], [['product_id' => $a, 'quantity' => '1', 'cost' => '2,50']]);
+    $inclusa = StockDocuments::items($id)[0];
+    StockDocuments::saveDraft($id, ['prices_include_tax' => 'false'], [['product_id' => $a, 'quantity' => '1', 'cost' => '2,50']]);
+    $esclusa = StockDocuments::items($id)[0];
+
+    return $nuovo === $prima
+        && $inclusa['entered_cost'] === 2.5 && $inclusa['tax_rate'] !== null
+        && $esclusa['entered_cost'] === null && $esclusa['tax_rate'] === null && $esclusa['unit_cost'] === 2.5;
+}));
+
+check('il duplicato del carico IVA inclusa riparte dallo scritto, non dal netto', fn () => prova(static function () use ($utente): bool {
+    accendiFunzionalita(['purchasing']);
+    $a = articoloConGiacenza(1, 'TST-ACQ-IVA-3');
+    $id = StockDocuments::create('receipt', ['prices_include_tax' => 'true'], [['product_id' => $a, 'quantity' => '1', 'cost' => '2,44']], ['user_id' => $utente]);
+    $copia = StockDocuments::duplicate($id, ['user_id' => $utente]);
+
+    return StockDocument::findById($copia)['prices_include_tax'] === 'true'
+        && StockDocuments::items($copia)[0]['entered_cost'] === 2.44
+        && StockDocuments::items($copia)[0]['unit_cost'] === StockDocuments::items($id)[0]['unit_cost'];
 }));
 
 summary();

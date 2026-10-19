@@ -42,7 +42,12 @@ final class StockDocumentItem extends Model
             Column::key('batch_expiry')->date()->null(true),
             Columns::decimal('quantity')->null(true),
             Columns::decimal('expected_quantity')->null(true),
+            // Sempre senza IVA: a magazzino e nel costo del fornitore va il netto.
             Columns::decimal('unit_cost', '10,4'),
+            // Con il carico «IVA inclusa»: il costo scritto e l'aliquota che lo
+            // ha scorporato, fermata al salvataggio. NULL nelle righe senza IVA.
+            Columns::decimal('entered_cost', '10,4')->null(true),
+            Columns::decimal('tax_rate', '5,2')->null(true),
             Columns::decimal('line_total', '10,2'),
             Column::key('position')->int()->default(0),
         ];
@@ -68,6 +73,8 @@ final class StockDocumentItem extends Model
             Field::key('quantity')->number()->decimals(3),
             Field::key('expected_quantity')->number()->decimals(3),
             Field::key('unit_cost')->number()->decimals(4),
+            Field::key('entered_cost')->number()->decimals(4),
+            Field::key('tax_rate')->number()->decimals(2),
             Field::key('line_total')->number()->decimals(2),
             Field::key('position')->number()->decimals(0),
         ];

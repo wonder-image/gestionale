@@ -210,4 +210,10 @@ check('la spedizione ha place ID e coordinate, la fatturazione no', function () 
         && $campo(Order::class, 'shipping_lat') !== null;
 });
 
+check('l\'indirizzo di spedizione ha l\'azienda, facoltativa, anche sul DDT', function () use ($colonne) {
+    return isset($colonne(Order::class)['shipping_business_name'])
+        && isset($colonne(\Wonder\Plugin\Gestionale\Models\Sales\DeliveryNote::class)['shipping_business_name'])
+        && in_array('shipping_business_name', array_map(static fn ($campo): string => (string) $campo->key, Order::dataSchema()), true);
+});
+
 summary();

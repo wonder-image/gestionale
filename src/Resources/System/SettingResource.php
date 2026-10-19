@@ -77,6 +77,7 @@ final class SettingResource extends SingletonResource
             'order_payment_wait_days' => 'Giorni di attesa del pagamento',
             'shipping_sync' => 'Spedizioni col deploy',
             'batch_expiry_days' => 'Giorni prima della scadenza',
+            'stock_prices_include_tax' => 'Costi dei carichi',
             'payment_due_days' => 'Giorni di preavviso per le scadenze',
             'quote_validity_days' => 'Validità dei preventivi (giorni)',
             'delivery_transport_by' => 'Trasporto a cura del',
@@ -129,6 +130,12 @@ final class SettingResource extends SingletonResource
                 ->label('Spedizioni col deploy'),
             ...(Gestionale::feature('batch_tracking')
                 ? [FormField::key('batch_expiry_days')->number()->decimal(0)->value(30)->label('Giorni prima della scadenza')]
+                : []),
+            ...(Gestionale::feature('purchasing')
+                ? [FormField::key('stock_prices_include_tax')
+                    ->select(['false' => 'IVA esclusa', 'true' => 'IVA inclusa'])
+                    ->value('false')
+                    ->label('Costi dei carichi')]
                 : []),
             ...(Gestionale::feature('office_sales')
                 ? [FormField::key('payment_due_days')->number()->decimal(0)->value(7)->label('Giorni di preavviso per le scadenze')]
@@ -259,22 +266,37 @@ final class SettingResource extends SingletonResource
     }
 
     /**
-     * La card Magazzino: solo con «Lotti e scadenze» (G3.20).
+     * La card Magazzino: con «Lotti e scadenze» (G3.20) i giorni di preavviso,
+     * con «Acquisti» come si scrivono i costi dei carichi.
      *
      * @return list<Card>
      */
     private static function stockCards(): array
     {
-        if (!Gestionale::feature('batch_tracking')) {
+        $lotti = Gestionale::feature('batch_tracking');
+        $acquisti = Gestionale::feature('purchasing');
+
+        if (!$lotti && !$acquisti) {
             return [];
+        }
+
+        $tooltip = [];
+        $components = [];
+
+        if ($lotti) {
+            $tooltip[] = 'Quanti giorni prima della scadenza un lotto si segna in giallo e compare nel riquadro «Lotti in scadenza» della home. I lotti già scaduti sono sempre in rosso.';
+            $components[] = static::getInput('batch_expiry_days')->columnSpan(4);
+        }
+
+        if ($acquisti) {
+            $tooltip[] = '«Costi dei carichi» è la scelta di partenza di ogni carico nuovo, che si cambia nel carico stesso. Con l\'IVA inclusa il costo si scorpora con l\'aliquota del prodotto: si salva sempre senza IVA.';
+            $components[] = static::getInput('stock_prices_include_tax')->columnSpan(4);
         }
 
         return [
             (new Card)->components([
-                SectionTitle::make('Magazzino')
-                    ->tooltip('Quanti giorni prima della scadenza un lotto si segna in giallo e compare nel riquadro «Lotti in scadenza» della home. I lotti già scaduti sono sempre in rosso.')
-                    ->columnSpan(12),
-                static::getInput('batch_expiry_days')->columnSpan(4),
+                SectionTitle::make('Magazzino')->tooltip(implode(' ', $tooltip))->columnSpan(12),
+                ...$components,
             ])->columns(12)->columnSpan(12),
         ];
     }
@@ -310,7 +332,7 @@ final class SettingResource extends SingletonResource
     public static function editableWhenReadonly(): array
     {
         return ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days',
-            'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days', 'subscriptions_per_customer'];
+            'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days', 'subscriptions_per_customer', 'stock_prices_include_tax'];
     }
 
     /** I corrieri attivi, per il vettore predefinito del DDT. @return array<int, string> */
@@ -456,6 +478,13 @@ final class SettingResource extends SingletonResource
             unset($values['batch_expiry_days']);
         } elseif (array_key_exists('batch_expiry_days', $values)) {
             $values['batch_expiry_days'] = static::expiryDays($values['batch_expiry_days']);
+        }
+
+        // G3, Acquisti: i costi dei carichi senza IVA salvo scelta contraria.
+        if (!Gestionale::feature('purchasing')) {
+            unset($values['stock_prices_include_tax']);
+        } elseif (array_key_exists('stock_prices_include_tax', $values)) {
+            $values['stock_prices_include_tax'] = (string) $values['stock_prices_include_tax'] === 'true' ? 'true' : 'false';
         }
 
         // G9, DDT: i predefiniti del trasporto, solo con la funzionalità; scelte note o quella di partenza.

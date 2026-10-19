@@ -34,7 +34,7 @@ final class ContactAddressResource extends NavigationOnlyResource
 
     /** I campi che la finestra manda, con la lunghezza massima di ciascuno. */
     public const FIELDS = [
-        'label' => 100, 'name' => 100, 'surname' => 100, 'phone_prefix' => 8, 'phone' => 30,
+        'label' => 100, 'business_name' => 150, 'name' => 100, 'surname' => 100, 'phone_prefix' => 8, 'phone' => 30,
         'street' => 150, 'number' => 20, 'more' => 150, 'cap' => 12, 'city' => 100, 'province' => 100, 'country' => 2,
     ];
 
@@ -331,11 +331,12 @@ final class ContactAddressResource extends NavigationOnlyResource
         return Modal::make('Aggiungi indirizzo')
             ->id(static::MODAL_ID)
             ->size('lg')
-            ->help('L\'etichetta serve a riconoscerlo (Casa, Ufficio, Magazzino) e si vede solo qui. Nome e cognome sono di chi ritira: spesso non è il titolare della scheda. Il predefinito è uno solo per scheda: scegliendo questo, l\'altro smette di esserlo.')
+            ->help('L\'etichetta serve a riconoscerlo (Casa, Ufficio, Magazzino) e si vede solo qui. L\'azienda è facoltativa, per le consegne in ufficio. Nome e cognome sono di chi ritira: spesso non è il titolare della scheda. Il predefinito è uno solo per scheda: scegliendo questo, l\'altro smette di esserlo.')
             ->form(static::submitUrl(), hidden: ['contact_id' => $contactId, 'action' => 'save', 'address_id' => 0])
             ->columns(12)
             ->components([
                 $campo('label', 'Etichetta', 12),
+                $campo('business_name', 'Ragione sociale / Azienda', 12),
                 $campo('name', 'Nome', 6),
                 $campo('surname', 'Cognome', 6),
                 $core['country']->label('Paese')->columnSpan(12),

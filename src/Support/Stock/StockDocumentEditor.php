@@ -321,6 +321,8 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         // G3, Acquisti: costo per riga nel carico, riempito dal fornitore della testata.
         var costing = root.getAttribute('data-costs') === '1';
         var supplier = form ? form.querySelector('[data-wi-stock-supplier]') : null;
+        // Costi scritti IVA inclusa: il magazzino tiene il netto, scorporato con l'aliquota della versione.
+        var prices = form ? form.querySelector('[data-wi-stock-prices]') : null;
         // G3, lotti: `input` nel carico (Lotto e Scadenza), `pick` nello scarico (tendina); scelta del fornitore nello scarico.
         var lotMode = root.getAttribute('data-lots') || '';
         var pickSuppliers = root.getAttribute('data-suppliers') === 'pick';
@@ -541,7 +543,19 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             return !bad && !badCost;
         }
 
-        // Il costo dell'opzione per il fornitore scelto, o vuoto.
+        function inclusive() {
+            return !!prices && prices.value === 'true';
+        }
+
+        // Come StockDocumentRules::net(): il netto di un costo scritto, a quattro decimali.
+        function net(row, cost) {
+            var rate = inclusive() ? Number(row.rate || 0) : 0;
+
+            return rate > 0 ? Math.round(cost / (1 + rate / 100) * 10000) / 10000 : cost;
+        }
+
+        // Il costo dell'opzione per il fornitore scelto, o vuoto. È netto: con
+        // «IVA inclusa» la casella lo mostra con l'IVA.
         function suggested(row) {
             var value;
 
@@ -551,14 +565,21 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
             value = row.costs[supplier.value];
 
-            return value == null ? '' : costText(Number(value));
+            if (value == null) {
+                return '';
+            }
+
+            value = Number(value);
+
+            return costText(inclusive() && row.rate > 0 ? value * (1 + row.rate / 100) : value);
         }
 
+        // Il netto della riga: quello che il magazzino terrà.
         function lineCost(row) {
             var quantity = parse(row.input.value);
             var cost = row.cost ? parse(row.cost.value) : null;
 
-            return quantity === null || cost === null || isNaN(quantity) || isNaN(cost) || quantity < 0 || cost < 0 ? null : quantity * cost;
+            return quantity === null || cost === null || isNaN(quantity) || isNaN(cost) || quantity < 0 || cost < 0 ? null : Math.round(quantity * net(row, cost) * 100) / 100;
         }
 
         // L'atteso della riga, con le regole di StockDocumentRules::expected():
@@ -588,10 +609,19 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         function paint(row) {
             var diff;
             var line;
+            var unit;
 
             if (row.lineTotal) {
                 line = lineCost(row);
                 row.lineTotal.textContent = line === null ? '—' : money(line);
+            }
+
+            if (row.netInfo) {
+                unit = row.cost ? parse(row.cost.value) : null;
+                row.netInfo.textContent = !inclusive() ? ''
+                    : row.rate == null ? 'senza aliquota: nessuno scorporo'
+                    : unit === null || isNaN(unit) || unit < 0 ? 'IVA ' + format(row.rate) + '%'
+                    : 'imponibile ' + costText(net(row, unit)) + ' · IVA ' + format(row.rate) + '%';
             }
 
             if (!counting) {
@@ -662,7 +692,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
             summary.textContent = counting
                 ? counts(current.rows, current.counted, current.differing)
-                : totals(current.rows, current.pieces) + (costing ? ' · ' + money(current.cost) : '');
+                : totals(current.rows, current.pieces) + (costing ? ' · ' + money(current.cost) + (inclusive() ? ' imponibile' : '') : '');
 
             if (rows.length) {
                 empty.classList.add('d-none');
@@ -690,6 +720,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             var text;
             var photo;
             var cell;
+            var costCell;
             var input;
             var tools;
             var remove;
@@ -781,6 +812,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
             if (costing) {
                 row.costs = version.costs || {};
+                row.rate = version.tax_rate == null ? null : Number(version.tax_rate);
                 row.cost = el('input', 'form-control form-control-sm text-end');
                 row.cost.type = 'text';
                 row.cost.inputMode = 'decimal';
@@ -792,7 +824,10 @@ window.wiStockEditor = window.wiStockEditor || (function () {
                     refresh();
                 });
                 row.lineTotal = el('td', 'd-none d-md-table-cell text-end text-nowrap');
-                tr.appendChild(el('td', 'text-end')).appendChild(row.cost);
+                row.netInfo = el('div', 'small text-body-secondary text-nowrap mt-1');
+                costCell = tr.appendChild(el('td', 'text-end'));
+                costCell.appendChild(row.cost);
+                costCell.appendChild(row.netInfo);
                 tr.appendChild(row.lineTotal);
             }
 
@@ -1187,6 +1222,19 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
         for (k = 0; k < initial.length; k++) {
             append(initial[k], initial[k].quantity, initial[k].cost, initial[k]);
+        }
+
+        // IVA esclusa o inclusa: le caselle restano come sono scritte, cambiano imponibile e totali.
+        if (costing && prices) {
+            prices.addEventListener('change', function () {
+                var i;
+
+                for (i = 0; i < rows.length; i++) {
+                    paint(rows[i]);
+                }
+
+                refresh();
+            });
         }
 
         // Cambiando fornitore, le caselle del costo ancora vuote prendono il suo.
