@@ -396,6 +396,33 @@ check('pagato online: la merce non scade più, partono «pagato» al cliente e l
     }
 });
 
+check('pagato online e poi confermato dal commerciante: la merce esce, il pagamento non si riscrive', function () {
+    $finto = new FakePaymentProvider();
+    PaymentProviders::register($finto);
+
+    try {
+        return prova(static function (): bool {
+            [$ordine, $intento] = ordineOnlineInAttesa(date('Y-m-d H:i:s'));
+            conPosta(static fn (): array => OnlinePayments::succeeded('stripe', $intento, 4000, 'eur', $ordine, 'webhook'));
+            $prodotto = (int) OrderItem::find(['order_id' => $ordine, 'deleted' => 'false'], 1)['product_id'];
+            $prima = Levels::of($prodotto);
+            $pagamenti = (int) sqlCount(Wonder\Plugin\Gestionale\Models\Payments\Payment::$table, "order_id = {$ordine} AND deleted = 'false'");
+
+            conPosta(static fn () => Lifecycle::confirm($ordine));
+            $riga = Order::findById($ordine);
+            $dopo = Levels::of($prodotto);
+
+            return (string) $riga['status'] === 'confirmed'
+                && (string) $riga['payment_status'] === 'paid'
+                && (int) sqlCount(Wonder\Plugin\Gestionale\Models\Payments\Payment::$table, "order_id = {$ordine} AND deleted = 'false'") === $pagamenti
+                && (int) sqlCount(StockReservation::$table, "order_id = {$ordine} AND released_at IS NULL AND deleted = 'false'") === 0
+                && $dopo['quantity'] < $prima['quantity'];
+        });
+    } finally {
+        PaymentProviders::reset();
+    }
+});
+
 check('pagato e in attesa da tempo: niente annullamento e la merce resta presa', function () {
     return prova(static function (): bool {
         [$ordine, $prodotto] = ordineInAttesa(
