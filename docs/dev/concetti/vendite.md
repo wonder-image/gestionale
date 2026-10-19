@@ -34,6 +34,18 @@ Per questo chi legge i movimenti trova sempre il motivo (`sale`,
 3. **Conferma** — `Lifecycle::confirm()` scarica la merce (`Allocation::commit()`),
    manda l'email al cliente e, se è passato un pagamento, lo registra col
    `Ledger`. Confermare **non** registra denaro da solo.
+   Un ordine pagato online **non si conferma da solo**:
+   `OnlinePayments::succeeded` registra l'incasso e lascia l'ordine `pending`
+   con `payment_status` `paid`. La merce resta prenotata senza scadenza
+   (`Allocation::keep()`), `Expiry` lo salta, e partono «pagato» al cliente e
+   l'avviso al commerciante. Lo conferma il commerciante dal backend, dopo aver
+   controllato che la merce ci sia.
+   **Riapertura** — `Lifecycle::reopen()` riporta a carrello, sulla stessa
+   riga, un ordine `pending` non ancora pagato («Modifica l'ordine» nel
+   checkout). Libera le prenotazioni, segna come falliti i pagamenti aperti,
+   rilascia il coupon e annulla gli intenti dopo il commit. Il numero resta:
+   il `Checkout::place()` successivo riusa l'`order_number`. Con denaro
+   incassato non riapre.
 4. **Evasione** — `Lifecycle::fulfill()` cambia solo `fulfillment_status`: la
    merce è già uscita alla conferma.
 5. **Annullo** — `Lifecycle::cancel()` libera la prenotazione se l'ordine era

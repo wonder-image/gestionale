@@ -55,7 +55,7 @@ Criteri di riuscita:
 | Prodotti e coupon | Non vanno su Stripe. Il PaymentIntent porta solo il totale e i metadati. |
 | Tipi di pagamento | Nel checkout, dalla scelta del cliente (§11b): `card`, un wallet (`apple_pay`, `google_pay`, `link`) o un altro metodo acceso nel conto; dalla barra rapida (§11), il tipo che il wallet comunica. Per i pagamenti senza scelta (righe vecchie, pagamenti creati dal backend), da `stripe_payment_method_types` del metodo; se la colonna è vuota, quelli automatici del conto. Browser e server leggono la stessa fonte. |
 | Rimborsi | Fatti dalla dashboard di Stripe e registrati da `charge.refunded`. |
-| Email | Per gli ordini pagati online, al `place` non parte nulla. «Confermato» e l'avviso al commerciante partono alla conferma. Il link per la password dell'ospite viaggia con «confermato» (`OrderEmailExtras`). |
+| Email | Per gli ordini pagati online, al `place` non parte nulla. All'incasso partono «pagato» al cliente e l'avviso al commerciante (`merchant_paid`); «confermato» parte quando il commerciante conferma dal backend (2026-10-19). Il link per la password dell'ospite viaggia con «pagato» e «confermato» (`OrderEmailExtras`). |
 | Durata della prenotazione | `order_reservation_minutes`, impostata nel backend (predefinita 30). Il D6 non la cambia. |
 | Ambiente | Colonna `environment` (`live`, `test`) su `gst_payments`. Gli ordini pagati in test portano il bollino «Prova» nel backend. |
 | Express e fattura | La barra rapida serve chi non chiede fattura, oppure il cliente con l'accesso che ha già i dati di fatturazione sulla scheda (§5.1 dell'architettura). Chi chiede fattura paga con Apple Pay, Google Pay o Link dalle scelte del modulo (§11b). |
@@ -183,7 +183,7 @@ il riallineamento.
 
 | Evento | Effetto |
 |--------|---------|
-| `payment_intent.succeeded` | `OnlinePayments::succeeded`: trova il pagamento con `Ledger::byReference`, controlla che ordine, centesimi e valuta corrispondano, registra l'incasso e chiama `Lifecycle::confirm` con l'avviso al commerciante (`source 'webhook'`). Se non corrispondono (`PaymentMismatch`): niente conferma, evento `failed` definitivo, segnalazione al commerciante. Se l'ordine è già annullato: l'incasso si registra comunque e il commerciante riceve l'avviso, perché il denaro va restituito a mano. |
+| `payment_intent.succeeded` | `OnlinePayments::succeeded`: trova il pagamento con `Ledger::byReference`, controlla che ordine, centesimi e valuta corrispondano e registra l'incasso. **Non conferma** (2026-10-19): l'ordine resta «In attesa» con pagamento «pagato», la merce resta prenotata senza scadenza (`Allocation::keep`), `Expiry` lo salta, partono «pagato» al cliente e l'avviso al commerciante; lo conferma il commerciante dal backend, dopo aver visto la merce. Se non corrispondono (`PaymentMismatch`): evento `failed` definitivo, segnalazione al commerciante. Se l'ordine è già annullato: l'incasso si registra comunque e il commerciante riceve l'avviso, perché il denaro va restituito a mano. Se l'ordine è tornato carrello («Modifica l'ordine»): lancia, l'evento si riprova e resta nel log. |
 | `payment_intent.payment_failed` | `OnlinePayments::fail`: la riga passa a `failed`, l'ordine resta in attesa e l'intento resta riusabile, così il cliente riprova con lo stesso. Se poi riesce, `succeeded` chiude la stessa riga. |
 | `payment_intent.canceled` | `OnlinePayments::fail` sul pagamento. |
 | `charge.refunded` | Per ogni rimborso nuovo e riuscito della carica (quelli falliti o annullati si saltano): `Ledger::refund` con l'id del rimborso (`re_…`) come riferimento, quindi idempotente. |
@@ -222,9 +222,9 @@ Con `connected('stripe')` falso, il metodo non compare.
    - ricalcola il totale. Se è diverso da `expected_total`, risponde 409 con
      «il totale è cambiato» e il riepilogo nuovo, senza creare né ordine né
      intento;
-   - annulla l'ordine in attesa rimasto in sessione da un tentativo precedente
-     (`OnlinePayment::dropPending`), salvo che il denaro sia arrivato o in
-     verifica;
+   - con un ordine in attesa in sessione non ne crea un altro: rimanda a «Paga
+     ora» (2026-10-19). Solo la barra rapida (§11) riporta a carrello, sulla
+     stessa riga, l'ordine in attesa del checkout normale;
    - esegue `Checkout::place`, che crea l'ordine in attesa, prenota la merce, apre
      il pagamento `pay_…` e trasforma il carrello nell'ordine;
    - esegue `StripeProvider::start` e poi `Ledger::attach`;
@@ -233,27 +233,30 @@ Con `connected('stripe')` falso, il metodo non compare.
    {return_url}})`. Gli errori immediati, come la carta rifiutata, compaiono sotto
    il Payment Element.
 
-**Rifiuto: il modulo si riapre.**
+**Rifiuto: si riprova sullo stesso ordine** (2026-10-19, prima l'ordine si annullava).
 
 - In sessione resta `ecommerce_checkout_pending` con l'ordine nato al `place`, e
   mentre si paga il modulo è bloccato.
-- Se Stripe rifiuta (carta, 3DS fallito), il browser chiama
-  `ecommerce.checkout.reopen` (POST, CSRF) e `OnlinePayment::reopen` annulla
-  l'ordine (`dropPending`, che annulla anche l'intento) e con `Cart::restore`
-  rimette nel carrello le righe, le scelte, gli indirizzi e il coupon. Le righe
-  che non tornano perché spente o finite le elenca un avviso.
-- Il modulo torna modificabile: il cliente cambia metodo, indirizzo o coupon, e il
-  prossimo «Paga» o «Ordina» crea un ordine nuovo. L'ordine annullato resta nel
-  backend. Se intanto il denaro è arrivato, si va alla pagina di ritorno.
+- Se Stripe rifiuta (carta, 3DS fallito), il modulo resta bloccato e l'ordine
+  resta in attesa: il cliente riprova con un'altra carta sullo stesso intento
+  (`StripeProvider::start` lo riusa). Compare «Modifica l'ordine».
+- «Modifica l'ordine» chiama `ecommerce.checkout.reopen` (POST, CSRF):
+  `OnlinePayment::reopen` → `Lifecycle::reopen` riporta l'ordine a carrello
+  **sulla stessa riga** (prenotazioni liberate, pagamento aperto fallito, coupon
+  rilasciato, intento annullato dopo il commit). Un carrello nato nel frattempo
+  si unisce con `Cart::merge`. Il prossimo «Paga» o «Ordina» lo rifà ordine con
+  lo **stesso numero** (`Checkout` riusa `order_number`): niente ordini
+  annullati né buchi nella numerazione. Se intanto il denaro è arrivato, si va
+  alla pagina di ritorno.
 - Non c'è «Annulla l'ordine»: se il cliente se ne va, la scadenza delle
   prenotazioni libera la merce (§8).
 - Ricaricando il checkout con un ordine in sessione si arriva alla pagina
   «Paga ora» (§8).
 
 **Email.** `Checkout::place` non manda «ricevuto» né l'avviso al commerciante
-quando il metodo è online, e restituisce il fornitore. Alla conferma partono
-«confermato» e l'avviso al commerciante: `Lifecycle::confirm` riceve l'opzione
-`merchant_notice`.
+quando il metodo è online, e restituisce il fornitore. All'incasso partono
+«pagato» e l'avviso al commerciante; «confermato» parte quando il commerciante
+conferma l'ordine dal backend (§6).
 
 ## 8. Pagina di ritorno, «Paga ora» e ordini abbandonati
 
@@ -266,16 +269,16 @@ query):
 
 | Stato | Esito |
 |-------|-------|
-| `succeeded` | `OnlinePayments::succeeded` (idempotente: il webhook può arrivare prima o dopo), sessione dimenticata, pagina «ordine completato» che esiste già. |
+| `succeeded` | `OnlinePayments::succeeded` (idempotente: il webhook può arrivare prima o dopo), sessione dimenticata, pagina «ordine completato» con «pagamento ricevuto, confermiamo dopo aver controllato la merce». |
 | `processing` | Sessione dimenticata, pagina «ordine completato» con il messaggio «pagamento in verifica». Conferma il webhook. |
-| `requires_payment_method` | Rifiuto, 3DS annullato o metodo a reindirizzamento abbandonato. Il modulo si riapre (§7): checkout con «pagamento non riuscito» e le righe di nuovo nel carrello. |
+| `requires_payment_method` | Rifiuto, 3DS annullato o metodo a reindirizzamento abbandonato. Si torna a «Paga ora» dello stesso ordine con «pagamento non riuscito» (§7). |
 | `canceled` o altro | Come sopra, con «pagamento annullato». |
 
 **«Paga ora».** La pagina `ecommerce.checkout.pay` (`/checkout/pay/`) vale solo per
 l'ordine in sessione. Apre il Payment Element sull'intento del pagamento (con il
 `client_secret`, senza la modalità differita), oppure su uno nuovo se quello vecchio
-è annullato (§5), e offre «Cambia metodo di pagamento», che riapre il modulo
-come dopo un rifiuto (§7). Serve solo se si ricarica a metà pagamento. L'esito passa dalla stessa pagina
+è annullato (§5), e offre «Modifica l'ordine», che lo riporta a carrello sulla
+stessa riga (§7). Serve solo se si ricarica a metà pagamento. L'esito passa dalla stessa pagina
 di ritorno. «Paga ora» dal link sicuro dell'ospite e dall'area cliente resta fuori
 dal piano 1 e va nel TODO.
 
@@ -283,8 +286,8 @@ dal piano 1 e va nel TODO.
 
 - `Expiry` libera la merce dopo la durata della prenotazione impostata nel backend;
 - l'ordine resta in attesa e si annulla dopo `order_payment_wait_days`;
-- un pagamento che arriva dopo la scadenza della prenotazione si conferma
-  comunque: con il denaro incassato, `Allocation::commit` scarica senza prenotazione
+- un pagamento che arriva dopo la scadenza della prenotazione si registra
+  comunque e, alla conferma del commerciante, con il denaro incassato, `Allocation::commit` scarica senza prenotazione
   e, se manca merce, segna la vendita in eccesso come oggi;
 - `Lifecycle::cancel` annulla gli intenti ancora aperti dell'ordine
   (`PaymentProvider::cancel`) dopo la transazione, così un pagamento tardivo non
