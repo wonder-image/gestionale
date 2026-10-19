@@ -371,6 +371,47 @@ check('ordine online scaduto: si annulla in silenzio e l\'intento si annulla sul
     }
 });
 
+check('pagato online: la merce non scade più, partono «pagato» al cliente e l\'avviso al commerciante', function () {
+    $finto = new FakePaymentProvider();
+    PaymentProviders::register($finto);
+
+    try {
+        return prova(static function (): bool {
+            commercianteScrivea('negozio@example.com');
+            [$ordine, $intento] = ordineOnlineInAttesa(date('Y-m-d H:i:s'));
+
+            [$esito, $partite] = conPosta(static fn (): array => OnlinePayments::succeeded('stripe', $intento, 4000, 'eur', $ordine, 'webhook'));
+            [, $ripasso] = conPosta(static fn (): array => OnlinePayments::succeeded('stripe', $intento, 4000, 'eur', $ordine, 'webhook'));
+            $prenotazione = StockReservation::find(['order_id' => $ordine, 'deleted' => 'false'], 1);
+
+            return $esito['status'] === 'pending'
+                && $esito['payment_status'] === 'paid'
+                && is_array($prenotazione)
+                && trim((string) ($prenotazione['expires_at'] ?? '')) === ''
+                && $partite === ['cliente@example.com', 'negozio@example.com']
+                && $ripasso === [];
+        });
+    } finally {
+        PaymentProviders::reset();
+    }
+});
+
+check('pagato e in attesa da tempo: niente annullamento e la merce resta presa', function () {
+    return prova(static function (): bool {
+        [$ordine, $prodotto] = ordineInAttesa(
+            date('Y-m-d H:i:s', strtotime('-'.(giorniDiAttesa() + 1).' days')),
+            date('Y-m-d H:i:s', strtotime('-1 hour'))
+        );
+        Ledger::register(['order_id' => $ordine, 'amount' => 40.0, 'provider' => 'manual', 'source' => 'manual']);
+
+        [$esito] = conPosta(static fn (): array => Expiry::run());
+
+        return !in_array($ordine, $esito['orders'], true)
+            && (string) Order::findById($ordine)['status'] === 'pending'
+            && (int) sqlCount(StockReservation::$table, "order_id = {$ordine} AND released_at IS NULL AND deleted = 'false'") === 1;
+    });
+});
+
 check('ordine con righe manuali: promemoria e annullamento come sempre, al cliente e al commerciante', function () {
     $finto = new FakePaymentProvider();
     PaymentProviders::register($finto);

@@ -333,13 +333,18 @@ final class Checkout
                 ++$reserved;
             }
 
-            $number = DocumentSequences::next('order');
+            // Un ordine riaperto (`Lifecycle::reopen`) torna col suo numero: niente buchi.
+            $number = trim((string) ($cart['order_number'] ?? ''));
+            $number = $number !== '' ? $number : DocumentSequences::next('order');
+            // `user_id` è l'account di chi compra (anche l'ospite appena
+            // creato): senza, l'email di conferma non sa a chi offrire il
+            // link all'area riservata o alla scelta della password.
             Order::update([
                 'stage' => 'order',
                 'status' => 'pending',
                 'order_number' => $number,
                 'ordered_at' => date('Y-m-d H:i:s'),
-            ], $cartId);
+            ] + ((int) ($data['user_id'] ?? 0) > 0 ? ['user_id' => (int) $data['user_id']] : []), $cartId);
 
             StatusLogger::record(
                 OrderStatusLog::class,

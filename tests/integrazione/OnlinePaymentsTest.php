@@ -154,7 +154,7 @@ check('senza destinatari non parte niente e non si lancia niente', fn () => prov
     return avvisiPagamento($partite) === [];
 }));
 
-check('succeeded due volte sullo stesso intento: una riga pagata, ordine confermato una volta', fn () => prova(static function (): bool {
+check('succeeded due volte sullo stesso intento: una riga pagata, ordine pagato e in attesa', fn () => prova(static function (): bool {
     [$ordine, $pagamento, $intento] = intentoLegato();
     destinatariCommerciante('');
 
@@ -165,7 +165,8 @@ check('succeeded due volte sullo stesso intento: una riga pagata, ordine conferm
 
     return ($primo['changed'] ?? false) === true
         && ($secondo['changed'] ?? true) === false
-        && ($secondo['status'] ?? '') === 'confirmed'
+        && ($secondo['status'] ?? '') === 'pending'
+        && ($secondo['payment_status'] ?? '') === 'paid'
         && count($righe) === 1
         && (int) $righe[0]['id'] === $pagamento
         && $righe[0]['status'] === 'paid';
@@ -269,7 +270,7 @@ check('succeeded accetta il residuo quando parte dell\'ordine è già pagata', f
     $intento = 'pi_res_'.uniqid();
     Ledger::attach($pagamento, 'stripe', $intento, 'test');
 
-    return (OnlinePayments::succeeded('stripe', $intento, 4000, 'eur', $ordine, 'webhook')['status'] ?? '') === 'confirmed';
+    return (OnlinePayments::succeeded('stripe', $intento, 4000, 'eur', $ordine, 'webhook')['payment_status'] ?? '') === 'paid';
 }));
 
 check('nessuna email vera: finiti i test la posta resta quella finta', static fn (): bool => (new ReflectionProperty(\Wonder\Plugin\Gestionale\Support\Mail\Mailer::class, 'transport'))->getValue() !== null);

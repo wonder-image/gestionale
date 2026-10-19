@@ -11,7 +11,8 @@ use Wonder\Plugin\Gestionale\Providers\Payments\PaymentStart;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
-use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
+use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
+use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 
 /**
  * Il denaro che passa da un gateway: l'avvio dell'intento e quello che il
@@ -83,14 +84,15 @@ final class OnlinePayments
 
     /**
      * Il gateway ha incassato: si controlla che il denaro sia proprio
-     * dell'ordine, poi si registra e si conferma.
+     * dell'ordine, poi si registra.
      *
-     * L'incasso si scrive prima della conferma e per conto suo: se la
-     * conferma cade, il denaro resta registrato e il prossimo passaggio
-     * (rinvio del webhook, riallineamento) trova la riga già pagata e
-     * conferma soltanto.
+     * Non si conferma: l'ordine pagato resta «in attesa» finché il
+     * commerciante non controlla la merce e lo conferma dal backend
+     * (`Lifecycle::confirm`, che trova il pagamento già registrato). Chi
+     * ripassa (rinvio del webhook, riallineamento, pagina di ritorno) trova la
+     * riga già pagata e non riavvisa.
      *
-     * @return array<string, mixed> l'esito di `Lifecycle::confirm`
+     * @return array{order_id: int, status: string, payment_status?: string, changed: bool}
      */
     public static function succeeded(string $provider, string $reference, int $amount, string $currency, int $orderId, string $source): array
     {
@@ -124,6 +126,13 @@ final class OnlinePayments
             throw new PaymentMismatch("Intento {$reference}: valuta {$currency} al posto di {$expected}.");
         }
 
+        if ((string) ($order['stage'] ?? '') !== 'order') {
+            // Tornato carrello con «Modifica l'ordine» mentre l'incasso arrivava:
+            // niente denaro su un carrello. L'evento si riprova e trova l'ordine
+            // di nuovo inviato, o resta fallito nel log.
+            throw new RuntimeException("Intento {$reference}: l'ordine {$rowOrder} è tornato carrello.");
+        }
+
         // Letto prima di scrivere: chi ripassa su una riga già pagata non riavvisa.
         $alreadyPaid = (string) $row['status'] === 'paid';
 
@@ -136,7 +145,11 @@ final class OnlinePayments
             'source' => $source,
         ]);
 
-        if ((string) $order['status'] === 'cancelled') {
+        $current = Order::findById($rowOrder);
+        $current = is_array($current) ? $current : $order;
+        $status = (string) ($current['status'] ?? '');
+
+        if ($status === 'cancelled') {
             // Il cliente ha pagato un ordine già annullato: il denaro va
             // restituito dalla dashboard del gateway.
             if (!$alreadyPaid) {
@@ -146,13 +159,21 @@ final class OnlinePayments
             return ['order_id' => $rowOrder, 'status' => 'cancelled', 'changed' => false];
         }
 
-        return Lifecycle::confirm($rowOrder, [
-            'provider' => $provider,
-            'provider_reference' => $reference,
-            'amount' => $amount / 100,
-            'source' => $source,
-            'merchant_notice' => true,
-        ]);
+        // L'ordine resta «in attesa»: lo conferma il commerciante dal backend,
+        // dopo aver visto che la merce c'è. Intanto la merce messa da parte non
+        // scade più, e il cliente e il commerciante sanno del pagamento.
+        if (!$alreadyPaid && $status === 'pending') {
+            Allocation::keep($rowOrder);
+            OrderNotifier::send('paid', $rowOrder);
+            OrderNotifier::send('merchant_paid', $rowOrder);
+        }
+
+        return [
+            'order_id' => $rowOrder,
+            'status' => $status,
+            'payment_status' => (string) ($current['payment_status'] ?? ''),
+            'changed' => !$alreadyPaid,
+        ];
     }
 
     /**

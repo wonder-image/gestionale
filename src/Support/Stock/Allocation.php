@@ -204,6 +204,39 @@ final class Allocation
     }
 
     /**
+     * Le prenotazioni ancora attive dell'ordine smettono di scadere.
+     *
+     * Serve all'ordine pagato online che aspetta la conferma del commerciante:
+     * il denaro c'è, e la merce messa da parte resta di questo cliente finché
+     * qualcuno non conferma o annulla. Quelle già scadute non tornano: la
+     * merce può essere andata a un altro, e lo dirà `commit()`.
+     *
+     * @return int quante righe ha toccato
+     */
+    public static function keep(int $orderId): int
+    {
+        if ($orderId <= 0) {
+            return 0;
+        }
+
+        return Transaction::run(static function () use ($orderId): int {
+            $now = date('Y-m-d H:i:s');
+            $kept = 0;
+
+            foreach (self::reservationsOfOrder($orderId) as $reservation) {
+                if (!Availability::isActive($reservation, $now)) {
+                    continue;
+                }
+
+                StockReservation::update(['expires_at' => ''], (int) $reservation['id']);
+                ++$kept;
+            }
+
+            return $kept;
+        });
+    }
+
+    /**
      * Scarica davvero la merce di una riga d'ordine.
      *
      * Con una prenotazione valida scarica **sempre**, anche se il magazzino

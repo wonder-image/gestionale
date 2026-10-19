@@ -86,6 +86,14 @@ function arriva(FakePaymentProvider $finto, PaymentEvent $evento): int
     return PaymentEvents::handle($finto, '{}', 'valida');
 }
 
+function pagatoInAttesa(int $ordine): bool
+{
+    // Pagato online, resta «in attesa»: lo conferma il commerciante.
+    $riga = Order::findById($ordine);
+
+    return (string) ($riga['status'] ?? '') === 'pending' && (string) ($riga['payment_status'] ?? '') === 'paid';
+}
+
 function stato(int $ordine): string
 {
     return (string) (Order::findById($ordine)['status'] ?? '');
@@ -126,7 +134,7 @@ check('succeeded conferma l\'ordine e chiude la stessa riga', fn () => prova(sta
     $righe = righe($ordine);
 
     return $esito === 200
-        && stato($ordine) === 'confirmed'
+        && pagatoInAttesa($ordine)
         && count($righe) === 1
         && (int) $righe[0]['id'] === $pagamento
         && $righe[0]['status'] === 'paid'
@@ -182,7 +190,7 @@ check('carta rifiutata: riga fallita, ordine in attesa; poi lo stesso intento ri
 
     return $fallita === 'failed'
         && $attesa === 'pending'
-        && stato($ordine) === 'confirmed'
+        && pagatoInAttesa($ordine)
         && count(righe($ordine)) === 1;
 }));
 
@@ -233,7 +241,7 @@ check('un errore nostro risponde 500; l\'evento fallito si rielabora e riesce', 
         && ($riga['status'] ?? '') === 'failed'
         && (int) ($riga['attempts'] ?? 0) === 1
         && $secondo === 200
-        && stato($ordine) === 'confirmed';
+        && pagatoInAttesa($ordine);
 }));
 
 check('un evento incoerente avvisa il commerciante con payment.review', fn () => prova(static function () use ($finto): bool {

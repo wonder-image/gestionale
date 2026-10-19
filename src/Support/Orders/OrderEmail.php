@@ -23,8 +23,9 @@ final class OrderEmail
     public const MERCHANT_VIEW = 'emails/order-merchant.php';
 
     public const KEYS = [
-        'received', 'confirmed', 'reminder', 'cancelled', 'shipped', 'ready_for_pickup',
-        'merchant_new', 'merchant_cancelled',
+        // `paid`: l'incasso online, prima che il commerciante confermi.
+        'received', 'paid', 'confirmed', 'reminder', 'cancelled', 'shipped', 'ready_for_pickup',
+        'merchant_new', 'merchant_paid', 'merchant_cancelled',
         // G9: il preventivo e la conferma da ufficio, con il PDF allegato.
         'quote_sent', 'office_confirmed', 'delivery_note_sent',
     ];
@@ -36,7 +37,7 @@ final class OrderEmail
     public const INSTRUCTION_KEYS = ['received', 'reminder'];
 
     /** Quelle che vanno al commerciante, non al cliente. */
-    public const MERCHANT_KEYS = ['merchant_new', 'merchant_cancelled'];
+    public const MERCHANT_KEYS = ['merchant_new', 'merchant_paid', 'merchant_cancelled'];
 
     /**
      * @param array<string, mixed> $order riga di `gst_orders`
@@ -79,7 +80,7 @@ final class OrderEmail
                 'order_url' => self::absoluteUrl((string) ($extra['order_url'] ?? '')),
                 'order_button' => self::text('link', $merchant ? 'merchant' : 'customer', []),
                 // L'ospite sceglie la password dal link: solo nelle email che riceve all'ordine.
-                'account_url' => in_array($key, ['received', 'confirmed'], true) ? self::absoluteUrl((string) ($extra['account_url'] ?? '')) : '',
+                'account_url' => in_array($key, ['received', 'paid', 'confirmed'], true) ? self::absoluteUrl((string) ($extra['account_url'] ?? '')) : '',
                 'account_title' => self::text('account', 'title', []),
                 'account_button' => self::text('account', 'button', []),
                 'e' => static fn (mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'),
