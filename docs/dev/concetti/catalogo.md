@@ -60,6 +60,9 @@ Ognuna ha il suo `code` con prefisso (`bra_`, `cat_`, `tag_`) e uno `slug`
 generato dal nome alla creazione, poi fisso: è l'indirizzo della pagina e non
 deve cambiare sotto i piedi di chi ha messo un link.
 
+Il logo del marchio accetta SVG: il core lo ripulisce al caricamento
+(`SvgSanitizer` in `uploadFiles()`), il modulo non aggiunge controlli suoi.
+
 ### L'albero delle categorie
 
 L'albero è solo `parent_id`. Tutto il resto sta in `Support\Catalog\CategoryTree`,
