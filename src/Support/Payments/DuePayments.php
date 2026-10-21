@@ -34,6 +34,7 @@ final class DuePayments
     {
         $text = htmlspecialchars(BatchExpiry::label($due), ENT_QUOTES, 'UTF-8');
 
+        // Non con Badge del core: lo avvolge sempre in un <div>, qui serve in linea.
         return match (self::status($due, $today, $days)) {
             'expired' => '<span class="badge text-bg-danger">'.$text.' · scaduta</span>',
             'expiring' => '<span class="badge text-bg-warning">'.$text.'</span>',

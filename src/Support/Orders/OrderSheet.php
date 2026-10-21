@@ -182,6 +182,7 @@ final class OrderSheet
     {
         [$testo, $colore] = self::PAYMENT_STATUSES[$status] ?? [$status, 'secondary'];
 
+        // Non con Badge del core: lo avvolge sempre in un <div>, qui serve in linea.
         return '<span class="badge text-bg-'.$colore.'">'.self::esc($testo).'</span>';
     }
 

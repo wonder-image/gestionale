@@ -101,6 +101,7 @@ final class StatusLabels
     {
         $entry = self::fulfillmentFor($type, $status);
 
+        // Non con Badge del core: lo avvolge sempre in un <div>, qui serve in linea.
         return '<span class="badge text-bg-'.$entry['color'].'">'
             .htmlspecialchars($entry['label'], ENT_QUOTES, 'UTF-8').'</span>';
     }
@@ -122,6 +123,7 @@ final class StatusLabels
             default => ['label' => $value, 'color' => 'secondary'],
         };
 
+        // Non con Badge del core: lo avvolge sempre in un <div>, qui serve in linea.
         return '<span class="badge text-bg-'.$entry['color'].'">'
             .htmlspecialchars($entry['label'], ENT_QUOTES, 'UTF-8').'</span>';
     }

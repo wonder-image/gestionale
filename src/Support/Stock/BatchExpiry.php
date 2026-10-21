@@ -57,6 +57,7 @@ final class BatchExpiry
     {
         $text = htmlspecialchars(self::label($expiry), ENT_QUOTES, 'UTF-8');
 
+        // Non con Badge del core: lo avvolge sempre in un <div>, qui serve in linea.
         return match (self::status($expiry, $today, $days)) {
             'expired' => '<span class="badge text-bg-danger">'.$text.' · scaduto</span>',
             'expiring' => '<span class="badge text-bg-warning">'.$text.'</span>',

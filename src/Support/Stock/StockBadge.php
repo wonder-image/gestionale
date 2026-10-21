@@ -77,6 +77,7 @@ final class StockBadge
             ? ' data-bs-toggle="tooltip" data-bs-title="Sotto la scorta minima"'
             : '';
 
+        // Non con Badge del core: lo avvolge sempre in un <div>, qui serve in linea.
         return '<span class="badge text-bg-'.$tone.'"'.$tooltip.'>'.$text.'</span>';
     }
 

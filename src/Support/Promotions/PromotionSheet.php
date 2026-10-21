@@ -34,6 +34,7 @@ trait PromotionSheet
 
         foreach (['applies_online' => 'Sito', 'applies_office' => 'Ufficio', 'applies_pos' => 'Cassa'] as $column => $name) {
             $on = ($row[$column] ?? 'false') === 'true';
+            // Non con Badge del core: lo avvolge sempre in un <div>, qui serve in linea.
             $html .= '<span class="badge '.($on ? 'text-bg-primary' : 'text-bg-light text-muted').' me-1">'.static::escape($name).'</span>';
         }
 

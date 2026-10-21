@@ -70,3 +70,9 @@ php forge gestionale:features-doc      # riscrive la tabella nella guida
 - Gli script delle pagine non dipendono più dalla ricopiatura dei
   `<wi-card>`: l'editor dei documenti parte con «loaded» o subito se la
   pagina è già pronta, e i bottoni del form si cercano a ogni uso.
+- I badge (`<span class="badge text-bg-*">`) restano scritti a mano, negli
+  helper (`StatusLabels`, `StockBadge`, `BatchExpiry`, `DuePayments`,
+  `PromotionSheet`, `OrderSheet`) come nelle Resource: `Badge` del core li
+  avvolge sempre in un `<div class="col-span-*">`, che non può stare in una
+  cella accanto a un testo, in un titolo o in un `<span>`. Si passa a `Badge`
+  quando il core avrà un modo in linea come quello di `Button`.
