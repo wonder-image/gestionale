@@ -216,8 +216,9 @@ check('a chi non apre le Impostazioni l\'avviso dice dove sono, senza link', fun
 
     return str_contains($senza, $testo)
         && str_contains($vuoto, $testo)
-        && !str_contains($senza, '<a href')
-        && !str_contains($vuoto, '<a href')
+        // Il bottone «Apri le giacenze» resta: a mancare dev'essere il link alle Impostazioni.
+        && !str_contains($senza, 'href="/backend/app/gestionale/impostazioni')
+        && !str_contains($vuoto, 'href="/backend/app/gestionale/impostazioni')
         && !str_contains($senza, 'Aggiungi i destinatari');
 });
 
@@ -337,7 +338,7 @@ check('i riquadri della home escono in una Card del core, non più in <wi-card>'
     $riquadri = array_merge($riquadri, $mezzi);
 
     foreach ($riquadri as $html) {
-        if (str_contains($html, '<wi-card') || !str_contains($html, '<div class="card border">')) {
+        if (str_contains($html, '<wi-card') || !str_contains($html, 'class="card border')) {
             return false;
         }
     }

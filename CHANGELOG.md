@@ -597,6 +597,16 @@ versionamento semantico.
 
 ### Cambiato
 
+- **Widget della home con i componenti del core**: «Spedizioni da
+  controllare» e «Spedizioni in ritardo» diventano `StatusCard` (tutto il
+  riquadro è il link all'elenco filtrato, senza più il bottone «Apri le
+  spedizioni»); «Anagrafiche» e «Primi passi» diventano `LinkListCard` («Primi
+  passi» perde la riga «Manca ancora qualcosa prima di partire.»). I bottoni
+  rimasti negli altri riquadri passano da `Button`. Lotti in scadenza, Valore
+  del magazzino, Sotto scorta, Da controllare e Pagamenti in scadenza restano
+  in `WidgetCard`: hanno elenchi con più righe di dati che nessuna card del
+  core rappresenta.
+
 - **Bottoni in testa agli elenchi come `Button`**: «Mostra tutti» nei
   Movimenti filtrati per versione e «Nuovo abbonamento» negli Abbonamenti
   passano da `buttonCustom(Button::to(...))` invece che da HTML scritto a

@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Backend\Widgets;
 
+use Wonder\Elements\Component;
+use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\RichText;
 
@@ -29,5 +31,25 @@ final class WidgetCard
     public static function half(string $body): string
     {
         return '<div class="col-12 col-md-6">'.self::wrap($body).'</div>';
+    }
+
+    /**
+     * Una card del core (`StatusCard`, `LinkListCard`) in una colonna della
+     * `.row` della home, come fa il core con le sue card di stato.
+     */
+    public static function column(Component $card, string $class = 'col-12'): string
+    {
+        return '<div class="'.htmlspecialchars($class, ENT_QUOTES, 'UTF-8').'">'.$card->render('bootstrap').'</div>';
+    }
+
+    /** Bottone piccolo in linea. L'URL va passato non escapato: lo escapa `Button`. */
+    public static function button(string $url, string $label, string $variant = 'secondary'): string
+    {
+        return Button::to($url, $label)
+            ->variant($variant)
+            ->size('sm')
+            ->attr('class', 'text-nowrap')
+            ->schema('inline', true)
+            ->render('bootstrap');
     }
 }

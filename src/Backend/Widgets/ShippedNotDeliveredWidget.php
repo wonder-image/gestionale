@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Backend\Widgets;
 use Throwable;
 use Wonder\App\Permission\Access;
 use Wonder\Backend\Contracts\HomeWidget;
+use Wonder\Elements\Components\StatusCard;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Shipping\ShipmentResource;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
@@ -56,16 +57,12 @@ final class ShippedNotDeliveredWidget implements HomeWidget
             return '';
         }
 
-        $giorni = ShipmentAlerts::STALE_DAYS;
-        $quante = $count === 1 ? '1 spedizione' : $count.' spedizioni';
-        $url = htmlspecialchars(ShipmentResource::filteredUrl('non_consegnate'), ENT_QUOTES, 'UTF-8');
+        $card = StatusCard::make('Spedizioni in ritardo', $count === 1 ? '1 spedizione' : $count.' spedizioni')
+            ->icon('bi-hourglass-split')
+            ->variant('warning')
+            ->detail('Partite da più di '.ShipmentAlerts::STALE_DAYS.' giorni e non ancora consegnate.')
+            ->href(ShipmentResource::filteredUrl('non_consegnate'));
 
-        return WidgetCard::wrap(<<<HTML
-    <h5 class="mb-1 d-flex justify-content-between align-items-center gap-3">
-        <span><i class="bi bi-hourglass-split"></i> Spedizioni in ritardo</span>
-        <a class="btn btn-sm btn-secondary" href="{$url}">Apri le spedizioni</a>
-    </h5>
-    <p class="small mb-0">{$quante} partite da più di {$giorni} giorni e non ancora consegnate.</p>
-HTML);
+        return WidgetCard::column($card, 'col-12 col-md-6');
     }
 }

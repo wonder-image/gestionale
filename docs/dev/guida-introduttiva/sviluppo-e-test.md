@@ -70,6 +70,11 @@ php forge gestionale:features-doc      # riscrive la tabella nella guida
 - Gli script delle pagine non dipendono più dalla ricopiatura dei
   `<wi-card>`: l'editor dei documenti parte con «loaded» o subito se la
   pagina è già pronta, e i bottoni del form si cercano a ogni uso.
+- Un widget della home usa prima una card del core (`StatusCard` per un
+  numero che apre un elenco, `LinkListCard` per un elenco di link), messa in
+  colonna con `WidgetCard::column()`. `WidgetCard::wrap()` resta per i
+  riquadri con elenchi di dati; i bottoni dentro passano da
+  `WidgetCard::button()`, cioè da `Button` del core.
 - I badge (`<span class="badge text-bg-*">`) restano scritti a mano, negli
   helper (`StatusLabels`, `StockBadge`, `BatchExpiry`, `DuePayments`,
   `PromotionSheet`, `OrderSheet`) come nelle Resource: `Badge` del core li

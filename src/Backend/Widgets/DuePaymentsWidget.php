@@ -100,12 +100,12 @@ final class DuePaymentsWidget implements HomeWidget
         $more = $count > count($items) ? ' e altre '.($count - count($items)) : '';
         $giorni = $days === 1 ? 'giorno' : 'giorni';
         $scadute = $expired > 0 ? ', di cui <b>'.$e(OrderSheet::money($expired)).'</b> scaduti' : '';
-        $url = $e($listUrl);
+        $button = WidgetCard::button($listUrl, 'Apri lo scadenzario'.$more);
 
         return WidgetCard::wrap(<<<HTML
     <h5 class="mb-1 d-flex justify-content-between align-items-center gap-3">
         <span><i class="bi bi-calendar-check"></i> Pagamenti in scadenza</span>
-        <a class="btn btn-sm btn-secondary" href="{$url}">Apri lo scadenzario{$e($more)}</a>
+        {$button}
     </h5>
     <p class="text-body-secondary small mb-2">Rate scadute o entro {$days} {$giorni}: da incassare <b>{$e(OrderSheet::money($total))}</b>{$scadute}.</p>
     <ul class="list-unstyled mb-0">{$list}</ul>
