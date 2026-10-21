@@ -104,7 +104,8 @@ check('le chiamate portano retry 2 e la versione API del core', function () use 
         && Stripe::API_VERSION === '2025-08-27.basil';
 });
 
-ApiRequestor::setHttpClient(null);
+// Si torna al client senza rete dei test, non a quello vero dell'SDK.
+StripeSenzaRete::install();
 
 $fake = new FakeSubscriptionGateway();
 
