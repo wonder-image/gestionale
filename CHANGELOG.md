@@ -655,6 +655,21 @@ versionamento semantico.
 
 ### Corretto
 
+- Pagamento online: due conferme dello stesso intento (webhook e ritorno dal
+  checkout, o due webhook) registrano un solo incasso e mandano una sola
+  coppia di email. `OnlinePayments::succeeded()` gira in una transazione con
+  la riga del pagamento bloccata (`findForUpdate`); le email partono dopo il
+  commit.
+- Abbonamenti: `StripeBilling` usa il client del core
+  (`Stripe::clientConfig()`), con timeout, 2 retry e la versione API fissata.
+- Webhook Stripe: il modulo aggiunge i suoi eventi (pagamenti e abbonamenti,
+  `PaymentEvents::types()`) a `Connect::events()`. **Dopo l'aggiornamento va
+  rifatto «Collega webhook»**, in test e in live, perché l'endpoint li riceva.
+- Ordine da ufficio: il pannello del cliente legge e modifica solo schede
+  cliente; un fornitore non passa, nemmeno dagli indirizzi.
+- CSV: una sola regola anti-formula, `SpreadsheetText::cell()` del core, anche
+  per l'export dei clienti di un lotto.
+
 - `StockDocuments`: ripristinati sette metodi privati (`draft`, `locked`,
   `location`, `isStockLocation`, `assertProducts`, `log`, `decimal`) persi in
   un commit del piano 2 di G3; senza, carichi, scarichi e inventari andavano
@@ -704,3 +719,14 @@ versionamento semantico.
 - Tabella *Righe* dell'ordine: il nome con un trattino lungo (o altre entità) si
   leggeva come codice, `&#8212;`; ora si decodifica e si escapa una volta sola
   (`GestionaleResource::escapeStored()`).
+
+### Sicurezza
+
+- API di Resource del catalogo (marchi, attributi e valori, categorie,
+  personalizzazioni, imballaggi, tipi fiscali, zone di spedizione): lo store
+  del quick-create risponde solo a `api_internal_user`, mai al token di pagina.
+  Ogni API di Resource dichiara le sue authority; senza, risponde 403.
+- Nessuna API di Resource per coupon, campagne di sconto, corrieri e metodi di
+  spedizione (`apiSchema()->enabled(false)`).
+- Logo SVG dei marchi: ripulito dal core (`SvgSanitizer`); test sul modulo.
+- Il modulo richiede `wonder-image/app` `^2.4.0-beta.4 || dev-main`.
