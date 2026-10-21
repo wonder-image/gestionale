@@ -157,14 +157,16 @@ final class CategoryResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->access(Gestionale::area('catalogo'));
+        return PermissionSchema::for(static::class)->access(Gestionale::area('catalogo'))
+            ->api('store', ['api_internal_user']);
     }
 
     /**
      * Solo `store`, e solo per il "+ Aggiungi" della scheda prodotto.
      *
-     * La chiamata parte lato server come `@system`: non serve dare il permesso
-     * a nessun ruolo, il controllo sta sul bottone e nel proxy. Il padre e lo
+     * Store solo per `api_internal_user` (il `@system` del quick-create e
+     * l'MCP); il token di pagina è rifiutato. Il controllo sul ruolo sta sul
+     * bottone e nel proxy. Il padre e lo
      * stato passano: senza, la categoria nasceva sempre in cima.
      */
     public static function apiSchema(): ApiSchema

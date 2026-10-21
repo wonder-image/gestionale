@@ -157,6 +157,10 @@ final class OfficeCustomerPanel
     public static function save(string $action, int $contactId, array $post): array
     {
         if (in_array($action, ['save', 'delete'], true)) {
+            if (self::contact($contactId) === null) {
+                return ['ok' => false, 'message' => 'Scheda non trovata.'];
+            }
+
             return ContactAddressResource::run($action, $contactId, (int) ($post['address_id'] ?? 0), $post);
         }
 
@@ -265,12 +269,21 @@ final class OfficeCustomerPanel
         return implode(' · ', array_filter([$get('business_name'), $chi, $via, $citta, $get('country')], static fn (string $s): bool => $s !== ''));
     }
 
-    /** @return array<string, mixed>|null */
+    /**
+     * La scheda, solo se è un cliente: un fornitore non si legge né si
+     * modifica da qui.
+     *
+     * @return array<string, mixed>|null
+     */
     private static function contact(int $contactId): ?array
     {
         $contact = $contactId > 0 ? Contact::findById($contactId) : null;
 
         if (!is_array($contact) || $contact === [] || (string) ($contact['deleted'] ?? 'false') === 'true') {
+            return null;
+        }
+
+        if ((string) ($contact[CustomerResource::roleColumn()] ?? 'false') !== 'true') {
             return null;
         }
 

@@ -176,6 +176,10 @@ Gli attributi di livello `model` stanno nel riquadro *Scheda tecnica* di
 - **Il «+» dei valori** è il `quickCreate()` del core su
   `AttributeValueResource`, con l'`attribute_id` nascosto nel layout del
   modal (`newValueLayout()`).
+- **Lo store dietro ogni «+»** si apre solo con
+  `permissionSchema()->api('store', ['api_internal_user'])`: senza, la rotta
+  non risponde. Il token di pagina non passa; il ruolo si controlla sul
+  bottone e nel proxy (`docs/dev/concetti/mcp.md`).
 - **Si vede solo quello che è compilato.** Ogni caratteristica sta in un
   blocco (`technicalBlock()`): un `Container` con `data-wi-technical="<id>"` e
   `data-wi-technical-name`, che il core mette sul nodo interno — da nascondere

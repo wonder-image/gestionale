@@ -176,6 +176,9 @@ o l'area cliente del sito gli mostrerebbe gli ordini dell'ufficio.
   (`Shipments::remaining()`): `quantity` scende, `quantity_cancelled` sale, la
   merce rientra con `Allocation::restore()`, i totali si rifanno con i prezzi
   scritti e le rate con `Installments::recalculate()`. Tutto = `Lifecycle::cancel()`.
+- `OfficeCustomerPanel` legge e modifica solo schede cliente
+  (`CustomerResource::roleColumn()`): un fornitore dà un payload vuoto e
+  `ok => false` su contatti, fatturazione e indirizzi.
 - In `OrderActions` la bozza da ufficio non ha azioni (si apre nella sua
   pagina, `OfficeOrderResource`); un ordine da ufficio confermato ha
   `cancel_lines`.

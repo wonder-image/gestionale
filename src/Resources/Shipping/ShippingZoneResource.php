@@ -204,7 +204,8 @@ final class ShippingZoneResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->access(Gestionale::area('impostazioni_spedizioni'));
+        return PermissionSchema::for(static::class)->access(Gestionale::area('impostazioni_spedizioni'))
+            ->api('store', ['api_internal_user']);
     }
 
     public static function navigationSchema(): NavigationSchema
