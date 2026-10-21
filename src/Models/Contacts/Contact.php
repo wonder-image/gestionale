@@ -2,7 +2,12 @@
 
 namespace Wonder\Plugin\Gestionale\Models\Contacts;
 
-/** Compatibility entrypoint; shared storage is owned by wonder-image/customer-account. */
+/**
+ * Il Model del gestionale sulla tabella `contacts` di `wonder-image/customer-account`:
+ * aggiunge listino, metodo e termine di pagamento.
+ * `ResourceRegistry::resolveByTable()` sceglie la prima Resource non fallback (qui
+ * Clienti) e non `ContactResource` di customer-account, che è fallback.
+ */
 final class Contact extends \Wonder\Plugin\CustomerAccount\Models\Contact
 {
     public static string $folder = 'gestionale/contacts';

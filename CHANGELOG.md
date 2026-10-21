@@ -597,6 +597,16 @@ versionamento semantico.
 
 ### Cambiato
 
+- **Precedenza sulle tabelle dei contatti fissata dai test**: nuovo
+  `tests/integrazione/ContactRegistryTest.php`. Su `contacts`
+  `ResourceRegistry::resolveByTable()` risponde con `CustomerResource`
+  (Clienti e Fornitori non sono fallback, `ContactResource` di
+  customer-account sì); su `contact_addresses` resta `ContactAddressResource`
+  di customer-account; `ModelRegistry` usa i Model `Contact` e
+  `ContactAddress` del gestionale. Nessun cambio di comportamento: docblock
+  dei due Model, `docs/user/anagrafiche.md` e `TODO.md` dicono che le schede
+  sono di `wonder-image/customer-account`.
+
 - **Contatti da `wonder-image/customer-account`**: `Contact` e `ContactAddress`
   del gestionale estendono i modelli del nuovo modulo (non più quelli di
   `wonder-image/app`) e aggiungono solo i campi commerciali. Il modulo è una
