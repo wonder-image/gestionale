@@ -32,6 +32,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
+use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Sql\Transaction;
 
@@ -98,6 +99,32 @@ if ($ruolo === 'incasso') {
         });
 
         echo $esito['payment_id'];
+    } catch (Throwable $e) {
+        echo 'KO: '.$e->getMessage();
+    }
+
+    exit;
+}
+
+if ($ruolo === 'succeeded') {
+    [$ordine, $intento, $barriera] = [(int) $argv[2], (string) $argv[3], (string) $argv[4]];
+
+    // Il figlio non passa dall'harness: niente posta vera, le chiavi si contano.
+    define('WONDER_NO_MAIL', true);
+    require __DIR__.'/supporto/posta.php';
+    $chiavi = [];
+    \Wonder\Plugin\Gestionale\Extensions\Extensions::use([PrefissoChiave::class]);
+    \Wonder\Plugin\Gestionale\Support\Mail\Mailer::useTransport(static function (string $to, string $subject) use (&$chiavi): bool {
+        $chiavi[] = preg_match('/^\[([^\]]+)\]/', $subject, $m) === 1 ? $m[1] : '';
+
+        return true;
+    });
+
+    attendi($barriera);
+
+    try {
+        $esito = OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+        echo json_encode(['changed' => $esito['changed'], 'mail' => $chiavi]);
     } catch (Throwable $e) {
         echo 'KO: '.$e->getMessage();
     }
@@ -235,6 +262,40 @@ check('la stessa notifica da due processi incassa una volta sola', function () u
         && $righe === 1
         && is_array($riga)
         && $riga['payment_status'] === 'partially_paid';
+});
+
+// Webhook e pagina di ritorno insieme: il secondo aspetta il lock della riga e la trova pagata.
+// Lifecycle::receive dà all'ordine un numero vero: la numerazione del DB di prova avanza di uno.
+check('due succeeded da due processi sullo stesso intento: una sola coppia di email', function () use (&$spazzatura) {
+    $ordine = ordineDiProva(50.0);
+    $spazzatura['ordini'][] = $ordine;
+    Order::update(['status' => 'awaiting_payment', 'email' => 'cliente@example.com'], $ordine);
+    $pagamento = Ledger::open(['order_id' => $ordine, 'amount' => 50.0, 'provider' => 'stripe'])['payment_id'];
+    $intento = 'pi_gara_ok_'.uniqid();
+    Ledger::attach($pagamento, 'stripe', $intento, 'test');
+
+    $barriera = barriera();
+    $processi = [
+        avvia('succeeded', [$ordine, $intento, $barriera]),
+        avvia('succeeded', [$ordine, $intento, $barriera]),
+    ];
+
+    via($barriera);
+    $esiti = array_map(static fn (array $p): ?array => json_decode(esito($p), true), $processi);
+
+    if (in_array(null, $esiti, true)) {
+        return false;
+    }
+
+    $cambiati = array_values(array_filter($esiti, static fn (array $e): bool => $e['changed'] === true));
+    $chiavi = array_merge(...array_column($esiti, 'mail'));
+    $conta = array_count_values($chiavi);
+    $pagate = (int) sqlCount(Payment::$table, "order_id = {$ordine} AND type = 'payment' AND status = 'paid' AND deleted = 'false'");
+
+    return count($cambiati) === 1
+        && ($conta['order.paid'] ?? 0) === 1
+        && ($conta['order.merchant_paid'] ?? 0) <= 1
+        && $pagate === 1;
 });
 
 summary();
