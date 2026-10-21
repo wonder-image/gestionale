@@ -27,6 +27,16 @@ check('dentro la transazione non parte nessuna email né avviso', function () us
         && !str_contains($dentro, 'Mailer::');
 });
 
+check('dentro la transazione la prima lettura è il lock dell\'ordine', function () use ($corpo, $apertura, $chiusura) {
+    $dentro = substr($corpo, (int) $apertura, (int) $chiusura - (int) $apertura);
+    $lock = strpos($dentro, 'Order::findForUpdate(');
+
+    return !str_contains($dentro, 'Ledger::byReference(')
+        && $lock !== false
+        && $lock < (int) strpos($dentro, 'Payment::findForUpdate(')
+        && str_contains(substr($corpo, 0, (int) $apertura), 'Ledger::byReference(');
+});
+
 check('dopo il commit partono le email del pagamento e l\'avviso', function () use ($corpo, $chiusura) {
     $dopo = substr($corpo, (int) $chiusura);
 
