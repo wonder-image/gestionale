@@ -101,6 +101,14 @@ final class OnlinePayments
         // Lock sulla riga, poi tutto nella stessa transazione: webhook e pagina
         // di ritorno insieme, il secondo aspetta e trova la riga già pagata.
         $outcome = Transaction::run(static function () use ($provider, $reference, $amount, $currency, $orderId, $source): array {
+            // Prima l'ordine, poi il pagamento, come `Lifecycle::abandon()` e
+            // `cancel()`: con l'ordine inverso i due si bloccano a vicenda.
+            $payee = (int) (Ledger::byReference($provider, $reference)['order_id'] ?? 0);
+
+            if ($payee > 0) {
+                Order::findForUpdate(['id' => $payee], 1);
+            }
+
             $locked = Payment::findForUpdate([
                 'provider' => $provider,
                 'provider_reference' => trim($reference),
