@@ -597,6 +597,13 @@ versionamento semantico.
 
 ### Cambiato
 
+- **Riquadri senza `<wi-card>`**: scheda lotto, form e scheda dei documenti
+  di magazzino escono già con il markup della `Card` (`card border`,
+  `card-body row g-3`); i riquadri «Lotti in scadenza» e «Valore del
+  magazzino» della home usano `WidgetCard::half()`, una `Card` del core a
+  mezza riga. Nessun JavaScript dipende più dalla ricopiatura di
+  `createCard()`.
+
 - **Precedenza sulle tabelle dei contatti fissata dai test**: nuovo
   `tests/integrazione/ContactRegistryTest.php`. Su `contacts`
   `ResourceRegistry::resolveByTable()` risponde con `CustomerResource`

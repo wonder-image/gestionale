@@ -1342,8 +1342,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
     return {init: init, parse: parse, format: format, totals: totals};
 })();
-// Il core ricopia i <wi-card> al caricamento e poi lancia «loaded»: prima di
-// allora i nodi della pagina non sono quelli che restano.
+// Si parte con «loaded» del backend, o subito se la pagina è già pronta.
 window.addEventListener('loaded', window.wiStockEditor.init, {once: true});
 if (document.readyState === 'complete') {
     window.wiStockEditor.init();

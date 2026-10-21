@@ -58,3 +58,15 @@ php forge gestionale:features-doc      # riscrive la tabella nella guida
   formatter a closure, non dichiarandola e basta.
 - `$ALERT` non vuoto significa errore e blocca il salvataggio: per dire che è
   andata bene c'è il toast.
+
+## Interfaccia del backend
+
+- Niente `<wi-card>`: il core lo dà per dismesso. I riquadri della home
+  passano da `WidgetCard::wrap()` (tutta riga) o `WidgetCard::half()` (mezza
+  riga da `md`), che rendono una `Card` del core. Nelle viste con cicli PHP
+  (scheda lotto, documenti di magazzino) il riquadro è scritto con le stesse
+  classi della `Card`: `card border` e `card-body row g-3`, così i figli
+  `col-*` restano dove erano.
+- Gli script delle pagine non dipendono più dalla ricopiatura dei
+  `<wi-card>`: l'editor dei documenti parte con «loaded» o subito se la
+  pagina è già pronta, e i bottoni del form si cercano a ogni uso.

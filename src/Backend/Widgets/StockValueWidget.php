@@ -74,13 +74,13 @@ final class StockValueWidget implements HomeWidget
                 .'<a href="'.$e($listUrl).'">Apri le Giacenze</a></p>'
             : '';
 
-        return '<wi-card class="col-12 col-md-6">'
-            .'<h5 class="mb-1"><i class="bi bi-cash-stack"></i> Valore del magazzino</h5>'
+        return WidgetCard::half(
+            '<h5 class="mb-1"><i class="bi bi-cash-stack"></i> Valore del magazzino</h5>'
             .'<p class="fs-4 fw-semibold mb-1">'.$e(StockValue::money($total['value'])).'</p>'
             .'<p class="text-body-secondary small mb-2">IVA esclusa, al costo di oggi dei fornitori.</p>'
             .$list
             .$uncosted
-            .'</wi-card>';
+        );
     }
 
     /** «1 pezzo», «12 pezzi», «2,5 pezzi». */

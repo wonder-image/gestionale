@@ -60,7 +60,7 @@ $title = (string) (((array) $resource::pageSchema()->get('titles'))['edit'] ?? '
     <input type="hidden" name="intent" value="save">
     <input type="hidden" name="lines" value="">
     <div class="row g-3">
-        <wi-card class="col-12">
+        <div class="col-12"><div class="card border"><div class="card-body row g-3">
             <?php if ($type === 'transfer') { ?>
             <div class="col-6 col-md-3">
                 <label class="form-label" for="wi-doc-location">Da</label>
@@ -130,8 +130,8 @@ $title = (string) (((array) $resource::pageSchema()->get('titles'))['edit'] ?? '
                 <label class="form-label" for="wi-doc-note">Nota <?=Tooltip::make($noteHelp)->render()?></label>
                 <input type="text" class="form-control" id="wi-doc-note" name="note" maxlength="500" value="<?=$e($note)?>">
             </div>
-        </wi-card>
-        <wi-card class="col-12">
+        </div></div></div>
+        <div class="col-12"><div class="card border"><div class="card-body row g-3">
             <?=StockDocumentEditor::render(
                 (array) ($editor['lines'] ?? []),
                 StockDocumentEditor::searchUrl(),
@@ -141,13 +141,13 @@ $title = (string) (((array) $resource::pageSchema()->get('titles'))['edit'] ?? '
                 Gestionale::feature('purchasing'),
                 Gestionale::feature('batch_tracking')
             )?>
-        </wi-card>
-        <wi-card class="col-12">
+        </div></div></div>
+        <div class="col-12"><div class="card border"><div class="card-body row g-3">
             <div class="col-12 d-flex flex-wrap justify-content-end gap-2">
                 <button type="submit" class="btn btn-outline-dark">Salva bozza</button>
                 <button type="button" class="btn btn-dark" data-wi-doc-confirm><?=$e($resource::confirmLabel())?></button>
             </div>
-        </wi-card>
+        </div></div></div>
     </div>
 </form>
 <script>
@@ -167,7 +167,7 @@ $title = (string) (((array) $resource::pageSchema()->get('titles'))['edit'] ?? '
         return root ? root.wiStockEditor : null;
     }
 
-    // I bottoni stanno nei <wi-card>, che il core ricopia al caricamento: si cercano ogni volta.
+    // I bottoni si cercano ogni volta: lock() vale per tutti quelli del form.
     function lock(on) {
         var buttons = form.querySelectorAll('button[type="submit"], [data-wi-doc-confirm]');
         var i;
@@ -224,7 +224,7 @@ $title = (string) (((array) $resource::pageSchema()->get('titles'))['edit'] ?? '
         }
     });
 
-    // Il click si ascolta sul form, che resta: il bottone viene ricopiato con il suo <wi-card>.
+    // Il click si ascolta sul form: vale anche per i bottoni aggiunti dopo.
     form.addEventListener('click', function (event) {
         var current;
         var words;
