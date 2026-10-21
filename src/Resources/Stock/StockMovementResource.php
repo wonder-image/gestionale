@@ -11,6 +11,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\App\Models\User\User;
+use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
@@ -267,9 +268,9 @@ final class StockMovementResource extends GestionaleResource
         );
 
         if (static::versionFilter() > 0) {
-            $schema->buttonCustomHtml(
-                '<a class="btn btn-sm btn-outline-secondary" href="'.static::escape(static::listUrl()).'">'
-                .'<i class="bi bi-x-lg me-1"></i>Mostra tutti</a>'
+            $schema->buttonCustom(
+                Button::to(static::listUrl(), 'Mostra tutti')
+                    ->variant('secondary')->outline()->size('sm')->icon('bi bi-x-lg', 'start')
             );
         }
 

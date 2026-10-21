@@ -12,6 +12,7 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
@@ -172,7 +173,10 @@ final class SubscriptionResource extends GestionaleResource
             ->title('Abbonamenti')
             ->results()
             ->hideButtonAdd()
-            ->buttonCustomHtml('<a class="btn btn-dark btn-sm" href="'.static::escape(OfficeSubscriptionResource::submitUrl()).'"><i class="bi bi-plus-lg"></i> Nuovo abbonamento</a>')
+            ->buttonCustom(
+                Button::to(OfficeSubscriptionResource::submitUrl(), 'Nuovo abbonamento')
+                    ->variant('dark')->size('sm')->icon('bi bi-plus-lg', 'start')
+            )
             ->filterSearch()
             ->searchFields(['code', 'billing_name', 'billing_surname', 'billing_business_name', 'coupon_code'])
             ->filterCustom('Stato', 'status', ['' => 'Tutti'] + static::statusLabels())

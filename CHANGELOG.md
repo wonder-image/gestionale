@@ -597,6 +597,11 @@ versionamento semantico.
 
 ### Cambiato
 
+- **Bottoni in testa agli elenchi come `Button`**: «Mostra tutti» nei
+  Movimenti filtrati per versione e «Nuovo abbonamento» negli Abbonamenti
+  passano da `buttonCustom(Button::to(...))` invece che da HTML scritto a
+  mano. Stesso aspetto; l'icona prende lo spazio dal `gap` del bottone.
+
 - **Riquadri senza `<wi-card>`**: scheda lotto, form e scheda dei documenti
   di magazzino escono già con il markup della `Card` (`card border`,
   `card-body row g-3`); i riquadri «Lotti in scadenza» e «Valore del
