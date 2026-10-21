@@ -33,8 +33,8 @@ Ci sono due modi di autenticarsi, entrambi con `Authorization: Bearer <token>`.
   domini permessi. Senza token o con un token non valido risponde 401 con
   `WWW-Authenticate: Bearer`.
 
-Il modulo richiede una versione di `wonder-image/app` con OAuth: al rilascio
-va alzato il vincolo in `composer.json` (oggi `^2.4.0-beta.4 || dev-main`).
+Il modulo richiede una versione di `wonder-image/app` con OAuth: il vincolo
+in `composer.json` è `^2.4.0-beta.4 || dev-main`.
 Dopo l'aggiornamento serve `php forge update`: crea le tabelle `oauth_*` e la
 colonna `mcp_logs.oauth_grant_id`.
 

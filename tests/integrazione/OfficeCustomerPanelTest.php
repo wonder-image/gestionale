@@ -139,7 +139,7 @@ check('azione sconosciuta o scheda che non c\'è: niente da fare', function () {
 check('un fornitore non si legge né si modifica dal pannello, indirizzi compresi', function () {
     return prova(static function (): bool {
         $creato = Contact::create([
-            'type' => 'company', 'business_name' => 'Fornitore Prova', 'country' => 'IT',
+            'type' => 'business', 'business_name' => 'Fornitore Prova', 'country' => 'IT',
             'email' => 'fornitore.pannello@example.com', 'is_customer' => 'false', 'is_supplier' => 'true', 'active' => 'true',
         ]);
         $id = (int) ($creato->insert_id ?? 0);
