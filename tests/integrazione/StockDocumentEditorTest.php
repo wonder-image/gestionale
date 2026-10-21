@@ -14,6 +14,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockIssueResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockReceiptResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockStocktakeResource;
+use Wonder\Plugin\Gestionale\Support\SearchClient;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentEditor;
 use Wonder\Plugin\Gestionale\Support\Stock\Stocktake;
 
@@ -80,6 +81,7 @@ check('script: il JS legge i pezzi come il server e scrive il totale come il PHP
     $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
     $file = $base.'.js';
     file_put_contents($file, "var window = {addEventListener: function () {}}; var document = {readyState: 'complete', querySelectorAll: function () { return []; }};\n"
+        .SearchClient::source()."\n"
         .StockDocumentEditor::script()."\n"
         .'console.log(JSON.stringify({parse: '.json_encode($casi).'.map(function (c) {'
         .' var v = window.wiStockEditor.parse(c); return v === null ? null : (isNaN(v) ? "x" : v); }),'
@@ -192,7 +194,7 @@ setTimeout(function () {
 JS;
     $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
     $file = $base.'.js';
-    file_put_contents($file, $harness."\n".StockDocumentEditor::script()."\n".$run);
+    file_put_contents($file, $harness."\n".SearchClient::source()."\n".StockDocumentEditor::script()."\n".$run);
     $out = (string) shell_exec(escapeshellarg($node).' '.escapeshellarg($file).' 2>&1');
     $js = json_decode($out, true);
     @unlink($file);
@@ -335,7 +337,7 @@ wait().then(function () {
 JS;
     $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
     $file = $base.'.js';
-    file_put_contents($file, $harness."\n".StockDocumentEditor::script()."\n".$run);
+    file_put_contents($file, $harness."\n".SearchClient::source()."\n".StockDocumentEditor::script()."\n".$run);
     $raw = (string) shell_exec(escapeshellarg($node).' '.escapeshellarg($file).' 2>&1');
     $js = json_decode($raw, true);
     @unlink($file);
@@ -420,7 +422,7 @@ console.log(JSON.stringify(out));
 JS;
     $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
     $file = $base.'.js';
-    file_put_contents($file, $harness."\n".StockDocumentEditor::script()."\n".$loaded."\n".StockDocumentEditor::script()."\n".$late);
+    file_put_contents($file, $harness."\n".SearchClient::source()."\n".StockDocumentEditor::script()."\n".$loaded."\n".StockDocumentEditor::script()."\n".$late);
     $raw = (string) shell_exec(escapeshellarg($node).' '.escapeshellarg($file).' 2>&1');
     $js = json_decode($raw, true);
     @unlink($file);

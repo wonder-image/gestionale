@@ -75,6 +75,14 @@ php forge gestionale:features-doc      # riscrive la tabella nella guida
   colonna con `WidgetCard::column()`. `WidgetCard::wrap()` resta per i
   riquadri con elenchi di dati; i bottoni dentro passano da
   `WidgetCard::button()`, cioè da `Button` del core.
+- Il JS che serve a più pagine sta in `resources/assets/js/` e si stampa in
+  linea con `PageAssets::once()` (vedi `SearchClient`), non con
+  `module_asset()`: un URL che non si risolve lascerebbe la pagina senza
+  script senza errori visibili. Il costo: una copia pubblicata nel sito non
+  lo sostituisce. I test node che leggono `script()` di un editor devono
+  anteporre `SearchClient::source()`.
+- `ProductModelResource` ha il suo JS in linea per scelta: non estrarlo
+  senza test di pagina (sei modal legati a id e `show.bs.modal`).
 - I badge (`<span class="badge text-bg-*">`) restano scritti a mano, negli
   helper (`StatusLabels`, `StockBadge`, `BatchExpiry`, `DuePayments`,
   `PromotionSheet`, `OrderSheet`) come nelle Resource: `Badge` del core li

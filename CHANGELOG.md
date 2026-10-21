@@ -597,6 +597,12 @@ versionamento semantico.
 
 ### Cambiato
 
+- **Ricerca degli editor in un file solo**: `say`, `request` e `lookup`
+  dell'editor dei documenti di magazzino e di quello degli ordini d'ufficio
+  stanno in `resources/assets/js/search-client.js` (`window.wiSearchClient`),
+  stampato una volta per pagina da `SearchClient::script()` con
+  `PageAssets::once()`. Stesso comportamento.
+
 - **Widget della home con i componenti del core**: «Spedizioni da
   controllare» e «Spedizioni in ritardo» diventano `StatusCard` (tutto il
   riquadro è il link all'elenco filtrato, senza più il bottone «Apri le
