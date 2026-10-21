@@ -7,6 +7,9 @@ use Wonder\Plugin\Gestionale\Gestionale;
 // Risorsa OAuth (RFC 9728): il framework espone i metadati e accetta i token wio_at_.
 \Wonder\OAuth\OAuth::resource('/api/gestionale/mcp', 'Gestionale');
 
+// Gli eventi Stripe del modulo, oltre a quelli del core: li legge «Collega webhook».
+\Wonder\Plugin\Stripe\Connect::addEvents(\Wonder\Plugin\Gestionale\Support\Payments\PaymentEvents::types());
+
 Route::area('api')->response('json')->frontend()->translatable(false)
     ->name('api.gestionale.')->prefix('/gestionale')->group(function () {
         // Niente sessione e niente CSRF: vale la firma di Stripe sul corpo.

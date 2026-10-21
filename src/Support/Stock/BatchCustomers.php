@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Stock;
 
+use Wonder\Backend\Support\SpreadsheetText;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
@@ -136,11 +137,11 @@ final class BatchCustomers
 
         foreach ($rows as $row) {
             fputcsv($handle, [
-                self::cell($row['order_number']),
+                SpreadsheetText::cell($row['order_number']),
                 substr($row['ordered_at'], 0, 10),
-                self::cell($row['customer']),
-                self::cell($row['email']),
-                self::cell($row['phone']),
+                SpreadsheetText::cell($row['customer']),
+                SpreadsheetText::cell($row['email']),
+                SpreadsheetText::cell($row['phone']),
                 str_replace('.', ',', (string) ($row['quantity'] + 0)),
             ], ';', '"', '');
         }
@@ -150,12 +151,6 @@ final class BatchCustomers
         fclose($handle);
 
         return "\u{FEFF}".$csv;
-    }
-
-    /** Una cella che comincia con = + - @ Excel la leggerebbe come formula: si disinnesca con l'apice. */
-    private static function cell(string $value): string
-    {
-        return $value !== '' && in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true) ? "'".$value : $value;
     }
 
     private static function text(string $value): string

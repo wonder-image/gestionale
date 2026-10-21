@@ -40,6 +40,12 @@ Per questo chi legge i movimenti trova sempre il motivo (`sale`,
    condizionato dà numero, `ordered_at`, email «ricevuto» al cliente e avviso
    al commerciante, una volta sola anche con webhook e ritorno insieme. Con il
    pagamento in elaborazione l'email lo dice; l'incasso arriva poi col webhook.
+   `succeeded()` trova l'ordine dal riferimento prima della transazione, poi
+   blocca l'ordine e la riga di pagamento (`findForUpdate`), nello stesso
+   ordine di `abandon()` e `cancel()`: le letture successive vedono i dati
+   dopo l'attesa. Tiene i lock per tutta la registrazione: chi arriva secondo
+   la trova pagata. Le email del
+   pagamento e l'avviso di rimborso partono dopo il commit.
    **Abbandono** — `Lifecycle::abandon()` porta un `awaiting_payment` ad
    **«Abbandonato»** (`abandoned`): annulla l'intento, libera merce, pagamenti
    aperti e coupon, nessuna email. Se l'intento è riuscito o in elaborazione
@@ -173,6 +179,9 @@ o l'area cliente del sito gli mostrerebbe gli ordini dell'ufficio.
   (`Shipments::remaining()`): `quantity` scende, `quantity_cancelled` sale, la
   merce rientra con `Allocation::restore()`, i totali si rifanno con i prezzi
   scritti e le rate con `Installments::recalculate()`. Tutto = `Lifecycle::cancel()`.
+- `OfficeCustomerPanel` legge e modifica solo schede cliente
+  (`CustomerResource::roleColumn()`): un fornitore dà un payload vuoto e
+  `ok => false` su contatti, fatturazione e indirizzi.
 - In `OrderActions` la bozza da ufficio non ha azioni (si apre nella sua
   pagina, `OfficeOrderResource`); un ordine da ufficio confermato ha
   `cancel_lines`.

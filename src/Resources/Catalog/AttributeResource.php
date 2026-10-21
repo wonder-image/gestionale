@@ -291,7 +291,8 @@ class AttributeResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->access(Gestionale::area('catalogo'));
+        return PermissionSchema::for(static::class)->access(Gestionale::area('catalogo'))
+            ->api('store', ['api_internal_user']);
     }
 
     /**

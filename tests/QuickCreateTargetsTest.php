@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Api\Support\ResourceApiAccess;
 use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CategoryResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\PackageResource;
@@ -40,6 +41,11 @@ foreach ([
         $schema = $store($resource);
 
         return $schema['aperto'] && $schema['campi'] === $campi && $schema['altro'] === [];
+    });
+
+    check("lo store dei {$nome} è solo per api_internal_user, niente token di pagina", function () use ($resource) {
+        return ResourceApiAccess::declared($resource, 'store') === ['api_internal_user']
+            && !ResourceApiAccess::allowsPageToken($resource);
     });
 }
 

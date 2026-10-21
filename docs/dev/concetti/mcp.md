@@ -33,8 +33,8 @@ Ci sono due modi di autenticarsi, entrambi con `Authorization: Bearer <token>`.
   domini permessi. Senza token o con un token non valido risponde 401 con
   `WWW-Authenticate: Bearer`.
 
-Il modulo richiede una versione di `wonder-image/app` con OAuth: al rilascio
-va alzato il vincolo in `composer.json` (oggi `^2.4.0-beta.3 || dev-main`).
+Il modulo richiede una versione di `wonder-image/app` con OAuth: il vincolo
+in `composer.json` è `^2.4.0-beta.4 || dev-main`.
 Dopo l'aggiornamento serve `php forge update`: crea le tabelle `oauth_*` e la
 colonna `mcp_logs.oauth_grant_id`.
 
@@ -44,6 +44,14 @@ Ogni strumento prende i ruoli dal `permissionSchema()` della Resource (o dal
 `navigationSchema()` per le pagine): l'utente del token li deve avere oltre
 ad `api_internal_user`. Chi non li ha non vede lo strumento in `tools/list` e
 non lo può chiamare.
+
+Le API di Resource generate dal core sono un'altra cosa: ognuna dichiara chi
+la chiama con `permissionSchema()->api(azione, [authority])`, e senza quella
+riga risponde 403 a tutti. Nel modulo c'è solo lo `store` degli otto target
+del quick-create (marchi, attributi e valori, categorie, personalizzazioni,
+imballaggi, tipi fiscali, zone), per `api_internal_user`; il token di pagina è
+rifiutato. Coupon, campagne, corrieri e metodi di spedizione hanno
+`apiSchema()->enabled(false)`. Lo controlla `tests/ResourceApiPermissionsTest.php`.
 
 | Strumento | Fa | Permesso |
 |---|---|---|

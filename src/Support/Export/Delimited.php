@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Export;
 
+use Wonder\Backend\Support\SpreadsheetText;
+
 /**
  * Un file a colonne — .csv con la virgola, .tsv con la tabulazione — come lo
  * leggono i programmi d'importazione: UTF-8 senza BOM, una riga di
@@ -53,15 +55,10 @@ final class Delimited
         return $text;
     }
 
+    /** La regola anti-formula è quella del core. */
     private static function cell(string|int|float|null $value, bool $spreadsheetSafe): string
     {
-        $value = (string) $value;
-
-        if ($spreadsheetSafe && $value !== '' && in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
-            return "'".$value;
-        }
-
-        return $value;
+        return $spreadsheetSafe ? SpreadsheetText::cell($value) : (string) $value;
     }
 
     private static function tsvCell(string $value): string

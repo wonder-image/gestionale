@@ -136,4 +136,21 @@ check('azione sconosciuta o scheda che non c\'è: niente da fare', function () {
         && OfficeCustomerPanel::payload(0) === [];
 });
 
+check('un fornitore non si legge né si modifica dal pannello, indirizzi compresi', function () {
+    return prova(static function (): bool {
+        $creato = Contact::create([
+            'type' => 'business', 'business_name' => 'Fornitore Prova', 'country' => 'IT',
+            'email' => 'fornitore.pannello@example.com', 'is_customer' => 'false', 'is_supplier' => 'true', 'active' => 'true',
+        ]);
+        $id = (int) ($creato->insert_id ?? 0);
+        $contatti = OfficeCustomerPanel::save('contacts', $id, ['email' => 'cambiata@example.com', 'phone_prefix' => '', 'phone' => '']);
+        $indirizzo = OfficeCustomerPanel::save('save', $id, ['address_id' => 0, 'label' => 'Sede', 'street' => 'Via Roma', 'number' => '1', 'cap' => '24100', 'city' => 'Bergamo', 'country' => 'IT']);
+
+        return $id > 0 && OfficeCustomerPanel::payload($id) === []
+            && $contatti['ok'] === false && $indirizzo['ok'] === false
+            && ((array) Contact::findById($id))['email'] === 'fornitore.pannello@example.com'
+            && ContactAddressResource::addressesOf($id) === [];
+    });
+});
+
 summary();

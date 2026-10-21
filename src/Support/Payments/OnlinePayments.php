@@ -14,6 +14,7 @@ use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
+use Wonder\Sql\Transaction;
 
 /**
  * Il denaro che passa da un gateway: l'avvio dell'intento e quello che il
@@ -97,53 +98,92 @@ final class OnlinePayments
      */
     public static function succeeded(string $provider, string $reference, int $amount, string $currency, int $orderId, string $source): array
     {
-        [$row, $rowOrder, $order, $expected] = self::matching($provider, $reference, $amount, $currency, $orderId);
+        // Letto fuori dalla transazione (`order_id` non cambia): dentro, la
+        // prima lettura è il lock e la vista nasce dopo l'attesa.
+        $payee = (int) (Ledger::byReference($provider, $reference)['order_id'] ?? 0);
 
-        // Letto prima di scrivere: chi ripassa su una riga già pagata non riavvisa.
-        $alreadyPaid = (string) $row['status'] === 'paid';
-
-        // Il cliente ha pagato: l'ordine «In pagamento» diventa del commerciante,
-        // con numero e data. Chi arriva secondo lo trova già ricevuto.
-        Lifecycle::receive($rowOrder, ['source' => $source, 'reason' => 'Pagamento riuscito']);
-
-        Ledger::register([
-            'order_id' => $rowOrder,
-            'amount' => $amount / 100,
-            'currency' => $expected,
-            'provider' => $provider,
-            'provider_reference' => $reference,
-            'source' => $source,
-        ]);
-
-        $current = Order::findById($rowOrder);
-        $current = is_array($current) ? $current : $order;
-        $status = (string) ($current['status'] ?? '');
-
-        if (in_array($status, ['cancelled', 'abandoned'], true)) {
-            // Il cliente ha pagato un ordine già annullato o abbandonato: il
-            // denaro va restituito dalla dashboard del gateway.
-            if (!$alreadyPaid) {
-                self::alert($provider, 'payment.cancelled_order', "Incasso {$reference} sull'ordine annullato {$rowOrder}: va rimborsato.", ['order_id' => $rowOrder]);
+        // Lock sulla riga, poi tutto nella stessa transazione: webhook e pagina
+        // di ritorno insieme, il secondo aspetta e trova la riga già pagata.
+        $outcome = Transaction::run(static function () use ($provider, $reference, $amount, $currency, $orderId, $source, $payee): array {
+            // Prima l'ordine, poi il pagamento, come `Lifecycle::abandon()` e
+            // `cancel()`: con l'ordine inverso i due si bloccano a vicenda.
+            if ($payee > 0) {
+                Order::findForUpdate(['id' => $payee], 1);
             }
 
-            return ['order_id' => $rowOrder, 'status' => $status, 'changed' => false];
+            $locked = Payment::findForUpdate([
+                'provider' => $provider,
+                'provider_reference' => trim($reference),
+                'type' => 'payment',
+                'deleted' => 'false',
+            ], 1);
+
+            [$row, $rowOrder, $order, $expected] = self::matching($provider, $reference, $amount, $currency, $orderId);
+
+            // Letto sotto lock prima di scrivere: chi ripassa su una riga già pagata non riavvisa.
+            $alreadyPaid = (string) ((is_array($locked) && $locked !== [] ? $locked : $row)['status'] ?? '') === 'paid';
+
+            // Il cliente ha pagato: l'ordine «In pagamento» diventa del commerciante,
+            // con numero e data. Chi arriva secondo lo trova già ricevuto.
+            Lifecycle::receive($rowOrder, ['source' => $source, 'reason' => 'Pagamento riuscito']);
+
+            Ledger::register([
+                'order_id' => $rowOrder,
+                'amount' => $amount / 100,
+                'currency' => $expected,
+                'provider' => $provider,
+                'provider_reference' => $reference,
+                'source' => $source,
+            ]);
+
+            $current = Order::findById($rowOrder);
+            $current = is_array($current) ? $current : $order;
+            $status = (string) ($current['status'] ?? '');
+
+            if (in_array($status, ['cancelled', 'abandoned'], true)) {
+                return [
+                    'result' => ['order_id' => $rowOrder, 'status' => $status, 'changed' => false],
+                    'notify' => false,
+                    // Il cliente ha pagato un ordine già annullato o abbandonato: il
+                    // denaro va restituito dalla dashboard del gateway.
+                    'alert' => !$alreadyPaid,
+                ];
+            }
+
+            // L'ordine resta «in attesa»: lo conferma il commerciante dal backend,
+            // dopo aver visto che la merce c'è. Intanto la merce messa da parte non
+            // scade più.
+            $notify = !$alreadyPaid && $status === 'pending';
+
+            if ($notify) {
+                Allocation::keep($rowOrder);
+            }
+
+            return [
+                'result' => [
+                    'order_id' => $rowOrder,
+                    'status' => $status,
+                    'payment_status' => (string) ($current['payment_status'] ?? ''),
+                    'changed' => !$alreadyPaid,
+                ],
+                'notify' => $notify,
+                'alert' => false,
+            ];
+        });
+
+        // Email e avvisi solo dopo il commit: un rollback non lascia mail partite.
+        $rowOrder = (int) $outcome['result']['order_id'];
+
+        if ($outcome['alert']) {
+            self::alert($provider, 'payment.cancelled_order', "Incasso {$reference} sull'ordine annullato {$rowOrder}: va rimborsato.", ['order_id' => $rowOrder]);
         }
 
-        // L'ordine resta «in attesa»: lo conferma il commerciante dal backend,
-        // dopo aver visto che la merce c'è. Intanto la merce messa da parte non
-        // scade più, e il cliente e il commerciante sanno del pagamento.
-        if (!$alreadyPaid && $status === 'pending') {
-            Allocation::keep($rowOrder);
+        if ($outcome['notify']) {
             OrderNotifier::send('paid', $rowOrder);
             OrderNotifier::send('merchant_paid', $rowOrder);
         }
 
-        return [
-            'order_id' => $rowOrder,
-            'status' => $status,
-            'payment_status' => (string) ($current['payment_status'] ?? ''),
-            'changed' => !$alreadyPaid,
-        ];
+        return $outcome['result'];
     }
 
     /**

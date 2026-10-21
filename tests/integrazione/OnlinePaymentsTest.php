@@ -535,6 +535,39 @@ check('fallimento dopo processing: ordine in attesa, pagamento fallito, avviso',
         && (OnlinePayments::payment($ordine)['status'] ?? '') === 'failed';
 }));
 
+check('due succeeded sullo stesso intento: una mail cliente e una merchant', fn () => prova(static function (): bool {
+    [$ordine, , $intento] = intentoLegato();
+    Order::update(['email' => 'cliente@example.com'], $ordine);
+    destinatariCommerciante('negozio@example.com');
+
+    $partite = conPosta(static function () use ($ordine, $intento): void {
+        OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'webhook');
+        OnlinePayments::succeeded('stripe', $intento, 5000, 'eur', $ordine, 'return');
+    });
+
+    return chiaviPosta($partite) === ['order.paid', 'order.merchant_paid'];
+}));
+
+check('succeeded che fallisce dentro la transazione: niente email né avvisi, niente scritto', fn () => prova(static function (): bool {
+    [$ordine, $pagamento, $intento] = intentoLegato();
+    Order::update(['email' => 'cliente@example.com'], $ordine);
+    destinatariCommerciante('negozio@example.com');
+    $fallito = false;
+
+    $partite = conPosta(static function () use ($ordine, $intento, &$fallito): void {
+        try {
+            // Un centesimo in meno: PaymentMismatch dopo il lock, la transazione torna indietro.
+            OnlinePayments::succeeded('stripe', $intento, 4999, 'eur', $ordine, 'webhook');
+        } catch (\Wonder\Plugin\Gestionale\Support\Payments\PaymentMismatch) {
+            $fallito = true;
+        }
+    });
+
+    return $fallito && $partite === []
+        && (string) (Payment::findById($pagamento)['status'] ?? '') !== 'paid'
+        && (string) (Order::findById($ordine)['status'] ?? '') === 'awaiting_payment';
+}));
+
 check('nessuna email vera: finiti i test la posta resta quella finta', static fn (): bool => (new ReflectionProperty(\Wonder\Plugin\Gestionale\Support\Mail\Mailer::class, 'transport'))->getValue() !== null);
 
 summary();

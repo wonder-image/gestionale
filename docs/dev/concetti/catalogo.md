@@ -60,6 +60,9 @@ Ognuna ha il suo `code` con prefisso (`bra_`, `cat_`, `tag_`) e uno `slug`
 generato dal nome alla creazione, poi fisso: è l'indirizzo della pagina e non
 deve cambiare sotto i piedi di chi ha messo un link.
 
+Il logo del marchio accetta SVG: il core lo ripulisce al caricamento
+(`SvgSanitizer` in `uploadFiles()`), il modulo non aggiunge controlli suoi.
+
 ### L'albero delle categorie
 
 L'albero è solo `parent_id`. Tutto il resto sta in `Support\Catalog\CategoryTree`,
@@ -173,6 +176,10 @@ Gli attributi di livello `model` stanno nel riquadro *Scheda tecnica* di
 - **Il «+» dei valori** è il `quickCreate()` del core su
   `AttributeValueResource`, con l'`attribute_id` nascosto nel layout del
   modal (`newValueLayout()`).
+- **Lo store dietro ogni «+»** si apre solo con
+  `permissionSchema()->api('store', ['api_internal_user'])`: senza, la rotta
+  non risponde. Il token di pagina non passa; il ruolo si controlla sul
+  bottone e nel proxy (`docs/dev/concetti/mcp.md`).
 - **Si vede solo quello che è compilato.** Ogni caratteristica sta in un
   blocco (`technicalBlock()`): un `Container` con `data-wi-technical="<id>"` e
   `data-wi-technical-name`, che il core mette sul nodo interno — da nascondere

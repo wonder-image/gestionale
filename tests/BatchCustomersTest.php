@@ -38,4 +38,14 @@ check('csv: punto e virgola, BOM, virgola decimale, formule disinnescate', funct
         && $righe[1] === "2026/100001;2026-10-01;\"'=Rossi; Mario\";m@x.it;\"'+39 333\";1,5";
 });
 
+check('nome =HYPERLINK(...) esce con l\'apice', function () {
+    $csv = BatchCustomers::csv([[
+        'order_id' => 1, 'order_number' => '1', 'ordered_at' => '2026-10-01 10:00:00',
+        'customer' => '=HYPERLINK("http://x","clic")', 'email' => '@x', 'phone' => '-1', 'quantity' => 1,
+    ]]);
+    $riga = explode("\n", trim($csv))[1];
+
+    return $riga === "1;2026-10-01;\"'=HYPERLINK(\"\"http://x\"\",\"\"clic\"\")\";'@x;'-1;1";
+});
+
 summary();

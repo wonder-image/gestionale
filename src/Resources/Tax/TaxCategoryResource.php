@@ -144,14 +144,16 @@ final class TaxCategoryResource extends GestionaleResource
     public static function permissionSchema(): PermissionSchema
     {
         return PermissionSchema::for(static::class)
-            ->access(Gestionale::area('fiscale'));
+            ->access(Gestionale::area('fiscale'))
+            ->api('store', ['api_internal_user']);
     }
 
     /**
      * Solo `store`, e solo per il "+ Aggiungi" della scheda prodotto.
      *
-     * La chiamata parte lato server come `@system`: non serve dare il permesso
-     * a nessun ruolo, il controllo sta sul bottone e nel proxy.
+     * Store solo per `api_internal_user` (il `@system` del quick-create e
+     * l'MCP); il token di pagina è rifiutato. Il controllo sul ruolo sta sul
+     * bottone e nel proxy.
      */
     public static function apiSchema(): ApiSchema
     {

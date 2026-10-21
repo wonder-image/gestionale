@@ -6,6 +6,7 @@ use Throwable;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
+use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\TableColumn;
@@ -613,6 +614,12 @@ HTML)->tag('div');
     public static function permissionSchema(): PermissionSchema
     {
         return PermissionSchema::for(static::class)->access(Gestionale::area('impostazioni_spedizioni'));
+    }
+
+    /** Nessuna API di Resource: nel modulo non c'è un chiamante. */
+    public static function apiSchema(): ApiSchema
+    {
+        return parent::apiSchema()->enabled(false);
     }
 
     public static function navigationSchema(): NavigationSchema

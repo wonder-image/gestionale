@@ -9,16 +9,17 @@ require __DIR__.'/supporto/FakeSubscriptionGateway.php';
 use Stripe\ApiRequestor;
 use Stripe\HttpClient\ClientInterface;
 use Wonder\Plugin\Gestionale\Providers\Payments\StripeBilling;
+use Wonder\Plugin\Stripe\Stripe;
 
 /** Il client HTTP di stripe-php sostituito: ricorda le richieste e risponde con un oggetto. */
 final class RegistroHttp implements ClientInterface
 {
-    /** @var list<array{method: string, url: string, headers: list<string>, params: array<string, mixed>}> */
+    /** @var list<array{method: string, url: string, headers: list<string>, params: array<string, mixed>, retries: mixed}> */
     public array $requests = [];
 
     public function request($method, $absUrl, $headers, $params, $hasFile, $apiMode = 'v1', $maxNetworkRetries = null)
     {
-        $this->requests[] = ['method' => $method, 'url' => $absUrl, 'headers' => $headers, 'params' => $params];
+        $this->requests[] = ['method' => $method, 'url' => $absUrl, 'headers' => $headers, 'params' => $params, 'retries' => $maxNetworkRetries];
         $id = basename(parse_url($absUrl, PHP_URL_PATH) ?: '');
 
         return [json_encode(['id' => $id, 'object' => 'finto', 'amount_due' => 1200]), 200, []];
@@ -95,7 +96,16 @@ check('l\'anteprima della fattura: POST /v1/invoices/create_preview', function (
     return $chiamata('post', '/v1/invoices/create_preview') && $anteprima['amount_due'] === 1200;
 });
 
-ApiRequestor::setHttpClient(null);
+check('le chiamate portano retry 2 e la versione API del core', function () use ($billing, $http) {
+    $billing->deleteSubscriptionItem('si_9', []);
+
+    return $http->last()['retries'] === 2
+        && $http->header('Stripe-Version') === Stripe::API_VERSION
+        && Stripe::API_VERSION === '2025-08-27.basil';
+});
+
+// Si torna al client senza rete dei test, non a quello vero dell'SDK.
+StripeSenzaRete::install();
 
 $fake = new FakeSubscriptionGateway();
 
