@@ -136,7 +136,7 @@ final class StripeBilling implements SubscriptionGateway
 
     private function client(): StripeClient
     {
-        return $this->client ??= new StripeClient(['api_key' => $this->secretKey, 'stripe_version' => Stripe::API_VERSION]);
+        return $this->client ??= new StripeClient(Stripe::clientConfig($this->secretKey));
     }
 
     /** @return array<string, string> */

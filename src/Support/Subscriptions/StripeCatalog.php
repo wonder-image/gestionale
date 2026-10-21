@@ -12,7 +12,7 @@ use Wonder\Plugin\Gestionale\Support\Providers\ExternalReferences;
 
 /**
  * Piani, prezzi, aliquote e coupon in Stripe (G10.9), creati alla prima
- * occorrenza e ritrovati in `gst_external_references`.
+ * occorrenza e ritrovati con `ExternalReferences`.
  *
  * Un prezzo in Stripe non si cambia: un prezzo cambiato nel gestionale è
  * un'**impronta** diversa (importo, intervallo, mesi, valuta) e quindi un

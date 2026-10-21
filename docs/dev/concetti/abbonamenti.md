@@ -16,7 +16,7 @@ con `subscription_id`.
 | `gst_subscription_status_logs` | la storia degli stati |
 
 Nessuna si sincronizza: i piani sono lavoro del commerciante, come i coupon, e
-gli ID di Stripe (in `gst_external_references`) sono di un ambiente solo.
+gli ID di Stripe (salvati con `ExternalReferences`) sono di un ambiente solo.
 
 Gli stati sono `pending`, `trialing`, `active`, `past_due`, `unpaid`,
 `cancelled`. `Subscription::LIVE` (`trialing`, `active`, `past_due`) sono gli
@@ -68,8 +68,8 @@ Funzionalità `online_subscriptions` (richiede `online_sales` e
   `SubscriptionGateways::use(new FakeSubscriptionGateway())`
   (`tests/supporto/`).
 - **`StripeCatalog`**: prodotto, prezzo, aliquota, coupon e codice
-  promozionale, creati alla prima occorrenza e salvati in
-  `gst_external_references`. Un prezzo cambiato ha un'altra impronta
+  promozionale, creati alla prima occorrenza e salvati con
+  `ExternalReferences`. Un prezzo cambiato ha un'altra impronta
   (`price:2490-month-1-eur`), quindi è un prezzo nuovo in Stripe.
 - **`OnlineSubscriptions`**:
   - `start()` crea l'abbonamento `pending` e la Checkout Session (metadati
@@ -82,6 +82,12 @@ Funzionalità `online_subscriptions` (richiede `online_sales` e
   `invoice.payment_failed`. Qui non si chiama Stripe: si legge l'oggetto, nelle
   due forme dell'API (`StripeSubscriptionData`). Gli intenti delle fatture
   (`payment_intent.*` senza `order_id`) si lasciano stare.
+- **Eventi del webhook**: `PaymentEvents::types()`, cioè
+  `payment_intent.succeeded`, `payment_intent.processing`,
+  `payment_intent.payment_failed`, `payment_intent.canceled`,
+  `charge.refunded` e i sei di `SubscriptionEvents::TYPES`. Li registra il
+  modulo con `Connect::addEvents` (in `config/routes/route.api.php`); dopo un
+  cambio dell'elenco va rifatto «Collega webhook» in ogni ambiente.
 - **Pagamenti**: `invoice.paid` scrive una riga di `gst_payments` già `paid`,
   con `subscription_id`, `order_id = 0` e `provider_reference` = id della
   fattura.

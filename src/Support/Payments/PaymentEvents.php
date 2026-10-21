@@ -18,6 +18,25 @@ use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionEvents;
  */
 final class PaymentEvents
 {
+    /** Gli eventi degli intenti e dei rimborsi che `apply()` smista. */
+    public const PAYMENT_TYPES = [
+        'payment_intent.succeeded',
+        'payment_intent.processing',
+        'payment_intent.payment_failed',
+        'payment_intent.canceled',
+        'charge.refunded',
+    ];
+
+    /**
+     * Ogni evento che il modulo elabora: da registrare sul webhook Connect.
+     *
+     * @return list<string>
+     */
+    public static function types(): array
+    {
+        return array_values(array_unique([...self::PAYMENT_TYPES, ...SubscriptionEvents::TYPES]));
+    }
+
     /** Il codice HTTP da rendere al gateway. */
     public static function handle(PaymentProvider $provider, string $raw, string $signature): int
     {

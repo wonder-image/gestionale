@@ -83,8 +83,8 @@ produzione), accanto ai badge «Collega». Chiama la rotta
 
 1. crea l'endpoint Connect del webhook sulla piattaforma, per i conti collegati,
    con `Connect::webhook(url)`. L'url è quello di §6 (`Route::url` della rotta
-   `api.gestionale.stripe.webhook`) e gli eventi sono `Connect::EVENTS`, cioè
-   quelli della tabella di §6;
+   `api.gestionale.stripe.webhook`) e gli eventi sono `Connect::events()`,
+   cioè `Connect::EVENTS` del core più `PaymentEvents::types()` del modulo;
 2. salva il `secret` restituito nella colonna dell'ambiente
    (`Connect::secretColumn`);
 3. registra il dominio del sito per Apple Pay e gli altri wallet
