@@ -599,9 +599,10 @@ versionamento semantico.
 
 - **Ricerca degli editor in un file solo**: `say`, `request` e `lookup`
   dell'editor dei documenti di magazzino e di quello degli ordini d'ufficio
-  stanno in `resources/assets/js/search-client.js` (`window.wiSearchClient`),
-  stampato una volta per pagina da `SearchClient::script()` con
-  `PageAssets::once()`. Stesso comportamento.
+  stanno in `resources/js/search-client.js` (`window.wiSearchClient`), fuori
+  da `paths.assets` perché `publish:module --assets` non lo copi nel sito.
+  Ogni editor lo stampa con `SearchClient::script()`; il guard
+  `window.wiSearchClient || …` evita il doppio. Stesso comportamento.
 
 - **Widget della home con i componenti del core**: «Spedizioni da
   controllare» e «Spedizioni in ritardo» diventano `StatusCard` (tutto il

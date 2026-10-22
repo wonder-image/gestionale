@@ -3,27 +3,27 @@
 namespace Wonder\Plugin\Gestionale\Support;
 
 use Wonder\Plugin\Gestionale\Gestionale;
-use Wonder\Themes\Support\PageAssets;
 
 /**
  * Il JS di ricerca condiviso dagli editor (documenti di magazzino, ordini
- * d'ufficio): `resources/assets/js/search-client.js`, stampato una volta per
- * pagina.
+ * d'ufficio): `resources/js/search-client.js`, fuori da `paths.assets` perché
+ * `publish:module --assets` non lo copi nel sito.
  *
- * In linea e non con `module_asset()`: se l'URL non si risolve, gli editor
- * resterebbero senza ricerca senza che nessuno se ne accorga.
+ * In linea e non con `module_asset()`: non dipende da `vendor/` raggiungibile
+ * dal web né da un publish. Ogni editor lo stampa: il guard
+ * `window.wiSearchClient || …` del file lo rende innocuo se ripetuto.
  */
 final class SearchClient
 {
-    public const FILE = 'js/search-client.js';
+    public const FILE = 'resources/js/search-client.js';
 
     public static function source(): string
     {
-        return (string) file_get_contents(Gestionale::assetPath(self::FILE));
+        return (string) file_get_contents(Gestionale::root().'/'.self::FILE);
     }
 
     public static function script(): string
     {
-        return PageAssets::once('gestionale.search-client', static fn (): string => '<script>'.self::source().'</script>');
+        return '<script>'.self::source().'</script>';
     }
 }
