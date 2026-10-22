@@ -36,10 +36,10 @@ return [
         'home_widgets' => [
             \Wonder\Plugin\Gestionale\Backend\Widgets\SetupWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\AttentionWidget::class,
-            \Wonder\Plugin\Gestionale\Backend\Widgets\DuePaymentsWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\LowStockWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\ShipmentsToCheckWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\ShippedNotDeliveredWidget::class,
+            \Wonder\Plugin\Gestionale\Backend\Widgets\DuePaymentsWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\StockValueWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\ExpiringBatchesWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\ContactsWidget::class,
