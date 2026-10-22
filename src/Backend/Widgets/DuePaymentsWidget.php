@@ -37,7 +37,7 @@ final class DuePaymentsWidget implements HomeWidget
 
     public function order(): int
     {
-        return 26;
+        return 24;
     }
 
     public function render(): string

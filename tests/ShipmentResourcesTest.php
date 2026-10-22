@@ -171,6 +171,15 @@ check('i due riquadri della bacheca sono di chi lavora le spedizioni e stanno do
         && array_search(ShippedNotDeliveredWidget::class, $widgets, true) === $dopo + 2;
 });
 
+check('nella home i riquadri a mezza riga escono a coppie: nessun altro si mette in mezzo', function () {
+    $widgets = array_map(static fn (string $c) => new $c, (require __DIR__ . '/../config/module.php')['backend']['home_widgets']);
+    usort($widgets, static fn ($a, $b): int => $a->order() <=> $b->order());
+    $posto = array_flip(array_map(static fn ($w): string => $w::class, $widgets));
+
+    return $posto[ShippedNotDeliveredWidget::class] === $posto[ShipmentsToCheckWidget::class] + 1
+        && $posto[\Wonder\Plugin\Gestionale\Backend\Widgets\ExpiringBatchesWidget::class] === $posto[\Wonder\Plugin\Gestionale\Backend\Widgets\StockValueWidget::class] + 1;
+});
+
 check('a zero i riquadri non disegnano niente; con dei casi dicono quanti e aprono l\'elenco filtrato', function () {
     $uno = ShipmentsToCheckWidget::markup(1);
     $tre = ShipmentsToCheckWidget::markup(3);
