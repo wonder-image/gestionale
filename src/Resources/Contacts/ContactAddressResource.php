@@ -13,6 +13,7 @@ use Wonder\App\Support\GoogleMaps;
 use Wonder\Backend\Support\FlashAlert;
 use Wonder\Elements\Components\Modal;
 use Wonder\Http\Csrf;
+use Wonder\Plugin\CustomerAccount\Account\AccountAddresses;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
@@ -418,10 +419,9 @@ final class ContactAddressResource extends NavigationOnlyResource
         }
 
         if ($existing === null) {
-            $posizioni = array_map(static fn (array $r): int => (int) ($r['position'] ?? 0), static::addressesOf($contactId));
             $creato = ContactAddress::create(array_merge($clean, [
                 'contact_id' => $contactId,
-                'position' => ($posizioni === [] ? 0 : max($posizioni)) + 1,
+                'position' => AccountAddresses::nextPosition($contactId),
             ]));
 
             if (empty($creato->success)) {

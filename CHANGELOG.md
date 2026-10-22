@@ -597,6 +597,12 @@ versionamento semantico.
 
 ### Cambiato
 
+- **Posizione dei nuovi indirizzi da customer-account**: un indirizzo creato
+  dalla scheda cliente prende la posizione da
+  `AccountAddresses::nextPosition()` invece di un calcolo locale. Stesso
+  risultato: il `MAX` di customer-account conta già solo gli indirizzi non
+  eliminati (il Model aggiunge `deleted = 'false'`).
+
 - **Ricerca degli editor in un file solo**: `say`, `request` e `lookup`
   dell'editor dei documenti di magazzino e di quello degli ordini d'ufficio
   stanno in `resources/js/search-client.js` (`window.wiSearchClient`), fuori
