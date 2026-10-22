@@ -657,6 +657,7 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
             window.clearTimeout(timer);
 
             if (q.length < 2) {
+                client.cancel();
                 close();
                 say('');
 
