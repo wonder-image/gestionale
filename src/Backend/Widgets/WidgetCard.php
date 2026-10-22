@@ -48,7 +48,7 @@ final class WidgetCard
         return Button::to($url, $label)
             ->variant($variant)
             ->size('sm')
-            ->attr('class', 'text-nowrap')
+            ->nowrap()
             ->schema('inline', true)
             ->render('bootstrap');
     }

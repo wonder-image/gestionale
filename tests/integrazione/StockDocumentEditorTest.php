@@ -377,8 +377,8 @@ check('script: l\'editor si lega dopo createCard() del core, al nodo che resta n
         return true;
     }
 
-    // Al caricamento il core ricopia il contenuto di ogni <wi-card> e poi lancia
-    // «loaded» sulla finestra: il nodo visto durante il parse non resta.
+    // Il nodo visto durante il parse può essere sostituito prima di «loaded»:
+    // l'editor si lega a quello che resta nella pagina.
     $harness = <<<'JS'
 function El(tag) { this.tagName = tag; this.children = []; this.attrs = {}; this.listeners = {}; this.value = ''; this.textContent = ''; this.className = ''; this.style = {}; this.parentNode = null; this.firstChild = null; this.classList = {add: function () {}, remove: function () {}}; }
 El.prototype.appendChild = function (c) { c.parentNode = this; this.children.push(c); this.firstChild = this.children[0]; return c; };
@@ -437,7 +437,7 @@ JS;
     return true;
 });
 
-check('pagina: Conferma e lo spegnimento dei bottoni valgono anche dopo che il core ricopia i <wi-card> (node)', function () {
+check('pagina: Conferma e lo spegnimento dei bottoni valgono anche per i bottoni sostituiti dopo il caricamento (node)', function () {
     $node = trim((string) shell_exec('command -v node 2>/dev/null'));
 
     if ($node === '') {
