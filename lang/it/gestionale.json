@@ -137,7 +137,11 @@
             "tag": {
                 "name_required": "Scrivi il nome del tag."
             },
+            "brand": {
+                "name_required": "Scrivi il nome del marchio."
+            },
             "category": {
+                "name_required": "Scrivi il nome della categoria.",
                 "loop": "Una categoria non può stare sotto sé stessa o sotto una sua sottocategoria.",
                 "parent_missing": "La categoria padre scelta non esiste più: ricarica la pagina e riprova."
             },

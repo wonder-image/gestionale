@@ -10,6 +10,7 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
 /**
  * Resource base del gestionale. Ogni pagina dichiara la funzionalità che la
@@ -110,6 +111,33 @@ abstract class GestionaleResource extends Resource
         }
 
         return null;
+    }
+
+    /**
+     * Il nome obbligatorio anche lato server: il `required` del form non
+     * ferma un nome di soli spazi. Lo restituisce senza spazi ai lati.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     *
+     * @throws UserError con `$errorKey` se il nome è vuoto
+     */
+    protected static function requireName(array $values, string $action, string $errorKey): array
+    {
+        // In modifica si controlla solo se il nome arriva: chi non lo manda non lo cambia.
+        if ($action !== 'store' && !array_key_exists('name', $values)) {
+            return $values;
+        }
+
+        $name = is_scalar($values['name'] ?? null) ? trim((string) $values['name']) : '';
+
+        if ($name === '') {
+            throw UserError::make($errorKey);
+        }
+
+        $values['name'] = $name;
+
+        return $values;
     }
 
     /** Testo che finisce dentro l'HTML di una cella o di un'etichetta. */

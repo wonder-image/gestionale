@@ -158,13 +158,15 @@ final class BrandResource extends GestionaleResource
             ->access(Gestionale::area('catalogo'));
     }
 
-    /** Lo slug nasce dal nome alla creazione e poi non si tocca più. */
+    /** Nome obbligatorio anche lato server; lo slug nasce dal nome alla creazione e poi non si tocca più. */
     public static function mutateRequestValues(
         array $values,
         string $action,
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        $values = static::requireName($values, $action, 'brand.name_required');
+
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) ($values['name'] ?? ''), Brand::$table);
             $values['position'] = Positions::next(Brand::$table);

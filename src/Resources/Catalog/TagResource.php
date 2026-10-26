@@ -17,7 +17,6 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
-use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
 /**
  * "Tag": un'etichetta trasversale alle categorie ("novità", "saldi").
@@ -151,16 +150,7 @@ final class TagResource extends GestionaleResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
-        // In modifica si controlla solo se il nome arriva: chi non lo manda non lo cambia.
-        if ($action === 'store' || array_key_exists('name', $values)) {
-            $name = is_scalar($values['name'] ?? null) ? trim((string) $values['name']) : '';
-
-            if ($name === '') {
-                throw UserError::make('tag.name_required');
-            }
-
-            $values['name'] = $name;
-        }
+        $values = static::requireName($values, $action, 'tag.name_required');
 
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) ($values['name'] ?? ''), Tag::$table);

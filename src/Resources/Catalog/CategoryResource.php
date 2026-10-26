@@ -186,13 +186,15 @@ final class CategoryResource extends GestionaleResource
             ->access(Gestionale::area('catalogo'));
     }
 
-    /** Slug alla creazione, e nessun anello nell'albero. */
+    /** Nome obbligatorio anche lato server, slug alla creazione, e nessun anello nell'albero. */
     public static function mutateRequestValues(
         array $values,
         string $action,
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        $values = static::requireName($values, $action, 'category.name_required');
+
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) ($values['name'] ?? ''), Category::$table);
             // La posizione la mette il backend, in fondo ai fratelli: non è

@@ -719,6 +719,9 @@ versionamento semantico.
   pagina Gestionale → Impostazioni; la tabella `gst_merchant_settings` resta senza
   Model. **Chi aggiorna deve lanciare `php forge update`**; un indirizzo già scritto
   nella vecchia pagina non si copia: va reinserito in Set Up.
+- Pannello del cliente in ufficio (`OfficeCustomerPanel::update()`): lo schema
+  della tabella si cerca con `Table::has()` del core quando c'è; con app
+  v2.4.0-beta.5, ancora ammessa da `composer.json`, si legge `Table::$list`.
 
 ### Corretto
 
@@ -796,6 +799,10 @@ versionamento semantico.
   rifiuta il nome vuoto (`tag.name_required`), in creazione e in modifica.
   Nessuna migrazione: i tag già salvati senza nome restano, e alla prossima
   modifica chiedono un nome.
+- Marchi e categorie: stesso controllo del nome dei tag, lato server. Il
+  controllo ora sta in `GestionaleResource::requireName()`, usato da
+  `BrandResource`, `CategoryResource` e `TagResource` (`brand.name_required`,
+  `category.name_required`, `tag.name_required`). Nessuna migrazione.
 
 ### Sicurezza
 
