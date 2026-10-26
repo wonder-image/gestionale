@@ -7,12 +7,17 @@ use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Sql\TableSchema as Column;
+use Wonder\Plugin\Gestionale\Support\ForgetsRequestMemo;
 
 /**
  * Gli articoli di una campagna: scelti uno per uno (`is_excluded` falso) oppure tolti dalla selezione (`is_excluded` vero).
  */
 final class DiscountCampaignProductModel extends Model
 {
+    use ForgetsRequestMemo;
+
+    public const MEMO_GROUP = 'promotions';
+
     public static string $table = 'gst_discount_campaign_product_models';
     public static string $folder = 'gestionale/models';
     public static string $icon = 'bi bi-box';

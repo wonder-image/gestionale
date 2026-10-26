@@ -12,6 +12,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Support\Text\Slug as TextSlug;
+use Wonder\Plugin\Gestionale\Support\RequestMemo;
 
 /**
  * Il segno che distingue una riga dei dati di prova.
@@ -166,6 +167,10 @@ final class DemoCode
         // `update()` scrive solo le colonne che la scheda conosce, e `deleted`
         // non è una di quelle: il ripristino passa dalla query.
         $result = $modelClass::query()->Update($modelClass::$table, ['deleted' => 'false'], 'id', $id);
+
+        if (defined($modelClass.'::MEMO_GROUP')) {
+            RequestMemo::forget(constant($modelClass.'::MEMO_GROUP'));
+        }
 
         return is_object($result) && !empty($result->success) ? $id : 0;
     }

@@ -24,6 +24,7 @@ use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
 use Wonder\Plugin\Gestionale\Support\Promotions\PromotionSheet;
 use Wonder\Plugin\Gestionale\Support\Promotions\ScopeForm;
 use Wonder\Plugin\Gestionale\Support\Sales\Channels;
+use Wonder\Plugin\Gestionale\Support\RequestMemo;
 
 /**
  * «Campagne di sconto»: un prezzo che cambia da solo, in un periodo, per
@@ -415,6 +416,8 @@ class DiscountCampaignResource extends GestionaleResource
 
     public static function afterStore(object $result, array $values = []): void
     {
+        // Il backend scrive la testata con una query diretta.
+        RequestMemo::forget(DiscountCampaign::MEMO_GROUP);
         $id = (int) ($result->insert_id ?? 0);
 
         if ($id > 0) {
@@ -424,7 +427,14 @@ class DiscountCampaignResource extends GestionaleResource
 
     public static function afterUpdate(int|string $id, object $result, array $values = []): void
     {
+        RequestMemo::forget(DiscountCampaign::MEMO_GROUP);
         static::saveScope('campaign', (int) $id, static::readScope((array) $_POST));
+    }
+
+    public static function afterDelete(int|string $id, object $result, array $values = []): void
+    {
+        RequestMemo::forget(DiscountCampaign::MEMO_GROUP);
+        parent::afterDelete($id, $result, $values);
     }
 
     /**

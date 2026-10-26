@@ -7,12 +7,17 @@ use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Sql\TableSchema as Column;
+use Wonder\Plugin\Gestionale\Support\ForgetsRequestMemo;
 
 /**
  * I tag di un coupon: lo sconto vale per i prodotti con questi tag.
  */
 final class CouponTag extends Model
 {
+    use ForgetsRequestMemo;
+
+    public const MEMO_GROUP = 'promotions';
+
     public static string $table = 'gst_coupon_tags';
     public static string $folder = 'gestionale/models';
     public static string $icon = 'bi bi-tag';

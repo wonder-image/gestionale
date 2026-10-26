@@ -210,7 +210,7 @@ final class Cart
             // Anche la bozza d'ordine e di preventivo (G9): stesso motore.
             $cart = self::cart($cartId, true);
             $settings = Setting::current();
-            $rules = self::rows(TaxRule::find(['deleted' => 'false']));
+            $rules = TaxRule::active();
             $fallback = (int) ($settings['fallback_tax_id'] ?? 0);
             $country = strtoupper(trim((string) ($cart['billing_country'] ?? ''))) ?: 'IT';
             $customerType = trim((string) ($cart['billing_pi'] ?? '')) !== '' ? 'business' : 'private';

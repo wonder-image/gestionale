@@ -7,12 +7,17 @@ use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Sql\TableSchema as Column;
+use Wonder\Plugin\Gestionale\Support\ForgetsRequestMemo;
 
 /**
  * I marchi di una campagna.
  */
 final class DiscountCampaignBrand extends Model
 {
+    use ForgetsRequestMemo;
+
+    public const MEMO_GROUP = 'promotions';
+
     public static string $table = 'gst_discount_campaign_brands';
     public static string $folder = 'gestionale/models';
     public static string $icon = 'bi bi-award';

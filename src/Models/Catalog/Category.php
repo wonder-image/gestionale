@@ -7,6 +7,7 @@ use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Sql\TableSchema as Column;
+use Wonder\Plugin\Gestionale\Support\ForgetsRequestMemo;
 
 /**
  * Categoria del catalogo, con un albero a profondità libera.
@@ -17,6 +18,10 @@ use Wonder\Sql\TableSchema as Column;
  */
 final class Category extends Model
 {
+    use ForgetsRequestMemo;
+
+    public const MEMO_GROUP = 'categories';
+
     public static string $table = 'gst_categories';
     public static string $folder = 'gestionale/categories';
     public static string $icon = 'bi bi-diagram-3';

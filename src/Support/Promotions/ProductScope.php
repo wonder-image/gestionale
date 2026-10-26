@@ -18,6 +18,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignCategory;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignProductModel;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignTag;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
+use Wonder\Plugin\Gestionale\Support\RequestMemo;
 
 /**
  * Legge dal database «a chi si applica» una campagna (o un coupon) e i fatti
@@ -58,6 +59,16 @@ final class ProductScope
     public static function of(string $owner, int $ownerId): array
     {
         $map = self::OWNERS[$owner] ?? throw new \InvalidArgumentException('Proprietario del selettore sconosciuto: '.$owner);
+
+        return RequestMemo::remember(DiscountCampaign::MEMO_GROUP, 'scope:'.$owner.':'.$ownerId, static fn (): array => self::read($map, $ownerId));
+    }
+
+    /**
+     * @param array{model: class-string, key: string, categories: class-string, tags: class-string, brands: class-string, product_models: class-string} $map
+     * @return array{all: bool, categories: list<int>, tags: list<int>, brands: list<int>, models: list<int>, excluded_models: list<int>}
+     */
+    private static function read(array $map, int $ownerId): array
+    {
         $header = $map['model']::findById($ownerId);
         $where = [$map['key'] => $ownerId];
 
@@ -192,13 +203,15 @@ final class ProductScope
     /** @return array<int, int> categoria → padre (0 se è in cima) */
     private static function parents(): array
     {
-        $parents = [];
+        return RequestMemo::remember(Category::MEMO_GROUP, 'parents', static function (): array {
+            $parents = [];
 
-        foreach (self::rows(Category::all()) as $row) {
-            $parents[(int) $row['id']] = (int) ($row['parent_id'] ?? 0);
-        }
+            foreach (self::rows(Category::all()) as $row) {
+                $parents[(int) $row['id']] = (int) ($row['parent_id'] ?? 0);
+            }
 
-        return $parents;
+            return $parents;
+        });
     }
 
     /**

@@ -58,6 +58,8 @@ final class Defaults implements ModuleDefaults
         self::paymentTerms($rows);
         self::carriers($rows);
         self::shipping($rows);
+        // DefaultRows scrive con query dirette.
+        RequestMemo::reset();
     }
 
     /** Una riga bloccata per ogni funzionalità del catalogo. */
