@@ -204,4 +204,23 @@ check('value: fissi per quantità e le min opzioni più economiche', function ()
         && Bundles::value([], [$g('A', 0, 1, [$o(11)])], $prezzi) === '0.00';
 });
 
+check('isBundleRow: stessa regola di isBundle su righe già lette', function () {
+    $modelli = [
+        1 => ['id' => 1, 'type' => 'bundle', 'deleted' => 'false'],
+        2 => ['id' => 2, 'type' => 'simple', 'deleted' => 'false'],
+        3 => ['id' => 3, 'type' => 'bundle', 'deleted' => 'true'],
+        4 => ['id' => 4, 'deleted' => 'false'],
+    ];
+    $p = static fn (int $modello, string $cancellato = 'false'): array => ['id' => 10, 'product_model_id' => $modello, 'deleted' => $cancellato];
+
+    return Bundles::isBundleRow($p(1), $modelli) === true
+        && Bundles::isBundleRow($p(2), $modelli) === false
+        && Bundles::isBundleRow($p(3), $modelli) === false
+        && Bundles::isBundleRow($p(4), $modelli) === false
+        && Bundles::isBundleRow($p(9), $modelli) === false
+        && Bundles::isBundleRow($p(1, 'true'), $modelli) === false
+        && Bundles::isBundleRow(['product_model_id' => 1], $modelli) === false
+        && Bundles::isBundleRow(null, $modelli) === false;
+});
+
 summary();

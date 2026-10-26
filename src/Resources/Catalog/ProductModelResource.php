@@ -3101,13 +3101,14 @@ HTML
 
         $prodotti = static::rowsOf(Product::class, [], 'id');
         $nomi = ProductNames::models($prodotti);
+        $modelli = Bundles::modelsOf($prodotti);
         $voci = [];
 
         foreach ($prodotti as $prodotto) {
             $id = (int) $prodotto['id'];
             $attivo = ($prodotto['active'] ?? 'false') === 'true';
 
-            if ((!$attivo && !isset($scelti[$id])) || Bundles::isBundle($id)) {
+            if ((!$attivo && !isset($scelti[$id])) || Bundles::isBundleRow($prodotto, $modelli)) {
                 continue;
             }
 
