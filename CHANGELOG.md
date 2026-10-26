@@ -778,6 +778,12 @@ versionamento semantico.
 - Tabella *Righe* dell'ordine: il nome con un trattino lungo (o altre entità) si
   leggeva come codice, `&#8212;`; ora si decodifica e si escapa una volta sola
   (`GestionaleResource::escapeStored()`).
+- Tag: il nome è obbligatorio anche lato server. Il form aveva già
+  `required`, ma un nome di soli spazi passava e il tag nasceva con `name`
+  NULL; ora `TagResource::mutateRequestValues()` toglie gli spazi ai lati e
+  rifiuta il nome vuoto (`tag.name_required`), in creazione e in modifica.
+  Nessuna migrazione: i tag già salvati senza nome restano, e alla prossima
+  modifica chiedono un nome.
 
 ### Sicurezza
 
