@@ -14,7 +14,6 @@ $GLOBALS['ROOT'] = SITE;
 require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 
-use Wonder\Plugin\Gestionale\Models\System\Throttle as ThrottleModel;
 use Wonder\Plugin\Gestionale\Support\Throttle;
 use Wonder\Sql\Connection;
 
@@ -27,13 +26,17 @@ if (($argv[1] ?? '') === '--figlio') {
 require __DIR__.'/../harness.php';
 
 $connessione = Connection::Connect('main');
-// Prima di `forge update` la tabella può mancare: la si crea dal Model.
 if (!$connessione->query("SHOW TABLES LIKE 'gst_throttles'")->num_rows) {
-    ThrottleModel::createTable();
+    fwrite(STDERR, "Manca gst_throttles: lancia `php forge update --local` nel sito.\n");
+    exit(1);
 }
 
 $chiave = 'k'.bin2hex(random_bytes(6));
 $hash = hash('sha256', 'test_concorrenza|'.$chiave);
+register_shutdown_function(static function () use ($connessione, $hash): void {
+    $delete = $connessione->prepare('DELETE FROM gst_throttles WHERE throttle_key = ?');
+    $delete->execute([$hash]);
+});
 $limite = 3;
 $processi = 12;
 
@@ -69,8 +72,5 @@ check('finestra scaduta: il conto riparte da 1', function () use ($connessione, 
 
     return $passa && (int) ($select->get_result()->fetch_assoc()['hits'] ?? 0) === 1;
 });
-
-$delete = $connessione->prepare('DELETE FROM gst_throttles WHERE throttle_key = ?');
-$delete->execute([$hash]);
 
 summary();

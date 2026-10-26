@@ -7,8 +7,8 @@ versionamento semantico.
 
 ### Aggiunto
 
-- **Limiti di tentativi** (`Support\Throttle`), spostati qui dall'ecommerce
-  con la stessa API. `attempt()` conta e decide in un colpo solo con un
+- **Limiti di tentativi** (`Support\Throttle`): la primitiva dell'ecommerce,
+  con la stessa API, ora anche nel gestionale; l'ecommerce passerà a usarla. `attempt()` conta e decide in un colpo solo con un
   UPSERT atomico a finestra fissa sulla tabella `gst_throttles` (Model
   `System\Throttle`); se la tabella non risponde il tentativo passa e
   l'errore va nel registro con l'azione `gestionale.throttle`. `allowed()` e
