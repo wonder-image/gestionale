@@ -22,7 +22,7 @@ final class ShippingSync
     public static function enabled(): bool
     {
         try {
-            $value = Setting::current()['shipping_sync'] ?? 'true';
+            $value = Setting::fresh()['shipping_sync'] ?? 'true';
         } catch (Throwable) {
             // Senza database (test degli schemi, primo `forge update`) vale
             // il predefinito della colonna.

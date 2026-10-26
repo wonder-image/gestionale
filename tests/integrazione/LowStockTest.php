@@ -88,6 +88,8 @@ function giroDiProva(string $destinatari): void
 
     // Dritto sulla tabella: la riga delle impostazioni è una sola, la 1.
     Setting::query()->Update(Setting::$table, ['low_stock_emails' => $destinatari], 'id', 1);
+    // Come fa SettingResource dopo il salvataggio.
+    Setting::forget();
     $GLOBALS['posta'] = [];
     $GLOBALS['segnalazioni'] = [];
 }
@@ -284,6 +286,7 @@ check('senza destinatari l\'avviso aspetta, e parte appena ce n\'è uno', fn () 
     $senza = LowStockNotifier::run();
     $aspetta = trim((string) (Alerts::openRow($productId)['notified_at'] ?? '')) === '';
     Setting::query()->Update(Setting::$table, ['low_stock_emails' => 'magazzino@negozio.test'], 'id', 1);
+    Setting::forget();
     $con = LowStockNotifier::run();
 
     return $senza['status'] === LowStockNotifier::NO_RECIPIENTS
