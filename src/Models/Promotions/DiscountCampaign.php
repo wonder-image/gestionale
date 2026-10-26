@@ -8,6 +8,7 @@ use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
+use Wonder\Plugin\Gestionale\Support\ForgetsRequestMemo;
 
 /**
  * Una campagna di sconto: un prezzo che cambia da solo, in un periodo, per
@@ -23,6 +24,10 @@ use Wonder\Sql\TableSchema as Column;
  */
 final class DiscountCampaign extends Model
 {
+    use ForgetsRequestMemo;
+
+    public const MEMO_GROUP = 'promotions';
+
     public static string $table = 'gst_discount_campaigns';
     public static string $folder = 'gestionale/models';
     public static string $icon = 'bi bi-percent';

@@ -24,6 +24,7 @@ use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\RequestMemo;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureCatalog;
 use Wonder\Plugin\Gestionale\Support\Shipping\ShippingZones;
 
@@ -45,6 +46,8 @@ final class Defaults implements ModuleDefaults
 
     public static function seed(DefaultRows $rows): void
     {
+        // Gira dopo l'import del deploy, che scrive senza passare dai Model.
+        RequestMemo::reset();
         self::features($rows);
         self::taxes($rows);
         self::taxCategories($rows);
@@ -55,6 +58,8 @@ final class Defaults implements ModuleDefaults
         self::paymentTerms($rows);
         self::carriers($rows);
         self::shipping($rows);
+        // DefaultRows scrive con query dirette.
+        RequestMemo::reset();
     }
 
     /** Una riga bloccata per ogni funzionalità del catalogo. */
@@ -219,6 +224,7 @@ final class Defaults implements ModuleDefaults
                 'developer_error_emails' => '',
                 'merchant_notification_emails' => self::societyEmail(),
             ]);
+            Setting::forget();
         }
     }
 

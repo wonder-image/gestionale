@@ -29,6 +29,7 @@ use Wonder\Plugin\Gestionale\Support\Promotions\PromotionSheet;
 use Wonder\Plugin\Gestionale\Support\Promotions\ScopeForm;
 use Wonder\Plugin\Gestionale\Support\Sales\Channels;
 use Wonder\Sql\Transaction;
+use Wonder\Plugin\Gestionale\Support\RequestMemo;
 
 /**
  * «Coupon»: un codice che il cliente scrive nel carrello per avere uno sconto,
@@ -560,6 +561,8 @@ class CouponResource extends GestionaleResource
 
     public static function afterStore(object $result, array $values = []): void
     {
+        // Il backend scrive la testata con una query diretta.
+        RequestMemo::forget(Coupon::MEMO_GROUP);
         $id = (int) ($result->insert_id ?? 0);
 
         if ($id > 0) {
@@ -569,7 +572,14 @@ class CouponResource extends GestionaleResource
 
     public static function afterUpdate(int|string $id, object $result, array $values = []): void
     {
+        RequestMemo::forget(Coupon::MEMO_GROUP);
         static::saveRelations((int) $id);
+    }
+
+    public static function afterDelete(int|string $id, object $result, array $values = []): void
+    {
+        RequestMemo::forget(Coupon::MEMO_GROUP);
+        parent::afterDelete($id, $result, $values);
     }
 
     /**

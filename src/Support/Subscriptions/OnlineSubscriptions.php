@@ -695,7 +695,7 @@ final class OnlineSubscriptions
      */
     public static function taxFor(int $taxCategoryId, array $billing): array
     {
-        $rules = self::rows(TaxRule::find(['deleted' => 'false']));
+        $rules = TaxRule::active();
         $type = trim((string) ($billing['billing_pi'] ?? '')) !== '' ? 'business' : 'private';
         $taxId = TaxResolver::resolve($rules, 'IT', $type, $taxCategoryId, (int) (Setting::current()['fallback_tax_id'] ?? 0));
         $tax = $taxId > 0 ? Tax::findById($taxId) : null;

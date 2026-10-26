@@ -20,6 +20,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Positions;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\RequestMemo;
 
 /**
  * "Categorie": l'albero con cui si naviga il catalogo.
@@ -286,5 +287,24 @@ final class CategoryResource extends GestionaleResource
     private static function rows(): array
     {
         return static::rowsOf(Category::class, [], 'position');
+    }
+
+    // Il backend scrive con una query diretta: la copia della richiesta va buttata.
+    public static function afterStore(object $result, array $values = []): void
+    {
+        RequestMemo::forget(Category::MEMO_GROUP);
+        parent::afterStore($result, $values);
+    }
+
+    public static function afterUpdate(int|string $id, object $result, array $values = []): void
+    {
+        RequestMemo::forget(Category::MEMO_GROUP);
+        parent::afterUpdate($id, $result, $values);
+    }
+
+    public static function afterDelete(int|string $id, object $result, array $values = []): void
+    {
+        RequestMemo::forget(Category::MEMO_GROUP);
+        parent::afterDelete($id, $result, $values);
     }
 }

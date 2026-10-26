@@ -597,6 +597,26 @@ versionamento semantico.
 
 ### Cambiato
 
+- **Letture ripetute in copia per la durata della richiesta**:
+  `Support\RequestMemo` tiene in memoria, per processo, impostazioni
+  (`Setting::current()`), regole IVA (`TaxRule::active()`, solo le non
+  cancellate: `active` lo filtra chi le usa), campagne e coupon con i loro
+  ponti (`Campaigns::running`, `ProductScope::of`) e l'albero delle categorie
+  (`ProductScope::parents`). `Cart::recalculate` legge prodotti e modelli una
+  volta sola con `id IN (...)` (`Bundles::modelsOf()` / `isBundleRow()`)
+  invece che riga per riga. Stessi risultati: le condizioni passano dal Model
+  e tengono `deleted = 'false'`. Contratto: **le scritture passano dai
+  Model/Resource oppure chiamano `::forget()`** (trait `ForgetsRequestMemo`,
+  hook `after*` delle Resource, `Setting::forget()`). Dentro una transazione
+  non si tiene in copia niente di nuovo e il gruppo scritto si rilegge sempre
+  dal database fino alla chiusura. `Setting::fresh()` legge senza copia
+  (usato da `ShippingSync` durante l'import). Limiti noti: le scritture
+  dirette (`query()`, `sqlModify`, gli endpoint AJAX del core per stato,
+  eliminazione e ordinamento) non svuotano la copia; un processo lungo (task
+  dello scheduler) non vede le modifiche fatte da altri processi e può
+  chiamare `RequestMemo::reset()`; la copia è separata da quella del core,
+  che non la svuota.
+
 - **Posizione dei nuovi indirizzi da customer-account**: un indirizzo creato
   dalla scheda cliente prende la posizione da
   `AccountAddresses::nextPosition()` invece di un calcolo locale. Stesso

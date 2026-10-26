@@ -6,6 +6,8 @@ use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Sql\TableSchema as Column;
+use Wonder\Plugin\Gestionale\Support\ForgetsRequestMemo;
+use Wonder\Plugin\Gestionale\Support\RequestMemo;
 
 /**
  * Regola IVA: paese del cliente × tipo di cliente × tipo fiscale del prodotto
@@ -18,6 +20,10 @@ use Wonder\Sql\TableSchema as Column;
  */
 final class TaxRule extends Model
 {
+    use ForgetsRequestMemo;
+
+    public const MEMO_GROUP = 'tax_rules';
+
     public static string $table = 'gst_tax_rules';
     public static string $folder = 'gestionale/tax-rules';
     public static string $icon = 'bi bi-diagram-3';
@@ -52,5 +58,24 @@ final class TaxRule extends Model
             Field::key('tax_id')->number()->decimals(0),
             Field::key('active')->text()->sanitize(false),
         ];
+    }
+
+    /**
+     * Le regole non cancellate, lette una volta per richiesta. Non filtra
+     * `active`: lo fa chi le usa.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function active(): array
+    {
+        return RequestMemo::remember(self::MEMO_GROUP, 'active', static function (): array {
+            $rows = static::find(['deleted' => 'false']);
+
+            if (!is_array($rows) || $rows === []) {
+                return [];
+            }
+
+            return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
+        });
     }
 }

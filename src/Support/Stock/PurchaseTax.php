@@ -46,7 +46,7 @@ final class PurchaseTax
             $products = self::rows(Product::find('`id` IN ('.implode(', ', $productIds).')'));
             $modelIds = array_values(array_unique(array_filter(array_map(static fn (array $row): int => (int) ($row['product_model_id'] ?? 0), $products))));
             $models = $modelIds === [] ? [] : self::rows(ProductModel::find('`id` IN ('.implode(', ', $modelIds).')'));
-            $rules = self::rows(TaxRule::find(['deleted' => 'false']));
+            $rules = TaxRule::active();
             $fallback = (int) (Setting::current()['fallback_tax_id'] ?? 0);
             $taxes = [];
 

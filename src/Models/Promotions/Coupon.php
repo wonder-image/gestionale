@@ -7,6 +7,7 @@ use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
+use Wonder\Plugin\Gestionale\Support\ForgetsRequestMemo;
 
 /**
  * Un coupon: un codice che il cliente scrive nel carrello per avere uno sconto
@@ -27,6 +28,10 @@ use Wonder\Sql\TableSchema as Column;
  */
 final class Coupon extends Model
 {
+    use ForgetsRequestMemo;
+
+    public const MEMO_GROUP = 'promotions';
+
     public static string $table = 'gst_coupons';
     public static string $folder = 'gestionale/models';
     public static string $icon = 'bi bi-ticket-perforated';

@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Support\Promotions;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaign;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\RequestMemo;
 
 /**
  * Le campagne di sconto: l'unica porta da cui carrello, backend e vetrina le
@@ -52,8 +53,11 @@ final class Campaigns
      */
     public static function running(string $now, string $channel = 'online'): array
     {
-        $found = DiscountCampaign::find(['active' => 'true']);
-        $rows = is_array($found) ? (array_key_exists('id', $found) ? [$found] : array_filter($found, 'is_array')) : [];
+        $rows = RequestMemo::remember(DiscountCampaign::MEMO_GROUP, 'active_campaigns', static function (): array {
+            $found = DiscountCampaign::find(['active' => 'true']);
+
+            return is_array($found) ? (array_key_exists('id', $found) ? [$found] : array_filter($found, 'is_array')) : [];
+        });
         $flag = 'applies_'.$channel;
 
         return array_values(array_filter(

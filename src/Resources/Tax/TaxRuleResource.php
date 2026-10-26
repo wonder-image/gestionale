@@ -18,6 +18,7 @@ use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\RequestMemo;
 
 /**
  * "Regole IVA": paese del cliente × tipo di cliente × tipo fiscale del
@@ -290,5 +291,24 @@ final class TaxRuleResource extends GestionaleResource
         }
 
         return $options;
+    }
+
+    // Il backend scrive con una query diretta: la copia della richiesta va buttata.
+    public static function afterStore(object $result, array $values = []): void
+    {
+        RequestMemo::forget(TaxRule::MEMO_GROUP);
+        parent::afterStore($result, $values);
+    }
+
+    public static function afterUpdate(int|string $id, object $result, array $values = []): void
+    {
+        RequestMemo::forget(TaxRule::MEMO_GROUP);
+        parent::afterUpdate($id, $result, $values);
+    }
+
+    public static function afterDelete(int|string $id, object $result, array $values = []): void
+    {
+        RequestMemo::forget(TaxRule::MEMO_GROUP);
+        parent::afterDelete($id, $result, $values);
     }
 }

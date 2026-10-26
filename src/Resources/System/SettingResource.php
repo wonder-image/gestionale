@@ -583,4 +583,23 @@ final class SettingResource extends SingletonResource
 
         return $options;
     }
+
+    // Il backend scrive con una query diretta: la copia della richiesta va buttata.
+    public static function afterStore(object $result, array $values = []): void
+    {
+        Setting::forget();
+        parent::afterStore($result, $values);
+    }
+
+    public static function afterUpdate(int|string $id, object $result, array $values = []): void
+    {
+        Setting::forget();
+        parent::afterUpdate($id, $result, $values);
+    }
+
+    public static function afterDelete(int|string $id, object $result, array $values = []): void
+    {
+        Setting::forget();
+        parent::afterDelete($id, $result, $values);
+    }
 }

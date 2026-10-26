@@ -361,9 +361,67 @@ final class Bundles
     /** Questo prodotto è un multiprodotto? */
     public static function isBundle(int $productId): bool
     {
-        $model = self::modelOf($productId);
+        $product = self::product($productId);
 
-        return is_array($model) && ($model['type'] ?? 'simple') === 'bundle';
+        if ($product === null) {
+            return false;
+        }
+
+        $modelId = (int) ($product['product_model_id'] ?? 0);
+        $model = ProductModel::findById($modelId);
+
+        return self::isBundleRow($product, is_array($model) ? [$modelId => $model] : []);
+    }
+
+    /**
+     * La stessa domanda di isBundle() su righe già lette: prodotto non
+     * cancellato, modello presente e non cancellato, di tipo `bundle`.
+     *
+     * @param array<string, mixed>|null $product
+     * @param array<int, array<string, mixed>> $modelsById
+     */
+    public static function isBundleRow(?array $product, array $modelsById): bool
+    {
+        if ($product === null || !isset($product['id']) || ($product['deleted'] ?? 'false') === 'true') {
+            return false;
+        }
+
+        $model = $modelsById[(int) ($product['product_model_id'] ?? 0)] ?? null;
+
+        return is_array($model)
+            && isset($model['id'])
+            && ($model['deleted'] ?? 'false') !== 'true'
+            && ($model['type'] ?? 'simple') === 'bundle';
+    }
+
+    /**
+     * I modelli vivi dei prodotti dati, per id, in una sola lettura.
+     *
+     * @param list<array<string, mixed>> $products
+     * @return array<int, array<string, mixed>>
+     */
+    public static function modelsOf(array $products): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(
+            static fn (array $row): int => (int) ($row['product_model_id'] ?? 0),
+            $products
+        ))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $rows = self::rows(ProductModel::find('id IN ('.implode(',', $ids).')'));
+
+        $models = [];
+
+        foreach ($rows as $row) {
+            if ((int) ($row['id'] ?? 0) > 0) {
+                $models[(int) $row['id']] = $row;
+            }
+        }
+
+        return $models;
     }
 
     /**

@@ -15,6 +15,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignBrand;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignCategory;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignTag;
 use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
+use Wonder\Plugin\Gestionale\Support\RequestMemo;
 
 /**
  * Le promozioni di prova: tre campagne di sconto e cinque coupon.
@@ -217,6 +218,7 @@ final class PromotionsDemo
                 } elseif ((string) ($existing['deleted'] ?? 'false') === 'true') {
                     // Cancellato dal backend: il codice è unico, si rimette in vita.
                     Coupon::query()->Update(Coupon::$table, ['deleted' => 'false'], 'id', (int) $existing['id']);
+                    RequestMemo::forget(Coupon::MEMO_GROUP);
                     $created++;
                 }
 

@@ -418,7 +418,7 @@ final class ProductExport
     private static function taxRates(array $models): array
     {
         try {
-            $rules = self::listOf(TaxRule::find(['deleted' => 'false']));
+            $rules = TaxRule::active();
             $fallback = (int) (Setting::current()['fallback_tax_id'] ?? 0);
             $rates = [];
 

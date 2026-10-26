@@ -7,6 +7,7 @@ use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Extensions\SettingsSections;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
+use Wonder\Plugin\Gestionale\Support\RequestMemo;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -131,11 +132,49 @@ final class Setting extends Model
         return $fields;
     }
 
-    /** La riga unica delle impostazioni, array vuoto se non c'è ancora. */
+    /**
+     * La riga unica delle impostazioni, array vuoto se non c'è ancora.
+     * Letta una volta per richiesta: chi la scrive passa da qui o chiama forget().
+     */
     public static function current(): array
+    {
+        return RequestMemo::remember('settings', 'current', static fn (): array => static::fresh());
+    }
+
+    /** La riga letta adesso dal database, senza la copia della richiesta. */
+    public static function fresh(): array
     {
         $row = static::find(['id' => 1], 1);
 
         return is_array($row) ? $row : [];
+    }
+
+    public static function forget(): void
+    {
+        RequestMemo::forget('settings');
+    }
+
+    public static function create(array $values): object
+    {
+        $result = parent::create($values);
+        static::forget();
+
+        return $result;
+    }
+
+    public static function update(array $values, int|string $id): object
+    {
+        $result = parent::update($values, $id);
+        static::forget();
+
+        return $result;
+    }
+
+    public static function delete(int|string $id): object
+    {
+        $result = parent::delete($id);
+        static::forget();
+
+        return $result;
     }
 }
