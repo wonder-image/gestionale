@@ -85,9 +85,9 @@ php forge gestionale:features-doc      # riscrive la tabella nella guida
   `SearchClient::source()`.
 - `ProductModelResource` ha il suo JS in linea per scelta: non estrarlo
   senza test di pagina (sei modal legati a id e `show.bs.modal`).
-- I badge (`<span class="badge text-bg-*">`) restano scritti a mano, negli
-  helper (`StatusLabels`, `StockBadge`, `BatchExpiry`, `DuePayments`,
-  `PromotionSheet`, `OrderSheet`) come nelle Resource: `Badge` del core li
-  avvolge sempre in un `<div class="col-span-*">`, che non può stare in una
-  cella accanto a un testo, in un titolo o in un `<span>`. Si passa a `Badge`
-  quando il core avrà un modo in linea come quello di `Button`.
+- I badge in celle, titoli e accanto a un testo si scrivono con
+  `Badge::make($testo)->variant(...)->inline()->render('bootstrap')`:
+  `inline()` toglie il `<div class="col-span-*">` della colonna. La label
+  va passata non escapata (la escapa il renderer). Restano a mano solo i
+  badge con l'icona delle sedi (`LocationResource`: con `icon()` il core li
+  fa `d-inline-flex`) e quelli creati in JavaScript (`StockDocumentEditor`).
