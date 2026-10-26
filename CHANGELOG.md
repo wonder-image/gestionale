@@ -796,6 +796,10 @@ versionamento semantico.
   rifiuta il nome vuoto (`tag.name_required`), in creazione e in modifica.
   Nessuna migrazione: i tag già salvati senza nome restano, e alla prossima
   modifica chiedono un nome.
+- Marchi e categorie: stesso controllo del nome dei tag, lato server. Il
+  controllo ora sta in `GestionaleResource::requireName()`, usato da
+  `BrandResource`, `CategoryResource` e `TagResource` (`brand.name_required`,
+  `category.name_required`, `tag.name_required`). Nessuna migrazione.
 
 ### Sicurezza
 

@@ -193,6 +193,8 @@ final class CategoryResource extends GestionaleResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        $values = static::requireName($values, $action, 'category.name_required');
+
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) ($values['name'] ?? ''), Category::$table);
             // La posizione la mette il backend, in fondo ai fratelli: non è

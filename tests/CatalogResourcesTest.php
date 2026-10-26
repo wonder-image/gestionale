@@ -360,29 +360,42 @@ check('un padre che c\'è passa', function () {
     return true;
 });
 
-check('un tag senza nome non si salva, nemmeno di soli spazi', function () {
-    $rifiuto = static function (array $values, string $action): string {
-        try {
-            TagResource::mutateRequestValues($values, $action, 'backend', $action === 'update' ? ['id' => 1] : null);
-        } catch (UserError $errore) {
-            return $errore->key();
+// Marchi, categorie e tag: stesso controllo del nome (`requireName()`).
+$conNome = [
+    'tag' => TagResource::class,
+    'brand' => BrandResource::class,
+    'category' => CategoryResource::class,
+];
+
+foreach ($conNome as $entita => $resource) {
+    check("{$entita}: senza nome non si salva, nemmeno di soli spazi", function () use ($entita, $resource) {
+        $chiave = "{$entita}.name_required";
+        $rifiuto = static function (array $values, string $action) use ($resource): string {
+            try {
+                $resource::mutateRequestValues($values, $action, 'backend', $action === 'update' ? ['id' => 1] : null);
+            } catch (UserError $errore) {
+                // La frase deve esserci: senza, l'utente leggerebbe la chiave.
+                return $errore->getMessage() === $errore->key() ? 'senza frase' : $errore->key();
+            }
+
+            return '';
+        };
+
+        foreach ([[], ['name' => ''], ['name' => '   '], ['name' => null]] as $values) {
+            $esito = $rifiuto($values, 'store');
+
+            if ($esito !== $chiave) {
+                throw new RuntimeException('passa: '.json_encode($values).($esito !== '' ? " ({$esito})" : ''));
+            }
         }
 
-        return '';
-    };
+        return $rifiuto(['name' => " \t "], 'update') === $chiave
+            && $rifiuto(['visible' => 'false'], 'update') === '';
+    });
 
-    foreach ([[], ['name' => ''], ['name' => '   '], ['name' => null]] as $values) {
-        if ($rifiuto($values, 'store') !== 'tag.name_required') {
-            throw new RuntimeException('passa: '.json_encode($values));
-        }
-    }
-
-    return $rifiuto(['name' => " \t "], 'update') === 'tag.name_required'
-        && $rifiuto(['visible' => 'false'], 'update') === '';
-});
-
-check('il nome del tag si salva senza spazi ai lati', fn () =>
-    (TagResource::mutateRequestValues(['name' => '  Saldi  '], 'update', 'backend', ['id' => 1])['name'] ?? '') === 'Saldi'
-);
+    check("{$entita}: il nome si salva senza spazi ai lati", fn () =>
+        ($resource::mutateRequestValues(['name' => '  Saldi  '], 'update', 'backend', ['id' => 1])['name'] ?? '') === 'Saldi'
+    );
+}
 
 summary();

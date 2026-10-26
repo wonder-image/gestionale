@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Positions;
 
 /**
@@ -165,6 +166,8 @@ final class BrandResource extends GestionaleResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        $values = static::requireName($values, $action, 'brand.name_required');
+
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) ($values['name'] ?? ''), Brand::$table);
             $values['position'] = Positions::next(Brand::$table);
