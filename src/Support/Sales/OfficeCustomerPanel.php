@@ -290,14 +290,6 @@ final class OfficeCustomerPanel
         return $contact;
     }
 
-    /** Table::has() c'è solo da app dopo beta.5, che composer.json ammette ancora. */
-    private static function hasSchema(string $name): bool
-    {
-        return method_exists(Table::class, 'has')
-            ? Table::has($name)
-            : array_key_exists($name, Table::$list);
-    }
-
     /**
      * Il giro di `ResourcePageController::update()` del core, su una parte
      * dei campi: controlli della Resource, preparazione della tabella, poi
@@ -325,9 +317,9 @@ final class OfficeCustomerPanel
 
         $schema = CustomerResource::prepareSchemaName();
 
-        if (self::hasSchema($schema)) {
+        if (Table::has($schema)) {
             $values = Table::key($schema)->prepareFor($table, $values, $old);
-        } elseif (self::hasSchema($table)) {
+        } elseif (Table::has($table)) {
             $values = Table::key($table)->prepare($values, $old);
         }
 
