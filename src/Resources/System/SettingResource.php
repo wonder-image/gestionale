@@ -596,4 +596,10 @@ final class SettingResource extends SingletonResource
         Setting::forget();
         parent::afterUpdate($id, $result, $values);
     }
+
+    public static function afterDelete(int|string $id, object $result, array $values = []): void
+    {
+        Setting::forget();
+        parent::afterDelete($id, $result, $values);
+    }
 }

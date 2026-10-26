@@ -93,18 +93,15 @@ check('Campaigns::running: una campagna creata col Model si vede subito, e spari
     return $dentro === true && ids(Campaigns::running(ORA)) === $prima;
 });
 
-check('Campaigns::running: una scrittura diretta non si vede finché nessuno butta la copia', function () {
+check('Campaigns::running: dentro una transazione nessuna copia, anche una scrittura diretta si vede', function () {
     RequestMemo::reset();
 
     return prova(static function (): bool {
         $id = campagna();
-        RequestMemo::reset();
         $prima = in_array($id, ids(Campaigns::running(ORA)), true);
         sqlModify(DiscountCampaign::$table, ['active' => 'false'], 'id', (string) $id);
-        $copia = in_array($id, ids(Campaigns::running(ORA)), true);
-        RequestMemo::forget(DiscountCampaign::MEMO_GROUP);
 
-        return $prima && $copia && !in_array($id, ids(Campaigns::running(ORA)), true);
+        return $prima && !in_array($id, ids(Campaigns::running(ORA)), true);
     }) === true;
 });
 

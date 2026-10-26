@@ -2,7 +2,6 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Catalog;
 
-use Throwable;
 use Wonder\Plugin\Gestionale\Models\Catalog\BundleComponent;
 use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroup;
 use Wonder\Plugin\Gestionale\Models\Catalog\BundleGroupOption;
@@ -412,11 +411,7 @@ final class Bundles
             return [];
         }
 
-        try {
-            $rows = self::rows(ProductModel::find('id IN ('.implode(',', $ids).')'));
-        } catch (Throwable) {
-            return [];
-        }
+        $rows = self::rows(ProductModel::find('id IN ('.implode(',', $ids).')'));
 
         $models = [];
 

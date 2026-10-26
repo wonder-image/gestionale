@@ -61,7 +61,8 @@ final class TaxRule extends Model
     }
 
     /**
-     * Le regole non cancellate, lette una volta per richiesta.
+     * Le regole non cancellate, lette una volta per richiesta. Non filtra
+     * `active`: lo fa chi le usa.
      *
      * @return list<array<string, mixed>>
      */

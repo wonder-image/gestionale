@@ -8,9 +8,9 @@ use Wonder\Sql\Transaction;
 /**
  * Letture tenute da parte per la durata della richiesta, per gruppo.
  *
- * Chi scrive i dati di un gruppo chiama forget(). Se lo fa dentro una
- * transazione, finché la transazione è aperta il gruppo si rilegge ogni volta
- * senza tenerlo: un rollback non deve lasciare in memoria righe mai scritte.
+ * Chi scrive i dati di un gruppo chiama forget(). Dentro una transazione non
+ * si tiene niente di nuovo: un rollback non deve lasciare in memoria righe mai
+ * scritte. Un gruppo scritto nella transazione si rilegge fino alla chiusura.
  */
 final class RequestMemo
 {
@@ -34,6 +34,10 @@ final class RequestMemo
             return self::$values[$group][$key];
         }
 
+        if (self::inTransaction()) {
+            return $read();
+        }
+
         return self::$values[$group][$key] = $read();
     }
 
@@ -46,7 +50,7 @@ final class RequestMemo
         }
     }
 
-    /** Svuota tutto: per i test e dopo l'import del deploy. */
+    /** Svuota tutto: per i test e per i processi lunghi. */
     public static function reset(): void
     {
         self::$values = [];
