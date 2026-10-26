@@ -134,6 +134,9 @@
                 "reference_used": "Questo riferimento è già su un altro incasso: controlla il numero di CRO o di operazione."
             },
             "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
+            "tag": {
+                "name_required": "Scrivi il nome del tag."
+            },
             "category": {
                 "loop": "Una categoria non può stare sotto sé stessa o sotto una sua sottocategoria.",
                 "parent_missing": "La categoria padre scelta non esiste più: ricarica la pagina e riprova."

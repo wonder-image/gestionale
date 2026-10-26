@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
 /**
  * "Tag": un'etichetta trasversale alle categorie ("novità", "saldi").
@@ -139,13 +140,28 @@ final class TagResource extends GestionaleResource
             ->access(Gestionale::area('catalogo'));
     }
 
-    /** Lo slug nasce dal nome alla creazione e poi non si tocca più. */
+    /**
+     * Il nome è obbligatorio anche lato server: il `required` del form non
+     * ferma un nome di soli spazi. Lo slug nasce dal nome alla creazione e
+     * poi non si tocca più.
+     */
     public static function mutateRequestValues(
         array $values,
         string $action,
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        // In modifica si controlla solo se il nome arriva: chi non lo manda non lo cambia.
+        if ($action === 'store' || array_key_exists('name', $values)) {
+            $name = is_scalar($values['name'] ?? null) ? trim((string) $values['name']) : '';
+
+            if ($name === '') {
+                throw UserError::make('tag.name_required');
+            }
+
+            $values['name'] = $name;
+        }
+
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) ($values['name'] ?? ''), Tag::$table);
         } else {

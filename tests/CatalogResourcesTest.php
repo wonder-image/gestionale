@@ -360,4 +360,29 @@ check('un padre che c\'è passa', function () {
     return true;
 });
 
+check('un tag senza nome non si salva, nemmeno di soli spazi', function () {
+    $rifiuto = static function (array $values, string $action): string {
+        try {
+            TagResource::mutateRequestValues($values, $action, 'backend', $action === 'update' ? ['id' => 1] : null);
+        } catch (UserError $errore) {
+            return $errore->key();
+        }
+
+        return '';
+    };
+
+    foreach ([[], ['name' => ''], ['name' => '   '], ['name' => null]] as $values) {
+        if ($rifiuto($values, 'store') !== 'tag.name_required') {
+            throw new RuntimeException('passa: '.json_encode($values));
+        }
+    }
+
+    return $rifiuto(['name' => " \t "], 'update') === 'tag.name_required'
+        && $rifiuto(['visible' => 'false'], 'update') === '';
+});
+
+check('il nome del tag si salva senza spazi ai lati', fn () =>
+    (TagResource::mutateRequestValues(['name' => '  Saldi  '], 'update', 'backend', ['id' => 1])['name'] ?? '') === 'Saldi'
+);
+
 summary();
