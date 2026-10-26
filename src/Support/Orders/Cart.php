@@ -230,6 +230,9 @@ final class Cart
             }
 
             $shipping = Gestionale::feature('shipping');
+            // Prodotti e modelli delle righe in una lettura sola.
+            $products = self::productsOf($all);
+            $models = Bundles::modelsOf(array_values($products));
 
             foreach ($all as $item) {
                 // La spedizione calcolata si rifà dopo, quando i prodotti sono
@@ -253,7 +256,8 @@ final class Cart
                 }
 
                 $productId = (int) ($item['product_id'] ?? 0);
-                $product = $productId > 0 ? Product::findById($productId) : null;
+                $product = $products[$productId] ?? null;
+                $isBundle = Bundles::isBundleRow($product, $models);
 
                 if ((string) $item['type'] === 'product'
                     && (!is_array($product) || ($product['active'] ?? 'false') !== 'true')) {
@@ -268,7 +272,7 @@ final class Cart
                 // funzionalità spenta resta com'è, come le personalizzate.
                 $bundle = null;
 
-                if ((string) $item['type'] === 'product' && Bundles::isBundle($productId)
+                if ((string) $item['type'] === 'product' && $isBundle
                     && Gestionale::feature('bundles')) {
                     try {
                         $bundle = Bundles::resolve($productId, self::optionIds($all, (int) $item['id']));
@@ -308,7 +312,7 @@ final class Cart
                     // Una confezione con la funzionalità spenta non si rifà dalle
                     // opzioni, ma il loro sovrapprezzo è già nel prezzo scritto:
                     // si tiene la parte che non viene dalle personalizzazioni.
-                    if ((string) $item['type'] === 'product' && Bundles::isBundle($productId) && !Gestionale::feature('bundles')) {
+                    if ((string) $item['type'] === 'product' && $isBundle && !Gestionale::feature('bundles')) {
                         $kept = max(0.0, (float) $written - array_sum(array_column(Customizations::decode($item['customization'] ?? ''), 'surcharge')));
                         $item['customization_surcharge'] = self::money($fieldsSurcharge + $kept);
                     }
@@ -1250,6 +1254,32 @@ final class Cart
     private static function nextPosition(int $cartId): int
     {
         return count(self::items($cartId)) + 1;
+    }
+
+    /**
+     * I prodotti delle righe, per id.
+     *
+     * @param list<array<string, mixed>> $items
+     * @return array<int, array<string, mixed>>
+     */
+    private static function productsOf(array $items): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(
+            static fn (array $item): int => (int) ($item['product_id'] ?? 0),
+            $items
+        ))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $products = [];
+
+        foreach (self::rows(Product::find('id IN ('.implode(',', $ids).')')) as $row) {
+            $products[(int) $row['id']] = $row;
+        }
+
+        return $products;
     }
 
     /** @return list<array<string, mixed>> */
