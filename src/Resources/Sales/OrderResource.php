@@ -13,6 +13,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Accordion;
+use Wonder\Elements\Components\Badge;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
@@ -784,7 +785,7 @@ final class OrderResource extends GestionaleResource
     public static function paymentBadge(string $status, bool $test): string
     {
         return StatusLabels::badge('payment', $status)
-            .($test ? '<span class="badge bg-warning text-dark ms-1">Prova</span>' : '');
+            .($test ? Badge::make('Prova')->variant('warning')->addClass('text-dark ms-1')->inline()->render('bootstrap') : '');
     }
 
     /**

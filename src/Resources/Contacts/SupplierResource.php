@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Contacts;
 
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\Elements\Components\Accordion;
+use Wonder\Elements\Components\Badge;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
@@ -141,7 +142,7 @@ final class SupplierResource extends CustomerResource
             $body .= '<tr><td class="fw-semibold"><a href="'.OrderSheet::esc(StockDocumentResource::pageUrl($doc)).'">'.OrderSheet::esc($numero).'</a></td>'
                 .'<td>'.OrderSheet::esc(substr(OrderSheet::date((string) ($doc['date'] ?? '')), 0, 10)).'</td>'
                 .'<td>'.OrderSheet::esc(trim((string) ($doc['supplier_document_number'] ?? '')) ?: '—').'</td>'
-                .'<td><span class="badge text-bg-'.$colore.'">'.OrderSheet::esc($parola).'</span></td></tr>';
+                .'<td>'.Badge::make($parola)->variant($colore)->inline()->render('bootstrap').'</td></tr>';
         }
 
         return '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr>'

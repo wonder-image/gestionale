@@ -9,6 +9,7 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Elements\Components\Badge;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
@@ -243,9 +244,9 @@ final class ScheduleResource extends GestionaleResource
     public static function statusLabel(array $row): string
     {
         return match ((string) ($row['status'] ?? '')) {
-            'pending' => '<span class="badge text-bg-secondary">In attesa</span>',
-            'paid' => '<span class="badge text-bg-success">Pagata il '.static::escape(substr(OrderSheet::date((string) ($row['paid_at'] ?? '')), 0, 10)).'</span>',
-            'cancelled' => '<span class="badge text-bg-light">Annullata</span>',
+            'pending' => Badge::make('In attesa')->variant('secondary')->inline()->render('bootstrap'),
+            'paid' => Badge::make('Pagata il '.substr(OrderSheet::date((string) ($row['paid_at'] ?? '')), 0, 10))->variant('success')->inline()->render('bootstrap'),
+            'cancelled' => Badge::make('Annullata')->variant('light')->inline()->render('bootstrap'),
             default => static::escape((string) ($row['status'] ?? '')),
         };
     }
