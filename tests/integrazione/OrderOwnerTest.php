@@ -17,11 +17,11 @@ use Wonder\Sql\Transaction;
 
 final class AnnullaOrderOwner extends RuntimeException {}
 
-/** Un ordine con l'email e il proprietario dati. */
-function ordineDi(string $email, int $utente = 0, int $cliente = 0): int
+/** Un ordine con l'email e il proprietario dati; `$stage` per un carrello o un preventivo. */
+function ordineDi(string $email, int $utente = 0, int $cliente = 0, string $stage = 'order'): int
 {
     $ordine = ordineDiProva(30.00);
-    Order::update(['email' => $email, 'user_id' => $utente, 'customer_id' => $cliente], $ordine);
+    Order::update(['email' => $email, 'user_id' => $utente, 'customer_id' => $cliente, 'stage' => $stage], $ordine);
 
     return $ordine;
 }
@@ -35,18 +35,25 @@ try {
         $conScheda = ordineDi($email, 0, 777);
         $altrui = ordineDi($email, 999999, 888);
         $altraEmail = ordineDi('altro-'.$email);
+        $carrello = ordineDi($email, 0, 0, 'cart');
+        $preventivo = ordineDi($email, 0, 0, 'quote');
 
         $allegati = OrderOwner::claim(4242, 4343, '  '.strtoupper($email).' ');
         $di = static fn (int $id): array => (array) Order::findById($id);
 
-        check('gli ordini con la sua email e senza utente passano al nuovo account, anche con le maiuscole', fn () =>
-            $allegati === 3
+        check('gli ordini e i preventivi con la sua email e senza utente passano al nuovo account, anche con le maiuscole', fn () =>
+            $allegati === 4
+            && (int) $di($preventivo)['user_id'] === 4242 && (int) $di($preventivo)['customer_id'] === 4343
             && (int) $di($senzaUtente)['user_id'] === 4242 && (int) $di($senzaUtente)['customer_id'] === 4343
             && (int) $di($maiuscolo)['user_id'] === 4242
         );
 
         check('la scheda cliente già scritta sull\'ordine resta quella', fn () =>
             (int) $di($conScheda)['user_id'] === 4242 && (int) $di($conScheda)['customer_id'] === 777
+        );
+
+        check('il carrello con la sua email resta dell\'ospite: non sostituisce il suo', fn () =>
+            (int) $di($carrello)['user_id'] === 0 && (int) $di($carrello)['customer_id'] === 0
         );
 
         check('un ordine di un altro account o di un\'altra email non si tocca', fn () =>
