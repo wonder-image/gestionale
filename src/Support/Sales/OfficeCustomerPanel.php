@@ -299,6 +299,14 @@ final class OfficeCustomerPanel
      * @param array<string, mixed> $old
      * @return array{ok: bool, message: string}
      */
+    /** Table::has() c'è solo da app dopo beta.5, che composer.json ammette ancora. */
+    private static function hasSchema(string $name): bool
+    {
+        return method_exists(Table::class, 'has')
+            ? Table::has($name)
+            : array_key_exists($name, Table::$list);
+    }
+
     private static function update(int $id, array $values, array $old): array
     {
         $GLOBALS['ALERT'] = '';
@@ -317,9 +325,9 @@ final class OfficeCustomerPanel
 
         $schema = CustomerResource::prepareSchemaName();
 
-        if (Table::has($schema)) {
+        if (self::hasSchema($schema)) {
             $values = Table::key($schema)->prepareFor($table, $values, $old);
-        } elseif (Table::has($table)) {
+        } elseif (self::hasSchema($table)) {
             $values = Table::key($table)->prepare($values, $old);
         }
 

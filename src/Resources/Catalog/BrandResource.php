@@ -17,7 +17,6 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
-use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Positions;
 
 /**
@@ -159,7 +158,7 @@ final class BrandResource extends GestionaleResource
             ->access(Gestionale::area('catalogo'));
     }
 
-    /** Lo slug nasce dal nome alla creazione e poi non si tocca più. */
+    /** Nome obbligatorio anche lato server; lo slug nasce dal nome alla creazione e poi non si tocca più. */
     public static function mutateRequestValues(
         array $values,
         string $action,

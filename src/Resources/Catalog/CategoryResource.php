@@ -186,7 +186,7 @@ final class CategoryResource extends GestionaleResource
             ->access(Gestionale::area('catalogo'));
     }
 
-    /** Slug alla creazione, e nessun anello nell'albero. */
+    /** Nome obbligatorio anche lato server, slug alla creazione, e nessun anello nell'albero. */
     public static function mutateRequestValues(
         array $values,
         string $action,

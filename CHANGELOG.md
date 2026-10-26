@@ -720,8 +720,8 @@ versionamento semantico.
   Model. **Chi aggiorna deve lanciare `php forge update`**; un indirizzo già scritto
   nella vecchia pagina non si copia: va reinserito in Set Up.
 - Pannello del cliente in ufficio (`OfficeCustomerPanel::update()`): lo schema
-  della tabella si cerca con `Table::has()` del core invece di leggere
-  `Table::$list` a mano.
+  della tabella si cerca con `Table::has()` del core quando c'è; con app
+  v2.4.0-beta.5, ancora ammessa da `composer.json`, si legge `Table::$list`.
 
 ### Corretto
 
