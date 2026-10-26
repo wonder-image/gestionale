@@ -722,6 +722,10 @@ versionamento semantico.
 
 ### Corretto
 
+- `OrderOwner::claim` non prende più i carrelli (`stage = 'cart'`): un ospite
+  che scrive l'email di un altro nel checkout lasciava un carrello senza utente
+  con quell'email, che al primo ingresso del proprietario finiva sul suo
+  account e poteva sostituire il suo. Ordini e preventivi passano come prima.
 - Pagamento online: due conferme dello stesso intento (webhook e ritorno dal
   checkout, o due webhook) registrano un solo incasso e mandano una sola
   coppia di email. `OnlinePayments::succeeded()` gira in una transazione con
