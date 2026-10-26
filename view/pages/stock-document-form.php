@@ -179,14 +179,6 @@ $title = (string) (((array) $resource::pageSchema()->get('titles'))['edit'] ?? '
         }
     }
 
-    function ask(options) {
-        if (window.wi && typeof window.wi.confirm === 'function') {
-            return window.wi.confirm(options);
-        }
-
-        return Promise.resolve(window.confirm(options.text));
-    }
-
     // Una sola partenza: all'invio le righe vanno in `lines` e i bottoni si spengono.
     function prepare() {
         var current = editor();
@@ -248,7 +240,7 @@ $title = (string) (((array) $resource::pageSchema()->get('titles'))['edit'] ?? '
             return;
         }
 
-        ask({
+        window.wi.confirm({
             title: label,
             text: question.replace(/\{(\w+)\}/g, function (all, key) {
                 return Object.prototype.hasOwnProperty.call(words, key) ? words[key] : all;

@@ -477,9 +477,9 @@ class CustomerResource extends GestionaleResource
         foreach ($indirizzi as $indirizzo) {
             $indirizzoId = (int) $indirizzo['id'];
             $predefinito = (string) ($indirizzo['is_default'] ?? '') === 'true';
-            $pulsanti = ContactAddressResource::openButton('<i class="bi bi-pencil"></i> Modifica', 'btn-outline-secondary btn-sm', $indirizzo)
-                .($predefinito ? '' : ' '.ContactAddressResource::defaultForm($contactId, $indirizzoId, 'Rendi predefinito', 'btn-outline-secondary btn-sm'))
-                .' '.ContactAddressResource::deleteButton('<i class="bi bi-trash"></i>', 'btn-outline-danger btn-sm', $indirizzo);
+            $pulsanti = ContactAddressResource::openButton('Modifica', $indirizzo)->icon('bi bi-pencil')->variant('secondary')->outline()->size('sm')->render('bootstrap')
+                .($predefinito ? '' : ' '.ContactAddressResource::defaultForm($contactId, $indirizzoId, 'Rendi predefinito')->variant('secondary')->outline()->size('sm')->render('bootstrap'))
+                .' '.ContactAddressResource::deleteButton('', $indirizzo)->icon('bi bi-trash')->variant('danger')->outline()->size('sm')->render('bootstrap');
 
             $riquadri[] = (new Card)->components([
                 RichText::make(CustomerSheet::delivery($indirizzo).'<div class="mt-2 d-flex flex-wrap gap-1">'.$pulsanti.'</div>')->tag('div')->columnSpan(12),
@@ -491,7 +491,7 @@ class CustomerResource extends GestionaleResource
             ...($riquadri === []
                 ? [RichText::make('<p class="text-muted">'.static::escape(CustomerSheet::noDelivery()).'</p>')->tag('div')->columnSpan(12)]
                 : $riquadri),
-            RichText::make(ContactAddressResource::openButton('<i class="bi bi-plus-lg"></i> Aggiungi indirizzo', 'btn-outline-primary btn-sm'))->tag('div')->columnSpan(12),
+            RichText::make(ContactAddressResource::openButton('Aggiungi indirizzo')->icon('bi bi-plus-lg')->variant('primary')->outline()->size('sm')->render('bootstrap'))->tag('div')->columnSpan(12),
         ])->columns(12)->columnSpan(12);
     }
 
