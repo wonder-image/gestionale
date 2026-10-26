@@ -489,4 +489,9 @@ check('il pagamento in prova porta il badge «Prova» accanto allo stato', fn ()
     && !str_contains(OrderResource::paymentBadge('paid', false), 'Prova')
 );
 
+check('il badge «Prova» è proprio questo HTML', fn () =>
+    OrderResource::paymentBadge('paid', true)
+        === StatusLabels::badge('payment', 'paid').'<span class="badge text-bg-warning text-dark ms-1">Prova</span>'
+);
+
 summary();

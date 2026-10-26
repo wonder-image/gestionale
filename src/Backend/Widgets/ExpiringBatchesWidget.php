@@ -131,12 +131,12 @@ final class ExpiringBatchesWidget implements HomeWidget
 
         $more = $count > count($rows) ? ' e altri '.($count - count($rows)) : '';
 
-        return '<wi-card class="col-12 col-md-6">'
-            .'<h5 class="mb-1"><i class="bi bi-hourglass-split"></i> Lotti in scadenza</h5>'
+        return WidgetCard::half(
+            '<h5 class="mb-1"><i class="bi bi-hourglass-split"></i> Lotti in scadenza</h5>'
             .'<p class="text-body-secondary small mb-2">Con pezzi, scaduti o entro '.$days.' '.($days === 1 ? 'giorno' : 'giorni').'.</p>'
             .'<ul class="list-unstyled mb-2">'.$items.'</ul>'
             .'<a class="small" href="'.$e($listUrl).'">Apri i Lotti'.$e($more).'</a>'
-            .'</wi-card>';
+        );
     }
 
     /** @return list<array<string, mixed>> */

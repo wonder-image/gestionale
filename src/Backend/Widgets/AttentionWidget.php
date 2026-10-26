@@ -82,7 +82,7 @@ HTML);
             $message = htmlspecialchars((string) ($error['message'] ?? ''), ENT_QUOTES, 'UTF-8');
             $occurrences = (int) ($error['occurrences'] ?? 0);
             $last = htmlspecialchars((string) ($error['last_seen_at'] ?? ''), ENT_QUOTES, 'UTF-8');
-            $id = (int) ($error['id'] ?? 0);
+            $open = WidgetCard::button('/backend/app/config/errori/'.(int) ($error['id'] ?? 0).'/edit/', 'Apri', 'info');
 
             $items .= <<<HTML
 <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center gap-3">
@@ -91,7 +91,7 @@ HTML);
         <span class="d-block text-body-secondary small">{$message}</span>
         <span class="d-block text-body-secondary small">{$occurrences} volte, ultima {$last}</span>
     </span>
-    <a class="btn btn-info btn-sm text-nowrap" href="/backend/app/config/errori/{$id}/edit/">Apri</a>
+    {$open}
 </li>
 HTML;
         }
@@ -115,7 +115,7 @@ HTML);
         // Con *Più sedi* bloccata le sedi sono una: la parola non compare.
         $where = $negative['locations'] > 1 ? ' in '.$negative['locations'].' sedi' : '';
         // Dopo il salvataggio si torna qui, alla home (`backend.home`).
-        $url = htmlspecialchars(StockAdjustmentResource::urlFor($negative['product_id'], '/backend/'), ENT_QUOTES, 'UTF-8');
+        $button = WidgetCard::button(StockAdjustmentResource::urlFor($negative['product_id'], '/backend/'), 'Rettifica', 'info');
 
         return <<<HTML
 <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center gap-3">
@@ -123,7 +123,7 @@ HTML);
         <strong>{$name}</strong>
         <span class="d-block text-body-secondary small">{$sku} · Giacenza {$quantity}{$where}</span>
     </span>
-    <a class="btn btn-info btn-sm text-nowrap" href="{$url}">Rettifica</a>
+    {$button}
 </li>
 HTML;
     }

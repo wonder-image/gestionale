@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Sales;
 
 use Throwable;
 use Wonder\Backend\Support\RowDrag;
+use Wonder\Plugin\Gestionale\Support\SearchClient;
 
 /**
  * Le righe del nuovo ordine da ufficio (G9 §2.2), sul modello di
@@ -74,6 +75,7 @@ final class OfficeOrderEditor
             .'<script type="application/json" data-wi-office-lines>'.$json($lines).'</script>'
             .'<script type="application/json" data-wi-office-taxes>'.$json($taxes).'</script>'
             .RowDrag::script()
+            .SearchClient::script()
             .'<script>'.self::script().'</script>'
             .'</div>';
     }
@@ -258,7 +260,6 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
         var taxes = [];
         var rows = [];
         var timer = null;
-        var seq = 0;
         var initial = [];
 
         try {
@@ -279,40 +280,10 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
             });
         }
 
-        function say(text, tone) {
-            message.textContent = text || '';
-            message.className = 'small mt-1 ' + (tone === 'error' ? 'text-danger' : 'text-body-secondary');
-        }
-
-        function request(params, done, fail) {
-            var where = place ? '&location=' + encodeURIComponent(place.value) : '';
-
-            window.fetch(url + (url.indexOf('?') === -1 ? '?' : '&') + params + where, {
-                credentials: 'same-origin',
-                headers: {Accept: 'application/json'}
-            }).then(function (response) {
-                if (!response.ok) {
-                    throw new Error('HTTP ' + response.status);
-                }
-
-                return response.json();
-            }).then(done, fail);
-        }
-
-        function lookup(params, done) {
-            var mine = ++seq;
-
-            request(params, function (data) {
-                if (mine === seq) {
-                    done(data);
-                }
-            }, function () {
-                if (mine === seq) {
-                    close();
-                    say(DOWN, 'error');
-                }
-            });
-        }
+        var client = window.wiSearchClient({message: message, url: url, place: place, close: close, down: DOWN});
+        var say = client.say;
+        var request = client.request;
+        var lookup = client.lookup;
 
         function close() {
             results.classList.add('d-none');
@@ -686,6 +657,7 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
             window.clearTimeout(timer);
 
             if (q.length < 2) {
+                client.cancel();
                 close();
                 say('');
 

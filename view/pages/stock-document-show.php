@@ -11,6 +11,7 @@
  * @var array $ITEM
  */
 
+use Wonder\Elements\Components\Badge;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentSheet;
 use Wonder\View\View;
 
@@ -36,12 +37,12 @@ $costs = $sheet['costs'];
 View::layout('backend.show', ['TITLE' => $resource::singular().' '.$number]);
 ?>
 <div class="row g-3">
-    <wi-card class="col-12">
+    <div class="col-12"><div class="card border"><div class="card-body row g-3">
         <div class="col-12">
             <?php if ((string) ($document['status'] ?? '') === 'cancelled') { ?>
-            <span class="badge text-bg-danger mb-2">Annullato</span>
+            <?= Badge::make('Annullato')->variant('danger')->inline()->addClass('mb-2')->render('bootstrap') ?>
             <?php } elseif ((string) ($document['status'] ?? '') === 'in_transit') { ?>
-            <span class="badge text-bg-warning mb-2">In viaggio</span>
+            <?= Badge::make('In viaggio')->variant('warning')->inline()->addClass('mb-2')->render('bootstrap') ?>
             <?php } ?>
             <?php if ($info !== []) { ?>
             <p class="mb-2"><?=implode(' · ', array_map($e, $info))?></p>
@@ -52,8 +53,8 @@ View::layout('backend.show', ['TITLE' => $resource::singular().' '.$number]);
             <?php } ?>
             <?php } ?>
         </div>
-    </wi-card>
-    <wi-card class="col-12">
+    </div></div></div>
+    <div class="col-12"><div class="card border"><div class="card-body row g-3">
         <div class="col-12 table-responsive">
             <table class="table table-sm align-middle mb-0">
                 <thead>
@@ -110,7 +111,7 @@ View::layout('backend.show', ['TITLE' => $resource::singular().' '.$number]);
                 </tfoot>
             </table>
         </div>
-    </wi-card>
+    </div></div></div>
 </div>
 <?=$resource::hiddenForms($document)?>
 <?php View::end(); ?>

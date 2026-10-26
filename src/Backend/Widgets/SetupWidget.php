@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Backend\Widgets;
 use Wonder\App\Credentials;
 use Wonder\App\Models\Config\SocietyLocation;
 use Wonder\Backend\Contracts\HomeWidget;
+use Wonder\Elements\Components\LinkListCard;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Setup\SetupChecks;
 
@@ -48,29 +49,19 @@ final class SetupWidget implements HomeWidget
             return '';
         }
 
-        $items = '';
+        $card = LinkListCard::make('Primi passi')->icon('bi-flag')->count(false);
 
         foreach ($pending as $step) {
-            $title = htmlspecialchars((string) ($step['title'] ?? ''), ENT_QUOTES, 'UTF-8');
-            $description = htmlspecialchars((string) ($step['description'] ?? ''), ENT_QUOTES, 'UTF-8');
-            $url = htmlspecialchars((string) ($step['url'] ?? ''), ENT_QUOTES, 'UTF-8');
-
-            $items .= <<<HTML
-<li class="list-group-item bg-transparent d-flex justify-content-between align-items-center gap-3">
-    <span>
-        <strong>{$title}</strong>
-        <span class="d-block text-body-secondary small">{$description}</span>
-    </span>
-    <a class="btn btn-info btn-sm text-nowrap" href="{$url}">Vai</a>
-</li>
-HTML;
+            $card->link(
+                (string) ($step['title'] ?? ''),
+                (string) ($step['url'] ?? ''),
+                '',
+                '',
+                (string) ($step['description'] ?? '')
+            );
         }
 
-        return WidgetCard::wrap(<<<HTML
-    <h5 class="mb-1"><i class="bi bi-flag"></i> Primi passi</h5>
-    <p class="text-body-secondary small">Manca ancora qualcosa prima di partire.</p>
-    <ul class="list-group list-group-flush">{$items}</ul>
-HTML);
+        return WidgetCard::column($card);
     }
 
     /** @return array<string, mixed> */

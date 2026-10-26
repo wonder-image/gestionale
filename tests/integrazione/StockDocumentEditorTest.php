@@ -14,6 +14,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockIssueResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockReceiptResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockStocktakeResource;
+use Wonder\Plugin\Gestionale\Support\SearchClient;
 use Wonder\Plugin\Gestionale\Support\Stock\StockDocumentEditor;
 use Wonder\Plugin\Gestionale\Support\Stock\Stocktake;
 
@@ -80,6 +81,7 @@ check('script: il JS legge i pezzi come il server e scrive il totale come il PHP
     $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
     $file = $base.'.js';
     file_put_contents($file, "var window = {addEventListener: function () {}}; var document = {readyState: 'complete', querySelectorAll: function () { return []; }};\n"
+        .SearchClient::source()."\n"
         .StockDocumentEditor::script()."\n"
         .'console.log(JSON.stringify({parse: '.json_encode($casi).'.map(function (c) {'
         .' var v = window.wiStockEditor.parse(c); return v === null ? null : (isNaN(v) ? "x" : v); }),'
@@ -192,7 +194,7 @@ setTimeout(function () {
 JS;
     $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
     $file = $base.'.js';
-    file_put_contents($file, $harness."\n".StockDocumentEditor::script()."\n".$run);
+    file_put_contents($file, $harness."\n".SearchClient::source()."\n".StockDocumentEditor::script()."\n".$run);
     $out = (string) shell_exec(escapeshellarg($node).' '.escapeshellarg($file).' 2>&1');
     $js = json_decode($out, true);
     @unlink($file);
@@ -335,7 +337,7 @@ wait().then(function () {
 JS;
     $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
     $file = $base.'.js';
-    file_put_contents($file, $harness."\n".StockDocumentEditor::script()."\n".$run);
+    file_put_contents($file, $harness."\n".SearchClient::source()."\n".StockDocumentEditor::script()."\n".$run);
     $raw = (string) shell_exec(escapeshellarg($node).' '.escapeshellarg($file).' 2>&1');
     $js = json_decode($raw, true);
     @unlink($file);
@@ -375,8 +377,8 @@ check('script: l\'editor si lega dopo createCard() del core, al nodo che resta n
         return true;
     }
 
-    // Al caricamento il core ricopia il contenuto di ogni <wi-card> e poi lancia
-    // «loaded» sulla finestra: il nodo visto durante il parse non resta.
+    // Il nodo visto durante il parse può essere sostituito prima di «loaded»:
+    // l'editor si lega a quello che resta nella pagina.
     $harness = <<<'JS'
 function El(tag) { this.tagName = tag; this.children = []; this.attrs = {}; this.listeners = {}; this.value = ''; this.textContent = ''; this.className = ''; this.style = {}; this.parentNode = null; this.firstChild = null; this.classList = {add: function () {}, remove: function () {}}; }
 El.prototype.appendChild = function (c) { c.parentNode = this; this.children.push(c); this.firstChild = this.children[0]; return c; };
@@ -420,7 +422,7 @@ console.log(JSON.stringify(out));
 JS;
     $base = (string) tempnam(sys_get_temp_dir(), 'wi-stock');
     $file = $base.'.js';
-    file_put_contents($file, $harness."\n".StockDocumentEditor::script()."\n".$loaded."\n".StockDocumentEditor::script()."\n".$late);
+    file_put_contents($file, $harness."\n".SearchClient::source()."\n".StockDocumentEditor::script()."\n".$loaded."\n".StockDocumentEditor::script()."\n".$late);
     $raw = (string) shell_exec(escapeshellarg($node).' '.escapeshellarg($file).' 2>&1');
     $js = json_decode($raw, true);
     @unlink($file);
@@ -435,7 +437,7 @@ JS;
     return true;
 });
 
-check('pagina: Conferma e lo spegnimento dei bottoni valgono anche dopo che il core ricopia i <wi-card> (node)', function () {
+check('pagina: Conferma e lo spegnimento dei bottoni valgono anche per i bottoni sostituiti dopo il caricamento (node)', function () {
     $node = trim((string) shell_exec('command -v node 2>/dev/null'));
 
     if ($node === '') {

@@ -19,7 +19,7 @@ $numeric = ' style="font-variant-numeric: tabular-nums"';
 View::layout('backend.show', ['TITLE' => 'Lotto '.$sheet['number']]);
 ?>
 <div class="row g-3">
-    <wi-card class="col-12">
+    <div class="col-12"><div class="card border"><div class="card-body row g-3">
         <div class="col-12">
             <dl class="row mb-0">
                 <dt class="col-sm-3">Versione</dt>
@@ -38,10 +38,10 @@ View::layout('backend.show', ['TITLE' => 'Lotto '.$sheet['number']]);
                 <?php } ?>
             </dl>
         </div>
-    </wi-card>
+    </div></div></div>
 
     <?php if ($sheet['locations'] !== []) { ?>
-    <wi-card class="col-12 col-lg-4">
+    <div class="col-12 col-lg-4"><div class="card border"><div class="card-body row g-3">
         <div class="col-12">
             <h5 class="mb-3">Pezzi per sede</h5>
             <table class="table table-sm mb-0">
@@ -55,10 +55,10 @@ View::layout('backend.show', ['TITLE' => 'Lotto '.$sheet['number']]);
                 </tbody>
             </table>
         </div>
-    </wi-card>
+    </div></div></div>
     <?php } ?>
 
-    <wi-card class="col-12">
+    <div class="col-12"><div class="card border"><div class="card-body row g-3">
         <div class="col-12">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                 <h5 class="mb-0">Clienti che l'hanno ricevuto</h5>
@@ -97,9 +97,9 @@ View::layout('backend.show', ['TITLE' => 'Lotto '.$sheet['number']]);
             </div>
             <?php } ?>
         </div>
-    </wi-card>
+    </div></div></div>
 
-    <wi-card class="col-12">
+    <div class="col-12"><div class="card border"><div class="card-body row g-3">
         <div class="col-12">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                 <h5 class="mb-0">Movimenti del lotto</h5>
@@ -135,6 +135,6 @@ View::layout('backend.show', ['TITLE' => 'Lotto '.$sheet['number']]);
             <?php } ?>
             <?php } ?>
         </div>
-    </wi-card>
+    </div></div></div>
 </div>
 <?php View::end(); ?>

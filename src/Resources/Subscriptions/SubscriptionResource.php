@@ -12,6 +12,8 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Elements\Components\Badge;
+use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
@@ -132,7 +134,7 @@ final class SubscriptionResource extends GestionaleResource
             'cancelled' => 'light',
         ][$status] ?? 'light';
 
-        return '<span class="badge text-bg-'.$class.'">'.static::escape(static::statusLabels()[$status] ?? $status).'</span>';
+        return Badge::make(static::statusLabels()[$status] ?? $status)->variant($class)->inline()->render('bootstrap');
     }
 
     public static function tableSchema(): array
@@ -172,7 +174,10 @@ final class SubscriptionResource extends GestionaleResource
             ->title('Abbonamenti')
             ->results()
             ->hideButtonAdd()
-            ->buttonCustomHtml('<a class="btn btn-dark btn-sm" href="'.static::escape(OfficeSubscriptionResource::submitUrl()).'"><i class="bi bi-plus-lg"></i> Nuovo abbonamento</a>')
+            ->buttonCustom(
+                Button::to(OfficeSubscriptionResource::submitUrl(), 'Nuovo abbonamento')
+                    ->variant('dark')->size('sm')->icon('bi bi-plus-lg', 'start')
+            )
             ->filterSearch()
             ->searchFields(['code', 'billing_name', 'billing_surname', 'billing_business_name', 'coupon_code'])
             ->filterCustom('Stato', 'status', ['' => 'Tutti'] + static::statusLabels())
@@ -665,7 +670,7 @@ final class SubscriptionResource extends GestionaleResource
             $register = (string) ($row['status'] ?? '') === 'pending' && trim((string) ($row['due_date'] ?? '')) !== ''
                 ? '<a class="btn btn-sm btn-outline-success" href="'.static::escape(SubscriptionPaymentResource::urlFor((string) $subscriptionId, (string) (int) $row['id'], static::detailUrl($subscriptionId))).'">Registra</a>'
                 : '';
-            $html .= '<tr><td>'.static::escape((string) ($row['code'] ?? '')).($refund ? ' <span class="badge text-bg-light">Rimborso</span>' : '')
+            $html .= '<tr><td>'.static::escape((string) ($row['code'] ?? '')).($refund ? ' '.Badge::make('Rimborso')->variant('light')->inline()->render('bootstrap') : '')
                 .(trim((string) ($row['note'] ?? '')) !== '' ? '<div class="small text-muted">'.static::escapeStored((string) $row['note']).'</div>' : '').'</td>'
                 .'<td>'.static::escape(static::day($row['due_date'] ?? '')).'</td>'
                 .'<td>'.static::escape(static::day($row['paid_at'] ?? '')).'</td>'

@@ -12,6 +12,7 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Elements\Components\Badge;
 use Wonder\Http\Csrf;
 use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Stock\StockValue;
@@ -820,7 +821,7 @@ abstract class StockDocumentResource extends GestionaleResource
             default => [$status, 'light'],
         };
 
-        return $label === '' ? '' : '<span class="badge text-bg-'.$color.'">'.static::escape($label).'</span>';
+        return $label === '' ? '' : Badge::make($label)->variant($color)->inline()->render('bootstrap');
     }
 
     /** Il giorno della conferma; per una bozza, in grigio, quello della creazione. */

@@ -19,6 +19,7 @@ use Wonder\App\ResourceSchema\Inputs\InputNumber;
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
 use Wonder\Backend\Table\Badge\BooleanBadge;
 use Wonder\Elements\Components\Accordion;
+use Wonder\Elements\Components\Badge;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
@@ -1146,7 +1147,7 @@ HTML
     public static function bundleBadge(int $modelId): string
     {
         return static::isBundleModel($modelId)
-            ? '<span class="badge text-bg-light">'.static::escape('Multiprodotto').'</span>'
+            ? Badge::make('Multiprodotto')->variant('light')->inline()->render('bootstrap')
             : '';
     }
 

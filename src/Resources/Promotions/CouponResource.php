@@ -8,6 +8,7 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\Elements\Components\Badge;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
@@ -261,7 +262,7 @@ class CouponResource extends GestionaleResource
                     $status = Campaigns::status($row, $now());
                     $class = ['running' => 'success', 'scheduled' => 'primary', 'ended' => 'secondary', 'inactive' => 'light'][$status] ?? 'light';
 
-                    return '<span class="badge text-bg-'.$class.'">'.static::escape(static::statusLabel($row, $now())).'</span>';
+                    return Badge::make(static::statusLabel($row, $now()))->variant($class)->inline()->render('bootstrap');
                 }),
             TableColumn::key('actions')->button()->actions(['view', 'edit', 'delete']),
         ];
@@ -306,7 +307,7 @@ class CouponResource extends GestionaleResource
         $main = (new Card)->components([
             SectionTitle::make('Coupon')->columnSpan(12),
             RichText::make('<h5 class="mb-0">'.static::escape((string) ($row['code'] ?? '')).' '
-                .'<span class="badge text-bg-'.$class.' align-middle">'.static::escape(static::statusLabel($row + ['active' => 'false'], $now)).'</span></h5>')
+                .Badge::make(static::statusLabel($row + ['active' => 'false'], $now))->variant($class)->addClass('align-middle')->inline()->render('bootstrap').'</h5>')
                 ->tag('div')
                 ->columnSpan(12),
             static::sheetRow('Nome', $name)->columnSpan(6),

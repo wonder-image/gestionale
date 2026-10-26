@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use Throwable;
 use Wonder\Backend\Support\RowDrag;
+use Wonder\Plugin\Gestionale\Support\SearchClient;
 
 /**
  * La tabella delle righe della bozza con la casella «Cerca o scansiona»
@@ -104,6 +105,7 @@ final class StockDocumentEditor
             .'<div class="text-end fw-semibold mt-2" data-wi-stock-totals>'.$e($counting ? self::stocktakeTotals(count($lines), $counted, $differing) : self::totals(count($lines), $pieces).($costs ? ' · '.StockValue::money(round($cost, 2)) : '')).'</div>'
             .'<script type="application/json" data-wi-stock-lines>'.$json.'</script>'
             .RowDrag::script()
+            .SearchClient::script()
             .'<script>'.self::script().'</script>'
             .'</div>';
     }
@@ -334,7 +336,6 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         var origin = place ? place.value : '';
         var rows = [];
         var timer = null;
-        var seq = 0;
 
         // Righe spostate: `rows` segue l'ordine della tabella, quello che si salva.
         if (window.wiRowDrag) {
@@ -349,41 +350,10 @@ window.wiStockEditor = window.wiStockEditor || (function () {
         var initial = [];
         var k;
 
-        function say(text, tone) {
-            message.textContent = text || '';
-            message.className = 'small mt-1 ' + (tone === 'error' ? 'text-danger' : 'text-body-secondary');
-        }
-
-        function request(params, done, fail) {
-            var where = place ? '&location=' + encodeURIComponent(place.value) : '';
-
-            window.fetch(url + (url.indexOf('?') === -1 ? '?' : '&') + params + where, {
-                credentials: 'same-origin',
-                headers: {Accept: 'application/json'}
-            }).then(function (response) {
-                if (!response.ok) {
-                    throw new Error('HTTP ' + response.status);
-                }
-
-                return response.json();
-            }).then(done, fail);
-        }
-
-        // La ricerca per nome: conta solo l'ultima domanda.
-        function lookup(params, done) {
-            var mine = ++seq;
-
-            request(params, function (data) {
-                if (mine === seq) {
-                    done(data);
-                }
-            }, function () {
-                if (mine === seq) {
-                    close();
-                    say(DOWN, 'error');
-                }
-            });
-        }
+        var client = window.wiSearchClient({message: message, url: url, place: place, close: close, down: DOWN});
+        var say = client.say;
+        var request = client.request;
+        var lookup = client.lookup;
 
         function close() {
             results.classList.add('d-none');
@@ -1133,7 +1103,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             clearTimeout(timer);
 
             if (q.length < 2) {
-                seq++;
+                client.cancel();
                 close();
 
                 return;
@@ -1172,7 +1142,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
             // La casella si svuota subito: il lettore può già scrivere il codice dopo.
             search.value = '';
-            seq++;
+            client.cancel();
             scan(code);
         });
 
@@ -1342,8 +1312,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
     return {init: init, parse: parse, format: format, totals: totals};
 })();
-// Il core ricopia i <wi-card> al caricamento e poi lancia «loaded»: prima di
-// allora i nodi della pagina non sono quelli che restano.
+// Si parte con «loaded» del backend, o subito se la pagina è già pronta.
 window.addEventListener('loaded', window.wiStockEditor.init, {once: true});
 if (document.readyState === 'complete') {
     window.wiStockEditor.init();

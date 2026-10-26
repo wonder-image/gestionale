@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Stock;
 
+use Wonder\Elements\Components\Badge;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 
@@ -73,11 +74,13 @@ final class StockBadge
     {
         $tone = $unlimited ? self::tone(1.0, $low) : self::tone($available, $low);
         $text = $unlimited ? '∞' : self::number($available);
-        $tooltip = $tone === 'warning'
-            ? ' data-bs-toggle="tooltip" data-bs-title="Sotto la scorta minima"'
-            : '';
+        $badge = Badge::make($text)->variant($tone)->inline();
 
-        return '<span class="badge text-bg-'.$tone.'"'.$tooltip.'>'.$text.'</span>';
+        if ($tone === 'warning') {
+            $badge->attr('data-bs-toggle', 'tooltip')->attr('data-bs-title', 'Sotto la scorta minima');
+        }
+
+        return $badge->render('bootstrap');
     }
 
     /**

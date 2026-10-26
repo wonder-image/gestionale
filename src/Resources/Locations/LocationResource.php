@@ -127,6 +127,7 @@ final class LocationResource extends SocietyLocationResource
             ->formatter(static function (array $row): string {
                 $warehouse = Location::forSocietyLocation((int) ($row['id'] ?? 0));
 
+                // A mano: Badge con icon() diventa d-inline-flex e cambia l'allineamento in cella.
                 return ($warehouse['has_stock'] ?? 'false') === 'true'
                     ? '<span class="badge text-bg-primary"><i class="bi bi-box-seam"></i> Giacenza</span>'
                     : '<span class="badge text-bg-secondary"><i class="bi bi-box"></i> Senza giacenza</span>';

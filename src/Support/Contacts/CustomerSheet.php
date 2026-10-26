@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Contacts;
 
+use Wonder\Elements\Components\Badge;
 use Wonder\Elements\Components\DataItem;
 use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionResource;
@@ -81,8 +82,8 @@ final class CustomerSheet
 
         $items[] = $dato('Ruolo', Contacts::roles($contact));
         $items[] = $dato('Stato', ($contact['active'] ?? 'true') === 'false'
-            ? '<span class="badge text-bg-secondary">Non attiva</span>'
-            : '<span class="badge text-bg-success">Attiva</span>', true);
+            ? Badge::make('Non attiva')->variant('secondary')->inline()->render('bootstrap')
+            : Badge::make('Attiva')->variant('success')->inline()->render('bootstrap'), true);
         $items[] = $dato('Email', $get('email'));
         $items[] = $dato('Telefono', trim($get('phone_prefix').' '.$get('phone')));
         $items[] = $dato('Accesso al sito', $access);
@@ -150,7 +151,7 @@ final class CustomerSheet
         $predefinito = ($address['is_default'] ?? 'false') === 'true';
 
         return '<div class="fw-semibold mb-1">'.OrderSheet::esc($etichetta !== '' ? $etichetta : 'Indirizzo')
-            .($predefinito ? ' <span class="badge text-bg-light">Predefinito</span>' : '').'</div>'
+            .($predefinito ? ' '.Badge::make('Predefinito')->variant('light')->inline()->render('bootstrap') : '').'</div>'
             .OrderSheet::address(self::prefixed($address), 'c')
             .(trim((string) ($address['phone'] ?? '')) !== ''
                 ? '<div class="small text-muted mt-1">'.OrderSheet::esc(trim((string) ($address['phone_prefix'] ?? '').' '.$address['phone'])).'</div>'

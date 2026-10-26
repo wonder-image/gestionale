@@ -597,6 +597,45 @@ versionamento semantico.
 
 ### Cambiato
 
+- **Posizione dei nuovi indirizzi da customer-account**: un indirizzo creato
+  dalla scheda cliente prende la posizione da
+  `AccountAddresses::nextPosition()` invece di un calcolo locale. Stesso
+  risultato: il `MAX` di customer-account conta già solo gli indirizzi non
+  eliminati (il Model aggiunge `deleted = 'false'`).
+
+- **Ricerca degli editor in un file solo**: `say`, `request` e `lookup`
+  dell'editor dei documenti di magazzino e di quello degli ordini d'ufficio
+  stanno in `resources/js/search-client.js` (`window.wiSearchClient`), fuori
+  da `paths.assets` perché `publish:module --assets` non lo copi nel sito.
+  Ogni editor lo stampa con `SearchClient::script()`; il guard
+  `window.wiSearchClient || …` evita il doppio. Stesso comportamento.
+
+- **Widget della home con i componenti del core**: «Spedizioni da
+  controllare» e «Spedizioni in ritardo» diventano `StatusCard` (tutto il
+  riquadro è il link all'elenco filtrato, senza più il bottone «Apri le
+  spedizioni»); «Anagrafiche» e «Primi passi» diventano `LinkListCard` («Primi
+  passi» perde la riga «Manca ancora qualcosa prima di partire.»; i bottoni
+  «Vai» di «Primi passi» e «Apri» di «Anagrafiche» spariscono, la riga intera
+  è il link). I bottoni
+  rimasti negli altri riquadri passano da `Button`. Lotti in scadenza, Valore
+  del magazzino, Sotto scorta, Da controllare e Pagamenti in scadenza restano
+  in `WidgetCard`: hanno elenchi con più righe di dati che nessuna card del
+  core rappresenta. Le due card delle spedizioni stanno a mezza riga una
+  accanto all'altra: «Pagamenti in scadenza» passa da `order()` 26 a 24
+  (prima di «Sotto scorta») per non finire in mezzo.
+
+- **Bottoni in testa agli elenchi come `Button`**: «Mostra tutti» nei
+  Movimenti filtrati per versione e «Nuovo abbonamento» negli Abbonamenti
+  passano da `buttonCustom(Button::to(...))` invece che da HTML scritto a
+  mano. Stesso aspetto; l'icona prende lo spazio dal `gap` del bottone.
+
+- **Riquadri senza `<wi-card>`**: scheda lotto, form e scheda dei documenti
+  di magazzino escono già con le classi che produceva `<wi-card>` (`card
+  border` › `card-body row g-3`); i riquadri «Lotti in scadenza» e «Valore del
+  magazzino» della home usano `WidgetCard::half()`, una `Card` del core a
+  mezza riga. Nessun JavaScript dipende più dalla ricopiatura di
+  `createCard()`.
+
 - **Precedenza sulle tabelle dei contatti fissata dai test**: nuovo
   `tests/integrazione/ContactRegistryTest.php`. Su `contacts`
   `ResourceRegistry::resolveByTable()` risponde con `CustomerResource`

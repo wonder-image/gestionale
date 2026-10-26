@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Promotions;
 
 use Throwable;
+use Wonder\Elements\Components\Badge;
 use Wonder\Elements\Components\RichText;
 
 /**
@@ -34,7 +35,7 @@ trait PromotionSheet
 
         foreach (['applies_online' => 'Sito', 'applies_office' => 'Ufficio', 'applies_pos' => 'Cassa'] as $column => $name) {
             $on = ($row[$column] ?? 'false') === 'true';
-            $html .= '<span class="badge '.($on ? 'text-bg-primary' : 'text-bg-light text-muted').' me-1">'.static::escape($name).'</span>';
+            $html .= Badge::make($name)->variant($on ? 'primary' : 'light')->addClass($on ? 'me-1' : 'text-muted me-1')->inline()->render('bootstrap');
         }
 
         return $html;

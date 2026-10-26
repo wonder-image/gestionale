@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Backend\Widgets;
 use Throwable;
 use Wonder\App\Permission\Access;
 use Wonder\Backend\Contracts\HomeWidget;
+use Wonder\Elements\Components\LinkListCard;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
@@ -48,45 +49,23 @@ final class ContactsWidget implements HomeWidget
     /** `null` fra i fornitori vuol dire "gli acquisti sono bloccati". */
     public static function markup(int $customers, ?int $suppliers): string
     {
-        $rows = [self::line(
-            'Clienti',
-            $customers,
-            '/backend/'.CustomerResource::path(),
-            'cliente'
-        )];
+        $card = LinkListCard::make('Anagrafiche')->icon('bi-people')->count(false)
+            ->link('Clienti', '/backend/'.CustomerResource::path(), '', '', self::text($customers, 'cliente', 'clienti'));
 
         if ($suppliers !== null) {
-            $rows[] = self::line(
-                'Fornitori',
-                $suppliers,
-                '/backend/'.SupplierResource::path(),
-                'fornitore'
-            );
+            $card->link('Fornitori', '/backend/'.SupplierResource::path(), '', '', self::text($suppliers, 'fornitore', 'fornitori'));
         }
 
-        $body = implode('', $rows);
-
-        return WidgetCard::wrap(<<<HTML
-    <h5 class="mb-2"><i class="bi bi-people"></i> Anagrafiche</h5>
-    {$body}
-HTML);
+        return WidgetCard::column($card);
     }
 
-    private static function line(string $label, int $count, string $url, string $singular): string
+    private static function text(int $count, string $singular, string $plural): string
     {
-        $label = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
-        $url = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
-        $singular = htmlspecialchars($singular, ENT_QUOTES, 'UTF-8');
-        $text = $count === 0
-            ? 'Nessuno ancora'
-            : $count.' '.($count === 1 ? $singular : strtolower($label));
-
-        return <<<HTML
-<p class="mb-1 d-flex justify-content-between align-items-center">
-    <span><b>{$label}:</b> <span class="text-body-secondary small">{$text}</span></span>
-    <a class="btn btn-sm btn-secondary" href="{$url}">Apri</a>
-</p>
-HTML;
+        return match ($count) {
+            0 => 'Nessuno ancora',
+            1 => '1 '.$singular,
+            default => $count.' '.$plural,
+        };
     }
 
     /** Quante schede vive hanno quel ruolo; zero se il database non risponde. */

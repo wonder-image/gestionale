@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Orders;
 
+use Wonder\Elements\Components\Badge;
+
 /**
  * La scheda dell'ordine, scritta in HTML: ogni sezione è una funzione che
  * prende righe già lette e restituisce il pezzo di pagina.
@@ -182,7 +184,7 @@ final class OrderSheet
     {
         [$testo, $colore] = self::PAYMENT_STATUSES[$status] ?? [$status, 'secondary'];
 
-        return '<span class="badge text-bg-'.$colore.'">'.self::esc($testo).'</span>';
+        return Badge::make($testo)->variant($colore)->inline()->render('bootstrap');
     }
 
     /** Lo stato di un reso in parole. */

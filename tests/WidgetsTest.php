@@ -9,10 +9,12 @@ use Wonder\App\LegacyGlobals;
 use Wonder\Backend\Contracts\HomeWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\AttentionWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\ContactsWidget;
+use Wonder\Plugin\Gestionale\Backend\Widgets\ExpiringBatchesWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\LowStockWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\SetupWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\ShipmentsToCheckWidget;
 use Wonder\Plugin\Gestionale\Backend\Widgets\ShippedNotDeliveredWidget;
+use Wonder\Plugin\Gestionale\Backend\Widgets\StockValueWidget;
 use Wonder\Plugin\Gestionale\Gestionale;
 
 check('i due riquadri sono riquadri della home', fn () =>
@@ -214,8 +216,9 @@ check('a chi non apre le Impostazioni l\'avviso dice dove sono, senza link', fun
 
     return str_contains($senza, $testo)
         && str_contains($vuoto, $testo)
-        && !str_contains($senza, '<a href')
-        && !str_contains($vuoto, '<a href')
+        // Il bottone «Apri le giacenze» resta: a mancare dev'essere il link alle Impostazioni.
+        && !str_contains($senza, 'href="/backend/app/gestionale/impostazioni')
+        && !str_contains($vuoto, 'href="/backend/app/gestionale/impostazioni')
         && !str_contains($senza, 'Aggiungi i destinatari');
 });
 
@@ -321,9 +324,21 @@ check('i riquadri della home escono in una Card del core, non più in <wi-card>'
         ShipmentsToCheckWidget::markup(2),
         ShippedNotDeliveredWidget::markup(2),
     ];
+    $mezzi = [
+        ExpiringBatchesWidget::markup([['number' => 'L1', 'product' => 'Latte', 'expiry' => '2026-10-01', 'pieces' => '3', 'url' => '/b/1/']], 1, '2026-10-13', 30, '/lotti/'),
+        StockValueWidget::markup([0 => ['value' => 10.0, 'pieces' => 4.0, 'uncosted' => 0.0]], [], '/giacenze'),
+    ];
+
+    foreach ($mezzi as $html) {
+        if (!str_starts_with($html, '<div class="col-12 col-md-6"><div class="col-span-12"><div class="card border">')) {
+            return false;
+        }
+    }
+
+    $riquadri = array_merge($riquadri, $mezzi);
 
     foreach ($riquadri as $html) {
-        if (str_contains($html, '<wi-card') || !str_contains($html, '<div class="card border">')) {
+        if (str_contains($html, '<wi-card') || !str_contains($html, 'class="card border')) {
             return false;
         }
     }

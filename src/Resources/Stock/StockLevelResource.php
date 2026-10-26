@@ -9,6 +9,7 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Elements\Components\Badge;
 use Wonder\Sql\Query;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
@@ -459,7 +460,7 @@ final class StockLevelResource extends GestionaleResource
             $row['stock_quantity'] ?? 0,
             false,
             'text-danger fw-semibold',
-            '<span class="badge text-bg-danger me-1">sotto scorta</span>'
+            Badge::make('sotto scorta')->variant('danger')->addClass('me-1')->inline()->render('bootstrap')
         );
     }
 

@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\Elements\Components\Badge;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Support\Backend\RowMenu;
@@ -183,7 +184,7 @@ final class OrderItemTableResource extends OrderSectionResource
         }
 
         if ($tipo !== 'product') {
-            $html .= ' <span class="badge text-bg-light">'.static::escape(OrderSheet::itemType($tipo)).'</span>';
+            $html .= ' '.Badge::make(OrderSheet::itemType($tipo))->variant('light')->inline()->render('bootstrap');
         }
 
         if ($sku !== '') {

@@ -115,12 +115,12 @@ HTML;
             $others > 1 => '<p class="text-body-secondary small mt-2 mb-0">e altri '.$others.'</p>',
             default => '',
         };
-        $url = htmlspecialchars(StockLevelResource::lowStockUrl(), ENT_QUOTES, 'UTF-8');
+        $button = WidgetCard::button(StockLevelResource::lowStockUrl(), 'Apri le giacenze');
 
         return WidgetCard::wrap(<<<HTML
     <h5 class="mb-1 d-flex justify-content-between align-items-center gap-3">
         <span><i class="bi bi-box-seam"></i> Sotto scorta</span>
-        <a class="btn btn-sm btn-secondary" href="{$url}">Apri le giacenze</a>
+        {$button}
     </h5>
     <ul class="list-group list-group-flush">{$rows}</ul>
     {$more}

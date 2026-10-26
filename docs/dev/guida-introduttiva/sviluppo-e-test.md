@@ -58,3 +58,36 @@ php forge gestionale:features-doc      # riscrive la tabella nella guida
   formatter a closure, non dichiarandola e basta.
 - `$ALERT` non vuoto significa errore e blocca il salvataggio: per dire che è
   andata bene c'è il toast.
+
+## Interfaccia del backend
+
+- Niente `<wi-card>`: il core lo dà per dismesso. I riquadri della home
+  passano da `WidgetCard::wrap()` (tutta riga) o `WidgetCard::half()` (mezza
+  riga da `md`), che rendono una `Card` del core. Nelle viste con cicli PHP
+  (scheda lotto, documenti di magazzino) il riquadro è scritto con le classi
+  che produceva `<wi-card>` (`card border` › `card-body row g-3`), così i
+  figli `col-*` restano dove erano.
+- Gli script delle pagine non dipendono più dalla ricopiatura dei
+  `<wi-card>`: l'editor dei documenti parte con «loaded» o subito se la
+  pagina è già pronta, e i bottoni del form si cercano a ogni uso.
+- Un widget della home usa prima una card del core (`StatusCard` per un
+  numero che apre un elenco, `LinkListCard` per un elenco di link), messa in
+  colonna con `WidgetCard::column()`. `WidgetCard::wrap()` resta per i
+  riquadri con elenchi di dati; i bottoni dentro passano da
+  `WidgetCard::button()`, cioè da `Button` del core.
+- Il JS che serve a più editor sta in `resources/js/`, fuori da
+  `paths.assets` (`publish:module --assets` non lo copia nel sito), e si
+  stampa in linea (vedi `SearchClient`), non con `module_asset()`: non
+  dipende da `vendor/` raggiungibile dal web né da un publish. Ogni editor
+  lo stampa sempre; il guard `window.wiSearchClient || …` del file rende
+  innocua la copia in più. Il costo: una copia nel sito non lo sostituisce.
+  I test node che leggono `script()` di un editor devono anteporre
+  `SearchClient::source()`.
+- `ProductModelResource` ha il suo JS in linea per scelta: non estrarlo
+  senza test di pagina (sei modal legati a id e `show.bs.modal`).
+- I badge in celle, titoli e accanto a un testo si scrivono con
+  `Badge::make($testo)->variant(...)->inline()->render('bootstrap')`:
+  `inline()` toglie il `<div class="col-span-*">` della colonna. La label
+  va passata non escapata (la escapa il renderer). Restano a mano solo i
+  badge con l'icona delle sedi (`LocationResource`: con `icon()` il core li
+  fa `d-inline-flex`) e quelli creati in JavaScript (`StockDocumentEditor`).

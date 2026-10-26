@@ -167,4 +167,16 @@ check('nel nuovo abbonamento la riga madre si sceglie per numero, da «Nessuno»
     return count($opzioni) === 21 && $opzioni[''] === 'Nessuno' && $opzioni['1'] === 'Riga 1' && $opzioni['20'] === 'Riga 20';
 });
 
+check('«Nuovo abbonamento» in testa all\'elenco è un Button del core verso il form d\'ufficio', function () {
+    $bottoni = (array) (SubscriptionResource::tableLayoutSchema()->toArray()['buttons_custom'] ?? []);
+    $html = isset($bottoni[0]) && $bottoni[0] instanceof \Wonder\Elements\Components\Button
+        ? (clone $bottoni[0])->schema('inline', true)->render('bootstrap')
+        : '';
+
+    return count($bottoni) === 1
+        && str_contains($html, 'btn-dark btn-sm')
+        && str_contains($html, '<i class="bi bi-plus-lg"></i> Nuovo abbonamento')
+        && str_contains($html, 'href="'.htmlspecialchars(OfficeSubscriptionResource::submitUrl(), ENT_QUOTES).'"');
+});
+
 summary();

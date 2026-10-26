@@ -14,6 +14,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Backend\Support\FlashAlert;
+use Wonder\Elements\Components\Badge;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
@@ -461,7 +462,7 @@ final class DeliveryNoteResource extends GestionaleResource
     {
         [$label, $color] = self::STATUS_LABELS[$status] ?? [$status, 'secondary'];
 
-        return '<span class="badge text-bg-'.$color.'">'.static::escape($label).'</span>';
+        return Badge::make($label)->variant($color)->inline()->render('bootstrap');
     }
 
     /** Il destinatario, come nel DDT. */
