@@ -7,6 +7,14 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Limiti di tentativi** (`Support\Throttle`): la primitiva dell'ecommerce,
+  con la stessa API, ora anche nel gestionale; l'ecommerce passerà a usarla. `attempt()` conta e decide in un colpo solo con un
+  UPSERT atomico a finestra fissa sulla tabella `gst_throttles` (Model
+  `System\Throttle`); se la tabella non risponde il tentativo passa e
+  l'errore va nel registro con l'azione `gestionale.throttle`. `allowed()` e
+  `hit()` restano su file in `storage/gestionale/throttle`. Le chiavi sono lo
+  sha256 di «gruppo|chiave», come prima. La tabella la crea `forge update`.
+
 - **Azienda negli indirizzi**: campo facoltativo «Ragione sociale / Azienda»
   negli indirizzi dei contatti (`business_name`) e nella spedizione di ordini
   e DDT (`shipping_business_name`); il PDF lo stampa come prima riga
