@@ -373,7 +373,7 @@ check('un tag senza nome non si salva, nemmeno di soli spazi', function () {
 
     foreach ([[], ['name' => ''], ['name' => '   '], ['name' => null]] as $values) {
         if ($rifiuto($values, 'store') !== 'tag.name_required') {
-            return false;
+            throw new RuntimeException('passa: '.json_encode($values));
         }
     }
 
