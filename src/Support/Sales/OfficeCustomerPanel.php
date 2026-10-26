@@ -317,9 +317,9 @@ final class OfficeCustomerPanel
 
         $schema = CustomerResource::prepareSchemaName();
 
-        if (array_key_exists($schema, Table::$list)) {
+        if (Table::has($schema)) {
             $values = Table::key($schema)->prepareFor($table, $values, $old);
-        } elseif (array_key_exists($table, Table::$list)) {
+        } elseif (Table::has($table)) {
             $values = Table::key($table)->prepare($values, $old);
         }
 

@@ -719,6 +719,9 @@ versionamento semantico.
   pagina Gestionale → Impostazioni; la tabella `gst_merchant_settings` resta senza
   Model. **Chi aggiorna deve lanciare `php forge update`**; un indirizzo già scritto
   nella vecchia pagina non si copia: va reinserito in Set Up.
+- Pannello del cliente in ufficio (`OfficeCustomerPanel::update()`): lo schema
+  della tabella si cerca con `Table::has()` del core invece di leggere
+  `Table::$list` a mano.
 
 ### Corretto
 
