@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Orders;
 
+use Wonder\Elements\Components\Badge;
+
 /**
  * Come si chiamano e di che colore sono i tre stati di un ordine.
  *
@@ -101,9 +103,7 @@ final class StatusLabels
     {
         $entry = self::fulfillmentFor($type, $status);
 
-        // Non con Badge del core: lo avvolge sempre in un <div>, qui serve in linea.
-        return '<span class="badge text-bg-'.$entry['color'].'">'
-            .htmlspecialchars($entry['label'], ENT_QUOTES, 'UTF-8').'</span>';
+        return Badge::make($entry['label'])->variant($entry['color'])->inline()->render('bootstrap');
     }
 
     /** @return array{label: string, color: string} */
@@ -123,9 +123,7 @@ final class StatusLabels
             default => ['label' => $value, 'color' => 'secondary'],
         };
 
-        // Non con Badge del core: lo avvolge sempre in un <div>, qui serve in linea.
-        return '<span class="badge text-bg-'.$entry['color'].'">'
-            .htmlspecialchars($entry['label'], ENT_QUOTES, 'UTF-8').'</span>';
+        return Badge::make($entry['label'])->variant($entry['color'])->inline()->render('bootstrap');
     }
 
     /**

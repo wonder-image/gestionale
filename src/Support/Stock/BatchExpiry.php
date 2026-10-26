@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Stock;
 
 use Throwable;
+use Wonder\Elements\Components\Badge;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 
 /**
@@ -55,13 +56,12 @@ final class BatchExpiry
     /** La data dentro un badge: rosso scaduto, giallo in scadenza. HTML già escapato. */
     public static function badge(?string $expiry, string $today, int $days): string
     {
-        $text = htmlspecialchars(self::label($expiry), ENT_QUOTES, 'UTF-8');
+        $text = self::label($expiry);
 
-        // Non con Badge del core: lo avvolge sempre in un <div>, qui serve in linea.
         return match (self::status($expiry, $today, $days)) {
-            'expired' => '<span class="badge text-bg-danger">'.$text.' · scaduto</span>',
-            'expiring' => '<span class="badge text-bg-warning">'.$text.'</span>',
-            default => $text,
+            'expired' => Badge::make($text.' · scaduto')->variant('danger')->inline()->render('bootstrap'),
+            'expiring' => Badge::make($text)->variant('warning')->inline()->render('bootstrap'),
+            default => htmlspecialchars($text, ENT_QUOTES, 'UTF-8'),
         };
     }
 

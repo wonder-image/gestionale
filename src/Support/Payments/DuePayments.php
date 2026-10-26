@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Payments;
 
 use Throwable;
+use Wonder\Elements\Components\Badge;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Stock\BatchExpiry;
@@ -32,13 +33,12 @@ final class DuePayments
     /** La scadenza dentro un badge: rosso scaduta, giallo in scadenza. HTML già escapato. */
     public static function badge(?string $due, string $today, int $days): string
     {
-        $text = htmlspecialchars(BatchExpiry::label($due), ENT_QUOTES, 'UTF-8');
+        $text = BatchExpiry::label($due);
 
-        // Non con Badge del core: lo avvolge sempre in un <div>, qui serve in linea.
         return match (self::status($due, $today, $days)) {
-            'expired' => '<span class="badge text-bg-danger">'.$text.' · scaduta</span>',
-            'expiring' => '<span class="badge text-bg-warning">'.$text.'</span>',
-            default => $text,
+            'expired' => Badge::make($text.' · scaduta')->variant('danger')->inline()->render('bootstrap'),
+            'expiring' => Badge::make($text)->variant('warning')->inline()->render('bootstrap'),
+            default => htmlspecialchars($text, ENT_QUOTES, 'UTF-8'),
         };
     }
 
