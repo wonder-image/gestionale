@@ -5,8 +5,13 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Http\Csrf;
 use Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
+
+// Una sessione senza cookie, aperta prima di ogni output: con lei le form del
+// core mettono il token CSRF. Si chiude senza scrivere dopo il controllo.
+session_start(['use_cookies' => false, 'cache_limiter' => 'nocache']);
 
 // Fuori dall'app le funzioni dei paesi non esistono: ne bastano di minime perché i select si costruiscano.
 if (!function_exists('countries')) {
@@ -70,16 +75,22 @@ check('il paese è di due lettere; un campo troppo lungo si rifiuta', function (
     return str_contains((string) $paese, 'due lettere') && str_contains((string) $lungo, 'troppo lungo');
 });
 
-check('il pulsante di modifica porta i dati dell\'indirizzo, escapati', function () {
-    $html = ContactAddressResource::openButton('Modifica', 'btn-sm', ['id' => 7, 'label' => 'Casa "mia"', 'street' => 'Via <b>X</b>', 'is_default' => 'true']);
+check('il pulsante di modifica è il Button del core che apre la finestra, con i dati dell\'indirizzo escapati', function () {
+    $html = ContactAddressResource::openButton('Modifica', ['id' => 7, 'label' => 'Casa "mia"', 'street' => 'Via <b>X</b>', 'is_default' => 'true'])
+        ->icon('bi bi-pencil')->variant('secondary')->outline()->size('sm')->render('bootstrap');
 
-    return str_contains($html, 'data-bs-target="#'.ContactAddressResource::MODAL_ID.'"')
+    return str_starts_with($html, '<button ') && str_contains($html, 'type="button"')
+        && str_contains($html, 'data-bs-toggle="modal"')
+        && str_contains($html, 'data-bs-target="#'.ContactAddressResource::MODAL_ID.'"')
+        && str_contains($html, 'class="btn text-decoration-none btn-outline-secondary btn-sm')
+        && !str_contains($html, 'btn-primary')
+        && str_contains($html, '<i class="bi bi-pencil"></i> Modifica')
         && str_contains($html, '&quot;id&quot;:7') && str_contains($html, 'Casa \\&quot;mia\\&quot;') // le virgolette interne: prima il json, poi l'attributo
         && !str_contains($html, '<b>X</b>');
 });
 
 check('il pulsante di aggiunta non porta dati: la finestra si apre vuota', fn () =>
-    str_contains(ContactAddressResource::openButton('Aggiungi', 'btn-sm'), 'data-wi-address="[]"')
+    str_contains(ContactAddressResource::openButton('Aggiungi')->render('bootstrap'), 'data-wi-address="[]"')
 );
 
 check('la finestra: aggiungi/modifica con tutti i campi, in una form sola', function () {
@@ -108,20 +119,36 @@ check('la finestra: aggiungi/modifica con tutti i campi, in una form sola', func
 });
 
 check('l\'eliminazione è una form che la lib fa confermare, senza finestra propria', function () {
-    $html = ContactAddressResource::deleteButton('<i class="bi bi-trash"></i>', 'btn-sm', ['id' => 7, 'contact_id' => 12, 'label' => 'Casa "mia" <b>X</b>']);
+    $html = ContactAddressResource::deleteButton('', ['id' => 7, 'contact_id' => 12, 'label' => 'Casa "mia" <b>X</b>'])
+        ->icon('bi bi-trash')->variant('danger')->outline()->size('sm')->render('bootstrap');
 
-    return str_contains($html, 'name="action" value="delete"') && str_contains($html, 'name="address_id" value="7"')
+    return str_starts_with($html, '<form class="d-inline" method="post" action="'.htmlspecialchars(ContactAddressResource::submitUrl(), ENT_QUOTES, 'UTF-8').'"')
+        && substr_count($html, '<form') === 1 && str_ends_with($html, '</form>')
+        && str_contains($html, 'name="action" value="delete"') && str_contains($html, 'name="address_id" value="7"')
         && str_contains($html, 'name="contact_id" value="12"')
         && str_contains($html, 'data-wi-confirm="Confermi l&#039;eliminazione dell&#039;indirizzo «Casa &quot;mia&quot; &lt;b&gt;X&lt;/b&gt;»?"')
+        && str_contains($html, 'data-wi-confirm-title="Elimina indirizzo"')
         && str_contains($html, 'data-wi-confirm-ok="Elimina"') && str_contains($html, 'data-wi-confirm-variant="danger"')
+        && str_contains($html, 'type="submit"') && str_contains($html, 'btn-outline-danger btn-sm')
         && str_contains($html, '<i class="bi bi-trash"></i>') && !str_contains($html, 'data-bs-toggle');
 });
 
-check('«Rendi predefinito» è una form che manda action=default', function () {
-    $html = ContactAddressResource::defaultForm(12, 7, 'Rendi predefinito', 'btn-sm');
+check('«Rendi predefinito» è una form che manda action=default, senza conferma', function () {
+    $html = ContactAddressResource::defaultForm(12, 7, 'Rendi predefinito')->variant('secondary')->outline()->size('sm')->render('bootstrap');
 
     return str_contains($html, 'name="action" value="default"') && str_contains($html, 'name="address_id" value="7"')
-        && str_contains($html, 'name="contact_id" value="12"');
+        && str_contains($html, 'name="contact_id" value="12"') && str_contains($html, '>Rendi predefinito</button></form>')
+        && !str_contains($html, 'data-wi-confirm');
+});
+
+check('le form degli indirizzi portano il token CSRF quando c\'è la sessione', function () {
+    $elimina = ContactAddressResource::deleteButton('', ['id' => 7, 'contact_id' => 12])->render('bootstrap');
+    $predefinito = ContactAddressResource::defaultForm(12, 7, 'Rendi predefinito')->render('bootstrap');
+    $token = 'name="'.Csrf::FIELD.'" value="'.Csrf::token().'"';
+    $attiva = Csrf::active();
+    session_abort();
+
+    return $attiva && str_contains($elimina, $token) && str_contains($predefinito, $token);
 });
 
 check('il prefisso predefinito è quello del paese del visitatore, con il «+»; da una rete locale resta IT', function () {

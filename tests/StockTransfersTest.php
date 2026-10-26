@@ -76,4 +76,33 @@ check('elenchi dei documenti: il numero apre la scheda (la bozza la modifica), l
         && str_contains(StockDocumentResource::statusCell(['status' => 'cancelled']), 'text-bg-danger');
 });
 
+check('form nascosti: POST del core con le conferme, Duplica senza domanda, niente window.confirm', function () {
+    $html = StockTransferResource::hiddenForms(['id' => 7, 'status' => 'in_transit', 'number' => '2026/100009']);
+    $form = static function (string $id) use ($html): string {
+        preg_match('~<form id="'.$id.'"[^>]*>.*?</form>~s', $html, $m);
+
+        return $m[0] ?? '';
+    };
+    $duplica = $form('wi-doc-duplicate');
+    $ricevi = $form('wi-doc-receive');
+    $annulla = $form('wi-doc-cancel');
+    $campi = static fn (string $f, string $what): bool => str_contains($f, ' hidden ')
+        && str_contains($f, 'method="post" action="/backend/app/gestionale/documento-magazzino-azione"')
+        && str_contains($f, '<input type="hidden" name="action" value="'.$what.'">')
+        && str_contains($f, '<input type="hidden" name="document_id" value="7">');
+
+    return $campi($duplica, 'duplica') && !str_contains($duplica, 'data-wi-confirm')
+        && $campi($ricevi, 'ricevi')
+        && str_contains($ricevi, 'data-wi-confirm="Il trasferimento 2026/100009 arriva: tutta la merce entra nella sede d&#039;arrivo."')
+        && str_contains($ricevi, 'data-wi-confirm-title="Ricevi trasferimento" data-wi-confirm-ok="Ricevi"')
+        && str_contains($ricevi, 'data-wi-confirm-cancel="Torna indietro"') && !str_contains($ricevi, 'data-wi-confirm-variant')
+        && $campi($annulla, 'annulla')
+        && str_contains($annulla, 'data-wi-confirm-title="Annulla trasferimento" data-wi-confirm-ok="Annulla il trasferimento" data-wi-confirm-variant="danger"')
+        && str_contains($annulla, 'data-wi-confirm-cancel="Torna indietro"')
+        && str_contains($html, "window.wi.confirm({title: 'Duplica'") && !str_contains($html, 'window.confirm(')
+        && StockTransferResource::hiddenForms(['id' => 0]) === ''
+        && !str_contains(StockTransferResource::hiddenForms(['id' => 7, 'status' => 'draft']), 'wi-doc-cancel')
+        && !str_contains((string) file_get_contents(__DIR__.'/../view/pages/stock-document-form.php'), 'window.confirm(');
+});
+
 summary();

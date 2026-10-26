@@ -121,7 +121,7 @@ final class OfficeCustomerPanel
                 ->title($nome.($predefinito ? ' · Predefinito' : ''))
                 ->text(self::line($address))
                 ->actions(
-                    ContactAddressResource::openButton('Modifica', 'btn-outline-secondary btn-sm', $address),
+                    ContactAddressResource::openButton('Modifica', $address)->variant('secondary')->outline()->size('sm'),
                     Button::make('')
                         ->icon('bi bi-trash')
                         ->attr('aria-label', 'Elimina l\'indirizzo «'.$nome.'»')
@@ -142,7 +142,7 @@ final class OfficeCustomerPanel
         }
 
         return '<div class="d-grid gap-2">'.$html.'</div>'
-            .'<div class="mt-2">'.ContactAddressResource::openButton('<i class="bi bi-plus-lg"></i> Aggiungi indirizzo', 'btn-outline-primary btn-sm').'</div>';
+            .'<div class="mt-2">'.ContactAddressResource::openButton('Aggiungi indirizzo')->icon('bi bi-plus-lg')->variant('primary')->outline()->size('sm')->render('bootstrap').'</div>';
     }
 
     /**

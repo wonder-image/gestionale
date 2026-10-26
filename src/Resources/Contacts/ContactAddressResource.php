@@ -11,14 +11,13 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\Support\GoogleMaps;
 use Wonder\Backend\Support\FlashAlert;
+use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Modal;
-use Wonder\Http\Csrf;
 use Wonder\Plugin\CustomerAccount\Account\AccountAddresses;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
-use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
 /**
  * Gli indirizzi di consegna di una scheda, gestiti dalla scheda stessa:
@@ -244,38 +243,39 @@ final class ContactAddressResource extends NavigationOnlyResource
 
     /**
      * Il pulsante che apre la finestra: con un indirizzo la riempie per
-     * modificarlo, senza la lascia vuota per aggiungerne uno.
+     * modificarlo, senza la lascia vuota per aggiungerne uno. Colore, misura
+     * e icona li sceglie chi lo mette in pagina.
      *
      * @param array<string, mixed> $address
      */
-    public static function openButton(string $label, string $class, array $address = []): string
+    public static function openButton(string $label, array $address = []): Button
     {
         $dati = $address === [] ? [] : array_merge(['id' => (int) ($address['id'] ?? 0)], static::clean($address));
 
-        return '<button type="button" class="btn '.OrderSheet::esc($class).'" data-bs-toggle="modal" data-bs-target="#'.static::MODAL_ID.'"'
-            .' data-wi-address="'.OrderSheet::esc((string) json_encode($dati, JSON_UNESCAPED_UNICODE)).'">'.$label.'</button>';
+        return Button::make($label)
+            ->opensModal(static::MODAL_ID)
+            ->attr('data-wi-address', (string) json_encode($dati, JSON_UNESCAPED_UNICODE))
+            ->schema('inline', true);
     }
 
     /**
      * Il pulsante che elimina: una form sola, che la lib fa confermare prima
-     * di inviare (`data-wi-confirm*`).
+     * di inviare.
      *
      * @param array<string, mixed> $address
      */
-    public static function deleteButton(string $label, string $class, array $address): string
+    public static function deleteButton(string $label, array $address): Button
     {
         $nome = trim((string) ($address['label'] ?? ''));
 
-        return static::postForm(
+        return static::postButton(
             ['action' => 'delete', 'contact_id' => (int) ($address['contact_id'] ?? 0), 'address_id' => (int) ($address['id'] ?? 0)],
-            $label,
-            $class,
-            [
-                'data-wi-confirm' => $nome !== '' ? 'Confermi l\'eliminazione dell\'indirizzo «'.$nome.'»?' : 'Confermi l\'eliminazione di questo indirizzo?',
-                'data-wi-confirm-title' => 'Elimina indirizzo',
-                'data-wi-confirm-ok' => 'Elimina',
-                'data-wi-confirm-variant' => 'danger',
-            ]
+            $label
+        )->confirm(
+            $nome !== '' ? 'Confermi l\'eliminazione dell\'indirizzo «'.$nome.'»?' : 'Confermi l\'eliminazione di questo indirizzo?',
+            'Elimina indirizzo',
+            'Elimina',
+            'danger'
         );
     }
 
@@ -283,33 +283,18 @@ final class ContactAddressResource extends NavigationOnlyResource
      * Il form che fa un indirizzo il predefinito, senza finestra: un solo
      * pulsante.
      */
-    public static function defaultForm(int $contactId, int $addressId, string $label, string $class): string
+    public static function defaultForm(int $contactId, int $addressId, string $label): Button
     {
-        return static::postForm(['action' => 'default', 'contact_id' => $contactId, 'address_id' => $addressId], $label, $class);
+        return static::postButton(['action' => 'default', 'contact_id' => $contactId, 'address_id' => $addressId], $label);
     }
 
-    /**
-     * Una form di un solo pulsante. L'etichetta è markup nostro (un'icona, due
-     * parole), per questo non passa da `Button`, che la escaperebbe.
-     *
-     * @param array<string, int|string> $hidden
-     * @param array<string, string> $attributes
-     */
-    private static function postForm(array $hidden, string $label, string $class, array $attributes = []): string
+    /** @param array<string, int|string> $hidden */
+    private static function postButton(array $hidden, string $label): Button
     {
-        $html = '<form method="post" action="'.OrderSheet::esc(static::submitUrl()).'" class="d-inline"';
-
-        foreach ($attributes as $nome => $valore) {
-            $html .= ' '.$nome.'="'.OrderSheet::esc($valore).'"';
-        }
-
-        $html .= '>'.Csrf::fieldFor('post');
-
-        foreach ($hidden as $nome => $valore) {
-            $html .= '<input type="hidden" name="'.$nome.'" value="'.OrderSheet::esc((string) $valore).'">';
-        }
-
-        return $html.'<button type="submit" class="btn '.OrderSheet::esc($class).'">'.$label.'</button></form>';
+        return Button::post(static::submitUrl(), $label)
+            ->hidden($hidden)
+            ->formAttributes(['class' => 'd-inline'])
+            ->schema('inline', true);
     }
 
     /**

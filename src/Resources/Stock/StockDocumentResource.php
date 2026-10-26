@@ -13,6 +13,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Badge;
+use Wonder\Elements\Components\Button;
 use Wonder\Http\Csrf;
 use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Stock\StockValue;
@@ -641,38 +642,34 @@ abstract class StockDocumentResource extends GestionaleResource
             return '';
         }
 
-        $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
         $json = static fn (string $value): string => (string) json_encode($value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-        $action = $e(StockDocumentActionResource::submitUrl());
-        $fields = static fn (string $what): string => Csrf::fieldFor('post')
-            .'<input type="hidden" name="action" value="'.$what.'">'
-            .'<input type="hidden" name="document_id" value="'.$id.'">';
-        $html = '<form id="wi-doc-duplicate" method="POST" action="'.$action.'" hidden>'
-            .$fields(StockDocumentActionResource::DUPLICATE).'</form>';
+        // Form nascosti: li inviano i bottoni dell'intestazione. Il core non ha
+        // il testo di «annulla» della conferma, che resta un attributo del form.
+        $form = static fn (string $formId, string $what, array $attributes = []): Button => Button::post(StockDocumentActionResource::submitUrl(), '')
+            ->hidden(['action' => $what, 'document_id' => $id])
+            ->formAttributes(['id' => $formId, 'hidden' => true, ...$attributes])
+            ->schema('inline', true);
+        $html = $form('wi-doc-duplicate', StockDocumentActionResource::DUPLICATE)->render('bootstrap');
 
         $status = (string) ($document['status'] ?? '');
         $number = html_entity_decode((string) ($document['number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
         // G3.16: *Ricevi* il trasferimento in viaggio, con la sua domanda.
         if (static::type() === 'transfer' && $status === 'in_transit') {
-            $html .= '<form id="wi-doc-receive" method="POST" action="'.$action.'" hidden'
-                .' data-wi-confirm="'.$e('Il trasferimento '.$number.' arriva: tutta la merce entra nella sede d\'arrivo.').'"'
-                .' data-wi-confirm-title="Ricevi trasferimento"'
-                .' data-wi-confirm-ok="Ricevi"'
-                .' data-wi-confirm-cancel="Torna indietro">'
-                .$fields(StockDocumentActionResource::RECEIVE).'</form>';
+            $html .= $form('wi-doc-receive', StockDocumentActionResource::RECEIVE, ['data-wi-confirm-cancel' => 'Torna indietro'])
+                ->confirm('Il trasferimento '.$number.' arriva: tutta la merce entra nella sede d\'arrivo.', 'Ricevi trasferimento', 'Ricevi')
+                ->render('bootstrap');
         }
 
         if (static::cancellable($status)) {
-            $label = 'Annulla '.mb_strtolower(static::named());
-
-            $html .= '<form id="wi-doc-cancel" method="POST" action="'.$action.'" hidden'
-                .' data-wi-confirm="'.$e(str_replace('{numero}', $number, static::cancelQuestion($status))).'"'
-                .' data-wi-confirm-title="'.$e('Annulla '.mb_strtolower(static::singular())).'"'
-                .' data-wi-confirm-ok="'.$e($label).'"'
-                .' data-wi-confirm-cancel="Torna indietro"'
-                .' data-wi-confirm-variant="danger">'
-                .$fields(StockDocumentActionResource::CANCEL).'</form>';
+            $html .= $form('wi-doc-cancel', StockDocumentActionResource::CANCEL, ['data-wi-confirm-cancel' => 'Torna indietro'])
+                ->confirm(
+                    str_replace('{numero}', $number, static::cancelQuestion($status)),
+                    'Annulla '.mb_strtolower(static::singular()),
+                    'Annulla '.mb_strtolower(static::named()),
+                    'danger'
+                )
+                ->render('bootstrap');
         }
 
         return $html.'<script>
@@ -704,11 +701,7 @@ abstract class StockDocumentResource extends GestionaleResource
     window.history.replaceState(null, \'\', window.location.pathname + (rest !== \'\' ? \'?\' + rest : \'\') + window.location.hash);
 
     window.addEventListener(\'load\', function () {
-        var ask = window.wi && typeof window.wi.confirm === \'function\'
-            ? window.wi.confirm({title: \'Duplica\', text: text, ok: \'Duplica\', cancel: \'Torna indietro\'})
-            : Promise.resolve(window.confirm(text));
-
-        ask.then(function (ok) {
+        window.wi.confirm({title: \'Duplica\', text: text, ok: \'Duplica\', cancel: \'Torna indietro\'}).then(function (ok) {
             if (ok) {
                 form.requestSubmit();
             }
