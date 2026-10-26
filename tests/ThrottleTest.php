@@ -62,6 +62,12 @@ check('allowed/hit: una chiave vuota non si limita e non scrive', function () us
     return Throttle::allowed('prova', '', 0, 60) && count(glob($cartella.'/*.json') ?: []) === $prima;
 });
 
+check('allowed: un limite 0 o negativo non blocca, come attempt()', function (): bool {
+    Throttle::hit('prova', 'zero', 60);
+
+    return Throttle::allowed('prova', 'zero', 0, 60) && Throttle::allowed('prova', 'zero', -1, 60);
+});
+
 foreach (glob($cartella.'/*') ?: [] as $file) {
     unlink($file);
 }

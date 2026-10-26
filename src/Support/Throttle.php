@@ -68,7 +68,7 @@ final class Throttle
     /** Si può ancora provare: i tentativi nella finestra sono meno del limite. Una chiave vuota non ha limite. */
     public static function allowed(string $bucket, string $key, int $limit, int $window): bool
     {
-        if ($key === '') {
+        if ($key === '' || $limit <= 0) {
             return true;
         }
 
@@ -135,12 +135,12 @@ final class Throttle
         $connection = Connection::Connect('main');
         $upsert = $connection->prepare(self::UPSERT);
         if (!$upsert || !$upsert->execute([$hash, $now, $since, $since, $now])) {
-            throw new RuntimeException('throttle_upsert');
+            throw new RuntimeException('throttle_upsert: '.$connection->error);
         }
 
         $select = $connection->prepare('SELECT hits FROM gst_throttles WHERE throttle_key = ?');
         if (!$select || !$select->execute([$hash])) {
-            throw new RuntimeException('throttle_select');
+            throw new RuntimeException('throttle_select: '.$connection->error);
         }
         $row = $select->get_result()->fetch_assoc();
 
