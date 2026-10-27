@@ -23,6 +23,13 @@ versionamento semantico.
   Nei siti esistenti le funzionalità nuove nascono spente: vanno accese dal
   pannello.
 
+- **Paese di riserva per la spedizione del carrello**: `Shipping::options($cartId,
+  $country)` usa `$country` finché il carrello non ha un indirizzo (né di
+  consegna né di fatturazione), al posto di `IT`; con l'indirizzo vale quello.
+  Nuovo `Shipping::country($cart, $fallback)`: il paese con la stessa regola.
+  Serve al carrello del sito per mostrare la spedizione del paese del
+  visitatore. Senza `$country` non cambia niente.
+
 - **Articoli suggeriti e alternativi** (#74, #75): nella scheda articolo il
   riquadro «Articoli collegati» con due liste ordinabili, «Suggeriti» (da
   abbinare) e «Alternativi» (al posto suo), scelte a mano da chi vende.
@@ -806,6 +813,12 @@ versionamento semantico.
   **Chi aggiorna deve avere il core almeno a `2.4.0-beta.6`.**
 
 ### Corretto
+
+- Categorie: «Nessuna, sta in cima» si salva come `parent_id` NULL e non più
+  come `0`, che la foreign key su `gst_categories` rifiutava (errore 1452 nel
+  creare una categoria in cima, o nello spostarla in cima). Vale anche per
+  `category_create` e `category_update` dell'MCP. In modifica, una categoria
+  senza padre torna a spuntare «Nessuna, sta in cima» nell'albero.
 
 - L'azione del menu ⋯ su una bozza d'ordine o un preventivo inesistente mostra
   la pagina 404 del backend invece di una pagina con il solo «Non trovato»:
