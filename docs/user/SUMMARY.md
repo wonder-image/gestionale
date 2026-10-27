@@ -16,6 +16,7 @@
 * [Multiprodotti](catalogo-multiprodotti.md)
 * [I prodotti](catalogo-prodotti.md)
 * [Le foto degli articoli](catalogo-immagini.md)
+* [FAQ](catalogo-faq.md)
 
 ## Magazzino
 

@@ -3,6 +3,11 @@
 namespace Wonder\Plugin\Gestionale\Support\Promotions;
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
+use Wonder\Plugin\Gestionale\Models\Catalog\Faq;
+use Wonder\Plugin\Gestionale\Models\Catalog\FaqBrand;
+use Wonder\Plugin\Gestionale\Models\Catalog\FaqCategory;
+use Wonder\Plugin\Gestionale\Models\Catalog\FaqProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\FaqTag;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
@@ -26,8 +31,8 @@ use Wonder\Plugin\Gestionale\Support\RequestMemo;
  *
  * Una campagna e un coupon scelgono i prodotti allo stesso modo, quindi la
  * lettura è una sola: `OWNERS` dice, per ciascun proprietario, quale Model
- * tiene la testata e quali i ponti. Il coupon si aggiunge qui, senza
- * duplicare niente.
+ * tiene la testata e quali i ponti. Il coupon e le FAQ si aggiungono qui,
+ * senza duplicare niente.
  */
 final class ProductScope
 {
@@ -49,10 +54,19 @@ final class ProductScope
             'brands' => CouponBrand::class,
             'product_models' => CouponProductModel::class,
         ],
+        'faq' => [
+            'model' => Faq::class,
+            'key' => 'faq_id',
+            'categories' => FaqCategory::class,
+            'tags' => FaqTag::class,
+            'brands' => FaqBrand::class,
+            'product_models' => FaqProductModel::class,
+        ],
     ];
 
     /**
-     * Il selettore di una campagna o di un coupon.
+     * Il selettore di una campagna, di un coupon o di una FAQ. La copia sta
+     * nel gruppo di memo della testata, che i ponti svuotano scrivendo.
      *
      * @return array{all: bool, categories: list<int>, tags: list<int>, brands: list<int>, models: list<int>, excluded_models: list<int>}
      */
@@ -60,7 +74,7 @@ final class ProductScope
     {
         $map = self::OWNERS[$owner] ?? throw new \InvalidArgumentException('Proprietario del selettore sconosciuto: '.$owner);
 
-        return RequestMemo::remember(DiscountCampaign::MEMO_GROUP, 'scope:'.$owner.':'.$ownerId, static fn (): array => self::read($map, $ownerId));
+        return RequestMemo::remember($map['model']::MEMO_GROUP, 'scope:'.$owner.':'.$ownerId, static fn (): array => self::read($map, $ownerId));
     }
 
     /**
@@ -102,7 +116,18 @@ final class ProductScope
     public static function facts(int $productId): array
     {
         $product = Product::findById($productId);
-        $modelId = is_array($product) ? (int) ($product['product_model_id'] ?? 0) : 0;
+
+        return self::modelFacts(is_array($product) ? (int) ($product['product_model_id'] ?? 0) : 0);
+    }
+
+    /**
+     * I fatti di un articolo: quelli di `facts()`, quando in mano c'è
+     * l'articolo e non una sua versione (la scheda pubblica).
+     *
+     * @return array{categories: list<int>, tags: list<int>, brand_id: int, model_id: int}
+     */
+    public static function modelFacts(int $modelId): array
+    {
         $model = $modelId > 0 ? ProductModel::findById($modelId) : null;
 
         return [
