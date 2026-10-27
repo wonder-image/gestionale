@@ -136,6 +136,21 @@ check('l\'albero del padre è annidato e senza i discendenti', function () {
         && ($radici[3]['child'] ?? null) === [];
 });
 
+check('«Nessuna, sta in cima» si salva come NULL, non come 0', function () {
+    $nessuna = CategoryResource::mutateRequestValues(['name' => 'Sieri', 'parent_id' => '0'], 'update', 'backend', ['id' => 4]);
+    $vuota = CategoryResource::mutateRequestValues(['name' => 'Sieri', 'parent_id' => ''], 'update', 'backend', ['id' => 4]);
+    $senza = CategoryResource::mutateRequestValues(['name' => 'Sieri'], 'update', 'backend', ['id' => 4]);
+
+    return $nessuna['parent_id'] === '' && $vuota['parent_id'] === '' && !array_key_exists('parent_id', $senza);
+});
+
+check('in modifica una categoria senza padre spunta «Nessuna, sta in cima»', function () {
+    $senzaPadre = CategoryResource::mutateFormValues(['name' => 'Sieri', 'parent_id' => null], 'edit');
+    $conPadre = CategoryResource::mutateFormValues(['name' => 'Sieri', 'parent_id' => 3], 'edit');
+
+    return $senzaPadre['parent_id'] === '0' && $conPadre['parent_id'] === 3;
+});
+
 check('l\'albero annida i figli sotto il padre', function () {
     $righe = [
         ['id' => 1, 'parent_id' => 0, 'name' => 'Abbigliamento', 'position' => 1],

@@ -452,7 +452,7 @@ final class Tools
             'code' => Code::make(Category::class, Codes::CATEGORY),
             'name' => $name,
             'slug' => Slug::unique($name, Category::class),
-            'parent_id' => self::parent($args, 0),
+            'parent_id' => self::parent($args, 0) ?: null,
             'description' => (string) ($args['description'] ?? ''),
             'visible' => array_key_exists('visible', $args) ? self::flag($args['visible'], 'visible') : 'true',
         ];
@@ -474,7 +474,7 @@ final class Tools
         }
 
         if (array_key_exists('parent_id', $args)) {
-            $values['parent_id'] = self::parent($args, $id);
+            $values['parent_id'] = self::parent($args, $id) ?: null;
         }
 
         if (array_key_exists('description', $args)) {
@@ -822,7 +822,7 @@ final class Tools
         return array_values(array_diff(array_keys(Reasons::all()), Reasons::internal()));
     }
 
-    /** Il padre di una categoria: 0 è la radice, mai sé stessa né un suo discendente. */
+    /** Il padre di una categoria: 0 è la radice (NULL nel database), mai sé stessa né un suo discendente. */
     private static function parent(array $args, int $self): int
     {
         $parent = (int) ($args['parent_id'] ?? 0);

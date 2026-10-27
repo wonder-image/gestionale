@@ -194,18 +194,24 @@ final class CategoryResource extends GestionaleResource
         ?array $oldValues = null
     ): array {
         $values = static::requireName($values, $action, 'category.name_required');
+        $parent = (int) ($values['parent_id'] ?? 0);
+
+        // «Nessuna, sta in cima» arriva come 0: nel database è NULL, perché
+        // la foreign key su `parent_id` non conosce una categoria 0.
+        if (array_key_exists('parent_id', $values) && $parent <= 0) {
+            $values['parent_id'] = '';
+        }
 
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) ($values['name'] ?? ''), Category::$table);
             // La posizione la mette il backend, in fondo ai fratelli: non è
             // un numero che il commerciante debba inventarsi.
-            $values['position'] = Positions::next(Category::$table, ['parent_id' => (int) ($values['parent_id'] ?? 0)]);
+            $values['position'] = Positions::next(Category::$table, ['parent_id' => $parent > 0 ? $parent : null]);
         } else {
             unset($values['slug'], $values['position']);
         }
 
         $id = (int) ($oldValues['id'] ?? 0);
-        $parent = (int) ($values['parent_id'] ?? 0);
 
         if ($parent > 0) {
             $rows = static::rows();
@@ -214,6 +220,16 @@ final class CategoryResource extends GestionaleResource
             if ($id > 0) {
                 static::assertNoLoop($rows, $id, $parent);
             }
+        }
+
+        return $values;
+    }
+
+    /** Senza padre (NULL nel database) l'albero spunta «Nessuna, sta in cima». */
+    public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
+    {
+        if (array_key_exists('parent_id', $values) && (int) $values['parent_id'] <= 0) {
+            $values['parent_id'] = '0';
         }
 
         return $values;
