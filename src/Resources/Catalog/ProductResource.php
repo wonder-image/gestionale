@@ -30,6 +30,7 @@ use Wonder\Plugin\Gestionale\Resources\Stock\StockMovementResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Ean;
+use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
@@ -147,10 +148,14 @@ class ProductResource extends ProductModelResource
                 ->value('true')
                 ->label('Stato')
                 ->required(),
-            FormField::key('weight')->number()->decimal(3)->label('Peso (kg)'),
-            FormField::key('length')->number()->decimal(2)->label('Lunghezza (cm)'),
-            FormField::key('width')->number()->decimal(2)->label('Larghezza (cm)'),
-            FormField::key('height')->number()->decimal(2)->label('Altezza (cm)'),
+            // Senza «Misure» i quattro campi non esistono: il salvataggio
+            // non li tocca.
+            ...(Measures::active() ? [
+                FormField::key('weight')->number()->decimal(3)->label('Peso (kg)'),
+                FormField::key('length')->number()->decimal(2)->label('Lunghezza (cm)'),
+                FormField::key('width')->number()->decimal(2)->label('Larghezza (cm)'),
+                FormField::key('height')->number()->decimal(2)->label('Altezza (cm)'),
+            ] : []),
         ];
 
         // La soglia non è una colonna dell'opzione: sta in `gst_stock_thresholds`,
@@ -479,15 +484,19 @@ class ProductResource extends ProductModelResource
     {
         return (new Card)->components([
             SectionTitle::make('Identificazione')
-                ->tooltip('I codici di questa variante, e quanto pesa e misura il suo pacco. Lasciando vuote le misure valgono peso e misure dell\'articolo.')
+                ->tooltip(Measures::active()
+                    ? 'I codici di questa variante, e quanto pesa e misura il suo pacco. Lasciando vuote le misure valgono peso e misure dell\'articolo.'
+                    : 'I codici di questa variante.')
                 ->columnSpan(12),
             static::getInput('sku')->columnSpan(12),
             static::getInput('ean')->columnSpan(12),
             static::getInput('mpn')->columnSpan(12),
-            static::getInput('weight')->columnSpan(6),
-            static::getInput('length')->columnSpan(6),
-            static::getInput('width')->columnSpan(6),
-            static::getInput('height')->columnSpan(6),
+            ...(Measures::active() ? [
+                static::getInput('weight')->columnSpan(6),
+                static::getInput('length')->columnSpan(6),
+                static::getInput('width')->columnSpan(6),
+                static::getInput('height')->columnSpan(6),
+            ] : []),
         ])->columns(12)->columnSpan(12);
     }
 

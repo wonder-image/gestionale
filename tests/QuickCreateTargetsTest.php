@@ -64,8 +64,8 @@ $quickCreate = static function (): array {
 };
 
 check('marchio, categorie e imballaggio hanno il "+"', function () use ($quickCreate) {
-    // L'imballaggio c'è solo con le spedizioni accese.
-    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, ['shipping' => true]);
+    // L'imballaggio c'è solo con le spedizioni e «Imballaggi» accese.
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, ['shipping' => true, 'packages' => true]);
 
     try {
         $con = $quickCreate();
@@ -85,14 +85,25 @@ check('una categoria nuova chiede nome e padre, e il bottone lo dice', function 
         && ($categorie['button'] ?? '') === 'Aggiungi categoria';
 });
 
-check('il tipo fiscale si vede sempre, con il "+"', function () use ($quickCreate) {
-    $campo = null;
+/** Il campo del tipo fiscale nella scheda, con «Aliquote» accesa o spenta. */
+$tipoFiscale = static function (bool $aliquote): ?object {
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, ['tax_categories' => $aliquote]);
 
-    foreach (ProductModelResource::formSchema() as $voce) {
-        if ((string) $voce->name === 'tax_category_id') {
-            $campo = $voce;
+    try {
+        foreach (ProductModelResource::formSchema() as $voce) {
+            if ((string) $voce->name === 'tax_category_id') {
+                return $voce;
+            }
         }
+
+        return null;
+    } finally {
+        (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, null);
     }
+};
+
+check('con «Aliquote» il tipo fiscale si vede, con il "+"', function () use ($quickCreate, $tipoFiscale) {
+    $campo = $tipoFiscale(true);
 
     // Anche con un tipo solo il campo resta un select (P58); senza nessun
     // tipo (o senza database) dice che vale l'aliquota di ripiego, e il «+»
@@ -101,8 +112,16 @@ check('il tipo fiscale si vede sempre, con il "+"', function () use ($quickCreat
         return false;
     }
 
-    return ($quickCreate()['tax_category_id']['resource'] ?? '') === TaxCategoryResource::class;
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, ['tax_categories' => true]);
+
+    try {
+        return ($quickCreate()['tax_category_id']['resource'] ?? '') === TaxCategoryResource::class;
+    } finally {
+        (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, null);
+    }
 });
+
+check('senza «Aliquote» la scheda non chiede il tipo fiscale', fn () => $tipoFiscale(false) === null);
 
 check('la categoria principale e i tag restano senza', function () use ($quickCreate) {
     $con = $quickCreate();

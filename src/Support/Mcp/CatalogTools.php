@@ -177,7 +177,7 @@ final class CatalogTools
                 'run' => self::productSetCustomizations(...),
             ],
             'product_set_related' => [
-                'description' => 'Imposta gli articoli collegati all\'articolo a cui appartiene la versione `product_id`: `suggested` da comprare insieme («Abbinalo a»), `alternative` al suo posto («Potrebbe interessarti»). `product_model_ids` è l\'elenco completo di quel tipo, nell\'ordine dato: quelli non elencati si tolgono, un elenco vuoto li toglie tutti.',
+                'description' => 'Imposta gli articoli collegati all\'articolo a cui appartiene la versione `product_id`: `suggested` da comprare insieme («Abbinalo a»), `alternative` al suo posto («Potrebbe interessarti»); ogni tipo vale solo con la sua funzionalità (`related_suggested`, `related_alternative`). `product_model_ids` è l\'elenco completo di quel tipo, nell\'ordine dato: quelli non elencati si tolgono, un elenco vuoto li toglie tutti.',
                 'schema' => self::schema([
                     'product_id' => $id,
                     'type' => ['type' => 'string', 'enum' => RelatedProducts::TYPES],
@@ -661,6 +661,10 @@ final class CatalogTools
         $modelId = (int) $product['product_model_id'];
         $type = (string) ($args['type'] ?? '');
         $ids = array_map('intval', (array) ($args['product_model_ids'] ?? []));
+
+        if (in_array($type, RelatedProducts::TYPES, true) && !RelatedProducts::active($type)) {
+            throw McpError::make('feature_off', 0, ['feature' => RelatedProducts::FEATURES[$type]]);
+        }
 
         $before = Tools::modelRelated($modelId);
         Transaction::run(static fn () => RelatedProducts::replace($modelId, $type, $ids));

@@ -56,6 +56,37 @@ return [
         'requires_any' => ['orders', 'subscriptions'],
         'release' => 'G5',
     ],
+    'related_suggested' => [
+        'name' => 'Articoli suggeriti',
+        'description' => 'Articoli da comprare insieme, scelti a mano nella scheda: il sito li propone nella scheda e nel carrello.',
+        'area' => 'Scheda prodotto',
+        'release' => 'G5',
+    ],
+    'related_alternative' => [
+        'name' => 'Articoli alternativi',
+        'description' => 'Articoli da proporre al posto di un altro, scelti a mano nella scheda.',
+        'area' => 'Scheda prodotto',
+        'release' => 'G5',
+    ],
+    'variants' => [
+        'name' => 'Varianti',
+        'description' => 'Articoli in più versioni (taglia, colore…) con prezzo, codice e giacenza per versione.',
+        'area' => 'Scheda prodotto',
+        // Non si spegne con un articolo in più versioni (FeatureGuards).
+        'release' => 'G5',
+    ],
+    'measures' => [
+        'name' => 'Misure',
+        'description' => 'Unità di misura, peso e dimensioni dell\'articolo. Spenta, il peso conta come non inserito.',
+        'area' => 'Scheda prodotto',
+        'release' => 'G7',
+    ],
+    'tax_categories' => [
+        'name' => 'Aliquote',
+        'description' => 'Tipo fiscale scelto per articolo. Spenta, ogni articolo usa il tipo fiscale predefinito.',
+        'area' => 'Scheda prodotto',
+        'release' => 'G9',
+    ],
     'barcode_labels' => [
         'name' => 'Etichette',
         'description' => 'Etichette con codice a barre e prezzo in PDF.',
@@ -135,6 +166,13 @@ return [
         'description' => 'Listini per zona e peso, spedizioni e tracking manuali, ritiro in sede.',
         'area' => 'Spedizioni',
         'requires' => ['orders'],
+        'release' => 'G7',
+    ],
+    'packages' => [
+        'name' => 'Imballaggi',
+        'description' => 'Le scatole in cui si spedisce, con il loro peso, da scegliere nella scheda prodotto.',
+        'area' => 'Spedizioni',
+        'requires' => ['shipping'],
         'release' => 'G7',
     ],
     'carriers' => [

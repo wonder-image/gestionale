@@ -35,7 +35,10 @@ o un altro giorno.
 Chi vende un cappello scrive nome, prezzo e categoria e salva. Chi vende
 magliette in due colori e tre taglie spunta gli attributi, riempie le righe che
 compaiono e salva **una volta sola**: i colori, le righe da vendere, i prezzi,
-le giacenze e le foto nascono tutti insieme.
+le giacenze e le foto nascono tutti insieme. Le versioni ci sono con la
+funzionalità *Varianti*: spenta, ogni articolo nuovo ha una versione sola, e
+quelli già salvati in più versioni restano come sono. Finché un articolo ha
+più versioni, *Varianti* non si spegne.
 
 L'url pubblico nasce dal nome alla creazione e non cambia più, nemmeno se un
 domani correggi il nome: i link che qualcuno ha salvato continuano a funzionare.
@@ -521,7 +524,9 @@ arriva si registra sempre, anche se la giacenza resta sotto zero (vedi [Le
 giacenze](magazzino-giacenze.md#sotto-zero)).
 
 Sotto **Come si vende**, il riquadro **Tipo fiscale** ha un campo solo, **IVA**
-(vedi sopra: parte dal predefinito), con il **+** per crearne uno nuovo. Un tipo fiscale
+(vedi sopra: parte dal predefinito), con il **+** per crearne uno nuovo. Il
+riquadro c'è con la funzionalità *Aliquote*: spenta, ogni articolo nuovo prende
+il tipo fiscale predefinito e la scheda non lo chiede. Un tipo fiscale
 che hai nascosto non si propone più agli articoli nuovi, ma su quelli che lo
 usano resta, in fondo all'elenco, con scritto *(nascosto)*. Se non hai nessun
 tipo fiscale il campo dice *Nessuno: vale l'aliquota di ripiego*, l'aliquota
@@ -530,21 +535,30 @@ scelta nelle impostazioni per quando nessuna regola risponde.
 ## Misure e spedizione
 
 Il riquadro **Misure**, in fondo a destra, è del prodotto, non della
-spedizione, e c'è sempre: unità, peso, lunghezza, larghezza, altezza e
-circonferenza, due per riga. Servono a sapere se l'articolo sta in una scatola.
-Un'opzione con misure sue le usa al posto di queste.
+spedizione, e c'è con la funzionalità *Misure*: unità, peso, lunghezza,
+larghezza, altezza e circonferenza, due per riga. Servono a sapere se
+l'articolo sta in una scatola. Un'opzione con misure sue le usa al posto di
+queste. Con *Misure* spenta il riquadro sparisce e le spedizioni fanno come se
+il peso non ci fosse: le misure salvate restano, e tornano riaccendendola.
 
 L'**imballaggio**, la scatola in cui parte, si sceglie in **Come si vende**,
-subito sotto **Da spedire**. Lasciandolo vuoto vale quella predefinita del
-negozio. Spegnendo **Da spedire** il campo sparisce subito, senza salvare;
-riaccendendolo torna con la scatola di prima.
+subito sotto **Da spedire**, con la funzionalità *Imballaggi*. Lasciandolo
+vuoto vale quella predefinita del negozio. Spegnendo **Da spedire** il campo
+sparisce subito, senza salvare; riaccendendolo torna con la scatola di prima.
 
 ## Articoli collegati
 
 Nella sezione **Articoli collegati** scegli a mano due elenchi: i
 **Suggeriti**, da comprare insieme a questo, e gli **Alternativi**, da
-proporre al suo posto. Le righe si trascinano nell'ordine che vuoi. Un
-articolo non si collega a sé stesso e un doppione conta una volta sola.
+proporre al suo posto. Ognuno ha la sua funzionalità, *Articoli suggeriti* e
+*Articoli alternativi*: con tutte e due spente la sezione non c'è.
+
+Ogni elenco è una tabella come quella di **Nuovo carico**: cerchi
+l'articolo nella casella **Cerca un articolo** (per nome, codice o EAN di una
+sua opzione), lo scegli e finisce in fondo alla tabella. Le righe si
+trascinano nell'ordine che vuoi, anche con le frecce su e giù sulla maniglia,
+e il cestino le toglie. Un articolo non si collega a sé stesso e un doppione
+conta una volta sola.
 
 Il sito mostra solo gli articoli visibili, online e con almeno un'opzione
 attiva: uno nascosto resta nell'elenco e ricompare quando torna in vendita.

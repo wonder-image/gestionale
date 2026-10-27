@@ -14,6 +14,7 @@ use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
+use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -392,7 +393,7 @@ final class Cart
                     'id' => (int) $item['id'],
                     'type' => (string) $item['type'],
                     'product_id' => $productId,
-                    'weight' => is_array($product) ? (float) ($product['weight'] ?? 0) : 0.0,
+                    'weight' => Measures::of(is_array($product) ? $product : null)['weight'],
                     'tax_id' => $taxId,
                     'tax_rate' => is_array($tax) ? (float) ($tax['rate'] ?? 0) : 0.0,
                     'tax_nature' => is_array($tax) ? (string) ($tax['nature'] ?? '') : '',

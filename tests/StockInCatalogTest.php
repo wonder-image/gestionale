@@ -12,6 +12,10 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 
+// La scheda intera: Varianti e Misure accese, come in un negozio che le usa.
+const SCHEDA_ACCESA = ['packages' => true, 'measures' => true, 'tax_categories' => true, 'variants' => true, 'related_suggested' => true, 'related_alternative' => true];
+(new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, SCHEDA_ACCESA);
+
 /**
  * Una scheda con più versioni: è lì che vive la griglia.
  *
@@ -381,7 +385,7 @@ $conSedi = static function (array $sedi, callable $fai): mixed {
     $primaSedi = $mostrate->getValue();
     $primaFunzionalita = $funzionalita->getValue();
     $mostrate->setValue(null, $sedi);
-    $funzionalita->setValue(null, ['multi_location' => true]);
+    $funzionalita->setValue(null, ['multi_location' => true] + SCHEDA_ACCESA);
 
     try {
         return $fai();

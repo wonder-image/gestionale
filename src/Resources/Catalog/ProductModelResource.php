@@ -67,6 +67,8 @@ use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Packages;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Support\Catalog\RelatedProducts;
+use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
+use Wonder\Plugin\Gestionale\Support\Catalog\RelatedProductsEditor;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductExports;
 use Wonder\Plugin\Gestionale\Support\Catalog\SaleUnits;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
@@ -294,6 +296,24 @@ class ProductModelResource extends GestionaleResource
             FormField::key('circumference')->number()->decimal(2)->label('Circonferenza (cm)'),
         ];
 
+        // «Scheda prodotto»: un campo spento non esiste, così il salvataggio
+        // non lo tocca e il valore di prima resta per la riaccensione.
+        $spenti = array_merge(
+            Measures::active() ? [] : ['unit', ...Measures::KEYS],
+            Gestionale::feature('tax_categories') ? [] : ['tax_category_id'],
+        );
+        $fields = array_values(array_filter($fields, static fn (object $field): bool => !in_array($field->name, $spenti, true)));
+
+        // Senza «Varianti» la domanda non si fa: l'articolo è singolo, come
+        // un multiprodotto. Uno con più versioni non c'è (FeatureGuards).
+        if (!static::variantsActive()) {
+            foreach ($fields as $i => $field) {
+                if ($field->name === 'has_variants') {
+                    $fields[$i] = FormField::key('has_variants')->hidden()->value('false');
+                }
+            }
+        }
+
         // Solo con `returns` e `shipping`: senza, i loro campi non esistono.
         array_push($fields, ...static::returnFields(), ...static::shippingFields());
 
@@ -499,7 +519,7 @@ class ProductModelResource extends GestionaleResource
         // su dove si crea l'attributo.
         $senzaOpzioni = static::optionAttributes() === [];
 
-        if ($multi) {
+        if ($multi || !static::variantsActive()) {
             $domanda = FormField::key('has_variants')->hidden()->value('false');
         }
 
@@ -608,7 +628,9 @@ class ProductModelResource extends GestionaleResource
             $cards[] = static::customizationsCard();
         }
 
-        $cards[] = static::relatedCard();
+        if (RelatedProducts::activeTypes() !== []) {
+            $cards[] = static::relatedCard((int) $modelId);
+        }
 
         // La finestra «Giacenza» della griglia (P103) e il suo script: una
         // sola per la pagina, qui e non nel riquadro delle opzioni, che senza
@@ -1025,15 +1047,15 @@ HTML
 
             // Un riquadro solo per il tipo fiscale: decide l'IVA, e in mezzo
             // agli interruttori si perdeva. Il titolo dice già cos'è, la
-            // select non lo ripete.
-            (new Card)->components([
+            // select non lo ripete. Senza «Aliquote» vale il predefinito.
+            ...(Gestionale::feature('tax_categories') ? [(new Card)->components([
                 SectionTitle::make('Tipo fiscale')
                     ->tooltip('Decide l\'IVA dell\'articolo. Un articolo nuovo parte dal tipo predefinito; i tipi si gestiscono in Set Up → IVA → Tipi fiscali.')
                     ->columnSpan(12),
                 // Un'etichetta corta anche qui: la select è «floating» e senza
                 // etichetta mostrerebbe solo l'asterisco dell'obbligatorio.
                 static::getInput('tax_category_id')->label('IVA')->columnSpan(12),
-            ])->columns(12)->columnSpan(12),
+            ])->columns(12)->columnSpan(12)] : []),
 
             (new Card)->components([
                 SectionTitle::make('Dove si trova')
@@ -1049,8 +1071,8 @@ HTML
             // «Spedizione» e sparivano con l'articolo che non si spedisce,
             // portandosi via anche l'unità di misura, che è obbligatoria. In
             // un terzo di schermo due per riga: quattro affiancate non si
-            // leggono.
-            (new Card)->components([
+            // leggono. Senza «Misure» il riquadro non c'è.
+            ...(Measures::active() ? [(new Card)->components([
                 SectionTitle::make('Misure')
                     ->tooltip('Le dimensioni vere del prodotto, quelle che servono a sapere se sta in una scatola. Una variante con misure sue le usa al posto di queste.')
                     ->columnSpan(12),
@@ -1061,7 +1083,7 @@ HTML
                 static::getInput('height')->columnSpan(6),
                 static::getInput('circumference')->columnSpan(6),
                 static::unitScript()->columnSpan(12),
-            ])->columns(12)->columnSpan(12),
+            ])->columns(12)->columnSpan(12)] : []),
         ];
     }
 
@@ -1924,6 +1946,18 @@ HTML
         // ha uno solo, o un articolo nato prima del predefinito, prende quello.
         if (array_key_exists('tax_category_id', $values) && (int) $values['tax_category_id'] <= 0) {
             $values['tax_category_id'] = (string) (TaxCategories::defaultId() ?: '');
+        }
+
+        // Un articolo nato con «Aliquote» o «Misure» spente prende il tipo
+        // fiscale predefinito e i pezzi: i campi non ci sono, le colonne sì.
+        if ($action === 'store') {
+            if (!Gestionale::feature('tax_categories')) {
+                $values['tax_category_id'] = (string) (TaxCategories::defaultId() ?: '');
+            }
+
+            if (!Measures::active() && trim((string) ($values['unit'] ?? '')) === '') {
+                $values['unit'] = Measures::DEFAULT_UNIT;
+            }
         }
 
         // Con «Da spedire» spento l'imballaggio è solo nascosto, e arriva lo
@@ -2815,8 +2849,9 @@ HTML
 
     /**
      * «Da spedire» e l'imballaggio: esistono solo con la funzionalità
-     * `shipping`. Senza, l'articolo resta com'era: né l'interruttore né la
-     * scatola arrivano nel post, e il salvataggio non li tocca.
+     * `shipping`, la scatola anche con `packages`. Senza, l'articolo resta
+     * com'era: quello che manca non arriva nel post e il salvataggio non lo
+     * tocca.
      *
      * @return list<object>
      */
@@ -2826,17 +2861,22 @@ HTML
             return [];
         }
 
-        return [
-            FormField::key('package_id')
+        $fields = [];
+
+        if (PackageResource::featureActive()) {
+            $fields[] = FormField::key('package_id')
                 ->select(Packages::options())
                 ->label('Imballaggio')
-                ->quickCreate(PackageResource::class),
-            FormField::key('requires_shipping')
-                ->toggle()
-                ->value('true')
-                ->label('Da spedire')
-                ->description('Spento per servizi, buoni regalo e prodotti digitali.'),
-        ];
+                ->quickCreate(PackageResource::class);
+        }
+
+        $fields[] = FormField::key('requires_shipping')
+            ->toggle()
+            ->value('true')
+            ->label('Da spedire')
+            ->description('Spento per servizi, buoni regalo e prodotti digitali.');
+
+        return $fields;
     }
 
     /** @return list<object> */
@@ -2846,14 +2886,17 @@ HTML
             return [];
         }
 
-        return [
-            static::getInput('requires_shipping')->columnSpan(12),
+        $inputs = [static::getInput('requires_shipping')->columnSpan(12)];
+
+        if (PackageResource::featureActive()) {
             // La scatola segue l'interruttore sopra, senza ricaricare:
             // un articolo che non si spedisce non ha niente da dire qui.
-            static::getInput('package_id')
+            $inputs[] = static::getInput('package_id')
                 ->visibleWhen('requires_shipping', 'true')
-                ->columnSpan(12),
-        ];
+                ->columnSpan(12);
+        }
+
+        return $inputs;
     }
 
     /**
@@ -6450,25 +6493,34 @@ HTML)->tag('div');
         'related_alternative' => RelatedProducts::ALTERNATIVE,
     ];
 
+    /** Il titolo di ogni elenco nella scheda. */
+    private const RELATED_LABELS = [
+        RelatedProducts::SUGGESTED => 'Suggeriti',
+        RelatedProducts::ALTERNATIVE => 'Alternativi',
+    ];
+
     /**
      * Suggeriti e alternativi (#74, #75): due liste ordinabili sulla stessa
-     * tabella, ognuna con la sua fetta di `type`.
+     * tabella, ognuna con la sua fetta di `type`, solo per i tipi accesi. Il
+     * campo spento manca: il core non lo sincronizza e le righe restano.
+     * Nella scheda non si disegnano col repeater ma con
+     * {@see RelatedProductsEditor}, che posta le stesse colonne.
      *
      * @return list<FormField>
      */
     protected static function relatedFields(int $modelId): array
     {
-        $voci = static::relatedOptions($modelId);
         $fields = [];
 
         foreach (static::RELATED_INPUTS as $input => $type) {
+            if (!RelatedProducts::active($type)) {
+                continue;
+            }
+
             $fields[] = FormField::key($input)
                 ->repeater([
                     RepeaterColumn::key('id')->hidden(),
-                    RepeaterColumn::key('related_model_id')
-                        ->select($voci)
-                        ->label('Articolo')
-                        ->columnFill(),
+                    RepeaterColumn::key('related_model_id')->hidden(),
                 ])
                 ->relation(
                     RepeaterRelation::make(ProductRelation::$table, 'product_model_id')
@@ -6478,32 +6530,10 @@ HTML)->tag('div');
                         ->condition(['type' => $type])
                 )
                 ->nested()
-                ->repeaterSortable()
-                ->repeaterStartEmpty()
-                ->repeaterAddLabel('Aggiungi articolo')
-                ->label($type === RelatedProducts::SUGGESTED ? 'Suggeriti' : 'Alternativi');
+                ->label(self::RELATED_LABELS[$type]);
         }
 
         return $fields;
-    }
-
-    /**
-     * Gli articoli che si possono collegare: tutti quelli vivi tranne questo,
-     * per nome.
-     *
-     * @return array<string, string>
-     */
-    public static function relatedOptions(int $modelId): array
-    {
-        $voci = ['' => '—'];
-
-        foreach (static::rowsOf(ProductModel::class, [], 'name') as $row) {
-            if ((int) $row['id'] !== $modelId) {
-                $voci[(string) $row['id']] = html_entity_decode((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            }
-        }
-
-        return $voci;
     }
 
     /**
@@ -6528,15 +6558,33 @@ HTML)->tag('div');
         }
     }
 
-    /** Il riquadro «Articoli collegati»: suggeriti sopra, alternativi sotto. */
-    protected static function relatedCard(): object
+    /**
+     * Il riquadro «Articoli collegati»: suggeriti sopra, alternativi sotto,
+     * ognuno con la casella di ricerca e la tabella di «Nuovo carico». Chi lo
+     * aggiunge controlla che almeno un tipo sia acceso.
+     */
+    protected static function relatedCard(int $modelId): object
     {
+        $url = RelatedProductsEditor::searchUrl();
+        $html = '';
+
+        foreach (static::RELATED_INPUTS as $input => $type) {
+            if (!RelatedProducts::active($type)) {
+                continue;
+            }
+
+            try {
+                $rows = RelatedProducts::savedRows($modelId, $type);
+            } catch (Throwable) {
+                $rows = [];
+            }
+
+            $html .= RelatedProductsEditor::render($input, self::RELATED_LABELS[$type], $rows, $modelId, $url);
+        }
+
         return static::foldable(
             'Articoli collegati',
-            [
-                static::getInput('related_suggested')->columnSpan(12),
-                static::getInput('related_alternative')->columnSpan(12),
-            ],
+            [RichText::make('<div class="row">'.$html.'</div>'.RelatedProductsEditor::scripts())->columnSpan(12)],
             'Suggeriti: da comprare insieme, il sito li mostra in «Abbinalo a» nella scheda e nel carrello. Alternativi: al posto di questo, in «Potrebbe interessarti». Il sito mostra solo quelli visibili online, nell\'ordine dato.'
         );
     }
@@ -8164,6 +8212,12 @@ HTML
         }
 
         return $ordine;
+    }
+
+    /** La funzionalità «Varianti»: spenta, ogni articolo è singolo. */
+    public static function variantsActive(): bool
+    {
+        return Gestionale::feature('variants');
     }
 
     /**

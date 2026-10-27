@@ -21,6 +21,9 @@ class VariantResource extends AttributeResource
 {
     public static string $docsPage = 'catalogo/catalogo-attributi';
 
+    /** Senza la funzionalità «Varianti» la pagina non c'è. */
+    public static string $feature = 'variants';
+
     public static function path(): string
     {
         return 'app/gestionale/varianti';
@@ -101,6 +104,7 @@ class VariantResource extends AttributeResource
             ->inSection('catalogo')
             ->title('Varianti')
             ->order(42)
-            ->access(Gestionale::area('catalogo'));
+            ->access(Gestionale::area('catalogo'))
+            ->enabled(static::featureActive());
     }
 }
