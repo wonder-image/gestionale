@@ -52,6 +52,7 @@
 
 * [Campagne di sconto](promozioni-campagne.md)
 * [Coupon](promozioni-coupon.md)
+* [Listini cliente](promozioni-listini-cliente.md)
 
 ## Anagrafiche
 

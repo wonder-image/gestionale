@@ -35,6 +35,7 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
 use Wonder\Plugin\Gestionale\Support\Payments\Installments;
 use Wonder\Plugin\Gestionale\Support\Pricing\LinePrice;
 use Wonder\Plugin\Gestionale\Support\Pricing\OrderTotals;
+use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
 use Wonder\Plugin\Gestionale\Support\Shipping\Shipments;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
@@ -61,6 +62,7 @@ final class OfficeOrders
     private const HEADER = [
         'customer_id', 'email', 'phone', 'location_id', 'shipping_method_id',
         'payment_method_id', 'payment_term_id', 'customer_note', 'internal_note', 'document_note',
+        'price_list_id',
     ];
 
     /** Gli stati da cui un preventivo si modifica: dopo la modifica torna da inviare (G9 §3.1). */
@@ -179,6 +181,7 @@ final class OfficeOrders
             'phone' => trim((string) ($contact['phone_prefix'] ?? '').' '.(string) ($contact['phone'] ?? '')),
             'payment_method_id' => (int) ($contact['payment_method_id'] ?? 0),
             'payment_term_id' => (int) ($contact['payment_term_id'] ?? 0),
+            'price_list_id' => PriceLists::forContact($contactId),
         ];
 
         foreach (self::billingKeys() as $key) {
@@ -747,6 +750,11 @@ final class OfficeOrders
 
             $value = trim((string) ($data[$key] ?? ''));
             $values[$key] = $value !== '' ? $value : (string) ($defaults[$key] ?? '');
+        }
+
+        // Il listino del cliente vale da sé sulla bozza nuova; poi si cambia a mano.
+        if (!$update && !array_key_exists('price_list_id', $values) && isset($defaults['price_list_id'])) {
+            $values['price_list_id'] = $defaults['price_list_id'];
         }
 
         foreach (['email', 'phone'] as $key) {
