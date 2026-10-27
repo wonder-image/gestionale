@@ -100,7 +100,6 @@ return [
         'area' => 'Listini',
         'requires' => ['orders'],
         'release' => 'G6',
-        'created' => false,
     ],
     'discount_campaigns' => [
         'name' => 'Sconto massivo',

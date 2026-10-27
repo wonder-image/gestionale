@@ -14,6 +14,7 @@ use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
+use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
@@ -131,6 +132,10 @@ final class OfficeOrderPage
                 self::field(FormField::key('payment_method_id')->select(['0' => 'Nessuno'] + $resource::paymentMethods()), 'payment_method_id', 'Metodo di pagamento', 3, (string) ($values['payment_method_id'] ?? '0')),
                 count($terms) > 1
                     ? self::field(FormField::key('payment_term_id')->select(['0' => 'Nessuna (a vista)'] + $terms), 'payment_term_id', 'Condizione di pagamento', 3, (string) ($values['payment_term_id'] ?? '0'))
+                    : null,
+                // Il listino si sceglie dal primo salvataggio: prima vale quello del cliente.
+                Gestionale::feature('customer_price_lists') && (int) ($values['id'] ?? 0) > 0
+                    ? self::field(FormField::key('price_list_id')->select(['0' => 'Nessuno (prezzi di catalogo)'] + PriceListResource::options((int) ($values['price_list_id'] ?? 0))), 'price_list_id', 'Listino', 3, (string) ($values['price_list_id'] ?? '0'))
                     : null,
                 self::field(FormField::key('manual_discount_type')->select(['none' => 'Nessuno', 'percent' => 'Percentuale', 'amount' => 'Importo']), 'manual_discount_type', 'Sconto sul totale', 3, (string) ($values['manual_discount_type'] ?? 'none')),
                 self::field(FormField::key('manual_discount_value')->text(), 'manual_discount_value', 'Valore dello sconto', 3, $discountValue > 0 ? number_format($discountValue, 2, ',', '') : '')

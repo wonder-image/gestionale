@@ -111,6 +111,12 @@ final class CustomerSheet
         return $items;
     }
 
+    /** @return list<DataItem> */
+    public static function priceList(string $name): array
+    {
+        return [DataItem::make('Listino', $name !== '' ? $name : 'Nessuno (prezzi di catalogo)')->columnSpan(['default' => 12, 'sm' => 4])];
+    }
+
     /**
      * I dati di fatturazione, un `DataItem` ciascuno: codice fiscale, per le
      * aziende partita IVA, SDI e PEC, poi l'indirizzo.

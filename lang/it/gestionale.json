@@ -226,6 +226,22 @@
                 "percentages_sum": "Le percentuali delle rate fanno {{sum}}%: devono fare 100%.",
                 "in_use": "Questa condizione è usata da ordini, clienti o pagamenti ({{count}}) e non si elimina: mettila su «Non attiva»."
             },
+            "price_list": {
+                "invalid_currency": "La valuta è un codice di tre lettere, per esempio EUR.",
+                "invalid_dates": "La fine della validità viene prima dell'inizio.",
+                "item_no_product": "Riga {{row}}: scegli il prodotto.",
+                "item_invalid": "Riga {{row}}: la quantità minima è più di 0 e il prezzo non è negativo.",
+                "item_duplicate": "Riga {{row}}: quel prodotto ha già uno scaglione con la stessa quantità minima.",
+                "in_use": "Questo listino è assegnato a clienti o ordini ({{count}}) e non si elimina: mettilo su «Non attivo».",
+                "import_format": "Il file va caricato in formato .xlsx o .csv.",
+                "import_unreadable": "Il file non si legge: scaricalo di nuovo dal listino e riprova.",
+                "import_too_many": "Il file ha più di {{max}} righe: dividilo in più listini.",
+                "import_no_sku": "Riga {{row}} del file: manca lo SKU.",
+                "import_unknown_sku": "Riga {{row}} del file: nessun prodotto ha lo SKU «{{sku}}».",
+                "import_invalid_number": "Riga {{row}} del file: la quantità minima è più di 0 e il prezzo non è negativo.",
+                "import_duplicate": "Riga {{row}} del file: lo SKU «{{sku}}» ha già uno scaglione con la stessa quantità minima.",
+                "import_empty": "Il file non ha righe: il listino resta com'era."
+            },
             "return": {
                 "order_not_returnable": "Su quest'ordine non si può registrare un reso: serve un ordine confermato, in lavorazione o completato, con i resi attivi.",
                 "nothing_selected": "Scrivi la quantità di almeno una riga: non c'è niente da rendere.",
