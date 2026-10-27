@@ -61,6 +61,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Combinations;
 use Wonder\Plugin\Gestionale\Support\Catalog\Ean;
 use Wonder\Plugin\Gestionale\Support\Catalog\Generator;
+use Wonder\Plugin\Gestionale\Support\Catalog\PageAxis;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Packages;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
@@ -3427,6 +3428,17 @@ HTML
     }
 
     /**
+     * Sposta le versioni quando cambia la variante con una pagina per valore
+     * (#85); vero quando ha spostato qualcosa.
+     */
+    protected static function switchPageAxis(int $modelId, int $to): bool
+    {
+        $from = static::variantAttributeId($modelId);
+
+        return $from !== $to && PageAxis::switch($modelId, $from, $to);
+    }
+
+    /**
      * Righe legate al modello: categorie, tag, attributi e prodotto unico.
      *
      * `$fallbackSku` è lo SKU del modello appena creato: se la casella del
@@ -3495,6 +3507,13 @@ HTML
                 // Chi salva senza la griglia (un'altra pagina, un import)
                 // tiene la variante con le pagine che l'articolo ha già.
                 $post += ['page_attribute' => static::variantAttributeId($modelId)];
+
+                // Interruttore cambiato: le versioni passano da una tabella
+                // all'altra prima che il generatore le confronti.
+                if (!$appenaNato) {
+                    static::switchPageAxis($modelId, (int) $post['page_attribute']);
+                }
+
                 $chosen = static::chosenAxes($post);
                 // Le righe senza id sono le combinazioni spuntate che ancora
                 // non esistono: la loro chiave è quella della combinazione.

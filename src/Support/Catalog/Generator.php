@@ -76,15 +76,7 @@ final class Generator
                 ], $variantId);
                 $reuse['variant_id'] = 0;
             } else {
-                $created = ProductVariant::create([
-                    'code' => Code::make(ProductVariant::class, Codes::VARIANT),
-                    'product_model_id' => $modelId,
-                    'name' => $variant['label'],
-                    'slug' => Slug::uniqueWithin($variant['label'], ProductVariant::class, ['product_model_id' => $modelId]),
-                    'position' => ++$position,
-                    'visible' => 'true',
-                ]);
-                $variantId = (int) ($created->insert_id ?? 0);
+                $variantId = self::newVariant($modelId, $variant['label'], ++$position);
             }
 
             if ($variantId === 0) {
@@ -208,6 +200,24 @@ final class Generator
     }
 
     /**
+     * Una variante nuova, con codice e slug: lo slug nasce dal nome, vuoto
+     * per una variante senza pagina.
+     */
+    public static function newVariant(int $modelId, string $name, int $position, bool $withSlug = true): int
+    {
+        $created = ProductVariant::create([
+            'code' => Code::make(ProductVariant::class, Codes::VARIANT),
+            'product_model_id' => $modelId,
+            'name' => $name,
+            'slug' => $withSlug ? Slug::uniqueWithin($name, ProductVariant::class, ['product_model_id' => $modelId]) : '',
+            'position' => $position,
+            'visible' => 'true',
+        ]);
+
+        return (int) ($created->insert_id ?? 0);
+    }
+
+    /**
      * Varianti e prodotti già presenti, nella forma che `Combinations` legge.
      *
      * @return array{variants: array<int, int>, products: array<string, bool>}
@@ -326,7 +336,7 @@ final class Generator
      *
      * @return array<int, array<string, mixed>>
      */
-    private static function attributeOfValues(): array
+    public static function attributeOfValues(): array
     {
         $attributes = [];
 
