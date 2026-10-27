@@ -138,6 +138,10 @@
             "tag": {
                 "name_required": "Scrivi il nome del tag."
             },
+            "faq": {
+                "question_required": "Scrivi la domanda.",
+                "answer_required": "Scrivi la risposta."
+            },
             "brand": {
                 "name_required": "Scrivi il nome del marchio."
             },

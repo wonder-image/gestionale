@@ -33,6 +33,7 @@ final class Codes
     public const ATTRIBUTE = 'att_';
     public const PACKAGE = 'pkg_';
     public const CUSTOMIZATION = 'cus_';
+    public const FAQ = 'faq_';
 
     // Anagrafiche e sedi
     public const CONTACT = 'con_';

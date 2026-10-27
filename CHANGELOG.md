@@ -7,6 +7,13 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **FAQ**: in Catalogo → FAQ domande e risposte da mostrare nella scheda dei
+  prodotti scelti (tutti, oppure categorie con le sottocategorie, tag, marchi
+  e articoli, con gli esclusi) e, con «Mostra nella home», nella home. Tabelle
+  `gst_faqs` e i ponti `gst_faq_categories`, `gst_faq_tags`, `gst_faq_brands`,
+  `gst_faq_product_models`; il selettore è quello di campagne e coupon
+  (`ProductScope` owner `faq`). Per il frontend `Support\Catalog\Faqs::forModel()`
+  e `Faqs::home()`. Passo a mano: `php forge update`.
 - **Scheda prodotto essenziale**: nel pannello Funzionalità la card nuova
   «Scheda prodotto» con *Articoli suggeriti* (`related_suggested`), *Articoli
   alternativi* (`related_alternative`), *Varianti* (`variants`), *Misure*
