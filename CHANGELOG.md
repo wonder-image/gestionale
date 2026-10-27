@@ -727,6 +727,11 @@ versionamento semantico.
 
 ### Corretto
 
+- L'azione del menu ⋯ su una bozza d'ordine o un preventivo inesistente mostra
+  la pagina 404 del backend invece di una pagina con il solo «Non trovato»:
+  lancia `Wonder\Http\Exceptions\NotFoundHttpException` del core, che deve
+  già contenere quella classe.
+
 - `OrderOwner::claim` non prende più i carrelli (`stage = 'cart'`): un ospite
   che scrive l'email di un altro nel checkout lasciava un carrello senza utente
   con quell'email, che al primo ingresso del proprietario finiva sul suo

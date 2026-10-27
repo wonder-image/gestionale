@@ -13,6 +13,7 @@ use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Backend\Support\FlashAlert;
 use Wonder\Http\Csrf;
+use Wonder\Http\Exceptions\NotFoundHttpException;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
@@ -213,8 +214,7 @@ class OfficeOrderResource extends GestionaleResource
 
         if (!static::featureActive() || !in_array($intent, static::listIntents(), true) || !is_array($order) || !isset($order['id'])
             || (string) ($order['deleted'] ?? 'false') !== 'false' || (string) ($order['stage'] ?? '') !== static::stage()) {
-            http_response_code(404);
-            exit('Non trovato');
+            throw new NotFoundHttpException();
         }
 
         $result = Csrf::verify()

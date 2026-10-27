@@ -7,6 +7,7 @@ require __DIR__ . '/harness.php';
 
 use Wonder\App\Theme;
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
+use Wonder\Http\Exceptions\NotFoundHttpException;
 use Wonder\Plugin\Gestionale\Resources\Sales\OfficeOrderResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderPage;
@@ -98,5 +99,22 @@ check('in testa vicino a Guida: i bottoni premono il gemello nascosto del form',
 check('le azioni che non salvano le righe sono Rifiutato ed Elimina', fn () =>
     OfficeOrderPage::WITHOUT_LINES === ['reject', 'delete']
 );
+
+// Una bozza che non c'è (o un'azione sconosciuta) è la pagina 404 del backend, non una pagina bianca.
+check('l\'azione del menu ⋯ su una bozza inesistente lancia il 404 del core', function () {
+    foreach ([OfficeOrderResource::class, QuoteResource::class] as $resource) {
+        try {
+            $resource::runAction(0, 'delete');
+
+            return false;
+        } catch (NotFoundHttpException $e) {
+            if ($e->statusCode() !== 404) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+});
 
 summary();
