@@ -132,4 +132,16 @@ check('la modifica non tocca la posizione né salva il selettore come colonne', 
         && $valori['applies_to_all'] === 'true';
 });
 
+check('la domanda tiene le maiuscole scritte da chi la compila', function () {
+    foreach (Faq::dataSchema() as $field) {
+        if ($field->key === 'question') {
+            $format = Faq::prepareFormatFromField($field);
+
+            return empty($format['ucwords']) && empty($format['lower']);
+        }
+    }
+
+    return false;
+});
+
 summary();

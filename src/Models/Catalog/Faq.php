@@ -53,7 +53,7 @@ final class Faq extends Model
     {
         return [
             Field::key('code')->text()->uniqueCode(Codes::FAQ),
-            Field::key('question')->text()->sanitizeFirst(),
+            Field::key('question')->text()->sanitize(),
             Field::key('answer')->text()->richText(),
             Field::key('importance')->text()->sanitize(false),
             Field::key('position')->number()->decimals(0),
