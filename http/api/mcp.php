@@ -8,6 +8,13 @@ use Wonder\Plugin\Gestionale\Support\Mcp\Server;
 // niente stream SSE e niente sessioni. Il token è quello di `api_users` oppure un access token OAuth (`wio_at_`).
 header('Cache-Control: no-store');
 
+// Funzionalità spenta: l'endpoint risponde come se non esistesse, prima di ogni altra cosa.
+if (!Server::enabled()) {
+    http_response_code(404);
+
+    return;
+}
+
 $respond = static function (int $status, ?array $body): void {
     http_response_code($status);
 

@@ -25,6 +25,11 @@ use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxCategories;
 use Wonder\Sql\Transaction;
 
+// Il server risponde solo con la funzionalità `mcp` accesa.
+$stato = new ReflectionProperty(Gestionale::class, 'features');
+$stato->setAccessible(true);
+$stato->setValue(null, array_merge(Gestionale::features(), ['mcp' => true]));
+
 final class Annulla extends RuntimeException {}
 
 $admin = new Caller(0, 0, ['administrator', 'api_internal_user'], '127.0.0.1');

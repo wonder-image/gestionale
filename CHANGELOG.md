@@ -20,6 +20,22 @@ versionamento semantico.
   conferma prima di salvare, e feed e sitemap si rifanno al giro dopo dello
   scheduler (`Support\Catalog\CatalogRefresh`, `ProductFeeds::expire()`).
   Gli strumenti MCP del catalogo scelgono la pagina per articolo.
+- **Listini cliente** (funzionalità `customer_price_lists`, #78): Model
+  `Pricing\PriceList` (`gst_price_lists`) e `Pricing\PriceListItem`
+  (scaglioni per prodotto e quantità minima), Resource in Promozioni →
+  Listini con import/export xlsx e csv (l'import sostituisce le righe).
+  Il listino si sceglie nella scheda cliente (`price_list_id`) ed è
+  memorizzato sull'ordine; `LinePrice` lo applica con lo scaglione giusto
+  (fonte `price_list`, prima della campagna) e torna al catalogo per i
+  prodotti fuori listino o col listino scaduto o spento. Le bozze da ufficio
+  nascono col listino del cliente e lo possono cambiare; il carrello online
+  segue quello del cliente loggato; gli ordini confermati non cambiano. Le
+  colonne le crea `forge update`.
+
+- **Funzionalità «Server MCP»** (`mcp`, area Integrazioni): il server MCP si
+  accende e si spegne dal pannello Funzionalità. Spenta, `/api/gestionale/mcp/`
+  risponde 404, `Server` non elenca né esegue strumenti e la risorsa OAuth non
+  viene annunciata.
 
 - **Limiti di tentativi** (`Support\Throttle`): la primitiva dell'ecommerce,
   con la stessa API, ora anche nel gestionale; l'ecommerce passerà a usarla. `attempt()` conta e decide in un colpo solo con un
