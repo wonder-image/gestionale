@@ -953,7 +953,7 @@ HTML
      */
     protected static function optionsCard(int $modelId): array
     {
-        $blocchi = static::optionBlocks();
+        $blocchi = static::optionBlocks($modelId);
 
         // Senza attributi non c'è niente da spuntare: al posto del selettore
         // un avviso, e la griglia resta, perché il prezzo si scrive lì.
@@ -1931,12 +1931,6 @@ HTML
         static::backorderChoice($values);
 
         static::assertSoleProduct($id, $values);
-
-        // Le caselle nascoste vengono postate lo stesso: se l'articolo dice
-        // di non avere varianti, le spunte non si guardano nemmeno.
-        if ($values['has_variants'] === 'true') {
-            static::chosenAxes((array) $_POST);
-        }
 
         static::assertSomeVersionLeft($id);
         static::assertVersionsKept($id);
@@ -3498,6 +3492,9 @@ HTML
 
             if ($conVarianti) {
 
+                // Chi salva senza la griglia (un'altra pagina, un import)
+                // tiene la variante con le pagine che l'articolo ha già.
+                $post += ['page_attribute' => static::variantAttributeId($modelId)];
                 $chosen = static::chosenAxes($post);
                 // Le righe senza id sono le combinazioni spuntate che ancora
                 // non esistono: la loro chiave è quella della combinazione.
@@ -5106,9 +5103,10 @@ HTML)->tag('div');
      *
      * @return list<object>
      */
-    protected static function optionBlocks(): array
+    protected static function optionBlocks(int $modelId = 0): array
     {
         $blocks = [];
+        $pagina = static::pageAttribute($modelId);
 
         foreach (static::optionAttributes() as $attribute) {
             $id = (int) $attribute['id'];
@@ -5124,6 +5122,7 @@ HTML)->tag('div');
                     .'</div>'
                 )->tag('div')->columnSpan(1),
                 static::getInput('option_'.$id)->pills()->columnSpan(11),
+                static::pageToggle($id, $id === $pagina),
             ])
                 ->attr('data-wi-option', (string) $id)
                 ->attr('data-wi-option-name', (string) ($attribute['name'] ?? ''))
@@ -5132,6 +5131,41 @@ HTML)->tag('div');
         }
 
         return $blocks;
+    }
+
+    /**
+     * L'interruttore «Una pagina per ogni valore» di una variante.
+     *
+     * Non ha nome: quello che parte è il campo nascosto `page_attribute`
+     * della griglia, che lo script tiene a uno solo acceso.
+     */
+    protected static function pageToggle(int $attributeId, bool $acceso): object
+    {
+        $id = 'wi-page-toggle-'.$attributeId;
+
+        return RichText::make(
+            '<div class="form-check form-switch small mb-0 offset-1">'
+            .'<input class="form-check-input" type="checkbox" role="switch" id="'.$id.'"'
+            .' data-wi-page-toggle="'.$attributeId.'"'.($acceso ? ' checked' : '').'>'
+            .'<label class="form-check-label" for="'.$id.'">Una pagina per ogni valore</label>'
+            .' <i class="bi bi-info-circle text-body-secondary" title="'
+            .static::escape('Ogni valore ha la sua pagina nel negozio, con le sue foto e il suo indirizzo. Si accende su una variante sola: accenderla qui spegne le altre.')
+            .'"></i>'
+            .'</div>'
+        )->tag('div')->columnSpan(12);
+    }
+
+    /**
+     * La variante con le pagine: quella postata quando il form torna con un
+     * errore, altrimenti quella che l'articolo sta usando.
+     */
+    public static function pageAttribute(int $modelId = 0): int
+    {
+        if (isset($_POST['page_attribute'])) {
+            return (int) $_POST['page_attribute'];
+        }
+
+        return static::variantAttributeId($modelId);
     }
 
     /**
@@ -5302,12 +5336,13 @@ HTML)->tag('div');
         }
 
         $esistenti = static::escape(json_encode($chiavi, JSON_THROW_ON_ERROR));
-        // L'attributo con foto proprie: quando raggruppa lui, la testata
-        // porta le foto del colore.
-        $asseColore = static::variantAttributeId($modelId);
+        // La variante con le pagine: quando raggruppa lei, la testata porta
+        // le foto del valore. Quella salvata resta a parte, per l'avviso.
+        $asseColore = static::pageAttribute($modelId);
+        $asseSalvato = static::variantAttributeId($modelId);
 
         return RichText::make(<<<HTML
-<div class="wi-options-grid" data-wi-existing="{$esistenti}" data-wi-photo-attribute="{$asseColore}"></div>
+<div class="wi-options-grid" data-wi-existing="{$esistenti}" data-wi-photo-attribute="{$asseColore}" data-wi-page-initial="{$asseSalvato}"><input type="hidden" name="page_attribute" value="{$asseColore}"></div>
 <script>
     window.wiOptionsGrid = window.wiOptionsGrid || (function () {
         function radice() {
@@ -5667,7 +5702,30 @@ HTML)->tag('div');
             });
         }
 
+        // Una pagina per ogni valore: un solo interruttore acceso. Il
+        // campo nascosto è quello che parte, e decide le chiavi delle foto.
+        function scegliPagina(interruttore) {
+            var root = radice();
+            if (!root) return;
+
+            var asse = interruttore.checked ? String(interruttore.getAttribute('data-wi-page-toggle')) : '0';
+
+            document.querySelectorAll('[data-wi-page-toggle]').forEach(function (altro) {
+                if (altro !== interruttore) altro.checked = false;
+            });
+
+            var nascosto = root.querySelector('[name="page_attribute"]');
+            if (nascosto) nascosto.value = asse;
+            root.setAttribute('data-wi-photo-attribute', asse);
+            aggiorna();
+        }
+
         document.addEventListener('change', function (ev) {
+            if (ev.target && ev.target.hasAttribute && ev.target.hasAttribute('data-wi-page-toggle')) {
+                scegliPagina(ev.target);
+                return;
+            }
+
             var nome = ev.target && ev.target.name ? ev.target.name : '';
             if (nome.indexOf('option_') === 0 || nome === 'sku') aggiorna();
         });
@@ -5696,9 +5754,10 @@ HTML)->tag('div');
     /**
      * Le spunte, divise in assi.
      *
-     * `variant` è l'asse con pagina propria — al massimo uno, altrimenti non si
-     * saprebbe quale valore sia la pagina. Gli altri finiscono in `axes`, un
-     * elemento per opzione, e si moltiplicano fra loro.
+     * `variant` è l'asse con «Una pagina per ogni valore», scelto in
+     * `page_attribute`: al massimo uno, e nessuno è un articolo a pagina
+     * unica. Gli altri finiscono in `axes`, un elemento per variante, e si
+     * moltiplicano fra loro.
      *
      * @param array<string, mixed> $post quello che arriva dal form
      * @return array{variant: list<array{id: int, label: string}>, axes: list<list<array{id: int, label: string}>>}
@@ -5706,8 +5765,8 @@ HTML)->tag('div');
     public static function chosenAxes(array $post): array
     {
         $variant = [];
-        $variantAttributes = [];
         $axes = [];
+        $pagina = (int) ($post['page_attribute'] ?? 0);
 
         foreach (static::optionAttributes() as $attribute) {
             $id = (int) $attribute['id'];
@@ -5726,17 +5785,12 @@ HTML)->tag('div');
                 continue;
             }
 
-            if (($attribute['level'] ?? '') === 'variant') {
-                $variantAttributes[$id] = true;
-                $variant = array_merge($variant, $scelti);
+            if ($id === $pagina) {
+                $variant = $scelti;
                 continue;
             }
 
             $axes[] = $scelti;
-        }
-
-        if (count($variantAttributes) > 1) {
-            throw UserError::make('product.one_page_option');
         }
 
         return ['variant' => $variant, 'axes' => $axes];
@@ -6999,13 +7053,15 @@ HTML)->tag('div');
      * Come si chiama, in questo negozio, l'opzione con foto proprie.
      *
      * "Colore" per chi vende magliette, "Gusto" per una gelateria. Serve a non
-     * far mai leggere a nessuno la parola "variante"; un negozio che non ne ha
-     * una legge "Opzioni".
+     * far mai leggere a nessuno la parola "variante"; un articolo senza
+     * pagine legge "Varianti".
      */
-    public static function pageOptionName(): string
+    public static function pageOptionName(int $modelId = 0): string
     {
+        $asse = static::variantAttributeId($modelId);
+
         foreach (static::attributes() as $attribute) {
-            if (($attribute['level'] ?? '') === 'variant') {
+            if ($asse > 0 && (int) $attribute['id'] === $asse) {
                 return (string) ($attribute['name'] ?? '');
             }
         }
@@ -7993,30 +8049,22 @@ HTML
     }
 
     /**
-     * L'attributo con pagina propria che conta per questo articolo.
+     * La variante con «Una pagina per ogni valore» di questo articolo.
      *
-     * Il negozio può averne più d'uno — «Colore» e una sua prova — e quello
-     * che vale è quello che l'articolo sta davvero usando: è lui a decidere
-     * se le foto stanno nella testata del gruppo. Il primo del negozio resta
-     * il ripiego in creazione, e su un articolo che non ha ancora scelto.
+     * Si legge da dove stanno i dati: i valori scritti sulle varianti
+     * (`gst_product_variant_attributes`). Un articolo nuovo, o che tiene
+     * tutto su una pagina, vale 0.
      */
     public static function variantAttributeId(int $modelId = 0): int
     {
-        $primo = 0;
-        $conPaginaPropria = [];
-
-        foreach (static::attributes() as $attribute) {
-            if (($attribute['level'] ?? '') !== 'variant') {
-                continue;
-            }
-
-            $id = (int) $attribute['id'];
-            $conPaginaPropria[$id] = true;
-            $primo = $primo > 0 ? $primo : $id;
+        if ($modelId <= 0) {
+            return 0;
         }
 
-        if ($primo === 0 || $modelId <= 0) {
-            return $primo;
+        $conPaginaPropria = [];
+
+        foreach (static::optionAttributes() as $attribute) {
+            $conPaginaPropria[(int) $attribute['id']] = true;
         }
 
         try {
@@ -8030,10 +8078,10 @@ HTML
                 }
             }
         } catch (Throwable) {
-            // Senza database (i test degli schemi) vale il ripiego.
+            // Senza database (i test degli schemi) nessuna pagina.
         }
 
-        return $primo;
+        return 0;
     }
 
     /** L'etichetta di ogni valore d'attributo, per id. @return array<int, string> */

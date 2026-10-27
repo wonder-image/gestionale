@@ -2762,11 +2762,11 @@ check('un articolo che usa il primo attributo tiene il primo', function () use (
     return $scheda::variantAttributeId(3168) === 7;
 });
 
-check('in creazione, e su un articolo senza varianti, vale il primo del negozio', function () use ($dueAttributiConFoto) {
+check('in creazione, e su un articolo senza pagine, nessun asse è acceso', function () use ($dueAttributiConFoto) {
     $scheda = $dueAttributiConFoto([]);
 
-    return $scheda::variantAttributeId(0) === 7
-        && $scheda::variantAttributeId(3168) === 7;
+    return $scheda::variantAttributeId(0) === 0
+        && $scheda::variantAttributeId(3168) === 0;
 });
 
 check('senza attributi con foto proprie non c\'è nessun asse', function () {
