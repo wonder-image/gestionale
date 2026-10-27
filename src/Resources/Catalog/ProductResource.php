@@ -102,14 +102,14 @@ class ProductResource extends ProductModelResource
 
     public static function titleLabel(): string
     {
-        return 'Opzioni in vendita';
+        return 'Varianti';
     }
 
     public static function textSchema(): array
     {
         return [
-            'label' => 'opzione',
-            'plural_label' => 'opzioni',
+            'label' => 'variante',
+            'plural_label' => 'varianti',
             'last' => 'ultime',
             'all' => 'tutte',
             'article' => 'le',
@@ -129,7 +129,7 @@ class ProductResource extends ProductModelResource
             'available' => 'D.tà',
             'sale_price' => 'Prezzo scontato',
             'active' => 'Stato',
-            'name' => 'Opzione',
+            'name' => 'Variante',
             'product_model_id' => 'Prodotto',
         ];
     }
@@ -361,7 +361,7 @@ class ProductResource extends ProductModelResource
         $cards = [
             (new Card)->components([
                 SectionTitle::make(static::currentTitle())
-                    ->tooltip('Questa opzione nasce nella scheda del prodotto: nome, descrizioni e categorie si cambiano di là, e il nome della riga segue gli attributi che la compongono. Qui c\'è quello che vale solo per lei.')
+                    ->tooltip('Questa variante nasce nella scheda del prodotto: nome, descrizioni e categorie si cambiano di là, e il nome della riga segue gli attributi che la compongono. Qui c\'è quello che vale solo per lei.')
                     ->columnSpan(12),
                 static::getInput('price')->columnSpan(4),
                 static::getInput('sale_price')->columnSpan(4),
@@ -385,12 +385,12 @@ class ProductResource extends ProductModelResource
             $letto = static::salesOptionsHtml($voci);
 
             $cards[] = (new Card)->components([
-                SectionTitle::make('Opzioni di vendita')
-                    ->tooltip('Gli attributi che fanno nascere questa opzione — taglia, formato, colore — e che dicono quale delle sorelle è. Qui si leggono: cambiarli vuol dire cambiare opzione, e si fa nella griglia della scheda dell\'articolo, dove si vedono tutte insieme.')
+                SectionTitle::make('Varianti')
+                    ->tooltip('I valori che fanno nascere questa variante — taglia, formato, colore — e che dicono quale delle sorelle è. Qui si leggono: cambiarli vuol dire cambiare variante, e si fa nella griglia della scheda dell\'articolo, dove si vedono tutte insieme.')
                     ->columnSpan(12),
                 RichText::make($letto !== ''
                     ? $letto
-                    : '<p class="text-body-secondary mb-0">Questa opzione non ha ancora nessun valore scelto: si scelgono nella griglia della scheda dell\'articolo.</p>')
+                    : '<p class="text-body-secondary mb-0">Questa variante non ha ancora nessun valore scelto: si scelgono nella griglia della scheda dell\'articolo.</p>')
                     ->tag('div')
                     ->columnSpan(12),
                 ...$nascosti,
@@ -410,7 +410,7 @@ class ProductResource extends ProductModelResource
             $spiegazione = 'Una riga per sede: la giacenza scritta diventa una rettifica su quella sede, vuota non tocca niente. Per lasciare una causale e una nota c\'è la rettifica.'
                 . ($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso per quella sede, e con zero non arriva niente.' : '');
         } else {
-            $spiegazione = 'Qui la giacenza si legge. Si scrive nella riga della griglia delle opzioni in vendita, oppure con una rettifica quando serve lasciare una causale e una nota.'
+            $spiegazione = 'Qui la giacenza si legge. Si scrive nella riga della griglia delle varianti, oppure con una rettifica quando serve lasciare una causale e una nota.'
                 . ($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso, e con zero non arriva niente.' : '');
         }
 
@@ -435,7 +435,7 @@ class ProductResource extends ProductModelResource
         if ($fornitori !== null) {
             $cards[] = (new Card)->components([
                 SectionTitle::make('Fornitori')
-                    ->tooltip('Da chi si compra questa opzione: il codice che le dà il fornitore e il costo d\'acquisto. Un costo lasciato vuoto vuol dire «non lo so», non zero.')
+                    ->tooltip('Da chi si compra questa variante: il codice che le dà il fornitore e il costo d\'acquisto. Un costo lasciato vuoto vuol dire «non lo so», non zero.')
                     ->columnSpan(12),
                 ...match ($fornitori) {
                     'flat' => [
@@ -479,7 +479,7 @@ class ProductResource extends ProductModelResource
     {
         return (new Card)->components([
             SectionTitle::make('Identificazione')
-                ->tooltip('I codici di questa opzione, e quanto pesa e misura il suo pacco. Lasciando vuote le misure valgono peso e misure dell\'articolo.')
+                ->tooltip('I codici di questa variante, e quanto pesa e misura il suo pacco. Lasciando vuote le misure valgono peso e misure dell\'articolo.')
                 ->columnSpan(12),
             static::getInput('sku')->columnSpan(12),
             static::getInput('ean')->columnSpan(12),
@@ -583,12 +583,12 @@ class ProductResource extends ProductModelResource
 
     protected static function technicalEmptyText(): string
     {
-        return 'Qui vanno le caratteristiche che cambiano da un\'opzione all\'altra: volume, gradazione, durata.';
+        return 'Qui vanno gli attributi che cambiano da una variante all\'altra: volume, gradazione, durata.';
     }
 
     protected static function technicalTooltip(): string
     {
-        return 'Quello che descrive questa opzione e non la fa nascere: volume, gradazione, durata. Si vede solo quello che è compilato, e il resto si aggiunge da «Aggiungi caratteristica». Una caratteristica nuova si prepara in Catalogo → Attributi.';
+        return 'Quello che descrive questa variante e non la fa nascere: volume, gradazione, durata. Si vede solo quello che è compilato, e il resto si aggiunge da «Aggiungi un attributo». Un attributo nuovo si prepara in Catalogo → Attributi.';
     }
 
     public static function stockCardTitle(): string
@@ -693,7 +693,7 @@ class ProductResource extends ProductModelResource
     protected static function stockHistoryTable(): string
     {
         $productId = static::currentId() ?? 0;
-        $vuoto = '<p class="text-muted mb-0">Nessun movimento: la giacenza di questa opzione non è mai cambiata.</p>';
+        $vuoto = '<p class="text-muted mb-0">Nessun movimento: la giacenza di questa variante non è mai cambiata.</p>';
 
         if ($productId <= 0) {
             return $vuoto;
@@ -889,8 +889,8 @@ HTML;
         return parent::pageSchema()
             ->only(['list', 'edit', 'update'])
             ->titles([
-                'list' => 'Opzioni in vendita',
-                'edit' => 'Modifica opzione',
+                'list' => 'Varianti',
+                'edit' => 'Modifica variante',
             ]);
     }
 
@@ -914,7 +914,7 @@ HTML;
     {
         return NavigationSchema::for(static::class)
             ->inSection('catalogo')
-            ->title('Opzioni in vendita')
+            ->title('Varianti')
             ->order(39)
             ->access(Gestionale::area('catalogo'))
             ->enabled(false);

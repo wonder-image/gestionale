@@ -118,7 +118,7 @@ check('la singola opzione non sta nel menu', fn () =>
     // L'indirizzo resta quello di sempre: cambiarlo romperebbe i link già
     // salvati e la rotta dello store API del "+ Aggiungi".
     && ProductResource::path() === 'app/gestionale/versioni'
-    && ProductResource::titleLabel() === 'Opzioni in vendita'
+    && ProductResource::titleLabel() === 'Varianti'
     // Ci si arriva dalla scheda del prodotto, non dal menu: un elenco piatto
     // di quello che si vende avrà senso con le giacenze.
     && (ProductResource::navigationSchema()->toArray()['enabled'] ?? true) === false
@@ -127,10 +127,10 @@ check('la singola opzione non sta nel menu', fn () =>
 check('la pagina parla di opzioni, non di versioni', function () {
     $titoli = (array) (ProductResource::pageSchema()->toArray()['titles'] ?? []);
 
-    return ($titoli['list'] ?? '') === 'Opzioni in vendita'
-        && ($titoli['edit'] ?? '') === 'Modifica opzione'
-        && (ProductResource::textSchema()['plural_label'] ?? '') === 'opzioni'
-        && (ProductResource::labelSchema()['name'] ?? '') === 'Opzione';
+    return ($titoli['list'] ?? '') === 'Varianti'
+        && ($titoli['edit'] ?? '') === 'Modifica variante'
+        && (ProductResource::textSchema()['plural_label'] ?? '') === 'varianti'
+        && (ProductResource::labelSchema()['name'] ?? '') === 'Variante';
 });
 
 check('l\'elenco si filtra sull\'articolo', function () {
@@ -221,7 +221,7 @@ $conFornitori = new class extends ProductResource {
 };
 
 $dueFornitori = [5 => 'Filati Nord', 6 => 'Imballaggi Sud'];
-$tooltipFornitori = 'Da chi si compra questa opzione: il codice che le dà il fornitore e il costo d\'acquisto. Un costo lasciato vuoto vuol dire «non lo so», non zero.';
+$tooltipFornitori = 'Da chi si compra questa variante: il codice che le dà il fornitore e il costo d\'acquisto. Un costo lasciato vuoto vuol dire «non lo so», non zero.';
 
 /**
  * Il riquadro «Fornitori», i suoi campi, le finestre e lo script della
@@ -301,7 +301,7 @@ check('con un fornitore solo il riquadro chiede codice e costo, con il suo nome 
         && $letto['script'] === '';
 });
 
-check('con più fornitori il riquadro ha il bottone che apre la finestra, senza «Salva per tutte le opzioni»', function () use ($schedaCon, $dueFornitori, $tooltipFornitori) {
+check('con più fornitori il riquadro ha il bottone che apre la finestra, senza «Salva per tutte le varianti»', function () use ($schedaCon, $dueFornitori, $tooltipFornitori) {
     $letto = $schedaCon($dueFornitori);
     $nascosto = $letto['campi']['suppliers'] ?? null;
     $bottone = $letto['campi']['suppliers_button'] ?? null;
@@ -594,7 +594,7 @@ check('con una sede sola il riquadro Magazzino dice dove si scrive la giacenza, 
     $con = $leggi(true);
     $senza = $leggi(false);
 
-    return str_starts_with($con['tooltip'] ?? '', 'Qui la giacenza si legge. Si scrive nella riga della griglia delle opzioni in vendita')
+    return str_starts_with($con['tooltip'] ?? '', 'Qui la giacenza si legge. Si scrive nella riga della griglia delle varianti')
         && str_contains($con['tooltip'] ?? '', 'La scorta minima è la soglia sotto cui arriva l\'avviso, e con zero non arriva niente.')
         && ($con['campi'] ?? null) === ['min_stock' => 4]
         && str_starts_with($senza['tooltip'] ?? '', 'Qui la giacenza si legge.')

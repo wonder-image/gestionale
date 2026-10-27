@@ -209,7 +209,7 @@ class ProductModelResource extends GestionaleResource
             'photo' => 'Foto',
             'sku' => 'SKU',
             'price' => 'Prezzo',
-            'versions' => 'Opzioni',
+            'versions' => 'Varianti',
             'available' => 'D.tà',
             'type' => 'Tipo',
             'unit' => 'Unità di misura',
@@ -231,7 +231,7 @@ class ProductModelResource extends GestionaleResource
             FormField::key('has_variants')
                 ->toggle()
                 ->label('Questo articolo ha varianti')
-                ->description('Colori, taglie, gusti: se ne ha, prezzo e codici si scrivono opzione per opzione.'),
+                ->description('Colori, taglie, gusti: se ne ha, prezzo e codici si scrivono variante per variante.'),
             // L'ordine degli attributi scelti, scritto dal selettore qui
             // sotto: il primo raggruppa, gli altri compongono il nome.
             FormField::key('axes_order')->hidden(),
@@ -243,7 +243,7 @@ class ProductModelResource extends GestionaleResource
             // campo si vede sempre — nascosto, il giorno in cui serve non si
             // trova.
             static::taxCategoryField((int) ($modelId ?? 0)),
-            // Il codice di famiglia: da lì nascono quelli delle opzioni.
+            // Il codice di famiglia: da lì nascono quelli delle varianti.
             // Con le varianti accese non si scrive qui, ma il valore resta
             // nel modulo — nascosto, non tolto — e continua a proporre i
             // codici delle righe.
@@ -518,14 +518,14 @@ class ProductModelResource extends GestionaleResource
             (new Card)->components([
                 SectionTitle::make('Prodotto')
                     ->tooltip($conVarianti
-                        ? 'Con le varianti prezzo, codici'.($conFornitori ? ', fornitori' : '').' e giacenza sono di ogni opzione: si scrivono riga per riga in «Opzioni in vendita», qui sotto.'
-                        : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il riquadro «Tipo fiscale». Lo SKU è anche il codice di famiglia: se aggiungi le varianti, da lì nascono quelli delle opzioni.'
+                        ? 'Con le varianti prezzo, codici'.($conFornitori ? ', fornitori' : '').' e giacenza sono di ogni variante: si scrivono riga per riga in «Varianti», qui sotto.'
+                        : 'Il prezzo di questo articolo, IVA compresa: quale IVA lo dice il riquadro «Tipo fiscale». Lo SKU è anche il codice di famiglia: se aggiungi le varianti, da lì nascono quelli delle varianti.'
                             .($modelId > 0 || $sedi ? '' : ' La giacenza scritta alla creazione entra come giacenza iniziale, nella sede principale.')
                             .' '.$avanzate.' stanno in «Compila le informazioni avanzate».'
                             .($soglia ? ' La scorta minima è la soglia sotto cui arriva l\'avviso: vale sul disponibile, e con zero non arriva niente.' : '')
                             .($conFornitori ? ' Dei fornitori si scrive il codice che usano loro e il costo d\'acquisto: un costo vuoto vuol dire «non lo so», non zero.' : '')
                             .($sedi ? ' Giacenza e scorta minima stanno nel riquadro «Magazzino», sede per sede.' : '')
-                            .($senzaOpzioni ? ' Per vendere colori o taglie serve un attributo con uso «Opzione da scegliere» o «Opzione con foto proprie», e dei valori: si crea in Catalogo → Attributi.' : ''))
+                            .($senzaOpzioni ? ' Per vendere colori o taglie serve una variante con dei valori: si crea in Catalogo → Varianti.' : ''))
                     ->columnSpan(12),
                 static::getInput('name')->columnSpan(9),
                 ...(Gestionale::feature('bundles') ? [static::getInput('type')] : []),
@@ -537,7 +537,7 @@ class ProductModelResource extends GestionaleResource
                 $domanda,
                 static::getInput('axes_order'),
                 ...($bloccato ? [
-                    RichText::make('<p class="small text-body-secondary mb-0">Questo articolo ha più opzioni in vendita: per tornare a un articolo singolo eliminale dalla griglia qui sotto.</p>')
+                    RichText::make('<p class="small text-body-secondary mb-0">Questo articolo ha più varianti: per tornare a un articolo singolo eliminale dalla griglia qui sotto.</p>')
                         ->tag('div')
                         ->columnSpan(12),
                 ] : []),
@@ -958,13 +958,13 @@ HTML
         // Senza attributi non c'è niente da spuntare: al posto del selettore
         // un avviso, e la griglia resta, perché il prezzo si scrive lì.
         $selettore = $blocchi === []
-            ? RichText::make('<p class="small text-body-secondary mb-0">Non c\'è ancora nessun attributo da cui far nascere opzioni: per vendere colori o taglie ne serve uno con uso «Opzione da scegliere» o «Opzione con foto proprie», e dei valori. Si crea in Catalogo → Attributi.</p>')
+            ? RichText::make('<p class="small text-body-secondary mb-0">Non c\'è ancora nessuna variante da aggiungere: per vendere colori o taglie ne serve una con dei valori. Si crea in Catalogo → Varianti.</p>')
             : static::optionsPicker($modelId);
 
         return [
             (new Card)->components([
-                SectionTitle::make('Opzioni in vendita')
-                    ->tooltip('Aggiungi un attributo — colore, taglia, gusto — e spunta i valori: le righe compaiono qui sotto e nascono al salvataggio, con codice, prezzo, giacenza e foto. Togliere una spunta non cancella niente che esista già. Nell\'elenco ci sono gli attributi visibili, con uso «Opzione da scegliere» o «Opzione con foto proprie», di tipo Elenco, Colore, Fantasia o Icona, e con almeno un valore: si sistemano in Catalogo → Attributi.')
+                SectionTitle::make('Varianti')
+                    ->tooltip('Aggiungi una variante — colore, taglia, gusto — e spunta i valori: le righe compaiono qui sotto e nascono al salvataggio, con codice, prezzo, giacenza e foto. Togliere una spunta non cancella niente che esista già. Nell\'elenco ci sono le varianti visibili con almeno un valore: si sistemano in Catalogo → Varianti. Con «Una pagina per ogni valore» ogni valore ha la sua pagina nel negozio.')
                     ->columnSpan(12),
                 // I blocchi stanno in un contenitore loro: il riordino li
                 // sposta con `order`, e dentro un riquadro condiviso
@@ -991,7 +991,7 @@ HTML
     {
         $foto = [
             SectionTitle::make('Foto e video')
-                ->tooltip('Le foto e i video caricati qui compaiono in tutte le opzioni dell\'articolo; quelli sotto un colore solo nelle opzioni di quel colore.')
+                ->tooltip('Le foto e i video caricati qui compaiono in tutte le varianti dell\'articolo; quelli sotto un valore solo nelle varianti di quel valore.')
                 ->columnSpan(12),
         ];
 
@@ -1045,7 +1045,7 @@ HTML
             // leggono.
             (new Card)->components([
                 SectionTitle::make('Misure')
-                    ->tooltip('Le dimensioni vere del prodotto, quelle che servono a sapere se sta in una scatola. Un\'opzione con misure sue le usa al posto di queste.')
+                    ->tooltip('Le dimensioni vere del prodotto, quelle che servono a sapere se sta in una scatola. Una variante con misure sue le usa al posto di queste.')
                     ->columnSpan(12),
                 static::getInput('unit')->columnSpan(6),
                 static::getInput('weight')->columnSpan(6),
@@ -1458,13 +1458,13 @@ HTML
                 // Il prezzo è già scritto come lo legge l'elenco: scontato,
                 // barrato, «da» quando le opzioni costano diverso.
                 static::showRow('Prezzo', static::priceCell($modelId), true)->columnSpan(4),
-                static::showRow('Opzioni', $opzioni > 0 ? (string) $opzioni : '')->columnSpan(4),
+                static::showRow('Varianti', $opzioni > 0 ? (string) $opzioni : '')->columnSpan(4),
                 static::showRow('Descrizione breve', (string) ($item['short_description'] ?? ''))->columnSpan(12),
             ])->columns(12)->columnSpan(12),
             ...static::showCompositionCard($modelId),
             (new Card)->components([
-                SectionTitle::make('Opzioni in vendita')
-                    ->tooltip('Le righe che si vendono davvero, con il loro codice e il loro prezzo. Lo stato si cambia da qui con un click; il resto dai tre puntini, nella scheda dell\'opzione.')
+                SectionTitle::make('Varianti')
+                    ->tooltip('Le righe che si vendono davvero, con il loro codice e il loro prezzo. Lo stato si cambia da qui con un click; il resto dai tre puntini, nella scheda della variante.')
                     ->columnSpan(9),
                 // La guida sta in riga col titolo, non sotto: prima la
                 // portava la tabella incorporata e apriva il riquadro con
@@ -1687,7 +1687,7 @@ HTML
      */
     public static function optionsTable(int $modelId): string
     {
-        $vuoto = '<p class="text-muted mb-0">Nessuna opzione: questo articolo non ha ancora niente da vendere.</p>';
+        $vuoto = '<p class="text-muted mb-0">Nessuna variante: questo articolo non ha ancora niente da vendere.</p>';
 
         if ($modelId <= 0) {
             return $vuoto;
@@ -3427,8 +3427,8 @@ HTML
     {
         return match (true) {
             $quante === 0 => '',
-            $quante === 1 => '1 opzione',
-            default => $quante.' opzioni',
+            $quante === 1 => '1 variante',
+            default => $quante.' varianti',
         };
     }
 
@@ -4711,7 +4711,7 @@ HTML
                 ->quickCreate(
                     AttributeValueResource::class,
                     label: 'label',
-                    button: 'Aggiungi opzione',
+                    button: 'Aggiungi valore',
                     layout: static::newValueLayout($id, 'Nuovo '.$nome),
                 );
         }
@@ -4739,7 +4739,7 @@ HTML
         // select in alto a destra si notava poco, e l'attributo scelto
         // compariva lontano da dove si era cliccato. Il bordo tratteggiato
         // dice «qui si aggiunge», come uno spazio vuoto.
-        $menu = static::addMenu('Aggiungi un attributo', 'wi-option-add', 'wi-option-choose');
+        $menu = static::addMenu('Aggiungi una variante', 'wi-option-add', 'wi-option-choose');
 
         foreach (static::optionAttributes() as $attribute) {
             $menu->action((string) ($attribute['name'] ?? ''), ['data-wi-option-add' => (string) (int) $attribute['id']]);
@@ -4852,7 +4852,7 @@ HTML
 
             if (nomi.length < 2) return;
 
-            riga.textContent = 'Le opzioni si raggruppano per ' + nomi[0] + ', poi ' + nomi.slice(1).join(', poi ') + '.';
+            riga.textContent = 'Le varianti si raggruppano per ' + nomi[0] + ', poi ' + nomi.slice(1).join(', poi ') + '.';
         }
 
         function sposta(id, passo) {
@@ -5012,10 +5012,10 @@ HTML
                 // le spunte e le righe che hanno fatto nascere.
                 var spuntati = caselle(nodo).filter(function (casella) { return casella.checked; }).length;
                 var conferma = {
-                    title: "Togliere l'attributo " + titolo(nodo) + '?',
+                    title: "Togliere la variante " + titolo(nodo) + '?',
                     text: spuntati > 0
                         ? 'Spariscono le spunte di ' + nome(nodo) + ' e le righe che hanno aggiunto alla griglia.'
-                        : 'Il blocco si chiude: lo riapri da «Aggiungi un attributo».',
+                        : 'Il blocco si chiude: lo riapri da «Aggiungi una variante».',
                     cancel: 'Annulla',
                     ok: 'Togli',
                     variant: 'danger',
@@ -6438,7 +6438,7 @@ HTML)->tag('div');
                 // legge. Il modal intanto se n'è andato in fondo alla pagina.
                 ...($nuova ? [
                     QuickCreateButton::make(AttributeResource::class)
-                        ->text('Nuova caratteristica')
+                        ->text('Nuovo attributo')
                         ->label('name')
                         ->layout(static fn (): Container => (new Container)
                             ->columns(12)
@@ -6467,13 +6467,13 @@ HTML)->tag('div');
     /** La frase del riquadro senza nessuna caratteristica compilata. */
     protected static function technicalEmptyText(): string
     {
-        return 'Qui vanno le caratteristiche che l\'articolo ha qualunque opzione si scelga: materiale, composizione, lavaggio.';
+        return 'Qui vanno gli attributi che l\'articolo ha qualunque variante si scelga: materiale, composizione, lavaggio.';
     }
 
     /** Il tooltip del titolo «Scheda tecnica». */
     protected static function technicalTooltip(): string
     {
-        return 'Quello che descrive l\'articolo e non fa nascere opzioni in vendita: materiale, composizione, lavaggio. Si vede solo quello che è compilato: il resto si aggiunge da «Aggiungi caratteristica», dove nasce anche una caratteristica nuova di testo o di numero. Gli elenchi con i loro valori, come i simboli di lavaggio, si preparano in Catalogo → Attributi.';
+        return 'Quello che descrive l\'articolo e non fa nascere varianti: materiale, composizione, lavaggio. Si vede solo quello che è compilato: il resto si aggiunge da «Aggiungi un attributo», dove nasce anche un attributo nuovo di testo o di numero. Gli elenchi con i loro valori, come i simboli di lavaggio, si preparano in Catalogo → Attributi.';
     }
 
     /**
@@ -6536,7 +6536,7 @@ HTML)->tag('div');
         $modelli = '';
 
         foreach ($nuova ? AttributeResource::QUICK_TYPES : [] as $type) {
-            $campo = static::writtenField('attribute___WI_ID__', $type, 'Caratteristica');
+            $campo = static::writtenField('attribute___WI_ID__', $type, 'Attributo');
             $modelli .= '<template data-wi-technical-template="'.static::escape($type).'">'
                 .ResourceFormLayoutRenderer::renderLayout((new Container)->columns(12)->components([
                     static::technicalBlock($campo, '__WI_ID__', '', 6),
@@ -6546,7 +6546,7 @@ HTML)->tag('div');
 
         // Il bordo tratteggiato dice «qui si aggiunge», come in «Opzioni in
         // vendita».
-        $menu = static::addMenu('Aggiungi caratteristica', 'wi-technical-picker', 'wi-technical-choose');
+        $menu = static::addMenu('Aggiungi un attributo', 'wi-technical-picker', 'wi-technical-choose');
 
         foreach ($voci as $id => $nome) {
             $menu->action($nome, ['data-wi-technical-add' => (string) (int) $id]);
@@ -6561,10 +6561,10 @@ HTML)->tag('div');
         // lo script lo nasconde quando sopra non resta nessuna voce.
         if ($nuova) {
             $menu->divider()
-                ->action('Nuova caratteristica…', ['data-wi-technical-new' => 'true'], ['icon' => 'bi bi-plus-lg'])
+                ->action('Nuovo attributo…', ['data-wi-technical-new' => 'true'], ['icon' => 'bi bi-plus-lg'])
                 ->text('Elenchi e simboli con le loro immagini, come quelli di lavaggio, si preparano in <a href="'.$elenco.'">Catalogo → Attributi</a>.', $nota);
         } else {
-            $menu->text('Una caratteristica nuova si prepara in <a href="'.$elenco.'">Catalogo → Attributi</a>, scegliendo «Scheda tecnica di ogni opzione».', $nota);
+            $menu->text('Un attributo nuovo si prepara in <a href="'.$elenco.'">Catalogo → Attributi</a>.', $nota);
         }
 
         $menu = $menu->render('bootstrap');
@@ -7010,7 +7010,7 @@ HTML)->tag('div');
             }
         }
 
-        return 'Opzioni';
+        return 'Varianti';
     }
 
     /**
@@ -7085,7 +7085,7 @@ HTML)->tag('div');
                 // Quello che si compila sempre: come si chiama, quanto
                 // costa, a quanto è scontato, quanti ce ne sono. Undici
                 // dodicesimi, perché il dodicesimo è del cestino.
-                RepeaterColumn::key('option')->text()->readonly()->label('Opzione')->columnSpan($sedi ? 7 : 5),
+                RepeaterColumn::key('option')->text()->readonly()->label('Variante')->columnSpan($sedi ? 7 : 5),
                 RepeaterColumn::key('price')->price()->decimal(2)->label('Prezzo')->columnSpan(2),
                 // Lo scontato accanto al prezzo, come nel riquadro in alto
                 // (P105): vuoto vuol dire che non c'è sconto. È una colonna
@@ -7152,9 +7152,9 @@ HTML)->tag('div');
             // Eliminare un'opzione è una decisione che si rimpiange: la riga
             // resta sbiadita, con il bottone per rimetterla.
             ->repeaterUndoDelete()
-            ->repeaterUndoLabel('Annulla', 'Questa opzione verrà eliminata al salvataggio.')
-            ->repeaterDeleteTitle('Elimina opzione')
-            ->repeaterDeleteText('Confermi l\'eliminazione di questa opzione in vendita?')
+            ->repeaterUndoLabel('Annulla', 'Questa variante verrà eliminata al salvataggio.')
+            ->repeaterDeleteTitle('Elimina variante')
+            ->repeaterDeleteText('Confermi l\'eliminazione di questa variante?')
             ->repeaterDeleteCancelLabel('Annulla')
             ->repeaterDeleteConfirmLabel('Elimina')
             ->repeaterDeleteConfirmClass('btn btn-danger')
@@ -7166,7 +7166,7 @@ HTML)->tag('div');
             $campo = $campo
                 ->repeaterGroupFixed('group')
                 ->repeaterGroupCommand('price', 'Prezzo del gruppo')
-                ->repeaterGroupCountLabel('opzione', 'opzioni');
+                ->repeaterGroupCountLabel('variante', 'varianti');
 
             if (static::variantAttributeId($modelId) > 0) {
                 $campo = $campo->repeaterGroupFiles(
@@ -8520,7 +8520,7 @@ HTML
                 Button::make('Aggiungi fornitore')->variant('secondary')->outline()->attr('data-wi-supplier-add', 'true'),
                 Button::make('Annulla')->variant('secondary')->attr('data-bs-dismiss', 'modal'),
                 ...($perTutte ? [
-                    Button::make('Salva per tutte le opzioni')->outline()->attr('data-wi-supplier-save-all', 'true'),
+                    Button::make('Salva per tutte le varianti')->outline()->attr('data-wi-supplier-save-all', 'true'),
                 ] : []),
                 Button::make('Salva')->attr('data-wi-supplier-save', 'true'),
             ]);

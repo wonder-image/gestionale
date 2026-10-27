@@ -404,7 +404,7 @@ check('la creazione mostra la scheda intera, due colonne comprese', function () 
     // «Prodotto»: la griglia raggruppata ha tre caselle per riga e in due
     // terzi di schermo ci sta. Foto e misure stanno a destra.
     return count($colonne) === 2
-        && $titoli($colonne[0]) === ['Prodotto', 'Opzioni in vendita', 'Scheda tecnica']
+        && $titoli($colonne[0]) === ['Prodotto', 'Varianti', 'Scheda tecnica']
         && $titoli($colonne[1]) === ['Foto e video', 'Come si vende', 'Tipo fiscale', 'Dove si trova', 'Misure'];
 });
 
@@ -547,7 +547,7 @@ check('la colonna larga tiene quello che si compone', function () use ($riquadri
     // Le opzioni in vendita subito sotto «Prodotto»: è lì che si risponde
     // «sì, ha varianti». La descrizione sta dentro «Prodotto», e la scheda
     // tecnica c'è anche senza caratteristiche.
-    return $riquadri(0) === ['Prodotto', 'Opzioni in vendita', 'Scheda tecnica'];
+    return $riquadri(0) === ['Prodotto', 'Varianti', 'Scheda tecnica'];
 });
 
 check('il riquadro delle opzioni risponde alla domanda sulle varianti', function () use ($schedaAperta) {
@@ -1103,7 +1103,7 @@ check('con più fornitori la tendina e la griglia hanno il bottone che apre la f
         && !in_array('Fornitori', $letto['titoli'], true);
 });
 
-check('la finestra «Fornitori» ha una riga per fornitore, con la sua «x», e «Salva per tutte le opzioni»', function () use ($conFornitori) {
+check('la finestra «Fornitori» ha una riga per fornitore, con la sua «x», e «Salva per tutte le varianti»', function () use ($conFornitori) {
     $letto = $conFornitori([5 => 'Filati Nord', 6 => 'Lanificio Sud', 7 => 'Tessuti Est'], ['purchasing' => true]);
     $finestra = $letto['modali'][0] ?? null;
 
@@ -1163,7 +1163,7 @@ check('la finestra «Fornitori» ha una riga per fornitore, con la sua «x», e 
         && str_contains($testa, 'Fornitore')
         && str_contains($testa, 'Codice fornitore')
         && str_contains($testa, 'Costo d\'acquisto')
-        && $bottoni === ['Aggiungi fornitore', 'Annulla', 'Salva per tutte le opzioni', 'Salva']
+        && $bottoni === ['Aggiungi fornitore', 'Annulla', 'Salva per tutte le varianti', 'Salva']
         && ($attributi[0]['data-wi-supplier-add'] ?? null) === 'true'
         && ($attributi[1]['data-bs-dismiss'] ?? null) === 'modal'
         && array_key_exists('data-wi-supplier-save-all', $attributi[2] ?? [])
@@ -1513,7 +1513,7 @@ check('con due sedi prezzo e scontato prendono la riga, e giacenza e soglia vann
 
         // Il riquadro «Magazzino» subito sotto «Prodotto» (P102): la scorta
         // minima non sta più nella tendina, che tiene i soli codici.
-        return $riquadri(0) === ['Prodotto', 'Magazzino', 'Opzioni in vendita', 'Scheda tecnica']
+        return $riquadri(0) === ['Prodotto', 'Magazzino', 'Varianti', 'Scheda tecnica']
             && str_contains($aiuto, 'Giacenza e scorta minima stanno nel riquadro «Magazzino», sede per sede.')
             && str_contains($aiuto, 'SKU, EAN stanno in «Compila le informazioni avanzate».')
             && !str_contains($aiuto, 'giacenza iniziale')
@@ -1936,7 +1936,7 @@ check('in «Prodotto» la descrizione non ha un titolo suo', function () use ($r
 });
 
 check('le parole interne non compaiono più nei titoli', function () use ($riquadri) {
-    $vecchie = ['Articolo', 'Varianti', 'Genera varianti e prodotti', 'Categorie e tag', 'Attributi', 'Immagini'];
+    $vecchie = ['Articolo', 'Genera varianti e prodotti', 'Categorie e tag', 'Attributi', 'Immagini'];
 
     return array_intersect($riquadri(), $vecchie) === [];
 });
@@ -2056,13 +2056,13 @@ check('la scheda tecnica c\'è anche vuota, e dice a cosa serve', function () us
         && str_contains($testo, 'Catalogo → Attributi');
 });
 
-check('«Nuova caratteristica» apre il modal degli attributi', function () use ($schedaTecnica, $dentroScheda) {
+check('«Nuovo attributo» apre il modal degli attributi', function () use ($schedaTecnica, $dentroScheda) {
     $bottoni = $dentroScheda($schedaTecnica::vediScheda(), QuickCreateButton::class);
     $config = $bottoni[0]?->quickCreateConfig() ?? [];
 
     return count($bottoni) === 1
         && $config['resource'] === AttributeResource::class
-        && $config['button'] === 'Nuova caratteristica'
+        && $config['button'] === 'Nuovo attributo'
         && $config['label'] === 'name'
         && $config['layout'] instanceof Closure;
 });
@@ -2129,19 +2129,19 @@ check('ogni caratteristica sta nel suo blocco, che si mostra solo se serve', fun
     return $bloccoTecnico($riquadro, 34) === null;
 });
 
-check('«Aggiungi caratteristica» propone quelle nascoste e quella nuova', function () use ($schedaTecnica, $testoScheda) {
+check('«Aggiungi un attributo» propone quelle nascoste e quella nuova', function () use ($schedaTecnica, $testoScheda) {
     $testo = $testoScheda($schedaTecnica::vediScheda());
 
-    return str_contains($testo, 'Aggiungi caratteristica')
+    return str_contains($testo, 'Aggiungi un attributo')
         && str_contains($testo, 'border-style:dashed')
         && str_contains($testo, 'data-wi-technical-add="31">Lavaggio<')
         && str_contains($testo, 'data-wi-technical-add="32">Composizione<')
         && str_contains($testo, 'data-wi-technical-add="33">Spessore<')
         && !str_contains($testo, 'data-wi-technical-add="34"')
-        // «Nuova caratteristica» è l'ultima voce del menu: apre il modal
+        // «Nuovo attributo» è l'ultima voce del menu: apre il modal
         // del bottone, che resta nella pagina ma non si vede.
         && str_contains($testo, 'data-wi-technical-new')
-        && str_contains($testo, 'Nuova caratteristica…');
+        && str_contains($testo, 'Nuovo attributo…');
 });
 
 check('i menu «Aggiungi» escono dal Dropdown del core, senza freccia, e lo script trova il divisore nel menu', function () use ($schedaTecnica, $testoScheda, $schedaAperta) {
@@ -2491,16 +2491,16 @@ check('il selettore chiede prima quale attributo, i valori vengono dopo', functi
     $html = $schedaAperta::vediSelettore();
 
     return str_contains($html, 'wi-option-picker')
-        && str_contains($html, 'Aggiungi un attributo')
+        && str_contains($html, 'Aggiungi una variante')
         && str_contains($html, 'data-wi-option-add="7"')
         && str_contains($html, '>Colore</button>')
         // Tre sono il massimo: il quarto non si aggiunge.
         && str_contains($html, 'var MASSIMO = 3;');
 });
 
-check('«Aggiungi un attributo» è un bottone largo quanto il riquadro, sotto gli attributi', function () use ($schedaAperta, $riquadro) {
+check('«Aggiungi una variante» è un bottone largo quanto il riquadro, sotto gli attributi', function () use ($schedaAperta, $riquadro) {
     $html = $schedaAperta::vediSelettore();
-    $dentro = $riquadro(0, 'Opzioni in vendita');
+    $dentro = $riquadro(0, 'Varianti');
     $blocchi = null;
     $selettore = null;
 
@@ -2534,7 +2534,7 @@ check('togliere un attributo chiede conferma', function () use ($schedaAperta) {
 
     // Un clic storto non deve portarsi via le spunte e le righe nuove.
     return str_contains($html, 'window.wi.confirm(conferma)')
-        && str_contains($html, "title: \"Togliere l'attributo \" + titolo(nodo) + '?'")
+        && str_contains($html, "title: \"Togliere la variante \" + titolo(nodo) + '?'")
         && str_contains($html, "ok: 'Togli'") && str_contains($html, "variant: 'danger'")
         && !str_contains($html, 'window.confirm(');
 });
@@ -3020,7 +3020,7 @@ check('i riquadri della scheda in lettura sono quelli della modifica', function 
         return $titoli;
     };
 
-    return $titoli($scheda->components[0]) === ['Prodotto', 'Opzioni in vendita']
+    return $titoli($scheda->components[0]) === ['Prodotto', 'Varianti']
         && $titoli($scheda->components[1]) === ['Foto e video', 'Stato', 'Dove si trova'];
 });
 
@@ -3067,7 +3067,7 @@ check('le opzioni della scheda sono le colonne che ProductResource dichiara', fu
 });
 
 check('senza database la scheda in lettura si legge lo stesso', fn () =>
-    str_contains(ProductModelResource::optionsTable(3168), 'Nessuna opzione')
+    str_contains(ProductModelResource::optionsTable(3168), 'Nessuna variante')
     && ProductModelResource::optionsTable(0) !== ''
 );
 
@@ -3110,7 +3110,7 @@ check('la guida delle opzioni sta accanto al titolo, non sotto', function () {
     foreach (ProductModelResource::showLayoutSchema(['id' => 3168])->components ?? [] as $colonna) {
         foreach ($colonna->components ?? [] as $riquadro) {
             foreach ($riquadro->components ?? [] as $pezzo) {
-                if ($pezzo instanceof SectionTitle && trim((string) $pezzo->getText()) === 'Opzioni in vendita') {
+                if ($pezzo instanceof SectionTitle && trim((string) $pezzo->getText()) === 'Varianti') {
                     $card = $riquadro;
                 }
             }
