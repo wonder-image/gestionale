@@ -14,7 +14,6 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
-use Wonder\App\ResourceSchema\Inputs\InputCheckbox;
 use Wonder\App\ResourceSchema\Inputs\InputNumber;
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
 use Wonder\Backend\Table\Badge\BooleanBadge;
@@ -6269,8 +6268,8 @@ HTML)->tag('div');
 
     /**
      * Il campo di un attributo che si scrive, secondo il tipo: un Numero, un
-     * Url, un File (il suo indirizzo), un Box testo con l'editor del core o,
-     * altrimenti, un Testo.
+     * Url, un File (il suo indirizzo), un Box testo con l'editor del core — con gli
+     * elenchi, puntati e numerati — o, altrimenti, un Testo.
      */
     protected static function writtenField(string $key, string $type, string $label): Input
     {
@@ -6279,7 +6278,7 @@ HTML)->tag('div');
         return match ($type) {
             'number' => $field->number()->decimal(3)->label($label),
             'url', 'file' => $field->url()->label($label),
-            'description' => $field->textarea('plus')->label($label),
+            'description' => $field->textarea('pro')->label($label),
             default => $field->text()->label($label),
         };
     }
@@ -6655,7 +6654,7 @@ HTML)->tag('div');
             $nome = (string) ($attribute['name'] ?? '');
             $input = static::getInput('attribute_'.$id);
 
-            $campi[] = static::technicalBlock($input, (string) $id, $nome, $input instanceof InputCheckbox ? 12 : 6);
+            $campi[] = static::technicalBlock($input, (string) $id, $nome);
             $voci[$id] = $nome;
         }
 
@@ -6725,14 +6724,14 @@ HTML)->tag('div');
      * Come i blocchi delle opzioni, gli attributi finiscono sul nodo interno:
      * quello da nascondere è il suo genitore, la colonna.
      */
-    protected static function technicalBlock(object $campo, string $id, string $name, int $span): Container
+    protected static function technicalBlock(object $campo, string $id, string $name): Container
     {
         return (new Container)
             ->components([$campo->columnSpan(12)])
             ->attr('data-wi-technical', $id)
             ->attr('data-wi-technical-name', $name)
             ->columns(12)
-            ->columnSpan($span);
+            ->columnSpan(12);
     }
 
     /**
@@ -6781,7 +6780,7 @@ HTML)->tag('div');
             $campo = static::writtenField('attribute___WI_ID__', $type, 'Attributo');
             $modelli .= '<template data-wi-technical-template="'.static::escape($type).'">'
                 .ResourceFormLayoutRenderer::renderLayout((new Container)->columns(12)->components([
-                    static::technicalBlock($campo, '__WI_ID__', '', 6),
+                    static::technicalBlock($campo, '__WI_ID__', ''),
                 ]))
                 .'</template>';
         }
@@ -6816,6 +6815,13 @@ HTML)->tag('div');
         return RichText::make(<<<HTML
 {$menu}
 {$modelli}
+<style>
+    /* Il Box testo cresce con quello che c'è scritto: niente barre di scorrimento. */
+    [data-wi-technical] .ql-container {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+</style>
 <script>
     window.wiTechnicalSheet = window.wiTechnicalSheet || (function () {
         var RISORSA = {$risorsa};

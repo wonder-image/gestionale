@@ -2095,22 +2095,34 @@ check('una caratteristica a elenco si spunta a pillole, con il «+» per un valo
         && ($rapido['button'] ?? '') === 'Aggiungi valore';
 });
 
-check('testo e numero si scrivono, a mezza riga e con l\'unità', function () use ($schedaTecnica, $dentroScheda, $bloccoTecnico) {
+check('testo e numero si scrivono, a riga intera e con l\'unità', function () use ($schedaTecnica, $dentroScheda, $bloccoTecnico) {
     $riquadro = $schedaTecnica::vediScheda();
     $testo = $dentroScheda($riquadro, 'attribute_32')[0] ?? null;
     $numero = $dentroScheda($riquadro, 'attribute_33')[0] ?? null;
 
-    // La mezza riga è del blocco: il campo lo riempie.
+    // La riga intera è del blocco: il campo lo riempie.
     return $testo instanceof InputText
         && $numero instanceof InputNumber
         && $numero->get('label') === 'Spessore (mm)'
-        && (($bloccoTecnico($riquadro, 32)?->columnSpan ?? [])['default'] ?? null) === 6
-        && (($bloccoTecnico($riquadro, 33)?->columnSpan ?? [])['default'] ?? null) === 6;
+        && (($bloccoTecnico($riquadro, 32)?->columnSpan ?? [])['default'] ?? null) === 12
+        && (($bloccoTecnico($riquadro, 33)?->columnSpan ?? [])['default'] ?? null) === 12;
+});
+
+check('il Box testo della scheda tecnica ha anche gli elenchi', function () {
+    $campo = (new class extends ProductModelResource {
+        public static function vediCampo(): object
+        {
+            return static::writtenField('attribute_35', 'description', 'Cosa fa per la tua pelle');
+        }
+    })::vediCampo();
+
+    return $campo->get('helper') === 'textarea'
+        && $campo->get('version') === 'pro';
 });
 
 check('ogni caratteristica sta nel suo blocco, che si mostra solo se serve', function () use ($schedaTecnica, $dentroScheda, $bloccoTecnico) {
     $riquadro = $schedaTecnica::vediScheda();
-    $attesi = [31 => ['Lavaggio', 12], 32 => ['Composizione', 6], 33 => ['Spessore', 6]];
+    $attesi = [31 => ['Lavaggio', 12], 32 => ['Composizione', 12], 33 => ['Spessore', 12]];
 
     foreach ($attesi as $id => [$nome, $larghezza]) {
         $blocco = $bloccoTecnico($riquadro, $id);
