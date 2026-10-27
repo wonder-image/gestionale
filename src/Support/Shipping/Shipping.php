@@ -32,9 +32,12 @@ final class Shipping
      * ordine di `position`. Vuoto con la funzionalità spenta, senza righe da
      * spedire o se nessun metodo copre la destinazione.
      *
+     * `$country`: paese da usare finché il carrello non ha un indirizzo (per
+     * esempio quello del visitatore), al posto di `IT`.
+     *
      * @return list<array{method_id: int, name: string, description: string, carrier_id: int, price: string, free: bool}>
      */
-    public static function options(int $cartId): array
+    public static function options(int $cartId, ?string $country = null): array
     {
         $cart = self::order($cartId);
 
@@ -42,7 +45,7 @@ final class Shipping
             return [];
         }
 
-        $context = self::context($cart, self::itemsOf($cartId), self::storedTotal($cart));
+        $context = self::context($cart, self::itemsOf($cartId), self::storedTotal($cart), null, $country);
 
         if ($context['lines'] === []) {
             return [];
@@ -211,9 +214,9 @@ final class Shipping
      * @param list<array<string, mixed>>|null $stored righe del carrello, per riconoscere le madri
      * @return array{lines: list<array<string, float>>, zone: ?int, channel: string, total: float}
      */
-    private static function context(array $cart, array $candidates, float $total, ?array $stored = null): array
+    private static function context(array $cart, array $candidates, float $total, ?array $stored = null, ?string $fallback = null): array
     {
-        [$country, $province] = self::destination($cart);
+        [$country, $province] = self::destination($cart, $fallback);
         $mothers = [];
 
         foreach ($stored ?? $candidates as $row) {
@@ -322,18 +325,36 @@ final class Shipping
     }
 
     /**
+     * Paese della destinazione del carrello, come per il prezzo: quello
+     * dell'indirizzo se ce n'è uno, altrimenti `$fallback`, altrimenti `IT`.
+     */
+    public static function country(array $cart, ?string $fallback = null): string
+    {
+        return self::destination($cart, $fallback)[0];
+    }
+
+    /**
      * Paese e provincia della destinazione: quelli dell'indirizzo di consegna
      * se ne ha uno, altrimenti quelli della fatturazione; senza paese, `IT`.
-     * Il paese da solo non fa un indirizzo di consegna: ha un valore predefinito.
+     * Il paese da solo non fa un indirizzo (ha un valore predefinito): senza
+     * via, città, CAP e provincia vale `$fallback`, se c'è.
      *
      * @return array{string, string}
      */
-    private static function destination(array $cart): array
+    private static function destination(array $cart, ?string $fallback = null): array
     {
         $delivery = false;
+        $billing = false;
 
         foreach (['province', 'city', 'cap', 'street'] as $field) {
             $delivery = $delivery || trim((string) ($cart['shipping_'.$field] ?? '')) !== '';
+            $billing = $billing || trim((string) ($cart['billing_'.$field] ?? '')) !== '';
+        }
+
+        $fallback = strtoupper(trim((string) $fallback));
+
+        if (!$delivery && !$billing && $fallback !== '') {
+            return [$fallback, ''];
         }
 
         $prefix = $delivery ? 'shipping_' : 'billing_';
