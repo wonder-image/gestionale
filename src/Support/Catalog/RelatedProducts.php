@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Catalog;
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductRelation;
@@ -18,12 +19,32 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
  * criteri di `ProductListing::byModelIds()` dell'ecommerce. {@see ids()} è la
  * lettura grezza per backend e MCP, dove chi vende vuole vedere quello che ha
  * scelto anche se oggi un articolo è nascosto. {@see cleanRows()} è pura.
+ *
+ * Ogni tipo è una funzionalità ({@see FEATURES}): spenta, il sito non ne
+ * legge nessuno e la scheda non lo mostra; le righe salvate restano.
  */
 final class RelatedProducts
 {
     public const SUGGESTED = 'suggested';
     public const ALTERNATIVE = 'alternative';
     public const TYPES = [self::SUGGESTED, self::ALTERNATIVE];
+
+    /** La funzionalità che accende ogni tipo. */
+    public const FEATURES = [
+        self::SUGGESTED => 'related_suggested',
+        self::ALTERNATIVE => 'related_alternative',
+    ];
+
+    public static function active(string $type): bool
+    {
+        return isset(self::FEATURES[$type]) && Gestionale::feature(self::FEATURES[$type]);
+    }
+
+    /** @return list<string> i tipi accesi, nell'ordine di {@see TYPES} */
+    public static function activeTypes(): array
+    {
+        return array_values(array_filter(self::TYPES, self::active(...)));
+    }
 
     /**
      * Le righe di un elenco senza quelle vuote, l'articolo stesso e i
@@ -79,7 +100,29 @@ final class RelatedProducts
     }
 
     /**
-     * Suggeriti e alternativi che il sito può mostrare, nell'ordine scelto.
+     * Le righe salvate di un elenco, nell'ordine scelto: `id` e
+     * `related_model_id`, per l'editor della scheda.
+     *
+     * @return list<array{id: int, related_model_id: int}>
+     */
+    public static function savedRows(int $modelId, string $type): array
+    {
+        if ($modelId <= 0 || !in_array($type, self::TYPES, true)) {
+            return [];
+        }
+
+        $out = [];
+
+        foreach (self::rows(ProductRelation::find(['product_model_id' => $modelId, 'type' => $type, 'deleted' => 'false'], null, 'position', 'ASC')) as $row) {
+            $out[] = ['id' => (int) $row['id'], 'related_model_id' => (int) $row['related_model_id']];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Suggeriti e alternativi che il sito può mostrare, nell'ordine scelto;
+     * vuoto il tipo spento.
      *
      * @return array{suggested: list<int>, alternative: list<int>}
      */
@@ -87,7 +130,7 @@ final class RelatedProducts
     {
         $out = [self::SUGGESTED => [], self::ALTERNATIVE => []];
 
-        foreach (self::TYPES as $type) {
+        foreach (self::activeTypes() as $type) {
             $out[$type] = array_values(array_filter(self::ids($modelId, $type), self::onSite(...)));
         }
 

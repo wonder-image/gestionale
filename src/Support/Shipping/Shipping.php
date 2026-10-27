@@ -10,6 +10,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRate;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRateBracket;
+use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
 /**
@@ -248,13 +249,8 @@ final class Shipping
                 continue;
             }
 
-            $lines[] = [
-                'weight' => (float) ($product['weight'] ?? 0),
-                'length' => (float) ($product['length'] ?? 0),
-                'width' => (float) ($product['width'] ?? 0),
-                'height' => (float) ($product['height'] ?? 0),
-                'quantity' => (float) ($row['quantity'] ?? 0),
-            ];
+            // Con «Misure» spenta peso e misure contano come non inseriti.
+            $lines[] = Measures::of($product) + ['quantity' => (float) ($row['quantity'] ?? 0)];
         }
 
         return [

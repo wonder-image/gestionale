@@ -29,6 +29,9 @@ Route::area('api')->response('json')->backend()->translatable(false)
     ->name('api.gestionale.backend.')->prefix('/gestionale/backend')->group(function () {
         Route::get('/magazzino/versioni/', Gestionale::handlerPath('api/stock/versions.php'))
             ->name('stock.versions')->guarded()->permit(Access::roles(Gestionale::area('magazzino'), 'create'));
+        // Gli articoli da collegare nella scheda (Articoli collegati).
+        Route::get('/catalogo/articoli/', Gestionale::handlerPath('api/catalog/models.php'))
+            ->name('catalog.models')->guarded()->permit(Access::roles(Gestionale::area('catalogo'), 'view'));
         // G9: le ricerche della pagina *Nuovo ordine*.
         Route::get('/vendite/versioni/', Gestionale::handlerPath('api/sales/versions.php'))
             ->name('sales.versions')->guarded()->permit(Access::roles(Gestionale::area('vendite'), 'create'));

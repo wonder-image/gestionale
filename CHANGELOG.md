@@ -7,6 +7,22 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Scheda prodotto essenziale**: nel pannello Funzionalità la card nuova
+  «Scheda prodotto» con *Articoli suggeriti* (`related_suggested`), *Articoli
+  alternativi* (`related_alternative`), *Varianti* (`variants`), *Misure*
+  (`measures`) e *Aliquote* (`tax_categories`); *Imballaggi* (`packages`) va in
+  «Spedizioni» e richiede `shipping`. Spente, la scheda non mostra i loro campi:
+  senza *Misure* le spedizioni, il carrello e i feed contano il peso come non
+  inserito (`Support\Catalog\Measures::of()`), senza *Aliquote* vale il tipo
+  fiscale predefinito, senza *Varianti* un articolo nuovo ha una versione sola
+  (quelli salvati in più versioni restano). *Varianti* non si spegne finché un
+  articolo ha più versioni (`feature.variants_in_use`). I due elenchi di
+  articoli collegati si compilano con la tabella di «Nuovo carico» (ricerca,
+  righe da trascinare) in `Support\Catalog\RelatedProductsEditor`; MCP:
+  `product_set_related` risponde `feature_off` sul tipo spento.
+  Nei siti esistenti le funzionalità nuove nascono spente: vanno accese dal
+  pannello.
+
 - **Articoli suggeriti e alternativi** (#74, #75): nella scheda articolo il
   riquadro «Articoli collegati» con due liste ordinabili, «Suggeriti» (da
   abbinare) e «Alternativi» (al posto suo), scelte a mano da chi vende.

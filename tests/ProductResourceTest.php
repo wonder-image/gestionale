@@ -33,11 +33,17 @@ $campi = static function (): array {
     return $campi;
 };
 
-// Le funzionalità si forzano riscrivendo la mappa memoizzata; `null` la fa
-// ricalcolare, e senza database è tutto bloccato.
+// La scheda intera: le funzionalità di «Scheda prodotto» accese, salvo che
+// il test le spenga.
+const SCHEDA_ACCESA = ['packages' => true, 'measures' => true, 'tax_categories' => true, 'variants' => true, 'related_suggested' => true, 'related_alternative' => true];
+
+// Le funzionalità si forzano riscrivendo la mappa memoizzata; `null` torna
+// alla scheda intera.
 $forza = static function (?array $stato): void {
-    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, ($stato ?? []) + SCHEDA_ACCESA);
 };
+
+$forza(null);
 
 // I riquadri della scheda, nell'ordine in cui si leggono: prima la colonna
 // larga del lavoro di tutti i giorni, poi quella dei codici.

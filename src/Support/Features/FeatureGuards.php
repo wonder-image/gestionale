@@ -3,6 +3,8 @@
 namespace Wonder\Plugin\Gestionale\Support\Features;
 
 use Throwable;
+use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -16,8 +18,10 @@ use Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions;
  * con trasferimenti in viaggio. Spenta, quella merce non si vedrebbe più da
  * nessuna parte e la vetrina venderebbe solo la principale. «Abbonamenti» non
  * si spegne con abbonamenti vivi: spenta, nessuno vedrebbe più i rinnovi che
- * continuano a correre. Vale anche quando si spegnerebbe a catena, per una
- * dipendenza tolta.
+ * continuano a correre. «Varianti» non si spegne con un articolo in più
+ * versioni: spenta, la scheda lo mostrerebbe come singolo e i codici delle
+ * versioni non si vedrebbero più. Vale anche quando si spegnerebbe a catena,
+ * per una dipendenza tolta.
  * «Acquisti» e «Lotti e scadenze» si spengono sempre: i dati restano,
  * nascosti, e tornano alla riaccensione.
  */
@@ -47,12 +51,26 @@ final class FeatureGuards
                 throw UserError::make('feature.subscriptions_in_use', ['count' => self::subscriptionsLabel($live)]);
             }
         }
+
+        if (self::turnsOff('variants', $current, $next)) {
+            $models = self::modelsWithVariants();
+
+            if ($models > 0) {
+                throw UserError::make('feature.variants_in_use', ['count' => self::variantsLabel($models)]);
+            }
+        }
     }
 
     /** «c'è 1 abbonamento in corso», «ci sono 3 abbonamenti in corso». Pura. */
     public static function subscriptionsLabel(int $count): string
     {
         return $count === 1 ? 'c\'è 1 abbonamento in corso' : 'ci sono '.$count.' abbonamenti in corso';
+    }
+
+    /** «c'è 1 articolo con varianti», «ci sono 3 articoli con varianti». Pura. */
+    public static function variantsLabel(int $count): string
+    {
+        return $count === 1 ? 'c\'è 1 articolo con varianti' : 'ci sono '.$count.' articoli con varianti';
     }
 
     /** @param array<string, bool> $current @param array<string, bool> $next */
@@ -120,6 +138,18 @@ final class FeatureGuards
     {
         try {
             return (int) sqlCount(StockDocument::$table, "`type` = 'transfer' AND `status` = 'in_transit' AND `deleted` = 'false'");
+        } catch (Throwable) {
+            return 0;
+        }
+    }
+
+    /** Gli articoli con la domanda «ha varianti» a sì o con più versioni. */
+    private static function modelsWithVariants(): int
+    {
+        $more = 'SELECT `product_model_id` FROM `'.Product::$table."` WHERE `deleted` = 'false' GROUP BY `product_model_id` HAVING COUNT(*) > 1";
+
+        try {
+            return (int) sqlCount(ProductModel::$table, "`deleted` = 'false' AND (`has_variants` = 'true' OR `id` IN (".$more.'))');
         } catch (Throwable) {
             return 0;
         }

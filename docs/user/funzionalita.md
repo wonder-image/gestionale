@@ -41,6 +41,11 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Abbonamenti | Vendite | Piani, rinnovi e cambio piano. | — |
 | Multiprodotto | Catalogo | Prodotti composti da altri prodotti: vendendoli si scaricano i componenti. | — |
 | Personalizzazione | Catalogo | Campi compilati al momento della vendita, con eventuale sovrapprezzo, sui prodotti e sui piani degli abbonamenti. | Ordini o Abbonamenti |
+| Articoli suggeriti | Scheda prodotto | Articoli da comprare insieme, scelti a mano nella scheda: il sito li propone nella scheda e nel carrello. | — |
+| Articoli alternativi | Scheda prodotto | Articoli da proporre al posto di un altro, scelti a mano nella scheda. | — |
+| Varianti | Scheda prodotto | Articoli in più versioni (taglia, colore…) con prezzo, codice e giacenza per versione. | — |
+| Misure | Scheda prodotto | Unità di misura, peso e dimensioni dell'articolo. Spenta, il peso conta come non inserito. | — |
+| Aliquote | Scheda prodotto | Tipo fiscale scelto per articolo. Spenta, ogni articolo usa il tipo fiscale predefinito. | — |
 | Etichette | Catalogo | Etichette con codice a barre e prezzo in PDF. | — |
 | Più sedi | Magazzino | Altre sedi con giacenze proprie e trasferimenti. | — |
 | Acquisti | Magazzino | Fornitori e costi d'acquisto nei prodotti e nei carichi, valore del magazzino. | — |
@@ -53,11 +58,21 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Fatturazione elettronica | Fatturazione | Fatture, invio SDI, coda, stati e notifiche. | — |
 | Fattura differita | Fatturazione | Fattura riepilogativa dei DDT del periodo. | DDT, Fatturazione elettronica |
 | Spedizioni | Spedizioni | Listini per zona e peso, spedizioni e tracking manuali, ritiro in sede. | Ordini |
+| Imballaggi | Spedizioni | Le scatole in cui si spedisce, con il loro peso, da scegliere nella scheda prodotto. | Spedizioni |
 | Corrieri | Spedizioni | Etichette e tracking dal corriere. | Spedizioni |
 | Vendita online | Canali di vendita | Il sito vende: coupon, campagne e metodi di pagamento valgono per il sito. | Ordini |
 | Vendita in ufficio | Canali di vendita | Gli ordini si fanno dal gestionale: coupon, campagne e metodi di pagamento valgono anche per l'ufficio; le rate si seguono nello Scadenzario. | Ordini |
 | Abbonamenti online | Canali di vendita | Il sito vende i piani: pagina dei piani, sottoscrizione con Stripe e abbonamenti nell'area cliente. | Vendita online, Abbonamenti |
 | Vendita in cassa | Canali di vendita | Vendita in sede con documento commerciale e corrispettivi. | Ordini |
+| Server MCP | Integrazioni | Collega gli assistenti IA (Claude, ChatGPT, Cursor) a prodotti, prezzi, giacenze, categorie, ordini e preventivi, con i permessi del backend. | — |
+| Esportazione Excel | Esportazioni | Scarica i prodotti in Excel (.xlsx): una riga per opzione, intestazioni in italiano. | — |
+| Esportazione CSV | Esportazioni | Scarica i prodotti in CSV (.csv) standard: virgola, UTF-8, punto nei decimali. | — |
+| Esportazione contatti Excel | Esportazioni | Scarica clienti e fornitori in Excel (.xlsx): anagrafica, recapiti e fatturazione, celle come testo. | — |
+| Esportazione contatti CSV | Esportazioni | Scarica clienti e fornitori in CSV (.csv): UTF-8, virgola, senza celle lette come formula. | — |
+| Catalogo Meta | Esportazioni | Scarica il file per il catalogo di Facebook e Instagram (.csv con i campi di Meta). | — |
+| Google Merchant Center | Esportazioni | Scarica il feed per Google Merchant Center (.xml RSS con i campi g:). | — |
+| TikTok Shop | Esportazioni | Sincronizzazione del catalogo con TikTok Shop. | — |
+| Amazon | Esportazioni | Sincronizzazione del catalogo con Amazon. | — |
 <!-- funzionalita:fine -->
 
 ## Cosa accendono oggi Acquisti e Vendita senza giacenza

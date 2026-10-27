@@ -99,6 +99,8 @@ Le regole sono quelle delle schede del backend:
 - una personalizzazione passa da `Customizations::assertDefinition()`; con la
   funzione `customizations` spenta gli strumenti che scrivono rispondono
   `feature_off`;
+- `product_set_related` vale per un tipo solo se è accesa la sua funzione
+  (`related_suggested` o `related_alternative`), altrimenti `feature_off`;
 - un preventivo è un ordine con `stage` `quote`, scritto da
   `OfficeOrders::save()` come fa l'editor (numero, scadenza predefinita,
   ricalcolo). Servono le funzioni `quotes` e `office_sales`. Da MCP nasce solo

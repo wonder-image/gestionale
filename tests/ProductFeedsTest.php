@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\GoogleMerchant;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\MetaCatalog;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductExports;
@@ -98,6 +99,12 @@ check('feed: disponibile con giacenza, illimitato o vendibile scoperto', fn () =
     && ProductFeed::inStock($riga(['available' => 0.0, 'backorder' => 'Sì']))
 );
 
+// Il peso c'è solo con «Misure» accesa.
+$misure = static function (?bool $accesa): void {
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $accesa === null ? null : ['measures' => $accesa]);
+};
+$misure(true);
+
 check('feed: titolo, descrizione di ripiego, GTIN valido, peso e taglio', fn () =>
     ProductFeed::title($riga(), 150) === 'Maglia - Blu / S' && ProductFeed::title($riga(['option' => '']), 150) === 'Maglia'
     && ProductFeed::description($riga(['description' => '']), 100) === 'Corta'
@@ -106,6 +113,16 @@ check('feed: titolo, descrizione di ripiego, GTIN valido, peso e taglio', fn () 
     && ProductFeed::weight($riga()) === '0.4 kg' && ProductFeed::weight($riga(['weight' => 0.0])) === ''
     && ProductFeed::cut('abcdef', 4) === 'abc…' && ProductFeed::brand($riga(['brand' => '']), 'Negozio', 70) === 'Negozio'
 );
+
+check('feed: senza «Misure» il peso non si manda', function () use ($riga, $misure) {
+    $misure(false);
+
+    try {
+        return ProductFeed::weight($riga()) === '';
+    } finally {
+        $misure(true);
+    }
+});
 
 // --- Meta ---
 

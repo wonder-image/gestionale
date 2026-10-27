@@ -47,10 +47,16 @@ $campi = static function (): array {
     return $campi;
 };
 
-/** Sostituisce la mappa delle funzionalità; `null` la fa rileggere. */
+// La scheda intera: le funzionalità di «Scheda prodotto» accese, salvo che
+// il test le spenga.
+const SCHEDA_ACCESA = ['packages' => true, 'measures' => true, 'tax_categories' => true, 'variants' => true, 'related_suggested' => true, 'related_alternative' => true];
+
+/** Sostituisce la mappa delle funzionalità; `null` torna alla scheda intera. */
 $forza = static function (?array $stato): void {
-    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, ($stato ?? []) + SCHEDA_ACCESA);
 };
+
+$forza(null);
 
 /** Esegue `$prova` con le funzionalità date accese, poi rilegge lo stato vero. */
 $con = static function (array $stato, callable $prova) use ($forza) {

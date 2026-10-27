@@ -7,6 +7,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRate;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRateBracket;
+use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZone;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
@@ -319,6 +320,11 @@ final class RateForm
      */
     public static function unweighted(): int
     {
+        // Con «Misure» spenta il peso non si chiede: nessuno ne è senza.
+        if (!Measures::active()) {
+            return 0;
+        }
+
         try {
             return (int) Product::query()->Count(
                 Product::$table,

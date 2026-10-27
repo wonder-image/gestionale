@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Catalog\Exports;
 
 use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductExport;
 use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 
@@ -158,7 +159,7 @@ final class ProductFeed
     /** "0.4 kg"; vuoto senza peso. */
     public static function weight(array $row): string
     {
-        $weight = (float) ($row['weight'] ?? 0);
+        $weight = Measures::of($row)['weight'];
 
         return $weight > 0 ? rtrim(rtrim(number_format($weight, 3, '.', ''), '0'), '.').' kg' : '';
     }

@@ -573,10 +573,11 @@ final class Tools
     /**
      * Il tipo di IVA dell'articolo: quello dato, se esiste ed è visibile,
      * altrimenti il predefinito del negozio (zero se non ce n'è nessuno).
+     * Con «Aliquote» spenta vale sempre il predefinito, come nella scheda.
      */
     private static function taxCategory(array $args): int
     {
-        if (!array_key_exists('tax_category_id', $args)) {
+        if (!array_key_exists('tax_category_id', $args) || !Gestionale::feature('tax_categories')) {
             return TaxCategories::defaultId();
         }
 
@@ -719,7 +720,7 @@ final class Tools
 
     /**
      * Suggeriti e alternativi come li ha scelti chi vende, anche quelli che
-     * oggi il sito non mostra.
+     * oggi il sito non mostra; vuoto il tipo con la funzionalità spenta.
      *
      * @return array{suggested: list<array{id: int, name: string}>, alternative: list<array{id: int, name: string}>}
      */
@@ -729,6 +730,10 @@ final class Tools
 
         foreach (RelatedProducts::TYPES as $type) {
             $out[$type] = [];
+
+            if (!RelatedProducts::active($type)) {
+                continue;
+            }
 
             foreach (RelatedProducts::ids($modelId, $type) as $id) {
                 $model = ProductModel::findById($id);

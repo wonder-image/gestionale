@@ -10,9 +10,12 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Models\System\FeatureLog;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductFeeds;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Features\FeatureGuards;
 use Wonder\Plugin\Gestionale\Support\Features\FeaturePanel;
 use Wonder\Sql\Transaction;
 
@@ -123,6 +126,32 @@ check('la frequenza del feed si salva e resta ai salvataggi dopo', static functi
         return $salvata === 24
             && ProductFeeds::every('google') === 24
             && (FeaturePanel::settings()['export_google']['every'] ?? null) === 24;
+    });
+});
+
+check('«Varianti» non si spegne con un articolo in più versioni', static function (): bool {
+    return prova(static function (): bool {
+        $articoli = ProductModel::find("deleted = 'false'", 1);
+        $articolo = is_array($articoli) ? (isset($articoli['id']) ? $articoli : ($articoli[0] ?? [])) : [];
+
+        if (!isset($articolo['id'])) {
+            return false;
+        }
+
+        ProductModel::update(['has_variants' => 'true'], (int) $articolo['id']);
+
+        $rifiuto = static function (array $dopo): ?string {
+            try {
+                FeatureGuards::assertAllowed(['variants' => true], $dopo);
+            } catch (UserError $e) {
+                return $e->key();
+            }
+
+            return null;
+        };
+
+        return $rifiuto(['variants' => false]) === 'feature.variants_in_use'
+            && $rifiuto(['variants' => true]) === null;
     });
 });
 

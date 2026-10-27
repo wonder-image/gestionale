@@ -27,6 +27,7 @@ use Wonder\Plugin\Gestionale\Support\Positions;
  */
 final class PackageResource extends GestionaleResource
 {
+    public static string $feature = 'packages';
     public static string $model = Package::class;
     public static string $orderColumn = 'position';
     public static string $orderDirection = 'ASC';
