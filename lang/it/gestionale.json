@@ -382,6 +382,7 @@
                 "object": "`{{field}}` deve essere un oggetto.",
                 "method": "Metodo non supportato: {{method}}.",
                 "unknown_tool": "Strumento sconosciuto: {{name}}.",
+                "disabled": "Il server MCP non è attivo.",
                 "internal": "Errore interno: riprova; se si ripete, guarda il log del server.",
                 "parse": "Il corpo della richiesta non è JSON valido.",
                 "nothing_to_change": "Nessun campo da modificare.",
