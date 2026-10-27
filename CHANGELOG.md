@@ -7,6 +7,19 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Attributi e Varianti** (#85, #83): nel catalogo due voci al posto di
+  opzioni e caratteristiche, e il campo «Uso» sparisce. Nuovi tipi di
+  attributo Url, File e Box testo. Nella scheda articolo l'interruttore
+  «Una pagina per ogni valore» si accende su una sola variante: acceso, i
+  valori stanno in `gst_product_variant_attributes` e ogni valore ha la sua
+  pagina; spento, stanno in `gst_product_attributes`. Le foto valgono per
+  tutte le varianti. Cambiare l'interruttore sposta le versioni fra le
+  tabelle (`Support\Catalog\PageAxis`); le pagine tolte vanno nel cestino
+  con il loro slug, così il negozio fa il 301 nei due versi
+  (`Support\Catalog\PageRedirect`). Su un articolo online la scheda chiede
+  conferma prima di salvare, e feed e sitemap si rifanno al giro dopo dello
+  scheduler (`Support\Catalog\CatalogRefresh`, `ProductFeeds::expire()`).
+  Gli strumenti MCP del catalogo scelgono la pagina per articolo.
 - **Listini cliente** (funzionalità `customer_price_lists`, #78): Model
   `Pricing\PriceList` (`gst_price_lists`) e `Pricing\PriceListItem`
   (scaglioni per prodotto e quantità minima), Resource in Promozioni →

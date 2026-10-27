@@ -108,6 +108,18 @@ final class ProductFeeds
         return is_file($path) ? (int) filemtime($path) : null;
     }
 
+    /** I file già scritti diventano scaduti: il prossimo giro li riscrive. */
+    public static function expire(?string $dir = null): void
+    {
+        foreach (self::FEEDS as $key => $feed) {
+            $path = ($dir ?? self::dir()).'/'.$feed['file'];
+
+            if (is_file($path)) {
+                touch($path, 1);
+            }
+        }
+    }
+
     /**
      * Un giro dell'attività: per ogni feed, sbloccato e scaduto si riscrive,
      * bloccato si cancella. Le dipendenze si passano per i test.

@@ -43,6 +43,7 @@ check('ogni Resource con dati dichiara la sua funzionalità', function () use ($
         'Wonder\\Plugin\\Gestionale\\Resources\\Payments\\PaymentTermResource',
         // Il catalogo è sempre attivo (3.4 della spec di architettura).
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\AttributeResource',
+        'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\VariantResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\BrandResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\ProductModelResource',
         'Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\ProductResource',

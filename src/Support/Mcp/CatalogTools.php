@@ -9,6 +9,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -61,7 +62,7 @@ final class CatalogTools
 
         return [
             'attributes_list' => [
-                'description' => 'Elenca gli attributi del catalogo con tipo, uso (`level`), unità e valori. `level`: `model` = scheda tecnica dell\'articolo, `variant` = opzione con foto proprie, `product` = opzione da scegliere (per testo e numero: scheda tecnica di ogni opzione).',
+                'description' => 'Elenca attributi e varianti del catalogo con tipo, uso (`level`), unità e valori. `level`: `model` = attributo della scheda tecnica, `variant` e `product` = variante (per testo e numero: scheda tecnica di ogni versione). Quale variante fa una pagina per ogni valore lo decide ogni articolo, non `level`: vedi `page_attribute_id` di `product_set_attributes`.',
                 'schema' => self::schema([], []),
                 'permission' => [AttributeResource::class, 'list'],
                 'write' => false,
@@ -101,7 +102,7 @@ final class CatalogTools
                 'run' => self::attributeUpdate(...),
             ],
             'product_set_attributes' => [
-                'description' => 'Assegna attributi alla versione `product_id`: ogni attributo va dove dice il suo uso (`model` sull\'articolo, `variant` sull\'opzione con foto, `product` sulla versione). `attributes` è un oggetto `{id attributo: valore}`: per un tipo a elenco l\'id di un valore o un elenco di id, per testo e numero il valore; stringa vuota o null toglie. Gli attributi a elenco con uso `variant` o `product` sono gli assi delle opzioni in vendita e non si cambiano da qui.',
+                'description' => 'Assegna attributi alla versione `product_id`: `model` va sull\'articolo, testo e numero con uso `product` sulla versione. `attributes` è un oggetto `{id attributo: valore}`: per un tipo a elenco l\'id di un valore o un elenco di id, per testo e numero il valore; stringa vuota o null toglie. Le varianti (attributi a elenco con uso `variant` o `product`) sono gli assi delle versioni in vendita e non si cambiano da qui: i loro valori stanno sotto `variant` quando l\'articolo fa una pagina per ogni valore di quella variante (`page_attribute_id`, 0 = nessuna), altrimenti sotto `product`.',
                 'schema' => self::schema([
                     'product_id' => $id,
                     'attributes' => [
@@ -379,7 +380,10 @@ final class CatalogTools
 
         $after = self::productAttributes($parents);
 
-        return ['result' => ['product_id' => (int) $product['id'], 'attributes' => $after], 'subject' => (int) $product['id'], 'before' => $before, 'after' => $after];
+        // La variante con una pagina per valore è una scelta dell'articolo.
+        $pagina = ProductModelResource::variantAttributeId($parents['model']);
+
+        return ['result' => ['product_id' => (int) $product['id'], 'page_attribute_id' => $pagina, 'attributes' => $after], 'subject' => (int) $product['id'], 'before' => $before, 'after' => $after];
     }
 
     /** @return array<string, mixed> */
