@@ -169,6 +169,23 @@ final class RelatedProducts
         }
     }
 
+    /**
+     * Toglie ogni collegamento dell'articolo, suo o di altri verso di lui:
+     * prima di eliminarlo, la chiave esterna non lo lascerebbe andare.
+     */
+    public static function dropFor(int $modelId): void
+    {
+        if ($modelId <= 0) {
+            return;
+        }
+
+        foreach (['product_model_id', 'related_model_id'] as $column) {
+            foreach (self::rows(ProductRelation::find([$column => $modelId])) as $row) {
+                ProductRelation::delete((int) $row['id']);
+            }
+        }
+    }
+
     /** Un articolo che il sito mostra: visibile, online e con una versione attiva. */
     private static function onSite(int $modelId): bool
     {

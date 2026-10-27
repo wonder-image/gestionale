@@ -4654,6 +4654,10 @@ HTML
                 CustomizationLink::delete((int) $link['id']);
             }
 
+            // Gli articoli collegati nei due versi: anche quelli che altri
+            // articoli hanno collegato a questo.
+            RelatedProducts::dropFor($modelId);
+
             // Anche le opzioni tolte dalla griglia, prima delle varianti: una
             // riga nel cestino tiene ferma la sua variante come le altre.
             foreach (static::allProducts($modelId) as $product) {

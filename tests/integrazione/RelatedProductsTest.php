@@ -183,4 +183,19 @@ check('MCP: replace rifiuta un articolo che non c\'è e product_get mostra i nom
     });
 });
 
+check('eliminare un articolo toglie i suoi collegamenti e quelli degli altri verso di lui', function () {
+    return prova(static function (): bool {
+        // Senza movimenti di magazzino: con quelli l'articolo non si elimina.
+        $b = modelloDi(articoloConGiacenza(0, 'RP-B-'.uniqid()));
+        [$a, $c] = [articolo('A'), articolo('C')];
+        salvaCollegati($a, [$b], [$c]);
+        salvaCollegati($b, [$a], [$c]);
+        salvaCollegati($c, [$b], [$a]);
+        $esito = ProductModelResource::deleteRecord($b);
+
+        return !empty($esito->success) && ProductRelation::find(['product_model_id' => $b]) == [] && scritti($a, 'suggested') === [] && scritti($a, 'alternative') === [$c]
+            && scritti($c, 'suggested') === [] && scritti($c, 'alternative') === [$a];
+    });
+});
+
 summary();

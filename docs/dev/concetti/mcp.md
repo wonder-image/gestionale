@@ -62,7 +62,7 @@ rifiutato. Coupon, campagne, corrieri e metodi di spedizione hanno
 | `products_search` | cerca le versioni vendibili | ProductResource `list` |
 | `products_list` | versioni a pagine (`limit`, `offset`), filtri categoria e attiva | ProductResource `list` |
 | `product_create` | articolo semplice con opzione e versione: obbligatori `name` e `price`; di serie unità `pz`, IVA predefinita, pubblicato e visibile online; facoltativi SKU, EAN, prezzo scontato, descrizione breve, categorie | ProductModelResource `store` |
-| `product_get` | una versione con prezzi, giacenza, articolo e categorie | ProductResource `view` |
+| `product_get` | una versione con prezzi, giacenza, articolo (con i collegati in `model.related`) e categorie | ProductResource `view` |
 | `product_update` | prezzo, prezzo scontato, attivo, ordinabile se esaurito, visibile online | ProductResource `update` |
 | `stock_adjust` | rettifica di magazzino (aggiungi, togli, imposta) con causale | StockAdjustmentResource |
 | `categories_list` | albero delle categorie | CategoryResource `list` |
@@ -80,6 +80,7 @@ rifiutato. Coupon, campagne, corrieri e metodi di spedizione hanno
 | `customization_create` | nuova personalizzazione: obbligatori `name` e `kind`; `text` vuole `max_length`, `number` `decimals`, `choice` almeno 2 `options` | CustomizationResource `store` |
 | `customization_update` | campi da cambiare; `options` è l'elenco completo | CustomizationResource `update` |
 | `product_set_customizations` | elenco completo delle personalizzazioni dell'articolo di una versione, con obbligatoria e sovrapprezzo proprio | ProductResource `update` |
+| `product_set_related` | elenco completo degli articoli suggeriti o alternativi dell'articolo di una versione, nell'ordine dato | ProductModelResource `update` |
 | `quote_create` | preventivo in bozza: obbligatori `customer_id` e `lines` (righe `product`, `custom`, `text`); facoltativi consegna, pagamento, sconto, scadenza, note | QuoteResource `store` |
 | `quote_get` | un preventivo con stato, revisione, scadenza, totali e righe | QuoteResource `edit` |
 
