@@ -6122,16 +6122,21 @@ HTML)->tag('div');
         return static::writtenField('attribute_'.$id, (string) ($attribute['type'] ?? ''), $label);
     }
 
-    /** Il campo di un attributo che si scrive: un Numero o, altrimenti, un Testo. */
+    /**
+     * Il campo di un attributo che si scrive, secondo il tipo: un Numero, un
+     * Url, un File (il suo indirizzo), un Box testo con l'editor del core o,
+     * altrimenti, un Testo.
+     */
     protected static function writtenField(string $key, string $type, string $label): Input
     {
         $field = FormField::key($key);
 
-        if ($type === 'number') {
-            return $field->number()->decimal(3)->label($label);
-        }
-
-        return $field->text()->label($label);
+        return match ($type) {
+            'number' => $field->number()->decimal(3)->label($label),
+            'url', 'file' => $field->url()->label($label),
+            'description' => $field->textarea('plus')->label($label),
+            default => $field->text()->label($label),
+        };
     }
 
     /**

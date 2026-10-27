@@ -33,7 +33,7 @@ final class ProductModelAttribute extends Model
             Column::key('product_model_id')->int()->null(false)->foreign(ProductModel::$table),
             Column::key('attribute_id')->int()->null(false)->foreign(Attribute::$table),
             Column::key('attribute_value_id')->int()->foreign(AttributeValue::$table),
-            Column::key('value_text'),
+            Column::key('value_text')->type('TEXT'),
         ];
     }
 
@@ -51,7 +51,7 @@ final class ProductModelAttribute extends Model
             Field::key('product_model_id')->number()->decimals(0),
             Field::key('attribute_id')->number()->decimals(0),
             Field::key('attribute_value_id')->number()->decimals(0),
-            Field::key('value_text')->text()->sanitizeFirst(),
+            Field::key('value_text')->text(),
             Field::key('value_number')->number()->decimals(3),
         ];
     }

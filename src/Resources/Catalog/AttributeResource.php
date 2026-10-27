@@ -25,18 +25,20 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Units;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Positions;
+use Wonder\Sql\Query;
 
 /**
- * "Attributi": Colore, Taglia, Materiale — quello che distingue un articolo
- * dall'altro e quello che fa nascere le sue opzioni in vendita.
+ * "Attributi": Materiale, Peso, Scheda tecnica — la scheda tecnica
+ * dell'articolo. Le Varianti (Colore, Taglia), che fanno nascere le versioni
+ * in vendita, hanno la loro voce: {@see VariantResource}. La tabella è la
+ * stessa, e l'uso non si sceglie più: lo decide la voce da cui nasce.
  *
- * L'uso si sceglie qui, e dice dove finisce il valore. I valori di un
- * attributo a elenco si scrivono nella scheda, come righe. La scheda chiede
- * solo quello che serve al tipo, e cambia mentre lo si sceglie, senza salvare:
- * un Elenco ha il nome del valore, come un Bottone (nel negozio un gruppo di
- * bottoni a scelta singola), un Colore anche il codice, una Fantasia
- * anche l'immagine, un'Icona un'immagine sua; Testo e Numero non hanno
- * valori, ma un'unità di misura.
+ * I valori di un attributo a elenco si scrivono nella scheda, come righe. La
+ * scheda chiede solo quello che serve al tipo, e cambia mentre lo si sceglie,
+ * senza salvare: Selezionabili e Bottone hanno il nome del valore, un Colore
+ * anche il codice, un'Immagine o un'Icona un'immagine sua; Testo e Numero non
+ * hanno valori, ma un'unità di misura; Url, File e Box testo né l'uno né
+ * l'altra.
  *
  * Non è `final`: i test la estendono con una classe anonima per provare la
  * regola sul cambio di tipo senza database.
@@ -60,6 +62,87 @@ class AttributeResource extends GestionaleResource
 
     /** L'uso di una caratteristica nata dalla scheda prodotto. */
     public const QUICK_LEVEL = 'model';
+
+    /** L'uso di un attributo nuovo: la scheda tecnica dell'articolo. */
+    public static function defaultLevel(): string
+    {
+        return 'model';
+    }
+
+    /**
+     * I tipi che si scelgono qui, più quello attuale quando non c'è: un
+     * attributo nato prima delle due voci tiene il suo tipo.
+     *
+     * @return array<string, string>
+     */
+    public static function typeOptions(): array
+    {
+        $types = static::ownTypes();
+        $current = static::currentType();
+
+        if ($current !== '' && !isset($types[$current]) && isset(Attributes::TYPES[$current])) {
+            $types[$current] = Attributes::TYPES[$current];
+        }
+
+        return $types;
+    }
+
+    /** @return array<string, string> */
+    protected static function ownTypes(): array
+    {
+        return Attributes::attributeTypes();
+    }
+
+    /** Il tipo dell'attributo aperto, vuoto su uno nuovo o senza database. */
+    protected static function currentType(): string
+    {
+        $id = (int) (static::currentId() ?? 0);
+
+        if ($id <= 0) {
+            return '';
+        }
+
+        try {
+            $row = Attribute::find(['id' => $id], 1);
+        } catch (\Throwable) {
+            return '';
+        }
+
+        return is_array($row) ? (string) ($row['type'] ?? '') : '';
+    }
+
+    /**
+     * La condizione SQL dell'elenco: qui tutto quello che non è una Variante,
+     * cioè una scelta da un elenco che fa nascere versioni.
+     */
+    public static function listCondition(): string
+    {
+        return 'NOT ('.static::variantCondition().')';
+    }
+
+    protected static function variantCondition(): string
+    {
+        $table = '`'.Attribute::$table.'`';
+        $quote = static fn (array $keys): string => "'".implode("','", $keys)."'";
+
+        return $table.'.`level` IN ('.$quote(['variant', 'product']).')'
+            .' AND '.$table.'.`type` IN ('.$quote(array_keys(Attributes::VARIANT_TYPES)).')';
+    }
+
+    public static function querySchema(): array
+    {
+        $schema = parent::querySchema();
+        $base = Query::Conditions($schema['condition'] ?? [], false);
+        $schema['condition'] = ($base !== '' ? $base.' AND ' : '').'('.static::listCondition().')';
+
+        return $schema;
+    }
+
+    /** Il testo d'aiuto accanto al titolo della scheda. */
+    public static function formTooltip(): string
+    {
+        return 'Un attributo sta nella scheda tecnica dell\'articolo, come il Materiale. Il tipo dice come si scrive: Selezionabili e Icona si scelgono dai valori qui sotto; Testo e Numero si scrivono a mano, con l\'unità di misura; Url e File sono un indirizzo; il Box testo è un testo formattato, fuori dai filtri. Le scelte che fanno nascere le versioni in vendita, come Colore e Taglia, stanno in Catalogo → Varianti.';
+    }
 
     public static function path(): string
     {
@@ -127,32 +210,10 @@ class AttributeResource extends GestionaleResource
 
     public static function formSchema(): array
     {
-        // Un attributo già sugli articoli non cambia uso: i valori scritti
-        // stanno nella tabella di quell'uso, e con un altro nessuno li
-        // leggerebbe più.
-        $inUso = static::isUsed((int) (static::currentId() ?? 0));
-
         return [
             FormField::key('name')->text()->label('Nome')->required(),
-            // Due caselle per una sola risposta: le voci dipendono dal tipo,
-            // e il tipo si cambia senza ricaricare. Se ne vede una alla
-            // volta; quale conta lo decide il tipo, in mutateRequestValues().
-            FormField::key('level')
-                ->select(Attributes::levelsFor('select'))
-                ->value('product')
-                ->label('Uso')
-                ->required()
-                ->disabled($inUso)
-                ->visibleWhen('type', Attributes::VALUE_TYPES),
-            FormField::key('level_text')
-                ->select(Attributes::levelsFor('text'))
-                ->value('model')
-                ->label('Uso')
-                ->required()
-                ->disabled($inUso)
-                ->visibleWhen('type', Attributes::UNIT_TYPES),
             FormField::key('type')
-                ->select(Attributes::types())
+                ->select(static::typeOptions())
                 ->value(static::DEFAULT_TYPE)
                 ->label('Tipo')
                 ->required(),
@@ -163,11 +224,13 @@ class AttributeResource extends GestionaleResource
                 ->select(Units::all())
                 ->label('Unità di misura')
                 ->visibleWhen('type', Attributes::UNIT_TYPES),
+            // Un Box testo non si filtra: è un testo lungo, non un valore.
             FormField::key('is_filterable')
                 ->select(['true' => 'Sì', 'false' => 'No'])
                 ->value('true')
                 ->label('Filtro')
-                ->required(),
+                ->required()
+                ->visibleWhen('type', array_values(array_diff(array_keys(Attributes::TYPES), ['description']))),
             FormField::key('is_visible')
                 ->select(['true' => 'Visibile', 'false' => 'Nascosto'])
                 ->value('true')
@@ -223,17 +286,14 @@ class AttributeResource extends GestionaleResource
     {
         $cards = [
             (new Card)->components([
-                SectionTitle::make('Attributo')
-                    ->tooltip('L\'uso dice dove si sceglie il valore. «Scheda tecnica dell\'articolo»: uno per articolo, come il Materiale. «Opzione da scegliere»: fa nascere le opzioni in vendita, come la Taglia. «Opzione con foto proprie»: come la Taglia, ma ogni valore ha le sue foto, come il Colore. Il tipo decide cosa chiedono i valori: un Elenco solo il nome, un Bottone pure, ma nel negozio i valori stanno tutti in vista in una fila di bottoni, un Colore anche il pallino, una Fantasia anche l\'immagine, un\'Icona un\'immagine sua. Testo e Numero si scrivono a mano, con l\'unità di misura, e non creano opzioni. Quando un attributo è già sugli articoli il suo uso non cambia più.')
+                SectionTitle::make(static::singularTitle())
+                    ->tooltip(static::formTooltip())
                     ->columnSpan(12),
                 // L'unità in fondo alla riga: quando il tipo non la usa sparisce
                 // e il vuoto resta in coda, non in mezzo.
                 static::getInput('name')->columnSpan(6),
                 static::getInput('type')->columnSpan(3),
                 static::getInput('unit')->columnSpan(3),
-                // Una delle due, secondo il tipo: nello stesso posto.
-                static::getInput('level')->columnSpan(6),
-                static::getInput('level_text')->columnSpan(6),
                 static::getInput('is_filterable')->columnSpan(3),
                 static::getInput('is_visible')->columnSpan(3),
             ])->columns(12)->columnSpan(12),
@@ -257,25 +317,23 @@ class AttributeResource extends GestionaleResource
     {
         return [
             TableColumn::key('name')->text()->link('edit'),
-            TableColumn::key('level')
-                ->text()
-                ->size('little')
-                ->formatter(static fn (array $row): string => htmlspecialchars(
-                    Attributes::levelLabel((string) ($row['type'] ?? ''), (string) ($row['level'] ?? '')),
-                    ENT_QUOTES,
-                    'UTF-8'
-                )),
             TableColumn::key('type')
                 ->text()
                 ->size('little')
                 ->formatter(static fn (array $row): string => htmlspecialchars(
-                    Attributes::types()[(string) ($row['type'] ?? '')] ?? '',
+                    static::ownTypes()[(string) ($row['type'] ?? '')] ?? Attributes::types()[(string) ($row['type'] ?? '')] ?? '',
                     ENT_QUOTES,
                     'UTF-8'
                 )),
             TableColumn::key('is_visible')->visibleBadge()->size('little'),
             TableColumn::key('actions')->button()->actions(['edit', 'delete']),
         ];
+    }
+
+    /** Il titolo del riquadro della scheda. */
+    protected static function singularTitle(): string
+    {
+        return 'Attributo';
     }
 
     public static function pageSchema(): PageSchema
@@ -322,16 +380,6 @@ class AttributeResource extends GestionaleResource
         return $row !== null && Attributes::usesValues((string) ($row['type'] ?? ''));
     }
 
-    /** La casella dell'uso che il tipo mostra, riempita dalla stessa colonna. */
-    public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
-    {
-        if (isset($values['level'])) {
-            $values['level_text'] = $values['level'];
-        }
-
-        return $values;
-    }
-
     /**
      * Nome macchina alla creazione, nessun tipo cambiato sotto ai valori,
      * un uso che il tipo ammette e che non cambia sotto agli articoli, e
@@ -367,6 +415,10 @@ class AttributeResource extends GestionaleResource
 
         $values = static::withLevel($values, $to, $oldValues);
 
+        if (Attributes::isRichText($to)) {
+            $values['is_filterable'] = 'false';
+        }
+
         // L'unità nascosta arriva lo stesso con il resto del modulo: passando
         // da Numero a Colore resterebbe "g" su un attributo che non la mostra.
         // Colori e immagini dei valori invece restano: tornando al tipo di
@@ -379,11 +431,11 @@ class AttributeResource extends GestionaleResource
     }
 
     /**
-     * L'uso dalla casella che il tipo mostra.
+     * L'uso dell'attributo.
      *
-     * Arrivano tutte e due — quella nascosta viene postata lo stesso — e
-     * nessuna quando l'attributo è in uso: le caselle sono spente, e un
-     * campo spento non si posta. Allora resta quello di prima.
+     * Il modulo non lo chiede più: resta quello di prima, e un attributo
+     * nuovo prende quello della sua voce ({@see defaultLevel()}). Solo
+     * «Nuova caratteristica» lo porta ancora, nella casella `level_text`.
      *
      * @param array<string, mixed> $values
      * @param array<string, mixed>|null $oldValues
@@ -397,13 +449,7 @@ class AttributeResource extends GestionaleResource
         unset($values['level_text']);
 
         if ($level === '') {
-            if ($before === '') {
-                unset($values['level']);
-
-                return $values;
-            }
-
-            $level = $before;
+            $level = $before !== '' ? $before : static::defaultLevel();
         }
 
         $id = (int) ($oldValues['id'] ?? 0);
