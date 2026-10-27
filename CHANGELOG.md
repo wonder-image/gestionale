@@ -719,9 +719,11 @@ versionamento semantico.
   pagina Gestionale → Impostazioni; la tabella `gst_merchant_settings` resta senza
   Model. **Chi aggiorna deve lanciare `php forge update`**; un indirizzo già scritto
   nella vecchia pagina non si copia: va reinserito in Set Up.
-- Pannello del cliente in ufficio (`OfficeCustomerPanel::update()`): lo schema
-  della tabella si cerca con `Table::has()` del core quando c'è; con app
-  v2.4.0-beta.5, ancora ammessa da `composer.json`, si legge `Table::$list`.
+- Il gestionale chiede `wonder-image/app` `^2.4.0-beta.6 || dev-main`: il
+  pannello del cliente in ufficio (`OfficeCustomerPanel::update()`) cerca lo
+  schema della tabella solo con `Table::has()` del core, arrivato in
+  `2.4.0-beta.6`; tolto il ripiego su `Table::$list` per la beta.5.
+  **Chi aggiorna deve avere il core almeno a `2.4.0-beta.6`.**
 
 ### Corretto
 
