@@ -174,6 +174,11 @@ return [
         'release' => 'futura',
         'created' => false,
     ],
+    'mcp' => [
+        'name' => 'Server MCP',
+        'description' => 'Collega gli assistenti IA (Claude, ChatGPT, Cursor) a prodotti, prezzi, giacenze, categorie, ordini e preventivi, con i permessi del backend.',
+        'area' => 'Integrazioni',
+    ],
     // Esportazioni del catalogo (D64): l'«Esporta» dei prodotti offre solo quelle concesse.
     'export_xlsx' => [
         'name' => 'Esportazione Excel',

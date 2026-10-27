@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Mcp;
 
 use Throwable;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\McpLog;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
@@ -23,9 +24,19 @@ final class Server
     public const INVALID_PARAMS = -32602;
     public const INTERNAL_ERROR = -32603;
 
+    /** Funzionalità `mcp`: spenta, il server non espone niente. */
+    public static function enabled(): bool
+    {
+        return Gestionale::feature('mcp');
+    }
+
     /** @return array<string, mixed>|null */
     public static function handle(mixed $message, Caller $caller): ?array
     {
+        if (!self::enabled()) {
+            return self::error(null, self::METHOD_NOT_FOUND, self::text('disabled'));
+        }
+
         if (!is_array($message) || array_is_list($message) || ($message['jsonrpc'] ?? null) !== '2.0' || !is_string($message['method'] ?? null)) {
             // I batch non sono più nel protocollo dal 2025-06-18: si rifiutano.
             return self::error(null, self::INVALID_REQUEST, self::text('invalid_request'));
@@ -62,7 +73,7 @@ final class Server
     {
         $out = [];
 
-        foreach (Tools::all() as $name => $tool) {
+        foreach (self::enabled() ? Tools::all() : [] as $name => $tool) {
             if ($caller->allows(Tools::roles($tool['permission']))) {
                 $out[] = [
                     'name' => $name,

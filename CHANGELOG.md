@@ -19,6 +19,11 @@ versionamento semantico.
   segue quello del cliente loggato; gli ordini confermati non cambiano. Le
   colonne le crea `forge update`.
 
+- **Funzionalità «Server MCP»** (`mcp`, area Integrazioni): il server MCP si
+  accende e si spegne dal pannello Funzionalità. Spenta, `/api/gestionale/mcp/`
+  risponde 404, `Server` non elenca né esegue strumenti e la risorsa OAuth non
+  viene annunciata.
+
 - **Limiti di tentativi** (`Support\Throttle`): la primitiva dell'ecommerce,
   con la stessa API, ora anche nel gestionale; l'ecommerce passerà a usarla. `attempt()` conta e decide in un colpo solo con un
   UPSERT atomico a finestra fissa sulla tabella `gst_throttles` (Model
