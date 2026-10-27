@@ -36,13 +36,16 @@ check('non c\'è più una pagina di impostazioni del commerciante: tutto sta in 
 check('le colonne fiscali e dei documenti di G1 ci sono tutte', function () use ($colonne) {
     $attese = [
         'invoice_provider', 'tax_regime', 'vat_collectability', 'transmitter_country',
-        'transmitter_fiscal_code', 'catalog_prices_include_tax', 'fallback_tax_id',
-        'shipping_tax_id', 'invoice_numeration', 'stamp_duty_auto', 'fiscal_confirmed_at',
-        'developer_error_emails',
+        'transmitter_fiscal_code', 'catalog_prices_include_tax', 'invoice_numeration', 'stamp_duty_auto',
+        'fiscal_confirmed_at', 'developer_error_emails',
     ];
 
     return array_diff($attese, $colonne(Setting::class)) === [];
 });
+
+check('niente aliquota di ripiego né della spedizione: decide il TaxResolver', fn () =>
+    array_intersect(['fallback_tax_id', 'shipping_tax_id'], $colonne(Setting::class)) === []
+);
 
 check('le email per gli ordini stanno in Set Up, vicino a quelle degli errori', function () use ($colonne) {
     $campi = array_map(static fn ($field): string => (string) $field->name, SettingResource::formSchema());

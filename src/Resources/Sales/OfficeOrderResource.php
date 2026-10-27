@@ -21,6 +21,7 @@ use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Backend\RowMenu;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Orders\Charges;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderForm;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderPage;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
@@ -270,10 +271,13 @@ class OfficeOrderResource extends GestionaleResource
         }
 
         if ($mode === 'edit') {
-            foreach ($rows as $row) {
-                if ((string) ($row['type'] ?? '') === 'shipping' && (string) ($row['price_source'] ?? '') === 'manual') {
-                    $values['shipping_amount'] ??= number_format((float) ($row['unit_price'] ?? 0), 2, ',', '');
-                }
+            // Divisa sulle aliquote, la spedizione a mano è una riga per quota:
+            // la casella mostra la spesa intera.
+            $manual = array_values(array_filter($rows, static fn (array $row): bool => (string) ($row['type'] ?? '') === 'shipping'
+                && (string) ($row['price_source'] ?? '') === 'manual'));
+
+            if ($manual !== []) {
+                $values['shipping_amount'] ??= number_format(Charges::amount($manual), 2, ',', '');
             }
         }
 

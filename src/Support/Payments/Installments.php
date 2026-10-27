@@ -14,6 +14,7 @@ use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Sql\Transaction;
+use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 
 /**
  * Le rate di un ordine da ufficio (G9.3) o di un periodo di un abbonamento
@@ -149,7 +150,7 @@ final class Installments
             }
 
             $paid = PaymentStatus::sums(self::rowsOf($orderId));
-            $due = round((float) $order['total'] - ($paid['paid'] - $paid['refunded']), 2);
+            $due = round(VatCollectability::payable($order) - ($paid['paid'] - $paid['refunded']), 2);
             $plan = InstallmentMath::redistribute($pending, $due);
 
             foreach ($plan['update'] as $id => $value) {
@@ -413,7 +414,7 @@ final class Installments
     {
         $sums = PaymentStatus::sums($rows);
 
-        return max(0.0, round((float) $order['total'] - ($sums['paid'] - $sums['refunded']), 2));
+        return max(0.0, round(VatCollectability::payable($order) - ($sums['paid'] - $sums['refunded']), 2));
     }
 
     /** @return list<array{days: int, end_of_month: bool, percentage: float}> */

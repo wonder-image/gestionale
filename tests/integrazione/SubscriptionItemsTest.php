@@ -125,7 +125,7 @@ function giorno(string $data): string
 /** @return array{plan: int, price: int} */
 function servizio(string $nome, int $mesi, string $prezzo, int $vincolo = 0): array
 {
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'name' => $nome, 'slug' => 'srv-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
+    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => $nome, 'slug' => 'srv-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
 
     return ['plan' => $plan, 'price' => prezzo($plan, $mesi, $prezzo, $vincolo)];
 }

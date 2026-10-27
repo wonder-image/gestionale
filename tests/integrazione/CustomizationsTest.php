@@ -90,7 +90,7 @@ check('forModel non ridà una personalizzazione con «Per i prodotti» spento', 
 
 check('forPlan ridà la personalizzazione del piano con obbligo e sovrapprezzo del legame', function () {
     return prova(static function (): bool {
-        $piano = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'name' => 'Dominio', 'slug' => 'dominio-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
+        $piano = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => 'Dominio', 'slug' => 'dominio-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
         $nome = personalizzazioneDiProva(['name' => 'Nome a dominio', 'surcharge' => '4.00', 'for_products' => 'false', 'for_subscriptions' => 'true']);
         $soloProdotti = personalizzazioneDiProva();
         CustomizationLink::create(['plan_id' => $piano, 'customization_id' => $nome, 'is_required' => 'true', 'surcharge' => '1.50', 'position' => 1]);

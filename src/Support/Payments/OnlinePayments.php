@@ -15,6 +15,7 @@ use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Sql\Transaction;
+use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 
 /**
  * Il denaro che passa da un gateway: l'avvio dell'intento e quello che il
@@ -358,6 +359,6 @@ final class OnlinePayments
         $others = array_filter($rows, static fn (array $row): bool => (int) $row['id'] !== $paymentId);
         $sums = PaymentStatus::sums($others);
 
-        return (int) round(((float) $order['total'] - $sums['paid'] + $sums['refunded']) * 100);
+        return (int) round((VatCollectability::payable($order) - $sums['paid'] + $sums['refunded']) * 100);
     }
 }

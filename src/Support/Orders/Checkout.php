@@ -25,6 +25,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxTotals;
 use Throwable;
 use Wonder\Sql\Transaction;
+use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 
 /**
  * Da carrello a ordine, in una transazione sola.
@@ -363,7 +364,7 @@ final class Checkout
 
             $payment = Ledger::open([
                 'order_id' => $cartId,
-                'amount' => (float) $order['total'],
+                'amount' => VatCollectability::payable($order),
                 'customer_id' => (int) ($order['customer_id'] ?? 0),
                 'payment_method_id' => (int) $method['id'],
                 'payment_account_id' => (int) ($method['payment_account_id'] ?? 0),
@@ -860,9 +861,10 @@ final class Checkout
             'list_price' => number_format($amount, 2, '.', ''),
             'unit_price' => number_format($amount, 2, '.', ''),
             'price_source' => 'manual',
+            'manual_unit_price' => number_format($amount, 2, '.', ''),
             'line_total' => number_format($amount, 2, '.', ''),
-            // La commissione non ha un tipo fiscale suo: prende l'aliquota di
-            // ripiego delle impostazioni, come la spedizione.
+            // La commissione non ha un tipo fiscale suo: il ricalcolo la divide
+            // sulle aliquote della merce, come la spedizione.
             'tax_category_id' => 0,
         ]);
     }

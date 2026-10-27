@@ -140,9 +140,8 @@ try {
             return array_column($regole, 'customer_type') === ['private', 'business'];
         });
 
-        check('le impostazioni tecniche nascono confermabili e col ripiego giusto', function () {
+        check('le impostazioni tecniche nascono confermabili', function () {
             $impostazioni = Setting::current();
-            $ventidue = Tax::find(['code' => '22', 'deleted' => 'false'], 1);
 
             return ($impostazioni['tax_regime'] ?? '') === 'RF01'
                 && ($impostazioni['vat_collectability'] ?? '') === 'I'
@@ -150,9 +149,7 @@ try {
                 && ($impostazioni['invoice_numeration'] ?? '') === 'WEB'
                 // Vuoto e NULL sono la stessa cosa: nessun provider, nessuna conferma.
                 && trim((string) ($impostazioni['invoice_provider'] ?? '')) === ''
-                && trim((string) ($impostazioni['fiscal_confirmed_at'] ?? '')) === ''
-                && (int) ($impostazioni['fallback_tax_id'] ?? 0) === (int) ($ventidue['id'] ?? -1)
-                && (int) ($impostazioni['shipping_tax_id'] ?? 0) === (int) ($ventidue['id'] ?? -1);
+                && trim((string) ($impostazioni['fiscal_confirmed_at'] ?? '')) === '';
         });
 
         check('la sede predefinita ha la riga del magazzino', function () {

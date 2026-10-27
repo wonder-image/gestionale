@@ -12,6 +12,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Support\Payments\Installments;
+use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 
 /**
  * I dati di un PDF di vendita, letti una volta: la società (`$SOCIETY` del
@@ -26,6 +27,11 @@ final class DocumentData
     {
         $order = Order::findById($orderId);
         $order = is_array($order) ? $order : [];
+
+        if ($order !== []) {
+            // Gli ordini di prima non l'hanno: vale quella delle impostazioni.
+            $order['vat_collectability'] = VatCollectability::of($order);
+        }
 
         $items = array_values(array_filter(
             self::rows(OrderItem::find(['order_id' => $orderId, 'deleted' => 'false'], null, 'position', 'ASC')),

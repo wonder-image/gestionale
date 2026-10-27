@@ -2,7 +2,6 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\System;
 
-use Throwable;
 
 use Wonder\App\Resources\Support\SingletonResource;
 use Wonder\App\ResourceSchema\ApiSchema;
@@ -19,7 +18,6 @@ use Wonder\Plugin\Custom\Fattura\Valori\RegimiFiscali;
 use Wonder\Plugin\Gestionale\Extensions\SettingsSections;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
-use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 use Wonder\Plugin\Gestionale\Support\Numbers;
@@ -27,8 +25,8 @@ use Wonder\Plugin\Gestionale\Support\Numbers;
 /**
  * "Impostazioni" tecniche in Set Up: una riga sola, di `admin`.
  *
- * Quattro riquadri: Fiscale (regime, esigibilità, prezzi, aliquote di
- * ripiego), Documenti (sezionale e bollo), Vendite ed Email (chi riceve le
+ * Quattro riquadri: Fiscale (regime, esigibilità predefinita, prezzi),
+ * Documenti (sezionale e bollo), Vendite ed Email (chi riceve le
  * email degli ordini e chi quelle degli errori tecnici). Fra Vendite ed Email
  * stanno quelli dei moduli accesi (`SettingsSections`). Il salvataggio segna
  * `fiscal_confirmed_at`: i Primi passi hanno bisogno di sapere che una persona
@@ -64,8 +62,6 @@ final class SettingResource extends SingletonResource
             'transmitter_country' => 'Paese del trasmittente',
             'transmitter_fiscal_code' => 'Codice fiscale del trasmittente',
             'catalog_prices_include_tax' => 'Prezzi del catalogo',
-            'fallback_tax_id' => 'Aliquota di ripiego',
-            'shipping_tax_id' => 'Aliquota della spedizione',
             'invoice_provider' => 'Fatturazione elettronica',
             'invoice_numeration' => 'Sezionale delle fatture',
             'stamp_duty_auto' => 'Bollo automatico',
@@ -107,8 +103,6 @@ final class SettingResource extends SingletonResource
                 ->value('true')
                 ->label('Prezzi del catalogo')
                 ->required(),
-            FormField::key('fallback_tax_id')->select(static::taxes())->label('Aliquota di ripiego')->required(),
-            FormField::key('shipping_tax_id')->select(static::taxes())->label('Aliquota della spedizione')->required(),
             FormField::key('invoice_provider')
                 ->select(['' => 'Nessuna', 'fatture-in-cloud' => 'Fatture in Cloud'])
                 ->label('Fatturazione elettronica'),
@@ -177,11 +171,9 @@ final class SettingResource extends SingletonResource
                     SectionTitle::make('Fiscale')
                         ->tooltip('Valori da confermare con il commercialista: il gestionale li usa per ogni documento.')
                         ->columnSpan(12),
-                    static::getInput('tax_regime')->columnSpan(6),
-                    static::getInput('vat_collectability')->columnSpan(6),
+                    static::getInput('tax_regime')->columnSpan(4),
+                    static::getInput('vat_collectability')->columnSpan(4),
                     static::getInput('catalog_prices_include_tax')->columnSpan(4),
-                    static::getInput('fallback_tax_id')->columnSpan(4),
-                    static::getInput('shipping_tax_id')->columnSpan(4),
                     static::getInput('transmitter_country')->columnSpan(6),
                     static::getInput('transmitter_fiscal_code')->columnSpan(6),
                 ])->columns(12)->columnSpan(12),
@@ -557,31 +549,6 @@ final class SettingResource extends SingletonResource
             : date('Y-m-d H:i:s');
 
         return $values;
-    }
-
-    /** @return array<string, string> */
-    private static function taxes(): array
-    {
-        try {
-            $rows = Tax::find(['deleted' => 'false'], null, 'rate', 'DESC');
-        } catch (Throwable) {
-            return [];
-        }
-
-        if (!is_array($rows) || $rows === []) {
-            return [];
-        }
-
-        $rows = isset($rows['id']) ? [$rows] : $rows;
-        $options = [];
-
-        foreach ($rows as $row) {
-            if (is_array($row) && isset($row['id'])) {
-                $options[(string) $row['id']] = (string) ($row['name'] ?? $row['code'] ?? $row['id']);
-            }
-        }
-
-        return $options;
     }
 
     // Il backend scrive con una query diretta: la copia della richiesta va buttata.

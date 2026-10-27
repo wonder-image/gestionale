@@ -32,6 +32,7 @@ function articoloConGiacenza(float $pezzi, string $sku): int
         'type' => 'simple',
         'visible' => 'true',
         'position' => 1,
+        'tax_category_id' => categoriaFiscaleDiProva(),
     ]);
     $scheletro = Skeleton::forModel((int) ($modello->insert_id ?? 0), 'Prova vendite', $sku);
     $productId = $scheletro['product_id'];
@@ -46,6 +47,16 @@ function articoloConGiacenza(float $pezzi, string $sku): int
     }
 
     return $productId;
+}
+
+/** Una categoria con la regola IT/privato: senza, il TaxResolver blocca la vendita. */
+function categoriaFiscaleDiProva(): int
+{
+    $regola = \Wonder\Plugin\Gestionale\Models\Tax\TaxRule::find(
+        ['country' => 'IT', 'customer_type' => 'private', 'active' => 'true', 'deleted' => 'false'], 1
+    );
+
+    return (int) (is_array($regola) ? ($regola['tax_category_id'] ?? 0) : 0);
 }
 
 /** L'ordine di prova: serve un id vero per le prenotazioni e i log. */
@@ -197,6 +208,7 @@ function multiprodottoDiProva(string $mode, array $componenti, array $gruppi): i
         'unit' => 'pz',
         'type' => 'bundle',
         'bundle_mode' => $mode,
+        'tax_category_id' => categoriaFiscaleDiProva(),
         'visible' => 'true',
         'position' => 1,
     ]);

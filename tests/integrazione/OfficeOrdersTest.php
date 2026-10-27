@@ -135,7 +135,7 @@ check('prezzo a mano e sconto di riga: lo sconto non si applica due volte', func
 check('riga libera e riga di testo: la libera si paga, quella di testo no', function () {
     return prova(static function (): bool {
         $ordine = bozza(articolo(5), 1, [
-            ['type' => 'custom', 'name' => 'Montaggio', 'quantity' => '1', 'unit_price' => '25'],
+            ['type' => 'custom', 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => 'Montaggio', 'quantity' => '1', 'unit_price' => '25'],
             ['type' => 'text', 'name' => 'Consegna al piano terra'],
         ]);
         $r = righe($ordine);
@@ -238,7 +238,7 @@ check('lotto e fornitore scelti restano sulla riga', function () {
 check('annulla righe: la merce rientra, i totali e le rate si rifanno', function () {
     return prova(static function (): bool {
         $prodotto = articolo(5);
-        $ordine = bozza($prodotto, 3, [['type' => 'custom', 'name' => 'Montaggio', 'quantity' => '1', 'unit_price' => '20']]);
+        $ordine = bozza($prodotto, 3, [['type' => 'custom', 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => 'Montaggio', 'quantity' => '1', 'unit_price' => '20']]);
         OfficeOrders::confirm($ordine);
         $riga = (int) righe($ordine)[0]['id'];
         OfficeOrders::cancelLines($ordine, [$riga => '2']);

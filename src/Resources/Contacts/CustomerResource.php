@@ -37,6 +37,8 @@ use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerStats;
 use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
+use Wonder\Plugin\Custom\Fattura\Valori\EsigibilitaIva;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Sql\Transaction;
 
@@ -157,6 +159,13 @@ class CustomerResource extends GestionaleResource
             }
         }
 
+        // Esigibilità IVA del cliente (S per la PA): vuota vale le impostazioni.
+        if (static::roleColumn() === 'is_customer') {
+            $fields[] = FormField::key('vat_collectability')
+                ->select(['' => 'Predefinita (impostazioni)'] + EsigibilitaIva::Valori)
+                ->label('Esigibilità IVA');
+        }
+
         return $fields;
     }
 
@@ -193,8 +202,21 @@ class CustomerResource extends GestionaleResource
     /** @return list<Card> */
     protected static function paymentCards(): array
     {
-        if (!static::paymentDefaultsShown()) {
+        if (static::roleColumn() !== 'is_customer') {
             return [];
+        }
+
+        $esigibilita = static::getInput('vat_collectability')->columnSpan(6);
+
+        if (!static::paymentDefaultsShown()) {
+            return [
+                (new Card)->components([
+                    SectionTitle::make('Pagamento')
+                        ->tooltip('Con la scissione dei pagamenti (S) il cliente paga solo l\'imponibile: l\'IVA la versa lui.')
+                        ->columnSpan(12),
+                    $esigibilita,
+                ])->columns(12)->columnSpan(12),
+            ];
         }
 
         $condizione = count(static::activeTerms()) > 1;
@@ -202,10 +224,11 @@ class CustomerResource extends GestionaleResource
         return [
             (new Card)->components([
                 SectionTitle::make('Pagamento')
-                    ->tooltip('Quello che il nuovo ordine da ufficio propone per questo cliente: si può sempre cambiare sull\'ordine.'.($condizione ? ' La condizione dice in quante rate e quando paga.' : ''))
+                    ->tooltip('Quello che il nuovo ordine da ufficio propone per questo cliente: si può sempre cambiare sull\'ordine.'.($condizione ? ' La condizione dice in quante rate e quando paga.' : '').' Con la scissione dei pagamenti (S) il cliente paga solo l\'imponibile.')
                     ->columnSpan(12),
                 static::getInput('payment_method_id')->columnSpan(6),
                 ...($condizione ? [static::getInput('payment_term_id')->columnSpan(6)] : []),
+                $esigibilita,
             ])->columns(12)->columnSpan(12),
         ];
     }
@@ -618,6 +641,15 @@ class CustomerResource extends GestionaleResource
                 unset($values['payment_term_id']);
             } elseif (array_key_exists('payment_term_id', $values)) {
                 $values['payment_term_id'] = (int) $values['payment_term_id'];
+            }
+        }
+
+        if (array_key_exists('vat_collectability', $values)) {
+            $raw = trim((string) $values['vat_collectability']);
+            $values['vat_collectability'] = VatCollectability::valid($raw) ?? '';
+
+            if ($raw !== '' && $values['vat_collectability'] === '') {
+                throw UserError::make('contact.vat_collectability_invalid');
             }
         }
 

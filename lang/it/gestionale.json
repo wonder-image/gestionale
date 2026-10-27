@@ -200,6 +200,7 @@
                 "tax_code_taken": "Questo codice fiscale è già di {{contact}}.",
                 "email_taken": "Questa email è già di {{contact}}.",
                 "no_role": "Di' se è un cliente, un fornitore o tutti e due.",
+                "vat_collectability_invalid": "Esigibilità IVA non valida: scegli I, D, S o lascia la predefinita.",
                 "has_account": "Questa scheda ha un account sul sito e non si elimina: mettila su «Non attiva» se non lavori più con lei.",
                 "supplier_in_use": "Questo fornitore ha ancora dei costi d'acquisto su articoli o opzioni in vendita ({{count}}) e non si elimina: metti la scheda su «Non attiva» se non lavori più con lui.",
                 "supplier_role_in_use": "Questa scheda è ancora il fornitore di articoli o opzioni in vendita ({{count}}): toglila dai loro fornitori prima di cambiarle ruolo, o mettila su «Non attiva»."
@@ -367,6 +368,10 @@
                 "link_broken": "Il piano «{{name}}» non va con i legami di questa riga (il servizio a cui si appoggia o quelli che si appoggiano a lei): togli o cambia prima quelli.",
                 "last_item_online": "L'ultimo servizio di un abbonamento online non si toglie con il credito: disdici l'abbonamento.",
                 "stripe_failed": "Stripe non ha accettato la modifica: riprova tra qualche minuto."
+            },
+            "tax": {
+                "rule_missing": "Manca la regola IVA per «{{product}}»: paese {{country}}, cliente {{customer_type}}. Aggiungila fra le Regole IVA e riprova.",
+                "charge_without_goods": "La spedizione prende l'aliquota IVA della merce: aggiungi almeno un prodotto o togli la spedizione."
             },
             "mcp": {
                 "auth": {

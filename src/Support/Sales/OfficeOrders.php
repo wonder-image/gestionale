@@ -28,6 +28,7 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
+use Wonder\Plugin\Gestionale\Support\Orders\Charges;
 use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderLines;
@@ -37,12 +38,14 @@ use Wonder\Plugin\Gestionale\Support\Pricing\LinePrice;
 use Wonder\Plugin\Gestionale\Support\Pricing\OrderTotals;
 use Wonder\Plugin\Gestionale\Support\Shipping\Shipments;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
+use Wonder\Plugin\Gestionale\Support\Tax\ChargeSplit;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Sql\Transaction;
+use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 
 /**
  * L'ordine da ufficio (G9 §2): **l'unica porta** che scrive una bozza
@@ -443,13 +446,14 @@ final class OfficeOrders
     {
         $order = (array) Order::findById($orderId);
         $computed = [];
+        $charges = [];
 
         foreach (self::items($orderId) as $item) {
             if ((string) $item['type'] === 'text' || (int) ($item['parent_item_id'] ?? 0) > 0) {
                 continue;
             }
 
-            $computed[] = [
+            $line = [
                 'id' => (int) $item['id'],
                 'type' => (string) $item['type'],
                 'product_id' => (int) ($item['product_id'] ?? 0),
@@ -463,13 +467,43 @@ final class OfficeOrders
                 'price' => $item['unit_price'] ?? 0,
                 'manual_unit_price' => (string) ($item['unit_price'] ?? '0'),
             ]);
+
+            if (in_array((string) $item['type'], Charges::TYPES, true)) {
+                $charges[(string) $item['type']][] = ['row' => $item, 'line' => $line];
+            } else {
+                $computed[] = $line;
+            }
         }
 
-        $totals = OrderTotals::of($computed, [
+        $context = [
             'prices_include_tax' => (string) ($order['prices_include_tax'] ?? 'true') === 'true',
             'discount_type' => (string) ($order['manual_discount_type'] ?? 'none'),
             'discount_value' => (float) ($order['manual_discount_value'] ?? 0),
-        ]);
+        ];
+        // Con meno merce cambia la proporzione fra le aliquote: spedizione e
+        // commissione si ridividono, con la spesa scritta sull'ordine.
+        $groups = ChargeSplit::groups(OrderTotals::of($computed, $context)['lines'], $context['prices_include_tax']);
+
+        foreach ($charges as $type => $entries) {
+            if ($groups === []) {
+                // Senza merce la spesa resta com'era.
+                $computed = array_merge($computed, array_column($entries, 'line'));
+
+                continue;
+            }
+
+            $rows = array_column($entries, 'row');
+            $amount = round(array_sum(array_map(static fn (array $r): float => (float) ($r['unit_price'] ?? 0), $rows)), 2);
+            $computed = array_merge($computed, Charges::write($orderId, $rows, $amount, $groups, [
+                'type' => $type,
+                'name' => (string) $rows[0]['name'],
+                'position' => (int) $rows[0]['position'],
+                'price_source' => (string) $rows[0]['price_source'],
+                'manual_unit_price' => number_format($amount, 2, '.', ''),
+            ]));
+        }
+
+        $totals = OrderTotals::of($computed, $context);
 
         foreach ($totals['lines'] as $line) {
             OrderItem::update([
@@ -479,6 +513,7 @@ final class OfficeOrders
         }
 
         Order::update([
+            'vat_collectability' => VatCollectability::forCustomer((int) ($order['customer_id'] ?? 0)),
             'products_total' => $totals['products_total'],
             'discount_total' => $totals['discount_total'],
             'shipping_total' => $totals['shipping_total'],
@@ -644,7 +679,11 @@ final class OfficeOrders
             return;
         }
 
-        OrderItem::update($values, (int) $manual[0]['id']);
+        // Le quote per aliquota tengono tutte la spesa intera: il ricalcolo
+        // la ridivide.
+        foreach ($manual as $row) {
+            OrderItem::update($values, (int) $row['id']);
+        }
     }
 
     /**

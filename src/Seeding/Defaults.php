@@ -38,7 +38,7 @@ use Wonder\Plugin\Gestionale\Support\Shipping\ShippingZones;
  */
 final class Defaults implements ModuleDefaults
 {
-    /** Codice dell'aliquota ordinaria: ripiego, spedizione e regole puntano a lei. */
+    /** Codice dell'aliquota ordinaria: le regole precaricate puntano a lei. */
     private const ORDINARY_RATE = '22';
 
     /** Codice dell'unico tipo fiscale precaricato. */
@@ -206,26 +206,20 @@ final class Defaults implements ModuleDefaults
      */
     private static function settings(DefaultRows $rows): void
     {
-        $taxId = self::ordinaryTaxId();
-
-        if ($taxId > 0) {
-            $rows->ensureSingleton(Setting::class, [
-                'invoice_provider' => '',
-                'tax_regime' => 'RF01',
-                'vat_collectability' => 'I',
-                'transmitter_country' => 'IT',
-                'transmitter_fiscal_code' => '',
-                'catalog_prices_include_tax' => 'true',
-                'fallback_tax_id' => $taxId,
-                'shipping_tax_id' => $taxId,
-                'invoice_numeration' => 'WEB',
-                'stamp_duty_auto' => 'true',
-                'fiscal_confirmed_at' => '',
-                'developer_error_emails' => '',
-                'merchant_notification_emails' => self::societyEmail(),
-            ]);
-            Setting::forget();
-        }
+        $rows->ensureSingleton(Setting::class, [
+            'invoice_provider' => '',
+            'tax_regime' => 'RF01',
+            'vat_collectability' => 'I',
+            'transmitter_country' => 'IT',
+            'transmitter_fiscal_code' => '',
+            'catalog_prices_include_tax' => 'true',
+            'invoice_numeration' => 'WEB',
+            'stamp_duty_auto' => 'true',
+            'fiscal_confirmed_at' => '',
+            'developer_error_emails' => '',
+            'merchant_notification_emails' => self::societyEmail(),
+        ]);
+        Setting::forget();
     }
 
     /** La sede predefinita del core diventa il primo magazzino. */

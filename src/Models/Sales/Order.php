@@ -129,6 +129,8 @@ final class Order extends Model
             ...static::shippingTableSchema(),
             Column::key('price_list_id')->int()->default(0),
             Column::key('prices_include_tax')->enum(['true', 'false'])->default('true'),
+            // Copiata dal cliente a ogni ricalcolo: va in fattura.
+            Column::key('vat_collectability')->length(5),
             // Consegna
             Column::key('fulfillment_type')->enum(static::FULFILLMENT_TYPES)->default('shipping'),
             Column::key('location_id')->int()->default(0),
@@ -193,6 +195,7 @@ final class Order extends Model
             ...static::shippingDataSchema(),
             Field::key('price_list_id')->number()->decimals(0),
             Field::key('prices_include_tax')->text()->sanitize(false),
+            Field::key('vat_collectability')->text()->sanitize(false),
             Field::key('fulfillment_type')->text()->sanitize(false),
             Field::key('location_id')->number()->decimals(0),
             Field::key('shipping_method_id')->number()->decimals(0),

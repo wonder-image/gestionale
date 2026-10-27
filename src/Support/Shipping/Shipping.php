@@ -10,7 +10,6 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingMethod;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRate;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRateBracket;
-use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
 /**
@@ -117,7 +116,7 @@ final class Shipping
      * di gratuità è la somma dei `line_total` delle righe che non sono
      * spedizione né commissioni, cioè dopo gli sconti di riga e di campagna.
      *
-     * @return array{name: string, amount: string, tax_id: int, free: bool}|null
+     * @return array{name: string, amount: string, free: bool}|null
      */
     public static function line(array $cart, array $computed): ?array
     {
@@ -159,7 +158,7 @@ final class Shipping
     /**
      * `line()` e `dropped()` insieme, per chi li vuole tutti e due con un solo calcolo.
      *
-     * @return array{line: ?array{name: string, amount: string, tax_id: int, free: bool}, dropped: string}
+     * @return array{line: ?array{name: string, amount: string, free: bool}, dropped: string}
      */
     public static function resolveLine(array $cart, array $computed): array
     {
@@ -200,7 +199,6 @@ final class Shipping
         return ['line' => [
             'name' => (string) ($method['name'] ?? ''),
             'amount' => $quote['price'],
-            'tax_id' => (int) (Setting::current()['shipping_tax_id'] ?? 0),
             'free' => $quote['free'],
         ], 'dropped' => ''];
     }
