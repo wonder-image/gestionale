@@ -28,6 +28,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\CustomerOrderTableResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource;
 use Wonder\Plugin\CustomerAccount\Support\ContactExport;
@@ -166,7 +167,19 @@ class CustomerResource extends GestionaleResource
                 ->label('Esigibilità IVA');
         }
 
+        if (static::priceListShown()) {
+            $fields[] = FormField::key('price_list_id')
+                ->select(['' => 'Nessuno (prezzi di catalogo)'] + PriceListResource::options(0, true))
+                ->label('Listino');
+        }
+
         return $fields;
+    }
+
+    /** Il listino del cliente: solo per i clienti, con «Listini cliente». */
+    public static function priceListShown(): bool
+    {
+        return static::roleColumn() === 'is_customer' && Gestionale::feature('customer_price_lists');
     }
 
     /** Metodo e condizione predefiniti: solo per i clienti, con «Vendita in ufficio». */
@@ -233,6 +246,23 @@ class CustomerResource extends GestionaleResource
         ];
     }
 
+    /** @return list<Card> */
+    protected static function priceListCards(): array
+    {
+        if (!static::priceListShown()) {
+            return [];
+        }
+
+        return [
+            (new Card)->components([
+                SectionTitle::make('Listino')
+                    ->tooltip('I prezzi riservati a questo cliente, nel negozio e sugli ordini da ufficio. I prodotti che il listino non ha restano al prezzo di catalogo.')
+                    ->columnSpan(12),
+                static::getInput('price_list_id')->columnSpan(6),
+            ])->columns(12)->columnSpan(12),
+        ];
+    }
+
     public static function formLayoutSchema(): ?Form
     {
         $acquisti = Gestionale::feature('purchasing');
@@ -280,6 +310,7 @@ class CustomerResource extends GestionaleResource
                 static::getInput('more')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
             ...static::paymentCards(),
+            ...static::priceListCards(),
             (new Card)->components([
                 SectionTitle::make('Indirizzi di consegna')
                     ->tooltip('Dove si consegna, quando non è l\'indirizzo di fatturazione. Il destinatario è chi il corriere deve cercare.')
@@ -458,6 +489,9 @@ class CustomerResource extends GestionaleResource
                     static::officeMethods()[(int) ($contact['payment_method_id'] ?? 0)] ?? '',
                     count(static::activeTerms()) > 1 ? (static::activeTerms()[(int) ($contact['payment_term_id'] ?? 0)] ?? '') : null
                 )
+                : []),
+            ...(static::priceListShown()
+                ? CustomerSheet::priceList(PriceListResource::options((int) ($contact['price_list_id'] ?? 0))[(int) ($contact['price_list_id'] ?? 0)] ?? '')
                 : []),
         ])->columns(12)->columnSpan(12);
 
@@ -651,6 +685,13 @@ class CustomerResource extends GestionaleResource
             if ($raw !== '' && $values['vat_collectability'] === '') {
                 throw UserError::make('contact.vat_collectability_invalid');
             }
+        }
+
+        // Il listino come metodo e condizione: solo dove il form lo mostra.
+        if (!static::priceListShown()) {
+            unset($values['price_list_id']);
+        } elseif (array_key_exists('price_list_id', $values)) {
+            $values['price_list_id'] = max(0, (int) $values['price_list_id']);
         }
 
         if (Gestionale::feature('purchasing') && $choice !== '') {

@@ -23,7 +23,7 @@ final class OfficeOrderForm
 
     /** I campi della testata che la pagina manda. */
     private const HEADER_KEYS = [
-        'customer_id', 'email', 'phone', 'location_id', 'shipping_method_id', 'payment_method_id', 'payment_term_id',
+        'customer_id', 'email', 'phone', 'location_id', 'shipping_method_id', 'payment_method_id', 'payment_term_id', 'price_list_id',
         'customer_note', 'internal_note', 'document_note', 'fulfillment_type', 'manual_discount_type',
         'manual_discount_value', 'shipping_amount', 'quote_expires_at',
     ];

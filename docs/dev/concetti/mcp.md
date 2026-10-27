@@ -9,6 +9,10 @@ con gli stessi Model, le stesse regole e gli stessi permessi del backend.
 - Trasporto Streamable HTTP, solo `POST` con un messaggio JSON-RPC alla volta
   (niente batch, sessioni o stream). `GET` risponde 405, una notifica 202 senza
   corpo, il resto 200 in JSON.
+- Si accende dal pannello Funzionalità (`mcp`, area Integrazioni, spenta di
+  serie). Spenta, l'endpoint risponde 404 prima di ogni altra cosa,
+  `Server::handle()` non elenca né esegue strumenti e `OAuth::resource()` non
+  viene registrata (i metadati non annunciano la risorsa).
 - Codice in `src/Support/Mcp/`: `Auth` (token), `Caller` (chi chiama),
   `Server` (protocollo), `Tools` (strumenti di catalogo e ordini, e l'elenco
   di tutti), `CatalogTools` (attributi e personalizzazioni), `QuoteTools`

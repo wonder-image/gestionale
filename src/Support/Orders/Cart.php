@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Pricing\LinePrice;
 use Wonder\Plugin\Gestionale\Support\Pricing\OrderTotals;
+use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
 use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Shipping\Shipping;
@@ -230,6 +231,21 @@ final class Cart
                 }
             }
 
+            // Il listino: nel carrello quello del cliente collegato, nelle bozze
+            // d'ufficio quello scelto sulla testata. Scaduto, spento o d'altra valuta non vale.
+            $priceListId = (int) ($cart['price_list_id'] ?? 0);
+
+            if ((string) ($cart['stage'] ?? '') === 'cart') {
+                $priceListId = PriceLists::forContact((int) ($cart['customer_id'] ?? 0));
+
+                if ($priceListId !== (int) ($cart['price_list_id'] ?? 0)) {
+                    Order::update(['price_list_id' => $priceListId], $cartId);
+                }
+            }
+
+            $priceList = PriceLists::load($priceListId, $now, (string) ($cart['currency'] ?? 'EUR'));
+            $includesTax = (string) ($cart['prices_include_tax'] ?? 'true') === 'true';
+
             $shipping = Gestionale::feature('shipping');
             // Prodotti e modelli delle righe in una lettura sola.
             $products = self::productsOf($all);
@@ -336,9 +352,23 @@ final class Cart
 
                 // La campagna dà il prezzo solo alle righe di prodotto a prezzo
                 // automatico: il prezzo a mano non si tocca, le figlie non si prezzano.
+                $taxId = TaxResolver::resolve(
+                    $rules,
+                    $country,
+                    $customerType,
+                    (int) ($item['tax_category_id'] ?? 0),
+                    (string) ($item['name'] ?? '')
+                );
+                $tax = Tax::findById($taxId);
+
                 $manualPrice = self::manualPrice($item);
+                // Il listino vince sulla campagna (non si sommano); l'IVA serve
+                // a portarlo nella base dell'ordine.
+                $listPrice = $productId > 0 && (string) $item['type'] === 'product' && $manualPrice === ''
+                    ? PriceLists::unitPrice($priceList, $productId, (float) ($item['quantity'] ?? 0), $includesTax, is_array($tax) ? (float) ($tax['rate'] ?? 0) : 0.0)
+                    : 0.0;
                 $campaign = $productId > 0 && (string) $item['type'] === 'product'
-                    && $manualPrice === ''
+                    && $manualPrice === '' && $listPrice <= 0.0
                     ? Campaigns::forProduct($productId, $now, $channel)
                     : null;
 
@@ -347,6 +377,7 @@ final class Cart
                     'price' => is_array($product) ? ($product['price'] ?? 0) : ($item['list_price'] ?? 0),
                     'sale_price' => is_array($product) ? ($product['sale_price'] ?? 0) : 0,
                     'manual_unit_price' => $manualPrice,
+                    'price_list_price' => $listPrice > 0.0 ? number_format($listPrice, 2, '.', '') : '',
                     'campaign_price' => $campaign !== null ? number_format($campaign['price'], 2, '.', '') : '',
                     'discount_type' => $item['discount_type'] ?? 'none',
                     'discount_value' => $item['discount_value'] ?? 0,
@@ -357,15 +388,6 @@ final class Cart
                 // di riga a mano la riga è «manual» e la campagna non c'entra.
                 $campaignId = $campaign !== null && $price['price_source'] === 'campaign' ? $campaign['campaign_id'] : 0;
 
-                $taxId = TaxResolver::resolve(
-                    $rules,
-                    $country,
-                    $customerType,
-                    (int) ($item['tax_category_id'] ?? 0),
-                    (string) ($item['name'] ?? '')
-                );
-                $tax = Tax::findById($taxId);
-
                 $computed[] = $item['id'] ? [
                     'id' => (int) $item['id'],
                     'type' => (string) $item['type'],
@@ -375,6 +397,7 @@ final class Cart
                     'tax_rate' => is_array($tax) ? (float) ($tax['rate'] ?? 0) : 0.0,
                     'tax_nature' => is_array($tax) ? (string) ($tax['nature'] ?? '') : '',
                     'discount_campaign_id' => $campaignId,
+                    'price_list_id' => $price['price_source'] === 'price_list' ? $priceListId : 0,
                 ] + $price : [];
             }
 
@@ -412,6 +435,7 @@ final class Cart
                     'unit_price' => $line['unit_price'],
                     'price_source' => $line['price_source'],
                     'discount_campaign_id' => (int) ($line['discount_campaign_id'] ?? 0),
+                    'price_list_id' => (int) ($line['price_list_id'] ?? 0),
                     'discount_type' => $line['discount_type'],
                     'discount_value' => $line['discount_value'],
                     'order_discount_amount' => $line['order_discount_amount'],
