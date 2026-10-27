@@ -315,6 +315,28 @@ try {
                 && ($righe[$deposito] ?? null) === ['3', '6'];
         });
 
+        check('un articolo senza pezzi né soglie, riaperto, parte dalla sede principale e la giacenza scritta si salva', function () use ($articolo, $principale, $pezzi) {
+            // Nato con le varianti e poi spento: lo scheletro non ha niente
+            // in nessuna sede, e la riga senza sede perdeva i pezzi.
+            $vuoto = $articolo('SED-V');
+            ProductModel::update(['has_variants' => 'true'], $vuoto);
+            ProductModelResource::forgetCatalogCache();
+            $prodotto = (int) (ProductModelResource::products($vuoto)[0]['id'] ?? 0);
+            $righe = ProductModelResource::mutateFormValues(['id' => $vuoto], 'edit')['locations'] ?? null;
+
+            ProductModel::update(['has_variants' => 'false'], $vuoto);
+            ProductModelResource::forgetCatalogCache();
+            ProductModelResource::saveExtras($vuoto, [
+                'has_variants' => 'false',
+                'product_price' => '25,00',
+                'locations' => [array_merge((array) ($righe[0] ?? []), ['stock' => '9'])],
+            ], 'SED-V');
+
+            return $righe === [['location_id' => (string) $principale, 'stock' => '', 'min_stock' => '']]
+                && $pezzi($prodotto) === [$principale => 9.0]
+                && (string) (Product::find(['id' => $prodotto], 1)['price'] ?? '') === '25.00';
+        });
+
         check('una riga tolta porta via la sua soglia, chiude l\'avviso e lascia i pezzi dove sono', function () use ($nuovo, $prodotto, $centro, $deposito, $principale, $pezzi, $soglie, $movimenti) {
             ProductModelResource::saveExtras($nuovo, [
                 'has_variants' => 'false',
