@@ -2567,6 +2567,14 @@ check('le spunte aggiungono righe alla griglia, con la chiave della combinazione
         && str_contains($html, 'window.wiRepeaterAddRow(righe.id, templateId, k)');
 });
 
+check('cambiare le pagine di un articolo online chiede conferma con la lib, mai window.confirm', function () use ($schedaAperta) {
+    $html = $schedaAperta::vediGriglia();
+
+    return str_contains($html, 'data-wi-online="false"')
+        && str_contains($html, "form.setAttribute('data-wi-confirm'")
+        && !str_contains($html, 'window.confirm');
+});
+
 check('la griglia si spegne quando non c\'è niente da vedere, e si raggruppa da due attributi in su', function () use ($schedaAperta) {
     $html = $schedaAperta::vediGriglia();
 

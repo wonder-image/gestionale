@@ -56,6 +56,7 @@ use Wonder\Plugin\Gestionale\Resources\Tax\TaxCategoryResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
+use Wonder\Plugin\Gestionale\Support\Catalog\CatalogRefresh;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Combinations;
@@ -3435,7 +3436,37 @@ HTML
     {
         $from = static::variantAttributeId($modelId);
 
-        return $from !== $to && PageAxis::switch($modelId, $from, $to);
+        if ($from === $to || !PageAxis::switch($modelId, $from, $to)) {
+            return false;
+        }
+
+        if (static::isOnline($modelId)) {
+            static::refreshCatalog();
+        }
+
+        return true;
+    }
+
+    /** Se l'articolo è in vendita online: allora gli indirizzi contano. */
+    protected static function isOnline(int $modelId): bool
+    {
+        if ($modelId <= 0) {
+            return false;
+        }
+
+        try {
+            $model = ProductModel::find(['id' => $modelId], 1);
+        } catch (Throwable) {
+            return false;
+        }
+
+        return is_array($model) && ($model['visible_online'] ?? '') === 'true';
+    }
+
+    /** Gli indirizzi sono cambiati: feed e sitemap al prossimo giro. */
+    protected static function refreshCatalog(): void
+    {
+        CatalogRefresh::request();
     }
 
     /**
@@ -5359,9 +5390,10 @@ HTML)->tag('div');
         // le foto del valore. Quella salvata resta a parte, per l'avviso.
         $asseColore = static::pageAttribute($modelId);
         $asseSalvato = static::variantAttributeId($modelId);
+        $online = static::isOnline($modelId) ? 'true' : 'false';
 
         return RichText::make(<<<HTML
-<div class="wi-options-grid" data-wi-existing="{$esistenti}" data-wi-photo-attribute="{$asseColore}" data-wi-page-initial="{$asseSalvato}"><input type="hidden" name="page_attribute" value="{$asseColore}"></div>
+<div class="wi-options-grid" data-wi-existing="{$esistenti}" data-wi-photo-attribute="{$asseColore}" data-wi-page-initial="{$asseSalvato}" data-wi-online="{$online}"><input type="hidden" name="page_attribute" value="{$asseColore}"></div>
 <script>
     window.wiOptionsGrid = window.wiOptionsGrid || (function () {
         function radice() {
@@ -5736,7 +5768,30 @@ HTML)->tag('div');
             var nascosto = root.querySelector('[name="page_attribute"]');
             if (nascosto) nascosto.value = asse;
             root.setAttribute('data-wi-photo-attribute', asse);
+            avvisaPagine(root, asse);
             aggiorna();
+        }
+
+        // Articolo online e pagine cambiate: gli indirizzi cambiano, si
+        // chiede conferma prima di salvare (conferma della lib sul form).
+        function avvisaPagine(root, asse) {
+            var form = root.closest('form');
+            if (!form) return;
+
+            var cambia = root.getAttribute('data-wi-online') === 'true'
+                && asse !== String(root.getAttribute('data-wi-page-initial') || '0');
+
+            if (cambia) {
+                form.setAttribute('data-wi-confirm', 'Gli indirizzi delle pagine di questo articolo cambiano: i vecchi porteranno ai nuovi con un redirect 301, e feed e sitemap si rifaranno al prossimo giro. Salvare?');
+                form.setAttribute('data-wi-confirm-title', 'Pagine dell\'articolo');
+                form.setAttribute('data-wi-confirm-ok', 'Salva');
+                form.setAttribute('data-wi-confirm-variant', 'warning');
+                form.setAttribute('data-wi-page-confirm', '');
+            } else if (form.hasAttribute('data-wi-page-confirm')) {
+                ['data-wi-confirm', 'data-wi-confirm-title', 'data-wi-confirm-ok', 'data-wi-confirm-variant', 'data-wi-page-confirm'].forEach(function (nome) {
+                    form.removeAttribute(nome);
+                });
+            }
         }
 
         document.addEventListener('change', function (ev) {

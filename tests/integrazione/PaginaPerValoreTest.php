@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductFeeds;
 use Wonder\Plugin\Gestionale\Support\Catalog\PageRedirect;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
@@ -28,6 +29,17 @@ use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
+
+/** Conta le richieste di feed e sitemap invece di farle. */
+final class ProvaPagine extends ProductModelResource
+{
+    public static int $chiesti = 0;
+
+    protected static function refreshCatalog(): void
+    {
+        self::$chiesti++;
+    }
+}
 
 /** @return list<array<string, mixed>> */
 $righe = static function (string $model, array $where): array {
@@ -91,6 +103,18 @@ check('301: vale anche l\'id del valore', fn () =>
     PageRedirect::pageFor($pagine, ['colore' => '8'])['slug'] === 'rosso'
 );
 
+$cartella = sys_get_temp_dir().'/ppv-'.uniqid();
+mkdir($cartella);
+touch($cartella.'/google-merchant.xml');
+ProductFeeds::expire($cartella);
+
+check('feed: expire() rende scaduto un file appena scritto', fn () =>
+    ProductFeeds::due(ProductFeeds::writtenAt('google', $cartella), 1, time())
+    && ProductFeeds::writtenAt('meta', $cartella) === null
+);
+unlink($cartella.'/google-merchant.xml');
+rmdir($cartella);
+
 check('301: niente pagina per un valore che non c\'è o una chiave diversa', fn () =>
     PageRedirect::pageFor($pagine, ['colore' => 'verde']) === null
     && PageRedirect::pageFor($pagine, ['taglia' => 'blu-notte']) === null
@@ -127,7 +151,7 @@ try {
             'product_price' => '10,00',
         ];
         $salva = static fn (int $modelId, string $pagina) =>
-            ProductModelResource::saveExtras($modelId, $spunte + ['page_attribute' => $pagina], 'PPV');
+            ProvaPagine::saveExtras($modelId, $spunte + ['page_attribute' => $pagina], 'PPV');
 
         $varianti = static fn (int $modelId): array => $righe(ProductVariant::class, ['product_model_id' => $modelId, 'deleted' => 'false']);
         $prodotti = static fn (int $modelId): array => $righe(Product::class, ['product_model_id' => $modelId, 'deleted' => 'false']);
@@ -183,8 +207,13 @@ try {
         $variantDi = static fn (int $id): ?int => ($row = ProductImage::find(['id' => $id], 1)) && $row['product_variant_id'] !== null
             ? (int) $row['product_variant_id'] : null;
 
+        $chiestiPrima = ProvaPagine::$chiesti;
         $salva($modelId, '');
         $spenta = $varianti($modelId);
+
+        check('online e pagine cambiate: feed e sitemap chiesti una volta', fn () =>
+            ProvaPagine::$chiesti === $chiestiPrima + 1
+        );
 
         check('spento: una variante senza pagina, le quattro opzioni lì', fn () =>
             count($spenta) === 1
@@ -224,7 +253,13 @@ try {
             (PageRedirect::pageFor(PageRedirect::pages($modelId), [$colore['slug'] => 'blu'])['slug'] ?? '') === $slugBlu
         );
 
+        $chiestiPrima = ProvaPagine::$chiesti;
         $salva($modelId, (string) $taglia['id']);
+        $salva($modelId, (string) $taglia['id']);
+
+        check('stessa scelta salvata di nuovo: niente richieste in più', fn () =>
+            ProvaPagine::$chiesti === $chiestiPrima + 1
+        );
 
         check('uno solo acceso: passando alla taglia il colore torna sulle opzioni', function () use ($modelId, $varianti, $prodotti, $valoreProdotto, $valoreVariante, $colore, $taglia) {
             $nuove = $varianti($modelId);
