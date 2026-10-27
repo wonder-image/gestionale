@@ -82,6 +82,7 @@ function richiesta(string $modo, array $componenti, array $gruppi, array $extra 
         'has_variants' => 'false',
         'type' => 'bundle',
         'bundle_mode' => $modo,
+        'tax_category_id' => categoriaFiscaleDiProva(),
         'show_components_value' => 'false',
         'bundle_components' => $componenti,
         'bundle_groups' => $righeGruppi,

@@ -555,7 +555,7 @@ check('una confezione nel carrello prenota solo le figlie, mai la madre', functi
         $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
         $rigaMadre = (int) (OrderItem::create([
             'order_id' => $carrello, 'type' => 'product', 'product_id' => $madre, 'position' => 1,
-            'name' => 'Confezione', 'quantity' => '2.000', 'unit_price' => '25.00', 'line_total' => '50.00',
+            'tax_category_id' => categoriaFiscaleDiProva(), 'name' => 'Confezione', 'quantity' => '2.000', 'unit_price' => '25.00', 'line_total' => '50.00',
         ])->insert_id ?? 0);
         $figlie = [];
 
@@ -563,7 +563,7 @@ check('una confezione nel carrello prenota solo le figlie, mai la madre', functi
             $prodotto = articoloConGiacenza(20, 'TST-CHK-F'.$n.substr((string) microtime(true), -5));
             $figlie[] = (int) (OrderItem::create([
                 'order_id' => $carrello, 'type' => 'product', 'product_id' => $prodotto, 'position' => 1 + $n,
-                'parent_item_id' => $rigaMadre, 'name' => 'Componente '.$n, 'quantity' => '2.000',
+                'tax_category_id' => categoriaFiscaleDiProva(), 'parent_item_id' => $rigaMadre, 'name' => 'Componente '.$n, 'quantity' => '2.000',
                 'unit_price' => '0.00', 'line_total' => '0.00',
             ])->insert_id ?? 0);
         }

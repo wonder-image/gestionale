@@ -6,7 +6,6 @@ use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Extensions\SettingsSections;
-use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Support\RequestMemo;
 use Wonder\Sql\TableSchema as Column;
 
@@ -52,8 +51,6 @@ final class Setting extends Model
             Column::key('transmitter_country')->length(2)->default('IT'),
             Column::key('transmitter_fiscal_code')->length(50),
             Column::key('catalog_prices_include_tax')->enum(['true', 'false'])->default('true'),
-            Column::key('fallback_tax_id')->int()->foreign(Tax::$table),
-            Column::key('shipping_tax_id')->int()->foreign(Tax::$table),
             Column::key('invoice_numeration')->length(20)->default('WEB'),
             Column::key('stamp_duty_auto')->enum(['true', 'false'])->default('true'),
             // Vendita (5.2): quanto resta impegnata la merce di un ordine non
@@ -101,8 +98,6 @@ final class Setting extends Model
             Field::key('transmitter_country')->text()->sanitize(false),
             Field::key('transmitter_fiscal_code')->text()->sanitize(false),
             Field::key('catalog_prices_include_tax')->text()->sanitize(false),
-            Field::key('fallback_tax_id')->number()->decimals(0),
-            Field::key('shipping_tax_id')->number()->decimals(0),
             Field::key('invoice_numeration')->text()->sanitize(false),
             Field::key('stamp_duty_auto')->text()->sanitize(false),
             Field::key('order_reservation_minutes')->number()->decimals(0),

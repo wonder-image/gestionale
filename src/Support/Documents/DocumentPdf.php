@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Documents;
 
+use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
+
 /**
  * La base dei PDF di vendita (G9 §3.3): preventivo, conferma d'ordine e, con il
  * piano 4, DDT. Disegna con `Wonder\Pdf` del core (FPDF) a partire da un array
@@ -237,6 +239,15 @@ abstract class DocumentPdf
         $this->pdf->SetX(self::LEFT + 110);
         $this->pdf->Cell(40, 7, self::text('Totale'), 'T', 0);
         $this->pdf->Cell(30, 7, self::text(self::money($order['total'] ?? 0)), 'T', 1, 'R');
+
+        // Scissione dei pagamenti: l'IVA la versa il cliente, si paga l'imponibile.
+        if (($order['vat_collectability'] ?? '') === 'S') {
+            $this->pdf->SetFont('Helvetica', '', 9);
+            $this->pdf->SetX(self::LEFT + 110);
+            $this->pdf->Cell(40, 5, self::text('Da pagare (scissione)'), 0, 0);
+            $this->pdf->Cell(30, 5, self::text(self::money(VatCollectability::payable($order))), 0, 1, 'R');
+        }
+
         $this->pdf->Ln(4);
     }
 

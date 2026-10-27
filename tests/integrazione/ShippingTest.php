@@ -20,7 +20,6 @@ use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRate;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRateBracket;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZone;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingZoneArea;
-use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -265,7 +264,7 @@ check('senza paese si assume IT', fn () => prova(static function (): bool {
     return nomi(Shipping::options($cart)) === ['Standard'];
 }));
 
-check('line dà nome, importo, aliquota e gratuità del metodo scelto', fn () => prova(static function (): bool {
+check('line dà nome, importo e gratuità del metodo scelto', fn () => prova(static function (): bool {
     $it = zona('Italia', [['IT', '']]);
     $standard = metodo('Standard');
     listino($standard, $it, [[5, 8.0]]);
@@ -274,9 +273,8 @@ check('line dà nome, importo, aliquota e gratuità del metodo scelto', fn () =>
     $computed = [['type' => 'product', 'product_id' => $prodotto, 'quantity' => 1.0, 'line_total' => '10.00']];
 
     $riga = Shipping::line(Order::findById($cart), $computed);
-    $aliquota = (int) (Setting::current()['shipping_tax_id'] ?? 0);
 
-    return $riga === ['name' => 'Standard', 'amount' => '8.00', 'tax_id' => $aliquota, 'free' => false]
+    return $riga === ['name' => 'Standard', 'amount' => '8.00', 'free' => false]
         && Shipping::dropped(Order::findById($cart), $computed) === '';
 }));
 

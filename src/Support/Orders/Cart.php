@@ -27,8 +27,10 @@ use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
+use Wonder\Plugin\Gestionale\Support\Tax\ChargeSplit;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxResolver;
 use Wonder\Sql\Transaction;
+use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 
 /**
  * Il carrello: una riga di `gst_orders` con `stage='cart'` e le sue righe.
@@ -212,7 +214,6 @@ final class Cart
             $cart = self::cart($cartId, true);
             $settings = Setting::current();
             $rules = TaxRule::active();
-            $fallback = (int) ($settings['fallback_tax_id'] ?? 0);
             $country = strtoupper(trim((string) ($cart['billing_country'] ?? ''))) ?: 'IT';
             $customerType = trim((string) ($cart['billing_pi'] ?? '')) !== '' ? 'business' : 'private';
             $now = date('Y-m-d H:i:s');
@@ -251,9 +252,9 @@ final class Cart
             $models = Bundles::modelsOf(array_values($products));
 
             foreach ($all as $item) {
-                // La spedizione calcolata si rifà dopo, quando i prodotti sono
-                // prezzati: quella a mano si prezza come ogni altra riga.
-                if ($shipping && (string) $item['type'] === 'shipping' && (string) $item['price_source'] !== 'manual') {
+                // Spedizione e commissione si rifanno dopo, quando la merce è
+                // prezzata: prendono la sua aliquota.
+                if (in_array((string) $item['type'], Charges::TYPES, true)) {
                     continue;
                 }
 
@@ -356,9 +357,9 @@ final class Cart
                     $country,
                     $customerType,
                     (int) ($item['tax_category_id'] ?? 0),
-                    $fallback
+                    (string) ($item['name'] ?? '')
                 );
-                $tax = $taxId > 0 ? Tax::findById($taxId) : null;
+                $tax = Tax::findById($taxId);
 
                 $manualPrice = self::manualPrice($item);
                 // Il listino vince sulla campagna (non si sommano); l'IVA serve
@@ -400,8 +401,6 @@ final class Cart
                 ] + $price : [];
             }
 
-            $shippingDropped = $shipping ? self::writeShipping($cart, $all, $computed, $fallback) : '';
-
             // Il coupon si rivaluta a ogni ricalcolo: se non vale più esce dal
             // carrello e il motivo arriva a chi chiama. Lo sconto scritto a mano
             // sulla testata non si somma mai: tra i due vince il manuale.
@@ -423,7 +422,12 @@ final class Cart
                 }
             }
 
-            $totals = OrderTotals::of($computed, $context);
+            // Le quote di spedizione e commissione seguono l'imponibile che la
+            // merce ha davvero, sconto sul totale compreso.
+            $groups = ChargeSplit::groups(OrderTotals::of($computed, $context)['lines'], $context['prices_include_tax']);
+            $charges = self::writeCharges($cart, $all, $computed, $shipping, $groups);
+            $shippingDropped = $charges['dropped'];
+            $totals = OrderTotals::of(array_merge($computed, $charges['lines']), $context);
 
             foreach ($totals['lines'] as $line) {
                 OrderItem::update([
@@ -452,6 +456,7 @@ final class Cart
             }
 
             Order::update([
+                'vat_collectability' => VatCollectability::forCustomer((int) ($cart['customer_id'] ?? 0)),
                 'products_total' => $totals['products_total'],
                 'discount_total' => $totals['discount_total'],
                 'shipping_total' => $totals['shipping_total'],
@@ -473,72 +478,102 @@ final class Cart
     }
 
     /**
-     * Scrive la riga di spedizione calcolata e la mette tra le righe da
-     * totalizzare; ridà la frase di `shipping_dropped`.
+     * Riscrive spedizione e commissione come quote sulle aliquote della merce
+     * (`Charges`); ridà le righe da totalizzare e la frase di `shipping_dropped`.
      *
-     * Una sola riga, `base`, in fondo ai prodotti: se esiste si aggiorna, se il
-     * metodo non c'è più o non copre la destinazione, o si ritira, esce. Una
-     * riga `manual` messa dall'ufficio non si tocca e toglie il posto a quella
-     * calcolata. Il totale per la soglia gratuita sono i prodotti a prezzo di
-     * riga: lo sconto del coupon si ripartisce dopo, in `OrderTotals`, e non
-     * ne fa parte.
+     * La spedizione calcolata viene dal listino; se il metodo non c'è più o non
+     * copre la destinazione, o si ritira, esce. Una spedizione `manual` messa
+     * dall'ufficio toglie il posto a quella calcolata. Il totale per la soglia
+     * gratuita sono i prodotti a prezzo di riga: lo sconto del coupon non ne fa
+     * parte. Senza merce la spedizione calcolata e la commissione escono; quella
+     * a mano ferma il salvataggio, perché non ha un'aliquota da prendere.
      *
      * @param array<string, mixed> $cart
      * @param list<array<string, mixed>> $all
-     * @param list<array<string, mixed>> $computed
+     * @param list<array<string, mixed>> $computed le righe di merce prezzate
+     * @param list<array{tax_id: int, rate: float, nature: string, base: float}> $groups
+     * @return array{lines: list<array<string, mixed>>, dropped: string}
      */
-    private static function writeShipping(array $cart, array $all, array &$computed, int $fallback): string
+    private static function writeCharges(array $cart, array $all, array $computed, bool $shipping, array $groups): array
     {
-        $stored = array_values(array_filter($all, static fn (array $row): bool => (string) $row['type'] === 'shipping'));
-        $calculated = array_values(array_filter($stored, static fn (array $row): bool => (string) $row['price_source'] !== 'manual'));
-        $manual = count($stored) > count($calculated);
-        $resolved = $manual ? ['line' => null, 'dropped' => ''] : Shipping::resolveLine($cart, $computed);
-        $line = $resolved['line'];
+        $stored = ['shipping' => [], 'fee' => []];
 
-        if ($line === null) {
-            foreach ($calculated as $row) {
-                OrderItem::delete((int) $row['id']);
+        foreach ($all as $row) {
+            if (in_array((string) $row['type'], Charges::TYPES, true) && (int) ($row['parent_item_id'] ?? 0) === 0) {
+                $stored[(string) $row['type']][] = $row;
+            }
+        }
+
+        $charges = [];
+        $dropped = '';
+        $manual = array_values(array_filter($stored['shipping'], static fn (array $row): bool => (string) $row['price_source'] === 'manual'));
+
+        if ($manual !== []) {
+            foreach ($stored['shipping'] as $row) {
+                if ((string) $row['price_source'] !== 'manual') {
+                    OrderItem::delete((int) $row['id']);
+                }
             }
 
-            return $resolved['dropped'];
+            $charges[] = self::charge('shipping', $manual, Charges::amount($manual), 'manual');
+        } elseif ($shipping) {
+            $resolved = Shipping::resolveLine($cart, $computed);
+
+            if ($resolved['line'] === null) {
+                foreach ($stored['shipping'] as $row) {
+                    OrderItem::delete((int) $row['id']);
+                }
+
+                $dropped = $resolved['dropped'];
+            } else {
+                $charges[] = ['name' => $resolved['line']['name']]
+                    + self::charge('shipping', $stored['shipping'], (float) $resolved['line']['amount'], 'base');
+            }
+        } elseif ($stored['shipping'] !== []) {
+            // Con le spedizioni spente la riga calcolata di prima resta com'è.
+            $charges[] = self::charge('shipping', $stored['shipping'], Charges::amount($stored['shipping']), (string) $stored['shipping'][0]['price_source']);
         }
 
-        $keep = array_shift($calculated);
-
-        foreach ($calculated as $extra) {
-            OrderItem::delete((int) $extra['id']);
+        if ($stored['fee'] !== []) {
+            $charges[] = self::charge('fee', $stored['fee'], Charges::amount($stored['fee']), 'manual');
         }
 
-        $id = (int) ($keep['id'] ?? 0);
+        $lines = [];
 
-        if ($id === 0) {
-            $id = (int) (OrderItem::create([
-                'order_id' => (int) $cart['id'],
-                'type' => 'shipping',
-                'position' => 800,
-                'name' => $line['name'],
-                'quantity' => '1.000',
-                'price_source' => 'base',
-                'tax_category_id' => 0,
-            ])->insert_id ?? 0);
-        } elseif ((string) $keep['name'] !== $line['name']) {
-            OrderItem::update(['name' => $line['name']], $id);
+        foreach ($charges as $charge) {
+            if ($groups === []) {
+                if ($charge['type'] === 'shipping' && $charge['price_source'] === 'manual') {
+                    throw UserError::make('tax.charge_without_goods');
+                }
+
+                foreach ($charge['rows'] as $row) {
+                    OrderItem::delete((int) $row['id']);
+                }
+
+                continue;
+            }
+
+            $lines = array_merge($lines, Charges::write((int) $cart['id'], $charge['rows'], $charge['amount'], $groups, $charge));
         }
 
-        $taxId = $line['tax_id'] > 0 ? $line['tax_id'] : $fallback;
-        $tax = $taxId > 0 ? Tax::findById($taxId) : null;
-        $computed[] = [
-            'id' => $id,
-            'type' => 'shipping',
-            'product_id' => 0,
-            'weight' => 0.0,
-            'tax_id' => $taxId,
-            'tax_rate' => is_array($tax) ? (float) ($tax['rate'] ?? 0) : 0.0,
-            'tax_nature' => is_array($tax) ? (string) ($tax['nature'] ?? '') : '',
-            'discount_campaign_id' => 0,
-        ] + LinePrice::of(['quantity' => 1, 'price' => $line['amount']]);
+        return ['lines' => $lines, 'dropped' => $dropped];
+    }
 
-        return '';
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array{type: string, name: string, position: int, price_source: string, manual_unit_price: ?string, rows: list<array<string, mixed>>, amount: float}
+     */
+    private static function charge(string $type, array $rows, float $amount, string $source): array
+    {
+        return [
+            'type' => $type,
+            'name' => (string) ($rows[0]['name'] ?? ($type === 'fee' ? 'Commissione' : 'Spedizione')),
+            'position' => (int) ($rows[0]['position'] ?? ($type === 'fee' ? 900 : 800)),
+            'price_source' => $source,
+            'manual_unit_price' => $source === 'manual' ? number_format($amount, 2, '.', '') : null,
+            'rows' => $rows,
+            'amount' => $amount,
+        ];
     }
 
     /**

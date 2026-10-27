@@ -17,8 +17,13 @@ use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShippingRate;
-use Wonder\Plugin\Gestionale\Models\System\Setting;
+use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
+use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
+use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
+use Wonder\Plugin\Gestionale\Support\Documents\DocumentData;
+use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
 use Wonder\Plugin\Gestionale\Support\Orders\Checkout;
@@ -79,7 +84,8 @@ check('con metodo e destinazione il carrello ha una riga di spedizione e i total
 
     $esito = Cart::recalculate($cart);
     $spedizione = righe($cart, 'shipping');
-    $taxId = (int) (Setting::current()['shipping_tax_id'] ?? 0);
+    // Una sola aliquota fra le merci: la spedizione prende quella.
+    $taxId = (int) (righe($cart, 'product')[0]['tax_id'] ?? 0);
     $tax = $taxId > 0 ? Tax::findById($taxId) : null;
 
     return count($spedizione) === 1
@@ -342,6 +348,108 @@ check('con commissione fissa la percentuale avanzata non conta', fn () => prova(
     $fee = incassa($cart, pagamento(PaymentTiming::DEFERRED, 'amount', 1.5, 2.0), $metodo);
 
     return $fee !== null && (string) $fee['line_total'] === '1.50';
+}));
+
+/** Una categoria fiscale nuova; con `$aliquota` anche la sua regola IT/privato. */
+function categoria(?float $aliquota): int
+{
+    $categoria = (int) (TaxCategory::create([
+        'code' => 'tst_'.uniqid(), 'name' => 'Prova', 'position' => 99, 'visible' => 'true', 'is_default' => 'false',
+    ])->insert_id ?? 0);
+
+    if ($aliquota !== null) {
+        $tax = (int) (Tax::create([
+            'code' => 'T'.uniqid(), 'name' => 'IVA '.$aliquota, 'rate' => number_format($aliquota, 2, '.', ''), 'nature' => '', 'visible' => 'true',
+        ])->insert_id ?? 0);
+        TaxRule::create([
+            'code' => 'tst-'.uniqid(), 'country' => 'IT', 'customer_type' => 'private',
+            'tax_category_id' => $categoria, 'tax_id' => $tax, 'active' => 'true',
+        ]);
+    }
+
+    return $categoria;
+}
+
+/** Un articolo della categoria fiscale data. */
+function articoloInCategoria(int $categoria, float $prezzo): int
+{
+    $prodotto = articolo(2.0, $prezzo);
+    ProductModel::update(['tax_category_id' => $categoria], modelloDi($prodotto));
+
+    return $prodotto;
+}
+
+/** La somma in centesimi delle righe date. */
+function centesimi(array $righe): int
+{
+    return (int) array_sum(array_map(static fn (array $r): int => (int) round((float) $r['line_total'] * 100), $righe));
+}
+
+check('22% + 4%: spedizione e commissione si dividono sulle due aliquote e la somma torna al centesimo', fn () => prova(static function (): bool {
+    $quattro = categoria(4.0);
+    [$cart, $metodo] = carrelloConMetodo([[articolo(2.0, 10.0), 1], [articoloInCategoria($quattro, 20.0), 1]], [[5, 8.0]]);
+    $fee = incassa($cart, pagamento(PaymentTiming::DEFERRED, 'amount', 1.01), $metodo);
+
+    $spedizione = righe($cart, 'shipping');
+    $commissioni = righe($cart, 'fee');
+    $merci = array_unique(array_map(static fn (array $r): int => (int) $r['tax_id'], righe($cart, 'product')));
+    $aliquote = static fn (array $righe): array => array_values(array_unique(array_map(static fn (array $r): int => (int) $r['tax_id'], $righe)));
+    sort($merci);
+    $sped = $aliquote($spedizione);
+    $comm = $aliquote($commissioni);
+    sort($sped);
+    sort($comm);
+    $ordine = Order::findById($cart);
+
+    return $fee !== null
+        && count($merci) === 2
+        && count($spedizione) === 2 && $sped === $merci && centesimi($spedizione) === 800
+        && count($commissioni) === 2 && $comm === $merci && centesimi($commissioni) === 101
+        && (string) $ordine['shipping_total'] === '8.00';
+}));
+
+check('una merce senza regola fiscale blocca il carrello con un errore che la nomina', fn () => prova(static function (): bool {
+    $senzaRegola = categoria(null);
+
+    try {
+        // Si ferma già all'aggiunta nel carrello, che ricalcola.
+        [$cart] = carrelloConMetodo([[articoloInCategoria($senzaRegola, 10.0), 1]]);
+        Cart::recalculate($cart);
+    } catch (UserError $e) {
+        return $e->key() === 'tax.rule_missing';
+    }
+
+    return false;
+}));
+
+check('cliente in scissione: l\'ordine e i dati della fattura dicono S, si incassa il totale senza IVA', fn () => prova(static function (): bool {
+    $cliente = (int) (Contact::create([
+        'type' => 'business', 'business_name' => 'Ente di prova', 'country' => 'IT', 'city' => 'Milano',
+        'street' => 'Via Prova', 'number' => '1', 'cap' => '20100', 'pi' => '01234567890',
+        'email' => 'ente'.uniqid().'@example.com', 'is_customer' => 'true', 'active' => 'true',
+        'vat_collectability' => 'S',
+    ])->insert_id ?? 0);
+    [$cart] = carrelloConMetodo([[articolo(2.0, 10.0), 1]], [[5, 8.0]], [], ['customer_id' => $cliente]);
+
+    Cart::recalculate($cart);
+    $ordine = Order::findById($cart);
+    $dati = DocumentData::forOrder($cart);
+
+    return $cliente > 0
+        && $ordine['vat_collectability'] === 'S'
+        && (float) $ordine['tax_total'] > 0
+        && VatCollectability::payable($ordine) === round((float) $ordine['total'] - (float) $ordine['tax_total'], 2)
+        && ($dati['order']['vat_collectability'] ?? '') === 'S';
+}));
+
+check('cliente senza esigibilità sua: vale quella delle impostazioni e si incassa tutto', fn () => prova(static function (): bool {
+    [$cart] = carrelloConMetodo([[articolo(2.0, 10.0), 1]]);
+
+    Cart::recalculate($cart);
+    $ordine = Order::findById($cart);
+
+    return $ordine['vat_collectability'] === VatCollectability::default()
+        && (VatCollectability::default() === 'S' || VatCollectability::payable($ordine) === round((float) $ordine['total'], 2));
 }));
 
 summary();

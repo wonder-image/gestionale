@@ -62,7 +62,7 @@ function prova(callable $corpo): mixed
 function piano(string $nome, array $prezzi, array $limiti = []): int
 {
     // Il codice del piano lo dà il form della pagina; qui si scrive a mano.
-    $id = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'name' => $nome, 'slug' => strtolower($nome).'-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
+    $id = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => $nome, 'slug' => strtolower($nome).'-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
 
     // Come la pagina: i prezzi nuovi prendono il codice da `prepareRepeaterRelationRow`.
     Repeater::syncRelatedRows(

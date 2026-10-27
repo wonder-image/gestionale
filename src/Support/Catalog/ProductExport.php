@@ -410,7 +410,8 @@ final class ProductExport
     /**
      * L'aliquota di ogni articolo per un privato del paese del negozio
      * (`exports.country`, Italia se manca): quella che il carrello
-     * applicherebbe, regola del tipo fiscale o aliquota di ripiego.
+     * applicherebbe, dalla regola del tipo fiscale. Senza regola la cella resta
+     * vuota: un foglio non si ferma per un articolo, il carrello sì.
      *
      * @param list<array<string, mixed>> $models
      * @return array<int, float>
@@ -419,7 +420,6 @@ final class ProductExport
     {
         try {
             $rules = TaxRule::active();
-            $fallback = (int) (Setting::current()['fallback_tax_id'] ?? 0);
             $rates = [];
 
             foreach (self::listOf(Tax::find(['deleted' => 'false'])) as $tax) {
@@ -433,9 +433,9 @@ final class ProductExport
         $out = [];
 
         foreach ($models as $model) {
-            $taxId = TaxResolver::resolve($rules, $country, 'private', (int) ($model['tax_category_id'] ?? 0), $fallback);
+            $taxId = TaxResolver::find($rules, $country, 'private', (int) ($model['tax_category_id'] ?? 0));
 
-            if (isset($rates[$taxId])) {
+            if ($taxId !== null && isset($rates[$taxId])) {
                 $out[(int) $model['id']] = $rates[$taxId];
             }
         }

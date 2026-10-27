@@ -6,7 +6,6 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
-use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxResolver;
@@ -47,7 +46,6 @@ final class PurchaseTax
             $modelIds = array_values(array_unique(array_filter(array_map(static fn (array $row): int => (int) ($row['product_model_id'] ?? 0), $products))));
             $models = $modelIds === [] ? [] : self::rows(ProductModel::find('`id` IN ('.implode(', ', $modelIds).')'));
             $rules = TaxRule::active();
-            $fallback = (int) (Setting::current()['fallback_tax_id'] ?? 0);
             $taxes = [];
 
             foreach (self::rows(Tax::find(['deleted' => 'false'])) as $tax) {
@@ -68,9 +66,10 @@ final class PurchaseTax
 
         foreach ($products as $product) {
             $category = $categories[(int) ($product['product_model_id'] ?? 0)] ?? 0;
-            $taxId = TaxResolver::resolve($rules, $country, 'private', $category, $fallback);
+            // Senza regola il carico non propone niente: l'aliquota la sceglie chi scrive.
+            $taxId = TaxResolver::find($rules, $country, 'private', $category);
 
-            if (isset($taxes[$taxId])) {
+            if ($taxId !== null && isset($taxes[$taxId])) {
                 $out[(int) $product['id']] = ['id' => $taxId, 'rate' => $taxes[$taxId]];
             }
         }

@@ -13,6 +13,7 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Sql\Transaction;
+use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 
 /**
  * **L'unico che tocca il `payment_status` di un ordine.**
@@ -172,7 +173,7 @@ final class Ledger
                 throw new RuntimeException("Ordine {$orderId} non trovato.");
             }
 
-            $status = PaymentStatus::of((float) $order['total'], self::paymentsOf($orderId));
+            $status = PaymentStatus::of(VatCollectability::payable($order), self::paymentsOf($orderId));
             $before = (string) $order['payment_status'];
 
             if ($status === $before) {

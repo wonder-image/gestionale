@@ -50,7 +50,7 @@ final class SetupChecks
             $pending[] = [
                 'key' => 'fiscal',
                 'title' => 'Conferma le impostazioni fiscali',
-                'description' => 'Regime, IVA di ripiego e prezzi del catalogo sono precaricati: vanno guardati una volta e salvati.',
+                'description' => 'Regime, esigibilità IVA e prezzi del catalogo sono precaricati: vanno guardati una volta e salvati.',
                 // La pagina è a riga unica: l'elenco porta dritto alla scheda.
                 'url' => self::route('backend.resource.app-gestionale-impostazioni.list', [], '/backend/app/gestionale/impostazioni/'),
             ];

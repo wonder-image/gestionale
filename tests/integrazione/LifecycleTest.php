@@ -88,7 +88,7 @@ function ordineConfezione(): array
     Order::update(['email' => 'cliente@example.com', 'ordered_at' => date('Y-m-d H:i:s')], $ordine);
     $rigaMadre = (int) (OrderItem::create([
         'order_id' => $ordine, 'type' => 'product', 'product_id' => $madre, 'position' => 1,
-        'name' => 'Confezione', 'quantity' => '2.000', 'unit_price' => '25.00', 'line_total' => '50.00',
+        'tax_category_id' => categoriaFiscaleDiProva(), 'name' => 'Confezione', 'quantity' => '2.000', 'unit_price' => '25.00', 'line_total' => '50.00',
     ])->insert_id ?? 0);
     $figlie = [];
 

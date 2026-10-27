@@ -9,6 +9,7 @@ use Wonder\Plugin\Gestionale\Resources\Sales\OfficeOrderResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderRules;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
+use Wonder\Plugin\Gestionale\Support\Tax\TaxCategories;
 
 /**
  * Gli strumenti MCP dei preventivi: un preventivo è un ordine con `stage`
@@ -37,7 +38,7 @@ final class QuoteTools
 
         return [
             'quote_create' => [
-                'description' => 'Crea un preventivo in bozza per un cliente (`customer_id`, un contatto del gestionale) con le sue righe. Righe: `product` (product_id della versione e quantity; unit_price vuoto = prezzo di listino), `custom` (name, quantity, unit_price, tax_category_id facoltativo), `text` (solo name, una nota). Cliente, righe, quantità e prezzi li decide l\'utente: se mancano chiediglieli, non inventarli. Il preventivo non parte verso il cliente: si invia dal backend.',
+                'description' => 'Crea un preventivo in bozza per un cliente (`customer_id`, un contatto del gestionale) con le sue righe. Righe: `product` (product_id della versione e quantity; unit_price vuoto = prezzo di listino), `custom` (name, quantity, unit_price, tax_category_id facoltativo, vuoto vale il tipo di IVA predefinito), `text` (solo name, una nota). Cliente, righe, quantità e prezzi li decide l\'utente: se mancano chiediglieli, non inventarli. Il preventivo non parte verso il cliente: si invia dal backend.',
                 'schema' => self::schema([
                     'customer_id' => $id,
                     'lines' => ['type' => 'array', 'minItems' => 1, 'maxItems' => OfficeOrderRules::MAX_LINES, 'items' => [
@@ -155,6 +156,11 @@ final class QuoteTools
 
             if ($type === 'product' && isset($line['product_id'])) {
                 self::productRow(self::int($line, 'product_id'));
+            }
+
+            // Come la scheda del backend: senza tipo di IVA vale il predefinito.
+            if ($type === 'custom' && !isset($line['tax_category_id'])) {
+                $line['tax_category_id'] = TaxCategories::defaultId();
             }
 
             $lines[] = array_map(static fn (mixed $value): string => (string) $value, array_filter(

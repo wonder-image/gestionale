@@ -688,17 +688,17 @@ final class OnlineSubscriptions
 
     /**
      * L'aliquota del piano per un cliente italiano (G10.4): privato o azienda
-     * dalla partita IVA, regola del tipo fiscale, aliquota di ripiego.
+     * dalla partita IVA, regola del tipo fiscale. Senza regola un `UserError`.
      *
      * @param array<string, string> $billing
      * @return array{0: int, 1: float}
      */
-    public static function taxFor(int $taxCategoryId, array $billing): array
+    public static function taxFor(int $taxCategoryId, array $billing, string $name = ''): array
     {
         $rules = TaxRule::active();
         $type = trim((string) ($billing['billing_pi'] ?? '')) !== '' ? 'business' : 'private';
-        $taxId = TaxResolver::resolve($rules, 'IT', $type, $taxCategoryId, (int) (Setting::current()['fallback_tax_id'] ?? 0));
-        $tax = $taxId > 0 ? Tax::findById($taxId) : null;
+        $taxId = TaxResolver::resolve($rules, 'IT', $type, $taxCategoryId, $name);
+        $tax = Tax::findById($taxId);
 
         return [$taxId, is_array($tax) ? (float) ($tax['rate'] ?? 0) : 0.0];
     }

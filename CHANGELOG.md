@@ -7,6 +7,16 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Esigibilità IVA per cliente** (gestionale#81): campo `vat_collectability`
+  (I, D, S) sulla scheda cliente; vuoto vale quello di Set Up. Alla vendita si
+  copia sull'ordine (`Support\Tax\VatCollectability`) e da lì va ai dati dei
+  documenti e alla fattura (`toInvoice()` → `EsigibilitaIVA`). Con la scissione
+  dei pagamenti (S) si incassa il totale meno l'IVA: rate, scadenze, registro
+  dei pagamenti, pagamenti online e saldo dell'ordine usano
+  `VatCollectability::payable()`; il PDF stampa «Da pagare (scissione)».
+  Passo a mano: `php forge update` (colonne `vat_collectability` su contatti e
+  ordini).
+
 - **Attributi e Varianti** (#85, #83): nel catalogo due voci al posto di
   opzioni e caratteristiche, e il campo «Uso» sparisce. Nuovi tipi di
   attributo Url, File e Box testo. Nella scheda articolo l'interruttore
@@ -20,6 +30,7 @@ versionamento semantico.
   conferma prima di salvare, e feed e sitemap si rifanno al giro dopo dello
   scheduler (`Support\Catalog\CatalogRefresh`, `ProductFeeds::expire()`).
   Gli strumenti MCP del catalogo scelgono la pagina per articolo.
+
 - **Listini cliente** (funzionalità `customer_price_lists`, #78): Model
   `Pricing\PriceList` (`gst_price_lists`) e `Pricing\PriceListItem`
   (scaglioni per prodotto e quantità minima), Resource in Promozioni →
@@ -634,6 +645,19 @@ versionamento semantico.
   commerciante; l'anteprima del checkout mostra solo i provider collegati.
 
 ### Cambiato
+
+- **Niente aliquota di ripiego** (gestionale#81): il `TaxResolver` è l'unico
+  punto che decide l'aliquota e, senza una regola per paese, tipo di cliente
+  e categoria fiscale, blocca la vendita con l'errore `tax.rule_missing`.
+  Tolta l'impostazione `fallback_tax_id`. Passo a mano: prima di
+  `php forge update` controllare che ogni modello abbia una categoria fiscale
+  coperta da una regola IVA, altrimenti i carrelli si fermano.
+
+- **Spedizione e commissione con l'aliquota della merce** (gestionale#81, art.
+  12 DPR 633/72): con una sola aliquota fra le merci la prendono tutta; con più
+  aliquote si dividono in proporzione all'imponibile (`Support\Tax\ChargeSplit`,
+  arrotondamento sull'ultima quota), una riga per quota. Tolta l'impostazione
+  `shipping_tax_id`; `php forge update` ne toglie la colonna.
 
 - **Letture ripetute in copia per la durata della richiesta**:
   `Support\RequestMemo` tiene in memoria, per processo, impostazioni

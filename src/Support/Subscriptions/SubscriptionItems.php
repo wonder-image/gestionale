@@ -158,7 +158,7 @@ final class SubscriptionItems
         [$price, $plan] = self::available((int) ($item['plan_price_id'] ?? 0));
         $quantity = max(1, (int) ($item['quantity'] ?? 1));
         $resolved = Customizations::resolvePlan((int) $plan['id'], is_array($item['customization'] ?? null) ? $item['customization'] : []);
-        [$taxId, $taxRate] = OnlineSubscriptions::taxFor((int) ($plan['tax_category_id'] ?? 0), $billing);
+        [$taxId, $taxRate] = OnlineSubscriptions::taxFor((int) ($plan['tax_category_id'] ?? 0), $billing, (string) ($plan['name'] ?? ''));
         $term = max(1, (int) ($price['term_months'] ?? 1));
         $line = ['price' => $price, 'quantity' => $quantity, 'surcharge' => $resolved['surcharge'], 'tax_rate' => $taxRate];
         $amounts = SubscriptionAmounts::ofItems([$line], null, $pricesIncludeTax, 0, $term);
@@ -803,7 +803,7 @@ final class SubscriptionItems
      */
     private static function applyPrice(array $subscription, array $item, array $price, array $plan, array $resolved, ?DateTimeImmutable $effective): array
     {
-        [$taxId, $taxRate] = OnlineSubscriptions::taxFor((int) ($plan['tax_category_id'] ?? 0), $subscription);
+        [$taxId, $taxRate] = OnlineSubscriptions::taxFor((int) ($plan['tax_category_id'] ?? 0), $subscription, (string) ($plan['name'] ?? ''));
         $quantity = max(1, (int) ($item['quantity'] ?? 1));
         $amounts = SubscriptionAmounts::ofItems(
             [['price' => $price, 'quantity' => $quantity, 'surcharge' => $resolved['surcharge'], 'tax_rate' => $taxRate]],

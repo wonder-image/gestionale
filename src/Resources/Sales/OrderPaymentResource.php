@@ -27,6 +27,7 @@ use Wonder\Plugin\Gestionale\Support\Payments\Installments;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentStatus;
 use Wonder\Plugin\Gestionale\Support\Stock\BatchExpiry;
+use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 
 /**
  * «Registra pagamento»: il denaro arrivato a mano — il bonifico guardato
@@ -114,11 +115,11 @@ final class OrderPaymentResource extends NavigationOnlyResource
      */
     public static function modal(array $order, array $payments, array $methods, string $back): string
     {
-        $totale = (float) ($order['total'] ?? 0);
+        $totale = VatCollectability::payable($order);
         $residuo = static::balanceOf($order, $payments);
         $predefinito = (int) ($order['payment_method_id'] ?? 0);
         $scelto = isset($methods[$predefinito]) ? $predefinito : (int) (array_key_first($methods) ?? 0);
-        $riepilogo = '<b>Totale</b> '.OrderSheet::esc(OrderSheet::money($totale))
+        $riepilogo = '<b>'.(VatCollectability::splits($order) ? 'Totale senza IVA (scissione)' : 'Totale').'</b> '.OrderSheet::esc(OrderSheet::money($totale))
             .' · <b>Già incassato</b> '.OrderSheet::esc(OrderSheet::money(round($totale - $residuo, 2)))
             .' · <b>Residuo</b> '.OrderSheet::esc(OrderSheet::money($residuo));
 
@@ -367,7 +368,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
         $payments ??= static::rowsOf(Payment::class, ['order_id' => (int) ($order['id'] ?? 0)], 'id');
         $sums = PaymentStatus::sums($payments);
 
-        return max(0.0, round((float) ($order['total'] ?? 0) - ($sums['paid'] - $sums['refunded']), 2));
+        return max(0.0, round(VatCollectability::payable($order) - ($sums['paid'] - $sums['refunded']), 2));
     }
 
     /**
@@ -538,10 +539,10 @@ final class OrderPaymentResource extends NavigationOnlyResource
             return '<span class="text-danger">Apri questa pagina dal pulsante «Registra pagamento» di un ordine.</span>';
         }
 
-        $totale = (float) ($ordine['total'] ?? 0);
+        $totale = VatCollectability::payable($ordine);
         $residuo = static::balanceOf($ordine);
 
-        return '<b>Totale</b> '.OrderSheet::esc(OrderSheet::money($totale))
+        return '<b>'.(VatCollectability::splits($ordine) ? 'Totale senza IVA (scissione)' : 'Totale').'</b> '.OrderSheet::esc(OrderSheet::money($totale))
             .' · <b>Già incassato</b> '.OrderSheet::esc(OrderSheet::money(round($totale - $residuo, 2)))
             .' · <b>Residuo</b> '.OrderSheet::esc(OrderSheet::money($residuo));
     }

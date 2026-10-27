@@ -69,7 +69,7 @@ function prova(callable $corpo): mixed
 function pianoOnline(): array
 {
     // I codici come li dà la pagina dei piani: il negozio vende un prezzo dal suo `ppr_`.
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'name' => 'Pro', 'slug' => 'pro-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
+    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => 'Pro', 'slug' => 'pro-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
     $mensile = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => 14, 'price' => '24.40', 'sale_price' => '0.00', 'active' => 'true', 'position' => 0])->insert_id ?? 0);
     $annuale = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'commitment_months' => 12, 'price' => '244.00', 'sale_price' => '0.00', 'renewal_plan_price_id' => $mensile, 'active' => 'true', 'position' => 1])->insert_id ?? 0);
 
@@ -99,7 +99,7 @@ function iniziaServizi(int $cliente, array $servizi, string $coupon = ''): array
 /** Un servizio venduto online, con un prezzo solo. @return array<string, mixed> il prezzo */
 function servizioOnline(string $nome, int $mesi, string $prezzo, int $prova = 0): array
 {
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'name' => $nome, 'slug' => 'srv-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
+    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => $nome, 'slug' => 'srv-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
     $price = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => $mesi === 12 ? 'Annuale' : 'Mensile', 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'trial_days' => $prova, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true', 'position' => 0])->insert_id ?? 0);
 
     return PlanPrice::findById($price);

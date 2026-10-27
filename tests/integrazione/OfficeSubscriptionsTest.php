@@ -65,7 +65,7 @@ function prova(callable $corpo): mixed
 /** @return array{plan: int, mensile: int, annuale: int} */
 function piano(int $prova = 0, int $vincolo = 0): array
 {
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'name' => 'Ufficio', 'slug' => 'ufficio-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
+    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => 'Ufficio', 'slug' => 'ufficio-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
     $mensile = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => '100.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
     $annuale = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'price' => '1000.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
 
@@ -131,7 +131,7 @@ function rifiuto(callable $f): ?string
  */
 function servizio(string $nome, int $mesi, string $prezzo, int $prova = 0, int $vincolo = 0): array
 {
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'name' => $nome, 'slug' => 'srv-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
+    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => $nome, 'slug' => 'srv-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
     $price = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => $mesi === 12 ? 'Annuale' : 'Ogni '.$mesi.' mesi', 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
 
     return ['plan' => $plan, 'price' => $price];

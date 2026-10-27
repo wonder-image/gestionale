@@ -19,6 +19,8 @@ final class Contact extends \Wonder\Plugin\CustomerAccount\Models\Contact
             \Wonder\Sql\TableSchema::key('price_list_id')->int(),
             \Wonder\Sql\TableSchema::key('payment_method_id')->int(),
             \Wonder\Sql\TableSchema::key('payment_term_id')->int(),
+            // Vuota: quella delle impostazioni.
+            \Wonder\Sql\TableSchema::key('vat_collectability')->length(5),
         ];
     }
 
@@ -29,6 +31,7 @@ final class Contact extends \Wonder\Plugin\CustomerAccount\Models\Contact
             \Wonder\Data\UploadSchema::key('price_list_id')->number()->decimals(0),
             \Wonder\Data\UploadSchema::key('payment_method_id')->number()->decimals(0),
             \Wonder\Data\UploadSchema::key('payment_term_id')->number()->decimals(0),
+            \Wonder\Data\UploadSchema::key('vat_collectability')->text()->sanitize(false),
         ];
     }
 }

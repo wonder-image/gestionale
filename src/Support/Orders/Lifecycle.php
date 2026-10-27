@@ -18,6 +18,7 @@ use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Sql\Transaction;
+use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 
 /**
  * **L'unico che scrive lo `status` di un ordine.**
@@ -88,7 +89,7 @@ final class Lifecycle
             if ($wantsPayment === true && $paymentStatus !== 'paid') {
                 $paymentStatus = Ledger::register([
                     'order_id' => $orderId,
-                    'amount' => (float) ($options['amount'] ?? $order['total']),
+                    'amount' => (float) ($options['amount'] ?? VatCollectability::payable($order)),
                     'customer_id' => (int) ($order['customer_id'] ?? 0),
                     'payment_method_id' => (int) ($order['payment_method_id'] ?? 0),
                     'currency' => (string) ($order['currency'] ?? 'EUR'),

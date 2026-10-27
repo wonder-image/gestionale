@@ -185,7 +185,7 @@ final class PaymentMethodResource extends GestionaleResource
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
                     SectionTitle::make('Dove e quanto')
-                        ->tooltip('La commissione diventa una riga dell\'ordine, con l\'aliquota della spedizione. Può essere un importo fisso, una percentuale sul totale dei prodotti, o tutte e due (per esempio 0,25 € + 1,4 %). Con «Solo ritiro» il metodo si offre solo a chi ritira in sede, con «Solo spedizione» solo a chi si fa spedire.')
+                        ->tooltip('La commissione diventa una riga dell\'ordine, con l\'aliquota dei prodotti (divisa in proporzione se ce n\'è più d\'una). Può essere un importo fisso, una percentuale sul totale dei prodotti, o tutte e due (per esempio 0,25 € + 1,4 %). Con «Solo ritiro» il metodo si offre solo a chi ritira in sede, con «Solo spedizione» solo a chi si fa spedire.')
                         ->columnSpan(12),
                     static::getInput('available_for')->columnSpan(3),
                     static::getInput('fee_type')->columnSpan(3),
