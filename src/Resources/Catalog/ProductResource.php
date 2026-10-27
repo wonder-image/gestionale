@@ -48,7 +48,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\StockHistory;
 use Wonder\Plugin\Gestionale\Support\Stock\Thresholds;
 
 /**
- * "Opzioni in vendita": l'elenco piatto di quello che si vende davvero.
+ * "Varianti": l'elenco piatto di quello che si vende davvero.
  *
  * Serve a **trovare** — uno SKU, un EAN, un prezzo da correggere — non a
  * creare: un'opzione nasce nella griglia della scheda del prodotto, dove si

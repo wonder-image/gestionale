@@ -6399,7 +6399,7 @@ HTML)->tag('div');
      *
      * Si vede solo quello che l'articolo ha: ogni caratteristica sta nel suo
      * blocco, e lo script nasconde quelli vuoti. Le altre aspettano nel menu
-     * «Aggiungi caratteristica», che in fondo ha «Nuova caratteristica…»:
+     * «Aggiungi un attributo», che in fondo ha «Nuovo attributo…»:
      * Testo e Numero nascono da qui, con il campo che compare subito. Elenchi
      * e Icone hanno valori e immagini da preparare, e il menu dice dove.
      */
@@ -6494,7 +6494,7 @@ HTML)->tag('div');
     }
 
     /**
-     * Il menu «Aggiungi caratteristica», i modelli dei campi di testo e di
+     * Il menu «Aggiungi un attributo», i modelli dei campi di testo e di
      * numero e lo script del riquadro.
      *
      * Lo script mostra solo i blocchi compilati, mette la × per toglierne uno
@@ -6506,7 +6506,7 @@ HTML)->tag('div');
      *
      * Nella scheda dell'opzione una caratteristica non nasce da qui: nascerebbe
      * sull'articolo, dove l'opzione non la vedrebbe. Con `$nuova` a `false` il
-     * menu perde «Nuova caratteristica…» e i modelli dei campi, e al loro
+     * menu perde «Nuovo attributo…» e i modelli dei campi, e al loro
      * posto dice dove si prepara.
      *
      * @param array<int, string> $voci le caratteristiche, per id
@@ -6557,7 +6557,7 @@ HTML)->tag('div');
         $bottone = json_encode(static::TECHNICAL_BUTTON);
         $nota = ['html' => true, 'class' => 'small text-body-secondary'];
 
-        // Senza «Nuova caratteristica…» sotto, il divisore non divide niente:
+        // Senza «Nuovo attributo…» sotto, il divisore non divide niente:
         // lo script lo nasconde quando sopra non resta nessuna voce.
         if ($nuova) {
             $menu->divider()
@@ -6589,7 +6589,7 @@ HTML)->tag('div');
             return nodo;
         }
 
-        // La riga del divisore del menu, prima di «Nuova caratteristica…»:
+        // La riga del divisore del menu, prima di «Nuovo attributo…»:
         // le caratteristiche che si tolgono rientrano sopra di lei.
         function divisoreDelMenu() {
             var linea = document.querySelector('.wi-technical-picker .dropdown-divider');
