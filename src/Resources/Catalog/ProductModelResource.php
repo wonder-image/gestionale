@@ -46,6 +46,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductRelation;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
@@ -66,6 +67,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\PageAxis;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Packages;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
+use Wonder\Plugin\Gestionale\Support\Catalog\RelatedProducts;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductExports;
 use Wonder\Plugin\Gestionale\Support\Catalog\SaleUnits;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
@@ -366,6 +368,8 @@ class ProductModelResource extends GestionaleResource
             array_push($fields, ...static::bundleFields((int) ($modelId ?? 0)));
         }
 
+        array_push($fields, ...static::relatedFields((int) ($modelId ?? 0)));
+
         return $fields;
     }
 
@@ -604,6 +608,8 @@ class ProductModelResource extends GestionaleResource
         if (Gestionale::feature('customizations')) {
             $cards[] = static::customizationsCard();
         }
+
+        $cards[] = static::relatedCard();
 
         // La finestra «Giacenza» della griglia (P103) e il suo script: una
         // sola per la pagina, qui e non nel riquadro delle opzioni, che senza
@@ -1936,6 +1942,7 @@ HTML
 
         static::assertSomeVersionLeft($id);
         static::assertVersionsKept($id);
+        static::assertRelatedRows($id, (array) $_POST);
 
         // Un multiprodotto non ha giacenza, scorta minima, sedi né fornitori:
         // i loro pannelli sono nascosti e quello che mandano non vale.
@@ -3675,6 +3682,12 @@ HTML
             }));
         }
 
+        // Un articolo collegato vale una volta per elenco; l'articolo stesso
+        // non lo propone la lista e lo ferma assertRelatedRows().
+        if (isset(static::RELATED_INPUTS[$inputName])) {
+            return RelatedProducts::cleanRows($rows, 0);
+        }
+
         if ($inputName !== 'products') {
             return $rows;
         }
@@ -4640,6 +4653,10 @@ HTML
             foreach (static::rowsOf(CustomizationLink::class, ['product_model_id' => $modelId, 'deleted' => ['true', 'false']]) as $link) {
                 CustomizationLink::delete((int) $link['id']);
             }
+
+            // Gli articoli collegati nei due versi: anche quelli che altri
+            // articoli hanno collegato a questo.
+            RelatedProducts::dropFor($modelId);
 
             // Anche le opzioni tolte dalla griglia, prima delle varianti: una
             // riga nel cestino tiene ferma la sua variante come le altre.
@@ -6416,6 +6433,103 @@ HTML)->tag('div');
         }
 
         return $voci;
+    }
+
+    /** I due elenchi di articoli collegati e il tipo che scrivono. */
+    public const RELATED_INPUTS = [
+        'related_suggested' => RelatedProducts::SUGGESTED,
+        'related_alternative' => RelatedProducts::ALTERNATIVE,
+    ];
+
+    /**
+     * Suggeriti e alternativi (#74, #75): due liste ordinabili sulla stessa
+     * tabella, ognuna con la sua fetta di `type`.
+     *
+     * @return list<FormField>
+     */
+    protected static function relatedFields(int $modelId): array
+    {
+        $voci = static::relatedOptions($modelId);
+        $fields = [];
+
+        foreach (static::RELATED_INPUTS as $input => $type) {
+            $fields[] = FormField::key($input)
+                ->repeater([
+                    RepeaterColumn::key('id')->hidden(),
+                    RepeaterColumn::key('related_model_id')
+                        ->select($voci)
+                        ->label('Articolo')
+                        ->columnFill(),
+                ])
+                ->relation(
+                    RepeaterRelation::make(ProductRelation::$table, 'product_model_id')
+                        ->model(ProductRelation::class)
+                        ->positionKey('position')
+                        ->softDelete(false)
+                        ->condition(['type' => $type])
+                )
+                ->nested()
+                ->repeaterSortable()
+                ->repeaterStartEmpty()
+                ->repeaterAddLabel('Aggiungi articolo')
+                ->label($type === RelatedProducts::SUGGESTED ? 'Suggeriti' : 'Alternativi');
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Gli articoli che si possono collegare: tutti quelli vivi tranne questo,
+     * per nome.
+     *
+     * @return array<string, string>
+     */
+    public static function relatedOptions(int $modelId): array
+    {
+        $voci = ['' => '—'];
+
+        foreach (static::rowsOf(ProductModel::class, [], 'name') as $row) {
+            if ((int) $row['id'] !== $modelId) {
+                $voci[(string) $row['id']] = html_entity_decode((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
+
+        return $voci;
+    }
+
+    /**
+     * Un articolo non si collega a sé stesso: la lista non lo propone, ma la
+     * richiesta può portarlo.
+     *
+     * @param array<string, mixed> $post
+     * @throws UserError `catalog.related_self`
+     */
+    public static function assertRelatedRows(int $modelId, array $post): void
+    {
+        if ($modelId <= 0) {
+            return;
+        }
+
+        foreach (array_keys(static::RELATED_INPUTS) as $input) {
+            foreach ((array) ($post[$input] ?? []) as $row) {
+                if (is_array($row) && (int) ($row['related_model_id'] ?? 0) === $modelId) {
+                    throw UserError::make('catalog.related_self');
+                }
+            }
+        }
+    }
+
+    /** Il riquadro «Articoli collegati»: suggeriti sopra, alternativi sotto. */
+    protected static function relatedCard(): object
+    {
+        return static::foldable(
+            'Articoli collegati',
+            [
+                static::getInput('related_suggested')->columnSpan(12),
+                static::getInput('related_alternative')->columnSpan(12),
+            ],
+            'Suggeriti: da comprare insieme, il sito li mostra in «Abbinalo a» nella scheda e nel carrello. Alternativi: al posto di questo, in «Potrebbe interessarti». Il sito mostra solo quelli visibili online, nell\'ordine dato.'
+        );
     }
 
     /**

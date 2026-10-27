@@ -539,10 +539,21 @@ subito sotto **Da spedire**. Lasciandolo vuoto vale quella predefinita del
 negozio. Spegnendo **Da spedire** il campo sparisce subito, senza salvare;
 riaccendendolo torna con la scatola di prima.
 
+## Articoli collegati
+
+Nella sezione **Articoli collegati** scegli a mano due elenchi: i
+**Suggeriti**, da comprare insieme a questo, e gli **Alternativi**, da
+proporre al suo posto. Le righe si trascinano nell'ordine che vuoi. Un
+articolo non si collega a sé stesso e un doppione conta una volta sola.
+
+Il sito mostra solo gli articoli visibili, online e con almeno un'opzione
+attiva: uno nascosto resta nell'elenco e ricompare quando torna in vendita.
+
 ## Eliminare un articolo
 
 Eliminando un articolo se ne vanno anche le sue opzioni in vendita, le sue
-foto, i fornitori delle sue opzioni e le sue scorte minime.
+foto, i fornitori delle sue opzioni e le sue scorte minime, e sparisce dagli
+articoli collegati degli altri.
 
 Un articolo che ha già **movimenti di magazzino non si elimina**: quei movimenti
 sono la storia del tuo magazzino, e resterebbero a parlare di qualcosa che non

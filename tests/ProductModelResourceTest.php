@@ -404,7 +404,7 @@ check('la creazione mostra la scheda intera, due colonne comprese', function () 
     // «Prodotto»: la griglia raggruppata ha tre caselle per riga e in due
     // terzi di schermo ci sta. Foto e misure stanno a destra.
     return count($colonne) === 2
-        && $titoli($colonne[0]) === ['Prodotto', 'Varianti', 'Scheda tecnica']
+        && $titoli($colonne[0]) === ['Prodotto', 'Varianti', 'Scheda tecnica', 'Articoli collegati']
         && $titoli($colonne[1]) === ['Foto e video', 'Come si vende', 'Tipo fiscale', 'Dove si trova', 'Misure'];
 });
 
@@ -546,8 +546,8 @@ $riquadri = static function (int $colonna = 0) use ($schedaAperta): array {
 check('la colonna larga tiene quello che si compone', function () use ($riquadri) {
     // Le opzioni in vendita subito sotto «Prodotto»: è lì che si risponde
     // «sì, ha varianti». La descrizione sta dentro «Prodotto», e la scheda
-    // tecnica c'è anche senza caratteristiche.
-    return $riquadri(0) === ['Prodotto', 'Varianti', 'Scheda tecnica'];
+    // tecnica c'è anche senza caratteristiche. Gli articoli collegati in fondo.
+    return $riquadri(0) === ['Prodotto', 'Varianti', 'Scheda tecnica', 'Articoli collegati'];
 });
 
 check('il riquadro delle opzioni risponde alla domanda sulle varianti', function () use ($schedaAperta) {
@@ -1513,7 +1513,7 @@ check('con due sedi prezzo e scontato prendono la riga, e giacenza e soglia vann
 
         // Il riquadro «Magazzino» subito sotto «Prodotto» (P102): la scorta
         // minima non sta più nella tendina, che tiene i soli codici.
-        return $riquadri(0) === ['Prodotto', 'Magazzino', 'Varianti', 'Scheda tecnica']
+        return $riquadri(0) === ['Prodotto', 'Magazzino', 'Varianti', 'Scheda tecnica', 'Articoli collegati']
             && str_contains($aiuto, 'Giacenza e scorta minima stanno nel riquadro «Magazzino», sede per sede.')
             && str_contains($aiuto, 'SKU, EAN stanno in «Compila le informazioni avanzate».')
             && !str_contains($aiuto, 'giacenza iniziale')

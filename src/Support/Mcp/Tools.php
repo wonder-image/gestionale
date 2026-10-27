@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\RelatedProducts;
 use Wonder\Plugin\Gestionale\Support\Catalog\SaleUnits;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
@@ -711,8 +712,31 @@ final class Tools
                 'visible' => (string) ($model['visible'] ?? 'true') === 'true',
                 'visible_online' => (string) ($model['visible_online'] ?? 'true') === 'true',
                 'categories' => self::modelCategories((int) ($model['id'] ?? 0)),
+                'related' => self::modelRelated((int) ($model['id'] ?? 0)),
             ],
         ] + self::prices($row);
+    }
+
+    /**
+     * Suggeriti e alternativi come li ha scelti chi vende, anche quelli che
+     * oggi il sito non mostra.
+     *
+     * @return array{suggested: list<array{id: int, name: string}>, alternative: list<array{id: int, name: string}>}
+     */
+    public static function modelRelated(int $modelId): array
+    {
+        $out = [];
+
+        foreach (RelatedProducts::TYPES as $type) {
+            $out[$type] = [];
+
+            foreach (RelatedProducts::ids($modelId, $type) as $id) {
+                $model = ProductModel::findById($id);
+                $out[$type][] = ['id' => $id, 'name' => is_array($model) ? (string) ($model['name'] ?? '') : ''];
+            }
+        }
+
+        return $out;
     }
 
     /** @return array{price: float|null, sale_price: float|null} */
