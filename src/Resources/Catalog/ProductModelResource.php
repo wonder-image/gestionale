@@ -4454,6 +4454,16 @@ HTML
                     Levels::byLocation($productId),
                     Thresholds::forProduct($productId)
                 );
+
+                // Nessuna sede con pezzi o soglia: si parte dalla principale,
+                // come alla creazione (una riga senza sede la scarta `normalize()`).
+                if ($values['locations'] === []) {
+                    $values['locations'] = [[
+                        'location_id' => (string) Locations::mainId(),
+                        'stock' => '',
+                        'min_stock' => '',
+                    ]];
+                }
             }
 
             foreach ($values['locations'] as $index => $row) {
