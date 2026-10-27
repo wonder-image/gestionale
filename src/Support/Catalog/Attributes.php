@@ -50,6 +50,33 @@ final class Attributes
         'icon' => 'Icona',
         'text' => 'Testo',
         'number' => 'Numero',
+        'url' => 'Url',
+        'file' => 'File',
+        'description' => 'Box testo',
+    ];
+
+    /**
+     * I tipi di una Variante, con le parole della voce «Varianti».
+     *
+     * Una variante fa nascere le versioni in vendita: si sceglie sempre da un
+     * elenco di valori.
+     */
+    public const VARIANT_TYPES = [
+        'select' => 'Tendina',
+        'button' => 'Bottone',
+        'color' => 'Colore',
+        'pattern' => 'Immagine',
+    ];
+
+    /** I tipi di un Attributo, la scheda tecnica dell'articolo. */
+    public const ATTRIBUTE_TYPES = [
+        'text' => 'Testo',
+        'number' => 'Numero',
+        'select' => 'Selezionabili',
+        'icon' => 'Icona',
+        'url' => 'Url',
+        'file' => 'File',
+        'description' => 'Box testo',
     ];
 
     /**
@@ -99,6 +126,36 @@ final class Attributes
     public static function types(): array
     {
         return self::TYPES;
+    }
+
+    /** @return array<string, string> */
+    public static function variantTypes(): array
+    {
+        return self::VARIANT_TYPES;
+    }
+
+    /** @return array<string, string> */
+    public static function attributeTypes(): array
+    {
+        return self::ATTRIBUTE_TYPES;
+    }
+
+    /**
+     * Vero per una Variante: fa nascere versioni (livello variant o product)
+     * e si sceglie da un elenco. Tutto il resto sta fra gli Attributi.
+     *
+     * @param array<string, mixed> $attribute
+     */
+    public static function isVariant(array $attribute): bool
+    {
+        return self::createsVersions((string) ($attribute['level'] ?? ''))
+            && array_key_exists((string) ($attribute['type'] ?? ''), self::VARIANT_TYPES);
+    }
+
+    /** Il Box testo: HTML, niente valori, niente unità, non filtrabile. */
+    public static function isRichText(string $type): bool
+    {
+        return $type === 'description';
     }
 
     /** I tipi che pescano da `gst_attribute_values`. */
@@ -208,7 +265,12 @@ final class Attributes
                 : $empty;
         }
 
-        return ['value_text' => (string) $raw] + $empty;
+        $text = match ($type) {
+            'description' => trim(\Wonder\Support\Html\SafeHtml::clean((string) $raw)),
+            default => (string) $raw,
+        };
+
+        return $text === '' ? $empty : ['value_text' => $text] + $empty;
     }
 
     /**

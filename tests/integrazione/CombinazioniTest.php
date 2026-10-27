@@ -118,6 +118,7 @@ try {
         // Un elenco solo: chi compila spunta i valori e basta, il livello lo
         // ritrova `chosenAxes()` leggendo l'attributo.
         $spunte = [
+            'page_attribute' => (string) $colore['id'],
             'option_'.$colore['id'] => array_map('strval', $colore['values']),
             'option_'.$taglia['id'] => array_map('strval', $taglia['values']),
         ];
@@ -296,20 +297,38 @@ try {
                 && Levels::of((int) ($riga['id'] ?? 0))['quantity'] === 5.0;
         });
 
-        check('due opzioni con pagina propria vengono rifiutate', function () use ($attributo, $colore) {
-            $gusto = $attributo('Prova gusto', 'variant', 'select', ['Fragola']);
-            ProductModelResource::forgetCatalogCache();
+        check('tabella giusta: senza pagine i valori stanno sulle versioni', function () use ($colore, $taglia) {
+            $modello = ProductModel::create([
+                'code' => Code::make(ProductModel::class, Codes::MODEL),
+                'name' => 'Prova senza pagine',
+                'slug' => Slug::make('prova-senza-pagine-'.uniqid()),
+                'sku' => 'CMB-NP',
+                'unit' => 'pz',
+                'type' => 'simple',
+                'visible' => 'true',
+                'visible_online' => 'true',
+                'position' => 1,
+            ]);
+            $id = (int) ($modello->insert_id ?? 0);
+            Skeleton::forModel($id, 'Prova senza pagine', 'CMB-NP');
 
-            try {
-                ProductModelResource::chosenAxes([
-                    'option_'.$colore['id'] => [(string) $colore['values'][0]],
-                    'option_'.$gusto['id'] => [(string) $gusto['values'][0]],
-                ]);
-            } catch (UserError $errore) {
-                return $errore->key() === 'product.one_page_option';
-            }
+            $scelte = ProductModelResource::chosenAxes([
+                'option_'.$colore['id'] => array_map('strval', $colore['values']),
+                'option_'.$taglia['id'] => [(string) $taglia['values'][0]],
+            ]);
+            Generator::run($id, $scelte['variant'], $scelte['axes'], 'CMB-NP');
 
-            return false;
+            $variante = ProductModelResource::variants($id)[0] ?? [];
+            $prodotti = ProductModelResource::products($id);
+            $sulleVersioni = array_filter(
+                $prodotti,
+                static fn (array $p): bool => isset(ProductAttributes::rows('product', (int) $p['id'])[$colore['id']])
+            );
+
+            return ProductModelResource::variantCount($id) === 1
+                && count($prodotti) === 2
+                && count($sulleVersioni) === 2
+                && ProductAttributes::rows('variant', (int) ($variante['id'] ?? 0)) === [];
         });
 
         check('le foto della testata vanno al colore giusto', function () use ($colore) {
@@ -330,6 +349,7 @@ try {
             $post = [
                 'has_variants' => 'true',
                 'axes_order' => (string) $colore['id'],
+                'page_attribute' => (string) $colore['id'],
                 'option_'.$colore['id'] => array_map('strval', $colore['values']),
                 'product_price' => '10,00',
             ];

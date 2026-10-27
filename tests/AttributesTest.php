@@ -32,9 +32,9 @@ check('solo testo e numero hanno un\'unità di misura', fn () =>
     && !Attributes::usesUnit('')
 );
 
-check('ogni tipo o ha dei valori o ha un\'unità, mai tutti e due', function () {
+check('nessun tipo ha dei valori e un\'unità insieme', function () {
     foreach (array_keys(Attributes::types()) as $tipo) {
-        if (Attributes::usesValues($tipo) === Attributes::usesUnit($tipo)) {
+        if (Attributes::usesValues($tipo) && Attributes::usesUnit($tipo)) {
             return false;
         }
     }
@@ -102,7 +102,55 @@ check('i tipi hanno un nome da leggere', fn () =>
     && Attributes::types()['pattern'] === 'Fantasia'
     && Attributes::types()['icon'] === 'Icona'
     && Attributes::types()['button'] === 'Bottone'
-    && array_keys(Attributes::types()) === ['select', 'button', 'color', 'pattern', 'icon', 'text', 'number']
+    && array_keys(Attributes::types()) === ['select', 'button', 'color', 'pattern', 'icon', 'text', 'number', 'url', 'file', 'description']
+);
+
+check('le Varianti hanno le loro parole', fn () =>
+    Attributes::variantTypes() === ['select' => 'Tendina', 'button' => 'Bottone', 'color' => 'Colore', 'pattern' => 'Immagine']
+);
+
+check('gli Attributi hanno le loro parole, con il Box testo', fn () =>
+    Attributes::attributeTypes() === [
+        'text' => 'Testo', 'number' => 'Numero', 'select' => 'Selezionabili', 'icon' => 'Icona',
+        'url' => 'Url', 'file' => 'File', 'description' => 'Box testo',
+    ]
+);
+
+check('url, file e Box testo non hanno né valori né unità', function () {
+    foreach (['url', 'file', 'description'] as $tipo) {
+        if (Attributes::usesValues($tipo) || Attributes::usesUnit($tipo)) {
+            return false;
+        }
+    }
+
+    return true;
+});
+
+check('una variante crea versioni e si sceglie da un elenco', fn () =>
+    Attributes::isVariant(['level' => 'product', 'type' => 'color'])
+    && Attributes::isVariant(['level' => 'variant', 'type' => 'select'])
+    && !Attributes::isVariant(['level' => 'model', 'type' => 'select'])
+    && !Attributes::isVariant(['level' => 'product', 'type' => 'number'])
+    && !Attributes::isVariant(['level' => 'product', 'type' => 'icon'])
+);
+
+check('il Box testo salva HTML ripulito', function () {
+    $riga = Attributes::assignment(['type' => 'description'], '<p>Ciao <strong>tu</strong></p><script>alert(1)</script>');
+
+    return str_contains($riga['value_text'], '<strong>tu</strong>')
+        && !str_contains($riga['value_text'], '<script');
+});
+
+check('un Box testo fatto solo di tag non scrive niente', fn () =>
+    Attributes::assignment(['type' => 'description'], '<script>x</script>')['value_text'] === ''
+);
+
+check('un file tiene il suo indirizzo', fn () =>
+    Attributes::assignment(['type' => 'file'], ' https://esempio.it/scheda.pdf ')['value_text'] === 'https://esempio.it/scheda.pdf'
+);
+
+check('un url resta com\'è', fn () =>
+    Attributes::assignment(['type' => 'url'], ' https://esempio.it/a?b=1&c=2 ')['value_text'] === 'https://esempio.it/a?b=1&c=2'
 );
 
 check('un colore si mostra con il suo pallino', fn () =>

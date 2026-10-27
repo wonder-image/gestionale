@@ -144,6 +144,8 @@ function articoloConOpzioneTolta(string $sku, ?callable $primaDiSalvare = null):
     $post = [
         'has_variants' => 'true',
         'axes_order' => (string) $colore['id'],
+        // Una pagina per colore: la scelta ora è dell'articolo (#85).
+        'page_attribute' => (string) $colore['id'],
         'option_'.$colore['id'] => array_map('strval', $colore['values']),
         'product_price' => '10,00',
     ];

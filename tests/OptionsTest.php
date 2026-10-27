@@ -6,7 +6,6 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
-use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
 /** Un catalogo finto: Colore e Gusto hanno pagina propria, Taglia e Lunghezza no. */
 $scheda = new class extends ProductModelResource {
@@ -63,6 +62,7 @@ check('un\'opzione senza valori non compare', function () use ($scheda) {
 
 check('le spunte si dividono fra pagina propria e resto', function () use ($scheda) {
     $scelte = $scheda::chosenAxes([
+        'page_attribute' => '1',
         'option_1' => ['10', '11'],
         'option_2' => ['20', '21'],
         'option_3' => ['30'],
@@ -87,18 +87,22 @@ check('quello che non è un valore di quell\'opzione non conta', function () use
     return $scelte['variant'] === [] && count($scelte['axes']) === 1;
 });
 
-check('due opzioni con pagina propria sono un rifiuto', function () use ($scheda) {
-    try {
-        $scheda::chosenAxes(['option_1' => ['10'], 'option_5' => ['50']]);
-    } catch (UserError $errore) {
-        return $errore->key() === 'product.one_page_option';
-    }
+check('uno solo acceso: solo l\'opzione scelta fa le pagine', function () use ($scheda) {
+    $scelte = $scheda::chosenAxes(['page_attribute' => '5', 'option_1' => ['10'], 'option_5' => ['50']]);
 
-    return false;
+    return count($scelte['variant']) === 1
+        && $scelte['variant'][0]['id'] === 50
+        && count($scelte['axes']) === 1;
+});
+
+check('articolo senza pagine: tutte le spunte sono assi', function () use ($scheda) {
+    $scelte = $scheda::chosenAxes(['option_1' => ['10', '11'], 'option_5' => ['50']]);
+
+    return $scelte['variant'] === [] && count($scelte['axes']) === 2;
 });
 
 check('due valori della stessa opzione con pagina propria vanno bene', function () use ($scheda) {
-    $scelte = $scheda::chosenAxes(['option_1' => ['10', '11']]);
+    $scelte = $scheda::chosenAxes(['page_attribute' => '1', 'option_1' => ['10', '11']]);
 
     return count($scelte['variant']) === 2 && $scelte['axes'] === [];
 });

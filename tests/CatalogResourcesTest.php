@@ -14,6 +14,8 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CategoryResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\TagResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\VariantResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
 check('ogni pagina ha il suo model e il suo percorso', fn () =>
@@ -331,10 +333,28 @@ check('l\'uso di un attributo già sugli articoli non cambia', function () {
     return false;
 });
 
-check('le due caselle dell\'uso seguono il tipo', fn () =>
-    AttributeResource::getInput('level')->conditionalAttributes()['data-visible-when-values'] === 'select,button,color,pattern,icon'
-    && AttributeResource::getInput('level_text')->conditionalAttributes()['data-visible-when-values'] === 'number,text'
-    && array_keys((array) AttributeResource::getInput('level_text')->get('options')) === ['model', 'product']
+check('l\'uso non si chiede più: uno nuovo prende quello della sua voce, uno vecchio tiene il suo', function () {
+    $campi = array_map(static fn ($campo): string => (string) $campo->get('key'), AttributeResource::formSchema());
+
+    return !in_array('level', $campi, true) && !in_array('level_text', $campi, true)
+        && (AttributeResource::withLevel([], 'select', null)['level'] ?? '') === 'model'
+        && (VariantResource::withLevel([], 'select', null)['level'] ?? '') === 'product'
+        && (VariantResource::withLevel([], 'color', ['id' => 2, 'type' => 'color', 'level' => 'variant'])['level'] ?? '') === 'variant';
+});
+
+check('Attributi e Varianti: due voci, due elenchi di tipi, due elenchi di righe', fn () =>
+    VariantResource::path() === 'app/gestionale/varianti'
+    && VariantResource::typeOptions() === ['select' => 'Tendina', 'button' => 'Bottone', 'color' => 'Colore', 'pattern' => 'Immagine']
+    && AttributeResource::typeOptions() === Attributes::ATTRIBUTE_TYPES
+    && str_contains(VariantResource::listCondition(), "`level` IN ('variant','product')")
+    && str_starts_with(AttributeResource::listCondition(), 'NOT (')
+    && (VariantResource::apiSchema()->toArray()['enabled'] ?? null) === false
+    && (VariantResource::navigationSchema()->toArray()['section_key'] ?? '') === 'catalogo'
+);
+
+check('un Box testo non è mai un filtro', fn () =>
+    (AttributeResource::mutateRequestValues(['name' => 'Scheda', 'type' => 'description', 'is_filterable' => 'true'], 'store')['is_filterable'] ?? '') === 'false'
+    && AttributeResource::getInput('is_filterable')->conditionalAttributes()['data-visible-when-values'] === 'select,button,color,pattern,icon,text,number,url,file'
 );
 
 check('un padre che non esiste più si ferma con una frase', function () {
