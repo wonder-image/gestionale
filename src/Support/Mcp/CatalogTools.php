@@ -15,6 +15,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
+use Wonder\Plugin\Gestionale\Support\Catalog\RelatedProducts;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Positions;
 use Wonder\Sql\Transaction;
@@ -174,6 +175,17 @@ final class CatalogTools
                 'permission' => [ProductResource::class, 'update'],
                 'write' => true,
                 'run' => self::productSetCustomizations(...),
+            ],
+            'product_set_related' => [
+                'description' => 'Imposta gli articoli collegati all\'articolo a cui appartiene la versione `product_id`: `suggested` da comprare insieme («Abbinalo a»), `alternative` al suo posto («Potrebbe interessarti»). `product_model_ids` è l\'elenco completo di quel tipo, nell\'ordine dato: quelli non elencati si tolgono, un elenco vuoto li toglie tutti.',
+                'schema' => self::schema([
+                    'product_id' => $id,
+                    'type' => ['type' => 'string', 'enum' => RelatedProducts::TYPES],
+                    'product_model_ids' => ['type' => 'array', 'items' => $id],
+                ], ['product_id', 'type', 'product_model_ids']),
+                'permission' => [ProductModelResource::class, 'update'],
+                'write' => true,
+                'run' => self::productSetRelated(...),
             ],
         ];
     }
@@ -641,6 +653,20 @@ final class CatalogTools
                 ? CustomizationOption::update($values, $option['id'])
                 : CustomizationOption::create($values));
         }
+    }
+
+    private static function productSetRelated(array $args): array
+    {
+        $product = self::productRow(self::int($args, 'product_id'));
+        $modelId = (int) $product['product_model_id'];
+        $type = (string) ($args['type'] ?? '');
+        $ids = array_map('intval', (array) ($args['product_model_ids'] ?? []));
+
+        $before = Tools::modelRelated($modelId);
+        Transaction::run(static fn () => RelatedProducts::replace($modelId, $type, $ids));
+        $after = Tools::modelRelated($modelId);
+
+        return ['result' => ['product_model_id' => $modelId, 'related' => $after], 'subject' => (int) $product['id'], 'before' => $before, 'after' => $after];
     }
 
     private static function productSetCustomizations(array $args): array

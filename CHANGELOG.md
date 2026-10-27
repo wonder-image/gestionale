@@ -7,6 +7,16 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Articoli suggeriti e alternativi** (#74, #75): nella scheda articolo il
+  riquadro «Articoli collegati» con due liste ordinabili, «Suggeriti» (da
+  abbinare) e «Alternativi» (al posto suo), scelte a mano da chi vende.
+  Tabella `gst_product_relations` (`Models\Catalog\ProductRelation`), senza
+  collegamenti a sé stesso né doppioni. `Support\Catalog\RelatedProducts`
+  dà al sito solo gli articoli visibili, online e con una versione attiva
+  (`forModel()`, `suggestedFor()` per il carrello). MCP: `product_get` mostra
+  `model.related`, nuovo strumento `product_set_related`.
+  Passo a mano: `php forge update` (tabella `gst_product_relations`).
+
 - **Esigibilità IVA per cliente** (gestionale#81): campo `vat_collectability`
   (I, D, S) sulla scheda cliente; vuoto vale quello di Set Up. Alla vendita si
   copia sull'ordine (`Support\Tax\VatCollectability`) e da lì va ai dati dei

@@ -346,7 +346,9 @@
                 "invalid_expiry": "La scadenza non è una data valida: scrivila come gg/mm/aaaa o lasciala vuota."
             },
             "catalog": {
-                "batches_in_stock": "Ci sono ancora pezzi in un lotto di questo articolo: scaricali prima di spegnere «Gestisci lotti e scadenze»."
+                "batches_in_stock": "Ci sono ancora pezzi in un lotto di questo articolo: scaricali prima di spegnere «Gestisci lotti e scadenze».",
+                "related_self": "Un articolo non si collega a sé stesso: togli la riga che lo nomina.",
+                "related_not_found": "L'articolo collegato {{id}} non esiste o è stato eliminato."
             },
             "plan": {
                 "name_required": "Scrivi il nome del piano.",
