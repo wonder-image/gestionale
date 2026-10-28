@@ -144,8 +144,9 @@
             },
             "selection": {
                 "name_required": "Scrivi il nome della selezione.",
-                "source_category_required": "Scegli la categoria da cui prendere gli articoli.",
-                "source_tag_required": "Scegli il tag da cui prendere gli articoli."
+                "source_category_required": "Scegli almeno una categoria da cui prendere gli articoli.",
+                "source_tag_required": "Scegli almeno un tag da cui prendere gli articoli.",
+                "source_brand_required": "Scegli almeno un marchio da cui prendere gli articoli."
             },
             "brand": {
                 "name_required": "Scrivi il nome del marchio."

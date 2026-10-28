@@ -22,8 +22,10 @@ use Wonder\Sql\TableSchema as Column;
  * blocco stanno in `block_meta`. `source` dice da dove vengono gli articoli:
  * `manual` sono le righe di `gst_product_placements` con
  * `context_type = selection`, le altre fonti li scelgono dal catalogo fino a
- * `max_items` ({@see Placements::SELECTION_SOURCES}). `sort_mode` = `manual`
- * li tiene nell'ordine dato (o della fonte); gli altri valori li riordinano.
+ * `max_items` ({@see Placements::SELECTION_SOURCES}), filtrati dagli id JSON
+ * di categorie, tag o marchi e senza `excluded_model_ids`. `sort_mode` =
+ * `manual` li tiene nell'ordine dato (o della fonte); gli altri valori li
+ * ordinano.
  *
  * Non si sincronizza, come il resto del catalogo.
  */
@@ -56,11 +58,13 @@ final class ProductSelection extends Model
             // Il blocco del sito ({@see SelectionBlocks}) e i suoi campi in più.
             Column::key('block')->length(50)->default(SelectionBlocks::DEFAULT),
             Column::key('block_meta')->json(),
-            // La fonte degli articoli ({@see Placements::SELECTION_SOURCES}): senza
-            // chiave esterna, come `package_id`, e 0 quando la fonte non la usa.
+            // La fonte degli articoli ({@see Placements::SELECTION_SOURCES}) e i
+            // suoi riferimenti: elenchi JSON di id, senza chiave esterna.
             Column::key('source')->length(30)->default('manual'),
-            Column::key('source_category_id')->int()->default(0),
-            Column::key('source_tag_id')->int()->default(0),
+            Column::key('source_category_ids')->json(),
+            Column::key('source_tag_ids')->json(),
+            Column::key('source_brand_ids')->json(),
+            Column::key('excluded_model_ids')->json(),
             Column::key('max_items')->int()->default((string) Placements::SELECTION_MAX_ITEMS),
             Column::key('visible')->enum(['true', 'false'])->default('true'),
         ];
@@ -86,8 +90,10 @@ final class ProductSelection extends Model
             Field::key('block')->text()->sanitize(false),
             Field::key('block_meta')->json(),
             Field::key('source')->text()->sanitize(false),
-            Field::key('source_category_id')->number()->decimals(0),
-            Field::key('source_tag_id')->number()->decimals(0),
+            Field::key('source_category_ids')->json(),
+            Field::key('source_tag_ids')->json(),
+            Field::key('source_brand_ids')->json(),
+            Field::key('excluded_model_ids')->json(),
             Field::key('max_items')->number()->decimals(0),
             Field::key('visible')->text()->sanitize(false),
         ];

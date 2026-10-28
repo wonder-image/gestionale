@@ -34,17 +34,17 @@ sola variante: «Revia» e «Revia · 50 ml» sono due voci diverse.
      nell'ordine in cui il sito li deve mostrare. Sotto ogni riga puoi
      caricare una **foto di contesto** (la persona che usa il prodotto, non la
      confezione): la usano i blocchi del sito che la prevedono.
-   - **Ultime aggiunte:** gli ultimi articoli inseriti nel catalogo.
-   - **Novità:** gli articoli inseriti di recente, gli stessi della pagina
-     «Novità» del sito.
-   - **In offerta:** gli articoli con un prezzo scontato, come la pagina
-     «Offerte».
-   - **Una categoria** o **Un tag:** scegli quale; della categoria valgono
-     anche le sottocategorie.
+   - **Catalogo:** tutti gli articoli in vendita.
+   - **Catalogo in offerta:** gli articoli con un prezzo scontato, come la
+     pagina «Offerte».
+   - **Categorie**, **Tag** o **Marchi:** scegline uno o più; vale un
+     articolo che ne ha almeno uno. Delle categorie valgono anche le
+     sottocategorie.
 
-   Con una fonte che non è «Scelti a mano» scegli **Quanti articoli** (di
-   serie 8, al massimo 48). L'elenco scelto a mano resta salvato: se torni a
-   «Scelti a mano» riappare.
+   Accanto scegli l'**Ordine** e **Quanti articoli** (di serie 8, al massimo
+   48). Con una fonte che non è «Scelti a mano» puoi aggiungere degli
+   **Articoli esclusi**: non compaiono mai, anche se la fonte li prende.
+   L'elenco scelto a mano resta salvato: se torni a «Scelti a mano» riappare.
 4. **Blocco nel sito:** il **blocco** dice al sito come mostrare la selezione.
    - **Elenco di articoli:** titolo, sottotitolo e testo sopra gli articoli.
    - **Articolo in primo piano:** in più l'immagine e un pulsante, con il suo
@@ -53,8 +53,8 @@ sola variante: «Revia» e «Revia · 50 ml» sono due voci diverse.
    I campi cambiano con il blocco scelto. Lasciati vuoti, il blocco usa i
    suoi testi. Chi costruisce il sito può aggiungere altri blocchi.
 5. **Ordine:** «Nell'ordine dato» segue l'elenco scelto a mano, o l'ordine
-   della fonte (vedi sotto); le altre regole (novità, nome, prezzo) riordinano
-   gli articoli presi.
+   della fonte (vedi sotto); le altre regole (novità, nome, prezzo) valgono
+   per tutta la fonte.
 6. Salva.
 
 Un articolo nascosto al sito resta nell'elenco, con il segno «nascosto al
@@ -66,13 +66,11 @@ prendono solo articoli visibili e in vendita online.
 | Articoli da | «Nell'ordine dato» | Un'altra regola |
 |---|---|---|
 | Scelti a mano | l'ordine in cui li hai trascinati | riordina tutti gli articoli scelti, poi il sito ne mostra quanti gliene servono |
-| Ultime aggiunte, Novità | prima i più recenti | prende i più recenti, poi li riordina |
-| In offerta | l'ordine del catalogo | prende i primi del catalogo, poi li riordina |
-| Una categoria, Un tag | l'ordine della categoria o del tag, con gli articoli in evidenza in cima se la categoria o il tag li mostra | prende i primi in quell'ordine, poi li riordina |
+| Catalogo, Catalogo in offerta, Marchi | l'ordine del catalogo | prende i primi in quell'ordine |
+| Categorie, Tag | con una sola categoria o un solo tag, il suo ordine, con gli articoli in evidenza in cima se li mostra; con più di uno, l'ordine del catalogo | prende i primi in quell'ordine |
 
-Per esempio «Una categoria», 8 articoli, «Prezzo, dal più basso» mostra i
-primi 8 della categoria dal più economico, non gli 8 più economici della
-categoria.
+Per esempio «Categorie», 8 articoli, «Prezzo, dal più basso» mostra gli 8
+articoli più economici delle categorie scelte.
 
 ## In evidenza in categorie e tag
 

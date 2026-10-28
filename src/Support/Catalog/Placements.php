@@ -56,25 +56,32 @@ final class Placements
 
     /**
      * Da dove prende gli articoli una selezione: `manual` sono le sue righe,
-     * le altre fonti li scelgono dal catalogo, fino a `max_items`. Con una
-     * fonte automatica `manual` fra gli ordini vuol dire l'ordine della fonte:
-     * le più recenti prima per `newest` e `novelty`, quello del catalogo per
-     * `offers`, quello della categoria o del tag per `category` e `tag`.
+     * le altre fonti li scelgono dal catalogo, fino a `max_items`, tolti gli
+     * articoli esclusi. Con una fonte automatica `manual` fra gli ordini vuol
+     * dire l'ordine della fonte: quello del catalogo, o della categoria o del
+     * tag quando ne è scelto uno solo.
      */
     public const SELECTION_SOURCES = [
         'manual' => 'Scelti a mano',
-        'newest' => 'Ultime aggiunte',
-        'novelty' => 'Novità',
-        'offers' => 'In offerta',
-        'category' => 'Una categoria',
-        'tag' => 'Un tag',
+        'catalog' => 'Catalogo',
+        'offers' => 'Catalogo in offerta',
+        'category' => 'Categorie',
+        'tag' => 'Tag',
+        'brand' => 'Marchi',
     ];
 
-    /** Le fonti che vogliono un riferimento, con la colonna che lo tiene. */
+    /** Le fonti che vogliono dei riferimenti, con la colonna JSON che li tiene. */
     public const SELECTION_SOURCE_REFS = [
-        'category' => 'source_category_id',
-        'tag' => 'source_tag_id',
+        'category' => 'source_category_ids',
+        'tag' => 'source_tag_ids',
+        'brand' => 'source_brand_ids',
     ];
+
+    /** Le fonti di prima, che erano ordini: ora sono il catalogo. */
+    private const LEGACY_SELECTION_SOURCES = ['newest' => 'catalog', 'novelty' => 'catalog'];
+
+    /** Le colonne di prima, con un riferimento solo. */
+    private const LEGACY_SELECTION_REFS = ['category' => 'source_category_id', 'tag' => 'source_tag_id'];
 
     /** Quanti articoli prende una fonte automatica, di serie e al massimo. */
     public const SELECTION_MAX_ITEMS = 8;
@@ -82,7 +89,63 @@ final class Placements
 
     public static function selectionSource(mixed $value): string
     {
-        return self::known($value, self::SELECTION_SOURCES, 'manual');
+        $legacy = self::LEGACY_SELECTION_SOURCES[is_scalar($value) ? trim((string) $value) : ''] ?? null;
+
+        return $legacy ?? self::known($value, self::SELECTION_SOURCES, 'manual');
+    }
+
+    /**
+     * Gli id positivi, senza doppioni, da un JSON salvato o da un elenco
+     * del form.
+     *
+     * @return list<int>
+     */
+    public static function selectionIds(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = json_decode($value, true);
+        }
+
+        $ids = [];
+
+        foreach (is_array($value) ? $value : [] as $id) {
+            if (is_numeric($id) && (int) $id > 0) {
+                $ids[(int) $id] = (int) $id;
+            }
+        }
+
+        return array_values($ids);
+    }
+
+    /**
+     * I riferimenti della fonte di una riga: categorie, tag o marchi. Una
+     * riga salvata prima dei campi multipli ha ancora l'id solo.
+     *
+     * @param array<string, mixed> $row
+     * @return list<int>
+     */
+    public static function selectionRefIds(array $row, string $source): array
+    {
+        $column = self::SELECTION_SOURCE_REFS[$source] ?? '';
+        $ids = $column !== '' ? self::selectionIds($row[$column] ?? null) : [];
+        $legacy = self::LEGACY_SELECTION_REFS[$source] ?? '';
+
+        if ($ids === [] && $legacy !== '' && is_numeric($row[$legacy] ?? null) && (int) $row[$legacy] > 0) {
+            $ids = [(int) $row[$legacy]];
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Gli articoli esclusi da una fonte automatica.
+     *
+     * @param array<string, mixed> $row
+     * @return list<int>
+     */
+    public static function selectionExcluded(array $row): array
+    {
+        return self::selectionIds($row['excluded_model_ids'] ?? null);
     }
 
     public static function selectionMaxItems(mixed $value): int

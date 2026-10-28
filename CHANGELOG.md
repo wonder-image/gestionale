@@ -34,19 +34,26 @@ versionamento semantico.
   L'ordine lo applica il sito (ecommerce). Passo a mano: `php forge update`.
 - **Blocco e fonte delle selezioni**: `gst_product_selections` ha `block`
   (VARCHAR 50, di serie `default`) e `block_meta` (JSON, i campi in più del
-  blocco), `source` (VARCHAR 30, di serie `manual`), `source_category_id` e
-  `source_tag_id` (INT, di serie 0) e `max_items` (INT, di serie 8). I blocchi
+  blocco), `source` (VARCHAR 30, di serie `manual`), `source_category_ids`,
+  `source_tag_ids`, `source_brand_ids` ed `excluded_model_ids` (JSON di id) e
+  `max_items` (INT, di serie 8). I blocchi
   stanno in `Support\Catalog\SelectionBlocks`: `default` («Elenco di
   articoli», titolo, sottotitolo e testo) e `spotlight` («Articolo in primo
   piano», con immagine e pulsante `cta_label` / `cta_url`); un modulo ne
   aggiunge con `SelectionBlocks::register()`, il sito con l'hook
   `selectionBlocks()` di `GestionaleExtension`. Nel form il select del blocco
   mostra solo i campi del blocco scelto (`block_meta_<chiave>`). Le fonti
-  (`Placements::SELECTION_SOURCES`): `manual`, `newest`, `novelty`, `offers`,
-  `category`, `tag`; l'elenco a mano compare solo con `manual`. Con una fonte
-  automatica `sort_mode = manual` vuol dire l'ordine della fonte, le altre
-  regole riordinano gli articoli presi. Errori `selection.source_category_required`
-  e `selection.source_tag_required`. Passo a mano: `php forge update`.
+  (`Placements::SELECTION_SOURCES`): `manual`, `catalog`, `offers`,
+  `category`, `tag`, `brand`; categorie, tag e marchi sono scelte multiple (un
+  articolo ne basta uno), l'elenco a mano compare solo con `manual`, gli
+  articoli esclusi solo con le altre. `newest` e `novelty`, delle prime prove,
+  si leggono come `catalog`; `source_category_id` e `source_tag_id`, se ci
+  sono ancora, valgono finché la colonna JSON è vuota
+  (`Placements::selectionRefIds()`). Con una fonte automatica la regola
+  d'ordine vale per tutta la fonte, prima del limite. Fonte, ordine e quanti
+  articoli stanno sulla stessa riga. Errori `selection.source_category_required`,
+  `selection.source_tag_required` e `selection.source_brand_required`. Passo a
+  mano: `php forge update`.
 - **FAQ**: in Catalogo → FAQ domande e risposte da mostrare nella scheda dei
   prodotti scelti (tutti, oppure categorie con le sottocategorie, tag, marchi
   e articoli, con gli esclusi) e, con «Mostra nella home», nella home. Tabelle

@@ -40,7 +40,7 @@ foreach (ProductSelection::tableSchema() as $column) {
 $campi = static fn (): array => array_map(static fn ($field): string => (string) $field->name, ProductSelectionResource::formSchema());
 
 check('la selezione ha blocco, campi del blocco, fonte e quanti articoli', function () use ($colonne) {
-    return array_diff(['block', 'block_meta', 'source', 'source_category_id', 'source_tag_id', 'max_items'], array_keys($colonne)) === []
+    return array_diff(['block', 'block_meta', 'source', 'source_category_ids', 'source_tag_ids', 'source_brand_ids', 'excluded_model_ids', 'max_items'], array_keys($colonne)) === []
         && $colonne['block']->getSchema('default') === SelectionBlocks::DEFAULT
         && $colonne['source']->getSchema('default') === 'manual'
         && (string) $colonne['max_items']->getSchema('default') === (string) Placements::SELECTION_MAX_ITEMS;
@@ -48,7 +48,13 @@ check('la selezione ha blocco, campi del blocco, fonte e quanti articoli', funct
 
 check('fonti e quanti articoli: solo valori noti, al massimo 48', function () {
     return Placements::selectionSource('boh') === 'manual'
-        && Placements::selectionSource(' novelty ') === 'novelty'
+        && Placements::selectionSource(' brand ') === 'brand'
+        && Placements::selectionSource('novelty') === 'catalog'
+        && Placements::selectionSource('newest') === 'catalog'
+        && Placements::selectionIds('[3,"3",0,"x",-1,7]') === [3, 7]
+        && Placements::selectionRefIds(['source_tag_ids' => '', 'source_tag_id' => 4], 'tag') === [4]
+        && Placements::selectionRefIds(['source_tag_ids' => '[5]', 'source_tag_id' => 4], 'tag') === [5]
+        && Placements::selectionExcluded(['excluded_model_ids' => '[9]']) === [9]
         && Placements::selectionMaxItems('') === 8
         && Placements::selectionMaxItems('-3') === 8
         && Placements::selectionMaxItems('5') === 5
@@ -102,13 +108,13 @@ check('il form ha blocco, fonte e i campi in più; l\'immagine solo per i blocch
         }
     }
 
-    return array_diff(['block', 'source', 'source_category_id', 'source_tag_id', 'max_items', 'block_meta_cta_label', 'block_meta_cta_url', 'placements'], $nomi) === []
+    return array_diff(['block', 'source', 'source_category_ids', 'source_tag_ids', 'source_brand_ids', 'excluded_model_ids', 'max_items', 'block_meta_cta_label', 'block_meta_cta_url', 'placements'], $nomi) === []
         && $immagine !== null
         && str_contains(json_encode($immagine->conditionalAttributes()), 'spotlight');
 });
 
-check('la fonte con riferimento vuole la sua categoria o il suo tag', function () {
-    foreach (['category' => 'selection.source_category_required', 'tag' => 'selection.source_tag_required'] as $source => $key) {
+check('la fonte con riferimenti vuole almeno una categoria, un tag o un marchio', function () {
+    foreach (['category' => 'selection.source_category_required', 'tag' => 'selection.source_tag_required', 'brand' => 'selection.source_brand_required'] as $source => $key) {
         try {
             ProductSelectionResource::mutateRequestValues(['name' => 'Home', 'source' => $source], 'update', 'backend', ['id' => 1]);
 
@@ -121,15 +127,17 @@ check('la fonte con riferimento vuole la sua categoria o il suo tag', function (
     }
 
     $valori = ProductSelectionResource::mutateRequestValues(
-        ['name' => 'Home', 'source' => 'tag', 'source_tag_id' => '7', 'source_category_id' => '3', 'max_items' => '0'],
+        ['name' => 'Home', 'source' => 'tag', 'source_tag_ids' => ['7', '2', '7'], 'source_category_ids' => ['3'], 'max_items' => '0',
+            'excluded_model_ids' => [['id' => '', 'related_model_id' => '11'], ['id' => '', 'related_model_id' => '0']]],
         'update',
         'backend',
         ['id' => 1]
     );
 
     return $valori['source'] === 'tag'
-        && $valori['source_tag_id'] === 7
-        && $valori['source_category_id'] === 0
+        && $valori['source_tag_ids'] === '[7,2]'
+        && $valori['source_category_ids'] === '[]'
+        && $valori['excluded_model_ids'] === '[11]'
         && $valori['max_items'] === 8;
 });
 
@@ -149,7 +157,7 @@ check('i campi del blocco diventano block_meta, solo quelli del blocco scelto', 
         'backend',
         ['id' => 1]
     );
-    $form = ProductSelectionResource::mutateFormValues(['block' => 'spotlight', 'block_meta' => $spot['block_meta'], 'source_tag_id' => 0], 'edit');
+    $form = ProductSelectionResource::mutateFormValues(['block' => 'spotlight', 'block_meta' => $spot['block_meta'], 'source' => 'tag', 'source_tag_ids' => '[4,5]'], 'edit');
 
     return json_decode($spot['block_meta'], true) === ['cta_label' => 'Scopri', 'cta_url' => '/negozio/']
         && !array_key_exists('block_meta_cta_label', $spot)
@@ -157,7 +165,8 @@ check('i campi del blocco diventano block_meta, solo quelli del blocco scelto', 
         && $standard['block'] === 'default'
         && $standard['block_meta'] === '{}'
         && $form['block_meta_cta_label'] === 'Scopri'
-        && $form['source_tag_id'] === ''
+        && $form['source_tag_ids'] === ['4', '5']
+        && $form['source_category_ids'] === []
         && SelectionBlocks::decodeMeta('{&quot;a&quot;:&quot;b&quot;}') === ['a' => 'b']
         && SelectionBlocks::decodeMeta(['a' => 'b']) === ['a' => 'b'];
 });

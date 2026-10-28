@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Catalog;
 
+use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -10,10 +11,12 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\App\ResourceSchema\Input;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSelection;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
@@ -21,6 +24,7 @@ use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
 use Wonder\Plugin\Gestionale\Support\Catalog\PlacementsForm;
+use Wonder\Plugin\Gestionale\Support\Catalog\RelatedProductsEditor;
 use Wonder\Plugin\Gestionale\Support\Catalog\SelectionBlocks;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -33,7 +37,8 @@ use Wonder\Plugin\Gestionale\Support\RequestMemo;
  * Il sito ne prende una per url pubblico (`home-prodotti`), che nasce dal nome
  * e non cambia più: rinominare la selezione non rompe la home. Gli articoli
  * sono scelti a mano (`gst_product_placements`, {@see Placements}) o da una
- * fonte del catalogo (`source`, fino a `max_items`). Il blocco dice al sito
+ * fonte del catalogo (`source`, fino a `max_items`, senza gli articoli
+ * esclusi). Il blocco dice al sito
  * come mostrarla ({@see SelectionBlocks}): titolo, sottotitolo, testo e
  * immagine sono colonne, i campi in più del blocco stanno in `block_meta` e nel
  * form si chiamano `block_meta_<chiave>`. Esiste solo con la vendita online,
@@ -41,9 +46,13 @@ use Wonder\Plugin\Gestionale\Support\RequestMemo;
  */
 final class ProductSelectionResource extends GestionaleResource
 {
-    use PlacementsForm;
+    use PlacementsForm {
+        getInput as placementsInput;
+    }
 
     public const PLACEMENT_CONTEXT = Placements::SELECTION;
+
+    public const EXCLUDED_INPUT = 'excluded_model_ids';
 
     public static string $model = ProductSelection::class;
     public static string $feature = 'online_sales';
@@ -94,8 +103,10 @@ final class ProductSelectionResource extends GestionaleResource
             'placements' => 'Articoli',
             'block' => 'Blocco',
             'source' => 'Articoli da',
-            'source_category_id' => 'Categoria',
-            'source_tag_id' => 'Tag',
+            'source_category_ids' => 'Categorie',
+            'source_tag_ids' => 'Tag',
+            'source_brand_ids' => 'Marchi',
+            self::EXCLUDED_INPUT => 'Articoli esclusi',
             'max_items' => 'Quanti articoli',
         ];
     }
@@ -118,14 +129,20 @@ final class ProductSelectionResource extends GestionaleResource
                 ->value('manual')
                 ->label('Articoli da')
                 ->required(),
-            FormField::key('source_category_id')
-                ->select(['' => 'Scegli una categoria'] + static::categoryOptions())
-                ->label('Categoria')
+            FormField::key('source_category_ids')
+                ->selectSearch(static::categoryOptions(), true)
+                ->label('Categorie')
                 ->visibleWhen('source', 'category'),
-            FormField::key('source_tag_id')
-                ->select(['' => 'Scegli un tag'] + static::tagOptions())
+            FormField::key('source_tag_ids')
+                ->selectSearch(static::tagOptions(), true)
                 ->label('Tag')
                 ->visibleWhen('source', 'tag'),
+            FormField::key('source_brand_ids')
+                ->selectSearch(static::brandOptions(), true)
+                ->label('Marchi')
+                ->visibleWhen('source', 'brand'),
+            // Nella scheda lo disegna l'editor degli articoli ({@see excludedEditor()}).
+            FormField::key(self::EXCLUDED_INPUT)->hidden(),
             FormField::key('max_items')
                 ->number()
                 ->decimal(0)
@@ -163,13 +180,17 @@ final class ProductSelectionResource extends GestionaleResource
 
         $items = (new Card)->components([
             SectionTitle::make('Articoli')
-                ->tooltip('«Scelti a mano»: un articolo con tutte le sue varianti, o una sola variante, trascinati nell\'ordine in cui il sito li deve mostrare; gli articoli nascosti al sito restano in elenco ma non compaiono finché non tornano visibili. Le altre fonti prendono dal catalogo i primi articoli in vendita, fino al numero indicato. «Nell\'ordine dato» segue l\'elenco scelto a mano, o l\'ordine della fonte (prima le più recenti per «Ultime aggiunte» e «Novità», quello della categoria o del tag); le altre regole riordinano gli articoli presi.')
+                ->tooltip('«Scelti a mano»: un articolo con tutte le sue varianti, o una sola variante, trascinati nell\'ordine in cui il sito li deve mostrare; gli articoli nascosti al sito restano in elenco ma non compaiono finché non tornano visibili. Le altre fonti prendono dal catalogo gli articoli in vendita (tutti, quelli in offerta, o quelli di almeno una delle categorie, dei tag o dei marchi scelti), tolti gli esclusi, fino al numero indicato e nell\'ordine scelto. «Nell\'ordine dato» segue l\'elenco scelto a mano, o l\'ordine del catalogo, o della categoria o del tag quando ne scegli uno solo.')
                 ->columnSpan(12),
-            static::getInput('source')->columnSpan(6),
-            static::getInput('sort_mode')->columnSpan(6),
-            static::getInput('max_items')->columnSpan(6),
-            static::getInput('source_category_id')->columnSpan(6),
-            static::getInput('source_tag_id')->columnSpan(6),
+            static::getInput('source')->columnSpan(4),
+            static::getInput('sort_mode')->columnSpan(4),
+            static::getInput('max_items')->columnSpan(4),
+            static::getInput('source_category_ids')->columnSpan(12),
+            static::getInput('source_tag_ids')->columnSpan(12),
+            static::getInput('source_brand_ids')->columnSpan(12),
+            (new Container)->components([
+                static::getInput(self::EXCLUDED_INPUT)->columnSpan(12),
+            ])->columns(12)->columnSpan(12)->hiddenWhen('source', 'manual'),
             // L'elenco resta salvato anche con un'altra fonte: tornando a mano riappare.
             (new Container)->components([
                 static::getInput(self::PLACEMENTS_INPUT)->columnSpan(12),
@@ -248,8 +269,9 @@ final class ProductSelectionResource extends GestionaleResource
     /**
      * Nome obbligatorio anche lato server; l'url pubblico nasce dal nome alla
      * creazione e poi non si tocca; stato, ordine, blocco e fonte solo fra
-     * quelli noti. Una fonte con riferimento vuole la sua categoria o il suo
-     * tag; i campi `block_meta_*` diventano il JSON `block_meta`, con le sole
+     * quelli noti. Una fonte con riferimenti vuole almeno una categoria, un
+     * tag o un marchio, salvati come JSON di id, e gli esclusi arrivano
+     * dall'editor come righe; i campi `block_meta_*` diventano il JSON `block_meta`, con le sole
      * chiavi del blocco scelto.
      */
     public static function mutateRequestValues(
@@ -278,14 +300,21 @@ final class ProductSelectionResource extends GestionaleResource
             $values['source'] = Placements::selectionSource($values['source'] ?? '');
 
             foreach (Placements::SELECTION_SOURCE_REFS as $source => $column) {
-                $id = $values['source'] === $source && is_numeric($values[$column] ?? null) ? (int) $values[$column] : 0;
+                $ids = $values['source'] === $source ? Placements::selectionIds($values[$column] ?? null) : [];
 
-                if ($values['source'] === $source && $id <= 0) {
-                    throw UserError::make($source === 'tag' ? 'selection.source_tag_required' : 'selection.source_category_required');
+                if ($values['source'] === $source && $ids === []) {
+                    throw UserError::make('selection.source_'.$source.'_required');
                 }
 
-                $values[$column] = $id;
+                $values[$column] = json_encode($ids);
             }
+
+            // Un elenco svuotato non manda niente: vuol dire nessun escluso.
+            $rows = is_array($values[self::EXCLUDED_INPUT] ?? null) ? $values[self::EXCLUDED_INPUT] : [];
+            $values[self::EXCLUDED_INPUT] = json_encode(Placements::selectionIds(array_map(
+                static fn (mixed $row): mixed => is_array($row) ? ($row['related_model_id'] ?? null) : $row,
+                $rows
+            )));
         }
 
         if ($action === 'store' || array_key_exists('max_items', $values)) {
@@ -321,14 +350,39 @@ final class ProductSelectionResource extends GestionaleResource
             $values[SelectionBlocks::META_INPUT_PREFIX.$key] ??= is_scalar($meta[$key] ?? null) ? (string) $meta[$key] : '';
         }
 
-        // 0 vuol dire «nessuna»: il select mostra la voce vuota.
-        foreach (Placements::SELECTION_SOURCE_REFS as $column) {
-            if ((int) ($values[$column] ?? 0) <= 0) {
-                $values[$column] = '';
-            }
+        foreach (array_keys(Placements::SELECTION_SOURCE_REFS) as $source) {
+            $values[Placements::SELECTION_SOURCE_REFS[$source]] = array_map('strval', Placements::selectionRefIds($values, $source));
         }
 
         return $values;
+    }
+
+    public static function getInput(string $key): object
+    {
+        return $key === self::EXCLUDED_INPUT ? static::excludedEditor() : static::placementsInput($key);
+    }
+
+    /** «Cerca un articolo» e gli articoli esclusi della selezione aperta. */
+    protected static function excludedEditor(): RichText
+    {
+        $id = (int) (static::currentId() ?? 0);
+
+        try {
+            $row = $id > 0 ? (static::rowsOf(ProductSelection::class, ['id' => $id])[0] ?? []) : [];
+            $lines = RelatedProductsEditor::lines(array_map(
+                static fn (int $modelId): array => ['id' => '', 'related_model_id' => $modelId],
+                Placements::selectionExcluded($row)
+            ));
+        } catch (Throwable) {
+            $lines = [];
+        }
+
+        return RichText::make(
+            '<div class="row">'
+            .RelatedProductsEditor::renderLines(self::EXCLUDED_INPUT, (string) static::getLabel(self::EXCLUDED_INPUT), $lines, 0, RelatedProductsEditor::searchUrl())
+            .'</div>'
+            .RelatedProductsEditor::scripts()
+        );
     }
 
     /** Il campo resta solo per i blocchi che lo usano; se lo usano tutti, niente regola. */
@@ -364,6 +418,18 @@ final class ProductSelectionResource extends GestionaleResource
     {
         $options = CategoryTree::options(static::rowsOf(Category::class, [], 'position'));
         unset($options['']);
+
+        return $options;
+    }
+
+    /** @return array<string, string> */
+    private static function brandOptions(): array
+    {
+        $options = [];
+
+        foreach (static::rowsOf(Brand::class, [], 'name') as $row) {
+            $options[(string) $row['id']] = html_entity_decode((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
 
         return $options;
     }
