@@ -30,7 +30,7 @@ final class SelectionBlocks
     public const DEFAULT = 'default';
 
     /** Le colonne della selezione che un blocco può usare. */
-    public const STANDARD_FIELDS = ['title', 'subtitle', 'text', 'image'];
+    public const STANDARD_FIELDS = ['title', 'subtitle', 'text', 'image', 'background'];
 
     public const META_TYPES = ['text', 'textarea', 'url', 'select'];
 
@@ -43,12 +43,17 @@ final class SelectionBlocks
             'fields' => ['title', 'subtitle', 'text'],
             'meta' => [],
         ],
+        'swiper' => [
+            'label' => 'Swiper di articoli',
+            'fields' => ['title', 'subtitle', 'text'],
+            'meta' => [],
+        ],
+        // Il primo articolo: foto 1:1 da un lato, card dall'altro sullo sfondo.
         'spotlight' => [
             'label' => 'Articolo in primo piano',
-            'fields' => ['title', 'subtitle', 'text', 'image'],
+            'fields' => ['title', 'subtitle', 'text', 'image', 'background'],
             'meta' => [
-                'cta_label' => ['label' => 'Testo del pulsante', 'type' => 'text'],
-                'cta_url' => ['label' => 'Link del pulsante', 'type' => 'url'],
+                'image_side' => ['label' => 'Lato della foto', 'type' => 'select', 'options' => ['left' => 'Sinistra', 'right' => 'Destra']],
             ],
         ],
     ];

@@ -38,8 +38,10 @@ versionamento semantico.
   `source_tag_ids`, `source_brand_ids` ed `excluded_model_ids` (JSON di id) e
   `max_items` (INT, di serie 8). I blocchi
   stanno in `Support\Catalog\SelectionBlocks`: `default` («Elenco di
-  articoli», titolo, sottotitolo e testo) e `spotlight` («Articolo in primo
-  piano», con immagine e pulsante `cta_label` / `cta_url`); un modulo ne
+  articoli», titolo, sottotitolo e testo), `swiper` («Swiper di articoli»,
+  gli stessi campi) e `spotlight` («Articolo in primo piano», con immagine,
+  `background` (colonna JSON, lo sfondo sotto la card) e `image_side`,
+  `left` o `right`); un modulo ne
   aggiunge con `SelectionBlocks::register()`, il sito con l'hook
   `selectionBlocks()` di `GestionaleExtension`. Nel form il select del blocco
   mostra solo i campi del blocco scelto (`block_meta_<chiave>`). Le fonti

@@ -39,8 +39,8 @@ use Wonder\Plugin\Gestionale\Support\RequestMemo;
  * sono scelti a mano (`gst_product_placements`, {@see Placements}) o da una
  * fonte del catalogo (`source`, fino a `max_items`, senza gli articoli
  * esclusi). Il blocco dice al sito
- * come mostrarla ({@see SelectionBlocks}): titolo, sottotitolo, testo e
- * immagine sono colonne, i campi in più del blocco stanno in `block_meta` e nel
+ * come mostrarla ({@see SelectionBlocks}): titolo, sottotitolo, testo,
+ * immagine e sfondo sono colonne, i campi in più del blocco stanno in `block_meta` e nel
  * form si chiamano `block_meta_<chiave>`. Esiste solo con la vendita online,
  * come il sito che la mostra.
  */
@@ -98,6 +98,7 @@ final class ProductSelectionResource extends GestionaleResource
             'subtitle' => 'Sottotitolo',
             'text' => 'Testo',
             'image' => 'Immagine',
+            'background' => 'Sfondo',
             'sort_mode' => 'Ordine',
             'visible' => 'Stato',
             'placements' => 'Articoli',
@@ -124,6 +125,7 @@ final class ProductSelectionResource extends GestionaleResource
             static::forBlocks(FormField::key('subtitle')->text()->label('Sottotitolo'), 'subtitle'),
             static::forBlocks(FormField::key('text')->textarea('plus')->label('Testo'), 'text'),
             static::forBlocks(FormField::key('image')->fileDragDrop('image')->label('Immagine'), 'image'),
+            static::forBlocks(FormField::key('background')->fileDragDrop('image')->label('Sfondo'), 'background'),
             FormField::key('source')
                 ->select(Placements::SELECTION_SOURCES)
                 ->value('manual')
@@ -211,7 +213,8 @@ final class ProductSelectionResource extends GestionaleResource
             static::getInput('title')->columnSpan(6),
             static::getInput('subtitle')->columnSpan(6),
             static::getInput('text')->columnSpan(12),
-            static::getInput('image')->columnSpan(12),
+            static::getInput('image')->columnSpan(6),
+            static::getInput('background')->columnSpan(6),
             ...$blockInputs,
         ])->columns(12)->columnSpan(12);
 

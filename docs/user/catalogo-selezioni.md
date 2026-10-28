@@ -46,9 +46,14 @@ sola variante: «Revia» e «Revia · 50 ml» sono due voci diverse.
    **Articoli esclusi**: non compaiono mai, anche se la fonte li prende.
    L'elenco scelto a mano resta salvato: se torni a «Scelti a mano» riappare.
 4. **Blocco nel sito:** il **blocco** dice al sito come mostrare la selezione.
-   - **Elenco di articoli:** titolo, sottotitolo e testo sopra gli articoli.
-   - **Articolo in primo piano:** in più l'immagine e un pulsante, con il suo
-     testo e il suo link.
+   - **Elenco di articoli:** titolo, sottotitolo e testo sopra una griglia
+     di articoli.
+   - **Swiper di articoli:** come l'elenco, ma gli articoli scorrono in una
+     fila.
+   - **Articolo in primo piano:** il primo articolo della selezione. Da un
+     lato una foto quadrata (l'**immagine**), dall'altro la card
+     dell'articolo, sopra lo **sfondo** se lo carichi. Con **Lato della
+     foto** scegli se la foto va a sinistra (di serie) o a destra.
 
    I campi cambiano con il blocco scelto. Lasciati vuoti, il blocco usa i
    suoi testi. Chi costruisce il sito può aggiungere altri blocchi.

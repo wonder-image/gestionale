@@ -18,7 +18,7 @@ use Wonder\Sql\TableSchema as Column;
  *
  * Il sito la cerca per `slug`, che nasce dal nome e non cambia più. `block`
  * dice quale blocco del sito la mostra ({@see SelectionBlocks}): titolo,
- * sottotitolo, testo e immagine sono le colonne di sempre, i campi in più del
+ * sottotitolo, testo, immagine e sfondo sono colonne, i campi in più del
  * blocco stanno in `block_meta`. `source` dice da dove vengono gli articoli:
  * `manual` sono le righe di `gst_product_placements` con
  * `context_type = selection`, le altre fonti li scelgono dal catalogo fino a
@@ -54,6 +54,7 @@ final class ProductSelection extends Model
             Column::key('subtitle'),
             Column::key('text')->type('TEXT'),
             Column::key('image')->json(),
+            Column::key('background')->json(),
             Column::key('sort_mode')->enum(['manual', 'newest', 'name', 'price_asc', 'price_desc'])->default('manual'),
             // Il blocco del sito ({@see SelectionBlocks}) e i suoi campi in più.
             Column::key('block')->length(50)->default(SelectionBlocks::DEFAULT),
@@ -86,6 +87,13 @@ final class ProductSelection extends Model
                 ->maxFile(1)
                 ->dir('/catalogo/selezioni/')
                 ->name('{slug}'),
+            Field::key('background')
+                ->image()
+                ->extensions(['png', 'jpg', 'jpeg', 'webp'])
+                ->maxSize(4)
+                ->maxFile(1)
+                ->dir('/catalogo/selezioni/')
+                ->name('{slug}-sfondo'),
             Field::key('sort_mode')->text()->sanitize(false),
             Field::key('block')->text()->sanitize(false),
             Field::key('block_meta')->json(),
@@ -99,12 +107,12 @@ final class ProductSelection extends Model
         ];
     }
 
-    /** L'indirizzo dell'immagine di una riga; vuoto se non ce l'ha. */
-    public static function imageUrl(array $row): string
+    /** L'indirizzo dell'immagine di una riga (`image` o `background`); vuoto se non ce l'ha. */
+    public static function imageUrl(array $row, string $column = 'image'): string
     {
-        $field = static::dataFields()['image'] ?? null;
+        $field = static::dataFields()[$column] ?? null;
         $schema = is_object($field) && method_exists($field, 'getSchema') ? (array) $field->getSchema() : [];
 
-        return static::storedFileUrls(MediaFileManager::decodeStoredFiles($row['image'] ?? ''), $schema)[0] ?? '';
+        return static::storedFileUrls(MediaFileManager::decodeStoredFiles($row[$column] ?? ''), $schema)[0] ?? '';
     }
 }

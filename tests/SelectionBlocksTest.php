@@ -62,16 +62,20 @@ check('fonti e quanti articoli: solo valori noti, al massimo 48', function () {
         && array_key_first(Placements::SELECTION_SOURCES) === 'manual';
 });
 
-check('di serie due blocchi, lo standard per primo; un nome ignoto torna lo standard', function () {
+check('di serie tre blocchi, lo standard per primo; un nome ignoto torna lo standard', function () {
     Extensions::use([]);
     SelectionBlocks::reset(true);
 
-    return array_keys(SelectionBlocks::options()) === ['default', 'spotlight']
+    return array_keys(SelectionBlocks::options()) === ['default', 'swiper', 'spotlight']
         && SelectionBlocks::normalize('boh') === 'default'
         && SelectionBlocks::fields('default') === ['title', 'subtitle', 'text']
+        && SelectionBlocks::fields('swiper') === ['title', 'subtitle', 'text']
         && SelectionBlocks::blocksWith('image') === ['spotlight']
-        && SelectionBlocks::blocksWith('title') === ['default', 'spotlight']
-        && array_keys(SelectionBlocks::metaFields('spotlight')) === ['cta_label', 'cta_url'];
+        && SelectionBlocks::blocksWith('background') === ['spotlight']
+        && SelectionBlocks::blocksWith('title') === ['default', 'swiper', 'spotlight']
+        && array_keys(SelectionBlocks::metaFields('spotlight')) === ['image_side']
+        && SelectionBlocks::cleanMeta('spotlight', ['image_side' => 'centro']) === ['image_side' => '']
+        && SelectionBlocks::cleanMeta('spotlight', ['image_side' => 'right']) === ['image_side' => 'right'];
 });
 
 check('il sito aggiunge blocchi con la sua estensione, un modulo con register()', function () {
@@ -84,9 +88,8 @@ check('il sito aggiunge blocchi con la sua estensione, un modulo con register()'
         && array_key_first($blocks) === 'default'
         && $blocks['carousel']['fields'] === ['title']
         && array_keys($blocks['carousel']['meta']) === ['autoplay', 'cta_label']
-        // Stessa chiave in due blocchi: nel form vale la prima definizione.
-        && SelectionBlocks::allMetaFields()['cta_label']['type'] === 'text'
-        && SelectionBlocks::blocksWith('cta_label') === ['spotlight', 'carousel']
+        && SelectionBlocks::allMetaFields()['cta_label']['type'] === 'textarea'
+        && SelectionBlocks::blocksWith('cta_label') === ['carousel']
         && SelectionBlocks::cleanMeta('carousel', ['autoplay' => 'forse', 'cta_label' => ' Vai ', 'altro' => 'x']) === ['autoplay' => '', 'cta_label' => 'Vai']
         && SelectionBlocks::cleanMeta('carousel', ['autoplay' => 'si'])['autoplay'] === 'si';
 
@@ -96,21 +99,22 @@ check('il sito aggiunge blocchi con la sua estensione, un modulo con register()'
     return $ok;
 });
 
-check('il form ha blocco, fonte e i campi in più; l\'immagine solo per i blocchi che la usano', function () use ($campi) {
+check('il form ha blocco, fonte e i campi in più; immagine e sfondo solo per i blocchi che li usano', function () use ($campi, $colonne) {
     Extensions::use([]);
     SelectionBlocks::reset(true);
     $nomi = $campi();
-    $immagine = null;
+    $immagini = [];
 
     foreach (ProductSelectionResource::formSchema() as $field) {
-        if ((string) $field->name === 'image') {
-            $immagine = $field;
+        if (in_array((string) $field->name, ['image', 'background'], true)) {
+            $immagini[(string) $field->name] = $field;
         }
     }
 
-    return array_diff(['block', 'source', 'source_category_ids', 'source_tag_ids', 'source_brand_ids', 'excluded_model_ids', 'max_items', 'block_meta_cta_label', 'block_meta_cta_url', 'placements'], $nomi) === []
-        && $immagine !== null
-        && str_contains(json_encode($immagine->conditionalAttributes()), 'spotlight');
+    return array_diff(['block', 'source', 'source_category_ids', 'source_tag_ids', 'source_brand_ids', 'excluded_model_ids', 'max_items', 'block_meta_image_side', 'placements'], $nomi) === []
+        && isset($colonne['background'], $immagini['image'], $immagini['background'])
+        && str_contains(json_encode($immagini['image']->conditionalAttributes()), 'spotlight')
+        && !str_contains(json_encode($immagini['background']->conditionalAttributes()), 'swiper');
 });
 
 check('la fonte con riferimenti vuole almeno una categoria, un tag o un marchio', function () {
@@ -146,25 +150,25 @@ check('i campi del blocco diventano block_meta, solo quelli del blocco scelto', 
     SelectionBlocks::reset(true);
 
     $spot = ProductSelectionResource::mutateRequestValues(
-        ['name' => 'Alba', 'block' => 'spotlight', 'block_meta_cta_label' => ' Scopri ', 'block_meta_cta_url' => '/negozio/', 'block_meta_altro' => 'x'],
+        ['name' => 'Alba', 'block' => 'spotlight', 'block_meta_image_side' => ' right ', 'block_meta_altro' => 'x'],
         'update',
         'backend',
         ['id' => 1]
     );
     $standard = ProductSelectionResource::mutateRequestValues(
-        ['name' => 'Alba', 'block' => 'boh', 'block_meta_cta_label' => 'Scopri'],
+        ['name' => 'Alba', 'block' => 'boh', 'block_meta_image_side' => 'right'],
         'update',
         'backend',
         ['id' => 1]
     );
     $form = ProductSelectionResource::mutateFormValues(['block' => 'spotlight', 'block_meta' => $spot['block_meta'], 'source' => 'tag', 'source_tag_ids' => '[4,5]'], 'edit');
 
-    return json_decode($spot['block_meta'], true) === ['cta_label' => 'Scopri', 'cta_url' => '/negozio/']
-        && !array_key_exists('block_meta_cta_label', $spot)
+    return json_decode($spot['block_meta'], true) === ['image_side' => 'right']
+        && !array_key_exists('block_meta_image_side', $spot)
         && !array_key_exists('block_meta_altro', $spot)
         && $standard['block'] === 'default'
         && $standard['block_meta'] === '{}'
-        && $form['block_meta_cta_label'] === 'Scopri'
+        && $form['block_meta_image_side'] === 'right'
         && $form['source_tag_ids'] === ['4', '5']
         && $form['source_category_ids'] === []
         && SelectionBlocks::decodeMeta('{&quot;a&quot;:&quot;b&quot;}') === ['a' => 'b']
