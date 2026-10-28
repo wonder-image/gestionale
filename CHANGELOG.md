@@ -7,6 +7,18 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Ordina** per marchi, categorie, tag e attributi: dal bottone «Ordina»
+  degli elenchi si trascinano le righe e si salva; le categorie si ordinano un
+  livello alla volta. Pagina-form `CatalogOrderResource`, regole in
+  `Support\Catalog\CatalogOrder` (posizioni da 1, rifiuto
+  `catalog_order.changed` se l'elenco è cambiato nel frattempo). I tag hanno
+  ora `position` (nasce in fondo; l'elenco del pannello è ordinato per
+  posizione invece che per nome). Il sito già ordinava marchi, categorie e
+  attributi per `position`.
+- **Tipo delle foto** (predisposto): `gst_product_images.type`, `packshot`
+  (il prodotto) o `lifestyle` (il prodotto in uso), di serie `packshot`.
+  `ProductImages::TYPES`, `type()` e `ofType()`. Il pannello non lo chiede
+  ancora: oggi ogni foto è packshot e niente cambia nel sito.
 - **Selezioni e ordine nel sito** (con *Vendita online*): in Catalogo →
   Selezioni gli elenchi scelti a mano per i blocchi del sito («In evidenza»
   della home, il prodotto del mese), con titolo, sottotitolo, testo e immagine

@@ -31,13 +31,35 @@ Puoi crearla anche senza lasciare la scheda di un prodotto: sotto l'albero
 delle categorie c'è **Aggiungi categoria**, che chiede nome e padre. La
 categoria nuova compare subito nell'albero, sotto il suo padre, già spuntata.
 
-L'ordine non lo devi decidere tu: una categoria nuova si mette in fondo alle
-sue sorelle.
+Una categoria nuova si mette in fondo alle sue sorelle: l'ordine lo cambi
+quando vuoi da **Ordina** (vedi sotto).
 
 Nell'elenco vedi il percorso completo, così capisci a colpo d'occhio dove sta
 ognuna.
 
-## L'ordine nel sito
+## Cambiare l'ordine
+
+Marchi, categorie, tag e attributi compaiono nel sito (menu, filtri, schede)
+nell'ordine che scegli tu. Ogni elemento nuovo si mette in fondo.
+
+1. Apri l'elenco (**Catalogo → Marchi**, **Categorie**, **Tag** o
+   **Attributi**) e premi **Ordina** in alto.
+2. Trascina le righe dalla maniglia a sinistra. Da tastiera: Tab fino alla
+   maniglia, poi frecce su e giù.
+3. Salva.
+
+In cima alla pagina passi da un elenco all'altro senza tornare indietro.
+
+Le categorie si ordinano un livello alla volta: prima quelle in cima
+all'albero, poi con **Ordina le sottocategorie** quelle dentro una categoria.
+**Su di un livello** ti riporta al livello sopra.
+
+Se nel frattempo qualcuno aggiunge o elimina un elemento dello stesso elenco,
+il pannello non salva e ti chiede di ricaricare la pagina: l'ordine che avevi
+in mente non comprende la riga nuova.
+
+## Gli articoli dentro categorie e tag
+
 
 Con la vendita online la scheda di una categoria o di un tag ha anche il
 riquadro **Ordine nel sito**: gli articoli da mettere in cima e la regola per

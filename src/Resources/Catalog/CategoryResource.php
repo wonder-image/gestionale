@@ -168,7 +168,8 @@ final class CategoryResource extends GestionaleResource
                 'list' => 'Categorie',
                 'create' => 'Nuova categoria',
                 'edit' => 'Modifica categoria',
-            ]);
+            ])
+            ->actions('list', [CatalogOrderResource::listAction('categorie')]);
     }
 
     public static function permissionSchema(): PermissionSchema

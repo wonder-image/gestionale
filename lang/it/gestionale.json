@@ -145,6 +145,10 @@
             "selection": {
                 "name_required": "Scrivi il nome della selezione."
             },
+            "catalog_order": {
+                "unknown_list": "Non so cosa ordinare: riapri «Ordina» dall'elenco di marchi, categorie, tag o attributi.",
+                "changed": "L'elenco è cambiato mentre lo ordinavi (una riga aggiunta o eliminata): ricarica la pagina e rifallo."
+            },
             "brand": {
                 "name_required": "Scrivi il nome del marchio."
             },

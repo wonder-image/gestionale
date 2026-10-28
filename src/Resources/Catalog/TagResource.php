@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
 use Wonder\Plugin\Gestionale\Support\Catalog\PlacementsForm;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Positions;
 
 /**
  * "Tag": un'etichetta trasversale alle categorie ("novità", "saldi").
@@ -36,7 +37,7 @@ final class TagResource extends GestionaleResource
     public const PLACEMENT_CONTEXT = Placements::TAG;
 
     public static string $model = Tag::class;
-    public static string $orderColumn = 'name';
+    public static string $orderColumn = 'position';
     public static string $orderDirection = 'ASC';
     public static string $docsPage = 'catalogo/catalogo-tassonomie';
 
@@ -131,7 +132,8 @@ final class TagResource extends GestionaleResource
                 'list' => 'Tag',
                 'create' => 'Nuovo tag',
                 'edit' => 'Modifica tag',
-            ]);
+            ])
+            ->actions('list', [CatalogOrderResource::listAction('tag')]);
     }
 
     public static function permissionSchema(): PermissionSchema
@@ -168,8 +170,10 @@ final class TagResource extends GestionaleResource
 
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) ($values['name'] ?? ''), Tag::$table);
+            // In fondo agli altri: l'ordine si cambia da «Ordina».
+            $values['position'] = Positions::next(Tag::$table);
         } else {
-            unset($values['slug']);
+            unset($values['slug'], $values['position']);
         }
 
         return static::siteOrderValues($values);

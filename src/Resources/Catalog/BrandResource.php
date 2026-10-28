@@ -125,7 +125,8 @@ final class BrandResource extends GestionaleResource
                 'list' => 'Marchi',
                 'create' => 'Nuovo marchio',
                 'edit' => 'Modifica marchio',
-            ]);
+            ])
+            ->actions('list', [CatalogOrderResource::listAction('marchi')]);
     }
 
     public static function permissionSchema(): PermissionSchema

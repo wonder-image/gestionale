@@ -344,7 +344,8 @@ class AttributeResource extends GestionaleResource
                 'list' => 'Attributi',
                 'create' => 'Nuovo attributo',
                 'edit' => 'Modifica attributo',
-            ]);
+            ])
+            ->actions('list', [CatalogOrderResource::listAction('attributi')]);
     }
 
     public static function permissionSchema(): PermissionSchema
