@@ -40,10 +40,10 @@ $campi = static function (string $resource): array {
     return array_map(static fn ($field): string => (string) $field->name, $resource::formSchema());
 };
 
-check('le due tabelle hanno il prefisso del gestionale e non viaggiano con il deploy', function () {
+check('le due tabelle hanno il prefisso del gestionale; viaggia col deploy solo la selezione', function () {
     return ProductSelection::$table === 'gst_product_selections'
         && ProductPlacement::$table === 'gst_product_placements'
-        && ProductSelection::syncSchema() === null
+        && ProductSelection::syncSchema()?->localOnly === true
         && ProductPlacement::syncSchema() === null;
 });
 

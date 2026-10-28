@@ -43,6 +43,10 @@ use Wonder\Plugin\Gestionale\Support\RequestMemo;
  * immagine e sfondo sono colonne, i campi in più del blocco stanno in `block_meta` e nel
  * form si chiamano `block_meta_<chiave>`. Esiste solo con la vendita online,
  * come il sito che la mostra.
+ *
+ * Si crea in locale e arriva con il deploy ({@see ProductSelection::syncSchema()}):
+ * fuori dal locale la scheda è in sola lettura, tranne testi e foto del
+ * blocco, articoli scelti a mano ed esclusi.
  */
 final class ProductSelectionResource extends GestionaleResource
 {
@@ -104,9 +108,9 @@ final class ProductSelectionResource extends GestionaleResource
             'placements' => 'Articoli',
             'block' => 'Blocco',
             'source' => 'Articoli da',
-            'source_category_ids' => 'Categorie',
-            'source_tag_ids' => 'Tag',
-            'source_brand_ids' => 'Marchi',
+            'source_category_slugs' => 'Categorie',
+            'source_tag_slugs' => 'Tag',
+            'source_brand_slugs' => 'Marchi',
             self::EXCLUDED_INPUT => 'Articoli esclusi',
             'max_items' => 'Quanti articoli',
         ];
@@ -131,15 +135,15 @@ final class ProductSelectionResource extends GestionaleResource
                 ->value('manual')
                 ->label('Articoli da')
                 ->required(),
-            FormField::key('source_category_ids')
+            FormField::key('source_category_slugs')
                 ->selectSearch(static::categoryOptions(), true)
                 ->label('Categorie')
                 ->visibleWhen('source', 'category'),
-            FormField::key('source_tag_ids')
+            FormField::key('source_tag_slugs')
                 ->selectSearch(static::tagOptions(), true)
                 ->label('Tag')
                 ->visibleWhen('source', 'tag'),
-            FormField::key('source_brand_ids')
+            FormField::key('source_brand_slugs')
                 ->selectSearch(static::brandOptions(), true)
                 ->label('Marchi')
                 ->visibleWhen('source', 'brand'),
@@ -187,9 +191,9 @@ final class ProductSelectionResource extends GestionaleResource
             static::getInput('source')->columnSpan(4),
             static::getInput('sort_mode')->columnSpan(4),
             static::getInput('max_items')->columnSpan(4),
-            static::getInput('source_category_ids')->columnSpan(12),
-            static::getInput('source_tag_ids')->columnSpan(12),
-            static::getInput('source_brand_ids')->columnSpan(12),
+            static::getInput('source_category_slugs')->columnSpan(12),
+            static::getInput('source_tag_slugs')->columnSpan(12),
+            static::getInput('source_brand_slugs')->columnSpan(12),
             (new Container)->components([
                 static::getInput(self::EXCLUDED_INPUT)->columnSpan(12),
             ])->columns(12)->columnSpan(12)->hiddenWhen('source', 'manual'),
@@ -273,7 +277,7 @@ final class ProductSelectionResource extends GestionaleResource
      * Nome obbligatorio anche lato server; l'url pubblico nasce dal nome alla
      * creazione e poi non si tocca; stato, ordine, blocco e fonte solo fra
      * quelli noti. Una fonte con riferimenti vuole almeno una categoria, un
-     * tag o un marchio, salvati come JSON di id, e gli esclusi arrivano
+     * tag o un marchio, salvati come JSON di slug, e gli esclusi arrivano
      * dall'editor come righe; i campi `block_meta_*` diventano il JSON `block_meta`, con le sole
      * chiavi del blocco scelto.
      */
@@ -303,16 +307,19 @@ final class ProductSelectionResource extends GestionaleResource
             $values['source'] = Placements::selectionSource($values['source'] ?? '');
 
             foreach (Placements::SELECTION_SOURCE_REFS as $source => $column) {
-                $ids = $values['source'] === $source ? Placements::selectionIds($values[$column] ?? null) : [];
+                $slugs = $values['source'] === $source ? Placements::selectionSlugs($values[$column] ?? null) : [];
 
-                if ($values['source'] === $source && $ids === []) {
+                if ($values['source'] === $source && $slugs === []) {
                     throw UserError::make('selection.source_'.$source.'_required');
                 }
 
-                $values[$column] = json_encode($ids);
+                $values[$column] = json_encode($slugs, JSON_UNESCAPED_UNICODE);
             }
+        }
 
-            // Un elenco svuotato non manda niente: vuol dire nessun escluso.
+        // Un elenco svuotato non manda niente: vuol dire nessun escluso. In
+        // sola lettura la fonte non arriva, gli esclusi sì.
+        if ($action === 'store' || array_key_exists('source', $values) || static::isReadonly()) {
             $rows = is_array($values[self::EXCLUDED_INPUT] ?? null) ? $values[self::EXCLUDED_INPUT] : [];
             $values[self::EXCLUDED_INPUT] = json_encode(Placements::selectionIds(array_map(
                 static fn (mixed $row): mixed => is_array($row) ? ($row['related_model_id'] ?? null) : $row,
@@ -354,10 +361,21 @@ final class ProductSelectionResource extends GestionaleResource
         }
 
         foreach (array_keys(Placements::SELECTION_SOURCE_REFS) as $source) {
-            $values[Placements::SELECTION_SOURCE_REFS[$source]] = array_map('strval', Placements::selectionRefIds($values, $source));
+            $values[Placements::SELECTION_SOURCE_REFS[$source]] = Placements::selectionRefSlugs($values, $source);
         }
 
         return $values;
+    }
+
+    /** Fuori dal locale: testi e foto del blocco, articoli scelti a mano ed esclusi. */
+    public static function editableWhenReadonly(): array
+    {
+        return [...ProductSelection::SITE_COLUMNS, self::PLACEMENTS_INPUT];
+    }
+
+    public static function readonlyNotice(): string
+    {
+        return 'La selezione si crea e si imposta in locale e arriva con il deploy: qui cambi testi e foto del blocco e gli articoli.';
     }
 
     public static function getInput(string $key): object
@@ -416,11 +434,18 @@ final class ProductSelectionResource extends GestionaleResource
         return $field->label((string) $meta['label']);
     }
 
-    /** @return array<string, string> le categorie indentate, come nella scheda articolo */
+    /** @return array<string, string> le categorie indentate come nella scheda articolo, per slug */
     private static function categoryOptions(): array
     {
-        $options = CategoryTree::options(static::rowsOf(Category::class, [], 'position'));
-        unset($options['']);
+        $rows = static::rowsOf(Category::class, [], 'position');
+        $slugs = array_column($rows, 'slug', 'id');
+        $options = [];
+
+        foreach (CategoryTree::options($rows) as $id => $label) {
+            if (($slugs[$id] ?? '') !== '') {
+                $options[(string) $slugs[$id]] = $label;
+            }
+        }
 
         return $options;
     }
@@ -431,7 +456,7 @@ final class ProductSelectionResource extends GestionaleResource
         $options = [];
 
         foreach (static::rowsOf(Brand::class, [], 'name') as $row) {
-            $options[(string) $row['id']] = html_entity_decode((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $options[(string) $row['slug']] = html_entity_decode((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
 
         return $options;
@@ -443,7 +468,7 @@ final class ProductSelectionResource extends GestionaleResource
         $options = [];
 
         foreach (static::rowsOf(Tag::class, [], 'name') as $row) {
-            $options[(string) $row['id']] = html_entity_decode((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $options[(string) $row['slug']] = html_entity_decode((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
 
         return $options;

@@ -70,18 +70,18 @@ final class Placements
         'brand' => 'Marchi',
     ];
 
-    /** Le fonti che vogliono dei riferimenti, con la colonna JSON che li tiene. */
+    /**
+     * Le fonti che vogliono dei riferimenti, con la colonna JSON che li tiene:
+     * slug, non id, perché la selezione arriva dal locale e il catalogo no.
+     */
     public const SELECTION_SOURCE_REFS = [
-        'category' => 'source_category_ids',
-        'tag' => 'source_tag_ids',
-        'brand' => 'source_brand_ids',
+        'category' => 'source_category_slugs',
+        'tag' => 'source_tag_slugs',
+        'brand' => 'source_brand_slugs',
     ];
 
     /** Le fonti di prima, che erano ordini: ora sono il catalogo. */
     private const LEGACY_SELECTION_SOURCES = ['newest' => 'catalog', 'novelty' => 'catalog'];
-
-    /** Le colonne di prima, con un riferimento solo. */
-    private const LEGACY_SELECTION_REFS = ['category' => 'source_category_id', 'tag' => 'source_tag_id'];
 
     /** Quanti articoli prende una fonte automatica, di serie e al massimo. */
     public const SELECTION_MAX_ITEMS = 8;
@@ -118,23 +118,41 @@ final class Placements
     }
 
     /**
-     * I riferimenti della fonte di una riga: categorie, tag o marchi. Una
-     * riga salvata prima dei campi multipli ha ancora l'id solo.
+     * Gli slug, senza doppioni né vuoti, da un JSON salvato o da un elenco
+     * del form.
      *
-     * @param array<string, mixed> $row
-     * @return list<int>
+     * @return list<string>
      */
-    public static function selectionRefIds(array $row, string $source): array
+    public static function selectionSlugs(mixed $value): array
     {
-        $column = self::SELECTION_SOURCE_REFS[$source] ?? '';
-        $ids = $column !== '' ? self::selectionIds($row[$column] ?? null) : [];
-        $legacy = self::LEGACY_SELECTION_REFS[$source] ?? '';
-
-        if ($ids === [] && $legacy !== '' && is_numeric($row[$legacy] ?? null) && (int) $row[$legacy] > 0) {
-            $ids = [(int) $row[$legacy]];
+        if (is_string($value)) {
+            $value = json_decode($value, true);
         }
 
-        return $ids;
+        $slugs = [];
+
+        foreach (is_array($value) ? $value : [] as $slug) {
+            $slug = is_scalar($slug) ? trim((string) $slug) : '';
+
+            if ($slug !== '') {
+                $slugs[$slug] = $slug;
+            }
+        }
+
+        return array_values($slugs);
+    }
+
+    /**
+     * I riferimenti della fonte di una riga: gli slug di categorie, tag o marchi.
+     *
+     * @param array<string, mixed> $row
+     * @return list<string>
+     */
+    public static function selectionRefSlugs(array $row, string $source): array
+    {
+        $column = self::SELECTION_SOURCE_REFS[$source] ?? '';
+
+        return $column !== '' ? self::selectionSlugs($row[$column] ?? null) : [];
     }
 
     /**

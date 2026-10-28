@@ -40,7 +40,7 @@ foreach (ProductSelection::tableSchema() as $column) {
 $campi = static fn (): array => array_map(static fn ($field): string => (string) $field->name, ProductSelectionResource::formSchema());
 
 check('la selezione ha blocco, campi del blocco, fonte e quanti articoli', function () use ($colonne) {
-    return array_diff(['block', 'block_meta', 'source', 'source_category_ids', 'source_tag_ids', 'source_brand_ids', 'excluded_model_ids', 'max_items'], array_keys($colonne)) === []
+    return array_diff(['block', 'block_meta', 'source', 'source_category_slugs', 'source_tag_slugs', 'source_brand_slugs', 'excluded_model_ids', 'max_items'], array_keys($colonne)) === []
         && $colonne['block']->getSchema('default') === SelectionBlocks::DEFAULT
         && $colonne['source']->getSchema('default') === 'manual'
         && (string) $colonne['max_items']->getSchema('default') === (string) Placements::SELECTION_MAX_ITEMS;
@@ -52,8 +52,10 @@ check('fonti e quanti articoli: solo valori noti, al massimo 48', function () {
         && Placements::selectionSource('novelty') === 'catalog'
         && Placements::selectionSource('newest') === 'catalog'
         && Placements::selectionIds('[3,"3",0,"x",-1,7]') === [3, 7]
-        && Placements::selectionRefIds(['source_tag_ids' => '', 'source_tag_id' => 4], 'tag') === [4]
-        && Placements::selectionRefIds(['source_tag_ids' => '[5]', 'source_tag_id' => 4], 'tag') === [5]
+        && Placements::selectionSlugs('["estate"," novita ","",3,"estate"]') === ['estate', 'novita', '3']
+        && Placements::selectionSlugs('x') === []
+        && Placements::selectionRefSlugs(['source_tag_slugs' => '["estate"]', 'source_brand_slugs' => '["acme"]'], 'tag') === ['estate']
+        && Placements::selectionRefSlugs(['source_tag_slugs' => '["estate"]'], 'manual') === []
         && Placements::selectionExcluded(['excluded_model_ids' => '[9]']) === [9]
         && Placements::selectionMaxItems('') === 8
         && Placements::selectionMaxItems('-3') === 8
@@ -111,7 +113,7 @@ check('il form ha blocco, fonte e i campi in più; immagine e sfondo solo per i 
         }
     }
 
-    return array_diff(['block', 'source', 'source_category_ids', 'source_tag_ids', 'source_brand_ids', 'excluded_model_ids', 'max_items', 'block_meta_image_side', 'placements'], $nomi) === []
+    return array_diff(['block', 'source', 'source_category_slugs', 'source_tag_slugs', 'source_brand_slugs', 'excluded_model_ids', 'max_items', 'block_meta_image_side', 'placements'], $nomi) === []
         && isset($colonne['background'], $immagini['image'], $immagini['background'])
         && str_contains(json_encode($immagini['image']->conditionalAttributes()), 'spotlight')
         && !str_contains(json_encode($immagini['background']->conditionalAttributes()), 'swiper');
@@ -131,7 +133,7 @@ check('la fonte con riferimenti vuole almeno una categoria, un tag o un marchio'
     }
 
     $valori = ProductSelectionResource::mutateRequestValues(
-        ['name' => 'Home', 'source' => 'tag', 'source_tag_ids' => ['7', '2', '7'], 'source_category_ids' => ['3'], 'max_items' => '0',
+        ['name' => 'Home', 'source' => 'tag', 'source_tag_slugs' => ['estate', 'novita', 'estate', ''], 'source_category_slugs' => ['scarpe'], 'max_items' => '0',
             'excluded_model_ids' => [['id' => '', 'related_model_id' => '11'], ['id' => '', 'related_model_id' => '0']]],
         'update',
         'backend',
@@ -139,8 +141,8 @@ check('la fonte con riferimenti vuole almeno una categoria, un tag o un marchio'
     );
 
     return $valori['source'] === 'tag'
-        && $valori['source_tag_ids'] === '[7,2]'
-        && $valori['source_category_ids'] === '[]'
+        && $valori['source_tag_slugs'] === '["estate","novita"]'
+        && $valori['source_category_slugs'] === '[]'
         && $valori['excluded_model_ids'] === '[11]'
         && $valori['max_items'] === 8;
 });
@@ -161,7 +163,7 @@ check('i campi del blocco diventano block_meta, solo quelli del blocco scelto', 
         'backend',
         ['id' => 1]
     );
-    $form = ProductSelectionResource::mutateFormValues(['block' => 'spotlight', 'block_meta' => $spot['block_meta'], 'source' => 'tag', 'source_tag_ids' => '[4,5]'], 'edit');
+    $form = ProductSelectionResource::mutateFormValues(['block' => 'spotlight', 'block_meta' => $spot['block_meta'], 'source' => 'tag', 'source_tag_slugs' => '["estate","novita"]'], 'edit');
 
     return json_decode($spot['block_meta'], true) === ['image_side' => 'right']
         && !array_key_exists('block_meta_image_side', $spot)
@@ -169,10 +171,33 @@ check('i campi del blocco diventano block_meta, solo quelli del blocco scelto', 
         && $standard['block'] === 'default'
         && $standard['block_meta'] === '{}'
         && $form['block_meta_image_side'] === 'right'
-        && $form['source_tag_ids'] === ['4', '5']
-        && $form['source_category_ids'] === []
+        && $form['source_tag_slugs'] === ['estate', 'novita']
+        && $form['source_category_slugs'] === []
         && SelectionBlocks::decodeMeta('{&quot;a&quot;:&quot;b&quot;}') === ['a' => 'b']
         && SelectionBlocks::decodeMeta(['a' => 'b']) === ['a' => 'b'];
+});
+
+check('la selezione nasce in locale: definizione sincronizzata, testi, foto ed esclusi restano del sito', function () {
+    $schema = ProductSelection::syncSchema();
+
+    return $schema->localOnly
+        && $schema->keepIds
+        && $schema->excludeColumns === ProductSelection::SITE_COLUMNS
+        && !in_array('source', ProductSelection::SITE_COLUMNS, true)
+        && array_diff([...ProductSelection::SITE_COLUMNS, 'placements'], ProductSelectionResource::editableWhenReadonly()) === []
+        && !in_array('source_tag_slugs', ProductSelectionResource::editableWhenReadonly(), true);
+});
+
+check('in produzione arrivano solo testi, foto ed esclusi: la definizione non si tocca', function () {
+    $valori = ProductSelectionResource::mutateRequestValues(
+        ['title' => 'Estate', 'excluded_model_ids' => [['id' => '', 'related_model_id' => '11']]],
+        'update',
+        'backend',
+        ['id' => 1, 'source' => 'tag', 'source_tag_slugs' => '["estate"]']
+    );
+
+    return $valori['title'] === 'Estate'
+        && array_intersect(['name', 'slug', 'block', 'block_meta', 'max_items', 'source', 'sort_mode', 'visible', 'source_category_slugs', 'source_tag_slugs', 'source_brand_slugs'], array_keys($valori)) === [];
 });
 
 summary();

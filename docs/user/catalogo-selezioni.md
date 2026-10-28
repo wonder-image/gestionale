@@ -25,6 +25,13 @@ sola variante: «Revia» e «Revia · 50 ml» sono due voci diverse.
 
 ## Creare una selezione
 
+Le selezioni si creano e si impostano **in locale**: arrivano sul sito
+online con il deploy, insieme al codice che le mostra. Sul sito online la
+scheda è in parte bloccata: puoi cambiare titolo, sottotitolo, testo, immagine
+e sfondo del blocco, gli articoli scelti a mano e gli articoli esclusi, ma non
+il nome, la fonte, il blocco, l'ordine o quanti articoli. Testi, foto e
+articoli che cambi online restano tuoi: il deploy successivo non li tocca.
+
 1. **Catalogo → Selezioni → Aggiungi selezione**.
 2. Scrivi il **nome**. L'url pubblico nasce dal nome e non cambia più: chi
    costruisce il sito usa quello («home-prodotti»), quindi puoi rinominare la

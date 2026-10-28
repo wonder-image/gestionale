@@ -34,9 +34,9 @@ versionamento semantico.
   L'ordine lo applica il sito (ecommerce). Passo a mano: `php forge update`.
 - **Blocco e fonte delle selezioni**: `gst_product_selections` ha `block`
   (VARCHAR 50, di serie `default`) e `block_meta` (JSON, i campi in più del
-  blocco), `source` (VARCHAR 30, di serie `manual`), `source_category_ids`,
-  `source_tag_ids`, `source_brand_ids` ed `excluded_model_ids` (JSON di id) e
-  `max_items` (INT, di serie 8). I blocchi
+  blocco), `source` (VARCHAR 30, di serie `manual`), `source_category_slugs`,
+  `source_tag_slugs`, `source_brand_slugs` (JSON di slug, uguali fra locale e
+  produzione), `excluded_model_ids` (JSON di id) e `max_items` (INT, di serie 8). I blocchi
   stanno in `Support\Catalog\SelectionBlocks`: `default` («Elenco di
   articoli», titolo, sottotitolo e testo), `swiper` («Swiper di articoli»,
   gli stessi campi) e `spotlight` («Articolo in primo piano», con immagine,
@@ -49,13 +49,23 @@ versionamento semantico.
   `category`, `tag`, `brand`; categorie, tag e marchi sono scelte multiple (un
   articolo ne basta uno), l'elenco a mano compare solo con `manual`, gli
   articoli esclusi solo con le altre. `newest` e `novelty`, delle prime prove,
-  si leggono come `catalog`; `source_category_id` e `source_tag_id`, se ci
-  sono ancora, valgono finché la colonna JSON è vuota
-  (`Placements::selectionRefIds()`). Con una fonte automatica la regola
+  si leggono come `catalog`; le colonne `source_*_ids` delle prime prove spariscono
+  con `php forge update`: una selezione per categoria, tag o marchio va
+  riscelta (`Placements::selectionRefSlugs()`). Con una fonte automatica la regola
   d'ordine vale per tutta la fonte, prima del limite. Fonte, ordine e quanti
   articoli stanno sulla stessa riga. Errori `selection.source_category_required`,
   `selection.source_tag_required` e `selection.source_brand_required`. Passo a
   mano: `php forge update`.
+- **Le selezioni nascono in locale**: `ProductSelection::syncSchema()` è
+  `multiRow()->keepIds()->localOnly()`, quindi `php forge export` le porta in
+  produzione con lo stesso id, e lì la scheda è in sola lettura. Restano del
+  sito, fuori dall'export e modificabili in produzione, `title`, `subtitle`,
+  `text`, `image`, `background` ed `excluded_model_ids`
+  (`ProductSelection::SITE_COLUMNS`) e gli articoli scelti a mano
+  (`gst_product_placements` non viaggia). Al primo `php forge import` le
+  selezioni create in produzione con un id che c'è anche nel file vengono
+  sovrascritte, le altre segnate eliminate: vanno ricreate in locale prima.
+  Richiede il core con `SyncedTables::isReadonlyColumn()`.
 - **FAQ**: in Catalogo → FAQ domande e risposte da mostrare nella scheda dei
   prodotti scelti (tutti, oppure categorie con le sottocategorie, tag, marchi
   e articoli, con gli esclusi) e, con «Mostra nella home», nella home. Tabelle
