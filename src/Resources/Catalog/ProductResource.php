@@ -188,7 +188,7 @@ class ProductResource extends ProductModelResource
             $fields[] = FormField::key('attribute_' . (int) $attribute['id'])->hidden();
         }
 
-        foreach ($attributi['technical'] as $attribute) {
+        foreach (static::technicalSheetActive() ? $attributi['technical'] : [] as $attribute) {
             $fields[] = static::attributeField($attribute);
         }
 
@@ -581,6 +581,10 @@ class ProductResource extends ProductModelResource
     /** Le caratteristiche della scheda tecnica dell'opzione: le sue, non quelle dell'articolo. */
     protected static function technicalAttributes(): array
     {
+        if (!static::technicalSheetActive()) {
+            return [];
+        }
+
         return static::splitAttributes(Attributes::byLevel(static::attributes(), 'product'))['technical'];
     }
 
@@ -1091,6 +1095,12 @@ HTML;
     public static function afterUpdate(int|string $id, object $result, array $values = []): void
     {
         $attributes = Attributes::byLevel(static::attributes(), 'product');
+
+        // Spenta la scheda tecnica i suoi campi non arrivano: restano come sono.
+        if (!static::technicalSheetActive()) {
+            $attributes = static::splitAttributes($attributes)['sales'];
+        }
+
         $input = [];
 
         foreach ($attributes as $attribute) {

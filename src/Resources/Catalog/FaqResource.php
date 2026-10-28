@@ -33,6 +33,7 @@ final class FaqResource extends GestionaleResource
 {
     use ScopeForm;
 
+    public static string $feature = 'faqs';
     public static string $model = Faq::class;
     public static string $orderColumn = 'position';
     public static string $orderDirection = 'ASC';
@@ -180,7 +181,8 @@ final class FaqResource extends GestionaleResource
             ->inSection('catalogo')
             ->title('FAQ')
             ->order(45)
-            ->access(Gestionale::area('catalogo'));
+            ->access(Gestionale::area('catalogo'))
+            ->enabled(static::featureActive());
     }
 
     /** «Home · tutti i prodotti», «Selezione», «—» se non si vede da nessuna parte. */

@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Catalog;
 
 use Throwable;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Faq;
 use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
 use Wonder\Plugin\Gestionale\Support\Promotions\ScopeMatcher;
@@ -14,6 +15,7 @@ use Wonder\Plugin\Gestionale\Support\RequestMemo;
  *
  * Ogni voce è `question` in testo semplice e `answer` in HTML dell'editor.
  * L'ordine è `importance` (prima, normale, in fondo), poi `position`.
+ * Senza la funzionalità `faqs` non ce n'è nessuna.
  */
 final class Faqs
 {
@@ -22,7 +24,7 @@ final class Faqs
     /** @return list<array{id: int, question: string, answer: string}> */
     public static function forModel(int $modelId): array
     {
-        if ($modelId <= 0) {
+        if ($modelId <= 0 || !self::active()) {
             return [];
         }
 
@@ -52,6 +54,11 @@ final class Faqs
         return $faqs;
     }
 
+    public static function active(): bool
+    {
+        return Gestionale::feature('faqs');
+    }
+
     /**
      * Le FAQ visibili, già in ordine.
      *
@@ -59,6 +66,11 @@ final class Faqs
      */
     public static function visible(): array
     {
+        // Funzionalità spenta: le FAQ restano salvate, il sito non le legge.
+        if (!self::active()) {
+            return [];
+        }
+
         return RequestMemo::remember(Faq::MEMO_GROUP, 'visible', static function (): array {
             try {
                 $found = Faq::find(['visible' => 'true', 'deleted' => 'false']);

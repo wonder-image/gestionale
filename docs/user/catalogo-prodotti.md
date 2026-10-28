@@ -304,10 +304,12 @@ Per i carichi lunghi — centinaia di righe con una causale sola — restano
 
 ## La scheda tecnica
 
-Il riquadro **Scheda tecnica** sta in fondo a sinistra, e c'è sempre. Ci va quello
+Il riquadro **Scheda tecnica** sta in fondo a sinistra, con la funzionalità
+**Scheda tecnica** accesa. Ci va quello
 che descrive l'articolo senza farne nascere opzioni in vendita: materiale,
 composizione, lavaggio, paese di produzione. Ogni caratteristica è un campo, e
-quello che scrivi si salva con l'articolo.
+quello che scrivi si salva con l'articolo. Se spegni la funzionalità il riquadro
+sparisce, dall'articolo e dalle opzioni, ma quello che avevi scritto resta salvato.
 
 **Si vede solo quello che l'articolo ha.** Un articolo nuovo mostra il solo
 bottone tratteggiato **Aggiungi caratteristica**; uno già compilato mostra le

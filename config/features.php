@@ -87,6 +87,18 @@ return [
         'area' => 'Scheda prodotto',
         'release' => 'G9',
     ],
+    'technical_sheet' => [
+        'name' => 'Scheda tecnica',
+        'description' => 'Caratteristiche dell\'articolo e delle sue opzioni (materiale, simboli di lavaggio…). Spenta, la scheda non le chiede e quelle già scritte restano salvate.',
+        'area' => 'Scheda prodotto',
+        'release' => 'G5',
+    ],
+    'faqs' => [
+        'name' => 'FAQ',
+        'description' => 'Domande frequenti con la risposta, nella scheda dei prodotti scelti e nella home. Spenta, il sito non le mostra.',
+        'area' => 'Catalogo',
+        'release' => 'G5',
+    ],
     'barcode_labels' => [
         'name' => 'Etichette',
         'description' => 'Etichette con codice a barre e prezzo in PDF.',

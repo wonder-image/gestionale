@@ -4,7 +4,8 @@ icon: circle-question
 
 # FAQ
 
-> **Inclusa.** Fa parte del gestionale, non c'è niente da attivare.
+> **Da attivare.** Funzionalità **FAQ**. Finché è spenta non vedi la pagina e il
+> sito non mostra le FAQ; quelle già scritte restano salvate.
 
 ## A cosa servono
 

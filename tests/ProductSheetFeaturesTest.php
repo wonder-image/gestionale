@@ -11,7 +11,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureGuards;
 
 // Le funzionalità di «Scheda prodotto»: Suggeriti, Alternativi, Varianti,
-// Misure e Aliquote. Spente, la scheda di un articolo nuovo ha l'essenziale.
+// Misure, Aliquote e Scheda tecnica. Spente, la scheda di un articolo nuovo ha l'essenziale.
 
 $forza = static function (?array $stato): void {
     (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
@@ -27,10 +27,10 @@ $campi = static function (): array {
     return $out;
 };
 
-check('il catalogo mette le cinque nella card «Scheda prodotto»', function () {
+check('il catalogo mette le sei nella card «Scheda prodotto»', function () {
     $catalogo = require __DIR__.'/../config/features.php';
 
-    foreach (['related_suggested', 'related_alternative', 'variants', 'measures', 'tax_categories'] as $chiave) {
+    foreach (['related_suggested', 'related_alternative', 'variants', 'measures', 'tax_categories', 'technical_sheet'] as $chiave) {
         if (($catalogo[$chiave]['area'] ?? '') !== 'Scheda prodotto') {
             return false;
         }
