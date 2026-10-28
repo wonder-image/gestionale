@@ -6,6 +6,15 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Corretto
+- **Variante vuota accendendo le varianti.** Il repeater del core metteva nel
+  cestino il prodotto dello scheletro prima del generatore, che allora creava
+  una variante nuova e lasciava sul sito quella vuota. Ora il generatore riprende
+  anche la variante da sola, e a ogni salvataggio le varianti senza prodotti vivi
+  vanno nel cestino (l'ultima resta). L'eliminazione dell'articolo toglie anche
+  quelle nel cestino.
+- **Nomi salvati come scritti.** I campi nome di catalogo, pagamenti, prezzi,
+  promozioni, spedizioni, abbonamenti e tasse usavano `sanitizeFirst()`, che
+  rimetteva la maiuscola a ogni parola («30ml» → «30Ml»): ora `sanitize()`.
 
 - **Foto delle selezioni.** Il Model punta alla cartella dove il form le salva
   (`app/gestionale/selezioni`): prima il sito non le trovava. In modifica i

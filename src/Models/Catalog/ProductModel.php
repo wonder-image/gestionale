@@ -95,7 +95,7 @@ final class ProductModel extends Model
             Field::key('sku')->text(),
             Field::key('unit')->text(),
             Field::key('package_id')->number()->decimals(0),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('slug')->text()->slug()->readonlyOnUpdate()->immutableOnUpdate(),
             Field::key('short_description')->text(),
             // Scritta con l'editor: si salva l'HTML ripulito, non il testo

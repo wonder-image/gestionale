@@ -42,7 +42,7 @@ final class TaxCategory extends Model
     {
         return [
             Field::key('code')->text()->slug()->readonlyOnUpdate()->immutableOnUpdate(),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('description')->text(),
             Field::key('position')->number()->decimals(0),
             Field::key('visible')->text()->sanitize(false),

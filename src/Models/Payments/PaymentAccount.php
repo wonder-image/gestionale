@@ -44,9 +44,9 @@ final class PaymentAccount extends Model
     {
         return [
             Field::key('code')->text()->uniqueCode(Codes::PAYMENT_ACCOUNT),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('holder')->text()->sanitize(false),
-            Field::key('bank_name')->text()->sanitizeFirst(),
+            Field::key('bank_name')->text()->sanitize(),
             Field::key('iban')->text()->sanitize(false),
             Field::key('bic')->text()->sanitize(false),
             Field::key('active')->text()->sanitize(false),

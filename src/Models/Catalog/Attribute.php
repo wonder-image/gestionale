@@ -55,11 +55,11 @@ final class Attribute extends Model
         return [
             Field::key('code')->text()->uniqueCode(Codes::ATTRIBUTE),
             Field::key('slug')->text()->slug()->readonlyOnUpdate()->immutableOnUpdate(),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('type')->text()->sanitize(false),
             Field::key('level')->text()->sanitize(false),
             Field::key('unit')->text(),
-            Field::key('group_name')->text()->sanitizeFirst(),
+            Field::key('group_name')->text()->sanitize(),
             Field::key('is_filterable')->text()->sanitize(false),
             Field::key('is_visible')->text()->sanitize(false),
             Field::key('position')->number()->decimals(0),

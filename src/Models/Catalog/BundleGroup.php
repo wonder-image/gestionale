@@ -44,7 +44,7 @@ final class BundleGroup extends Model
     {
         return [
             Field::key('product_model_id')->number()->decimals(0),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('min_choices')->number()->decimals(0),
             Field::key('max_choices')->number()->decimals(0),
             Field::key('position')->number()->decimals(0),

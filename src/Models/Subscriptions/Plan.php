@@ -47,7 +47,7 @@ final class Plan extends Model
         return [
             Field::key('code')->text()->uniqueCode(Codes::PLAN),
             Field::key('slug')->text()->slug()->readonlyOnUpdate()->immutableOnUpdate(),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('description')->text(),
             Field::key('tax_category_id')->number()->decimals(0),
             Field::key('visible_online')->text()->sanitize(false),

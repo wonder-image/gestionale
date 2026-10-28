@@ -42,7 +42,7 @@ final class ShippingZone extends Model
     {
         return [
             Field::key('code')->text()->uniqueCode(Codes::SHIPPING_ZONE),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('position')->number()->decimals(0),
             Field::key('active')->text()->sanitize(false),
         ];

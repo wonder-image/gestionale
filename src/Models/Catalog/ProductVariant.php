@@ -54,7 +54,7 @@ final class ProductVariant extends Model
         return [
             Field::key('code')->text()->uniqueCode(Codes::VARIANT),
             Field::key('product_model_id')->number()->decimals(0),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('slug')->text()->slug()->readonlyOnUpdate()->immutableOnUpdate(),
             Field::key('position')->number()->decimals(0),
             Field::key('visible')->text()->sanitize(false),

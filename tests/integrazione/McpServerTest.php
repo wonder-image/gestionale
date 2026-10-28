@@ -170,8 +170,8 @@ try {
             $prima = Category::findById($categoria)['slug'];
             $r = $dati($chiama('category_update', ['id' => $categoria, 'name' => 'Rinominata MCP', 'visible' => false], $admin));
 
-            // Il nome passa da `sanitizeFirst`, come nel backend.
-            return $r['name'] === 'Rinominata Mcp' && $r['slug'] === $prima && $r['visible'] === false;
+            // Il nome resta com'è scritto, maiuscole comprese, come nel backend.
+            return $r['name'] === 'Rinominata MCP' && $r['slug'] === $prima && $r['visible'] === false;
         });
 
         check('product_set_categories imposta categorie e principale', static function () use ($chiama, $dati, $admin, $pid, &$categoria): bool {

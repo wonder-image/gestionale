@@ -43,7 +43,7 @@ final class Brand extends Model
     {
         return [
             Field::key('code')->text()->uniqueCode(Codes::BRAND),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('slug')->text()->slug()->readonlyOnUpdate()->immutableOnUpdate(),
             Field::key('logo')
                 ->image()

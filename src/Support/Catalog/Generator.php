@@ -312,6 +312,11 @@ final class Generator
      * Lo scheletro da riusare: una variante e un prodotto, senza attributi e
      * senza niente scritto sopra.
      *
+     * Anche la variante da sola, quando il suo prodotto è già nel cestino:
+     * accendendo le varianti il repeater del core butta la riga dello
+     * scheletro prima che il generatore arrivi, e una variante nuova
+     * accanto a quella vuota restava sul sito senza niente da vendere.
+     *
      * @return array{variant_id: int, product_id: int}|null
      */
     private static function skeletonToReuse(int $modelId): ?array
@@ -319,12 +324,19 @@ final class Generator
         $variants = self::variants($modelId);
         $products = self::products($modelId);
 
-        if (count($variants) !== 1 || count($products) !== 1) {
+        if (count($variants) !== 1 || count($products) > 1) {
             return null;
         }
 
-        if (ProductAttributes::read('variant', (int) $variants[0]['id']) !== []
-            || ProductAttributes::read('product', (int) $products[0]['id']) !== []) {
+        if (ProductAttributes::read('variant', (int) $variants[0]['id']) !== []) {
+            return null;
+        }
+
+        if ($products === []) {
+            return ['variant_id' => (int) $variants[0]['id'], 'product_id' => 0];
+        }
+
+        if (ProductAttributes::read('product', (int) $products[0]['id']) !== []) {
             return null;
         }
 

@@ -60,7 +60,7 @@ final class DiscountCampaign extends Model
     {
         return [
             Field::key('code')->text()->uniqueCode(Codes::DISCOUNT_CAMPAIGN),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('discount_type')->text()->sanitize(false),
             Field::key('discount_value')->number()->decimals(2),
             Field::key('starts_at')->date(),

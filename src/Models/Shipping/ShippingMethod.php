@@ -50,7 +50,7 @@ final class ShippingMethod extends Model
     {
         return [
             Field::key('code')->text()->uniqueCode(Codes::SHIPPING_METHOD),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('description')->text(),
             Field::key('carrier_id')->number()->decimals(0),
             Field::key('provider_service_code')->text()->sanitize(false),

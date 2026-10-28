@@ -78,7 +78,7 @@ final class ShowcaseDemo
     private const INACTIVE = 9;
     private const BACKORDER = 10;
 
-    /** La scheda tecnica: scritta come la salva il campo (`sanitizeFirst()`). */
+    /** La scheda tecnica: il campo la salva com'è scritta. */
     private const COMPOSITION = 'Poliestere 100%';
 
     public static function register(): void
