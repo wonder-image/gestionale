@@ -6135,7 +6135,8 @@ HTML)->tag('div');
         }
 
         foreach ($vuote as $variant) {
-            ProductVariant::update(['deleted' => 'true'], (int) $variant['id']);
+            // `deleted` non è nel dataSchema: `update()` lo scarterebbe lasciando il SET vuoto.
+            ProductVariant::query()->Update(ProductVariant::$table, ['deleted' => 'true'], 'id', (int) $variant['id']);
         }
     }
 
