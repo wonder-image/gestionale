@@ -179,6 +179,13 @@ check('i campi del blocco diventano block_meta, solo quelli del blocco scelto', 
         && SelectionBlocks::decodeMeta(['a' => 'b']) === ['a' => 'b'];
 });
 
+check('block_meta con accenti: letto in UTF-8 e dalla connessione latin1', function () {
+    // MySQL tiene il JSON in utf8mb4 e con la connessione latin1 lo ridà in cp1252: «ù» è il byte F9, «€» è 0x80.
+    return SelectionBlocks::decodeMeta('{"cta_label":"Scopri di più"}') === ['cta_label' => 'Scopri di più']
+        && SelectionBlocks::decodeMeta("{\"cta_label\": \"Scopri di pi\xf9 \x80\"}") === ['cta_label' => 'Scopri di più €']
+        && SelectionBlocks::decodeMeta('{"cta_label":"Scopri di più"}') === ['cta_label' => 'Scopri di più'];
+});
+
 check('il bottone di elenco e swiper: testo, azione e solo la voce dell\'azione scelta', function () {
     Extensions::use([]);
     SelectionBlocks::reset(true);
