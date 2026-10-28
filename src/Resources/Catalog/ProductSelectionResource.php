@@ -12,23 +12,32 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\App\ResourceSchema\Input;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSelection;
+use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
 use Wonder\Plugin\Gestionale\Support\Catalog\PlacementsForm;
+use Wonder\Plugin\Gestionale\Support\Catalog\SelectionBlocks;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\RequestMemo;
 
 /**
- * «Selezioni»: elenchi di articoli scelti a mano per i blocchi del sito,
- * come «In evidenza» della home o il prodotto del mese.
+ * «Selezioni»: elenchi di articoli per i blocchi del sito, come «In evidenza»
+ * della home o il prodotto del mese.
  *
  * Il sito ne prende una per url pubblico (`home-prodotti`), che nasce dal nome
- * e non cambia più: rinominare la selezione non rompe la home. Titolo,
- * sottotitolo, testo e immagine sono del blocco; gli articoli stanno in
- * `gst_product_placements` ({@see Placements}). Esiste solo con la vendita
- * online, come il sito che la mostra.
+ * e non cambia più: rinominare la selezione non rompe la home. Gli articoli
+ * sono scelti a mano (`gst_product_placements`, {@see Placements}) o da una
+ * fonte del catalogo (`source`, fino a `max_items`). Il blocco dice al sito
+ * come mostrarla ({@see SelectionBlocks}): titolo, sottotitolo, testo e
+ * immagine sono colonne, i campi in più del blocco stanno in `block_meta` e nel
+ * form si chiamano `block_meta_<chiave>`. Esiste solo con la vendita online,
+ * come il sito che la mostra.
  */
 final class ProductSelectionResource extends GestionaleResource
 {
@@ -83,17 +92,46 @@ final class ProductSelectionResource extends GestionaleResource
             'sort_mode' => 'Ordine',
             'visible' => 'Stato',
             'placements' => 'Articoli',
+            'block' => 'Blocco',
+            'source' => 'Articoli da',
+            'source_category_id' => 'Categoria',
+            'source_tag_id' => 'Tag',
+            'max_items' => 'Quanti articoli',
         ];
     }
 
     public static function formSchema(): array
     {
-        return [
+        $fields = [
             FormField::key('name')->text()->label('Nome')->required(),
-            FormField::key('title')->text()->label('Titolo'),
-            FormField::key('subtitle')->text()->label('Sottotitolo'),
-            FormField::key('text')->textarea('plus')->label('Testo'),
-            FormField::key('image')->fileDragDrop('image')->label('Immagine'),
+            FormField::key('block')
+                ->select(SelectionBlocks::options())
+                ->value(SelectionBlocks::DEFAULT)
+                ->label('Blocco')
+                ->required(),
+            static::forBlocks(FormField::key('title')->text()->label('Titolo'), 'title'),
+            static::forBlocks(FormField::key('subtitle')->text()->label('Sottotitolo'), 'subtitle'),
+            static::forBlocks(FormField::key('text')->textarea('plus')->label('Testo'), 'text'),
+            static::forBlocks(FormField::key('image')->fileDragDrop('image')->label('Immagine'), 'image'),
+            FormField::key('source')
+                ->select(Placements::SELECTION_SOURCES)
+                ->value('manual')
+                ->label('Articoli da')
+                ->required(),
+            FormField::key('source_category_id')
+                ->select(['' => 'Scegli una categoria'] + static::categoryOptions())
+                ->label('Categoria')
+                ->visibleWhen('source', 'category'),
+            FormField::key('source_tag_id')
+                ->select(['' => 'Scegli un tag'] + static::tagOptions())
+                ->label('Tag')
+                ->visibleWhen('source', 'tag'),
+            FormField::key('max_items')
+                ->number()
+                ->decimal(0)
+                ->value((string) Placements::SELECTION_MAX_ITEMS)
+                ->label('Quanti articoli')
+                ->hiddenWhen('source', 'manual'),
             FormField::key('visible')
                 ->select(['true' => 'Visibile', 'false' => 'Nascosta'])
                 ->value('true')
@@ -106,6 +144,12 @@ final class ProductSelectionResource extends GestionaleResource
                 ->required(),
             static::placementsField('Articoli', 'Aggiungi un articolo'),
         ];
+
+        foreach (SelectionBlocks::allMetaFields() as $key => $meta) {
+            $fields[] = static::forBlocks(static::metaInput($key, $meta), $key);
+        }
+
+        return $fields;
     }
 
     public static function formLayoutSchema(): ?Form
@@ -119,27 +163,40 @@ final class ProductSelectionResource extends GestionaleResource
 
         $items = (new Card)->components([
             SectionTitle::make('Articoli')
-                ->tooltip('Un articolo con tutte le sue varianti, o una sola variante. Trascinali nell\'ordine in cui il sito li deve mostrare. Gli articoli nascosti al sito restano in elenco ma non compaiono finché non tornano visibili. La foto di contesto è facoltativa: la usano i blocchi del sito che la prevedono.')
+                ->tooltip('«Scelti a mano»: un articolo con tutte le sue varianti, o una sola variante, trascinati nell\'ordine in cui il sito li deve mostrare; gli articoli nascosti al sito restano in elenco ma non compaiono finché non tornano visibili. Le altre fonti prendono dal catalogo i primi articoli in vendita, fino al numero indicato. «Nell\'ordine dato» segue l\'elenco scelto a mano, o l\'ordine della fonte (prima le più recenti per «Ultime aggiunte» e «Novità», quello della categoria o del tag); le altre regole riordinano gli articoli presi.')
                 ->columnSpan(12),
-            static::getInput(self::PLACEMENTS_INPUT)->columnSpan(12),
+            static::getInput('source')->columnSpan(6),
+            static::getInput('sort_mode')->columnSpan(6),
+            static::getInput('max_items')->columnSpan(6),
+            static::getInput('source_category_id')->columnSpan(6),
+            static::getInput('source_tag_id')->columnSpan(6),
+            // L'elenco resta salvato anche con un'altra fonte: tornando a mano riappare.
+            (new Container)->components([
+                static::getInput(self::PLACEMENTS_INPUT)->columnSpan(12),
+            ])->columns(12)->columnSpan(12)->visibleWhen('source', 'manual'),
         ])->columns(12)->columnSpan(12);
+
+        $blockInputs = [];
+
+        foreach (SelectionBlocks::allMetaFields() as $key => $meta) {
+            $blockInputs[] = static::getInput(SelectionBlocks::META_INPUT_PREFIX.$key)->columnSpan($meta['type'] === 'textarea' ? 12 : 6);
+        }
 
         $block = (new Card)->components([
             SectionTitle::make('Blocco nel sito')
-                ->tooltip('Titolo, sottotitolo, testo e immagine del blocco che mostra la selezione, se il sito li prevede. Lasciati vuoti, il blocco usa i suoi.')
+                ->tooltip('Il blocco dice al sito come mostrare la selezione; i campi cambiano con il blocco. Lasciati vuoti, il blocco usa i suoi testi.')
                 ->columnSpan(12),
+            static::getInput('block')->columnSpan(12),
             static::getInput('title')->columnSpan(6),
             static::getInput('subtitle')->columnSpan(6),
             static::getInput('text')->columnSpan(12),
             static::getInput('image')->columnSpan(12),
+            ...$blockInputs,
         ])->columns(12)->columnSpan(12);
 
         $side = (new Card)->components([
-            SectionTitle::make('Pubblicazione')
-                ->tooltip('«Nell\'ordine dato» segue l\'elenco; le altre regole riordinano gli stessi articoli.')
-                ->columnSpan(12),
+            SectionTitle::make('Pubblicazione')->columnSpan(12),
             static::getInput('visible')->columnSpan(12),
-            static::getInput('sort_mode')->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
         return (new Form)->components([
@@ -190,7 +247,10 @@ final class ProductSelectionResource extends GestionaleResource
 
     /**
      * Nome obbligatorio anche lato server; l'url pubblico nasce dal nome alla
-     * creazione e poi non si tocca; stato e ordine solo fra quelli noti.
+     * creazione e poi non si tocca; stato, ordine, blocco e fonte solo fra
+     * quelli noti. Una fonte con riferimento vuole la sua categoria o il suo
+     * tag; i campi `block_meta_*` diventano il JSON `block_meta`, con le sole
+     * chiavi del blocco scelto.
      */
     public static function mutateRequestValues(
         array $values,
@@ -214,12 +274,110 @@ final class ProductSelectionResource extends GestionaleResource
             $values['visible'] = ($values['visible'] ?? 'true') === 'false' ? 'false' : 'true';
         }
 
+        if ($action === 'store' || array_key_exists('source', $values)) {
+            $values['source'] = Placements::selectionSource($values['source'] ?? '');
+
+            foreach (Placements::SELECTION_SOURCE_REFS as $source => $column) {
+                $id = $values['source'] === $source && is_numeric($values[$column] ?? null) ? (int) $values[$column] : 0;
+
+                if ($values['source'] === $source && $id <= 0) {
+                    throw UserError::make($source === 'tag' ? 'selection.source_tag_required' : 'selection.source_category_required');
+                }
+
+                $values[$column] = $id;
+            }
+        }
+
+        if ($action === 'store' || array_key_exists('max_items', $values)) {
+            $values['max_items'] = Placements::selectionMaxItems($values['max_items'] ?? null);
+        }
+
+        if ($action === 'store' || array_key_exists('block', $values)) {
+            $values['block'] = SelectionBlocks::normalize($values['block'] ?? '');
+            $meta = [];
+
+            foreach (array_keys(SelectionBlocks::metaFields($values['block'])) as $key) {
+                $meta[$key] = $values[SelectionBlocks::META_INPUT_PREFIX.$key] ?? '';
+            }
+
+            $values['block_meta'] = json_encode((object) SelectionBlocks::cleanMeta($values['block'], $meta), JSON_UNESCAPED_UNICODE);
+        }
+
+        foreach (array_keys($values) as $key) {
+            if (str_starts_with((string) $key, SelectionBlocks::META_INPUT_PREFIX)) {
+                unset($values[$key]);
+            }
+        }
+
         return $values;
     }
 
     public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
     {
-        return static::placementFormValues($values);
+        $values = static::placementFormValues($values);
+        $meta = SelectionBlocks::decodeMeta($values['block_meta'] ?? null);
+
+        foreach (array_keys(SelectionBlocks::allMetaFields()) as $key) {
+            $values[SelectionBlocks::META_INPUT_PREFIX.$key] ??= is_scalar($meta[$key] ?? null) ? (string) $meta[$key] : '';
+        }
+
+        // 0 vuol dire «nessuna»: il select mostra la voce vuota.
+        foreach (Placements::SELECTION_SOURCE_REFS as $column) {
+            if ((int) ($values[$column] ?? 0) <= 0) {
+                $values[$column] = '';
+            }
+        }
+
+        return $values;
+    }
+
+    /** Il campo resta solo per i blocchi che lo usano; se lo usano tutti, niente regola. */
+    private static function forBlocks(Input $input, string $field): Input
+    {
+        $blocks = SelectionBlocks::blocksWith($field);
+
+        if (count($blocks) === count(SelectionBlocks::all())) {
+            return $input;
+        }
+
+        return $blocks === []
+            ? $input->hiddenWhen('block', array_keys(SelectionBlocks::all()))
+            : $input->visibleWhen('block', $blocks);
+    }
+
+    /** @param array<string, mixed> $meta */
+    private static function metaInput(string $key, array $meta): Input
+    {
+        $field = FormField::key(SelectionBlocks::META_INPUT_PREFIX.$key);
+        $field = match ($meta['type']) {
+            'textarea' => $field->textarea(),
+            'url' => $field->url(),
+            'select' => $field->select(['' => ''] + $meta['options']),
+            default => $field->text(),
+        };
+
+        return $field->label((string) $meta['label']);
+    }
+
+    /** @return array<string, string> le categorie indentate, come nella scheda articolo */
+    private static function categoryOptions(): array
+    {
+        $options = CategoryTree::options(static::rowsOf(Category::class, [], 'position'));
+        unset($options['']);
+
+        return $options;
+    }
+
+    /** @return array<string, string> */
+    private static function tagOptions(): array
+    {
+        $options = [];
+
+        foreach (static::rowsOf(Tag::class, [], 'name') as $row) {
+            $options[(string) $row['id']] = html_entity_decode((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return $options;
     }
 
     // Il backend scrive con una query diretta: la copia della richiesta va buttata.

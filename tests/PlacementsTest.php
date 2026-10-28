@@ -186,6 +186,52 @@ check('la regola di categoria e tag si salva solo con la vendita online, e solo 
         && $nota['sort_mode'] === 'price_asc';
 });
 
+check('«Mostra articoli in evidenza»: categorie e tag, spento di partenza', function () use ($colonne) {
+    foreach ([Category::class, Tag::class] as $model) {
+        $c = $colonne($model)['show_placements'] ?? null;
+
+        if ($c === null || $c->getSchema('type') !== 'TINYINT' || $c->getSchema('default') !== '0') {
+            return false;
+        }
+    }
+
+    return !array_key_exists('show_placements', $colonne(ProductSelection::class));
+});
+
+check('«Mostra articoli in evidenza» si salva solo con la vendita online, come 0 o 1', function () use ($forza, $campi) {
+    $forza(['online_sales' => false]);
+    $spenta = TagResource::mutateRequestValues(['name' => 'Giorno', 'show_placements' => '1'], 'update', 'backend', ['id' => 1]);
+    $senzaCampi = !in_array('show_placements', $campi(CategoryResource::class), true);
+
+    $forza(['online_sales' => true]);
+    $si = CategoryResource::mutateRequestValues(['name' => 'Notte', 'show_placements' => '1'], 'update', 'backend', ['id' => 1]);
+    $boh = TagResource::mutateRequestValues(['name' => 'Giorno', 'show_placements' => 'true'], 'update', 'backend', ['id' => 1]);
+    $conCampi = in_array('show_placements', $campi(TagResource::class), true);
+
+    $forza([]);
+
+    return $senzaCampi && $conCampi
+        && !array_key_exists('show_placements', $spenta)
+        && $si['show_placements'] === '1'
+        && $boh['show_placements'] === '0';
+});
+
+check('l\'elenco posta solo id e articolo: niente foto di contesto nel form', function () use ($forza) {
+    $forza(['online_sales' => true]);
+    $campi = TagResource::formSchema();
+    $forza([]);
+
+    foreach ($campi as $field) {
+        if ((string) $field->name === TagResource::PLACEMENTS_INPUT) {
+            $colonne = array_map(static fn ($column): string => (string) $column->name, (array) (((array) $field->get('context'))['columns'] ?? []));
+
+            return $colonne === ['id', 'item'];
+        }
+    }
+
+    return false;
+});
+
 check('la selezione: nome obbligatorio, url pubblico che non cambia, ordine e stato noti', function () {
     try {
         ProductSelectionResource::mutateRequestValues(['name' => '   '], 'update', 'backend', ['id' => 1]);

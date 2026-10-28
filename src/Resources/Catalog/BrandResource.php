@@ -95,14 +95,12 @@ final class BrandResource extends GestionaleResource
                     SectionTitle::make('Marchio')
                         ->tooltip('L\'url pubblico nasce dal nome alla creazione e non cambia più.')
                         ->columnSpan(12),
-                    static::getInput('name')->columnSpan(8),
-                    static::getInput('visible')->columnSpan(4),
-                    static::getInput('description')->columnSpan(12),
-                ])->columns(12)->columnSpan(12),
-
-                (new Card)->components([
-                    SectionTitle::make('Logo')->columnSpan(12),
-                    static::getInput('logo')->columnSpan(12),
+                    static::getInput('logo')->columnSpan(4),
+                    (new Container)->components([
+                        static::getInput('name')->columnSpan(12),
+                        static::getInput('description')->columnSpan(12),
+                        static::getInput('visible')->columnSpan(12),
+                    ])->columns(12)->columnSpan(8),
                 ])->columns(12)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ]);

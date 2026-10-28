@@ -79,6 +79,7 @@ final class TagResource extends GestionaleResource
             'image' => 'Immagine',
             'visible' => 'Stato',
             'sort_mode' => 'Ordine degli altri articoli',
+            'show_placements' => 'Mostra articoli in evidenza',
             'placements' => 'In evidenza',
         ];
     }
@@ -105,12 +106,14 @@ final class TagResource extends GestionaleResource
                     SectionTitle::make('Tag')
                         ->tooltip('L\'url pubblico nasce dal nome alla creazione e non cambia più.')
                         ->columnSpan(12),
-                    static::getInput('name')->columnSpan(8),
-                    static::getInput('visible')->columnSpan(4),
-                    static::getInput('image')->columnSpan(12),
+                    static::getInput('image')->columnSpan(4),
+                    (new Container)->components([
+                        static::getInput('name')->columnSpan(12),
+                        static::getInput('visible')->columnSpan(12),
+                    ])->columns(12)->columnSpan(8),
                 ])->columns(12)->columnSpan(12),
 
-                ...static::siteOrderCards('Gli articoli con questo tag, nel sito. «In evidenza» vanno in cima, nell\'ordine in cui li trascini; gli altri seguono la regola scelta. Un articolo in evidenza senza questo tag non compare. La foto di contesto è facoltativa: la usano i blocchi del sito che la prevedono, per esempio una griglia «Giorno» e «Notte».'),
+                ...static::siteOrderCards('Gli articoli con questo tag, nel sito. «In evidenza» vanno in cima, nell\'ordine in cui li trascini; gli altri seguono la regola scelta. Un articolo in evidenza senza questo tag non compare. Con «Mostra articoli in evidenza» a «No» l\'elenco resta salvato ma il sito usa solo la regola.'),
             ])->columns(12)->columnSpan(12),
         ]);
     }

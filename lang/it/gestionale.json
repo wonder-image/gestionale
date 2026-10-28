@@ -143,7 +143,9 @@
                 "answer_required": "Scrivi la risposta."
             },
             "selection": {
-                "name_required": "Scrivi il nome della selezione."
+                "name_required": "Scrivi il nome della selezione.",
+                "source_category_required": "Scegli la categoria da cui prendere gli articoli.",
+                "source_tag_required": "Scegli il tag da cui prendere gli articoli."
             },
             "brand": {
                 "name_required": "Scrivi il nome del marchio."

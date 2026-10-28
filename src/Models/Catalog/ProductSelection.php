@@ -6,19 +6,24 @@ use Wonder\App\Model;
 use Wonder\App\Support\MediaFileManager;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
+use Wonder\Plugin\Gestionale\Support\Catalog\SelectionBlocks;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\ForgetsRequestMemo;
 use Wonder\Sql\TableSchema as Column;
 
 /**
- * Una selezione di prodotti scelta a mano per il sito: «In evidenza» della
- * home, il prodotto del mese, una vetrina di Natale.
+ * Una selezione di prodotti per il sito: «In evidenza» della home, il
+ * prodotto del mese, una vetrina di Natale.
  *
- * Il sito la cerca per `slug`, che nasce dal nome e non cambia più. Titolo,
- * sottotitolo, testo e immagine sono quelli del blocco che la mostra; gli
- * articoli e le varianti, nel loro ordine, stanno in `gst_product_placements`
- * con `context_type = selection`. `sort_mode` = `manual` li tiene nell'ordine
- * dato; gli altri valori li riordinano ({@see \Wonder\Plugin\Gestionale\Support\Catalog\Placements::SORT_MODES}).
+ * Il sito la cerca per `slug`, che nasce dal nome e non cambia più. `block`
+ * dice quale blocco del sito la mostra ({@see SelectionBlocks}): titolo,
+ * sottotitolo, testo e immagine sono le colonne di sempre, i campi in più del
+ * blocco stanno in `block_meta`. `source` dice da dove vengono gli articoli:
+ * `manual` sono le righe di `gst_product_placements` con
+ * `context_type = selection`, le altre fonti li scelgono dal catalogo fino a
+ * `max_items` ({@see Placements::SELECTION_SOURCES}). `sort_mode` = `manual`
+ * li tiene nell'ordine dato (o della fonte); gli altri valori li riordinano.
  *
  * Non si sincronizza, come il resto del catalogo.
  */
@@ -48,6 +53,15 @@ final class ProductSelection extends Model
             Column::key('text')->type('TEXT'),
             Column::key('image')->json(),
             Column::key('sort_mode')->enum(['manual', 'newest', 'name', 'price_asc', 'price_desc'])->default('manual'),
+            // Il blocco del sito ({@see SelectionBlocks}) e i suoi campi in più.
+            Column::key('block')->length(50)->default(SelectionBlocks::DEFAULT),
+            Column::key('block_meta')->json(),
+            // La fonte degli articoli ({@see Placements::SELECTION_SOURCES}): senza
+            // chiave esterna, come `package_id`, e 0 quando la fonte non la usa.
+            Column::key('source')->length(30)->default('manual'),
+            Column::key('source_category_id')->int()->default(0),
+            Column::key('source_tag_id')->int()->default(0),
+            Column::key('max_items')->int()->default((string) Placements::SELECTION_MAX_ITEMS),
             Column::key('visible')->enum(['true', 'false'])->default('true'),
         ];
     }
@@ -69,6 +83,12 @@ final class ProductSelection extends Model
                 ->dir('/catalogo/selezioni/')
                 ->name('{slug}'),
             Field::key('sort_mode')->text()->sanitize(false),
+            Field::key('block')->text()->sanitize(false),
+            Field::key('block_meta')->json(),
+            Field::key('source')->text()->sanitize(false),
+            Field::key('source_category_id')->number()->decimals(0),
+            Field::key('source_tag_id')->number()->decimals(0),
+            Field::key('max_items')->number()->decimals(0),
             Field::key('visible')->text()->sanitize(false),
         ];
     }

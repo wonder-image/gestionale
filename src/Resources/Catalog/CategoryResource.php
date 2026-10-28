@@ -86,6 +86,7 @@ final class CategoryResource extends GestionaleResource
             'description' => 'Descrizione',
             'visible' => 'Stato',
             'sort_mode' => 'Ordine degli altri articoli',
+            'show_placements' => 'Mostra articoli in evidenza',
             'placements' => 'In evidenza',
         ];
     }
@@ -122,18 +123,16 @@ final class CategoryResource extends GestionaleResource
                     SectionTitle::make('Categoria')
                         ->tooltip('Senza padre la categoria sta in cima all\'albero. L\'url pubblico nasce dal nome alla creazione e non cambia più.')
                         ->columnSpan(12),
-                    static::getInput('name')->columnSpan(8),
-                    static::getInput('visible')->columnSpan(4),
-                    static::getInput('description')->columnSpan(12),
+                    static::getInput('image')->columnSpan(4),
+                    (new Container)->components([
+                        static::getInput('name')->columnSpan(12),
+                        static::getInput('description')->columnSpan(12),
+                        static::getInput('visible')->columnSpan(12),
+                    ])->columns(12)->columnSpan(8),
                     static::getInput('parent_id')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
 
-                (new Card)->components([
-                    SectionTitle::make('Immagine')->columnSpan(12),
-                    static::getInput('image')->columnSpan(12),
-                ])->columns(12)->columnSpan(12),
-
-                ...static::siteOrderCards('Gli articoli della categoria e delle sue sottocategorie, nel sito. «In evidenza» vanno in cima, nell\'ordine in cui li trascini; gli altri seguono la regola scelta. Un articolo in evidenza che non sta nella categoria non compare. La foto di contesto è facoltativa: la usano i blocchi del sito che la prevedono.'),
+                ...static::siteOrderCards('Gli articoli della categoria e delle sue sottocategorie, nel sito. «In evidenza» vanno in cima, nell\'ordine in cui li trascini; gli altri seguono la regola scelta. Un articolo in evidenza che non sta nella categoria non compare. Con «Mostra articoli in evidenza» a «No» l\'elenco resta salvato ma il sito usa solo la regola.'),
             ])->columns(12)->columnSpan(12),
         ]);
     }

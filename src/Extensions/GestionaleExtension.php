@@ -42,4 +42,16 @@ abstract class GestionaleExtension
     {
         return $class;
     }
+
+    /**
+     * I blocchi del sito che possono mostrare una selezione: torna `$blocks`,
+     * con i propri aggiunti o cambiati ({@see \Wonder\Plugin\Gestionale\Support\Catalog\SelectionBlocks}).
+     *
+     * @param array<string, array<string, mixed>> $blocks
+     * @return array<string, array<string, mixed>>
+     */
+    public function selectionBlocks(array $blocks): array
+    {
+        return $blocks;
+    }
 }

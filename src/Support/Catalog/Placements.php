@@ -54,6 +54,44 @@ final class Placements
         'price_desc' => 'Prezzo, dal più alto',
     ];
 
+    /**
+     * Da dove prende gli articoli una selezione: `manual` sono le sue righe,
+     * le altre fonti li scelgono dal catalogo, fino a `max_items`. Con una
+     * fonte automatica `manual` fra gli ordini vuol dire l'ordine della fonte:
+     * le più recenti prima per `newest` e `novelty`, quello del catalogo per
+     * `offers`, quello della categoria o del tag per `category` e `tag`.
+     */
+    public const SELECTION_SOURCES = [
+        'manual' => 'Scelti a mano',
+        'newest' => 'Ultime aggiunte',
+        'novelty' => 'Novità',
+        'offers' => 'In offerta',
+        'category' => 'Una categoria',
+        'tag' => 'Un tag',
+    ];
+
+    /** Le fonti che vogliono un riferimento, con la colonna che lo tiene. */
+    public const SELECTION_SOURCE_REFS = [
+        'category' => 'source_category_id',
+        'tag' => 'source_tag_id',
+    ];
+
+    /** Quanti articoli prende una fonte automatica, di serie e al massimo. */
+    public const SELECTION_MAX_ITEMS = 8;
+    public const SELECTION_MAX_ITEMS_LIMIT = 48;
+
+    public static function selectionSource(mixed $value): string
+    {
+        return self::known($value, self::SELECTION_SOURCES, 'manual');
+    }
+
+    public static function selectionMaxItems(mixed $value): int
+    {
+        $value = is_numeric($value) ? (int) $value : 0;
+
+        return $value > 0 ? min(self::SELECTION_MAX_ITEMS_LIMIT, $value) : self::SELECTION_MAX_ITEMS;
+    }
+
     public static function catalogSortMode(mixed $value): string
     {
         return self::known($value, self::CATALOG_SORT_MODES, 'position');
@@ -204,6 +242,29 @@ final class Placements
             if (is_array($row)) {
                 $row['item'] = self::itemKey((int) ($row['product_model_id'] ?? 0), (int) ($row['product_variant_id'] ?? 0));
                 $out[] = $row;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Le righe salvate di un elenco, nel loro ordine: `id` e la voce `item`,
+     * per l'editor della scheda.
+     *
+     * @return list<array{id: int, item: string}>
+     */
+    public static function savedRows(string $type, int $id): array
+    {
+        if ($id <= 0 || !in_array($type, self::CONTEXTS, true)) {
+            return [];
+        }
+
+        $out = [];
+
+        foreach (self::withItemKeys(self::rows(ProductPlacement::find(['context_type' => $type, 'context_id' => $id, 'deleted' => 'false'], null, 'position', 'ASC'))) as $row) {
+            if ($row['item'] !== '') {
+                $out[] = ['id' => (int) $row['id'], 'item' => $row['item']];
             }
         }
 

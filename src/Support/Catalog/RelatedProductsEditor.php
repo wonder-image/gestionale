@@ -16,6 +16,10 @@ use Wonder\Plugin\Gestionale\Support\SearchClient;
  * `{input}[N][id]` e `{input}[N][related_model_id]` nell'ordine della tabella,
  * e il core le salva come le righe di un repeater. Un elenco svuotato non
  * manda niente, e il core toglie i collegamenti di quel tipo.
+ *
+ * Lo stesso editor fa gli articoli in evidenza degli elenchi del sito
+ * ({@see PlacementsForm}): {@see renderLines()} con la colonna `item` e le
+ * voci `m12` / `v34` al posto degli id.
  */
 final class RelatedProductsEditor
 {
@@ -24,20 +28,37 @@ final class RelatedProductsEditor
      */
     public static function render(string $input, string $label, array $rows, int $modelId, string $searchUrl): string
     {
+        return self::renderLines($input, $label, self::lines($rows), $modelId, $searchUrl);
+    }
+
+    /**
+     * Lo scheletro con le righe già pronte: `row` e i dati dell'articolo.
+     * `$key` è la colonna che ogni riga manda con l'`id` dell'articolo.
+     *
+     * @param list<array<string, mixed>> $lines
+     */
+    public static function renderLines(
+        string $input,
+        string $label,
+        array $lines,
+        int $excludeId,
+        string $searchUrl,
+        string $key = 'related_model_id'
+    ): string {
         $e = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
-        $lines = self::lines($rows);
         $json = (string) json_encode($lines, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
 
         return '<div class="col-12 mb-4" data-wi-related-editor'
             .' data-input="'.$e($input).'"'
-            .' data-model="'.$modelId.'"'
+            .' data-model="'.$excludeId.'"'
+            .' data-key="'.$e($key).'"'
             .' data-search-url="'.$e($searchUrl).'">'
             .'<h6 class="mb-2">'.$e($label).'</h6>'
             .'<div class="position-relative">'
             .'<div class="input-group">'
             .'<span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>'
             .'<input type="search" class="form-control" data-wi-related-search placeholder="Cerca un articolo"'
-            .' aria-label="'.$e('Cerca un articolo da aggiungere ai '.mb_strtolower($label)).'" autocomplete="off" enterkeyhint="search">'
+            .' aria-label="'.$e('Cerca un articolo da aggiungere a: '.mb_strtolower($label)).'" autocomplete="off" enterkeyhint="search">'
             .'</div>'
             .'<div class="list-group position-absolute w-100 shadow d-none" style="z-index: 1050; max-height: 20rem; overflow-y: auto" data-wi-related-results></div>'
             .'</div>'
@@ -180,6 +201,7 @@ window.wiRelatedEditor = window.wiRelatedEditor || (function () {
 
     function editor(root) {
         var name = root.getAttribute('data-input');
+        var key = root.getAttribute('data-key') || 'related_model_id';
         var self = Number(root.getAttribute('data-model')) || 0;
         var search = root.querySelector('[data-wi-related-search]');
         var results = root.querySelector('[data-wi-related-results]');
@@ -210,14 +232,24 @@ window.wiRelatedEditor = window.wiRelatedEditor || (function () {
 
             for (k = 0; k < rows.length; k++) {
                 rows[k].querySelector('[data-row]').name = name + '[' + k + '][id]';
-                rows[k].querySelector('[data-model]').name = name + '[' + k + '][related_model_id]';
+                rows[k].querySelector('[data-model]').name = name + '[' + k + '][' + key + ']';
             }
 
             empty.classList.toggle('d-none', rows.length > 0);
         }
 
+        // Le voci sono id o chiavi `m12` / `v34`: si confrontano come testo.
         function has(id) {
-            return !!body.querySelector('[data-model][value="' + Number(id) + '"]');
+            var inputs = body.querySelectorAll('[data-model]');
+            var k;
+
+            for (k = 0; k < inputs.length; k++) {
+                if (inputs[k].value === String(id)) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         function append(model, rowId) {

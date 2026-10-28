@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Catalog;
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 
 /**
  * Gli articoli per la casella «Cerca un articolo» di *Articoli collegati*:
@@ -13,7 +14,11 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
  * Gli articoli nascosti al sito ci sono, con il segno: chi vende li può
  * collegare, il sito li mostrerà quando tornano visibili.
  *
- * @phpstan-type Model array{id: int, label: string, sku: string, photo: string, hidden: bool}
+ * {@see searchItems()} e {@see describeItems()} sono la stessa ricerca per
+ * gli elenchi del sito ({@see Placements}): l'`id` è la voce `m12` / `v34`,
+ * e sotto un articolo con più varianti ci sono anche le sue varianti.
+ *
+ * @phpstan-type Model array{id: int|string, label: string, sku: string, photo: string, hidden: bool}
  */
 final class RelatedModelSearch
 {
@@ -85,6 +90,96 @@ final class RelatedModelSearch
     }
 
     /**
+     * Come {@see search()}, ma per voci: ogni articolo e, se ne ha più d'una,
+     * le sue varianti sotto di lui.
+     *
+     * @return list<Model>
+     */
+    public static function searchItems(string $q): array
+    {
+        $models = self::search($q);
+        $variants = self::variantsOf(array_column($models, 'id'));
+        $out = [];
+
+        foreach ($models as $model) {
+            $out[] = ['id' => Placements::itemKey($model['id'])] + $model;
+
+            if (count($variants[$model['id']] ?? []) < 2) {
+                continue;
+            }
+
+            foreach ($variants[$model['id']] as $variant) {
+                $out[] = self::variant($model, $variant);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Le voci date (`m12`, `v34`), nel loro ordine; quelle di un articolo o
+     * di una variante eliminati non ci sono.
+     *
+     * @param list<string> $keys
+     * @return array<string, Model>
+     */
+    public static function describeItems(array $keys): array
+    {
+        $items = [];
+        $variantIds = [];
+
+        foreach ($keys as $key) {
+            $item = Placements::parseItem($key);
+
+            if ($item !== null) {
+                $items[trim((string) $key)] = $item;
+
+                if ($item['product_variant_id'] > 0) {
+                    $variantIds[] = $item['product_variant_id'];
+                }
+            }
+        }
+
+        $variants = [];
+
+        if ($variantIds !== []) {
+            foreach (self::rows(ProductVariant::find('`id` IN ('.implode(', ', array_unique($variantIds)).") AND `deleted` = 'false'")) as $row) {
+                $variants[(int) $row['id']] = $row;
+            }
+        }
+
+        $modelIds = [];
+
+        foreach ($items as $item) {
+            $modelIds[] = $item['product_variant_id'] > 0
+                ? (int) ($variants[$item['product_variant_id']]['product_model_id'] ?? 0)
+                : $item['product_model_id'];
+        }
+
+        $models = self::describe($modelIds);
+        $out = [];
+
+        foreach ($items as $key => $item) {
+            if ($item['product_variant_id'] <= 0) {
+                if (isset($models[$item['product_model_id']])) {
+                    $out[$key] = ['id' => $key] + $models[$item['product_model_id']];
+                }
+
+                continue;
+            }
+
+            $variant = $variants[$item['product_variant_id']] ?? null;
+            $model = $variant !== null ? ($models[(int) $variant['product_model_id']] ?? null) : null;
+
+            if ($model !== null) {
+                $out[$key] = self::variant($model, $variant);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Una riga del catalogo come la vuole la pagina. Pura, salvo la foto.
      *
      * @param array<string, mixed> $row
@@ -101,6 +196,50 @@ final class RelatedModelSearch
             'photo' => $photo ?? ProductPhotos::forModel($id, 0, 0),
             'hidden' => ($row['visible'] ?? 'true') !== 'true' || ($row['visible_online'] ?? 'true') !== 'true',
         ];
+    }
+
+    /**
+     * La voce di una variante: il nome dell'articolo con quello della
+     * variante, nascosta se lo è una delle due.
+     *
+     * @param Model $model
+     * @param array<string, mixed> $variant
+     * @return Model
+     */
+    private static function variant(array $model, array $variant): array
+    {
+        $id = (int) ($variant['id'] ?? 0);
+
+        return [
+            'id' => Placements::itemKey($model['id'], $id),
+            'label' => $model['label'].' · '.html_entity_decode((string) ($variant['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+            'sku' => $model['sku'],
+            'photo' => ProductPhotos::forModel($model['id'], $id, 0) ?: $model['photo'],
+            'hidden' => $model['hidden'] || ($variant['visible'] ?? 'true') !== 'true',
+        ];
+    }
+
+    /**
+     * Le varianti degli articoli dati, per articolo e nel loro ordine.
+     *
+     * @param list<int> $modelIds
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private static function variantsOf(array $modelIds): array
+    {
+        $modelIds = array_values(array_filter(array_map('intval', $modelIds), static fn (int $id): bool => $id > 0));
+
+        if ($modelIds === []) {
+            return [];
+        }
+
+        $out = [];
+
+        foreach (self::rows(ProductVariant::find('`product_model_id` IN ('.implode(', ', $modelIds).") AND `deleted` = 'false'", null, 'position', 'ASC')) as $row) {
+            $out[(int) $row['product_model_id']][] = $row;
+        }
+
+        return $out;
     }
 
     /** `'%parola%'` per LIKE: l'apice è escapato dal driver, `%` e `_` restano caratteri. */

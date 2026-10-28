@@ -44,6 +44,7 @@ final class Category extends Model
             Column::key('visible')->enum(['true', 'false'])->default('true'),
             // L'ordine degli articoli nel sito ({@see \Wonder\Plugin\Gestionale\Support\Catalog\Placements}).
             Column::key('sort_mode')->enum(['catalog', 'position', 'newest', 'name', 'price_asc', 'price_desc'])->default('catalog'),
+            Column::key('show_placements')->type('TINYINT')->length(1)->null(false)->default('0'),
         ];
     }
 
@@ -72,6 +73,7 @@ final class Category extends Model
             Field::key('position')->number()->decimals(0),
             Field::key('visible')->text()->sanitize(false),
             Field::key('sort_mode')->text()->sanitize(false),
+            Field::key('show_placements')->number()->decimals(0),
         ];
     }
 }
