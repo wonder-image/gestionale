@@ -20,7 +20,10 @@ use Wonder\Plugin\Gestionale\Extensions\Extensions;
  * ]
  * ```
  *
- * Tipi dei campi in più: `text`, `textarea`, `url`, `select` (con `options`).
+ * Tipi dei campi in più: `text`, `textarea`, `url`, `select` (con `options`)
+ * e i riferimenti al catalogo {@see REF_TYPES}, salvati come slug; `default`
+ * è il valore di serie, per una select una delle sue voci. `when` lega il
+ * campo al valore di un altro: `['cta_link' => 'custom']`.
  * Un modulo aggiunge i suoi con {@see register()}, il sito con l'hook
  * `selectionBlocks()` della sua estensione, che riceve tutti i blocchi e li
  * restituisce, anche cambiati.
@@ -32,7 +35,31 @@ final class SelectionBlocks
     /** Le colonne della selezione che un blocco può usare. */
     public const STANDARD_FIELDS = ['title', 'subtitle', 'text', 'image', 'background'];
 
-    public const META_TYPES = ['text', 'textarea', 'url', 'select'];
+    /** I campi che scelgono una voce del catalogo: il valore è lo slug. */
+    public const REF_TYPES = ['category', 'tag', 'brand', 'product'];
+
+    public const META_TYPES = ['text', 'textarea', 'url', 'select', ...self::REF_TYPES];
+
+    /** Dove porta il bottone dei blocchi elenco e swiper. */
+    public const CTA_LINKS = [
+        'all' => 'Tutti i prodotti',
+        'custom' => 'Link personalizzato',
+        'category' => 'Categoria',
+        'tag' => 'Tag',
+        'brand' => 'Marchio',
+        'product' => 'Prodotto',
+    ];
+
+    /** Il bottone: testo, azione e la voce da aprire, che dipende dall'azione. */
+    private const CTA_META = [
+        'cta_label' => ['label' => 'Testo del bottone', 'type' => 'text'],
+        'cta_link' => ['label' => 'Azione', 'type' => 'select', 'options' => self::CTA_LINKS, 'default' => 'all'],
+        'cta_url' => ['label' => 'Link', 'type' => 'text', 'when' => ['cta_link' => 'custom']],
+        'cta_category' => ['label' => 'Categoria', 'type' => 'category', 'when' => ['cta_link' => 'category']],
+        'cta_tag' => ['label' => 'Tag', 'type' => 'tag', 'when' => ['cta_link' => 'tag']],
+        'cta_brand' => ['label' => 'Marchio', 'type' => 'brand', 'when' => ['cta_link' => 'brand']],
+        'cta_product' => ['label' => 'Prodotto', 'type' => 'product', 'when' => ['cta_link' => 'product']],
+    ];
 
     /** Il prefisso dei campi in più nel form: `block_meta_cta_label`. */
     public const META_INPUT_PREFIX = 'block_meta_';
@@ -41,19 +68,19 @@ final class SelectionBlocks
         self::DEFAULT => [
             'label' => 'Elenco di articoli',
             'fields' => ['title', 'subtitle', 'text'],
-            'meta' => [],
+            'meta' => self::CTA_META,
         ],
         'swiper' => [
             'label' => 'Swiper di articoli',
             'fields' => ['title', 'subtitle', 'text'],
-            'meta' => [],
+            'meta' => self::CTA_META,
         ],
         // Il primo articolo: foto 1:1 da un lato, card dall'altro sullo sfondo.
         'spotlight' => [
             'label' => 'Articolo in primo piano',
             'fields' => ['title', 'subtitle', 'text', 'image', 'background'],
             'meta' => [
-                'image_side' => ['label' => 'Lato della foto', 'type' => 'select', 'options' => ['left' => 'Sinistra', 'right' => 'Destra']],
+                'image_side' => ['label' => 'Lato della foto', 'type' => 'select', 'options' => ['left' => 'Sinistra', 'right' => 'Destra'], 'default' => 'left'],
             ],
         ],
     ];
@@ -173,7 +200,8 @@ final class SelectionBlocks
 
     /**
      * I valori in più del blocco, solo le sue chiavi, in testo; una select
-     * accetta solo le sue voci. Le chiavi che mancano valgono ''.
+     * accetta solo le sue voci. Le chiavi vuote o non valide hanno il valore
+     * di serie.
      *
      * @param array<string, mixed> $values
      * @return array<string, string>
@@ -190,7 +218,16 @@ final class SelectionBlocks
                 $value = '';
             }
 
-            $out[$key] = $value;
+            $out[$key] = $value !== '' ? $value : $field['default'];
+        }
+
+        // Un campo legato a un altro vale solo quando l'altro ha il valore giusto.
+        foreach (self::metaFields($block) as $key => $field) {
+            foreach ($field['when'] as $whenKey => $values) {
+                if (!in_array($out[$whenKey] ?? '', $values, true)) {
+                    $out[$key] = $field['default'];
+                }
+            }
         }
 
         return $out;
@@ -231,10 +268,24 @@ final class SelectionBlocks
             }
 
             $type = in_array($field['type'] ?? 'text', self::META_TYPES, true) ? (string) ($field['type'] ?? 'text') : 'text';
+            $options = $type === 'select' ? array_map('strval', (array) ($field['options'] ?? [])) : [];
+            $default = is_scalar($field['default'] ?? null) ? trim((string) $field['default']) : '';
+            $when = [];
+
+            foreach ((array) ($field['when'] ?? []) as $whenKey => $values) {
+                $whenKey = self::key($whenKey);
+
+                if ($whenKey !== '') {
+                    $when[$whenKey] = array_values(array_map('strval', (array) $values));
+                }
+            }
+
             $meta[$metaKey] = [
                 'label' => trim((string) ($field['label'] ?? $metaKey)),
                 'type' => $type,
-                'options' => $type === 'select' ? array_map('strval', (array) ($field['options'] ?? [])) : [],
+                'options' => $options,
+                'default' => $type === 'select' && !isset($options[$default]) ? '' : $default,
+                'when' => $when,
             ];
         }
 

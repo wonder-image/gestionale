@@ -22,7 +22,7 @@ final class BloccoDelSito extends GestionaleExtension
             'fields' => ['title', 'boh'],
             'meta' => [
                 'autoplay' => ['label' => 'Scorrimento', 'type' => 'select', 'options' => ['no' => 'A mano', 'si' => 'Automatico']],
-                'cta_label' => ['label' => 'Altra etichetta', 'type' => 'textarea'],
+                'cta_note' => ['label' => 'Altra etichetta', 'type' => 'textarea'],
                 'con-trattino' => ['label' => 'No'],
             ],
         ];
@@ -76,7 +76,9 @@ check('di serie tre blocchi, lo standard per primo; un nome ignoto torna lo stan
         && SelectionBlocks::blocksWith('background') === ['spotlight']
         && SelectionBlocks::blocksWith('title') === ['default', 'swiper', 'spotlight']
         && array_keys(SelectionBlocks::metaFields('spotlight')) === ['image_side']
-        && SelectionBlocks::cleanMeta('spotlight', ['image_side' => 'centro']) === ['image_side' => '']
+        && SelectionBlocks::cleanMeta('spotlight', ['image_side' => 'centro']) === ['image_side' => 'left']
+        && SelectionBlocks::cleanMeta('spotlight', []) === ['image_side' => 'left']
+        && SelectionBlocks::metaFields('spotlight')['image_side']['default'] === 'left'
         && SelectionBlocks::cleanMeta('spotlight', ['image_side' => 'right']) === ['image_side' => 'right'];
 });
 
@@ -89,10 +91,10 @@ check('il sito aggiunge blocchi con la sua estensione, un modulo con register()'
     $ok = isset($blocks['carousel'], $blocks['griglia'])
         && array_key_first($blocks) === 'default'
         && $blocks['carousel']['fields'] === ['title']
-        && array_keys($blocks['carousel']['meta']) === ['autoplay', 'cta_label']
-        && SelectionBlocks::allMetaFields()['cta_label']['type'] === 'textarea'
-        && SelectionBlocks::blocksWith('cta_label') === ['carousel']
-        && SelectionBlocks::cleanMeta('carousel', ['autoplay' => 'forse', 'cta_label' => ' Vai ', 'altro' => 'x']) === ['autoplay' => '', 'cta_label' => 'Vai']
+        && array_keys($blocks['carousel']['meta']) === ['autoplay', 'cta_note']
+        && SelectionBlocks::allMetaFields()['cta_note']['type'] === 'textarea'
+        && SelectionBlocks::blocksWith('cta_note') === ['carousel']
+        && SelectionBlocks::cleanMeta('carousel', ['autoplay' => 'forse', 'cta_note' => ' Vai ', 'altro' => 'x']) === ['autoplay' => '', 'cta_note' => 'Vai']
         && SelectionBlocks::cleanMeta('carousel', ['autoplay' => 'si'])['autoplay'] === 'si';
 
     Extensions::use([]);
@@ -169,12 +171,31 @@ check('i campi del blocco diventano block_meta, solo quelli del blocco scelto', 
         && !array_key_exists('block_meta_image_side', $spot)
         && !array_key_exists('block_meta_altro', $spot)
         && $standard['block'] === 'default'
-        && $standard['block_meta'] === '{}'
+        && json_decode($standard['block_meta'], true) === ['cta_label' => '', 'cta_link' => 'all', 'cta_url' => '', 'cta_category' => '', 'cta_tag' => '', 'cta_brand' => '', 'cta_product' => '']
         && $form['block_meta_image_side'] === 'right'
         && $form['source_tag_slugs'] === ['estate', 'novita']
         && $form['source_category_slugs'] === []
         && SelectionBlocks::decodeMeta('{&quot;a&quot;:&quot;b&quot;}') === ['a' => 'b']
         && SelectionBlocks::decodeMeta(['a' => 'b']) === ['a' => 'b'];
+});
+
+check('il bottone di elenco e swiper: testo, azione e solo la voce dell\'azione scelta', function () {
+    Extensions::use([]);
+    SelectionBlocks::reset(true);
+
+    $meta = SelectionBlocks::cleanMeta('swiper', ['cta_label' => ' Scopri ', 'cta_link' => 'category', 'cta_category' => 'divani', 'cta_brand' => 'acme', 'cta_url' => '/x/']);
+    $sconosciuta = SelectionBlocks::cleanMeta('default', ['cta_link' => 'boh', 'cta_url' => '/x/']);
+
+    return SelectionBlocks::blocksWith('cta_label') === ['default', 'swiper']
+        && SelectionBlocks::metaFields('default')['cta_category']['type'] === 'category'
+        && SelectionBlocks::metaFields('default')['cta_url']['when'] === ['cta_link' => ['custom']]
+        && $meta['cta_label'] === 'Scopri'
+        && $meta['cta_category'] === 'divani'
+        && $meta['cta_brand'] === ''
+        && $meta['cta_url'] === ''
+        && $sconosciuta['cta_link'] === 'all'
+        && $sconosciuta['cta_url'] === ''
+        && SelectionBlocks::metaFields('spotlight') !== [] && !isset(SelectionBlocks::metaFields('spotlight')['cta_label']);
 });
 
 check('la selezione nasce in locale: definizione sincronizzata, testi, foto ed esclusi restano del sito', function () {

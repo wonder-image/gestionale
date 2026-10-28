@@ -18,6 +18,7 @@ use Wonder\App\ResourceSchema\Input;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSelection;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
@@ -206,7 +207,15 @@ final class ProductSelectionResource extends GestionaleResource
         $blockInputs = [];
 
         foreach (SelectionBlocks::allMetaFields() as $key => $meta) {
-            $blockInputs[] = static::getInput(SelectionBlocks::META_INPUT_PREFIX.$key)->columnSpan($meta['type'] === 'textarea' ? 12 : 6);
+            $input = static::getInput(SelectionBlocks::META_INPUT_PREFIX.$key)->columnSpan($meta['type'] === 'textarea' || $meta['when'] !== [] ? 12 : 6);
+
+            // La regola del blocco sta sull'input, quella del campo collegato sul contenitore.
+            foreach ($meta['when'] as $whenKey => $values) {
+                $input = (new Container)->components([$input])->columns(12)->columnSpan(12)
+                    ->visibleWhen(SelectionBlocks::META_INPUT_PREFIX.$whenKey, $values);
+            }
+
+            $blockInputs[] = $input;
         }
 
         $block = (new Card)->components([
@@ -310,7 +319,11 @@ final class ProductSelectionResource extends GestionaleResource
                 $slugs = $values['source'] === $source ? Placements::selectionSlugs($values[$column] ?? null) : [];
 
                 if ($values['source'] === $source && $slugs === []) {
-                    throw UserError::make('selection.source_'.$source.'_required');
+                    throw UserError::make(match ($source) {
+                        'category' => 'selection.source_category_required',
+                        'tag' => 'selection.source_tag_required',
+                        default => 'selection.source_brand_required',
+                    });
                 }
 
                 $values[$column] = json_encode($slugs, JSON_UNESCAPED_UNICODE);
@@ -356,8 +369,9 @@ final class ProductSelectionResource extends GestionaleResource
         $values = static::placementFormValues($values);
         $meta = SelectionBlocks::decodeMeta($values['block_meta'] ?? null);
 
-        foreach (array_keys(SelectionBlocks::allMetaFields()) as $key) {
-            $values[SelectionBlocks::META_INPUT_PREFIX.$key] ??= is_scalar($meta[$key] ?? null) ? (string) $meta[$key] : '';
+        foreach (SelectionBlocks::allMetaFields() as $key => $field) {
+            $value = is_scalar($meta[$key] ?? null) ? (string) $meta[$key] : '';
+            $values[SelectionBlocks::META_INPUT_PREFIX.$key] ??= $value !== '' ? $value : $field['default'];
         }
 
         foreach (array_keys(Placements::SELECTION_SOURCE_REFS) as $source) {
@@ -427,9 +441,17 @@ final class ProductSelectionResource extends GestionaleResource
         $field = match ($meta['type']) {
             'textarea' => $field->textarea(),
             'url' => $field->url(),
-            'select' => $field->select(['' => ''] + $meta['options']),
+            'select' => $field->select(($meta['default'] !== '' ? [] : ['' => '']) + $meta['options']),
+            'category' => $field->selectSearch(['' => ''] + static::categoryOptions()),
+            'tag' => $field->selectSearch(['' => ''] + static::tagOptions()),
+            'brand' => $field->selectSearch(['' => ''] + static::brandOptions()),
+            'product' => $field->selectSearch(['' => ''] + static::productOptions()),
             default => $field->text(),
         };
+
+        if ($meta['default'] !== '') {
+            $field = $field->value($meta['default']);
+        }
 
         return $field->label((string) $meta['label']);
     }
@@ -456,6 +478,18 @@ final class ProductSelectionResource extends GestionaleResource
         $options = [];
 
         foreach (static::rowsOf(Brand::class, [], 'name') as $row) {
+            $options[(string) $row['slug']] = html_entity_decode((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return $options;
+    }
+
+    /** @return array<string, string> gli articoli per slug */
+    private static function productOptions(): array
+    {
+        $options = [];
+
+        foreach (static::rowsOf(ProductModel::class, [], 'name') as $row) {
             $options[(string) $row['slug']] = html_entity_decode((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
 

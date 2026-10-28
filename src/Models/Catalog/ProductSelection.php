@@ -39,7 +39,8 @@ final class ProductSelection extends Model
     public const MEMO_GROUP = 'placements';
 
     public static string $table = 'gst_product_selections';
-    public static string $folder = 'gestionale/selections';
+    // La cartella della pagina delle selezioni: il form salva le foto lì.
+    public static string $folder = 'app/gestionale/selezioni';
     public static string $icon = 'bi bi-collection';
 
     /**

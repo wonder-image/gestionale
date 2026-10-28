@@ -5,8 +5,25 @@ versionamento semantico.
 
 ## 0.1.0 — non rilasciata
 
+### Corretto
+
+- **Foto delle selezioni.** Il Model punta alla cartella dove il form le salva
+  (`app/gestionale/selezioni`): prima il sito non le trovava. In modifica i
+  file si chiamano `{slug}` e `{slug}-sfondo` (vedi il core).
+- **Valore di serie dei campi in più dei blocchi**: chiave `default`; il lato
+  della foto dello spotlight è `left`, anche per un valore vuoto o non valido.
+- Le chiavi d'errore della fonte di una selezione sono scritte per intero:
+  `ErrorKeysTest` le trova.
+
 ### Aggiunto
 
+- **Bottone di elenco e swiper.** I due blocchi delle selezioni hanno «Testo
+  del bottone», «Azione» (tutti i prodotti, link personalizzato, categoria,
+  tag, marchio, prodotto) e la voce da aprire, che compare solo per l'azione
+  scelta. Nuovi tipi dei campi in più `category`, `tag`, `brand`, `product`
+  (select con ricerca, salvano lo slug) e la chiave `when`, che lega un campo
+  al valore di un altro; `cleanMeta()` svuota i campi dell'azione non scelta.
+  Sta in `block_meta`: si imposta in locale e arriva col sync.
 - **Ordine di marchi, categorie, tag e attributi**: le quattro liste si
   riordinano trascinando le righe (`TableLayoutSchema::reorderable()` del
   core); le categorie fra sorelle (`parent_id`), con il filtro «Livello» per
