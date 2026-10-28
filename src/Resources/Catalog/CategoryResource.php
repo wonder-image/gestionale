@@ -9,6 +9,7 @@ use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
@@ -168,8 +169,48 @@ final class CategoryResource extends GestionaleResource
                 'list' => 'Categorie',
                 'create' => 'Nuova categoria',
                 'edit' => 'Modifica categoria',
-            ])
-            ->actions('list', [CatalogOrderResource::listAction('categorie')]);
+            ]);
+    }
+
+    /**
+     * Le categorie si riordinano trascinandole fra sorelle (`parent_id`): le
+     * posizioni valgono dentro il loro livello. Con «Livello» la lista mostra
+     * un livello solo, e trascinare diventa più semplice; senza, una
+     * categoria va accanto alla sorella più vicina.
+     */
+    public static function tableLayoutSchema(): TableLayoutSchema
+    {
+        $levels = ['' => 'Tutti', '0' => 'In cima all\'albero'];
+
+        foreach (CategoryTree::sorted(static::rows()) as $row) {
+            $levels[(string) $row['id']] = 'Dentro '.html_entity_decode((string) ($row['path'] ?? $row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return parent::tableLayoutSchema()
+            ->reorderable('position', 'parent_id')
+            ->filterQuery('Livello', 'livello', $levels, static fn (array $values): string => static::levelCondition($values));
+    }
+
+    /**
+     * La condizione del filtro «Livello»: le figlie delle categorie scelte,
+     * e con `0` quelle in cima. I valori arrivano già fra le opzioni.
+     *
+     * @param array<int, string> $values
+     */
+    public static function levelCondition(array $values): string
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $values), static fn (int $id): bool => $id > 0)));
+        $parts = [];
+
+        if (in_array('0', array_map('strval', $values), true)) {
+            $parts[] = '(`parent_id` IS NULL OR `parent_id` = 0)';
+        }
+
+        if ($ids !== []) {
+            $parts[] = '`parent_id` IN ('.implode(', ', $ids).')';
+        }
+
+        return $parts === [] ? '' : '('.implode(' OR ', $parts).')';
     }
 
     public static function permissionSchema(): PermissionSchema

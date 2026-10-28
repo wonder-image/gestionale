@@ -7,14 +7,14 @@ versionamento semantico.
 
 ### Aggiunto
 
-- **Ordina** per marchi, categorie, tag e attributi: dal bottone «Ordina»
-  degli elenchi si trascinano le righe e si salva; le categorie si ordinano un
-  livello alla volta. Pagina-form `CatalogOrderResource`, regole in
-  `Support\Catalog\CatalogOrder` (posizioni da 1, rifiuto
-  `catalog_order.changed` se l'elenco è cambiato nel frattempo). I tag hanno
-  ora `position` (nasce in fondo; l'elenco del pannello è ordinato per
-  posizione invece che per nome). Il sito già ordinava marchi, categorie e
-  attributi per `position`.
+- **Ordine di marchi, categorie, tag e attributi**: le quattro liste si
+  riordinano trascinando le righe (`TableLayoutSchema::reorderable()` del
+  core); le categorie fra sorelle (`parent_id`), con il filtro «Livello» per
+  vederne un livello solo. I tag hanno ora `position` (nasce in fondo; la lista
+  del pannello è ordinata per posizione invece che per nome). Il sito già
+  ordinava marchi, categorie e attributi per `position`. Richiede il core con
+  `TableLayoutSchema::reorderable()`: al rilascio del core che lo contiene va
+  alzato il requisito in `composer.json` e `module.json`.
 - **Tipo delle foto** (predisposto): `gst_product_images.type`, `packshot`
   (il prodotto) o `lifestyle` (il prodotto in uso), di serie `packshot`.
   `ProductImages::TYPES`, `type()` e `ofType()`. Il pannello non lo chiede

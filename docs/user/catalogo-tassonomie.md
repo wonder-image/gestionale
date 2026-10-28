@@ -32,7 +32,7 @@ delle categorie c'è **Aggiungi categoria**, che chiede nome e padre. La
 categoria nuova compare subito nell'albero, sotto il suo padre, già spuntata.
 
 Una categoria nuova si mette in fondo alle sue sorelle: l'ordine lo cambi
-quando vuoi da **Ordina** (vedi sotto).
+quando vuoi trascinandola nell'elenco (vedi sotto).
 
 Nell'elenco vedi il percorso completo, così capisci a colpo d'occhio dove sta
 ognuna.
@@ -42,21 +42,20 @@ ognuna.
 Marchi, categorie, tag e attributi compaiono nel sito (menu, filtri, schede)
 nell'ordine che scegli tu. Ogni elemento nuovo si mette in fondo.
 
-1. Apri l'elenco (**Catalogo → Marchi**, **Categorie**, **Tag** o
-   **Attributi**) e premi **Ordina** in alto.
-2. Trascina le righe dalla maniglia a sinistra. Da tastiera: Tab fino alla
-   maniglia, poi frecce su e giù.
-3. Salva.
+1. Apri l'elenco: **Catalogo → Marchi**, **Categorie**, **Tag** o
+   **Attributi**.
+2. Trascina la riga dalla maniglia a sinistra (i sei puntini) dove la vuoi.
+   Da tastiera: Tab fino alla maniglia, poi frecce su e giù.
+3. Lasciata la riga, l'ordine è già salvato e l'elenco si aggiorna.
 
-In cima alla pagina passi da un elenco all'altro senza tornare indietro.
+La maniglia c'è solo quando l'elenco è nel suo ordine: se lo riordini per
+nome cliccando su una colonna, sparisce. Si trascina dentro la pagina che
+vedi; per spostare una riga lontano, mostra più righe per pagina.
 
-Le categorie si ordinano un livello alla volta: prima quelle in cima
-all'albero, poi con **Ordina le sottocategorie** quelle dentro una categoria.
-**Su di un livello** ti riporta al livello sopra.
-
-Se nel frattempo qualcuno aggiunge o elimina un elemento dello stesso elenco,
-il pannello non salva e ti chiede di ricaricare la pagina: l'ordine che avevi
-in mente non comprende la riga nuova.
+Le categorie hanno un ordine per ogni livello: le sorelle sotto lo stesso
+padre. Con il filtro **Livello** vedi un livello solo («In cima all'albero»
+o «Dentro Abbigliamento») ed è il modo più comodo per ordinarle. Senza
+filtro, una categoria trascinata si mette accanto alla sorella più vicina.
 
 ## Gli articoli dentro categorie e tag
 

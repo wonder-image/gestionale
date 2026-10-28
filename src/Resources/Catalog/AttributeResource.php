@@ -11,6 +11,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
@@ -344,8 +345,16 @@ class AttributeResource extends GestionaleResource
                 'list' => 'Attributi',
                 'create' => 'Nuovo attributo',
                 'edit' => 'Modifica attributo',
-            ])
-            ->actions('list', [CatalogOrderResource::listAction('attributi')]);
+            ]);
+    }
+
+    /**
+     * Le righe si riordinano trascinandole dalla maniglia, con la lista
+     * ordinata per posizione: è l'ordine in cui il sito le elenca.
+     */
+    public static function tableLayoutSchema(): TableLayoutSchema
+    {
+        return parent::tableLayoutSchema()->reorderable();
     }
 
     public static function permissionSchema(): PermissionSchema

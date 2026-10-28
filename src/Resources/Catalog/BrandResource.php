@@ -9,6 +9,7 @@ use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
@@ -125,8 +126,16 @@ final class BrandResource extends GestionaleResource
                 'list' => 'Marchi',
                 'create' => 'Nuovo marchio',
                 'edit' => 'Modifica marchio',
-            ])
-            ->actions('list', [CatalogOrderResource::listAction('marchi')]);
+            ]);
+    }
+
+    /**
+     * Le righe si riordinano trascinandole dalla maniglia, con la lista
+     * ordinata per posizione: è l'ordine in cui il sito le elenca.
+     */
+    public static function tableLayoutSchema(): TableLayoutSchema
+    {
+        return parent::tableLayoutSchema()->reorderable();
     }
 
     public static function permissionSchema(): PermissionSchema
