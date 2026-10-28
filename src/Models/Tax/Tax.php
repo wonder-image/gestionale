@@ -46,7 +46,7 @@ final class Tax extends Model
     {
         return [
             Field::key('code')->text()->slug()->readonlyOnUpdate()->immutableOnUpdate(),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('description')->text(),
             Field::key('invoice_description')->text(),
             Field::key('rate')->number()->decimals(2),

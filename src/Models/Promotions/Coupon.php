@@ -75,7 +75,7 @@ final class Coupon extends Model
     {
         return [
             Field::key('code')->text()->sanitize(false),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('discount_type')->text()->sanitize(false),
             Field::key('discount_value')->number()->decimals(2),
             Field::key('min_order_amount')->number()->decimals(2),

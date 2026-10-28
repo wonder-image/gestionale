@@ -54,7 +54,7 @@ final class Customization extends Model
     {
         return [
             Field::key('code')->text()->uniqueCode(Codes::CUSTOMIZATION),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('label')->text(),
             Field::key('help_text')->text(),
             Field::key('kind')->text()->sanitize(false),

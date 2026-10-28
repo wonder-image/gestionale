@@ -152,7 +152,7 @@ final class PaymentMethod extends Model
     {
         return [
             Field::key('code')->text()->uniqueCode(Codes::PAYMENT_METHOD),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('sdi_code')->text()->sanitize(false),
             Field::key('provider')->text()->sanitize(false),
             Field::key('timing')->text()->sanitize(false),

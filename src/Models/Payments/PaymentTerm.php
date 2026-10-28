@@ -48,7 +48,7 @@ final class PaymentTerm extends Model
     {
         return [
             Field::key('code')->text()->uniqueCode(Codes::PAYMENT_TERM),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('sdi_condition')->text()->sanitize(false),
             Field::key('active')->text()->sanitize(false),
             Field::key('position')->number()->decimals(0),

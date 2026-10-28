@@ -60,7 +60,7 @@ final class Category extends Model
         return [
             Field::key('code')->text()->uniqueCode(Codes::CATEGORY),
             Field::key('parent_id')->number()->decimals(0),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('slug')->text()->slug()->readonlyOnUpdate()->immutableOnUpdate(),
             Field::key('image')
                 ->image()

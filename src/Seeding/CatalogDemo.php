@@ -123,8 +123,7 @@ final class CatalogDemo
     /**
      * La scheda tecnica dell'articolo che la usa: il testo della composizione.
      *
-     * Scritto come lo salva il campo (`sanitizeFirst()`: minuscole, poi
-     * maiuscola a ogni parola): «100% cotone» diventerebbe «100% Cotone».
+     * Il campo lo salva com'è scritto, maiuscole comprese.
      */
     private const COMPOSITION = 'Cotone 100%';
 

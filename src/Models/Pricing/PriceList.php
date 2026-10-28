@@ -49,7 +49,7 @@ final class PriceList extends Model
     {
         return [
             Field::key('code')->text()->uniqueCode(Codes::PRICE_LIST),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('currency')->text()->sanitize(false),
             Field::key('prices_include_tax')->text()->sanitize(false),
             Field::key('valid_from')->date(),

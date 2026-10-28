@@ -3635,6 +3635,9 @@ HTML
             // come in `deleteRecord()`: la chiave esterna non guarda le
             // funzionalità.
             ProductSuppliers::dropRemovedOptions($modelId);
+            if ($conVarianti) {
+                static::dropEmptyVariants($modelId);
+            }
             // I fornitori di quelle che restano e di quelle appena nate
             // (P107): dopo il generatore, che dice chi è nato.
             static::saveSuppliers($modelId, $post, $righe, $nate, $scritte, $conVarianti, $riprese);
@@ -4728,7 +4731,7 @@ HTML
                 Product::delete((int) $product['id']);
             }
 
-            foreach (static::variants($modelId) as $variant) {
+            foreach (static::allVariants($modelId) as $variant) {
                 foreach (ProductAttributes::read('variant', (int) $variant['id']) as $link) {
                     ProductAttributes::modelClass('variant')::delete((int) $link['id']);
                 }
@@ -6096,6 +6099,44 @@ HTML)->tag('div');
     public static function variants(int $modelId): array
     {
         return static::rowsOf(ProductVariant::class, ['product_model_id' => $modelId], 'position');
+    }
+
+    /**
+     * Le varianti del modello, anche quelle nel cestino: come
+     * `allProducts()`, per chi elimina l'articolo.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected static function allVariants(int $modelId): array
+    {
+        return static::rowsOf(ProductVariant::class, ['product_model_id' => $modelId, 'deleted' => ['true', 'false']], 'position');
+    }
+
+    /**
+     * Nel cestino le varianti senza più un prodotto vivo.
+     *
+     * Restavano sul sito come una scelta in più, vuota: lo scheletro buttato
+     * dal repeater accendendo le varianti, o un colore a cui sono state tolte
+     * tutte le taglie. L'ultima variante resta: un articolo ne ha sempre una.
+     */
+    protected static function dropEmptyVariants(int $modelId): void
+    {
+        $variants = static::variants($modelId);
+        $piene = [];
+
+        foreach (static::products($modelId) as $product) {
+            $piene[(int) ($product['product_variant_id'] ?? 0)] = true;
+        }
+
+        $vuote = array_filter($variants, static fn (array $v): bool => !isset($piene[(int) $v['id']]));
+
+        if ($vuote === [] || count($vuote) === count($variants)) {
+            return;
+        }
+
+        foreach ($vuote as $variant) {
+            ProductVariant::update(['deleted' => 'true'], (int) $variant['id']);
+        }
     }
 
     /** @return list<array<string, mixed>> */

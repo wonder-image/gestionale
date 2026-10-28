@@ -62,7 +62,7 @@ final class PlanPrice extends Model
         return [
             Field::key('code')->text()->uniqueCode(Codes::PLAN_PRICE),
             Field::key('plan_id')->number()->decimals(0),
-            Field::key('name')->text()->sanitizeFirst(),
+            Field::key('name')->text()->sanitize(),
             Field::key('billing_interval')->text()->sanitize(false),
             Field::key('term_months')->number()->decimals(0),
             Field::key('commitment_months')->number()->decimals(0),

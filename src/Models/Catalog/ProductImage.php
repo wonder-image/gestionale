@@ -100,7 +100,7 @@ final class ProductImage extends Model
             Field::key('product_variant_id')->number()->decimals(0),
             Field::key('product_id')->number()->decimals(0),
             self::deferredImage(),
-            Field::key('alt')->text()->sanitizeFirst(),
+            Field::key('alt')->text()->sanitize(),
             Field::key('type')->text()->sanitize(false),
             Field::key('position')->number()->decimals(0),
             Field::key('status')->text()->sanitize(false),

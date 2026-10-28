@@ -46,7 +46,7 @@ final class CustomizationOption extends Model
     {
         return [
             Field::key('customization_id')->number()->decimals(0),
-            Field::key('label')->text()->sanitizeFirst(),
+            Field::key('label')->text()->sanitize(),
             Field::key('surcharge')->number()->decimals(2),
             Field::key('position')->number()->decimals(0),
         ];
