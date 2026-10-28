@@ -121,12 +121,14 @@ check('le righe: variante col suo articolo, senza vuote, inesistenti e doppioni,
     ], $articoloDi);
 
     $chiavi = array_map(
-        static fn (array $riga): string => Placements::itemKey($riga['product_model_id'], $riga['product_variant_id']),
+        static fn (array $riga): string => Placements::itemKey($riga['product_model_id'], (int) $riga['product_variant_id']),
         $righe
     );
 
     return $chiavi === ['v35', 'm12', 'v34', 'v50']
         && $righe[0]['product_model_id'] === 12
+        && $righe[1]['product_variant_id'] === null
+        && $righe[2]['product_variant_id'] === 34
         && $righe[0]['id'] === '9'
         && $righe[0]['image'] === '[]'
         && !array_key_exists('item', $righe[0]);

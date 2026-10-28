@@ -31,7 +31,9 @@ versionamento semantico.
   facoltativa. Tabelle `gst_product_selections` e `gst_product_placements`
   (`context_type` + `context_id`); regole e chiavi in
   `Support\Catalog\Placements`, il repeater in `Support\Catalog\PlacementsForm`.
-  L'ordine lo applica il sito (ecommerce). Passo a mano: `php forge update`.
+  L'ordine lo applica il sito (ecommerce). Un articolo senza variante si salva
+  con `product_variant_id` NULL (`Placements::cleanRows()`): con 0 la chiave
+  esterna rifiutava la riga. Passo a mano: `php forge update`.
 - **Blocco e fonte delle selezioni**: `gst_product_selections` ha `block`
   (VARCHAR 50, di serie `default`) e `block_meta` (JSON, i campi in più del
   blocco), `source` (VARCHAR 30, di serie `manual`), `source_category_slugs`,

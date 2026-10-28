@@ -258,6 +258,8 @@ final class Placements
 
             $seen[$key] = true;
             unset($row['item']);
+            // Senza variante NULL, non 0: la colonna ha la chiave esterna.
+            $item['product_variant_id'] = $item['product_variant_id'] > 0 ? $item['product_variant_id'] : null;
             $out[] = array_merge($row, $item);
         }
 
