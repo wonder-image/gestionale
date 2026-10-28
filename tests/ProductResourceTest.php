@@ -35,7 +35,7 @@ $campi = static function (): array {
 
 // La scheda intera: le funzionalità di «Scheda prodotto» accese, salvo che
 // il test le spenga.
-const SCHEDA_ACCESA = ['packages' => true, 'measures' => true, 'tax_categories' => true, 'variants' => true, 'related_suggested' => true, 'related_alternative' => true];
+const SCHEDA_ACCESA = ['packages' => true, 'measures' => true, 'tax_categories' => true, 'variants' => true, 'related_suggested' => true, 'related_alternative' => true, 'technical_sheet' => true];
 
 // Le funzionalità si forzano riscrivendo la mappa memoizzata; `null` torna
 // alla scheda intera.

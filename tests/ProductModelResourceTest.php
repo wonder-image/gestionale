@@ -49,7 +49,7 @@ $campi = static function (): array {
 
 // La scheda intera: le funzionalità di «Scheda prodotto» accese, salvo che
 // il test le spenga.
-const SCHEDA_ACCESA = ['packages' => true, 'measures' => true, 'tax_categories' => true, 'variants' => true, 'related_suggested' => true, 'related_alternative' => true];
+const SCHEDA_ACCESA = ['packages' => true, 'measures' => true, 'tax_categories' => true, 'variants' => true, 'related_suggested' => true, 'related_alternative' => true, 'technical_sheet' => true];
 
 /** Sostituisce la mappa delle funzionalità; `null` torna alla scheda intera. */
 $forza = static function (?array $stato): void {
@@ -3464,6 +3464,21 @@ check('la scheda in lettura mette il nome dell\'articolo nel titolo della pagina
     $vista = (string) file_get_contents(__DIR__ . '/../view/pages/product-model-show.php');
 
     return str_contains($vista, "'TITLE' => \$nome");
+});
+
+check('spenta la «Scheda tecnica», niente riquadro né caratteristiche', function () use ($forza, $riquadri, $schedaTecnica) {
+    $forza(['technical_sheet' => false]);
+
+    try {
+        $titoli = $riquadri(0);
+        $nomi = array_map(static fn ($campo): string => (string) $campo->name, $schedaTecnica::formSchema());
+    } finally {
+        $forza(null);
+    }
+
+    return !in_array('Scheda tecnica', $titoli, true)
+        && preg_grep('/^attribute_/', $nomi) === []
+        && in_array('Scheda tecnica', $riquadri(0), true);
 });
 
 summary();

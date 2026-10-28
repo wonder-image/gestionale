@@ -38,7 +38,12 @@ versionamento semantico.
   `gst_faqs` e i ponti `gst_faq_categories`, `gst_faq_tags`, `gst_faq_brands`,
   `gst_faq_product_models`; il selettore è quello di campagne e coupon
   (`ProductScope` owner `faq`). Per il frontend `Support\Catalog\Faqs::forModel()`
-  e `Faqs::home()`. Passo a mano: `php forge update`.
+  e `Faqs::home()`. È la funzionalità *FAQ* (`faqs`, area «Catalogo»): spenta,
+  la pagina non c'è e `Faqs` non restituisce niente. Passo a mano: `php forge update`.
+- **Scheda tecnica attivabile**: la funzionalità *Scheda tecnica*
+  (`technical_sheet`) nella card «Scheda prodotto». Spenta, l'articolo e
+  l'opzione non mostrano il riquadro né le caratteristiche, e salvando non le
+  toccano: i valori già scritti restano.
 - **Scheda prodotto essenziale**: nel pannello Funzionalità la card nuova
   «Scheda prodotto» con *Articoli suggeriti* (`related_suggested`), *Articoli
   alternativi* (`related_alternative`), *Varianti* (`variants`), *Misure*
@@ -53,7 +58,7 @@ versionamento semantico.
   righe da trascinare) in `Support\Catalog\RelatedProductsEditor`; MCP:
   `product_set_related` risponde `feature_off` sul tipo spento.
   Nei siti esistenti le funzionalità nuove nascono spente: vanno accese dal
-  pannello.
+  pannello. Vale anche per *FAQ* e *Scheda tecnica*.
 
 - **Paese di riserva per la spedizione del carrello**: `Shipping::options($cartId,
   $country)` usa `$country` finché il carrello non ha un indirizzo (né di

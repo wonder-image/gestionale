@@ -623,7 +623,9 @@ class ProductModelResource extends GestionaleResource
             ...static::optionsCard($modelId),
         ];
 
-        $cards[] = static::technicalSheetCard();
+        if (static::technicalSheetActive()) {
+            $cards[] = static::technicalSheetCard();
+        }
 
         if (Gestionale::feature('customizations')) {
             $cards[] = static::customizationsCard();
@@ -6341,6 +6343,12 @@ HTML)->tag('div');
         };
     }
 
+    /** La funzionalità «Scheda tecnica»: spenta, articolo e opzioni non chiedono caratteristiche. */
+    protected static function technicalSheetActive(): bool
+    {
+        return Gestionale::feature('technical_sheet');
+    }
+
     /**
      * Le caratteristiche della scheda tecnica: gli attributi dell'articolo.
      *
@@ -6352,6 +6360,10 @@ HTML)->tag('div');
      */
     protected static function technicalAttributes(): array
     {
+        if (!static::technicalSheetActive()) {
+            return [];
+        }
+
         return array_values(array_filter(
             Attributes::byLevel(static::attributes(), 'model'),
             static fn (array $attribute): bool => !Attributes::usesValues((string) ($attribute['type'] ?? ''))
@@ -9562,6 +9574,11 @@ HTML
 
     protected static function saveModelAttributes(int $modelId, array $post): void
     {
+        // Spenta la scheda tecnica i campi non arrivano: salvare li svuoterebbe.
+        if (!static::technicalSheetActive()) {
+            return;
+        }
+
         $attributes = Attributes::byLevel(static::attributes(), 'model');
         $input = [];
 

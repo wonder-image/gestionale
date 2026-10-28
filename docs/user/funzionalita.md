@@ -46,6 +46,8 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Varianti | Scheda prodotto | Articoli in più versioni (taglia, colore…) con prezzo, codice e giacenza per versione. | — |
 | Misure | Scheda prodotto | Unità di misura, peso e dimensioni dell'articolo. Spenta, il peso conta come non inserito. | — |
 | Aliquote | Scheda prodotto | Tipo fiscale scelto per articolo. Spenta, ogni articolo usa il tipo fiscale predefinito. | — |
+| Scheda tecnica | Scheda prodotto | Caratteristiche dell'articolo e delle sue opzioni (materiale, simboli di lavaggio…). Spenta, la scheda non le chiede e quelle già scritte restano salvate. | — |
+| FAQ | Catalogo | Domande frequenti con la risposta, nella scheda dei prodotti scelti e nella home. Spenta, il sito non le mostra. | — |
 | Etichette | Catalogo | Etichette con codice a barre e prezzo in PDF. | — |
 | Più sedi | Magazzino | Altre sedi con giacenze proprie e trasferimenti. | — |
 | Acquisti | Magazzino | Fornitori e costi d'acquisto nei prodotti e nei carichi, valore del magazzino. | — |

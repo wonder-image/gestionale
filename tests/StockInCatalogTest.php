@@ -13,7 +13,7 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 
 // La scheda intera: Varianti e Misure accese, come in un negozio che le usa.
-const SCHEDA_ACCESA = ['packages' => true, 'measures' => true, 'tax_categories' => true, 'variants' => true, 'related_suggested' => true, 'related_alternative' => true];
+const SCHEDA_ACCESA = ['packages' => true, 'measures' => true, 'tax_categories' => true, 'variants' => true, 'related_suggested' => true, 'related_alternative' => true, 'technical_sheet' => true];
 (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, SCHEDA_ACCESA);
 
 /**

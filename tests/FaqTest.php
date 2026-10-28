@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Faq;
@@ -142,6 +143,22 @@ check('la domanda tiene le maiuscole scritte da chi la compila', function () {
     }
 
     return false;
+});
+
+check('spenta la funzionalità, niente pagina e il sito non legge FAQ', function () {
+    $stato = new ReflectionProperty(Gestionale::class, 'features');
+    $stato->setValue(null, ['faqs' => false]);
+
+    try {
+        return FaqResource::$feature === 'faqs'
+            && !FaqResource::featureActive()
+            && (FaqResource::navigationSchema()->toArray()['enabled'] ?? true) === false
+            && Faqs::visible() === []
+            && Faqs::forModel(1) === []
+            && Faqs::home() === [];
+    } finally {
+        $stato->setValue(null, null);
+    }
 });
 
 summary();
