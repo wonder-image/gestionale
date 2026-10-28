@@ -37,6 +37,12 @@ sue sorelle.
 Nell'elenco vedi il percorso completo, così capisci a colpo d'occhio dove sta
 ognuna.
 
+## L'ordine nel sito
+
+Con la vendita online la scheda di una categoria o di un tag ha anche il
+riquadro **Ordine nel sito**: gli articoli da mettere in cima e la regola per
+gli altri. Lo trovi spiegato in [Selezioni e ordine nel sito](catalogo-selezioni.md).
+
 ## Cose che il pannello non ti lascia fare
 
 - **Mettere una categoria sotto sé stessa** o sotto una sua sottocategoria: non

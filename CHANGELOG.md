@@ -7,6 +7,19 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Selezioni e ordine nel sito** (con *Vendita online*): in Catalogo →
+  Selezioni gli elenchi scelti a mano per i blocchi del sito («In evidenza»
+  della home, il prodotto del mese), con titolo, sottotitolo, testo e immagine
+  del blocco e una regola d'ordine (`manual`, `newest`, `name`, `price_asc`,
+  `price_desc`). Categorie e tag hanno il riquadro «Ordine nel sito»: gli
+  articoli «in evidenza» da mettere in cima e la regola per gli altri
+  (`sort_mode`, di serie «Come il catalogo»); le impostazioni hanno
+  `catalog_sort`, l'ordine di tutto il catalogo (di serie `position`, quello di
+  prima). Ogni riga è un articolo o una sola variante, con una foto di contesto
+  facoltativa. Tabelle `gst_product_selections` e `gst_product_placements`
+  (`context_type` + `context_id`); regole e chiavi in
+  `Support\Catalog\Placements`, il repeater in `Support\Catalog\PlacementsForm`.
+  L'ordine lo applica il sito (ecommerce). Passo a mano: `php forge update`.
 - **FAQ**: in Catalogo → FAQ domande e risposte da mostrare nella scheda dei
   prodotti scelti (tutti, oppure categorie con le sottocategorie, tag, marchi
   e articoli, con gli esclusi) e, con «Mostra nella home», nella home. Tabelle

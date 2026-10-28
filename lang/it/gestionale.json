@@ -142,6 +142,9 @@
                 "question_required": "Scrivi la domanda.",
                 "answer_required": "Scrivi la risposta."
             },
+            "selection": {
+                "name_required": "Scrivi il nome della selezione."
+            },
             "brand": {
                 "name_required": "Scrivi il nome del marchio."
             },

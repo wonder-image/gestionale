@@ -34,6 +34,7 @@ final class Codes
     public const PACKAGE = 'pkg_';
     public const CUSTOMIZATION = 'cus_';
     public const FAQ = 'faq_';
+    public const SELECTION = 'sel_';
 
     // Anagrafiche e sedi
     public const CONTACT = 'con_';

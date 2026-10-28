@@ -16,6 +16,8 @@ use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
+use Wonder\Plugin\Gestionale\Support\Catalog\PlacementsForm;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 
 /**
@@ -23,9 +25,16 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
  *
  * Un tag usato non si elimina: si nasconde, così le schede non perdono
  * l'etichetta che qualcuno aveva messo apposta.
+ *
+ * Con «Vendita online» la scheda ha anche «Ordine nel sito», come le
+ * categorie ({@see Placements}).
  */
 final class TagResource extends GestionaleResource
 {
+    use PlacementsForm;
+
+    public const PLACEMENT_CONTEXT = Placements::TAG;
+
     public static string $model = Tag::class;
     public static string $orderColumn = 'name';
     public static string $orderDirection = 'ASC';
@@ -67,6 +76,8 @@ final class TagResource extends GestionaleResource
             'slug' => 'Url pubblico',
             'image' => 'Immagine',
             'visible' => 'Stato',
+            'sort_mode' => 'Ordine degli altri articoli',
+            'placements' => 'In evidenza',
         ];
     }
 
@@ -80,6 +91,7 @@ final class TagResource extends GestionaleResource
                 ->label('Stato')
                 ->required(),
             FormField::key('image')->fileDragDrop('image')->label('Immagine'),
+            ...static::siteOrderFields(),
         ];
     }
 
@@ -95,6 +107,8 @@ final class TagResource extends GestionaleResource
                     static::getInput('visible')->columnSpan(4),
                     static::getInput('image')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
+
+                ...static::siteOrderCards('Gli articoli con questo tag, nel sito. «In evidenza» vanno in cima, nell\'ordine in cui li trascini; gli altri seguono la regola scelta. Un articolo in evidenza senza questo tag non compare. La foto di contesto è facoltativa: la usano i blocchi del sito che la prevedono, per esempio una griglia «Giorno» e «Notte».'),
             ])->columns(12)->columnSpan(12),
         ]);
     }
@@ -158,7 +172,18 @@ final class TagResource extends GestionaleResource
             unset($values['slug']);
         }
 
-        return $values;
+        return static::siteOrderValues($values);
+    }
+
+    public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
+    {
+        return static::placementFormValues($values);
+    }
+
+    public static function afterDelete(int|string $id, object $result, array $values = []): void
+    {
+        Placements::dropContext(Placements::TAG, (int) $id);
+        parent::afterDelete($id, $result, $values);
     }
 
     /** Un tag usato resta, nascosto. */
