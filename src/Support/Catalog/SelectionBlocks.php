@@ -235,13 +235,19 @@ final class SelectionBlocks
 
     /**
      * `block_meta` come arriva dal modello: array già letto o JSON salvato,
-     * anche con le entità del salvataggio.
+     * anche con le entità del salvataggio. La colonna è `json` (utf8mb4): con la
+     * connessione latin1 MySQL la ridà in cp1252, che va riportato in UTF-8.
      *
      * @return array<string, mixed>
      */
     public static function decodeMeta(mixed $meta): array
     {
         if (is_string($meta) && $meta !== '') {
+            if (!mb_check_encoding($meta, 'UTF-8')) {
+                $meta = mb_convert_encoding($meta, 'UTF-8', 'Windows-1252');
+            }
+
+
             $decoded = json_decode($meta, true);
             $meta = is_array($decoded) ? $decoded : json_decode(html_entity_decode($meta, ENT_QUOTES | ENT_HTML5, 'UTF-8'), true);
         }
