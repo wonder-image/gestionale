@@ -80,6 +80,8 @@ final class Setting extends Model
             Column::key('delivery_freight_terms')->enum(['prepaid', 'collect'])->default('prepaid'),
             Column::key('subscription_unpaid_days')->int()->default(15),
             Column::key('subscriptions_per_customer')->int()->default(1),
+            // L'ordine degli articoli nel catalogo del sito, dove una categoria o un tag non ne sceglie un altro.
+            Column::key('catalog_sort')->enum(['position', 'newest', 'name', 'price_asc', 'price_desc'])->default('position'),
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -118,6 +120,7 @@ final class Setting extends Model
             Field::key('delivery_freight_terms')->text()->sanitize(false),
             Field::key('subscription_unpaid_days')->number()->decimals(0),
             Field::key('subscriptions_per_customer')->number()->decimals(0),
+            Field::key('catalog_sort')->text()->sanitize(false),
         ];
 
         foreach (SettingsSections::all() as $section) {

@@ -52,6 +52,11 @@ final class ProductImage extends Model
             Column::key('product_id')->int()->foreign(Product::$table),
             Column::key('file')->json(),
             Column::key('alt'),
+            // Che foto è (Support\Catalog\ProductImages::TYPES): `packshot` il
+            // prodotto da solo, `lifestyle` il prodotto in uso, con le persone o
+            // l'ambiente. Oggi il pannello non lo chiede e ogni foto nasce
+            // packshot: la colonna c'è per chi la vorrà scegliere.
+            Column::key('type')->enum(['packshot', 'lifestyle'])->default('packshot'),
             Column::key('position')->int(),
             Column::key('status')->enum(['pending', 'ready', 'failed'])->default('pending'),
             Column::key('attempts')->int(),
@@ -96,6 +101,7 @@ final class ProductImage extends Model
             Field::key('product_id')->number()->decimals(0),
             self::deferredImage(),
             Field::key('alt')->text()->sanitizeFirst(),
+            Field::key('type')->text()->sanitize(false),
             Field::key('position')->number()->decimals(0),
             Field::key('status')->text()->sanitize(false),
             Field::key('attempts')->number()->decimals(0),

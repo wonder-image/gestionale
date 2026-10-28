@@ -18,6 +18,7 @@ use Wonder\Plugin\Custom\Fattura\Valori\RegimiFiscali;
 use Wonder\Plugin\Gestionale\Extensions\SettingsSections;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
+use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 use Wonder\Plugin\Gestionale\Support\Numbers;
@@ -82,6 +83,7 @@ final class SettingResource extends SingletonResource
             'delivery_freight_terms' => 'Porto',
             'subscription_unpaid_days' => 'Giorni prima di «non pagato»',
             'subscriptions_per_customer' => 'Abbonamenti in corso per cliente',
+            'catalog_sort' => 'Ordine del catalogo',
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -150,6 +152,9 @@ final class SettingResource extends SingletonResource
                     FormField::key('subscription_unpaid_days')->number()->decimal(0)->value(15)->label('Giorni prima di «non pagato»'),
                     FormField::key('subscriptions_per_customer')->number()->decimal(0)->value(1)->label('Abbonamenti in corso per cliente'),
                 ]
+                : []),
+            ...(Gestionale::feature('online_sales')
+                ? [FormField::key('catalog_sort')->select(Placements::CATALOG_SORT_MODES)->value('position')->label('Ordine del catalogo')->required()]
                 : []),
         ];
 
@@ -252,6 +257,13 @@ final class SettingResource extends SingletonResource
                 ->columnSpan(12);
             $out[] = static::getInput('subscription_unpaid_days')->columnSpan(4);
             $out[] = static::getInput('subscriptions_per_customer')->columnSpan(4);
+        }
+
+        if (Gestionale::feature('online_sales')) {
+            $out[] = SectionTitle::make('Catalogo del sito')
+                ->tooltip('L\'ordine degli articoli nel catalogo del sito, dove una categoria o un tag non ne sceglie un altro. Gli articoli «in evidenza» di categorie e tag vengono sempre prima; chi visita il sito può comunque riordinare per prezzo o nome.')
+                ->columnSpan(12);
+            $out[] = static::getInput('catalog_sort')->columnSpan(4);
         }
 
         return $out;
@@ -515,6 +527,13 @@ final class SettingResource extends SingletonResource
             if (array_key_exists('subscriptions_per_customer', $values)) {
                 $values['subscriptions_per_customer'] = static::perCustomer($values['subscriptions_per_customer']);
             }
+        }
+
+        // L'ordine del catalogo del sito, solo con la vendita online: una scelta nota o quella di partenza.
+        if (!Gestionale::feature('online_sales')) {
+            unset($values['catalog_sort']);
+        } elseif (array_key_exists('catalog_sort', $values)) {
+            $values['catalog_sort'] = Placements::catalogSortMode($values['catalog_sort']);
         }
 
         // G9, scadenzario: da 0 a 365 giorni; vuoto torna ai 7 di partenza.

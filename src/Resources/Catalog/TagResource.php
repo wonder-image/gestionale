@@ -9,6 +9,7 @@ use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
@@ -16,18 +17,28 @@ use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
+use Wonder\Plugin\Gestionale\Support\Catalog\PlacementsForm;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
+use Wonder\Plugin\Gestionale\Support\Positions;
 
 /**
  * "Tag": un'etichetta trasversale alle categorie ("novità", "saldi").
  *
  * Un tag usato non si elimina: si nasconde, così le schede non perdono
  * l'etichetta che qualcuno aveva messo apposta.
+ *
+ * Con «Vendita online» la scheda ha anche «Ordine nel sito», come le
+ * categorie ({@see Placements}).
  */
 final class TagResource extends GestionaleResource
 {
+    use PlacementsForm;
+
+    public const PLACEMENT_CONTEXT = Placements::TAG;
+
     public static string $model = Tag::class;
-    public static string $orderColumn = 'name';
+    public static string $orderColumn = 'position';
     public static string $orderDirection = 'ASC';
     public static string $docsPage = 'catalogo/catalogo-tassonomie';
 
@@ -67,6 +78,8 @@ final class TagResource extends GestionaleResource
             'slug' => 'Url pubblico',
             'image' => 'Immagine',
             'visible' => 'Stato',
+            'sort_mode' => 'Ordine degli altri articoli',
+            'placements' => 'In evidenza',
         ];
     }
 
@@ -80,6 +93,7 @@ final class TagResource extends GestionaleResource
                 ->label('Stato')
                 ->required(),
             FormField::key('image')->fileDragDrop('image')->label('Immagine'),
+            ...static::siteOrderFields(),
         ];
     }
 
@@ -95,6 +109,8 @@ final class TagResource extends GestionaleResource
                     static::getInput('visible')->columnSpan(4),
                     static::getInput('image')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
+
+                ...static::siteOrderCards('Gli articoli con questo tag, nel sito. «In evidenza» vanno in cima, nell\'ordine in cui li trascini; gli altri seguono la regola scelta. Un articolo in evidenza senza questo tag non compare. La foto di contesto è facoltativa: la usano i blocchi del sito che la prevedono, per esempio una griglia «Giorno» e «Notte».'),
             ])->columns(12)->columnSpan(12),
         ]);
     }
@@ -118,6 +134,15 @@ final class TagResource extends GestionaleResource
                 'create' => 'Nuovo tag',
                 'edit' => 'Modifica tag',
             ]);
+    }
+
+    /**
+     * Le righe si riordinano trascinandole dalla maniglia, con la lista
+     * ordinata per posizione: è l'ordine in cui il sito le elenca.
+     */
+    public static function tableLayoutSchema(): TableLayoutSchema
+    {
+        return parent::tableLayoutSchema()->reorderable();
     }
 
     public static function permissionSchema(): PermissionSchema
@@ -154,11 +179,24 @@ final class TagResource extends GestionaleResource
 
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) ($values['name'] ?? ''), Tag::$table);
+            // In fondo agli altri: l'ordine si cambia da «Ordina».
+            $values['position'] = Positions::next(Tag::$table);
         } else {
-            unset($values['slug']);
+            unset($values['slug'], $values['position']);
         }
 
-        return $values;
+        return static::siteOrderValues($values);
+    }
+
+    public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
+    {
+        return static::placementFormValues($values);
+    }
+
+    public static function afterDelete(int|string $id, object $result, array $values = []): void
+    {
+        Placements::dropContext(Placements::TAG, (int) $id);
+        parent::afterDelete($id, $result, $values);
     }
 
     /** Un tag usato resta, nascosto. */

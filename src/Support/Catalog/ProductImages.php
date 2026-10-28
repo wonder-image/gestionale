@@ -24,6 +24,34 @@ final class ProductImages
      */
     public const DIR = '/app/gestionale/prodotti/';
 
+    /** Il prodotto da solo, su fondo neutro: la foto della card e della scheda. */
+    public const PACKSHOT = 'packshot';
+
+    /** Il prodotto in uso, con le persone o l'ambiente: la foto di contesto. */
+    public const LIFESTYLE = 'lifestyle';
+
+    public const TYPES = [self::PACKSHOT => 'Prodotto', self::LIFESTYLE => 'In uso'];
+
+    /** Il tipo di una foto; una riga senza tipo (o con uno sconosciuto) è packshot. */
+    public static function type(array $image): string
+    {
+        $type = (string) ($image['type'] ?? '');
+
+        return isset(self::TYPES[$type]) ? $type : self::PACKSHOT;
+    }
+
+    /**
+     * Solo le foto di un tipo, nel loro ordine. Si usa dopo {@see for()}:
+     * prima si sceglie di chi sono le foto, poi quali.
+     *
+     * @param list<array<string, mixed>> $images
+     * @return list<array<string, mixed>>
+     */
+    public static function ofType(array $images, string $type): array
+    {
+        return array_values(array_filter($images, static fn ($image): bool => is_array($image) && self::type($image) === $type));
+    }
+
     /** La cartella vera sotto `assets/upload`. */
     public static function folder(): string
     {

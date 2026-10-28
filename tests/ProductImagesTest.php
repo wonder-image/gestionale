@@ -153,4 +153,31 @@ check('il campo e la scheda usano il prefisso nel nome del file', function () {
         && str_contains($resource, "'file_prefix' => ProductImages::filePrefix(");
 });
 
+check('ogni foto ha un tipo, di serie packshot', function () use ($colonne) {
+    $tipo = $colonne(ProductImage::class)['type'] ?? null;
+
+    return $tipo !== null
+        && $tipo->getSchema('enum') === ['packshot', 'lifestyle']
+        && $tipo->getSchema('default') === 'packshot'
+        && array_keys(ProductImages::TYPES) === ['packshot', 'lifestyle'];
+});
+
+check('una riga senza tipo, o con uno sconosciuto, è packshot', fn () =>
+    ProductImages::type([]) === 'packshot'
+    && ProductImages::type(['type' => 'lifestyle']) === 'lifestyle'
+    && ProductImages::type(['type' => 'altro']) === 'packshot'
+);
+
+check('si tengono solo le foto del tipo chiesto, nel loro ordine', function () {
+    $foto = [
+        ['id' => 1, 'type' => 'lifestyle'],
+        ['id' => 2],
+        ['id' => 3, 'type' => 'lifestyle'],
+        'non una foto',
+    ];
+
+    return array_column(ProductImages::ofType($foto, 'lifestyle'), 'id') === [1, 3]
+        && array_column(ProductImages::ofType($foto, 'packshot'), 'id') === [2];
+});
+
 summary();

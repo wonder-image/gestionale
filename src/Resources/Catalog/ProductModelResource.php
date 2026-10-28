@@ -66,6 +66,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\PageAxis;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Packages;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
+use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
 use Wonder\Plugin\Gestionale\Support\Catalog\RelatedProducts;
 use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
 use Wonder\Plugin\Gestionale\Support\Catalog\RelatedProductsEditor;
@@ -4709,6 +4710,10 @@ HTML
             // Gli articoli collegati nei due versi: anche quelli che altri
             // articoli hanno collegato a questo.
             RelatedProducts::dropFor($modelId);
+
+            // Le righe degli elenchi del sito (selezioni, «in evidenza»):
+            // puntano all'articolo e alle sue varianti.
+            Placements::dropForModel($modelId);
 
             // Anche le opzioni tolte dalla griglia, prima delle varianti: una
             // riga nel cestino tiene ferma la sua variante come le altre.

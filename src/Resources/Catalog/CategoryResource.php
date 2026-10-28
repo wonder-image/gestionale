@@ -9,6 +9,7 @@ use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
@@ -17,6 +18,8 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
+use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
+use Wonder\Plugin\Gestionale\Support\Catalog\PlacementsForm;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Positions;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -28,9 +31,17 @@ use Wonder\Plugin\Gestionale\Support\RequestMemo;
  * L'albero è profondo quanto serve, ma una categoria non può finire sotto sé
  * stessa né sotto una sua discendente: il select non le propone e il
  * salvataggio le rifiuta lo stesso, perché il select non è una difesa.
+ *
+ * Con «Vendita online» la scheda ha anche «Ordine nel sito»: la regola con
+ * cui il sito ordina gli articoli della categoria e quelli «in evidenza» che
+ * mette in cima ({@see Placements}).
  */
 final class CategoryResource extends GestionaleResource
 {
+    use PlacementsForm;
+
+    public const PLACEMENT_CONTEXT = Placements::CATEGORY;
+
     public static string $model = Category::class;
     public static string $orderColumn = 'position';
     public static string $orderDirection = 'ASC';
@@ -74,12 +85,15 @@ final class CategoryResource extends GestionaleResource
             'image' => 'Immagine',
             'description' => 'Descrizione',
             'visible' => 'Stato',
+            'sort_mode' => 'Ordine degli altri articoli',
+            'placements' => 'In evidenza',
         ];
     }
 
     public static function formSchema(): array
     {
         return [
+            ...static::siteOrderFields(),
             FormField::key('name')->text()->label('Nome')->required(),
             // Elenca le categorie: nel «+ Aggiungi categoria» della scheda
             // prodotto una categoria appena creata diventa subito un padre
@@ -118,6 +132,8 @@ final class CategoryResource extends GestionaleResource
                     SectionTitle::make('Immagine')->columnSpan(12),
                     static::getInput('image')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
+
+                ...static::siteOrderCards('Gli articoli della categoria e delle sue sottocategorie, nel sito. «In evidenza» vanno in cima, nell\'ordine in cui li trascini; gli altri seguono la regola scelta. Un articolo in evidenza che non sta nella categoria non compare. La foto di contesto è facoltativa: la usano i blocchi del sito che la prevedono.'),
             ])->columns(12)->columnSpan(12),
         ]);
     }
@@ -154,6 +170,47 @@ final class CategoryResource extends GestionaleResource
                 'create' => 'Nuova categoria',
                 'edit' => 'Modifica categoria',
             ]);
+    }
+
+    /**
+     * Le categorie si riordinano trascinandole fra sorelle (`parent_id`): le
+     * posizioni valgono dentro il loro livello. Con «Livello» la lista mostra
+     * un livello solo, e trascinare diventa più semplice; senza, una
+     * categoria va accanto alla sorella più vicina.
+     */
+    public static function tableLayoutSchema(): TableLayoutSchema
+    {
+        $levels = ['' => 'Tutti', '0' => 'In cima all\'albero'];
+
+        foreach (CategoryTree::sorted(static::rows()) as $row) {
+            $levels[(string) $row['id']] = 'Dentro '.html_entity_decode((string) ($row['path'] ?? $row['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        return parent::tableLayoutSchema()
+            ->reorderable('position', 'parent_id')
+            ->filterQuery('Livello', 'livello', $levels, static fn (array $values): string => static::levelCondition($values));
+    }
+
+    /**
+     * La condizione del filtro «Livello»: le figlie delle categorie scelte,
+     * e con `0` quelle in cima. I valori arrivano già fra le opzioni.
+     *
+     * @param array<int, string> $values
+     */
+    public static function levelCondition(array $values): string
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $values), static fn (int $id): bool => $id > 0)));
+        $parts = [];
+
+        if (in_array('0', array_map('strval', $values), true)) {
+            $parts[] = '(`parent_id` IS NULL OR `parent_id` = 0)';
+        }
+
+        if ($ids !== []) {
+            $parts[] = '`parent_id` IN ('.implode(', ', $ids).')';
+        }
+
+        return $parts === [] ? '' : '('.implode(' OR ', $parts).')';
     }
 
     public static function permissionSchema(): PermissionSchema
@@ -211,6 +268,7 @@ final class CategoryResource extends GestionaleResource
             unset($values['slug'], $values['position']);
         }
 
+        $values = static::siteOrderValues($values);
         $id = (int) ($oldValues['id'] ?? 0);
 
         if ($parent > 0) {
@@ -232,7 +290,7 @@ final class CategoryResource extends GestionaleResource
             $values['parent_id'] = '0';
         }
 
-        return $values;
+        return static::placementFormValues($values);
     }
 
     /**
@@ -323,6 +381,7 @@ final class CategoryResource extends GestionaleResource
     public static function afterDelete(int|string $id, object $result, array $values = []): void
     {
         RequestMemo::forget(Category::MEMO_GROUP);
+        Placements::dropContext(Placements::CATEGORY, (int) $id);
         parent::afterDelete($id, $result, $values);
     }
 }
