@@ -47,7 +47,7 @@ final class Auth
             // I permessi vengono dall'utente del grant, non dal client.
             $authority = array_values(array_map('strval', (array) ($oauth->user->authority ?? [])));
 
-            return new Caller($oauth->userId, null, $authority, (string) UrlParser::requestIp($server), $oauth->grantId);
+            return new Caller($oauth->userId, null, $authority, (string) UrlParser::requestIp($server), $oauth->grantId, $oauth->scopes);
         }
 
         try {

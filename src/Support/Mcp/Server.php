@@ -74,7 +74,7 @@ final class Server
         $out = [];
 
         foreach (self::enabled() ? Tools::all() : [] as $name => $tool) {
-            if ($caller->allows(Tools::roles($tool['permission']))) {
+            if (self::opens($caller, $tool)) {
                 $out[] = [
                     'name' => $name,
                     'description' => $tool['description'],
@@ -87,6 +87,12 @@ final class Server
         return $out;
     }
 
+    /** Servono sia i ruoli dell'utente sia, per un token OAuth, lo scope approvato. */
+    private static function opens(Caller $caller, array $tool): bool
+    {
+        return $caller->allows(Tools::roles($tool['permission'])) && $caller->grants(Tools::scope($tool));
+    }
+
     /** @return array<string, mixed> */
     private static function call(mixed $id, array $params, Caller $caller): array
     {
@@ -95,7 +101,7 @@ final class Server
         $tool = is_string($name) ? ($tools[$name] ?? null) : null;
 
         // Uno strumento non permesso è come uno che non esiste.
-        if ($tool === null || !$caller->allows(Tools::roles($tool['permission']))) {
+        if ($tool === null || !self::opens($caller, $tool)) {
             return self::error($id, self::INVALID_PARAMS, self::text('unknown_tool', ['name' => is_string($name) ? $name : '']));
         }
 

@@ -6,8 +6,9 @@ use Wonder\Plugin\Gestionale\Gestionale;
 
 // Risorsa OAuth (RFC 9728): il framework espone i metadati e accetta i token wio_at_.
 // Con la funzionalità `mcp` spenta i metadati non annunciano la risorsa.
+// Gli scope (per area, lettura o scrittura) limitano un token sotto i permessi dell'utente.
 if (Gestionale::feature('mcp')) {
-    \Wonder\OAuth\OAuth::resource('/api/gestionale/mcp', 'Gestionale');
+    \Wonder\OAuth\OAuth::resource('/api/gestionale/mcp', 'Gestionale', \Wonder\Plugin\Gestionale\Support\Mcp\Tools::scopes());
 }
 
 // Gli eventi Stripe del modulo, oltre a quelli del core: li legge «Collega webhook».
