@@ -9,4 +9,9 @@ use Wonder\Plugin\Gestionale\Support\Sales\OfficeCustomerPanel;
 $contactId = ApiRequest::int('contact_id');
 $result = OfficeCustomerPanel::save(ApiRequest::string('action'), $contactId, ApiRequest::body());
 
-ApiRequest::json(array_merge($result, OfficeCustomerPanel::payload($contactId)), $result['ok'] ? 200 : 422);
+if (!$result['ok']) {
+    ApiRequest::error($result['message'], 422);
+}
+
+unset($result['ok']);
+ApiRequest::ok(array_merge($result, OfficeCustomerPanel::payload($contactId)));

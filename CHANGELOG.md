@@ -777,6 +777,13 @@ versionamento semantico.
   commerciante; l'anteprima del checkout mostra solo i provider collegati.
 
 ### Cambiato
+- **Le API del backend nella busta comune.** Ricerca versioni (magazzino e ordini),
+  clienti, salvataggio del cliente, costo di spedizione, articoli collegati e il
+  webhook Stripe rispondono `{success, status, response}` con `ApiRequest::ok()` /
+  `error()` del core. I clienti non ripetono più la lista in `customers` (resta
+  `items`); un salvataggio rifiutato è un errore 422 con il messaggio in `response`.
+  Serve il core con `Wonder\Api\Envelope`. I PDF e i CSV restano un 404 di testo:
+  sono scaricamenti del browser, non API.
 
 - **Niente aliquota di ripiego** (gestionale#81): il `TaxResolver` è l'unico
   punto che decide l'aliquota e, senza una regola per paese, tipo di cliente

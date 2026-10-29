@@ -14,16 +14,16 @@ $scope = ApiRequest::string('scope');
 
 if ($scope !== '') {
     // *Aggiungi versioni* dell'inventario: tutte, una categoria o un marchio.
-    ApiRequest::json(StockVersionSearch::scope($scope, ApiRequest::int('scope_id'), $location));
+    ApiRequest::ok(StockVersionSearch::scope($scope, ApiRequest::int('scope_id'), $location));
 }
 
 if ($ids !== '') {
     // Cambiando la sede, la pagina rilegge la giacenza delle sue righe.
-    ApiRequest::json(['versions' => array_values(StockVersionSearch::describe(explode(',', $ids), $location))]);
+    ApiRequest::ok(['versions' => array_values(StockVersionSearch::describe(explode(',', $ids), $location))]);
 }
 
 if ($code !== '') {
-    ApiRequest::json(StockVersionSearch::scan($code, $location));
+    ApiRequest::ok(StockVersionSearch::scan($code, $location));
 }
 
-ApiRequest::json(['versions' => StockVersionSearch::search(ApiRequest::string('q'), $location)]);
+ApiRequest::ok(['versions' => StockVersionSearch::search(ApiRequest::string('q'), $location)]);

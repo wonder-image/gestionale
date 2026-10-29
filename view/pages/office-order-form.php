@@ -193,7 +193,7 @@ try {
             return response.json();
         }).then(function (data) {
             if (mine === seq) {
-                done(data || {});
+                done((data && data.response) || {});
             }
         }, function () {
             toast('La scheda del cliente non risponde: riprova.');
@@ -329,15 +329,15 @@ try {
             headers: {Accept: 'application/json', 'X-WI-CSRF': meta ? meta.content : ''},
             body: body
         }).then(function (response) {
-            return response.json().catch(function () { return {ok: false, message: 'HTTP ' + response.status}; });
+            return response.json().catch(function () { return {success: false, response: 'HTTP ' + response.status}; });
         }).then(function (data) {
-            if (!data.ok) {
-                toast(data.message || data.response || 'Non salvato.');
+            if (!data || !data.success) {
+                toast((data && data.response) || 'Non salvato.');
 
                 return;
             }
 
-            done(data);
+            done(data.response || {});
         }, function () {
             toast('Il salvataggio non risponde: riprova.');
         });
@@ -480,12 +480,15 @@ try {
         }).then(function (response) {
             return response.json();
         }).then(function (data) {
+            // Un errore della busta ha il messaggio in `response`; il preventivo è un oggetto.
+            var quote = data && data.success ? (data.response || {}) : {ok: false, message: (data && data.response) || ''};
+
             if (mine !== quoteSeq || method() <= 0) {
                 return;
             }
 
-            amount.value = data.ok ? String(data.amount).replace('.', ',') : '';
-            note(data.ok ? (data.free ? 'Gratis per la soglia del listino.' : 'Dal listino del metodo.') : (data.message || data.response || ''));
+            amount.value = quote.ok ? String(quote.amount).replace('.', ',') : '';
+            note(quote.ok ? (quote.free ? 'Gratis per la soglia del listino.' : 'Dal listino del metodo.') : (quote.message || ''));
         }, function () {
             if (mine === quoteSeq) {
                 note('Il costo del listino non risponde: riprova.');
