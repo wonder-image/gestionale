@@ -49,6 +49,17 @@ Ogni strumento prende i ruoli dal `permissionSchema()` della Resource (o dal
 ad `api_internal_user`. Chi non li ha non vede lo strumento in `tools/list` e
 non lo può chiamare.
 
+Un token OAuth è limitato anche dagli scope approvati nel consenso, uno per
+area e per lettura o scrittura: `catalog:read`, `catalog:write`, `sales:read`,
+`sales:write`, `stock:write` (`write` vale anche come `read`). L'area è la
+cartella della Resource del permesso (`Resources\Catalog\…` → `catalog`), la
+scrittura è il flag `write` dello strumento: `Tools::scope()`. `Tools::scopes()`
+dichiara alla risorsa OAuth solo gli scope che aprono almeno uno strumento, con
+le etichette in `gestionale.errors.mcp.scope.*`. Lo scope non allarga mai i
+ruoli; il JWT di `api_users` non ha scope (`Caller::$scopes` è `null`). Un
+grant creato prima degli scope vale per tutti. Lo controlla
+`tests/McpScopeTest.php`.
+
 Le API di Resource generate dal core sono un'altra cosa: ognuna dichiara chi
 la chiama con `permissionSchema()->api(azione, [authority])`, e senza quella
 riga risponde 403 a tutti. Nel modulo c'è solo lo `store` degli otto target

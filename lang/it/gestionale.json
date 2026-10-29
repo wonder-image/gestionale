@@ -416,6 +416,13 @@
                 "object": "`{{field}}` deve essere un oggetto.",
                 "method": "Metodo non supportato: {{method}}.",
                 "unknown_tool": "Strumento sconosciuto: {{name}}.",
+                "scope": {
+                    "catalog_read": "Leggere il catalogo: prodotti, prezzi, categorie, attributi e personalizzazioni",
+                    "catalog_write": "Modificare il catalogo",
+                    "stock_write": "Rettificare le giacenze",
+                    "sales_read": "Leggere ordini e preventivi",
+                    "sales_write": "Cambiare lo stato degli ordini e creare preventivi"
+                },
                 "disabled": "Il server MCP non è attivo.",
                 "internal": "Errore interno: riprova; se si ripete, guarda il log del server.",
                 "parse": "Il corpo della richiesta non è JSON valido.",
