@@ -1,5 +1,6 @@
 <?php
 
+use Wonder\Api\Envelope;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentEvents;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
 
@@ -12,4 +13,5 @@ $code = $provider === null ? 503 : PaymentEvents::handle($provider, $raw, $signa
 http_response_code($code);
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
-echo json_encode(['received' => $code === 200]);
+// Stripe legge solo il codice HTTP; il corpo è la busta comune.
+echo json_encode($code === 200 ? Envelope::success(['received' => true]) : Envelope::error('Evento non ricevuto.', $code));

@@ -23,6 +23,9 @@ window.wiSearchClient = window.wiSearchClient || function (options) {
             }
 
             return response.json();
+        }).then(function (json) {
+            // Busta comune `{success, status, response}`: agli editor va il dato.
+            return json && typeof json === 'object' && 'success' in json && 'response' in json ? json.response : json;
         }).then(done, fail);
     }
 

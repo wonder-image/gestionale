@@ -10,11 +10,11 @@ $code = ApiRequest::string('code');
 $ids = ApiRequest::string('ids');
 
 if ($ids !== '') {
-    ApiRequest::json(['versions' => OfficeSearch::describe(explode(',', $ids), $location)]);
+    ApiRequest::ok(['versions' => OfficeSearch::describe(explode(',', $ids), $location)]);
 }
 
 if ($code !== '') {
-    ApiRequest::json(OfficeSearch::scan($code, $location));
+    ApiRequest::ok(OfficeSearch::scan($code, $location));
 }
 
-ApiRequest::json(['versions' => OfficeSearch::versions(ApiRequest::string('q'), $location)]);
+ApiRequest::ok(['versions' => OfficeSearch::versions(ApiRequest::string('q'), $location)]);

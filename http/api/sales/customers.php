@@ -10,9 +10,8 @@ use Wonder\Plugin\Gestionale\Support\Sales\OfficeSearch;
 $id = ApiRequest::int('id');
 
 if ($id > 0) {
-    ApiRequest::json(OfficeCustomerPanel::payload($id) ?: ['customer' => (object) []]);
+    ApiRequest::ok(OfficeCustomerPanel::payload($id) ?: ['customer' => (object) []]);
 }
 
-$customers = OfficeSearch::customers(ApiRequest::string('q'));
-
-ApiRequest::json(['items' => $customers, 'customers' => $customers]);
+// `items` è la forma che legge la ricerca remota del core.
+ApiRequest::ok(['items' => OfficeSearch::customers(ApiRequest::string('q'))]);
