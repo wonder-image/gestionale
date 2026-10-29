@@ -62,7 +62,7 @@ final class AttributeValueResource extends GestionaleResource
      */
     public static function apiSchema(): ApiSchema
     {
-        return ApiSchema::for(static::class)
+        return parent::apiSchema()
             ->only(['store'])
             ->fields('store', ['attribute_id', 'label']);
     }

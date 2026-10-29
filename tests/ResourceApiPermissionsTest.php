@@ -6,6 +6,7 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Api\Support\ResourceApiAccess;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
@@ -39,6 +40,12 @@ foreach (glob(__DIR__ . '/../src/Resources/*/*Resource.php') as $file) {
         $resources[] = $class;
     }
 }
+
+// Tutte le funzionalità accese: spenta, una Resource chiude le API e qui non si vedrebbero.
+(new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, array_fill_keys(
+    array_filter(array_map(static fn (string $r): string => property_exists($r, 'feature') ? $r::$feature : '', $resources)),
+    true
+));
 
 $attive = static function (string $resource): array {
     $schema = $resource::apiSchema()->toArray();

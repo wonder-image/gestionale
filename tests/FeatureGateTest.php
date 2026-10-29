@@ -7,7 +7,9 @@ require __DIR__ . '/harness.php';
 
 use Wonder\App\Model;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Resources\Shipping\ShippingZoneResource;
 
 final class ModelloDiProva extends Model
 {
@@ -65,6 +67,21 @@ check('funzionalità attiva: tutto torna disponibile', function () use ($forza) 
     return ResourceConFunzionalita::featureActive() === true
         && (bool) ResourceConFunzionalita::navigationSchema()->get('enabled') === true
         && ($pages['list'] ?? false) === true;
+});
+
+// Le Resource con solo `store` (il + della scheda prodotto) passano anche loro dal gate.
+check('API solo store: chiusa con la funzionalità bloccata, aperta con quella attiva', function () use ($forza) {
+    $forza(['customizations' => false, 'shipping' => false]);
+    $chiuse = (bool) CustomizationResource::apiSchema()->get('enabled') === false
+        && (bool) ShippingZoneResource::apiSchema()->get('enabled') === false;
+
+    $forza(['customizations' => true, 'shipping' => true]);
+    $routes = (array) ShippingZoneResource::apiSchema()->get('routes');
+
+    return $chiuse
+        && (bool) CustomizationResource::apiSchema()->get('enabled') === true
+        && ($routes['store'] ?? false) === true
+        && array_keys(array_filter($routes)) === ['store'];
 });
 
 summary();
