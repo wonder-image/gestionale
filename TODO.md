@@ -369,14 +369,14 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 
 **Fuori dal percorso della consegna (D61)**
 
-- [ ] G8 Fatturazione elettronica — il checkout è già previsto con la fatturazione spenta (§8.6); serve se il negozio fattura a partite IVA o su richiesta. Con D63 prende anche la fattura differita TD24 e la fattura della merce consegnata prima del pagamento di G9
+- [ ] G8 Fatturazione elettronica → [gestionale#109](https://github.com/wonder-image/gestionale/issues/109) — il checkout è già previsto con la fatturazione spenta (§8.6); serve se il negozio fattura a partite IVA o su richiesta. Con D63 prende anche la fattura differita TD24 e la fattura della merce consegnata prima del pagamento di G9
 
 **Dopo il primo rilascio**
 
 - [ ] Starter da `boilerplates/ecommerce-site` (D12)
-- [ ] E2 PayPal e Nexi
-- [ ] E4 Portale B2B con account creato dall'azienda cliente (D31)
-- [ ] `AuthFederated` e accesso al sito con Apple e Google (D46)
+- [ ] E2 PayPal e Nexi → [ecommerce#22](https://github.com/wonder-image/ecommerce/issues/22)
+- [ ] E4 Portale B2B con account creato dall'azienda cliente (D31) → [ecommerce#23](https://github.com/wonder-image/ecommerce/issues/23)
+- [ ] `AuthFederated` e accesso al sito con Apple e Google (D46) → [ecommerce#24](https://github.com/wonder-image/ecommerce/issues/24), [app#89](https://github.com/wonder-image/app/issues/89)
 
 ### Debiti tecnici del gestionale
 
@@ -403,7 +403,7 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 - [x] EAN-13 ed EAN-8 in `createBarcode()`, insieme alle etichette (funzionalità futura, D30, D59)
 - [x] Nexi: alias e chiave MAC nella classe `Nexi`, oltre all'API key (D50)
 - [x] Opzione `docs()` nel `PageSchema` per il pulsante "Guida" del backend (D32)
-- [ ] Dopo il primo rilascio: completare l'accesso con Google e Apple (`AuthFederated`), oggi non funzionante (D31, D58)
+- [ ] Dopo il primo rilascio: completare l'accesso con Google e Apple (`AuthFederated`), oggi non funzionante (D31, D58) → [app#89](https://github.com/wonder-image/app/issues/89)
 - [x] Sync con `id` stabili: opzione di `SyncSchema` che esporta `id` e `deleted`, import che inserisce o aggiorna per `id` senza `TRUNCATE`, righe assenti segnate come cancellate (D54)
 - [x] Pagine delle tabelle sincronizzate in sola lettura in produzione, con avviso (D54)
 - [x] `forge update` in locale: classe `Defaults` di ogni modulo abilitato, in ordine di dipendenza, poi aggiornamento di `shared/sync-data.json` (D54)
@@ -421,10 +421,10 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 
 ### Verifiche con il commercialista
 
-- [ ] IVA di spedizione e commissioni ad aliquota fissa, rispetto all'art. 12 DPR 633/72 per chi vende prodotti al 10% o al 4% (D37)
+- [x] IVA di spedizione e commissioni ad aliquota fissa, rispetto all'art. 12 DPR 633/72 per chi vende prodotti al 10% o al 4% (D37) — risolta in [gestionale#81](https://github.com/wonder-image/gestionale/issues/81): la spedizione segue l'aliquota dei prodotti
 - [ ] Regole di emissione delle fatture: dopo il pagamento, merce consegnata prima all'evasione o in differita, scelta TD01/TD24 dalle date (D45, art. 6 e 21 DPR 633/72)
-- [ ] Sezionale dedicato alle fatture emesse dal sito (D49)
-- [ ] Carte regalo, quando si realizzano: buono multiuso, natura IVA della riga di vendita, codice del metodo di pagamento in fattura (D36)
+- [ ] Sezionale dedicato alle fatture emesse dal sito (D49) → [gestionale#109](https://github.com/wonder-image/gestionale/issues/109)
+- [ ] Carte regalo, quando si realizzano: buono multiuso, natura IVA della riga di vendita, codice del metodo di pagamento in fattura (D36) → [gestionale#114](https://github.com/wonder-image/gestionale/issues/114)
 
 ### Verifiche legali
 
@@ -432,32 +432,28 @@ Sequenza in D59. Ogni sotto-progetto segue: spec → piano → implementazione �
 
 ## Funzionalità future e fasi successive
 
-Fuori dal primo rilascio; progettate a grandi linee o solo annotate.
+Fuori dal primo rilascio. Il backlog è nelle GitHub Issue (`future` nel gestionale); qui resta l'indice con le decisioni di riferimento.
 
-- [ ] Carte regalo vendute (D36)
 - [ ] Nuovo abbonamento da ufficio: le colonne delle personalizzazioni si vedono su ogni riga del repeater (dietro «Avanzate»), perché `visibleWhen` non vale dentro una riga; mostrarle solo per il piano scelto quando il core lo permette (G10b)
-- [ ] Etichette con codice a barre, con i formati precaricati (D30, D59)
-- [ ] Rimborsi dei resi: importo per riga, spedizione, gateway, nota di credito (D40)
-- [ ] Note di credito manuali e automatiche (D40, D45)
-- [ ] Resi: cambio automatico con un altro prodotto, rimborso con carta regalo, etichetta di reso del corriere (D40)
-- [ ] Coupon: generazione in blocco di codici usa e getta, più coupon nello stesso ordine (D35)
-- [ ] Listini: importazione da file, listini per categoria (D33)
-- [ ] Importazione da file di catalogo, clienti e giacenze iniziali (D55)
-- [ ] Magazzino: ordini a fornitore, inventario con conteggio guidato, soglia di scorta minima per sede (D27, D29)
-- [ ] Anagrafiche: più utenti della stessa azienda sul portale B2B, referenti aziendali, gruppi di clienti (D31)
-- [ ] Marketplace e feed, compreso Google Merchant (D7, D23)
-  - [ ] Sincronizzazione con Google Merchant Center via Content API (il feed a indirizzo fisso c'è già: `shared/feeds/google-merchant.xml`, D64)
-  - [ ] Sincronizzazione con il Catalogo Meta (Facebook e Instagram) via Catalog API (il feed programmato c'è già: `shared/feeds/catalogo-meta.csv`, D64)
-  - [ ] Feed: `google_product_category` per categoria, colore/taglia/materiale dagli attributi, spedizione e lingue
-  - [ ] Esportazioni personalizzabili per sito (colonne e filtri), sopra il registro `ProductExports`
-  - [ ] Sincronizzazione con TikTok Shop (funzionalità `export_tiktok` prevista)
-  - [ ] Sincronizzazione con Amazon (funzionalità `export_amazon` prevista)
-- [ ] Dati aziendali da Google (core): cron che verifica orari e chiusure dalla scheda Google tramite Place ID, Place ID dall'autocomplete, embed automatico della mappa
-- [ ] Spedizioni: zone per CAP, orari di ritiro prenotabili (D41)
-- [ ] Spedizioni: tariffe in tempo reale dal corriere, prenotazione del ritiro del corriere, tracking per singolo collo (D42)
-- [ ] Corrieri collegati: prima un aggregatore scelto con 2-3 commercianti reali, poi corrieri diretti come BRT (D51)
-- [ ] Banco con integrazione fiscale: ricerca (registratore telematico con API, server RT, documento commerciale online, collegamento POS-RT) e sotto-progetto, con verifica delle tabelle in bozza (D43)
-- [ ] Banco: funzionamento senza connessione, stampante e cassetto, lotteria degli scontrini (D43)
-- [ ] Abbonamenti con prodotti fisici: prodotti del piano, spedizione e scarico a ogni rinnovo (D44)
-- [ ] Email di recupero dei carrelli abbandonati (D47)
-- [ ] Scontrino digitale per i privati negli ordini online, da valutare con la ricerca del banco (D43, D46)
+- Gestionale
+  - Fatturazione elettronica e TD24 (G8, D45, D49, D63) → [gestionale#109](https://github.com/wonder-image/gestionale/issues/109)
+  - Resi: rimborsi, note di credito, cambio, etichetta (D40, D45) → [gestionale#110](https://github.com/wonder-image/gestionale/issues/110)
+  - Spedizioni e corrieri collegati (D41, D42, D51) → [gestionale#111](https://github.com/wonder-image/gestionale/issues/111)
+  - Google Merchant e Meta via API, attributi dei feed, esportazioni (D7, D23, D64) → [gestionale#112](https://github.com/wonder-image/gestionale/issues/112)
+  - Amazon, TikTok Shop ed eBay con bindCommerce (D7, D23) → [gestionale#89](https://github.com/wonder-image/gestionale/issues/89)
+  - Coupon in blocco (D35) → [gestionale#113](https://github.com/wonder-image/gestionale/issues/113)
+  - Carte regalo (D36) → [gestionale#114](https://github.com/wonder-image/gestionale/issues/114)
+  - Magazzino: ordini a fornitore, inventario, scorta minima (D27, D29) → [gestionale#115](https://github.com/wonder-image/gestionale/issues/115)
+  - Etichette con codice a barre (D30, D59) → [gestionale#116](https://github.com/wonder-image/gestionale/issues/116)
+  - Banco con integrazione fiscale e scontrino digitale (D43, D46) → [gestionale#117](https://github.com/wonder-image/gestionale/issues/117)
+  - Abbonamenti con prodotti fisici (D44) → [gestionale#118](https://github.com/wonder-image/gestionale/issues/118)
+  - Importazione del catalogo e delle giacenze (D55) → [gestionale#84](https://github.com/wonder-image/gestionale/issues/84)
+  - Importazione di clienti e listini, listini per categoria (D33, D55) → [gestionale#119](https://github.com/wonder-image/gestionale/issues/119)
+- Ecommerce
+  - Portale B2B con più utenti, referenti e gruppi (D31) → [ecommerce#23](https://github.com/wonder-image/ecommerce/issues/23)
+  - Carrelli abbandonati (D47) → [ecommerce#51](https://github.com/wonder-image/ecommerce/issues/51)
+  - Checkout per agenti AI → [ecommerce#49](https://github.com/wonder-image/ecommerce/issues/49)
+  - Lista desideri e carte salvate → [ecommerce#50](https://github.com/wonder-image/ecommerce/issues/50)
+- Core
+  - Dati aziendali da Google → [app#71](https://github.com/wonder-image/app/issues/71), [app#108](https://github.com/wonder-image/app/issues/108)
+  - Verifica in due passaggi per lo staff → [app#162](https://github.com/wonder-image/app/issues/162)
