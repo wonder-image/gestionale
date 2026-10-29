@@ -86,6 +86,27 @@ final class Auth
         return new Caller((int) $user->id, (int) ($token->id ?? 0), $authority, (string) $ip);
     }
 
+    /**
+     * L'intestazione `WWW-Authenticate` di un 401: con un bearer presente
+     * (JWT o wio_at_) è un token non valido, senza solo `resource_metadata`
+     * (RFC 6750 §3.1). Con MCP spento la risorsa OAuth non c'è: solo il realm.
+     */
+    public static function challenge(bool $invalid): string
+    {
+        $plain = 'Bearer realm="gestionale"'.($invalid ? ', error="invalid_token"' : '');
+
+        if (!Server::enabled()) {
+            return $plain;
+        }
+
+        try {
+            return \Wonder\OAuth\Metadata::wwwAuthenticate(self::RESOURCE, $invalid ? 'invalid_token' : null);
+        } catch (\Wonder\OAuth\OAuthException) {
+            // APP_URL non valido: niente resource_metadata, ma il 401 resta gestito.
+            return $plain;
+        }
+    }
+
     /** @param array<string, mixed> $server */
     public static function bearer(array $server): string
     {

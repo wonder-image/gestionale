@@ -36,8 +36,8 @@ use Wonder\Sql\Transaction;
 
 /**
  * Gli strumenti del server MCP: leggere, creare e modificare prodotti,
- * prezzi, giacenze e categorie, e far avanzare lo stato degli ordini.
- * Niente altro.
+ * prezzi, giacenze e categorie, far avanzare lo stato degli ordini e
+ * leggere i clienti. Niente altro. Li usano anche le API REST (`Support\Api\Rest`).
  *
  * Ogni strumento dichiara il permesso della risorsa del backend che fa la
  * stessa cosa (`[Resource, azione]`): chi non può farlo dal backend non lo
@@ -212,7 +212,7 @@ final class Tools
                 'write' => true,
                 'run' => self::orderAction(...),
             ],
-        ] + CatalogTools::all() + QuoteTools::all();
+        ] + CatalogTools::all() + QuoteTools::all() + ContactTools::all();
     }
 
     /**
