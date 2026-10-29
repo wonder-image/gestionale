@@ -25,6 +25,19 @@ Route::area('api')->response('json')->frontend()->translatable(false)
         // GET risponde 405 con `Allow: POST`: la specifica Streamable HTTP lo
         // chiede a chi non apre lo stream SSE. Senza rotta sarebbe un 404.
         Route::get('/mcp/', Gestionale::handlerPath('api/mcp.php'))->name('mcp.get');
+        // API REST: ogni rotta è uno strumento MCP, con gli stessi permessi e
+        // scope. Attive con il gestionale, anche con la funzionalità `mcp` spenta.
+        foreach (\Wonder\Plugin\Gestionale\Support\Api\Rest::routes() as $name => $route) {
+            $definition = Route::{strtolower($route['method'])}(
+                \Wonder\Plugin\Gestionale\Support\Api\Rest::PREFIX.$route['path'],
+                Gestionale::handlerPath('api/v1.php'),
+                ['rest' => $name]
+            )->name('v1.'.$name);
+
+            if (isset($route['id'])) {
+                $definition->where('id', '[0-9]+');
+            }
+        }
     });
 
 // Il backend del gestionale: con la sessione e i permessi delle pagine.

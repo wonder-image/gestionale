@@ -26,6 +26,15 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **API REST** su `/api/gestionale/v1/` per prodotti, giacenze, ordini e
+  clienti (#79). Ogni rotta chiama uno strumento MCP con gli stessi permessi,
+  scope, regole e registro `gst_mcp_logs`. Rispondono 401, 403, 404 e 422 nella
+  busta comune. Restano attive anche con `mcp` spenta per i token di
+  `api_users`; i token OAuth valgono solo con `mcp` accesa. Vedi
+  `docs/dev/concetti/api-rest.md`.
+- **Clienti via MCP**: `customers_list` e `customer_get`, in sola lettura, con
+  il nuovo scope `contacts:read`.
+
 - **Bottone di elenco e swiper.** I due blocchi delle selezioni hanno «Testo
   del bottone», «Azione» (tutti i prodotti, link personalizzato, categoria,
   tag, marchio, prodotto) e la voce da aprire, che compare solo per l'azione

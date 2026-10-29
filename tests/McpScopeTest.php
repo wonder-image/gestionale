@@ -19,9 +19,9 @@ $chiama = static fn (Caller $caller, string $nome): array => Server::handle(
     $caller
 );
 
-check('ogni strumento ha un\'area fra catalogo, magazzino e vendite', function () {
+check('ogni strumento ha un\'area fra catalogo, magazzino, vendite e clienti', function () {
     foreach (Tools::all() as $tool) {
-        if (!preg_match('/^(catalog|stock|sales):(read|write)$/', Tools::scope($tool))) {
+        if (!preg_match('/^(catalog|stock|sales|contacts):(read|write)$/', Tools::scope($tool))) {
             return false;
         }
     }
@@ -32,7 +32,7 @@ check('ogni strumento ha un\'area fra catalogo, magazzino e vendite', function (
 check('gli scope dichiarati sono quelli degli strumenti, con l\'etichetta', function () {
     $scopes = Tools::scopes();
 
-    return array_keys($scopes) === ['catalog:read', 'catalog:write', 'sales:read', 'sales:write', 'stock:write']
+    return array_keys($scopes) === ['catalog:read', 'catalog:write', 'contacts:read', 'sales:read', 'sales:write', 'stock:write']
         && !in_array('', $scopes, true)
         && !str_contains(implode('', $scopes), 'mcp.scope');
 });

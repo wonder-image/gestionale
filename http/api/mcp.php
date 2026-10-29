@@ -35,17 +35,7 @@ try {
     $caller = Auth::fromRequest($_SERVER);
 } catch (McpError $error) {
     if ($error->getCode() === 401) {
-        // Con un bearer presente (JWT o wio_at_) ogni 401 è un token non valido;
-        // senza bearer solo resource_metadata (RFC 6750 §3.1).
-        $invalid = Auth::bearer($_SERVER) !== '';
-        try {
-            $www = \Wonder\OAuth\Metadata::wwwAuthenticate('/api/gestionale/mcp', $invalid ? 'invalid_token' : null);
-        } catch (\Wonder\OAuth\OAuthException) {
-            // APP_URL non valido: niente resource_metadata, ma il 401 resta gestito.
-            $www = 'Bearer realm="mcp"';
-        }
-
-        header('WWW-Authenticate: '.$www);
+        header('WWW-Authenticate: '.Auth::challenge(Auth::bearer($_SERVER) !== ''));
     }
 
     $respond($error->getCode() ?: 401, Server::error(null, Server::INVALID_REQUEST, $error->getMessage()));
