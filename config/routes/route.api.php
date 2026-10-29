@@ -21,11 +21,14 @@ Route::area('api')->response('json')->frontend()->translatable(false)
         // Server MCP: niente sessione, vale il token di `api_users`; i
         // permessi si controllano strumento per strumento.
         Route::post('/mcp/', Gestionale::handlerPath('api/mcp.php'))->name('mcp');
+        // GET risponde 405 con `Allow: POST`: la specifica Streamable HTTP lo
+        // chiede a chi non apre lo stream SSE. Senza rotta sarebbe un 404.
         Route::get('/mcp/', Gestionale::handlerPath('api/mcp.php'))->name('mcp.get');
     });
 
 // Il backend del gestionale: con la sessione e i permessi delle pagine.
-Route::area('api')->response('json')->backend()->translatable(false)
+// Il CSRF lo controlla il core sulle POST (header `X-WI-CSRF`): senza token, 403.
+Route::area('api')->response('json')->backend()->translatable(false)->csrf()
     ->name('api.gestionale.backend.')->prefix('/gestionale/backend')->group(function () {
         Route::get('/magazzino/versioni/', Gestionale::handlerPath('api/stock/versions.php'))
             ->name('stock.versions')->guarded()->permit(Access::roles(Gestionale::area('magazzino'), 'create'));

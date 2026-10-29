@@ -332,7 +332,7 @@ try {
             return response.json().catch(function () { return {ok: false, message: 'HTTP ' + response.status}; });
         }).then(function (data) {
             if (!data.ok) {
-                toast(data.message || 'Non salvato.');
+                toast(data.message || data.response || 'Non salvato.');
 
                 return;
             }
@@ -485,7 +485,7 @@ try {
             }
 
             amount.value = data.ok ? String(data.amount).replace('.', ',') : '';
-            note(data.ok ? (data.free ? 'Gratis per la soglia del listino.' : 'Dal listino del metodo.') : (data.message || ''));
+            note(data.ok ? (data.free ? 'Gratis per la soglia del listino.' : 'Dal listino del metodo.') : (data.message || data.response || ''));
         }, function () {
             if (mine === quoteSeq) {
                 note('Il costo del listino non risponde: riprova.');
