@@ -129,7 +129,7 @@ final class ShippingZoneResource extends GestionaleResource
     /** Solo `store`, per «Nuova zona…» nella scheda del metodo di spedizione. */
     public static function apiSchema(): ApiSchema
     {
-        return ApiSchema::for(static::class)
+        return parent::apiSchema()
             ->only(['store'])
             ->fields('store', ['name', 'country', 'province']);
     }

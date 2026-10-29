@@ -185,7 +185,7 @@ final class PackageResource extends GestionaleResource
     /** Solo `store`, per il "+" del riquadro Spedizione della scheda prodotto. */
     public static function apiSchema(): ApiSchema
     {
-        return ApiSchema::for(static::class)
+        return parent::apiSchema()
             ->only(['store'])
             ->fields('store', ['name', 'weight']);
     }

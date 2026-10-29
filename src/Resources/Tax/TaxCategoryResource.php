@@ -157,7 +157,7 @@ final class TaxCategoryResource extends GestionaleResource
      */
     public static function apiSchema(): ApiSchema
     {
-        return ApiSchema::for(static::class)
+        return parent::apiSchema()
             ->only(['store'])
             ->fields('store', ['code', 'name']);
     }
