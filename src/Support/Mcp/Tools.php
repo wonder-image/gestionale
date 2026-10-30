@@ -36,8 +36,8 @@ use Wonder\Sql\Transaction;
 
 /**
  * Gli strumenti del server MCP: leggere, creare e modificare prodotti,
- * prezzi, giacenze e categorie, e far avanzare lo stato degli ordini.
- * Niente altro.
+ * prezzi, giacenze e categorie, far avanzare lo stato degli ordini e
+ * leggere i clienti. Niente altro. Li usano anche le API REST (`Support\Api\Rest`).
  *
  * Ogni strumento dichiara il permesso della risorsa del backend che fa la
  * stessa cosa (`[Resource, azione]`): chi non può farlo dal backend non lo
@@ -212,7 +212,7 @@ final class Tools
                 'write' => true,
                 'run' => self::orderAction(...),
             ],
-        ] + CatalogTools::all() + QuoteTools::all();
+        ] + CatalogTools::all() + QuoteTools::all() + ContactTools::all();
     }
 
     /**
@@ -230,6 +230,37 @@ final class Tools
             : ((array) $resource::permissionSchema()->get('backend'))[$action] ?? [];
 
         return array_values(array_map('strval', array_filter((array) $roles, 'is_scalar')));
+    }
+
+    /**
+     * Lo scope OAuth che apre uno strumento: l'area è la cartella della
+     * risorsa del permesso (`Resources\Catalog\…` → `catalog`).
+     */
+    public static function scope(array $tool): string
+    {
+        $parts = explode('\\', $tool['permission'][0]);
+
+        return strtolower($parts[count($parts) - 2]).':'.($tool['write'] ? 'write' : 'read');
+    }
+
+    /**
+     * Gli scope della risorsa OAuth con l'etichetta della pagina di consenso:
+     * solo quelli che aprono almeno uno strumento.
+     *
+     * @return array<string, string>
+     */
+    public static function scopes(): array
+    {
+        $out = [];
+
+        foreach (self::all() as $tool) {
+            $scope = self::scope($tool);
+            $out[$scope] = Server::text('scope.'.str_replace(':', '_', $scope));
+        }
+
+        ksort($out);
+
+        return $out;
     }
 
     // ── Prodotti ─────────────────────────────────────────────────────────

@@ -6,8 +6,9 @@ use Wonder\Plugin\Gestionale\Gestionale;
 
 // Risorsa OAuth (RFC 9728): il framework espone i metadati e accetta i token wio_at_.
 // Con la funzionalità `mcp` spenta i metadati non annunciano la risorsa.
+// Gli scope (per area, lettura o scrittura) limitano un token sotto i permessi dell'utente.
 if (Gestionale::feature('mcp')) {
-    \Wonder\OAuth\OAuth::resource('/api/gestionale/mcp', 'Gestionale');
+    \Wonder\OAuth\OAuth::resource('/api/gestionale/mcp', 'Gestionale', \Wonder\Plugin\Gestionale\Support\Mcp\Tools::scopes());
 }
 
 // Gli eventi Stripe del modulo, oltre a quelli del core: li legge «Collega webhook».
@@ -21,11 +22,27 @@ Route::area('api')->response('json')->frontend()->translatable(false)
         // Server MCP: niente sessione, vale il token di `api_users`; i
         // permessi si controllano strumento per strumento.
         Route::post('/mcp/', Gestionale::handlerPath('api/mcp.php'))->name('mcp');
+        // GET risponde 405 con `Allow: POST`: la specifica Streamable HTTP lo
+        // chiede a chi non apre lo stream SSE. Senza rotta sarebbe un 404.
         Route::get('/mcp/', Gestionale::handlerPath('api/mcp.php'))->name('mcp.get');
+        // API REST: ogni rotta è uno strumento MCP, con gli stessi permessi e
+        // scope. Attive con il gestionale, anche con la funzionalità `mcp` spenta.
+        foreach (\Wonder\Plugin\Gestionale\Support\Api\Rest::routes() as $name => $route) {
+            $definition = Route::{strtolower($route['method'])}(
+                \Wonder\Plugin\Gestionale\Support\Api\Rest::PREFIX.$route['path'],
+                Gestionale::handlerPath('api/v1.php'),
+                ['rest' => $name]
+            )->name('v1.'.$name);
+
+            if (isset($route['id'])) {
+                $definition->where('id', '[0-9]+');
+            }
+        }
     });
 
 // Il backend del gestionale: con la sessione e i permessi delle pagine.
-Route::area('api')->response('json')->backend()->translatable(false)
+// Il CSRF lo controlla il core sulle POST (header `X-WI-CSRF`): senza token, 403.
+Route::area('api')->response('json')->backend()->translatable(false)->csrf()
     ->name('api.gestionale.backend.')->prefix('/gestionale/backend')->group(function () {
         Route::get('/magazzino/versioni/', Gestionale::handlerPath('api/stock/versions.php'))
             ->name('stock.versions')->guarded()->permit(Access::roles(Gestionale::area('magazzino'), 'create'));

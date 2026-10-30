@@ -37,8 +37,15 @@ foreach ([
     'tipi fiscali' => [TaxCategoryResource::class, ['code', 'name']],
     'imballaggi' => [PackageResource::class, ['name', 'weight']],
 ] as $nome => [$resource, $campi]) {
+    // Con la funzionalità della Resource accesa: spenta, l'API resta chiusa (FeatureGateTest).
     check("lo store dei {$nome} è aperto al \"+\", e solo quello", function () use ($store, $resource, $campi) {
-        $schema = $store($resource);
+        (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, [$resource::$feature => true]);
+
+        try {
+            $schema = $store($resource);
+        } finally {
+            (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, null);
+        }
 
         return $schema['aperto'] && $schema['campi'] === $campi && $schema['altro'] === [];
     });

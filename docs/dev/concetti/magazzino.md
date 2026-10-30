@@ -105,6 +105,9 @@ scrivono mai sulle tabelle dei documenti: passa tutto da `StockDocuments`.
    (`/api/gestionale/backend/magazzino/versioni/`, con `q`, `code` o `ids`
    più `location`): al più 20 versioni, mai i multiprodotti, e per il lettore
    `scan()` dice `one`, `many` o `none`. `gst_products` ha l'indice su `ean`.
+   Come tutte le API del gestionale risponde nella busta del core
+   `{success, status, response}`: il dato è in `response`, e
+   `wiSearchClient` lo passa già aperto agli editor.
 5. **Dai Movimenti al documento.** `StockMovementResource::select()` legge
    tipo, numero e indirizzo del documento nella stessa query dell'elenco
    (`document_type`, `document_number`, `document_url`); l'indirizzo lo

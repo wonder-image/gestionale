@@ -16,8 +16,10 @@ con gli stessi Model, le stesse regole e gli stessi permessi del backend.
 - Codice in `src/Support/Mcp/`: `Auth` (token), `Caller` (chi chiama),
   `Server` (protocollo), `Tools` (strumenti di catalogo e ordini, e l'elenco
   di tutti), `CatalogTools` (attributi e personalizzazioni), `QuoteTools`
-  (preventivi), `ToolSupport` (schemi e lettura degli argomenti, in comune),
+  (preventivi), `ContactTools` (clienti, in sola lettura), `ToolSupport` (schemi e lettura degli argomenti, in comune),
   `McpError` (errori tradotti in `gestionale.errors.mcp.*`).
+- Gli stessi strumenti rispondono anche alle [API REST](api-rest.md), che
+  passano da `Server::invoke()`.
 
 ## Autenticazione
 
@@ -48,6 +50,17 @@ Ogni strumento prende i ruoli dal `permissionSchema()` della Resource (o dal
 `navigationSchema()` per le pagine): l'utente del token li deve avere oltre
 ad `api_internal_user`. Chi non li ha non vede lo strumento in `tools/list` e
 non lo può chiamare.
+
+Un token OAuth è limitato anche dagli scope approvati nel consenso, uno per
+area e per lettura o scrittura: `catalog:read`, `catalog:write`, `contacts:read`,
+`sales:read`, `sales:write`, `stock:write` (`write` vale anche come `read`). L'area è la
+cartella della Resource del permesso (`Resources\Catalog\…` → `catalog`), la
+scrittura è il flag `write` dello strumento: `Tools::scope()`. `Tools::scopes()`
+dichiara alla risorsa OAuth solo gli scope che aprono almeno uno strumento, con
+le etichette in `gestionale.errors.mcp.scope.*`. Lo scope non allarga mai i
+ruoli; il JWT di `api_users` non ha scope (`Caller::$scopes` è `null`). Un
+grant creato prima degli scope vale per tutti. Lo controlla
+`tests/McpScopeTest.php`.
 
 Le API di Resource generate dal core sono un'altra cosa: ognuna dichiara chi
 la chiama con `permissionSchema()->api(azione, [authority])`, e senza quella
@@ -83,6 +96,8 @@ rifiutato. Coupon, campagne, corrieri e metodi di spedizione hanno
 | `product_set_related` | elenco completo degli articoli suggeriti o alternativi dell'articolo di una versione, nell'ordine dato | ProductModelResource `update` |
 | `quote_create` | preventivo in bozza: obbligatori `customer_id` e `lines` (righe `product`, `custom`, `text`); facoltativi consegna, pagamento, sconto, scadenza, note | QuoteResource `store` |
 | `quote_get` | un preventivo con stato, revisione, scadenza, totali e righe | QuoteResource `edit` |
+| `customers_list` | clienti a pagine, i più recenti prima; `query` cerca per nome, ragione sociale, email, partita IVA, codice fiscale | CustomerResource `list` |
+| `customer_get` | un cliente con anagrafica, fatturazione e indirizzi di spedizione | CustomerResource `view` |
 
 Le liste restituiscono al massimo 50 righe. Le scritture girano in una
 transazione; un errore delle regole torna come risultato con `isError`, non

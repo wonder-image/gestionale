@@ -292,7 +292,7 @@ class CustomizationResource extends GestionaleResource
      */
     public static function apiSchema(): ApiSchema
     {
-        return ApiSchema::for(static::class)
+        return parent::apiSchema()
             ->only(['store'])
             ->fields('store', ['name', 'kind', 'surcharge', 'scope']);
     }

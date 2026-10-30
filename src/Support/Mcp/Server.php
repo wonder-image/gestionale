@@ -59,7 +59,7 @@ final class Server
                 'protocolVersion' => is_string($params['protocolVersion'] ?? null) ? $params['protocolVersion'] : self::PROTOCOL,
                 'capabilities' => ['tools' => ['listChanged' => false]],
                 'serverInfo' => ['name' => self::NAME, 'version' => self::VERSION],
-                'instructions' => 'Gestionale del negozio: prodotti (versioni vendibili), prezzi, giacenze, categorie, attributi, personalizzazioni, stato degli ordini e preventivi. Gli id dei prodotti sono quelli delle versioni; cerca con products_search prima di modificare. Non inventare mai i valori obbligatori (nomi, tipi, clienti, righe, quantità, prezzi): se l\'utente non li ha detti chiediglieli, e se uno strumento risponde con un elenco di campi mancanti chiedi all\'utente proprio quelli.',
+                'instructions' => 'Gestionale del negozio: prodotti (versioni vendibili), prezzi, giacenze, categorie, attributi, personalizzazioni, stato degli ordini, preventivi e clienti (in sola lettura). Gli id dei prodotti sono quelli delle versioni; cerca con products_search prima di modificare. Non inventare mai i valori obbligatori (nomi, tipi, clienti, righe, quantità, prezzi): se l\'utente non li ha detti chiediglieli, e se uno strumento risponde con un elenco di campi mancanti chiedi all\'utente proprio quelli.',
             ]),
             'ping' => self::result($id, (object) []),
             'tools/list' => self::result($id, ['tools' => self::list($caller)]),
@@ -74,7 +74,7 @@ final class Server
         $out = [];
 
         foreach (self::enabled() ? Tools::all() : [] as $name => $tool) {
-            if ($caller->allows(Tools::roles($tool['permission']))) {
+            if (self::opens($caller, $tool)) {
                 $out[] = [
                     'name' => $name,
                     'description' => $tool['description'],
@@ -87,16 +87,20 @@ final class Server
         return $out;
     }
 
+    /** Servono sia i ruoli dell'utente sia, per un token OAuth, lo scope approvato. */
+    private static function opens(Caller $caller, array $tool): bool
+    {
+        return $caller->allows(Tools::roles($tool['permission'])) && $caller->grants(Tools::scope($tool));
+    }
+
     /** @return array<string, mixed> */
     private static function call(mixed $id, array $params, Caller $caller): array
     {
-        $name = $params['name'] ?? null;
-        $tools = Tools::all();
-        $tool = is_string($name) ? ($tools[$name] ?? null) : null;
+        $name = is_string($params['name'] ?? null) ? $params['name'] : '';
 
         // Uno strumento non permesso è come uno che non esiste.
-        if ($tool === null || !$caller->allows(Tools::roles($tool['permission']))) {
-            return self::error($id, self::INVALID_PARAMS, self::text('unknown_tool', ['name' => is_string($name) ? $name : '']));
+        if (self::tool($name, $caller) === null) {
+            return self::error($id, self::INVALID_PARAMS, self::text('unknown_tool', ['name' => $name]));
         }
 
         $arguments = $params['arguments'] ?? [];
@@ -105,8 +109,32 @@ final class Server
             return self::error($id, self::INVALID_PARAMS, self::text('object', ['field' => 'arguments']));
         }
 
+        $call = self::invoke($name, $arguments, $caller);
+
+        return self::result($id, $call['failure'] === null
+            ? ['content' => [['type' => 'text', 'text' => self::json($call['outcome']['result'] ?? null)]], 'isError' => false]
+            : ['content' => [['type' => 'text', 'text' => $call['failure']]], 'isError' => true]);
+    }
+
+    /**
+     * Esegue uno strumento per chi lo può aprire: la usano il server MCP e le
+     * API REST. `kind` dice perché non è andata: `forbidden` (strumento che
+     * non c'è o non è permesso), `missing` (campi obbligatori), `not_found`,
+     * `invalid` (un rifiuto dello strumento) o `internal`.
+     *
+     * @return array{outcome: ?array, failure: ?string, kind: ?string}
+     */
+    public static function invoke(string $name, array $arguments, Caller $caller): array
+    {
+        $tool = self::tool($name, $caller);
+
+        if ($tool === null) {
+            return ['outcome' => null, 'failure' => self::text('unknown_tool', ['name' => $name]), 'kind' => 'forbidden'];
+        }
+
         $outcome = null;
         $failure = null;
+        $kind = null;
         $missing = self::missing($tool['schema'], $arguments);
 
         try {
@@ -114,27 +142,37 @@ final class Server
                 // I valori obbligatori li dà l'utente: si dicono tutti quelli
                 // che mancano, così il client li chiede invece di inventarli.
                 $failure = self::text('missing_fields', ['fields' => implode(', ', $missing)]);
+                $kind = 'missing';
             } else {
                 $outcome = ($tool['run'])($arguments, $caller);
             }
         } catch (McpError $error) {
             $failure = $error->getMessage();
+            $kind = $error->notFound() ? 'not_found' : 'invalid';
         } catch (UserError $error) {
             $failure = $error->getMessage();
+            $kind = 'invalid';
         } catch (Throwable $error) {
             error_log('[mcp] '.$name.': '.$error->getMessage());
             $failure = self::text('internal');
+            $kind = 'internal';
         }
 
         // Il registro si scrive fuori dalla transazione dello strumento, così
         // resta anche quando lo strumento fallisce e torna indietro.
         if ($tool['write']) {
-            self::log((string) $name, $arguments, $caller, $outcome, $failure);
+            self::log($name, $arguments, $caller, $outcome, $failure);
         }
 
-        return self::result($id, $failure === null
-            ? ['content' => [['type' => 'text', 'text' => self::json($outcome['result'] ?? null)]], 'isError' => false]
-            : ['content' => [['type' => 'text', 'text' => $failure]], 'isError' => true]);
+        return ['outcome' => $failure === null ? $outcome : null, 'failure' => $failure, 'kind' => $kind];
+    }
+
+    /** Lo strumento, se esiste e il chiamante lo può aprire. @return array<string, mixed>|null */
+    private static function tool(string $name, Caller $caller): ?array
+    {
+        $tool = $name !== '' ? (Tools::all()[$name] ?? null) : null;
+
+        return $tool !== null && self::opens($caller, $tool) ? $tool : null;
     }
 
     /**
