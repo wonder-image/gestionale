@@ -327,7 +327,12 @@ class AttributeResource extends GestionaleResource
                     'UTF-8'
                 )),
             TableColumn::key('is_visible')->visibleBadge()->size('little'),
-            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+            TableColumn::key('actions')->button()->actions([
+                'edit',
+                // L'etichetta segue lo stato della riga; il core inverte la colonna.
+                'is_visible' => ['label' => ['true' => 'Nascondi', 'false' => 'Mostra'], 'request' => 'boolean'],
+                'delete',
+            ]),
         ];
     }
 

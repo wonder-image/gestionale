@@ -346,7 +346,13 @@ class CustomerResource extends GestionaleResource
                 ->badgeOn('Attiva', 'bi-check-circle', 'success')
                 ->badgeOff('Non attiva', 'bi-pause-circle', 'secondary')
                 ->size('little'),
-            TableColumn::key('actions')->button()->actions(static::hasSheet() ? ['view', 'edit', 'delete'] : ['edit', 'delete']),
+            TableColumn::key('actions')->button()->actions([
+                ...(static::hasSheet() ? ['view'] : []),
+                'edit',
+                // L'etichetta segue lo stato della riga; il core inverte la colonna.
+                'active' => ['label' => ['true' => 'Disattiva', 'false' => 'Attiva'], 'request' => 'boolean'],
+                'delete',
+            ]),
         ];
     }
 

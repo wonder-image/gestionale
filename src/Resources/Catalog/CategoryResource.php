@@ -156,7 +156,12 @@ final class CategoryResource extends GestionaleResource
                 }),
             TableColumn::key('slug')->text(),
             TableColumn::key('visible')->visibleBadge()->size('little'),
-            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+            TableColumn::key('actions')->button()->actions([
+                'edit',
+                // L'etichetta segue lo stato della riga; il core inverte la colonna.
+                'visible' => ['label' => ['true' => 'Nascondi', 'false' => 'Mostra'], 'request' => 'boolean'],
+                'delete',
+            ]),
         ];
     }
 

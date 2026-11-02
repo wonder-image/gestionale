@@ -215,7 +215,13 @@ class DiscountCampaignResource extends GestionaleResource
 
                     return Badge::make(static::statusLabel($row, $now()))->variant($class)->inline()->render('bootstrap');
                 }),
-            TableColumn::key('actions')->button()->actions(['view', 'edit', 'delete']),
+            TableColumn::key('actions')->button()->actions([
+                'view',
+                'edit',
+                // L'etichetta segue lo stato della riga; il core inverte la colonna.
+                'active' => ['label' => ['true' => 'Disattiva', 'false' => 'Attiva'], 'request' => 'boolean'],
+                'delete',
+            ]),
         ];
     }
 

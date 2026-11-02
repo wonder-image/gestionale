@@ -1108,6 +1108,8 @@ HTML
             ];
         }
 
+        // L'etichetta segue lo stato della riga; il core inverte la colonna.
+        $azioni['visible'] = ['label' => ['true' => 'Metti in bozza', 'false' => 'Pubblica'], 'request' => 'boolean'];
         $azioni[] = 'delete';
 
         $colonne = [];

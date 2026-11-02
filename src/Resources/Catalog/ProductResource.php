@@ -859,7 +859,11 @@ HTML;
                 ->badgeOff('Bozza', 'bi bi-eye-slash', 'secondary', 'Pubblica')
                 ->badgeClickable()
                 ->size('little'),
-            TableColumn::key('actions')->button()->actions(['edit']),
+            TableColumn::key('actions')->button()->actions([
+                'edit',
+                // L'etichetta segue lo stato della riga; il core inverte la colonna.
+                'active' => ['label' => ['true' => 'Disattiva', 'false' => 'Attiva'], 'request' => 'boolean'],
+            ]),
         ];
     }
 

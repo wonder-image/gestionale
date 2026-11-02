@@ -376,7 +376,13 @@ final class PlanResource extends GestionaleResource
                 ->badgeOn('Attivo', 'bi-check-circle', 'success')
                 ->badgeOff('Spento', 'bi-dash-circle', 'secondary')
                 ->size('little'),
-            TableColumn::key('actions')->button()->actions(['edit', 'delete']),
+            TableColumn::key('actions')->button()->actions([
+                'edit',
+                // L'etichetta segue lo stato della riga; il core inverte la colonna.
+                'visible_online' => ['label' => ['true' => 'Togli dal sito', 'false' => 'Metti sul sito'], 'request' => 'boolean'],
+                'active' => ['label' => ['true' => 'Disattiva', 'false' => 'Attiva'], 'request' => 'boolean'],
+                'delete',
+            ]),
         ];
     }
 
