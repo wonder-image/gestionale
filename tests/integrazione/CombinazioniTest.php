@@ -1259,6 +1259,32 @@ try {
             return (new ReflectionMethod(CatalogDemo::class, 'supplierLinksOf'))->invoke(null, $nuovo) === 3;
         });
 
+        check('con le varianti e una versione sola il prezzo della griglia non lo riscrive la casella in alto', function () use ($articolo, $colore, $opzioni) {
+            $nuovo = $articolo('CMB-30');
+            $varianti = [
+                'has_variants' => 'true',
+                'axes_order' => (string) $colore['id'],
+                'option_'.$colore['id'] => [(string) $colore['values'][0]],
+            ];
+            ProductModelResource::saveExtras($nuovo, $varianti + ['product_price' => '6000,00'], 'CMB-30');
+            $ids = $opzioni($nuovo);
+
+            // Il core ha già salvato la riga corretta; la casella in alto
+            // arriva precompilata con il prezzo letto all'apertura.
+            Product::update(['price' => '60.00'], $ids[0]);
+            ProductModelResource::saveExtras($nuovo, $varianti + [
+                'product_price' => '6000.00',
+                'products' => ['0' => ['id' => (string) $ids[0], 'price' => '60.00']],
+            ], 'CMB-30');
+            $griglia = (float) (ProductModelResource::products($nuovo)[0]['price'] ?? 0);
+
+            // Senza griglia nel post la casella in alto resta il prezzo.
+            ProductModelResource::saveExtras($nuovo, $varianti + ['product_price' => '75,00'], 'CMB-30');
+            $casella = (float) (ProductModelResource::products($nuovo)[0]['price'] ?? 0);
+
+            return count($ids) === 1 && $griglia === 60.0 && $casella === 75.0;
+        });
+
         throw new Annulla();
     });
 } catch (Annulla) {

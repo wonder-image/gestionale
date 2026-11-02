@@ -3680,6 +3680,22 @@ HTML
     }
 
     /**
+     * La riga della griglia di una versione che esiste già, se è arrivata.
+     *
+     * @return array<string, mixed>
+     */
+    protected static function postedRowOf(array $post, int $productId): array
+    {
+        foreach (static::postedRows($post) as $riga) {
+            if ((int) ($riga['id'] ?? 0) === $productId) {
+                return $riga;
+            }
+        }
+
+        return [];
+    }
+
+    /**
      * Solo le righe che ancora non esistono, per chiave di combinazione.
      *
      * @param array<string, array<string, mixed>> $righe
@@ -9667,7 +9683,11 @@ HTML
 
         if (count($prodotti) === 1) {
             $product = $prodotti[0];
-            $riga = $scritto($product);
+            // Con le varianti accese e una versione sola la griglia mostra
+            // anche lei: la sua riga l'ha già salvata il core, e la casella in
+            // alto — nascosta, ma precompilata alla lettura — riscriverebbe il
+            // prezzo appena corretto con quello di prima. Vince la riga.
+            $riga = $scritto($product) ?: static::postedRowOf($post, (int) $product['id']);
             // La scheda non chiede lo SKU della versione quando è una sola: lo
             // prende da quello dell'articolo, che è la stessa cosa. Se
             // l'articolo non ne ha, resta quello che la versione aveva già.
