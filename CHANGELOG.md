@@ -29,6 +29,13 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Coupon in blocco e cumulo** (#113). «Genera codici» sulla scheda del coupon
+  crea N codici monouso con un prefisso (`CouponCodes::generate`), «Scarica i
+  codici» li dà in CSV. Il flag «Cumulabile con altri coupon» permette più
+  coupon nello stesso carrello: prima le percentuali sul residuo, poi gli
+  importi. I coupon dell'ordine stanno in `gst_order_coupons`; `coupon_id` e
+  `coupon_code` sull'ordine restano come specchio. Contratto per ecommerce#51 e
+  #77 nella spec `2026-11-03-coupon-in-blocco-e-cumulo-design.md`.
 - **API REST** su `/api/gestionale/v1/` per prodotti, giacenze, ordini e
   clienti (#79). Ogni rotta chiama uno strumento MCP con gli stessi permessi,
   scope, regole e registro `gst_mcp_logs`. Rispondono 401, 403, 404 e 422 nella
