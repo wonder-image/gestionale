@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
+use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
@@ -761,6 +762,7 @@ check('un codice generato vale una volta: due dello stesso blocco sono already_a
             && count($usi) === 1 && (int) $usi[0]['coupon_code_id'] > 0 && (string) $usi[0]['code'] === $primo
             && count($usato) === 1 && $usato[0]['code'] === $primo
             && $usato[0]['order_number'] === (string) riga($esito['order_id'])['order_number']
+            && $usato[0]['order_id'] === (int) $esito['order_id']
             && $riuso === 'coupon.code_used'
             && (float) riga($altro['cart'])['discount_total'] === 10.0;
     });
@@ -776,6 +778,24 @@ check('il CSV dei codici ha BOM, punto e virgola e una riga per codice', functio
         return str_starts_with($righe[0], "\u{FEFF}Codice;Usato;Ordine;Data")
             && count($righe) === 4
             && $righe[1] === $codici[0].';No;;';
+    });
+});
+
+check('la scheda del coupon elenca i codici generati con stato e ordine', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon();
+        $vuoto = CouponResource::codesHtml($c['id']);
+        [$primo, $secondo] = CouponCodes::generate($c['id'], 2, 'SCHEDA');
+        Coupons::apply($s['cart'], $primo);
+        $esito = ordina($s['cart'], datiCheckout());
+        $html = CouponResource::codesHtml($c['id']);
+
+        return str_contains($vuoto, 'Nessun codice generato')
+            && str_contains($html, '<code>'.$primo.'</code>')
+            && str_contains($html, '<code>'.$secondo.'</code>')
+            && substr_count($html, 'Usato') === 1 && substr_count($html, 'Libero') === 1
+            && str_contains($html, (string) riga($esito['order_id'])['order_number']);
     });
 });
 

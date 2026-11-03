@@ -501,6 +501,17 @@ class CouponResource extends GestionaleResource
             RichText::make(static::redemptionsHtml($id))->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
+        $blocks = [$main, $rules, $scope, $redemptions];
+
+        if (($row['batch'] ?? 'false') === 'true') {
+            $blocks[] = (new Card)->components([
+                SectionTitle::make('Codici')
+                    ->tooltip('I codici generati: ognuno vale una volta. L\'elenco completo è anche in «Scarica i codici».')
+                    ->columnSpan(12),
+                RichText::make(static::codesHtml($id))->tag('div')->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+        }
+
         $side = [
             (new Card)->components([
                 SectionTitle::make('Dove vale')->columnSpan(12),
@@ -516,7 +527,7 @@ class CouponResource extends GestionaleResource
         }
 
         return (new Container)->components([
-            (new Container)->components([$main, $rules, $scope, $redemptions])->columns(12)->columnSpan(8),
+            (new Container)->components($blocks)->columns(12)->columnSpan(8),
             (new Container)->components($side)->columns(12)->columnSpan(4),
         ])->columns(12);
     }
@@ -779,6 +790,37 @@ class CouponResource extends GestionaleResource
         }
 
         return $html.'</tbody></table>';
+    }
+
+    /** I codici generati in blocco, col loro stato e l'ordine che li ha usati. */
+    public static function codesHtml(int $couponId): string
+    {
+        $rows = $couponId > 0 ? CouponCodes::of($couponId) : [];
+
+        if ($rows === []) {
+            return '<p class="text-muted mb-0">Nessun codice generato.</p>';
+        }
+
+        $html = '<div class="overflow-auto" style="max-height: 420px"><table class="table table-sm align-middle mb-0"><thead><tr>'
+            .'<th>Codice</th><th>Stato</th><th>Ordine</th><th>Data</th>'
+            .'</tr></thead><tbody>';
+
+        foreach ($rows as $row) {
+            $number = $row['order_number'] !== '' ? $row['order_number'] : '#'.$row['order_id'];
+            $order = $row['order_id'] > 0
+                ? '<a href="'.static::escape(OrderResource::detailUrl($row['order_id'])).'">'.static::escape($number).'</a>'
+                : '';
+            $status = $row['used']
+                ? Badge::make('Usato')->variant('secondary')->inline()->render('bootstrap')
+                : Badge::make('Libero')->variant('success')->inline()->render('bootstrap');
+
+            $html .= '<tr><td><code>'.static::escape($row['code']).'</code></td>'
+                .'<td>'.$status.'</td>'
+                .'<td>'.$order.'</td>'
+                .'<td>'.static::escape($row['used_at']).'</td></tr>';
+        }
+
+        return $html.'</tbody></table></div>';
     }
 
     /** Selettore dei prodotti e clienti riservati, riscritti per intero. */
