@@ -8,6 +8,8 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
+use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -19,6 +21,7 @@ use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
 use Wonder\Plugin\Gestionale\Support\Export\Delimited;
+use Wonder\Plugin\Gestionale\Support\Import\Column;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\StockBadge;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxResolver;
@@ -39,6 +42,10 @@ use Wonder\Plugin\Gestionale\Support\Tax\TaxResolver;
  *
  * Oltre alle colonne del file, ogni riga porta `images` (tutte le foto) e
  * `tax_rate` (l'aliquota dell'articolo): servono ai feed in `Exports\`.
+ *
+ * Con un tracciato salvato in «Tracciati file» (`$columns`) il file ha le
+ * sue colonne, compresa una per attributo (`attr:<id>`); senza, quelle di
+ * sempre.
  *
  * `of()` legge; `rows()`, `csv()` e `xlsx()` sono pure.
  */
@@ -75,7 +82,13 @@ final class ProductExport
     private const NUMBERS = ['price' => 2, 'sale_price' => 2, 'available' => 3, 'weight' => 3];
 
     /** Le categorie di un articolo, una dopo l'altra. */
-    private const CATEGORY_SEPARATOR = ' | ';
+    public const CATEGORY_SEPARATOR = ' | ';
+
+    /** I valori di un attributo a più scelte, nella stessa cella. */
+    public const VALUE_SEPARATOR = ' | ';
+
+    /** Gli attributi che non stanno in una cella. */
+    private const NO_CELL_TYPES = ['file', 'description'];
 
     /**
      * Le intestazioni. Il prezzo dice se l'IVA c'è: è una sola impostazione
@@ -91,6 +104,109 @@ final class ProductExport
         $headers['sale_price'] .= $tax;
 
         return array_values($headers);
+    }
+
+    /**
+     * Tutte le colonne possibili: quelle di sempre e una per attributo
+     * (`attr:<id>`), che ha per intestazione il nome e l'unità.
+     *
+     * @param list<array<string, mixed>> $attributes
+     * @return list<Column>
+     */
+    public static function columns(bool $pricesIncludeTax = true, array $attributes = []): array
+    {
+        $columns = array_map(
+            static fn (string $key, string $header): Column => Column::make($key, $header),
+            array_keys(self::COLUMNS),
+            self::headers($pricesIncludeTax)
+        );
+
+        foreach ($attributes as $attribute) {
+            $unit = trim((string) ($attribute['unit'] ?? ''));
+            $name = self::text((string) ($attribute['name'] ?? ''));
+            $columns[] = Column::make('attr:'.(int) $attribute['id'], $unit === '' ? $name : $name.' ('.$unit.')', [$name]);
+        }
+
+        return $columns;
+    }
+
+    /**
+     * Gli attributi che hanno una colonna: quelli di opzione (variante e
+     * versione), con un valore che sta in una cella.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function attributes(): array
+    {
+        try {
+            $rows = self::listOf(Attribute::find("`deleted` = 'false' AND `level` IN ('variant', 'product')", null, 'position', 'ASC'));
+        } catch (Throwable) {
+            return [];
+        }
+
+        return array_values(array_filter($rows, static fn (array $row): bool => !in_array((string) ($row['type'] ?? ''), self::NO_CELL_TYPES, true)));
+    }
+
+    /**
+     * Il testo della cella di ogni attributo, per versione: quello di
+     * variante si legge sulla variante della versione. I numeri senza unità,
+     * che sta già nell'intestazione.
+     *
+     * @param list<array<string, mixed>> $products
+     * @param list<array<string, mixed>> $attributes
+     * @return array<int, array<int, string>>
+     */
+    public static function attributeCells(array $products, array $attributes): array
+    {
+        if ($products === [] || $attributes === []) {
+            return [];
+        }
+
+        $byId = self::byId($attributes);
+        $values = [];
+
+        foreach (self::listOf(AttributeValue::find('`attribute_id` IN ('.implode(', ', array_keys($byId)).") AND `deleted` = 'false'")) as $value) {
+            $values[(int) $value['attribute_id']][(int) $value['id']] = $value;
+        }
+
+        $cellsOf = static function (string $level, array $parentIds) use ($byId, $values): array {
+            $parentIds = array_values(array_unique(array_filter($parentIds)));
+
+            if ($parentIds === []) {
+                return [];
+            }
+
+            $key = ProductAttributes::parentKey($level);
+            $links = self::listOf(ProductAttributes::modelClass($level)::find('`'.$key.'` IN ('.implode(', ', $parentIds).') AND `attribute_id` IN ('.implode(', ', array_keys($byId)).") AND `deleted` = 'false'"));
+            usort($links, static fn (array $a, array $b): int => (int) $a['id'] <=> (int) $b['id']);
+            $cells = [];
+
+            foreach ($links as $link) {
+                $attributeId = (int) $link['attribute_id'];
+                $attribute = ['unit' => ''] + $byId[$attributeId];
+                $text = Attributes::format($attribute, $link, $values[$attributeId] ?? []);
+
+                if ($text !== '') {
+                    $cells[(int) $link[$key]][$attributeId][] = self::text($text);
+                }
+            }
+
+            return $cells;
+        };
+
+        $byVariant = $cellsOf('variant', array_map(static fn (array $product): int => (int) ($product['product_variant_id'] ?? 0), $products));
+        $byProduct = $cellsOf('product', array_map(static fn (array $product): int => (int) ($product['id'] ?? 0), $products));
+        $out = [];
+
+        foreach ($products as $product) {
+            $cells = ($byVariant[(int) ($product['product_variant_id'] ?? 0)] ?? []) + ($byProduct[(int) ($product['id'] ?? 0)] ?? []);
+
+            foreach ($cells as $attributeId => $texts) {
+                $out[(int) $product['id']][$attributeId] = implode(self::VALUE_SEPARATOR, array_unique($texts));
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -110,7 +226,9 @@ final class ProductExport
      *     base?: string,
      *     url?: string,
      *     variantUrl?: string,
-     *     taxRates?: array<int, float>
+     *     taxRates?: array<int, float>,
+     *     attributes?: list<array<string, mixed>>,
+     *     attributeCells?: array<int, array<int, string>>
      * } $data `stock` per opzione, `bundles` e `taxRates` per articolo; `url` e
      *   `variantUrl` hanno `{slug}` e `{variante}` al posto degli slug
      * @return list<array<string, string|float|null>>
@@ -218,6 +336,11 @@ final class ProductExport
                 'images' => $images,
                 'tax_rate' => isset($data['taxRates'][$modelId]) ? (float) $data['taxRates'][$modelId] : null,
             ];
+
+            foreach ($data['attributes'] ?? [] as $attribute) {
+                $attributeId = (int) $attribute['id'];
+                $out[array_key_last($out)]['attr:'.$attributeId] = (string) ($data['attributeCells'][$id][$attributeId] ?? '');
+            }
         }
 
         return $out;
@@ -228,10 +351,11 @@ final class ProductExport
      * come lo leggono i programmi d'importazione.
      *
      * @param list<array<string, string|float|null>> $rows
+     * @param list<Column>|null $columns quelle di un tracciato salvato
      */
-    public static function csv(array $rows, bool $pricesIncludeTax = true): string
+    public static function csv(array $rows, bool $pricesIncludeTax = true, ?array $columns = null): string
     {
-        $keys = array_keys(self::COLUMNS);
+        [$keys, $headers] = self::layout($pricesIncludeTax, $columns);
         $lines = array_map(static fn (array $row): array => array_map(
             static fn (string $key): string => isset(self::NUMBERS[$key])
                 ? self::number($key, $row[$key] ?? null)
@@ -240,7 +364,7 @@ final class ProductExport
         ), $rows);
 
         // Chi lo apre a mano lo apre in un foglio di calcolo: niente formule.
-        return Delimited::write(self::headers($pricesIncludeTax), $lines, Delimited::CSV, true);
+        return Delimited::write($headers, $lines, Delimited::CSV, true);
     }
 
     /**
@@ -249,15 +373,16 @@ final class ProductExport
      * scientifica — e i prezzi restano numeri, da sommare.
      *
      * @param list<array<string, string|float|null>> $rows
+     * @param list<Column>|null $columns quelle di un tracciato salvato
      */
-    public static function xlsx(array $rows, bool $pricesIncludeTax = true): string
+    public static function xlsx(array $rows, bool $pricesIncludeTax = true, ?array $columns = null): string
     {
         $book = new Spreadsheet();
         $sheet = $book->getActiveSheet();
         $sheet->setTitle('Prodotti');
-        $keys = array_keys(self::COLUMNS);
+        [$keys, $headers] = self::layout($pricesIncludeTax, $columns);
 
-        foreach (self::headers($pricesIncludeTax) as $index => $header) {
+        foreach ($headers as $index => $header) {
             $sheet->setCellValueExplicit(Coordinate::stringFromColumnIndex($index + 1).'1', $header, DataType::TYPE_STRING);
         }
 
@@ -304,9 +429,10 @@ final class ProductExport
     /**
      * Legge tutto il catalogo, una query per tabella.
      *
+     * @param bool $withAttributes anche le celle degli attributi
      * @return array{rows: list<array<string, string|float|null>>, pricesIncludeTax: bool}
      */
-    public static function of(): array
+    public static function of(bool $withAttributes = false): array
     {
         $models = self::listOf(ProductModel::find("`deleted` = 'false'", null, 'name', 'ASC'));
         $modelIds = array_map(static fn (array $model): int => (int) $model['id'], $models);
@@ -333,6 +459,7 @@ final class ProductExport
         }
 
         $stock = array_map(static fn (array $level): float => (float) $level['available'], StockBadge::forProducts($simple));
+        $attributes = $withAttributes ? self::attributes() : [];
 
         return [
             'rows' => self::rows([
@@ -350,6 +477,8 @@ final class ProductExport
                 'url' => self::route('ecommerce.catalog.product', ['slug' => '{slug}']),
                 'variantUrl' => self::route('ecommerce.catalog.product.variant', ['slug' => '{slug}', 'variante' => '{variante}']),
                 'taxRates' => self::taxRates($models),
+                'attributes' => $attributes,
+                'attributeCells' => self::attributeCells($products, $attributes),
             ]),
             'pricesIncludeTax' => self::pricesIncludeTax(),
         ];
@@ -359,6 +488,24 @@ final class ProductExport
     public static function fileName(string $extension, ?int $time = null, string $name = 'prodotti'): string
     {
         return $name.'-'.date('Y-m-d', $time ?? time()).'.'.$extension;
+    }
+
+    /**
+     * Chiavi e intestazioni del file: quelle del tracciato, o quelle di sempre.
+     *
+     * @param list<Column>|null $columns
+     * @return array{0: list<string>, 1: list<string>}
+     */
+    private static function layout(bool $pricesIncludeTax, ?array $columns): array
+    {
+        if ($columns === null) {
+            return [array_keys(self::COLUMNS), self::headers($pricesIncludeTax)];
+        }
+
+        return [
+            array_map(static fn (Column $column): string => $column->key, $columns),
+            array_map(static fn (Column $column): string => $column->header, $columns),
+        ];
     }
 
     /**
@@ -482,7 +629,7 @@ final class ProductExport
     }
 
     /** I decimali col punto, senza zeri inutili dove non servono. */
-    private static function number(string $key, mixed $value): string
+    public static function number(string $key, mixed $value): string
     {
         if ($value === null) {
             return $key === 'available' ? 'Illimitata' : '';
@@ -494,13 +641,13 @@ final class ProductExport
         return $decimals === 2 ? $text : rtrim(rtrim($text, '0'), '.');
     }
 
-    private static function yes(bool $value): string
+    public static function yes(bool $value): string
     {
         return $value ? 'Sì' : 'No';
     }
 
     /** Il testo di una descrizione ricca: niente tag, gli a capo come spazi. */
-    private static function plain(string $html): string
+    public static function plain(string $html): string
     {
         // Il form salva l'HTML con le entità: prima si decodifica, poi si tolgono i tag.
         $text = self::text($html);
@@ -510,7 +657,7 @@ final class ProductExport
         return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
     }
 
-    private static function text(string $value): string
+    public static function text(string $value): string
     {
         return trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
