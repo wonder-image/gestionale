@@ -80,11 +80,22 @@ check('il coupon si apre in una scheda di lettura, con «Modifica» in testata',
     $pagine = CouponResource::pageSchema()->toArray();
     $azioni = $pagine['actions']['view'] ?? null;
     $pulsanti = is_callable($azioni) ? $azioni(['id' => 7]) : (array) $azioni;
+    $modifica = end($pulsanti) ?: [];
 
     return !empty($pagine['pages']['view'])
         && str_ends_with((string) ($pagine['views']['show'] ?? ''), 'pages/coupon-show.php')
-        && ($pulsanti[0]['label'] ?? '') === 'Modifica'
-        && str_contains((string) ($pulsanti[0]['href'] ?? ''), '7');
+        && ($modifica['label'] ?? '') === 'Modifica'
+        && str_contains((string) ($modifica['href'] ?? ''), '7');
+});
+
+check('in testata «Genera codici», e «Scarica i codici» solo con i codici; niente per gli abbonamenti', function () {
+    $azioni = CouponResource::pageSchema()->toArray()['actions']['view'];
+    $etichette = static fn (array $item): array => array_column($azioni($item), 'label');
+
+    return $etichette(['id' => 7]) === ['Genera codici', 'Modifica']
+        && $etichette(['id' => 7, 'batch' => 'true']) === ['Genera codici', 'Scarica i codici', 'Modifica']
+        && $etichette(['id' => 7, 'applies_subscriptions' => 'true']) === ['Modifica']
+        && str_contains(CouponResource::codesUrl(7), '/7/codici/');
 });
 
 check('l\'elenco porta alla scheda: il codice la apre e «Visualizza» sta tra le azioni', function () {

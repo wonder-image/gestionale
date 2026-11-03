@@ -9,6 +9,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
+use Wonder\Plugin\Gestionale\Models\Promotions\OrderCoupon;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog;
@@ -624,6 +625,7 @@ final class OrdersDemo
             sqlDelete(StockMovement::$table, "reference_type = 'order' AND reference_id = ".$id);
             sqlDelete(StockReservation::$table, 'order_id = '.$id);
             sqlDelete(CouponRedemption::$table, 'order_id = '.$id);
+            sqlDelete(OrderCoupon::$table, 'order_id = '.$id);
             sqlDelete(Payment::$table, 'order_id = '.$id);
             sqlDelete(OrderStatusLog::$table, 'order_id = '.$id);
             sqlDelete(OrderTaxSummary::$table, 'order_id = '.$id);
