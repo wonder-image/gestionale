@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Promotions;
 
+use Throwable;
+use Wonder\App\Permission\Access;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
@@ -9,11 +11,17 @@ use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Elements\Components\Badge;
+use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
+use Wonder\Backend\Support\FlashAlert;
 use Wonder\Elements\Form\Form;
+use Wonder\Http\Csrf;
+use Wonder\Http\Exceptions\NotFoundHttpException;
+use Wonder\Http\Route;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
@@ -22,8 +30,10 @@ use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
+use Wonder\Plugin\Gestionale\Support\Promotions\CouponCodes;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Promotions\PromotionSheet;
 use Wonder\Plugin\Gestionale\Support\Promotions\ScopeForm;
@@ -95,6 +105,7 @@ class CouponResource extends GestionaleResource
             'usage_limit_per_customer' => 'Utilizzi per cliente',
             'first_order_only' => 'Solo sul primo ordine',
             'exclude_discounted_products' => 'Non sui prodotti già scontati',
+            'stackable' => 'Cumulabile con altri coupon',
             'starts_at' => 'Dal',
             'ends_at' => 'Fino al',
             'period' => 'Periodo',
@@ -134,6 +145,7 @@ class CouponResource extends GestionaleResource
             FormField::key('usage_limit_per_customer')->number()->label('Utilizzi per cliente'),
             FormField::key('first_order_only')->toggle()->value('false')->label('Solo sul primo ordine'),
             FormField::key('exclude_discounted_products')->toggle()->value('false')->label('Non sui prodotti già scontati'),
+            FormField::key('stackable')->toggle()->value('false')->label('Cumulabile con altri coupon'),
             FormField::key('starts_at')->dateInput()->label('Dal'),
             FormField::key('ends_at')->dateInput()->label('Fino al'),
             FormField::key('active')
@@ -170,13 +182,14 @@ class CouponResource extends GestionaleResource
 
         $rules = (new Card)->components([
             SectionTitle::make('Regole')
-                ->tooltip('Spesa minima sui prodotti adatti (per la spedizione gratuita, su tutti i prodotti). Gli utilizzi si contano alla creazione dell\'ordine e tornano disponibili se l\'ordine viene annullato o scade. Il coupon non si somma a uno sconto scritto a mano sull\'ordine.')
+                ->tooltip('Spesa minima sui prodotti adatti (per la spedizione gratuita, su tutti i prodotti). Gli utilizzi si contano alla creazione dell\'ordine e tornano disponibili se l\'ordine viene annullato o scade. Il coupon non si somma a uno sconto scritto a mano sull\'ordine. «Cumulabile»: si somma ad altri coupon cumulabili (prima le percentuali, poi gli importi); un coupon non cumulabile sta da solo.')
                 ->columnSpan(12),
             static::getInput('min_order_amount')->columnSpan(4),
             static::getInput('usage_limit')->columnSpan(4),
             static::getInput('usage_limit_per_customer')->columnSpan(4),
             static::getInput('first_order_only')->columnSpan(6),
             static::getInput('exclude_discounted_products')->columnSpan(6),
+            static::getInput('stackable')->columnSpan(6),
         ])->columns(12)->columnSpan(12);
 
         $scope = (new Card)->components([
@@ -288,12 +301,144 @@ class CouponResource extends GestionaleResource
                 'edit' => 'Modifica coupon',
             ])
             ->view('show', Gestionale::viewPath('pages/coupon-show.php'))
-            ->actions('view', static fn (array $item): array => [[
-                'label' => 'Modifica',
-                'icon' => 'bi-pencil',
-                'class' => 'btn-warning btn-sm',
-                'href' => static::editUrlFor((int) ($item['id'] ?? 0)),
-            ]]);
+            ->actions('view', static fn (array $item): array => [
+                ...static::codeActions($item),
+                [
+                    'label' => 'Modifica',
+                    'icon' => 'bi-pencil',
+                    'class' => 'btn-warning btn-sm',
+                    'href' => static::editUrlFor((int) ($item['id'] ?? 0)),
+                ],
+            ]);
+    }
+
+    /** «Scarica i codici» (CSV) e il POST di «Genera codici» (gestionale#113). */
+    public static function registerBackendRoutes(string $rootApp, string $slug): void
+    {
+        Route::get('/{id}/codici/', Gestionale::handlerPath('backend/promotions/coupon-codes.php'), [
+            'resource' => $slug,
+            'resource_action' => 'codes',
+        ])->name('codes')
+            ->permit(Access::roles(Gestionale::area('promozioni'), 'view'))
+            ->where('id', '[0-9]+');
+
+        Route::post('/{id}/codici/genera/', Gestionale::handlerPath('backend/promotions/coupon-generate.php'), [
+            'resource' => $slug,
+            'resource_action' => 'generate',
+        ])->name('generate')
+            ->permit(Access::roles(Gestionale::area('promozioni'), 'edit'))
+            ->where('id', '[0-9]+');
+    }
+
+    public static function codesUrl(int $id): string
+    {
+        return static::routeUrl('codes', '/backend/'.static::path().'/'.$id.'/codici/', ['id' => $id]);
+    }
+
+    public static function generateUrl(int $id): string
+    {
+        return static::routeUrl('generate', '/backend/'.static::path().'/'.$id.'/codici/genera/', ['id' => $id]);
+    }
+
+    public static function generateModalId(int $id): string
+    {
+        return 'coupon-generate-'.$id;
+    }
+
+    /**
+     * I bottoni dei codici in blocco sulla scheda: «Genera codici» sempre (non
+     * per i coupon degli abbonamenti), «Scarica i codici» quando ce ne sono.
+     *
+     * @param array<string, mixed> $item
+     * @return list<Button>
+     */
+    protected static function codeActions(array $item): array
+    {
+        $id = (int) ($item['id'] ?? 0);
+
+        if ($id <= 0 || (string) ($item['applies_subscriptions'] ?? 'false') === 'true') {
+            return [];
+        }
+
+        $actions = [
+            Button::make('Genera codici')->icon('bi bi-upc-scan', 'start')->variant('secondary')->outline()->size('sm')
+                ->opensModal(static::generateModalId($id)),
+        ];
+
+        if ((string) ($item['batch'] ?? 'false') === 'true') {
+            $actions[] = Button::make('Scarica i codici', static::codesUrl($id))->icon('bi bi-download', 'start')
+                ->variant('secondary')->outline()->size('sm');
+        }
+
+        return $actions;
+    }
+
+    /** La finestra di «Genera codici»: prefisso e quantità. */
+    public static function generateModal(array $coupon): string
+    {
+        $id = (int) ($coupon['id'] ?? 0);
+
+        if ($id <= 0 || (string) ($coupon['applies_subscriptions'] ?? 'false') === 'true') {
+            return '';
+        }
+
+        return Modal::make('Genera codici')
+            ->id(static::generateModalId($id))
+            ->form(static::generateUrl($id))
+            ->columns(12)
+            ->components([
+                RichText::make(static::escape('Ogni codice vale una volta, con le regole di questo coupon. Dopo la generazione il codice '.html_entity_decode((string) ($coupon['code'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8').' non si accetta più: valgono solo i codici generati.'))
+                    ->class('mb-0')
+                    ->columnSpan(12),
+                FormField::key('prefix')->text()->label('Prefisso')->columnSpan(6),
+                FormField::key('quantity')->number()->label('Quantità')->value('1')->required()->columnSpan(6),
+            ])
+            ->cancel('Indietro')
+            ->submit('Genera', 'primary')
+            ->render('bootstrap');
+    }
+
+    /** Il POST di «Genera codici»: scrive i codici e torna alla scheda. */
+    public static function generateCodes(int $id): never
+    {
+        $coupon = $id > 0 && static::featureActive() ? Coupon::findById($id) : null;
+
+        if (!is_array($coupon) || !isset($coupon['id']) || (string) ($coupon['deleted'] ?? 'false') !== 'false') {
+            throw new NotFoundHttpException();
+        }
+
+        if (!Csrf::verify()) {
+            FlashAlert::custom('Attenzione', UserError::make('stock_document.expired')->getMessage(), 'warning');
+        } else {
+            try {
+                $codes = CouponCodes::generate($id, (int) ($_POST['quantity'] ?? 0), (string) ($_POST['prefix'] ?? ''));
+                RequestMemo::forget(Coupon::MEMO_GROUP);
+                FlashAlert::saved(count($codes) === 1 ? 'Generato 1 codice.' : 'Generati '.count($codes).' codici.');
+            } catch (UserError $error) {
+                FlashAlert::custom('Attenzione', $error->getMessage(), 'warning');
+            }
+        }
+
+        if (!headers_sent()) {
+            header('Location: '.static::routeUrl('view', '/backend/'.static::path().'/'.$id.'/', ['id' => $id]));
+        }
+
+        exit();
+    }
+
+    private static function routeUrl(string $action, string $fallback, array $params = []): string
+    {
+        if (!function_exists('__r')) {
+            return $fallback;
+        }
+
+        try {
+            $named = (string) __r('backend.resource.'.static::slug().'.'.$action, $params);
+        } catch (Throwable) {
+            return $fallback;
+        }
+
+        return $named !== '' ? $named : $fallback;
     }
 
     /**
@@ -330,6 +475,10 @@ class CouponResource extends GestionaleResource
             static::sheetRow('Utilizzi per cliente', $limit('usage_limit_per_customer'))->columnSpan(6),
             static::sheetRow('Solo sul primo ordine', $yes('first_order_only'))->columnSpan(6),
             static::sheetRow('Non sui prodotti già scontati', $yes('exclude_discounted_products'))->columnSpan(6),
+            static::sheetRow('Cumulabile con altri coupon', $yes('stackable'))->columnSpan(6),
+            ...(($row['batch'] ?? 'false') === 'true'
+                ? [static::sheetRow('Codici generati', static::codesLabel($id))->columnSpan(6)]
+                : []),
             ...(Gestionale::feature('subscriptions')
                 ? [static::sheetRow('Abbonamenti', static::durationLabel($row))->columnSpan(6)]
                 : []),
@@ -424,6 +573,15 @@ class CouponResource extends GestionaleResource
         $limit = (int) ($row['usage_limit'] ?? 0);
 
         return $used.' / '.($limit > 0 ? $limit : '∞');
+    }
+
+    /** «12 usati su 100». */
+    public static function codesLabel(int $couponId): string
+    {
+        $rows = CouponCodes::of($couponId);
+        $used = count(array_filter($rows, static fn (array $row): bool => $row['used']));
+
+        return $used.' usati su '.count($rows);
     }
 
     /** «No», «Sì, sul primo addebito», «Sì, per 3 mesi», «Sì, per sempre». */
@@ -533,6 +691,10 @@ class CouponResource extends GestionaleResource
             : (Numbers::fromForm($values['discount_value'] ?? null) ?? '');
 
         $values = static::subscriptionValues($values, $oldValues);
+
+        // `batch` non arriva dal form: lo accende solo «Genera codici».
+        $values['stackable'] = ($values['stackable'] ?? 'false') === 'true' ? 'true' : 'false';
+        $values['batch'] = (string) ($oldValues['batch'] ?? 'false') === 'true' ? 'true' : 'false';
 
         Coupons::validate(
             ['customers' => static::readCustomers((array) $_POST)] + $values,

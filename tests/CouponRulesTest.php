@@ -124,6 +124,27 @@ check('il limite per cliente: già usato a limite, libero un uso prima', functio
         && $motivo(CouponRules::check($coupon(['usage_limit_per_customer' => 2, 'used_by_customer' => 1]), $c, ORA)) === '';
 });
 
+check('un codice monouso già usato si rifiuta, dopo il limite per cliente', function () use ($coupon, $riga, $carrello, $motivo) {
+    $c = $carrello([$riga(50)]);
+
+    return $motivo(CouponRules::check($coupon(['code_used' => true]), $c, ORA)) === 'code_used'
+        && $motivo(CouponRules::check($coupon(['code_used' => true, 'usage_limit_per_customer' => 1, 'used_by_customer' => 1]), $c, ORA)) === 'already_used'
+        && $motivo(CouponRules::check($coupon(['code_used' => false]), $c, ORA)) === '';
+});
+
+check('cumulo: un coupon solo sta sempre; due insieme solo se cumulabili tutti e due', function () use ($coupon) {
+    $si = $coupon(['stackable' => 'true']);
+    $no = $coupon(['stackable' => 'false']);
+
+    return CouponRules::stacks([], $no)
+        && CouponRules::stacks([$si], $si)
+        && CouponRules::stacks([$si, $si], $si)
+        && !CouponRules::stacks([$si], $no)
+        && !CouponRules::stacks([$no], $si)
+        && !CouponRules::stacks([$si, $no], $si)
+        && !CouponRules::stacks([$si], $coupon());
+});
+
 check('solo il primo ordine: chi ha già ordinato si rifiuta', function () use ($coupon, $riga, $carrello, $motivo) {
     $c = $carrello([$riga(50)]);
 

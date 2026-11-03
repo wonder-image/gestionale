@@ -25,6 +25,11 @@ use Wonder\Plugin\Gestionale\Support\Tax\TaxTotals;
  * listino resta, per mostrare cosa si è risparmiato) e il risparmio esce in
  * `shipping_saved`.
  *
+ * Più sconti insieme (coupon cumulabili, gestionale#113) arrivano nella chiave
+ * `discounts`: prima le percentuali, ognuna sul residuo delle sue righe, poi
+ * gli importi fissi sul residuo. Senza `discounts` vale lo sconto unico di
+ * `discount_type` / `discount_value`.
+ *
  * Classe pura: l'unica cosa che chiama è `Tax\TaxTotals`, che è pura anche lei.
  * Le aliquote arrivano già risolte da `Tax\TaxResolver`.
  */
@@ -35,8 +40,8 @@ final class OrderTotals
 
     /**
      * @param list<array<string, mixed>> $lines
-     * @param array<string, mixed> $context
-     * @return array{products_total: string, discount_total: string, shipping_total: string, fees_total: string, taxable_total: string, tax_total: string, total: string, total_weight: string, shipping_saved: string, tax_summaries: list<array{rate: float, nature: string, taxable: float, tax: float, total: float}>, lines: list<array<string, mixed>>}
+     * @param array<string, mixed> $context `discounts`: list<array{type: string, value: float|int|string, lines?: list<int>}>, con `lines` gli id delle righe che lo sconto tocca
+     * @return array{products_total: string, discount_total: string, discounts: list<string>, shipping_total: string, fees_total: string, taxable_total: string, tax_total: string, total: string, total_weight: string, shipping_saved: string, tax_summaries: list<array{rate: float, nature: string, taxable: float, tax: float, total: float}>, lines: list<array<string, mixed>>}
      */
     public static function of(array $lines, array $context = []): array
     {
@@ -49,7 +54,6 @@ final class OrderTotals
         $shipping = 0.0;
         $fees = 0.0;
         $weight = 0.0;
-        $base = 0.0;
 
         foreach ($lines as $line) {
             $total = static::money($line['line_total'] ?? 0);
@@ -64,15 +68,9 @@ final class OrderTotals
             }
 
             $weight += (float) ($line['weight'] ?? 0) * (float) ($line['quantity'] ?? 0);
-
-            if ($total > 0.0 && static::isDiscountable($line)) {
-                $base += $total;
-            }
         }
 
-        $base = round($base, 2);
-        $discount = static::discount($context, $base);
-        $shares = static::shares($lines, $discount, $base);
+        [$shares, $discounts] = static::stack($lines, static::entries($lines, $context));
 
         $taxLines = [];
         $result = [];
@@ -105,6 +103,7 @@ final class OrderTotals
         return [
             'products_total' => static::asMoney(round($products, 2)),
             'discount_total' => static::asMoney(round(array_sum($shares), 2)),
+            'discounts' => array_map(static::asMoney(...), $discounts),
             'shipping_total' => static::asMoney(round($shipping, 2)),
             'fees_total' => static::asMoney(round($fees, 2)),
             'taxable_total' => static::asMoney($taxable),
@@ -147,20 +146,110 @@ final class OrderTotals
     }
 
     /**
-     * Lo sconto sul totale, mai più grande della merce che può scontare.
+     * Gli sconti da applicare, ognuno con gli indici delle righe che tocca.
      *
+     * @param list<array<string, mixed>> $lines
      * @param array<string, mixed> $context
+     * @return list<array{type: string, value: float, lines: list<int>}>
      */
-    private static function discount(array $context, float $base): float
+    private static function entries(array $lines, array $context): array
     {
-        $value = round((float) ($context['discount_value'] ?? 0), 2);
+        $entries = [];
 
+        if (is_array($context['discounts'] ?? null)) {
+            foreach (array_values($context['discounts']) as $discount) {
+                $ids = isset($discount['lines']) ? array_map('intval', (array) $discount['lines']) : null;
+                $indexes = [];
+
+                foreach ($lines as $index => $line) {
+                    $matches = $ids === null ? static::isDiscountable($line) : in_array((int) ($line['id'] ?? 0), $ids, true);
+
+                    if ($matches && static::money($line['line_total'] ?? 0) > 0.0) {
+                        $indexes[] = $index;
+                    }
+                }
+
+                $entries[] = ['type' => (string) ($discount['type'] ?? 'none'), 'value' => static::money($discount['value'] ?? 0), 'lines' => $indexes];
+            }
+
+            return $entries;
+        }
+
+        $value = static::money($context['discount_value'] ?? 0);
+        $type = (string) ($context['discount_type'] ?? 'none');
+
+        if ($value <= 0.0 || !in_array($type, ['percent', 'amount'], true)) {
+            return [];
+        }
+
+        $indexes = [];
+
+        foreach ($lines as $index => $line) {
+            if (static::money($line['line_total'] ?? 0) > 0.0 && static::isDiscountable($line)) {
+                $indexes[] = $index;
+            }
+        }
+
+        return [['type' => $type, 'value' => $value, 'lines' => $indexes]];
+    }
+
+    /**
+     * Applica gli sconti uno dopo l'altro sul residuo: percentuali prima,
+     * importi dopo, ognuno mai più grande della merce che gli resta.
+     *
+     * @param list<array<string, mixed>> $lines
+     * @param list<array{type: string, value: float, lines: list<int>}> $entries
+     * @return array{0: array<int, float>, 1: list<float>} le quote per riga e l'importo di ogni sconto, nell'ordine dato
+     */
+    private static function stack(array $lines, array $entries): array
+    {
+        $order = array_keys($entries);
+        usort($order, static fn (int $a, int $b): int => [$entries[$a]['type'] !== 'percent', $a] <=> [$entries[$b]['type'] !== 'percent', $b]);
+
+        $residual = [];
+
+        foreach ($lines as $index => $line) {
+            $residual[$index] = static::money($line['line_total'] ?? 0);
+        }
+
+        $shares = [];
+        $amounts = array_fill(0, count($entries), 0.0);
+
+        foreach ($order as $key) {
+            $entry = $entries[$key];
+            $totals = [];
+
+            foreach ($entry['lines'] as $index) {
+                if ($residual[$index] > 0.0) {
+                    $totals[$index] = $residual[$index];
+                }
+            }
+
+            $base = round(array_sum($totals), 2);
+            $discount = static::discount($entry['type'], $entry['value'], $base);
+
+            foreach (static::shares($totals, $discount, $base) as $index => $share) {
+                $shares[$index] = round(($shares[$index] ?? 0.0) + $share, 2);
+                $residual[$index] = round($residual[$index] - $share, 2);
+            }
+
+            $amounts[$key] = $discount;
+        }
+
+        ksort($shares);
+
+        return [$shares, $amounts];
+    }
+
+    /** Uno sconto, mai più grande della merce che può scontare. */
+    private static function discount(string $type, float $value, float $base): float
+    {
         // Base zero: niente da scontare e nessuna divisione per zero dopo.
         if ($base <= 0.0 || $value <= 0.0) {
             return 0.0;
         }
 
-        $discount = match ((string) ($context['discount_type'] ?? 'none')) {
+        $discount = match ($type) {
             'amount' => $value,
             'percent' => round($base * min($value, 100.0) / 100, 2),
             default => 0.0,
@@ -174,29 +263,21 @@ final class OrderTotals
     /**
      * La quota di sconto di ogni riga, indicizzata come le righe.
      *
-     * @param list<array<string, mixed>> $lines
+     * @param array<int, float> $totals quanto resta da scontare su ogni riga toccata
      * @return array<int, float>
      */
-    private static function shares(array $lines, float $discount, float $base): array
+    private static function shares(array $totals, float $discount, float $base): array
     {
         if ($discount <= 0.0 || $base <= 0.0) {
             return [];
         }
 
         $shares = [];
-        $totals = [];
         $assigned = 0.0;
 
-        foreach ($lines as $index => $line) {
-            $total = static::money($line['line_total'] ?? 0);
-
-            if ($total <= 0.0 || !static::isDiscountable($line)) {
-                continue;
-            }
-
+        foreach ($totals as $index => $total) {
             $share = min(round($discount * $total / $base, 2), $total);
             $shares[$index] = $share;
-            $totals[$index] = $total;
             $assigned = round($assigned + $share, 2);
         }
 

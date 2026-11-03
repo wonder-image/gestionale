@@ -5,7 +5,7 @@ namespace Wonder\Plugin\Gestionale\Support\Orders;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
-use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
+use Wonder\Plugin\Gestionale\Models\Promotions\OrderCoupon;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
@@ -402,9 +402,10 @@ final class Cart
                 ] + $price : [];
             }
 
-            // Il coupon si rivaluta a ogni ricalcolo: se non vale più esce dal
-            // carrello e il motivo arriva a chi chiama. Lo sconto scritto a mano
-            // sulla testata non si somma mai: tra i due vince il manuale.
+            // I coupon si rivalutano a ogni ricalcolo: quelli che non valgono
+            // più escono dal carrello e il motivo arriva a chi chiama. Lo
+            // sconto scritto a mano sulla testata non si somma mai: tra i due
+            // vince il manuale.
             $coupon = Coupons::context($cartId, $computed, $now);
             $dropped = (string) ($coupon['dropped'] ?? '');
             $context = [
@@ -413,14 +414,9 @@ final class Cart
                 'discount_value' => (float) ($cart['manual_discount_value'] ?? 0),
             ];
 
-            if ($coupon !== [] && $dropped === '') {
-                $context['discount_type'] = $coupon['discount_type'];
-                $context['discount_value'] = $coupon['discount_value'];
+            if (($coupon['coupons'] ?? []) !== []) {
+                $context['discounts'] = $coupon['discounts'];
                 $context['free_shipping'] = $coupon['free_shipping'];
-
-                foreach ($computed as $index => $line) {
-                    $computed[$index]['discountable'] = (bool) ($coupon['discountable'][(int) $line['id']] ?? false);
-                }
             }
 
             // Le quote di spedizione e commissione seguono l'imponibile che la
@@ -429,6 +425,7 @@ final class Cart
             $charges = self::writeCharges($cart, $all, $computed, $shipping, $groups);
             $shippingDropped = $charges['dropped'];
             $totals = OrderTotals::of(array_merge($computed, $charges['lines']), $context);
+            Coupons::record($coupon, $totals);
 
             foreach ($totals['lines'] as $line) {
                 OrderItem::update([
@@ -704,6 +701,9 @@ final class Cart
                 OrderItem::delete((int) $left['id']);
             }
 
+            // I coupon dell'ospite non passano: resta quello che c'è già.
+            sqlDelete(OrderCoupon::$table, 'order_id = '.$guestCartId);
+
             // Quello dell'ospite ha finito il suo mestiere: se restasse, il
             // prossimo accesso con lo stesso gettone lo ritroverebbe vuoto e
             // sembrerebbe che la roba sia sparita.
@@ -778,11 +778,9 @@ final class Cart
                 Order::update($values, $cartId);
             }
 
-            $coupon = (int) ($order['coupon_id'] ?? 0) > 0 ? Coupon::findById((int) $order['coupon_id']) : null;
-
-            if (is_array($coupon) && trim((string) ($coupon['code'] ?? '')) !== '') {
+            foreach (Coupons::applied($orderId) as $applied) {
                 try {
-                    Coupons::apply($cartId, (string) $coupon['code']);
+                    Coupons::apply($cartId, (string) $applied['code']);
                 } catch (UserError) {
                     // Non vale più: il riepilogo lo mostra senza.
                 }

@@ -19,5 +19,6 @@ $codice = trim((string) ($coupon['code'] ?? ''));
 View::layout('backend.show', $codice !== '' ? ['TITLE' => $codice] : []);
 
 echo ResourceFormLayoutRenderer::renderLayout(CouponResource::showLayoutSchema($coupon));
+echo CouponResource::generateModal($coupon);
 
 View::end();

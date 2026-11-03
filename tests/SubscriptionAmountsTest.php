@@ -127,4 +127,20 @@ check('of() su una riga dà gli stessi numeri di ofItems()', function () use ($d
     return $uno['total'] === $piu['total'] && $uno['tax_total'] === $piu['tax_total'] && $uno['subtotal'] === $piu['subtotal'];
 });
 
+check('una tantum: per quantità e con l\'aliquota della riga, senza coupon', function () {
+    $a = SubscriptionAmounts::oneTime([
+        ['price' => ['price' => '24.40', 'one_time_price' => '12.20'], 'quantity' => 2, 'tax_rate' => 22.0],
+        ['price' => ['price' => '10.00', 'one_time_price' => '0.00'], 'quantity' => 1, 'tax_rate' => 22.0],
+    ], true);
+
+    return $a['total'] === '24.40' && $a['taxable_total'] === '20.00' && $a['tax_total'] === '4.40'
+        && count($a['lines']) === 1 && $a['lines'][0]['index'] === 0 && $a['lines'][0]['line_total'] === '24.40';
+});
+
+check('senza una tantum: tutto a zero e nessuna riga', function () {
+    $a = SubscriptionAmounts::oneTime([['price' => ['price' => '24.40'], 'quantity' => 1, 'tax_rate' => 22.0]], false);
+
+    return $a['total'] === '0.00' && $a['lines'] === [];
+});
+
 summary();

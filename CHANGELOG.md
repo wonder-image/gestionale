@@ -6,6 +6,9 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Corretto
+- **404 di PDF e CSV.** Gli scaricamenti del backend (PDF, stampa, proforma,
+  CSV dei clienti di un lotto, righe di un listino) rispondono con la pagina
+  404 del core invece del testo semplice (#79).
 - **Variante vuota accendendo le varianti.** Il repeater del core metteva nel
   cestino il prodotto dello scheletro prima del generatore, che allora creava
   una variante nuova e lasciava sul sito quella vuota. Ora il generatore riprende
@@ -33,7 +36,16 @@ versionamento semantico.
   formati con l'hook `labelFormats()`. Funzionalità *Etichette*, spenta di base.
   Il foglio PDF e i formati sono del core (`Wonder\Support\Labels`): serve la
   versione di `wonder-image/app` che li contiene.
-
+- **Una tantum sui prezzi dei piani** (#76): `one_time_price`, pagato una volta
+  col primo addebito (a inizio prova, se c'è), online e da ufficio. Contratto
+  per il negozio nella spec degli abbonamenti, §1.6.
+- **Coupon in blocco e cumulo** (#113). «Genera codici» sulla scheda del coupon
+  crea N codici monouso con un prefisso (`CouponCodes::generate`), «Scarica i
+  codici» li dà in CSV. Il flag «Cumulabile con altri coupon» permette più
+  coupon nello stesso carrello: prima le percentuali sul residuo, poi gli
+  importi. I coupon dell'ordine stanno in `gst_order_coupons`; `coupon_id` e
+  `coupon_code` sull'ordine restano come specchio. Contratto per ecommerce#51 e
+  #77 nella spec `2026-11-03-coupon-in-blocco-e-cumulo-design.md`.
 - **API REST** su `/api/gestionale/v1/` per prodotti, giacenze, ordini e
   clienti (#79). Ogni rotta chiama uno strumento MCP con gli stessi permessi,
   scope, regole e registro `gst_mcp_logs`. Rispondono 401, 403, 404 e 422 nella

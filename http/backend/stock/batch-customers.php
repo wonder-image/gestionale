@@ -9,14 +9,14 @@
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Stock\Batch;
 use Wonder\Plugin\Gestionale\Support\Stock\BatchCustomers;
+use Wonder\Http\Exceptions\NotFoundHttpException;
 
 $routeParameters = is_array($ROUTE_PARAMETERS ?? null) ? $ROUTE_PARAMETERS : [];
 $id = (int) ($routeParameters['id'] ?? 0);
 $batch = $id > 0 && Gestionale::feature('batch_tracking') ? Batch::findById($id) : null;
 
 if (!is_array($batch) || !isset($batch['id'])) {
-    http_response_code(404);
-    exit('Lotto non trovato');
+    throw new NotFoundHttpException();
 }
 
 $csv = BatchCustomers::csv(BatchCustomers::of($id));

@@ -5,8 +5,10 @@ namespace Wonder\Plugin\Gestionale\Support\Promotions;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponCode;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
+use Wonder\Plugin\Gestionale\Models\Promotions\OrderCoupon;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -19,17 +21,30 @@ use Wonder\Sql\Transaction;
  *
  * Le regole stanno in `CouponRules`, che è pura; qui si raccoglie dal
  * database quello che le regole chiedono — selettore, clienti riservati, usi
- * consumati, ordini precedenti — e si scrive sul carrello. Il coupon sta sul
- * carrello (`coupon_id`, `coupon_code`) ed è **ricontrollato a ogni
- * ricalcolo**: un coupon che smette di reggere (la spesa scende sotto la
- * soglia, il coupon scade) esce dal carrello e chi chiama ne trova il motivo.
+ * consumati, ordini precedenti — e si scrive sul carrello. I coupon del
+ * carrello stanno in `gst_order_coupons`, nell'ordine in cui sono stati
+ * scritti; `coupon_id` e `coupon_code` dell'ordine ne sono lo specchio. Ogni
+ * coupon è **ricontrollato a ogni ricalcolo**: quello che smette di reggere
+ * (la spesa scende sotto la soglia, il coupon scade, non è più cumulabile)
+ * esce dal carrello e chi chiama ne trova il motivo.
  *
- * Con la funzionalità `coupons` spenta nessun coupon si applica, ma quello già
- * scritto sul carrello resta dov'è: riaccesa la funzionalità, torna a valere.
+ * Più coupon stanno insieme solo se sono tutti cumulabili (gestionale#113).
+ * Un codice generato in blocco porta le regole del suo coupon e vale una
+ * volta sola.
+ *
+ * Con la funzionalità `coupons` spenta nessun coupon si applica, ma quelli già
+ * scritti sul carrello restano dove sono: riaccesa la funzionalità, tornano a
+ * valere.
  */
 final class Coupons
 {
-    /** Il coupon con quel codice, senza badare a maiuscole e spazi; `null` se non c'è o è cancellato. */
+    /**
+     * Il coupon con quel codice, senza badare a maiuscole e spazi: prima fra i
+     * coupon (il codice di un coupon in blocco non vale), poi fra i codici
+     * generati. La riga è quella del coupon, con `code` = il codice trovato e
+     * `coupon_code_id` (0 per il codice del coupon); `null` se non c'è o il
+     * coupon è cancellato.
+     */
     public static function find(string $code): ?array
     {
         $code = (string) preg_replace('/\s+/u', '', $code);
@@ -40,11 +55,29 @@ final class Coupons
 
         $found = Coupon::find(['code' => $code, 'deleted' => 'false'], 1);
 
-        return is_array($found) && (int) ($found['id'] ?? 0) > 0 ? $found : null;
+        if (is_array($found) && (int) ($found['id'] ?? 0) > 0) {
+            return (string) ($found['batch'] ?? 'false') === 'true' ? null : ['coupon_code_id' => 0] + $found;
+        }
+
+        $generated = CouponCode::find(['code' => $code], 1);
+
+        if (!is_array($generated) || (int) ($generated['id'] ?? 0) <= 0) {
+            return null;
+        }
+
+        $coupon = Coupon::find(['id' => (int) $generated['coupon_id'], 'deleted' => 'false'], 1);
+
+        if (!is_array($coupon) || (int) ($coupon['id'] ?? 0) <= 0) {
+            return null;
+        }
+
+        return ['code' => (string) $generated['code'], 'coupon_code_id' => (int) $generated['id']] + $coupon;
     }
 
     /**
-     * Applica un codice al carrello e ridà il carrello ricalcolato.
+     * Applica un codice al carrello e ridà il carrello ricalcolato. Se il
+     * coupon nuovo e quelli già applicati sono tutti cumulabili si
+     * **aggiunge**; altrimenti **sostituisce** quelli che c'erano.
      *
      * @return array<string, mixed>
      */
@@ -59,35 +92,119 @@ final class Coupons
 
             // Si valuta su righe e prezzi di adesso, non su quelli dell'ultima volta.
             Cart::recalculate($cartId);
+            $applied = self::applied($cartId);
+
+            // Due codici dello stesso blocco sono lo stesso coupon.
+            foreach ($applied as $row) {
+                if ((int) $row['coupon_id'] === (int) $coupon['id']) {
+                    throw UserError::make('coupon.already_applied');
+                }
+            }
+
             $result = self::evaluate($cartId, $coupon, date('Y-m-d H:i:s'));
 
             if (!$result['ok']) {
                 throw self::reject($result['reason']);
             }
 
-            Order::update(['coupon_id' => (int) $coupon['id'], 'coupon_code' => (string) $coupon['code']], $cartId);
+            $kept = array_values(array_filter(array_map(
+                static fn (array $row): ?array => self::couponOf((int) $row['coupon_id']),
+                $applied
+            )));
+
+            if (!CouponRules::stacks($kept, $coupon)) {
+                self::clear($cartId);
+                $applied = [];
+            }
+
+            OrderCoupon::create([
+                'order_id' => $cartId,
+                'coupon_id' => (int) $coupon['id'],
+                'coupon_code_id' => (int) $coupon['coupon_code_id'],
+                'code' => (string) $coupon['code'],
+                'position' => $applied === [] ? 0 : max(array_map(static fn (array $row): int => (int) $row['position'], $applied)) + 1,
+                'discount_amount' => '0.00',
+            ]);
+            self::mirror($cartId);
 
             return Cart::recalculate($cartId);
         });
     }
 
     /**
-     * Toglie il coupon dal carrello e ridà il carrello ricalcolato.
+     * Toglie dal carrello il coupon con quel codice (tutti con `null`) e ridà
+     * il carrello ricalcolato.
      *
      * @return array<string, mixed>
      */
-    public static function remove(int $cartId): array
+    public static function remove(int $cartId, ?string $code = null): array
     {
-        return Transaction::run(static function () use ($cartId): array {
-            self::detach($cartId);
+        return Transaction::run(static function () use ($cartId, $code): array {
+            if ($code === null) {
+                self::detach($cartId);
+
+                return Cart::recalculate($cartId);
+            }
+
+            $code = mb_strtolower((string) preg_replace('/\s+/u', '', $code));
+            self::materialize($cartId);
+
+            foreach (self::applied($cartId) as $row) {
+                if (mb_strtolower((string) $row['code']) === $code) {
+                    OrderCoupon::delete((int) $row['id']);
+                }
+            }
+
+            self::mirror($cartId);
 
             return Cart::recalculate($cartId);
         });
     }
 
     /**
-     * Il coupon sul carrello com'è adesso, valutato sulle righe scritte.
-     * Serve ad `apply`; il ricalcolo usa `context`, che ha le righe fresche.
+     * I coupon del carrello o dell'ordine, nell'ordine in cui sono stati
+     * applicati: righe di `gst_order_coupons` (`id`, `coupon_id`,
+     * `coupon_code_id`, `code`, `position`, `discount_amount`). Un carrello di
+     * prima, con il solo `coupon_id`, ridà una riga con `id` 0.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function applied(int $orderId): array
+    {
+        if ($orderId <= 0) {
+            return [];
+        }
+
+        $rows = self::rows(OrderCoupon::find(['order_id' => $orderId]));
+
+        if ($rows !== []) {
+            usort($rows, static fn (array $a, array $b): int => [(int) $a['position'], (int) $a['id']] <=> [(int) $b['position'], (int) $b['id']]);
+
+            return $rows;
+        }
+
+        $order = Order::findById($orderId);
+        $couponId = is_array($order) ? (int) ($order['coupon_id'] ?? 0) : 0;
+
+        if ($couponId <= 0) {
+            return [];
+        }
+
+        return [[
+            'id' => 0,
+            'order_id' => $orderId,
+            'coupon_id' => $couponId,
+            'coupon_code_id' => 0,
+            'code' => (string) ($order['coupon_code'] ?? ''),
+            'position' => 0,
+            'discount_amount' => (string) ($order['discount_total'] ?? '0.00'),
+        ]];
+    }
+
+    /**
+     * Un coupon com'è adesso, valutato sulle righe scritte del carrello.
+     * Serve ad `apply` e a `redeem`; il ricalcolo usa `context`, che ha le
+     * righe fresche.
      *
      * Con `$lock` gli usi si contano con letture che bloccano (`FOR UPDATE`) e
      * vedono l'ultimo dato salvato, non quello della fotografia della
@@ -112,17 +229,20 @@ final class Coupons
     }
 
     /**
-     * Prende l'utilizzo del coupon dell'ordine: va chiamata **dentro** la
-     * transazione di `Checkout::place`, dopo il ricalcolo con i dati veri del
-     * checkout (email, cliente) già scritti sulla riga.
+     * Prende un utilizzo per ogni coupon dell'ordine: va chiamata **dentro**
+     * la transazione di `Checkout::place`, dopo il ricalcolo con i dati veri
+     * del checkout (email, cliente) già scritti sulla riga.
      *
-     * Il coupon si legge con `FOR UPDATE`: due checkout sullo stesso coupon
-     * passano uno alla volta, e il secondo conta gli usi dopo il commit del
-     * primo. Le regole si rivalutano da capo; se non reggono, o se il
-     * ricalcolo aveva già tolto il coupon (`coupon_dropped`), si lancia
-     * l'errore del motivo e la transazione torna indietro: nessun ordine,
-     * nessun utilizzo. Con la funzionalità spenta il coupon non vale e si
-     * stacca dall'ordine, che non lo ha scontato.
+     * Ogni coupon si legge con `FOR UPDATE`: due checkout sullo stesso coupon
+     * (o su due codici dello stesso blocco) passano uno alla volta, e il
+     * secondo conta gli usi dopo il commit del primo. Le regole si rivalutano
+     * da capo; se non reggono, o se il ricalcolo aveva già tolto un coupon
+     * (`coupon_dropped`), si lancia l'errore del motivo e la transazione torna
+     * indietro: nessun ordine, nessun utilizzo. Con la funzionalità spenta i
+     * coupon non valgono e si staccano dall'ordine, che non li ha scontati.
+     *
+     * L'importo di ogni utilizzo è quello che il coupon ha tolto all'ultimo
+     * ricalcolo; per la spedizione gratuita, la spedizione risparmiata.
      *
      * @param array<string, mixed> $recalculated il ritorno di `Cart::recalculate`
      */
@@ -134,10 +254,9 @@ final class Coupons
             throw self::reject($dropped);
         }
 
-        $order = Order::findById($orderId);
-        $couponId = is_array($order) ? (int) ($order['coupon_id'] ?? 0) : 0;
+        $applied = self::applied($orderId);
 
-        if ($couponId <= 0) {
+        if ($applied === []) {
             return;
         }
 
@@ -147,27 +266,36 @@ final class Coupons
             return;
         }
 
-        $coupon = Coupon::findForUpdate(['id' => $couponId, 'deleted' => 'false'], 1);
+        $order = (array) Order::findById($orderId);
+        $now = date('Y-m-d H:i:s');
 
-        if (!is_array($coupon) || (int) ($coupon['id'] ?? 0) <= 0) {
-            throw self::reject('unknown');
+        foreach ($applied as $row) {
+            $coupon = Coupon::findForUpdate(['id' => (int) $row['coupon_id'], 'deleted' => 'false'], 1);
+
+            if (!is_array($coupon) || (int) ($coupon['id'] ?? 0) <= 0) {
+                throw self::reject('unknown');
+            }
+
+            $coupon = ['code' => (string) $row['code'], 'coupon_code_id' => (int) $row['coupon_code_id']] + $coupon;
+            $result = self::evaluate($orderId, $coupon, $now, true);
+
+            if (!$result['ok']) {
+                throw self::reject($result['reason']);
+            }
+
+            CouponRedemption::create([
+                'coupon_id' => (int) $coupon['id'],
+                'coupon_code_id' => (int) $coupon['coupon_code_id'],
+                'code' => (string) $coupon['code'],
+                'order_id' => $orderId,
+                'customer_id' => (int) ($order['customer_id'] ?? 0),
+                'email' => trim((string) ($order['email'] ?? '')),
+                'discount_amount' => number_format(round((float) ($row['discount_amount'] ?? 0), 2), 2, '.', ''),
+                'redeemed_at' => $now,
+            ]);
         }
 
-        $result = self::evaluate($orderId, $coupon, date('Y-m-d H:i:s'), true);
-
-        if (!$result['ok']) {
-            throw self::reject($result['reason']);
-        }
-
-        CouponRedemption::create([
-            'coupon_id' => $couponId,
-            'order_id' => $orderId,
-            'customer_id' => (int) ($order['customer_id'] ?? 0),
-            'email' => trim((string) ($order['email'] ?? '')),
-            'discount_amount' => number_format(self::saved($orderId, $coupon, $order), 2, '.', ''),
-            'redeemed_at' => date('Y-m-d H:i:s'),
-        ]);
-        Order::update(['coupon_id' => $couponId, 'coupon_code' => (string) $coupon['code']], $orderId);
+        self::mirror($orderId);
     }
 
     /**
@@ -187,33 +315,17 @@ final class Coupons
     }
 
     /**
-     * Quello che il coupon ha tolto: lo sconto sulla merce, o — per la
-     * spedizione gratuita — quello che la spedizione sarebbe costata.
-     *
-     * @param array<string, mixed> $coupon
-     * @param array<string, mixed> $order
-     */
-    private static function saved(int $orderId, array $coupon, array $order): float
-    {
-        if ((string) $coupon['discount_type'] !== 'free_shipping') {
-            return round((float) ($order['discount_total'] ?? 0), 2);
-        }
-
-        $saved = 0.0;
-
-        foreach (self::rows(OrderItem::find(['order_id' => $orderId, 'type' => 'shipping', 'deleted' => 'false'])) as $item) {
-            $saved += max(0.0, round((float) $item['list_price'] * (float) $item['quantity'] - (float) $item['line_total'], 2));
-        }
-
-        return round($saved, 2);
-    }
-
-    /**
      * Quello che il ricalcolo dà ai totali, dalle righe appena calcolate:
-     * `discount_type`, `discount_value`, `free_shipping`, `discountable`
-     * (riga → può essere scontata) e `amount`. Ridà `[]` se il carrello non ha
-     * un coupon che vale (o la funzionalità è spenta), e `['dropped' => motivo]`
-     * se ce l'aveva e non regge più: in quel caso lo **toglie** dal carrello.
+     * `discounts` (per `OrderTotals`: uno per coupon tenuto, con `type`,
+     * `value` e `lines`, gli id delle righe che può scontare; la spedizione
+     * gratuita vi sta come `none`), `free_shipping`, `coupons` (i coupon
+     * tenuti, nello stesso ordine) e `dropped` (il motivo del primo coupon
+     * uscito, o vuoto). Ridà `[]` se il carrello non ha coupon (o la
+     * funzionalità è spenta).
+     *
+     * I coupon che non reggono più, o che non stanno con quelli prima di
+     * loro, **escono** dal carrello. La spesa minima di ognuno si misura sulle
+     * righe prima dei coupon.
      *
      * Le righe sono quelle di `Cart::recalculate`: `id`, `type`, `product_id`,
      * `price_source`, `line_total`.
@@ -227,47 +339,88 @@ final class Coupons
             return [];
         }
 
-        $cart = Order::findById($cartId);
-        $couponId = is_array($cart) ? (int) ($cart['coupon_id'] ?? 0) : 0;
+        self::materialize($cartId);
+        $applied = self::applied($cartId);
 
-        if ($couponId <= 0) {
+        if ($applied === []) {
             return [];
         }
 
-        $coupon = Coupon::find(['id' => $couponId, 'deleted' => 'false'], 1);
+        $cart = (array) Order::findById($cartId);
+        $lines = array_values($lines);
+        $facts = self::cartFacts($cart, $lines);
+        $kept = [];
+        $discounts = [];
+        $freeShipping = false;
+        $dropped = '';
 
-        if (!is_array($coupon) || (int) ($coupon['id'] ?? 0) <= 0) {
-            self::detach($cartId);
+        foreach ($applied as $row) {
+            $coupon = self::couponOf((int) $row['coupon_id']);
+            $reason = '';
 
-            return ['dropped' => 'unknown'];
+            // Il codice di un coupon passato in blocco non vale più.
+            if ($coupon === null || ((string) ($coupon['batch'] ?? 'false') === 'true' && (int) $row['coupon_code_id'] <= 0)) {
+                $reason = 'unknown';
+            } else {
+                $coupon = ['code' => (string) $row['code'], 'coupon_code_id' => (int) $row['coupon_code_id'], 'order_coupon_id' => (int) $row['id']] + $coupon;
+                $result = CouponRules::check(self::withFacts($coupon, $cart), $facts, $now);
+
+                if (!$result['ok']) {
+                    $reason = $result['reason'];
+                } elseif (!CouponRules::stacks($kept, $coupon)) {
+                    $reason = 'not_stackable';
+                }
+            }
+
+            if ($reason !== '') {
+                OrderCoupon::delete((int) $row['id']);
+                $dropped = $dropped === '' ? $reason : $dropped;
+
+                continue;
+            }
+
+            $type = (string) $coupon['discount_type'];
+            $kept[] = $coupon;
+            $freeShipping = $freeShipping || $type === 'free_shipping';
+            $discounts[] = [
+                'type' => $type === 'free_shipping' ? 'none' : $type,
+                'value' => $type === 'free_shipping' ? 0.0 : (float) ($coupon['discount_value'] ?? 0),
+                'lines' => array_map(static fn (int $index): int => (int) ($lines[$index]['id'] ?? 0), $result['eligible']),
+            ];
         }
 
-        $result = CouponRules::check(self::withFacts($coupon, $cart), self::cartFacts($cart, $lines), $now);
-
-        if (!$result['ok']) {
-            self::detach($cartId);
-
-            return ['dropped' => $result['reason']];
+        if ($dropped !== '') {
+            self::mirror($cartId);
         }
 
-        $discountable = [];
-
-        foreach (array_values($lines) as $index => $line) {
-            $discountable[(int) ($line['id'] ?? 0)] = in_array($index, $result['eligible'], true);
+        if ($kept === []) {
+            return ['dropped' => $dropped];
         }
 
-        $type = (string) $coupon['discount_type'];
-        $value = (float) ($coupon['discount_value'] ?? 0);
+        return ['discounts' => $discounts, 'free_shipping' => $freeShipping, 'coupons' => $kept, 'dropped' => $dropped];
+    }
 
-        return [
-            'discount_type' => $type === 'free_shipping' ? 'none' : $type,
-            // L'importo fisso non supera mai la merce adatta; la percentuale
-            // si applica da sola alla stessa base.
-            'discount_value' => $type === 'amount' ? $result['amount'] : $value,
-            'free_shipping' => $type === 'free_shipping',
-            'discountable' => $discountable,
-            'amount' => $result['amount'],
-        ];
+    /**
+     * Scrive su ogni coupon tenuto quanto ha tolto: l'importo che `OrderTotals`
+     * gli ha dato e, al primo di spedizione gratuita, la spedizione
+     * risparmiata.
+     *
+     * @param array<string, mixed> $context il ritorno di `context`
+     * @param array<string, mixed> $totals il ritorno di `OrderTotals::of`
+     */
+    public static function record(array $context, array $totals): void
+    {
+        $shipping = (string) ($totals['shipping_saved'] ?? '0.00');
+
+        foreach (array_values((array) ($context['coupons'] ?? [])) as $index => $coupon) {
+            $amount = (string) ($totals['discounts'][$index] ?? '0.00');
+
+            if ((string) $coupon['discount_type'] === 'free_shipping') {
+                [$amount, $shipping] = [$shipping, '0.00'];
+            }
+
+            OrderCoupon::update(['discount_amount' => $amount], (int) $coupon['order_coupon_id']);
+        }
     }
 
     /** Il rifiuto con la frase del motivo (`gestionale.errors.coupon.<motivo>`). */
@@ -278,7 +431,45 @@ final class Coupons
 
     private static function detach(int $cartId): void
     {
+        self::clear($cartId);
         Order::update(['coupon_id' => 0, 'coupon_code' => ''], $cartId);
+    }
+
+    private static function clear(int $orderId): void
+    {
+        foreach (self::rows(OrderCoupon::find(['order_id' => $orderId])) as $row) {
+            OrderCoupon::delete((int) $row['id']);
+        }
+    }
+
+    /** Lo specchio sull'ordine: il primo coupon e i codici separati da «, ». */
+    private static function mirror(int $orderId): void
+    {
+        $applied = array_filter(self::applied($orderId), static fn (array $row): bool => (int) $row['id'] > 0);
+        $first = reset($applied);
+
+        Order::update([
+            'coupon_id' => is_array($first) ? (int) $first['coupon_id'] : 0,
+            'coupon_code' => mb_substr(implode(', ', array_map(static fn (array $row): string => (string) $row['code'], $applied)), 0, 255),
+        ], $orderId);
+    }
+
+    /** Un carrello di prima, con il solo `coupon_id`, prende la sua riga in `gst_order_coupons`. */
+    private static function materialize(int $orderId): void
+    {
+        foreach (self::applied($orderId) as $row) {
+            if ((int) $row['id'] === 0) {
+                OrderCoupon::create(array_diff_key($row, ['id' => true]));
+            }
+        }
+    }
+
+    /** @return array<string, mixed>|null */
+    private static function couponOf(int $couponId): ?array
+    {
+        $coupon = $couponId > 0 ? Coupon::find(['id' => $couponId, 'deleted' => 'false'], 1) : null;
+
+        return is_array($coupon) && (int) ($coupon['id'] ?? 0) > 0 ? $coupon : null;
     }
 
     /**
@@ -291,6 +482,7 @@ final class Coupons
     private static function withFacts(array $coupon, array $cart, bool $lock = false): array
     {
         $id = (int) $coupon['id'];
+        $codeId = (int) ($coupon['coupon_code_id'] ?? 0);
         $customerId = (int) ($cart['customer_id'] ?? 0);
         $email = mb_strtolower(trim((string) ($cart['email'] ?? '')));
         $used = array_filter(
@@ -313,6 +505,7 @@ final class Coupons
             ),
             'used_total' => count($used),
             'used_by_customer' => count($mine),
+            'code_used' => $codeId > 0 && array_filter($used, static fn (array $row): bool => (int) ($row['coupon_code_id'] ?? 0) === $codeId) !== [],
             'has_previous_orders' => self::hasPreviousOrders((int) ($cart['id'] ?? 0), $customerId, $email),
         ];
     }
@@ -466,6 +659,12 @@ final class Coupons
             }
         }
 
+        $generated = CouponCode::find(['code' => $code], 1);
+
+        if (is_array($generated) && (int) ($generated['id'] ?? 0) > 0) {
+            throw UserError::make('coupon.code_taken');
+        }
+
         $type = (string) ($draft['discount_type'] ?? '');
 
         if (!in_array($type, ['percent', 'amount', 'free_shipping'], true)) {
@@ -487,6 +686,11 @@ final class Coupons
         if ((string) ($draft['applies_subscriptions'] ?? 'false') === 'true') {
             if ($type === 'free_shipping') {
                 throw UserError::make('coupon.subscriptions_free_shipping');
+            }
+
+            // Un abbonamento non consuma un codice monouso (gestionale#113).
+            if ((string) ($draft['batch'] ?? 'false') === 'true') {
+                throw UserError::make('coupon.batch_subscriptions');
             }
 
             if ((string) ($draft['duration'] ?? 'once') === 'repeating' && (int) ($draft['duration_months'] ?? 0) < 1) {

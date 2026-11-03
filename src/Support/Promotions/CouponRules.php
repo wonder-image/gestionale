@@ -24,7 +24,7 @@ namespace Wonder\Plugin\Gestionale\Support\Promotions;
 final class CouponRules
 {
     /**
-     * @param array<string, mixed> $coupon la riga del coupon più `scope`, `customers`, `used_total`, `used_by_customer`, `has_previous_orders`
+     * @param array<string, mixed> $coupon la riga del coupon più `scope`, `customers`, `used_total`, `used_by_customer`, `code_used`, `has_previous_orders`
      * @param array{channel?: string, customer_id?: int, email?: string, has_manual_discount?: bool, lines?: list<array{facts?: array<string, mixed>, price_source?: string, line_total?: float|int|string, is_product?: bool}>} $cart
      * @return array{ok: true, eligible: list<int>, eligible_total: float, amount: float}|array{ok: false, reason: string}
      */
@@ -75,6 +75,11 @@ final class CouponRules
             return static::refuse('already_used');
         }
 
+        // Un codice generato in blocco vale una volta sola (gestionale#113).
+        if (!empty($coupon['code_used'])) {
+            return static::refuse('code_used');
+        }
+
         if (static::flag($coupon['first_order_only'] ?? false) && !empty($coupon['has_previous_orders'])) {
             return static::refuse('not_first_order');
         }
@@ -99,6 +104,28 @@ final class CouponRules
             'eligible_total' => $total,
             'amount' => $freeShipping ? 0.0 : static::amount($type, (float) ($coupon['discount_value'] ?? 0), $total),
         ];
+    }
+
+    /**
+     * Se `$coupon` può stare insieme a quelli già tenuti: un coupon da solo sta
+     * sempre, più coupon solo se sono tutti cumulabili.
+     *
+     * @param list<array<string, mixed>> $kept
+     * @param array<string, mixed> $coupon
+     */
+    public static function stacks(array $kept, array $coupon): bool
+    {
+        if ($kept === []) {
+            return true;
+        }
+
+        foreach ([...$kept, $coupon] as $one) {
+            if (!static::flag($one['stackable'] ?? false)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** @return array{ok: false, reason: string} */
