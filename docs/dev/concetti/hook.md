@@ -79,7 +79,8 @@ public function labelFormats(array $formats): array
 ```
 
 Ciò che non è un `LabelFormat` con misure positive si scarta; se non resta
-niente, valgono i formati standard.
+niente, valgono i formati standard. Il formato in uso è `label_format` delle
+Impostazioni (`LabelFormats::current()`): se l'hook lo toglie, vale il primo.
 
 ## Regole
 

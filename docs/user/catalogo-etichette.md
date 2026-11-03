@@ -19,16 +19,21 @@ Il bottone **Etichette** è in alto in tre pagine:
 Il bottone apre una finestra; **Crea il PDF** lo apre in una scheda nuova del
 browser, pronto da stampare.
 
-## Cosa si sceglie
+## Il formato
 
-- **Formato**: il foglio o il rotolo che hai in stampante.
+Il foglio o il rotolo che hai in stampante si sceglie una volta sola, in
+**Set Up → Impostazioni**, riquadro **Etichette**: da lì ogni PDF esce in quel
+formato. La finestra di stampa lo ricorda soltanto.
+
+## Cosa si sceglie nella finestra
+
 - **Da stampare**: nome dell'articolo, variante, SKU, prezzo, codice a barre.
   Togli quello che non ti serve; se togli tutto si stampano i campi di partenza.
 - **Copie per variante**: quante etichette uguali per ogni variante. Nel carico
   non c'è, perché le copie sono i pezzi.
-- **Prima casella libera (A4)**: per riusare un foglio già cominciato. Le
-  caselle si contano da sinistra a destra, riga per riga, partendo da 1. Sui
-  rotoli non conta.
+- **Prima casella libera**: per riusare un foglio A4 già cominciato. Le
+  caselle si contano da sinistra a destra, riga per riga, partendo da 1. Con un
+  rotolo non c'è.
 
 ## I formati
 

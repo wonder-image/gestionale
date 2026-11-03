@@ -20,6 +20,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Catalog\Placements;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Labels\LabelFormats;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 
@@ -84,6 +85,7 @@ final class SettingResource extends SingletonResource
             'subscription_unpaid_days' => 'Giorni prima di «non pagato»',
             'subscriptions_per_customer' => 'Abbonamenti in corso per cliente',
             'catalog_sort' => 'Ordine del catalogo',
+            'label_format' => 'Formato delle etichette',
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -156,6 +158,9 @@ final class SettingResource extends SingletonResource
             ...(Gestionale::feature('online_sales')
                 ? [FormField::key('catalog_sort')->select(Placements::CATALOG_SORT_MODES)->value('position')->label('Ordine del catalogo')->required()]
                 : []),
+            ...(Gestionale::feature('barcode_labels')
+                ? [FormField::key('label_format')->select(LabelFormats::options())->value(LabelFormats::current()->key)->label('Formato delle etichette')->required()]
+                : []),
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -201,6 +206,8 @@ final class SettingResource extends SingletonResource
                 ])->columns(12)->columnSpan(12),
 
                 ...static::stockCards(),
+
+                ...static::labelCards(),
 
                 ...$modules,
 
@@ -332,11 +339,28 @@ final class SettingResource extends SingletonResource
         return $components;
     }
 
+    /** @return list<Card> */
+    private static function labelCards(): array
+    {
+        if (!Gestionale::feature('barcode_labels')) {
+            return [];
+        }
+
+        return [
+            (new Card)->components([
+                SectionTitle::make('Etichette')
+                    ->tooltip('Il foglio o il rotolo della stampante del negozio: ogni PDF di etichette, dall\'articolo, dalla variante o dal carico, esce in questo formato.')
+                    ->columnSpan(12),
+                static::getInput('label_format')->columnSpan(6),
+            ])->columns(12)->columnSpan(12),
+        ];
+    }
+
     /** Le email degli ordini e della scorta restano di chi vende: in produzione si cambiano lo stesso. */
     public static function editableWhenReadonly(): array
     {
         return ['merchant_notification_emails', 'low_stock_emails', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days',
-            'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days', 'subscriptions_per_customer', 'stock_prices_include_tax'];
+            'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days', 'subscriptions_per_customer', 'stock_prices_include_tax', 'label_format'];
     }
 
     /** I corrieri attivi, per il vettore predefinito del DDT. @return array<int, string> */
@@ -534,6 +558,13 @@ final class SettingResource extends SingletonResource
             unset($values['catalog_sort']);
         } elseif (array_key_exists('catalog_sort', $values)) {
             $values['catalog_sort'] = Placements::catalogSortMode($values['catalog_sort']);
+        }
+
+        // #116: un formato che non c'è (più) diventa il primo.
+        if (!Gestionale::feature('barcode_labels')) {
+            unset($values['label_format']);
+        } elseif (array_key_exists('label_format', $values)) {
+            $values['label_format'] = LabelFormats::current((string) $values['label_format'])->key;
         }
 
         // G9, scadenzario: da 0 a 365 giorni; vuoto torna ai 7 di partenza.
