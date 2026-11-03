@@ -24,6 +24,10 @@ use Wonder\Plugin\Gestionale\Support\ForgetsRequestMemo;
  * tempo detto da `duration` e `duration_months`; per gli ordini quelle colonne
  * non contano.
  *
+ * Con `stackable` si somma ad altri coupon cumulabili; con `batch` il codice
+ * del coupon non si accetta più e valgono i codici di `CouponCode`
+ * (gestionale#113).
+ *
  * Non si sincronizza: è lavoro del commerciante.
  */
 final class Coupon extends Model
@@ -55,6 +59,9 @@ final class Coupon extends Model
             Column::key('applies_to_all')->enum(['true', 'false'])->default('false'),
             Column::key('exclude_discounted_products')->enum(['true', 'false'])->default('false'),
             Column::key('first_order_only')->enum(['true', 'false'])->default('false'),
+            // gestionale#113: si somma ad altri coupon cumulabili; con `batch` valgono solo i codici generati.
+            Column::key('stackable')->enum(['true', 'false'])->default('false'),
+            Column::key('batch')->enum(['true', 'false'])->default('false'),
             Column::key('usage_limit')->int()->default(0),
             Column::key('usage_limit_per_customer')->int()->default(0),
             Column::key('starts_at')->datetime(),
@@ -82,6 +89,8 @@ final class Coupon extends Model
             Field::key('applies_to_all')->text()->sanitize(false),
             Field::key('exclude_discounted_products')->text()->sanitize(false),
             Field::key('first_order_only')->text()->sanitize(false),
+            Field::key('stackable')->text()->sanitize(false),
+            Field::key('batch')->text()->sanitize(false),
             Field::key('usage_limit')->number()->decimals(0),
             Field::key('usage_limit_per_customer')->number()->decimals(0),
             Field::key('starts_at')->date(),

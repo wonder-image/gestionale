@@ -219,6 +219,10 @@ I PDF di vendita (`Support\Documents`):
   si scaricano dalle rotte `…/preventivi/{id}/pdf/{rev}/` e
   `…/ordine-da-ufficio/{id}/pdf/`.
 
+Un documento che non c'è (PDF, stampa, proforma, CSV dei clienti di un lotto,
+righe di un listino) lancia `NotFoundHttpException`: il core mostra la sua
+pagina 404, come per le altre rotte del backend, non un testo nudo.
+
 Il sito sostituisce un PDF con l'hook `documentPdf` di `GestionaleExtension`:
 
 ```php

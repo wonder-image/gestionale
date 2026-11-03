@@ -644,7 +644,8 @@ final class OnlineSubscriptions
             throw UserError::make('coupon.inactive');
         }
 
-        if ((string) ($coupon['applies_subscriptions'] ?? 'false') !== 'true' || !in_array((string) $coupon['discount_type'], ['percent', 'amount'], true)) {
+        // Un codice monouso non si consuma su un abbonamento (gestionale#113).
+        if ((int) $coupon['coupon_code_id'] > 0 || (string) ($coupon['applies_subscriptions'] ?? 'false') !== 'true' || !in_array((string) $coupon['discount_type'], ['percent', 'amount'], true)) {
             throw UserError::make('coupon.not_for_subscriptions');
         }
 

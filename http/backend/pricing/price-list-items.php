@@ -10,6 +10,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Pricing\PriceList;
 use Wonder\Plugin\Gestionale\Support\Export\Download;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceListTransfer;
+use Wonder\Http\Exceptions\NotFoundHttpException;
 
 $routeParameters = is_array($ROUTE_PARAMETERS ?? null) ? $ROUTE_PARAMETERS : [];
 $id = (int) ($routeParameters['id'] ?? 0);
@@ -17,8 +18,7 @@ $format = (string) ($routeParameters['format'] ?? '') === 'csv' ? 'csv' : 'xlsx'
 $list = $id > 0 && Gestionale::feature('customer_price_lists') ? PriceList::findById($id) : null;
 
 if (!is_array($list) || !isset($list['id'])) {
-    http_response_code(404);
-    exit('Listino non trovato');
+    throw new NotFoundHttpException();
 }
 
 $rows = PriceListTransfer::rows($id);

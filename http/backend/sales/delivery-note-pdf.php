@@ -9,6 +9,7 @@
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Sales\DeliveryNote;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
+use Wonder\Http\Exceptions\NotFoundHttpException;
 
 $routeParameters = is_array($ROUTE_PARAMETERS ?? null) ? $ROUTE_PARAMETERS : [];
 $id = (int) ($routeParameters['id'] ?? 0);
@@ -16,8 +17,7 @@ $note = $id > 0 && Gestionale::feature('delivery_notes') ? DeliveryNote::findByI
 $path = is_array($note) && isset($note['pdf_file']) ? DocumentFiles::path((string) $note['pdf_file']) : null;
 
 if ($path === null) {
-    http_response_code(404);
-    exit('PDF non trovato');
+    throw new NotFoundHttpException();
 }
 
 $name = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($note['number'] ?? $id));

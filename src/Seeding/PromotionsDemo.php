@@ -8,12 +8,14 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponCode;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaign;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignBrand;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignCategory;
 use Wonder\Plugin\Gestionale\Models\Promotions\DiscountCampaignTag;
+use Wonder\Plugin\Gestionale\Models\Promotions\OrderCoupon;
 use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
 use Wonder\Plugin\Gestionale\Support\RequestMemo;
 
@@ -140,6 +142,8 @@ final class PromotionsDemo
 
             sqlDelete(CouponRedemption::$table, 'coupon_id = '.$id);
             sqlDelete(CouponCustomer::$table, 'coupon_id = '.$id);
+            sqlDelete(OrderCoupon::$table, 'coupon_id = '.$id);
+            sqlDelete(CouponCode::$table, 'coupon_id = '.$id);
             Coupon::delete($id);
             $removed++;
         }

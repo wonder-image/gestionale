@@ -30,6 +30,7 @@ use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
+use Wonder\Plugin\Gestionale\Models\Promotions\OrderCoupon;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderStatusLog;
@@ -83,6 +84,7 @@ register_shutdown_function(static function () use (&$spazzatura): void {
 
         sqlDelete(Payment::$table, "order_id = {$ordine}");
         sqlDelete(CouponRedemption::$table, "order_id = {$ordine}");
+        sqlDelete(OrderCoupon::$table, "order_id = {$ordine}");
         sqlDelete(OrderTaxSummary::$table, "order_id = {$ordine}");
         sqlDelete(StockReservation::$table, "order_id = {$ordine}");
         sqlDelete(StockMovement::$table, "reference_id = {$ordine} AND reference_type = 'order'");

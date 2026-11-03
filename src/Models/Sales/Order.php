@@ -140,7 +140,7 @@ final class Order extends Model
             Column::key('payment_term_id')->int()->default(0),
             // Sconti sul totale
             Column::key('coupon_id')->int()->default(0),
-            Column::key('coupon_code')->length(50),
+            Column::key('coupon_code')->length(255),
             Column::key('manual_discount_type')->enum(static::DISCOUNT_TYPES)->default('none'),
             // Totali
             Column::key('currency')->length(3)->default('EUR'),
