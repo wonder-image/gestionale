@@ -374,7 +374,7 @@
                 "price_name_required": "Ogni prezzo ha un nome («Mensile», «Annuale»).",
                 "price_invalid": "Il prezzo «{{name}}» deve essere un numero, zero o più.",
                 "sale_not_lower": "Il prezzo scontato di «{{name}}» deve essere più basso del prezzo.",
-                "term_mismatch": "I mesi per addebito di «{{name}}» non vanno con l'intervallo: da 1 a 12 per il mensile, 12, 24 o 36 per l'annuale.",
+                "term_mismatch": "L'addebito di «{{name}}» non va con la ricorrenza: da mensile ad annuale col mese, 12, 24 o 36 mesi con l'anno.",
                 "negative_period": "Vincolo e giorni di prova di «{{name}}» non possono essere negativi.",
                 "renewal_invalid": "Il prezzo di rinnovo di «{{name}}» deve essere un altro prezzo, già salvato, di un piano attivo.",
                 "price_in_use": "Il prezzo «{{name}}» è usato da un abbonamento e non si toglie: spegnilo.",

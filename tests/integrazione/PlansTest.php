@@ -163,7 +163,7 @@ check('la pagina rifiuta un piano senza nome, senza prezzi o con un prezzo stort
         return rifiutoPagina(['name' => '', 'prices' => [$mensile]]) === 'plan.name_required'
             && rifiutoPagina(['name' => 'Vuoto', 'prices' => []]) === 'plan.no_prices'
             && rifiutoPagina(['name' => 'Storto', 'prices' => [['sale_price' => '30'] + $mensile]]) === 'plan.sale_not_lower'
-            && rifiutoPagina(['name' => 'Storto', 'prices' => [['billing_interval' => 'year', 'term_months' => '6'] + $mensile]]) === 'plan.term_mismatch'
+            && rifiutoPagina(['name' => 'Storto', 'prices' => [['billing_interval' => 'month', 'term_months' => '13'] + $mensile]]) === 'plan.term_mismatch'
             && rifiutoPagina(['name' => 'Doppio', 'prices' => [$mensile], 'features' => [['feature_key' => 'max', 'feature_value' => '1'], ['feature_key' => 'MAX', 'feature_value' => '2']]]) === 'plan.feature_duplicate'
             && rifiutoPagina(['name' => 'Buono', 'prices' => [$mensile]]) === null;
     });
