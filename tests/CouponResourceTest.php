@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Elements\Components\Button;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
 
@@ -90,9 +91,14 @@ check('il coupon si apre in una scheda di lettura, con «Modifica» in testata',
 
 check('in testata «Genera codici», e «Scarica i codici» solo con i codici; niente per gli abbonamenti', function () {
     $azioni = CouponResource::pageSchema()->toArray()['actions']['view'];
-    $etichette = static fn (array $item): array => array_column($azioni($item), 'label');
+    $etichette = static fn (array $item): array => array_map(
+        static fn (mixed $azione): string => $azione instanceof Button ? $azione->getLabel() : (string) $azione['label'],
+        $azioni($item),
+    );
+    $genera = $azioni(['id' => 7])[0]->render('bootstrap');
 
     return $etichette(['id' => 7]) === ['Genera codici', 'Modifica']
+        && str_contains($genera, CouponResource::generateModalId(7)) && !str_contains($genera, 'onclick')
         && $etichette(['id' => 7, 'batch' => 'true']) === ['Genera codici', 'Scarica i codici', 'Modifica']
         && $etichette(['id' => 7, 'applies_subscriptions' => 'true']) === ['Modifica']
         && str_contains(CouponResource::codesUrl(7), '/7/codici/');

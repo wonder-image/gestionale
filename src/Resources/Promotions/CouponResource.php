@@ -11,6 +11,7 @@ use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Elements\Components\Badge;
+use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\Modal;
@@ -349,7 +350,7 @@ class CouponResource extends GestionaleResource
      * per i coupon degli abbonamenti), «Scarica i codici» quando ce ne sono.
      *
      * @param array<string, mixed> $item
-     * @return list<array<string, string>>
+     * @return list<Button>
      */
     protected static function codeActions(array $item): array
     {
@@ -359,21 +360,14 @@ class CouponResource extends GestionaleResource
             return [];
         }
 
-        $actions = [[
-            'label' => 'Genera codici',
-            'icon' => 'bi-upc-scan',
-            'class' => 'btn-outline-secondary btn-sm',
-            'href' => '#',
-            'onclick' => OrderResource::openModal(static::generateModalId($id)),
-        ]];
+        $actions = [
+            Button::make('Genera codici')->icon('bi bi-upc-scan', 'start')->variant('secondary')->outline()->size('sm')
+                ->opensModal(static::generateModalId($id)),
+        ];
 
         if ((string) ($item['batch'] ?? 'false') === 'true') {
-            $actions[] = [
-                'label' => 'Scarica i codici',
-                'icon' => 'bi-download',
-                'class' => 'btn-outline-secondary btn-sm',
-                'href' => static::codesUrl($id),
-            ];
+            $actions[] = Button::make('Scarica i codici', static::codesUrl($id))->icon('bi bi-download', 'start')
+                ->variant('secondary')->outline()->size('sm');
         }
 
         return $actions;
