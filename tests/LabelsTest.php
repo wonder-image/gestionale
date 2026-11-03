@@ -14,6 +14,15 @@ use Wonder\Plugin\Gestionale\Support\Labels\Labels;
 use Wonder\Support\Labels\LabelFormat;
 use Wonder\Support\Labels\LabelSheet;
 
+/** Solo un rotolo: è il formato con cui si stampa. */
+final class LabelsRollExtension extends GestionaleExtension
+{
+    public function labelFormats(array $formats): array
+    {
+        return ['roll-50x30' => $formats['roll-50x30']];
+    }
+}
+
 final class LabelsTestExtension extends GestionaleExtension
 {
     public function labelFormats(array $formats): array
@@ -124,14 +133,14 @@ check('copie: una etichetta ciascuna', fn () => count(LabelSheet::labels(Labels:
 
 // --- Opzioni e prezzo ---
 
-check('opzioni: formato sconosciuto diventa il primo', fn () => Labels::options(['format' => 'nessuno'])['format']->key === 'a4-24');
+check('formato sconosciuto diventa il primo', fn () => LabelFormats::current('nessuno')->key === 'a4-24' && LabelFormats::current('a4-65')->key === 'a4-65');
+check('opzioni: il formato non arriva dalla finestra', fn () => Labels::options(['format' => 'a4-65'])['format']->key === LabelFormats::current()->key);
 check('opzioni: campi da lista con virgole, sconosciuti via', fn () => Labels::options(['fields' => 'sku,xxx,price'])['fields'] === ['sku', 'price']);
 check('opzioni: campi da array', fn () => Labels::options(['fields' => ['barcode', 'article']])['fields'] === ['article', 'barcode']);
 check('opzioni: niente spuntato = campi di partenza', fn () => Labels::options(['fields' => []])['fields'] === Labels::DEFAULT_FIELDS);
 check('opzioni: copie fra 1 e 500', fn () => Labels::options(['copies' => '0'])['copies'] === 1 && Labels::options(['copies' => '9999'])['copies'] === Labels::MAX_COPIES);
 check('opzioni: start contato da 1 e dentro il foglio', fn () => Labels::options(['start' => '5'])['start'] === 4
-    && Labels::options(['start' => '99'])['start'] === 23
-    && Labels::options(['start' => '5', 'format' => 'roll-50x30'])['start'] === 0);
+    && Labels::options(['start' => '99'])['start'] === 23);
 
 check('prezzo: lo scontato se è sotto il pieno', fn () => Labels::price(['price' => '30', 'sale_price' => '25']) === 25.0);
 check('prezzo: lo scontato più alto non conta', fn () => Labels::price(['price' => '30', 'sale_price' => '35']) === 30.0);
@@ -156,11 +165,16 @@ check('spenta: la rotta risponde 403', fn () => Labels::respond('model', 1, [])[
 $features->setValue(null, ['barcode_labels' => true]);
 check('accesa: il bottone apre la finestra', fn () => count(LabelDialog::actions()) === 1
     && str_contains(LabelDialog::actions()[0]->render('bootstrap'), 'data-bs-target="#'.LabelDialog::MODAL.'"'));
-check('accesa: la finestra ha formato e copie', function () {
+check('accesa: la finestra nomina il formato e chiede copie e casella', function () {
     $html = LabelDialog::modal('/backend/x/1/etichette/');
 
-    return str_contains($html, 'id="'.LabelDialog::MODAL.'"') && str_contains($html, 'name="format"') && str_contains($html, 'name="copies"');
+    return str_contains($html, 'id="'.LabelDialog::MODAL.'"') && !str_contains($html, 'name="format"')
+        && str_contains($html, 'Formato: '.htmlspecialchars(LabelFormats::current()->name)) && str_contains($html, 'name="copies"') && str_contains($html, 'name="start"');
 });
+Extensions::use([LabelsRollExtension::class]);
+check('rotolo nelle Impostazioni: niente casella libera', fn () => !str_contains(LabelDialog::modal('/x'), 'name="start"')
+    && Labels::options(['start' => '5'])['start'] === 0);
+Extensions::use(null);
 check('sul carico la finestra non chiede le copie', fn () => !str_contains(LabelDialog::modal('/x', false), 'name="copies"'));
 check('accesa: sorgente sconosciuta 404', fn () => Labels::respond('ordine', 1, [])['status'] === 404);
 check('accesa: id zero 404', fn () => Labels::respond('model', 0, [])['status'] === 404);

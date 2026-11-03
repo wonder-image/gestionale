@@ -37,7 +37,9 @@ versionamento semantico.
 - **Etichette con codice a barre** in PDF (#116), da stampare dalla scheda
   dell'articolo, dalla variante e dal carico: EAN-13/EAN-8 col codificatore del
   core, fogli A4 da 24, 40 e 65 e rotoli termici 50 × 30 e 40 × 25, campi e
-  copie scelti nella finestra, prima casella libera sul foglio. Il sito aggiunge
+  copie scelti nella finestra, prima casella libera sul foglio. Il formato si
+  sceglie una volta nelle Impostazioni (`label_format`, del negozio: fuori dal
+  sync e modificabile in produzione). Il sito aggiunge
   formati con l'hook `labelFormats()`. Funzionalità *Etichette*, spenta di base.
   Il foglio PDF e i formati sono del core (`Wonder\Support\Labels`): serve la
   versione di `wonder-image/app` che li contiene.
