@@ -137,12 +137,13 @@ final class PlanResource extends GestionaleResource
                     RepeaterColumn::key('term_months')->number()->decimal(0)->label('Mesi per addebito')->columnSpan(2),
                     RepeaterColumn::key('price')->number()->decimal(2)->label('Prezzo')->columnSpan(2),
                     RepeaterColumn::key('sale_price')->number()->decimal(2)->label('Prezzo scontato')->columnFill(),
-                    RepeaterColumn::key('commitment_months')->number()->decimal(0)->label('Vincolo (mesi)')->columnSpan(3),
+                    RepeaterColumn::key('commitment_months')->number()->decimal(0)->label('Vincolo (mesi)')->columnSpan(2),
                     RepeaterColumn::key('trial_days')->number()->decimal(0)->label('Prova (giorni)')->columnSpan(2),
+                    RepeaterColumn::key('one_time_price')->number()->decimal(2)->label('Una tantum')->columnSpan(2),
                     RepeaterColumn::key('renewal_plan_price_id')
                         ->select(['0' => 'Nessuno'] + static::renewalOptions())
                         ->label('A fine vincolo passa a')
-                        ->columnSpan(4),
+                        ->columnSpan(3),
                     RepeaterColumn::key('active')->select(['true' => 'Attivo', 'false' => 'Spento'])->label('Stato')->columnFill(),
                 ])
                 ->relation(
@@ -619,6 +620,7 @@ final class PlanResource extends GestionaleResource
             $row['term_months'] = $term === '' ? PlanPriceRules::defaultTerm($interval) : (int) $term;
             $row['price'] = Numbers::fromForm($row['price'] ?? null) ?? '';
             $row['sale_price'] = Numbers::fromForm($row['sale_price'] ?? null) ?? '0.00';
+            $row['one_time_price'] = Numbers::fromForm($row['one_time_price'] ?? null) ?? '0.00';
             $row['commitment_months'] = (int) trim((string) ($row['commitment_months'] ?? '0'));
             $row['trial_days'] = (int) trim((string) ($row['trial_days'] ?? '0'));
             $row['renewal_plan_price_id'] = max(0, (int) ($row['renewal_plan_price_id'] ?? 0));

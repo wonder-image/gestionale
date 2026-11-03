@@ -32,6 +32,9 @@ final class SubscriptionEvents
         'invoice.payment_failed',
     ];
 
+    /** La nota del pagamento dell'una tantum a inizio prova (#76): non è un addebito del canone. */
+    public const ONE_TIME_NOTE = 'Una tantum abbonamento';
+
     public static function handles(string $type): bool
     {
         return in_array($type, self::TYPES, true);
@@ -153,6 +156,9 @@ final class SubscriptionEvents
         $id = (int) $row['id'];
         $paid = StripeSubscriptionData::invoicePayment($invoice);
         $reference = (string) ($invoice['id'] ?? '');
+        // Con la prova, la prima fattura porta solo l'una tantum (#76): si
+        // registra, ma la prova resta.
+        $oneTime = StripeSubscriptionData::invoiceOpensTrial($invoice);
 
         // La prova e gli importi a zero non sono pagamenti (§4).
         if ($paid['amount'] > 0.0 && $reference !== '' && Ledger::byReference('stripe', $reference) === null) {
@@ -169,13 +175,13 @@ final class SubscriptionEvents
                 'provider_reference' => $reference,
                 'environment' => $environment,
                 'paid_at' => $paid['paid_at'],
-                'note' => 'Abbonamento '.(string) ($row['code'] ?? ''),
+                'note' => ($oneTime ? self::ONE_TIME_NOTE.' ' : 'Abbonamento ').(string) ($row['code'] ?? ''),
             ]);
         }
 
         // Il primo addebito dopo la prova chiude la prova: la notifica dello
         // stato nuovo può arrivare dopo quella della fattura.
-        if (in_array((string) $row['status'], ['pending', 'trialing', 'past_due', 'unpaid'], true) && $paid['amount'] > 0.0) {
+        if (!$oneTime && in_array((string) $row['status'], ['pending', 'trialing', 'past_due', 'unpaid'], true) && $paid['amount'] > 0.0) {
             SubscriptionStatus::move($id, 'active', $source, 'Pagamento riuscito');
         }
     }

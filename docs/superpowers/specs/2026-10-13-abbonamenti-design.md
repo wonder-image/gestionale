@@ -90,7 +90,7 @@ Come §4.13 dell'architettura, con il prefisso `gst_`:
 |---|---|
 | `gst_plans` | code `pln_`, slug, name, description, tax_category_id, visible_online, active, position, deleted |
 | `gst_plan_features` | plan_id, key, value |
-| `gst_plan_prices` | plan_id, name, billing_interval (`month`, `year`), term_months, commitment_months, trial_days, price, sale_price, renewal_plan_price_id, active, position |
+| `gst_plan_prices` | plan_id, name, billing_interval (`month`, `year`), term_months, commitment_months, trial_days, price, sale_price, one_time_price, renewal_plan_price_id, active, position |
 | `gst_subscriptions` | code `sub_`, customer_id, plan_price_id, channel (`online`, `office`), status, provider (`stripe`, `manual`), payment_method_id, payment_term_id, coupon_id, coupon_code, dati `billing_` copiati, prices_include_tax, subtotal, discount_total, tax_id, tax_country, tax_rate, tax_total, total, currency, started_at, trial_ends_at, commitment_ends_at, current_period_start, current_period_end, next_renewal_at, auto_renew, cancel_requested_at, cancelled_at, ended_at, provider_reference, note |
 | `gst_subscription_plan_changes` | subscription_id, old_plan_price_id, new_plan_price_id, user_id, source, changed_at |
 | `gst_subscription_status_logs` | come gli altri log di stato |
@@ -135,6 +135,38 @@ limite dal piano dell'abbonamento vivo del cliente (`trialing`, `active`,
 `past_due`), `null` senza abbonamento. È documentato nella guida sviluppatori.
 Il controllo lo fa il sito quando crea qualcosa; un piano più basso non toglie
 niente.
+
+### 1.6 Una tantum (#76)
+
+`gst_plan_prices.one_time_price` (decimale, 0 = niente; «Una tantum» nella
+finestra del prezzo, `>= 0` in `PlanPriceRules`) si paga **una volta**, col
+primo addebito: con la prova si paga subito, a inizio prova, e il canone parte
+a fine prova. Mai sui rinnovi, sui cambi di piano o di prezzo, sui servizi
+aggiunti. Ha l'aliquota della riga e una riga sua; il coupon non la sconta.
+`SubscriptionAmounts::oneTime($lines, $includeTax)` la calcola per quantità.
+Il totale dell'abbonamento (`total`) resta il canone.
+
+Contratto per il negozio (ecommerce#21):
+
+- le righe grezze di `PlanCatalog` portano `one_time_price` (stringa decimale);
+- `OnlineSubscriptions::preview()` restituisce `trial` (giorni di prova che
+  varranno, 0 senza) e, in `amounts`, `one_time` =
+  `{subtotal, taxable_total, tax_total, total, tax_summaries, lines[{index, unit_price, line_total, tax_rate}]}`
+  (`index` è la posizione nella lista delle righe) e `first_charge_total`,
+  quanto si paga subito: canone + una tantum, o la sola una tantum con la prova;
+- `quote()` (conguagli dei cambi) non la conta mai.
+
+Online: nel Checkout una voce `price_data` senza `recurring` per riga, che
+Stripe mette solo nella prima fattura; con la prova il Checkout scrive
+`trial_days` nei metadati dell'abbonamento, e la fattura `subscription_create`
+in prova si registra come pagamento con la nota «Una tantum abbonamento CODE»
+senza chiudere la prova né contare come addebito del canone (coupon a durata).
+Da ufficio: una rata a parte alla data d'inizio, con la stessa nota, e un suo
+proforma (`proformas/{id}-{Ymd}-una-tantum.pdf`), con o senza prova.
+
+Limiti noti: un codice promozionale di Stripe sconta anche la voce una tantum
+del Checkout (il calcolo del gestionale no); da ufficio la rata una tantum non
+pagata porta l'abbonamento a «da pagare» come le altre.
 
 ## 2. Abbonamenti online, E3 (piano 2)
 

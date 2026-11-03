@@ -668,4 +668,66 @@ check('il riepilogo del negozio: righe e primo addebito senza scrivere niente; i
         && $troppi === 'subscription.too_many_items';
 }));
 
+check('una tantum con la prova: una voce senza ricorrenza nel Checkout e i giorni di prova nei metadati', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $p = pianoOnline();
+    PlanPrice::update(['one_time_price' => '12.20'], (int) $p['mensile']['id']);
+    $avvio = inizia(cliente(), PlanPrice::findById((int) $p['mensile']['id']));
+    $sessione = $stripe->last('checkout.session.create');
+    $voci = $sessione['line_items'];
+    $once = $voci[1]['price_data'] ?? [];
+
+    return count($voci) === 2 && isset($voci[0]['price']) && !isset($once['recurring'])
+        && $once['unit_amount'] === 1220 && $voci[1]['quantity'] === 1
+        && $sessione['subscription_data']['metadata']['trial_days'] === '14'
+        && round((float) Subscription::findById($avvio['subscription_id'])['total'], 2) === 24.4;
+}));
+
+check('una tantum con la prova: la prima fattura si registra e la prova resta; il canone poi attiva', fn () => prova(static function (): bool {
+    $p = pianoOnline();
+    PlanPrice::update(['one_time_price' => '12.20'], (int) $p['mensile']['id']);
+    $avvio = inizia(cliente(), PlanPrice::findById((int) $p['mensile']['id']));
+    $id = $avvio['subscription_id'];
+    SubscriptionEvents::apply(notifica('customer.subscription.created', abbonamentoStripe('sub_U1', $id, 'trialing', prezzoStripe($p['mensile']))));
+    $prima = fattura('in_u1', 'sub_U1', $id, 1220) + ['billing_reason' => 'subscription_create'];
+    $prima['parent']['subscription_details']['metadata']['trial_days'] = '14';
+    SubscriptionEvents::apply(notifica('invoice.paid', $prima));
+    $inProva = (string) Subscription::findById($id)['status'];
+    $pagamenti = righe(Payment::class, ['subscription_id' => $id]);
+    $canone = fattura('in_u2', 'sub_U1', $id, 2440) + ['billing_reason' => 'subscription_cycle'];
+    $canone['parent']['subscription_details']['metadata']['trial_days'] = '14';
+    SubscriptionEvents::apply(notifica('invoice.paid', $canone));
+
+    return $inProva === 'trialing' && count($pagamenti) === 1
+        && str_starts_with((string) $pagamenti[0]['note'], SubscriptionEvents::ONE_TIME_NOTE)
+        && round((float) $pagamenti[0]['amount'], 2) === 12.2
+        && (string) Subscription::findById($id)['status'] === 'active'
+        && count(righe(Payment::class, ['subscription_id' => $id])) === 2;
+}));
+
+check('una tantum senza prova: il primo addebito è canone più una tantum; il canone del preventivo no', fn () => prova(static function (): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    PlanPrice::update(['one_time_price' => '12.20'], (int) $prezzo['id']);
+    $riepilogo = OnlineSubscriptions::preview(Contact::findById(cliente()), [['price_code' => $prezzo['code'], 'quantity' => 2]], [], '');
+    $a = $riepilogo['amounts'];
+
+    return $riepilogo['trial'] === 0 && $a['total'] === '48.80' && $a['one_time']['total'] === '24.40'
+        && count($a['one_time']['lines']) === 1 && $a['first_charge_total'] === '73.20';
+}));
+
+check('una tantum: il cambio di piano online non la riaddebita', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $p = pianoOnline();
+    PlanPrice::update(['one_time_price' => '30.00'], (int) $p['annuale']['id']);
+    $avvio = inizia(cliente(), $p['mensile']);
+    $id = $avvio['subscription_id'];
+    SubscriptionEvents::apply(notifica('customer.subscription.created', abbonamentoStripe('sub_U3', $id, 'active', prezzoStripe($p['mensile']))));
+    $stripe->objects['sub_U3'] = abbonamentoStripe('sub_U3', $id, 'active', prezzoStripe($p['mensile']));
+    $sessioni = $stripe->count('checkout.session.create');
+    OnlineSubscriptions::changePlan($id, (int) $p['annuale']['id'], 'api');
+    $chiamata = $stripe->last('subscription_item.update');
+
+    return !isset($chiamata['add_invoice_items']) && !str_contains(json_encode($chiamata), 'price_data')
+        && $stripe->count('checkout.session.create') === $sessioni && $stripe->count('invoice_item.create') === 0
+        && round((float) Subscription::findById($id)['total'], 2) === 244.0;
+}));
+
 summary();

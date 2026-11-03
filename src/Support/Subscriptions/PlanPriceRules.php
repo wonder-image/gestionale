@@ -9,6 +9,7 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
  *
  * - un nome;
  * - prezzo non negativo, prezzo scontato (se c'è) più basso del prezzo;
+ * - una tantum (se c'è) non negativa;
  * - mesi per addebito coerenti con l'intervallo: da 1 a 12 per il mensile,
  *   multipli di 12 per l'annuale;
  * - vincolo e giorni di prova non negativi;
@@ -42,6 +43,12 @@ final class PlanPriceRules
 
         if ($sale !== '' && (float) $sale > 0.0 && (float) $sale >= (float) $amount) {
             throw UserError::make('plan.sale_not_lower', ['name' => (string) $price['name']]);
+        }
+
+        $oneTime = trim((string) ($price['one_time_price'] ?? ''));
+
+        if ($oneTime !== '' && (!is_numeric($oneTime) || (float) $oneTime < 0.0)) {
+            throw UserError::make('plan.price_invalid', ['name' => (string) $price['name']]);
         }
 
         $interval = (string) ($price['billing_interval'] ?? 'month');

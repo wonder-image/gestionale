@@ -13,7 +13,8 @@ use Wonder\Sql\TableSchema as Column;
  *
  * `term_months` dice quanti mesi copre un addebito (1 per il mensile, 12 per
  * l'annuale); `commitment_months` a zero vuol dire nessun vincolo;
- * `trial_days` i giorni di prova gratuita. A fine vincolo, con
+ * `trial_days` i giorni di prova gratuita; `one_time_price` l'importo una
+ * tantum del primo addebito (a inizio prova, se c'è). A fine vincolo, con
  * `renewal_plan_price_id`, l'abbonamento passa a quel prezzo.
  *
  * Il prezzo è IVA inclusa o esclusa come il listino base (G10.4). Un prezzo
@@ -37,7 +38,7 @@ final class PlanPrice extends Model
     public static function tableSchema(): array
     {
         return [
-            ...static::sqlColumnsFromDataSchema(['code', 'price', 'sale_price']),
+            ...static::sqlColumnsFromDataSchema(['code', 'price', 'sale_price', 'one_time_price']),
             Column::key('plan_id')->int()->null(false)->foreign(Plan::$table),
             Column::key('name'),
             Column::key('billing_interval')->enum(static::INTERVALS)->default('month'),
@@ -69,6 +70,7 @@ final class PlanPrice extends Model
             Field::key('trial_days')->number()->decimals(0),
             Field::key('price')->number()->decimals(2),
             Field::key('sale_price')->number()->decimals(2),
+            Field::key('one_time_price')->number()->decimals(2),
             Field::key('renewal_plan_price_id')->number()->decimals(0),
             Field::key('active')->text()->sanitize(false),
             Field::key('position')->number()->decimals(0),

@@ -471,4 +471,53 @@ check('scheda: le finestre dei servizi si aprono, con l\'aiuto accanto al titolo
         && str_contains($html, 'Gratis: niente fino al rinnovo');
 }));
 
+check('una tantum senza prova: una rata a parte dal primo giorno e il suo proforma, oltre alle rate del periodo', fn () => prova(static function (): bool {
+    $p = piano();
+    PlanPrice::update(['one_time_price' => '50.00'], $p['mensile']);
+    $posta = conPosta(static function () use ($p, &$id): void {
+        $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'plan_price_id' => $p['mensile'], 'starts_at' => '2026-03-01']);
+    });
+    $importi = array_map(static fn (array $r): float => round((float) $r['amount'], 2), rate($id));
+    sort($importi);
+    $note = array_column(rate($id), 'note');
+    $proforma = array_filter($posta, static fn ($m) => str_starts_with($m['subject'], '[subscription.proforma] '));
+
+    return stato($id) === 'active' && $importi === [50.0, 100.0]
+        && round((float) Subscription::findById($id)['total'], 2) === 100.0
+        && count(array_filter($note, static fn ($n) => str_starts_with((string) $n, 'Una tantum abbonamento'))) === 1
+        && DocumentFiles::path('proformas/'.$id.'-20260301-una-tantum.pdf') !== null
+        && count($proforma) === 2;
+}));
+
+check('una tantum con la prova: si paga a inizio prova, a fine prova solo il canone', fn () => prova(static function (): bool {
+    $p = piano(14);
+    PlanPrice::update(['one_time_price' => '30.00'], $p['mensile']);
+    $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'plan_price_id' => $p['mensile'], 'starts_at' => '2026-03-01']);
+    $inProva = [stato($id), array_map(static fn (array $r): float => round((float) $r['amount'], 2), rate($id))];
+    paga($id);
+    OfficeSubscriptions::daily(new DateTimeImmutable('2026-03-15'));
+
+    return $inProva === ['trialing', [30.0]]
+        && stato($id) === 'active'
+        && array_map(static fn (array $r): float => round((float) $r['amount'], 2), rate($id)) === [100.0]
+        && count(rate($id, 'paid')) === 1;
+}));
+
+check('una tantum: il rinnovo e il cambio di prezzo non la riaddebitano', fn () => prova(static function (): bool {
+    $inizio = (new DateTimeImmutable('first day of this month'))->setTime(0, 0);
+    $p = piano();
+    PlanPrice::update(['one_time_price' => '50.00'], $p['mensile']);
+    PlanPrice::update(['one_time_price' => '80.00'], $p['annuale']);
+    $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'plan_price_id' => $p['mensile'], 'starts_at' => $inizio->format('Y-m-d')]);
+    paga($id);
+    SubscriptionItems::change((int) SubscriptionItems::main($id)['id'], $p['annuale'], 'next_period', [], 0, 'user', new DateTimeImmutable());
+    OfficeSubscriptions::daily($inizio->modify('+1 month'));
+    $rinnovo = rate($id);
+    $note = array_column(array_merge($rinnovo, rate($id, 'paid')), 'note');
+
+    return (int) SubscriptionItems::main($id)['plan_price_id'] === $p['annuale'] && count($rinnovo) === 1
+        && count(array_filter($note, static fn ($n) => str_starts_with((string) $n, 'Una tantum abbonamento'))) === 1
+        && !in_array(round((float) $rinnovo[0]['amount'], 2), [80.0, 50.0], true);
+}));
+
 summary();

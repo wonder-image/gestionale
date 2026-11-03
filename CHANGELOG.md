@@ -26,6 +26,9 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Una tantum sui prezzi dei piani** (#76): `one_time_price`, pagato una volta
+  col primo addebito (a inizio prova, se c'è), online e da ufficio. Contratto
+  per il negozio nella spec degli abbonamenti, §1.6.
 - **API REST** su `/api/gestionale/v1/` per prodotti, giacenze, ordini e
   clienti (#79). Ogni rotta chiama uno strumento MCP con gli stessi permessi,
   scope, regole e registro `gst_mcp_logs`. Rispondono 401, 403, 404 e 422 nella
