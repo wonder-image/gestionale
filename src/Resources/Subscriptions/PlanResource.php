@@ -42,9 +42,10 @@ use Wonder\Sql\Transaction;
 /**
  * «Piani» (G10 §1.2): i piani di abbonamento con i loro prezzi e i limiti.
  *
- * I prezzi stanno in un repeater (nome, intervallo, mesi per addebito,
- * vincolo, prova, prezzo, prezzo scontato, rinnovo, stato), i limiti in un
- * altro, a coppie chiave/valore. Un prezzo usato da un abbonamento, anche
+ * I prezzi stanno in un repeater (nome, prezzo, ricorrenza, una tantum,
+ * stato; dietro «Compila le informazioni avanzate» prezzo scontato, mesi per
+ * addebito, vincolo, prova, rinnovo), i limiti («Metadata») in un altro, a
+ * coppie chiave/valore. Un prezzo usato da un abbonamento, anche
  * chiuso, non esce dal repeater: si spegne. Un piano con abbonamenti vivi non
  * si elimina.
  *
@@ -97,7 +98,7 @@ final class PlanResource extends GestionaleResource
             'visible_online' => 'Sul sito',
             'active' => 'Stato',
             'prices' => 'Prezzi',
-            'features' => 'Limiti',
+            'features' => 'Metadata',
             'parent_plans' => 'Si lega a',
             'customizations' => 'Personalizzazioni',
         ];
@@ -133,18 +134,18 @@ final class PlanResource extends GestionaleResource
                 ->repeater([
                     RepeaterColumn::key('id')->hidden(),
                     RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(3),
-                    RepeaterColumn::key('billing_interval')->select(static::intervalOptions())->label('Ogni')->columnSpan(2),
-                    RepeaterColumn::key('term_months')->number()->decimal(0)->label('Mesi per addebito')->columnSpan(2),
                     RepeaterColumn::key('price')->number()->decimal(2)->label('Prezzo')->columnSpan(2),
-                    RepeaterColumn::key('sale_price')->number()->decimal(2)->label('Prezzo scontato')->columnFill(),
+                    RepeaterColumn::key('billing_interval')->select(static::intervalOptions())->label('Ricorrenza')->columnSpan(2),
+                    RepeaterColumn::key('one_time_price')->number()->decimal(2)->label('Una tantum')->columnSpan(2),
+                    RepeaterColumn::key('active')->select(['true' => 'Attivo', 'false' => 'Spento'])->label('Stato')->columnFill(),
+                    RepeaterColumn::key('sale_price')->number()->decimal(2)->label('Prezzo scontato')->columnSpan(3),
+                    RepeaterColumn::key('term_months')->number()->decimal(0)->label('Mesi per addebito')->columnSpan(2),
                     RepeaterColumn::key('commitment_months')->number()->decimal(0)->label('Vincolo (mesi)')->columnSpan(2),
                     RepeaterColumn::key('trial_days')->number()->decimal(0)->label('Prova (giorni)')->columnSpan(2),
-                    RepeaterColumn::key('one_time_price')->number()->decimal(2)->label('Una tantum')->columnSpan(2),
                     RepeaterColumn::key('renewal_plan_price_id')
                         ->select(['0' => 'Nessuno'] + static::renewalOptions())
                         ->label('A fine vincolo passa a')
-                        ->columnSpan(3),
-                    RepeaterColumn::key('active')->select(['true' => 'Attivo', 'false' => 'Spento'])->label('Stato')->columnFill(),
+                        ->columnFill(),
                 ])
                 ->relation(
                     RepeaterRelation::make(PlanPrice::$table, 'plan_id')
@@ -153,6 +154,8 @@ final class PlanResource extends GestionaleResource
                 )
                 ->nested()
                 ->repeaterSortable()
+                ->repeaterAdvanced('sale_price', 'term_months', 'commitment_months', 'trial_days', 'renewal_plan_price_id')
+                ->repeaterAdvancedLabel('Compila le informazioni avanzate')
                 ->repeaterAddLabel('Aggiungi prezzo')
                 ->repeaterDeleteTitle('Elimina prezzo')
                 ->repeaterDeleteText('Confermi l\'eliminazione di questo prezzo? Se un abbonamento lo usa, il salvataggio lo rifiuta: spegnilo.')
@@ -174,9 +177,9 @@ final class PlanResource extends GestionaleResource
                 )
                 ->nested()
                 ->repeaterSortable()
-                ->repeaterAddLabel('Aggiungi limite')
-                ->repeaterDeleteTitle('Elimina limite')
-                ->repeaterDeleteText('Confermi l\'eliminazione di questo limite?')
+                ->repeaterAddLabel('Aggiungi metadato')
+                ->repeaterDeleteTitle('Elimina metadato')
+                ->repeaterDeleteText('Confermi l\'eliminazione di questo metadato?')
                 ->repeaterDeleteCancelLabel('Annulla')
                 ->repeaterDeleteConfirmLabel('Elimina')
                 ->repeaterDeleteConfirmClass('btn btn-danger')
@@ -232,12 +235,12 @@ final class PlanResource extends GestionaleResource
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
                     SectionTitle::make('Prezzi')
-                        ->tooltip('Un prezzo per riga: «Mensile» ogni mese con 1 mese per addebito, «Annuale» ogni anno con 12. Il prezzo è IVA inclusa o esclusa come il listino; il prezzo scontato, se più basso, vince. Vincolo zero vuol dire nessun vincolo. «A fine vincolo passa a» propone solo i prezzi già salvati: per un prezzo nuovo, salva e poi sceglilo. Un prezzo cambiato vale per i nuovi abbonati.')
+                        ->tooltip('Un prezzo per riga. «Ricorrenza» dice ogni quanto si rinnova; «Mesi per addebito», fra le informazioni avanzate, quanti mesi copre ogni addebito (vuoto: 1 col mese, 12 con l\'anno; 3 col mese fa il trimestrale). Il prezzo è IVA inclusa o esclusa come il listino; il prezzo scontato, se più basso, vince. Vincolo zero vuol dire nessun vincolo. «A fine vincolo passa a» propone solo i prezzi già salvati: per un prezzo nuovo, salva e poi sceglilo. Un prezzo cambiato vale per i nuovi abbonati.')
                         ->columnSpan(12),
                     static::getInput('prices')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
-                    SectionTitle::make('Limiti')
+                    SectionTitle::make('Metadata')
                         ->tooltip('Quello che il piano permette sul sito, a coppie: la chiave la decide chi ha fatto il sito (ad esempio «max_progetti»), il valore è un numero o una parola («5», «illimitato»). Il sito li controlla quando il cliente crea qualcosa; passare a un piano più basso non toglie niente.')
                         ->columnSpan(12),
                     static::getInput('features')->columnSpan(12),

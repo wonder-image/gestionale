@@ -5,6 +5,11 @@ versionamento semantico.
 
 ## 0.1.0 — non rilasciata
 
+### Cambiato
+- **Prezzi dei piani.** Colonne Nome, Prezzo, Ricorrenza (era «Ogni»), Una
+  tantum, Stato; prezzo scontato, mesi per addebito, vincolo, prova e rinnovo
+  dietro «Compila le informazioni avanzate». «Limiti» si chiama «Metadata».
+
 ### Corretto
 - **404 di PDF e CSV.** Gli scaricamenti del backend (PDF, stampa, proforma,
   CSV dei clienti di un lotto, righe di un listino) rispondono con la pagina

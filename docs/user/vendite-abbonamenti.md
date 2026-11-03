@@ -18,7 +18,7 @@ rinnovo non crea un ordine, crea un pagamento.
 Le pagine sono due:
 
 * **Catalogo → Abbonamenti**: i piani, cioè cosa vendi, a quali prezzi e con
-  quali limiti;
+  quali metadata (i limiti del piano);
 * **Vendite → Abbonamenti**: chi è abbonato, a cosa, e quando rinnova.
 
 > Gli abbonamenti nascono dal **sito**, con la funzionalità *Abbonamenti online*,
@@ -59,12 +59,18 @@ Il sovrapprezzo, se c'è, si paga a ogni periodo del servizio, per la quantità.
 Un piano ha uno o più prezzi, una riga per prezzo:
 
 * **Nome**: «Mensile», «Annuale».
-* **Ogni** e **mesi per addebito**: ogni quanto si paga e quanti mesi copre un
-  addebito. Il mensile è «Mese» con 1, l'annuale è «Anno» con 12. Un trimestrale
-  è «Mese» con 3.
-* **Prezzo** e **prezzo scontato**: IVA inclusa o esclusa come i prezzi del
-  catalogo (*Impostazioni → Prezzi del catalogo*). Il prezzo scontato, se più
-  basso, vince.
+* **Prezzo**: IVA inclusa o esclusa come i prezzi del catalogo
+  (*Impostazioni → Prezzi del catalogo*).
+* **Ricorrenza**: ogni quanto si rinnova, «Mese» o «Anno».
+* **Una tantum**: un importo che si paga una volta sola, col primo addebito.
+* **Stato**: un prezzo spento non si propone più, ma resta a chi lo usa.
+
+Con **Compila le informazioni avanzate** compaiono anche:
+
+* **Prezzo scontato**: se più basso del prezzo, vince.
+* **Mesi per addebito**: quanti mesi copre un addebito. Vuoto vale 1 con
+  «Mese» e 12 con «Anno»; un trimestrale è «Mese» con 3. Con «Mese» va da 1 a
+  12, con «Anno» è un multiplo di 12.
 * **Vincolo (mesi)**: per quanti mesi il cliente si impegna. Zero vuol dire
   nessun vincolo. Una disdetta durante il vincolo vale alla fine del vincolo.
 * **Prova (giorni)**: i giorni gratuiti prima del primo addebito. Una prova si
@@ -73,7 +79,6 @@ Un piano ha uno o più prezzi, una riga per prezzo:
   vincolo finisce, ad esempio da «Annuale promo» ad «Annuale». Si possono
   scegliere solo i prezzi **già salvati**: per un prezzo nuovo, salva il piano
   e poi sceglilo.
-* **Stato**: un prezzo spento non si propone più, ma resta a chi lo usa.
 
 Un prezzo cambiato vale per i **nuovi** abbonati: chi è già abbonato resta sul
 prezzo di prima finché non cambia la riga.
@@ -82,7 +87,7 @@ Un prezzo **usato da un abbonamento**, anche chiuso, non si può togliere: il
 salvataggio lo rifiuta e ti chiede di spegnerlo. Un piano con abbonamenti in
 corso non si elimina.
 
-### I limiti
+### Metadata
 
 Quello che il piano permette sul sito, a coppie **chiave** e **valore**: ad
 esempio `max_progetti` e `5`, oppure `supporto` e `prioritario`. Le chiavi le
