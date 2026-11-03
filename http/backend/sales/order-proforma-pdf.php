@@ -7,13 +7,13 @@
  */
 
 use Wonder\Plugin\Gestionale\Support\Documents\OrderProforma;
+use Wonder\Http\Exceptions\NotFoundHttpException;
 
 $routeParameters = is_array($ROUTE_PARAMETERS ?? null) ? $ROUTE_PARAMETERS : [];
 $order = OrderProforma::order((int) ($routeParameters['id'] ?? 0), true);
 
 if ($order === null) {
-    http_response_code(404);
-    exit('Ordine non trovato');
+    throw new NotFoundHttpException();
 }
 
 OrderProforma::send($order);

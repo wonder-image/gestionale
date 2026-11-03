@@ -11,6 +11,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\OfficeSubscriptions;
+use Wonder\Http\Exceptions\NotFoundHttpException;
 
 $routeParameters = is_array($ROUTE_PARAMETERS ?? null) ? $ROUTE_PARAMETERS : [];
 $id = (int) ($routeParameters['id'] ?? 0);
@@ -24,8 +25,7 @@ if (is_array($row) && (string) ($row['channel'] ?? '') === 'office' && $start !=
 }
 
 if ($path === null) {
-    http_response_code(404);
-    exit('PDF non trovato');
+    throw new NotFoundHttpException();
 }
 
 header('Content-Type: application/pdf');
