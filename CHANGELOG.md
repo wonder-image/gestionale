@@ -28,7 +28,8 @@ versionamento semantico.
 
 - **Coupon in blocco e cumulo** (#113). «Genera codici» sulla scheda del coupon
   crea N codici monouso con un prefisso (`CouponCodes::generate`), «Scarica i
-  codici» li dà in CSV. Il flag «Cumulabile con altri coupon» permette più
+  codici» li dà in CSV; la card «Codici» della scheda li elenca con stato e
+  ordine. Il flag «Cumulabile con altri coupon» permette più
   coupon nello stesso carrello: prima le percentuali sul residuo, poi gli
   importi. I coupon dell'ordine stanno in `gst_order_coupons`; `coupon_id` e
   `coupon_code` sull'ordine restano come specchio. Contratto per ecommerce#51 e

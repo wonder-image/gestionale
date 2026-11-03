@@ -129,7 +129,7 @@ final class CouponCodes
      * I codici del coupon, con chi li ha usati: il codice è usato se ha un
      * utilizzo non rilasciato.
      *
-     * @return list<array{code: string, used: bool, order_number: string, used_at: string}>
+     * @return list<array{code: string, used: bool, order_id: int, order_number: string, used_at: string}>
      */
     public static function of(int $couponId): array
     {
@@ -151,6 +151,7 @@ final class CouponCodes
             $rows[] = [
                 'code' => (string) $code['code'],
                 'used' => $redemption !== null,
+                'order_id' => $redemption === null ? 0 : (int) $redemption['order_id'],
                 'order_number' => is_array($order) ? (string) ($order['order_number'] ?? '') : '',
                 'used_at' => $redemption === null ? '' : substr((string) ($redemption['redeemed_at'] ?? ''), 0, 10),
             ];
