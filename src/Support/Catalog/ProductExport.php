@@ -21,7 +21,7 @@ use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Models\Tax\Tax;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxRule;
 use Wonder\Plugin\Gestionale\Support\Export\Delimited;
-use Wonder\Plugin\Gestionale\Support\Import\Column;
+use Wonder\App\Import\Column;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\StockBadge;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxResolver;
@@ -599,7 +599,7 @@ final class ProductExport
         }
     }
 
-    private static function pricesIncludeTax(): bool
+    public static function pricesIncludeTax(): bool
     {
         try {
             $settings = Setting::current();
