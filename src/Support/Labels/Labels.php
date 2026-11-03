@@ -8,6 +8,9 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductExport;
+use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdf;
+use Wonder\Support\Labels\LabelFormat;
+use Wonder\Support\Labels\LabelSheet;
 
 /**
  * Le etichette con codice a barre (#116) di un articolo, di una variante o
@@ -22,6 +25,17 @@ final class Labels
     public const MAX_LABELS = 2000;
 
     public const MAX_COPIES = 500;
+
+    /** I campi che si possono stampare, nell'ordine in cui escono. */
+    public const FIELDS = [
+        'article' => 'Nome articolo',
+        'variant' => 'Variante',
+        'sku' => 'SKU',
+        'price' => 'Prezzo',
+        'barcode' => 'Codice a barre',
+    ];
+
+    public const DEFAULT_FIELDS = ['article', 'variant', 'price', 'barcode'];
 
     /**
      * La risposta alla rotta: 403 a funzionalità spenta, 404 se il documento
@@ -45,7 +59,7 @@ final class Labels
             return ['status' => 404, 'body' => 'Non trovato', 'filename' => ''];
         }
 
-        $labels = array_slice(LabelSheet::labels($items, $options['fields']), 0, self::MAX_LABELS);
+        $labels = array_slice(LabelSheet::labels(self::contents($items, $options['fields'])), 0, self::MAX_LABELS);
 
         return [
             'status' => 200,
@@ -74,10 +88,10 @@ final class Labels
         }
 
         $fields = is_array($fields)
-            ? array_values(array_intersect(array_keys(LabelSheet::FIELDS), array_map('strval', $fields)))
+            ? array_values(array_intersect(array_keys(self::FIELDS), array_map('strval', $fields)))
             : [];
         // Niente spuntato è una dimenticanza, non un foglio di etichette bianche.
-        $fields = $fields !== [] ? $fields : LabelSheet::DEFAULT_FIELDS;
+        $fields = $fields !== [] ? $fields : self::DEFAULT_FIELDS;
 
         // `start` arriva contato da 1, come la casella sul foglio.
         $start = max(0, (int) ($query['start'] ?? 1) - 1);
@@ -88,6 +102,43 @@ final class Labels
             'copies' => max(1, min(self::MAX_COPIES, (int) ($query['copies'] ?? 1))),
             'start' => $format->isRoll() ? 0 : min($start, $format->perPage() - 1),
         ];
+    }
+
+    /**
+     * Le righe da stampare tradotte nel contenuto del foglio del core: solo i
+     * campi scelti, lo SKU col prefisso, il prezzo come valore in evidenza.
+     *
+     * @param list<array{article?: string, variant?: string, sku?: string, price?: float|null, ean?: string, copies?: int}> $items
+     * @param list<string> $fields
+     * @return list<array{lines: list<string>, highlight: string, ean: string, copies: int}>
+     */
+    public static function contents(array $items, array $fields): array
+    {
+        $out = [];
+
+        foreach ($items as $item) {
+            $lines = [];
+
+            foreach (['article', 'variant', 'sku'] as $field) {
+                $value = trim((string) ($item[$field] ?? ''));
+
+                if (in_array($field, $fields, true) && $value !== '') {
+                    $lines[] = $field === 'sku' ? 'SKU '.$value : $value;
+                }
+            }
+
+            $price = $item['price'] ?? null;
+
+            $out[] = [
+                // La variante che ripete l'articolo (prodotto senza varianti) non si stampa due volte.
+                'lines' => array_values(array_unique($lines)),
+                'highlight' => in_array('price', $fields, true) && $price !== null ? DocumentPdf::money($price) : '',
+                'ean' => in_array('barcode', $fields, true) ? trim((string) ($item['ean'] ?? '')) : '',
+                'copies' => (int) ($item['copies'] ?? 1),
+            ];
+        }
+
+        return $out;
     }
 
     /**

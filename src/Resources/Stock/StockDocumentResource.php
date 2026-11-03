@@ -594,7 +594,7 @@ abstract class StockDocumentResource extends GestionaleResource
      * solo sui confermati. Inviano i form di `hiddenForms()`.
      *
      * @param array<string, mixed> $item
-     * @return list<array<string, string>>
+     * @return list<array<string, string>|\Wonder\Elements\Components\Button>
      */
     public static function headerActions(array $item): array
     {

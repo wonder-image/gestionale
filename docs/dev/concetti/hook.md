@@ -65,7 +65,7 @@ public function beforeEmailSend(string $key, array $message): array
 ## Formati delle etichette
 
 `labelFormats($formats): array` riceve i formati delle etichette con codice a
-barre (chiave => `Support\Labels\LabelFormat`) e torna quelli da offrire nella
+barre (chiave => `Wonder\Support\Labels\LabelFormat` del core) e torna quelli da offrire nella
 finestra di stampa, con i propri aggiunti o tolti.
 
 ```php

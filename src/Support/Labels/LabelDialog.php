@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Support\Labels;
 use Throwable;
 use Wonder\App\Permission\Access;
 use Wonder\App\ResourceSchema\FormField;
+use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Modal;
 use Wonder\Http\Route;
 use Wonder\Plugin\Gestionale\Gestionale;
@@ -57,7 +58,7 @@ final class LabelDialog
     /**
      * L'azione d'intestazione; nessuna a funzionalità spenta.
      *
-     * @return list<array<string, string>>
+     * @return list<Button>
      */
     public static function actions(): array
     {
@@ -65,13 +66,7 @@ final class LabelDialog
             return [];
         }
 
-        return [[
-            'label' => 'Etichette',
-            'icon' => 'bi bi-upc',
-            'class' => 'btn-outline-dark btn-sm',
-            'href' => '#',
-            'onclick' => "window.bootstrap.Modal.getOrCreateInstance(document.getElementById('".self::MODAL."')).show(); return false;",
-        ]];
+        return [Button::make('Etichette')->icon('bi bi-upc')->variant('dark')->outline()->size('sm')->opensModal(self::MODAL)->schema('inline', true)];
     }
 
     /** `$copies` falso sul carico: lì le copie sono i pezzi ricevuti. */
@@ -85,7 +80,7 @@ final class LabelDialog
 
         $campi = [
             FormField::key('format')->select($formati)->value((string) array_key_first($formati))->label('Formato')->columnSpan(12),
-            FormField::key('fields')->checkbox()->options(LabelSheet::FIELDS)->value(LabelSheet::DEFAULT_FIELDS)->label('Da stampare')->columnSpan(12),
+            FormField::key('fields')->checkbox()->options(Labels::FIELDS)->value(Labels::DEFAULT_FIELDS)->label('Da stampare')->columnSpan(12),
         ];
 
         if ($copies) {

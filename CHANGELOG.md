@@ -31,6 +31,8 @@ versionamento semantico.
   core, fogli A4 da 24, 40 e 65 e rotoli termici 50 × 30 e 40 × 25, campi e
   copie scelti nella finestra, prima casella libera sul foglio. Il sito aggiunge
   formati con l'hook `labelFormats()`. Funzionalità *Etichette*, spenta di base.
+  Il foglio PDF e i formati sono del core (`Wonder\Support\Labels`): serve la
+  versione di `wonder-image/app` che li contiene.
 
 - **API REST** su `/api/gestionale/v1/` per prodotti, giacenze, ordini e
   clienti (#79). Ogni rotta chiama uno strumento MCP con gli stessi permessi,

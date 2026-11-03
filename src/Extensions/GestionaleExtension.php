@@ -45,10 +45,10 @@ abstract class GestionaleExtension
 
     /**
      * I formati delle etichette con codice a barre: torna `$formats`, chiave
-     * => `Support\Labels\LabelFormat`, con quelli del sito aggiunti o tolti.
+     * => `Wonder\Support\Labels\LabelFormat` del core, con quelli del sito aggiunti o tolti.
      *
-     * @param array<string, \Wonder\Plugin\Gestionale\Support\Labels\LabelFormat> $formats
-     * @return array<string, \Wonder\Plugin\Gestionale\Support\Labels\LabelFormat>
+     * @param array<string, \Wonder\Support\Labels\LabelFormat> $formats
+     * @return array<string, \Wonder\Support\Labels\LabelFormat>
      */
     public function labelFormats(array $formats): array
     {
