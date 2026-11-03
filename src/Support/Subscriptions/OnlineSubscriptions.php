@@ -80,19 +80,10 @@ final class OnlineSubscriptions
         self::countItems($items);
         Subscriptions::assertRoom($customerId);
 
-        ['lines' => $lines, 'amounts' => $amounts, 'coupon' => $coupon, 'billing' => $billing, 'include_tax' => $includeTax] = self::preview($contact, $items, $billing, $couponCode);
+        ['lines' => $lines, 'amounts' => $amounts, 'coupon' => $coupon, 'billing' => $billing, 'include_tax' => $includeTax, 'trial' => $trial] = self::preview($contact, $items, $billing, $couponCode);
         $rates = array_values(array_unique(array_map(static fn (array $line): string => number_format((float) $line['tax_rate'], 2, '.', ''), $lines)));
         // L'aliquota dell'abbonamento è un riepilogo: quella delle righe se è una sola, altrimenti 0.
         [$taxId, $taxRate] = count($rates) === 1 ? [(int) $lines[0]['tax_id'], (float) $rates[0]] : [0, 0.0];
-        // La prova è una per abbonamento (Stripe ne ha una): la più lunga dei piani che il cliente non ha già avuto.
-        $trial = 0;
-
-        foreach ($lines as $line) {
-            if ((int) $line['trial_days'] > $trial && !self::hadPlan($customerId, (int) $line['plan']['id'])) {
-                $trial = (int) $line['trial_days'];
-            }
-        }
-
         $now = new DateTimeImmutable();
 
         [$row, $itemIds] = Transaction::run(static function () use ($gateway, $billing, $customerId, $coupon, $includeTax, $amounts, $taxId, $taxRate, $lines, $now, $trial): array {
@@ -135,7 +126,7 @@ final class OnlineSubscriptions
         $urls = array_map(static fn ($url): string => str_replace('{SUBSCRIPTION}', rawurlencode((string) $row['code']), (string) $url), $urls);
 
         try {
-            $session = self::checkoutSession($gateway, $row, $lines, $itemIds, $coupon, $trial, (string) ($contact['email'] ?? ''), $urls);
+            $session = self::checkoutSession($gateway, $row, $lines, $itemIds, $amounts['one_time'], $coupon, $trial, (string) ($contact['email'] ?? ''), $urls);
         } catch (Throwable $error) {
             Errors::report('stripe', 'subscription.checkout', $error, ['subscription' => $id]);
             SubscriptionStatus::move($id, 'cancelled', 'system', 'Stripe non ha aperto il pagamento');
@@ -495,8 +486,10 @@ final class OnlineSubscriptions
         }
 
         $coupon = (int) ($row['coupon_id'] ?? 0) > 0 ? Coupon::findById((int) $row['coupon_id']) : null;
+        // L'una tantum pagata a inizio prova non è un addebito del canone.
         $charges = (int) ($row['id'] ?? 0) > 0
-            ? (int) sqlCount(Payment::$table, '`subscription_id` = '.(int) $row['id']." AND `type` = 'payment' AND `status` = 'paid' AND `deleted` = 'false'")
+            ? (int) sqlCount(Payment::$table, '`subscription_id` = '.(int) $row['id']." AND `type` = 'payment' AND `status` = 'paid' AND `deleted` = 'false'"
+                ." AND `note` NOT LIKE '".SubscriptionEvents::ONE_TIME_NOTE."%'")
             : 0;
         $amounts = SubscriptionAmounts::ofItems(
             $lines,
@@ -583,10 +576,16 @@ final class OnlineSubscriptions
      * Il riepilogo prima del pagamento: righe, importi del primo addebito col
      * coupon, fatturazione completata dalla scheda del cliente. Non scrive niente.
      *
+     * `trial` sono i giorni di prova: una per abbonamento (Stripe ne ha una),
+     * la più lunga dei piani che il cliente non ha già avuto. Negli importi,
+     * `one_time` è l'una tantum ({@see SubscriptionAmounts::oneTime()}, senza
+     * coupon) e `first_charge_total` quanto si paga subito: canone più una
+     * tantum, o la sola una tantum se c'è la prova (#76).
+     *
      * @param array<string, mixed> $contact la scheda del cliente
      * @param list<array{price_code: string, quantity?: int, customization?: array<int|string, mixed>, parent?: int}> $items
      * @param array<string, mixed> $billing i campi `billing_` del form
-     * @return array{lines: list<array<string, mixed>>, amounts: array<string, mixed>, coupon: array<string, mixed>|null, billing: array<string, string>, include_tax: bool}
+     * @return array{lines: list<array<string, mixed>>, amounts: array<string, mixed>, coupon: array<string, mixed>|null, billing: array<string, string>, include_tax: bool, trial: int}
      * @throws UserError
      */
     public static function preview(array $contact, array $items, array $billing, string $couponCode): array
@@ -597,8 +596,21 @@ final class OnlineSubscriptions
         $includeTax = (string) (Setting::current()['catalog_prices_include_tax'] ?? 'true') === 'true';
         $lines = self::lines($items, $billing);
         $amounts = SubscriptionAmounts::ofItems($lines, $coupon, $includeTax, 0, min(array_column($lines, 'term')));
+        $trial = 0;
 
-        return ['lines' => $lines, 'amounts' => $amounts, 'coupon' => $coupon, 'billing' => $billing, 'include_tax' => $includeTax];
+        foreach ($lines as $line) {
+            if ((int) $line['trial_days'] > $trial && !self::hadPlan($customerId, (int) $line['plan']['id'])) {
+                $trial = (int) $line['trial_days'];
+            }
+        }
+
+        $amounts['one_time'] = SubscriptionAmounts::oneTime($lines, $includeTax);
+        $amounts['first_charge_total'] = number_format(
+            ($trial > 0 ? 0.0 : (float) $amounts['total']) + (float) $amounts['one_time']['total'],
+            2, '.', ''
+        );
+
+        return ['lines' => $lines, 'amounts' => $amounts, 'coupon' => $coupon, 'billing' => $billing, 'include_tax' => $includeTax, 'trial' => $trial];
     }
 
     /**
@@ -720,7 +732,7 @@ final class OnlineSubscriptions
      * @param list<array<string, mixed>> $lines le righe di {@see SubscriptionItems::prepare()}
      * @param list<int> $itemIds i loro id, nello stesso ordine
      */
-    private static function checkoutSession(SubscriptionGateway $gateway, array $row, array $lines, array $itemIds, ?array $coupon, int $trial, string $email, array $urls): array
+    private static function checkoutSession(SubscriptionGateway $gateway, array $row, array $lines, array $itemIds, array $oneTime, ?array $coupon, int $trial, string $email, array $urls): array
     {
         $catalog = new StripeCatalog($gateway);
         $inclusive = (string) $row['prices_include_tax'] === 'true';
@@ -735,6 +747,27 @@ final class OnlineSubscriptions
             }
 
             SubscriptionItem::update(['provider_price' => $item['price']], $itemIds[$index]);
+            $items[] = $item;
+        }
+
+        // L'una tantum (#76): una voce senza ricorrenza, che Stripe mette solo
+        // nella prima fattura (a inizio prova, se c'è) e mai nei rinnovi.
+        foreach ($oneTime['lines'] ?? [] as $once) {
+            $line = $lines[$once['index']];
+            $item = [
+                'price_data' => [
+                    'currency' => 'eur',
+                    'product_data' => ['name' => trim(html_entity_decode((string) ($line['plan']['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')).' – una tantum'],
+                    'unit_amount' => (int) round((float) $once['unit_price'] * 100),
+                    'tax_behavior' => $inclusive ? 'inclusive' : 'exclusive',
+                ],
+                'quantity' => (int) $line['quantity'],
+            ];
+
+            if ((int) $line['tax_id'] > 0 && (float) $line['tax_rate'] > 0.0) {
+                $item['tax_rates'] = [$catalog->taxRateFor((int) $line['tax_id'], (float) $line['tax_rate'], $inclusive)];
+            }
+
             $items[] = $item;
         }
 
@@ -756,6 +789,8 @@ final class OnlineSubscriptions
 
         if ($trial > 0) {
             $params['subscription_data']['trial_period_days'] = $trial;
+            // La notifica della prima fattura riconosce così l'una tantum di inizio prova.
+            $params['subscription_data']['metadata']['trial_days'] = (string) $trial;
         }
 
         if ($coupon !== null) {

@@ -29,6 +29,9 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Una tantum sui prezzi dei piani** (#76): `one_time_price`, pagato una volta
+  col primo addebito (a inizio prova, se c'è), online e da ufficio. Contratto
+  per il negozio nella spec degli abbonamenti, §1.6.
 - **Coupon in blocco e cumulo** (#113). «Genera codici» sulla scheda del coupon
   crea N codici monouso con un prefisso (`CouponCodes::generate`), «Scarica i
   codici» li dà in CSV. Il flag «Cumulabile con altri coupon» permette più
