@@ -6,6 +6,9 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Corretto
+- **404 di PDF e CSV.** Gli scaricamenti del backend (PDF, stampa, proforma,
+  CSV dei clienti di un lotto, righe di un listino) rispondono con la pagina
+  404 del core invece del testo semplice (#79).
 - **Variante vuota accendendo le varianti.** Il repeater del core metteva nel
   cestino il prodotto dello scheletro prima del generatore, che allora creava
   una variante nuova e lasciava sul sito quella vuota. Ora il generatore riprende
