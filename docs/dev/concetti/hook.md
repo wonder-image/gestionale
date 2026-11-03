@@ -62,6 +62,25 @@ public function beforeEmailSend(string $key, array $message): array
 }
 ```
 
+## Formati delle etichette
+
+`labelFormats($formats): array` riceve i formati delle etichette con codice a
+barre (chiave => `Support\Labels\LabelFormat`) e torna quelli da offrire nella
+finestra di stampa, con i propri aggiunti o tolti.
+
+```php
+public function labelFormats(array $formats): array
+{
+    $formats['roll-60x40'] = LabelFormat::roll('roll-60x40', 'Rotolo 60 × 40', 60.0, 40.0);
+    // foglio A4: LabelFormat::a4($key, $name, $colonne, $righe, $larghezza, $altezza)
+
+    return $formats;
+}
+```
+
+Ciò che non è un `LabelFormat` con misure positive si scarta; se non resta
+niente, valgono i formati standard.
+
 ## Regole
 
 - Le estensioni girano **nell'ordine in cui sono dichiarate**.

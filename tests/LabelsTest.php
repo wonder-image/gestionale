@@ -1,0 +1,170 @@
+<?php
+/** php tests/LabelsTest.php — #116, le etichette con codice a barre: formati, impaginazione, EAN e funzionalità */
+declare(strict_types=1);
+
+require __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . '/harness.php';
+
+use Wonder\Plugin\Gestionale\Extensions\Extensions;
+use Wonder\Plugin\Gestionale\Extensions\GestionaleExtension;
+use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Labels\LabelDialog;
+use Wonder\Plugin\Gestionale\Support\Labels\LabelFormat;
+use Wonder\Plugin\Gestionale\Support\Labels\LabelFormats;
+use Wonder\Plugin\Gestionale\Support\Labels\Labels;
+use Wonder\Plugin\Gestionale\Support\Labels\LabelSheet;
+
+final class LabelsTestExtension extends GestionaleExtension
+{
+    public function labelFormats(array $formats): array
+    {
+        unset($formats['roll-40x25']);
+        $formats['roll-60x40'] = LabelFormat::roll('roll-60x40', 'Rotolo 60 × 40', 60.0, 40.0);
+
+        return $formats;
+    }
+}
+
+$features = new ReflectionProperty(Gestionale::class, 'features');
+$item = ['article' => 'Maglia', 'variant' => 'Blu / M', 'sku' => 'MAG-BLU-M', 'price' => 29.9, 'ean' => '4006381333931', 'copies' => 1];
+
+// --- Formati ---
+
+$formats = LabelFormats::defaults();
+check('cinque formati standard', fn () => array_keys($formats) === ['a4-24', 'a4-40', 'a4-65', 'roll-50x30', 'roll-40x25']);
+
+$attese = ['a4-24' => 24, 'a4-40' => 40, 'a4-65' => 65, 'roll-50x30' => 1, 'roll-40x25' => 1];
+
+foreach ($attese as $key => $perPage) {
+    $format = $formats[$key];
+    check("{$key}: {$perPage} per pagina", fn () => $format->perPage() === $perPage);
+    check("{$key}: la griglia sta nel foglio", fn () => $format->marginLeft + $format->columns * $format->labelWidth <= $format->pageWidth + 0.001
+        && $format->marginTop + $format->rows * $format->labelHeight <= $format->pageHeight + 0.001);
+
+    $labels = LabelSheet::labels([['copies' => $perPage + 1] + $item], LabelSheet::DEFAULT_FIELDS);
+    $plan = LabelSheet::plan($format, $labels);
+    check("{$key}: l'etichetta in più va a pagina 2", fn () => count($plan) === $perPage + 1
+        && $plan[$perPage - 1]['page'] === 1 && $plan[$perPage]['page'] === 2);
+
+    $last = $plan[$perPage - 1];
+    check("{$key}: l'ultima casella tocca il bordo della griglia", fn () => abs($last['x'] + $format->labelWidth - ($format->marginLeft + $format->columns * $format->labelWidth)) < 0.01
+        && abs($last['y'] + $format->labelHeight - ($format->marginTop + $format->rows * $format->labelHeight)) < 0.01);
+
+    $box = LabelSheet::layout($format, $labels[0]);
+    check("{$key}: barre dentro l'etichetta e alte almeno 5 mm", fn () => $box['bars'] !== null
+        && $box['bars']['x'] >= 0 && $box['bars']['x'] + 95 * $box['bars']['module'] <= $format->labelWidth
+        && $box['bars']['height'] >= 5.0
+        && $box['bars']['y'] + $box['bars']['height'] <= $box['digits']['y'] + 0.001
+        && $box['digits']['y'] + $box['line'] <= $format->labelHeight);
+    check("{$key}: il prezzo resta", fn () => $box['price'] !== '');
+
+    check("{$key}: il PDF esce", fn () => str_starts_with(LabelSheet::render($format, $labels), '%PDF'));
+}
+
+check('A4 24: casella 1 e 2 una accanto all\'altra', function () use ($formats, $item) {
+    $plan = LabelSheet::plan($formats['a4-24'], LabelSheet::labels([['copies' => 2] + $item], ['article']));
+
+    return $plan[0]['x'] === 0.0 && $plan[1]['x'] === 70.0 && $plan[0]['y'] === $plan[1]['y'] && abs($plan[0]['y'] - 0.5) < 0.001;
+});
+check('start salta le caselle già usate', function () use ($formats, $item) {
+    $plan = LabelSheet::plan($formats['a4-24'], LabelSheet::labels([$item], ['article']), 4);
+
+    return $plan[0]['x'] === 70.0 && abs($plan[0]['y'] - 37.5) < 0.001;
+});
+check('sul rotolo start non conta', function () use ($formats, $item) {
+    $plan = LabelSheet::plan($formats['roll-50x30'], LabelSheet::labels([['copies' => 2] + $item], ['article']), 5);
+
+    return $plan[0]['page'] === 1 && $plan[1]['page'] === 2 && $plan[0]['x'] === 0.0;
+});
+check('rotolo 50 × 30 in orizzontale', function () use ($formats, $item) {
+    $pdf = LabelSheet::render($formats['roll-50x30'], LabelSheet::labels([$item], LabelSheet::DEFAULT_FIELDS));
+
+    return preg_match('#/MediaBox \[0 0 ([0-9.]+) ([0-9.]+)\]#', $pdf, $m) === 1 && (float) $m[1] > (float) $m[2];
+});
+check('PDF vuoto con una pagina', fn () => str_starts_with(LabelSheet::render($formats['a4-24'], []), '%PDF'));
+check('sul 40 × 25 le righe in più si lasciano', function () use ($formats, $item) {
+    $labels = LabelSheet::labels([$item], ['article', 'variant', 'sku', 'price', 'barcode']);
+    $box = LabelSheet::layout($formats['roll-40x25'], $labels[0]);
+
+    return count($box['lines']) < 3 && $box['bars']['height'] >= 5.0;
+});
+
+// --- Contenuto ed EAN ---
+
+check('EAN-13 valido: 95 moduli', function () use ($item) {
+    $label = LabelSheet::labels([$item], ['barcode'])[0];
+
+    return $label['ean'] === '4006381333931' && strlen((string) $label['modules']) === 95 && !$label['invalid'];
+});
+check('EAN-8 valido: 67 moduli', function () use ($item) {
+    $label = LabelSheet::labels([['ean' => '96385074'] + $item], ['barcode'])[0];
+
+    return strlen((string) $label['modules']) === 67 && !$label['invalid'];
+});
+check('EAN con la cifra di controllo sbagliata: niente barre, avviso', function () use ($formats, $item) {
+    $label = LabelSheet::labels([['ean' => '4006381333932'] + $item], ['barcode'])[0];
+    $box = LabelSheet::layout($formats['a4-24'], $label);
+
+    return $label['invalid'] && $label['modules'] === null && $box['bars'] === null
+        && str_contains($box['digits']['text'], 'non valido');
+});
+check('senza EAN niente codice', function () use ($formats, $item) {
+    $label = LabelSheet::labels([['ean' => ''] + $item], LabelSheet::DEFAULT_FIELDS)[0];
+    $box = LabelSheet::layout($formats['a4-24'], $label);
+
+    return $box['bars'] === null && $box['digits'] === null && !$label['invalid'];
+});
+check('solo i campi scelti', function () use ($item) {
+    $label = LabelSheet::labels([$item], ['sku'])[0];
+
+    return $label['lines'] === ['SKU MAG-BLU-M'] && $label['price'] === '' && $label['ean'] === '';
+});
+check('la variante uguale all\'articolo non si ripete', fn () => LabelSheet::labels([['variant' => 'Maglia'] + $item], ['article', 'variant'])[0]['lines'] === ['Maglia']);
+check('copie: una etichetta ciascuna', fn () => count(LabelSheet::labels([['copies' => 3] + $item, ['copies' => 0] + $item], ['article'])) === 3);
+
+// --- Opzioni e prezzo ---
+
+check('opzioni: formato sconosciuto diventa il primo', fn () => Labels::options(['format' => 'nessuno'])['format']->key === 'a4-24');
+check('opzioni: campi da lista con virgole, sconosciuti via', fn () => Labels::options(['fields' => 'sku,xxx,price'])['fields'] === ['sku', 'price']);
+check('opzioni: campi da array', fn () => Labels::options(['fields' => ['barcode', 'article']])['fields'] === ['article', 'barcode']);
+check('opzioni: niente spuntato = campi di partenza', fn () => Labels::options(['fields' => []])['fields'] === LabelSheet::DEFAULT_FIELDS);
+check('opzioni: copie fra 1 e 500', fn () => Labels::options(['copies' => '0'])['copies'] === 1 && Labels::options(['copies' => '9999'])['copies'] === Labels::MAX_COPIES);
+check('opzioni: start contato da 1 e dentro il foglio', fn () => Labels::options(['start' => '5'])['start'] === 4
+    && Labels::options(['start' => '99'])['start'] === 23
+    && Labels::options(['start' => '5', 'format' => 'roll-50x30'])['start'] === 0);
+
+check('prezzo: lo scontato se è sotto il pieno', fn () => Labels::price(['price' => '30', 'sale_price' => '25']) === 25.0);
+check('prezzo: lo scontato più alto non conta', fn () => Labels::price(['price' => '30', 'sale_price' => '35']) === 30.0);
+check('prezzo: senza prezzo nessuno', fn () => Labels::price(['price' => '', 'sale_price' => '']) === null);
+check('prezzo: listino senza IVA, si aggiunge', fn () => Labels::price(['price' => '10'], 22.0, false) === 12.2);
+
+// --- Formati del sito ---
+
+Extensions::use([LabelsTestExtension::class]);
+check('l\'estensione aggiunge e toglie formati', fn () => isset(LabelFormats::all()['roll-60x40']) && !isset(LabelFormats::all()['roll-40x25']));
+check('la tendina mostra il nuovo formato', fn () => (LabelFormats::options()['roll-60x40'] ?? '') === 'Rotolo 60 × 40');
+Extensions::use(null);
+
+// --- Funzionalità ---
+
+$features->setValue(null, ['barcode_labels' => false]);
+check('spenta: nessun bottone', fn () => LabelDialog::actions() === []);
+check('spenta: nessuna finestra', fn () => LabelDialog::modal('/backend/x/1/etichette/') === '');
+check('spenta: la rotta risponde 403', fn () => Labels::respond('model', 1, [])['status'] === 403
+    && Labels::respond('receipt', 1, [])['status'] === 403);
+
+$features->setValue(null, ['barcode_labels' => true]);
+check('accesa: il bottone apre la finestra', fn () => count(LabelDialog::actions()) === 1
+    && str_contains(LabelDialog::actions()[0]['onclick'], LabelDialog::MODAL));
+check('accesa: la finestra ha formato e copie', function () {
+    $html = LabelDialog::modal('/backend/x/1/etichette/');
+
+    return str_contains($html, 'id="'.LabelDialog::MODAL.'"') && str_contains($html, 'name="format"') && str_contains($html, 'name="copies"');
+});
+check('sul carico la finestra non chiede le copie', fn () => !str_contains(LabelDialog::modal('/x', false), 'name="copies"'));
+check('accesa: sorgente sconosciuta 404', fn () => Labels::respond('ordine', 1, [])['status'] === 404);
+check('accesa: id zero 404', fn () => Labels::respond('model', 0, [])['status'] === 404);
+check('url vuoto senza id', fn () => LabelDialog::url('product', 'catalogo/prodotti', 0) === '');
+$features->setValue(null, null);
+
+summary();

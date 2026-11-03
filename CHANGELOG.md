@@ -26,6 +26,12 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Etichette con codice a barre** in PDF (#116), da stampare dalla scheda
+  dell'articolo, dalla variante e dal carico: EAN-13/EAN-8 col codificatore del
+  core, fogli A4 da 24, 40 e 65 e rotoli termici 50 × 30 e 40 × 25, campi e
+  copie scelti nella finestra, prima casella libera sul foglio. Il sito aggiunge
+  formati con l'hook `labelFormats()`. Funzionalità *Etichette*, spenta di base.
+
 - **API REST** su `/api/gestionale/v1/` per prodotti, giacenze, ordini e
   clienti (#79). Ogni rotta chiama uno strumento MCP con gli stessi permessi,
   scope, regole e registro `gst_mcp_logs`. Rispondono 401, 403, 404 e 422 nella

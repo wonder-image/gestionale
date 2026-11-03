@@ -44,6 +44,18 @@ abstract class GestionaleExtension
     }
 
     /**
+     * I formati delle etichette con codice a barre: torna `$formats`, chiave
+     * => `Support\Labels\LabelFormat`, con quelli del sito aggiunti o tolti.
+     *
+     * @param array<string, \Wonder\Plugin\Gestionale\Support\Labels\LabelFormat> $formats
+     * @return array<string, \Wonder\Plugin\Gestionale\Support\Labels\LabelFormat>
+     */
+    public function labelFormats(array $formats): array
+    {
+        return $formats;
+    }
+
+    /**
      * I blocchi del sito che possono mostrare una selezione: torna `$blocks`,
      * con i propri aggiunti o cambiati ({@see \Wonder\Plugin\Gestionale\Support\Catalog\SelectionBlocks}).
      *

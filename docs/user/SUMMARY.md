@@ -16,6 +16,7 @@
 * [Multiprodotti](catalogo-multiprodotti.md)
 * [I prodotti](catalogo-prodotti.md)
 * [Le foto degli articoli](catalogo-immagini.md)
+* [Etichette con codice a barre](catalogo-etichette.md)
 * [FAQ](catalogo-faq.md)
 * [Selezioni e ordine nel sito](catalogo-selezioni.md)
 
