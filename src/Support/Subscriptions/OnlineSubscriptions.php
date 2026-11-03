@@ -101,10 +101,12 @@ final class OnlineSubscriptions
      *
      * `intent` dice al sito come confermare: `payment` se la prima fattura ha
      * un importo, `setup` se è a zero (prova senza altro da pagare).
+     * `invoice_id` e `environment` servono a {@see dropInPage()} se il
+     * cliente non paga e riprova.
      *
      * @param list<array{price_code: string, quantity?: int, customization?: array<int|string, mixed>, parent?: int}>|string $items
      * @param array<string, mixed> $billing i campi `billing_` del form del sito
-     * @return array{subscription_id: int, code: string, client_secret: string, intent: string}
+     * @return array{subscription_id: int, code: string, client_secret: string, intent: string, invoice_id: string, environment: string}
      */
     public static function startInPage(int $customerId, array|string $items, array $billing, string $couponCode, int $orderId = 0): array
     {
@@ -133,7 +135,7 @@ final class OnlineSubscriptions
         $paying = (int) ($invoice['amount_due'] ?? 0) > 0;
         $secret = $paying ? (string) ($invoice['confirmation_secret']['client_secret'] ?? '') : (string) ($setup['client_secret'] ?? '');
 
-        return ['subscription_id' => $id, 'code' => (string) $row['code'], 'client_secret' => $secret, 'intent' => $paying ? 'payment' : 'setup'];
+        return ['subscription_id' => $id, 'code' => (string) $row['code'], 'client_secret' => $secret, 'intent' => $paying ? 'payment' : 'setup', 'invoice_id' => (string) ($invoice['id'] ?? ''), 'environment' => $gateway->environment()];
     }
 
     /**

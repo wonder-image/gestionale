@@ -832,6 +832,16 @@ check('in pagina senza ordine e con la prova: la prima fattura è a zero e si co
         && ($chiamata['add_invoice_items'] ?? []) === [];
 }));
 
+check('in pagina senza ordine: con fattura e ambiente del risultato l\'abbonamento lasciato a metà cade e libera il limite', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $p = pianoOnline();
+    $avvio = OnlineSubscriptions::startInPage(cliente(), [['price_code' => $p['mensile']['code']]], [], '');
+    $remoto = (string) Subscription::findById($avvio['subscription_id'])['provider_reference'];
+    OnlineSubscriptions::dropInPage($avvio['invoice_id'], $avvio['environment']);
+
+    return $avvio['invoice_id'] !== '' && $stripe->last('subscription.cancel') === ['id' => $remoto]
+        && (string) Subscription::findById($avvio['subscription_id'])['status'] === 'cancelled';
+}));
+
 check('in pagina: l\'ordine di un altro cliente o già pagato non entra, e non resta niente', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
     $prezzo = servizioOnline('Sito', 1, '24.40');
     $altro = ordinePagabile(cliente(), 50.0);
