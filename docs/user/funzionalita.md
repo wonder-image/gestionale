@@ -48,7 +48,7 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Aliquote | Scheda prodotto | Tipo fiscale scelto per articolo. Spenta, ogni articolo usa il tipo fiscale predefinito. | — |
 | Scheda tecnica | Scheda prodotto | Caratteristiche dell'articolo e delle sue opzioni (materiale, simboli di lavaggio…). Spenta, la scheda non le chiede e quelle già scritte restano salvate. | — |
 | FAQ | Catalogo | Domande frequenti con la risposta, nella scheda dei prodotti scelti e nella home. Spenta, il sito non le mostra. | — |
-| Etichette | Catalogo | Etichette con codice a barre e prezzo in PDF. | — |
+| [Etichette](catalogo-etichette.md) | Catalogo | Etichette con codice a barre e prezzo in PDF. | — |
 | Più sedi | Magazzino | Altre sedi con giacenze proprie e trasferimenti. | — |
 | Acquisti | Magazzino | Fornitori e costi d'acquisto nei prodotti e nei carichi, valore del magazzino. | — |
 | Lotti e scadenze | Magazzino | Lotto e scadenza nei carichi, vendita dal lotto che scade prima, pagina Lotti con i clienti per i richiami. | — |

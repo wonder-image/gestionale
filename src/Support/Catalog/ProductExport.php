@@ -416,7 +416,7 @@ final class ProductExport
      * @param list<array<string, mixed>> $models
      * @return array<int, float>
      */
-    private static function taxRates(array $models): array
+    public static function taxRates(array $models): array
     {
         try {
             $rules = TaxRule::active();
@@ -452,7 +452,7 @@ final class ProductExport
         }
     }
 
-    private static function pricesIncludeTax(): bool
+    public static function pricesIncludeTax(): bool
     {
         try {
             $settings = Setting::current();

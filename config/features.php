@@ -104,7 +104,6 @@ return [
         'description' => 'Etichette con codice a barre e prezzo in PDF.',
         'area' => 'Catalogo',
         'release' => 'futura',
-        'created' => false,
     ],
     'multi_location' => [
         'name' => 'Più sedi',

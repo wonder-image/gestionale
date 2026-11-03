@@ -29,6 +29,13 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Etichette con codice a barre** in PDF (#116), da stampare dalla scheda
+  dell'articolo, dalla variante e dal carico: EAN-13/EAN-8 col codificatore del
+  core, fogli A4 da 24, 40 e 65 e rotoli termici 50 × 30 e 40 × 25, campi e
+  copie scelti nella finestra, prima casella libera sul foglio. Il sito aggiunge
+  formati con l'hook `labelFormats()`. Funzionalità *Etichette*, spenta di base.
+  Il foglio PDF e i formati sono del core (`Wonder\Support\Labels`): serve la
+  versione di `wonder-image/app` che li contiene.
 - **Una tantum sui prezzi dei piani** (#76): `one_time_price`, pagato una volta
   col primo addebito (a inizio prova, se c'è), online e da ufficio. Contratto
   per il negozio nella spec degli abbonamenti, §1.6.

@@ -25,6 +25,7 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Labels\LabelDialog;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
@@ -593,7 +594,7 @@ abstract class StockDocumentResource extends GestionaleResource
      * solo sui confermati. Inviano i form di `hiddenForms()`.
      *
      * @param array<string, mixed> $item
-     * @return list<array<string, string>>
+     * @return list<array<string, string>|\Wonder\Elements\Components\Button>
      */
     public static function headerActions(array $item): array
     {
@@ -611,6 +612,10 @@ abstract class StockDocumentResource extends GestionaleResource
                 'class' => 'btn-dark btn-sm',
                 'onclick' => "document.getElementById('wi-doc-receive').requestSubmit()",
             ];
+        }
+
+        if (static::type() === 'receipt') {
+            array_push($actions, ...LabelDialog::actions());
         }
 
         if (static::cancellable((string) ($item['status'] ?? ''))) {
@@ -670,6 +675,11 @@ abstract class StockDocumentResource extends GestionaleResource
                     'danger'
                 )
                 ->render('bootstrap');
+        }
+
+        // Sul carico le copie sono i pezzi delle righe: la finestra non le chiede.
+        if (static::type() === 'receipt') {
+            $html .= LabelDialog::modal(LabelDialog::url(static::slug(), static::path(), $id), false);
         }
 
         return $html.'<script>
