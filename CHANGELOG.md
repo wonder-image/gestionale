@@ -7,7 +7,7 @@ versionamento semantico.
 
 ### Cambiato
 - **Prezzi dei piani.** Colonne Nome, Prezzo, Ricorrenza (era «Ogni»), Una
-  tantum, Stato; prezzo scontato, mesi per addebito, vincolo, prova e rinnovo
+  tantum, Stato; prezzo scontato, addebito (Mensile… Annuale, solo col mese), vincolo, prova e rinnovo
   dietro «Compila le informazioni avanzate». «Limiti» si chiama «Metadata».
 
 ### Corretto

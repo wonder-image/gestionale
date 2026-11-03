@@ -68,9 +68,9 @@ Un piano ha uno o più prezzi, una riga per prezzo:
 Con **Compila le informazioni avanzate** compaiono anche:
 
 * **Prezzo scontato**: se più basso del prezzo, vince.
-* **Mesi per addebito**: quanti mesi copre un addebito. Vuoto vale 1 con
-  «Mese» e 12 con «Anno»; un trimestrale è «Mese» con 3. Con «Mese» va da 1 a
-  12, con «Anno» è un multiplo di 12.
+* **Addebito**: ogni quanto si paga un prezzo con ricorrenza «Mese»:
+  Mensile, Bimestrale, Trimestrale, Semestrale o Annuale. Con «Anno» non
+  conta: si paga una volta l'anno.
 * **Vincolo (mesi)**: per quanti mesi il cliente si impegna. Zero vuol dire
   nessun vincolo. Una disdetta durante il vincolo vale alla fine del vincolo.
 * **Prova (giorni)**: i giorni gratuiti prima del primo addebito. Una prova si
