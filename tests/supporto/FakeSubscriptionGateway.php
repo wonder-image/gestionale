@@ -115,6 +115,9 @@ final class FakeSubscriptionGateway implements SubscriptionGateway
                 'confirmation_secret' => ['client_secret' => 'pi_'.$made['id'].'_secret']],
             'pending_setup_intent' => $due + $this->firstInvoiceRecurring === 0 ? ['id' => 'seti_'.$made['id'], 'client_secret' => 'seti_'.$made['id'].'_secret'] : null,
         ];
+        // La fattura si rilegge da sola, aperta e senza tentativi.
+        $this->objects['in_'.$made['id']] = $made['latest_invoice'] + ['status' => 'open', 'currency' => 'eur', 'payments' => ['data' => []],
+            'parent' => ['subscription_details' => ['subscription' => $made['id'], 'metadata' => $params['metadata'] ?? []]]];
 
         return $this->objects[$made['id']] = $made;
     }
@@ -131,6 +134,25 @@ final class FakeSubscriptionGateway implements SubscriptionGateway
         $this->calls[] = ['subscription.update', ['id' => $id] + $params];
 
         return $this->objects[$id] = array_replace($this->objects[$id] ?? ['id' => $id, 'object' => 'subscription'], $params);
+    }
+
+    /** Come Stripe: un abbonamento incompleto chiuso annulla la sua prima fattura. */
+    public function cancelSubscription(string $id): array
+    {
+        $this->calls[] = ['subscription.cancel', ['id' => $id]];
+
+        if (isset($this->objects['in_'.$id]) && $this->objects['in_'.$id]['status'] === 'open') {
+            $this->objects['in_'.$id]['status'] = 'void';
+        }
+
+        return $this->objects[$id] = array_replace($this->objects[$id] ?? ['id' => $id, 'object' => 'subscription'], ['status' => 'canceled']);
+    }
+
+    public function retrieveInvoice(string $id, array $params = []): array
+    {
+        $this->calls[] = ['invoice.retrieve', ['id' => $id] + $params];
+
+        return $this->objects[$id] ?? throw new RuntimeException('Fattura sconosciuta: '.$id);
     }
 
     public function createPortalSession(array $params): array

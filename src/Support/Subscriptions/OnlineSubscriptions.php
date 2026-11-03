@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Subscriptions;
 
 use DateTimeImmutable;
+use RuntimeException;
 use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
@@ -133,6 +134,35 @@ final class OnlineSubscriptions
         $secret = $paying ? (string) ($invoice['confirmation_secret']['client_secret'] ?? '') : (string) ($setup['client_secret'] ?? '');
 
         return ['subscription_id' => $id, 'code' => (string) $row['code'], 'client_secret' => $secret, 'intent' => $paying ? 'payment' : 'setup'];
+    }
+
+    /**
+     * L'ordine pagato in pagina torna al carrello: l'abbonamento nato con lui
+     * cade su Stripe (la prima fattura si annulla) e qui, così non tiene
+     * occupato il limite del cliente. Una fattura già pagata non si tocca.
+     */
+    public static function dropInPage(string $invoiceId, string $environment): void
+    {
+        $gateway = SubscriptionGateways::get($environment) ?? throw UserError::make('subscription.unavailable');
+        $invoice = $gateway->retrieveInvoice($invoiceId);
+        $status = (string) ($invoice['status'] ?? '');
+
+        if ($status === 'paid') {
+            throw new RuntimeException("Fattura {$invoiceId} già pagata.");
+        }
+
+        $reference = StripeSubscriptionData::invoiceSubscription($invoice);
+
+        // Scaduto o già chiuso su Stripe, la fattura è già annullata.
+        if ($reference !== '' && !in_array($status, ['void', 'uncollectible'], true)) {
+            $gateway->cancelSubscription($reference);
+        }
+
+        $row = SubscriptionEvents::find($reference, StripeSubscriptionData::invoiceLocalId($invoice), $environment);
+
+        if ($row !== null && (string) $row['status'] === 'pending') {
+            SubscriptionStatus::move((int) $row['id'], 'cancelled', 'system', 'Ordine tornato al carrello');
+        }
     }
 
     /**

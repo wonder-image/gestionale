@@ -55,6 +55,12 @@ interface SubscriptionGateway
     /** @return array<string, mixed> */
     public function updateSubscription(string $id, array $params): array;
 
+    /** @return array<string, mixed> l'abbonamento chiuso subito, senza conguagli */
+    public function cancelSubscription(string $id): array;
+
+    /** @return array<string, mixed> */
+    public function retrieveInvoice(string $id, array $params = []): array;
+
     /** @return array<string, mixed> */
     public function createPortalSession(array $params): array;
 

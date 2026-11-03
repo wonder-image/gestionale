@@ -26,9 +26,14 @@ use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItemChange;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Providers\Payments\PaymentEvent;
+use Wonder\Plugin\Gestionale\Providers\Payments\PaymentProvider;
+use Wonder\Plugin\Gestionale\Providers\Payments\PaymentStart;
+use Wonder\Plugin\Gestionale\Providers\Payments\PaymentState;
+use Wonder\Plugin\Gestionale\Providers\Payments\StripeProvider;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentEvents;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
@@ -854,6 +859,93 @@ check('in pagina: il coupon va su ogni voce ricorrente, la stessa chiave non cre
         && $chiamata['payment_settings']['save_default_payment_method'] === 'on_subscription'
         && $di['id'] === (string) Subscription::findById($avvio['subscription_id'])['provider_reference']
         && isset($di['latest_invoice']) && $stripe->count('subscription.create') === 2;
+}));
+
+check('in pagina: lo stato dell\'ordine viene dalla fattura, con la sola parte dell\'ordine', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    $cliente = cliente();
+    $ordine = ordinePagabile($cliente, 50.0);
+    $avvio = OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $ordine['order']);
+    $riferimento = (string) Payment::findById($ordine['payment'])['provider_reference'];
+    $fattura = substr($riferimento, 0, -strlen(SubscriptionEvents::ORDER_SUFFIX));
+    $stripe_ = new StripeProvider();
+    $nuova = $stripe_->status($riferimento);
+
+    // Un tentativo rifiutato: il motivo arriva come per un PaymentIntent.
+    $stripe->objects[$fattura]['payments']['data'] = [['is_default' => true, 'payment' => ['payment_intent' => [
+        'id' => 'pi_x', 'status' => 'requires_payment_method',
+        'last_payment_error' => ['decline_code' => 'insufficient_funds', 'charge' => 'ch_x'],
+    ]]]];
+    $rifiutata = $stripe_->status($riferimento);
+
+    $stripe->objects[$fattura]['status'] = 'paid';
+    $stripe->objects[$fattura]['amount_paid'] = 7440;
+    $pagata = $stripe_->status($riferimento);
+
+    return $nuova->status === PaymentState::REQUIRES_PAYMENT_METHOD && $nuova->failure === '' && $nuova->orderId === $ordine['order']
+        && $rifiutata->status === PaymentState::REQUIRES_PAYMENT_METHOD && str_contains($rifiutata->failure, 'fondi insufficienti') && $rifiutata->attempt === 'ch_x'
+        && $pagata->status === PaymentState::SUCCEEDED && $pagata->amount === 5000 && $pagata->currency === 'eur'
+        && (string) Subscription::findById($avvio['subscription_id'])['status'] === 'pending';
+}));
+
+check('in pagina: annullare il pagamento dell\'ordine chiude l\'abbonamento su Stripe e qui; pagata non si annulla', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    $cliente = cliente();
+    $ordine = ordinePagabile($cliente, 50.0);
+    $avvio = OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $ordine['order']);
+    $riferimento = (string) Payment::findById($ordine['payment'])['provider_reference'];
+    $remoto = (string) Subscription::findById($avvio['subscription_id'])['provider_reference'];
+    $provider = new StripeProvider();
+    $provider->cancel($riferimento);
+    $chiusa = $provider->status($riferimento);
+
+    $altro = ordinePagabile($cliente, 20.0);
+    $secondo = OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $altro['order']);
+    $riferimento2 = (string) Payment::findById($altro['payment'])['provider_reference'];
+    $stripe->objects[substr($riferimento2, 0, -strlen(SubscriptionEvents::ORDER_SUFFIX))]['status'] = 'paid';
+
+    try {
+        $provider->cancel($riferimento2);
+        $fermato = false;
+    } catch (RuntimeException) {
+        $fermato = true;
+    }
+
+    return $stripe->last('subscription.cancel') === ['id' => $remoto] && $stripe->count('subscription.cancel') === 1
+        && $chiusa->status === PaymentState::CANCELED
+        && (string) Subscription::findById($avvio['subscription_id'])['status'] === 'cancelled'
+        && $fermato && (string) Subscription::findById($secondo['subscription_id'])['status'] === 'pending';
+}));
+
+check('in pagina: l\'ordine abbandonato si chiude e il suo abbonamento non occupa più il limite', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    $cliente = cliente();
+    $ordine = ordinePagabile($cliente, 50.0);
+    $avvio = OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $ordine['order']);
+
+    // Lifecycle passa dal fornitore registrato: qui quello vero, nell'ambiente di test.
+    PaymentProviders::register(new class () implements PaymentProvider {
+        private StripeProvider $stripe;
+        public function __construct() { $this->stripe = new StripeProvider(); }
+        public function code(): string { return 'stripe'; }
+        public function environment(): string { return 'test'; }
+        public function connected(): bool { return true; }
+        public function start(array $order, array $payment): PaymentStart { throw new LogicException(); }
+        public function status(string $reference): PaymentState { return $this->stripe->status($reference); }
+        public function event(string $raw, string $signature): ?PaymentEvent { return null; }
+        public function replay(array $payload, string $environment): ?PaymentEvent { return null; }
+        public function cancel(string $reference): void { $this->stripe->cancel($reference); }
+    });
+
+    try {
+        $chiuso = Lifecycle::abandon($ordine['order']);
+    } finally {
+        PaymentProviders::register($GLOBALS['provider']);
+    }
+
+    return $chiuso && (string) Order::findById($ordine['order'])['status'] !== 'awaiting_payment'
+        && (string) Subscription::findById($avvio['subscription_id'])['status'] === 'cancelled'
+        && $stripe->count('subscription.cancel') === 1;
 }));
 
 summary();
