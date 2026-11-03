@@ -87,6 +87,25 @@ final class StripeCatalog
         return (string) $created['id'];
     }
 
+    /**
+     * Il prodotto Stripe della voce «ordine» nella prima fattura di un
+     * abbonamento pagato in pagina: uno per ambiente, per tutti gli ordini.
+     */
+    public function orderProduct(): string
+    {
+        $env = $this->gateway->environment();
+        $saved = ExternalReferences::find('order', 0, 'stripe', 'product', $env);
+
+        if ($saved !== null && trim((string) $saved['external_id']) !== '') {
+            return (string) $saved['external_id'];
+        }
+
+        $created = $this->gateway->createProduct(['name' => 'Ordine del negozio'], 'order-product-'.$env);
+        ExternalReferences::save('order', 0, 'stripe', 'product', (string) $created['id'], $env);
+
+        return (string) $created['id'];
+    }
+
     /** L'aliquota Stripe, inclusa o esclusa, per quell'aliquota del gestionale. */
     public function taxRateFor(int $taxId, float $rate, bool $inclusive): string
     {

@@ -26,6 +26,9 @@ final class FakeSubscriptionGateway implements SubscriptionGateway
     /** L'`amount_due` delle anteprime, in centesimi: lo sceglie il test. */
     public int $previewAmountDue = 0;
 
+    /** Il canone nella prima fattura di `createSubscription`, in centesimi: 0 come con la prova. */
+    public int $firstInvoiceRecurring = 0;
+
     public function __construct(public string $env = 'test', public bool $isConnected = true)
     {
     }
@@ -89,6 +92,31 @@ final class FakeSubscriptionGateway implements SubscriptionGateway
         $this->calls[] = ['checkout.session.retrieve', ['id' => $id]];
 
         return $this->objects[$id] ?? throw new RuntimeException('Sessione sconosciuta: '.$id);
+    }
+
+    /** La prima fattura è aperta: con un importo ha il segreto del pagamento, a zero c'è il SetupIntent. */
+    public function createSubscription(array $params, string $idempotencyKey): array
+    {
+        $due = 0;
+
+        foreach ($params['add_invoice_items'] ?? [] as $once) {
+            $due += (int) ($once['price_data']['unit_amount'] ?? 0) * (int) ($once['quantity'] ?? 1);
+        }
+
+        $made = $this->make('sub', 'subscription', $params + ['status' => 'incomplete'], $idempotencyKey);
+
+        // La stessa chiave restituisce l'abbonamento già fatto, con la sua fattura.
+        if (isset($this->objects[$made['id']]['latest_invoice'])) {
+            return $this->objects[$made['id']];
+        }
+
+        $made += [
+            'latest_invoice' => ['id' => 'in_'.$made['id'], 'object' => 'invoice', 'amount_due' => $due + $this->firstInvoiceRecurring,
+                'confirmation_secret' => ['client_secret' => 'pi_'.$made['id'].'_secret']],
+            'pending_setup_intent' => $due + $this->firstInvoiceRecurring === 0 ? ['id' => 'seti_'.$made['id'], 'client_secret' => 'seti_'.$made['id'].'_secret'] : null,
+        ];
+
+        return $this->objects[$made['id']] = $made;
     }
 
     public function retrieveSubscription(string $id): array

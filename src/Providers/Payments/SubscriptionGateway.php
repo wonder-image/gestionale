@@ -46,6 +46,9 @@ interface SubscriptionGateway
     /** @return array<string, mixed> */
     public function retrieveCheckoutSession(string $id): array;
 
+    /** L'abbonamento creato da qui, per il pagamento dentro la pagina del sito. @return array<string, mixed> */
+    public function createSubscription(array $params, string $idempotencyKey): array;
+
     /** @return array<string, mixed> */
     public function retrieveSubscription(string $id): array;
 
