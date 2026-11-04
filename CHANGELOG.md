@@ -26,17 +26,18 @@ versionamento semantico.
   sezioni *Servizi*, *Pagamenti e rinnovi*, *Storia dei servizi* e *Storico*
   con `Table`/`TableColumn`. `OrderSectionResource` ha `$foreignKey`, per le
   tabelle legate a un abbonamento.
-- **Interruttore «Prodotto» e voce «Abbonamenti» in Catalogo.** Nuova
+- **Interruttore «Prodotto» e un elenco solo in Catalogo.** Nuova
   funzionalità `products` (area Catalogo, accesa di serie con la nuova chiave
-  `default` del catalogo: `FeatureState::defaults()`), che governa la voce
-  *Catalogo → Prodotti* e la creazione dei prodotti singoli
-  (`product.products_off`); non si spegne con prodotti singoli nel catalogo
-  (`feature.products_in_use`). `bundles` la richiede. `subscriptions` passa
-  dall'area Vendite a Catalogo e torna la voce *Catalogo → Abbonamenti*
-  (`SubscriptionProductsResource`, solo navigazione). L'elenco ha due viste,
-  `?vista=prodotti|abbonamenti` (`ProductModelResource::VIEWS`,
-  `viewTypes()`, `typeListUrl()`), sempre senza filtro Tipo; Multiprodotti
-  resta senza voce.
+  `default` del catalogo: `FeatureState::defaults()`), che governa la
+  creazione dei prodotti singoli (`product.products_off`); non si spegne con
+  prodotti singoli nel catalogo (`feature.products_in_use`). `bundles` la
+  richiede. `subscriptions` passa dall'area Vendite a Catalogo ed è
+  l'interruttore del tipo «Abbonamento». *Catalogo → Prodotti* è l'unica voce
+  (accesa con `ProductModelResource::featureActive()`) e mostra tutti i tipi,
+  con la colonna e il filtro **Tipo** (`activeTypes()`, di base «Tutti»); il
+  prezzo di un abbonamento si legge «19,00 €/mese · 190,00 €/anno»
+  (`SubscriptionProductForm::pricesSummary()`, `termUnit()`). Niente voce
+  «Abbonamenti» né viste `?vista=`: un indirizzo salvato apre l'elenco intero.
 - **Scheda del coupon con le tabelle del core** (gestionale#113): utilizzi e
   codici generati usano `Table` (ricerca, filtri valido/rilasciato e
   liberi/usati, ordinamento, pagine) con due Resource senza pagina,
@@ -47,9 +48,9 @@ versionamento semantico.
   codici).
 - **In Catalogo solo «Prodotti».** Tolte le voci di menu «Multiprodotti» e
   «Abbonamenti» (`BundleProductsResource`, `SubscriptionProductsResource`,
-  solo navigazione) e `ProductModelResource::typeListUrl()`. L'elenco dei
-  prodotti non ha più il filtro **Tipo**: i tipi stanno insieme, distinti
-  dall'icona; multiprodotti e abbonamenti si creano dal menu di «+ Aggiungi».
+  solo navigazione) e `ProductModelResource::typeListUrl()`. I tipi stanno
+  insieme, distinti dall'icona; multiprodotti e abbonamenti si creano dal menu
+  di «+ Aggiungi».
 - **L'abbonamento è un tipo di prodotto.** Il piano non ha più una pagina
   sua: in *Catalogo → Prodotti* «+ Aggiungi Abbonamento» crea un prodotto di
   tipo `subscription`, con foto, tag, categorie, URL e SEO come gli altri. La
@@ -105,6 +106,15 @@ versionamento semantico.
   `ErrorKeysTest` le trova.
 
 ### Aggiunto
+- **Importa nell'elenco dei prodotti (#84).** Il file dell'esportazione si
+  ricarica: uno SKU che c'è si aggiorna (solo le celle cambiate), uno nuovo
+  diventa una versione o un articolo, la giacenza si muove con causale
+  `import`, le foto si scaricano da `https://`, tutto si annulla. Tracciato
+  `CatalogLayout` sul motore del core, con file di esempio e resoconto delle
+  colonne; uno SKU usato da più prodotti ferma la riga. Si accende con la
+  funzionalità `import_catalog` («Caricamento del catalogo»), che mostra anche
+  Tracciati file in Set-up → Gestionale. Vedi
+  `docs/dev/concetti/caricamento-catalogo.md`.
 
 - **Abbonamenti pagati dentro la pagina.** `OnlineSubscriptions::startInPage()`
   crea l'abbonamento Stripe con `default_incomplete` e restituisce il client

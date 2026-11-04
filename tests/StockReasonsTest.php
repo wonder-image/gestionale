@@ -12,11 +12,12 @@ check('le causali della spec ci sono tutte', fn () =>
     array_keys(Reasons::all()) === [
         'inventory', 'initial_stock', 'damaged', 'expired',
         'gift', 'internal_use', 'other', 'batch_assignment',
+        'import', 'import_undo',
     ]
 );
 
 check('la causale interna ha l\'etichetta ma non sta fra quelle da scegliere', fn () =>
-    Reasons::internal() === ['batch_assignment']
+    Reasons::internal() === ['batch_assignment', 'import', 'import_undo']
     && Reasons::label('batch_assignment') === 'Assegnazione lotto'
     && !array_key_exists('batch_assignment', Reasons::selectable())
     && array_keys(Reasons::selectable()) === ['inventory', 'initial_stock', 'damaged', 'expired', 'gift', 'internal_use', 'other']

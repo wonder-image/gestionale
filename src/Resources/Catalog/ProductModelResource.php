@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Catalog;
 use Closure;
 use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
+use Wonder\App\Resources\Config\ImportResource;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -30,6 +31,7 @@ use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Catalog\Import\CatalogLayout;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
@@ -1170,7 +1172,7 @@ HTML
 
         // Prodotto, multiprodotto o abbonamento: con un tipo solo sarebbe
         // sempre la stessa icona.
-        if (count(static::viewTypes()) > 1) {
+        if (count(static::activeTypes()) > 1) {
             $colonne[] = TableColumn::key('type')
                 ->text()
                 ->size('little')
@@ -1373,15 +1375,26 @@ HTML
             // «Esporta» (D64): solo i file concessi dal pannello Funzionalità, area «Esportazioni».
             ->download(ProductExports::granted())
             ->downloadUsing(static fn (string $format) => ProductExports::send($format))
-            ->filterCustom('Stato', 'visible', ['' => 'Tutti', 'true' => 'Pubblicato', 'false' => 'Bozza'])
+            ->filterCustom('Stato', 'visible', ['' => 'Tutti', 'true' => 'Pubblicato', 'false' => 'Bozza']);
+
+        $tipi = static::activeTypes();
+
+        // Una scorciatoia: di base l'elenco mostra tutti i tipi.
+        if (count($tipi) > 1) {
+            $layout->filterCustom('Tipo', 'type', ['' => 'Tutti'] + $tipi);
+        }
+
+        $layout
             ->filterQuery('Marchio', 'marchio', static::brandFilterOptions(), static fn (array $values): string => static::brandCondition($values))
             ->filterQuery('Categoria', 'categoria', static::categoryFilterOptions(), static fn (array $values): string => static::categoryCondition($values));
 
-        if (static::listedView() === 'abbonamenti') {
-            $layout->title('Abbonamenti');
+        // «Importa» (#84): lo stesso file dell'esportazione, riletto; si accende in Funzionalità.
+        if (Gestionale::feature('import_catalog') && static::allows((array) ($GLOBALS['USER']->authority ?? []), 'update')) {
+            $layout->buttonCustom(
+                Button::to(ImportResource::url(['layout' => CatalogLayout::KEY]), 'Importa')
+                    ->variant('secondary')->outline()->size('sm')->icon('bi bi-upload', 'start')
+            );
         }
-
-        $tipi = static::viewTypes();
 
         if ($tipi === ['simple' => 'Prodotto']) {
             return $layout;
@@ -1406,96 +1419,34 @@ HTML
         return $layout->buttonCustomHtml(static::addButtonHtml($tipi));
     }
 
-    /** Le viste dell'elenco aperte dal menu; ogni altro valore è l'elenco intero. */
-    public const VIEWS = ['prodotti', 'abbonamenti'];
-
-    /** La vista dell'indirizzo (`?vista=`), vuota se manca o non è nota. */
-    public static function listedView(): string
-    {
-        $vista = (string) ($_GET['vista'] ?? '');
-
-        return in_array($vista, self::VIEWS, true) ? $vista : '';
-    }
-
     /**
-     * I tipi che la vista mostra e che «Aggiungi» crea, fra quelli accesi.
+     * I tipi accesi, quelli che l'elenco mostra e che «Aggiungi» crea.
      *
      * @return array<string, string>
      */
-    public static function viewTypes(?string $vista = null): array
+    public static function activeTypes(): array
     {
-        $vista ??= static::listedView();
         $tipi = [];
 
-        if ($vista !== 'abbonamenti') {
-            if (Gestionale::feature('products')) {
-                $tipi['simple'] = 'Prodotto';
-            }
-
-            if (Gestionale::feature('bundles')) {
-                $tipi['bundle'] = 'Multiprodotto';
-            }
+        if (Gestionale::feature('products')) {
+            $tipi['simple'] = 'Prodotto';
         }
 
-        if ($vista !== 'prodotti' && Gestionale::feature('subscriptions')) {
+        if (Gestionale::feature('bundles')) {
+            $tipi['bundle'] = 'Multiprodotto';
+        }
+
+        if (Gestionale::feature('subscriptions')) {
             $tipi[SubscriptionModels::TYPE] = 'Abbonamento';
         }
 
         return $tipi;
     }
 
-    /**
-     * La condizione per tipo della vista. Solo con `?vista=`: le schede e i
-     * salvataggi arrivano senza, e una riga fuori condizione sarebbe un 404.
-     *
-     * @return array<string, mixed>
-     */
-    public static function viewCondition(string $vista): array
-    {
-        return match ($vista) {
-            'prodotti' => ['type' => ['simple', 'bundle']],
-            'abbonamenti' => ['type' => SubscriptionModels::TYPE],
-            default => [],
-        };
-    }
-
-    public static function querySchema(): array
-    {
-        $schema = parent::querySchema();
-        $condizione = static::viewCondition(static::listedView());
-
-        if ($condizione !== []) {
-            $schema['condition'] = array_merge((array) ($schema['condition'] ?? []), $condizione);
-        }
-
-        return $schema;
-    }
-
     /** Le pagine vivono finché c'è almeno un tipo di articolo acceso. */
     public static function featureActive(): bool
     {
         return Gestionale::feature('products') || Gestionale::feature('bundles') || Gestionale::feature('subscriptions');
-    }
-
-    /**
-     * L'elenco in una vista: lo aprono le voci di menu «Prodotti» e
-     * «Abbonamenti». Assoluto, come vuole il menu per un link fuori dalla
-     * sua cartella.
-     */
-    public static function typeListUrl(string $vista): string
-    {
-        $url = '/backend/'.static::path().'/';
-
-        if (function_exists('__r')) {
-            try {
-                $named = (string) __r('backend.resource.'.static::slug().'.list');
-                $url = $named !== '' ? $named : $url;
-            } catch (Throwable) {
-                // Rotta non registrata (test, comandi): resta il percorso.
-            }
-        }
-
-        return $url.(str_contains($url, '?') ? '&' : '?').'vista='.rawurlencode($vista);
     }
 
     /**
@@ -1615,7 +1566,7 @@ HTML
             // dietro al bottone «Modifica».
             ->enable(['view'])
             ->titles([
-                'list' => static::listedView() === 'abbonamenti' ? 'Abbonamenti' : 'Prodotti',
+                'list' => 'Prodotti',
                 'create' => 'Nuovo prodotto',
                 'view' => 'Scheda prodotto',
                 'edit' => 'Modifica prodotto',
@@ -2280,15 +2231,13 @@ HTML
 
     public static function navigationSchema(): NavigationSchema
     {
-        // Prodotti e multiprodotti; gli abbonamenti hanno la loro voce
-        // (SubscriptionProductsResource) sullo stesso elenco.
+        // Una voce sola per tutti i tipi: c'è finché ne resta acceso uno.
         return NavigationSchema::for(static::class)
             ->inSection('catalogo')
             ->title('Prodotti')
             ->order(38)
-            ->file(static::typeListUrl('prodotti'))
             ->access(Gestionale::area('catalogo'))
-            ->enabled(Gestionale::feature('products'));
+            ->enabled(static::featureActive());
     }
 
     /**

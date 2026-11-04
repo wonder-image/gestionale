@@ -45,6 +45,12 @@ return [
             \Wonder\Plugin\Gestionale\Backend\Widgets\ContactsWidget::class,
         ],
     ],
+    // Tracciati di «Carica da file» (#84).
+    'import' => [
+        'layouts' => [
+            \Wonder\Plugin\Gestionale\Support\Catalog\Import\CatalogLayout::KEY => \Wonder\Plugin\Gestionale\Support\Catalog\Import\CatalogLayout::class,
+        ],
+    ],
     // Classi del sito che estendono Extensions\GestionaleExtension (piano 4).
     'extensions' => [],
     // Funzionalità aggiunte dal sito e chiavi da sbloccare alla prima installazione.

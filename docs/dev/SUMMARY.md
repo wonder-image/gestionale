@@ -11,6 +11,7 @@
 
 * [Funzionalità e ruoli](concetti/funzionalita.md)
 * [Catalogo](concetti/catalogo.md)
+* [Caricamento del catalogo da file](concetti/caricamento-catalogo.md)
 * [Magazzino](concetti/magazzino.md)
 * [Fornitori e costi d'acquisto](concetti/acquisti.md)
 * [Vendite: ordini, pagamenti e resi](concetti/vendite.md)

@@ -3406,74 +3406,56 @@ check('con «bundles» l\'elenco ha un «+ Aggiungi» diviso al posto di quello 
         && !str_contains($html, 'Abbonamento');
 });
 
-check('in Catalogo «Prodotti» apre la vista prodotti e «Abbonamenti» la vista abbonamenti; Multiprodotti non ha una voce', function () use ($forza) {
+check('in Catalogo c\'è una voce sola, «Prodotti», sull\'elenco intero', function () use ($forza) {
     $forza(['bundles' => true, 'subscriptions' => true]);
     $prodotti = ProductModelResource::navigationSchema()->all();
-    $abbonamenti = \Wonder\Plugin\Gestionale\Resources\Catalog\SubscriptionProductsResource::navigationSchema()->all();
     $forza(null);
 
-    return str_ends_with((string) $prodotti['file'], '?vista=prodotti')
-        && str_starts_with((string) $prodotti['file'], '/')
+    return !str_contains((string) ($prodotti['file'] ?? ''), 'vista=')
         && $prodotti['section_key'] === 'catalogo'
-        && str_ends_with((string) $abbonamenti['file'], '?vista=abbonamenti')
-        && $abbonamenti['section_key'] === 'catalogo'
+        && !is_file(__DIR__.'/../src/Resources/Catalog/SubscriptionProductsResource.php')
         && !class_exists('Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\BundleProductsResource');
 });
 
-check('le voci seguono gli interruttori: «Prodotti» con «products», «Abbonamenti» con «subscriptions»', function () use ($forza) {
-    $forza(['products' => false, 'subscriptions' => true]);
-    $prodottiSpenta = ProductModelResource::navigationSchema()->all()['enabled'] ?? null;
-    $abbonamentiAccesa = \Wonder\Plugin\Gestionale\Resources\Catalog\SubscriptionProductsResource::navigationSchema()->all()['enabled'] ?? null;
-    $pagine = ProductModelResource::featureActive();
+check('la voce resta finché c\'è un tipo acceso, anche solo l\'abbonamento', function () use ($forza) {
+    $forza(['products' => false, 'bundles' => false, 'subscriptions' => true]);
+    $soloAbbonamenti = ProductModelResource::navigationSchema()->all()['enabled'] ?? null;
     $forza(['products' => false, 'subscriptions' => false, 'bundles' => false]);
-    $nessuna = ProductModelResource::featureActive();
+    $nessuna = ProductModelResource::navigationSchema()->all()['enabled'] ?? null;
     $forza(null);
 
-    return $prodottiSpenta === false && $abbonamentiAccesa === true && $pagine === true && $nessuna === false;
+    return $soloAbbonamenti === true && $nessuna === false;
 });
 
-check('la vista filtra per tipo solo con un valore noto; senza vista l\'elenco ha tutti i tipi', function () {
-    $condizione = static function (?string $vista): array {
-        if ($vista === null) {
-            unset($_GET['vista']);
-        } else {
-            $_GET['vista'] = $vista;
-        }
-
-        $c = (array) (ProductModelResource::querySchema()['condition'] ?? []);
-        unset($_GET['vista']);
-
-        return $c;
-    };
-
-    return ($condizione('prodotti')['type'] ?? null) === ['simple', 'bundle']
-        && ($condizione('abbonamenti')['type'] ?? null) === 'subscription'
-        && !isset($condizione('altro')['type'])
-        && !isset($condizione(null)['type']);
-});
-
-check('nella vista abbonamenti «Aggiungi» crea solo un abbonamento e il titolo è «Abbonamenti»; nella vista prodotti niente abbonamento', function () use ($forza) {
-    $forza(['bundles' => true, 'subscriptions' => true]);
+check('il vecchio ?vista= non filtra più: l\'elenco ha tutti i tipi', function () {
     $_GET['vista'] = 'abbonamenti';
-    $abbonamenti = ProductModelResource::tableLayoutSchema()->toArray();
-    $_GET['vista'] = 'prodotti';
-    $html = (string) (((array) (ProductModelResource::tableLayoutSchema()->toArray()['buttons_custom'] ?? []))[0] ?? '');
+    $c = (array) (ProductModelResource::querySchema()['condition'] ?? []);
     unset($_GET['vista']);
+
+    return !isset($c['type']);
+});
+
+check('con più tipi accesi l\'elenco ha la colonna e il filtro «Tipo», di base su «Tutti»', function () use ($forza) {
+    $forza(['bundles' => true, 'subscriptions' => true]);
+    $layout = ProductModelResource::tableLayoutSchema()->toArray();
+    $colonne = array_map(static fn ($c): string => (string) $c->name, ProductModelResource::tableSchema());
+    $html = (string) (((array) ($layout['buttons_custom'] ?? []))[array_key_last((array) ($layout['buttons_custom'] ?? []))] ?? '');
+    $forza(['bundles' => false, 'subscriptions' => false]);
+    $soloProdotti = ProductModelResource::tableLayoutSchema()->toArray();
     $forza(null);
-    $bottone = ((array) ($abbonamenti['buttons_custom'] ?? []))[0] ?? null;
+    $tipo = array_values(array_filter((array) ($layout['custom_filters'] ?? []), static fn (array $f): bool => $f['column'] === 'type'))[0] ?? [];
     $nuovo = ProductModelResource::createUrlFor();
 
-    return ($abbonamenti['title']['text'] ?? '') === 'Abbonamenti'
-        && ($abbonamenti['button_add']['enabled'] ?? true) === false
-        && is_object($bottone) && str_contains((string) $bottone, $nuovo.'?type=subscription')
-        && !str_contains((string) $bottone, 'dropdown-toggle-split')
-        && str_contains($html, '?type=bundle">Multiprodotto</a>')
-        && !str_contains($html, 'Abbonamento');
+    return ($tipo['array'] ?? []) === ['' => 'Tutti', 'simple' => 'Prodotto', 'bundle' => 'Multiprodotto', 'subscription' => 'Abbonamento']
+        && in_array('type', $colonne, true)
+        && ($layout['title']['text'] ?? 'Prodotti') !== 'Abbonamenti'
+        && str_contains($html, $nuovo.'?type=subscription">Abbonamento</a>')
+        && array_filter((array) ($soloProdotti['custom_filters'] ?? []), static fn (array $f): bool => $f['column'] === 'type') === [];
 });
 
 check('con «Prodotto» spento «Aggiungi» non offre il prodotto singolo e il salvataggio lo rifiuta', function () use ($forza) {
     $forza(['products' => false, 'bundles' => false, 'subscriptions' => true]);
-    $tipi = ProductModelResource::viewTypes('');
+    $tipi = ProductModelResource::activeTypes();
     try {
         ProductModelResource::mutateRequestValues(['name' => 'Prova', 'type' => 'simple'], 'store');
         $rifiuto = '';
@@ -3504,7 +3486,7 @@ check('il tipo e la composizione non finiscono nelle colonne dell\'articolo tra 
         && ($v['type'] ?? '') === 'bundle' && ($v['bundle_mode'] ?? '') === 'fixed';
 });
 
-check('l\'elenco dei prodotti ha ricerca, Stato (Pubblicato/Bozza), Marchio e Categoria, e niente Tipo neanche con «bundles»', function () use ($forza) {
+check('l\'elenco dei prodotti ha ricerca, Stato (Pubblicato/Bozza), Marchio e Categoria, e Tipo solo con più tipi accesi', function () use ($forza) {
     $chiavi = static function (array $layout): array {
         $out = [];
 
@@ -3515,7 +3497,7 @@ check('l\'elenco dei prodotti ha ricerca, Stato (Pubblicato/Bozza), Marchio e Ca
         return $out;
     };
 
-    $forza(['bundles' => false]);
+    $forza(['bundles' => false, 'subscriptions' => false]);
     $senza = ProductModelResource::tableLayoutSchema()->toArray();
     $forza(['bundles' => true]);
     $con = ProductModelResource::tableLayoutSchema()->toArray();
@@ -3526,7 +3508,7 @@ check('l\'elenco dei prodotti ha ricerca, Stato (Pubblicato/Bozza), Marchio e Ca
 
     return ($con['filters']['search']['enabled'] ?? false) === true
         && array_keys($chiavi($senza)) === ['Stato', 'Marchio', 'Categoria']
-        && array_keys($filtri) === ['Stato', 'Marchio', 'Categoria']
+        && array_keys($filtri) === ['Stato', 'Tipo', 'Marchio', 'Categoria']
         && ($filtri['Stato']['column'] ?? '') === 'visible'
         && $stato === ['' => 'Tutti', 'true' => 'Pubblicato', 'false' => 'Bozza'];
 });
