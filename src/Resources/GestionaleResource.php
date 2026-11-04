@@ -5,12 +5,16 @@ namespace Wonder\Plugin\Gestionale\Resources;
 use Throwable;
 use Wonder\App\Resource;
 use Wonder\App\ResourceSchema\ApiSchema;
+use Wonder\App\ResourceSchema\FormField;
+use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Resources\Tax\TaxCategoryResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Tax\TaxCategories;
 
 /**
  * Resource base del gestionale. Ogni pagina dichiara la funzionalità che la
@@ -53,6 +57,34 @@ abstract class GestionaleResource extends Resource
     protected static function withFeature(PageSchema $schema): PageSchema
     {
         return static::featureActive() ? $schema : $schema->only([]);
+    }
+
+    /**
+     * Il tipo fiscale di articoli e piani: parte dal predefinito ed è
+     * obbligatorio.
+     *
+     * `$keep` è il tipo già salvato: resta nell'elenco anche se nel frattempo
+     * è stato nascosto. Senza nessun tipo le imposte ricadono sull'aliquota di
+     * ripiego, e il campo lo dice invece di pretendere una scelta che non c'è.
+     */
+    protected static function taxCategoryInput(int $keep = 0): Input
+    {
+        $options = TaxCategories::options($keep);
+
+        if ($options === []) {
+            return FormField::key('tax_category_id')
+                ->select(['' => "Nessuno: vale l'aliquota di ripiego"])
+                ->value('')
+                ->label('Tipo fiscale')
+                ->quickCreate(TaxCategoryResource::class);
+        }
+
+        return FormField::key('tax_category_id')
+            ->select($options)
+            ->value((string) (TaxCategories::defaultId() ?: ''))
+            ->label('Tipo fiscale')
+            ->required()
+            ->quickCreate(TaxCategoryResource::class);
     }
 
     /**

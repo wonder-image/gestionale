@@ -119,9 +119,7 @@ final class PlanResource extends GestionaleResource
                 ->selectSearch(static::parentOptions($planId), true)
                 ->label('Si lega a'),
             FormField::key('description')->textarea()->label('Descrizione'),
-            FormField::key('tax_category_id')
-                ->select(['' => "Nessuno: vale l'aliquota di ripiego"] + TaxCategories::options())
-                ->label('Tipo fiscale'),
+            static::taxCategoryInput(static::savedTaxCategory($planId)),
             FormField::key('visible_online')
                 ->select(['true' => 'Visibile', 'false' => 'Nascosto'])
                 ->value('true')
@@ -214,7 +212,23 @@ final class PlanResource extends GestionaleResource
                 ->label('');
         }
 
+        // Con «Aliquote» spenta il tipo fiscale non si vede: il piano prende il
+        // predefinito, e salvando quello di prima resta.
+        if (!Gestionale::feature('tax_categories')) {
+            $fields = array_values(array_filter($fields, static fn (object $field): bool => $field->name !== 'tax_category_id'));
+        }
+
         return $fields;
+    }
+
+    /** Il tipo fiscale già salvato sul piano, 0 per uno nuovo. */
+    protected static function savedTaxCategory(int $planId): int
+    {
+        if ($planId <= 0) {
+            return 0;
+        }
+
+        return (int) ((static::rowsOf(Plan::class, ['id' => $planId])[0] ?? [])['tax_category_id'] ?? 0);
     }
 
     public static function formLayoutSchema(): ?Form
@@ -223,10 +237,11 @@ final class PlanResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Piano')
-                        ->tooltip('Il nome e la descrizione li vede il cliente nella pagina dei piani. Il tipo fiscale dà l\'aliquota (solo IVA italiana). «Nascosto» toglie il piano dalla pagina pubblica ma lo lascia agli abbonati e all\'ufficio; «Spento» non si propone più a nessuno. «Si lega a»: il piano si compra solo insieme a un abbonamento di uno di questi, come l\'hosting col dominio, e va sullo stesso abbonamento. Un livello solo: si scelgono piani che non si legano a nulla.')
+                        ->tooltip('Il nome e la descrizione li vede il cliente nella pagina dei piani. Il tipo fiscale dà l\'aliquota (solo IVA italiana) e parte dal predefinito. «Nascosto» toglie il piano dalla pagina pubblica ma lo lascia agli abbonati e all\'ufficio; «Spento» non si propone più a nessuno. «Si lega a»: il piano si compra solo insieme a un abbonamento di uno di questi, come l\'hosting col dominio, e va sullo stesso abbonamento. Un livello solo: si scelgono piani che non si legano a nulla.')
                         ->columnSpan(12),
-                    static::getInput('name')->columnSpan(6),
-                    static::getInput('tax_category_id')->columnSpan(6),
+                    ...(Gestionale::feature('tax_categories')
+                        ? [static::getInput('name')->columnSpan(6), static::getInput('tax_category_id')->columnSpan(6)]
+                        : [static::getInput('name')->columnSpan(12)]),
                     static::getInput('description')->columnSpan(12),
                     static::getInput('visible_online')->columnSpan(4),
                     static::getInput('active')->columnSpan(4),
@@ -502,7 +517,13 @@ final class PlanResource extends GestionaleResource
         // Le madri non sono una colonna: le scrivono afterStore() e afterUpdate().
         unset($values['parent_plans']);
 
-        $values['tax_category_id'] = (int) ($values['tax_category_id'] ?? 0) > 0 ? (int) $values['tax_category_id'] : '';
+        // Il tipo fiscale non arriva mai vuoto: senza scelta vale il predefinito.
+        // Con «Aliquote» spenta il campo non c'è: un piano nuovo prende il
+        // predefinito, uno salvato tiene il suo.
+        if (array_key_exists('tax_category_id', $values) || $action === 'store') {
+            $tax = (int) ($values['tax_category_id'] ?? 0);
+            $values['tax_category_id'] = $tax > 0 ? $tax : (TaxCategories::defaultId() ?: '');
+        }
 
         if ($action === 'store') {
             $values['slug'] = Slug::make((string) $values['name'], Plan::$table);
