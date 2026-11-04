@@ -25,6 +25,8 @@ use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\BundleProductsResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\SubscriptionProductsResource;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
@@ -3388,20 +3390,56 @@ check('sheetIsBundle: il parametro vale solo con «bundles» accesa, e il campo 
     return $dopoErrore === true && $spenta === false;
 });
 
-check('con «bundles» l\'elenco ha «+ Aggiungi Prodotto» e «+ Aggiungi Multiprodotto», senza lo «Aggiungi» di serie', function () use ($forza) {
+check('con «bundles» l\'elenco ha un «+ Aggiungi» diviso al posto di quello di serie: crea un prodotto, la freccia offre Prodotto e Multiprodotto', function () use ($forza) {
     $forza(['bundles' => true]);
     $layout = ProductModelResource::tableLayoutSchema()->toArray();
     $forza(null);
 
     $bottoni = (array) ($layout['buttons_custom'] ?? []);
-    $href = static fn ($b): string => (string) (((array) $b->getSchema('attributes'))['href'] ?? '');
+    $html = (string) ($bottoni[0] ?? '');
+    $nuovo = ProductModelResource::createUrlFor();
 
     return ($layout['button_add']['enabled'] ?? true) === false
-        && count($bottoni) === 2
-        && $bottoni[0]->getLabel() === '+ Aggiungi Prodotto'
-        && !str_contains($href($bottoni[0]), 'type=')
-        && $bottoni[1]->getLabel() === '+ Aggiungi Multiprodotto'
-        && str_ends_with($href($bottoni[1]), '?type=bundle');
+        && count($bottoni) === 1
+        && str_contains($html, 'dropdown-toggle-split')
+        && str_contains($html, 'href="'.$nuovo.'">+ Aggiungi</a>')
+        && str_contains($html, '>Prodotto</a>')
+        && str_contains($html, 'href="'.$nuovo.'?type=bundle">Multiprodotto</a>')
+        && !str_contains($html, 'Abbonamento');
+});
+
+check('con l\'elenco filtrato sui multiprodotti «+ Aggiungi» crea un multiprodotto; un tipo spento torna al prodotto', function () use ($forza) {
+    $chiave = ProductModel::$table.'__type';
+    $forza(['bundles' => true]);
+    $_GET[$chiave] = 'bundle';
+    $multi = (string) (((array) (ProductModelResource::tableLayoutSchema()->toArray()['buttons_custom'] ?? []))[0] ?? '');
+    $_GET[$chiave] = 'subscription';
+    $spento = (string) (((array) (ProductModelResource::tableLayoutSchema()->toArray()['buttons_custom'] ?? []))[0] ?? '');
+    unset($_GET[$chiave]);
+    $forza(null);
+    $nuovo = ProductModelResource::createUrlFor();
+
+    return str_contains($multi, 'href="'.$nuovo.'?type=bundle">+ Aggiungi</a>')
+        && str_contains($spento, 'href="'.$nuovo.'">+ Aggiungi</a>');
+});
+
+check('in Catalogo «Prodotti» apre i soli prodotti semplici quando accanto c\'è «Multiprodotti»', function () use ($forza) {
+    $forza(['bundles' => true]);
+    $prodotti = ProductModelResource::navigationSchema()->all();
+    $multi = BundleProductsResource::navigationSchema()->all();
+    $abbonamenti = SubscriptionProductsResource::navigationSchema()->all();
+    $forza(['bundles' => false]);
+    $solo = ProductModelResource::navigationSchema()->all();
+    $multiSpenta = BundleProductsResource::navigationSchema()->all();
+    $forza(null);
+
+    return $prodotti['file'] === '?'.ProductModel::$table.'__type=simple'
+        && $multi['enabled'] === true
+        && str_ends_with((string) $multi['file'], '?'.ProductModel::$table.'__type=bundle')
+        && $multi['section_key'] === 'catalogo'
+        && $abbonamenti['enabled'] === false
+        && $solo['file'] === 'list'
+        && $multiSpenta['enabled'] === false;
 });
 
 check('senza «bundles» l\'elenco ha un solo bottone, quello di serie', function () use ($forza) {
