@@ -5,11 +5,12 @@ namespace Wonder\Plugin\Gestionale\Models\Subscriptions;
 use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Sql\TableSchema as Column;
 
 /**
- * Un prezzo di un piano (G10 §1.1): «Mensile» a 19 €, «Annuale» a 190 €.
+ * Un prezzo di un prodotto di tipo abbonamento (G10 §1.1): «Mensile» a 19 €, «Annuale» a 190 €.
  *
  * `term_months` dice quanti mesi copre un addebito (1 per il mensile, 12 per
  * l'annuale); `commitment_months` a zero vuol dire nessun vincolo;
@@ -39,7 +40,7 @@ final class PlanPrice extends Model
     {
         return [
             ...static::sqlColumnsFromDataSchema(['code', 'price', 'sale_price', 'one_time_price']),
-            Column::key('plan_id')->int()->null(false)->foreign(Plan::$table),
+            Column::key('product_model_id')->int()->null(false)->foreign(ProductModel::$table),
             Column::key('name'),
             Column::key('billing_interval')->enum(static::INTERVALS)->default('month'),
             Column::key('term_months')->int()->default(1),
@@ -54,7 +55,7 @@ final class PlanPrice extends Model
     public static function tablePseudos(): array
     {
         return [
-            'ind_plan' => ['index' => 'plan_id'],
+            'ind_model' => ['index' => 'product_model_id'],
         ];
     }
 
@@ -62,7 +63,7 @@ final class PlanPrice extends Model
     {
         return [
             Field::key('code')->text()->uniqueCode(Codes::PLAN_PRICE),
-            Field::key('plan_id')->number()->decimals(0),
+            Field::key('product_model_id')->number()->decimals(0),
             Field::key('name')->text()->sanitize(),
             Field::key('billing_interval')->text()->sanitize(false),
             Field::key('term_months')->number()->decimals(0),

@@ -29,7 +29,6 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
@@ -85,9 +84,9 @@ if ($prodotti !== []) {
     }
 }
 
-// Gli abbonamenti non di prova su un prezzo di un piano di prova.
-$piani = ids(diProva(Plan::class));
-$prezzi = $piani === [] ? [] : ids(righe(PlanPrice::find('`plan_id` IN ('.implode(',', $piani).") AND `deleted` IN ('true', 'false')")));
+// Gli abbonamenti non di prova su un prezzo di un prodotto abbonamento di prova.
+$piani = ids(array_filter(diProva(ProductModel::class), static fn (array $row): bool => (string) ($row['type'] ?? '') === 'subscription'));
+$prezzi = $piani === [] ? [] : ids(righe(PlanPrice::find('`product_model_id` IN ('.implode(',', $piani).") AND `deleted` IN ('true', 'false')")));
 $abbonamenti = $prezzi === [] ? [] : array_values(array_filter(
     righe(Subscription::find('`id` IN (SELECT `subscription_id` FROM `'.SubscriptionItem::$table.'` WHERE `plan_price_id` IN ('.implode(',', $prezzi).")) AND `deleted` IN ('true', 'false')")),
     static fn (array $row): bool => !DemoCode::is((string) ($row['code'] ?? ''))

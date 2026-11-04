@@ -6,6 +6,19 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **L'abbonamento è un tipo di prodotto.** Il piano non ha più una pagina
+  sua: in *Catalogo → Prodotti* «+ Aggiungi Abbonamento» crea un prodotto di
+  tipo `subscription`, con foto, tag, categorie, URL e SEO come gli altri. La
+  scheda nasconde magazzino, spedizione, lotti, varianti, confezione, resi e
+  unità e mostra prezzi ricorrenti, metadata e «Si lega a». Tolti
+  `PlanResource`, il suo menu, i permessi e le rotte; la tabella `gst_plans`
+  sparisce. Colonne rinominate: `plan_id` → `product_model_id` in
+  `gst_plan_prices`, `gst_plan_features`, `gst_plan_links` e
+  `gst_customization_links`; `parent_plan_id` → `parent_product_model_id` in
+  `gst_plan_links`. I riferimenti Stripe del prodotto hanno il tipo
+  `subscription_model`. **Nessuna migrazione dei dati**: prima di
+  `php forge update` svuotare gli abbonamenti e i piani di prova e cancellare
+  `gst_plans`.
 - **Prezzi dei piani.** Colonne Nome, Prezzo, Ricorrenza (era «Ogni»), Una
   tantum, Stato; prezzo scontato, addebito (Mensile… Annuale, solo col mese), vincolo, prova e rinnovo
   dietro «Compila le informazioni avanzate». «Limiti» si chiama «Metadata».

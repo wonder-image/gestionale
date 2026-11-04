@@ -4,8 +4,8 @@ icon: arrow-repeat
 
 # Abbonamenti
 
-> **Da attivare.** Funzionalità *Abbonamenti*. Finché è spenta non vedi le
-> pagine *Catalogo → Abbonamenti* e *Vendite → Abbonamenti*; i dati già
+> **Da attivare.** Funzionalità *Abbonamenti*. Finché è spenta non puoi creare
+> prodotti di tipo *Abbonamento* e non vedi *Vendite → Abbonamenti*; i dati già
 > scritti restano. Non si spegne
 > mentre ci sono abbonamenti in corso.
 
@@ -17,8 +17,9 @@ rinnovo non crea un ordine, crea un pagamento.
 
 Le pagine sono due:
 
-* **Catalogo → Abbonamenti**: i piani, cioè cosa vendi, a quali prezzi e con
-  quali metadata (i limiti del piano);
+* **Catalogo → Prodotti**: cosa vendi. Un abbonamento (il «piano») è un
+  prodotto di tipo **Abbonamento**, con i suoi prezzi ricorrenti e i suoi
+  metadata (i limiti del piano);
 * **Vendite → Abbonamenti**: chi è abbonato, a cosa, e quando rinnova.
 
 > Gli abbonamenti nascono dal **sito**, con la funzionalità *Abbonamenti online*,
@@ -26,13 +27,18 @@ Le pagine sono due:
 
 ## I piani
 
-Un piano ha:
+In *Catalogo → Prodotti*, **«+ Aggiungi Abbonamento»** crea un prodotto di tipo
+*Abbonamento*. Il tipo si sceglie alla creazione e non cambia. La scheda è
+quella di un prodotto, senza quello che a un servizio non serve: magazzino,
+spedizione, lotti, varianti, confezione, resi e unità di misura. Restano:
 
-* **Nome** e **descrizione**: li vede il cliente nella pagina dei piani del sito.
-* **Tipo fiscale**: dà l'aliquota IVA, come per i prodotti. Per ora vale solo
-  l'IVA italiana.
-* **Sul sito**: «Nascosto» toglie il piano dalla pagina pubblica, ma lo lascia
-  agli abbonati e all'ufficio.
+* **Nome**, **descrizione** e **foto**: il cliente li vede nella scheda del
+  sito e nella pagina dei piani; la foto anche in carrello e checkout.
+* **Categorie**, **tag**, URL e SEO, come ogni prodotto: l'abbonamento compare
+  nel catalogo e nella ricerca del sito.
+* **IVA**: l'aliquota, come per i prodotti. Per ora vale solo l'IVA italiana.
+* **Acquistabile online**: spento, toglie il piano dal sito, ma lo lascia agli
+  abbonati e all'ufficio.
 * **Stato**: un piano spento non si propone più a nessuno.
 * **Si lega a**: il piano si compra solo insieme a uno di questi, e va sullo
   stesso abbonamento. L'hosting, per esempio, si lega al dominio: non si vende
@@ -156,7 +162,8 @@ Con la funzionalità **Abbonamenti online** (in *Funzionalità → Canali di
 vendita*; chiede *Vendita online* e *Abbonamenti*) il sito ha la pagina dei
 piani, e il cliente si abbona da solo:
 
-1. sceglie un prezzo nella pagina dei piani; serve un **account**. Il
+1. sceglie un prezzo nella scheda dell'abbonamento o nella pagina dei piani;
+   serve un **account**. Il
    servizio compare nel **carrello** e nel carrello laterale insieme ai
    prodotti, e da lì il cliente lo toglie con **Rimuovi** (togliendo un
    servizio si tolgono anche quelli che si appoggiano a lui). Nel checkout

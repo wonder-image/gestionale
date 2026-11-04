@@ -8,7 +8,6 @@ require __DIR__ . '/harness.php';
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Support\Codes;
 
@@ -50,7 +49,7 @@ check('ogni tabella ha le sue colonne', function () use ($colonne) {
     $attese = [
         Customization::class => ['code', 'name', 'label', 'help_text', 'kind', 'max_length', 'decimals', 'surcharge', 'active', 'for_products', 'for_subscriptions', 'position'],
         CustomizationOption::class => ['customization_id', 'label', 'surcharge', 'position'],
-        CustomizationLink::class => ['product_model_id', 'plan_id', 'customization_id', 'is_required', 'surcharge', 'position'],
+        CustomizationLink::class => ['product_model_id', 'customization_id', 'is_required', 'surcharge', 'position'],
     ];
 
     foreach ($attese as $model => $nomi) {
@@ -129,15 +128,12 @@ check('nessuna colonna usa una parola riservata di MySQL', function () use ($col
     return true;
 });
 
-check('un legame va a un articolo o a un piano: le due chiavi possono mancare', function () use ($colonne) {
+check('un legame va a un articolo, anche di tipo abbonamento: niente piano a parte', function () use ($colonne) {
     $legame = $colonne(CustomizationLink::class);
 
-    return $legame['plan_id']->getSchema('foreign_table') === Plan::$table
-        && Plan::$table === 'gst_plans'
-        && $legame['plan_id']->getSchema('null') !== false
-        && $legame['product_model_id']->getSchema('null') !== false
+    return !isset($legame['plan_id'])
         && $legame['customization_id']->getSchema('null') === false
-        && array_key_exists('ind_plan', CustomizationLink::tablePseudos());
+        && !array_key_exists('ind_plan', CustomizationLink::tablePseudos());
 });
 
 check('una personalizzazione nasce per i prodotti e non per gli abbonamenti', function () use ($colonne, $campo) {
@@ -148,7 +144,7 @@ check('una personalizzazione nasce per i prodotti e non per gli abbonamenti', fu
         && $colonna['for_subscriptions']->getSchema('default') === 'false'
         && $campo(Customization::class, 'for_products') !== null
         && $campo(Customization::class, 'for_subscriptions') !== null
-        && $campo(CustomizationLink::class, 'plan_id') !== null;
+        && $campo(CustomizationLink::class, 'plan_id') === null;
 });
 
 summary();

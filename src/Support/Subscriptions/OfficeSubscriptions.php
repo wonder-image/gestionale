@@ -8,7 +8,6 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
@@ -370,7 +369,7 @@ final class OfficeSubscriptions
             SubscriptionItemChange::update(['credit_left' => number_format((float) $change['credit_left'] - $amount, 2, '.', '')], (int) $change['id']);
             $left = round($left - $amount, 2);
             $price = PlanPrice::findById((int) $change['old_plan_price_id']);
-            $plan = is_array($price) ? Plan::findById((int) ($price['plan_id'] ?? 0)) : null;
+            $plan = is_array($price) ? SubscriptionModels::find((int) ($price['product_model_id'] ?? 0)) : null;
             $used[] = [
                 'name' => 'Credito '.(is_array($plan) ? (string) ($plan['name'] ?? '') : 'di un servizio').' del '.self::day((string) $change['effective_at'])?->format('d/m/Y'),
                 'amount' => $amount,

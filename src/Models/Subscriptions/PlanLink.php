@@ -5,11 +5,12 @@ namespace Wonder\Plugin\Gestionale\Models\Subscriptions;
 use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Sql\TableSchema as Column;
 
 /**
- * «Si lega a» (G10b): il piano `plan_id` si compra solo insieme a un
- * abbonamento del piano `parent_plan_id` (l'hosting al dominio). Un livello
+ * «Si lega a» (G10b): l'abbonamento `product_model_id` si compra solo
+ * insieme a un abbonamento di `parent_product_model_id` (l'hosting al dominio). Un livello
  * solo: una madre non ha madri ({@see \Wonder\Plugin\Gestionale\Support\Subscriptions\PlanLinks::assert()}).
  * Un legame tolto dal form si cancella davvero.
  */
@@ -27,24 +28,24 @@ final class PlanLink extends Model
     public static function tableSchema(): array
     {
         return [
-            Column::key('plan_id')->int()->null(false)->foreign(Plan::$table),
-            Column::key('parent_plan_id')->int()->null(false)->foreign(Plan::$table),
+            Column::key('product_model_id')->int()->null(false)->foreign(ProductModel::$table),
+            Column::key('parent_product_model_id')->int()->null(false)->foreign(ProductModel::$table),
         ];
     }
 
     public static function tablePseudos(): array
     {
         return [
-            'ind_plan' => ['index' => 'plan_id'],
-            'ind_parent' => ['index' => 'parent_plan_id'],
+            'ind_model' => ['index' => 'product_model_id'],
+            'ind_parent' => ['index' => 'parent_product_model_id'],
         ];
     }
 
     public static function dataSchema(): array
     {
         return [
-            Field::key('plan_id')->number()->decimals(0),
-            Field::key('parent_plan_id')->number()->decimals(0),
+            Field::key('product_model_id')->number()->decimals(0),
+            Field::key('parent_product_model_id')->number()->decimals(0),
         ];
     }
 }

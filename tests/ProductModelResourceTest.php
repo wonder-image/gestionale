@@ -3247,17 +3247,19 @@ check('le righe delle personalizzazioni senza scelta o con una già vista si sca
         && ProductModelResource::prepareRepeaterRows('altro', $altre) === $altre;
 });
 
-check('senza «bundles» la scheda non ha né il tipo né la composizione, e la colonna larga non cambia', function () use ($campi, $forza) {
+check('senza «bundles» la scheda ha il tipo nascosto «simple», nessuna composizione, e la colonna larga non cambia', function () use ($campi, $forza) {
     $forza(['bundles' => false]);
 
     try {
-        $nomi = array_keys($campi());
+        $c = $campi();
+        $nomi = array_keys($c);
         $colonna = (new ReflectionMethod(ProductModelResource::class, 'mainColumn'))->invoke(null, 0);
     } finally {
         $forza(null);
     }
 
-    return array_intersect(['type', 'bundle_mode', 'show_components_value', 'bundle_components', 'bundle_groups'], $nomi) === []
+    return ($c['type'] ?? null) instanceof InputHidden && (string) $c['type']->get('value') === 'simple'
+        && array_intersect(['bundle_mode', 'show_components_value', 'bundle_components', 'bundle_groups', 'prices', 'features'], $nomi) === []
         && !str_contains(print_r(array_map(static fn ($p): string => get_class($p), $colonna), true), 'Modal');
 });
 
@@ -3284,6 +3286,39 @@ check('con «bundles» il tipo è un campo nascosto che dice «bundle» col bott
         // Senza relazione: le righe le scrive `saveBundle()`.
         && !isset(ProductModelResource::repeaterRelations()['bundle_components'])
         && !isset(ProductModelResource::repeaterRelations()['bundle_groups']);
+});
+
+check('con «subscriptions» la scheda abbonamento ha prezzi, metadata e «Si lega a», senza varianti né giacenza', function () use ($campi, $forza) {
+    $forza(['subscriptions' => true]);
+    $_GET['type'] = 'subscription';
+
+    try {
+        $c = $campi();
+        $colonna = print_r((new ReflectionMethod(ProductModelResource::class, 'mainColumn'))->invoke(null, 0), true);
+        $relazioni = ProductModelResource::repeaterRelations();
+    } finally {
+        unset($_GET['type']);
+        $forza(null);
+    }
+
+    return ($c['type'] ?? null) instanceof InputHidden && (string) $c['type']->get('value') === 'subscription'
+        && isset($c['prices'], $c['features'], $c['parent_plans'])
+        && isset($relazioni['prices'])
+        && !str_contains($colonna, "'products'") && !str_contains($colonna, 'Varianti');
+});
+
+check('senza «subscriptions» «?type=subscription» non fa nascere un abbonamento', function () use ($campi, $forza) {
+    $forza(['subscriptions' => false]);
+    $_GET['type'] = 'subscription';
+
+    try {
+        $c = $campi();
+    } finally {
+        unset($_GET['type']);
+        $forza(null);
+    }
+
+    return (string) ($c['type']?->get('value') ?? '') === 'simple' && !isset($c['prices']);
 });
 
 $coloraScheda = static function (?string $tipo, bool $bundles = true) use ($forza): array {
