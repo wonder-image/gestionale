@@ -156,7 +156,11 @@ Con la funzionalità **Abbonamenti online** (in *Funzionalità → Canali di
 vendita*; chiede *Vendita online* e *Abbonamenti*) il sito ha la pagina dei
 piani, e il cliente si abbona da solo:
 
-1. sceglie un prezzo nella pagina dei piani; serve un **account**;
+1. sceglie un prezzo nella pagina dei piani; serve un **account**. Il
+   servizio compare nel **carrello** e nel carrello laterale insieme ai
+   prodotti, e da lì il cliente lo toglie con **Rimuovi** (togliendo un
+   servizio si tolgono anche quelli che si appoggiano a lui). Nel checkout
+   invece il servizio non ha il pulsante per toglierlo;
 2. nel checkout, anche insieme a dei prodotti, conferma i dati di
    fatturazione e, se ce l'ha, scrive un codice sconto. Nel riepilogo il
    servizio ha il nome del piano e sotto il prezzo col periodo
