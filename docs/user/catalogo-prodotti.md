@@ -55,9 +55,10 @@ Lo **stato** è **Pubblicato** (l'articolo si vede nel negozio) oppure **Bozza**
 l'articolo.
 
 Con **Filtri** restringi l'elenco per **stato**, **marchio** e **categoria**
-(scegliendo una categoria entrano anche le sue sottocategorie); se hai i
-multiprodotti c'è anche **Tipo**, per vedere solo i prodotti o solo i
-multiprodotti. **Cerca** trova per nome e per SKU.
+(scegliendo una categoria entrano anche le sue sottocategorie). **Cerca** trova
+per nome e per SKU. Prodotti, multiprodotti e abbonamenti stanno tutti in
+questo elenco, mescolati: li distingue l'icona accanto al nome. In *Catalogo*
+non ci sono voci a parte per multiprodotti e abbonamenti.
 
 Il nome apre la **scheda in lettura**, che ha per titolo il nome dell'articolo:
 si guarda e basta, senza il rischio di cambiare qualcosa mentre si controlla. Ci
