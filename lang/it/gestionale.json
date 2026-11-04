@@ -313,7 +313,14 @@
                 "customer_unknown": "Uno dei clienti scelti non esiste più.",
                 "duration_months_required": "Scrivi per quanti mesi vale il coupon sugli abbonamenti.",
                 "subscriptions_free_shipping": "La spedizione gratuita non vale per gli abbonamenti: scegli una percentuale o un importo.",
-                "not_for_subscriptions": "Questo codice sconto non vale per gli abbonamenti."
+                "not_for_subscriptions": "Questo codice sconto non vale per gli abbonamenti.",
+                "not_stackable": "Questo codice sconto non si somma agli altri già applicati.",
+                "already_applied": "Questo codice sconto è già applicato.",
+                "code_used": "Questo codice sconto è già stato usato.",
+                "batch_subscriptions": "I codici in blocco non valgono per gli abbonamenti: spegni «Per gli abbonamenti» su questo coupon.",
+                "batch_quantity": "Scegli quanti codici generare: da 1 a 10.000.",
+                "batch_prefix": "Il prefisso può avere al più 20 caratteri fra lettere, cifre, «-» e «_».",
+                "batch_failed": "Non sono riuscito a generare codici diversi da quelli esistenti: riprova con un altro prefisso."
             },
             "shipping": {
                 "no_method_for_destination": "Non spediamo verso questa destinazione.",
@@ -367,7 +374,7 @@
                 "price_name_required": "Ogni prezzo ha un nome («Mensile», «Annuale»).",
                 "price_invalid": "Il prezzo «{{name}}» deve essere un numero, zero o più.",
                 "sale_not_lower": "Il prezzo scontato di «{{name}}» deve essere più basso del prezzo.",
-                "term_mismatch": "I mesi per addebito di «{{name}}» non vanno con l'intervallo: da 1 a 12 per il mensile, 12, 24 o 36 per l'annuale.",
+                "term_mismatch": "L'addebito di «{{name}}» non è valido: scegli da mensile ad annuale.",
                 "negative_period": "Vincolo e giorni di prova di «{{name}}» non possono essere negativi.",
                 "renewal_invalid": "Il prezzo di rinnovo di «{{name}}» deve essere un altro prezzo, già salvato, di un piano attivo.",
                 "price_in_use": "Il prezzo «{{name}}» è usato da un abbonamento e non si toglie: spegnilo.",

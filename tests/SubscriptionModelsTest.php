@@ -7,7 +7,6 @@ require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
@@ -25,11 +24,10 @@ $colonne = static function (string $model): array {
     return $nomi;
 };
 
-$tutti = [Plan::class, PlanFeature::class, PlanPrice::class, Subscription::class, SubscriptionItem::class, SubscriptionItemChange::class, SubscriptionStatusLog::class];
+$tutti = [PlanFeature::class, PlanPrice::class, Subscription::class, SubscriptionItem::class, SubscriptionItemChange::class, SubscriptionStatusLog::class];
 
 check('le tabelle hanno il prefisso del gestionale', fn () =>
-    Plan::$table === 'gst_plans'
-    && PlanFeature::$table === 'gst_plan_features'
+    PlanFeature::$table === 'gst_plan_features'
     && PlanPrice::$table === 'gst_plan_prices'
     && Subscription::$table === 'gst_subscriptions'
     && SubscriptionItem::$table === 'gst_subscription_items'
@@ -49,10 +47,9 @@ check('piani e abbonamenti non viaggiano con il deploy', function () use ($tutti
 
 check('ogni tabella ha le sue colonne', function () use ($colonne) {
     $attese = [
-        Plan::class => ['code', 'slug', 'name', 'description', 'tax_category_id', 'visible_online', 'active', 'position'],
-        PlanFeature::class => ['plan_id', 'feature_key', 'feature_value', 'position'],
+        PlanFeature::class => ['product_model_id', 'feature_key', 'feature_value', 'position'],
         PlanPrice::class => [
-            'code', 'plan_id', 'name', 'billing_interval', 'term_months', 'commitment_months', 'trial_days',
+            'code', 'product_model_id', 'name', 'billing_interval', 'term_months', 'commitment_months', 'trial_days',
             'price', 'sale_price', 'renewal_plan_price_id', 'active', 'position',
         ],
         Subscription::class => [

@@ -131,6 +131,23 @@ final class StripeSubscriptionData
     }
 
     /**
+     * La prima fattura di un abbonamento con la prova (#76): porta solo l'una
+     * tantum, il canone parte a fine prova. `trial_days` nei metadati lo
+     * scrive il Checkout; i metadati restano, quindi conta solo la fattura
+     * della creazione.
+     *
+     * @param array<string, mixed> $invoice
+     */
+    public static function invoiceOpensTrial(array $invoice): bool
+    {
+        $trial = $invoice['parent']['subscription_details']['metadata']['trial_days']
+            ?? $invoice['subscription_details']['metadata']['trial_days']
+            ?? 0;
+
+        return (string) ($invoice['billing_reason'] ?? '') === 'subscription_create' && (int) $trial > 0;
+    }
+
+    /**
      * Importo, valuta e momento del pagamento di una fattura pagata.
      *
      * @param array<string, mixed> $invoice

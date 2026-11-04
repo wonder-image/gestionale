@@ -8,7 +8,6 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
@@ -137,7 +136,78 @@ final class OfficeSubscriptions
             self::openPeriod($id, $firstPeriod);
         }
 
+        $oneTime = SubscriptionAmounts::oneTime($lines, $includeTax);
+
+        if ($oneTime['lines'] !== []) {
+            self::chargeOneTime($id, $lines, $oneTime, $start);
+        }
+
         return $id;
+    }
+
+    /**
+     * L'una tantum (#76): una rata a parte dalla data d'inizio, anche in
+     * prova, e il suo proforma con una riga per servizio e la sua aliquota.
+     * Solo dalla creazione: mai sui rinnovi, sui cambi o sui servizi aggiunti.
+     *
+     * @param list<array<string, mixed>> $lines da `SubscriptionItems::prepare()`
+     * @param array<string, mixed> $oneTime da `SubscriptionAmounts::oneTime()`
+     * @return array{payments: list<int>, file: string, email: string}
+     */
+    private static function chargeOneTime(int $id, array $lines, array $oneTime, DateTimeImmutable $start): array
+    {
+        $row = Subscription::findById($id);
+
+        if (!is_array($row) || (float) $oneTime['total'] <= 0.0) {
+            return ['payments' => [], 'file' => '', 'email' => 'skipped'];
+        }
+
+        $ids = Installments::createForSubscription($row, (float) $oneTime['total'], $start, SubscriptionEvents::ONE_TIME_NOTE.' '.(string) $row['code']);
+        $file = '';
+        $email = 'skipped';
+
+        try {
+            $items = [];
+
+            foreach ($oneTime['lines'] as $line) {
+                $source = $lines[$line['index']];
+                $items[] = [
+                    'name' => trim(html_entity_decode((string) ($source['plan']['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')).' - una tantum',
+                    'quantity' => max(1, (int) $source['quantity']),
+                    'unit_price' => (float) $line['unit_price'],
+                    'line_total' => (float) $line['line_total'],
+                    'tax_rate' => (float) $line['tax_rate'],
+                ];
+            }
+
+            $installments = [];
+
+            foreach ($ids as $paymentId) {
+                $payment = Payment::findById($paymentId);
+
+                if (is_array($payment)) {
+                    $installments[] = ['due_date' => $payment['due_date'], 'amount' => $payment['amount']];
+                }
+            }
+
+            $rates = array_values(array_unique(array_column($oneTime['lines'], 'tax_rate')));
+            $data = DocumentData::forSubscription([
+                'subtotal' => $oneTime['subtotal'],
+                'discount_total' => '0.00',
+                'tax_total' => $oneTime['tax_total'],
+                'total' => $oneTime['total'],
+                'tax_rate' => count($rates) === 1 ? $rates[0] : 0.0,
+                'tax_summaries' => $oneTime['tax_summaries'],
+            ] + $row, $items, [], $start->format('Y-m-d H:i:s'), $start->format('Y-m-d H:i:s'), $installments);
+            $file = DocumentFiles::save('proformas/'.$id.'-'.$start->format('Ymd').'-una-tantum.pdf', DocumentPdfs::render('proforma', $data));
+            $path = DocumentFiles::path($file);
+            $name = 'Proforma-'.preg_replace('/[^A-Za-z0-9-]+/', '-', (string) $row['code']).'-una-tantum.pdf';
+            $email = SubscriptionNotifier::send('proforma', $id, $path === null ? [] : [$path => $name])['status'];
+        } catch (Throwable $error) {
+            Errors::internal($error, 'subscriptions.one_time_proforma', ['subscription' => $id]);
+        }
+
+        return ['payments' => $ids, 'file' => $file, 'email' => $email];
     }
 
     /**
@@ -299,7 +369,7 @@ final class OfficeSubscriptions
             SubscriptionItemChange::update(['credit_left' => number_format((float) $change['credit_left'] - $amount, 2, '.', '')], (int) $change['id']);
             $left = round($left - $amount, 2);
             $price = PlanPrice::findById((int) $change['old_plan_price_id']);
-            $plan = is_array($price) ? Plan::findById((int) ($price['plan_id'] ?? 0)) : null;
+            $plan = is_array($price) ? SubscriptionModels::find((int) ($price['product_model_id'] ?? 0)) : null;
             $used[] = [
                 'name' => 'Credito '.(is_array($plan) ? (string) ($plan['name'] ?? '') : 'di un servizio').' del '.self::day((string) $change['effective_at'])?->format('d/m/Y'),
                 'amount' => $amount,

@@ -48,7 +48,7 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Aliquote | Scheda prodotto | Tipo fiscale scelto per articolo. Spenta, ogni articolo usa il tipo fiscale predefinito. | — |
 | Scheda tecnica | Scheda prodotto | Caratteristiche dell'articolo e delle sue opzioni (materiale, simboli di lavaggio…). Spenta, la scheda non le chiede e quelle già scritte restano salvate. | — |
 | FAQ | Catalogo | Domande frequenti con la risposta, nella scheda dei prodotti scelti e nella home. Spenta, il sito non le mostra. | — |
-| Etichette | Catalogo | Etichette con codice a barre e prezzo in PDF. | — |
+| [Etichette](catalogo-etichette.md) | Catalogo | Etichette con codice a barre e prezzo in PDF. | — |
 | Più sedi | Magazzino | Altre sedi con giacenze proprie e trasferimenti. | — |
 | Acquisti | Magazzino | Fornitori e costi d'acquisto nei prodotti e nei carichi, valore del magazzino. | — |
 | Lotti e scadenze | Magazzino | Lotto e scadenza nei carichi, vendita dal lotto che scade prima, pagina Lotti con i clienti per i richiami. | — |
@@ -67,10 +67,8 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Abbonamenti online | Canali di vendita | Il sito vende i piani: pagina dei piani, sottoscrizione con Stripe e abbonamenti nell'area cliente. | Vendita online, Abbonamenti |
 | Vendita in cassa | Canali di vendita | Vendita in sede con documento commerciale e corrispettivi. | Ordini |
 | Server MCP | Integrazioni | Collega gli assistenti IA (Claude, ChatGPT, Cursor) a prodotti, prezzi, giacenze, categorie, ordini e preventivi, con i permessi del backend. | — |
-| Esportazione Excel | Esportazioni | Scarica i prodotti in Excel (.xlsx): una riga per opzione, intestazioni in italiano. | — |
-| Esportazione CSV | Esportazioni | Scarica i prodotti in CSV (.csv) standard: virgola, UTF-8, punto nei decimali. | — |
-| Esportazione contatti Excel | Esportazioni | Scarica clienti e fornitori in Excel (.xlsx): anagrafica, recapiti e fatturazione, celle come testo. | — |
-| Esportazione contatti CSV | Esportazioni | Scarica clienti e fornitori in CSV (.csv): UTF-8, virgola, senza celle lette come formula. | — |
+| Esportazione prodotti | Esportazioni | Scarica i prodotti in Excel (.xlsx) o CSV (.csv): una riga per opzione, intestazioni in italiano. | — |
+| Esportazione contatti | Esportazioni | Scarica clienti e fornitori in Excel (.xlsx) o CSV (.csv): anagrafica, recapiti e fatturazione, celle come testo. | — |
 | Catalogo Meta | Esportazioni | Scarica il file per il catalogo di Facebook e Instagram (.csv con i campi di Meta). | — |
 | Google Merchant Center | Esportazioni | Scarica il feed per Google Merchant Center (.xml RSS con i campi g:). | — |
 | TikTok Shop | Esportazioni | Sincronizzazione del catalogo con TikTok Shop. | — |

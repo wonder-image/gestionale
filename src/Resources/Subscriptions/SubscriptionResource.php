@@ -24,7 +24,7 @@ use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
@@ -565,7 +565,7 @@ final class SubscriptionResource extends GestionaleResource
     {
         $price = $planPriceId > 0 ? PlanPrice::findById($planPriceId) : null;
 
-        return is_array($price) && (int) ($price['plan_id'] ?? 0) > 0 ? Customizations::forPlan((int) $price['plan_id']) : [];
+        return is_array($price) && (int) ($price['product_model_id'] ?? 0) > 0 ? Customizations::forPlan((int) $price['product_model_id']) : [];
     }
 
     /** Id della riga => «Piano — prezzo · personalizzazioni». @param list<array<string, mixed>> $items @return array<int, string> */
@@ -648,7 +648,7 @@ final class SubscriptionResource extends GestionaleResource
             return $planPriceId > 0 ? '#'.$planPriceId : '';
         }
 
-        $plan = static::rowsOf(Plan::class, ['id' => (int) $price['plan_id']])[0] ?? null;
+        $plan = SubscriptionModels::find((int) $price['product_model_id']);
 
         return trim(($plan !== null ? (string) $plan['name'].' — ' : '').(string) $price['name']);
     }

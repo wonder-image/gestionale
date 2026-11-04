@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Providers\Payments;
 
+use RuntimeException;
 use Throwable;
 use Wonder\App\Credentials;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
@@ -9,7 +10,11 @@ use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
+use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Providers\ExternalReferences;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\OnlineSubscriptions;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionEvents;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionGateways;
 use Wonder\Plugin\Stripe\PaymentIntent;
 
 /**
@@ -231,6 +236,10 @@ final class StripeProvider implements PaymentProvider
 
     public function status(string $reference): PaymentState
     {
+        if (str_ends_with($reference, SubscriptionEvents::ORDER_SUFFIX)) {
+            return $this->invoiceStatus($reference);
+        }
+
         $intent = $this->intents($this->environment())->get($reference);
         [$failure, $attempt] = self::failure($intent->toArray());
 
@@ -242,6 +251,56 @@ final class StripeProvider implements PaymentProvider
             $failure,
             $attempt
         );
+    }
+
+    /**
+     * L'ordine pagato con la prima fattura di un abbonamento (in pagina):
+     * conta la fattura, e il suo tentativo per il rifiuto. L'importo è la
+     * parte dell'ordine, non la fattura intera.
+     */
+    private function invoiceStatus(string $reference): PaymentState
+    {
+        $payment = Ledger::byReference('stripe', $reference) ?? throw new RuntimeException("Pagamento {$reference} non trovato.");
+        $gateway = SubscriptionGateways::get((string) $payment['environment']) ?? throw new RuntimeException('Abbonamenti Stripe non collegati.');
+        $invoice = $gateway->retrieveInvoice(self::invoiceId($reference), ['expand' => ['payments.data.payment.payment_intent']]);
+        $intent = self::invoiceIntent($invoice);
+        [$failure, $attempt] = self::failure($intent);
+        $state = match ((string) ($invoice['status'] ?? '')) {
+            'paid' => PaymentState::SUCCEEDED,
+            'void', 'uncollectible' => PaymentState::CANCELED,
+            // Aperta e mai tentata: da pagare, come un intento nuovo.
+            default => $intent === [] ? PaymentState::REQUIRES_PAYMENT_METHOD : (self::STATES[(string) ($intent['status'] ?? '')] ?? PaymentState::OTHER),
+        };
+
+        return new PaymentState(
+            $state,
+            (int) round((float) $payment['amount'] * 100),
+            strtolower((string) ($invoice['currency'] ?? 'eur')),
+            (int) $payment['order_id'],
+            $failure,
+            $attempt
+        );
+    }
+
+    /**
+     * L'intento del tentativo che conta sulla fattura: quello predefinito o
+     * il primo; vuoto se nessuno ha ancora provato a pagarla.
+     *
+     * @param array<string, mixed> $invoice
+     * @return array<string, mixed>
+     */
+    private static function invoiceIntent(array $invoice): array
+    {
+        $payments = is_array($invoice['payments']['data'] ?? null) ? array_values($invoice['payments']['data']) : [];
+        $chosen = array_values(array_filter($payments, static fn (mixed $one): bool => is_array($one) && !empty($one['is_default'])))[0] ?? $payments[0] ?? [];
+        $intent = $chosen['payment']['payment_intent'] ?? [];
+
+        return is_array($intent) ? $intent : [];
+    }
+
+    private static function invoiceId(string $reference): string
+    {
+        return substr($reference, 0, -strlen(SubscriptionEvents::ORDER_SUFFIX));
     }
 
     /**
@@ -342,6 +401,14 @@ final class StripeProvider implements PaymentProvider
 
     public function cancel(string $reference): void
     {
+        // L'ordine torna al carrello e l'abbonamento della stessa fattura cade con lui.
+        if (str_ends_with($reference, SubscriptionEvents::ORDER_SUFFIX)) {
+            $payment = Ledger::byReference('stripe', $reference);
+            OnlineSubscriptions::dropInPage(self::invoiceId($reference), (string) ($payment['environment'] ?? $this->environment()));
+
+            return;
+        }
+
         $this->intents($this->environment())->cancel($reference);
     }
 

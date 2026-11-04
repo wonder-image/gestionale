@@ -6,7 +6,6 @@ use DateTimeImmutable;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
@@ -105,7 +104,7 @@ final class SubscriptionItems
     public static function label(array $item): string
     {
         $price = (int) ($item['plan_price_id'] ?? 0) > 0 ? PlanPrice::findById((int) $item['plan_price_id']) : null;
-        $plan = is_array($price) && (int) ($price['plan_id'] ?? 0) > 0 ? Plan::findById((int) $price['plan_id']) : null;
+        $plan = is_array($price) && (int) ($price['product_model_id'] ?? 0) > 0 ? SubscriptionModels::find((int) $price['product_model_id']) : null;
         $decode = static fn (mixed $v): string => trim(html_entity_decode((string) $v, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $label = trim((is_array($plan) ? $decode($plan['name'] ?? '').' - ' : '').(is_array($price) ? $decode($price['name'] ?? '') : ''), ' -');
 
@@ -192,10 +191,10 @@ final class SubscriptionItems
     private static function available(int $priceId): array
     {
         $price = $priceId > 0 ? PlanPrice::findById($priceId) : null;
-        $plan = is_array($price) && (int) ($price['plan_id'] ?? 0) > 0 ? Plan::findById((int) $price['plan_id']) : null;
+        $plan = is_array($price) && (int) ($price['product_model_id'] ?? 0) > 0 ? SubscriptionModels::find((int) $price['product_model_id']) : null;
 
         if (!is_array($price) || (string) ($price['active'] ?? 'false') !== 'true' || (string) ($price['deleted'] ?? 'false') !== 'false'
-            || !is_array($plan) || (string) ($plan['active'] ?? 'false') !== 'true' || (string) ($plan['deleted'] ?? 'false') !== 'false') {
+            || !SubscriptionModels::isLive($plan)) {
             throw UserError::make('subscription.price_unavailable');
         }
 
@@ -681,7 +680,7 @@ final class SubscriptionItems
             $subscription = self::lockLive($subscriptionId);
             $item = self::liveItem($itemId);
             $price = PlanPrice::findById((int) $item['plan_price_id']);
-            $plan = is_array($price) ? Plan::findById((int) ($price['plan_id'] ?? 0)) : null;
+            $plan = is_array($price) ? SubscriptionModels::find((int) ($price['product_model_id'] ?? 0)) : null;
 
             if (!is_array($price) || !is_array($plan)) {
                 throw UserError::make('subscription.price_unavailable');
@@ -718,7 +717,7 @@ final class SubscriptionItems
             }
 
             $price = PlanPrice::findById((int) $last['new_plan_price_id']);
-            $plan = is_array($price) ? Plan::findById((int) ($price['plan_id'] ?? 0)) : null;
+            $plan = is_array($price) ? SubscriptionModels::find((int) ($price['product_model_id'] ?? 0)) : null;
 
             if (!is_array($price) || (string) ($price['deleted'] ?? 'false') === 'true' || !is_array($plan)) {
                 continue;
@@ -994,7 +993,7 @@ final class SubscriptionItems
 
         $motherPrice = $mother !== null ? PlanPrice::findById((int) $mother['plan_price_id']) : null;
 
-        if ($mother === null || (int) $mother['parent_item_id'] > 0 || !is_array($motherPrice) || !in_array((int) $motherPrice['plan_id'], $allowed, true)) {
+        if ($mother === null || (int) $mother['parent_item_id'] > 0 || !is_array($motherPrice) || !in_array((int) $motherPrice['product_model_id'], $allowed, true)) {
             throw UserError::make('subscription.parent_invalid', ['name' => $name]);
         }
     }
@@ -1016,7 +1015,7 @@ final class SubscriptionItems
             $row = $itemId > 0 ? SubscriptionItem::findById($itemId) : null;
             $price = is_array($row) ? PlanPrice::findById((int) $row['plan_price_id']) : null;
 
-            return is_array($price) ? (int) $price['plan_id'] : 0;
+            return is_array($price) ? (int) $price['product_model_id'] : 0;
         };
         $parentId = (int) ($item['parent_item_id'] ?? 0);
 
@@ -1031,7 +1030,7 @@ final class SubscriptionItems
 
             $childPrice = PlanPrice::findById((int) $child['plan_price_id']);
 
-            if ($allowed !== [] || !is_array($childPrice) || !in_array((int) $plan['id'], PlanLinks::parentsOf((int) $childPrice['plan_id']), true)) {
+            if ($allowed !== [] || !is_array($childPrice) || !in_array((int) $plan['id'], PlanLinks::parentsOf((int) $childPrice['product_model_id']), true)) {
                 throw UserError::make('subscription.link_broken', ['name' => $name]);
             }
         }
@@ -1138,7 +1137,7 @@ final class SubscriptionItems
         }
 
         $scheduled = self::scheduledChange($item);
-        $plan = Plan::findById((int) ($price['plan_id'] ?? 0));
+        $plan = SubscriptionModels::find((int) ($price['product_model_id'] ?? 0));
 
         if ($scheduled !== null && (int) $scheduled['new_plan_price_id'] === (int) $price['id'] && is_array($plan)) {
             // Il cambio «dal prossimo periodo» che Stripe ha appena fatto: già nella storia.

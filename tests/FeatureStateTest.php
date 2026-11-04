@@ -61,4 +61,27 @@ check('requires_any: spenta senza nessuna alternativa', fn () =>
     FeatureState::resolve($conAlternative, ['customizations' => true], [])['customizations'] === false
 );
 
+$eredi = FeatureCatalog::fromArray([
+    'export_products' => ['name' => 'Esportazione prodotti', 'area' => 'Esportazioni', 'replaces' => ['export_xlsx', 'export_csv']],
+]);
+
+check('inherit: attiva se era attiva almeno una delle vecchie', fn () =>
+    FeatureState::inherit($eredi, ['export_xlsx' => false, 'export_csv' => true])['export_products'] === true
+    && FeatureState::inherit($eredi, ['export_xlsx' => true])['export_products'] === true
+);
+
+check('inherit: spenta se le vecchie erano spente o mancano', fn () =>
+    !isset(FeatureState::inherit($eredi, ['export_xlsx' => false, 'export_csv' => false])['export_products'])
+    && !isset(FeatureState::inherit($eredi, [])['export_products'])
+);
+
+check('inherit: con la sua riga vale la riga, non le vecchie', fn () =>
+    FeatureState::inherit($eredi, ['export_products' => false, 'export_csv' => true])['export_products'] === false
+    && FeatureState::inherit($eredi, ['export_products' => true])['export_products'] === true
+);
+
+check('inherit: lo stato ereditato passa da resolve', fn () =>
+    FeatureState::resolve($eredi, FeatureState::inherit($eredi, ['export_csv' => true]), [])['export_products'] === true
+);
+
 summary();

@@ -89,6 +89,25 @@ da spenta `Coupons::apply` lancia `coupon.inactive`, la pagina sparisce e i dati
   ordine usano quella.
 * **Stato** (programmato, in corso, finito) è `Campaigns::status`, lo stesso delle campagne.
 
+### Cumulo e codici in blocco (gestionale#113)
+
+Contratto completo nella spec `docs/superpowers/specs/2026-11-03-coupon-in-blocco-e-cumulo-design.md`.
+
+* **Più coupon sul carrello**: la verità è `gst_order_coupons` (`OrderCoupon`), in ordine di
+  applicazione; sull'ordine restano `coupon_id` (il primo) e `coupon_code` («A, B») come
+  specchio. `Coupons::apply` aggiunge se tutti sono `stackable` (`CouponRules::stacks`),
+  altrimenti sostituisce; lo stesso coupon due volte è `coupon.already_applied`.
+  `Coupons::applied($orderId)` li elenca, `remove($cartId, $code)` ne toglie uno (`null`: tutti).
+* **Totali**: `Coupons::context` passa a `OrderTotals::of` la lista `discounts`
+  (`{type, value, lines}`): prima le percentuali, ognuna sul residuo, poi gli importi.
+  `OrderTotals` ridà l'importo di ognuno in `discounts`; `Coupons::record` lo scrive sulla riga,
+  e `redeem` crea un utilizzo per coupon con quell'importo.
+* **Codici in blocco**: `CouponCodes::generate($couponId, $quantity, $prefix)` scrive N codici
+  monouso in `gst_coupon_codes` e accende `batch` sul coupon modello, il cui codice da lì non
+  vale più. `Coupons::find` trova anche i codici generati (`coupon_code_id` nella riga); un
+  codice con un utilizzo non rilasciato è `coupon.code_used`. Non per gli abbonamenti.
+  `CouponCodes::of` e `csv` danno l'elenco e il CSV di «Scarica i codici».
+
 ## Le schede di lettura
 
 Coupon e campagne hanno una pagina `view` (`showLayoutSchema` della Resource, resa dalla view

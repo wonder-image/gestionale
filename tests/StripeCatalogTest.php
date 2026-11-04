@@ -40,8 +40,8 @@ check('il prezzo Stripe è ricorrente, in euro, con il codice del prezzo nei met
 });
 
 check('il prodotto prende nome e descrizione in testo semplice', function () {
-    $p = StripeCatalog::productParams(['id' => 3, 'code' => 'pln_x', 'name' => 'Pro', 'description' => '<p>Per chi lavora &amp; cresce</p>']);
-    $vuota = StripeCatalog::productParams(['id' => 3, 'code' => 'pln_x', 'name' => 'Pro', 'description' => '']);
+    $p = StripeCatalog::productParams(['id' => 3, 'code' => 'mod_x', 'name' => 'Pro', 'description' => '<p>Per chi lavora &amp; cresce</p>']);
+    $vuota = StripeCatalog::productParams(['id' => 3, 'code' => 'mod_x', 'name' => 'Pro', 'description' => '']);
 
     return $p['name'] === 'Pro' && $p['description'] === 'Per chi lavora & cresce' && !array_key_exists('description', $vuota);
 });

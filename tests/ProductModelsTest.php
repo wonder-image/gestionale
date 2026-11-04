@@ -74,7 +74,7 @@ check('lo SKU non ha un indice unico', function () use ($colonne) {
 check('il tipo è un elenco chiuso che nasce semplice', function () use ($colonne) {
     $tipo = $colonne(ProductModel::class)['type'];
 
-    return $tipo->getSchema('enum') === ['simple', 'bundle']
+    return $tipo->getSchema('enum') === ['simple', 'bundle', 'subscription']
         && $tipo->getSchema('default') === 'simple';
 });
 

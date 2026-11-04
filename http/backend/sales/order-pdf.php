@@ -10,6 +10,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentData;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdfs;
+use Wonder\Http\Exceptions\NotFoundHttpException;
 
 $routeParameters = is_array($ROUTE_PARAMETERS ?? null) ? $ROUTE_PARAMETERS : [];
 $id = (int) ($routeParameters['id'] ?? 0);
@@ -19,8 +20,7 @@ if (!is_array($order) || !isset($order['id'])
     || (string) ($order['stage'] ?? '') !== 'order'
     || (string) ($order['channel'] ?? '') !== 'office'
     || in_array((string) ($order['status'] ?? ''), ['draft', 'cancelled'], true)) {
-    http_response_code(404);
-    exit('Ordine non trovato');
+    throw new NotFoundHttpException();
 }
 
 $pdf = DocumentPdfs::render('order_confirmation', DocumentData::forOrder($id));

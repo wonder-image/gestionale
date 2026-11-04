@@ -16,7 +16,9 @@ use Wonder\Sql\TableSchema as Column;
  * vende e sta a magazzino). Un articolo senza varianti è comunque un modello
  * con una variante e un prodotto: il pannello semplicemente non la nomina.
  *
- * `type` è `simple` o `bundle` (multiprodotto, G5). Un multiprodotto ha
+ * `type` è `simple`, `bundle` (multiprodotto, G5) o `subscription`
+ * (abbonamento, G10): l'abbonamento ha un prodotto senza giacenza né
+ * spedizione, e i prezzi ricorrenti in `PlanPrice`. Un multiprodotto ha
  * sempre un solo prodotto, senza giacenza: ne descrivono la composizione
  * `BundleComponent` (fissi) e `BundleGroup` con le sue `BundleGroupOption`
  * (a scelta del cliente), secondo `bundle_mode`.
@@ -44,7 +46,7 @@ final class ProductModel extends Model
             ...static::sqlColumnsFromDataSchema(['code', 'weight', 'length', 'width', 'height', 'circumference']),
             Column::key('brand_id')->int()->foreign(Brand::$table),
             Column::key('tax_category_id')->int()->foreign(TaxCategory::$table),
-            Column::key('type')->enum(['simple', 'bundle'])->default('simple'),
+            Column::key('type')->enum(['simple', 'bundle', 'subscription'])->default('simple'),
             // Solo per un multiprodotto: prodotti fissi, scelti dal cliente o
             // entrambi. Vuoto per un articolo semplice.
             Column::key('bundle_mode')->enum(['fixed', 'choice', 'mixed'])->null(),

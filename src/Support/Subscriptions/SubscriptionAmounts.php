@@ -106,6 +106,50 @@ final class SubscriptionAmounts
     }
 
     /**
+     * L'una tantum delle righe (#76): `one_time_price` per la quantità di
+     * ognuna, con la sua aliquota, senza coupon né sovrapprezzo. Si paga una
+     * volta, col primo addebito (a inizio prova, se c'è): mai sui rinnovi, sui
+     * cambi o sui servizi aggiunti. Le righe senza una tantum non ci sono;
+     * `index` è la posizione della riga in `$lines`.
+     *
+     * @param list<array{price: array<string, mixed>, quantity: int, tax_rate: float}> $lines
+     * @return array{subtotal: string, taxable_total: string, tax_total: string, total: string, tax_summaries: list<array<string, mixed>>, lines: list<array{index: int, unit_price: string, line_total: string, tax_rate: float}>}
+     */
+    public static function oneTime(array $lines, bool $pricesIncludeTax): array
+    {
+        $priced = [];
+        $out = [];
+
+        foreach ($lines as $index => $line) {
+            $amount = round((float) ($line['price']['one_time_price'] ?? 0), 2);
+
+            if ($amount <= 0.0) {
+                continue;
+            }
+
+            $taxRate = (float) ($line['tax_rate'] ?? 0);
+            $price = LinePrice::of(['quantity' => max(1, (int) ($line['quantity'] ?? 1)), 'price' => $amount, 'sale_price' => 0]);
+            $priced[] = ['type' => 'product', 'tax_rate' => $taxRate, 'tax_nature' => ''] + $price;
+            $out[] = ['index' => (int) $index, 'unit_price' => $price['unit_price'], 'line_total' => $price['line_total'], 'tax_rate' => $taxRate];
+        }
+
+        if ($priced === []) {
+            return ['subtotal' => '0.00', 'taxable_total' => '0.00', 'tax_total' => '0.00', 'total' => '0.00', 'tax_summaries' => [], 'lines' => []];
+        }
+
+        $totals = OrderTotals::of($priced, ['prices_include_tax' => $pricesIncludeTax]);
+
+        return [
+            'subtotal' => $totals['products_total'],
+            'taxable_total' => $totals['taxable_total'],
+            'tax_total' => $totals['tax_total'],
+            'total' => $totals['total'],
+            'tax_summaries' => $totals['tax_summaries'],
+            'lines' => $out,
+        ];
+    }
+
+    /**
      * Il coupon vale nell'addebito numero `$charge` (da zero)?
      *
      * - `once`: solo il primo addebito;

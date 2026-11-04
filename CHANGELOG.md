@@ -5,7 +5,43 @@ versionamento semantico.
 
 ## 0.1.0 — non rilasciata
 
+### Cambiato
+- **L'abbonamento è un tipo di prodotto.** Il piano non ha più una pagina
+  sua: in *Catalogo → Prodotti* «+ Aggiungi Abbonamento» crea un prodotto di
+  tipo `subscription`, con foto, tag, categorie, URL e SEO come gli altri. La
+  scheda nasconde magazzino, spedizione, lotti, varianti, confezione, resi e
+  unità e mostra prezzi ricorrenti, metadata e «Si lega a». Tolti
+  `PlanResource`, il suo menu, i permessi e le rotte; la tabella `gst_plans`
+  sparisce. Colonne rinominate: `plan_id` → `product_model_id` in
+  `gst_plan_prices`, `gst_plan_features`, `gst_plan_links` e
+  `gst_customization_links`; `parent_plan_id` → `parent_product_model_id` in
+  `gst_plan_links`. I riferimenti Stripe del prodotto hanno il tipo
+  `subscription_model`. **Nessuna migrazione dei dati**: prima di
+  `php forge update` svuotare gli abbonamenti e i piani di prova e cancellare
+  `gst_plans`.
+- **Una tantum nelle guide** (#76, dalla #134): quando si paga (primo
+  addebito, anche in prova), cosa non tocca (rinnovi, cambi, servizi aggiunti,
+  coupon), come compare online e da ufficio, detto col prodotto abbonamento.
+- **Esportazioni per contenuto, non per formato.** `export_products` sostituisce
+  `export_xlsx` ed `export_csv`, `export_contacts` sostituisce
+  `export_contacts_xlsx` ed `export_contacts_csv`: una funzionalità attiva dà
+  Excel e CSV, il formato si sceglie nel menu «Esporta». Le installazioni
+  esistenti ereditano lo stato (attiva se lo era una delle due vecchie) con la
+  nuova chiave `replaces` del catalogo. I feed Meta, Google, TikTok e Amazon
+  restano funzionalità a sé. Nel listino «Scarica (Excel)» e «Scarica (CSV)»
+  diventano un solo **Scarica** a tendina.
+- **Prezzi del prodotto abbonamento.** Colonne Nome, Prezzo, Addebito (Mensile… Annuale,
+  al posto di «Ogni» e della ricorrenza, che si ricava dall'addebito), Una
+  tantum, Stato; prezzo scontato, vincolo, prova e rinnovo dietro «Compila le
+  informazioni avanzate». «Limiti» si chiama «Metadata».
+- **Tipo fiscale del prodotto abbonamento** come quello degli altri prodotti: parte dal predefinito,
+  è obbligatorio, niente «Nessuno» quando i tipi ci sono; con «Aliquote»
+  spenta non si vede e l'abbonamento nuovo prende il predefinito.
+
 ### Corretto
+- **404 di PDF e CSV.** Gli scaricamenti del backend (PDF, stampa, proforma,
+  CSV dei clienti di un lotto, righe di un listino) rispondono con la pagina
+  404 del core invece del testo semplice (#79).
 - **Variante vuota accendendo le varianti.** Il repeater del core metteva nel
   cestino il prodotto dello scheletro prima del generatore, che allora creava
   una variante nuova e lasciava sul sito quella vuota. Ora il generatore riprende
@@ -26,6 +62,33 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Abbonamenti pagati dentro la pagina.** `OnlineSubscriptions::startInPage()`
+  crea l'abbonamento Stripe con `default_incomplete` e restituisce il client
+  secret per il Payment Element (`payment`, o `setup` con la prima fattura a
+  zero). Un ordine del negozio si paga nella stessa prima fattura: `invoice.paid`
+  divide l'importo fra abbonamento e ordine (riferimento `{fattura}:order`),
+  `invoice.payment_failed` lascia l'ordine pagabile. Nuovi
+  `SubscriptionGateway::createSubscription()` e `StripeCatalog::orderProduct()`.
+- **Etichette con codice a barre** in PDF (#116), da stampare dalla scheda
+  dell'articolo, dalla variante e dal carico: EAN-13/EAN-8 col codificatore del
+  core, fogli A4 da 24, 40 e 65 e rotoli termici 50 × 30 e 40 × 25, campi e
+  copie scelti nella finestra, prima casella libera sul foglio. Il formato si
+  sceglie una volta nelle Impostazioni (`label_format`, del negozio: fuori dal
+  sync e modificabile in produzione). Il sito aggiunge
+  formati con l'hook `labelFormats()`. Funzionalità *Etichette*, spenta di base.
+  Il foglio PDF e i formati sono del core (`Wonder\Support\Labels`): serve la
+  versione di `wonder-image/app` che li contiene.
+- **Una tantum sui prezzi dei piani** (#76): `one_time_price`, pagato una volta
+  col primo addebito (a inizio prova, se c'è), online e da ufficio. Contratto
+  per il negozio nella spec degli abbonamenti, §1.6.
+- **Coupon in blocco e cumulo** (#113). «Genera codici» sulla scheda del coupon
+  crea N codici monouso con un prefisso (`CouponCodes::generate`), «Scarica i
+  codici» li dà in CSV; la card «Codici» della scheda li elenca con stato e
+  ordine. Il flag «Cumulabile con altri coupon» permette più
+  coupon nello stesso carrello: prima le percentuali sul residuo, poi gli
+  importi. I coupon dell'ordine stanno in `gst_order_coupons`; `coupon_id` e
+  `coupon_code` sull'ordine restano come specchio. Contratto per ecommerce#51 e
+  #77 nella spec `2026-11-03-coupon-in-blocco-e-cumulo-design.md`.
 - **API REST** su `/api/gestionale/v1/` per prodotti, giacenze, ordini e
   clienti (#79). Ogni rotta chiama uno strumento MCP con gli stessi permessi,
   scope, regole e registro `gst_mcp_logs`. Rispondono 401, 403, 404 e 422 nella

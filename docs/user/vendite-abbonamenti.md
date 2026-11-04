@@ -4,8 +4,8 @@ icon: arrow-repeat
 
 # Abbonamenti
 
-> **Da attivare.** Funzionalità *Abbonamenti*. Finché è spenta non vedi le
-> pagine *Catalogo → Abbonamenti* e *Vendite → Abbonamenti*; i dati già
+> **Da attivare.** Funzionalità *Abbonamenti*. Finché è spenta non puoi creare
+> prodotti di tipo *Abbonamento* e non vedi *Vendite → Abbonamenti*; i dati già
 > scritti restano. Non si spegne
 > mentre ci sono abbonamenti in corso.
 
@@ -17,8 +17,9 @@ rinnovo non crea un ordine, crea un pagamento.
 
 Le pagine sono due:
 
-* **Catalogo → Abbonamenti**: i piani, cioè cosa vendi, a quali prezzi e con
-  quali limiti;
+* **Catalogo → Prodotti**: cosa vendi. Un abbonamento (il «piano») è un
+  prodotto di tipo **Abbonamento**, con i suoi prezzi ricorrenti e i suoi
+  metadata (i limiti del piano);
 * **Vendite → Abbonamenti**: chi è abbonato, a cosa, e quando rinnova.
 
 > Gli abbonamenti nascono dal **sito**, con la funzionalità *Abbonamenti online*,
@@ -26,13 +27,21 @@ Le pagine sono due:
 
 ## I piani
 
-Un piano ha:
+In *Catalogo → Prodotti*, **«+ Aggiungi Abbonamento»** crea un prodotto di tipo
+*Abbonamento*. Il tipo si sceglie alla creazione e non cambia. La scheda è
+quella di un prodotto, senza quello che a un servizio non serve: magazzino,
+spedizione, lotti, varianti, confezione, resi e unità di misura. Restano:
 
-* **Nome** e **descrizione**: li vede il cliente nella pagina dei piani del sito.
-* **Tipo fiscale**: dà l'aliquota IVA, come per i prodotti. Per ora vale solo
-  l'IVA italiana.
-* **Sul sito**: «Nascosto» toglie il piano dalla pagina pubblica, ma lo lascia
-  agli abbonati e all'ufficio.
+* **Nome**, **descrizione** e **foto**: il cliente li vede nella scheda del
+  sito e nella pagina dei piani; la foto anche in carrello e checkout.
+* **Categorie**, **tag**, URL e SEO, come ogni prodotto: l'abbonamento compare
+  nel catalogo e nella ricerca del sito.
+* **Tipo fiscale**: dà l'aliquota IVA, come per i prodotti: parte dal tipo
+  predefinito ed è obbligatorio. Per ora vale solo l'IVA italiana. Con la
+  funzionalità «Aliquote» spenta il campo non c'è e l'abbonamento usa il
+  predefinito.
+* **Acquistabile online**: spento, toglie il piano dal sito, ma lo lascia agli
+  abbonati e all'ufficio.
 * **Stato**: un piano spento non si propone più a nessuno.
 * **Si lega a**: il piano si compra solo insieme a uno di questi, e va sullo
   stesso abbonamento. L'hosting, per esempio, si lega al dominio: non si vende
@@ -59,12 +68,21 @@ Il sovrapprezzo, se c'è, si paga a ogni periodo del servizio, per la quantità.
 Un piano ha uno o più prezzi, una riga per prezzo:
 
 * **Nome**: «Mensile», «Annuale».
-* **Ogni** e **mesi per addebito**: ogni quanto si paga e quanti mesi copre un
-  addebito. Il mensile è «Mese» con 1, l'annuale è «Anno» con 12. Un trimestrale
-  è «Mese» con 3.
-* **Prezzo** e **prezzo scontato**: IVA inclusa o esclusa come i prezzi del
-  catalogo (*Impostazioni → Prezzi del catalogo*). Il prezzo scontato, se più
-  basso, vince.
+* **Prezzo**: IVA inclusa o esclusa come i prezzi del catalogo
+  (*Impostazioni → Prezzi del catalogo*).
+* **Addebito**: ogni quanto si paga il prezzo: Mensile, Bimestrale,
+  Trimestrale, Semestrale o Annuale. Il prezzo è l'importo di ogni addebito:
+  «Trimestrale» a 120 € vuol dire 120 € ogni tre mesi.
+* **Una tantum**: un importo che si paga una volta sola, col primo addebito
+  (vuoto o zero: niente). Con la prova si paga subito, all'inizio della prova;
+  il canone parte alla fine. Non torna sui rinnovi, sui cambi di prezzo e sui
+  servizi aggiunti dopo. Ha l'IVA del prodotto abbonamento e il coupon non lo
+  sconta.
+* **Stato**: un prezzo spento non si propone più, ma resta a chi lo usa.
+
+Con **Compila le informazioni avanzate** compaiono anche:
+
+* **Prezzo scontato**: se più basso del prezzo, vince.
 * **Vincolo (mesi)**: per quanti mesi il cliente si impegna. Zero vuol dire
   nessun vincolo. Una disdetta durante il vincolo vale alla fine del vincolo.
 * **Prova (giorni)**: i giorni gratuiti prima del primo addebito. Una prova si
@@ -73,7 +91,6 @@ Un piano ha uno o più prezzi, una riga per prezzo:
   vincolo finisce, ad esempio da «Annuale promo» ad «Annuale». Si possono
   scegliere solo i prezzi **già salvati**: per un prezzo nuovo, salva il piano
   e poi sceglilo.
-* **Stato**: un prezzo spento non si propone più, ma resta a chi lo usa.
 
 Un prezzo cambiato vale per i **nuovi** abbonati: chi è già abbonato resta sul
 prezzo di prima finché non cambia la riga.
@@ -82,7 +99,7 @@ Un prezzo **usato da un abbonamento**, anche chiuso, non si può togliere: il
 salvataggio lo rifiuta e ti chiede di spegnerlo. Un piano con abbonamenti in
 corso non si elimina.
 
-### I limiti
+### Metadata
 
 Quello che il piano permette sul sito, a coppie **chiave** e **valore**: ad
 esempio `max_progetti` e `5`, oppure `supporto` e `prioritario`. Le chiavi le
@@ -151,11 +168,31 @@ Con la funzionalità **Abbonamenti online** (in *Funzionalità → Canali di
 vendita*; chiede *Vendita online* e *Abbonamenti*) il sito ha la pagina dei
 piani, e il cliente si abbona da solo:
 
-1. sceglie un prezzo nella pagina dei piani; serve un **account**;
-2. conferma i dati di fatturazione e, se ce l'ha, scrive un codice sconto;
-3. paga sulla pagina di **Stripe**, con la carta (anche con Link);
-4. torna sul sito: l'abbonamento compare *In prova* o *Attivo* appena Stripe
-   conferma il pagamento.
+1. sceglie un prezzo nella scheda dell'abbonamento o nella pagina dei piani;
+   serve un **account**. Il
+   servizio compare nel **carrello** e nel carrello laterale insieme ai
+   prodotti, e da lì il cliente lo toglie con **Rimuovi** (togliendo un
+   servizio si tolgono anche quelli che si appoggiano a lui). Nel checkout
+   invece il servizio non ha il pulsante per toglierlo;
+2. nel checkout, anche insieme a dei prodotti, conferma i dati di
+   fatturazione e, se ce l'ha, scrive un codice sconto. Nel riepilogo il
+   servizio ha il nome del piano e sotto il prezzo col periodo
+   («9,90 €/Mese»); il totale è il **Totale di oggi** e sotto c'è quanto
+   pagherà dopo («Poi 9,90 €/Mese», con la prova «Poi 9,90 €/Mese dal …»);
+3. paga con la carta **dentro la pagina**, senza andare su Stripe: un solo
+   pagamento per i prodotti e il primo addebito dell'abbonamento. Con la prova
+   la carta si salva e il canone si addebita alla fine della prova. Con un
+   abbonamento nel carrello si paga **solo con la carta**: bonifico, PayPal,
+   Klarna, Satispay e gli altri metodi spariscono, perché non fanno addebiti
+   ricorrenti; tornano negli ordini di soli prodotti;
+4. l'abbonamento compare *In prova* o *Attivo* appena Stripe conferma il
+   pagamento; l'ordine dei prodotti risulta pagato con lo stesso pagamento.
+
+Con un prezzo che ha l'**una tantum**, il cliente la vede nella pagina degli
+abbonamenti («+ 49,00 € una tantum» sotto il canone) e nella scheda del
+prodotto, accanto al prezzo; nel checkout il primo addebito la comprende. In
+prova paga subito solo l'una tantum e il checkout dice quanto pagherà alla fine
+della prova.
 
 Lo stato lo decide Stripe: rinnovi pagati, rinnovi non riusciti e chiusure
 arrivano da soli, e ogni pagamento riuscito è una riga in **Pagamenti** della
@@ -176,7 +213,7 @@ Dall'**area cliente**, sezione *Abbonamenti*, il cliente:
 Alla fine del vincolo, se il prezzo ha «A fine vincolo passa a», l'abbonamento
 prende quel prezzo dal rinnovo dopo.
 
-Chi lascia la pagina di Stripe senza pagare lascia un abbonamento *In attesa*:
+Chi lascia il pagamento a metà lascia un abbonamento *In attesa*:
 dopo 24 ore si chiude da solo.
 
 > **Per chi installa.** Servono le chiavi di Stripe del sito e il webhook già
@@ -203,6 +240,8 @@ coupon. Niente Stripe: il cliente paga come per un ordine da ufficio.
   «Bonifico 30 gg fine mese», una rata a fine del mese dopo l'inizio del
   periodo) e il cliente riceve il **proforma** in PDF, con l'importo, le
   scadenze e l'IBAN del conto. Il proforma non è una fattura.
+* L'**una tantum** del prezzo è una rata a parte, con scadenza la data
+  d'inizio (anche in prova), e il suo proforma: una riga per servizio.
 * Le rate si incassano dallo **Scadenzario** (*Vendite → Scadenzario*, con
   *Vendita in ufficio*) o dalla scheda dell'abbonamento, con **Registra**. Un
   acconto lascia il resto con la stessa scadenza.

@@ -15,6 +15,7 @@ use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\Support\Repeater;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\Dropdown;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Http\Route;
@@ -198,8 +199,10 @@ final class PriceListResource extends GestionaleResource
                 'edit' => 'Modifica listino',
             ])
             ->actions('edit', static fn (array $item): array => (int) ($item['id'] ?? 0) > 0 ? [
-                ['label' => 'Scarica (Excel)', 'icon' => 'bi-file-earmark-spreadsheet', 'class' => 'btn-outline-dark btn-sm', 'href' => static::itemsUrl((int) $item['id'], 'xlsx')],
-                ['label' => 'Scarica (CSV)', 'icon' => 'bi-filetype-csv', 'class' => 'btn-outline-dark btn-sm', 'href' => static::itemsUrl((int) $item['id'], 'csv')],
+                // Il formato si sceglie nel menu, come nell'«Esporta» degli elenchi.
+                Dropdown::make('Scarica')->icon('bi bi-download')->variant('dark')->outline()->size('sm')->align('end')
+                    ->item('Excel (.xlsx)', static::itemsUrl((int) $item['id'], 'xlsx'))
+                    ->item('CSV (.csv)', static::itemsUrl((int) $item['id'], 'csv')),
             ] : []);
     }
 

@@ -20,7 +20,6 @@ use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTermInstallment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanLink;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
@@ -65,9 +64,9 @@ function prova(callable $corpo): mixed
 /** @return array{plan: int, mensile: int, annuale: int} */
 function piano(int $prova = 0, int $vincolo = 0): array
 {
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => 'Ufficio', 'slug' => 'ufficio-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
-    $mensile = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => '100.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
-    $annuale = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'price' => '1000.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
+    $plan = abbonamentoDiProva('Ufficio', false);
+    $mensile = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => '100.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
+    $annuale = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'price' => '1000.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
 
     return ['plan' => $plan, 'mensile' => $mensile, 'annuale' => $annuale];
 }
@@ -131,8 +130,8 @@ function rifiuto(callable $f): ?string
  */
 function servizio(string $nome, int $mesi, string $prezzo, int $prova = 0, int $vincolo = 0): array
 {
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => $nome, 'slug' => 'srv-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
-    $price = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => $mesi === 12 ? 'Annuale' : 'Ogni '.$mesi.' mesi', 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
+    $plan = abbonamentoDiProva($nome, false);
+    $price = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => $mesi === 12 ? 'Annuale' : 'Ogni '.$mesi.' mesi', 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
 
     return ['plan' => $plan, 'price' => $price];
 }
@@ -149,8 +148,8 @@ function servizi(): array
     $hosting = servizio('Hosting', 12, '61.00');
     $assistenza = servizio('Assistenza', 1, '10.00');
     $nome = (int) (Customization::create(['name' => 'Nome del dominio', 'label' => 'Nome del dominio', 'kind' => 'text', 'max_length' => 63, 'active' => 'true', 'for_products' => 'false', 'for_subscriptions' => 'true'])->insert_id ?? 0);
-    CustomizationLink::create(['plan_id' => $dominio['plan'], 'customization_id' => $nome, 'is_required' => 'true', 'position' => 1]);
-    PlanLink::create(['plan_id' => $hosting['plan'], 'parent_plan_id' => $dominio['plan']]);
+    CustomizationLink::create(['product_model_id' => $dominio['plan'], 'customization_id' => $nome, 'is_required' => 'true', 'position' => 1]);
+    PlanLink::create(['product_model_id' => $hosting['plan'], 'parent_product_model_id' => $dominio['plan']]);
 
     return ['dominio' => $dominio, 'hosting' => $hosting, 'assistenza' => $assistenza, 'nome' => $nome];
 }
@@ -469,6 +468,55 @@ check('scheda: le finestre dei servizi si aprono, con l\'aiuto accanto al titolo
         && substr_count($html, 'wi-servizio-change-') >= 2
         && str_contains($html, 'Si appoggia a')
         && str_contains($html, 'Gratis: niente fino al rinnovo');
+}));
+
+check('una tantum senza prova: una rata a parte dal primo giorno e il suo proforma, oltre alle rate del periodo', fn () => prova(static function (): bool {
+    $p = piano();
+    PlanPrice::update(['one_time_price' => '50.00'], $p['mensile']);
+    $posta = conPosta(static function () use ($p, &$id): void {
+        $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'plan_price_id' => $p['mensile'], 'starts_at' => '2026-03-01']);
+    });
+    $importi = array_map(static fn (array $r): float => round((float) $r['amount'], 2), rate($id));
+    sort($importi);
+    $note = array_column(rate($id), 'note');
+    $proforma = array_filter($posta, static fn ($m) => str_starts_with($m['subject'], '[subscription.proforma] '));
+
+    return stato($id) === 'active' && $importi === [50.0, 100.0]
+        && round((float) Subscription::findById($id)['total'], 2) === 100.0
+        && count(array_filter($note, static fn ($n) => str_starts_with((string) $n, 'Una tantum abbonamento'))) === 1
+        && DocumentFiles::path('proformas/'.$id.'-20260301-una-tantum.pdf') !== null
+        && count($proforma) === 2;
+}));
+
+check('una tantum con la prova: si paga a inizio prova, a fine prova solo il canone', fn () => prova(static function (): bool {
+    $p = piano(14);
+    PlanPrice::update(['one_time_price' => '30.00'], $p['mensile']);
+    $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'plan_price_id' => $p['mensile'], 'starts_at' => '2026-03-01']);
+    $inProva = [stato($id), array_map(static fn (array $r): float => round((float) $r['amount'], 2), rate($id))];
+    paga($id);
+    OfficeSubscriptions::daily(new DateTimeImmutable('2026-03-15'));
+
+    return $inProva === ['trialing', [30.0]]
+        && stato($id) === 'active'
+        && array_map(static fn (array $r): float => round((float) $r['amount'], 2), rate($id)) === [100.0]
+        && count(rate($id, 'paid')) === 1;
+}));
+
+check('una tantum: il rinnovo e il cambio di prezzo non la riaddebitano', fn () => prova(static function (): bool {
+    $inizio = (new DateTimeImmutable('first day of this month'))->setTime(0, 0);
+    $p = piano();
+    PlanPrice::update(['one_time_price' => '50.00'], $p['mensile']);
+    PlanPrice::update(['one_time_price' => '80.00'], $p['annuale']);
+    $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'plan_price_id' => $p['mensile'], 'starts_at' => $inizio->format('Y-m-d')]);
+    paga($id);
+    SubscriptionItems::change((int) SubscriptionItems::main($id)['id'], $p['annuale'], 'next_period', [], 0, 'user', new DateTimeImmutable());
+    OfficeSubscriptions::daily($inizio->modify('+1 month'));
+    $rinnovo = rate($id);
+    $note = array_column(array_merge($rinnovo, rate($id, 'paid')), 'note');
+
+    return (int) SubscriptionItems::main($id)['plan_price_id'] === $p['annuale'] && count($rinnovo) === 1
+        && count(array_filter($note, static fn ($n) => str_starts_with((string) $n, 'Una tantum abbonamento'))) === 1
+        && !in_array(round((float) $rinnovo[0]['amount'], 2), [80.0, 50.0], true);
 }));
 
 summary();

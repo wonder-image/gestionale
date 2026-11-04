@@ -18,16 +18,23 @@ require __DIR__.'/../supporto/FakeSubscriptionGateway.php';
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
+use Wonder\Plugin\Gestionale\Models\Sales\Order;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItemChange;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Providers\Payments\PaymentEvent;
+use Wonder\Plugin\Gestionale\Providers\Payments\PaymentProvider;
+use Wonder\Plugin\Gestionale\Providers\Payments\PaymentStart;
+use Wonder\Plugin\Gestionale\Providers\Payments\PaymentState;
+use Wonder\Plugin\Gestionale\Providers\Payments\StripeProvider;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
+use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentEvents;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
 use Wonder\Plugin\Gestionale\Support\Providers\ExternalReferences;
@@ -69,9 +76,9 @@ function prova(callable $corpo): mixed
 function pianoOnline(): array
 {
     // I codici come li dà la pagina dei piani: il negozio vende un prezzo dal suo `ppr_`.
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => 'Pro', 'slug' => 'pro-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
-    $mensile = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => 14, 'price' => '24.40', 'sale_price' => '0.00', 'active' => 'true', 'position' => 0])->insert_id ?? 0);
-    $annuale = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'commitment_months' => 12, 'price' => '244.00', 'sale_price' => '0.00', 'renewal_plan_price_id' => $mensile, 'active' => 'true', 'position' => 1])->insert_id ?? 0);
+    $plan = abbonamentoDiProva('Pro', true);
+    $mensile = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => 14, 'price' => '24.40', 'sale_price' => '0.00', 'active' => 'true', 'position' => 0])->insert_id ?? 0);
+    $annuale = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'commitment_months' => 12, 'price' => '244.00', 'sale_price' => '0.00', 'renewal_plan_price_id' => $mensile, 'active' => 'true', 'position' => 1])->insert_id ?? 0);
 
     return ['plan' => $plan, 'mensile' => PlanPrice::findById($mensile), 'annuale' => PlanPrice::findById($annuale)];
 }
@@ -99,8 +106,8 @@ function iniziaServizi(int $cliente, array $servizi, string $coupon = ''): array
 /** Un servizio venduto online, con un prezzo solo. @return array<string, mixed> il prezzo */
 function servizioOnline(string $nome, int $mesi, string $prezzo, int $prova = 0): array
 {
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => $nome, 'slug' => 'srv-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
-    $price = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => $mesi === 12 ? 'Annuale' : 'Mensile', 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'trial_days' => $prova, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true', 'position' => 0])->insert_id ?? 0);
+    $plan = abbonamentoDiProva($nome, true);
+    $price = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => $mesi === 12 ? 'Annuale' : 'Mensile', 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'trial_days' => $prova, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true', 'position' => 0])->insert_id ?? 0);
 
     return PlanPrice::findById($price);
 }
@@ -199,7 +206,7 @@ check('rifiuti: senza account, già abbonato, piano nascosto', fn () => prova(st
     $avvio = inizia($persona, $p['mensile']);
     Subscription::update(['status' => 'active'], $avvio['subscription_id']);
     $doppio = rifiuto(static fn () => inizia($persona, $p['annuale']));
-    Plan::update(['visible_online' => 'false'], $p['plan']);
+    ProductModel::update(['visible_online' => 'false'], $p['plan']);
     $nascosto = rifiuto(static fn () => inizia(cliente(), $p['mensile']));
 
     return $senza === 'subscription.account_required' && $doppio === 'subscription.limit_reached' && $nascosto === 'subscription.price_unavailable';
@@ -410,7 +417,7 @@ check('riallineamento: il pending pagato si collega, l\'abbandonato oltre le 24 
 
 check('limiti: un abbonamento online attivo dà i limiti del suo piano', fn () => prova(static function (): bool {
     $p = pianoOnline();
-    Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature::create(['plan_id' => $p['plan'], 'feature_key' => 'max_progetti', 'feature_value' => '20', 'position' => 0]);
+    Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature::create(['product_model_id' => $p['plan'], 'feature_key' => 'max_progetti', 'feature_value' => '20', 'position' => 0]);
     $persona = cliente();
     $avvio = inizia($persona, $p['mensile']);
     $prima = Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions::limit($persona, 'max_progetti');
@@ -657,7 +664,7 @@ check('il riepilogo del negozio: righe e primo addebito senza scrivere niente; i
     $trimestre = servizioOnline('Assistenza', 3, '9.00');
     $intervalli = rifiuto(static fn () => OnlineSubscriptions::lines([['price_code' => $bimestre['code']], ['price_code' => $trimestre['code']]], []));
     $nascosto = servizioOnline('Interno', 1, '1.00');
-    sqlModify(Plan::$table, ['visible_online' => 'false'], 'id', (int) $nascosto['plan_id']);
+    sqlModify(ProductModel::$table, ['visible_online' => 'false'], 'id', (int) $nascosto['product_model_id']);
     $troppi = rifiuto(static fn () => OnlineSubscriptions::lines(array_fill(0, OnlineSubscriptions::MAX_ITEMS + 1, ['price_code' => $mensile['code']]), []));
 
     return count($riepilogo['lines']) === 2 && $riepilogo['lines'][0]['quantity'] === 2 && $riepilogo['billing']['billing_country'] === 'IT'
@@ -666,6 +673,289 @@ check('il riepilogo del negozio: righe e primo addebito senza scrivere niente; i
         && $intervalli === 'subscription.interval_mismatch'
         && rifiuto(static fn () => OnlineSubscriptions::lines([['price_code' => $nascosto['code']]], [])) === 'subscription.price_unavailable'
         && $troppi === 'subscription.too_many_items';
+}));
+
+check('una tantum con la prova: una voce senza ricorrenza nel Checkout e i giorni di prova nei metadati', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $p = pianoOnline();
+    PlanPrice::update(['one_time_price' => '12.20'], (int) $p['mensile']['id']);
+    $avvio = inizia(cliente(), PlanPrice::findById((int) $p['mensile']['id']));
+    $sessione = $stripe->last('checkout.session.create');
+    $voci = $sessione['line_items'];
+    $once = $voci[1]['price_data'] ?? [];
+
+    return count($voci) === 2 && isset($voci[0]['price']) && !isset($once['recurring'])
+        && $once['unit_amount'] === 1220 && $voci[1]['quantity'] === 1
+        && $sessione['subscription_data']['metadata']['trial_days'] === '14'
+        && round((float) Subscription::findById($avvio['subscription_id'])['total'], 2) === 24.4;
+}));
+
+check('una tantum con la prova: la prima fattura si registra e la prova resta; il canone poi attiva', fn () => prova(static function (): bool {
+    $p = pianoOnline();
+    PlanPrice::update(['one_time_price' => '12.20'], (int) $p['mensile']['id']);
+    $avvio = inizia(cliente(), PlanPrice::findById((int) $p['mensile']['id']));
+    $id = $avvio['subscription_id'];
+    SubscriptionEvents::apply(notifica('customer.subscription.created', abbonamentoStripe('sub_U1', $id, 'trialing', prezzoStripe($p['mensile']))));
+    $prima = fattura('in_u1', 'sub_U1', $id, 1220) + ['billing_reason' => 'subscription_create'];
+    $prima['parent']['subscription_details']['metadata']['trial_days'] = '14';
+    SubscriptionEvents::apply(notifica('invoice.paid', $prima));
+    $inProva = (string) Subscription::findById($id)['status'];
+    $pagamenti = righe(Payment::class, ['subscription_id' => $id]);
+    $canone = fattura('in_u2', 'sub_U1', $id, 2440) + ['billing_reason' => 'subscription_cycle'];
+    $canone['parent']['subscription_details']['metadata']['trial_days'] = '14';
+    SubscriptionEvents::apply(notifica('invoice.paid', $canone));
+
+    return $inProva === 'trialing' && count($pagamenti) === 1
+        && str_starts_with((string) $pagamenti[0]['note'], SubscriptionEvents::ONE_TIME_NOTE)
+        && round((float) $pagamenti[0]['amount'], 2) === 12.2
+        && (string) Subscription::findById($id)['status'] === 'active'
+        && count(righe(Payment::class, ['subscription_id' => $id])) === 2;
+}));
+
+check('una tantum senza prova: il primo addebito è canone più una tantum; il canone del preventivo no', fn () => prova(static function (): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    PlanPrice::update(['one_time_price' => '12.20'], (int) $prezzo['id']);
+    $riepilogo = OnlineSubscriptions::preview(Contact::findById(cliente()), [['price_code' => $prezzo['code'], 'quantity' => 2]], [], '');
+    $a = $riepilogo['amounts'];
+
+    return $riepilogo['trial'] === 0 && $a['total'] === '48.80' && $a['one_time']['total'] === '24.40'
+        && count($a['one_time']['lines']) === 1 && $a['first_charge_total'] === '73.20';
+}));
+
+check('una tantum: il cambio di piano online non la riaddebita', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $p = pianoOnline();
+    PlanPrice::update(['one_time_price' => '30.00'], (int) $p['annuale']['id']);
+    $avvio = inizia(cliente(), $p['mensile']);
+    $id = $avvio['subscription_id'];
+    SubscriptionEvents::apply(notifica('customer.subscription.created', abbonamentoStripe('sub_U3', $id, 'active', prezzoStripe($p['mensile']))));
+    $stripe->objects['sub_U3'] = abbonamentoStripe('sub_U3', $id, 'active', prezzoStripe($p['mensile']));
+    $sessioni = $stripe->count('checkout.session.create');
+    OnlineSubscriptions::changePlan($id, (int) $p['annuale']['id'], 'api');
+    $chiamata = $stripe->last('subscription_item.update');
+
+    return !isset($chiamata['add_invoice_items']) && !str_contains(json_encode($chiamata), 'price_data')
+        && $stripe->count('checkout.session.create') === $sessioni && $stripe->count('invoice_item.create') === 0
+        && round((float) Subscription::findById($id)['total'], 2) === 244.0;
+}));
+
+/** Un ordine del cliente piazzato e da pagare con Stripe. @return array{order: int, payment: int} */
+function ordinePagabile(int $cliente, float $totale): array
+{
+    $ordine = ordineDiProva($totale);
+    Order::update(['status' => 'awaiting_payment', 'customer_id' => $cliente], $ordine);
+    $pagamento = (int) Ledger::open(['order_id' => $ordine, 'amount' => $totale, 'provider' => 'stripe'])['payment_id'];
+
+    return ['order' => $ordine, 'payment' => $pagamento];
+}
+
+/** La prima fattura pagata in pagina: il riferimento è quello che Stripe finto ha dato all'avvio. */
+function primaFattura(FakeSubscriptionGateway $stripe, int $locale, int $centesimi): array
+{
+    $id = (string) Subscription::findById($locale)['provider_reference'];
+
+    return fattura((string) $stripe->objects[$id]['latest_invoice']['id'], $id, $locale, $centesimi) + ['billing_reason' => 'subscription_create'];
+}
+
+check('in pagina con un ordine: una fattura sola con canone, una tantum e ordine; la riga dell\'ordine è legata', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    PlanPrice::update(['one_time_price' => '12.20'], (int) $prezzo['id']);
+    $cliente = cliente();
+    $ordine = ordinePagabile($cliente, 50.0);
+    $avvio = OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $ordine['order']);
+    $chiamata = $stripe->last('subscription.create');
+    $voci = $chiamata['add_invoice_items'];
+    $remoto = (string) Subscription::findById($avvio['subscription_id'])['provider_reference'];
+    $riga = Payment::findById($ordine['payment']);
+
+    return $avvio['intent'] === 'payment' && $avvio['client_secret'] === 'pi_'.$remoto.'_secret'
+        && $chiamata['payment_behavior'] === 'default_incomplete' && $chiamata['metadata']['order_id'] === (string) $ordine['order']
+        && count($voci) === 2 && $voci[0]['price_data']['unit_amount'] === 1220 && $voci[1]['price_data']['unit_amount'] === 5000
+        && $voci[1]['price_data']['product'] !== '' && !isset($chiamata['trial_period_days'])
+        && (string) $riga['provider_reference'] === 'in_'.$remoto.SubscriptionEvents::ORDER_SUFFIX;
+}));
+
+check('in pagina con un ordine: invoice.paid divide l\'importo fra abbonamento e ordine, una volta sola', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    $cliente = cliente();
+    $ordine = ordinePagabile($cliente, 50.0);
+    $avvio = OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $ordine['order']);
+    $id = $avvio['subscription_id'];
+    $fattura = primaFattura($stripe, $id, 7440);
+    SubscriptionEvents::apply(notifica('invoice.paid', $fattura));
+    SubscriptionEvents::apply(notifica('invoice.paid', $fattura));
+    $pagamenti = righe(Payment::class, ['subscription_id' => $id]);
+
+    return count($pagamenti) === 1 && round((float) $pagamenti[0]['amount'], 2) === 24.4
+        && (string) Payment::findById($ordine['payment'])['status'] === 'paid'
+        && (string) Order::findById($ordine['order'])['payment_status'] === 'paid'
+        && (string) Subscription::findById($id)['status'] === 'active';
+}));
+
+check('in pagina: una fattura che paga meno dell\'ordine scrive l\'abbonamento a zero e segnala l\'ordine', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    $cliente = cliente();
+    $ordine = ordinePagabile($cliente, 50.0);
+    $avvio = OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $ordine['order']);
+    $fattura = primaFattura($stripe, $avvio['subscription_id'], 4000);
+
+    try {
+        SubscriptionEvents::apply(notifica('invoice.paid', $fattura));
+        $segnalato = false;
+    } catch (Wonder\Plugin\Gestionale\Support\Payments\PaymentMismatch) {
+        $segnalato = true;
+    }
+
+    return $segnalato && righe(Payment::class, ['subscription_id' => $avvio['subscription_id']]) === []
+        && (string) Payment::findById($ordine['payment'])['status'] !== 'paid';
+}));
+
+check('in pagina: il pagamento rifiutato lascia l\'ordine pagabile sulla stessa fattura', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    $cliente = cliente();
+    $ordine = ordinePagabile($cliente, 50.0);
+    $avvio = OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $ordine['order']);
+    $fattura = primaFattura($stripe, $avvio['subscription_id'], 0);
+    SubscriptionEvents::apply(notifica('invoice.payment_failed', $fattura + ['attempt_count' => 1]));
+
+    return (string) Payment::findById($ordine['payment'])['status'] === 'failed'
+        && (string) Order::findById($ordine['order'])['status'] === 'awaiting_payment'
+        && (string) Subscription::findById($avvio['subscription_id'])['status'] === 'pending';
+}));
+
+check('in pagina senza ordine e con la prova: la prima fattura è a zero e si conferma un SetupIntent', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $p = pianoOnline();
+    $avvio = OnlineSubscriptions::startInPage(cliente(), [['price_code' => $p['mensile']['code']]], [], '');
+    $chiamata = $stripe->last('subscription.create');
+    $remoto = (string) Subscription::findById($avvio['subscription_id'])['provider_reference'];
+
+    return $avvio['intent'] === 'setup' && $avvio['client_secret'] === 'seti_'.$remoto.'_secret'
+        && $chiamata['trial_period_days'] === 14 && !isset($chiamata['metadata']['order_id'])
+        && ($chiamata['add_invoice_items'] ?? []) === [];
+}));
+
+check('in pagina senza ordine: con fattura e ambiente del risultato l\'abbonamento lasciato a metà cade e libera il limite', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $p = pianoOnline();
+    $avvio = OnlineSubscriptions::startInPage(cliente(), [['price_code' => $p['mensile']['code']]], [], '');
+    $remoto = (string) Subscription::findById($avvio['subscription_id'])['provider_reference'];
+    OnlineSubscriptions::dropInPage($avvio['invoice_id'], $avvio['environment']);
+
+    return $avvio['invoice_id'] !== '' && $stripe->last('subscription.cancel') === ['id' => $remoto]
+        && (string) Subscription::findById($avvio['subscription_id'])['status'] === 'cancelled';
+}));
+
+check('in pagina: l\'ordine di un altro cliente o già pagato non entra, e non resta niente', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    $altro = ordinePagabile(cliente(), 50.0);
+    $cliente = cliente();
+    $prima = count(righe(Subscription::class, ['customer_id' => $cliente]));
+    $errore = rifiuto(static fn () => OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $altro['order']));
+
+    return $errore === 'subscription.stripe_unavailable' && $stripe->count('subscription.create') === 0
+        && count(righe(Subscription::class, ['customer_id' => $cliente])) === $prima;
+}));
+
+check('in pagina: il coupon va su ogni voce ricorrente, la stessa chiave non crea due abbonamenti', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $stripe->firstInvoiceRecurring = 2440;
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    $backup = servizioOnline('Backup', 1, '5.00');
+    $codice = 'INPAGINA'.strtoupper(uniqid());
+    Coupon::create(['code' => $codice, 'discount_type' => 'percent', 'discount_value' => '50', 'applies_online' => 'true', 'active' => 'true', 'applies_subscriptions' => 'true', 'duration' => 'forever']);
+    $avvio = OnlineSubscriptions::startInPage(cliente(), [['price_code' => $prezzo['code']], ['price_code' => $backup['code']]], [], $codice);
+    $chiamata = $stripe->last('subscription.create');
+    $sconti = array_map(static fn (array $item): string => (string) ($item['discounts'][0]['promotion_code'] ?? ''), $chiamata['items']);
+    $di = $stripe->createSubscription($chiamata, 'subscription-in-page-'.$avvio['code']);
+
+    return $avvio['intent'] === 'payment' && count($sconti) === 2 && str_starts_with($sconti[0], 'promo_') && $sconti[0] === $sconti[1]
+        && !isset($chiamata['discounts']) && isset($chiamata['items'][1]['metadata']['item_id'])
+        && $chiamata['payment_settings']['save_default_payment_method'] === 'on_subscription'
+        && $di['id'] === (string) Subscription::findById($avvio['subscription_id'])['provider_reference']
+        && isset($di['latest_invoice']) && $stripe->count('subscription.create') === 2;
+}));
+
+check('in pagina: lo stato dell\'ordine viene dalla fattura, con la sola parte dell\'ordine', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    $cliente = cliente();
+    $ordine = ordinePagabile($cliente, 50.0);
+    $avvio = OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $ordine['order']);
+    $riferimento = (string) Payment::findById($ordine['payment'])['provider_reference'];
+    $fattura = substr($riferimento, 0, -strlen(SubscriptionEvents::ORDER_SUFFIX));
+    $stripe_ = new StripeProvider();
+    $nuova = $stripe_->status($riferimento);
+
+    // Un tentativo rifiutato: il motivo arriva come per un PaymentIntent.
+    $stripe->objects[$fattura]['payments']['data'] = [['is_default' => true, 'payment' => ['payment_intent' => [
+        'id' => 'pi_x', 'status' => 'requires_payment_method',
+        'last_payment_error' => ['decline_code' => 'insufficient_funds', 'charge' => 'ch_x'],
+    ]]]];
+    $rifiutata = $stripe_->status($riferimento);
+
+    $stripe->objects[$fattura]['status'] = 'paid';
+    $stripe->objects[$fattura]['amount_paid'] = 7440;
+    $pagata = $stripe_->status($riferimento);
+
+    return $nuova->status === PaymentState::REQUIRES_PAYMENT_METHOD && $nuova->failure === '' && $nuova->orderId === $ordine['order']
+        && $rifiutata->status === PaymentState::REQUIRES_PAYMENT_METHOD && str_contains($rifiutata->failure, 'fondi insufficienti') && $rifiutata->attempt === 'ch_x'
+        && $pagata->status === PaymentState::SUCCEEDED && $pagata->amount === 5000 && $pagata->currency === 'eur'
+        && (string) Subscription::findById($avvio['subscription_id'])['status'] === 'pending';
+}));
+
+check('in pagina: annullare il pagamento dell\'ordine chiude l\'abbonamento su Stripe e qui; pagata non si annulla', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    $cliente = cliente();
+    $ordine = ordinePagabile($cliente, 50.0);
+    $avvio = OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $ordine['order']);
+    $riferimento = (string) Payment::findById($ordine['payment'])['provider_reference'];
+    $remoto = (string) Subscription::findById($avvio['subscription_id'])['provider_reference'];
+    $provider = new StripeProvider();
+    $provider->cancel($riferimento);
+    $chiusa = $provider->status($riferimento);
+
+    $altro = ordinePagabile($cliente, 20.0);
+    $secondo = OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $altro['order']);
+    $riferimento2 = (string) Payment::findById($altro['payment'])['provider_reference'];
+    $stripe->objects[substr($riferimento2, 0, -strlen(SubscriptionEvents::ORDER_SUFFIX))]['status'] = 'paid';
+
+    try {
+        $provider->cancel($riferimento2);
+        $fermato = false;
+    } catch (RuntimeException) {
+        $fermato = true;
+    }
+
+    return $stripe->last('subscription.cancel') === ['id' => $remoto] && $stripe->count('subscription.cancel') === 1
+        && $chiusa->status === PaymentState::CANCELED
+        && (string) Subscription::findById($avvio['subscription_id'])['status'] === 'cancelled'
+        && $fermato && (string) Subscription::findById($secondo['subscription_id'])['status'] === 'pending';
+}));
+
+check('in pagina: l\'ordine abbandonato si chiude e il suo abbonamento non occupa più il limite', fn () => prova(static function (FakeSubscriptionGateway $stripe): bool {
+    $prezzo = servizioOnline('Sito', 1, '24.40');
+    $cliente = cliente();
+    $ordine = ordinePagabile($cliente, 50.0);
+    $avvio = OnlineSubscriptions::startInPage($cliente, [['price_code' => $prezzo['code']]], [], '', $ordine['order']);
+
+    // Lifecycle passa dal fornitore registrato: qui quello vero, nell'ambiente di test.
+    PaymentProviders::register(new class () implements PaymentProvider {
+        private StripeProvider $stripe;
+        public function __construct() { $this->stripe = new StripeProvider(); }
+        public function code(): string { return 'stripe'; }
+        public function environment(): string { return 'test'; }
+        public function connected(): bool { return true; }
+        public function start(array $order, array $payment): PaymentStart { throw new LogicException(); }
+        public function status(string $reference): PaymentState { return $this->stripe->status($reference); }
+        public function event(string $raw, string $signature): ?PaymentEvent { return null; }
+        public function replay(array $payload, string $environment): ?PaymentEvent { return null; }
+        public function cancel(string $reference): void { $this->stripe->cancel($reference); }
+    });
+
+    try {
+        $chiuso = Lifecycle::abandon($ordine['order']);
+    } finally {
+        PaymentProviders::register($GLOBALS['provider']);
+    }
+
+    return $chiuso && (string) Order::findById($ordine['order'])['status'] !== 'awaiting_payment'
+        && (string) Subscription::findById($avvio['subscription_id'])['status'] === 'cancelled'
+        && $stripe->count('subscription.cancel') === 1;
 }));
 
 summary();

@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
+use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
@@ -27,6 +28,7 @@ use Wonder\Plugin\Gestionale\Support\Orders\Expiry;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\PaymentTiming;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
+use Wonder\Plugin\Gestionale\Support\Promotions\CouponCodes;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Sql\Transaction;
 
@@ -309,7 +311,7 @@ check('con la funzionalità spenta apply rifiuta e context ignora un coupon già
     });
 });
 
-check('context ridà tipo, valore, righe adatte e importo; senza coupon è vuoto', function () {
+check('context ridà gli sconti con le righe adatte; senza coupon è vuoto', function () {
     return prova(static function (): bool {
         $s = scenario();
         $ora = date('Y-m-d H:i:s');
@@ -319,29 +321,29 @@ check('context ridà tipo, valore, righe adatte e importo; senza coupon è vuoto
         ];
         $vuoto = Coupons::context($s['cart'], $righe, $ora);
 
+        // Un carrello di prima: coupon sulla testata, senza righe di coupon.
         $c = coupon();
         Order::update(['coupon_id' => $c['id'], 'coupon_code' => $c['code']], $s['cart']);
         $contesto = Coupons::context($s['cart'], $righe, $ora);
 
+        Coupons::remove($s['cart']);
         $gratis = coupon(['discount_type' => 'free_shipping', 'discount_value' => '0.00']);
-        Order::update(['coupon_id' => $gratis['id'], 'coupon_code' => $gratis['code']], $s['cart']);
+        Coupons::apply($s['cart'], $gratis['code']);
         $spedizione = Coupons::context($s['cart'], $righe, $ora);
 
+        Coupons::remove($s['cart']);
         $fisso = coupon(['discount_type' => 'amount', 'discount_value' => '500.00']);
-        Order::update(['coupon_id' => $fisso['id'], 'coupon_code' => $fisso['code']], $s['cart']);
+        Coupons::apply($s['cart'], $fisso['code']);
         $importo = Coupons::context($s['cart'], $righe, $ora);
 
         return $vuoto === []
-            && $contesto['discount_type'] === 'percent'
-            && abs((float) $contesto['discount_value'] - 10.0) < 0.001
+            && $contesto['discounts'] === [['type' => 'percent', 'value' => 10.0, 'lines' => [11]]]
             && $contesto['free_shipping'] === false
-            && $contesto['discountable'] === [11 => true, 12 => false]
-            && abs($contesto['amount'] - 10.0) < 0.001
-            && $spedizione['discount_type'] === 'none'
+            && count($contesto['coupons']) === 1
+            && (int) $contesto['coupons'][0]['id'] === $c['id']
+            && $spedizione['discounts'][0]['type'] === 'none'
             && $spedizione['free_shipping'] === true
-            && $spedizione['amount'] === 0.0
-            && $importo['discount_type'] === 'amount'
-            && abs((float) $importo['discount_value'] - 100.0) < 0.001;
+            && $importo['discounts'] === [['type' => 'amount', 'value' => 500.0, 'lines' => [11]]];
     });
 });
 
@@ -646,6 +648,154 @@ check('con la funzionalità spenta al checkout il coupon non resta sull\'ordine 
         return utilizzi($c['id']) === []
             && (int) riga($esito['order_id'])['coupon_id'] === 0
             && (float) riga($esito['order_id'])['discount_total'] === 0.0;
+    });
+});
+
+// --- Cumulo e codici in blocco (gestionale#113) ---
+
+check('due coupon cumulabili si sommano: prima la percentuale, poi l\'importo, un utilizzo ciascuno', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $fisso = coupon(['discount_type' => 'amount', 'discount_value' => '5.00', 'stackable' => 'true']);
+        $percento = coupon(['stackable' => 'true']);
+        // L'importo è applicato per primo, ma la percentuale va comunque prima: 10 % di 100, poi 5 su 90.
+        Coupons::apply($s['cart'], $fisso['code']);
+        Coupons::apply($s['cart'], $percento['code']);
+        $applicati = Coupons::applied($s['cart']);
+
+        $esito = ordina($s['cart'], datiCheckout());
+        $ordine = riga($esito['order_id']);
+        $usiFisso = utilizzi($fisso['id']);
+        $usiPercento = utilizzi($percento['id']);
+
+        return count($applicati) === 2
+            && (float) $ordine['discount_total'] === 15.0
+            && (int) $ordine['coupon_id'] === $fisso['id']
+            && (string) $ordine['coupon_code'] === $fisso['code'].', '.$percento['code']
+            && count($usiFisso) === 1 && (float) $usiFisso[0]['discount_amount'] === 5.0
+            && count($usiPercento) === 1 && (float) $usiPercento[0]['discount_amount'] === 10.0;
+    });
+});
+
+check('un coupon non cumulabile sostituisce quelli applicati, e uno cumulabile sostituisce lui', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $a = coupon(['stackable' => 'true']);
+        $solo = coupon(['discount_type' => 'amount', 'discount_value' => '20.00']);
+        $b = coupon(['stackable' => 'true', 'discount_value' => '5.00']);
+
+        Coupons::apply($s['cart'], $a['code']);
+        Coupons::apply($s['cart'], $solo['code']);
+        $dopoSolo = array_map(static fn (array $r): int => (int) $r['coupon_id'], Coupons::applied($s['cart']));
+        $totaleSolo = (float) riga($s['cart'])['discount_total'];
+
+        Coupons::apply($s['cart'], $b['code']);
+        $dopoB = array_map(static fn (array $r): int => (int) $r['coupon_id'], Coupons::applied($s['cart']));
+
+        return $dopoSolo === [$solo['id']] && $totaleSolo === 20.0
+            && $dopoB === [$b['id']] && (float) riga($s['cart'])['discount_total'] === 5.0;
+    });
+});
+
+check('lo stesso coupon due volte si rifiuta con already_applied', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon(['stackable' => 'true']);
+        Coupons::apply($s['cart'], $c['code']);
+
+        return errore(static fn () => Coupons::apply($s['cart'], $c['code'])) === 'coupon.already_applied'
+            && count(Coupons::applied($s['cart'])) === 1;
+    });
+});
+
+check('generate scrive N codici unici col prefisso e accende batch; il codice del modello non vale più', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'coupons']);
+        $c = coupon();
+        $codici = CouponCodes::generate($c['id'], 50, 'prova');
+        $scritti = CouponCodes::of($c['id']);
+
+        return count($codici) === 50
+            && count(array_unique($codici)) === 50
+            && array_filter($codici, static fn (string $k): bool => preg_match('/^PROVA-[A-HJ-NP-Z2-9]{8}$/', $k) !== 1) === []
+            && array_column($scritti, 'code') === $codici
+            && (string) Coupon::findById($c['id'])['batch'] === 'true'
+            && Coupons::find($c['code']) === null
+            && (int) Coupons::find(strtolower($codici[0]))['id'] === $c['id']
+            && (int) Coupons::find($codici[0])['coupon_code_id'] > 0;
+    });
+});
+
+check('generate rifiuta quantità, prefisso e coupon degli abbonamenti', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'coupons']);
+        $c = coupon();
+        $abbonamento = coupon(['applies_subscriptions' => 'true']);
+
+        return errore(static fn () => CouponCodes::generate($c['id'], 0)) === 'coupon.batch_quantity'
+            && errore(static fn () => CouponCodes::generate($c['id'], CouponCodes::MAX_QUANTITY + 1)) === 'coupon.batch_quantity'
+            && errore(static fn () => CouponCodes::generate($c['id'], 1, 'NO SPAZI')) === 'coupon.batch_prefix'
+            && errore(static fn () => CouponCodes::generate($abbonamento['id'], 1)) === 'coupon.batch_subscriptions'
+            && errore(static fn () => CouponCodes::generate(0, 1)) === 'coupon.unknown'
+            && CouponCodes::of($c['id']) === [];
+    });
+});
+
+check('un codice generato vale una volta: due dello stesso blocco sono already_applied, riusato è code_used', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon();
+        [$primo, $secondo] = CouponCodes::generate($c['id'], 2, 'B');
+
+        Coupons::apply($s['cart'], $primo);
+        $stessoBlocco = errore(static fn () => Coupons::apply($s['cart'], $secondo));
+        $esito = ordina($s['cart'], datiCheckout());
+        $usi = utilizzi($c['id']);
+        $usato = array_values(array_filter(CouponCodes::of($c['id']), static fn (array $r): bool => $r['used']));
+
+        $altro = scenario();
+        $riuso = errore(static fn () => Coupons::apply($altro['cart'], $primo));
+        Coupons::apply($altro['cart'], $secondo);
+
+        return $stessoBlocco === 'coupon.already_applied'
+            && (string) riga($esito['order_id'])['coupon_code'] === $primo
+            && count($usi) === 1 && (int) $usi[0]['coupon_code_id'] > 0 && (string) $usi[0]['code'] === $primo
+            && count($usato) === 1 && $usato[0]['code'] === $primo
+            && $usato[0]['order_number'] === (string) riga($esito['order_id'])['order_number']
+            && $usato[0]['order_id'] === (int) $esito['order_id']
+            && $riuso === 'coupon.code_used'
+            && (float) riga($altro['cart'])['discount_total'] === 10.0;
+    });
+});
+
+check('il CSV dei codici ha BOM, punto e virgola e una riga per codice', function () {
+    return prova(static function (): bool {
+        accendiFunzionalita(['orders', 'coupons']);
+        $c = coupon();
+        $codici = CouponCodes::generate($c['id'], 3);
+        $righe = explode("\n", trim(CouponCodes::csv(CouponCodes::of($c['id']))));
+
+        return str_starts_with($righe[0], "\u{FEFF}Codice;Usato;Ordine;Data")
+            && count($righe) === 4
+            && $righe[1] === $codici[0].';No;;';
+    });
+});
+
+check('la scheda del coupon elenca i codici generati con stato e ordine', function () {
+    return prova(static function (): bool {
+        $s = scenario();
+        $c = coupon();
+        $vuoto = CouponResource::codesHtml($c['id']);
+        [$primo, $secondo] = CouponCodes::generate($c['id'], 2, 'SCHEDA');
+        Coupons::apply($s['cart'], $primo);
+        $esito = ordina($s['cart'], datiCheckout());
+        $html = CouponResource::codesHtml($c['id']);
+
+        return str_contains($vuoto, 'Nessun codice generato')
+            && str_contains($html, '<code>'.$primo.'</code>')
+            && str_contains($html, '<code>'.$secondo.'</code>')
+            && substr_count($html, 'Usato') === 1 && substr_count($html, 'Libero') === 1
+            && str_contains($html, (string) riga($esito['order_id'])['order_number']);
     });
 });
 

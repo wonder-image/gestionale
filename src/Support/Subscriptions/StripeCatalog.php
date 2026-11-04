@@ -4,7 +4,6 @@ namespace Wonder\Plugin\Gestionale\Support\Subscriptions;
 
 use RuntimeException;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Providers\Payments\SubscriptionGateway;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
@@ -55,7 +54,7 @@ final class StripeCatalog
             return (string) $saved['external_id'];
         }
 
-        $product = $this->productFor((int) $price['plan_id']);
+        $product = $this->productFor((int) $price['product_model_id']);
         $created = $this->gateway->createPrice(
             static::priceParams($price, $product, $surcharge),
             'plan-price-'.(string) $price['code'].'-'.$fingerprint.'-'.$env
@@ -65,24 +64,43 @@ final class StripeCatalog
         return (string) $created['id'];
     }
 
-    /** L'id del prodotto Stripe del piano, creato se manca. */
+    /** L'id del prodotto Stripe dell'abbonamento (modello), creato se manca. */
     public function productFor(int $planId): string
     {
         $env = $this->gateway->environment();
-        $saved = ExternalReferences::find('plan', $planId, 'stripe', 'product', $env);
+        $saved = ExternalReferences::find('subscription_model', $planId, 'stripe', 'product', $env);
 
         if ($saved !== null && trim((string) $saved['external_id']) !== '') {
             return (string) $saved['external_id'];
         }
 
-        $plan = Plan::findById($planId);
+        $plan = SubscriptionModels::find($planId);
 
         if (!is_array($plan) || (int) ($plan['id'] ?? 0) <= 0) {
-            throw new RuntimeException('Piano sconosciuto: '.$planId);
+            throw new RuntimeException('Abbonamento sconosciuto: '.$planId);
         }
 
-        $created = $this->gateway->createProduct(static::productParams($plan), 'plan-'.(string) $plan['code'].'-'.$env);
-        ExternalReferences::save('plan', $planId, 'stripe', 'product', (string) $created['id'], $env);
+        $created = $this->gateway->createProduct(static::productParams($plan), 'subscription-model-'.(string) $plan['code'].'-'.$env);
+        ExternalReferences::save('subscription_model', $planId, 'stripe', 'product', (string) $created['id'], $env);
+
+        return (string) $created['id'];
+    }
+
+    /**
+     * Il prodotto Stripe della voce «ordine» nella prima fattura di un
+     * abbonamento pagato in pagina: uno per ambiente, per tutti gli ordini.
+     */
+    public function orderProduct(): string
+    {
+        $env = $this->gateway->environment();
+        $saved = ExternalReferences::find('order', 0, 'stripe', 'product', $env);
+
+        if ($saved !== null && trim((string) $saved['external_id']) !== '') {
+            return (string) $saved['external_id'];
+        }
+
+        $created = $this->gateway->createProduct(['name' => 'Ordine del negozio'], 'order-product-'.$env);
+        ExternalReferences::save('order', 0, 'stripe', 'product', (string) $created['id'], $env);
 
         return (string) $created['id'];
     }
@@ -254,12 +272,13 @@ final class StripeCatalog
     /** @param array<string, mixed> $plan @return array<string, mixed> */
     public static function productParams(array $plan): array
     {
-        $description = trim(html_entity_decode(strip_tags((string) ($plan['description'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        $text = trim((string) ($plan['short_description'] ?? '')) !== '' ? $plan['short_description'] : ($plan['description'] ?? '');
+        $description = trim(html_entity_decode(strip_tags((string) $text), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 
         return array_filter([
             'name' => trim((string) ($plan['name'] ?? '')),
             'description' => $description !== '' ? $description : null,
-            'metadata' => ['plan_id' => (string) (int) $plan['id'], 'plan_code' => (string) ($plan['code'] ?? '')],
+            'metadata' => ['product_model_id' => (string) (int) $plan['id'], 'product_model_code' => (string) ($plan['code'] ?? '')],
         ], static fn ($value): bool => $value !== null);
     }
 

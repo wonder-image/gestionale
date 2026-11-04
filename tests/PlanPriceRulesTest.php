@@ -39,6 +39,14 @@ check('il prezzo scontato è più basso del prezzo; vuoto o zero vuol dire nessu
     && $rifiuto(['sale_price' => '25.00'] + $mensile) === 'plan.sale_not_lower'
 );
 
+check('l\'una tantum è zero o più; vuota vuol dire nessuna', fn () =>
+    $rifiuto(['one_time_price' => '49.00'] + $mensile) === null
+    && $rifiuto(['one_time_price' => '0.00'] + $mensile) === null
+    && $rifiuto(['one_time_price' => ''] + $mensile) === null
+    && $rifiuto(['one_time_price' => '-1'] + $mensile) === 'plan.price_invalid'
+    && $rifiuto(['one_time_price' => 'dieci'] + $mensile) === 'plan.price_invalid'
+);
+
 check('i mesi per addebito vanno con l\'intervallo', fn () =>
     $rifiuto(['term_months' => 3] + $mensile) === null
     && $rifiuto(['term_months' => 0] + $mensile) === 'plan.term_mismatch'
@@ -85,6 +93,13 @@ check('servizi insieme: ogni durata è multipla della più corta', function () {
 check('i mesi proposti: 1 per il mensile, 12 per l\'annuale', fn () =>
     PlanPriceRules::defaultTerm('month') === 1
     && PlanPriceRules::defaultTerm('year') === 12
+);
+
+check('la ricorrenza dall\'addebito: annuale a anni, il resto a mesi', fn () =>
+    PlanPriceRules::intervalOf(1) === 'month'
+    && PlanPriceRules::intervalOf(6) === 'month'
+    && PlanPriceRules::intervalOf(12) === 'year'
+    && PlanPriceRules::intervalOf(24) === 'year'
 );
 
 summary();

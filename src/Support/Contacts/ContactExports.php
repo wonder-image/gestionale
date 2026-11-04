@@ -7,16 +7,16 @@ use Wonder\Plugin\Gestionale\Gestionale;
 
 /**
  * Le esportazioni di clienti e fornitori che l'«Esporta» dell'elenco può
- * offrire: ognuna è una funzionalità dell'area «Esportazioni», come quelle
- * del catalogo. Colonne e righe sono quelle di `ContactExport`, caricate dal
+ * offrire: Excel e CSV, tutti e due con la funzionalità `export_contacts`
+ * dell'area «Esportazioni». Colonne e righe sono quelle di `ContactExport`, caricate dal
  * core secondo l'elenco da cui si esporta.
  */
 final class ContactExports
 {
     /** formato → funzionalità */
     public const FEATURES = [
-        'xlsx' => 'export_contacts_xlsx',
-        'csv' => 'export_contacts_csv',
+        'xlsx' => 'export_contacts',
+        'csv' => 'export_contacts',
     ];
 
     /**

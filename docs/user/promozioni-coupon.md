@@ -35,6 +35,8 @@ Si gestiscono in **Promozioni → Coupon**.
 * **Solo sul primo ordine**: non vale per chi ha già ordinato.
 * **Non sui prodotti già scontati**: lascia stare i prodotti con una campagna o
   un'offerta.
+* **Cumulabile con altri coupon**: spento (di serie) il coupon sta da solo nel
+  carrello; acceso si somma agli altri coupon cumulabili. Vedi sotto.
 * **Dove vale**: Sito, Ufficio, Cassa. Compaiono solo i canali che hai acceso in
   *Funzionalità → Canali di vendita* (vedi [Canali di vendita](canali-di-vendita.md)):
   con un solo canale acceso la sezione non c'è e il coupon vale per quello.
@@ -47,6 +49,40 @@ sui piani, con una **durata**: sul primo addebito, per un certo numero di mesi
 o per sempre. Solo sconti in percentuale o in importo: la spedizione gratuita
 non vale per gli abbonamenti. Sugli ordini la durata non conta. Vedi
 [Abbonamenti](vendite-abbonamenti.md).
+
+## Più coupon insieme
+
+Un cliente può usare più coupon nello stesso carrello solo se **tutti** sono
+cumulabili. Se aggiunge un coupon non cumulabile, o ne ha già uno non
+cumulabile, il nuovo **prende il posto** di quelli che c'erano. Lo stesso
+coupon non si applica due volte.
+
+L'ordine del calcolo è sempre lo stesso: **prima le percentuali**, ognuna sul
+prezzo già scontato dalle altre, **poi gli importi fissi**. Esempio, carrello
+da 100 € con un 10 % e un coupon da 5 €: 10 € di sconto, poi 5 € sui 90 €
+restanti, 15 € in tutto. Lo sconto non supera mai il prezzo della merce.
+
+Con le campagne e le offerte decide **Non sui prodotti già scontati** di ogni
+coupon.
+
+## Codici in blocco
+
+Per dare a ogni cliente un codice diverso (un volantino, una newsletter, un
+premio) apri la scheda del coupon e scegli **Genera codici**: scrivi un
+**prefisso** (facoltativo, solo lettere, cifre, `-` e `_`) e **quanti** codici
+vuoi, fino a 10.000. Nascono codici come `NATALE-K7Q2MZ9X`, tutti diversi, senza
+lettere che si confondono (niente 0/O o 1/I).
+
+* Ogni codice generato vale **una volta sola**.
+* Le regole sono quelle del coupon: sconto, date, spesa minima, prodotti. Gli
+  utilizzi massimi contano tutti i codici insieme.
+* Da quando generi i codici, **il codice del coupon non vale più**: valgono
+  solo quelli generati. Puoi generarne altri quando vuoi.
+* Lo stesso cliente non può usare due codici dello stesso blocco nello stesso
+  ordine.
+* **Scarica i codici** dà un file CSV (si apre con Excel) con codice, se è
+  stato usato, numero d'ordine e data. La scheda mostra «X usati su N».
+* Non vale per i coupon degli abbonamenti.
 
 ## Quali prodotti e quali clienti
 

@@ -53,7 +53,7 @@ final class PlanLinks
         $links = [];
 
         foreach ($rows as $row) {
-            $links[(int) $row['plan_id']][] = (int) $row['parent_plan_id'];
+            $links[(int) $row['product_model_id']][] = (int) $row['parent_product_model_id'];
         }
 
         return $links;
@@ -104,12 +104,12 @@ final class PlanLinks
             return;
         }
 
-        $rows = PlanLink::find(['plan_id' => $planId]);
+        $rows = PlanLink::find(['product_model_id' => $planId]);
         $rows = is_array($rows) ? (isset($rows['id']) ? [$rows] : array_filter($rows, 'is_array')) : [];
         $kept = [];
 
         foreach ($rows as $row) {
-            $parent = (int) $row['parent_plan_id'];
+            $parent = (int) $row['parent_product_model_id'];
 
             if (in_array($parent, $parents, true) && !in_array($parent, $kept, true)) {
                 $kept[] = $parent;
@@ -120,7 +120,7 @@ final class PlanLinks
         }
 
         foreach (array_diff($parents, $kept) as $parent) {
-            sqlInsert(PlanLink::$table, ['plan_id' => $planId, 'parent_plan_id' => $parent]);
+            sqlInsert(PlanLink::$table, ['product_model_id' => $planId, 'parent_product_model_id' => $parent]);
         }
     }
 

@@ -19,11 +19,13 @@ use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
 use Wonder\Plugin\Gestionale\Support\Positions;
 use Wonder\Sql\Transaction;
 
@@ -447,8 +449,8 @@ class CustomizationResource extends GestionaleResource
         $id = (int) ($oldValues['id'] ?? 0);
         static::assertScopes(
             $values,
-            $id > 0 ? static::linkCount($id, 'product_model_id') : 0,
-            $id > 0 ? static::linkCount($id, 'plan_id') : 0
+            $id > 0 ? static::linkCount($id, false) : 0,
+            $id > 0 ? static::linkCount($id, true) : 0
         );
 
         if ($action === 'store') {
@@ -552,13 +554,20 @@ class CustomizationResource extends GestionaleResource
         return count(static::rowsOf(CustomizationLink::class, ['customization_id' => $id]));
     }
 
-    /** Quanti collegamenti vivi ha verso gli articoli (`product_model_id`) o i piani (`plan_id`). */
-    public static function linkCount(int $id, string $column): int
+    /** Quanti collegamenti vivi ha verso gli articoli o, con `$subscriptions`, verso gli abbonamenti. */
+    public static function linkCount(int $id, bool $subscriptions): int
     {
-        return count(array_filter(
-            static::rowsOf(CustomizationLink::class, ['customization_id' => $id]),
-            static fn (array $row): bool => (int) ($row[$column] ?? 0) > 0
-        ));
+        $count = 0;
+
+        foreach (static::rowsOf(CustomizationLink::class, ['customization_id' => $id]) as $row) {
+            $model = (int) ($row['product_model_id'] ?? 0) > 0 ? ProductModel::findById((int) $row['product_model_id']) : null;
+
+            if (is_array($model) && ((string) ($model['type'] ?? '') === SubscriptionModels::TYPE) === $subscriptions) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     /** Una personalizzazione su qualche articolo o piano si disattiva, non si elimina. */

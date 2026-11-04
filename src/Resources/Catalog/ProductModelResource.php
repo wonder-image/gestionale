@@ -52,7 +52,6 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CategoryResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\PackageResource;
-use Wonder\Plugin\Gestionale\Resources\Tax\TaxCategoryResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
@@ -79,8 +78,10 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Labels\LabelDialog;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\App\Dependencies;
 use Wonder\App\LegacyGlobals;
 use Wonder\App\Support\Repeater;
 use Wonder\App\Table;
@@ -101,6 +102,11 @@ use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Positions;
 use Wonder\Sql\Transaction;
 use Wonder\Support\Html\Entity;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionProductForm;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\PlanLinks;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 
 /**
  * "Modelli": la scheda dell'articolo, e l'unico posto dove si lavora.
@@ -384,8 +390,17 @@ class ProductModelResource extends GestionaleResource
                 ->label('');
         }
 
+        // Il tipo lo sceglie il bottone dell'elenco, non un campo: la scheda
+        // lo porta con sé nascosto, e dopo la nascita non si scambia più.
+        $fields[] = FormField::key('type')->hidden()->value(static::sheetType((int) ($modelId ?? 0)));
+
         if (Gestionale::feature('bundles')) {
             array_push($fields, ...static::bundleFields((int) ($modelId ?? 0)));
+        }
+
+        // Prezzi ricorrenti, metadata e «Si lega a» di un abbonamento (G10).
+        if (static::sheetIsSubscription((int) ($modelId ?? 0))) {
+            array_push($fields, ...SubscriptionProductForm::fields((int) ($modelId ?? 0)));
         }
 
         array_push($fields, ...static::relatedFields((int) ($modelId ?? 0)));
@@ -409,14 +424,7 @@ class ProductModelResource extends GestionaleResource
     {
         $prodotti = ['' => '—'] + static::bundleOptionProducts($modelId);
 
-        // Il tipo lo sceglie il bottone dell'elenco, non un campo: la scheda
-        // lo porta con sé nascosto, e dopo la nascita non si scambia più.
-        $tipo = FormField::key('type')
-            ->hidden()
-            ->value(static::sheetIsBundle($modelId) ? 'bundle' : 'simple');
-
         return [
-            $tipo,
             FormField::key('bundle_mode')
                 ->select(static::bundleModes())
                 ->value('fixed')
@@ -490,12 +498,50 @@ class ProductModelResource extends GestionaleResource
     }
 
     /**
+     * La colonna larga di un abbonamento (G10): nome e descrizioni, i prezzi
+     * ricorrenti, i metadata e le personalizzazioni. Niente prezzo unico,
+     * giacenza, varianti o fornitori.
+     *
+     * @return list<object>
+     */
+    protected static function subscriptionMainColumn(int $modelId): array
+    {
+        $cards = [
+            (new Card)->components([
+                SectionTitle::make('Abbonamento')->tooltip(SubscriptionProductForm::MAIN_TOOLTIP)->columnSpan(12),
+                static::getInput('name')->columnSpan(9),
+                static::getInput('type'),
+                static::getInput('visible')->columnSpan(3),
+                static::getInput('short_description')->columnSpan(12),
+                static::getInput('description')->columnSpan(12),
+                FormField::key('has_variants')->hidden()->value('false'),
+                static::getInput('parent_plans')->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+            (new Card)->components([
+                SectionTitle::make('Prezzi')->tooltip(SubscriptionProductForm::PRICES_TOOLTIP)->columnSpan(12),
+                static::getInput('prices')->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+            static::foldable('Metadata', [static::getInput('features')->columnSpan(12)], SubscriptionProductForm::FEATURES_TOOLTIP),
+        ];
+
+        if (Gestionale::feature('customizations')) {
+            $cards[] = static::customizationsCard(true);
+        }
+
+        return $cards;
+    }
+
+    /**
      * La colonna larga: quello che si compone.
      *
      * @return list<object>
      */
     protected static function mainColumn(int $modelId): array
     {
+        if (static::sheetIsSubscription($modelId)) {
+            return static::subscriptionMainColumn($modelId);
+        }
+
         $conVarianti = static::hasVariants($modelId);
         // Un articolo che ha già più opzioni non torna indietro da un
         // interruttore: quelle righe hanno movimenti, prenotazioni e foto. Si
@@ -554,7 +600,7 @@ class ProductModelResource extends GestionaleResource
                             .($senzaOpzioni ? ' Per vendere colori o taglie serve una variante con dei valori: si crea in Catalogo → Varianti.' : ''))
                     ->columnSpan(12),
                 static::getInput('name')->columnSpan(9),
-                ...(Gestionale::feature('bundles') ? [static::getInput('type')] : []),
+                static::getInput('type'),
                 static::getInput('visible')->columnSpan(3),
                 // Niente titolo «Descrizione»: le etichette dei due campi lo
                 // dicono già.
@@ -1021,6 +1067,7 @@ HTML
      */
     protected static function sideColumn(int $modelId): array
     {
+        $abbonamento = static::sheetIsSubscription($modelId);
         $foto = [
             SectionTitle::make('Foto e video')
                 ->tooltip('Le foto e i video caricati qui compaiono in tutte le varianti dell\'articolo; quelli sotto un valore solo nelle varianti di quel valore.')
@@ -1030,6 +1077,18 @@ HTML
         foreach (array_keys(static::imageTargets($modelId)) as $variantId) {
             $foto[] = static::getInput('images_'.$variantId)->columnSpan(12);
         }
+
+        // Un abbonamento non si spedisce, non si rende e non ha lotti: resta
+        // solo «Acquistabile online».
+        $vendita = $abbonamento
+            ? [static::getInput('visible_online')->columnSpan(12)]
+            : [
+                static::getInput('visible_online')->columnSpan(12),
+                ...static::returnInputs(),
+                ...static::shippingInputs(),
+                ...static::backorderInputs(),
+                ...static::batchInputs(),
+            ];
 
         return [
             (new Card)->components($foto)->columns(12)->columnSpan(12),
@@ -1041,11 +1100,7 @@ HTML
                 SectionTitle::make('Come si vende')
                     ->tooltip('Una bozza non si vede da nessuna parte, nemmeno se è acquistabile online: lo stato si sceglie accanto al nome.'.(Gestionale::feature('shipping') ? ' La scatola in cui parte si sceglie sotto «Da spedire»; le misure del prodotto, in fondo, servono a sapere se ci sta.' : ''))
                     ->columnSpan(12),
-                static::getInput('visible_online')->columnSpan(12),
-                ...static::returnInputs(),
-                ...static::shippingInputs(),
-                ...static::backorderInputs(),
-                ...static::batchInputs(),
+                ...$vendita,
             ])->columns(12)->columnSpan(12),
 
             // Un riquadro solo per il tipo fiscale: decide l'IVA, e in mezzo
@@ -1075,7 +1130,7 @@ HTML
             // portandosi via anche l'unità di misura, che è obbligatoria. In
             // un terzo di schermo due per riga: quattro affiancate non si
             // leggono. Senza «Misure» il riquadro non c'è.
-            ...(Measures::active() ? [(new Card)->components([
+            ...(Measures::active() && !$abbonamento ? [(new Card)->components([
                 SectionTitle::make('Misure')
                     ->tooltip('Le dimensioni vere del prodotto, quelle che servono a sapere se sta in una scatola. Una variante con misure sue le usa al posto di queste.')
                     ->columnSpan(12),
@@ -1114,9 +1169,9 @@ HTML
 
         $colonne = [];
 
-        // Prodotto o multiprodotto: senza i multiprodotti sarebbe sempre la
-        // stessa icona.
-        if (Gestionale::feature('bundles')) {
+        // Prodotto, multiprodotto o abbonamento: con un tipo solo sarebbe
+        // sempre la stessa icona.
+        if (Gestionale::feature('bundles') || Gestionale::feature('subscriptions')) {
             $colonne[] = TableColumn::key('type')
                 ->text()
                 ->size('little')
@@ -1135,7 +1190,9 @@ HTML
                 ->link('view'),
             TableColumn::key('price')
                 ->text()
-                ->formatter(static fn (array $row): string => static::priceCell((int) ($row['id'] ?? 0))),
+                ->formatter(static fn (array $row): string => ($row['type'] ?? '') === SubscriptionModels::TYPE
+                    ? static::escape(SubscriptionProductForm::pricesSummary((int) ($row['id'] ?? 0)))
+                    : static::priceCell((int) ($row['id'] ?? 0))),
             TableColumn::key('available')
                 ->text()
                 ->size('little')
@@ -1143,7 +1200,7 @@ HTML
             TableColumn::key('versions')
                 ->text()
                 ->size('little')
-                ->formatter(static fn (array $row): string => (string) static::productCount((int) ($row['id'] ?? 0))),
+                ->formatter(static fn (array $row): string => ($row['type'] ?? '') === SubscriptionModels::TYPE ? '' : (string) static::productCount((int) ($row['id'] ?? 0))),
             // Le stesse due parole della scheda e del modulo: un articolo o sta
             // nel negozio o è ancora in lavorazione.
             TableColumn::key('visible')
@@ -1159,9 +1216,11 @@ HTML
     /** L'icona del tipo, con la parola nel tooltip. */
     public static function typeCell(array $row): string
     {
-        [$icona, $parola] = ($row['type'] ?? 'simple') === 'bundle'
-            ? ['bi-boxes', 'Multiprodotto']
-            : ['bi-box', 'Prodotto'];
+        [$icona, $parola] = match ($row['type'] ?? 'simple') {
+            'bundle' => ['bi-boxes', 'Multiprodotto'],
+            SubscriptionModels::TYPE => ['bi-arrow-repeat', 'Abbonamento'],
+            default => ['bi-box', 'Prodotto'],
+        };
 
         return '<i class="bi '.$icona.' text-muted" data-bs-toggle="tooltip" data-bs-title="'.static::escape($parola).'"></i>';
     }
@@ -1188,6 +1247,11 @@ HTML
     /** Il badge della disponibilità dell'articolo. */
     public static function availableCell(array $row): string
     {
+        // Un abbonamento non ha giacenza.
+        if (($row['type'] ?? '') === SubscriptionModels::TYPE) {
+            return '';
+        }
+
         $stock = static::stockOf((int) ($row['id'] ?? 0), ($row['type'] ?? 'simple') === 'bundle');
 
         return StockBadge::html($stock['available'], $stock['low'], $stock['unlimited']);
@@ -1296,9 +1360,9 @@ HTML
     }
 
     /**
-     * Con i multiprodotti l'elenco ha due bottoni al posto dell'«Aggiungi» di
-     * serie: la scheda nasce di un tipo, e il tipo viaggia nell'indirizzo
-     * (`?type=bundle`) invece di stare in un campo da scegliere.
+     * Con multiprodotti o abbonamenti l'«Aggiungi» di serie diventa un
+     * bottone diviso: la scheda nasce di un tipo, e il tipo viaggia
+     * nell'indirizzo (`?type=bundle`) invece di stare in un campo da scegliere.
      */
     public static function tableLayoutSchema(): TableLayoutSchema
     {
@@ -1312,19 +1376,69 @@ HTML
             ->filterQuery('Marchio', 'marchio', static::brandFilterOptions(), static fn (array $values): string => static::brandCondition($values))
             ->filterQuery('Categoria', 'categoria', static::categoryFilterOptions(), static fn (array $values): string => static::categoryCondition($values));
 
-        if (!Gestionale::feature('bundles')) {
+        $multi = Gestionale::feature('bundles');
+        $abbonamenti = Gestionale::feature('subscriptions');
+
+        if (!$multi && !$abbonamenti) {
             return $layout;
         }
 
-        $nuovo = static::createUrlFor();
+        $tipi = ['' => 'Tutti', 'simple' => 'Prodotto'];
+
+        if ($multi) {
+            $tipi['bundle'] = 'Multiprodotto';
+        }
+
+        if ($abbonamenti) {
+            $tipi[SubscriptionModels::TYPE] = 'Abbonamento';
+        }
 
         return $layout
-            ->filterCustom('Tipo', 'type', ['' => 'Tutti', 'simple' => 'Prodotto', 'bundle' => 'Multiprodotto'])
+            ->filterCustom('Tipo', 'type', $tipi)
             ->hideButtonAdd()
-            ->buttonsCustom([
-                Button::to($nuovo, '+ Aggiungi Prodotto')->variant('dark'),
-                Button::to($nuovo.'?type=bundle', '+ Aggiungi Multiprodotto')->variant('dark'),
-            ]);
+            ->buttonCustomHtml(static::addButtonHtml($tipi, static::listedType($tipi)));
+    }
+
+    /**
+     * Il tipo dell'elenco filtrato (le voci «Multiprodotti» e «Abbonamenti»
+     * del menu): «Aggiungi» crea quello. Senza filtro, un prodotto.
+     *
+     * @param array<string, string> $tipi
+     */
+    protected static function listedType(array $tipi): string
+    {
+        $tipo = (string) ($_GET[ProductModel::$table.'__type'] ?? '');
+
+        return $tipo !== '' && isset($tipi[$tipo]) ? $tipo : 'simple';
+    }
+
+    /**
+     * Un bottone diviso: «+ Aggiungi» crea il tipo dell'elenco, la freccia
+     * apre i tipi attivi. Il tipo viaggia nell'indirizzo (`?type=bundle`).
+     *
+     * @param array<string, string> $tipi
+     */
+    public static function addButtonHtml(array $tipi, string $predefinito = 'simple'): string
+    {
+        $nuovo = static::createUrlFor();
+        $url = static fn (string $tipo): string => $tipo === 'simple' ? $nuovo : $nuovo.'?type='.rawurlencode($tipo);
+        $voci = '';
+
+        foreach ($tipi as $tipo => $etichetta) {
+            if ($tipo === '') {
+                continue;
+            }
+
+            $voci .= '<li><a class="dropdown-item" href="'.htmlspecialchars($url((string) $tipo), ENT_QUOTES).'">'
+                .htmlspecialchars($etichetta, ENT_QUOTES).'</a></li>';
+        }
+
+        return '<div class="btn-group">'
+            .'<a class="btn btn-dark btn-sm" href="'.htmlspecialchars($url($predefinito), ENT_QUOTES).'">+ Aggiungi</a>'
+            .'<button type="button" class="btn btn-dark btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">'
+            .'<span class="visually-hidden">Scegli il tipo</span></button>'
+            .'<ul class="dropdown-menu dropdown-menu-end">'.$voci.'</ul>'
+            .'</div>';
     }
 
     /** @return array<string, string> */
@@ -1428,11 +1542,22 @@ HTML
                 'icon' => 'bi-pencil',
                 'class' => 'btn-warning btn-sm',
                 'href' => static::editUrlFor((int) ($item['id'] ?? 0)),
-            ]])
+            ], ...LabelDialog::actions()])
             // Appena creato si atterra sulla sua scheda: la creazione chiede
             // quattro cose e il resto si scrive lì, non ritrovando la riga in
             // un elenco. Serve `wonder-image/app` con redirectUrl($action,$id).
             ->redirect('store', 'edit');
+    }
+
+    public static function registerBackendRoutes(string $rootApp, string $slug): void
+    {
+        LabelDialog::route($slug, 'model', 'catalogo');
+    }
+
+    /** La finestra delle etichette di tutte le varianti dell'articolo (#116). */
+    public static function labelsModal(int $modelId): string
+    {
+        return LabelDialog::modal(LabelDialog::url(static::slug(), static::path(), $modelId));
     }
 
     /** L'indirizzo della modifica di questo articolo. */
@@ -1478,6 +1603,12 @@ HTML
      */
     protected static function showMainColumn(int $modelId, array $item): array
     {
+        // Un abbonamento non ha SKU, varianti né giacenza: si legge coi suoi
+        // prezzi, i metadata e a cosa si lega.
+        if (($item['type'] ?? '') === SubscriptionModels::TYPE) {
+            return static::showSubscriptionColumn($modelId, $item);
+        }
+
         $nome = trim((string) ($item['name'] ?? ''));
         $opzioni = static::productCount($modelId);
         $badge = static::showBundleBadge($modelId);
@@ -1507,6 +1638,137 @@ HTML
                 RichText::make(static::optionsTable($modelId))->tag('div')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];
+    }
+
+    /**
+     * La colonna larga in lettura di un abbonamento: cos'è, i prezzi con cui
+     * si compra, i metadata. Niente SKU né varianti: non ne ha.
+     *
+     * @return list<object>
+     */
+    protected static function showSubscriptionColumn(int $modelId, array $item): array
+    {
+        $nome = trim((string) ($item['name'] ?? ''));
+        $badge = Badge::make('Abbonamento')->variant('light')->inline()->render('bootstrap');
+
+        try {
+            $madri = PlanLinks::parentsOf($modelId);
+        } catch (Throwable) {
+            $madri = [];
+        }
+
+        $nomiMadri = [];
+
+        foreach ($madri as $madre) {
+            $riga = ProductModel::findById($madre);
+            $nomiMadri[] = is_array($riga) ? trim((string) ($riga['name'] ?? '')) : '';
+        }
+
+        $cards = [
+            (new Card)->components([
+                SectionTitle::make('Abbonamento')->columnSpan(12),
+                RichText::make('<h5 class="mb-0">'.static::escape($nome !== '' ? $nome : 'Senza nome').' '.$badge.'</h5>')
+                    ->tag('div')
+                    ->columnSpan(12),
+                static::showRow('Si lega a', implode(', ', array_filter($nomiMadri)))->columnSpan(12),
+                static::showRow('Descrizione breve', (string) ($item['short_description'] ?? ''))->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+            (new Card)->components([
+                SectionTitle::make('Prezzi')
+                    ->tooltip('I modi in cui si compra l\'abbonamento. Si cambiano dalla modifica.')
+                    ->columnSpan(12),
+                RichText::make(static::subscriptionPricesTable($modelId))->tag('div')->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+        ];
+
+        $metadata = static::subscriptionFeaturesList($modelId);
+
+        if ($metadata !== '') {
+            $cards[] = (new Card)->components([
+                SectionTitle::make('Metadata')
+                    ->tooltip(SubscriptionProductForm::FEATURES_TOOLTIP)
+                    ->columnSpan(12),
+                RichText::make($metadata)->tag('div')->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        return $cards;
+    }
+
+    /** La tabella dei prezzi di un abbonamento, spenti compresi. */
+    public static function subscriptionPricesTable(int $modelId): string
+    {
+        $prezzi = static::rowsOf(PlanPrice::class, ['product_model_id' => $modelId], 'position');
+
+        if ($prezzi === []) {
+            return '<p class="text-muted mb-0">Nessun prezzo: si aggiungono dalla modifica.</p>';
+        }
+
+        $addebiti = SubscriptionProductForm::termOptions();
+        $righe = '';
+
+        foreach ($prezzi as $prezzo) {
+            $pieno = (float) ($prezzo['price'] ?? 0);
+            $sconto = (float) ($prezzo['sale_price'] ?? 0);
+            $importo = $sconto > 0.0 && $sconto < $pieno
+                ? '<del class="text-muted">'.static::escape(static::euro($pieno)).'</del> '.static::escape(static::euro($sconto))
+                : static::escape(static::euro($pieno));
+
+            // La ricorrenza si ricava dall'addebito: un valore fuori elenco,
+            // salvato prima, si legge in mesi.
+            $mesi = max(1, (int) ($prezzo['term_months'] ?? 1));
+            $addebito = $addebiti[(string) $mesi] ?? 'Ogni '.$mesi.' mesi';
+
+            $note = [];
+            $unaTantum = (float) ($prezzo['one_time_price'] ?? 0);
+            $vincolo = (int) ($prezzo['commitment_months'] ?? 0);
+            $prova = (int) ($prezzo['trial_days'] ?? 0);
+
+            if ($unaTantum > 0) {
+                $note[] = '+ '.static::euro($unaTantum).' una tantum';
+            }
+
+            if ($vincolo > 0) {
+                $note[] = 'vincolo '.$vincolo.' '.($vincolo === 1 ? 'mese' : 'mesi');
+            }
+
+            if ($prova > 0) {
+                $note[] = $prova.' '.($prova === 1 ? 'giorno' : 'giorni').' di prova';
+            }
+
+            $attivo = ($prezzo['active'] ?? 'true') === 'true';
+
+            $righe .= '<tr>'
+                .'<td>'.static::escapeStored((string) ($prezzo['name'] ?? '')).'</td>'
+                .'<td class="text-nowrap">'.$importo.'</td>'
+                .'<td>'.static::escape($addebito).'</td>'
+                .'<td class="text-muted small">'.static::escape(implode(' · ', $note)).'</td>'
+                .'<td class="text-end">'.Badge::make($attivo ? 'Attivo' : 'Spento')->variant($attivo ? 'success' : 'secondary')->inline()->render('bootstrap').'</td>'
+                .'</tr>';
+        }
+
+        return '<div class="table-responsive"><table class="table table-sm align-middle mb-0">'
+            .'<thead><tr><th>Nome</th><th>Prezzo</th><th>Addebito</th><th>Condizioni</th><th class="text-end">Stato</th></tr></thead>'
+            .'<tbody>'.$righe.'</tbody></table></div>';
+    }
+
+    /** I metadata di un abbonamento, chiave e valore; vuoto se non ne ha. */
+    public static function subscriptionFeaturesList(int $modelId): string
+    {
+        $voci = '';
+
+        foreach (static::rowsOf(PlanFeature::class, ['product_model_id' => $modelId], 'position') as $riga) {
+            $chiave = trim((string) ($riga['feature_key'] ?? ''));
+
+            if ($chiave === '') {
+                continue;
+            }
+
+            $voci .= '<dt class="col-sm-4 fw-normal text-muted"><code>'.static::escape($chiave).'</code></dt>'
+                .'<dd class="col-sm-8 mb-1">'.static::escape(trim((string) ($riga['feature_value'] ?? ''))).'</dd>';
+        }
+
+        return $voci === '' ? '' : '<dl class="row mb-0">'.$voci.'</dl>';
     }
 
     /**
@@ -1642,7 +1904,6 @@ HTML
      */
     protected static function showSideColumn(int $modelId, array $item): array
     {
-        $foto = static::firstImage($modelId);
         $marchio = (string) (static::brandOptions()[(string) ($item['brand_id'] ?? '')] ?? '');
         $principale = static::mainCategoryId($modelId);
         $altre = array_values(array_filter(
@@ -1653,9 +1914,7 @@ HTML
         return [
             (new Card)->components([
                 SectionTitle::make('Foto e video')->columnSpan(12),
-                RichText::make($foto !== ''
-                    ? '<img src="'.static::escape($foto).'" alt="'.static::escape((string) ($item['name'] ?? '')).'" class="img-fluid rounded">'
-                    : '<p class="text-muted mb-0">Nessuna foto: si caricano dalla modifica.</p>')
+                RichText::make(static::showGallery($modelId, (string) ($item['name'] ?? '')))
                     ->tag('div')
                     ->columnSpan(12),
             ])->columns(12)->columnSpan(12),
@@ -1675,6 +1934,86 @@ HTML
                 static::showRow('Tag', static::tagNames($modelId))->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];
+    }
+
+    /** Le foto dell'articolo in ordine, varianti comprese. @return list<string> */
+    public static function imageUrls(int $modelId): array
+    {
+        $urls = [];
+
+        foreach (static::rowsOf(ProductImage::class, ['product_model_id' => $modelId], 'position') as $row) {
+            $url = ProductImages::url($row);
+
+            if ($url !== '') {
+                $urls[] = $url;
+            }
+        }
+
+        return $urls;
+    }
+
+    /**
+     * La galleria della scheda in lettura, tutta quadrata: la prima foto
+     * grande e fino a quattro piccole a destra, due per due. Con più di
+     * cinque foto l'ultima piccola si scurisce e dice «+N», le foto che non
+     * si vedono. Un click apre tutte le foto, nascoste comprese, a schermo
+     * intero.
+     */
+    public static function showGallery(int $modelId, string $nome): string
+    {
+        $urls = static::imageUrls($modelId);
+
+        return static::galleryHtml($urls, $nome, 'wi-product-'.$modelId);
+    }
+
+    /** L'HTML della galleria da una lista di indirizzi. @param list<string> $urls */
+    public static function galleryHtml(array $urls, string $nome, string $gruppo): string
+    {
+        if ($urls === []) {
+            return '<p class="text-muted mb-0">Nessuna foto: si caricano dalla modifica.</p>';
+        }
+
+        Dependencies::fancyapps();
+
+        $totale = count($urls);
+        $nascoste = max(0, $totale - 5);
+        $alt = static::escape($nome);
+        $tessere = '';
+
+        foreach ($urls as $i => $url) {
+            $href = static::escape($url);
+            $didascalia = static::escape(($nome !== '' ? $nome.' — ' : '').'foto '.($i + 1).' di '.$totale);
+
+            if ($i >= 5) {
+                $tessere .= '<a href="'.$href.'" data-fancybox="'.$gruppo.'" data-caption="'.$didascalia.'" hidden tabindex="-1" aria-hidden="true"></a>';
+
+                continue;
+            }
+
+            $grande = $i === 0;
+            $stile = $grande
+                ? 'grid-column:span '.($totale === 1 ? 4 : 2).';grid-row:span 2;'
+                : 'aspect-ratio:1/1;';
+            $velo = $i === 4 && $nascoste > 0
+                ? '<span class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-white fw-semibold fs-5" style="background:rgba(0,0,0,.6);">+'.$nascoste.'</span>'
+                : '';
+            $etichetta = $velo !== '' ? 'Apri le altre '.$nascoste.' foto' : 'Ingrandisci la foto '.($i + 1);
+
+            $tessere .= '<a href="'.$href.'" data-fancybox="'.$gruppo.'" data-caption="'.$didascalia.'"'
+                .' class="position-relative d-block rounded overflow-hidden bg-body-tertiary" style="'.$stile.($grande ? 'aspect-ratio:1/1;' : '').'"'
+                .' aria-label="'.static::escape($etichetta).'">'
+                .'<img src="'.$href.'" alt="'.($grande ? $alt : '').'" loading="lazy" class="w-100 h-100" style="object-fit:cover;">'
+                .$velo
+                .'</a>';
+        }
+
+        $selettore = json_encode('[data-fancybox="'.$gruppo.'"]', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+
+        return '<div class="wi-product-gallery" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem;">'.$tessere.'</div>'
+            .'<script>(function(){let fatto=false;const lega=function(){'
+            .'if(!fatto&&typeof Fancybox!=="undefined"){Fancybox.bind('.$selettore.');fatto=true;}'
+            .'};lega();document.addEventListener("DOMContentLoaded",lega,{once:true});'
+            .'window.addEventListener("loaded",lega,{once:true});window.addEventListener("load",lega,{once:true});})();</script>';
     }
 
     /**
@@ -1865,11 +2204,44 @@ HTML
 
     public static function navigationSchema(): NavigationSchema
     {
-        return NavigationSchema::for(static::class)
+        $schema = NavigationSchema::for(static::class)
             ->inSection('catalogo')
             ->title('Prodotti')
             ->order(38)
             ->access(Gestionale::area('catalogo'));
+
+        // Con le voci «Multiprodotti» o «Abbonamenti» accanto, «Prodotti»
+        // mostra solo i prodotti semplici.
+        if (Gestionale::feature('bundles') || Gestionale::feature('subscriptions')) {
+            $schema->file('?'.ProductModel::$table.'__type=simple');
+        }
+
+        return $schema;
+    }
+
+    /**
+     * L'elenco dei prodotti, filtrato per tipo se ne passi uno: lo aprono le
+     * voci di menu «Multiprodotti» e «Abbonamenti». Assoluto quando il sito
+     * ha `APP_URL`, come vuole il menu per un link fuori dalla sua cartella.
+     */
+    public static function typeListUrl(string $type = ''): string
+    {
+        $url = '/backend/'.static::path().'/';
+
+        if (function_exists('__r')) {
+            try {
+                $named = (string) __r('backend.resource.'.static::slug().'.list');
+                $url = $named !== '' ? $named : $url;
+            } catch (Throwable) {
+                // Rotta non registrata (test, comandi): resta il percorso.
+            }
+        }
+
+        if ($type === '') {
+            return $url;
+        }
+
+        return $url.(str_contains($url, '?') ? '&' : '?').ProductModel::$table.'__type='.rawurlencode($type);
     }
 
     /**
@@ -1892,6 +2264,15 @@ HTML
             $values['position'] = Positions::next(ProductModel::$table);
         } else {
             unset($values['slug'], $values['position']);
+        }
+
+        // Il tipo abbonamento si sceglie alla creazione, come il multiprodotto.
+        $abbonamento = $action === 'store'
+            ? Gestionale::feature('subscriptions') && ($values['type'] ?? '') === SubscriptionModels::TYPE
+            : ($oldValues['type'] ?? '') === SubscriptionModels::TYPE;
+
+        if ($abbonamento) {
+            return static::subscriptionValues($id, $values, $action);
         }
 
         static::assertBatchesOff($id, $values);
@@ -2002,6 +2383,57 @@ HTML
         // fornitore che la pagina non propone o un costo che non è un numero
         // si fermano qui, non a metà del salvataggio.
         static::assertSupplierRows($id, (array) $_POST, $values['has_variants'] === 'true');
+
+        if (Gestionale::feature('customizations')) {
+            static::assertCustomizationRows($id, (array) ($_POST['customizations'] ?? []));
+        }
+
+        return static::withoutExtras($values);
+    }
+
+    /**
+     * I valori di un abbonamento: niente varianti, spedizione, reso, lotti o
+     * magazzino; prezzi, metadata e «Si lega a» si controllano prima di
+     * scrivere (G10).
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    protected static function subscriptionValues(int $id, array $values, string $action): array
+    {
+        if ($action === 'store') {
+            $values['type'] = SubscriptionModels::TYPE;
+        } else {
+            unset($values['type']);
+        }
+
+        $sku = trim((string) ($values['sku'] ?? ''));
+
+        if ($sku !== '' && !Sku::isFree(ProductModel::class, $sku, $id > 0 ? $id : null)) {
+            throw UserError::make('product.sku_taken');
+        }
+
+        $values['has_variants'] = 'false';
+        $values['requires_shipping'] = 'false';
+        $values['returnable'] = 'false';
+        $values['track_batches'] = 'false';
+        unset($values['bundle_mode'], $values['show_components_value'], $values['package_id'], $values['parent_plans']);
+
+        if (array_key_exists('tax_category_id', $values) && (int) $values['tax_category_id'] <= 0) {
+            $values['tax_category_id'] = (string) (TaxCategories::defaultId() ?: '');
+        }
+
+        if ($action === 'store') {
+            if (!Gestionale::feature('tax_categories')) {
+                $values['tax_category_id'] = (string) (TaxCategories::defaultId() ?: '');
+            }
+
+            if (trim((string) ($values['unit'] ?? '')) === '') {
+                $values['unit'] = Measures::DEFAULT_UNIT;
+            }
+        }
+
+        SubscriptionProductForm::assertRequest($id, (array) $_POST, $action);
 
         if (Gestionale::feature('customizations')) {
             static::assertCustomizationRows($id, (array) ($_POST['customizations'] ?? []));
@@ -3088,12 +3520,22 @@ HTML
 
         $sku = (string) ($values['sku'] ?? '');
 
-        Skeleton::forModel($id, (string) ($values['name'] ?? ''), $sku);
+        // Un abbonamento non ha varianti né prodotti: solo i suoi legami.
+        if (static::isSubscriptionModel($id)) {
+            SubscriptionProductForm::syncLinks($id, (array) $_POST);
+        } else {
+            Skeleton::forModel($id, (string) ($values['name'] ?? ''), $sku);
+        }
+
         static::saveExtras($id, (array) $_POST, $sku, (array) $_FILES, true);
     }
 
     public static function afterUpdate(int|string $id, object $result, array $values = []): void
     {
+        if (static::isSubscriptionModel((int) $id)) {
+            SubscriptionProductForm::syncLinks((int) $id, (array) $_POST);
+        }
+
         static::saveExtras((int) $id, (array) $_POST, '', (array) $_FILES);
     }
 
@@ -3114,6 +3556,39 @@ HTML
         }
 
         return (string) ($_GET['type'] ?? $_POST['type'] ?? '') === 'bundle';
+    }
+
+    /**
+     * Questa scheda è di un abbonamento (G10)? Come il multiprodotto: la riga,
+     * o il bottone dell'elenco (`?type=subscription`). Senza «Abbonamenti» no.
+     */
+    public static function sheetIsSubscription(int $modelId = 0): bool
+    {
+        if (!Gestionale::feature('subscriptions')) {
+            return false;
+        }
+
+        if ($modelId > 0) {
+            return static::isSubscriptionModel($modelId);
+        }
+
+        return (string) ($_GET['type'] ?? $_POST['type'] ?? '') === SubscriptionModels::TYPE;
+    }
+
+    /** Questo articolo è un abbonamento? */
+    public static function isSubscriptionModel(int $modelId): bool
+    {
+        return SubscriptionModels::find($modelId) !== null;
+    }
+
+    /** Il tipo della scheda: `subscription`, `bundle` o `simple`. */
+    public static function sheetType(int $modelId = 0): string
+    {
+        return match (true) {
+            static::sheetIsSubscription($modelId) => SubscriptionModels::TYPE,
+            static::sheetIsBundle($modelId) => 'bundle',
+            default => 'simple',
+        };
     }
 
     /** Questo articolo è un multiprodotto? */
@@ -3545,6 +4020,14 @@ HTML
         Transaction::run(static function () use ($modelId, $post, $fallbackSku, $files, $appenaNato): void {
             static::saveCategories($modelId, $post);
             static::saveTags($modelId, $post);
+            // Un abbonamento: categorie, tag e foto. I prezzi li scrive il
+            // repeater.
+            if (static::isSubscriptionModel($modelId)) {
+                static::saveImages($modelId, $post, $files);
+
+                return;
+            }
+
             static::saveModelAttributes($modelId, $post);
 
             // Un multiprodotto ha un prodotto solo, senza magazzino proprio:
@@ -3731,6 +4214,10 @@ HTML
         string $action = 'store',
         string $context = 'backend'
     ): array {
+        if ($inputName === 'prices' || $inputName === 'features') {
+            return SubscriptionProductForm::prepareRows($inputName, $rows);
+        }
+
         // Una personalizzazione si collega una volta sola: senza scelta o già
         // vista, la riga non conta.
         if ($inputName === 'customizations') {
@@ -4579,6 +5066,10 @@ HTML
             $values[$key] = $ids;
         }
 
+        if ($modelId > 0 && static::isSubscriptionModel($modelId)) {
+            $values = SubscriptionProductForm::formValues($modelId, $values);
+        }
+
         return $values;
     }
 
@@ -4594,6 +5085,10 @@ HTML
         string $action = 'store',
         string $context = 'backend'
     ): array {
+        if ($inputName === 'prices') {
+            return SubscriptionProductForm::relationRow($payload, $existingRow);
+        }
+
         if ($existingRow !== null) {
             // Rimettere una foto "in lavorazione" vuol dire riprovarci: i
             // tentativi ripartono da zero, altrimenti si arrenderebbe subito.
@@ -4640,6 +5135,12 @@ HTML
      */
     public static function assertDeletable(int|string $id): void
     {
+        if (static::isSubscriptionModel((int) $id)) {
+            SubscriptionProductForm::assertDeletable((int) $id);
+
+            return;
+        }
+
         foreach (static::allProducts((int) $id) as $product) {
             Bundles::assertNotUsed($product);
 
@@ -4702,7 +5203,20 @@ HTML
 
         static::assertDeletable($modelId);
 
-        Transaction::run(static function () use ($modelId): void {
+        $kept = false;
+
+        Transaction::run(static function () use ($modelId, &$kept): void {
+            // Prezzi, metadata e legami di un abbonamento: un prezzo che un
+            // abbonamento usa resta, e allora resta anche il prodotto.
+            // Allora foto, categorie e tag restano a chi l'ha comprato.
+            if (static::isSubscriptionModel($modelId)) {
+                $kept = SubscriptionProductForm::deleteParts($modelId);
+
+                if ($kept) {
+                    return;
+                }
+            }
+
             // I fornitori prima delle opzioni, anche di quelle già tolte dalla
             // griglia e senza `purchasing`: la chiave esterna non lascerebbe
             // eliminare il prodotto, e i legami senza articolo non servono.
@@ -4782,6 +5296,12 @@ HTML
                 ProductModelTag::delete((int) $row['id']);
             }
         });
+
+        if ($kept) {
+            $result = ProductModel::query()->Update(ProductModel::$table, ['deleted' => 'true'], 'id', $modelId);
+
+            return (object) ['success' => !empty($result->success), 'table' => ProductModel::$table, 'id' => $modelId];
+        }
 
         return parent::deleteRecord($id);
     }
@@ -6523,7 +7043,7 @@ HTML)->tag('div');
             if ($id !== '' && !isset($proposte[$id])) {
                 $nome = Customization::find(['id' => (int) $id], 1);
 
-                throw UserError::make('customization.not_for_products', [
+                throw UserError::make(static::sheetIsSubscription($modelId) ? 'customization.not_for_subscriptions' : 'customization.not_for_products', [
                     'name' => is_array($nome) ? (string) ($nome['name'] ?? $id) : $id,
                 ]);
             }
@@ -6549,12 +7069,14 @@ HTML)->tag('div');
         }
 
         $voci = ['' => '—'];
+        // Un abbonamento propone quelle «Per gli abbonamenti».
+        $abbonamento = static::sheetIsSubscription($modelId);
 
         foreach (static::rowsOf(Customization::class, [], 'name') as $row) {
             $id = (int) $row['id'];
             $nome = (string) ($row['name'] ?? '');
 
-            if (($row['active'] ?? 'true') === 'true' && ($row['for_products'] ?? 'true') === 'true') {
+            if (($row['active'] ?? 'true') === 'true' && ($abbonamento ? ($row['for_subscriptions'] ?? 'false') === 'true' : ($row['for_products'] ?? 'true') === 'true')) {
                 $voci[(string) $id] = $nome;
             } elseif (isset($collegate[$id])) {
                 $voci[(string) $id] = $nome.' (disattivata)';
@@ -6670,7 +7192,7 @@ HTML)->tag('div');
      * Il riquadro «Personalizzazioni»: la lista e, sotto, «Nuova
      * personalizzazione», che ne crea una al volo senza lasciare la scheda.
      */
-    protected static function customizationsCard(): object
+    protected static function customizationsCard(bool $subscription = false): object
     {
         return static::foldable(
             'Personalizzazioni',
@@ -6681,13 +7203,15 @@ HTML)->tag('div');
                     ->label('name')
                     ->layout(static fn (): Container => (new Container)
                         ->columns(12)
-                        ->components(CustomizationResource::quickCreateFields()))
+                        ->components(CustomizationResource::quickCreateFields($subscription ? 'subscriptions' : 'products')))
                     ->size('sm')
                     ->id(static::CUSTOMIZATION_BUTTON)
                     ->columnSpan(12),
                 static::customizationScript()->columnSpan(12),
             ],
-            'Campi che il cliente compila comprando questo articolo, per tutte le sue varianti. Il sovrapprezzo, che si imposta dalla personalizzazione, si somma al prezzo.'
+            $subscription
+                ? 'Campi che il cliente compila abbonandosi, come il nome del dominio. Si propongono quelle «Per gli abbonamenti». Il sovrapprezzo, che si imposta dalla personalizzazione, si somma al prezzo di ogni periodo.'
+                : 'Campi che il cliente compila comprando questo articolo, per tutte le sue varianti. Il sovrapprezzo, che si imposta dalla personalizzazione, si somma al prezzo.'
         );
     }
 
@@ -9817,14 +10341,7 @@ HTML
         return $options;
     }
 
-    /**
-     * Il tipo fiscale: parte dal predefinito e si vede sempre.
-     *
-     * Su un articolo salvato il tipo che usa resta nell'elenco anche se nel
-     * frattempo è stato nascosto. Senza nessun tipo le imposte ricadono
-     * sull'aliquota di ripiego, e il campo lo dice invece di pretendere una
-     * scelta che non c'è.
-     */
+    /** Il tipo fiscale dell'articolo: quello già salvato resta fra le scelte. */
     protected static function taxCategoryField(int $modelId = 0): Input
     {
         $keep = 0;
@@ -9834,22 +10351,7 @@ HTML
             $keep = (int) ($row['tax_category_id'] ?? 0);
         }
 
-        $options = TaxCategories::options($keep);
-
-        if ($options === []) {
-            return FormField::key('tax_category_id')
-                ->select(['' => "Nessuno: vale l'aliquota di ripiego"])
-                ->value('')
-                ->label('Tipo fiscale')
-                ->quickCreate(TaxCategoryResource::class);
-        }
-
-        return FormField::key('tax_category_id')
-            ->select($options)
-            ->value((string) (TaxCategories::defaultId() ?: ''))
-            ->label('Tipo fiscale')
-            ->required()
-            ->quickCreate(TaxCategoryResource::class);
+        return static::taxCategoryInput($keep);
     }
 
     /**
