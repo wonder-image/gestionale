@@ -25,6 +25,8 @@ abstract class OrderSectionResource extends GestionaleResource
     public static string $feature = 'orders';
     public static string $orderColumn = 'id';
     public static string $orderDirection = 'ASC';
+    /** La colonna che lega la riga alla sua scheda: l'ordine, o l'abbonamento. */
+    public static string $foreignKey = 'order_id';
 
     /** La frase al posto della tabella, quando non c'è niente da mostrare. */
     abstract protected static function emptyText(): string;
@@ -84,7 +86,7 @@ abstract class OrderSectionResource extends GestionaleResource
             return static::emptyHtml(static::emptyText());
         }
 
-        return static::embedWhere('`order_id` = '.$orderId);
+        return static::embedWhere(static::foreignColumn().' = '.$orderId);
     }
 
     /**
@@ -101,7 +103,7 @@ abstract class OrderSectionResource extends GestionaleResource
             return static::emptyHtml($empty ?? static::emptyText());
         }
 
-        return static::embedWhere('`order_id` IN ('.implode(',', $ids).')', $empty);
+        return static::embedWhere(static::foreignColumn().' IN ('.implode(',', $ids).')', $empty);
     }
 
     /**
@@ -134,6 +136,11 @@ abstract class OrderSectionResource extends GestionaleResource
         }
 
         return $html !== '' ? $html : $vuoto;
+    }
+
+    private static function foreignColumn(): string
+    {
+        return '`'.str_replace('`', '', static::$foreignKey).'`';
     }
 
     private static function emptyHtml(string $text): string

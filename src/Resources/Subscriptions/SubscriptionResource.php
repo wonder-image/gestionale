@@ -12,6 +12,7 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Elements\Components\Accordion;
 use Wonder\Elements\Components\Badge;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
@@ -23,22 +24,18 @@ use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
-use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItemChange;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentTableResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
-use Wonder\Plugin\Gestionale\Support\Backend\RowMenu;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionItems;
-use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionProration;
 
 /**
  * «Abbonamenti» (G10 §1.2): quelli del sito li scrivono le notifiche di Stripe
@@ -192,7 +189,7 @@ final class SubscriptionResource extends GestionaleResource
             ->titles(['list' => 'Abbonamenti', 'view' => 'Abbonamento'])
             ->subtitles(['list' => 'Gli abbonamenti dei clienti, dal sito e dall\'ufficio. Quelli del sito li crea il cliente; quelli da ufficio, «Nuovo abbonamento».'])
             ->view('show', Gestionale::viewPath('pages/subscription-show.php'))
-            ->actions('view', static fn (array $item): array => HeaderActions::group(static::actionButtons($item)));
+            ->actions('view', static fn (array $item): array => static::pageActions($item));
     }
 
     public static function permissionSchema(): PermissionSchema
@@ -215,94 +212,169 @@ final class SubscriptionResource extends GestionaleResource
             ->enabled(static::featureActive());
     }
 
+    /** Il titolo della scheda, come l'ordine: «Abbonamento sub_…». @param array<string, mixed> $row */
+    public static function pageTitle(array $row): string
+    {
+        return trim('Abbonamento '.trim((string) ($row['code'] ?? '')));
+    }
+
+    /** Sotto il titolo: quando è nato e da quale canale. @param array<string, mixed> $row */
+    public static function pageSubtitle(array $row): string
+    {
+        $giorno = static::day($row['started_at'] ?? '') ?: static::day($row['creation'] ?? '');
+        $canale = static::channelLabels()[(string) ($row['channel'] ?? '')] ?? '';
+        $parti = array_filter([$giorno !== '' ? 'Creato il '.$giorno : '', $canale]);
+
+        return implode(' · ', $parti);
+    }
+
     /**
-     * La scheda: abbonamento e periodo a sinistra, importi a destra; sotto
-     * servizi, pagamenti, storia dei servizi e storia degli stati.
+     * La testata, come quella dell'ordine: «Documenti» col proforma, poi le
+     * azioni principali, e «Annulla» nel menu «Altro».
+     *
+     * @param array<string, mixed> $row
+     * @return list<array<string, mixed>>
+     */
+    public static function pageActions(array $row): array
+    {
+        $id = (int) ($row['id'] ?? 0);
+        $azioni = static::availableActions($row);
+        $documenti = (string) ($row['channel'] ?? '') === 'office' && static::day($row['current_period_start'] ?? '') !== ''
+            ? [['label' => 'Proforma', 'icon' => 'bi-file-earmark-text', 'class' => 'btn-outline-secondary btn-sm', 'href' => static::proformaUrl($id), 'target' => '_blank']]
+            : [];
+        $bottone = static fn (string $label, string $icon, string $modal, string $class = 'btn-outline-dark'): array => [
+            'label' => $label,
+            'icon' => $icon,
+            'class' => $class.' btn-sm',
+            'href' => '#',
+            'onclick' => OrderResource::openModal($modal),
+        ];
+        $principali = static::itemsEditable($row) ? [$bottone('Aggiungi servizio', 'bi-plus-lg', 'wi-servizio-add')] : [];
+        $altro = [];
+
+        foreach ($azioni as $azione => $label) {
+            match ($azione) {
+                'cancel' => $principali[] = $bottone($label, 'bi-calendar-x', 'wi-abbonamento-cancel'),
+                'proforma' => $principali[] = $bottone($label, 'bi-envelope', 'wi-abbonamento-proforma'),
+                default => $altro[] = $bottone($label, 'bi-x-octagon', 'wi-abbonamento-'.$azione, 'btn-outline-danger'),
+            };
+        }
+
+        return [
+            ...HeaderActions::group($documenti, 'Documenti', 'bi-file-earmark-pdf'),
+            ...$principali,
+            ...HeaderActions::group($altro, 'Altro', 'bi-three-dots-vertical', true),
+        ];
+    }
+
+    /**
+     * La scheda, disegnata come quella dell'ordine: a sinistra la testata con
+     * stati, cliente e fatturazione; a destra i totali del periodo e il
+     * periodo; sotto, ripiegabili, servizi, pagamenti, storia dei servizi e
+     * storico degli stati.
      *
      * @param array<string, mixed> $row
      */
     public static function showLayoutSchema(array $row): Container
     {
         $id = (int) ($row['id'] ?? 0);
-        $dato = static fn (string $etichetta, string $valore, bool $html = false): DataItem => DataItem::make($etichetta, $valore !== '' ? $valore : '—')
-            ->html($html)
-            ->columnSpan(['default' => 12, 'sm' => 4]);
-        $customerId = (int) ($row['customer_id'] ?? 0);
-        $customer = $customerId > 0
-            ? '<a href="'.static::escape(CustomerResource::viewUrl($customerId)).'">'.static::escape(static::customerName($customerId)).'</a>'
-            : '';
-        $coupon = trim((string) ($row['coupon_code'] ?? ''));
-
-        $main = (new Card)->components([
-            SectionTitle::make('Abbonamento')->columnSpan(12),
-            $dato('Stato', static::statusBadge((string) ($row['status'] ?? '')), true),
-            $dato('Cliente', $customer, true),
-            $dato('Piano', static::planLabel(SubscriptionItems::priceIdOf($row))),
-            $dato('Canale', static::channelLabels()[(string) ($row['channel'] ?? '')] ?? ''),
-            $dato('Pagamento', (string) ($row['provider'] ?? '') === 'stripe' ? 'Stripe' : 'Registrato a mano'),
-            $dato('Rinnovo automatico', (string) ($row['auto_renew'] ?? 'true') === 'true' ? 'Sì' : 'No'),
+        $riquadro = static fn (string $titolo, array $componenti, ?string $aiuto = null): Card => (new Card)->components([
+            $aiuto === null ? SectionTitle::make($titolo)->columnSpan(12) : SectionTitle::make($titolo)->tooltip($aiuto)->columnSpan(12),
+            ...$componenti,
         ])->columns(12)->columnSpan(12);
-
-        $period = (new Card)->components([
-            SectionTitle::make('Periodo')
-                ->tooltip('Il periodo in corso e le date che contano: la fine della prova, del vincolo, il prossimo rinnovo. Con una disdetta durante il vincolo, «Disdetta chiesta» dice quando: vale a fine vincolo.')
-                ->columnSpan(12),
-            $dato('Iniziato', static::day($row['started_at'] ?? '')),
-            $dato('Periodo in corso', static::range($row['current_period_start'] ?? '', $row['current_period_end'] ?? '')),
-            $dato('Prossimo rinnovo', static::day($row['next_renewal_at'] ?? '')),
-            $dato('Fine prova', static::day($row['trial_ends_at'] ?? '')),
-            $dato('Fine vincolo', static::day($row['commitment_ends_at'] ?? '')),
-            $dato('Disdetta chiesta', static::day($row['cancel_requested_at'] ?? '')),
-            $dato('Chiuso', static::day($row['cancelled_at'] ?? '')),
-            $dato('Finito', static::day($row['ended_at'] ?? '')),
-            ...((string) ($row['channel'] ?? '') === 'office' && static::day($row['current_period_start'] ?? '') !== ''
-                ? [DataItem::make('Proforma del periodo', '<a href="'.static::escape(static::proformaUrl($id)).'" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Scarica il PDF</a>')->html(true)->columnSpan(12)]
-                : []),
-        ])->columns(12)->columnSpan(12);
-
-        $amounts = (new Card)->components([
-            SectionTitle::make('Importi del periodo')->columnSpan(12),
-            DataItem::make('Subtotale', OrderResource::money((float) ($row['subtotal'] ?? 0)))->columnSpan(12),
-            DataItem::make('Sconto'.($coupon !== '' ? ' ('.$coupon.')' : ''), OrderResource::money((float) ($row['discount_total'] ?? 0)))->columnSpan(12),
-            DataItem::make('IVA '.rtrim(rtrim(number_format((float) ($row['tax_rate'] ?? 0), 2, ',', ''), '0'), ',').'%', OrderResource::money((float) ($row['tax_total'] ?? 0)))->columnSpan(12),
-            DataItem::make('Totale', OrderResource::money((float) ($row['total'] ?? 0)))->columnSpan(12),
-        ])->columns(12)->columnSpan(12);
-
-        $tables = [
-            static::tableCard('Servizi', static::itemsHtml($row)),
-            static::tableCard('Pagamenti', static::paymentsHtml($id)),
-            static::tableCard('Storia dei servizi', static::changesHtml($id)),
-            static::tableCard('Storia', static::historyHtml($id)),
-        ];
+        $tabella = static fn (string $titolo, string $html, bool $aperto = false): Accordion => $aperto
+            ? Accordion::make($titolo)->expanded()->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12)
+            : Accordion::make($titolo)->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12);
+        $dato = static fn (string $etichetta, string $valore): DataItem => DataItem::make($etichetta, $valore !== '' ? $valore : '—')->columnSpan(12);
 
         return (new Container)->components([
-            (new Container)->components([$main, $period, ...$tables])->columns(12)->columnSpan(8),
-            (new Container)->components([$amounts])->columns(12)->columnSpan(4),
+            (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components([
+                (new Card)->components(static::headerItems($row))->columns(12)->columnSpan(12),
+            ]),
+            (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components([
+                $riquadro('Totali del periodo', [RichText::make(static::totals($row))->tag('div')->columnSpan(12)]),
+                $riquadro('Periodo', [
+                    $dato('Iniziato', static::day($row['started_at'] ?? '')),
+                    $dato('Periodo in corso', static::range($row['current_period_start'] ?? '', $row['current_period_end'] ?? '')),
+                    $dato('Prossimo rinnovo', static::day($row['next_renewal_at'] ?? '')),
+                    $dato('Fine prova', static::day($row['trial_ends_at'] ?? '')),
+                    $dato('Fine vincolo', static::day($row['commitment_ends_at'] ?? '')),
+                    $dato('Disdetta chiesta', static::day($row['cancel_requested_at'] ?? '')),
+                    $dato('Chiuso', static::day($row['cancelled_at'] ?? '')),
+                    $dato('Finito', static::day($row['ended_at'] ?? '')),
+                ], 'Il periodo in corso e le date che contano: la fine della prova, del vincolo, il prossimo rinnovo. Con una disdetta durante il vincolo, «Disdetta chiesta» dice quando: vale a fine vincolo.'),
+            ]),
+            $tabella('Servizi', SubscriptionItemTableResource::embed($id), true),
+            $tabella('Pagamenti e rinnovi', SubscriptionPaymentTableResource::embed($id)),
+            $tabella('Storia dei servizi', SubscriptionItemChangeTableResource::embed($id)),
+            $tabella('Storico', SubscriptionHistoryTableResource::embed($id)),
         ])->columns(12);
     }
 
     /**
-     * I pulsanti della scheda: *Disdici* per gli abbonamenti in corso, *Annulla* e *Rimanda il proforma* per quelli da ufficio. Ogni
-     * pulsante apre la sua finestra (`modals()`).
+     * I dati della testata, come quelli dell'ordine: prima gli stati, poi il
+     * cliente, la fatturazione, il pagamento e la nota. L'abbonamento non ha
+     * email e telefono suoi: vengono dalla scheda del cliente.
      *
      * @param array<string, mixed> $row
-     * @return list<array<string, string>>
+     * @return list<DataItem>
      */
-    public static function actionButtons(array $row): array
+    protected static function headerItems(array $row): array
     {
-        $buttons = [];
+        $dato = static fn (string $etichetta, string $valore, bool $html = false): DataItem => DataItem::make($etichetta, $valore !== '' ? $valore : '—')
+            ->html($html)
+            ->columnSpan(['default' => 12, 'sm' => 4]);
+        $customerId = (int) ($row['customer_id'] ?? 0);
+        $cliente = $customerId > 0 ? (static::rowsOf(Contact::class, ['id' => $customerId])[0] ?? []) : [];
+        $link = $customerId > 0
+            ? '<a href="'.static::escape(CustomerResource::viewUrl($customerId)).'">'.static::escape(static::customerName($customerId)).'</a>'
+            : '';
+        $metodo = (int) ($row['payment_method_id'] ?? 0);
+        $nota = trim((string) ($row['note'] ?? ''));
 
-        foreach (static::availableActions($row) as $action => $label) {
-            $buttons[] = [
-                'label' => $label,
-                'icon' => ['cancel' => 'bi-calendar-x', 'terminate' => 'bi-x-octagon', 'proforma' => 'bi-envelope'][$action],
-                'class' => ($action === 'terminate' ? 'btn-outline-danger' : 'btn-outline-dark').' btn-sm',
-                'href' => '#',
-                'onclick' => 'window.bootstrap.Modal.getOrCreateInstance(document.getElementById('.json_encode('wi-abbonamento-'.$action).')).show(); return false;',
-            ];
+        return [
+            $dato('Abbonamento', static::statusBadge((string) ($row['status'] ?? '')), true),
+            $dato('Pagamento', (string) ($row['provider'] ?? '') === 'stripe' ? 'Stripe' : 'Registrato a mano'),
+            $dato('Rinnovo automatico', (string) ($row['auto_renew'] ?? 'true') === 'true' ? 'Sì' : 'No'),
+            $dato('Cliente', $link, true),
+            $dato('Email', (string) ($cliente['email'] ?? '')),
+            $dato('Telefono', (string) ($cliente['phone'] ?? '')),
+            $dato('Fatturazione', OrderSheet::address($row, 'billing'), true),
+            $dato('Piano', static::planLabel(SubscriptionItems::priceIdOf($row))),
+            $dato('Metodo di pagamento', $metodo > 0 ? OrderPaymentTableResource::methodName($metodo) : ''),
+            $dato('Nota', $nota !== '' ? nl2br(static::escape($nota)) : '', true),
+        ];
+    }
+
+    /**
+     * I totali del periodo nella tabella dei totali dell'ordine: subtotale,
+     * sconto se c'è, il coupon come nota, IVA e totale.
+     *
+     * @param array<string, mixed> $row
+     */
+    public static function totals(array $row): string
+    {
+        $voci = [['Subtotale', OrderSheet::money($row['subtotal'] ?? 0), '']];
+
+        if (abs((float) ($row['discount_total'] ?? 0)) > 0.004) {
+            $voci[] = ['Sconto', OrderSheet::money($row['discount_total']), ''];
         }
 
-        return $buttons;
+        $coupon = trim((string) ($row['coupon_code'] ?? ''));
+
+        if ($coupon !== '') {
+            $voci[] = ['Coupon '.$coupon, '', 'text-muted'];
+        }
+
+        $voci[] = ['IVA '.OrderSheet::number($row['tax_rate'] ?? 0).'%', OrderSheet::money($row['tax_total'] ?? 0), ''];
+        $voci[] = ['Totale', OrderSheet::money($row['total'] ?? 0), 'fw-bold'];
+        $righe = '';
+
+        foreach ($voci as [$nome, $valore, $classe]) {
+            $righe .= '<tr'.($classe !== '' ? ' class="'.$classe.'"' : '').'><td>'.OrderSheet::esc($nome).'</td><td class="text-end">'.OrderSheet::esc($valore).'</td></tr>';
+        }
+
+        return '<table class="table table-sm mb-0" style="font-variant-numeric: tabular-nums"><tbody>'.$righe.'</tbody></table>';
     }
 
     /**
@@ -371,66 +443,6 @@ final class SubscriptionResource extends GestionaleResource
 
         return ($office || trim((string) ($row['provider_reference'] ?? '')) !== '')
             && in_array((string) ($row['status'] ?? ''), Subscription::LIVE, true);
-    }
-
-    /**
-     * I servizi dell'abbonamento, nell'ordine delle righe: servizio con le
-     * personalizzazioni, stato, quantità, importo del periodo pieno,
-     * prossimo rinnovo della riga, fine vincolo e la riga a cui si appoggia.
-     * Sopra, *Aggiungi servizio*; per riga in corso il menu delle azioni.
-     *
-     * @param array<string, mixed> $row
-     */
-    public static function itemsHtml(array $row): string
-    {
-        $id = (int) ($row['id'] ?? 0);
-        $items = SubscriptionItems::forSubscription($id);
-        $editable = static::itemsEditable($row);
-        $html = $editable
-            ? '<div class="text-end mb-2"><button type="button" class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#wi-servizio-add"><i class="bi bi-plus-lg"></i> Aggiungi servizio</button></div>'
-            : '';
-
-        if ($items === []) {
-            return $html.'<p class="text-muted mb-0">Nessun servizio.</p>';
-        }
-
-        $labels = static::itemLabels($items);
-        $statuses = ['pending' => 'Da avviare', 'active' => 'Attivo', 'ending' => 'In chiusura', 'ended' => 'Finito'];
-        $anchor = SubscriptionItems::anchor($row);
-        $today = new DateTimeImmutable('today');
-        $html .= '<table class="table table-sm align-middle mb-0"><thead><tr><th>Servizio</th><th>Stato</th><th class="text-end">Q.tà</th><th class="text-end">Importo</th><th>Prossimo rinnovo</th><th>Fine vincolo</th><th></th></tr></thead><tbody>';
-
-        foreach ($items as $item) {
-            $itemId = (int) $item['id'];
-            $status = (string) ($item['status'] ?? '');
-            $parent = (int) ($item['parent_item_id'] ?? 0);
-            $lines = Customizations::lines($item);
-            $renewal = match ($status) {
-                'pending' => static::day($item['starts_at'] ?? ''),
-                'active' => date('d/m/Y', SubscriptionProration::rowPeriod($anchor, static::termOfPrice((int) $item['plan_price_id']), $today)[1]->getTimestamp()),
-                'ending' => 'Finisce il '.static::day($item['ends_at'] ?? ''),
-                default => '',
-            };
-            $menu = $editable && $status === 'active' ? RowMenu::render(array_filter([
-                ['label' => 'Cambia', 'icon' => 'bi bi-arrow-left-right', 'modal' => 'wi-servizio-change-'.$itemId],
-                static::planCustomizations((int) $item['plan_price_id']) !== []
-                    ? ['label' => 'Correggi personalizzazioni', 'icon' => 'bi bi-pencil', 'modal' => 'wi-servizio-customize-'.$itemId]
-                    : null,
-                ['label' => 'Togli', 'icon' => 'bi bi-x-lg', 'modal' => 'wi-servizio-remove-'.$itemId, 'danger' => true],
-            ])) : '';
-
-            $html .= '<tr><td>'.static::escape(static::planLabel((int) $item['plan_price_id']))
-                .implode('', array_map(static fn (string $line): string => '<div class="small text-muted">'.static::escape($line).'</div>', $lines))
-                .($parent > 0 ? '<div class="small text-muted">Si appoggia a: '.static::escape($labels[$parent] ?? '#'.$parent).'</div>' : '')
-                .'</td><td>'.static::escape($statuses[$status] ?? $status).'</td>'
-                .'<td class="text-end">'.(int) ($item['quantity'] ?? 1).'</td>'
-                .'<td class="text-end">'.static::escape(OrderResource::money((float) ($item['total'] ?? 0))).'</td>'
-                .'<td>'.static::escape($renewal).'</td>'
-                .'<td>'.static::escape(static::day($item['commitment_ends_at'] ?? '')).'</td>'
-                .'<td class="text-end">'.$menu.'</td></tr>';
-        }
-
-        return $html.'</tbody></table>';
     }
 
     /**
@@ -561,7 +573,7 @@ final class SubscriptionResource extends GestionaleResource
     }
 
     /** Le personalizzazioni del piano di un prezzo. @return list<array<string, mixed>> */
-    protected static function planCustomizations(int $planPriceId): array
+    public static function planCustomizations(int $planPriceId): array
     {
         $price = $planPriceId > 0 ? PlanPrice::findById($planPriceId) : null;
 
@@ -569,7 +581,7 @@ final class SubscriptionResource extends GestionaleResource
     }
 
     /** Id della riga => «Piano — prezzo · personalizzazioni». @param list<array<string, mixed>> $items @return array<int, string> */
-    protected static function itemLabels(array $items): array
+    public static function itemLabels(array $items): array
     {
         $labels = [];
 
@@ -580,7 +592,7 @@ final class SubscriptionResource extends GestionaleResource
         return $labels;
     }
 
-    protected static function termOfPrice(int $planPriceId): int
+    public static function termOfPrice(int $planPriceId): int
     {
         $price = $planPriceId > 0 ? PlanPrice::findById($planPriceId) : null;
 
@@ -653,94 +665,6 @@ final class SubscriptionResource extends GestionaleResource
         return trim(($plan !== null ? (string) $plan['name'].' — ' : '').(string) $price['name']);
     }
 
-    /** I pagamenti dell'abbonamento, dal più recente. */
-    public static function paymentsHtml(int $subscriptionId): string
-    {
-        $rows = $subscriptionId > 0 ? static::rowsOf(Payment::class, ['subscription_id' => $subscriptionId], 'id', 'DESC') : [];
-
-        if ($rows === []) {
-            return '<p class="text-muted mb-0">Nessun pagamento.</p>';
-        }
-
-        $statuses = ['pending' => 'In attesa', 'paid' => 'Pagato', 'failed' => 'Non riuscito', 'cancelled' => 'Annullato'];
-        $html = '<table class="table table-sm align-middle mb-0"><thead><tr><th>Codice</th><th>Scadenza</th><th>Pagato il</th><th>Stato</th><th class="text-end">Importo</th><th></th></tr></thead><tbody>';
-
-        foreach ($rows as $row) {
-            $refund = (string) ($row['type'] ?? 'payment') === 'refund';
-            $register = (string) ($row['status'] ?? '') === 'pending' && trim((string) ($row['due_date'] ?? '')) !== ''
-                ? '<a class="btn btn-sm btn-outline-success" href="'.static::escape(SubscriptionPaymentResource::urlFor((string) $subscriptionId, (string) (int) $row['id'], static::detailUrl($subscriptionId))).'">Registra</a>'
-                : '';
-            $html .= '<tr><td>'.static::escape((string) ($row['code'] ?? '')).($refund ? ' '.Badge::make('Rimborso')->variant('light')->inline()->render('bootstrap') : '')
-                .(trim((string) ($row['note'] ?? '')) !== '' ? '<div class="small text-muted">'.static::escapeStored((string) $row['note']).'</div>' : '').'</td>'
-                .'<td>'.static::escape(static::day($row['due_date'] ?? '')).'</td>'
-                .'<td>'.static::escape(static::day($row['paid_at'] ?? '')).'</td>'
-                .'<td>'.static::escape($statuses[(string) ($row['status'] ?? '')] ?? (string) ($row['status'] ?? '')).'</td>'
-                .'<td class="text-end">'.static::escape(($refund ? '−' : '').OrderResource::money((float) ($row['amount'] ?? 0))).'</td>'
-                .'<td class="text-end">'.$register.'</td></tr>';
-        }
-
-        return $html.'</tbody></table>';
-    }
-
-    /** La storia dei servizi (aggiunti, tolti, cambiati, corretti), dalla più recente. */
-    public static function changesHtml(int $subscriptionId): string
-    {
-        $rows = $subscriptionId > 0 ? static::rowsOf(SubscriptionItemChange::class, ['subscription_id' => $subscriptionId], 'id', 'DESC') : [];
-
-        if ($rows === []) {
-            return '<p class="text-muted mb-0">Nessun cambio ai servizi.</p>';
-        }
-
-        $actions = ['added' => 'Aggiunto', 'removed' => 'Tolto', 'changed' => 'Cambiato', 'customized' => 'Corretto'];
-        $billings = [
-            'prorate' => 'Quota', 'free' => 'Gratis', 'next_period' => 'Dal prossimo periodo',
-            'period_end' => 'A fine periodo', 'credit' => 'Con credito',
-        ];
-        $html = '<table class="table table-sm align-middle mb-0"><thead><tr><th>Quando</th><th>Cosa</th><th>Servizio</th><th>Conguaglio</th><th class="text-end">Importo</th><th>Da dove</th></tr></thead><tbody>';
-
-        foreach ($rows as $row) {
-            $old = static::planLabel((int) ($row['old_plan_price_id'] ?? 0));
-            $new = static::planLabel((int) ($row['new_plan_price_id'] ?? 0));
-            $service = $old !== '' && $new !== '' && $old !== $new ? $old.' → '.$new : ($new !== '' ? $new : $old);
-            $amount = (float) ($row['amount'] ?? 0);
-            $credit = (float) ($row['credit_left'] ?? 0);
-            $effective = static::day($row['effective_at'] ?? '');
-            $html .= '<tr><td>'.static::escape(static::day($row['changed_at'] ?? '')).($effective !== '' && $effective !== static::day($row['changed_at'] ?? '') ? '<div class="small text-muted">dal '.static::escape($effective).'</div>' : '').'</td>'
-                .'<td>'.static::escape($actions[(string) ($row['action'] ?? '')] ?? (string) ($row['action'] ?? '')).'</td>'
-                .'<td>'.static::escape($service)
-                .(trim((string) ($row['note'] ?? '')) !== '' ? '<div class="small text-muted">'.static::escapeStored((string) $row['note']).'</div>' : '').'</td>'
-                .'<td>'.static::escape($billings[(string) ($row['billing'] ?? '')] ?? '').'</td>'
-                .'<td class="text-end">'.static::escape($amount > 0 ? OrderResource::money($amount) : '')
-                .($credit > 0 ? '<div class="small text-muted">credito da usare '.static::escape(OrderResource::money($credit)).'</div>' : '').'</td>'
-                .'<td>'.static::escape(static::sourceLabel((string) ($row['source'] ?? ''))).'</td></tr>';
-        }
-
-        return $html.'</tbody></table>';
-    }
-
-    /** La storia degli stati, dal più recente. */
-    public static function historyHtml(int $subscriptionId): string
-    {
-        $rows = $subscriptionId > 0 ? static::rowsOf(SubscriptionStatusLog::class, ['subscription_id' => $subscriptionId], 'id', 'DESC') : [];
-
-        if ($rows === []) {
-            return '<p class="text-muted mb-0">Nessun cambio di stato.</p>';
-        }
-
-        $labels = static::statusLabels();
-        $html = '<table class="table table-sm align-middle mb-0"><thead><tr><th>Quando</th><th>Da</th><th>A</th><th>Da dove</th><th>Nota</th></tr></thead><tbody>';
-
-        foreach ($rows as $row) {
-            $html .= '<tr><td>'.static::escape(OrderResource::date((string) ($row['creation'] ?? ''))).'</td>'
-                .'<td>'.static::escape($labels[(string) ($row['from_value'] ?? '')] ?? (string) ($row['from_value'] ?? '')).'</td>'
-                .'<td>'.static::escape($labels[(string) ($row['to_value'] ?? '')] ?? (string) ($row['to_value'] ?? '')).'</td>'
-                .'<td>'.static::escape(static::sourceLabel((string) ($row['source'] ?? ''))).'</td>'
-                .'<td>'.static::escapeStored((string) ($row['message'] ?? '')).'</td></tr>';
-        }
-
-        return $html.'</tbody></table>';
-    }
-
     public static function sourceLabel(string $source): string
     {
         return [
@@ -750,14 +674,6 @@ final class SubscriptionResource extends GestionaleResource
             'cron' => 'Automatico',
             'system' => 'Sistema',
         ][$source] ?? $source;
-    }
-
-    protected static function tableCard(string $title, string $html): Card
-    {
-        return (new Card)->components([
-            SectionTitle::make($title)->columnSpan(12),
-            RichText::make($html)->tag('div')->columnSpan(12),
-        ])->columns(12)->columnSpan(12);
     }
 
     protected static function customerName(int $customerId): string
@@ -772,7 +688,7 @@ final class SubscriptionResource extends GestionaleResource
     }
 
     /** `d/m/Y`; vuoto se manca o è la data zero di MySQL. */
-    protected static function day(mixed $value): string
+    public static function day(mixed $value): string
     {
         $value = trim((string) $value);
 

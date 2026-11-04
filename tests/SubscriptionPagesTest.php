@@ -184,14 +184,19 @@ check('un prezzo nuovo del repeater nasce col suo codice, uno vecchio tiene il s
         && !array_key_exists('code', $limite);
 });
 
-check('in testa alla scheda le azioni stanno nel menu «Azioni»; Annulla in rosso', function () {
-    $ufficio = ['id' => 5, 'channel' => 'office', 'status' => 'active', 'auto_renew' => 'true', 'current_period_start' => '2026-10-01 00:00:00'];
-    $menu = Wonder\Plugin\Gestionale\Support\Backend\HeaderActions::group(SubscriptionResource::actionButtons($ufficio));
-    $voci = $menu[0]['items'] ?? [];
+check('la testata è come quella dell\'ordine: Proforma in vista, Disdici e Rimanda in chiaro, Annulla sotto «Altro»', function () {
+    $ufficio = ['id' => 5, 'code' => 'sub_abc', 'channel' => 'office', 'status' => 'active', 'auto_renew' => 'true', 'current_period_start' => '2026-10-01 00:00:00', 'started_at' => '2026-10-01 00:00:00'];
+    $azioni = SubscriptionResource::pageActions($ufficio);
+    $etichette = array_column($azioni, 'label');
+    $altro = end($azioni);
 
-    return count($menu) === 1 && $menu[0]['label'] === 'Azioni'
-        && array_column($voci, 'label') === array_values(SubscriptionResource::availableActions($ufficio))
-        && $voci[2]['class'] === 'text-danger' && str_contains($voci[0]['onclick'], 'wi-abbonamento-cancel');
+    return in_array('Proforma', $etichette, true)
+        && in_array('Disdici', $etichette, true) && in_array('Rimanda il proforma', $etichette, true)
+        && $altro['label'] === 'Altro' && array_column($altro['items'], 'label') === ['Annulla']
+        && $altro['items'][0]['class'] === 'text-danger'
+        && str_contains(json_encode($azioni), 'wi-abbonamento-cancel')
+        && SubscriptionResource::pageTitle($ufficio) === 'Abbonamento sub_abc'
+        && SubscriptionResource::pageSubtitle($ufficio) === 'Creato il 01/10/2026 · Ufficio';
 });
 
 check('nel nuovo abbonamento la riga madre si sceglie per numero, da «Nessuno» a «Riga 20»', function () {
