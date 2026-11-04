@@ -151,16 +151,21 @@ Gli stati:
 «In prova», «Attivo» e «Da pagare» sono gli abbonamenti **in corso**: valgono
 i limiti del piano, il piano non si elimina e la funzionalità non si spegne.
 
-Cliccando sul codice si apre la scheda:
+Cliccando sul codice si apre la scheda, disegnata come quella dell'ordine:
 
-* **Abbonamento**: stato, cliente, canale, come si paga, se rinnova da solo;
-* **Periodo**: inizio, periodo in corso, prossimo rinnovo, fine della prova e
-  del vincolo, disdetta;
-* **Importi del periodo**: subtotale, sconto del coupon, IVA, totale;
-* **Servizi**: le righe, con prezzo, quantità, personalizzazioni e prossimo
-  rinnovo di ognuna;
-* **Pagamenti**, **Storia dei servizi** (aggiunti, tolti, cambiati, corretti) e
-  **Storia** degli stati.
+* in testata il codice, la data e il canale, e a destra le azioni: **Proforma**,
+  **Aggiungi servizio**, **Disdici**, **Rimanda il proforma** e, nel menu
+  **Altro**, **Annulla**;
+* a sinistra **stato**, **pagamento**, **rinnovo automatico**, **cliente**
+  (con email e telefono), **fatturazione**, **piano**, **metodo di pagamento**
+  e **nota**;
+* a destra **Totali del periodo** (servizi, sconto e coupon, imponibile, IVA,
+  totale) e **Periodo** (inizio, periodo in corso, prossimo rinnovo, fine della
+  prova e del vincolo, disdetta);
+* sotto, a sezioni che si aprono e chiudono: **Servizi** (le righe, con prezzo,
+  quantità, personalizzazioni e prossimo rinnovo di ognuna), **Pagamenti e
+  rinnovi**, **Storia dei servizi** (aggiunti, tolti, cambiati, corretti) e
+  **Storico** degli stati.
 
 ## Abbonamenti online
 
@@ -250,7 +255,8 @@ coupon. Niente Stripe: il cliente paga come per un ordine da ufficio.
   «non pagato»* (15 di partenza) diventa *non pagato*: non si aprono più periodi
   finché non paga. Annullarlo lo decidi tu.
 
-Dalla scheda dell'abbonamento, nella card **Servizi**:
+Dalla scheda dell'abbonamento (**Aggiungi servizio** in testata, le altre nel
+menu ⋯ della riga in **Servizi**):
 
 * **Aggiungi servizio**: piano e prezzo, quantità, la riga a cui si appoggia e
   le personalizzazioni. Il **conguaglio** sceglie come si paga il pezzo fino al
