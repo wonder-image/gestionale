@@ -629,11 +629,15 @@ scaricare l'elenco, cambiare quello che ti serve e ricaricarlo così com'è.
 
 1. **Scegli il file.** Va bene anche un foglio tuo: le colonne si chiamano
    come quelle dell'esportazione, o con nomi comuni come «Codice»,
-   «Quantità», «Prezzo».
-2. **Controlla le colonne.** Il gestionale abbina ogni colonna del file a un
-   dato del prodotto; puoi cambiare l'abbinamento, e una colonna lasciata su
+   «Quantità», «Prezzo». Se parti da zero, scarica il **file di esempio**
+   (Excel o CSV): ha già le colonne giuste e due prodotti di prova da
+   sostituire con i tuoi.
+2. **Controlla le colonne.** Il gestionale ti dice quali colonne del file ha
+   riconosciuto e a quale dato del prodotto corrispondono, quali ignora e
+   quali mancano. Puoi cambiare l'abbinamento, e una colonna lasciata su
    «non caricare» non cambia niente.
-   Serve sempre la colonna **SKU**: è quella che dice quale prodotto è.
+   Serve sempre la colonna **SKU**: è quella che dice quale prodotto è. Senza,
+   il caricamento non parte.
 3. **Guarda l'anteprima.** Per ogni riga vedi cosa succederà: *aggiorna*,
    *crea* o *nessuna modifica*, con gli errori da correggere nel file. Finché
    c'è un errore non si parte, e niente è stato ancora cambiato.
@@ -661,6 +665,8 @@ Qualche regola:
 - Le **foto** si mettono come indirizzo che comincia con `https://`; il
   gestionale le scarica (PNG, JPG o WebP, fino a 8 MB).
 - Multiprodotti e abbonamenti si aggiornano ma non si creano da file.
+- Se nel catalogo due prodotti hanno lo stesso SKU, quella riga si ferma:
+  correggi lo SKU di uno dei due dal backend e ricarica il file.
 
 Hai sbagliato file? Alla fine c'è **Annulla il caricamento**: le righe create
 spariscono e quelle modificate tornano com'erano, giacenze comprese. I

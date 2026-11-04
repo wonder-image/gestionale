@@ -12,6 +12,20 @@ intestazioni, più qualche nome comune (`Codice`, `Quantità`, `Nome`,
 `Prezzo`…). Un tracciato salvato in Set-up → Tracciati file vale per
 l'esportazione e per il caricamento.
 
+## Colonne e file di esempio
+
+`CatalogLayout::columns()` dice al core a che dato corrisponde ogni colonna
+(`Column::field()`, dalla mappa `FIELDS`): all'abbinamento la pagina mostra
+quali colonne del file sono riconosciute, quali si ignorano e quali mancano
+(`Mapping::report()`). Lo SKU è `required()`: senza, il core ferma l'anteprima
+con `missing_column`. Il tracciato controlla da sé solo l'IVA dei prezzi
+(`mappingErrors()`).
+
+Sotto la scelta del file, «File di esempio» dà un `.xlsx` o un `.csv` con le
+colonne di `sampleColumns()` e le righe di `sampleRows()` (un prodotto
+semplice e uno con due versioni, SKU `ESEMPIO-*`): ricaricato così com'è passa
+l'anteprima e crea quei prodotti.
+
 ## Una riga, una versione
 
 La chiave è lo **SKU** (senza la colonna il caricamento non parte).
@@ -24,7 +38,9 @@ La chiave è lo **SKU** (senza la colonna il caricamento non parte).
 | non c'è | vuoto o nuovo | `new_model`: un articolo nuovo di tipo «Prodotto», serve il nome |
 
 Il tipo di un articolo non si cambia; multiprodotti e abbonamenti non si
-creano e non prendono versioni da file. Uno SKU ripetuto nel file è un errore.
+creano e non prendono versioni da file. Uno SKU ripetuto nel file è un errore
+(`sku_duplicate`); uno SKU che nel catalogo hanno più prodotti ferma la riga
+(`sku_ambiguous`), perché non si sa quale aggiornare: va corretto dal backend.
 
 ## Le celle
 
