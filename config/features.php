@@ -228,29 +228,20 @@ return [
         'description' => 'Collega gli assistenti IA (Claude, ChatGPT, Cursor) a prodotti, prezzi, giacenze, categorie, ordini e preventivi, con i permessi del backend.',
         'area' => 'Integrazioni',
     ],
-    // Esportazioni del catalogo (D64): l'«Esporta» dei prodotti offre solo quelle concesse.
-    'export_xlsx' => [
-        'name' => 'Esportazione Excel',
-        'description' => 'Scarica i prodotti in Excel (.xlsx): una riga per opzione, intestazioni in italiano.',
+    // Esportazioni (D64): una funzionalità per contenuto, il formato si sceglie nel menu «Esporta».
+    // `replaces`: le vecchie chiavi per formato, da cui la nuova eredita lo stato (vedi FeatureState::inherit).
+    'export_products' => [
+        'name' => 'Esportazione prodotti',
+        'description' => 'Scarica i prodotti in Excel (.xlsx) o CSV (.csv): una riga per opzione, intestazioni in italiano.',
         'area' => 'Esportazioni',
         'release' => 'D64',
+        'replaces' => ['export_xlsx', 'export_csv'],
     ],
-    'export_csv' => [
-        'name' => 'Esportazione CSV',
-        'description' => 'Scarica i prodotti in CSV (.csv) standard: virgola, UTF-8, punto nei decimali.',
+    'export_contacts' => [
+        'name' => 'Esportazione contatti',
+        'description' => 'Scarica clienti e fornitori in Excel (.xlsx) o CSV (.csv): anagrafica, recapiti e fatturazione, celle come testo.',
         'area' => 'Esportazioni',
-        'release' => 'D64',
-    ],
-    // Esportazioni dell'anagrafica: l'«Esporta» di clienti e fornitori offre solo quelle concesse.
-    'export_contacts_xlsx' => [
-        'name' => 'Esportazione contatti Excel',
-        'description' => 'Scarica clienti e fornitori in Excel (.xlsx): anagrafica, recapiti e fatturazione, celle come testo.',
-        'area' => 'Esportazioni',
-    ],
-    'export_contacts_csv' => [
-        'name' => 'Esportazione contatti CSV',
-        'description' => 'Scarica clienti e fornitori in CSV (.csv): UTF-8, virgola, senza celle lette come formula.',
-        'area' => 'Esportazioni',
+        'replaces' => ['export_contacts_xlsx', 'export_contacts_csv'],
     ],
     'export_meta' => [
         'name' => 'Catalogo Meta',

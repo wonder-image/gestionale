@@ -26,6 +26,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\RequestMemo;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureCatalog;
+use Wonder\Plugin\Gestionale\Support\Features\FeatureState;
 use Wonder\Plugin\Gestionale\Support\Shipping\ShippingZones;
 
 /**
@@ -65,15 +66,29 @@ final class Defaults implements ModuleDefaults
     /** Una riga bloccata per ogni funzionalità del catalogo. */
     private static function features(DefaultRows $rows): void
     {
-        $unlock = array_map('strval', (array) Gestionale::config('features.unlock', []));
+        $catalog = FeatureCatalog::all();
+        $known = [];
+
+        foreach (Feature::find(['deleted' => 'false']) ?: [] as $row) {
+            if (is_array($row)) {
+                $known[(string) ($row['feature_key'] ?? '')] = ($row['enabled'] ?? 'false') === 'true';
+            }
+        }
+
+        // Il sito può far nascere sbloccate alcune funzionalità (starter),
+        // mai cambiarle dopo: le righe esistenti non si toccano.
+        foreach ((array) Gestionale::config('features.unlock', []) as $key) {
+            $known[(string) $key] ??= true;
+        }
+
+        // Una voce nuova con `replaces` nasce sbloccata se lo era una di quelle che sostituisce.
+        $known = FeatureState::inherit($catalog, $known);
         $features = [];
 
-        foreach (array_keys(FeatureCatalog::all()) as $key) {
+        foreach (array_keys($catalog) as $key) {
             $features[] = [
                 'feature_key' => $key,
-                // Il sito può far nascere sbloccate alcune funzionalità (starter),
-                // mai cambiarle dopo: le righe esistenti non si toccano.
-                'enabled' => in_array($key, $unlock, true) ? 'true' : 'false',
+                'enabled' => ($known[$key] ?? false) ? 'true' : 'false',
             ];
         }
 

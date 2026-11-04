@@ -16,8 +16,9 @@ final class FeatureCatalog
      * @param array<string, array<string, mixed>> $extra voci aggiunte dal sito
      * `requires` vuole tutte le funzionalità della lista, `requires_any`
      * almeno una (la Personalizzazione va con Ordini o con Abbonamenti).
+     * `replaces` elenca le chiavi tolte di cui la voce prende il posto.
      *
-     * @return array<string, array{key: string, name: string, description: string, area: string, requires: list<string>, requires_any: list<string>, module: string, release: string, created: bool}>
+     * @return array<string, array{key: string, name: string, description: string, area: string, requires: list<string>, requires_any: list<string>, replaces: list<string>, module: string, release: string, created: bool}>
      */
     public static function fromArray(array $package, array $extra = []): array
     {
@@ -48,6 +49,10 @@ final class FeatureCatalog
                         array_map(static fn ($value): string => trim((string) $value), (array) ($feature['requires_any'] ?? [])),
                         static fn (string $value): bool => $value !== ''
                     )),
+                    'replaces' => array_values(array_filter(
+                        array_map(static fn ($value): string => trim((string) $value), (array) ($feature['replaces'] ?? [])),
+                        static fn (string $value): bool => $value !== ''
+                    )),
                     'module' => trim((string) ($feature['module'] ?? '')),
                     'release' => trim((string) ($feature['release'] ?? '')),
                     // Costruita, salvo `created => false`.
@@ -70,9 +75,25 @@ final class FeatureCatalog
         );
     }
 
-    /** Dipendenze esistenti e senza cicli. */
+    /** Dipendenze esistenti e senza cicli; una chiave sostituita non è più nel catalogo e ha un solo erede. */
     public static function assertValid(array $catalog): void
     {
+        $heirs = [];
+
+        foreach ($catalog as $key => $feature) {
+            foreach ((array) ($feature['replaces'] ?? []) as $old) {
+                if (isset($catalog[$old])) {
+                    throw new RuntimeException("La funzionalità {$key} sostituisce {$old}, che è ancora nel catalogo");
+                }
+
+                if (isset($heirs[$old])) {
+                    throw new RuntimeException("La funzionalità {$old} è sostituita sia da {$heirs[$old]} sia da {$key}");
+                }
+
+                $heirs[$old] = $key;
+            }
+        }
+
         foreach ($catalog as $key => $feature) {
             foreach (self::edges($feature) as $required) {
                 if (!isset($catalog[$required])) {

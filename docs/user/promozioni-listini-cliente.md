@@ -43,7 +43,8 @@ nel listino si paga a prezzo di catalogo.
 
 ## Importare ed esportare
 
-Dalla scheda del listino scarichi le righe in **Excel** o **CSV** (colonne
+Dalla scheda del listino, il pulsante **Scarica** apre un menu da cui scegli
+**Excel (.xlsx)** o **CSV (.csv)** per le righe del listino (colonne
 SKU, Prodotto, Quantità minima, Prezzo). Lo stesso file, modificato, si
 ricarica nel campo **Importa righe**: al salvataggio **sostituisce tutte le
 righe** del listino. Il prodotto lo riconosce dallo SKU; se una riga ha uno
