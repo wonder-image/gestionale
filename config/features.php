@@ -36,16 +36,25 @@ return [
         'requires' => ['orders'],
         'release' => 'G9',
     ],
+    'products' => [
+        'name' => 'Prodotto',
+        'description' => 'Prodotti singoli nel catalogo: la voce Prodotti del menu. Spento, restano gli abbonamenti.',
+        'area' => 'Catalogo',
+        // I siti nati prima della voce vendevano già prodotti: nasce accesa.
+        'default' => true,
+        'release' => 'G5',
+    ],
     'subscriptions' => [
         'name' => 'Abbonamenti',
-        'description' => 'Piani, rinnovi e cambio piano.',
-        'area' => 'Vendite',
+        'description' => 'Piani, rinnovi e cambio piano: la voce Abbonamenti del catalogo.',
+        'area' => 'Catalogo',
         'release' => 'G10',
     ],
     'bundles' => [
         'name' => 'Multiprodotto',
         'description' => 'Prodotti composti da altri prodotti: vendendoli si scaricano i componenti.',
         'area' => 'Catalogo',
+        'requires' => ['products'],
         'release' => 'G5',
     ],
     'customizations' => [

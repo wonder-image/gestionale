@@ -54,6 +54,25 @@ final class FeatureState
         return $unlocked;
     }
 
+    /**
+     * Una voce con `default => true` e senza riga propria conta come sbloccata.
+     * Con la riga, vale la riga.
+     *
+     * @param array<string, array<string, mixed>> $catalog
+     * @param array<string, bool> $unlocked
+     * @return array<string, bool>
+     */
+    public static function defaults(array $catalog, array $unlocked): array
+    {
+        foreach ($catalog as $key => $feature) {
+            if (($feature['default'] ?? false) === true && !array_key_exists($key, $unlocked)) {
+                $unlocked[$key] = true;
+            }
+        }
+
+        return $unlocked;
+    }
+
     public static function isActive(array $catalog, array $unlocked, array $modules, string $key): bool
     {
         return isset($catalog[$key]) && self::active($catalog, $unlocked, $modules, $key, []);
