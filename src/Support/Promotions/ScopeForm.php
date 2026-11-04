@@ -22,6 +22,21 @@ use Wonder\Sql\Transaction;
 trait ScopeForm
 {
     /**
+     * Le righe vive di un Model, sempre come lista (vuota senza database): la
+     * dà `GestionaleResource`; chi non ne discende la scrive.
+     *
+     * @param class-string<\Wonder\App\Model> $modelClass
+     * @param array<string, mixed>|string $where
+     * @return list<array<string, mixed>>
+     */
+    abstract protected static function rowsOf(
+        string $modelClass,
+        array|string $where = [],
+        ?string $order = null,
+        string $direction = 'ASC'
+    ): array;
+
+    /**
      * I campi del selettore: categorie, tag, marchi e articoli scelti si vedono
      * solo con «Solo la selezione»; gli esclusi sempre, perché «tutto il
      * catalogo meno questi» è una scelta legittima.

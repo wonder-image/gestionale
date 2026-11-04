@@ -82,14 +82,17 @@ Ciò che non è un `LabelFormat` con misure positive si scarta; se non resta
 niente, valgono i formati standard. Il formato in uso è `label_format` delle
 Impostazioni (`LabelFormats::current()`): se l'hook lo toglie, vale il primo.
 
-Le etichette si stampano dal pannello della lista Prodotti
-(`POST {lista}/etichette/`, rotta `labels-selection` registrata da
-`LabelDialog::selectionRoute()`, con CSRF) e dal carico
-(`GET {id}/etichette/`, `LabelDialog::route()`). Il pannello invia `items[]`:
-`m<id>` è un prodotto con tutte le varianti attive, `p<id>` una variante;
-`Labels::forSelection()` ne fa una etichetta per variante, al massimo
-`Labels::MAX_LABELS`. Le voci le dà `Labels::selectionOptions()` (abbonamenti
-esclusi).
+Le etichette si stampano dalla pagina *Catalogo → Etichette*
+(`LabelsResource`, una `NavigationOnlyResource` con vista
+`view/pages/labels.php`) e dal carico (`GET {id}/etichette/`,
+`LabelDialog::route()`). La pagina registra due rotte: `page` (GET) e `print`
+(`POST stampa/`, con CSRF, `labels_source` = `scope`). Il modulo usa il
+selettore dei coupon (`ScopeForm`): `LabelsResource::printQuery()` ne fa la
+richiesta di `Labels::respond('scope', …)`, e `Labels::forScope()` passa i
+modelli per `Labels::modelsInScope()` (che usa `ScopeMatcher`, abbonamenti
+esclusi) e stampa le varianti attive, al massimo `Labels::MAX_LABELS`. Le
+scelte di stampa (campi, prima casella) sono `LabelDialog::fields()`, le stesse
+della finestra del carico.
 
 ## Regole
 

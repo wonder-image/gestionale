@@ -78,8 +78,6 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
-use Wonder\Plugin\Gestionale\Support\Labels\LabelDialog;
-use Wonder\Plugin\Gestionale\Support\Labels\Labels;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\App\Dependencies;
@@ -1381,12 +1379,6 @@ HTML
 
         if (static::listedView() === 'abbonamenti') {
             $layout->title('Abbonamenti');
-        } else {
-            // «Etichette» (#116): il pannello che stampa i prodotti scelti; gli abbonamenti non ne hanno.
-            foreach (LabelDialog::actions() as $bottone) {
-                $layout->buttonCustom($bottone)
-                    ->buttonCustomHtml(LabelDialog::modal(LabelDialog::selectionUrl(static::slug(), static::path()), Labels::selectionOptions()));
-            }
         }
 
         $tipi = static::viewTypes();
@@ -1642,11 +1634,6 @@ HTML
             // quattro cose e il resto si scrive lì, non ritrovando la riga in
             // un elenco. Serve `wonder-image/app` con redirectUrl($action,$id).
             ->redirect('store', 'edit');
-    }
-
-    public static function registerBackendRoutes(string $rootApp, string $slug): void
-    {
-        LabelDialog::selectionRoute($slug, 'catalogo');
     }
 
     /** L'indirizzo della modifica di questo articolo. */

@@ -4,29 +4,35 @@ icon: barcode
 
 # Etichette con codice a barre
 
-> **Da attivare.** Funzionalità *Etichette*. Finché è spenta non vedi il
-> bottone **Etichette** da nessuna parte.
+> **Da attivare.** Funzionalità *Etichette*. Finché è spenta non vedi la voce
+> **Catalogo → Etichette** né il bottone **Etichette** del carico.
 
 ## Da dove si stampano
 
-- **Catalogo → Prodotti** (non in *Catalogo → Abbonamenti*): il bottone **Etichette** in alto apre il pannello di
-  stampa. Scegli i prodotti, o solo alcune varianti, e crei un unico PDF.
+- **Catalogo → Etichette**: la pagina dove scegli i prodotti da stampare e crei
+  un unico PDF.
 - **Un carico** (Magazzino → Carichi): un'etichetta per ogni pezzo delle righe,
   quelli contati o, se non li hai ancora contati, quelli attesi.
 
 **Crea il PDF** lo apre in una scheda nuova del browser, pronto da stampare.
 
-## Cosa si sceglie nel pannello
+## Cosa si sceglie nella pagina
 
-- **Prodotti e varianti**: scrivi per cercare. Un prodotto stampa tutte le sue
-  varianti attive; per uno con più varianti puoi scegliere anche le singole
-  («Maglia — Rossa S»). Esce **una etichetta per variante**, anche se la scegli
-  due volte. Gli abbonamenti non ci sono: non hanno niente da etichettare.
+- **Prodotti da stampare**: funziona come i *prodotti validi* di un coupon.
+  *Tutto il catalogo* stampa ogni prodotto; *Solo la selezione* (di partenza)
+  stampa i prodotti delle **categorie** (con le sottocategorie), dei **tag**,
+  dei **marchi** e gli **articoli** che scegli, tolti gli **esclusi**. Ogni
+  prodotto stampa tutte le sue varianti attive. Gli abbonamenti non ci sono:
+  non hanno niente da etichettare.
+- **Copie per variante**: quante etichette uguali per ogni variante.
 - **Da stampare**: nome del prodotto, variante, SKU, prezzo, codice a barre.
   Togli quello che non ti serve; se togli tutto si stampano i campi di partenza.
 - **Prima casella libera**: per riusare un foglio A4 già cominciato. Le
   caselle si contano da sinistra a destra, riga per riga, partendo da 1. Con un
   rotolo non c'è.
+
+Se la scelta non contiene prodotti la pagina risponde «Nessun prodotto da
+stampare nella selezione». Un PDF ha al massimo 2000 etichette.
 
 Il foglio o il rotolo è quello scelto in **Set Up → Impostazioni**, riquadro
 **Etichette**: ogni PDF esce in quel formato.
