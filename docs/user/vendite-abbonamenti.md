@@ -170,7 +170,11 @@ vendita*; chiede *Vendita online* e *Abbonamenti*) il sito ha la pagina dei
 piani, e il cliente si abbona da solo:
 
 1. sceglie un prezzo nella scheda dell'abbonamento o nella pagina dei piani;
-   serve un **account**. Il
+   serve un **account**. Nella scheda il prezzo scelto sta sotto il nome col
+   suo periodo («30,00 €/Anno», «3,00 €/Mese»), col prezzo pieno barrato se
+   è scontato, e cambia quando il cliente sceglie un'altra opzione; nelle
+   card del catalogo c'è il prezzo più basso, «Da 3,00 €/Mese» se i prezzi
+   sono più d'uno. Il
    servizio compare nel **carrello** e nel carrello laterale insieme ai
    prodotti, e da lì il cliente lo toglie con **Rimuovi** (togliendo un
    servizio si tolgono anche quelli che si appoggiano a lui). Nel checkout
