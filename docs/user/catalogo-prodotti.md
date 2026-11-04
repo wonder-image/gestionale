@@ -46,7 +46,9 @@ domani correggi il nome: i link che qualcuno ha salvato continuano a funzionare.
 ## L'elenco e la scheda
 
 **Catalogo → Prodotti** è l'elenco: la foto, il nome, lo SKU, il prezzo e
-quante opzioni ha. Il prezzo è quello che si paga — dove c'è lo sconto trovi il
+quante opzioni ha. Ci sono i prodotti e i multiprodotti; gli abbonamenti hanno
+la loro voce, **Catalogo → Abbonamenti**. La voce *Prodotti* c'è quando la
+funzionalità **Prodotto** è accesa (vedi [Funzionalità](funzionalita.md)). Il prezzo è quello che si paga — dove c'è lo sconto trovi il
 pieno barrato accanto allo scontato, e quando le opzioni costano diverso è
 scritto *da 19,90 €*.
 

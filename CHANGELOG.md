@@ -13,6 +13,17 @@ versionamento semantico.
   schede del prodotto e della variante, le loro rotte `{id}/etichette/`, il
   campo **Copie per variante** e la riga che nominava il formato: il formato
   resta quello delle Impostazioni. Il carico stampa come prima.
+- **Interruttore «Prodotto» e voce «Abbonamenti» in Catalogo.** Nuova
+  funzionalità `products` (area Catalogo, accesa di serie con la nuova chiave
+  `default` del catalogo: `FeatureState::defaults()`), che governa la voce
+  *Catalogo → Prodotti* e la creazione dei prodotti singoli
+  (`product.products_off`); non si spegne con prodotti singoli nel catalogo
+  (`feature.products_in_use`). `bundles` la richiede. `subscriptions` passa
+  dall'area Vendite a Catalogo e torna la voce *Catalogo → Abbonamenti*
+  (`SubscriptionProductsResource`, solo navigazione). L'elenco ha due viste,
+  `?vista=prodotti|abbonamenti` (`ProductModelResource::VIEWS`,
+  `viewTypes()`, `typeListUrl()`), sempre senza filtro Tipo; Multiprodotti
+  resta senza voce.
 - **Scheda del coupon con le tabelle del core** (gestionale#113): utilizzi e
   codici generati usano `Table` (ricerca, filtri valido/rilasciato e
   liberi/usati, ordinamento, pagine) con due Resource senza pagina,

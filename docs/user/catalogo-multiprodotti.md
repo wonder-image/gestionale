@@ -18,7 +18,8 @@ dicono i suoi componenti.
 
 Si crea da *Catalogo → Prodotti*: apri la freccia accanto a **+ Aggiungi**
 (che da solo crea un prodotto) e scegli **Multiprodotto**. Nella lista sta
-insieme agli altri articoli, con la sua icona. Il tipo si sceglie lì e non si
+insieme agli altri prodotti, con la sua icona. Serve anche la funzionalità
+**Prodotto**. Il tipo si sceglie lì e non si
 cambia più. Il prezzo lo scrivi tu, come per ogni articolo.
 
 ## Fissa, a scelta o mista
