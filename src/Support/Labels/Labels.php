@@ -9,18 +9,20 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductExport;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdf;
+use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
+use Wonder\Plugin\Gestionale\Support\Promotions\ScopeMatcher;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
 use Wonder\Support\Labels\LabelFormat;
 use Wonder\Support\Labels\LabelSheet;
 
 /**
  * Le etichette con codice a barre (#116) di una scelta di prodotti e
- * varianti (il pannello della lista Prodotti) o di un documento di carico. Il prezzo è quello al pubblico: lo scontato se
+ * varianti (la pagina Catalogo › Etichette) o di un documento di carico. Il prezzo è quello al pubblico: lo scontato se
  * sconta davvero, con l'IVA quando il listino è senza.
  */
 final class Labels
 {
-    public const SOURCES = ['model', 'product', 'receipt', 'selection'];
+    public const SOURCES = ['model', 'product', 'receipt', 'scope'];
 
     /** Oltre questo numero un PDF diventa un rischio per il server, non un foglio di etichette. */
     public const MAX_LABELS = 2000;
@@ -53,13 +55,13 @@ final class Labels
 
         $options = self::options($query);
         $items = match (true) {
-            $source === 'selection' => self::forSelection($query['items'] ?? []),
+            $source === 'scope' => self::forScope(is_array($query['scope'] ?? null) ? $query['scope'] : [], $options['copies']),
             in_array($source, self::SOURCES, true) && $id > 0 => self::items($source, $id, $options['copies']),
             default => null,
         };
 
         if ($items === null) {
-            return ['status' => 404, 'body' => 'Non trovato', 'filename' => ''];
+            return ['status' => 404, 'body' => $source === 'scope' ? 'Nessun prodotto da stampare nella selezione' : 'Non trovato', 'filename' => ''];
         }
 
         $labels = array_slice(LabelSheet::labels(self::contents($items, $options['fields'])), 0, self::MAX_LABELS);
@@ -67,7 +69,7 @@ final class Labels
         return [
             'status' => 200,
             'body' => LabelSheet::render($options['format'], $labels, $options['start']),
-            'filename' => $source === 'selection' ? 'etichette-prodotti.pdf' : 'etichette-'.$source.'-'.$id.'.pdf',
+            'filename' => $source === 'scope' ? 'etichette-prodotti.pdf' : 'etichette-'.$source.'-'.$id.'.pdf',
         ];
     }
 
@@ -159,29 +161,33 @@ final class Labels
     }
 
     /**
-     * Le righe della scelta del pannello: `m<id>` è un prodotto con tutte le
-     * sue varianti attive, `p<id>` una variante sola. Una etichetta per
-     * variante, anche se è scelta due volte; `null` se non resta niente.
+     * Le righe della pagina Catalogo › Etichette: le varianti attive degli
+     * articoli che il selettore (lo stesso del coupon) prende, in ordine di
+     * nome; `null` se non resta niente.
      *
+     * @param array{all?: bool, categories?: list<int>, tags?: list<int>, brands?: list<int>, models?: list<int>, excluded_models?: list<int>} $scope
      * @return list<array{article: string, variant: string, sku: string, price: ?float, ean: string, copies: int}>|null
      */
-    public static function forSelection(mixed $keys): ?array
+    public static function forScope(array $scope, int $copies = 1): ?array
     {
-        $keys = is_array($keys) ? $keys : [$keys];
+        // Niente scelto: inutile leggere il catalogo.
+        if (empty($scope['all']) && array_filter(array_intersect_key($scope, array_flip(['categories', 'tags', 'brands', 'models']))) === []) {
+            return null;
+        }
+
+        $facts = [];
+
+        foreach (ProductScope::catalog() as $entry) {
+            $facts[(int) $entry['facts']['model_id']] ??= $entry['facts'];
+        }
+
+        $models = self::listOf(ProductModel::find(['deleted' => 'false'], null, 'name', 'ASC'));
+        $chosen = self::modelsInScope($scope, $models, $facts);
         $products = [];
 
-        foreach ($keys as $key) {
-            if (!is_string($key) || !preg_match('/^([mp])([1-9][0-9]*)$/', $key, $match)) {
-                continue;
-            }
-
-            $id = (int) $match[2];
-            $found = $match[1] === 'm'
-                ? (self::alive($model = ProductModel::findById($id)) && ($model['type'] ?? '') !== SubscriptionModels::TYPE ? self::modelProducts($id) : [])
-                : (self::alive($product = Product::findById($id)) && ($product['active'] ?? 'true') === 'true' ? [$product] : []);
-
-            foreach ($found as $product) {
-                $products[(int) $product['id']] ??= $product;
+        foreach ($chosen as $modelId) {
+            foreach (self::modelProducts($modelId) as $product) {
+                $products[] = $product;
             }
 
             if (count($products) >= self::MAX_LABELS) {
@@ -189,44 +195,31 @@ final class Labels
             }
         }
 
-        return $products === [] ? null : self::rows(array_slice(array_values($products), 0, self::MAX_LABELS), 1);
+        return $products === [] ? null : self::rows(array_slice($products, 0, self::MAX_LABELS), $copies);
     }
 
     /**
-     * Le voci del pannello: ogni prodotto (`m<id>`) e, se ha più varianti,
-     * ognuna (`p<id>`, «Prodotto — Variante»). Fuori gli abbonamenti e i
-     * prodotti senza varianti attive, che non hanno niente da stampare.
+     * Gli articoli presi dal selettore, nell'ordine di `$models`: fuori gli
+     * abbonamenti e quelli senza fatti (nessuna variante attiva).
      *
-     * @return array<string, string>
+     * @param array<string, mixed> $scope
+     * @param list<array<string, mixed>> $models
+     * @param array<int, array{categories: list<int>, tags: list<int>, brand_id: int, model_id: int}> $facts
+     * @return list<int>
      */
-    public static function selectionOptions(): array
+    public static function modelsInScope(array $scope, array $models, array $facts): array
     {
-        $variants = [];
+        $ids = [];
 
-        foreach (self::listOf(Product::find(['deleted' => 'false', 'active' => 'true'], null, 'position', 'ASC')) as $product) {
-            $variants[(int) ($product['product_model_id'] ?? 0)][] = $product;
-        }
+        foreach ($models as $model) {
+            $id = (int) ($model['id'] ?? 0);
 
-        $options = [];
-
-        foreach (self::listOf(ProductModel::find(['deleted' => 'false'], null, 'name', 'ASC')) as $model) {
-            $own = $variants[(int) $model['id']] ?? [];
-
-            if ($own === [] || ($model['type'] ?? '') === SubscriptionModels::TYPE) {
-                continue;
-            }
-
-            $name = self::plain($model['name'] ?? '');
-            $options['m'.$model['id']] = $name;
-
-            if (count($own) > 1) {
-                foreach ($own as $product) {
-                    $options['p'.$product['id']] = $name.' — '.self::plain($product['name'] ?? '');
-                }
+            if (isset($facts[$id]) && ($model['type'] ?? '') !== SubscriptionModels::TYPE && ScopeMatcher::matches($scope, $facts[$id])) {
+                $ids[] = $id;
             }
         }
 
-        return $options;
+        return $ids;
     }
 
     /** Tutte le varianti attive dell'articolo, `$copies` ciascuna. */

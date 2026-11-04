@@ -31,10 +31,12 @@ check('in src ogni chiamata self:: ha il suo metodo nello stesso file', function
                 $sorgente .= (string) file_get_contents($percorso);
             }
         }
+        // Gli alias dei trait (`metodo as private alias;`) valgono come metodi.
+        preg_match_all('/\bas\s+(?:(?:private|protected|public)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*;/', $sorgente, $alias);
         preg_match_all('/self::([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $sorgente, $chiamate);
 
         foreach (array_unique($chiamate[1]) as $metodo) {
-            if (preg_match('/function\s+&?'.$metodo.'\s*\(/', $sorgente) !== 1) {
+            if (! in_array($metodo, $alias[1], true) && preg_match('/function\s+&?'.$metodo.'\s*\(/', $sorgente) !== 1) {
                 $mancanti[] = str_replace(dirname(__DIR__).'/', '', $file->getPathname()).' → '.$metodo;
             }
         }

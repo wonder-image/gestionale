@@ -13,6 +13,8 @@ use Wonder\Plugin\Gestionale\Support\Labels\LabelFormats;
 use Wonder\Plugin\Gestionale\Support\Labels\Labels;
 use Wonder\Support\Labels\LabelFormat;
 use Wonder\Support\Labels\LabelSheet;
+use Wonder\Plugin\Gestionale\Resources\Catalog\LabelsResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 
 /** Solo un rotolo: è il formato con cui si stampa. */
 final class LabelsRollExtension extends GestionaleExtension
@@ -147,6 +149,52 @@ check('prezzo: lo scontato più alto non conta', fn () => Labels::price(['price'
 check('prezzo: senza prezzo nessuno', fn () => Labels::price(['price' => '', 'sale_price' => '']) === null);
 check('prezzo: listino senza IVA, si aggiunge', fn () => Labels::price(['price' => '10'], 22.0, false) === 12.2);
 
+// --- Selettore della pagina Catalogo › Etichette ---
+
+$articoli = [
+    ['id' => 1, 'name' => 'Borsa', 'type' => 'simple'],
+    ['id' => 2, 'name' => 'Maglia', 'type' => 'simple'],
+    ['id' => 3, 'name' => 'Box mensile', 'type' => \Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels::TYPE],
+    ['id' => 4, 'name' => 'Senza varianti', 'type' => 'simple'],
+];
+$fatti = [
+    1 => ['categories' => [10, 1], 'tags' => [5], 'brand_id' => 7, 'model_id' => 1],
+    2 => ['categories' => [20], 'tags' => [], 'brand_id' => 8, 'model_id' => 2],
+    3 => ['categories' => [10, 1], 'tags' => [], 'brand_id' => 7, 'model_id' => 3],
+];
+$vuoto = ['all' => false, 'categories' => [], 'tags' => [], 'brands' => [], 'models' => [], 'excluded_models' => []];
+
+check('selettore: tutto il catalogo, senza abbonamenti né articoli vuoti', fn () => Labels::modelsInScope(['all' => true] + $vuoto, $articoli, $fatti) === [1, 2]);
+check('selettore: la categoria madre prende le figlie', fn () => Labels::modelsInScope(['categories' => [1]] + $vuoto, $articoli, $fatti) === [1]);
+check('selettore: tag, marchio e articolo si sommano', fn () => Labels::modelsInScope(['tags' => [5], 'models' => [2]] + $vuoto, $articoli, $fatti) === [1, 2]);
+check('selettore: l\'escluso vince', fn () => Labels::modelsInScope(['all' => true, 'excluded_models' => [2]] + $vuoto, $articoli, $fatti) === [1]);
+check('selettore: niente scelto, niente stampato', fn () => Labels::modelsInScope($vuoto, $articoli, $fatti) === []);
+check('selettore: l\'abbonamento scelto a mano resta fuori', fn () => Labels::modelsInScope(['models' => [3]] + $vuoto, $articoli, $fatti) === []);
+
+// --- La pagina ---
+
+
+check('pagina: in Catalogo, alla voce Etichette', function () {
+    $nav = LabelsResource::navigationSchema()->all();
+
+    return ($nav['section_key'] ?? '') === 'catalogo' && ($nav['title'] ?? '') === 'Etichette';
+});
+check('pagina: i campi si costruiscono (selettore dei coupon, copie, scelte di stampa)', function () {
+    $nomi = array_map(static fn ($field) => $field->name ?? null, LabelsResource::formFields());
+
+    return in_array('applies_to_all', $nomi, true) && in_array('copies', $nomi, true) && in_array('fields', $nomi, true);
+});
+check('pagina: la richiesta del PDF porta il selettore ripulito e le scelte di stampa', function () {
+    $query = LabelsResource::printQuery([
+        'applies_to_all' => 'false', 'categories' => ['3', 'x', '3'], 'models' => '9',
+        'fields' => ['price'], 'copies' => '2', 'start' => '4', '_csrf' => 'abc',
+    ]);
+
+    return $query['scope']['all'] === false && $query['scope']['categories'] === [3] && $query['scope']['models'] === []
+        && $query['fields'] === ['price'] && $query['copies'] === '2' && $query['start'] === '4' && !isset($query['_csrf']);
+});
+check('lista Prodotti: niente più rotta del pannello', fn () => (new ReflectionMethod(ProductModelResource::class, 'registerBackendRoutes'))->getDeclaringClass()->getName() !== ProductModelResource::class);
+
 // --- Formati del sito ---
 
 Extensions::use([LabelsTestExtension::class]);
@@ -161,7 +209,7 @@ check('spenta: nessun bottone', fn () => LabelDialog::actions() === []);
 check('spenta: nessuna finestra', fn () => LabelDialog::modal('/backend/x/1/etichette/') === '');
 check('spenta: la rotta risponde 403', fn () => Labels::respond('model', 1, [])['status'] === 403
     && Labels::respond('receipt', 1, [])['status'] === 403
-    && Labels::respond('selection', 0, ['items' => ['m1']])['status'] === 403);
+    && Labels::respond('scope', 0, ['scope' => ['all' => true]])['status'] === 403);
 
 $features->setValue(null, ['barcode_labels' => true]);
 check('accesa: il bottone apre la finestra', fn () => count(LabelDialog::actions()) === 1
@@ -173,15 +221,11 @@ check('accesa: la finestra chiede solo campi e casella, senza formato né copie'
         && !str_contains($html, 'Formato: ') && !str_contains($html, 'name="copies"') && str_contains($html, 'name="start"')
         && !str_contains($html, 'name="items');
 });
-check('pannello: sceglie prodotti e varianti in POST', function () {
-    $html = LabelDialog::modal('/backend/x/etichette/', ['m1' => 'Maglia', 'p2' => 'Maglia — S']);
+check('pagina: scegliere niente = 404 col suo messaggio', function () {
+    $risposta = Labels::respond('scope', 0, ['scope' => ['all' => false]]);
 
-    return str_contains($html, 'name="items[]"') && str_contains($html, 'value="m1"')
-        && preg_match('/<form[^>]*method="post"/i', $html) === 1;
+    return $risposta['status'] === 404 && str_contains($risposta['body'], 'Nessun prodotto');
 });
-check('pannello: chiavi senza senso = niente da stampare', fn () => Labels::forSelection(['x1', 'm0', 'p-3', '', ['m1']]) === null
-    && Labels::forSelection('mx') === null);
-check('pannello: scelta vuota 404', fn () => Labels::respond('selection', 0, ['items' => []])['status'] === 404);
 Extensions::use([LabelsRollExtension::class]);
 check('rotolo nelle Impostazioni: niente casella libera', fn () => !str_contains(LabelDialog::modal('/x'), 'name="start"')
     && Labels::options(['start' => '5'])['start'] === 0);

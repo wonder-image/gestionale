@@ -11,9 +11,8 @@ use Wonder\Http\Route;
 use Wonder\Plugin\Gestionale\Gestionale;
 
 /**
- * Il bottone «Etichette» e la sua finestra: prodotti e varianti da stampare
- * (nel pannello della lista Prodotti), campi e prima casella libera del
- * foglio. Il formato è quello delle Impostazioni. Il PDF si apre in una
+ * Il bottone «Etichette» del carico e la sua finestra: campi e prima
+ * casella libera del foglio. Il formato è quello delle Impostazioni. Il PDF si apre in una
  * scheda nuova.
  *
  * La finestra nasce in un `<template>` e lo script la porta in fondo alla
@@ -37,38 +36,6 @@ final class LabelDialog
         ])->name('labels')
             ->permit(Access::roles(Gestionale::area($area), 'view'))
             ->where('id', '[0-9]+');
-    }
-
-    /**
-     * La rotta del pannello: `POST etichette/` sulla lista, con la scelta nel
-     * corpo (una scelta lunga non sta in un indirizzo).
-     */
-    public static function selectionRoute(string $slug, string $area): void
-    {
-        Route::post('/etichette/', Gestionale::handlerPath('backend/catalog/labels.php'), [
-            'resource' => $slug,
-            'resource_action' => 'labels-selection',
-            'labels_source' => 'selection',
-        ])->name('labels-selection')
-            ->permit(Access::roles(Gestionale::area($area), 'view'));
-    }
-
-    /** L'indirizzo del PDF del pannello. */
-    public static function selectionUrl(string $slug, string $path): string
-    {
-        $fallback = '/backend/'.$path.'/etichette/';
-
-        if (!function_exists('__r')) {
-            return $fallback;
-        }
-
-        try {
-            $named = (string) __r('backend.resource.'.$slug.'.labels-selection');
-        } catch (Throwable) {
-            return $fallback;
-        }
-
-        return $named !== '' ? $named : $fallback;
     }
 
     /** L'indirizzo del PDF di una scheda. */
@@ -104,34 +71,35 @@ final class LabelDialog
     }
 
     /**
-     * Con `$items` (le voci di `Labels::selectionOptions()`) è il pannello:
-     * si scelgono prodotti e varianti, una etichetta per variante. Senza è
-     * il carico, che stampa i suoi pezzi.
+     * Le scelte di stampa, uguali nella finestra del carico e nella pagina
+     * Catalogo › Etichette: i campi e, sul foglio, la prima casella libera.
      *
-     * @param array<string, string>|null $items
+     * @return list<\Wonder\App\ResourceSchema\Input>
      */
-    public static function modal(string $url, ?array $items = null): string
+    public static function fields(): array
     {
-        if (!Gestionale::feature('barcode_labels') || $url === '') {
-            return '';
-        }
-
-        $campi = [];
-
-        if ($items !== null) {
-            $campi[] = FormField::key('items')->selectSearch($items, true)->label('Prodotti e varianti')->columnSpan(12);
-        }
-
-        $campi[] = FormField::key('fields')->checkbox()->options(Labels::FIELDS)->value(Labels::DEFAULT_FIELDS)->label('Da stampare')->columnSpan(12);
+        $campi = [FormField::key('fields')->checkbox()->options(Labels::FIELDS)->value(Labels::DEFAULT_FIELDS)->label('Da stampare')->columnSpan(12)];
 
         // Per un foglio già usato in parte; il rotolo non ha caselle.
         if (!LabelFormats::current()->isRoll()) {
             $campi[] = FormField::key('start')->number()->integer()->value('1')->label('Prima casella libera')->columnSpan(12);
         }
 
+        return $campi;
+    }
+
+    /** La finestra del carico, che stampa i suoi pezzi. */
+    public static function modal(string $url): string
+    {
+        if (!Gestionale::feature('barcode_labels') || $url === '') {
+            return '';
+        }
+
+        $campi = self::fields();
+
         $finestra = Modal::make('Stampa etichette')
             ->id(self::MODAL)
-            ->form($url, $items !== null ? 'post' : 'get')
+            ->form($url, 'get')
             ->columns(12)
             ->components($campi)
             ->cancel('Annulla')

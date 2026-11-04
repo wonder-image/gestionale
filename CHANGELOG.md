@@ -13,13 +13,12 @@ versionamento semantico.
   Stripe e dal modulo ecommerce. Una riga `online_subscriptions` già salvata
   resta nel DB e non conta: niente migrazione. Il modulo ecommerce va
   aggiornato insieme.
-- **Etichette da un pannello solo** (#116): il bottone **Etichette** sta in
-  *Catalogo → Prodotti* e apre una finestra dove si scelgono prodotti e
-  varianti (`items[]`, `m<id>` / `p<id>`, in POST con CSRF sulla rotta
-  `labels-selection`); una etichetta per variante. Tolti il bottone dalle
-  schede del prodotto e della variante, le loro rotte `{id}/etichette/`, il
-  campo **Copie per variante** e la riga che nominava il formato: il formato
-  resta quello delle Impostazioni. Il carico stampa come prima.
+- **Etichette da una pagina sola** (#116): la voce *Catalogo → Etichette*
+  (`LabelsResource`) sceglie i prodotti col selettore dei coupon (categorie,
+  tag, marchi, articoli, esclusi), le copie per variante, i campi e la prima
+  casella, e crea il PDF (`POST stampa/` con CSRF, `Labels::forScope()`). Tolti
+  il bottone e la finestra dalla lista Prodotti e dalle schede del prodotto e
+  della variante, con le loro rotte. Il carico stampa come prima.
 - **La scheda dell'abbonamento è disegnata come quella dell'ordine.** Testata
   con codice, data, canale e azioni (*Proforma*, *Aggiungi servizio*,
   *Disdici*, *Rimanda il proforma*, *Altro → Annulla*), due colonne con
