@@ -150,6 +150,40 @@ Funzionalità `online_subscriptions` (richiede `online_sales` e
   e segue le rate scadute: `past_due` con il promemoria, `unpaid` oltre
   `subscription_unpaid_days`.
 
+## La scheda nel backend
+
+`SubscriptionResource::showLayoutSchema()` disegna la scheda come quella
+dell'ordine e ne riusa i pezzi:
+
+- **Testata**: `pageTitle()` / `pageSubtitle()` (codice, data di inizio o di
+  creazione, canale) e `pageActions()`, che compone con `HeaderActions::group()`
+  il gruppo *Documenti* (Proforma), i bottoni primari (*Aggiungi servizio*,
+  *Disdici*, *Rimanda il proforma* da `availableActions()`) e il menu *Altro*
+  con *Annulla*, sempre a menu e in rosso.
+- **Colonne**: a sinistra `headerItems()` (stato, pagamento, rinnovo, cliente
+  con email e telefono dal contatto, fatturazione con `OrderSheet::address()`,
+  piano, metodo, nota); a destra `totals()` e la card *Periodo*.
+- **Sezioni**: `Accordion` con le tabelle `SubscriptionItemTableResource`,
+  `SubscriptionPaymentTableResource`, `SubscriptionItemChangeTableResource` e
+  `SubscriptionHistoryTableResource`. Estendono `OrderSectionResource`, che
+  ora ha `$foreignKey` (`order_id` di default, `subscription_id` qui):
+  `embed($id)` filtra su quella colonna e su `deleted = 'false'`, limita a 50
+  righe e senza righe (o senza database) scrive la frase vuota.
+- **I pagamenti** riusano `OrderPaymentTableResource::statusOf()` e
+  `methodName()`. Si leggono per `subscription_id`: un `gst_payments` senza
+  abbonamento non compare e non rompe la scheda.
+
+Corrispondenze con l'ordine che non sono uno a uno:
+
+| Ordine | Abbonamento | Perché |
+| --- | --- | --- |
+| *Prodotti* | *Servizi* (`subtotal`) | le righe sono servizi |
+| *Imponibile* (`taxable_total`) | `total - tax_total` | la colonna non c'è; i prezzi sono IVA compresa |
+| *Spedizione*, *Costi* | — | un abbonamento non li ha |
+| *Spedizione* (stato) | *Rinnovo automatico* | è il terzo stato della testata |
+| *Indirizzo di spedizione*, *Nota interna* | *Piano*, *Nota* | l'abbonamento ha una nota sola |
+| *Righe*, *Resi* | *Servizi*, *Storia dei servizi* | i cambi di servizio fanno da storia delle righe |
+
 ## Provare
 
 - Unitari: `PlanPriceRulesTest`, `SubscriptionAmountsTest`,
