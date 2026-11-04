@@ -7,6 +7,7 @@ require __DIR__ . '/harness.php';
 
 use Wonder\App\Resources\Support\NavigationOnlyResource;
 use Wonder\App\Resources\Config\SocietyLocationResource;
+use Wonder\App\Resources\Config\ImportLayoutResource as CoreImportLayoutResource;
 use Wonder\App\Resources\Support\SingletonResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 
@@ -90,13 +91,14 @@ check('ogni Resource con dati dichiara la sua funzionalità', function () use ($
 check('ogni Resource parte da una base del modulo o del core', function () use ($classi) {
     // GestionaleResource per le pagine legate a una funzionalità,
     // NavigationOnlyResource per quelle senza dati, SingletonResource per le
-    // righe uniche (impostazioni) e SocietyLocationResource per la pagina del
-    // core che il gestionale sostituisce.
+    // righe uniche (impostazioni), SocietyLocationResource e ImportLayoutResource
+    // per le pagine del core che il gestionale sostituisce.
     $basi = [
         GestionaleResource::class,
         NavigationOnlyResource::class,
         SingletonResource::class,
         SocietyLocationResource::class,
+        CoreImportLayoutResource::class,
     ];
 
     foreach ($classi as $classe) {
