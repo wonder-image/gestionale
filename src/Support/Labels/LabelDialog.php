@@ -7,14 +7,14 @@ use Wonder\App\Permission\Access;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Modal;
-use Wonder\Elements\Components\Text;
 use Wonder\Http\Route;
 use Wonder\Plugin\Gestionale\Gestionale;
 
 /**
- * Il bottone «Etichette» e la sua finestra: campi da stampare, copie e prima
- * casella libera del foglio. Il formato è quello delle Impostazioni, e la
- * finestra lo nomina soltanto. Il PDF si apre in una scheda nuova.
+ * Il bottone «Etichette» e la sua finestra: prodotti e varianti da stampare
+ * (nel pannello della lista Prodotti), campi e prima casella libera del
+ * foglio. Il formato è quello delle Impostazioni. Il PDF si apre in una
+ * scheda nuova.
  *
  * La finestra nasce in un `<template>` e lo script la porta in fondo alla
  * pagina: le schede sono già un form, e un form dentro un form non esiste.
@@ -37,6 +37,38 @@ final class LabelDialog
         ])->name('labels')
             ->permit(Access::roles(Gestionale::area($area), 'view'))
             ->where('id', '[0-9]+');
+    }
+
+    /**
+     * La rotta del pannello: `POST etichette/` sulla lista, con la scelta nel
+     * corpo (una scelta lunga non sta in un indirizzo).
+     */
+    public static function selectionRoute(string $slug, string $area): void
+    {
+        Route::post('/etichette/', Gestionale::handlerPath('backend/catalog/labels.php'), [
+            'resource' => $slug,
+            'resource_action' => 'labels-selection',
+            'labels_source' => 'selection',
+        ])->name('labels-selection')
+            ->permit(Access::roles(Gestionale::area($area), 'view'));
+    }
+
+    /** L'indirizzo del PDF del pannello. */
+    public static function selectionUrl(string $slug, string $path): string
+    {
+        $fallback = '/backend/'.$path.'/etichette/';
+
+        if (!function_exists('__r')) {
+            return $fallback;
+        }
+
+        try {
+            $named = (string) __r('backend.resource.'.$slug.'.labels-selection');
+        } catch (Throwable) {
+            return $fallback;
+        }
+
+        return $named !== '' ? $named : $fallback;
     }
 
     /** L'indirizzo del PDF di una scheda. */
@@ -71,33 +103,35 @@ final class LabelDialog
         return [Button::make('Etichette')->icon('bi bi-upc')->variant('dark')->outline()->size('sm')->opensModal(self::MODAL)->schema('inline', true)];
     }
 
-    /** `$copies` falso sul carico: lì le copie sono i pezzi ricevuti. */
-    public static function modal(string $url, bool $copies = true): string
+    /**
+     * Con `$items` (le voci di `Labels::selectionOptions()`) è il pannello:
+     * si scelgono prodotti e varianti, una etichetta per variante. Senza è
+     * il carico, che stampa i suoi pezzi.
+     *
+     * @param array<string, string>|null $items
+     */
+    public static function modal(string $url, ?array $items = null): string
     {
         if (!Gestionale::feature('barcode_labels') || $url === '') {
             return '';
         }
 
-        $formato = LabelFormats::current();
+        $campi = [];
 
-        $campi = [
-            Text::make('Formato: '.$formato->name.'. Si cambia in Set Up → Impostazioni.')->muted()->columnSpan(12),
-            FormField::key('fields')->checkbox()->options(Labels::FIELDS)->value(Labels::DEFAULT_FIELDS)->label('Da stampare')->columnSpan(12),
-        ];
-
-        if ($copies) {
-            $campi[] = FormField::key('copies')->number()->value('1')->label('Copie per variante')->columnSpan(6);
+        if ($items !== null) {
+            $campi[] = FormField::key('items')->selectSearch($items, true)->label('Prodotti e varianti')->columnSpan(12);
         }
 
+        $campi[] = FormField::key('fields')->checkbox()->options(Labels::FIELDS)->value(Labels::DEFAULT_FIELDS)->label('Da stampare')->columnSpan(12);
+
         // Per un foglio già usato in parte; il rotolo non ha caselle.
-        if (!$formato->isRoll()) {
-            $campi[] = FormField::key('start')->number()->value('1')->label('Prima casella libera')
-                ->columnSpan($copies ? 6 : 12);
+        if (!LabelFormats::current()->isRoll()) {
+            $campi[] = FormField::key('start')->number()->integer()->value('1')->label('Prima casella libera')->columnSpan(12);
         }
 
         $finestra = Modal::make('Stampa etichette')
             ->id(self::MODAL)
-            ->form($url, 'get')
+            ->form($url, $items !== null ? 'post' : 'get')
             ->columns(12)
             ->components($campi)
             ->cancel('Annulla')
@@ -122,6 +156,13 @@ final class LabelDialog
             document.body.appendChild(modello.content.cloneNode(true));
 
             var form = document.querySelector('#' + ID + ' form');
+
+            // La ricerca nella select la accende la lib; il modello era inerte.
+            document.getElementById(ID).addEventListener('show.bs.modal', function () {
+                if (typeof window.setInput === 'function' && !this.querySelector('.select2-hidden-accessible')) {
+                    window.setInput(this);
+                }
+            });
 
             if (form) {
                 form.target = '_blank';

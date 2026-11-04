@@ -82,6 +82,15 @@ Ciò che non è un `LabelFormat` con misure positive si scarta; se non resta
 niente, valgono i formati standard. Il formato in uso è `label_format` delle
 Impostazioni (`LabelFormats::current()`): se l'hook lo toglie, vale il primo.
 
+Le etichette si stampano dal pannello della lista Prodotti
+(`POST {lista}/etichette/`, rotta `labels-selection` registrata da
+`LabelDialog::selectionRoute()`, con CSRF) e dal carico
+(`GET {id}/etichette/`, `LabelDialog::route()`). Il pannello invia `items[]`:
+`m<id>` è un prodotto con tutte le varianti attive, `p<id>` una variante;
+`Labels::forSelection()` ne fa una etichetta per variante, al massimo
+`Labels::MAX_LABELS`. Le voci le dà `Labels::selectionOptions()` (abbonamenti
+esclusi).
+
 ## Regole
 
 - Le estensioni girano **nell'ordine in cui sono dichiarate**.

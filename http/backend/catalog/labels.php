@@ -1,20 +1,28 @@
 <?php
 
 /*
- * Il PDF delle etichette di un modello, di un prodotto o di un carico (#116).
+ * Il PDF delle etichette del pannello Prodotti o di un carico (#116).
  * La sorgente la mette la rotta (`labels_source`), i permessi li guarda la
- * rotta, la funzionalità `Labels::respond()`.
+ * rotta, la funzionalità `Labels::respond()`. Il pannello arriva in POST.
  */
 
+use Wonder\Http\Csrf;
 use Wonder\Plugin\Gestionale\Support\Labels\Labels;
 
 $routeParameters = is_array($ROUTE_PARAMETERS ?? null) ? $ROUTE_PARAMETERS : [];
 $routeMeta = is_array($ROUTE_META ?? null) ? $ROUTE_META : [];
 
+$source = (string) ($routeMeta['labels_source'] ?? '');
+
+if ($source === 'selection' && !Csrf::verify()) {
+    http_response_code(419);
+    exit(Csrf::failureMessage());
+}
+
 $response = Labels::respond(
-    (string) ($routeMeta['labels_source'] ?? ''),
+    $source,
     (int) ($routeParameters['id'] ?? 0),
-    $_GET
+    $source === 'selection' ? $_POST : $_GET
 );
 
 http_response_code($response['status']);
