@@ -604,6 +604,19 @@ final class Coupons
         ));
     }
 
+    /** Lo sconto concesso finora: la somma degli utilizzi non rilasciati. */
+    public static function discountGranted(int $couponId): float
+    {
+        if ($couponId <= 0) {
+            return 0.0;
+        }
+
+        return round(array_sum(array_map(
+            static fn (array $row): float => self::empty((string) ($row['released_at'] ?? '')) ? (float) ($row['discount_amount'] ?? 0) : 0.0,
+            self::rows(CouponRedemption::find(['coupon_id' => $couponId]))
+        )), 2);
+    }
+
     /**
      * I coupon riservati al cliente, con gli utilizzi suoi non rilasciati. Li
      * usano la scheda del backend e il pannello del cliente.

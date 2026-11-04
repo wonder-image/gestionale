@@ -442,8 +442,9 @@ class CouponResource extends GestionaleResource
     }
 
     /**
-     * La scheda in lettura: come il form, due colonne (otto e quattro), con in
-     * più gli utilizzi, che nel form non stanno.
+     * La scheda in lettura: a sinistra (otto colonne) i dettagli, le regole e le
+     * tabelle del core di utilizzi e codici; a destra (quattro) lo stato, i
+     * numeri, il cumulo, le azioni, dove vale e le note.
      */
     public static function showLayoutSchema(array $row): Container
     {
@@ -455,81 +456,145 @@ class CouponResource extends GestionaleResource
         $yes = static fn (string $key): string => ($row[$key] ?? 'false') === 'true' ? 'Sì' : 'No';
         $limit = static fn (string $key): string => (int) ($row[$key] ?? 0) > 0 ? (string) (int) $row[$key] : 'Senza limite';
         $minimum = (float) ($row['min_order_amount'] ?? 0);
+        $batch = ($row['batch'] ?? 'false') === 'true';
+        $card = static fn (string $title, array $components, string $tooltip = ''): Card => (new Card)->components([
+            $tooltip !== '' ? SectionTitle::make($title)->tooltip($tooltip)->columnSpan(12) : SectionTitle::make($title)->columnSpan(12),
+            ...$components,
+        ])->columns(12)->columnSpan(12);
 
-        $main = (new Card)->components([
-            SectionTitle::make('Coupon')->columnSpan(12),
-            RichText::make('<h5 class="mb-0">'.static::escape((string) ($row['code'] ?? '')).' '
-                .Badge::make(static::statusLabel($row + ['active' => 'false'], $now))->variant($class)->addClass('align-middle')->inline()->render('bootstrap').'</h5>')
+        $main = $card('Coupon', [
+            RichText::make('<h5 class="mb-0"><code class="fs-5">'.static::escape((string) ($row['code'] ?? '')).'</code></h5>')
                 ->tag('div')
                 ->columnSpan(12),
             static::sheetRow('Nome', $name)->columnSpan(6),
             static::sheetRow('Sconto', static::discountLabel($row))->columnSpan(6),
-            static::sheetRow('Periodo', static::periodLabel($row))->columnSpan(6),
-            static::sheetRow('Utilizzi', static::usageLabel(Coupons::usedCount($id), $row))->columnSpan(6),
-        ])->columns(12)->columnSpan(12);
+        ]);
 
-        $rules = (new Card)->components([
-            SectionTitle::make('Regole')->columnSpan(12),
+        $rules = $card('Regole', [
             static::sheetRow('Spesa minima', $minimum > 0 ? number_format($minimum, 2, ',', '.').' €' : '')->columnSpan(6),
             static::sheetRow('Utilizzi massimi', $limit('usage_limit'))->columnSpan(6),
             static::sheetRow('Utilizzi per cliente', $limit('usage_limit_per_customer'))->columnSpan(6),
-            static::sheetRow('Solo sul primo ordine', $yes('first_order_only'))->columnSpan(6),
-            static::sheetRow('Non sui prodotti già scontati', $yes('exclude_discounted_products'))->columnSpan(6),
-            static::sheetRow('Cumulabile con altri coupon', $yes('stackable'))->columnSpan(6),
-            ...(($row['batch'] ?? 'false') === 'true'
-                ? [static::sheetRow('Codici generati', static::codesLabel($id))->columnSpan(6)]
-                : []),
             ...(Gestionale::feature('subscriptions')
                 ? [static::sheetRow('Abbonamenti', static::durationLabel($row))->columnSpan(6)]
                 : []),
-        ])->columns(12)->columnSpan(12);
+        ]);
 
         $customers = array_map(
             static fn (array $link): string => static::escape(static::customerName((int) $link['customer_id'], '')),
             static::rowsOf(CouponCustomer::class, ['coupon_id' => $id])
         );
-        $scope = (new Card)->components([
-            SectionTitle::make('Prodotti e clienti')->columnSpan(12),
+        $scope = $card('Prodotti e clienti', [
             static::sheetRow('Prodotti', static::scopeHtml('coupon', $id), true)->columnSpan(12),
             static::sheetRow('Clienti riservati', implode(', ', $customers), true)->columnSpan(12),
-        ])->columns(12)->columnSpan(12);
+        ]);
 
-        $redemptions = (new Card)->components([
-            SectionTitle::make('Utilizzi')
-                ->tooltip('Gli ordini che hanno usato il coupon. «Rilasciato» vuol dire che l\'ordine è stato annullato o è scaduto e l\'utilizzo non conta più.')
-                ->columnSpan(12),
-            RichText::make(static::redemptionsHtml($id))->columnSpan(12),
-        ])->columns(12)->columnSpan(12);
+        $blocks = [
+            $main,
+            $rules,
+            $scope,
+            $card('Utilizzi', [
+                RichText::make(CouponRedemptionTableResource::embed($id))->tag('div')->columnSpan(12),
+            ], 'Gli ordini che hanno usato il coupon. «Rilasciato» vuol dire che l\'ordine è stato annullato o è scaduto e l\'utilizzo non conta più.'),
+        ];
 
-        $blocks = [$main, $rules, $scope, $redemptions];
-
-        if (($row['batch'] ?? 'false') === 'true') {
-            $blocks[] = (new Card)->components([
-                SectionTitle::make('Codici')
-                    ->tooltip('I codici generati: ognuno vale una volta. L\'elenco completo è anche in «Scarica i codici».')
-                    ->columnSpan(12),
-                RichText::make(static::codesHtml($id))->tag('div')->columnSpan(12),
-            ])->columns(12)->columnSpan(12);
+        if ($batch) {
+            $blocks[] = $card('Codici', [
+                RichText::make(CouponCodeTableResource::embed($id))->tag('div')->columnSpan(12),
+            ], 'I codici generati: ognuno vale una volta. L\'elenco completo è anche in «Scarica i codici».');
         }
 
+        $used = Coupons::usedCount($id);
+        $codes = $batch ? CouponCodes::of($id) : [];
+        $codesUsed = count(array_filter($codes, static fn (array $code): bool => $code['used']));
+
         $side = [
-            (new Card)->components([
-                SectionTitle::make('Dove vale')->columnSpan(12),
+            $card('Stato', [
+                RichText::make(Badge::make(static::statusLabel($row + ['active' => 'false'], $now))->variant($class)->inline()->render('bootstrap'))
+                    ->tag('div')
+                    ->columnSpan(12),
+                static::sheetRow('Periodo', static::periodLabel($row))->columnSpan(12),
+                static::sheetRow('Scadenza', static::deadlineLabel($row, $now))->columnSpan(12),
+            ]),
+            $card('Numeri', [
+                RichText::make(static::usageHtml($used, (int) ($row['usage_limit'] ?? 0)))->tag('div')->columnSpan(12),
+                static::sheetRow('Sconto concesso', number_format(Coupons::discountGranted($id), 2, ',', '.').' €')->columnSpan(12),
+                ...($batch ? [
+                    static::sheetRow('Codici generati', (string) count($codes))->columnSpan(4),
+                    static::sheetRow('Usati', (string) $codesUsed)->columnSpan(4),
+                    static::sheetRow('Liberi', (string) (count($codes) - $codesUsed))->columnSpan(4),
+                ] : []),
+            ], 'Gli utilizzi rilasciati non contano né negli utilizzi né nello sconto concesso.'),
+            $card('Cumulo', [
+                static::sheetRow('Cumulabile con altri coupon', $yes('stackable'))->columnSpan(12),
+                static::sheetRow('Solo sul primo ordine', $yes('first_order_only'))->columnSpan(12),
+                static::sheetRow('Non sui prodotti già scontati', $yes('exclude_discounted_products'))->columnSpan(12),
+            ]),
+            $card('Azioni', [
+                RichText::make('<div class="d-grid gap-2">'.implode('', array_map(
+                    static fn (Button $button): string => $button->block()->render('bootstrap'),
+                    [
+                        Button::make('Modifica', static::editUrlFor($id))->icon('bi bi-pencil', 'start')->variant('warning')->size('sm'),
+                        ...static::codeActions($row),
+                    ]
+                )).'</div>')->tag('div')->columnSpan(12),
+            ]),
+            $card('Dove vale', [
                 RichText::make(static::channelsHtml($row))->tag('div')->columnSpan(12),
-            ])->columns(12)->columnSpan(12),
+            ]),
         ];
 
         if (trim((string) ($row['note'] ?? '')) !== '') {
-            $side[] = (new Card)->components([
-                SectionTitle::make('Note')->columnSpan(12),
+            $side[] = $card('Note', [
                 static::sheetRow('', (string) $row['note'])->columnSpan(12),
-            ])->columns(12)->columnSpan(12);
+            ]);
         }
 
         return (new Container)->components([
             (new Container)->components($blocks)->columns(12)->columnSpan(8),
             (new Container)->components($side)->columns(12)->columnSpan(4),
         ])->columns(12);
+    }
+
+    /** Gli utilizzi sul limite, con la barra quando il limite c'è. */
+    public static function usageHtml(int $used, int $limit): string
+    {
+        $html = '<div class="d-flex justify-content-between small text-body-secondary"><span>Utilizzi</span>'
+            .'<span class="fw-semibold text-body">'.static::escape($used.' / '.($limit > 0 ? $limit : '∞')).'</span></div>';
+
+        if ($limit <= 0) {
+            return $html;
+        }
+
+        $percent = (int) min(100, round($used * 100 / $limit));
+
+        return $html.'<div class="progress mt-1" style="height: 6px" role="progressbar" aria-label="Utilizzi" aria-valuenow="'.$percent.'" aria-valuemin="0" aria-valuemax="100">'
+            .'<div class="progress-bar'.($percent >= 100 ? ' bg-secondary' : '').'" style="width: '.$percent.'%"></div></div>';
+    }
+
+    /** «Scade fra 5 giorni», «Scade oggi», «Inizia fra 3 giorni», «Terminato il 10/10/2026», «Senza scadenza». */
+    public static function deadlineLabel(array $row, string $now): string
+    {
+        $today = strtotime(date('Y-m-d', strtotime($now)));
+        $days = static fn (string $date): int => (int) round((strtotime(date('Y-m-d', strtotime($date))) - $today) / 86400);
+        $count = static fn (int $n): string => $n === 1 ? '1 giorno' : $n.' giorni';
+        $from = static::dayOf($row['starts_at'] ?? '', 'Y-m-d');
+        $to = static::dayOf($row['ends_at'] ?? '', 'Y-m-d');
+
+        if ($from !== '' && $days($from) > 0) {
+            return 'Inizia fra '.$count($days($from));
+        }
+
+        if ($to === '') {
+            return 'Senza scadenza';
+        }
+
+        $left = $days($to);
+
+        return match (true) {
+            $left < 0 => 'Terminato il '.static::dayOf($to),
+            $left === 0 => 'Scade oggi',
+            default => 'Scade fra '.$count($left),
+        };
     }
 
     public static function permissionSchema(): PermissionSchema
@@ -761,68 +826,6 @@ class CouponResource extends GestionaleResource
         parent::afterDelete($id, $result, $values);
     }
 
-    /**
-     * La tabella degli utilizzi, dal più recente: ordine (con il link), cliente,
-     * sconto, data e se è stato rilasciato. Senza utilizzi, una riga di testo.
-     */
-    public static function redemptionsHtml(int $couponId): string
-    {
-        $rows = $couponId > 0 ? static::rowsOf(CouponRedemption::class, ['coupon_id' => $couponId], 'id', 'DESC') : [];
-
-        if ($rows === []) {
-            return '<p class="text-muted mb-0">Nessun utilizzo.</p>';
-        }
-
-        $html = '<table class="table table-sm align-middle mb-0"><thead><tr>'
-            .'<th>Ordine</th><th>Cliente</th><th class="text-end">Sconto</th><th>Data</th><th>Rilasciato</th>'
-            .'</tr></thead><tbody>';
-
-        foreach ($rows as $row) {
-            $orderId = (int) ($row['order_id'] ?? 0);
-            $order = '<a href="'.static::escape(OrderResource::detailUrl($orderId)).'">#'.$orderId.'</a>';
-            $released = static::dayOf($row['released_at'] ?? '') !== '';
-
-            $html .= '<tr><td>'.$order.'</td>'
-                .'<td>'.static::escape(static::customerName((int) ($row['customer_id'] ?? 0), (string) ($row['email'] ?? ''))).'</td>'
-                .'<td class="text-end">'.static::escape(number_format((float) ($row['discount_amount'] ?? 0), 2, ',', '.')).' €</td>'
-                .'<td>'.static::escape(static::dayOf($row['redeemed_at'] ?? '')).'</td>'
-                .'<td>'.($released ? 'Sì' : 'No').'</td></tr>';
-        }
-
-        return $html.'</tbody></table>';
-    }
-
-    /** I codici generati in blocco, col loro stato e l'ordine che li ha usati. */
-    public static function codesHtml(int $couponId): string
-    {
-        $rows = $couponId > 0 ? CouponCodes::of($couponId) : [];
-
-        if ($rows === []) {
-            return '<p class="text-muted mb-0">Nessun codice generato.</p>';
-        }
-
-        $html = '<div class="overflow-auto" style="max-height: 420px"><table class="table table-sm align-middle mb-0"><thead><tr>'
-            .'<th>Codice</th><th>Stato</th><th>Ordine</th><th>Data</th>'
-            .'</tr></thead><tbody>';
-
-        foreach ($rows as $row) {
-            $number = $row['order_number'] !== '' ? $row['order_number'] : '#'.$row['order_id'];
-            $order = $row['order_id'] > 0
-                ? '<a href="'.static::escape(OrderResource::detailUrl($row['order_id'])).'">'.static::escape($number).'</a>'
-                : '';
-            $status = $row['used']
-                ? Badge::make('Usato')->variant('secondary')->inline()->render('bootstrap')
-                : Badge::make('Libero')->variant('success')->inline()->render('bootstrap');
-
-            $html .= '<tr><td><code>'.static::escape($row['code']).'</code></td>'
-                .'<td>'.$status.'</td>'
-                .'<td>'.$order.'</td>'
-                .'<td>'.static::escape($row['used_at']).'</td></tr>';
-        }
-
-        return $html.'</tbody></table></div>';
-    }
-
     /** Selettore dei prodotti e clienti riservati, riscritti per intero. */
     protected static function saveRelations(int $id): void
     {
@@ -869,7 +872,7 @@ class CouponResource extends GestionaleResource
     }
 
     /** Il nome del cliente; se non c'è (un ospite) l'email. */
-    protected static function customerName(int $customerId, string $email): string
+    public static function customerName(int $customerId, string $email): string
     {
         if ($customerId > 0) {
             $row = static::rowsOf(Contact::class, ['id' => $customerId])[0] ?? null;
