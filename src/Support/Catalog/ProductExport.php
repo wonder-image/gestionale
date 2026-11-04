@@ -24,6 +24,7 @@ use Wonder\Plugin\Gestionale\Support\Export\Delimited;
 use Wonder\App\Import\Column;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\StockBadge;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxResolver;
 
 /**
@@ -294,6 +295,7 @@ final class ProductExport
             $variantId = (int) ($product['product_variant_id'] ?? 0);
             $variant = $variants[$variantId] ?? null;
             $bundle = ($model['type'] ?? 'simple') === 'bundle';
+            $subscription = ($model['type'] ?? 'simple') === SubscriptionModels::TYPE;
             $names = ProductNames::of($product, $modelNames);
             $price = self::amount($product['price'] ?? null);
             $sale = self::amount($product['sale_price'] ?? null);
@@ -314,14 +316,15 @@ final class ProductExport
                 'mpn' => self::text((string) ($product['mpn'] ?? '')),
                 'article' => $names['article'] === '—' ? '' : $names['article'],
                 'option' => self::text($names['option']),
-                'type' => $bundle ? 'Multiprodotto' : 'Prodotto',
+                'type' => $bundle ? 'Multiprodotto' : ($subscription ? 'Abbonamento' : 'Prodotto'),
                 'brand' => $brand !== null ? self::text((string) ($brand['name'] ?? '')) : '',
                 'categories' => implode(self::CATEGORY_SEPARATOR, array_unique($categoriesOf[$modelId] ?? [])),
                 'price' => $price,
                 // Uno «scontato» che non sconta non è un'offerta.
                 'sale_price' => $sale !== null && $sale > 0 && ($price === null || $sale < $price) ? $sale : null,
                 // Un multiprodotto fatto solo di pezzi che si vendono scoperti non finisce mai.
-                'available' => $available >= StockBadge::UNLIMITED ? null : round((float) $available, 3),
+                // Un abbonamento non ha magazzino: non finisce mai.
+                'available' => $subscription || $available >= StockBadge::UNLIMITED ? null : round((float) $available, 3),
                 'backorder' => self::yes(($data['backorders'] ?? false) && ($product['allow_backorder'] ?? 'false') === 'true'),
                 'visible' => self::yes(($model['visible'] ?? 'true') === 'true'),
                 'visible_online' => self::yes(($model['visible_online'] ?? 'true') === 'true'),
