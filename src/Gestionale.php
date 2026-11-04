@@ -163,9 +163,12 @@ final class Gestionale implements ModuleInterface, ModuleTasks, ModuleGoogleApis
             $modules = [];
         }
 
+        $catalog = Support\Features\FeatureCatalog::all();
+
         return self::$features = Support\Features\FeatureState::resolve(
-            Support\Features\FeatureCatalog::all(),
-            $unlocked,
+            $catalog,
+            // Prima di `forge update` le voci nuove non hanno ancora la riga.
+            Support\Features\FeatureState::inherit($catalog, $unlocked),
             array_values($modules)
         );
     }

@@ -26,6 +26,34 @@ final class FeatureState
         return $state;
     }
 
+    /**
+     * Lo stato di una voce senza riga propria nasce da quelle che sostituisce
+     * (`replaces`): sbloccata se almeno una lo era. Con la riga, vale la riga.
+     *
+     * @param array<string, array<string, mixed>> $catalog
+     * @param array<string, bool> $unlocked chiave → sbloccata, comprese le chiavi tolte
+     * @return array<string, bool>
+     */
+    public static function inherit(array $catalog, array $unlocked): array
+    {
+        foreach ($catalog as $key => $feature) {
+            $replaces = (array) ($feature['replaces'] ?? []);
+
+            if ($replaces === [] || array_key_exists($key, $unlocked)) {
+                continue;
+            }
+
+            foreach ($replaces as $old) {
+                if (($unlocked[$old] ?? false) === true) {
+                    $unlocked[$key] = true;
+                    break;
+                }
+            }
+        }
+
+        return $unlocked;
+    }
+
     public static function isActive(array $catalog, array $unlocked, array $modules, string $key): bool
     {
         return isset($catalog[$key]) && self::active($catalog, $unlocked, $modules, $key, []);

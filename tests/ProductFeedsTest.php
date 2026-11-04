@@ -192,8 +192,8 @@ check('google: un xml RSS che si rilegge, un item per riga', function () use ($r
 // --- Registro ---
 
 check('registro: solo i formati concessi, nell\'ordine del registro', fn () =>
-    ProductExports::granted(static fn (string $f): bool => in_array($f, ['export_google', 'export_csv'], true))
-        === ['csv' => 'CSV (.csv)', 'google' => 'Google Merchant Center (.xml)']
+    ProductExports::granted(static fn (string $f): bool => in_array($f, ['export_google', 'export_products'], true))
+        === ['xlsx' => 'Excel (.xlsx)', 'csv' => 'CSV (.csv)', 'google' => 'Google Merchant Center (.xml)']
     && ProductExports::granted(static fn (): bool => false) === []
 );
 
@@ -249,7 +249,7 @@ check('feed: indirizzo dal dominio di produzione, altrimenti dal sito', fn () =>
 check('feed: ogni feed ha la funzionalità del suo formato', fn () =>
     ProductFeeds::forFeature('export_google') === 'google'
     && ProductFeeds::forFeature('export_meta') === 'meta'
-    && ProductFeeds::forFeature('export_csv') === null
+    && ProductFeeds::forFeature('export_products') === null
 );
 
 check('feed: sbloccato si scrive, bloccato si cancella, non scaduto resta', function () {

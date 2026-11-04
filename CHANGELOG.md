@@ -6,6 +6,14 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Esportazioni per contenuto, non per formato.** `export_products` sostituisce
+  `export_xlsx` ed `export_csv`, `export_contacts` sostituisce
+  `export_contacts_xlsx` ed `export_contacts_csv`: una funzionalità attiva dà
+  Excel e CSV, il formato si sceglie nel menu «Esporta». Le installazioni
+  esistenti ereditano lo stato (attiva se lo era una delle due vecchie) con la
+  nuova chiave `replaces` del catalogo. I feed Meta, Google, TikTok e Amazon
+  restano funzionalità a sé. Nel listino «Scarica (Excel)» e «Scarica (CSV)»
+  diventano un solo **Scarica** a tendina.
 - **Prezzi dei piani.** Colonne Nome, Prezzo, Addebito (Mensile… Annuale,
   al posto di «Ogni» e della ricorrenza, che si ricava dall'addebito), Una
   tantum, Stato; prezzo scontato, vincolo, prova e rinnovo dietro «Compila le

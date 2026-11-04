@@ -131,15 +131,15 @@ try {
         && str_starts_with($scarica('csv'), 'ERRORE: Export non abilitato')
     );
 
-    $concedi(['export_csv', 'export_google']);
+    $concedi(['export_products', 'export_google']);
 
     check('pannello: «Esporta» offre solo quelle concesse, col gestore del registro', function () use ($scarica) {
         $download = (array) (ProductModelResource::tableLayoutSchema()->all()['download'] ?? []);
 
         return !empty($download['enabled'])
-            && array_keys((array) $download['formats']) === ['csv', 'google']
+            && array_keys((array) $download['formats']) === ['xlsx', 'csv', 'google']
             && is_callable($download['handler'] ?? null)
-            && str_starts_with($scarica('xlsx'), 'ERRORE: Formato export non supportato');
+            && str_starts_with($scarica('meta'), 'ERRORE: Formato export non supportato');
     });
 
     $concedi(array_column(ProductExports::FORMATS, 'feature'));

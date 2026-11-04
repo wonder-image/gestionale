@@ -10,7 +10,7 @@ use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
 echo "ContactExports\n";
 
 check('solo i formati con la funzionalità attiva', function () {
-    return ContactExports::granted(static fn (string $f): bool => $f === 'export_contacts_csv') === ['csv' => 'CSV (.csv)']
+    return ContactExports::granted(static fn (string $f): bool => $f === 'export_contacts') === ['xlsx' => 'Excel (.xlsx)', 'csv' => 'CSV (.csv)']
         && ContactExports::granted(static fn (): bool => true) === ['xlsx' => 'Excel (.xlsx)', 'csv' => 'CSV (.csv)']
         && ContactExports::granted(static fn (): bool => false) === [];
 });

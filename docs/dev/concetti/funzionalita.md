@@ -77,26 +77,42 @@ Bloccare **non cancella mai i dati**: risbloccando si ritrova tutto.
 ## Esportazioni
 
 L'area **Esportazioni** decide quali file offre «Esporta» nella tabella dei
-prodotti: `export_xlsx`, `export_csv`, `export_meta` (Catalogo Meta, .csv) e
-`export_google` (Google Merchant Center, .xml). Con nessuna concessa il
-pulsante sparisce. Per un sito che le vuole dal primo giorno:
+prodotti: `export_products` (Excel e CSV: il formato si sceglie nel menu),
+`export_meta` (Catalogo Meta, .csv) e `export_google` (Google Merchant Center,
+.xml). Con nessuna concessa il pulsante sparisce. Per un sito che le vuole dal
+primo giorno:
 
 ```php
-'features' => ['unlock' => ['export_xlsx', 'export_csv', 'export_meta', 'export_google']],
+'features' => ['unlock' => ['export_products', 'export_meta', 'export_google']],
 ```
 
 Il registro è `Support\Catalog\Exports\ProductExports`: formato → funzionalità,
-etichetta, estensione e nome del file. Una nuova esportazione è una voce lì,
-una funzionalità qui e un ramo in `ProductExports::body()`; le classi pure
+etichetta, estensione e nome del file. Più formati possono dipendere dalla
+stessa funzionalità: un formato di file è una scelta del menu, non una
+funzionalità; una funzionalità a sé serve solo a un contenuto o a un feed
+nuovo. Un nuovo formato è una voce lì, un ramo in `ProductExports::body()` e,
+se serve, una funzionalità qui; le classi pure
 `Support\Export\Delimited` (csv/tsv), `XmlFeed` (rss 2.0 con namespace) e
 `Download` (intestazioni dello scaricamento) fanno la scrittura.
 
-Clienti e fornitori hanno il loro «Esporta» con `export_contacts_xlsx` e
-`export_contacts_csv` (registro `Support\Contacts\ContactExports`): stesse
+Clienti e fornitori hanno il loro «Esporta» con `export_contacts`, che dà
+Excel e CSV (registro `Support\Contacts\ContactExports`): stesse
 colonne della rubrica di `wonder-image/customer-account` (`ContactExport`:
 anagrafica, recapiti, fatturazione, stato, creazione), celle scritte come
 testo (`downloadAsText()` del core), tutte le righe dell'elenco senza i filtri
-della tabella. Le due funzionalità sono bloccate di serie.
+della tabella. La funzionalità è bloccata di serie.
+
+### Chiavi sostituite (`replaces`)
+
+Fino alla D64 ogni formato era una funzionalità (`export_xlsx`, `export_csv`,
+`export_contacts_xlsx`, `export_contacts_csv`). Le voci nuove le elencano in
+`replaces` e ne ereditano lo stato con `FeatureState::inherit()`: senza una
+riga propria, la nuova è sbloccata se lo era almeno una delle vecchie. Vale
+in lettura (`Gestionale::features()`, prima di `forge update`) e nel seeding
+(`Defaults::features()`, che scrive la riga nuova; anche una vecchia chiave in
+`features.unlock` sblocca la nuova). Le righe vecchie restano nel database
+senza effetto. Una chiave sostituita non può stare nel catalogo né avere due
+eredi: `FeatureCatalog::assertValid()` lo rifiuta.
 
 I feed leggono due impostazioni facoltative del modulo: `exports.currency`
 (codice ISO, di serie `EUR`) e `exports.country` (il paese con cui si sceglie

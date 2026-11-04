@@ -91,6 +91,24 @@ try {
             ($stato['orders'] ?? null) === 'false' && ($stato['backorders'] ?? null) === 'false'
         );
 
+        // Un'installazione con le vecchie esportazioni per formato.
+        sqlDelete(Feature::$table, ['feature_key' => 'export_products']);
+        sqlDelete(Feature::$table, ['feature_key' => 'export_contacts']);
+        Feature::create(['feature_key' => 'export_xlsx', 'enabled' => 'false']);
+        Feature::create(['feature_key' => 'export_csv', 'enabled' => 'true']);
+        Feature::create(['feature_key' => 'export_contacts_xlsx', 'enabled' => 'false']);
+        Feature::create(['feature_key' => 'export_contacts_csv', 'enabled' => 'false']);
+        Defaults::seed(new DefaultRows());
+        $migrate = array_column($righe(), 'enabled', 'feature_key');
+
+        check('esportazioni: la nuova nasce attiva se lo era una delle vecchie', fn () =>
+            ($migrate['export_products'] ?? null) === 'true' && ($migrate['export_contacts'] ?? null) === 'false'
+        );
+
+        foreach (['export_xlsx', 'export_csv', 'export_contacts_xlsx', 'export_contacts_csv'] as $vecchia) {
+            sqlDelete(Feature::$table, ['feature_key' => $vecchia]);
+        }
+
         $aliquote = array_values(array_filter((array) sqlSelect(Tax::$table, null)->row, 'is_array'));
 
         check('le aliquote italiane nascono visibili', function () use ($aliquote) {
