@@ -98,11 +98,27 @@ Se l'ordine viene annullato o scade senza pagamento, l'utilizzo **torna
 disponibile** (sulla riga compare «Rilasciato»). Un reso non lo restituisce.
 
 Li vedi nella **scheda del coupon**: dall'elenco clicchi sul codice (o sulla
-lente) e si apre una pagina di sola lettura con i dettagli del coupon e la
-tabella degli utilizzi: ordine (con il link), cliente, sconto, data e se è
-stato rilasciato. Per cambiarlo, «Modifica» in alto. Nell'elenco la colonna
-«Utilizzi» mostra quelli ancora validi sul limite (`3 / 10`, `3 / ∞` senza
-limite).
+lente) e si apre una pagina di sola lettura. A sinistra ci sono i dettagli, le
+regole, prodotti e clienti e la tabella degli **utilizzi**: ordine (con il
+link), cliente, codice, sconto, data e se è valido o rilasciato. La tabella si
+cerca per codice o email, si filtra per valido o rilasciato, si ordina e va a
+pagine. Con i codici in blocco sotto c'è anche la tabella dei **codici**
+(codice, libero o usato, ordine, data), con ricerca e filtro «Liberi» /
+«Usati».
+
+Di lato trovi:
+
+* **Stato**: in corso, programmato, terminato o disattivato, il periodo e quanto manca («Scade
+  fra 5 giorni», «Inizia fra 3 giorni», «Senza scadenza»).
+* **Numeri**: utilizzi sul limite con la barra, lo **sconto concesso** in
+  tutto (solo utilizzi non rilasciati) e, con i codici in blocco, quanti sono
+  generati, usati e liberi.
+* **Cumulo**: se si somma ad altri coupon.
+* **Azioni**: «Modifica» e, se servono, «Genera codici» e «Scarica i codici».
+* **Dove vale** (canali) e le **note**.
+
+Nell'elenco la colonna «Utilizzi» mostra quelli ancora validi sul limite
+(`3 / 10`, `3 / ∞` senza limite).
 
 ## Cose da sapere
 

@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponProductModel;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
+use Wonder\Plugin\Gestionale\Resources\Promotions\CouponRedemptionTableResource;
 use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
@@ -286,13 +287,24 @@ check('la tabella degli utilizzi mostra l\'ordine, l\'importo e se è stato rila
             'coupon_id' => $id, 'order_id' => $secondo, 'customer_id' => 0, 'email' => '<b>due</b>@example.com',
             'discount_amount' => '7.50', 'redeemed_at' => '2026-10-03 09:00:00', 'released_at' => '2026-10-04 09:00:00',
         ]);
-        $html = CouponResource::redemptionsHtml($id);
+        $html = CouponRedemptionTableResource::embed($id);
+        $vuoto = CouponRedemptionTableResource::embed(99999999);
+        // Le righe le chiede l'API della tabella: i formatter partono dalla riga letta dal DB.
+        $riga = static fn (string $email): array => (array) CouponRedemption::find(['coupon_id' => $id, 'email' => $email], 1);
+        $uno = $riga('uno@example.com');
+        $due = $riga('<b>due</b>@example.com');
 
-        return str_contains($html, '5,00 €') && str_contains($html, '7,50 €')
-            && str_contains($html, '02/10/2026') && str_contains($html, 'uno@example.com')
-            && str_contains($html, '&lt;b&gt;due&lt;/b&gt;@example.com') && !str_contains($html, '<b>due</b>')
-            && substr_count($html, 'Sì') === 1 && substr_count($html, 'No') >= 1
-            && CouponResource::redemptionsHtml(99999999) !== '' && !str_contains(CouponResource::redemptionsHtml(99999999), '<table');
+        return str_contains($html, CouponRedemption::$table.'__table')
+            && str_contains($html, CouponRedemption::$table.'__search_input')
+            && str_contains(cella(CouponRedemptionTableResource::class, 'discount_amount', $uno), '5,00 €')
+            && str_contains(cella(CouponRedemptionTableResource::class, 'discount_amount', $due), '7,50 €')
+            && cella(CouponRedemptionTableResource::class, 'redeemed_at', $uno) === '02/10/2026'
+            && str_contains(cella(CouponRedemptionTableResource::class, 'customer_id', $uno), 'uno@example.com')
+            && str_contains(cella(CouponRedemptionTableResource::class, 'customer_id', $due), '&lt;b&gt;due&lt;/b&gt;@example.com')
+            && str_contains(cella(CouponRedemptionTableResource::class, 'redemption_status', $uno), 'Valido')
+            && str_contains(cella(CouponRedemptionTableResource::class, 'redemption_status', $due), 'Rilasciato')
+            && Coupons::discountGranted($id) === 5.0
+            && str_contains($vuoto, 'Nessun utilizzo') && !str_contains($vuoto, '<table');
     });
 });
 
@@ -313,7 +325,7 @@ check('un id che non esiste o un tipo cambiato a mano non rompono la pagina', fu
         accendiFunzionalita(['orders', 'coupons']);
 
         return is_array(CouponResource::mutateFormValues(['id' => 99999999, 'starts_at' => '0000-00-00 00:00:00'], 'edit'))
-            && CouponResource::redemptionsHtml(0) !== '';
+            && str_contains(CouponRedemptionTableResource::embed(0), 'Nessun utilizzo');
     });
 });
 
