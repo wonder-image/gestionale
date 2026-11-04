@@ -2,6 +2,32 @@
     "gestionale": {
         "name": "Gestionale",
         "errors": {
+            "import": {
+                "sku_column": "Manca la colonna «SKU»: è quella che dice quale prodotto aggiornare.",
+                "price_tax_included": "I prezzi del negozio sono IVA esclusa, ma la colonna del prezzo dice «IVA inclusa»: scarica di nuovo il file e riprova.",
+                "price_tax_excluded": "I prezzi del negozio sono IVA inclusa, ma la colonna del prezzo dice «IVA esclusa»: scarica di nuovo il file e riprova.",
+                "sku_missing": "Manca lo SKU: scrivilo per aggiornare o creare il prodotto.",
+                "sku_duplicate": "Questo SKU compare già alla riga {{line}}: tienine una sola.",
+                "group_mismatch": "Questo SKU appartiene all'articolo {{group}}: il codice articolo del file è diverso.",
+                "type_change": "Il tipo di un articolo che esiste già non si cambia da file.",
+                "type_new": "Da file si creano solo prodotti di tipo «Prodotto»: multiprodotti e abbonamenti si creano dal backend.",
+                "version_type": "A un multiprodotto o a un abbonamento non si aggiungono versioni da file.",
+                "article_missing": "Manca il nome dell'articolo: scrivilo per creare il prodotto.",
+                "number": "«{{column}}» non è un numero.",
+                "negative": "«{{column}}» non può essere negativo.",
+                "boolean": "«{{column}}» si scrive Sì o No.",
+                "sale_price": "Il prezzo scontato deve essere più basso del prezzo.",
+                "unit": "Unità di misura sconosciuta: usa una fra {{units}}.",
+                "available_type": "La giacenza di un multiprodotto o di un abbonamento non si cambia da file: lascia la colonna com'era.",
+                "image_https": "L'indirizzo dell'immagine deve cominciare con https://.",
+                "image_type": "L'immagine deve essere PNG, JPG o WebP.",
+                "image_save": "Non sono riuscito a salvare l'immagine: riprova più tardi.",
+                "image_download": "Non sono riuscito a scaricare l'immagine: controlla l'indirizzo.",
+                "image_size": "L'immagine supera gli 8 MB.",
+                "product_missing": "Questo prodotto non esiste più: scarica di nuovo il file.",
+                "model_missing": "Questo articolo non esiste più: scarica di nuovo il file.",
+                "save_failed": "Non sono riuscito a salvare la riga: riprova."
+            },
             "stock": {
                 "insufficient": "Non c'è abbastanza giacenza di {{product}}.",
                 "zero_quantity": "Questa rettifica non cambia niente: scrivi una quantità diversa da quella di adesso.",
