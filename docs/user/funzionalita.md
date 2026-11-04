@@ -65,7 +65,6 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Corrieri | Spedizioni | Etichette e tracking dal corriere. | Spedizioni |
 | Vendita online | Canali di vendita | Il sito vende: coupon, campagne e metodi di pagamento valgono per il sito. | Ordini |
 | Vendita in ufficio | Canali di vendita | Gli ordini si fanno dal gestionale: coupon, campagne e metodi di pagamento valgono anche per l'ufficio; le rate si seguono nello Scadenzario. | Ordini |
-| Abbonamenti online | Canali di vendita | Il sito vende i piani: pagina dei piani, sottoscrizione con Stripe e abbonamenti nell'area cliente. | Vendita online, Abbonamenti |
 | Vendita in cassa | Canali di vendita | Vendita in sede con documento commerciale e corrispettivi. | Ordini |
 | Server MCP | Integrazioni | Collega gli assistenti IA (Claude, ChatGPT, Cursor) a prodotti, prezzi, giacenze, categorie, ordini e preventivi, con i permessi del backend. | — |
 | Esportazione prodotti | Esportazioni | Scarica i prodotti in Excel (.xlsx) o CSV (.csv): una riga per opzione, intestazioni in italiano. | — |

@@ -7,7 +7,6 @@ use Wonder\App\Scheduler\Context;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentProviders;
 use Wonder\Plugin\Gestionale\Support\Payments\Reconcile;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\OnlineSubscriptions;
-use Wonder\Plugin\Gestionale\Gestionale;
 
 /**
  * Una volta all'ora recupera da Stripe quello che il webhook ha perso:
@@ -50,7 +49,7 @@ final class StripeReconcileTask extends AbstractTask
         $done = $provider === null ? ['payments' => 0, 'events' => 0] : Reconcile::run($provider);
 
         // Gli abbonamenti online (G10): i `pending` e i `past_due` si rileggono da Stripe.
-        if (Gestionale::feature('online_subscriptions')) {
+        if (OnlineSubscriptions::enabled()) {
             $done += OnlineSubscriptions::reconcile();
         }
 
