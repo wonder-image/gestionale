@@ -20,7 +20,9 @@ use Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions;
  * si spegne con abbonamenti vivi: spenta, nessuno vedrebbe più i rinnovi che
  * continuano a correre. «Varianti» non si spegne con un articolo in più
  * versioni: spenta, la scheda lo mostrerebbe come singolo e i codici delle
- * versioni non si vedrebbero più. Vale anche quando si spegnerebbe a catena,
+ * versioni non si vedrebbero più. «Prodotto» non si spegne con dei prodotti
+ * singoli nel catalogo: spenta, sparirebbero dal menu ma resterebbero in
+ * vendita. Vale anche quando si spegnerebbe a catena,
  * per una dipendenza tolta.
  * «Acquisti» e «Lotti e scadenze» si spengono sempre: i dati restano,
  * nascosti, e tornano alla riaccensione.
@@ -52,6 +54,14 @@ final class FeatureGuards
             }
         }
 
+        if (self::turnsOff('products', $current, $next)) {
+            $products = self::simpleProducts();
+
+            if ($products > 0) {
+                throw UserError::make('feature.products_in_use', ['count' => self::productsLabel($products)]);
+            }
+        }
+
         if (self::turnsOff('variants', $current, $next)) {
             $models = self::modelsWithVariants();
 
@@ -65,6 +75,12 @@ final class FeatureGuards
     public static function subscriptionsLabel(int $count): string
     {
         return $count === 1 ? 'c\'è 1 abbonamento in corso' : 'ci sono '.$count.' abbonamenti in corso';
+    }
+
+    /** «c'è 1 prodotto», «ci sono 3 prodotti». Pura. */
+    public static function productsLabel(int $count): string
+    {
+        return $count === 1 ? 'c\'è 1 prodotto' : 'ci sono '.$count.' prodotti';
     }
 
     /** «c'è 1 articolo con varianti», «ci sono 3 articoli con varianti». Pura. */
@@ -138,6 +154,16 @@ final class FeatureGuards
     {
         try {
             return (int) sqlCount(StockDocument::$table, "`type` = 'transfer' AND `status` = 'in_transit' AND `deleted` = 'false'");
+        } catch (Throwable) {
+            return 0;
+        }
+    }
+
+    /** Gli articoli di tipo prodotto singolo (né multiprodotto né abbonamento). */
+    private static function simpleProducts(): int
+    {
+        try {
+            return (int) sqlCount(ProductModel::$table, "`type` = 'simple' AND `deleted` = 'false'");
         } catch (Throwable) {
             return 0;
         }

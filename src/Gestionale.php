@@ -143,6 +143,7 @@ final class Gestionale implements ModuleInterface, ModuleTasks, ModuleGoogleApis
 
         $unlocked = [];
         $modules = [];
+        $read = false;
 
         try {
             foreach (Models\System\Feature::find(['deleted' => 'false']) ?: [] as $row) {
@@ -155,6 +156,7 @@ final class Gestionale implements ModuleInterface, ModuleTasks, ModuleGoogleApis
                 static fn ($manifest): string => $manifest->slug(),
                 \Wonder\App\Module\Registry::enabled()
             );
+            $read = true;
         } catch (\Throwable) {
             // Senza database (test degli schemi, comandi fuori dal sito) non
             // si sa cosa sia sbloccato: **tutto bloccato** è la risposta
@@ -164,13 +166,14 @@ final class Gestionale implements ModuleInterface, ModuleTasks, ModuleGoogleApis
         }
 
         $catalog = Support\Features\FeatureCatalog::all();
+        // Prima di `forge update` le voci nuove non hanno ancora la riga.
+        $unlocked = Support\Features\FeatureState::inherit($catalog, $unlocked);
 
-        return self::$features = Support\Features\FeatureState::resolve(
-            $catalog,
-            // Prima di `forge update` le voci nuove non hanno ancora la riga.
-            Support\Features\FeatureState::inherit($catalog, $unlocked),
-            array_values($modules)
-        );
+        if ($read) {
+            $unlocked = Support\Features\FeatureState::defaults($catalog, $unlocked);
+        }
+
+        return self::$features = Support\Features\FeatureState::resolve($catalog, $unlocked, array_values($modules));
     }
 
     /** Stato di una funzionalità; una chiave sconosciuta è sempre bloccata. */

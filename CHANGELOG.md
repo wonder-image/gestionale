@@ -6,6 +6,17 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Interruttore «Prodotto» e voce «Abbonamenti» in Catalogo.** Nuova
+  funzionalità `products` (area Catalogo, accesa di serie con la nuova chiave
+  `default` del catalogo: `FeatureState::defaults()`), che governa la voce
+  *Catalogo → Prodotti* e la creazione dei prodotti singoli
+  (`product.products_off`); non si spegne con prodotti singoli nel catalogo
+  (`feature.products_in_use`). `bundles` la richiede. `subscriptions` passa
+  dall'area Vendite a Catalogo e torna la voce *Catalogo → Abbonamenti*
+  (`SubscriptionProductsResource`, solo navigazione). L'elenco ha due viste,
+  `?vista=prodotti|abbonamenti` (`ProductModelResource::VIEWS`,
+  `viewTypes()`, `typeListUrl()`), sempre senza filtro Tipo; Multiprodotti
+  resta senza voce.
 - **In Catalogo solo «Prodotti».** Tolte le voci di menu «Multiprodotti» e
   «Abbonamenti» (`BundleProductsResource`, `SubscriptionProductsResource`,
   solo navigazione) e `ProductModelResource::typeListUrl()`. L'elenco dei

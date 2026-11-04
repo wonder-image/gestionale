@@ -84,4 +84,13 @@ check('inherit: lo stato ereditato passa da resolve', fn () =>
     FeatureState::resolve($eredi, FeatureState::inherit($eredi, ['export_csv' => true]), [])['export_products'] === true
 );
 
+check('defaults: una voce «default» senza riga conta come sbloccata, con la riga vale la riga', function () {
+    $catalogo = ['products' => ['default' => true], 'bundles' => ['requires' => ['products']]];
+
+    return FeatureState::defaults($catalogo, [])['products'] === true
+        && !isset(FeatureState::defaults($catalogo, [])['bundles'])
+        && FeatureState::defaults($catalogo, ['products' => false])['products'] === false
+        && FeatureState::resolve($catalogo, FeatureState::defaults($catalogo, ['bundles' => true]), [])['bundles'] === true;
+});
+
 summary();

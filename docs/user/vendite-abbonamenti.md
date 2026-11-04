@@ -17,7 +17,7 @@ rinnovo non crea un ordine, crea un pagamento.
 
 Le pagine sono due:
 
-* **Catalogo → Prodotti**: cosa vendi. Un abbonamento (il «piano») è un
+* **Catalogo → Abbonamenti**: cosa vendi. Un abbonamento (il «piano») è un
   prodotto di tipo **Abbonamento**, con i suoi prezzi ricorrenti e i suoi
   metadata (i limiti del piano);
 * **Vendite → Abbonamenti**: chi è abbonato, a cosa, e quando rinnova.
@@ -27,9 +27,8 @@ Le pagine sono due:
 
 ## I piani
 
-In *Catalogo → Prodotti*, la freccia accanto a **+ Aggiungi** → **Abbonamento**
-crea un prodotto di tipo *Abbonamento*, che resta nella stessa lista degli
-altri articoli, riconoscibile dall'icona. Il tipo si sceglie alla creazione e non cambia. La scheda è
+In *Catalogo → Abbonamenti*, **+ Aggiungi** crea un prodotto di tipo
+*Abbonamento*, che compare in questa lista. Il tipo si sceglie alla creazione e non cambia. La scheda è
 quella di un prodotto, senza quello che a un servizio non serve: magazzino,
 spedizione, lotti, varianti, confezione, resi e unità di misura. Restano:
 
