@@ -9,17 +9,18 @@ use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentItem;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductExport;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdf;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
 use Wonder\Support\Labels\LabelFormat;
 use Wonder\Support\Labels\LabelSheet;
 
 /**
- * Le etichette con codice a barre (#116) di un articolo, di una variante o
- * di un documento di carico. Il prezzo è quello al pubblico: lo scontato se
+ * Le etichette con codice a barre (#116) di una scelta di prodotti e
+ * varianti (il pannello della lista Prodotti) o di un documento di carico. Il prezzo è quello al pubblico: lo scontato se
  * sconta davvero, con l'IVA quando il listino è senza.
  */
 final class Labels
 {
-    public const SOURCES = ['model', 'product', 'receipt'];
+    public const SOURCES = ['model', 'product', 'receipt', 'selection'];
 
     /** Oltre questo numero un PDF diventa un rischio per il server, non un foglio di etichette. */
     public const MAX_LABELS = 2000;
@@ -51,9 +52,11 @@ final class Labels
         }
 
         $options = self::options($query);
-        $items = in_array($source, self::SOURCES, true) && $id > 0
-            ? self::items($source, $id, $options['copies'])
-            : null;
+        $items = match (true) {
+            $source === 'selection' => self::forSelection($query['items'] ?? []),
+            in_array($source, self::SOURCES, true) && $id > 0 => self::items($source, $id, $options['copies']),
+            default => null,
+        };
 
         if ($items === null) {
             return ['status' => 404, 'body' => 'Non trovato', 'filename' => ''];
@@ -64,7 +67,7 @@ final class Labels
         return [
             'status' => 200,
             'body' => LabelSheet::render($options['format'], $labels, $options['start']),
-            'filename' => 'etichette-'.$source.'-'.$id.'.pdf',
+            'filename' => $source === 'selection' ? 'etichette-prodotti.pdf' : 'etichette-'.$source.'-'.$id.'.pdf',
         ];
     }
 
@@ -155,6 +158,77 @@ final class Labels
         };
     }
 
+    /**
+     * Le righe della scelta del pannello: `m<id>` è un prodotto con tutte le
+     * sue varianti attive, `p<id>` una variante sola. Una etichetta per
+     * variante, anche se è scelta due volte; `null` se non resta niente.
+     *
+     * @return list<array{article: string, variant: string, sku: string, price: ?float, ean: string, copies: int}>|null
+     */
+    public static function forSelection(mixed $keys): ?array
+    {
+        $keys = is_array($keys) ? $keys : [$keys];
+        $products = [];
+
+        foreach ($keys as $key) {
+            if (!is_string($key) || !preg_match('/^([mp])([1-9][0-9]*)$/', $key, $match)) {
+                continue;
+            }
+
+            $id = (int) $match[2];
+            $found = $match[1] === 'm'
+                ? (self::alive($model = ProductModel::findById($id)) && ($model['type'] ?? '') !== SubscriptionModels::TYPE ? self::modelProducts($id) : [])
+                : (self::alive($product = Product::findById($id)) && ($product['active'] ?? 'true') === 'true' ? [$product] : []);
+
+            foreach ($found as $product) {
+                $products[(int) $product['id']] ??= $product;
+            }
+
+            if (count($products) >= self::MAX_LABELS) {
+                break;
+            }
+        }
+
+        return $products === [] ? null : self::rows(array_slice(array_values($products), 0, self::MAX_LABELS), 1);
+    }
+
+    /**
+     * Le voci del pannello: ogni prodotto (`m<id>`) e, se ha più varianti,
+     * ognuna (`p<id>`, «Prodotto — Variante»). Fuori gli abbonamenti e i
+     * prodotti senza varianti attive, che non hanno niente da stampare.
+     *
+     * @return array<string, string>
+     */
+    public static function selectionOptions(): array
+    {
+        $variants = [];
+
+        foreach (self::listOf(Product::find(['deleted' => 'false', 'active' => 'true'], null, 'position', 'ASC')) as $product) {
+            $variants[(int) ($product['product_model_id'] ?? 0)][] = $product;
+        }
+
+        $options = [];
+
+        foreach (self::listOf(ProductModel::find(['deleted' => 'false'], null, 'name', 'ASC')) as $model) {
+            $own = $variants[(int) $model['id']] ?? [];
+
+            if ($own === [] || ($model['type'] ?? '') === SubscriptionModels::TYPE) {
+                continue;
+            }
+
+            $name = self::plain($model['name'] ?? '');
+            $options['m'.$model['id']] = $name;
+
+            if (count($own) > 1) {
+                foreach ($own as $product) {
+                    $options['p'.$product['id']] = $name.' — '.self::plain($product['name'] ?? '');
+                }
+            }
+        }
+
+        return $options;
+    }
+
     /** Tutte le varianti attive dell'articolo, `$copies` ciascuna. */
     public static function forModel(int $id, int $copies = 1): ?array
     {
@@ -164,14 +238,18 @@ final class Labels
             return null;
         }
 
-        $products = self::listOf(Product::find(
+        return self::rows(self::modelProducts($id), $copies);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function modelProducts(int $id): array
+    {
+        return self::listOf(Product::find(
             ['product_model_id' => $id, 'deleted' => 'false', 'active' => 'true'],
             null,
             'position',
             'ASC'
         ));
-
-        return self::rows($products, $copies);
     }
 
     public static function forProduct(int $id, int $copies = 1): ?array

@@ -160,22 +160,33 @@ $features->setValue(null, ['barcode_labels' => false]);
 check('spenta: nessun bottone', fn () => LabelDialog::actions() === []);
 check('spenta: nessuna finestra', fn () => LabelDialog::modal('/backend/x/1/etichette/') === '');
 check('spenta: la rotta risponde 403', fn () => Labels::respond('model', 1, [])['status'] === 403
-    && Labels::respond('receipt', 1, [])['status'] === 403);
+    && Labels::respond('receipt', 1, [])['status'] === 403
+    && Labels::respond('selection', 0, ['items' => ['m1']])['status'] === 403);
 
 $features->setValue(null, ['barcode_labels' => true]);
 check('accesa: il bottone apre la finestra', fn () => count(LabelDialog::actions()) === 1
     && str_contains(LabelDialog::actions()[0]->render('bootstrap'), 'data-bs-target="#'.LabelDialog::MODAL.'"'));
-check('accesa: la finestra nomina il formato e chiede copie e casella', function () {
+check('accesa: la finestra chiede solo campi e casella, senza formato né copie', function () {
     $html = LabelDialog::modal('/backend/x/1/etichette/');
 
     return str_contains($html, 'id="'.LabelDialog::MODAL.'"') && !str_contains($html, 'name="format"')
-        && str_contains($html, 'Formato: '.htmlspecialchars(LabelFormats::current()->name)) && str_contains($html, 'name="copies"') && str_contains($html, 'name="start"');
+        && !str_contains($html, 'Formato: ') && !str_contains($html, 'name="copies"') && str_contains($html, 'name="start"')
+        && !str_contains($html, 'name="items');
 });
+check('pannello: sceglie prodotti e varianti in POST', function () {
+    $html = LabelDialog::modal('/backend/x/etichette/', ['m1' => 'Maglia', 'p2' => 'Maglia — S']);
+
+    return str_contains($html, 'name="items[]"') && str_contains($html, 'value="m1"')
+        && preg_match('/<form[^>]*method="post"/i', $html) === 1;
+});
+check('pannello: chiavi senza senso = niente da stampare', fn () => Labels::forSelection(['x1', 'm0', 'p-3', '', ['m1']]) === null
+    && Labels::forSelection('mx') === null);
+check('pannello: scelta vuota 404', fn () => Labels::respond('selection', 0, ['items' => []])['status'] === 404);
 Extensions::use([LabelsRollExtension::class]);
 check('rotolo nelle Impostazioni: niente casella libera', fn () => !str_contains(LabelDialog::modal('/x'), 'name="start"')
     && Labels::options(['start' => '5'])['start'] === 0);
 Extensions::use(null);
-check('sul carico la finestra non chiede le copie', fn () => !str_contains(LabelDialog::modal('/x', false), 'name="copies"'));
+check('sul carico la finestra è in GET', fn () => preg_match('/<form[^>]*method="get"/i', LabelDialog::modal('/x')) === 1);
 check('accesa: sorgente sconosciuta 404', fn () => Labels::respond('ordine', 1, [])['status'] === 404);
 check('accesa: id zero 404', fn () => Labels::respond('model', 0, [])['status'] === 404);
 check('url vuoto senza id', fn () => LabelDialog::url('product', 'catalogo/prodotti', 0) === '');

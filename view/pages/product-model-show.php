@@ -24,6 +24,4 @@ echo ResourceFormLayoutRenderer::renderLayout(
     ProductModelResource::showLayoutSchema((array) ($ITEM ?? []))
 );
 
-echo ProductModelResource::labelsModal((int) (($ITEM ?? [])['id'] ?? 0));
-
 View::end();

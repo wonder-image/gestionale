@@ -6,6 +6,13 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Etichette da un pannello solo** (#116): il bottone **Etichette** sta in
+  *Catalogo → Prodotti* e apre una finestra dove si scelgono prodotti e
+  varianti (`items[]`, `m<id>` / `p<id>`, in POST con CSRF sulla rotta
+  `labels-selection`); una etichetta per variante. Tolti il bottone dalle
+  schede del prodotto e della variante, le loro rotte `{id}/etichette/`, il
+  campo **Copie per variante** e la riga che nominava il formato: il formato
+  resta quello delle Impostazioni. Il carico stampa come prima.
 - **In Catalogo solo «Prodotti».** Tolte le voci di menu «Multiprodotti» e
   «Abbonamenti» (`BundleProductsResource`, `SubscriptionProductsResource`,
   solo navigazione) e `ProductModelResource::typeListUrl()`. L'elenco dei
