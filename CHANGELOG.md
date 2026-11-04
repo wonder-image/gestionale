@@ -6,6 +6,13 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Tolta la funzionalità «Abbonamenti online».** Il sito vende un
+  abbonamento con *Abbonamenti* e *Vendita online* accese e con
+  **Acquistabile online** nella sua scheda, come per i prodotti. La regola sta
+  in `OnlineSubscriptions::enabled()` / `sellable($model)`, letta dai task
+  Stripe e dal modulo ecommerce. Una riga `online_subscriptions` già salvata
+  resta nel DB e non conta: niente migrazione. Il modulo ecommerce va
+  aggiornato insieme.
 - **Etichette da una pagina sola** (#116): la voce *Catalogo → Etichette*
   (`LabelsResource`) sceglie i prodotti col selettore dei coupon (categorie,
   tag, marchi, articoli, esclusi), le copie per variante, i campi e la prima

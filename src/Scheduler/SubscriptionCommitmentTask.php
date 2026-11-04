@@ -4,7 +4,6 @@ namespace Wonder\Plugin\Gestionale\Scheduler;
 
 use Wonder\App\Scheduler\AbstractTask;
 use Wonder\App\Scheduler\Context;
-use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\OnlineSubscriptions;
 
 /**
@@ -12,7 +11,8 @@ use Wonder\Plugin\Gestionale\Support\Subscriptions\OnlineSubscriptions;
  * la disdetta chiesta durante il vincolo passa a Stripe, oppure l'abbonamento
  * prende il prezzo di rinnovo.
  *
- * Nasce **spenta**, come le altre: si accende con gli abbonamenti online.
+ * Nasce **spenta**, come le altre: si accende con gli abbonamenti venduti sul sito
+ * (`subscriptions` e `online_sales`).
  */
 final class SubscriptionCommitmentTask extends AbstractTask
 {
@@ -43,7 +43,7 @@ final class SubscriptionCommitmentTask extends AbstractTask
 
     public function run(Context $context): array
     {
-        if (!Gestionale::feature('online_subscriptions')) {
+        if (!OnlineSubscriptions::enabled()) {
             return ['cancelled' => 0, 'renewed' => 0];
         }
 

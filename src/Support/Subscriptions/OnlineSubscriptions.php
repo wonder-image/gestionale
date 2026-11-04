@@ -53,6 +53,22 @@ final class OnlineSubscriptions
     public const MAX_ITEMS = 20;
 
     /**
+     * Il sito vende abbonamenti? Sì con `subscriptions` e il canale
+     * `online_sales` accesi, come per i prodotti; ogni abbonamento serve poi
+     * `visible_online` (`SubscriptionModels::isOnline()`).
+     */
+    public static function enabled(): bool
+    {
+        return Gestionale::feature('subscriptions') && Gestionale::feature('online_sales');
+    }
+
+    /** Questo abbonamento si vende sul sito? @param array<string, mixed>|null $model */
+    public static function sellable(?array $model): bool
+    {
+        return self::enabled() && SubscriptionModels::isOnline($model);
+    }
+
+    /**
      * Apre la sottoscrizione: abbonamento `pending` con fatturazione e
      * importi, una riga `pending` per servizio, Checkout Session di Stripe.
      * Ridà l'URL della pagina di Stripe.
@@ -176,7 +192,7 @@ final class OnlineSubscriptions
     {
         $gateway = SubscriptionGateways::get();
 
-        if (!Gestionale::feature('online_subscriptions') || $gateway === null || !$gateway->connected()) {
+        if (!self::enabled() || $gateway === null || !$gateway->connected()) {
             throw UserError::make('subscription.unavailable');
         }
 
