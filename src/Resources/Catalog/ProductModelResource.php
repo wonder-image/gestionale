@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Catalog;
 use Closure;
 use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
+use Wonder\App\Resources\Config\ImportResource;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -30,6 +31,7 @@ use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Catalog\Import\CatalogLayout;
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
@@ -1378,6 +1380,14 @@ HTML
             ->filterCustom('Stato', 'visible', ['' => 'Tutti', 'true' => 'Pubblicato', 'false' => 'Bozza'])
             ->filterQuery('Marchio', 'marchio', static::brandFilterOptions(), static fn (array $values): string => static::brandCondition($values))
             ->filterQuery('Categoria', 'categoria', static::categoryFilterOptions(), static fn (array $values): string => static::categoryCondition($values));
+
+        // «Importa» (#84): lo stesso file dell'esportazione, riletto; si accende in Funzionalità.
+        if (Gestionale::feature('import_catalog') && static::allows((array) ($GLOBALS['USER']->authority ?? []), 'update')) {
+            $layout->buttonCustom(
+                Button::to(ImportResource::url(['layout' => CatalogLayout::KEY]), 'Importa')
+                    ->variant('secondary')->outline()->size('sm')->icon('bi bi-upload', 'start')
+            );
+        }
 
         if (static::listedView() === 'abbonamenti') {
             $layout->title('Abbonamenti');

@@ -271,4 +271,11 @@ return [
         'release' => 'futura',
         'created' => false,
     ],
+    // Importazioni (#84): il caricamento di un file con i tracciati di Set-up → Gestionale → Tracciati file.
+    'import_catalog' => [
+        'name' => 'Caricamento del catalogo',
+        'description' => 'Carica prodotti, prezzi, giacenze e foto da un file Excel (.xlsx) o CSV (.csv): bottone «Importa» nei prodotti e tracciato in Set-up → Gestionale → Tracciati file.',
+        'area' => 'Importazioni',
+        'release' => 'G84',
+    ],
 ];

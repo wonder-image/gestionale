@@ -49,21 +49,27 @@ final class Skeleton
                 return;
             }
 
-            $product = Product::create([
-                'code' => Code::make(Product::class, Codes::PRODUCT),
-                'product_model_id' => $modelId,
-                'product_variant_id' => $variantId,
-                'sku' => $modelSku,
-                'position' => 1,
-                'active' => 'true',
-            ]);
-
             $created = [
                 'variant_id' => $variantId,
-                'product_id' => (int) ($product->insert_id ?? 0),
+                'product_id' => self::product($modelId, $variantId, $modelSku, 1),
             ];
         });
 
         return $created;
+    }
+
+    /** Un prodotto attivo della variante: zero se non si salva. */
+    public static function product(int $modelId, int $variantId, string $sku, int $position): int
+    {
+        $product = Product::create([
+            'code' => Code::make(Product::class, Codes::PRODUCT),
+            'product_model_id' => $modelId,
+            'product_variant_id' => $variantId,
+            'sku' => $sku,
+            'position' => $position,
+            'active' => 'true',
+        ]);
+
+        return (int) ($product->insert_id ?? 0);
     }
 }
