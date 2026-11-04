@@ -6,6 +6,14 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Scheda del coupon con le tabelle del core** (gestionale#113): utilizzi e
+  codici generati usano `Table` (ricerca, filtri valido/rilasciato e
+  liberi/usati, ordinamento, pagine) con due Resource senza pagina,
+  `CouponRedemptionTableResource` e `CouponCodeTableResource`, al posto delle
+  tabelle HTML. La colonna di destra mostra stato e scadenza, utilizzi con la
+  barra, sconto concesso (`Coupons::discountGranted`), codici
+  generati/usati/liberi, cumulo e le azioni (Modifica, Genera e Scarica i
+  codici).
 - **L'abbonamento è un tipo di prodotto.** Il piano non ha più una pagina
   sua: in *Catalogo → Prodotti* «+ Aggiungi Abbonamento» crea un prodotto di
   tipo `subscription`, con foto, tag, categorie, URL e SEO come gli altri. La
