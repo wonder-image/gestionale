@@ -58,7 +58,7 @@ function prova(callable $corpo): mixed
 
     try {
         Transaction::run(static function () use ($corpo, $stripe, &$esito): void {
-            accendiFunzionalita(['orders', 'online_sales', 'subscriptions', 'online_subscriptions']);
+            accendiFunzionalita(['orders', 'online_sales', 'subscriptions']);
             $esito = $corpo($stripe);
 
             throw new Annulla();

@@ -27,6 +27,8 @@ final class Reasons
             'internal_use' => 'Uso interno',
             'other' => 'Altro',
             'batch_assignment' => 'Assegnazione lotto',
+            'import' => 'Caricamento da file',
+            'import_undo' => 'Annullamento caricamento',
         ];
     }
 
@@ -34,13 +36,14 @@ final class Reasons
      * Le causali che scrive solo il gestionale, mai una persona: hanno
      * l'etichetta nei Movimenti e nel filtro, non stanno nelle tendine.
      *
-     * `batch_assignment` è la compensazione della vendita scoperta (G3.15).
+     * `batch_assignment` è la compensazione della vendita scoperta (G3.15);
+     * `import` e `import_undo` li scrive il caricamento del catalogo da file.
      *
      * @return list<string>
      */
     public static function internal(): array
     {
-        return ['batch_assignment'];
+        return ['batch_assignment', 'import', 'import_undo'];
     }
 
     /**

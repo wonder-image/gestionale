@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
+use Wonder\Plugin\Gestionale\Support\Catalog\ModelCategories;
 use Wonder\Plugin\Gestionale\Support\Catalog\RelatedProducts;
 use Wonder\Plugin\Gestionale\Support\Catalog\SaleUnits;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
@@ -567,37 +568,13 @@ final class Tools
         return [$chosen, $main ?: ($chosen[0] ?? 0)];
     }
 
-    /**
-     * Come la scheda dell'articolo: si tolgono i legami non più scelti, si
-     * aggiornano gli altri, si aggiungono i nuovi, in ordine.
-     *
-     * @param list<int> $chosen
-     */
+    /** @param list<int> $chosen */
     private static function linkCategories(int $modelId, array $chosen, int $main): void
     {
-        $existing = [];
-
-        foreach (self::rows(ProductModelCategory::find(['product_model_id' => $modelId])) as $link) {
-            $existing[(int) $link['category_id']] = $link;
-        }
-
-        foreach ($existing as $categoryId => $link) {
-            if (!in_array($categoryId, $chosen, true)) {
-                ProductModelCategory::delete((int) $link['id']);
-            }
-        }
-
-        foreach ($chosen as $index => $categoryId) {
-            $values = [
-                'product_model_id' => $modelId,
-                'category_id' => $categoryId,
-                'is_main' => $categoryId === $main ? 'true' : 'false',
-                'position' => $index + 1,
-            ];
-
-            self::saved(isset($existing[$categoryId])
-                ? ProductModelCategory::update($values, (int) $existing[$categoryId]['id'])
-                : ProductModelCategory::create($values));
+        try {
+            ModelCategories::link($modelId, $chosen, $main);
+        } catch (\RuntimeException) {
+            throw McpError::make('save_failed', 0, ['fields' => 'category_id']);
         }
     }
 

@@ -217,13 +217,6 @@ return [
         'requires' => ['orders'],
         'release' => 'G6',
     ],
-    'online_subscriptions' => [
-        'name' => 'Abbonamenti online',
-        'description' => 'Il sito vende i piani: pagina dei piani, sottoscrizione con Stripe e abbonamenti nell\'area cliente.',
-        'area' => 'Canali di vendita',
-        'requires' => ['online_sales', 'subscriptions'],
-        'release' => 'G10',
-    ],
     'pos' => [
         'name' => 'Vendita in cassa',
         'description' => 'Vendita in sede con documento commerciale e corrispettivi.',
@@ -277,5 +270,12 @@ return [
         'area' => 'Esportazioni',
         'release' => 'futura',
         'created' => false,
+    ],
+    // Importazioni (#84): il caricamento di un file con i tracciati di Set-up → Gestionale → Tracciati file.
+    'import_catalog' => [
+        'name' => 'Caricamento del catalogo',
+        'description' => 'Carica prodotti, prezzi, giacenze e foto da un file Excel (.xlsx) o CSV (.csv): bottone «Importa» nei prodotti e tracciato in Set-up → Gestionale → Tracciati file.',
+        'area' => 'Importazioni',
+        'release' => 'G84',
     ],
 ];

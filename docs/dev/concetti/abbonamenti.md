@@ -85,8 +85,20 @@ proforma. Il `total` dell'abbonamento resta il solo canone.
 
 ## Abbonamenti online (Stripe)
 
-Funzionalità `online_subscriptions` (richiede `online_sales` e
-`subscriptions`).
+Non c'è una funzionalità a parte: il sito vende abbonamenti quando sono
+accese `subscriptions` e il canale `online_sales`, come per i prodotti, e
+ogni abbonamento serve `visible_online`. La regola sta in un posto solo:
+
+- `OnlineSubscriptions::enabled()`: `subscriptions` e `online_sales`
+  accese. La leggono la creazione dell'abbonamento, i task
+  `StripeReconcileTask` e `SubscriptionCommitmentTask` e le pagine del
+  modulo ecommerce; non usare `Gestionale::feature()` per questo.
+- `OnlineSubscriptions::sellable($model)`: `enabled()` e
+  `SubscriptionModels::isOnline($model)`.
+
+La vecchia chiave `online_subscriptions` non è più nel catalogo: una riga
+salvata in `gst_features` resta e non conta (`FeatureState` legge solo le
+chiavi del catalogo).
 
 - **Chiamate a Stripe** solo da `SubscriptionGateways::get()`: è
   `StripeBilling`, con le chiavi di `StripeProvider::billing()`. Nei test,

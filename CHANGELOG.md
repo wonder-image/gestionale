@@ -6,6 +6,13 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Tolta la funzionalità «Abbonamenti online».** Il sito vende un
+  abbonamento con *Abbonamenti* e *Vendita online* accese e con
+  **Acquistabile online** nella sua scheda, come per i prodotti. La regola sta
+  in `OnlineSubscriptions::enabled()` / `sellable($model)`, letta dai task
+  Stripe e dal modulo ecommerce. Una riga `online_subscriptions` già salvata
+  resta nel DB e non conta: niente migrazione. Il modulo ecommerce va
+  aggiornato insieme.
 - **Etichette da un pannello solo** (#116): il bottone **Etichette** sta in
   *Catalogo → Prodotti* e apre una finestra dove si scelgono prodotti e
   varianti (`items[]`, `m<id>` / `p<id>`, in POST con CSRF sulla rotta
@@ -100,6 +107,15 @@ versionamento semantico.
   `ErrorKeysTest` le trova.
 
 ### Aggiunto
+- **Importa nell'elenco dei prodotti (#84).** Il file dell'esportazione si
+  ricarica: uno SKU che c'è si aggiorna (solo le celle cambiate), uno nuovo
+  diventa una versione o un articolo, la giacenza si muove con causale
+  `import`, le foto si scaricano da `https://`, tutto si annulla. Tracciato
+  `CatalogLayout` sul motore del core, con file di esempio e resoconto delle
+  colonne; uno SKU usato da più prodotti ferma la riga. Si accende con la
+  funzionalità `import_catalog` («Caricamento del catalogo»), che mostra anche
+  Tracciati file in Set-up → Gestionale. Vedi
+  `docs/dev/concetti/caricamento-catalogo.md`.
 
 - **Abbonamenti pagati dentro la pagina.** `OnlineSubscriptions::startInPage()`
   crea l'abbonamento Stripe con `default_incomplete` e restituisce il client

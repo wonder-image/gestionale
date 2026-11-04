@@ -23,8 +23,8 @@ Le pagine sono due:
   metadata (i limiti del piano);
 * **Vendite → Abbonamenti**: chi è abbonato, a cosa, e quando rinnova.
 
-> Gli abbonamenti nascono dal **sito**, con la funzionalità *Abbonamenti online*,
-> oppure **da ufficio**, con «Nuovo abbonamento» (vedi sotto).
+> Gli abbonamenti nascono dal **sito**, con *Abbonamenti* e *Vendita online*
+> accese, oppure **da ufficio**, con «Nuovo abbonamento» (vedi sotto).
 
 ## I piani
 
@@ -170,9 +170,11 @@ Cliccando sul codice si apre la scheda, disegnata come quella dell'ordine:
 
 ## Abbonamenti online
 
-Con la funzionalità **Abbonamenti online** (in *Funzionalità → Canali di
-vendita*; chiede *Vendita online* e *Abbonamenti*) il sito ha la pagina dei
-piani, e il cliente si abbona da solo:
+Non serve una funzionalità a parte: con **Abbonamenti** e **Vendita online**
+accese (in *Funzionalità*) il sito vende gli abbonamenti come i prodotti. Un
+abbonamento va sul sito se nella sua scheda è acceso **Acquistabile online**;
+spento, si vende solo da ufficio. Il sito ha la pagina dei piani, e il cliente
+si abbona da solo:
 
 1. sceglie un prezzo nella scheda dell'abbonamento o nella pagina dei piani;
    serve un **account**. Nella scheda il prezzo scelto sta sotto il nome col
