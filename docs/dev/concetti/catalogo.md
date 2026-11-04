@@ -258,25 +258,28 @@ Tre livelli, cinque tabelle:
 | `gst_product_variants` | quello che cambia l'aspetto |
 | `gst_products` | quello che si vende e sta a magazzino |
 
-**Un elenco solo, due viste.** Gli articoli sono una Resource sola,
-`ProductModelResource`, con due voci in *Catalogo*:
+**Un elenco solo.** Gli articoli sono una Resource sola,
+`ProductModelResource`, con una voce sola in *Catalogo*: «Prodotti», accesa
+finché c'è un tipo acceso (`featureActive()`: `products`, `bundles` o
+`subscriptions`). `activeTypes()` dà i tipi accesi:
 
-| Voce | Indirizzo | Tipi | Accesa con |
-|---|---|---|---|
-| Prodotti | `typeListUrl('prodotti')` → `?vista=prodotti` | `simple`, `bundle` | `products` |
-| Abbonamenti | `typeListUrl('abbonamenti')` → `?vista=abbonamenti` | `subscription` | `subscriptions` |
+| Tipo | Valore di `type` | Acceso con |
+|---|---|---|
+| Prodotto | `simple` | `products` |
+| Multiprodotto | `bundle` | `bundles` |
+| Abbonamento | `subscription` | `subscriptions` |
 
-La voce «Abbonamenti» è `SubscriptionProductsResource` (solo navigazione).
-Multiprodotti non ha una voce: sta nella vista Prodotti. La vista è un
-parametro in whitelist (`VIEWS`, `listedView()`); `querySchema()` aggiunge la
-condizione sul tipo (`viewCondition()`), senza vista l'elenco ha tutti i tipi.
-Non c'è filtro di tipo: la colonna «Tipo» (`typeCell()`) compare solo quando la
-vista ha più tipi. «+ Aggiungi» (`viewTypes()`, `addButtonHtml()`) offre i tipi
-della vista con la loro funzionalità accesa: un tipo solo è un bottone, più
-tipi lo split button con `createUrlFor()?type=bundle|subscription`.
+Con più tipi accesi l'elenco ha la colonna «Tipo» (`typeCell()`) e il filtro
+«Tipo» (`filterCustom('Tipo', 'type', …)`, di base «Tutti»). Il prezzo di un
+abbonamento è `SubscriptionProductForm::pricesSummary()`, «19,00 €/mese ·
+190,00 €/anno» (`termUnit()`). «+ Aggiungi» (`addButtonHtml()`) offre i tipi
+accesi: un tipo solo è un bottone, più tipi lo split button con
+`createUrlFor()?type=bundle|subscription`. Il modulo è uno: la colonna larga
+cambia col tipo (`subscriptionMainColumn()` per i prezzi ricorrenti).
 
-Limiti accettati: dopo il salvataggio si torna all'elenco senza vista, e
-«Scarica» e il riordino non leggono la vista.
+Le vecchie voci «Abbonamenti» (`SubscriptionProductsResource`) e le viste
+`?vista=` non ci sono più: un indirizzo salvato con `?vista=` apre l'elenco
+intero.
 
 **La variante c'è sempre** (G2a.2). `Support\Catalog\Skeleton::forModel()` la
 crea insieme al primo prodotto quando nasce un modello.

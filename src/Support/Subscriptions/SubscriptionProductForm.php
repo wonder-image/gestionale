@@ -140,26 +140,41 @@ final class SubscriptionProductForm
         return $options;
     }
 
-    /** «Mensile 19,00 € · Annuale 190,00 €», solo i prezzi attivi. */
+    /** «19,00 €/mese · 190,00 €/anno», solo i prezzi attivi. */
     public static function pricesSummary(int $modelId): string
     {
         $parts = [];
 
         foreach (static::rows(PlanPrice::class, ['product_model_id' => $modelId, 'active' => 'true'], 'position') as $price) {
-            $parts[] = static::priceLabel($price);
+            $parts[] = number_format(static::shownPrice($price), 2, ',', '.').' €/'.static::termUnit((int) ($price['term_months'] ?? 1));
         }
 
         return implode(' · ', $parts);
     }
 
-    /** «Mensile 19,00 €», con il prezzo scontato se vale. @param array<string, mixed> $price */
-    public static function priceLabel(array $price): string
+    /** «mese», «anno» o «3 mesi»: quanto copre un addebito. */
+    public static function termUnit(int $months): string
+    {
+        return match (true) {
+            $months <= 1 => 'mese',
+            $months === 12 => 'anno',
+            default => $months.' mesi',
+        };
+    }
+
+    /** Il prezzo scontato se vale, altrimenti quello pieno. @param array<string, mixed> $price */
+    public static function shownPrice(array $price): float
     {
         $amount = (float) ($price['price'] ?? 0);
         $sale = (float) ($price['sale_price'] ?? 0);
-        $shown = $sale > 0.0 && $sale < $amount ? $sale : $amount;
 
-        return trim((string) ($price['name'] ?? '')).' '.number_format($shown, 2, ',', '.').' €';
+        return $sale > 0.0 && $sale < $amount ? $sale : $amount;
+    }
+
+    /** «Mensile 19,00 €», con il prezzo scontato se vale. @param array<string, mixed> $price */
+    public static function priceLabel(array $price): string
+    {
+        return trim((string) ($price['name'] ?? '')).' '.number_format(static::shownPrice($price), 2, ',', '.').' €';
     }
 
     /**
