@@ -6,6 +6,11 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **In Catalogo solo «Prodotti».** Tolte le voci di menu «Multiprodotti» e
+  «Abbonamenti» (`BundleProductsResource`, `SubscriptionProductsResource`,
+  solo navigazione) e `ProductModelResource::typeListUrl()`. L'elenco dei
+  prodotti non ha più il filtro **Tipo**: i tipi stanno insieme, distinti
+  dall'icona; multiprodotti e abbonamenti si creano dal menu di «+ Aggiungi».
 - **L'abbonamento è un tipo di prodotto.** Il piano non ha più una pagina
   sua: in *Catalogo → Prodotti* «+ Aggiungi Abbonamento» crea un prodotto di
   tipo `subscription`, con foto, tag, categorie, URL e SEO come gli altri. La

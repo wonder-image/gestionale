@@ -25,8 +25,6 @@ use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
-use Wonder\Plugin\Gestionale\Resources\Catalog\BundleProductsResource;
-use Wonder\Plugin\Gestionale\Resources\Catalog\SubscriptionProductsResource;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
@@ -3408,38 +3406,20 @@ check('con «bundles» l\'elenco ha un «+ Aggiungi» diviso al posto di quello 
         && !str_contains($html, 'Abbonamento');
 });
 
-check('con l\'elenco filtrato sui multiprodotti «+ Aggiungi» crea un multiprodotto; un tipo spento torna al prodotto', function () use ($forza) {
-    $chiave = ProductModel::$table.'__type';
-    $forza(['bundles' => true]);
-    $_GET[$chiave] = 'bundle';
-    $multi = (string) (((array) (ProductModelResource::tableLayoutSchema()->toArray()['buttons_custom'] ?? []))[0] ?? '');
-    $_GET[$chiave] = 'subscription';
-    $spento = (string) (((array) (ProductModelResource::tableLayoutSchema()->toArray()['buttons_custom'] ?? []))[0] ?? '');
-    unset($_GET[$chiave]);
+check('in Catalogo c\'è la sola voce «Prodotti», senza filtro di tipo, anche con multiprodotti e abbonamenti', function () use ($forza) {
+    $forza(['bundles' => true, 'subscriptions' => true]);
+    $prodotti = ProductModelResource::navigationSchema()->all();
+    $html = (string) (((array) (ProductModelResource::tableLayoutSchema()->toArray()['buttons_custom'] ?? []))[0] ?? '');
     $forza(null);
     $nuovo = ProductModelResource::createUrlFor();
 
-    return str_contains($multi, 'href="'.$nuovo.'?type=bundle">+ Aggiungi</a>')
-        && str_contains($spento, 'href="'.$nuovo.'">+ Aggiungi</a>');
-});
-
-check('in Catalogo «Prodotti» apre i soli prodotti semplici quando accanto c\'è «Multiprodotti»', function () use ($forza) {
-    $forza(['bundles' => true]);
-    $prodotti = ProductModelResource::navigationSchema()->all();
-    $multi = BundleProductsResource::navigationSchema()->all();
-    $abbonamenti = SubscriptionProductsResource::navigationSchema()->all();
-    $forza(['bundles' => false]);
-    $solo = ProductModelResource::navigationSchema()->all();
-    $multiSpenta = BundleProductsResource::navigationSchema()->all();
-    $forza(null);
-
-    return $prodotti['file'] === '?'.ProductModel::$table.'__type=simple'
-        && $multi['enabled'] === true
-        && str_ends_with((string) $multi['file'], '?'.ProductModel::$table.'__type=bundle')
-        && $multi['section_key'] === 'catalogo'
-        && $abbonamenti['enabled'] === false
-        && $solo['file'] === 'list'
-        && $multiSpenta['enabled'] === false;
+    return $prodotti['file'] === 'list'
+        && $prodotti['section_key'] === 'catalogo'
+        && !class_exists('Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\BundleProductsResource')
+        && !class_exists('Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\SubscriptionProductsResource')
+        && str_contains($html, 'href="'.$nuovo.'">+ Aggiungi</a>')
+        && str_contains($html, '?type=bundle">Multiprodotto</a>')
+        && str_contains($html, '?type=subscription">Abbonamento</a>');
 });
 
 check('senza «bundles» l\'elenco ha un solo bottone, quello di serie', function () use ($forza) {
@@ -3461,7 +3441,7 @@ check('il tipo e la composizione non finiscono nelle colonne dell\'articolo tra 
         && ($v['type'] ?? '') === 'bundle' && ($v['bundle_mode'] ?? '') === 'fixed';
 });
 
-check('l\'elenco dei prodotti ha ricerca, Stato (Pubblicato/Bozza), Marchio e Categoria, e con «bundles» anche il Tipo', function () use ($forza) {
+check('l\'elenco dei prodotti ha ricerca, Stato (Pubblicato/Bozza), Marchio e Categoria, e niente Tipo neanche con «bundles»', function () use ($forza) {
     $chiavi = static function (array $layout): array {
         $out = [];
 
@@ -3483,10 +3463,9 @@ check('l\'elenco dei prodotti ha ricerca, Stato (Pubblicato/Bozza), Marchio e Ca
 
     return ($con['filters']['search']['enabled'] ?? false) === true
         && array_keys($chiavi($senza)) === ['Stato', 'Marchio', 'Categoria']
-        && array_keys($filtri) === ['Stato', 'Marchio', 'Categoria', 'Tipo']
+        && array_keys($filtri) === ['Stato', 'Marchio', 'Categoria']
         && ($filtri['Stato']['column'] ?? '') === 'visible'
-        && $stato === ['' => 'Tutti', 'true' => 'Pubblicato', 'false' => 'Bozza']
-        && ($filtri['Tipo']['array'] ?? []) === ['' => 'Tutti', 'simple' => 'Prodotto', 'bundle' => 'Multiprodotto'];
+        && $stato === ['' => 'Tutti', 'true' => 'Pubblicato', 'false' => 'Bozza'];
 });
 
 check('lo stato nell\'elenco si legge Pubblicato/Bozza, non Visibile/Nascosto', function () {

@@ -27,8 +27,9 @@ Le pagine sono due:
 
 ## I piani
 
-In *Catalogo → Prodotti*, **«+ Aggiungi Abbonamento»** crea un prodotto di tipo
-*Abbonamento*. Il tipo si sceglie alla creazione e non cambia. La scheda è
+In *Catalogo → Prodotti*, la freccia accanto a **+ Aggiungi** → **Abbonamento**
+crea un prodotto di tipo *Abbonamento*, che resta nella stessa lista degli
+altri articoli, riconoscibile dall'icona. Il tipo si sceglie alla creazione e non cambia. La scheda è
 quella di un prodotto, senza quello che a un servizio non serve: magazzino,
 spedizione, lotti, varianti, confezione, resi e unità di misura. Restano:
 
