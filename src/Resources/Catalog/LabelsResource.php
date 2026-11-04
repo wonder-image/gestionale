@@ -97,8 +97,7 @@ final class LabelsResource extends NavigationOnlyResource
     }
 
     /**
-     * I campi della pagina: il selettore, le copie e le scelte di stampa
-     * della finestra del carico.
+     * La colonna di sinistra: il selettore e cosa stampare.
      *
      * @return list<\Wonder\App\ResourceSchema\Input>
      */
@@ -106,9 +105,21 @@ final class LabelsResource extends NavigationOnlyResource
     {
         return [
             ...array_map(static fn ($field) => $field->columnSpan(12), static::scopeFields()),
-            FormField::key('copies')->number()->integer()->value('1')->label('Copie per variante')->columnSpan(['default' => 12, 'md' => 6]),
-            ...LabelDialog::fields(),
+            LabelDialog::printedField(),
         ];
+    }
+
+    /**
+     * La colonna di destra: copie e, sul foglio, la casella da cui partire.
+     *
+     * @return list<\Wonder\App\ResourceSchema\Input>
+     */
+    public static function printFields(): array
+    {
+        return array_values(array_filter([
+            FormField::key('copies')->number()->integer()->value('1')->label('Copie per variante')->columnSpan(12),
+            LabelDialog::startField(),
+        ]));
     }
 
     /** Come `GestionaleResource::rowsOf()`, per le voci del selettore. */

@@ -72,20 +72,29 @@ final class LabelDialog
 
     /**
      * Le scelte di stampa, uguali nella finestra del carico e nella pagina
-     * Catalogo › Etichette: i campi e, sul foglio, la prima casella libera.
+     * Catalogo › Etichette: i campi e, sul foglio, la casella da cui partire.
      *
      * @return list<\Wonder\App\ResourceSchema\Input>
      */
     public static function fields(): array
     {
-        $campi = [FormField::key('fields')->checkbox()->options(Labels::FIELDS)->value(Labels::DEFAULT_FIELDS)->label('Da stampare')->columnSpan(12)];
+        return array_values(array_filter([self::printedField(), self::startField()]));
+    }
 
-        // Per un foglio già usato in parte; il rotolo non ha caselle.
-        if (!LabelFormats::current()->isRoll()) {
-            $campi[] = FormField::key('start')->number()->integer()->value('1')->label('Prima casella libera')->columnSpan(12);
+    /** Cosa stampare su ogni etichetta. */
+    public static function printedField(): \Wonder\App\ResourceSchema\Input
+    {
+        return FormField::key('fields')->checkbox()->options(Labels::FIELDS)->value(Labels::DEFAULT_FIELDS)->label('Da stampare')->columnSpan(12);
+    }
+
+    /** Per un foglio già usato in parte; il rotolo non ha caselle. */
+    public static function startField(): ?\Wonder\App\ResourceSchema\Input
+    {
+        if (LabelFormats::current()->isRoll()) {
+            return null;
         }
 
-        return $campi;
+        return FormField::key('start')->number()->integer()->value('1')->label('Comincia dalla casella n°')->columnSpan(12);
     }
 
     /** La finestra del carico, che stampa i suoi pezzi. */

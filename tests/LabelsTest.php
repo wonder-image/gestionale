@@ -179,10 +179,13 @@ check('pagina: in Catalogo, alla voce Etichette', function () {
 
     return ($nav['section_key'] ?? '') === 'catalogo' && ($nav['title'] ?? '') === 'Etichette';
 });
-check('pagina: i campi si costruiscono (selettore dei coupon, copie, scelte di stampa)', function () {
-    $nomi = array_map(static fn ($field) => $field->name ?? null, LabelsResource::formFields());
+check('pagina: a sinistra il selettore dei coupon e cosa stampare, a destra le copie', function () {
+    $nomi = static fn (array $campi) => array_map(static fn ($field) => $field->name ?? null, $campi);
+    $sinistra = $nomi(LabelsResource::formFields());
+    $destra = $nomi(LabelsResource::printFields());
 
-    return in_array('applies_to_all', $nomi, true) && in_array('copies', $nomi, true) && in_array('fields', $nomi, true);
+    return in_array('applies_to_all', $sinistra, true) && in_array('fields', $sinistra, true)
+        && $destra[0] === 'copies' && !in_array('copies', $sinistra, true);
 });
 check('pagina: la richiesta del PDF porta il selettore ripulito e le scelte di stampa', function () {
     $query = LabelsResource::printQuery([
