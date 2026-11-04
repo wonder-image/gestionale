@@ -56,7 +56,8 @@ final class FeaturePanel
             $state[(string) ($row['feature_key'] ?? '')] = ($row['enabled'] ?? 'false') === 'true';
         }
 
-        return $state;
+        // Senza riga una voce `default` è accesa, come in Gestionale::features().
+        return FeatureState::defaults(FeatureCatalog::all(), $state);
     }
 
     /** Le scelte salvate: chiave → impostazioni. @return array<string, array<string, mixed>> */
@@ -147,15 +148,17 @@ final class FeaturePanel
     private static function ensureRows(array $keys): bool
     {
         $present = array_column(self::rows(), 'feature_key');
+        $catalog = FeatureCatalog::all();
         $changed = false;
 
         foreach (array_diff($keys, $present) as $key) {
             $old = Feature::find(['feature_key' => $key, 'deleted' => 'true'], 1);
+            $enabled = ($catalog[$key]['default'] ?? false) === true ? 'true' : 'false';
 
             if (is_array($old) && isset($old['id'])) {
-                sqlModify(Feature::$table, ['enabled' => 'false', 'deleted' => 'false'], 'id', (int) $old['id']);
+                sqlModify(Feature::$table, ['enabled' => $enabled, 'deleted' => 'false'], 'id', (int) $old['id']);
             } else {
-                sqlInsert(Feature::$table, ['feature_key' => $key, 'enabled' => 'false']);
+                sqlInsert(Feature::$table, ['feature_key' => $key, 'enabled' => $enabled]);
             }
 
             $changed = true;

@@ -82,7 +82,7 @@ final class Defaults implements ModuleDefaults
         }
 
         // Una voce nuova con `replaces` nasce sbloccata se lo era una di quelle che sostituisce.
-        $known = FeatureState::inherit($catalog, $known);
+        $known = FeatureState::defaults($catalog, FeatureState::inherit($catalog, $known));
         $features = [];
 
         foreach (array_keys($catalog) as $key) {

@@ -14,6 +14,7 @@
             },
             "feature": {
                 "multi_location_in_use": "«Più sedi» non si spegne: {{where}}. Riporta la merce nella sede principale con un trasferimento e ricevi quelli in viaggio, poi riprova.",
+                "products_in_use": "«Prodotto» non si spegne: {{count}} nel catalogo. Eliminali, poi riprova.",
                 "subscriptions_in_use": "«Abbonamenti» non si spegne: {{count}}. Aspetta che finiscano, poi riprova.",
                 "variants_in_use": "«Varianti» non si spegne: {{count}}. Lascia una versione sola a ogni articolo, poi riprova."
             },
@@ -188,6 +189,7 @@
                 "not_for_subscriptions": "«{{name}}» non è per gli abbonamenti: accendi «Per gli abbonamenti» nella sua scheda."
             },
             "product": {
+                "products_off": "«Prodotto» è spento nelle Funzionalità: accendilo per creare un prodotto singolo.",
                 "sku_taken": "Questo SKU è già in catalogo, su un altro articolo o su un'altra opzione in vendita: cambialo.",
                 "ean_invalid": "L'EAN deve avere 8 o 13 cifre.",
                 "ean_taken": "Questo EAN è già di un'altra opzione in vendita.",

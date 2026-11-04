@@ -49,7 +49,7 @@ $campi = static function (): array {
 
 // La scheda intera: le funzionalità di «Scheda prodotto» accese, salvo che
 // il test le spenga.
-const SCHEDA_ACCESA = ['packages' => true, 'measures' => true, 'tax_categories' => true, 'variants' => true, 'related_suggested' => true, 'related_alternative' => true, 'technical_sheet' => true];
+const SCHEDA_ACCESA = ['products' => true, 'packages' => true, 'measures' => true, 'tax_categories' => true, 'variants' => true, 'related_suggested' => true, 'related_alternative' => true, 'technical_sheet' => true];
 
 /** Sostituisce la mappa delle funzionalità; `null` torna alla scheda intera. */
 $forza = static function (?array $stato): void {
@@ -3406,20 +3406,83 @@ check('con «bundles» l\'elenco ha un «+ Aggiungi» diviso al posto di quello 
         && !str_contains($html, 'Abbonamento');
 });
 
-check('in Catalogo c\'è la sola voce «Prodotti», senza filtro di tipo, anche con multiprodotti e abbonamenti', function () use ($forza) {
+check('in Catalogo «Prodotti» apre la vista prodotti e «Abbonamenti» la vista abbonamenti; Multiprodotti non ha una voce', function () use ($forza) {
     $forza(['bundles' => true, 'subscriptions' => true]);
     $prodotti = ProductModelResource::navigationSchema()->all();
-    $html = (string) (((array) (ProductModelResource::tableLayoutSchema()->toArray()['buttons_custom'] ?? []))[0] ?? '');
+    $abbonamenti = \Wonder\Plugin\Gestionale\Resources\Catalog\SubscriptionProductsResource::navigationSchema()->all();
     $forza(null);
+
+    return str_ends_with((string) $prodotti['file'], '?vista=prodotti')
+        && str_starts_with((string) $prodotti['file'], '/')
+        && $prodotti['section_key'] === 'catalogo'
+        && str_ends_with((string) $abbonamenti['file'], '?vista=abbonamenti')
+        && $abbonamenti['section_key'] === 'catalogo'
+        && !class_exists('Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\BundleProductsResource');
+});
+
+check('le voci seguono gli interruttori: «Prodotti» con «products», «Abbonamenti» con «subscriptions»', function () use ($forza) {
+    $forza(['products' => false, 'subscriptions' => true]);
+    $prodottiSpenta = ProductModelResource::navigationSchema()->all()['enabled'] ?? null;
+    $abbonamentiAccesa = \Wonder\Plugin\Gestionale\Resources\Catalog\SubscriptionProductsResource::navigationSchema()->all()['enabled'] ?? null;
+    $pagine = ProductModelResource::featureActive();
+    $forza(['products' => false, 'subscriptions' => false, 'bundles' => false]);
+    $nessuna = ProductModelResource::featureActive();
+    $forza(null);
+
+    return $prodottiSpenta === false && $abbonamentiAccesa === true && $pagine === true && $nessuna === false;
+});
+
+check('la vista filtra per tipo solo con un valore noto; senza vista l\'elenco ha tutti i tipi', function () {
+    $condizione = static function (?string $vista): array {
+        if ($vista === null) {
+            unset($_GET['vista']);
+        } else {
+            $_GET['vista'] = $vista;
+        }
+
+        $c = (array) (ProductModelResource::querySchema()['condition'] ?? []);
+        unset($_GET['vista']);
+
+        return $c;
+    };
+
+    return ($condizione('prodotti')['type'] ?? null) === ['simple', 'bundle']
+        && ($condizione('abbonamenti')['type'] ?? null) === 'subscription'
+        && !isset($condizione('altro')['type'])
+        && !isset($condizione(null)['type']);
+});
+
+check('nella vista abbonamenti «Aggiungi» crea solo un abbonamento e il titolo è «Abbonamenti»; nella vista prodotti niente abbonamento', function () use ($forza) {
+    $forza(['bundles' => true, 'subscriptions' => true]);
+    $_GET['vista'] = 'abbonamenti';
+    $abbonamenti = ProductModelResource::tableLayoutSchema()->toArray();
+    $_GET['vista'] = 'prodotti';
+    $html = (string) (((array) (ProductModelResource::tableLayoutSchema()->toArray()['buttons_custom'] ?? []))[0] ?? '');
+    unset($_GET['vista']);
+    $forza(null);
+    $bottone = ((array) ($abbonamenti['buttons_custom'] ?? []))[0] ?? null;
     $nuovo = ProductModelResource::createUrlFor();
 
-    return $prodotti['file'] === 'list'
-        && $prodotti['section_key'] === 'catalogo'
-        && !class_exists('Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\BundleProductsResource')
-        && !class_exists('Wonder\\Plugin\\Gestionale\\Resources\\Catalog\\SubscriptionProductsResource')
-        && str_contains($html, 'href="'.$nuovo.'">+ Aggiungi</a>')
+    return ($abbonamenti['title']['text'] ?? '') === 'Abbonamenti'
+        && ($abbonamenti['button_add']['enabled'] ?? true) === false
+        && is_object($bottone) && str_contains((string) $bottone, $nuovo.'?type=subscription')
+        && !str_contains((string) $bottone, 'dropdown-toggle-split')
         && str_contains($html, '?type=bundle">Multiprodotto</a>')
-        && str_contains($html, '?type=subscription">Abbonamento</a>');
+        && !str_contains($html, 'Abbonamento');
+});
+
+check('con «Prodotto» spento «Aggiungi» non offre il prodotto singolo e il salvataggio lo rifiuta', function () use ($forza) {
+    $forza(['products' => false, 'bundles' => false, 'subscriptions' => true]);
+    $tipi = ProductModelResource::viewTypes('');
+    try {
+        ProductModelResource::mutateRequestValues(['name' => 'Prova', 'type' => 'simple'], 'store');
+        $rifiuto = '';
+    } catch (\Throwable $e) {
+        $rifiuto = method_exists($e, 'key') ? (string) $e->key() : $e->getMessage();
+    }
+    $forza(null);
+
+    return array_keys($tipi) === ['subscription'] && str_contains($rifiuto, 'products_off');
 });
 
 check('senza «bundles» l\'elenco ha un solo bottone, quello di serie', function () use ($forza) {

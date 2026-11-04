@@ -1171,7 +1171,7 @@ HTML
 
         // Prodotto, multiprodotto o abbonamento: con un tipo solo sarebbe
         // sempre la stessa icona.
-        if (Gestionale::feature('bundles') || Gestionale::feature('subscriptions')) {
+        if (count(static::viewTypes()) > 1) {
             $colonne[] = TableColumn::key('type')
                 ->text()
                 ->size('little')
@@ -1363,7 +1363,8 @@ HTML
      * Con multiprodotti o abbonamenti l'«Aggiungi» di serie diventa un
      * bottone diviso: la scheda nasce di un tipo, e il tipo viaggia
      * nell'indirizzo (`?type=bundle`) invece di stare in un campo da scegliere.
-     * L'elenco mostra tutti i tipi insieme, senza filtro: il badge li distingue.
+     * Le voci di menu aprono una vista (`?vista=prodotti|abbonamenti`), senza
+     * filtro da scegliere: «Aggiungi» offre solo i tipi della vista.
      */
     public static function tableLayoutSchema(): TableLayoutSchema
     {
@@ -1377,26 +1378,125 @@ HTML
             ->filterQuery('Marchio', 'marchio', static::brandFilterOptions(), static fn (array $values): string => static::brandCondition($values))
             ->filterQuery('Categoria', 'categoria', static::categoryFilterOptions(), static fn (array $values): string => static::categoryCondition($values));
 
-        $multi = Gestionale::feature('bundles');
-        $abbonamenti = Gestionale::feature('subscriptions');
+        if (static::listedView() === 'abbonamenti') {
+            $layout->title('Abbonamenti');
+        }
 
-        if (!$multi && !$abbonamenti) {
+        $tipi = static::viewTypes();
+
+        if ($tipi === ['simple' => 'Prodotto']) {
             return $layout;
         }
 
-        $tipi = ['simple' => 'Prodotto'];
+        $layout->hideButtonAdd();
 
-        if ($multi) {
-            $tipi['bundle'] = 'Multiprodotto';
+        if ($tipi === []) {
+            return $layout;
         }
 
-        if ($abbonamenti) {
+        if (count($tipi) === 1) {
+            $nuovo = static::createUrlFor();
+            $tipo = (string) array_key_first($tipi);
+
+            return $layout->buttonCustom(
+                Button::to($tipo === 'simple' ? $nuovo : $nuovo.'?type='.rawurlencode($tipo), 'Aggiungi')
+                    ->variant('dark')->size('sm')->icon('bi bi-plus-lg', 'start')
+            );
+        }
+
+        return $layout->buttonCustomHtml(static::addButtonHtml($tipi));
+    }
+
+    /** Le viste dell'elenco aperte dal menu; ogni altro valore è l'elenco intero. */
+    public const VIEWS = ['prodotti', 'abbonamenti'];
+
+    /** La vista dell'indirizzo (`?vista=`), vuota se manca o non è nota. */
+    public static function listedView(): string
+    {
+        $vista = (string) ($_GET['vista'] ?? '');
+
+        return in_array($vista, self::VIEWS, true) ? $vista : '';
+    }
+
+    /**
+     * I tipi che la vista mostra e che «Aggiungi» crea, fra quelli accesi.
+     *
+     * @return array<string, string>
+     */
+    public static function viewTypes(?string $vista = null): array
+    {
+        $vista ??= static::listedView();
+        $tipi = [];
+
+        if ($vista !== 'abbonamenti') {
+            if (Gestionale::feature('products')) {
+                $tipi['simple'] = 'Prodotto';
+            }
+
+            if (Gestionale::feature('bundles')) {
+                $tipi['bundle'] = 'Multiprodotto';
+            }
+        }
+
+        if ($vista !== 'prodotti' && Gestionale::feature('subscriptions')) {
             $tipi[SubscriptionModels::TYPE] = 'Abbonamento';
         }
 
-        return $layout
-            ->hideButtonAdd()
-            ->buttonCustomHtml(static::addButtonHtml($tipi));
+        return $tipi;
+    }
+
+    /**
+     * La condizione per tipo della vista. Solo con `?vista=`: le schede e i
+     * salvataggi arrivano senza, e una riga fuori condizione sarebbe un 404.
+     *
+     * @return array<string, mixed>
+     */
+    public static function viewCondition(string $vista): array
+    {
+        return match ($vista) {
+            'prodotti' => ['type' => ['simple', 'bundle']],
+            'abbonamenti' => ['type' => SubscriptionModels::TYPE],
+            default => [],
+        };
+    }
+
+    public static function querySchema(): array
+    {
+        $schema = parent::querySchema();
+        $condizione = static::viewCondition(static::listedView());
+
+        if ($condizione !== []) {
+            $schema['condition'] = array_merge((array) ($schema['condition'] ?? []), $condizione);
+        }
+
+        return $schema;
+    }
+
+    /** Le pagine vivono finché c'è almeno un tipo di articolo acceso. */
+    public static function featureActive(): bool
+    {
+        return Gestionale::feature('products') || Gestionale::feature('bundles') || Gestionale::feature('subscriptions');
+    }
+
+    /**
+     * L'elenco in una vista: lo aprono le voci di menu «Prodotti» e
+     * «Abbonamenti». Assoluto, come vuole il menu per un link fuori dalla
+     * sua cartella.
+     */
+    public static function typeListUrl(string $vista): string
+    {
+        $url = '/backend/'.static::path().'/';
+
+        if (function_exists('__r')) {
+            try {
+                $named = (string) __r('backend.resource.'.static::slug().'.list');
+                $url = $named !== '' ? $named : $url;
+            } catch (Throwable) {
+                // Rotta non registrata (test, comandi): resta il percorso.
+            }
+        }
+
+        return $url.(str_contains($url, '?') ? '&' : '?').'vista='.rawurlencode($vista);
     }
 
     /**
@@ -1405,8 +1505,9 @@ HTML
      *
      * @param array<string, string> $tipi
      */
-    public static function addButtonHtml(array $tipi, string $predefinito = 'simple'): string
+    public static function addButtonHtml(array $tipi, ?string $predefinito = null): string
     {
+        $predefinito ??= (string) array_key_first($tipi);
         $nuovo = static::createUrlFor();
         $url = static fn (string $tipo): string => $tipo === 'simple' ? $nuovo : $nuovo.'?type='.rawurlencode($tipo);
         $voci = '';
@@ -1515,7 +1616,7 @@ HTML
             // dietro al bottone «Modifica».
             ->enable(['view'])
             ->titles([
-                'list' => 'Prodotti',
+                'list' => static::listedView() === 'abbonamenti' ? 'Abbonamenti' : 'Prodotti',
                 'create' => 'Nuovo prodotto',
                 'view' => 'Scheda prodotto',
                 'edit' => 'Modifica prodotto',
@@ -2191,13 +2292,15 @@ HTML
 
     public static function navigationSchema(): NavigationSchema
     {
-        // L'unica voce del catalogo per gli articoli: prodotti, multiprodotti
-        // e abbonamenti stanno nello stesso elenco.
+        // Prodotti e multiprodotti; gli abbonamenti hanno la loro voce
+        // (SubscriptionProductsResource) sullo stesso elenco.
         return NavigationSchema::for(static::class)
             ->inSection('catalogo')
             ->title('Prodotti')
             ->order(38)
-            ->access(Gestionale::area('catalogo'));
+            ->file(static::typeListUrl('prodotti'))
+            ->access(Gestionale::area('catalogo'))
+            ->enabled(Gestionale::feature('products'));
     }
 
     /**
@@ -2257,6 +2360,10 @@ HTML
             : ($oldValues['type'] ?? 'simple') === 'bundle';
 
         if ($action === 'store') {
+            if (!$multiprodotto && !Gestionale::feature('products')) {
+                throw UserError::make('product.products_off');
+            }
+
             $values['type'] = $multiprodotto ? 'bundle' : 'simple';
         } else {
             unset($values['type']);

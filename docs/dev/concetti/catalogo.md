@@ -258,12 +258,25 @@ Tre livelli, cinque tabelle:
 | `gst_product_variants` | quello che cambia l'aspetto |
 | `gst_products` | quello che si vende e sta a magazzino |
 
-**Un elenco solo per tutti i tipi.** In *Catalogo* la voce degli articoli è
-una, «Prodotti» (`ProductModelResource::navigationSchema()`): prodotti,
-multiprodotti e abbonamenti stanno nello stesso elenco, senza filtro di tipo,
-distinti dall'icona di `typeCell()`. Si creano dallo split button
-`addButtonHtml()`: «+ Aggiungi» fa un prodotto, il menu porta a
-`createUrlFor()?type=bundle|subscription` quando la funzionalità è accesa.
+**Un elenco solo, due viste.** Gli articoli sono una Resource sola,
+`ProductModelResource`, con due voci in *Catalogo*:
+
+| Voce | Indirizzo | Tipi | Accesa con |
+|---|---|---|---|
+| Prodotti | `typeListUrl('prodotti')` → `?vista=prodotti` | `simple`, `bundle` | `products` |
+| Abbonamenti | `typeListUrl('abbonamenti')` → `?vista=abbonamenti` | `subscription` | `subscriptions` |
+
+La voce «Abbonamenti» è `SubscriptionProductsResource` (solo navigazione).
+Multiprodotti non ha una voce: sta nella vista Prodotti. La vista è un
+parametro in whitelist (`VIEWS`, `listedView()`); `querySchema()` aggiunge la
+condizione sul tipo (`viewCondition()`), senza vista l'elenco ha tutti i tipi.
+Non c'è filtro di tipo: la colonna «Tipo» (`typeCell()`) compare solo quando la
+vista ha più tipi. «+ Aggiungi» (`viewTypes()`, `addButtonHtml()`) offre i tipi
+della vista con la loro funzionalità accesa: un tipo solo è un bottone, più
+tipi lo split button con `createUrlFor()?type=bundle|subscription`.
+
+Limiti accettati: dopo il salvataggio si torna all'elenco senza vista, e
+«Scarica» e il riordino non leggono la vista.
 
 **La variante c'è sempre** (G2a.2). `Support\Catalog\Skeleton::forModel()` la
 crea insieme al primo prodotto quando nasce un modello.

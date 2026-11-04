@@ -74,6 +74,33 @@ Il messaggio dopo il salvataggio dice cosa è cambiato, e ogni cambio finisce in
 
 Bloccare **non cancella mai i dati**: risbloccando si ritrova tutto.
 
+Alcune funzionalità rifiutano lo spegnimento finché ci sono dati vivi
+(`Support\Features\FeatureGuards`, dopo le regole delle dipendenze): «Più
+sedi», «Abbonamenti», «Varianti» e «Prodotto» (con prodotti singoli nel
+catalogo, errore `feature.products_in_use`).
+
+### Accese di serie (`default`)
+
+Una voce con `'default' => true` senza riga in `gst_features` conta come
+sbloccata: `FeatureState::defaults()` vale in lettura
+(`Gestionale::features()`, solo dopo una lettura riuscita della tabella), nel
+seeding (`Defaults::features()`) e nel pannello, che scrive la riga a `true`.
+Con la riga vale la riga. Serve alle voci nuove che i siti avevano già, come
+`products`.
+
+### «Prodotto» (`products`)
+
+Governa il prodotto singolo: la voce *Catalogo → Prodotti* e la creazione di un
+articolo di tipo `simple`. «Multiprodotto» la richiede. Spenta:
+
+- la voce di menu sparisce, ma le pagine di `ProductModelResource` restano
+  vive finché è accesa almeno una fra `products`, `bundles` e `subscriptions`
+  (`featureActive()`): la scheda di un abbonamento è la stessa;
+- «+ Aggiungi» non offre il prodotto e il salvataggio rifiuta un articolo
+  nuovo di tipo `simple` (`product.products_off`);
+- non si spegne con prodotti singoli nel catalogo: i prodotti esistenti
+  restano, in vendita, e vanno eliminati prima.
+
 ## Esportazioni
 
 L'area **Esportazioni** decide quali file offre «Esporta» nella tabella dei

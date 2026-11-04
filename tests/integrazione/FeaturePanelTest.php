@@ -155,4 +155,23 @@ check('«Varianti» non si spegne con un articolo in più versioni', static func
     });
 });
 
+check('«Prodotto» non si spegne con dei prodotti singoli nel catalogo', static function (): bool {
+    return prova(static function (): bool {
+        $singoli = (int) sqlCount(ProductModel::$table, "`type` = 'simple' AND `deleted` = 'false'");
+
+        try {
+            FeatureGuards::assertAllowed(['products' => true], ['products' => false]);
+            $rifiuto = null;
+        } catch (UserError $e) {
+            $rifiuto = $e->key();
+        }
+
+        return $singoli > 0 ? $rifiuto === 'feature.products_in_use' : $rifiuto === null;
+    });
+});
+
+check('il testo del rifiuto conta i prodotti', static fn (): bool =>
+    FeatureGuards::productsLabel(1) === 'c\'è 1 prodotto' && FeatureGuards::productsLabel(3) === 'ci sono 3 prodotti'
+);
+
 summary();
