@@ -354,7 +354,7 @@ final class SubscriptionResource extends GestionaleResource
      */
     public static function totals(array $row): string
     {
-        $voci = [['Subtotale', OrderSheet::money($row['subtotal'] ?? 0), '']];
+        $voci = [['Servizi', OrderSheet::money($row['subtotal'] ?? 0), '']];
 
         if (abs((float) ($row['discount_total'] ?? 0)) > 0.004) {
             $voci[] = ['Sconto', OrderSheet::money($row['discount_total']), ''];
@@ -366,6 +366,8 @@ final class SubscriptionResource extends GestionaleResource
             $voci[] = ['Coupon '.$coupon, '', 'text-muted'];
         }
 
+        // I prezzi sono IVA compresa: l'imponibile è il totale meno l'IVA, come nell'ordine.
+        $voci[] = ['Imponibile', OrderSheet::money((float) ($row['total'] ?? 0) - (float) ($row['tax_total'] ?? 0)), ''];
         $voci[] = ['IVA '.OrderSheet::number($row['tax_rate'] ?? 0).'%', OrderSheet::money($row['tax_total'] ?? 0), ''];
         $voci[] = ['Totale', OrderSheet::money($row['total'] ?? 0), 'fw-bold'];
         $righe = '';
