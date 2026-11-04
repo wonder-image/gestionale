@@ -158,10 +158,16 @@ piani, e il cliente si abbona da solo:
 
 1. sceglie un prezzo nella pagina dei piani; serve un **account**;
 2. nel checkout, anche insieme a dei prodotti, conferma i dati di
-   fatturazione e, se ce l'ha, scrive un codice sconto;
+   fatturazione e, se ce l'ha, scrive un codice sconto. Nel riepilogo il
+   servizio ha il nome del piano e sotto il prezzo col periodo
+   («9,90 €/Mese»); il totale è il **Totale di oggi** e sotto c'è quanto
+   pagherà dopo («Poi 9,90 €/Mese», con la prova «Poi 9,90 €/Mese dal …»);
 3. paga con la carta **dentro la pagina**, senza andare su Stripe: un solo
    pagamento per i prodotti e il primo addebito dell'abbonamento. Con la prova
-   la carta si salva e il canone si addebita alla fine della prova;
+   la carta si salva e il canone si addebita alla fine della prova. Con un
+   abbonamento nel carrello si paga **solo con la carta**: bonifico, PayPal,
+   Klarna, Satispay e gli altri metodi spariscono, perché non fanno addebiti
+   ricorrenti; tornano negli ordini di soli prodotti;
 4. l'abbonamento compare *In prova* o *Attivo* appena Stripe conferma il
    pagamento; l'ordine dei prodotti risulta pagato con lo stesso pagamento.
 
