@@ -9,7 +9,7 @@ con `subscription_id`.
 | Tabella | Cosa tiene |
 |---|---|
 | `gst_product_models` | il piano è un modello di prodotto con `type = 'subscription'`: codice `mod_`, slug, nome, foto, tag, categorie, IVA, `visible`, `visible_online` |
-| `gst_plan_prices` | i prezzi (`product_model_id`): codice `ppr_`, intervallo (`month`, `year`), `term_months`, vincolo, prova, prezzo, prezzo scontato, prezzo di rinnovo |
+| `gst_plan_prices` | i prezzi (`product_model_id`): codice `ppr_`, intervallo (`month`, `year`, ricavato da `term_months` con `PlanPriceRules::intervalOf()`: il form non lo chiede), `term_months`, vincolo, prova, prezzo, prezzo scontato, prezzo di rinnovo |
 | `gst_plan_features` | i limiti (`product_model_id`): `feature_key` e `feature_value` (non `key`/`value`: `KEY` è riservata in MySQL) |
 | `gst_subscriptions` | l'abbonamento: codice `sub_`, cliente, prezzo, canale, stato, fatturazione copiata, importi, date del periodo |
 | `gst_subscription_plan_changes` | i cambi di piano |

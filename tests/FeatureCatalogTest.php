@@ -149,4 +149,47 @@ check('nomi di ciò che serve prima, con le alternative unite', function () {
     return FeatureCatalog::requiredNames($catalogo, $catalogo['c']) === ['Magazzino', 'Ordini o Abbonamenti'];
 });
 
+check('replaces normalizzata, vuota di serie', function () {
+    $catalogo = FeatureCatalog::fromArray([
+        'a' => ['name' => 'A', 'area' => 'X'],
+        'b' => ['name' => 'B', 'area' => 'X', 'replaces' => [' vecchia_1 ', '', 'vecchia_2']],
+    ]);
+
+    return $catalogo['a']['replaces'] === [] && $catalogo['b']['replaces'] === ['vecchia_1', 'vecchia_2'];
+});
+
+check('replaces di una chiave ancora nel catalogo rifiutata', function () {
+    try {
+        FeatureCatalog::fromArray([
+            'a' => ['name' => 'A', 'area' => 'X'],
+            'b' => ['name' => 'B', 'area' => 'X', 'replaces' => ['a']],
+        ]);
+    } catch (RuntimeException $e) {
+        return str_contains($e->getMessage(), 'ancora nel catalogo');
+    }
+
+    return false;
+});
+
+check('una chiave sostituita da due voci rifiutata', function () {
+    try {
+        FeatureCatalog::fromArray([
+            'a' => ['name' => 'A', 'area' => 'X', 'replaces' => ['vecchia']],
+            'b' => ['name' => 'B', 'area' => 'X', 'replaces' => ['vecchia']],
+        ]);
+    } catch (RuntimeException $e) {
+        return str_contains($e->getMessage(), 'sia da');
+    }
+
+    return false;
+});
+
+check('esportazioni: una funzionalità per contenuto, le chiavi per formato sostituite', function () {
+    $catalogo = FeatureCatalog::fromArray(require __DIR__ . '/../config/features.php');
+
+    return $catalogo['export_products']['replaces'] === ['export_xlsx', 'export_csv']
+        && $catalogo['export_contacts']['replaces'] === ['export_contacts_xlsx', 'export_contacts_csv']
+        && !isset($catalogo['export_xlsx'], $catalogo['export_csv'], $catalogo['export_contacts_xlsx'], $catalogo['export_contacts_csv']);
+});
+
 summary();

@@ -4,12 +4,13 @@ namespace Wonder\Plugin\Gestionale\Support\Labels;
 
 use Throwable;
 use Wonder\Plugin\Gestionale\Extensions\Extensions;
+use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Support\Labels\LabelFormat;
 
 /**
- * I formati di etichette fra cui si sceglie in stampa: quelli standard del
- * core (fogli A4 adesivi e rotoli termici). Il sito ne aggiunge o ne toglie con
- * `labelFormats()` di un'estensione.
+ * I formati di etichette fra cui si sceglie nelle Impostazioni: quelli standard
+ * del core (fogli A4 adesivi e rotoli termici). Il sito ne aggiunge o ne toglie
+ * con `labelFormats()` di un'estensione.
  */
 final class LabelFormats
 {
@@ -39,6 +40,25 @@ final class LabelFormats
         }
 
         return $out !== [] ? $out : $formats;
+    }
+
+    /**
+     * Il formato con cui si stampa: `$key`, o senza quello delle Impostazioni.
+     * Uno che non c'è (più) diventa il primo.
+     */
+    public static function current(?string $key = null): LabelFormat
+    {
+        if ($key === null) {
+            try {
+                $key = (string) (Setting::current()['label_format'] ?? '');
+            } catch (Throwable) {
+                $key = '';
+            }
+        }
+
+        $formats = self::all();
+
+        return $formats[$key] ?? reset($formats);
     }
 
     public static function find(string $key): ?LabelFormat

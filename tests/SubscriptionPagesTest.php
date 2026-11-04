@@ -82,13 +82,16 @@ check('le righe vuote dei prezzi e dei limiti non si scrivono', function () {
         && count($limiti) === 1 && $limiti[0]['feature_key'] === 'max_progetti' && $limiti[0]['feature_value'] === '5';
 });
 
-check('un intervallo inventato diventa il mese; l\'annuale senza mesi ne prende 12', function () {
+check('la ricorrenza si ricava dall\'addebito, quella del form non conta', function () {
     $righe = ProductModelResource::prepareRepeaterRows('prices', [
-        ['name' => 'A', 'billing_interval' => 'week', 'price' => '1'],
-        ['name' => 'B', 'billing_interval' => 'year', 'price' => '1'],
+        ['name' => 'A', 'billing_interval' => 'year', 'price' => '1'],
+        ['name' => 'B', 'term_months' => '3', 'price' => '1'],
+        ['name' => 'C', 'billing_interval' => 'month', 'term_months' => '12', 'price' => '1'],
     ]);
 
-    return $righe[0]['billing_interval'] === 'month' && $righe[0]['term_months'] === 1 && $righe[1]['term_months'] === 12;
+    return $righe[0]['billing_interval'] === 'month' && $righe[0]['term_months'] === 1
+        && $righe[1]['billing_interval'] === 'month' && $righe[1]['term_months'] === 3
+        && $righe[2]['billing_interval'] === 'year' && $righe[2]['term_months'] === 12;
 });
 
 check('il prezzo in breve mostra lo scontato quando vale', fn () =>
@@ -207,6 +210,33 @@ check('«Nuovo abbonamento» in testa all\'elenco è un Button del core verso il
         && str_contains($html, 'btn-dark btn-sm')
         && str_contains($html, '<i class="bi bi-plus-lg"></i> Nuovo abbonamento')
         && str_contains($html, 'href="'.htmlspecialchars(OfficeSubscriptionResource::submitUrl(), ENT_QUOTES).'"');
+});
+
+check('il tipo fiscale dell\'abbonamento segue «Aliquote»: spenta non c\'è, accesa sì e senza «Nessuno» fra più tipi', function () {
+    $forza = static fn (?array $stato) => (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
+    $nomi = static fn (): array => array_map(static fn (object $campo): string => (string) $campo->name, ProductModelResource::formSchema());
+    $layout = static fn (): string => print_r((new ReflectionMethod(ProductModelResource::class, 'sideColumn'))->invoke(null, 0), true);
+    $_GET['type'] = 'subscription';
+
+    try {
+        $forza(['subscriptions' => true, 'tax_categories' => false]);
+        $spenta = $nomi();
+        $layoutSpento = $layout();
+        $forza(['subscriptions' => true, 'tax_categories' => true]);
+        $accesa = $nomi();
+        $layoutAcceso = $layout();
+        $campo = ProductModelResource::getInput('tax_category_id');
+    } finally {
+        unset($_GET['type']);
+        $forza(null);
+    }
+
+    $scelte = array_keys((array) $campo->get('options'));
+
+    return !in_array('tax_category_id', $spenta, true)
+        && in_array('tax_category_id', $accesa, true)
+        && !str_contains($layoutSpento, 'Tipo fiscale') && str_contains($layoutAcceso, 'Tipo fiscale')
+        && (count($scelte) <= 1 || !in_array('', $scelte, true));
 });
 
 summary();

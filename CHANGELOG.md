@@ -19,12 +19,24 @@ versionamento semantico.
   `subscription_model`. **Nessuna migrazione dei dati**: prima di
   `php forge update` svuotare gli abbonamenti e i piani di prova e cancellare
   `gst_plans`.
-- **Prezzi dei piani.** Colonne Nome, Prezzo, Ricorrenza (era «Ogni»), Una
-  tantum, Stato; prezzo scontato, addebito (Mensile… Annuale, solo col mese), vincolo, prova e rinnovo
-  dietro «Compila le informazioni avanzate». «Limiti» si chiama «Metadata».
 - **Una tantum nelle guide** (#76, dalla #134): quando si paga (primo
   addebito, anche in prova), cosa non tocca (rinnovi, cambi, servizi aggiunti,
   coupon), come compare online e da ufficio, detto col prodotto abbonamento.
+- **Esportazioni per contenuto, non per formato.** `export_products` sostituisce
+  `export_xlsx` ed `export_csv`, `export_contacts` sostituisce
+  `export_contacts_xlsx` ed `export_contacts_csv`: una funzionalità attiva dà
+  Excel e CSV, il formato si sceglie nel menu «Esporta». Le installazioni
+  esistenti ereditano lo stato (attiva se lo era una delle due vecchie) con la
+  nuova chiave `replaces` del catalogo. I feed Meta, Google, TikTok e Amazon
+  restano funzionalità a sé. Nel listino «Scarica (Excel)» e «Scarica (CSV)»
+  diventano un solo **Scarica** a tendina.
+- **Prezzi del prodotto abbonamento.** Colonne Nome, Prezzo, Addebito (Mensile… Annuale,
+  al posto di «Ogni» e della ricorrenza, che si ricava dall'addebito), Una
+  tantum, Stato; prezzo scontato, vincolo, prova e rinnovo dietro «Compila le
+  informazioni avanzate». «Limiti» si chiama «Metadata».
+- **Tipo fiscale del prodotto abbonamento** come quello degli altri prodotti: parte dal predefinito,
+  è obbligatorio, niente «Nessuno» quando i tipi ci sono; con «Aliquote»
+  spenta non si vede e l'abbonamento nuovo prende il predefinito.
 
 ### Corretto
 - **404 di PDF e CSV.** Gli scaricamenti del backend (PDF, stampa, proforma,
@@ -60,7 +72,9 @@ versionamento semantico.
 - **Etichette con codice a barre** in PDF (#116), da stampare dalla scheda
   dell'articolo, dalla variante e dal carico: EAN-13/EAN-8 col codificatore del
   core, fogli A4 da 24, 40 e 65 e rotoli termici 50 × 30 e 40 × 25, campi e
-  copie scelti nella finestra, prima casella libera sul foglio. Il sito aggiunge
+  copie scelti nella finestra, prima casella libera sul foglio. Il formato si
+  sceglie una volta nelle Impostazioni (`label_format`, del negozio: fuori dal
+  sync e modificabile in produzione). Il sito aggiunge
   formati con l'hook `labelFormats()`. Funzionalità *Etichette*, spenta di base.
   Il foglio PDF e i formati sono del core (`Wonder\Support\Labels`): serve la
   versione di `wonder-image/app` che li contiene.

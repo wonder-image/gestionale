@@ -36,7 +36,10 @@ spedizione, lotti, varianti, confezione, resi e unità di misura. Restano:
   sito e nella pagina dei piani; la foto anche in carrello e checkout.
 * **Categorie**, **tag**, URL e SEO, come ogni prodotto: l'abbonamento compare
   nel catalogo e nella ricerca del sito.
-* **IVA**: l'aliquota, come per i prodotti. Per ora vale solo l'IVA italiana.
+* **Tipo fiscale**: dà l'aliquota IVA, come per i prodotti: parte dal tipo
+  predefinito ed è obbligatorio. Per ora vale solo l'IVA italiana. Con la
+  funzionalità «Aliquote» spenta il campo non c'è e l'abbonamento usa il
+  predefinito.
 * **Acquistabile online**: spento, toglie il piano dal sito, ma lo lascia agli
   abbonati e all'ufficio.
 * **Stato**: un piano spento non si propone più a nessuno.
@@ -67,7 +70,9 @@ Un piano ha uno o più prezzi, una riga per prezzo:
 * **Nome**: «Mensile», «Annuale».
 * **Prezzo**: IVA inclusa o esclusa come i prezzi del catalogo
   (*Impostazioni → Prezzi del catalogo*).
-* **Ricorrenza**: ogni quanto si rinnova, «Mese» o «Anno».
+* **Addebito**: ogni quanto si paga il prezzo: Mensile, Bimestrale,
+  Trimestrale, Semestrale o Annuale. Il prezzo è l'importo di ogni addebito:
+  «Trimestrale» a 120 € vuol dire 120 € ogni tre mesi.
 * **Una tantum**: un importo che si paga una volta sola, col primo addebito
   (vuoto o zero: niente). Con la prova si paga subito, all'inizio della prova;
   il canone parte alla fine. Non torna sui rinnovi, sui cambi di prezzo e sui
@@ -78,9 +83,6 @@ Un piano ha uno o più prezzi, una riga per prezzo:
 Con **Compila le informazioni avanzate** compaiono anche:
 
 * **Prezzo scontato**: se più basso del prezzo, vince.
-* **Addebito**: ogni quanto si paga un prezzo con ricorrenza «Mese»:
-  Mensile, Bimestrale, Trimestrale, Semestrale o Annuale. Con «Anno» non
-  conta: si paga una volta l'anno.
 * **Vincolo (mesi)**: per quanti mesi il cliente si impegna. Zero vuol dire
   nessun vincolo. Una disdetta durante il vincolo vale alla fine del vincolo.
 * **Prova (giorni)**: i giorni gratuiti prima del primo addebito. Una prova si

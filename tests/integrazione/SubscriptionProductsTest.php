@@ -140,8 +140,8 @@ function rifiuto(callable $f): ?string
     return null;
 }
 
-$mensile = ['name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => '1', 'price' => '19,00', 'sale_price' => '', 'trial_days' => '14', 'active' => 'true'];
-$annuale = ['name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => '', 'price' => '190,00', 'sale_price' => '150', 'active' => 'true'];
+$mensile = ['name' => 'Mensile', 'term_months' => '1', 'price' => '19,00', 'sale_price' => '', 'trial_days' => '14', 'active' => 'true'];
+$annuale = ['name' => 'Annuale', 'term_months' => '12', 'price' => '190,00', 'sale_price' => '150', 'active' => 'true'];
 
 check('un piano con due prezzi e due limiti: codici, numeri e posizioni', function () use ($mensile, $annuale) {
     return prova(static function () use ($mensile, $annuale): bool {
@@ -163,7 +163,7 @@ check('la scheda rifiuta un abbonamento senza prezzi o con un prezzo storto', fu
     return prova(static function () use ($mensile): bool {
         return rifiutoPagina(['name' => 'Vuoto', 'prices' => []]) === 'plan.no_prices'
             && rifiutoPagina(['name' => 'Storto', 'prices' => [['sale_price' => '30'] + $mensile]]) === 'plan.sale_not_lower'
-            && rifiutoPagina(['name' => 'Storto', 'prices' => [['billing_interval' => 'month', 'term_months' => '13'] + $mensile]]) === 'plan.term_mismatch'
+            && rifiutoPagina(['name' => 'Storto', 'prices' => [['term_months' => '13'] + $mensile]]) === 'plan.term_mismatch'
             && rifiutoPagina(['name' => 'Doppio', 'prices' => [$mensile], 'features' => [['feature_key' => 'max', 'feature_value' => '1'], ['feature_key' => 'MAX', 'feature_value' => '2']]]) === 'plan.feature_duplicate'
             && rifiutoPagina(['name' => 'Buono', 'prices' => [$mensile]]) === null;
     });

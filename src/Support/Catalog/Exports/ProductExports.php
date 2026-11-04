@@ -10,24 +10,25 @@ use Wonder\Plugin\Gestionale\Support\Export\Download;
 /**
  * Le esportazioni del catalogo che l'«Esporta» dei prodotti può offrire.
  *
- * Ognuna è una funzionalità dell'area «Esportazioni»: l'integratore le
+ * Ogni formato dipende da una funzionalità dell'area «Esportazioni» (Excel e
+ * CSV dalla stessa, `export_products`; ogni feed dalla sua): l'integratore le
  * concede dal pannello Funzionalità (o con `features.unlock` del sito) e chi
- * usa il gestionale vede solo quelle concesse. Una nuova esportazione è una
- * voce qui, una funzionalità in `config/features.php` e un ramo in `body()`.
+ * usa il gestionale vede solo i formati concessi. Un nuovo formato è una voce
+ * qui, un ramo in `body()` e, se serve, una funzionalità in `config/features.php`.
  */
 final class ProductExports
 {
     /** chiave del formato → funzionalità, etichetta, estensione, tipo, nome del file */
     public const FORMATS = [
         'xlsx' => [
-            'feature' => 'export_xlsx',
+            'feature' => 'export_products',
             'label' => 'Excel (.xlsx)',
             'extension' => 'xlsx',
             'mime' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'file' => 'prodotti',
         ],
         'csv' => [
-            'feature' => 'export_csv',
+            'feature' => 'export_products',
             'label' => 'CSV (.csv)',
             'extension' => 'csv',
             'mime' => 'text/csv; charset=UTF-8',

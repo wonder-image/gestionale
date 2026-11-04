@@ -25,7 +25,8 @@ use Wonder\Sql\TableSchema as Column;
  * da ufficio con una rata scaduta è non pagato (G10), e per
  * `subscriptions_per_customer`, quanti abbonamenti in corso può avere un
  * cliente (G10b, 0 = senza limite), e per `stock_prices_include_tax`, se i
- * costi dei carichi si scrivono con l'IVA o senza (si parte senza).
+ * costi dei carichi si scrivono con l'IVA o senza (si parte senza), e per
+ * `label_format`, il formato delle etichette della stampante del negozio.
  *
  * Qui stanno le scelte che si fanno una volta con il commercialista o in fase
  * di installazione. I moduli accesi aggiungono le loro coi riquadri di
@@ -39,7 +40,7 @@ final class Setting extends Model
 
     public static function syncSchema(): ?SyncSchema
     {
-        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'low_stock_emails', 'stripe_methods_cache', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days', 'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days', 'subscriptions_per_customer', 'stock_prices_include_tax']);
+        return SyncSchema::singleton()->localOnly()->exclude(['merchant_notification_emails', 'low_stock_emails', 'stripe_methods_cache', 'batch_expiry_days', 'payment_due_days', 'quote_validity_days', 'delivery_transport_by', 'delivery_carrier_id', 'delivery_goods_appearance', 'delivery_freight_terms', 'subscription_unpaid_days', 'subscriptions_per_customer', 'stock_prices_include_tax', 'label_format']);
     }
 
     public static function tableSchema(): array
@@ -82,6 +83,8 @@ final class Setting extends Model
             Column::key('subscriptions_per_customer')->int()->default(1),
             // L'ordine degli articoli nel catalogo del sito, dove una categoria o un tag non ne sceglie un altro.
             Column::key('catalog_sort')->enum(['position', 'newest', 'name', 'price_asc', 'price_desc'])->default('position'),
+            // #116: il formato delle etichette, della stampante del negozio; vuoto = il primo dei formati.
+            Column::key('label_format')->length(50),
         ];
 
         foreach (SettingsSections::all() as $section) {
@@ -121,6 +124,7 @@ final class Setting extends Model
             Field::key('subscription_unpaid_days')->number()->decimals(0),
             Field::key('subscriptions_per_customer')->number()->decimals(0),
             Field::key('catalog_sort')->text()->sanitize(false),
+            Field::key('label_format')->text()->sanitize(false),
         ];
 
         foreach (SettingsSections::all() as $section) {

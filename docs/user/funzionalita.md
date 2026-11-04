@@ -67,10 +67,8 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Abbonamenti online | Canali di vendita | Il sito vende i piani: pagina dei piani, sottoscrizione con Stripe e abbonamenti nell'area cliente. | Vendita online, Abbonamenti |
 | Vendita in cassa | Canali di vendita | Vendita in sede con documento commerciale e corrispettivi. | Ordini |
 | Server MCP | Integrazioni | Collega gli assistenti IA (Claude, ChatGPT, Cursor) a prodotti, prezzi, giacenze, categorie, ordini e preventivi, con i permessi del backend. | — |
-| Esportazione Excel | Esportazioni | Scarica i prodotti in Excel (.xlsx): una riga per opzione, intestazioni in italiano. | — |
-| Esportazione CSV | Esportazioni | Scarica i prodotti in CSV (.csv) standard: virgola, UTF-8, punto nei decimali. | — |
-| Esportazione contatti Excel | Esportazioni | Scarica clienti e fornitori in Excel (.xlsx): anagrafica, recapiti e fatturazione, celle come testo. | — |
-| Esportazione contatti CSV | Esportazioni | Scarica clienti e fornitori in CSV (.csv): UTF-8, virgola, senza celle lette come formula. | — |
+| Esportazione prodotti | Esportazioni | Scarica i prodotti in Excel (.xlsx) o CSV (.csv): una riga per opzione, intestazioni in italiano. | — |
+| Esportazione contatti | Esportazioni | Scarica clienti e fornitori in Excel (.xlsx) o CSV (.csv): anagrafica, recapiti e fatturazione, celle come testo. | — |
 | Catalogo Meta | Esportazioni | Scarica il file per il catalogo di Facebook e Instagram (.csv con i campi di Meta). | — |
 | Google Merchant Center | Esportazioni | Scarica il feed per Google Merchant Center (.xml RSS con i campi g:). | — |
 | TikTok Shop | Esportazioni | Sincronizzazione del catalogo con TikTok Shop. | — |

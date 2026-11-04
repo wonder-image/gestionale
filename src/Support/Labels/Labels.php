@@ -69,16 +69,15 @@ final class Labels
     }
 
     /**
-     * Le scelte della finestra di stampa, ripulite: un formato che non c'è
-     * diventa il primo, i campi sconosciuti spariscono.
+     * Le scelte della finestra di stampa, ripulite: il formato è quello delle
+     * Impostazioni, i campi sconosciuti spariscono.
      *
      * @param array<string, mixed> $query
      * @return array{format: LabelFormat, fields: list<string>, copies: int, start: int}
      */
     public static function options(array $query): array
     {
-        $formats = LabelFormats::all();
-        $format = $formats[(string) ($query['format'] ?? '')] ?? reset($formats);
+        $format = LabelFormats::current();
 
         $fields = $query['fields'] ?? null;
 

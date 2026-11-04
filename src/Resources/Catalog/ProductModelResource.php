@@ -52,7 +52,6 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CategoryResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\PackageResource;
-use Wonder\Plugin\Gestionale\Resources\Tax\TaxCategoryResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
@@ -1705,7 +1704,6 @@ HTML
             return '<p class="text-muted mb-0">Nessun prezzo: si aggiungono dalla modifica.</p>';
         }
 
-        $intervalli = SubscriptionProductForm::intervalOptions();
         $addebiti = SubscriptionProductForm::termOptions();
         $righe = '';
 
@@ -1716,11 +1714,10 @@ HTML
                 ? '<del class="text-muted">'.static::escape(static::euro($pieno)).'</del> '.static::escape(static::euro($sconto))
                 : static::escape(static::euro($pieno));
 
-            $intervallo = (string) ($prezzo['billing_interval'] ?? 'month');
-            $mesi = (string) (int) ($prezzo['term_months'] ?? 1);
-            $ricorrenza = $intervallo === 'month' && $mesi !== '1'
-                ? ($addebiti[$mesi] ?? $mesi.' mesi')
-                : 'Ogni '.mb_strtolower($intervalli[$intervallo] ?? $intervallo);
+            // La ricorrenza si ricava dall'addebito: un valore fuori elenco,
+            // salvato prima, si legge in mesi.
+            $mesi = max(1, (int) ($prezzo['term_months'] ?? 1));
+            $addebito = $addebiti[(string) $mesi] ?? 'Ogni '.$mesi.' mesi';
 
             $note = [];
             $unaTantum = (float) ($prezzo['one_time_price'] ?? 0);
@@ -1744,14 +1741,14 @@ HTML
             $righe .= '<tr>'
                 .'<td>'.static::escapeStored((string) ($prezzo['name'] ?? '')).'</td>'
                 .'<td class="text-nowrap">'.$importo.'</td>'
-                .'<td>'.static::escape($ricorrenza).'</td>'
+                .'<td>'.static::escape($addebito).'</td>'
                 .'<td class="text-muted small">'.static::escape(implode(' · ', $note)).'</td>'
                 .'<td class="text-end">'.Badge::make($attivo ? 'Attivo' : 'Spento')->variant($attivo ? 'success' : 'secondary')->inline()->render('bootstrap').'</td>'
                 .'</tr>';
         }
 
         return '<div class="table-responsive"><table class="table table-sm align-middle mb-0">'
-            .'<thead><tr><th>Nome</th><th>Prezzo</th><th>Ricorrenza</th><th>Condizioni</th><th class="text-end">Stato</th></tr></thead>'
+            .'<thead><tr><th>Nome</th><th>Prezzo</th><th>Addebito</th><th>Condizioni</th><th class="text-end">Stato</th></tr></thead>'
             .'<tbody>'.$righe.'</tbody></table></div>';
     }
 
@@ -10344,14 +10341,7 @@ HTML
         return $options;
     }
 
-    /**
-     * Il tipo fiscale: parte dal predefinito e si vede sempre.
-     *
-     * Su un articolo salvato il tipo che usa resta nell'elenco anche se nel
-     * frattempo è stato nascosto. Senza nessun tipo le imposte ricadono
-     * sull'aliquota di ripiego, e il campo lo dice invece di pretendere una
-     * scelta che non c'è.
-     */
+    /** Il tipo fiscale dell'articolo: quello già salvato resta fra le scelte. */
     protected static function taxCategoryField(int $modelId = 0): Input
     {
         $keep = 0;
@@ -10361,22 +10351,7 @@ HTML
             $keep = (int) ($row['tax_category_id'] ?? 0);
         }
 
-        $options = TaxCategories::options($keep);
-
-        if ($options === []) {
-            return FormField::key('tax_category_id')
-                ->select(['' => "Nessuno: vale l'aliquota di ripiego"])
-                ->value('')
-                ->label('Tipo fiscale')
-                ->quickCreate(TaxCategoryResource::class);
-        }
-
-        return FormField::key('tax_category_id')
-            ->select($options)
-            ->value((string) (TaxCategories::defaultId() ?: ''))
-            ->label('Tipo fiscale')
-            ->required()
-            ->quickCreate(TaxCategoryResource::class);
+        return static::taxCategoryInput($keep);
     }
 
     /**
