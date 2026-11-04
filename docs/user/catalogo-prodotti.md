@@ -620,3 +620,50 @@ voce viene spenta, il file sparisce dall'indirizzo.
 
 Quali file vedi nel pulsante lo decide chi ha installato il gestionale: se ti
 serve un file che non c'è, chiedilo a loro.
+
+## Caricare un file
+
+Il pulsante **Importa**, accanto a Esporta, fa il contrario: carichi un foglio
+(Excel o CSV) e il gestionale aggiorna i prodotti. Il modo più semplice è
+scaricare l'elenco, cambiare quello che ti serve e ricaricarlo così com'è.
+
+1. **Scegli il file.** Va bene anche un foglio tuo: le colonne si chiamano
+   come quelle dell'esportazione, o con nomi comuni come «Codice»,
+   «Quantità», «Prezzo».
+2. **Controlla le colonne.** Il gestionale abbina ogni colonna del file a un
+   dato del prodotto; puoi cambiare l'abbinamento, e una colonna lasciata su
+   «non caricare» non cambia niente.
+   Serve sempre la colonna **SKU**: è quella che dice quale prodotto è.
+3. **Guarda l'anteprima.** Per ogni riga vedi cosa succederà: *aggiorna*,
+   *crea* o *nessuna modifica*, con gli errori da correggere nel file. Finché
+   c'è un errore non si parte, e niente è stato ancora cambiato.
+4. **Carica.** Le righe si scrivono un po' alla volta; puoi anche chiudere la
+   pagina, il caricamento va avanti da solo.
+
+Cosa fa ogni riga:
+
+- uno **SKU che c'è già** aggiorna quell'opzione, ma solo le celle che hai
+  cambiato. Una cella vuota non cancella niente;
+- uno **SKU nuovo** con il codice articolo di un articolo che c'è aggiunge
+  un'opzione a quell'articolo;
+- uno **SKU nuovo** senza codice articolo (o con uno nuovo) crea un articolo
+  nuovo: scrivi almeno il nome.
+
+Qualche regola:
+
+- **Disponibili** è quanti pezzi vuoi avere: il gestionale fa il movimento di
+  magazzino che serve, con causale «Caricamento da file». «Illimitata» o una
+  cella vuota non cambiano la giacenza.
+- I **prezzi** devono essere come nel negozio, IVA inclusa o esclusa: se il
+  file dice l'altro, scaricalo di nuovo.
+- Le **categorie** si scrivono `Ombrelli › Pieghevoli`, più di una separate da
+  `|`; quelle che non ci sono si creano.
+- Le **foto** si mettono come indirizzo che comincia con `https://`; il
+  gestionale le scarica (PNG, JPG o WebP, fino a 8 MB).
+- Multiprodotti e abbonamenti si aggiornano ma non si creano da file.
+
+Hai sbagliato file? Alla fine c'è **Annulla il caricamento**: le righe create
+spariscono e quelle modificate tornano com'erano, giacenze comprese. I
+caricamenti fatti restano in **Ultimi caricamenti**, in fondo alla pagina.
+
+Il pulsante lo vede chi può modificare i prodotti.

@@ -61,6 +61,11 @@ versionamento semantico.
   `ErrorKeysTest` le trova.
 
 ### Aggiunto
+- **Importa nell'elenco dei prodotti (#84).** Il file dell'esportazione si
+  ricarica: uno SKU che c'è si aggiorna (solo le celle cambiate), uno nuovo
+  diventa una versione o un articolo, la giacenza si muove con causale
+  `import`, le foto si scaricano da `https://`, tutto si annulla. Tracciato
+  `CatalogLayout` sul motore del core; vedi `docs/dev/concetti/caricamento-catalogo.md`.
 
 - **Abbonamenti pagati dentro la pagina.** `OnlineSubscriptions::startInPage()`
   crea l'abbonamento Stripe con `default_incomplete` e restituisce il client

@@ -387,7 +387,8 @@ pannello è `FeatureGuards::assertAllowed($prima, $dopo)`, chiamata da
 si spegne con pezzi fuori dalla principale o trasferimenti in viaggio.
 
 **Causali interne.** `Reasons::internal()` (oggi `batch_assignment`,
-«Assegnazione lotto») ha l'etichetta nei Movimenti ma non sta nelle tendine:
+«Assegnazione lotto», e `import` / `import_undo` del
+[caricamento da file](caricamento-catalogo.md)) ha l'etichetta nei Movimenti ma non sta nelle tendine:
 le scelte a mano sono `Reasons::selectable()`, e la Rettifica rifiuta le
 interne.
 
