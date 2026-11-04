@@ -117,7 +117,7 @@ check('l\'elenco porta alla scheda: il codice la apre e «Visualizza» sta tra l
     return str_contains(json_encode($codice), 'view') && array_key_exists('view', (array) ($azioni['actions'] ?? []));
 });
 
-check('la scheda ha dettagli, regole, prodotti e clienti, utilizzi e, di lato, dove vale', function () {
+check('la scheda ha dettagli, regole, prodotti e clienti, utilizzi e, di lato, stato, numeri, cumulo, azioni, dove vale', function () {
     $layout = CouponResource::showLayoutSchema(['id' => 0, 'code' => 'ESTATE10', 'discount_type' => 'percent', 'discount_value' => '10.00', 'note' => 'Per la newsletter']);
     $titoli = [];
     $scendi = function (array $componenti) use (&$scendi, &$titoli): void {
@@ -131,7 +131,27 @@ check('la scheda ha dettagli, regole, prodotti e clienti, utilizzi e, di lato, d
     };
     $scendi($layout->components);
 
-    return $titoli === ['Coupon', 'Regole', 'Prodotti e clienti', 'Utilizzi', 'Dove vale', 'Note'];
+    return $titoli === ['Coupon', 'Regole', 'Prodotti e clienti', 'Utilizzi', 'Stato', 'Numeri', 'Cumulo', 'Azioni', 'Dove vale', 'Note'];
+});
+
+check('la scadenza si legge in giorni: prima dell\'inizio, oggi, fra N, terminato, senza', function () {
+    $ora = '2026-10-10 12:00:00';
+
+    return CouponResource::deadlineLabel(['starts_at' => '2026-10-13'], $ora) === 'Inizia fra 3 giorni'
+        && CouponResource::deadlineLabel(['ends_at' => '2026-10-10 23:59:00'], $ora) === 'Scade oggi'
+        && CouponResource::deadlineLabel(['ends_at' => '2026-10-11'], $ora) === 'Scade fra 1 giorno'
+        && CouponResource::deadlineLabel(['ends_at' => '2026-10-01'], $ora) === 'Terminato il 01/10/2026'
+        && CouponResource::deadlineLabel([], $ora) === 'Senza scadenza';
+});
+
+check('gli utilizzi mostrano la barra solo con un limite, piena al limite', function () {
+    $senza = CouponResource::usageHtml(3, 0);
+    $meta = CouponResource::usageHtml(5, 10);
+    $pieno = CouponResource::usageHtml(12, 10);
+
+    return str_contains($senza, '3 / ∞') && !str_contains($senza, 'progress')
+        && str_contains($meta, 'width: 50%') && !str_contains($meta, 'bg-secondary')
+        && str_contains($pieno, 'width: 100%') && str_contains($pieno, 'bg-secondary');
 });
 
 summary();

@@ -1363,6 +1363,7 @@ HTML
      * Con multiprodotti o abbonamenti l'«Aggiungi» di serie diventa un
      * bottone diviso: la scheda nasce di un tipo, e il tipo viaggia
      * nell'indirizzo (`?type=bundle`) invece di stare in un campo da scegliere.
+     * L'elenco mostra tutti i tipi insieme, senza filtro: il badge li distingue.
      */
     public static function tableLayoutSchema(): TableLayoutSchema
     {
@@ -1383,7 +1384,7 @@ HTML
             return $layout;
         }
 
-        $tipi = ['' => 'Tutti', 'simple' => 'Prodotto'];
+        $tipi = ['simple' => 'Prodotto'];
 
         if ($multi) {
             $tipi['bundle'] = 'Multiprodotto';
@@ -1394,26 +1395,12 @@ HTML
         }
 
         return $layout
-            ->filterCustom('Tipo', 'type', $tipi)
             ->hideButtonAdd()
-            ->buttonCustomHtml(static::addButtonHtml($tipi, static::listedType($tipi)));
+            ->buttonCustomHtml(static::addButtonHtml($tipi));
     }
 
     /**
-     * Il tipo dell'elenco filtrato (le voci «Multiprodotti» e «Abbonamenti»
-     * del menu): «Aggiungi» crea quello. Senza filtro, un prodotto.
-     *
-     * @param array<string, string> $tipi
-     */
-    protected static function listedType(array $tipi): string
-    {
-        $tipo = (string) ($_GET[ProductModel::$table.'__type'] ?? '');
-
-        return $tipo !== '' && isset($tipi[$tipo]) ? $tipo : 'simple';
-    }
-
-    /**
-     * Un bottone diviso: «+ Aggiungi» crea il tipo dell'elenco, la freccia
+     * Un bottone diviso: «+ Aggiungi» crea il tipo predefinito, la freccia
      * apre i tipi attivi. Il tipo viaggia nell'indirizzo (`?type=bundle`).
      *
      * @param array<string, string> $tipi
@@ -2204,44 +2191,13 @@ HTML
 
     public static function navigationSchema(): NavigationSchema
     {
-        $schema = NavigationSchema::for(static::class)
+        // L'unica voce del catalogo per gli articoli: prodotti, multiprodotti
+        // e abbonamenti stanno nello stesso elenco.
+        return NavigationSchema::for(static::class)
             ->inSection('catalogo')
             ->title('Prodotti')
             ->order(38)
             ->access(Gestionale::area('catalogo'));
-
-        // Con le voci «Multiprodotti» o «Abbonamenti» accanto, «Prodotti»
-        // mostra solo i prodotti semplici.
-        if (Gestionale::feature('bundles') || Gestionale::feature('subscriptions')) {
-            $schema->file('?'.ProductModel::$table.'__type=simple');
-        }
-
-        return $schema;
-    }
-
-    /**
-     * L'elenco dei prodotti, filtrato per tipo se ne passi uno: lo aprono le
-     * voci di menu «Multiprodotti» e «Abbonamenti». Assoluto quando il sito
-     * ha `APP_URL`, come vuole il menu per un link fuori dalla sua cartella.
-     */
-    public static function typeListUrl(string $type = ''): string
-    {
-        $url = '/backend/'.static::path().'/';
-
-        if (function_exists('__r')) {
-            try {
-                $named = (string) __r('backend.resource.'.static::slug().'.list');
-                $url = $named !== '' ? $named : $url;
-            } catch (Throwable) {
-                // Rotta non registrata (test, comandi): resta il percorso.
-            }
-        }
-
-        if ($type === '') {
-            return $url;
-        }
-
-        return $url.(str_contains($url, '?') ? '&' : '?').ProductModel::$table.'__type='.rawurlencode($type);
     }
 
     /**

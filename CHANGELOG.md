@@ -13,6 +13,19 @@ versionamento semantico.
   sezioni *Servizi*, *Pagamenti e rinnovi*, *Storia dei servizi* e *Storico*
   con `Table`/`TableColumn`. `OrderSectionResource` ha `$foreignKey`, per le
   tabelle legate a un abbonamento.
+- **Scheda del coupon con le tabelle del core** (gestionale#113): utilizzi e
+  codici generati usano `Table` (ricerca, filtri valido/rilasciato e
+  liberi/usati, ordinamento, pagine) con due Resource senza pagina,
+  `CouponRedemptionTableResource` e `CouponCodeTableResource`, al posto delle
+  tabelle HTML. La colonna di destra mostra stato e scadenza, utilizzi con la
+  barra, sconto concesso (`Coupons::discountGranted`), codici
+  generati/usati/liberi, cumulo e le azioni (Modifica, Genera e Scarica i
+  codici).
+- **In Catalogo solo «Prodotti».** Tolte le voci di menu «Multiprodotti» e
+  «Abbonamenti» (`BundleProductsResource`, `SubscriptionProductsResource`,
+  solo navigazione) e `ProductModelResource::typeListUrl()`. L'elenco dei
+  prodotti non ha più il filtro **Tipo**: i tipi stanno insieme, distinti
+  dall'icona; multiprodotti e abbonamenti si creano dal menu di «+ Aggiungi».
 - **L'abbonamento è un tipo di prodotto.** Il piano non ha più una pagina
   sua: in *Catalogo → Prodotti* «+ Aggiungi Abbonamento» crea un prodotto di
   tipo `subscription`, con foto, tag, categorie, URL e SEO come gli altri. La
