@@ -164,7 +164,7 @@ final class OrderPaymentTableResource extends OrderSectionResource
         return 'Nessun pagamento registrato.';
     }
 
-    private static function orDash(string $value): string
+    public static function orDash(string $value): string
     {
         return trim($value) !== '' ? static::escape($value) : '—';
     }
@@ -175,7 +175,7 @@ final class OrderPaymentTableResource extends OrderSectionResource
         return PaymentMethod::ledgerProvider($provider) === 'manual' ? '' : (PaymentMethodResource::providers()[$provider] ?? ucfirst($provider));
     }
 
-    private static function methodName(int $id): string
+    public static function methodName(int $id): string
     {
         if (self::$methods === null) {
             self::$methods = [];

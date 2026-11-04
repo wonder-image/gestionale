@@ -13,6 +13,13 @@ versionamento semantico.
   schede del prodotto e della variante, le loro rotte `{id}/etichette/`, il
   campo **Copie per variante** e la riga che nominava il formato: il formato
   resta quello delle Impostazioni. Il carico stampa come prima.
+- **La scheda dell'abbonamento è disegnata come quella dell'ordine.** Testata
+  con codice, data, canale e azioni (*Proforma*, *Aggiungi servizio*,
+  *Disdici*, *Rimanda il proforma*, *Altro → Annulla*), due colonne con
+  cliente, fatturazione, totali (con l'imponibile) e periodo, e sotto le
+  sezioni *Servizi*, *Pagamenti e rinnovi*, *Storia dei servizi* e *Storico*
+  con `Table`/`TableColumn`. `OrderSectionResource` ha `$foreignKey`, per le
+  tabelle legate a un abbonamento.
 - **Interruttore «Prodotto» e voce «Abbonamenti» in Catalogo.** Nuova
   funzionalità `products` (area Catalogo, accesa di serie con la nuova chiave
   `default` del catalogo: `FeatureState::defaults()`), che governa la voce

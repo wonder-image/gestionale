@@ -4,7 +4,7 @@
  * La scheda dell'abbonamento, in sola lettura.
  *
  * Il disegno sta nella Resource: la pagina apre il layout del backend, stampa
- * i riquadri e chiude. Il titolo è il codice, non «Abbonamento».
+ * i riquadri e chiude. Titolo e sottotitolo come nella scheda ordine.
  *
  * @var array $ITEM
  */
@@ -14,12 +14,10 @@ use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionResource;
 use Wonder\View\View;
 
 $abbonamento = (array) ($ITEM ?? []);
-$codice = trim((string) ($abbonamento['code'] ?? ''));
-
-View::layout('backend.show', $codice !== '' ? ['TITLE' => $codice] : []);
+View::layout('backend.show', ['TITLE' => SubscriptionResource::pageTitle($abbonamento), 'SUBTITLE' => SubscriptionResource::pageSubtitle($abbonamento)]);
 
 echo ResourceFormLayoutRenderer::renderLayout(SubscriptionResource::showLayoutSchema($abbonamento));
-// Le finestre di conferma delle azioni della testata (Cambia piano, Disdici, Annulla, proforma).
+// Le finestre delle azioni della testata e dei servizi.
 echo SubscriptionResource::modals($abbonamento);
 
 View::end();
