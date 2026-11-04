@@ -10,6 +10,7 @@ require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
+require __DIR__.'/supporto/layout.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
@@ -19,6 +20,8 @@ use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Stock\StockReservation;
+use Wonder\Plugin\Gestionale\Models\Promotions\CouponCode;
+use Wonder\Plugin\Gestionale\Resources\Promotions\CouponCodeTableResource;
 use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
@@ -785,17 +788,28 @@ check('la scheda del coupon elenca i codici generati con stato e ordine', functi
     return prova(static function (): bool {
         $s = scenario();
         $c = coupon();
-        $vuoto = CouponResource::codesHtml($c['id']);
+        $vuoto = CouponCodeTableResource::embed($c['id']);
         [$primo, $secondo] = CouponCodes::generate($c['id'], 2, 'SCHEDA');
         Coupons::apply($s['cart'], $primo);
         $esito = ordina($s['cart'], datiCheckout());
-        $html = CouponResource::codesHtml($c['id']);
+        $html = CouponCodeTableResource::embed($c['id']);
+        // La riga come la legge l'API della tabella: con le colonne calcolate di select().
+        $riga = static fn (string $code): array => (array) CouponCode::query()->Select(
+            CouponCode::$table, ['code' => $code], 1, null, null, '*, '.CouponCodeTableResource::select()
+        )->row;
+        $usato = $riga($primo);
+        $libero = $riga($secondo);
+        // Senza numero (ordine non ancora numerato) il link mostra l'id.
+        $numero = (string) riga($esito['order_id'])['order_number'] ?: '#'.$esito['order_id'];
 
         return str_contains($vuoto, 'Nessun codice generato')
-            && str_contains($html, '<code>'.$primo.'</code>')
-            && str_contains($html, '<code>'.$secondo.'</code>')
-            && substr_count($html, 'Usato') === 1 && substr_count($html, 'Libero') === 1
-            && str_contains($html, (string) riga($esito['order_id'])['order_number']);
+            && str_contains($html, CouponCode::$table.'__table')
+            && cella(CouponCodeTableResource::class, 'code', $usato) === '<code>'.$primo.'</code>'
+            && str_contains(cella(CouponCodeTableResource::class, 'code_status', $usato), 'Usato')
+            && str_contains(cella(CouponCodeTableResource::class, 'code_status', $libero), 'Libero')
+            && str_contains(cella(CouponCodeTableResource::class, 'order_number', $usato), '>'.$numero.'</a>')
+            && cella(CouponCodeTableResource::class, 'order_number', $libero) === ''
+            && cella(CouponCodeTableResource::class, 'used_at', $usato) === date('d/m/Y');
     });
 });
 
