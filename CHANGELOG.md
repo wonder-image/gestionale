@@ -6,6 +6,22 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **L'abbonamento è un tipo di prodotto.** Il piano non ha più una pagina
+  sua: in *Catalogo → Prodotti* «+ Aggiungi Abbonamento» crea un prodotto di
+  tipo `subscription`, con foto, tag, categorie, URL e SEO come gli altri. La
+  scheda nasconde magazzino, spedizione, lotti, varianti, confezione, resi e
+  unità e mostra prezzi ricorrenti, metadata e «Si lega a». Tolti
+  `PlanResource`, il suo menu, i permessi e le rotte; la tabella `gst_plans`
+  sparisce. Colonne rinominate: `plan_id` → `product_model_id` in
+  `gst_plan_prices`, `gst_plan_features`, `gst_plan_links` e
+  `gst_customization_links`; `parent_plan_id` → `parent_product_model_id` in
+  `gst_plan_links`. I riferimenti Stripe del prodotto hanno il tipo
+  `subscription_model`. **Nessuna migrazione dei dati**: prima di
+  `php forge update` svuotare gli abbonamenti e i piani di prova e cancellare
+  `gst_plans`.
+- **Una tantum nelle guide** (#76, dalla #134): quando si paga (primo
+  addebito, anche in prova), cosa non tocca (rinnovi, cambi, servizi aggiunti,
+  coupon), come compare online e da ufficio, detto col prodotto abbonamento.
 - **Esportazioni per contenuto, non per formato.** `export_products` sostituisce
   `export_xlsx` ed `export_csv`, `export_contacts` sostituisce
   `export_contacts_xlsx` ed `export_contacts_csv`: una funzionalità attiva dà
@@ -14,13 +30,13 @@ versionamento semantico.
   nuova chiave `replaces` del catalogo. I feed Meta, Google, TikTok e Amazon
   restano funzionalità a sé. Nel listino «Scarica (Excel)» e «Scarica (CSV)»
   diventano un solo **Scarica** a tendina.
-- **Prezzi dei piani.** Colonne Nome, Prezzo, Addebito (Mensile… Annuale,
+- **Prezzi del prodotto abbonamento.** Colonne Nome, Prezzo, Addebito (Mensile… Annuale,
   al posto di «Ogni» e della ricorrenza, che si ricava dall'addebito), Una
   tantum, Stato; prezzo scontato, vincolo, prova e rinnovo dietro «Compila le
   informazioni avanzate». «Limiti» si chiama «Metadata».
-- **Tipo fiscale dei piani** come quello dei prodotti: parte dal predefinito,
+- **Tipo fiscale del prodotto abbonamento** come quello degli altri prodotti: parte dal predefinito,
   è obbligatorio, niente «Nessuno» quando i tipi ci sono; con «Aliquote»
-  spenta non si vede e il piano prende il predefinito.
+  spenta non si vede e l'abbonamento nuovo prende il predefinito.
 
 ### Corretto
 - **404 di PDF e CSV.** Gli scaricamenti del backend (PDF, stampa, proforma,

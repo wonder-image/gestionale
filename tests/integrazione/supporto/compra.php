@@ -245,3 +245,24 @@ function multiprodottoDiProva(string $mode, array $componenti, array $gruppi): i
 
     return $productId;
 }
+
+/** Un prodotto di tipo abbonamento, senza prezzi: li aggiunge la prova. */
+function abbonamentoDiProva(string $nome, bool $online = true): int
+{
+    $modello = ProductModel::create([
+        'code' => Code::make(ProductModel::class, Codes::MODEL),
+        'type' => 'subscription',
+        'name' => $nome,
+        'slug' => Slug::make('abb-'.uniqid()),
+        'unit' => 'pz',
+        'visible' => 'true',
+        'visible_online' => $online ? 'true' : 'false',
+        'requires_shipping' => 'false',
+        'returnable' => 'false',
+        'has_variants' => 'false',
+        'position' => 1,
+        'tax_category_id' => categoriaFiscaleDiProva(),
+    ]);
+
+    return (int) ($modello->insert_id ?? 0);
+}

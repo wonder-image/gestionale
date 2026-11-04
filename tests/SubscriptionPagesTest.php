@@ -6,12 +6,14 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Resources\Promotions\CouponResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\OfficeSubscriptionResource;
-use Wonder\Plugin\Gestionale\Resources\Subscriptions\PlanResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionResource;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureGuards;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionProductForm;
 
 $conFunzionalita = static function (array $accese, callable $fai): mixed {
     $cache = new ReflectionProperty(Gestionale::class, 'features');
@@ -25,12 +27,40 @@ $conFunzionalita = static function (array $accese, callable $fai): mixed {
     }
 };
 
-check('Piani e Abbonamenti stanno dietro «Abbonamenti», con la loro guida', fn () =>
-    PlanResource::$feature === 'subscriptions'
-    && SubscriptionResource::$feature === 'subscriptions'
-    && PlanResource::$docsPage === 'vendite/vendite-abbonamenti'
+check('gli abbonamenti stanno dietro «Abbonamenti», con la loro guida; il piano non ha più una pagina sua', fn () =>
+    SubscriptionResource::$feature === 'subscriptions'
     && SubscriptionResource::$docsPage === 'vendite/vendite-abbonamenti'
+    && !class_exists('Wonder\\Plugin\\Gestionale\\Resources\\Subscriptions\\PlanResource')
+    && !class_exists('Wonder\\Plugin\\Gestionale\\Models\\Subscriptions\\Plan')
 );
+
+check('l\'abbonamento è un tipo di prodotto, con la sua icona nell\'elenco', function () {
+    $tipo = null;
+
+    foreach (ProductModel::tableSchema() as $colonna) {
+        if ((string) $colonna->name === 'type') {
+            $tipo = $colonna->getSchema('enum');
+        }
+    }
+
+    $cella = ProductModelResource::typeCell(['type' => 'subscription']);
+
+    return $tipo === ['simple', 'bundle', 'subscription']
+        && str_contains($cella, 'bi-arrow-repeat') && str_contains($cella, 'Abbonamento');
+});
+
+check('una scheda nuova con «?type=subscription» è un abbonamento solo con la funzionalità', function () use ($conFunzionalita) {
+    $_GET['type'] = 'subscription';
+
+    try {
+        $spenta = $conFunzionalita([], static fn (): string => ProductModelResource::sheetType());
+        $accesa = $conFunzionalita(['subscriptions' => true], static fn (): string => ProductModelResource::sheetType());
+    } finally {
+        unset($_GET['type']);
+    }
+
+    return $spenta === 'simple' && $accesa === 'subscription';
+});
 
 check('ogni stato dell\'abbonamento ha la sua etichetta', fn () =>
     array_keys(SubscriptionResource::statusLabels()) === Subscription::STATUSES
@@ -38,11 +68,11 @@ check('ogni stato dell\'abbonamento ha la sua etichetta', fn () =>
 );
 
 check('le righe vuote dei prezzi e dei limiti non si scrivono', function () {
-    $prezzi = PlanResource::prepareRepeaterRows('prices', [
+    $prezzi = ProductModelResource::prepareRepeaterRows('prices', [
         ['name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => '', 'price' => '19,00', 'sale_price' => ''],
         ['name' => '', 'price' => ''],
     ]);
-    $limiti = PlanResource::prepareRepeaterRows('features', [
+    $limiti = ProductModelResource::prepareRepeaterRows('features', [
         ['feature_key' => ' max_progetti ', 'feature_value' => ' 5 '],
         ['feature_key' => '', 'feature_value' => '3'],
     ]);
@@ -53,7 +83,7 @@ check('le righe vuote dei prezzi e dei limiti non si scrivono', function () {
 });
 
 check('la ricorrenza si ricava dall\'addebito, quella del form non conta', function () {
-    $righe = PlanResource::prepareRepeaterRows('prices', [
+    $righe = ProductModelResource::prepareRepeaterRows('prices', [
         ['name' => 'A', 'billing_interval' => 'year', 'price' => '1'],
         ['name' => 'B', 'term_months' => '3', 'price' => '1'],
         ['name' => 'C', 'billing_interval' => 'month', 'term_months' => '12', 'price' => '1'],
@@ -65,9 +95,9 @@ check('la ricorrenza si ricava dall\'addebito, quella del form non conta', funct
 });
 
 check('il prezzo in breve mostra lo scontato quando vale', fn () =>
-    PlanResource::priceLabel(['name' => 'Mensile', 'price' => '19.00', 'sale_price' => '0.00']) === 'Mensile 19,00 €'
-    && PlanResource::priceLabel(['name' => 'Annuale', 'price' => '190.00', 'sale_price' => '150.00']) === 'Annuale 150,00 €'
-    && PlanResource::priceLabel(['name' => 'Strano', 'price' => '10.00', 'sale_price' => '12.00']) === 'Strano 10,00 €'
+    SubscriptionProductForm::priceLabel(['name' => 'Mensile', 'price' => '19.00', 'sale_price' => '0.00']) === 'Mensile 19,00 €'
+    && SubscriptionProductForm::priceLabel(['name' => 'Annuale', 'price' => '190.00', 'sale_price' => '150.00']) === 'Annuale 150,00 €'
+    && SubscriptionProductForm::priceLabel(['name' => 'Strano', 'price' => '10.00', 'sale_price' => '12.00']) === 'Strano 10,00 €'
 );
 
 check('la durata del coupon detta a parole', fn () =>
@@ -145,9 +175,9 @@ check('i link della rata e della scheda tengono i segnaposto del menu di riga', 
 );
 
 check('un prezzo nuovo del repeater nasce col suo codice, uno vecchio tiene il suo', function () {
-    $nuovo = PlanResource::prepareRepeaterRelationRow('prices', ['name' => 'Mensile'], ['name' => 'Mensile']);
-    $vecchio = PlanResource::prepareRepeaterRelationRow('prices', ['name' => 'Annuale'], ['id' => 7], ['id' => 7, 'code' => 'ppr_abc1234']);
-    $limite = PlanResource::prepareRepeaterRelationRow('features', ['feature_key' => 'max'], ['feature_key' => 'max']);
+    $nuovo = ProductModelResource::prepareRepeaterRelationRow('prices', ['name' => 'Mensile'], ['name' => 'Mensile']);
+    $vecchio = ProductModelResource::prepareRepeaterRelationRow('prices', ['name' => 'Annuale'], ['id' => 7], ['id' => 7, 'code' => 'ppr_abc1234']);
+    $limite = ProductModelResource::prepareRepeaterRelationRow('features', ['feature_key' => 'max'], ['feature_key' => 'max']);
 
     return str_starts_with((string) $nuovo['code'], 'ppr_') && strlen((string) $nuovo['code']) > 4
         && $vecchio['code'] === 'ppr_abc1234'
@@ -182,19 +212,22 @@ check('«Nuovo abbonamento» in testa all\'elenco è un Button del core verso il
         && str_contains($html, 'href="'.htmlspecialchars(OfficeSubscriptionResource::submitUrl(), ENT_QUOTES).'"');
 });
 
-check('il tipo fiscale del piano segue «Aliquote»: spenta non c\'è, accesa sì e senza «Nessuno» fra più tipi', function () {
+check('il tipo fiscale dell\'abbonamento segue «Aliquote»: spenta non c\'è, accesa sì e senza «Nessuno» fra più tipi', function () {
     $forza = static fn (?array $stato) => (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
-    $nomi = static fn (): array => array_map(static fn (object $campo): string => (string) $campo->name, PlanResource::formSchema());
-
-    $forza(['tax_categories' => false]);
+    $nomi = static fn (): array => array_map(static fn (object $campo): string => (string) $campo->name, ProductModelResource::formSchema());
+    $layout = static fn (): string => print_r((new ReflectionMethod(ProductModelResource::class, 'sideColumn'))->invoke(null, 0), true);
+    $_GET['type'] = 'subscription';
 
     try {
+        $forza(['subscriptions' => true, 'tax_categories' => false]);
         $spenta = $nomi();
-        PlanResource::formLayoutSchema();
-        $forza(['tax_categories' => true]);
+        $layoutSpento = $layout();
+        $forza(['subscriptions' => true, 'tax_categories' => true]);
         $accesa = $nomi();
-        $campo = PlanResource::getInput('tax_category_id');
+        $layoutAcceso = $layout();
+        $campo = ProductModelResource::getInput('tax_category_id');
     } finally {
+        unset($_GET['type']);
         $forza(null);
     }
 
@@ -202,6 +235,7 @@ check('il tipo fiscale del piano segue «Aliquote»: spenta non c\'è, accesa s�
 
     return !in_array('tax_category_id', $spenta, true)
         && in_array('tax_category_id', $accesa, true)
+        && !str_contains($layoutSpento, 'Tipo fiscale') && str_contains($layoutAcceso, 'Tipo fiscale')
         && (count($scelte) <= 1 || !in_array('', $scelte, true));
 });
 

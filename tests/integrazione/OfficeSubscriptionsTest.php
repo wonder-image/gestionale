@@ -20,7 +20,6 @@ use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTermInstallment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanLink;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
@@ -65,9 +64,9 @@ function prova(callable $corpo): mixed
 /** @return array{plan: int, mensile: int, annuale: int} */
 function piano(int $prova = 0, int $vincolo = 0): array
 {
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => 'Ufficio', 'slug' => 'ufficio-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
-    $mensile = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => '100.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
-    $annuale = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'price' => '1000.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
+    $plan = abbonamentoDiProva('Ufficio', false);
+    $mensile = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => '100.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
+    $annuale = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'price' => '1000.00', 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
 
     return ['plan' => $plan, 'mensile' => $mensile, 'annuale' => $annuale];
 }
@@ -131,8 +130,8 @@ function rifiuto(callable $f): ?string
  */
 function servizio(string $nome, int $mesi, string $prezzo, int $prova = 0, int $vincolo = 0): array
 {
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => $nome, 'slug' => 'srv-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
-    $price = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => $mesi === 12 ? 'Annuale' : 'Ogni '.$mesi.' mesi', 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
+    $plan = abbonamentoDiProva($nome, false);
+    $price = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => $mesi === 12 ? 'Annuale' : 'Ogni '.$mesi.' mesi', 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'trial_days' => $prova, 'commitment_months' => $vincolo, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
 
     return ['plan' => $plan, 'price' => $price];
 }
@@ -149,8 +148,8 @@ function servizi(): array
     $hosting = servizio('Hosting', 12, '61.00');
     $assistenza = servizio('Assistenza', 1, '10.00');
     $nome = (int) (Customization::create(['name' => 'Nome del dominio', 'label' => 'Nome del dominio', 'kind' => 'text', 'max_length' => 63, 'active' => 'true', 'for_products' => 'false', 'for_subscriptions' => 'true'])->insert_id ?? 0);
-    CustomizationLink::create(['plan_id' => $dominio['plan'], 'customization_id' => $nome, 'is_required' => 'true', 'position' => 1]);
-    PlanLink::create(['plan_id' => $hosting['plan'], 'parent_plan_id' => $dominio['plan']]);
+    CustomizationLink::create(['product_model_id' => $dominio['plan'], 'customization_id' => $nome, 'is_required' => 'true', 'position' => 1]);
+    PlanLink::create(['product_model_id' => $hosting['plan'], 'parent_product_model_id' => $dominio['plan']]);
 
     return ['dominio' => $dominio, 'hosting' => $hosting, 'assistenza' => $assistenza, 'nome' => $nome];
 }

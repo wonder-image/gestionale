@@ -19,7 +19,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
@@ -76,9 +76,9 @@ function prova(callable $corpo): mixed
 function pianoOnline(): array
 {
     // I codici come li dà la pagina dei piani: il negozio vende un prezzo dal suo `ppr_`.
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => 'Pro', 'slug' => 'pro-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
-    $mensile = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => 14, 'price' => '24.40', 'sale_price' => '0.00', 'active' => 'true', 'position' => 0])->insert_id ?? 0);
-    $annuale = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'commitment_months' => 12, 'price' => '244.00', 'sale_price' => '0.00', 'renewal_plan_price_id' => $mensile, 'active' => 'true', 'position' => 1])->insert_id ?? 0);
+    $plan = abbonamentoDiProva('Pro', true);
+    $mensile = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => 'Mensile', 'billing_interval' => 'month', 'term_months' => 1, 'trial_days' => 14, 'price' => '24.40', 'sale_price' => '0.00', 'active' => 'true', 'position' => 0])->insert_id ?? 0);
+    $annuale = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => 'Annuale', 'billing_interval' => 'year', 'term_months' => 12, 'commitment_months' => 12, 'price' => '244.00', 'sale_price' => '0.00', 'renewal_plan_price_id' => $mensile, 'active' => 'true', 'position' => 1])->insert_id ?? 0);
 
     return ['plan' => $plan, 'mensile' => PlanPrice::findById($mensile), 'annuale' => PlanPrice::findById($annuale)];
 }
@@ -106,8 +106,8 @@ function iniziaServizi(int $cliente, array $servizi, string $coupon = ''): array
 /** Un servizio venduto online, con un prezzo solo. @return array<string, mixed> il prezzo */
 function servizioOnline(string $nome, int $mesi, string $prezzo, int $prova = 0): array
 {
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => $nome, 'slug' => 'srv-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
-    $price = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => $mesi === 12 ? 'Annuale' : 'Mensile', 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'trial_days' => $prova, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true', 'position' => 0])->insert_id ?? 0);
+    $plan = abbonamentoDiProva($nome, true);
+    $price = (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => $mesi === 12 ? 'Annuale' : 'Mensile', 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'trial_days' => $prova, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true', 'position' => 0])->insert_id ?? 0);
 
     return PlanPrice::findById($price);
 }
@@ -206,7 +206,7 @@ check('rifiuti: senza account, già abbonato, piano nascosto', fn () => prova(st
     $avvio = inizia($persona, $p['mensile']);
     Subscription::update(['status' => 'active'], $avvio['subscription_id']);
     $doppio = rifiuto(static fn () => inizia($persona, $p['annuale']));
-    Plan::update(['visible_online' => 'false'], $p['plan']);
+    ProductModel::update(['visible_online' => 'false'], $p['plan']);
     $nascosto = rifiuto(static fn () => inizia(cliente(), $p['mensile']));
 
     return $senza === 'subscription.account_required' && $doppio === 'subscription.limit_reached' && $nascosto === 'subscription.price_unavailable';
@@ -417,7 +417,7 @@ check('riallineamento: il pending pagato si collega, l\'abbandonato oltre le 24 
 
 check('limiti: un abbonamento online attivo dà i limiti del suo piano', fn () => prova(static function (): bool {
     $p = pianoOnline();
-    Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature::create(['plan_id' => $p['plan'], 'feature_key' => 'max_progetti', 'feature_value' => '20', 'position' => 0]);
+    Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature::create(['product_model_id' => $p['plan'], 'feature_key' => 'max_progetti', 'feature_value' => '20', 'position' => 0]);
     $persona = cliente();
     $avvio = inizia($persona, $p['mensile']);
     $prima = Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions::limit($persona, 'max_progetti');
@@ -664,7 +664,7 @@ check('il riepilogo del negozio: righe e primo addebito senza scrivere niente; i
     $trimestre = servizioOnline('Assistenza', 3, '9.00');
     $intervalli = rifiuto(static fn () => OnlineSubscriptions::lines([['price_code' => $bimestre['code']], ['price_code' => $trimestre['code']]], []));
     $nascosto = servizioOnline('Interno', 1, '1.00');
-    sqlModify(Plan::$table, ['visible_online' => 'false'], 'id', (int) $nascosto['plan_id']);
+    sqlModify(ProductModel::$table, ['visible_online' => 'false'], 'id', (int) $nascosto['product_model_id']);
     $troppi = rifiuto(static fn () => OnlineSubscriptions::lines(array_fill(0, OnlineSubscriptions::MAX_ITEMS + 1, ['price_code' => $mensile['code']]), []));
 
     return count($riepilogo['lines']) === 2 && $riepilogo['lines'][0]['quantity'] === 2 && $riepilogo['billing']['billing_country'] === 'IT'

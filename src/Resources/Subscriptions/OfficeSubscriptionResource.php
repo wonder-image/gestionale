@@ -17,7 +17,8 @@ use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionProductForm;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
@@ -201,14 +202,14 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
         exit();
     }
 
-    /** I prezzi attivi dei piani attivi, «Piano — Prezzo». @return array<int, string> */
+    /** I prezzi attivi degli abbonamenti in vendita, «Piano — Prezzo». @return array<int, string> */
     public static function priceOptions(): array
     {
         $options = [];
 
-        foreach (static::rows(Plan::class, ['active' => 'true'], 'position') as $plan) {
-            foreach (static::rows(PlanPrice::class, ['plan_id' => (int) $plan['id'], 'active' => 'true'], 'position') as $price) {
-                $options[(int) $price['id']] = trim((string) $plan['name']).' — '.PlanResource::priceLabel($price);
+        foreach (SubscriptionModels::live() as $plan) {
+            foreach (static::rows(PlanPrice::class, ['product_model_id' => (int) $plan['id'], 'active' => 'true'], 'position') as $price) {
+                $options[(int) $price['id']] = trim((string) $plan['name']).' — '.SubscriptionProductForm::priceLabel($price);
             }
         }
 
@@ -239,7 +240,7 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
             $price = PlanPrice::findById($priceId);
             $customization = [];
 
-            foreach (Customizations::forPlan(is_array($price) ? (int) ($price['plan_id'] ?? 0) : 0) as $definition) {
+            foreach (Customizations::forPlan(is_array($price) ? (int) ($price['product_model_id'] ?? 0) : 0) as $definition) {
                 $value = trim((string) ($row['customization_'.$definition['id']] ?? ''));
 
                 if ($value !== '') {
@@ -285,7 +286,7 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
     {
         $out = [];
 
-        foreach (static::rows(Plan::class, ['active' => 'true'], 'position') as $plan) {
+        foreach (SubscriptionModels::live() as $plan) {
             foreach (Customizations::forPlan((int) $plan['id']) as $definition) {
                 $id = (int) $definition['id'];
                 $out[$id] ??= $definition + ['plans' => []];

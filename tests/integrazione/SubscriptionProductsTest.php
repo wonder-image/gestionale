@@ -1,5 +1,5 @@
 <?php
-/** php tests/integrazione/PlansTest.php */
+/** php tests/integrazione/SubscriptionProductsTest.php */
 
 define('SITE', getenv('WI_TEST_SITE') ?: '/Users/andreamarinoni/Developer/boilerplates/ecommerce-site');
 
@@ -17,13 +17,13 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanLink;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
-use Wonder\Plugin\Gestionale\Resources\Subscriptions\PlanResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Plugin\Gestionale\Seeding\PlansDemo;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -32,6 +32,7 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureGuards;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\PlanLinks;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionProductForm;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionAmounts;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions;
 use Wonder\Sql\Transaction;
@@ -58,25 +59,24 @@ function prova(callable $corpo): mixed
     return $esito;
 }
 
-/** Un piano con i suoi prezzi e limiti, salvati come li salva il repeater della pagina. Ridà l'id. */
+/** Un prodotto abbonamento con i suoi prezzi e metadata, salvati come li salva il repeater della scheda. Ridà l'id. */
 function piano(string $nome, array $prezzi, array $limiti = []): int
 {
-    // Il codice del piano lo dà il form della pagina; qui si scrive a mano.
-    $id = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => $nome, 'slug' => strtolower($nome).'-'.uniqid(), 'active' => 'true', 'visible_online' => 'true'])->insert_id ?? 0);
+    $id = abbonamentoDiProva($nome);
 
     // Come la pagina: i prezzi nuovi prendono il codice da `prepareRepeaterRelationRow`.
     Repeater::syncRelatedRows(
-        RepeaterRelation::make(PlanPrice::$table, 'plan_id')->model(PlanPrice::class)->positionKey('position'),
+        RepeaterRelation::make(PlanPrice::$table, 'product_model_id')->model(PlanPrice::class)->positionKey('position'),
         $id,
-        PlanResource::prepareRepeaterRows('prices', $prezzi),
-        static fn (array $payload, array $row, ?array $esistente): array => PlanResource::prepareRepeaterRelationRow('prices', $payload, $row, $esistente)
+        ProductModelResource::prepareRepeaterRows('prices', $prezzi),
+        static fn (array $payload, array $row, ?array $esistente): array => ProductModelResource::prepareRepeaterRelationRow('prices', $payload, $row, $esistente)
     );
 
     if ($limiti !== []) {
         Repeater::syncRelatedRows(
-            RepeaterRelation::make(PlanFeature::$table, 'plan_id')->model(PlanFeature::class)->positionKey('position')->softDelete(false),
+            RepeaterRelation::make(PlanFeature::$table, 'product_model_id')->model(PlanFeature::class)->positionKey('position')->softDelete(false),
             $id,
-            PlanResource::prepareRepeaterRows('features', $limiti)
+            ProductModelResource::prepareRepeaterRows('features', $limiti)
         );
     }
 
@@ -86,7 +86,7 @@ function piano(string $nome, array $prezzi, array $limiti = []): int
 /** @return list<array<string, mixed>> */
 function prezziDi(int $piano): array
 {
-    $rows = PlanPrice::find(['plan_id' => $piano, 'deleted' => 'false'], null, 'position', 'ASC');
+    $rows = PlanPrice::find(['product_model_id' => $piano, 'deleted' => 'false'], null, 'position', 'ASC');
 
     return is_array($rows) ? (isset($rows['id']) ? [$rows] : array_values($rows)) : [];
 }
@@ -113,10 +113,11 @@ function abbonamento(int $cliente, int $prezzo, string $stato): int
 /** Il salvataggio della pagina fino ai controlli: ridà la chiave del rifiuto, o null. */
 function rifiutoPagina(array $post, ?int $id = null): ?string
 {
+    $post += ['type' => 'subscription', 'sku' => '', 'unit' => 'pz'];
     $_POST = $post;
 
     try {
-        PlanResource::mutateRequestValues($post, $id === null ? 'store' : 'update', 'backend', $id === null ? null : Plan::findById($id));
+        ProductModelResource::mutateRequestValues($post, $id === null ? 'store' : 'update', 'backend', $id === null ? null : ProductModel::findById($id));
     } catch (UserError $e) {
         return $e->key();
     } finally {
@@ -146,22 +147,21 @@ check('un piano con due prezzi e due limiti: codici, numeri e posizioni', functi
     return prova(static function () use ($mensile, $annuale): bool {
         $id = piano('Pro', [$mensile, $annuale], [['feature_key' => 'max_progetti', 'feature_value' => '20'], ['feature_key' => 'supporto', 'feature_value' => 'prioritario']]);
         $prezzi = prezziDi($id);
-        $piano = Plan::findById($id);
+        $piano = ProductModel::findById($id);
 
-        return str_starts_with((string) $piano['code'], 'pln_')
+        return (string) $piano['type'] === 'subscription'
             && count($prezzi) === 2
             && str_starts_with((string) $prezzi[0]['code'], 'ppr_') && $prezzi[0]['code'] !== $prezzi[1]['code']
             && round((float) $prezzi[0]['price'], 2) === 19.0 && (int) $prezzi[0]['trial_days'] === 14
             && (string) $prezzi[1]['billing_interval'] === 'year' && (int) $prezzi[1]['term_months'] === 12
             && round((float) $prezzi[1]['sale_price'], 2) === 150.0
-            && PlanResource::pricesSummary($id) === 'Mensile 19,00 € · Annuale 150,00 €';
+            && SubscriptionProductForm::pricesSummary($id) === 'Mensile 19,00 € · Annuale 150,00 €';
     });
 });
 
-check('la pagina rifiuta un piano senza nome, senza prezzi o con un prezzo storto', function () use ($mensile) {
+check('la scheda rifiuta un abbonamento senza prezzi o con un prezzo storto', function () use ($mensile) {
     return prova(static function () use ($mensile): bool {
-        return rifiutoPagina(['name' => '', 'prices' => [$mensile]]) === 'plan.name_required'
-            && rifiutoPagina(['name' => 'Vuoto', 'prices' => []]) === 'plan.no_prices'
+        return rifiutoPagina(['name' => 'Vuoto', 'prices' => []]) === 'plan.no_prices'
             && rifiutoPagina(['name' => 'Storto', 'prices' => [['sale_price' => '30'] + $mensile]]) === 'plan.sale_not_lower'
             && rifiutoPagina(['name' => 'Storto', 'prices' => [['term_months' => '13'] + $mensile]]) === 'plan.term_mismatch'
             && rifiutoPagina(['name' => 'Doppio', 'prices' => [$mensile], 'features' => [['feature_key' => 'max', 'feature_value' => '1'], ['feature_key' => 'MAX', 'feature_value' => '2']]]) === 'plan.feature_duplicate'
@@ -173,7 +173,7 @@ check('il rinnovo deve essere un prezzo già salvato di un piano attivo', functi
     return prova(static function () use ($mensile, $annuale): bool {
         $acceso = piano('Acceso', [$annuale]);
         $spento = piano('Spento', [$annuale]);
-        Plan::update(['active' => 'false'], $spento);
+        ProductModel::update(['visible' => 'false'], $spento);
         $buono = (int) prezziDi($acceso)[0]['id'];
         $cattivo = (int) prezziDi($spento)[0]['id'];
 
@@ -206,16 +206,16 @@ check('un piano con abbonamenti vivi non si elimina; con soli chiusi sì', funct
         $libero = piano('Libero', [$mensile], [['feature_key' => 'max_progetti', 'feature_value' => '5']]);
         $prezzoChiuso = (int) prezziDi($chiuso)[0]['id'];
 
-        $rifiutoVivo = (string) rifiuto(static fn () => PlanResource::assertDeletable($vivo));
-        PlanResource::deleteRecord($chiuso);
-        PlanResource::deleteRecord($libero);
+        $rifiutoVivo = (string) rifiuto(static fn () => ProductModelResource::assertDeletable($vivo));
+        ProductModelResource::deleteRecord($chiuso);
+        ProductModelResource::deleteRecord($libero);
 
         // Il prezzo nominato dalla storia resta, segnato eliminato; quello libero se ne va.
         return str_starts_with($rifiutoVivo, 'refusal:')
-            && Plan::findById($chiuso) === [] && Plan::find(['id' => $chiuso, 'deleted' => 'true']) !== []
+            && ProductModel::find(['id' => $chiuso, 'deleted' => 'true']) !== []
             && PlanPrice::find(['id' => $prezzoChiuso, 'deleted' => 'true']) !== []
-            && Plan::find(['id' => $libero, 'deleted' => ['true', 'false']]) === []
-            && PlanPrice::find(['plan_id' => $libero, 'deleted' => ['true', 'false']]) === [];
+            && ProductModel::find(['id' => $libero, 'deleted' => 'false']) === []
+            && PlanPrice::find(['product_model_id' => $libero, 'deleted' => ['true', 'false']]) === [];
     });
 });
 
@@ -294,14 +294,14 @@ check('i piani di prova: due piani e tre servizi, sette prezzi, quattro limiti, 
         PlansDemo::clear();
         $creati = PlansDemo::create();
         $secondo = PlansDemo::create();
-        $pro = Plan::find(['code' => DemoCode::forModel(Plan::class, 'pro'), 'deleted' => 'false'], 1);
+        $pro = ProductModel::find(['code' => DemoCode::forModel(ProductModel::class, 'abb-pro'), 'deleted' => 'false'], 1);
         $prezzi = is_array($pro) ? prezziDi((int) $pro['id']) : [];
-        $dominio = (int) (Plan::find(['code' => DemoCode::forModel(Plan::class, 'dominio'), 'deleted' => 'false'], 1)['id'] ?? 0);
-        $hosting = (int) (Plan::find(['code' => DemoCode::forModel(Plan::class, 'hosting'), 'deleted' => 'false'], 1)['id'] ?? 0);
-        $nome = CustomizationLink::find(['plan_id' => $dominio, 'deleted' => 'false'], 1);
+        $dominio = (int) (ProductModel::find(['code' => DemoCode::forModel(ProductModel::class, 'abb-dominio'), 'deleted' => 'false'], 1)['id'] ?? 0);
+        $hosting = (int) (ProductModel::find(['code' => DemoCode::forModel(ProductModel::class, 'abb-hosting'), 'deleted' => 'false'], 1)['id'] ?? 0);
+        $nome = CustomizationLink::find(['product_model_id' => $dominio, 'deleted' => 'false'], 1);
         $madri = PlanLinks::parentsOf($hosting);
         $tolti = PlansDemo::clear();
-        $sparito = Plan::find(['code' => DemoCode::forModel(Plan::class, 'pro')], 1);
+        $sparito = ProductModel::find(['code' => DemoCode::forModel(ProductModel::class, 'abb-pro')], 1);
         $personalizzazione = Customization::find(['code' => DemoCode::forModel(Customization::class, 'nome-dominio')], 1);
 
         // 2 piani + 4 prezzi + 4 limiti; 3 servizi + 3 prezzi; la personalizzazione, il suo legame, «Si lega a».
@@ -320,16 +320,16 @@ check('«Si lega a»: Hosting salvato col Dominio ha una riga di legame, riletta
         $dominio = piano('Dominio', [$annuale]);
         $hosting = piano('Hosting', [$annuale]);
         $_POST = ['parent_plans' => [(string) $dominio]];
-        PlanResource::afterUpdate($hosting, (object) []);
-        $righe = PlanLink::find(['plan_id' => $hosting]);
+        ProductModelResource::afterUpdate($hosting, (object) []);
+        $righe = PlanLink::find(['product_model_id' => $hosting]);
         $righe = is_array($righe) ? (isset($righe['id']) ? [$righe] : array_values($righe)) : [];
-        $form = PlanResource::mutateFormValues(['id' => $hosting], 'edit');
+        $form = ProductModelResource::mutateFormValues(['id' => $hosting], 'edit');
 
         // Togliere la madre cancella la riga.
         $_POST = ['parent_plans' => []];
-        PlanResource::afterUpdate($hosting, (object) []);
+        ProductModelResource::afterUpdate($hosting, (object) []);
 
-        return count($righe) === 1 && (int) $righe[0]['parent_plan_id'] === $dominio
+        return count($righe) === 1 && (int) $righe[0]['parent_product_model_id'] === $dominio
             && $form['parent_plans'] === [(string) $dominio]
             && PlanLinks::parentsOf($hosting) === [];
     });
@@ -341,7 +341,7 @@ check('«Si lega a» a un livello solo, mai a sé; le opzioni non propongono fig
         $hosting = piano('Hosting', [$annuale]);
         $backup = piano('Backup', [$annuale]);
         PlanLinks::sync($hosting, [$dominio]);
-        $opzioni = PlanResource::parentOptions($backup);
+        $opzioni = SubscriptionProductForm::parentOptions($backup);
 
         return rifiutoPagina(['name' => 'Dominio', 'prices' => [$annuale], 'parent_plans' => [(string) $dominio]], $dominio) === 'plan.link_self'
             && rifiutoPagina(['name' => 'Backup', 'prices' => [$annuale], 'parent_plans' => [(string) $hosting]], $backup) === 'plan.link_depth'
@@ -356,34 +356,33 @@ check('un piano a cui altri si legano non si elimina; eliminato il figlio, il le
         $dominio = piano('Dominio', [$annuale]);
         $hosting = piano('Hosting', [$annuale]);
         PlanLinks::sync($hosting, [$dominio]);
-        $rifiutoMadre = (string) rifiuto(static fn () => PlanResource::assertDeletable($dominio));
-        PlanResource::deleteRecord($hosting);
+        $rifiutoMadre = (string) rifiuto(static fn () => ProductModelResource::assertDeletable($dominio));
+        ProductModelResource::deleteRecord($hosting);
 
         return str_starts_with($rifiutoMadre, 'refusal:') && str_contains($rifiutoMadre, 'Hosting')
             && PlanLinks::parentsOf($hosting) === []
-            && rifiuto(static fn () => PlanResource::assertDeletable($dominio)) === null;
+            && rifiuto(static fn () => ProductModelResource::assertDeletable($dominio)) === null;
     });
 });
 
-check('le personalizzazioni del piano: solo quelle «Per gli abbonamenti», scritte con plan_id', function () use ($annuale) {
+check('le personalizzazioni del piano: solo quelle «Per gli abbonamenti», scritte con product_model_id', function () use ($annuale) {
     return prova(static function () use ($annuale): bool {
         accendiFunzionalita(['customizations']);
         $piano = piano('Dominio', [$annuale]);
         $nome = (int) (Customization::create(['name' => 'Nome del dominio', 'label' => 'Nome del dominio', 'kind' => 'text', 'max_length' => 63, 'active' => 'true', 'for_products' => 'false', 'for_subscriptions' => 'true'])->insert_id ?? 0);
         $incisione = (int) (Customization::create(['name' => 'Incisione', 'label' => 'Incisione', 'kind' => 'text', 'max_length' => 20, 'active' => 'true', 'for_products' => 'true', 'for_subscriptions' => 'false'])->insert_id ?? 0);
-        $opzioni = PlanResource::customizationOptions($piano);
+        $opzioni = ProductModelResource::customizationOptions($piano);
 
         Repeater::syncRelatedRows(
-            RepeaterRelation::make(CustomizationLink::$table, 'plan_id')->model(CustomizationLink::class)->positionKey('position')->softDelete(false),
+            RepeaterRelation::make(CustomizationLink::$table, 'product_model_id')->model(CustomizationLink::class)->positionKey('position')->softDelete(false),
             $piano,
-            PlanResource::prepareRepeaterRows('customizations', [['customization_id' => (string) $nome, 'is_required' => 'true'], ['customization_id' => (string) $nome, 'is_required' => 'false']])
+            ProductModelResource::prepareRepeaterRows('customizations', [['customization_id' => (string) $nome, 'is_required' => 'true'], ['customization_id' => (string) $nome, 'is_required' => 'false']])
         );
-        $legami = CustomizationLink::find(['plan_id' => $piano]);
+        $legami = CustomizationLink::find(['product_model_id' => $piano]);
         $legami = is_array($legami) ? (isset($legami['id']) ? [$legami] : array_values($legami)) : [];
 
         return isset($opzioni[(string) $nome]) && !isset($opzioni[(string) $incisione])
             && count($legami) === 1 && (int) $legami[0]['customization_id'] === $nome && $legami[0]['is_required'] === 'true'
-            && (int) ($legami[0]['product_model_id'] ?? 0) === 0
             && rifiutoPagina(['name' => 'Dominio', 'prices' => [$annuale], 'customizations' => [['customization_id' => (string) $incisione]]], $piano) === 'customization.not_for_subscriptions';
     });
 });

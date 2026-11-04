@@ -25,6 +25,8 @@ use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\BundleProductsResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\SubscriptionProductsResource;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
@@ -3247,17 +3249,19 @@ check('le righe delle personalizzazioni senza scelta o con una già vista si sca
         && ProductModelResource::prepareRepeaterRows('altro', $altre) === $altre;
 });
 
-check('senza «bundles» la scheda non ha né il tipo né la composizione, e la colonna larga non cambia', function () use ($campi, $forza) {
+check('senza «bundles» la scheda ha il tipo nascosto «simple», nessuna composizione, e la colonna larga non cambia', function () use ($campi, $forza) {
     $forza(['bundles' => false]);
 
     try {
-        $nomi = array_keys($campi());
+        $c = $campi();
+        $nomi = array_keys($c);
         $colonna = (new ReflectionMethod(ProductModelResource::class, 'mainColumn'))->invoke(null, 0);
     } finally {
         $forza(null);
     }
 
-    return array_intersect(['type', 'bundle_mode', 'show_components_value', 'bundle_components', 'bundle_groups'], $nomi) === []
+    return ($c['type'] ?? null) instanceof InputHidden && (string) $c['type']->get('value') === 'simple'
+        && array_intersect(['bundle_mode', 'show_components_value', 'bundle_components', 'bundle_groups', 'prices', 'features'], $nomi) === []
         && !str_contains(print_r(array_map(static fn ($p): string => get_class($p), $colonna), true), 'Modal');
 });
 
@@ -3284,6 +3288,39 @@ check('con «bundles» il tipo è un campo nascosto che dice «bundle» col bott
         // Senza relazione: le righe le scrive `saveBundle()`.
         && !isset(ProductModelResource::repeaterRelations()['bundle_components'])
         && !isset(ProductModelResource::repeaterRelations()['bundle_groups']);
+});
+
+check('con «subscriptions» la scheda abbonamento ha prezzi, metadata e «Si lega a», senza varianti né giacenza', function () use ($campi, $forza) {
+    $forza(['subscriptions' => true]);
+    $_GET['type'] = 'subscription';
+
+    try {
+        $c = $campi();
+        $colonna = print_r((new ReflectionMethod(ProductModelResource::class, 'mainColumn'))->invoke(null, 0), true);
+        $relazioni = ProductModelResource::repeaterRelations();
+    } finally {
+        unset($_GET['type']);
+        $forza(null);
+    }
+
+    return ($c['type'] ?? null) instanceof InputHidden && (string) $c['type']->get('value') === 'subscription'
+        && isset($c['prices'], $c['features'], $c['parent_plans'])
+        && isset($relazioni['prices'])
+        && !str_contains($colonna, "'products'") && !str_contains($colonna, 'Varianti');
+});
+
+check('senza «subscriptions» «?type=subscription» non fa nascere un abbonamento', function () use ($campi, $forza) {
+    $forza(['subscriptions' => false]);
+    $_GET['type'] = 'subscription';
+
+    try {
+        $c = $campi();
+    } finally {
+        unset($_GET['type']);
+        $forza(null);
+    }
+
+    return (string) ($c['type']?->get('value') ?? '') === 'simple' && !isset($c['prices']);
 });
 
 $coloraScheda = static function (?string $tipo, bool $bundles = true) use ($forza): array {
@@ -3353,20 +3390,56 @@ check('sheetIsBundle: il parametro vale solo con «bundles» accesa, e il campo 
     return $dopoErrore === true && $spenta === false;
 });
 
-check('con «bundles» l\'elenco ha «+ Aggiungi Prodotto» e «+ Aggiungi Multiprodotto», senza lo «Aggiungi» di serie', function () use ($forza) {
+check('con «bundles» l\'elenco ha un «+ Aggiungi» diviso al posto di quello di serie: crea un prodotto, la freccia offre Prodotto e Multiprodotto', function () use ($forza) {
     $forza(['bundles' => true]);
     $layout = ProductModelResource::tableLayoutSchema()->toArray();
     $forza(null);
 
     $bottoni = (array) ($layout['buttons_custom'] ?? []);
-    $href = static fn ($b): string => (string) (((array) $b->getSchema('attributes'))['href'] ?? '');
+    $html = (string) ($bottoni[0] ?? '');
+    $nuovo = ProductModelResource::createUrlFor();
 
     return ($layout['button_add']['enabled'] ?? true) === false
-        && count($bottoni) === 2
-        && $bottoni[0]->getLabel() === '+ Aggiungi Prodotto'
-        && !str_contains($href($bottoni[0]), 'type=')
-        && $bottoni[1]->getLabel() === '+ Aggiungi Multiprodotto'
-        && str_ends_with($href($bottoni[1]), '?type=bundle');
+        && count($bottoni) === 1
+        && str_contains($html, 'dropdown-toggle-split')
+        && str_contains($html, 'href="'.$nuovo.'">+ Aggiungi</a>')
+        && str_contains($html, '>Prodotto</a>')
+        && str_contains($html, 'href="'.$nuovo.'?type=bundle">Multiprodotto</a>')
+        && !str_contains($html, 'Abbonamento');
+});
+
+check('con l\'elenco filtrato sui multiprodotti «+ Aggiungi» crea un multiprodotto; un tipo spento torna al prodotto', function () use ($forza) {
+    $chiave = ProductModel::$table.'__type';
+    $forza(['bundles' => true]);
+    $_GET[$chiave] = 'bundle';
+    $multi = (string) (((array) (ProductModelResource::tableLayoutSchema()->toArray()['buttons_custom'] ?? []))[0] ?? '');
+    $_GET[$chiave] = 'subscription';
+    $spento = (string) (((array) (ProductModelResource::tableLayoutSchema()->toArray()['buttons_custom'] ?? []))[0] ?? '');
+    unset($_GET[$chiave]);
+    $forza(null);
+    $nuovo = ProductModelResource::createUrlFor();
+
+    return str_contains($multi, 'href="'.$nuovo.'?type=bundle">+ Aggiungi</a>')
+        && str_contains($spento, 'href="'.$nuovo.'">+ Aggiungi</a>');
+});
+
+check('in Catalogo «Prodotti» apre i soli prodotti semplici quando accanto c\'è «Multiprodotti»', function () use ($forza) {
+    $forza(['bundles' => true]);
+    $prodotti = ProductModelResource::navigationSchema()->all();
+    $multi = BundleProductsResource::navigationSchema()->all();
+    $abbonamenti = SubscriptionProductsResource::navigationSchema()->all();
+    $forza(['bundles' => false]);
+    $solo = ProductModelResource::navigationSchema()->all();
+    $multiSpenta = BundleProductsResource::navigationSchema()->all();
+    $forza(null);
+
+    return $prodotti['file'] === '?'.ProductModel::$table.'__type=simple'
+        && $multi['enabled'] === true
+        && str_ends_with((string) $multi['file'], '?'.ProductModel::$table.'__type=bundle')
+        && $multi['section_key'] === 'catalogo'
+        && $abbonamenti['enabled'] === false
+        && $solo['file'] === 'list'
+        && $multiSpenta['enabled'] === false;
 });
 
 check('senza «bundles» l\'elenco ha un solo bottone, quello di serie', function () use ($forza) {
@@ -3479,6 +3552,55 @@ check('spenta la «Scheda tecnica», niente riquadro né caratteristiche', funct
     return !in_array('Scheda tecnica', $titoli, true)
         && preg_grep('/^attribute_/', $nomi) === []
         && in_array('Scheda tecnica', $riquadri(0), true);
+});
+
+$titoliScheda = static function (array $item): array {
+    $titoli = [];
+    $scendi = function (array $componenti) use (&$scendi, &$titoli): void {
+        foreach ($componenti as $c) {
+            if ($c instanceof Wonder\Elements\Components\Container) {
+                $scendi($c->components);
+            } elseif (($c->components[0] ?? null) instanceof Wonder\Elements\Components\SectionTitle) {
+                $titoli[] = (string) (new ReflectionProperty($c->components[0], 'text'))->getValue($c->components[0]);
+            }
+        }
+    };
+    $scendi(ProductModelResource::showLayoutSchema($item)->components);
+
+    return $titoli;
+};
+
+check('la scheda in lettura di un abbonamento ha i prezzi, non SKU né varianti', function () use ($titoliScheda) {
+    $titoli = $titoliScheda(['id' => 0, 'name' => 'Dominio', 'type' => 'subscription']);
+
+    return in_array('Abbonamento', $titoli, true)
+        && in_array('Prezzi', $titoli, true)
+        && !in_array('Varianti', $titoli, true)
+        && !in_array('Prodotto', $titoli, true);
+});
+
+check('la scheda in lettura di un prodotto resta con le varianti', function () use ($titoliScheda) {
+    $titoli = $titoliScheda(['id' => 0, 'name' => 'Maglia', 'type' => 'simple']);
+
+    return in_array('Prodotto', $titoli, true) && in_array('Varianti', $titoli, true) && !in_array('Prezzi', $titoli, true);
+});
+
+check('la galleria: la prima grande, quattro piccole, «+N» sull\'ultima e le altre nascoste nella lightbox', function () {
+    defined('APP_URL') || define('APP_URL', 'https://example.test');
+    $urls = array_map(static fn (int $i): string => '/assets/upload/foto-'.$i.'.jpg', range(1, 7));
+    $html = ProductModelResource::galleryHtml($urls, 'Maglia', 'g1');
+    $cinque = ProductModelResource::galleryHtml(array_slice($urls, 0, 5), 'Maglia', 'g2');
+    $una = ProductModelResource::galleryHtml(array_slice($urls, 0, 1), 'Maglia', 'g3');
+
+    return substr_count($html, 'data-fancybox="g1"') === 7
+        && substr_count($html, '<img ') === 5
+        && substr_count($html, ' hidden ') === 2
+        && str_contains($html, '>+2</span>')
+        && str_contains($html, 'Fancybox.bind')
+        && !str_contains($cinque, '>+')
+        && substr_count($cinque, '<img ') === 5
+        && str_contains($una, 'grid-column:span 4')
+        && str_contains(ProductModelResource::galleryHtml([], 'Maglia', 'g4'), 'Nessuna foto');
 });
 
 summary();

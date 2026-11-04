@@ -17,7 +17,6 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanLink;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
@@ -125,14 +124,14 @@ function giorno(string $data): string
 /** @return array{plan: int, price: int} */
 function servizio(string $nome, int $mesi, string $prezzo, int $vincolo = 0): array
 {
-    $plan = (int) (Plan::create(['code' => Code::make(Plan::class, Codes::PLAN), 'tax_category_id' => categoriaFiscaleDiProva(), 'name' => $nome, 'slug' => 'srv-'.uniqid(), 'active' => 'true', 'visible_online' => 'false'])->insert_id ?? 0);
+    $plan = abbonamentoDiProva($nome, false);
 
     return ['plan' => $plan, 'price' => prezzo($plan, $mesi, $prezzo, $vincolo)];
 }
 
 function prezzo(int $plan, int $mesi, string $prezzo, int $vincolo = 0): int
 {
-    return (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'plan_id' => $plan, 'name' => ($mesi === 12 ? 'Annuale' : 'Mensile').' '.$prezzo, 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'commitment_months' => $vincolo, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
+    return (int) (PlanPrice::create(['code' => Code::make(PlanPrice::class, Codes::PLAN_PRICE), 'product_model_id' => $plan, 'name' => ($mesi === 12 ? 'Annuale' : 'Mensile').' '.$prezzo, 'billing_interval' => $mesi === 12 ? 'year' : 'month', 'term_months' => $mesi, 'commitment_months' => $vincolo, 'price' => $prezzo, 'sale_price' => '0.00', 'active' => 'true'])->insert_id ?? 0);
 }
 
 /**
@@ -148,8 +147,8 @@ function abbonamento(string $fino = '2026-01-15', int $vincolo = 0): array
     $dominio = servizio('Dominio .it', 12, '12.00');
     $hosting = servizio('Hosting', 12, '120.00');
     $nome = (int) (Customization::create(['name' => 'Nome del dominio', 'label' => 'Nome del dominio', 'kind' => 'text', 'max_length' => 63, 'active' => 'true', 'for_products' => 'false', 'for_subscriptions' => 'true'])->insert_id ?? 0);
-    CustomizationLink::create(['plan_id' => $dominio['plan'], 'customization_id' => $nome, 'is_required' => 'true', 'position' => 1]);
-    PlanLink::create(['plan_id' => $hosting['plan'], 'parent_plan_id' => $dominio['plan']]);
+    CustomizationLink::create(['product_model_id' => $dominio['plan'], 'customization_id' => $nome, 'is_required' => 'true', 'position' => 1]);
+    PlanLink::create(['product_model_id' => $hosting['plan'], 'parent_product_model_id' => $dominio['plan']]);
 
     $id = OfficeSubscriptions::create(['customer_id' => azienda(), 'starts_at' => '2026-01-15', 'items' => [
         ['plan_price_id' => $assistenza['price']],

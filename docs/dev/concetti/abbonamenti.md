@@ -8,12 +8,26 @@ con `subscription_id`.
 
 | Tabella | Cosa tiene |
 |---|---|
-| `gst_plans` | il piano: codice `pln_`, slug, nome, tipo fiscale, visibile sul sito, attivo |
-| `gst_plan_prices` | i prezzi: codice `ppr_`, intervallo (`month`, `year`), `term_months`, vincolo, prova, prezzo, prezzo scontato, prezzo di rinnovo |
-| `gst_plan_features` | i limiti: `feature_key` e `feature_value` (non `key`/`value`: `KEY` è riservata in MySQL) |
+| `gst_product_models` | il piano è un modello di prodotto con `type = 'subscription'`: codice `mod_`, slug, nome, foto, tag, categorie, IVA, `visible`, `visible_online` |
+| `gst_plan_prices` | i prezzi (`product_model_id`): codice `ppr_`, intervallo (`month`, `year`, ricavato da `term_months` con `PlanPriceRules::intervalOf()`: il form non lo chiede), `term_months`, vincolo, prova, prezzo, prezzo scontato, prezzo di rinnovo |
+| `gst_plan_features` | i limiti (`product_model_id`): `feature_key` e `feature_value` (non `key`/`value`: `KEY` è riservata in MySQL) |
 | `gst_subscriptions` | l'abbonamento: codice `sub_`, cliente, prezzo, canale, stato, fatturazione copiata, importi, date del periodo |
 | `gst_subscription_plan_changes` | i cambi di piano |
 | `gst_subscription_status_logs` | la storia degli stati |
+
+`gst_plan_links` lega `product_model_id` a `parent_product_model_id` («Si lega
+a»); `gst_customization_links` usa `product_model_id` anche per gli
+abbonamenti. La tabella `gst_plans` non c'è più.
+
+`Support\Subscriptions\SubscriptionModels` legge i modelli abbonamento:
+`find($id)`, `ofPrice($price)`, `isLive($model)` (visibile e non cancellato),
+`isOnline($model)` (anche `visible_online`) e `live()`. Il form sta in
+`SubscriptionProductForm`, dentro `ProductModelResource`: con il tipo
+abbonamento la scheda nasconde magazzino, spedizione, lotti, varianti,
+confezione, resi e unità, e mostra prezzi, metadata e «Si lega a».
+
+Prezzi, metadata e legami tengono questi nomi (`PlanPrice`, `PlanFeature`,
+`PlanLink`, codice `ppr_`): cambiano solo le colonne che puntano al piano.
 
 Nessuna si sincronizza: i piani sono lavoro del commerciante, come i coupon, e
 gli ID di Stripe (salvati con `ExternalReferences`) sono di un ambiente solo.
@@ -57,6 +71,17 @@ if ($max !== null && is_numeric($max) && $progetti >= (int) $max) {
 - `forever`: sempre.
 
 Solo coupon con `applies_subscriptions` e sconto in percentuale o importo.
+
+`SubscriptionAmounts::oneTime($lines, $pricesIncludeTax)` dà l'**una tantum**
+(`gst_plan_prices.one_time_price` del prezzo del prodotto abbonamento, legato
+con `product_model_id`; vuoto o zero = niente; #76): per ogni riga il prezzo
+per la quantità, con l'aliquota del prodotto, senza coupon né sovrapprezzo.
+Si paga una volta col primo addebito, a inizio prova se c'è, mai su rinnovi,
+cambi o servizi aggiunti. Online va nella prima fattura di Stripe come voce
+senza ricorrenza e `OnlineSubscriptions::preview()` la mette in
+`first_charge_total` (in prova è tutto il primo addebito); da ufficio
+`OfficeSubscriptions` crea una rata a parte dalla data d'inizio, con il suo
+proforma. Il `total` dell'abbonamento resta il solo canone.
 
 ## Abbonamenti online (Stripe)
 
@@ -130,7 +155,7 @@ Funzionalità `online_subscriptions` (richiede `online_sales` e
 - Unitari: `PlanPriceRulesTest`, `SubscriptionAmountsTest`,
   `SubscriptionModelsTest`, `SubscriptionPagesTest`, `StripeCatalogTest`,
   `StripeSubscriptionDataTest`.
-- Integrazione: `php tests/integrazione/PlansTest.php` e
+- Integrazione: `php tests/integrazione/SubscriptionProductsTest.php` e
   `php tests/integrazione/OnlineSubscriptionsTest.php` (Stripe finto, notifiche
   simulate) e `php tests/integrazione/OfficeSubscriptionsTest.php`, dopo
   `php forge update`.

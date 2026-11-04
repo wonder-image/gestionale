@@ -5,7 +5,7 @@ namespace Wonder\Plugin\Gestionale\Seeding;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanLink;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
@@ -13,6 +13,7 @@ use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Slug;
 use Wonder\Plugin\Gestionale\Support\Positions;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions;
 
 /**
@@ -24,7 +25,8 @@ use Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions;
  * con la personalizzazione «Nome del dominio» (testo, obbligatoria),
  * «Hosting» annuale che si lega a «Dominio .it», «Assistenza» mensile.
  *
- * Il segno di prova sta nel codice del piano e dei prezzi (`pln_demo-base`,
+ * Sono prodotti di tipo abbonamento. Il segno di prova sta nel codice del
+ * prodotto e dei prezzi (`mod_demo-abb-base`,
  * `ppr_demo-base-mensile`). La pulizia toglie piani, prezzi e limiti col
  * segno, ma non un piano con un prezzo usato da un abbonamento: quello resta
  * e il comando lo dice. Toglie anche i legami dei piani e la personalizzazione
@@ -55,24 +57,28 @@ final class PlansDemo
         $ids = [];
 
         foreach (self::plans() as $ref => $plan) {
-            $code = DemoCode::forModel(Plan::class, $ref);
-            $found = self::find(Plan::class, $code);
+            $code = DemoCode::forModel(ProductModel::class, 'abb-'.$ref);
+            $found = self::find(ProductModel::class, $code);
 
             if ($found !== null) {
                 $ids[$ref] = (int) $found['id'];
                 continue;
             }
 
-            $id = DemoCode::revive(Plan::class, $code);
+            $id = DemoCode::revive(ProductModel::class, $code);
 
             if ($id <= 0) {
-                $result = Plan::create($plan['values'] + [
+                $result = ProductModel::create($plan['values'] + [
                     'code' => $code,
-                    'slug' => Slug::make((string) $plan['values']['name'], Plan::$table),
+                    'type' => SubscriptionModels::TYPE,
+                    'slug' => Slug::make((string) $plan['values']['name'], ProductModel::$table),
                     'tax_category_id' => $tax > 0 ? $tax : '',
+                    'requires_shipping' => 'false',
+                    'returnable' => 'false',
+                    'has_variants' => 'false',
                     'visible_online' => 'true',
-                    'active' => 'true',
-                    'position' => Positions::next(Plan::$table),
+                    'visible' => 'true',
+                    'position' => Positions::next(ProductModel::$table),
                 ]);
                 $id = !empty($result->success) ? (int) ($result->insert_id ?? 0) : 0;
             }
@@ -91,7 +97,7 @@ final class PlansDemo
                 if (self::find(PlanPrice::class, $priceCode) === null && DemoCode::revive(PlanPrice::class, $priceCode) <= 0) {
                     PlanPrice::create($price + [
                         'code' => $priceCode,
-                        'plan_id' => $id,
+                        'product_model_id' => $id,
                         'sale_price' => '0.00',
                         'renewal_plan_price_id' => 0,
                         'active' => 'true',
@@ -103,24 +109,24 @@ final class PlansDemo
                 $position++;
             }
 
-            if (self::rows(PlanFeature::find(['plan_id' => $id, 'deleted' => 'false'])) === []) {
+            if (self::rows(PlanFeature::find(['product_model_id' => $id, 'deleted' => 'false'])) === []) {
                 $position = 0;
 
                 foreach ($plan['features'] as $key => $value) {
-                    PlanFeature::create(['plan_id' => $id, 'feature_key' => $key, 'feature_value' => $value, 'position' => $position++]);
+                    PlanFeature::create(['product_model_id' => $id, 'feature_key' => $key, 'feature_value' => $value, 'position' => $position++]);
                     $created++;
                 }
             }
 
             $parent = $ids[$plan['parent'] ?? ''] ?? 0;
 
-            if ($parent > 0 && self::rows(PlanLink::find(['plan_id' => $id, 'parent_plan_id' => $parent])) === []) {
-                PlanLink::create(['plan_id' => $id, 'parent_plan_id' => $parent]);
+            if ($parent > 0 && self::rows(PlanLink::find(['product_model_id' => $id, 'parent_product_model_id' => $parent])) === []) {
+                PlanLink::create(['product_model_id' => $id, 'parent_product_model_id' => $parent]);
                 $created++;
             }
 
-            if (!empty($plan['domain_name']) && $customization > 0 && self::rows(CustomizationLink::find(['plan_id' => $id, 'customization_id' => $customization, 'deleted' => 'false'])) === []) {
-                CustomizationLink::create(['plan_id' => $id, 'customization_id' => $customization, 'is_required' => 'true', 'position' => 1]);
+            if (!empty($plan['domain_name']) && $customization > 0 && self::rows(CustomizationLink::find(['product_model_id' => $id, 'customization_id' => $customization, 'deleted' => 'false'])) === []) {
+                CustomizationLink::create(['product_model_id' => $id, 'customization_id' => $customization, 'is_required' => 'true', 'position' => 1]);
                 $created++;
             }
         }
@@ -138,7 +144,7 @@ final class PlansDemo
             $id = (int) $plan['id'];
             $prices = array_map(
                 static fn (array $row): int => (int) $row['id'],
-                self::rows(PlanPrice::find("plan_id = {$id} AND (deleted = 'false' OR deleted = 'true')"))
+                self::rows(PlanPrice::find("product_model_id = {$id} AND (deleted = 'false' OR deleted = 'true')"))
             );
 
             if (Subscriptions::usedPrices($prices) !== []) {
@@ -146,15 +152,15 @@ final class PlansDemo
                 continue;
             }
 
-            $removed += count($prices) + count(self::rows(PlanFeature::find(['plan_id' => $id])))
-                + count(self::rows(CustomizationLink::find("plan_id = {$id} AND (deleted = 'false' OR deleted = 'true')")))
-                + count(self::rows(PlanLink::find("plan_id = {$id} OR parent_plan_id = {$id}")));
+            $removed += count($prices) + count(self::rows(PlanFeature::find(['product_model_id' => $id])))
+                + count(self::rows(CustomizationLink::find("product_model_id = {$id} AND (deleted = 'false' OR deleted = 'true')")))
+                + count(self::rows(PlanLink::find("product_model_id = {$id} OR parent_product_model_id = {$id}")));
             // Prima i legami: le chiavi esterne non lasciano andare il piano.
-            sqlDelete(CustomizationLink::$table, 'plan_id = '.$id);
-            sqlDelete(PlanLink::$table, 'plan_id = '.$id.' OR parent_plan_id = '.$id);
-            sqlDelete(PlanFeature::$table, 'plan_id = '.$id);
-            sqlDelete(PlanPrice::$table, 'plan_id = '.$id);
-            sqlDelete(Plan::$table, 'id = '.$id);
+            sqlDelete(CustomizationLink::$table, 'product_model_id = '.$id);
+            sqlDelete(PlanLink::$table, 'product_model_id = '.$id.' OR parent_product_model_id = '.$id);
+            sqlDelete(PlanFeature::$table, 'product_model_id = '.$id);
+            sqlDelete(PlanPrice::$table, 'product_model_id = '.$id);
+            sqlDelete(ProductModel::$table, 'id = '.$id);
             $removed++;
         }
 
@@ -262,7 +268,7 @@ final class PlansDemo
     /** I piani di prova, anche quelli cancellati dal backend. @return list<array<string, mixed>> */
     private static function ours(): array
     {
-        $rows = self::rows(Plan::find("code LIKE 'pln\\_demo-%' AND (deleted = 'false' OR deleted = 'true')"));
+        $rows = self::rows(ProductModel::find("type = 'subscription' AND (deleted = 'false' OR deleted = 'true')"));
 
         return array_values(array_filter($rows, static fn (array $row): bool => DemoCode::is((string) ($row['code'] ?? ''))));
     }

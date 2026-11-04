@@ -4,8 +4,8 @@ icon: arrow-repeat
 
 # Abbonamenti
 
-> **Da attivare.** Funzionalità *Abbonamenti*. Finché è spenta non vedi le
-> pagine *Catalogo → Abbonamenti* e *Vendite → Abbonamenti*; i dati già
+> **Da attivare.** Funzionalità *Abbonamenti*. Finché è spenta non puoi creare
+> prodotti di tipo *Abbonamento* e non vedi *Vendite → Abbonamenti*; i dati già
 > scritti restano. Non si spegne
 > mentre ci sono abbonamenti in corso.
 
@@ -17,8 +17,9 @@ rinnovo non crea un ordine, crea un pagamento.
 
 Le pagine sono due:
 
-* **Catalogo → Abbonamenti**: i piani, cioè cosa vendi, a quali prezzi e con
-  quali metadata (i limiti del piano);
+* **Catalogo → Prodotti**: cosa vendi. Un abbonamento (il «piano») è un
+  prodotto di tipo **Abbonamento**, con i suoi prezzi ricorrenti e i suoi
+  metadata (i limiti del piano);
 * **Vendite → Abbonamenti**: chi è abbonato, a cosa, e quando rinnova.
 
 > Gli abbonamenti nascono dal **sito**, con la funzionalità *Abbonamenti online*,
@@ -26,14 +27,21 @@ Le pagine sono due:
 
 ## I piani
 
-Un piano ha:
+In *Catalogo → Prodotti*, **«+ Aggiungi Abbonamento»** crea un prodotto di tipo
+*Abbonamento*. Il tipo si sceglie alla creazione e non cambia. La scheda è
+quella di un prodotto, senza quello che a un servizio non serve: magazzino,
+spedizione, lotti, varianti, confezione, resi e unità di misura. Restano:
 
-* **Nome** e **descrizione**: li vede il cliente nella pagina dei piani del sito.
+* **Nome**, **descrizione** e **foto**: il cliente li vede nella scheda del
+  sito e nella pagina dei piani; la foto anche in carrello e checkout.
+* **Categorie**, **tag**, URL e SEO, come ogni prodotto: l'abbonamento compare
+  nel catalogo e nella ricerca del sito.
 * **Tipo fiscale**: dà l'aliquota IVA, come per i prodotti: parte dal tipo
   predefinito ed è obbligatorio. Per ora vale solo l'IVA italiana. Con la
-  funzionalità «Aliquote» spenta il campo non c'è e il piano usa il predefinito.
-* **Sul sito**: «Nascosto» toglie il piano dalla pagina pubblica, ma lo lascia
-  agli abbonati e all'ufficio.
+  funzionalità «Aliquote» spenta il campo non c'è e l'abbonamento usa il
+  predefinito.
+* **Acquistabile online**: spento, toglie il piano dal sito, ma lo lascia agli
+  abbonati e all'ufficio.
 * **Stato**: un piano spento non si propone più a nessuno.
 * **Si lega a**: il piano si compra solo insieme a uno di questi, e va sullo
   stesso abbonamento. L'hosting, per esempio, si lega al dominio: non si vende
@@ -65,7 +73,11 @@ Un piano ha uno o più prezzi, una riga per prezzo:
 * **Addebito**: ogni quanto si paga il prezzo: Mensile, Bimestrale,
   Trimestrale, Semestrale o Annuale. Il prezzo è l'importo di ogni addebito:
   «Trimestrale» a 120 € vuol dire 120 € ogni tre mesi.
-* **Una tantum**: un importo che si paga una volta sola, col primo addebito.
+* **Una tantum**: un importo che si paga una volta sola, col primo addebito
+  (vuoto o zero: niente). Con la prova si paga subito, all'inizio della prova;
+  il canone parte alla fine. Non torna sui rinnovi, sui cambi di prezzo e sui
+  servizi aggiunti dopo. Ha l'IVA del prodotto abbonamento e il coupon non lo
+  sconta.
 * **Stato**: un prezzo spento non si propone più, ma resta a chi lo usa.
 
 Con **Compila le informazioni avanzate** compaiono anche:
@@ -156,7 +168,8 @@ Con la funzionalità **Abbonamenti online** (in *Funzionalità → Canali di
 vendita*; chiede *Vendita online* e *Abbonamenti*) il sito ha la pagina dei
 piani, e il cliente si abbona da solo:
 
-1. sceglie un prezzo nella pagina dei piani; serve un **account**. Il
+1. sceglie un prezzo nella scheda dell'abbonamento o nella pagina dei piani;
+   serve un **account**. Il
    servizio compare nel **carrello** e nel carrello laterale insieme ai
    prodotti, e da lì il cliente lo toglie con **Rimuovi** (togliendo un
    servizio si tolgono anche quelli che si appoggiano a lui). Nel checkout
@@ -174,6 +187,12 @@ piani, e il cliente si abbona da solo:
    ricorrenti; tornano negli ordini di soli prodotti;
 4. l'abbonamento compare *In prova* o *Attivo* appena Stripe conferma il
    pagamento; l'ordine dei prodotti risulta pagato con lo stesso pagamento.
+
+Con un prezzo che ha l'**una tantum**, il cliente la vede nella pagina degli
+abbonamenti («+ 49,00 € una tantum» sotto il canone) e nella scheda del
+prodotto, accanto al prezzo; nel checkout il primo addebito la comprende. In
+prova paga subito solo l'una tantum e il checkout dice quanto pagherà alla fine
+della prova.
 
 Lo stato lo decide Stripe: rinnovi pagati, rinnovi non riusciti e chiusure
 arrivano da soli, e ogni pagamento riuscito è una riga in **Pagamenti** della
@@ -221,6 +240,8 @@ coupon. Niente Stripe: il cliente paga come per un ordine da ufficio.
   «Bonifico 30 gg fine mese», una rata a fine del mese dopo l'inizio del
   periodo) e il cliente riceve il **proforma** in PDF, con l'importo, le
   scadenze e l'IBAN del conto. Il proforma non è una fattura.
+* L'**una tantum** del prezzo è una rata a parte, con scadenza la data
+  d'inizio (anche in prova), e il suo proforma: una riga per servizio.
 * Le rate si incassano dallo **Scadenzario** (*Vendite → Scadenzario*, con
   *Vendita in ufficio*) o dalla scheda dell'abbonamento, con **Registra**. Un
   acconto lascia il resto con la stessa scadenza.

@@ -19,20 +19,12 @@ $rifiuto = static function (callable $corpo): ?UserError {
     return null;
 };
 
-check('un legame con il solo articolo passa', fn () =>
-    $rifiuto(fn () => CustomizationLink::assertTarget(['product_model_id' => 4, 'plan_id' => null])) === null
+check('un legame con l\'articolo passa', fn () =>
+    $rifiuto(fn () => CustomizationLink::assertTarget(['product_model_id' => 4])) === null
 );
 
-check('un legame con il solo piano passa', fn () =>
-    $rifiuto(fn () => CustomizationLink::assertTarget(['product_model_id' => '', 'plan_id' => '7'])) === null
-);
-
-check('un legame con articolo e piano insieme non passa', fn () =>
-    $rifiuto(fn () => CustomizationLink::assertTarget(['product_model_id' => 4, 'plan_id' => 7]))?->key() === 'customization.link_target'
-);
-
-check('un legame senza articolo né piano non passa', function () use ($rifiuto) {
-    foreach ([[], ['product_model_id' => 0, 'plan_id' => 0], ['product_model_id' => '', 'plan_id' => null]] as $valori) {
+check('un legame senza articolo non passa', function () use ($rifiuto) {
+    foreach ([[], ['product_model_id' => 0], ['product_model_id' => '']] as $valori) {
         if ($rifiuto(fn () => CustomizationLink::assertTarget($valori))?->key() !== 'customization.link_target') {
             return false;
         }

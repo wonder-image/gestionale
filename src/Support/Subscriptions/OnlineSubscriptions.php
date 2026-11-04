@@ -11,7 +11,6 @@ use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
-use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionItem;
@@ -275,10 +274,10 @@ final class OnlineSubscriptions
     {
         $row = self::liveStripe($subscriptionId);
         $price = PlanPrice::findById($newPriceId);
-        $plan = is_array($price) ? Plan::findById((int) $price['plan_id']) : null;
+        $plan = is_array($price) ? SubscriptionModels::find((int) $price['product_model_id']) : null;
 
         if (!is_array($price) || (string) ($price['active'] ?? 'false') !== 'true' || (string) ($price['deleted'] ?? 'false') !== 'false'
-            || !is_array($plan) || (string) ($plan['active'] ?? 'false') !== 'true') {
+            || !SubscriptionModels::isLive($plan)) {
             throw UserError::make('subscription.price_unavailable');
         }
 
@@ -664,10 +663,9 @@ final class OnlineSubscriptions
     public static function sellablePrice(string $code): array
     {
         $price = trim($code) !== '' ? PlanPrice::find(['code' => trim($code), 'active' => 'true', 'deleted' => 'false'], 1) : null;
-        $plan = is_array($price) && (int) ($price['id'] ?? 0) > 0 ? Plan::findById((int) $price['plan_id']) : null;
+        $plan = is_array($price) && (int) ($price['id'] ?? 0) > 0 ? SubscriptionModels::find((int) $price['product_model_id']) : null;
 
-        if (!is_array($plan) || (string) ($plan['active'] ?? 'false') !== 'true' || (string) ($plan['visible_online'] ?? 'false') !== 'true'
-            || (string) ($plan['deleted'] ?? 'false') !== 'false') {
+        if (!SubscriptionModels::isOnline($plan)) {
             throw UserError::make('subscription.price_unavailable');
         }
 

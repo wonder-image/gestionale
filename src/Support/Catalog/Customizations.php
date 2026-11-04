@@ -51,12 +51,11 @@ final class Customizations
      */
     public static function forPlan(int $planId): array
     {
-        return self::linked('plan_id', $planId, 'for_subscriptions');
+        return self::linked('product_model_id', $planId, 'for_subscriptions');
     }
 
     /**
-     * I legami di un articolo o di un piano (`$column` = `product_model_id` o
-     * `plan_id`), letti con le personalizzazioni attive che hanno acceso
+     * I legami di un articolo o di un abbonamento (`$column` = `product_model_id`), letti con le personalizzazioni attive che hanno acceso
      * l'interruttore `$scope`.
      *
      * @return list<array<string, mixed>>

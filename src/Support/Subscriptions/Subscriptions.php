@@ -145,8 +145,8 @@ final class Subscriptions
 
             if (!array_key_exists($priceId, $plans)) {
                 $price = $priceId > 0 ? PlanPrice::findById($priceId) : null;
-                $planId = is_array($price) ? (int) ($price['plan_id'] ?? 0) : 0;
-                $feature = $planId > 0 ? (self::rows(PlanFeature::find(['plan_id' => $planId, 'feature_key' => $key, 'deleted' => 'false'], 1))[0] ?? null) : null;
+                $planId = is_array($price) ? (int) ($price['product_model_id'] ?? 0) : 0;
+                $feature = $planId > 0 ? (self::rows(PlanFeature::find(['product_model_id' => $planId, 'feature_key' => $key, 'deleted' => 'false'], 1))[0] ?? null) : null;
                 $plans[$priceId] = $feature === null ? null : (string) ($feature['feature_value'] ?? '');
             }
 
@@ -223,7 +223,7 @@ final class Subscriptions
     {
         return array_map(
             static fn (array $row): int => (int) $row['id'],
-            self::rows(PlanPrice::find(['plan_id' => $planId, 'deleted' => 'false']))
+            self::rows(PlanPrice::find(['product_model_id' => $planId, 'deleted' => 'false']))
         );
     }
 
