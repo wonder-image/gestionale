@@ -95,4 +95,11 @@ check('i mesi proposti: 1 per il mensile, 12 per l\'annuale', fn () =>
     && PlanPriceRules::defaultTerm('year') === 12
 );
 
+check('la ricorrenza dall\'addebito: annuale a anni, il resto a mesi', fn () =>
+    PlanPriceRules::intervalOf(1) === 'month'
+    && PlanPriceRules::intervalOf(6) === 'month'
+    && PlanPriceRules::intervalOf(12) === 'year'
+    && PlanPriceRules::intervalOf(24) === 'year'
+);
+
 summary();
