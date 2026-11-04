@@ -1378,8 +1378,8 @@ HTML
             ->filterQuery('Marchio', 'marchio', static::brandFilterOptions(), static fn (array $values): string => static::brandCondition($values))
             ->filterQuery('Categoria', 'categoria', static::categoryFilterOptions(), static fn (array $values): string => static::categoryCondition($values));
 
-        // «Importa» (#84): lo stesso file dell'esportazione, riletto.
-        if (static::allows((array) ($GLOBALS['USER']->authority ?? []), 'update')) {
+        // «Importa» (#84): lo stesso file dell'esportazione, riletto; si accende in Funzionalità.
+        if (Gestionale::feature('import_catalog') && static::allows((array) ($GLOBALS['USER']->authority ?? []), 'update')) {
             $layout->buttonCustom(
                 Button::to(ImportResource::url(['layout' => CatalogLayout::KEY]), 'Importa')
                     ->variant('secondary')->outline()->size('sm')->icon('bi bi-upload', 'start')

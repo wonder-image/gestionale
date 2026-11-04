@@ -8,6 +8,7 @@ use Wonder\App\Import\Change;
 use Wonder\App\Import\Column;
 use Wonder\App\Import\Context;
 use Wonder\App\Import\Layout;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
@@ -105,7 +106,9 @@ final class CatalogLayout extends Layout
 
     public function permits(object $user): bool
     {
-        return ProductModelResource::allows((array) ($user->authority ?? []), 'update');
+        // Spenta in Funzionalità, il tracciato non c'è: niente pagina, niente esempio.
+        return Gestionale::feature('import_catalog')
+            && ProductModelResource::allows((array) ($user->authority ?? []), 'update');
     }
 
     public function backUrl(): ?string

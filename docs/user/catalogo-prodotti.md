@@ -627,6 +627,11 @@ Il pulsante **Importa**, accanto a Esporta, fa il contrario: carichi un foglio
 (Excel o CSV) e il gestionale aggiorna i prodotti. Il modo più semplice è
 scaricare l'elenco, cambiare quello che ti serve e ricaricarlo così com'è.
 
+Il pulsante c'è solo se è accesa la funzionalità **Caricamento del catalogo**
+(Set-up → Gestionale → Funzionalità). Con la stessa funzionalità compare
+Set-up → Gestionale → **Tracciati file**, dove salvi l'ordine e i nomi delle
+colonne del file.
+
 1. **Scegli il file.** Va bene anche un foglio tuo: le colonne si chiamano
    come quelle dell'esportazione, o con nomi comuni come «Codice»,
    «Quantità», «Prezzo». Se parti da zero, scarica il **file di esempio**

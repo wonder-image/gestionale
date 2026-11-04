@@ -4,13 +4,17 @@
 (`ImportResource`, vedi `docs/app/concetti/importazione.md` nel pacchetto
 `wonder-image/app`) col tracciato `catalog`:
 `Support\Catalog\Import\CatalogLayout`, registrato in `config/module.php`
-(`import.layouts`). Il bottone e la pagina li vede chi può fare `update` su
-`ProductModelResource`.
+(`import.layouts`). Il bottone e la pagina ci sono solo con la funzionalità
+`import_catalog` accesa (`Gestionale::feature()`, in `CatalogLayout::permits()`
+e nel bottone) e li vede chi può fare `update` su `ProductModelResource`.
 
 Il file è lo stesso dell'esportazione (`ProductExport`): stesse colonne, stesse
 intestazioni, più qualche nome comune (`Codice`, `Quantità`, `Nome`,
-`Prezzo`…). Un tracciato salvato in Set-up → Tracciati file vale per
-l'esportazione e per il caricamento.
+`Prezzo`…). Un tracciato salvato in Set-up → Gestionale → Tracciati file vale
+per l'esportazione e per il caricamento. La voce è
+`Resources\System\ImportLayoutResource`: sottoclasse di quella del core con lo
+stesso `path()`, che la sostituisce, la sposta nel gruppo Gestionale e la
+mostra solo con `import_catalog` accesa.
 
 ## Colonne e file di esempio
 
