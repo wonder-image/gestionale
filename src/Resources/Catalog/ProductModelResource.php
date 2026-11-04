@@ -82,6 +82,7 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Labels\LabelDialog;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
+use Wonder\App\Dependencies;
 use Wonder\App\LegacyGlobals;
 use Wonder\App\Support\Repeater;
 use Wonder\App\Table;
@@ -104,6 +105,9 @@ use Wonder\Sql\Transaction;
 use Wonder\Support\Html\Entity;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionProductForm;
+use Wonder\Plugin\Gestionale\Support\Subscriptions\PlanLinks;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanFeature;
+use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 
 /**
  * "Modelli": la scheda dell'articolo, e l'unico posto dove si lavora.
@@ -1600,6 +1604,12 @@ HTML
      */
     protected static function showMainColumn(int $modelId, array $item): array
     {
+        // Un abbonamento non ha SKU, varianti né giacenza: si legge coi suoi
+        // prezzi, i metadata e a cosa si lega.
+        if (($item['type'] ?? '') === SubscriptionModels::TYPE) {
+            return static::showSubscriptionColumn($modelId, $item);
+        }
+
         $nome = trim((string) ($item['name'] ?? ''));
         $opzioni = static::productCount($modelId);
         $badge = static::showBundleBadge($modelId);
@@ -1629,6 +1639,139 @@ HTML
                 RichText::make(static::optionsTable($modelId))->tag('div')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];
+    }
+
+    /**
+     * La colonna larga in lettura di un abbonamento: cos'è, i prezzi con cui
+     * si compra, i metadata. Niente SKU né varianti: non ne ha.
+     *
+     * @return list<object>
+     */
+    protected static function showSubscriptionColumn(int $modelId, array $item): array
+    {
+        $nome = trim((string) ($item['name'] ?? ''));
+        $badge = Badge::make('Abbonamento')->variant('light')->inline()->render('bootstrap');
+
+        try {
+            $madri = PlanLinks::parentsOf($modelId);
+        } catch (Throwable) {
+            $madri = [];
+        }
+
+        $nomiMadri = [];
+
+        foreach ($madri as $madre) {
+            $riga = ProductModel::findById($madre);
+            $nomiMadri[] = is_array($riga) ? trim((string) ($riga['name'] ?? '')) : '';
+        }
+
+        $cards = [
+            (new Card)->components([
+                SectionTitle::make('Abbonamento')->columnSpan(12),
+                RichText::make('<h5 class="mb-0">'.static::escape($nome !== '' ? $nome : 'Senza nome').' '.$badge.'</h5>')
+                    ->tag('div')
+                    ->columnSpan(12),
+                static::showRow('Si lega a', implode(', ', array_filter($nomiMadri)))->columnSpan(12),
+                static::showRow('Descrizione breve', (string) ($item['short_description'] ?? ''))->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+            (new Card)->components([
+                SectionTitle::make('Prezzi')
+                    ->tooltip('I modi in cui si compra l\'abbonamento. Si cambiano dalla modifica.')
+                    ->columnSpan(12),
+                RichText::make(static::subscriptionPricesTable($modelId))->tag('div')->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+        ];
+
+        $metadata = static::subscriptionFeaturesList($modelId);
+
+        if ($metadata !== '') {
+            $cards[] = (new Card)->components([
+                SectionTitle::make('Metadata')
+                    ->tooltip(SubscriptionProductForm::FEATURES_TOOLTIP)
+                    ->columnSpan(12),
+                RichText::make($metadata)->tag('div')->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        return $cards;
+    }
+
+    /** La tabella dei prezzi di un abbonamento, spenti compresi. */
+    public static function subscriptionPricesTable(int $modelId): string
+    {
+        $prezzi = static::rowsOf(PlanPrice::class, ['product_model_id' => $modelId], 'position');
+
+        if ($prezzi === []) {
+            return '<p class="text-muted mb-0">Nessun prezzo: si aggiungono dalla modifica.</p>';
+        }
+
+        $intervalli = SubscriptionProductForm::intervalOptions();
+        $addebiti = SubscriptionProductForm::termOptions();
+        $righe = '';
+
+        foreach ($prezzi as $prezzo) {
+            $pieno = (float) ($prezzo['price'] ?? 0);
+            $sconto = (float) ($prezzo['sale_price'] ?? 0);
+            $importo = $sconto > 0.0 && $sconto < $pieno
+                ? '<del class="text-muted">'.static::escape(static::euro($pieno)).'</del> '.static::escape(static::euro($sconto))
+                : static::escape(static::euro($pieno));
+
+            $intervallo = (string) ($prezzo['billing_interval'] ?? 'month');
+            $mesi = (string) (int) ($prezzo['term_months'] ?? 1);
+            $ricorrenza = $intervallo === 'month' && $mesi !== '1'
+                ? ($addebiti[$mesi] ?? $mesi.' mesi')
+                : 'Ogni '.mb_strtolower($intervalli[$intervallo] ?? $intervallo);
+
+            $note = [];
+            $unaTantum = (float) ($prezzo['one_time_price'] ?? 0);
+            $vincolo = (int) ($prezzo['commitment_months'] ?? 0);
+            $prova = (int) ($prezzo['trial_days'] ?? 0);
+
+            if ($unaTantum > 0) {
+                $note[] = '+ '.static::euro($unaTantum).' una tantum';
+            }
+
+            if ($vincolo > 0) {
+                $note[] = 'vincolo '.$vincolo.' '.($vincolo === 1 ? 'mese' : 'mesi');
+            }
+
+            if ($prova > 0) {
+                $note[] = $prova.' '.($prova === 1 ? 'giorno' : 'giorni').' di prova';
+            }
+
+            $attivo = ($prezzo['active'] ?? 'true') === 'true';
+
+            $righe .= '<tr>'
+                .'<td>'.static::escapeStored((string) ($prezzo['name'] ?? '')).'</td>'
+                .'<td class="text-nowrap">'.$importo.'</td>'
+                .'<td>'.static::escape($ricorrenza).'</td>'
+                .'<td class="text-muted small">'.static::escape(implode(' · ', $note)).'</td>'
+                .'<td class="text-end">'.Badge::make($attivo ? 'Attivo' : 'Spento')->variant($attivo ? 'success' : 'secondary')->inline()->render('bootstrap').'</td>'
+                .'</tr>';
+        }
+
+        return '<div class="table-responsive"><table class="table table-sm align-middle mb-0">'
+            .'<thead><tr><th>Nome</th><th>Prezzo</th><th>Ricorrenza</th><th>Condizioni</th><th class="text-end">Stato</th></tr></thead>'
+            .'<tbody>'.$righe.'</tbody></table></div>';
+    }
+
+    /** I metadata di un abbonamento, chiave e valore; vuoto se non ne ha. */
+    public static function subscriptionFeaturesList(int $modelId): string
+    {
+        $voci = '';
+
+        foreach (static::rowsOf(PlanFeature::class, ['product_model_id' => $modelId], 'position') as $riga) {
+            $chiave = trim((string) ($riga['feature_key'] ?? ''));
+
+            if ($chiave === '') {
+                continue;
+            }
+
+            $voci .= '<dt class="col-sm-4 fw-normal text-muted"><code>'.static::escape($chiave).'</code></dt>'
+                .'<dd class="col-sm-8 mb-1">'.static::escape(trim((string) ($riga['feature_value'] ?? ''))).'</dd>';
+        }
+
+        return $voci === '' ? '' : '<dl class="row mb-0">'.$voci.'</dl>';
     }
 
     /**
@@ -1764,7 +1907,6 @@ HTML
      */
     protected static function showSideColumn(int $modelId, array $item): array
     {
-        $foto = static::firstImage($modelId);
         $marchio = (string) (static::brandOptions()[(string) ($item['brand_id'] ?? '')] ?? '');
         $principale = static::mainCategoryId($modelId);
         $altre = array_values(array_filter(
@@ -1775,9 +1917,7 @@ HTML
         return [
             (new Card)->components([
                 SectionTitle::make('Foto e video')->columnSpan(12),
-                RichText::make($foto !== ''
-                    ? '<img src="'.static::escape($foto).'" alt="'.static::escape((string) ($item['name'] ?? '')).'" class="img-fluid rounded">'
-                    : '<p class="text-muted mb-0">Nessuna foto: si caricano dalla modifica.</p>')
+                RichText::make(static::showGallery($modelId, (string) ($item['name'] ?? '')))
                     ->tag('div')
                     ->columnSpan(12),
             ])->columns(12)->columnSpan(12),
@@ -1797,6 +1937,86 @@ HTML
                 static::showRow('Tag', static::tagNames($modelId))->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];
+    }
+
+    /** Le foto dell'articolo in ordine, varianti comprese. @return list<string> */
+    public static function imageUrls(int $modelId): array
+    {
+        $urls = [];
+
+        foreach (static::rowsOf(ProductImage::class, ['product_model_id' => $modelId], 'position') as $row) {
+            $url = ProductImages::url($row);
+
+            if ($url !== '') {
+                $urls[] = $url;
+            }
+        }
+
+        return $urls;
+    }
+
+    /**
+     * La galleria della scheda in lettura, tutta quadrata: la prima foto
+     * grande e fino a quattro piccole a destra, due per due. Con più di
+     * cinque foto l'ultima piccola si scurisce e dice «+N», le foto che non
+     * si vedono. Un click apre tutte le foto, nascoste comprese, a schermo
+     * intero.
+     */
+    public static function showGallery(int $modelId, string $nome): string
+    {
+        $urls = static::imageUrls($modelId);
+
+        return static::galleryHtml($urls, $nome, 'wi-product-'.$modelId);
+    }
+
+    /** L'HTML della galleria da una lista di indirizzi. @param list<string> $urls */
+    public static function galleryHtml(array $urls, string $nome, string $gruppo): string
+    {
+        if ($urls === []) {
+            return '<p class="text-muted mb-0">Nessuna foto: si caricano dalla modifica.</p>';
+        }
+
+        Dependencies::fancyapps();
+
+        $totale = count($urls);
+        $nascoste = max(0, $totale - 5);
+        $alt = static::escape($nome);
+        $tessere = '';
+
+        foreach ($urls as $i => $url) {
+            $href = static::escape($url);
+            $didascalia = static::escape(($nome !== '' ? $nome.' — ' : '').'foto '.($i + 1).' di '.$totale);
+
+            if ($i >= 5) {
+                $tessere .= '<a href="'.$href.'" data-fancybox="'.$gruppo.'" data-caption="'.$didascalia.'" hidden tabindex="-1" aria-hidden="true"></a>';
+
+                continue;
+            }
+
+            $grande = $i === 0;
+            $stile = $grande
+                ? 'grid-column:span '.($totale === 1 ? 4 : 2).';grid-row:span 2;'
+                : 'aspect-ratio:1/1;';
+            $velo = $i === 4 && $nascoste > 0
+                ? '<span class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-white fw-semibold fs-5" style="background:rgba(0,0,0,.6);">+'.$nascoste.'</span>'
+                : '';
+            $etichetta = $velo !== '' ? 'Apri le altre '.$nascoste.' foto' : 'Ingrandisci la foto '.($i + 1);
+
+            $tessere .= '<a href="'.$href.'" data-fancybox="'.$gruppo.'" data-caption="'.$didascalia.'"'
+                .' class="position-relative d-block rounded overflow-hidden bg-body-tertiary" style="'.$stile.($grande ? 'aspect-ratio:1/1;' : '').'"'
+                .' aria-label="'.static::escape($etichetta).'">'
+                .'<img src="'.$href.'" alt="'.($grande ? $alt : '').'" loading="lazy" class="w-100 h-100" style="object-fit:cover;">'
+                .$velo
+                .'</a>';
+        }
+
+        $selettore = json_encode('[data-fancybox="'.$gruppo.'"]', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+
+        return '<div class="wi-product-gallery" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem;">'.$tessere.'</div>'
+            .'<script>(function(){let fatto=false;const lega=function(){'
+            .'if(!fatto&&typeof Fancybox!=="undefined"){Fancybox.bind('.$selettore.');fatto=true;}'
+            .'};lega();document.addEventListener("DOMContentLoaded",lega,{once:true});'
+            .'window.addEventListener("loaded",lega,{once:true});window.addEventListener("load",lega,{once:true});})();</script>';
     }
 
     /**

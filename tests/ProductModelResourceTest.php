@@ -3554,4 +3554,53 @@ check('spenta la «Scheda tecnica», niente riquadro né caratteristiche', funct
         && in_array('Scheda tecnica', $riquadri(0), true);
 });
 
+$titoliScheda = static function (array $item): array {
+    $titoli = [];
+    $scendi = function (array $componenti) use (&$scendi, &$titoli): void {
+        foreach ($componenti as $c) {
+            if ($c instanceof Wonder\Elements\Components\Container) {
+                $scendi($c->components);
+            } elseif (($c->components[0] ?? null) instanceof Wonder\Elements\Components\SectionTitle) {
+                $titoli[] = (string) (new ReflectionProperty($c->components[0], 'text'))->getValue($c->components[0]);
+            }
+        }
+    };
+    $scendi(ProductModelResource::showLayoutSchema($item)->components);
+
+    return $titoli;
+};
+
+check('la scheda in lettura di un abbonamento ha i prezzi, non SKU né varianti', function () use ($titoliScheda) {
+    $titoli = $titoliScheda(['id' => 0, 'name' => 'Dominio', 'type' => 'subscription']);
+
+    return in_array('Abbonamento', $titoli, true)
+        && in_array('Prezzi', $titoli, true)
+        && !in_array('Varianti', $titoli, true)
+        && !in_array('Prodotto', $titoli, true);
+});
+
+check('la scheda in lettura di un prodotto resta con le varianti', function () use ($titoliScheda) {
+    $titoli = $titoliScheda(['id' => 0, 'name' => 'Maglia', 'type' => 'simple']);
+
+    return in_array('Prodotto', $titoli, true) && in_array('Varianti', $titoli, true) && !in_array('Prezzi', $titoli, true);
+});
+
+check('la galleria: la prima grande, quattro piccole, «+N» sull\'ultima e le altre nascoste nella lightbox', function () {
+    defined('APP_URL') || define('APP_URL', 'https://example.test');
+    $urls = array_map(static fn (int $i): string => '/assets/upload/foto-'.$i.'.jpg', range(1, 7));
+    $html = ProductModelResource::galleryHtml($urls, 'Maglia', 'g1');
+    $cinque = ProductModelResource::galleryHtml(array_slice($urls, 0, 5), 'Maglia', 'g2');
+    $una = ProductModelResource::galleryHtml(array_slice($urls, 0, 1), 'Maglia', 'g3');
+
+    return substr_count($html, 'data-fancybox="g1"') === 7
+        && substr_count($html, '<img ') === 5
+        && substr_count($html, ' hidden ') === 2
+        && str_contains($html, '>+2</span>')
+        && str_contains($html, 'Fancybox.bind')
+        && !str_contains($cinque, '>+')
+        && substr_count($cinque, '<img ') === 5
+        && str_contains($una, 'grid-column:span 4')
+        && str_contains(ProductModelResource::galleryHtml([], 'Maglia', 'g4'), 'Nessuna foto');
+});
+
 summary();
