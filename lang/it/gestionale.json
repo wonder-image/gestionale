@@ -8,6 +8,7 @@
                 "price_tax_excluded": "I prezzi del negozio sono IVA inclusa, ma la colonna del prezzo dice «IVA esclusa»: scarica di nuovo il file e riprova.",
                 "sku_missing": "Manca lo SKU: scrivilo per aggiornare o creare il prodotto.",
                 "sku_duplicate": "Questo SKU compare già alla riga {{line}}: tienine una sola.",
+                "sku_ambiguous": "Questo SKU è usato da più prodotti del catalogo: correggilo dal backend prima di caricare il file.",
                 "group_mismatch": "Questo SKU appartiene all'articolo {{group}}: il codice articolo del file è diverso.",
                 "type_change": "Il tipo di un articolo che esiste già non si cambia da file.",
                 "type_new": "Da file si creano solo prodotti di tipo «Prodotto»: multiprodotti e abbonamenti si creano dal backend.",

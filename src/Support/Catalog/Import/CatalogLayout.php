@@ -59,6 +59,33 @@ final class CatalogLayout extends Layout
     /** Celle che, vuote, non cancellano niente. */
     private const KEEP_WHEN_EMPTY = ['group', 'article', 'type', 'unit', 'price', 'weight', 'available'];
 
+    /** Dove va ogni colonna, detto come nella scheda del prodotto. */
+    private const FIELDS = [
+        'id' => 'Non si legge: lo decide il gestionale',
+        'group' => 'Codice dell\'articolo: le righe con lo stesso codice sono versioni dello stesso articolo',
+        'sku' => 'Codice della versione: dice quale prodotto aggiornare o creare',
+        'ean' => 'EAN della versione',
+        'mpn' => 'MPN della versione',
+        'article' => 'Nome dell\'articolo',
+        'option' => 'Nome della versione (taglia, colore...)',
+        'type' => 'Tipo dell\'articolo: i nuovi sono sempre «Prodotto»',
+        'brand' => 'Marchio dell\'articolo (creato se manca)',
+        'categories' => 'Categorie dell\'articolo (create se mancano)',
+        'price' => 'Prezzo di vendita della versione',
+        'sale_price' => 'Prezzo scontato della versione',
+        'available' => 'Giacenza: la differenza diventa una rettifica di magazzino',
+        'backorder' => 'Vendibile senza giacenza',
+        'visible' => 'Articolo pubblicato',
+        'visible_online' => 'Articolo in vendita online',
+        'active' => 'Versione attiva',
+        'weight' => 'Peso della versione in kg',
+        'unit' => 'Unità di vendita dell\'articolo',
+        'link' => 'Non si legge: è l\'indirizzo della pagina',
+        'image' => 'Foto scaricata da un indirizzo https',
+        'short_description' => 'Descrizione breve dell\'articolo',
+        'description' => 'Descrizione dell\'articolo',
+    ];
+
     private const MODEL_KEYS = ['article', 'brand', 'visible', 'visible_online', 'unit', 'short_description', 'description', 'categories'];
 
     private const PRODUCT_KEYS = ['sku', 'ean', 'mpn', 'option', 'price', 'sale_price', 'backorder', 'active', 'weight'];
@@ -100,21 +127,33 @@ final class CatalogLayout extends Layout
 
         foreach (ProductExport::columns(ProductExport::pricesIncludeTax(), ProductExport::attributes()) as $column) {
             $aliases = array_values(array_unique(array_merge($column->aliases, self::ALIASES[$column->key] ?? [])));
-            $columns[] = Column::make($column->key, $column->header, $aliases);
+            $field = str_starts_with($column->key, 'attr:') ? 'Attributo della versione' : (self::FIELDS[$column->key] ?? null);
+            $columns[] = Column::make($column->key, $column->header, $aliases)->required($column->key === 'sku')->field($field);
         }
 
         return $this->columns = $columns;
     }
 
+    public function sampleColumns(): array
+    {
+        return array_values(array_filter($this->columns(), static fn (Column $column): bool => !in_array($column->key, CatalogCells::IGNORED, true)));
+    }
+
+    /** Un prodotto semplice e un articolo con due versioni (stesso codice articolo). */
+    public function sampleRows(): array
+    {
+        $common = ['unit' => 'pz', 'backorder' => 'No', 'visible' => 'Sì', 'visible_online' => 'Sì', 'active' => 'Sì', 'type' => 'Prodotto'];
+
+        return [
+            $common + ['group' => 'ESEMPIO-001', 'sku' => 'ESEMPIO-001', 'article' => 'Tazza in ceramica', 'price' => '12,50', 'available' => '10', 'weight' => '0,350', 'short_description' => 'Tazza bianca da 300 ml.'],
+            $common + ['group' => 'ESEMPIO-002', 'sku' => 'ESEMPIO-002-M', 'article' => 'Maglietta in cotone', 'option' => 'Taglia M', 'price' => '19,90', 'sale_price' => '15,90', 'available' => '5', 'weight' => '0,200'],
+            $common + ['group' => 'ESEMPIO-002', 'sku' => 'ESEMPIO-002-L', 'article' => 'Maglietta in cotone', 'option' => 'Taglia L', 'price' => '19,90', 'available' => '3', 'weight' => '0,220'],
+        ];
+    }
+
     public function mappingErrors(array $mapping, array $headers): array
     {
         $errors = [];
-        $keys = array_values(array_filter($mapping, static fn (?string $key): bool => $key !== null));
-
-        if (!in_array('sku', $keys, true)) {
-            $errors[] = self::text('sku_column');
-        }
-
         $index = array_search('price', $mapping, true);
 
         if ($index !== false) {
@@ -157,6 +196,10 @@ final class CatalogLayout extends Layout
 
             if ($current !== null) {
                 $mode = 'update';
+
+                if (!empty($current['_ambiguous'])) {
+                    $errors[] = self::text('sku_ambiguous');
+                }
 
                 if ($group !== '' && $groupKey !== mb_strtolower((string) $current['group'], 'UTF-8')) {
                     $errors[] = self::text('group_mismatch', ['group' => (string) $current['group']]);
@@ -367,9 +410,12 @@ final class CatalogLayout extends Layout
             foreach (ProductExport::of(true)['rows'] as $row) {
                 $sku = mb_strtolower(trim((string) $row['sku']), 'UTF-8');
 
-                if ($sku !== '' && !isset($bySku[$sku])) {
-                    $bySku[$sku] = $row;
+                if ($sku === '') {
+                    continue;
                 }
+
+                // Due prodotti con lo stesso SKU: non si sa quale aggiornare.
+                $bySku[$sku] = isset($bySku[$sku]) ? ['_ambiguous' => true] + $bySku[$sku] : $row;
             }
 
             return $bySku;

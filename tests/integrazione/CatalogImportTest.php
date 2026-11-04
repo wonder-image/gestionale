@@ -12,6 +12,8 @@ require __DIR__.'/../harness.php';
 
 use Wonder\App\Import\Context;
 use Wonder\App\Import\Importer;
+use Wonder\App\Import\Mapping;
+use Wonder\App\Import\Sample;
 use Wonder\App\Import\Store;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
@@ -66,6 +68,16 @@ function cella(array $riga): array
     return $out;
 }
 
+/** Stampa il perché e fa fallire il check (l'harness conta solo false). */
+function fallito(array $righe): bool
+{
+    foreach ($righe as $riga) {
+        echo '      '.$riga."\n";
+    }
+
+    return false;
+}
+
 function riga(array $data, int $line = 2): array
 {
     return ['line' => $line, 'data' => $data];
@@ -83,9 +95,16 @@ function primo(mixed $righe): ?array
 $layout = new CatalogLayout();
 $export = ProductExport::of(true)['rows'];
 $perSku = [];
+$conteggi = array_count_values(array_map(static fn (array $r): string => mb_strtolower(trim((string) $r['sku']), 'UTF-8'), $export));
+// Gli SKU vuoti o usati da più prodotti (ce ne sono nel DB di prova) non si aggiornano da file.
+$ambigui = array_map('strval', array_keys(array_filter($conteggi, static fn (int $n): bool => $n > 1)));
 
 foreach ($export as $r) {
-    $perSku[(string) $r['sku']] = cella($r);
+    $chiave = mb_strtolower(trim((string) $r['sku']), 'UTF-8');
+
+    if ($chiave !== '' && ($conteggi[$chiave] ?? 0) === 1) {
+        $perSku[(string) $r['sku']] = cella($r);
+    }
 }
 
 $nero = null;
@@ -100,9 +119,62 @@ $iva = ProductExport::pricesIncludeTax();
 
 check('dati demo: l\'impermeabile nero e il KIT-1 ci sono', fn () => $nero !== null && isset($perSku['KIT-1']));
 
-check('abbinamento: senza la colonna SKU non si va avanti', fn () =>
-    $layout->mappingErrors([0 => 'article', 1 => 'price'], ['Articolo', 'Prezzo']) !== []
+check('abbinamento: lo SKU è la sola colonna obbligatoria', fn () =>
+    array_map(static fn ($c): string => $c->key, array_values(array_filter($layout->columns(), static fn ($c): bool => $c->required))) === ['sku']
+    && Mapping::missing([0 => 'article', 1 => 'price'], $layout->columns()) === ['sku']
+    && Mapping::missing([0 => 'sku'], $layout->columns()) === []
 );
+
+check('file di esempio: niente id né link, ogni colonna dice dove va', fn () =>
+    array_intersect(array_map(static fn ($c): string => $c->key, $layout->sampleColumns()), CatalogCells::IGNORED) === []
+    && array_filter($layout->columns(), static fn ($c): bool => $c->field === null) === []
+);
+
+check('file di esempio: si ricarica senza errori e crea un semplice e due versioni', fn () => prova(function () use ($layout) {
+    $file = tempnam(sys_get_temp_dir(), 'wi-import').'.csv';
+    file_put_contents($file, Sample::render($layout, 'csv'));
+
+    try {
+        $jobId = Importer::upload($file, 'esempio.csv', CatalogLayout::KEY, 1);
+    } finally {
+        @unlink($file);
+    }
+
+    $mapping = Importer::mapping(Store::job($jobId));
+    $errori = Importer::map($jobId, $mapping['columns']);
+
+    if ($errori !== [] || Mapping::report($mapping['headers'], $mapping['columns'], $layout->columns())['ignored'] !== []) {
+        return fallito($errori ?: ['colonne non riconosciute']);
+    }
+
+    $righe = [];
+
+    foreach (array_slice(Sample::table($layout), 1) as $i => $celle) {
+        $righe[] = riga(array_combine(array_map(static fn ($c): string => $c->key, $layout->sampleColumns()), $celle), $i + 2);
+    }
+
+    $esiti = $layout->validate($righe, new Context(1, 0));
+    $sbagliati = array_filter($esiti, static fn (array $e): bool => $e['action'] !== 'create' || $e['errors'] !== []);
+
+    return $sbagliati === [] && count($esiti) === 3
+        || fallito(array_map(static fn (array $e): string => $e['data']['sku'].': '.$e['action'].' '.implode('; ', $e['errors']).' K='.implode(',',(fn()=>$this->changedKeys($e['data'], $this->export(new Context(1,0))[mb_strtolower(trim((string)$e['data']['sku']),'UTF-8')] ?? null))->call($layout)), $sbagliati));
+}));
+
+check('file di esempio: senza la colonna SKU l\'abbinamento si ferma', fn () => prova(function () use ($layout) {
+    $file = tempnam(sys_get_temp_dir(), 'wi-import').'.csv';
+    file_put_contents($file, "Articolo,Prezzo\nTazza,12\n");
+
+    try {
+        $jobId = Importer::upload($file, 'senza-sku.csv', CatalogLayout::KEY, 1);
+    } finally {
+        @unlink($file);
+    }
+
+    $mapping = Importer::mapping(Store::job($jobId));
+    $errori = Importer::map($jobId, $mapping['columns']);
+
+    return count($errori) === 1 && str_contains($errori[0], 'SKU') || fallito($errori ?: ['nessun errore']);
+}));
 
 check('abbinamento: un prezzo con l\'IVA diversa dal catalogo si ferma', fn () =>
     $layout->mappingErrors([0 => 'sku', 1 => 'price'], ['SKU', $iva ? 'Prezzo (IVA esclusa)' : 'Prezzo (IVA inclusa)']) !== []
@@ -120,7 +192,19 @@ check('controllo: l\'esportazione ricaricata così com\'è non cambia niente', f
     $esiti = $layout->validate($righe, new Context(1, 0));
     $diversi = array_filter($esiti, static fn (array $e): bool => $e['action'] !== 'unchanged' || $e['errors'] !== []);
 
-    return $diversi === [] ?: array_map(static fn (array $e): string => $e['data']['sku'].': '.$e['action'].' '.implode('; ', $e['errors']), $diversi);
+    return $diversi === [] || fallito(array_map(static fn (array $e): string => $e['data']['sku'].': '.$e['action'].' '.implode('; ', $e['errors']), $diversi));
+});
+
+check('controllo: uno SKU usato da più prodotti del catalogo si ferma', function () use ($layout, $ambigui) {
+    $ambigui = array_values(array_filter($ambigui, static fn (string $sku): bool => $sku !== ''));
+
+    if ($ambigui === []) {
+        return true; // niente doppioni nel DB: non c'è niente da provare
+    }
+
+    $esito = $layout->validate([riga(['sku' => $ambigui[0]], 2)], new Context(1, 0))[0];
+
+    return $esito['errors'] !== [] || fallito([$ambigui[0].': '.$esito['action']]);
 });
 
 check('controllo: SKU doppio, numero sbagliato, tipo nuovo e codice articolo diverso', function () use ($layout, $nero) {
@@ -269,7 +353,7 @@ try {
         $errori = Importer::map($jobId, $mapping['columns']);
 
         if ($errori !== []) {
-            return $errori;
+            return fallito($errori);
         }
 
         Importer::start($jobId);
