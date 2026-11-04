@@ -258,6 +258,13 @@ Tre livelli, cinque tabelle:
 | `gst_product_variants` | quello che cambia l'aspetto |
 | `gst_products` | quello che si vende e sta a magazzino |
 
+**Un elenco solo per tutti i tipi.** In *Catalogo* la voce degli articoli è
+una, «Prodotti» (`ProductModelResource::navigationSchema()`): prodotti,
+multiprodotti e abbonamenti stanno nello stesso elenco, senza filtro di tipo,
+distinti dall'icona di `typeCell()`. Si creano dallo split button
+`addButtonHtml()`: «+ Aggiungi» fa un prodotto, il menu porta a
+`createUrlFor()?type=bundle|subscription` quando la funzionalità è accesa.
+
 **La variante c'è sempre** (G2a.2). `Support\Catalog\Skeleton::forModel()` la
 crea insieme al primo prodotto quando nasce un modello.
 
