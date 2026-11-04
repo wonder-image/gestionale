@@ -42,9 +42,9 @@ use Wonder\Sql\Transaction;
 /**
  * «Piani» (G10 §1.2): i piani di abbonamento con i loro prezzi e i limiti.
  *
- * I prezzi stanno in un repeater (nome, prezzo, ricorrenza, una tantum,
- * stato; dietro «Compila le informazioni avanzate» prezzo scontato, mesi per
- * addebito, vincolo, prova, rinnovo), i limiti («Metadata») in un altro, a
+ * I prezzi stanno in un repeater (nome, prezzo, addebito, una tantum,
+ * stato; dietro «Compila le informazioni avanzate» prezzo scontato, vincolo,
+ * prova, rinnovo); la ricorrenza si ricava dall'addebito, i limiti («Metadata») in un altro, a
  * coppie chiave/valore. Un prezzo usato da un abbonamento, anche
  * chiuso, non esce dal repeater: si spegne. Un piano con abbonamenti vivi non
  * si elimina.
@@ -104,13 +104,7 @@ final class PlanResource extends GestionaleResource
         ];
     }
 
-    /** @return array<string, string> */
-    public static function intervalOptions(): array
-    {
-        return ['month' => 'Mese', 'year' => 'Anno'];
-    }
-
-    /** Ogni quanto si addebita un prezzo mensile: i mesi coperti da un addebito. */
+    /** Ogni quanto si addebita un prezzo: i mesi coperti da un addebito. */
     public static function termOptions(): array
     {
         return ['1' => 'Mensile', '2' => 'Bimestrale', '3' => 'Trimestrale', '6' => 'Semestrale', '12' => 'Annuale'];
@@ -141,11 +135,10 @@ final class PlanResource extends GestionaleResource
                     RepeaterColumn::key('id')->hidden(),
                     RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(3),
                     RepeaterColumn::key('price')->number()->decimal(2)->label('Prezzo')->columnSpan(2),
-                    RepeaterColumn::key('billing_interval')->select(static::intervalOptions())->label('Ricorrenza')->columnSpan(2),
+                    RepeaterColumn::key('term_months')->select(static::termOptions())->label('Addebito')->columnSpan(2),
                     RepeaterColumn::key('one_time_price')->number()->decimal(2)->label('Una tantum')->columnSpan(2),
                     RepeaterColumn::key('active')->select(['true' => 'Attivo', 'false' => 'Spento'])->label('Stato')->columnFill(),
                     RepeaterColumn::key('sale_price')->number()->decimal(2)->label('Prezzo scontato')->columnSpan(3),
-                    RepeaterColumn::key('term_months')->select(static::termOptions())->label('Addebito')->columnSpan(2),
                     RepeaterColumn::key('commitment_months')->number()->decimal(0)->label('Vincolo (mesi)')->columnSpan(2),
                     RepeaterColumn::key('trial_days')->number()->decimal(0)->label('Prova (giorni)')->columnSpan(2),
                     RepeaterColumn::key('renewal_plan_price_id')
@@ -160,7 +153,7 @@ final class PlanResource extends GestionaleResource
                 )
                 ->nested()
                 ->repeaterSortable()
-                ->repeaterAdvanced('sale_price', 'term_months', 'commitment_months', 'trial_days', 'renewal_plan_price_id')
+                ->repeaterAdvanced('sale_price', 'commitment_months', 'trial_days', 'renewal_plan_price_id')
                 ->repeaterAdvancedLabel('Compila le informazioni avanzate')
                 ->repeaterAddLabel('Aggiungi prezzo')
                 ->repeaterDeleteTitle('Elimina prezzo')
@@ -241,7 +234,7 @@ final class PlanResource extends GestionaleResource
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
                     SectionTitle::make('Prezzi')
-                        ->tooltip('Un prezzo per riga. «Ricorrenza» dice ogni quanto si rinnova; «Addebito», fra le informazioni avanzate, ogni quanto si paga un prezzo mensile (trimestrale, semestrale…); con «Anno» non conta. Il prezzo è IVA inclusa o esclusa come il listino; il prezzo scontato, se più basso, vince. Vincolo zero vuol dire nessun vincolo. «A fine vincolo passa a» propone solo i prezzi già salvati: per un prezzo nuovo, salva e poi sceglilo. Un prezzo cambiato vale per i nuovi abbonati.')
+                        ->tooltip('Un prezzo per riga. «Addebito» dice ogni quanto si paga il prezzo: mensile, trimestrale… annuale. Il prezzo è IVA inclusa o esclusa come il listino; il prezzo scontato, se più basso, vince. Vincolo zero vuol dire nessun vincolo. «A fine vincolo passa a» propone solo i prezzi già salvati: per un prezzo nuovo, salva e poi sceglilo. Un prezzo cambiato vale per i nuovi abbonati.')
                         ->columnSpan(12),
                     static::getInput('prices')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
@@ -622,16 +615,10 @@ final class PlanResource extends GestionaleResource
                 continue;
             }
 
-            $interval = in_array((string) ($row['billing_interval'] ?? ''), PlanPrice::INTERVALS, true) ? (string) $row['billing_interval'] : 'month';
             $term = trim((string) ($row['term_months'] ?? ''));
             $row['name'] = trim((string) ($row['name'] ?? ''));
-            $row['billing_interval'] = $interval;
-            $row['term_months'] = $term === '' ? PlanPriceRules::defaultTerm($interval) : (int) $term;
-
-            // «Addebito» vale solo col mese: con l'anno resta un multiplo di 12 già salvato, se no 12
-            if ($interval === 'year' && ($row['term_months'] < 12 || $row['term_months'] % 12 !== 0)) {
-                $row['term_months'] = 12;
-            }
+            $row['term_months'] = $term === '' ? PlanPriceRules::defaultTerm('month') : (int) $term;
+            $row['billing_interval'] = PlanPriceRules::intervalOf($row['term_months']);
             $row['price'] = Numbers::fromForm($row['price'] ?? null) ?? '';
             $row['sale_price'] = Numbers::fromForm($row['sale_price'] ?? null) ?? '0.00';
             $row['one_time_price'] = Numbers::fromForm($row['one_time_price'] ?? null) ?? '0.00';

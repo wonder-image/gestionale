@@ -99,6 +99,12 @@ final class PlanPriceRules
         }
     }
 
+    /** La ricorrenza di un addebito: a anni se copre anni interi, se no a mesi. */
+    public static function intervalOf(int $term): string
+    {
+        return $term >= 12 && $term % 12 === 0 ? 'year' : 'month';
+    }
+
     /** I mesi di un addebito proposti per un intervallo, se il form non li dice. */
     public static function defaultTerm(string $interval): int
     {

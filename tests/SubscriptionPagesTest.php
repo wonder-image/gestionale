@@ -52,13 +52,16 @@ check('le righe vuote dei prezzi e dei limiti non si scrivono', function () {
         && count($limiti) === 1 && $limiti[0]['feature_key'] === 'max_progetti' && $limiti[0]['feature_value'] === '5';
 });
 
-check('un intervallo inventato diventa il mese; l\'annuale senza mesi ne prende 12', function () {
+check('la ricorrenza si ricava dall\'addebito, quella del form non conta', function () {
     $righe = PlanResource::prepareRepeaterRows('prices', [
-        ['name' => 'A', 'billing_interval' => 'week', 'price' => '1'],
-        ['name' => 'B', 'billing_interval' => 'year', 'price' => '1'],
+        ['name' => 'A', 'billing_interval' => 'year', 'price' => '1'],
+        ['name' => 'B', 'term_months' => '3', 'price' => '1'],
+        ['name' => 'C', 'billing_interval' => 'month', 'term_months' => '12', 'price' => '1'],
     ]);
 
-    return $righe[0]['billing_interval'] === 'month' && $righe[0]['term_months'] === 1 && $righe[1]['term_months'] === 12;
+    return $righe[0]['billing_interval'] === 'month' && $righe[0]['term_months'] === 1
+        && $righe[1]['billing_interval'] === 'month' && $righe[1]['term_months'] === 3
+        && $righe[2]['billing_interval'] === 'year' && $righe[2]['term_months'] === 12;
 });
 
 check('il prezzo in breve mostra lo scontato quando vale', fn () =>

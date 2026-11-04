@@ -61,16 +61,15 @@ Un piano ha uno o più prezzi, una riga per prezzo:
 * **Nome**: «Mensile», «Annuale».
 * **Prezzo**: IVA inclusa o esclusa come i prezzi del catalogo
   (*Impostazioni → Prezzi del catalogo*).
-* **Ricorrenza**: ogni quanto si rinnova, «Mese» o «Anno».
+* **Addebito**: ogni quanto si paga il prezzo: Mensile, Bimestrale,
+  Trimestrale, Semestrale o Annuale. Il prezzo è l'importo di ogni addebito:
+  «Trimestrale» a 120 € vuol dire 120 € ogni tre mesi.
 * **Una tantum**: un importo che si paga una volta sola, col primo addebito.
 * **Stato**: un prezzo spento non si propone più, ma resta a chi lo usa.
 
 Con **Compila le informazioni avanzate** compaiono anche:
 
 * **Prezzo scontato**: se più basso del prezzo, vince.
-* **Addebito**: ogni quanto si paga un prezzo con ricorrenza «Mese»:
-  Mensile, Bimestrale, Trimestrale, Semestrale o Annuale. Con «Anno» non
-  conta: si paga una volta l'anno.
 * **Vincolo (mesi)**: per quanti mesi il cliente si impegna. Zero vuol dire
   nessun vincolo. Una disdetta durante il vincolo vale alla fine del vincolo.
 * **Prova (giorni)**: i giorni gratuiti prima del primo addebito. Una prova si
