@@ -6,6 +6,7 @@ use RuntimeException;
 use Throwable;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
+use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
 /**
  * La foto di una cella «Immagine»: scaricata da un indirizzo https e messa in
@@ -46,7 +47,7 @@ final class RemoteImage
         $url = trim($url);
 
         if (!self::isHttps($url)) {
-            throw new RuntimeException(__t('gestionale.errors.import.image_https'));
+            throw new RuntimeException(UserError::make('import.image_https')->getMessage());
         }
 
         $base = md5($url);
@@ -66,19 +67,19 @@ final class RemoteImage
         $extension = self::TYPES[$type] ?? null;
 
         if ($extension === null) {
-            throw new RuntimeException(__t('gestionale.errors.import.image_type'));
+            throw new RuntimeException(UserError::make('import.image_type')->getMessage());
         }
 
         $dir = rtrim((string) ($GLOBALS['ROOT'] ?? (defined('ROOT') ? constant('ROOT') : '')), '/').'/assets/upload'.ProductImages::folder();
 
         if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
-            throw new RuntimeException(__t('gestionale.errors.import.image_save'));
+            throw new RuntimeException(UserError::make('import.image_save')->getMessage());
         }
 
         $name = $base.'.'.$extension;
 
         if (@file_put_contents($dir.$name, $bytes) === false) {
-            throw new RuntimeException(__t('gestionale.errors.import.image_save'));
+            throw new RuntimeException(UserError::make('import.image_save')->getMessage());
         }
 
         $row = [
@@ -103,7 +104,7 @@ final class RemoteImage
         if (empty($result->success) || (int) ($result->insert_id ?? 0) === 0) {
             @unlink($dir.$name);
 
-            throw new RuntimeException(__t('gestionale.errors.import.image_save'));
+            throw new RuntimeException(UserError::make('import.image_save')->getMessage());
         }
 
         return (int) $result->insert_id;
@@ -134,11 +135,11 @@ final class RemoteImage
         }
 
         if ($bytes === '') {
-            throw new RuntimeException(__t('gestionale.errors.import.image_download'));
+            throw new RuntimeException(UserError::make('import.image_download')->getMessage());
         }
 
         if (strlen($bytes) > self::MAX_BYTES) {
-            throw new RuntimeException(__t('gestionale.errors.import.image_size'));
+            throw new RuntimeException(UserError::make('import.image_size')->getMessage());
         }
 
         return $bytes;
@@ -168,7 +169,6 @@ final class RemoteImage
 
         $ok = curl_exec($handle);
         $status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
-        curl_close($handle);
 
         if (strlen($bytes) > self::MAX_BYTES) {
             return $bytes;
