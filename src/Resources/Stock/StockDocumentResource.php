@@ -679,7 +679,7 @@ abstract class StockDocumentResource extends GestionaleResource
 
         // Sul carico le copie sono i pezzi delle righe: la finestra non le chiede.
         if (static::type() === 'receipt') {
-            $html .= LabelDialog::modal(LabelDialog::url(static::slug(), static::path(), $id), false);
+            $html .= LabelDialog::modal(LabelDialog::url(static::slug(), static::path(), $id));
         }
 
         return $html.'<script>

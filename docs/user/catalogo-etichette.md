@@ -9,31 +9,27 @@ icon: barcode
 
 ## Da dove si stampano
 
-Il bottone **Etichette** è in alto in tre pagine:
-
-- **la scheda dell'articolo**: un'etichetta per ogni variante attiva;
-- **la scheda della variante**: le etichette di quella sola;
-- **un carico** (Magazzino → Carichi): un'etichetta per ogni pezzo delle righe,
+- **Catalogo → Prodotti** (non in *Catalogo → Abbonamenti*): il bottone **Etichette** in alto apre il pannello di
+  stampa. Scegli i prodotti, o solo alcune varianti, e crei un unico PDF.
+- **Un carico** (Magazzino → Carichi): un'etichetta per ogni pezzo delle righe,
   quelli contati o, se non li hai ancora contati, quelli attesi.
 
-Il bottone apre una finestra; **Crea il PDF** lo apre in una scheda nuova del
-browser, pronto da stampare.
+**Crea il PDF** lo apre in una scheda nuova del browser, pronto da stampare.
 
-## Il formato
+## Cosa si sceglie nel pannello
 
-Il foglio o il rotolo che hai in stampante si sceglie una volta sola, in
-**Set Up → Impostazioni**, riquadro **Etichette**: da lì ogni PDF esce in quel
-formato. La finestra di stampa lo ricorda soltanto.
-
-## Cosa si sceglie nella finestra
-
-- **Da stampare**: nome dell'articolo, variante, SKU, prezzo, codice a barre.
+- **Prodotti e varianti**: scrivi per cercare. Un prodotto stampa tutte le sue
+  varianti attive; per uno con più varianti puoi scegliere anche le singole
+  («Maglia — Rossa S»). Esce **una etichetta per variante**, anche se la scegli
+  due volte. Gli abbonamenti non ci sono: non hanno niente da etichettare.
+- **Da stampare**: nome del prodotto, variante, SKU, prezzo, codice a barre.
   Togli quello che non ti serve; se togli tutto si stampano i campi di partenza.
-- **Copie per variante**: quante etichette uguali per ogni variante. Nel carico
-  non c'è, perché le copie sono i pezzi.
 - **Prima casella libera**: per riusare un foglio A4 già cominciato. Le
   caselle si contano da sinistra a destra, riga per riga, partendo da 1. Con un
   rotolo non c'è.
+
+Il foglio o il rotolo è quello scelto in **Set Up → Impostazioni**, riquadro
+**Etichette**: ogni PDF esce in quel formato.
 
 ## I formati
 

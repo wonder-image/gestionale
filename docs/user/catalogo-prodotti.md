@@ -46,7 +46,9 @@ domani correggi il nome: i link che qualcuno ha salvato continuano a funzionare.
 ## L'elenco e la scheda
 
 **Catalogo → Prodotti** è l'elenco: la foto, il nome, lo SKU, il prezzo e
-quante opzioni ha. Il prezzo è quello che si paga — dove c'è lo sconto trovi il
+quante opzioni ha. Ci sono i prodotti e i multiprodotti; gli abbonamenti hanno
+la loro voce, **Catalogo → Abbonamenti**. La voce *Prodotti* c'è quando la
+funzionalità **Prodotto** è accesa (vedi [Funzionalità](funzionalita.md)). Il prezzo è quello che si paga — dove c'è lo sconto trovi il
 pieno barrato accanto allo scontato, e quando le opzioni costano diverso è
 scritto *da 19,90 €*.
 
@@ -55,9 +57,10 @@ Lo **stato** è **Pubblicato** (l'articolo si vede nel negozio) oppure **Bozza**
 l'articolo.
 
 Con **Filtri** restringi l'elenco per **stato**, **marchio** e **categoria**
-(scegliendo una categoria entrano anche le sue sottocategorie); se hai i
-multiprodotti c'è anche **Tipo**, per vedere solo i prodotti o solo i
-multiprodotti. **Cerca** trova per nome e per SKU.
+(scegliendo una categoria entrano anche le sue sottocategorie). **Cerca** trova
+per nome e per SKU. Prodotti, multiprodotti e abbonamenti stanno tutti in
+questo elenco, mescolati: li distingue l'icona accanto al nome. In *Catalogo*
+non ci sono voci a parte per multiprodotti e abbonamenti.
 
 Il nome apre la **scheda in lettura**, che ha per titolo il nome dell'articolo:
 si guarda e basta, senza il rischio di cambiare qualcosa mentre si controlla. Ci

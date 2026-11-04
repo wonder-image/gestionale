@@ -35,7 +35,6 @@ use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Sku;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
-use Wonder\Plugin\Gestionale\Support\Labels\LabelDialog;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Plugin\Gestionale\Support\Stock\Adjustment;
@@ -434,9 +433,6 @@ class ProductResource extends ProductModelResource
             // Senza un'opzione aperta non c'è niente da rettificare, e un
             // nodo vuoto lascerebbe comunque la sua colonna.
             ...($finestra !== '' ? [RichText::make($finestra)->tag('div')->columnSpan(12)] : []),
-            ...(($etichette = LabelDialog::modal(LabelDialog::url(static::slug(), static::path(), $productId))) !== ''
-                ? [RichText::make($etichette)->tag('div')->columnSpan(12)]
-                : []),
         ])->columns(12)->columnSpan(12);
 
         $fornitori = static::supplierMode($productId);
@@ -912,13 +908,7 @@ HTML;
             ->titles([
                 'list' => 'Varianti',
                 'edit' => 'Modifica variante',
-            ])
-            ->actions('edit', static fn (array $item): array => LabelDialog::actions());
-    }
-
-    public static function registerBackendRoutes(string $rootApp, string $slug): void
-    {
-        LabelDialog::route($slug, 'product', 'catalogo');
+            ]);
     }
 
     public static function permissionSchema(): PermissionSchema

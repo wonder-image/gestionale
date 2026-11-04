@@ -116,6 +116,16 @@ i coupon, la tabella degli utilizzi; per le campagne l'anteprima e l'avviso di s
 Il form di modifica ha solo i campi. Le parti condivise (riga di dettaglio, canali, ambito,
 link di modifica) stanno in `PromotionSheet`.
 
+Nella scheda del coupon utilizzi e codici sono tabelle del core (`Table`, righe via API, con
+ricerca, filtro, ordinamento e pagine), non HTML scritto a mano. Le danno due Resource senza
+pagina, menu né API, come `CampaignProductTableResource`: `CouponRedemptionTableResource` e
+`CouponCodeTableResource`, ognuna con `embed($couponId)` che ripiega su una frase se non ci
+sono righe o la tabella non si costruisce. Ordine e data d'uso di un codice sono sottoquery
+in `TableLayoutSchema::select()` (l'utilizzo più recente non rilasciato), così si ordinano;
+il filtro «Liberi» / «Usati» è un `filterQuery` con `EXISTS`. La colonna di destra (span 4)
+ha Stato (`deadlineLabel`), Numeri (`usageHtml`, `Coupons::discountGranted`, codici
+generati/usati/liberi), Cumulo, Azioni (`Button` a tutta larghezza), Dove vale e Note.
+
 ## Canali di vendita
 
 `Support\Sales\Channels` legge le funzionalità `online_sales`, `office_sales` e `pos` e dice

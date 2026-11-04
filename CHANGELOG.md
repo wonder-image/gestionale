@@ -6,6 +6,44 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Etichette da un pannello solo** (#116): il bottone **Etichette** sta in
+  *Catalogo → Prodotti* e apre una finestra dove si scelgono prodotti e
+  varianti (`items[]`, `m<id>` / `p<id>`, in POST con CSRF sulla rotta
+  `labels-selection`); una etichetta per variante. Tolti il bottone dalle
+  schede del prodotto e della variante, le loro rotte `{id}/etichette/`, il
+  campo **Copie per variante** e la riga che nominava il formato: il formato
+  resta quello delle Impostazioni. Il carico stampa come prima.
+- **La scheda dell'abbonamento è disegnata come quella dell'ordine.** Testata
+  con codice, data, canale e azioni (*Proforma*, *Aggiungi servizio*,
+  *Disdici*, *Rimanda il proforma*, *Altro → Annulla*), due colonne con
+  cliente, fatturazione, totali (con l'imponibile) e periodo, e sotto le
+  sezioni *Servizi*, *Pagamenti e rinnovi*, *Storia dei servizi* e *Storico*
+  con `Table`/`TableColumn`. `OrderSectionResource` ha `$foreignKey`, per le
+  tabelle legate a un abbonamento.
+- **Interruttore «Prodotto» e voce «Abbonamenti» in Catalogo.** Nuova
+  funzionalità `products` (area Catalogo, accesa di serie con la nuova chiave
+  `default` del catalogo: `FeatureState::defaults()`), che governa la voce
+  *Catalogo → Prodotti* e la creazione dei prodotti singoli
+  (`product.products_off`); non si spegne con prodotti singoli nel catalogo
+  (`feature.products_in_use`). `bundles` la richiede. `subscriptions` passa
+  dall'area Vendite a Catalogo e torna la voce *Catalogo → Abbonamenti*
+  (`SubscriptionProductsResource`, solo navigazione). L'elenco ha due viste,
+  `?vista=prodotti|abbonamenti` (`ProductModelResource::VIEWS`,
+  `viewTypes()`, `typeListUrl()`), sempre senza filtro Tipo; Multiprodotti
+  resta senza voce.
+- **Scheda del coupon con le tabelle del core** (gestionale#113): utilizzi e
+  codici generati usano `Table` (ricerca, filtri valido/rilasciato e
+  liberi/usati, ordinamento, pagine) con due Resource senza pagina,
+  `CouponRedemptionTableResource` e `CouponCodeTableResource`, al posto delle
+  tabelle HTML. La colonna di destra mostra stato e scadenza, utilizzi con la
+  barra, sconto concesso (`Coupons::discountGranted`), codici
+  generati/usati/liberi, cumulo e le azioni (Modifica, Genera e Scarica i
+  codici).
+- **In Catalogo solo «Prodotti».** Tolte le voci di menu «Multiprodotti» e
+  «Abbonamenti» (`BundleProductsResource`, `SubscriptionProductsResource`,
+  solo navigazione) e `ProductModelResource::typeListUrl()`. L'elenco dei
+  prodotti non ha più il filtro **Tipo**: i tipi stanno insieme, distinti
+  dall'icona; multiprodotti e abbonamenti si creano dal menu di «+ Aggiungi».
 - **L'abbonamento è un tipo di prodotto.** Il piano non ha più una pagina
   sua: in *Catalogo → Prodotti* «+ Aggiungi Abbonamento» crea un prodotto di
   tipo `subscription`, con foto, tag, categorie, URL e SEO come gli altri. La

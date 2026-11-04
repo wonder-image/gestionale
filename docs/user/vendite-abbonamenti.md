@@ -17,7 +17,7 @@ rinnovo non crea un ordine, crea un pagamento.
 
 Le pagine sono due:
 
-* **Catalogo → Prodotti**: cosa vendi. Un abbonamento (il «piano») è un
+* **Catalogo → Abbonamenti**: cosa vendi. Un abbonamento (il «piano») è un
   prodotto di tipo **Abbonamento**, con i suoi prezzi ricorrenti e i suoi
   metadata (i limiti del piano);
 * **Vendite → Abbonamenti**: chi è abbonato, a cosa, e quando rinnova.
@@ -27,8 +27,8 @@ Le pagine sono due:
 
 ## I piani
 
-In *Catalogo → Prodotti*, **«+ Aggiungi Abbonamento»** crea un prodotto di tipo
-*Abbonamento*. Il tipo si sceglie alla creazione e non cambia. La scheda è
+In *Catalogo → Abbonamenti*, **+ Aggiungi** crea un prodotto di tipo
+*Abbonamento*, che compare in questa lista. Il tipo si sceglie alla creazione e non cambia. La scheda è
 quella di un prodotto, senza quello che a un servizio non serve: magazzino,
 spedizione, lotti, varianti, confezione, resi e unità di misura. Restano:
 
@@ -151,16 +151,21 @@ Gli stati:
 «In prova», «Attivo» e «Da pagare» sono gli abbonamenti **in corso**: valgono
 i limiti del piano, il piano non si elimina e la funzionalità non si spegne.
 
-Cliccando sul codice si apre la scheda:
+Cliccando sul codice si apre la scheda, disegnata come quella dell'ordine:
 
-* **Abbonamento**: stato, cliente, canale, come si paga, se rinnova da solo;
-* **Periodo**: inizio, periodo in corso, prossimo rinnovo, fine della prova e
-  del vincolo, disdetta;
-* **Importi del periodo**: subtotale, sconto del coupon, IVA, totale;
-* **Servizi**: le righe, con prezzo, quantità, personalizzazioni e prossimo
-  rinnovo di ognuna;
-* **Pagamenti**, **Storia dei servizi** (aggiunti, tolti, cambiati, corretti) e
-  **Storia** degli stati.
+* in testata il codice, la data e il canale, e a destra le azioni: **Proforma**,
+  **Aggiungi servizio**, **Disdici**, **Rimanda il proforma** e, nel menu
+  **Altro**, **Annulla**;
+* a sinistra **stato**, **pagamento**, **rinnovo automatico**, **cliente**
+  (con email e telefono), **fatturazione**, **piano**, **metodo di pagamento**
+  e **nota**;
+* a destra **Totali del periodo** (servizi, sconto e coupon, imponibile, IVA,
+  totale) e **Periodo** (inizio, periodo in corso, prossimo rinnovo, fine della
+  prova e del vincolo, disdetta);
+* sotto, a sezioni che si aprono e chiudono: **Servizi** (le righe, con prezzo,
+  quantità, personalizzazioni e prossimo rinnovo di ognuna), **Pagamenti e
+  rinnovi**, **Storia dei servizi** (aggiunti, tolti, cambiati, corretti) e
+  **Storico** degli stati.
 
 ## Abbonamenti online
 
@@ -169,7 +174,11 @@ vendita*; chiede *Vendita online* e *Abbonamenti*) il sito ha la pagina dei
 piani, e il cliente si abbona da solo:
 
 1. sceglie un prezzo nella scheda dell'abbonamento o nella pagina dei piani;
-   serve un **account**. Il
+   serve un **account**. Nella scheda il prezzo scelto sta sotto il nome col
+   suo periodo («30,00 €/Anno», «3,00 €/Mese»), col prezzo pieno barrato se
+   è scontato, e cambia quando il cliente sceglie un'altra opzione; nelle
+   card del catalogo c'è il prezzo più basso, «Da 3,00 €/Mese» se i prezzi
+   sono più d'uno. Il
    servizio compare nel **carrello** e nel carrello laterale insieme ai
    prodotti, e da lì il cliente lo toglie con **Rimuovi** (togliendo un
    servizio si tolgono anche quelli che si appoggiano a lui). Nel checkout
@@ -250,7 +259,8 @@ coupon. Niente Stripe: il cliente paga come per un ordine da ufficio.
   «non pagato»* (15 di partenza) diventa *non pagato*: non si aprono più periodi
   finché non paga. Annullarlo lo decidi tu.
 
-Dalla scheda dell'abbonamento, nella card **Servizi**:
+Dalla scheda dell'abbonamento (**Aggiungi servizio** in testata, le altre nel
+menu ⋯ della riga in **Servizi**):
 
 * **Aggiungi servizio**: piano e prezzo, quantità, la riga a cui si appoggia e
   le personalizzazioni. Il **conguaglio** sceglie come si paga il pezzo fino al

@@ -38,8 +38,9 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Preventivi | Vendite | Preventivi con PDF e revisioni: accettato, il preventivo diventa un ordine da ufficio. | Ordini, Vendita in ufficio |
 | Resi | Vendite | Richiesta, approvazione, motivo e ricarico a magazzino. | Ordini |
 | DDT | Vendite | Documento di trasporto per le consegne, con i lotti e il PDF. | Ordini |
-| Abbonamenti | Vendite | Piani, rinnovi e cambio piano. | — |
-| Multiprodotto | Catalogo | Prodotti composti da altri prodotti: vendendoli si scaricano i componenti. | — |
+| Prodotto | Catalogo | Prodotti singoli nel catalogo: la voce Prodotti del menu. Spento, restano gli abbonamenti. | — |
+| Abbonamenti | Catalogo | Piani, rinnovi e cambio piano: la voce Abbonamenti del catalogo. | — |
+| Multiprodotto | Catalogo | Prodotti composti da altri prodotti: vendendoli si scaricano i componenti. | Prodotto |
 | Personalizzazione | Catalogo | Campi compilati al momento della vendita, con eventuale sovrapprezzo, sui prodotti e sui piani degli abbonamenti. | Ordini o Abbonamenti |
 | Articoli suggeriti | Scheda prodotto | Articoli da comprare insieme, scelti a mano nella scheda: il sito li propone nella scheda e nel carrello. | — |
 | Articoli alternativi | Scheda prodotto | Articoli da proporre al posto di un altro, scelti a mano nella scheda. | — |
@@ -118,3 +119,9 @@ funzione ha bisogno di altre funzioni, si accendono insieme.
 
 Si può spegnere: le pagine spariscono dal menu e i dati restano dove sono. Se
 un domani la riaccendi, ritrovi tutto com'era.
+
+Alcune non si spengono finché servono: **Prodotto** (il box *Catalogo*) si
+spegne solo quando nel catalogo non ci sono più prodotti singoli. Spento, la
+voce *Catalogo → Prodotti* sparisce e «+ Aggiungi» non crea più prodotti;
+restano gli abbonamenti, in *Catalogo → Abbonamenti*. Anche **Multiprodotto**
+ha bisogno di Prodotto.
