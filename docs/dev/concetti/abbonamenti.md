@@ -72,6 +72,17 @@ if ($max !== null && is_numeric($max) && $progetti >= (int) $max) {
 
 Solo coupon con `applies_subscriptions` e sconto in percentuale o importo.
 
+`SubscriptionAmounts::oneTime($lines, $pricesIncludeTax)` dà l'**una tantum**
+(`gst_plan_prices.one_time_price` del prezzo del prodotto abbonamento, legato
+con `product_model_id`; vuoto o zero = niente; #76): per ogni riga il prezzo
+per la quantità, con l'aliquota del prodotto, senza coupon né sovrapprezzo.
+Si paga una volta col primo addebito, a inizio prova se c'è, mai su rinnovi,
+cambi o servizi aggiunti. Online va nella prima fattura di Stripe come voce
+senza ricorrenza e `OnlineSubscriptions::preview()` la mette in
+`first_charge_total` (in prova è tutto il primo addebito); da ufficio
+`OfficeSubscriptions` crea una rata a parte dalla data d'inizio, con il suo
+proforma. Il `total` dell'abbonamento resta il solo canone.
+
 ## Abbonamenti online (Stripe)
 
 Funzionalità `online_subscriptions` (richiede `online_sales` e

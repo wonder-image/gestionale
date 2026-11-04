@@ -68,7 +68,11 @@ Un piano ha uno o più prezzi, una riga per prezzo:
 * **Prezzo**: IVA inclusa o esclusa come i prezzi del catalogo
   (*Impostazioni → Prezzi del catalogo*).
 * **Ricorrenza**: ogni quanto si rinnova, «Mese» o «Anno».
-* **Una tantum**: un importo che si paga una volta sola, col primo addebito.
+* **Una tantum**: un importo che si paga una volta sola, col primo addebito
+  (vuoto o zero: niente). Con la prova si paga subito, all'inizio della prova;
+  il canone parte alla fine. Non torna sui rinnovi, sui cambi di prezzo e sui
+  servizi aggiunti dopo. Ha l'IVA del prodotto abbonamento e il coupon non lo
+  sconta.
 * **Stato**: un prezzo spento non si propone più, ma resta a chi lo usa.
 
 Con **Compila le informazioni avanzate** compaiono anche:
@@ -182,6 +186,12 @@ piani, e il cliente si abbona da solo:
 4. l'abbonamento compare *In prova* o *Attivo* appena Stripe conferma il
    pagamento; l'ordine dei prodotti risulta pagato con lo stesso pagamento.
 
+Con un prezzo che ha l'**una tantum**, il cliente la vede nella pagina degli
+abbonamenti («+ 49,00 € una tantum» sotto il canone) e nella scheda del
+prodotto, accanto al prezzo; nel checkout il primo addebito la comprende. In
+prova paga subito solo l'una tantum e il checkout dice quanto pagherà alla fine
+della prova.
+
 Lo stato lo decide Stripe: rinnovi pagati, rinnovi non riusciti e chiusure
 arrivano da soli, e ogni pagamento riuscito è una riga in **Pagamenti** della
 scheda. Il cliente riceve un'email quando l'abbonamento si attiva, quando un
@@ -228,6 +238,8 @@ coupon. Niente Stripe: il cliente paga come per un ordine da ufficio.
   «Bonifico 30 gg fine mese», una rata a fine del mese dopo l'inizio del
   periodo) e il cliente riceve il **proforma** in PDF, con l'importo, le
   scadenze e l'IBAN del conto. Il proforma non è una fattura.
+* L'**una tantum** del prezzo è una rata a parte, con scadenza la data
+  d'inizio (anche in prova), e il suo proforma: una riga per servizio.
 * Le rate si incassano dallo **Scadenzario** (*Vendite → Scadenzario*, con
   *Vendita in ufficio*) o dalla scheda dell'abbonamento, con **Registra**. Un
   acconto lascia il resto con la stessa scadenza.

@@ -22,6 +22,9 @@ versionamento semantico.
 - **Prezzi dei piani.** Colonne Nome, Prezzo, Ricorrenza (era «Ogni»), Una
   tantum, Stato; prezzo scontato, addebito (Mensile… Annuale, solo col mese), vincolo, prova e rinnovo
   dietro «Compila le informazioni avanzate». «Limiti» si chiama «Metadata».
+- **Una tantum nelle guide** (#76, dalla #134): quando si paga (primo
+  addebito, anche in prova), cosa non tocca (rinnovi, cambi, servizi aggiunti,
+  coupon), come compare online e da ufficio, detto col prodotto abbonamento.
 
 ### Corretto
 - **404 di PDF e CSV.** Gli scaricamenti del backend (PDF, stampa, proforma,
