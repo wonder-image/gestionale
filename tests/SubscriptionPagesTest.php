@@ -182,4 +182,27 @@ check('«Nuovo abbonamento» in testa all\'elenco è un Button del core verso il
         && str_contains($html, 'href="'.htmlspecialchars(OfficeSubscriptionResource::submitUrl(), ENT_QUOTES).'"');
 });
 
+check('il tipo fiscale del piano segue «Aliquote»: spenta non c\'è, accesa sì e senza «Nessuno» fra più tipi', function () {
+    $forza = static fn (?array $stato) => (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
+    $nomi = static fn (): array => array_map(static fn (object $campo): string => (string) $campo->name, PlanResource::formSchema());
+
+    $forza(['tax_categories' => false]);
+
+    try {
+        $spenta = $nomi();
+        PlanResource::formLayoutSchema();
+        $forza(['tax_categories' => true]);
+        $accesa = $nomi();
+        $campo = PlanResource::getInput('tax_category_id');
+    } finally {
+        $forza(null);
+    }
+
+    $scelte = array_keys((array) $campo->get('options'));
+
+    return !in_array('tax_category_id', $spenta, true)
+        && in_array('tax_category_id', $accesa, true)
+        && (count($scelte) <= 1 || !in_array('', $scelte, true));
+});
+
 summary();

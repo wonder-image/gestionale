@@ -10,6 +10,9 @@ versionamento semantico.
   al posto di «Ogni» e della ricorrenza, che si ricava dall'addebito), Una
   tantum, Stato; prezzo scontato, vincolo, prova e rinnovo dietro «Compila le
   informazioni avanzate». «Limiti» si chiama «Metadata».
+- **Tipo fiscale dei piani** come quello dei prodotti: parte dal predefinito,
+  è obbligatorio, niente «Nessuno» quando i tipi ci sono; con «Aliquote»
+  spenta non si vede e il piano prende il predefinito.
 
 ### Corretto
 - **404 di PDF e CSV.** Gli scaricamenti del backend (PDF, stampa, proforma,

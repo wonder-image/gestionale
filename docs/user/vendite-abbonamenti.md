@@ -29,8 +29,9 @@ Le pagine sono due:
 Un piano ha:
 
 * **Nome** e **descrizione**: li vede il cliente nella pagina dei piani del sito.
-* **Tipo fiscale**: dà l'aliquota IVA, come per i prodotti. Per ora vale solo
-  l'IVA italiana.
+* **Tipo fiscale**: dà l'aliquota IVA, come per i prodotti: parte dal tipo
+  predefinito ed è obbligatorio. Per ora vale solo l'IVA italiana. Con la
+  funzionalità «Aliquote» spenta il campo non c'è e il piano usa il predefinito.
 * **Sul sito**: «Nascosto» toglie il piano dalla pagina pubblica, ma lo lascia
   agli abbonati e all'ufficio.
 * **Stato**: un piano spento non si propone più a nessuno.

@@ -52,7 +52,6 @@ use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeValueResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\BrandResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CategoryResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\PackageResource;
-use Wonder\Plugin\Gestionale\Resources\Tax\TaxCategoryResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Attributes;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
@@ -9829,14 +9828,7 @@ HTML
         return $options;
     }
 
-    /**
-     * Il tipo fiscale: parte dal predefinito e si vede sempre.
-     *
-     * Su un articolo salvato il tipo che usa resta nell'elenco anche se nel
-     * frattempo è stato nascosto. Senza nessun tipo le imposte ricadono
-     * sull'aliquota di ripiego, e il campo lo dice invece di pretendere una
-     * scelta che non c'è.
-     */
+    /** Il tipo fiscale dell'articolo: quello già salvato resta fra le scelte. */
     protected static function taxCategoryField(int $modelId = 0): Input
     {
         $keep = 0;
@@ -9846,22 +9838,7 @@ HTML
             $keep = (int) ($row['tax_category_id'] ?? 0);
         }
 
-        $options = TaxCategories::options($keep);
-
-        if ($options === []) {
-            return FormField::key('tax_category_id')
-                ->select(['' => "Nessuno: vale l'aliquota di ripiego"])
-                ->value('')
-                ->label('Tipo fiscale')
-                ->quickCreate(TaxCategoryResource::class);
-        }
-
-        return FormField::key('tax_category_id')
-            ->select($options)
-            ->value((string) (TaxCategories::defaultId() ?: ''))
-            ->label('Tipo fiscale')
-            ->required()
-            ->quickCreate(TaxCategoryResource::class);
+        return static::taxCategoryInput($keep);
     }
 
     /**
