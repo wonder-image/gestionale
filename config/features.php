@@ -38,7 +38,7 @@ return [
     ],
     'products' => [
         'name' => 'Prodotto',
-        'description' => 'Prodotti singoli nel catalogo: la voce Prodotti del menu. Spento, restano gli abbonamenti.',
+        'description' => 'Prodotti singoli nel catalogo. Spento, in Catalogo → Prodotti restano multiprodotti e abbonamenti.',
         'area' => 'Catalogo',
         // I siti nati prima della voce vendevano già prodotti: nasce accesa.
         'default' => true,
@@ -46,7 +46,7 @@ return [
     ],
     'subscriptions' => [
         'name' => 'Abbonamenti',
-        'description' => 'Piani, rinnovi e cambio piano: la voce Abbonamenti del catalogo.',
+        'description' => 'Piani, rinnovi e cambio piano: il tipo Abbonamento in Catalogo → Prodotti.',
         'area' => 'Catalogo',
         'release' => 'G10',
     ],

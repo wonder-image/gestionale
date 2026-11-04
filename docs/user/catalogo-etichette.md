@@ -9,7 +9,7 @@ icon: barcode
 
 ## Da dove si stampano
 
-- **Catalogo → Prodotti** (non in *Catalogo → Abbonamenti*): il bottone **Etichette** in alto apre il pannello di
+- **Catalogo → Prodotti** (gli abbonamenti non hanno etichette): il bottone **Etichette** in alto apre il pannello di
   stampa. Scegli i prodotti, o solo alcune varianti, e crei un unico PDF.
 - **Un carico** (Magazzino → Carichi): un'etichetta per ogni pezzo delle righe,
   quelli contati o, se non li hai ancora contati, quelli attesi.

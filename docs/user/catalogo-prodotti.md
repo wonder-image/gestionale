@@ -46,11 +46,14 @@ domani correggi il nome: i link che qualcuno ha salvato continuano a funzionare.
 ## L'elenco e la scheda
 
 **Catalogo → Prodotti** è l'elenco: la foto, il nome, lo SKU, il prezzo e
-quante opzioni ha. Ci sono i prodotti e i multiprodotti; gli abbonamenti hanno
-la loro voce, **Catalogo → Abbonamenti**. La voce *Prodotti* c'è quando la
-funzionalità **Prodotto** è accesa (vedi [Funzionalità](funzionalita.md)). Il prezzo è quello che si paga — dove c'è lo sconto trovi il
-pieno barrato accanto allo scontato, e quando le opzioni costano diverso è
-scritto *da 19,90 €*.
+quante opzioni ha. Ci sono tutti i tipi insieme: prodotti, multiprodotti e
+abbonamenti. La colonna **Tipo** li distingue con un'icona e il filtro **Tipo**
+mostra un tipo solo (di base li vedi tutti). La voce *Prodotti* c'è finché è
+acceso almeno un tipo: **Prodotto**, **Multiprodotto** o **Abbonamenti** (vedi
+[Funzionalità](funzionalita.md)). Il prezzo è quello che si paga — dove c'è lo
+sconto trovi il pieno barrato accanto allo scontato, e quando le opzioni costano
+diverso è scritto *da 19,90 €*. Per un abbonamento il prezzo è ricorrente:
+*19,00 €/mese · 190,00 €/anno*.
 
 Lo **stato** è **Pubblicato** (l'articolo si vede nel negozio) oppure **Bozza**
 (lo prepari e non si vede). Un click sul badge lo cambia, senza aprire

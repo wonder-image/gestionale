@@ -155,7 +155,7 @@ check('un piano con due prezzi e due limiti: codici, numeri e posizioni', functi
             && round((float) $prezzi[0]['price'], 2) === 19.0 && (int) $prezzi[0]['trial_days'] === 14
             && (string) $prezzi[1]['billing_interval'] === 'year' && (int) $prezzi[1]['term_months'] === 12
             && round((float) $prezzi[1]['sale_price'], 2) === 150.0
-            && SubscriptionProductForm::pricesSummary($id) === 'Mensile 19,00 € · Annuale 150,00 €';
+            && SubscriptionProductForm::pricesSummary($id) === '19,00 €/mese · 150,00 €/anno';
     });
 });
 
