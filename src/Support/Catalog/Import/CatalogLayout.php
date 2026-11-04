@@ -342,7 +342,8 @@ final class CatalogLayout extends Layout
         }
 
         if ($change->action === 'created') {
-            $class::update(['deleted' => 'true'], $change->recordId);
+            // prepare() scarta «deleted»: si scrive diretto.
+            $class::query()->Update($class::$table, ['deleted' => 'true'], 'id', $change->recordId);
         } elseif ($change->action === 'updated' && $old !== []) {
             $class::update($old, $change->recordId);
         }
@@ -888,7 +889,9 @@ final class CatalogLayout extends Layout
     /** @param array<string, string|int> $replacements */
     private static function text(string $key, array $replacements = []): string
     {
-        return UserError::make('import.'.$key, $replacements)->getMessage();
+        $key = 'import.'.$key;
+
+        return UserError::make($key, $replacements)->getMessage();
     }
 
     /** @return list<array<string, mixed>> */
