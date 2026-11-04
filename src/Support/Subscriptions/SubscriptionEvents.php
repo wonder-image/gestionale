@@ -11,6 +11,8 @@ use Wonder\Plugin\Gestionale\Providers\Payments\PaymentEvent;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
+use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
+use Wonder\Plugin\Gestionale\Support\Payments\PaymentMismatch;
 use Wonder\Sql\Transaction;
 
 /**
@@ -34,6 +36,9 @@ final class SubscriptionEvents
 
     /** La nota del pagamento dell'una tantum a inizio prova (#76): non è un addebito del canone. */
     public const ONE_TIME_NOTE = 'Una tantum abbonamento';
+
+    /** Il riferimento della riga dell'ordine pagato nella prima fattura: `{fattura}:order`. */
+    public const ORDER_SUFFIX = ':order';
 
     public static function handles(string $type): bool
     {
@@ -159,16 +164,20 @@ final class SubscriptionEvents
         // Con la prova, la prima fattura porta solo l'una tantum (#76): si
         // registra, ma la prova resta.
         $oneTime = StripeSubscriptionData::invoiceOpensTrial($invoice);
+        // Pagato dentro la pagina insieme a un ordine: la sua parte è dell'ordine.
+        $order = $reference !== '' ? Ledger::byReference('stripe', $reference.self::ORDER_SUFFIX) : null;
+        $orderCents = $order !== null ? (int) round((float) $order['amount'] * 100) : 0;
+        $own = round(((int) round($paid['amount'] * 100) - $orderCents) / 100, 2);
 
         // La prova e gli importi a zero non sono pagamenti (§4).
-        if ($paid['amount'] > 0.0 && $reference !== '' && Ledger::byReference('stripe', $reference) === null) {
-            // La verità dell'importo è Stripe: si scrive quello della fattura.
+        if ($own > 0.0 && $reference !== '' && Ledger::byReference('stripe', $reference) === null) {
+            // La verità dell'importo è Stripe: si scrive quello della fattura, senza l'ordine.
             Payment::create([
                 'code' => Code::make(Payment::class, Codes::PAYMENT),
                 'type' => 'payment',
                 'subscription_id' => $id,
                 'customer_id' => (int) ($row['customer_id'] ?? 0),
-                'amount' => number_format($paid['amount'], 2, '.', ''),
+                'amount' => number_format($own, 2, '.', ''),
                 'currency' => $paid['currency'],
                 'status' => 'paid',
                 'provider' => 'stripe',
@@ -184,12 +193,29 @@ final class SubscriptionEvents
         if (!$oneTime && in_array((string) $row['status'], ['pending', 'trialing', 'past_due', 'unpaid'], true) && $paid['amount'] > 0.0) {
             SubscriptionStatus::move($id, 'active', $source, 'Pagamento riuscito');
         }
+
+        // Per ultimo: un ordine che non torna lascia l'evento «Da controllare»,
+        // con il pagamento dell'abbonamento già scritto.
+        if ($order !== null) {
+            if ($own < 0.0) {
+                throw new PaymentMismatch("Fattura {$reference}: pagati ".(int) round($paid['amount'] * 100)." centesimi, l'ordine ne chiede {$orderCents}.");
+            }
+
+            OnlinePayments::succeeded('stripe', $reference.self::ORDER_SUFFIX, $orderCents, $paid['currency'], (int) $order['order_id'], $source);
+        }
     }
 
     /** @param array<string, mixed> $invoice */
     private static function invoiceFailed(array $invoice, string $environment, string $source): void
     {
         $row = self::find(StripeSubscriptionData::invoiceSubscription($invoice), StripeSubscriptionData::invoiceLocalId($invoice), $environment);
+        $reference = (string) ($invoice['id'] ?? '');
+
+        // La prima fattura pagata in pagina con un ordine: l'ordine resta
+        // pagabile, il cliente riprova sulla stessa fattura.
+        if ($reference !== '' && Ledger::byReference('stripe', $reference.self::ORDER_SUFFIX) !== null) {
+            OnlinePayments::fail('stripe', $reference.self::ORDER_SUFFIX, 'Pagamento non riuscito', (string) ($invoice['attempt_count'] ?? ''));
+        }
 
         if ($row === null || !in_array((string) $row['status'], ['trialing', 'active', 'past_due'], true)) {
             return;

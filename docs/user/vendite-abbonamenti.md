@@ -156,11 +156,24 @@ Con la funzionalità **Abbonamenti online** (in *Funzionalità → Canali di
 vendita*; chiede *Vendita online* e *Abbonamenti*) il sito ha la pagina dei
 piani, e il cliente si abbona da solo:
 
-1. sceglie un prezzo nella pagina dei piani; serve un **account**;
-2. conferma i dati di fatturazione e, se ce l'ha, scrive un codice sconto;
-3. paga sulla pagina di **Stripe**, con la carta (anche con Link);
-4. torna sul sito: l'abbonamento compare *In prova* o *Attivo* appena Stripe
-   conferma il pagamento.
+1. sceglie un prezzo nella pagina dei piani; serve un **account**. Il
+   servizio compare nel **carrello** e nel carrello laterale insieme ai
+   prodotti, e da lì il cliente lo toglie con **Rimuovi** (togliendo un
+   servizio si tolgono anche quelli che si appoggiano a lui). Nel checkout
+   invece il servizio non ha il pulsante per toglierlo;
+2. nel checkout, anche insieme a dei prodotti, conferma i dati di
+   fatturazione e, se ce l'ha, scrive un codice sconto. Nel riepilogo il
+   servizio ha il nome del piano e sotto il prezzo col periodo
+   («9,90 €/Mese»); il totale è il **Totale di oggi** e sotto c'è quanto
+   pagherà dopo («Poi 9,90 €/Mese», con la prova «Poi 9,90 €/Mese dal …»);
+3. paga con la carta **dentro la pagina**, senza andare su Stripe: un solo
+   pagamento per i prodotti e il primo addebito dell'abbonamento. Con la prova
+   la carta si salva e il canone si addebita alla fine della prova. Con un
+   abbonamento nel carrello si paga **solo con la carta**: bonifico, PayPal,
+   Klarna, Satispay e gli altri metodi spariscono, perché non fanno addebiti
+   ricorrenti; tornano negli ordini di soli prodotti;
+4. l'abbonamento compare *In prova* o *Attivo* appena Stripe conferma il
+   pagamento; l'ordine dei prodotti risulta pagato con lo stesso pagamento.
 
 Lo stato lo decide Stripe: rinnovi pagati, rinnovi non riusciti e chiusure
 arrivano da soli, e ogni pagamento riuscito è una riga in **Pagamenti** della
@@ -181,7 +194,7 @@ Dall'**area cliente**, sezione *Abbonamenti*, il cliente:
 Alla fine del vincolo, se il prezzo ha «A fine vincolo passa a», l'abbonamento
 prende quel prezzo dal rinnovo dopo.
 
-Chi lascia la pagina di Stripe senza pagare lascia un abbonamento *In attesa*:
+Chi lascia il pagamento a metà lascia un abbonamento *In attesa*:
 dopo 24 ore si chiude da solo.
 
 > **Per chi installa.** Servono le chiavi di Stripe del sito e il webhook già

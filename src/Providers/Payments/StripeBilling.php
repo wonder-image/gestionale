@@ -79,6 +79,11 @@ final class StripeBilling implements SubscriptionGateway
         return $this->client()->checkout->sessions->retrieve($id, [], $this->options())->toArray();
     }
 
+    public function createSubscription(array $params, string $idempotencyKey): array
+    {
+        return $this->client()->subscriptions->create($params, $this->options($idempotencyKey))->toArray();
+    }
+
     public function retrieveSubscription(string $id): array
     {
         return $this->client()->subscriptions->retrieve($id, [], $this->options())->toArray();
@@ -87,6 +92,16 @@ final class StripeBilling implements SubscriptionGateway
     public function updateSubscription(string $id, array $params): array
     {
         return $this->client()->subscriptions->update($id, $params, $this->options())->toArray();
+    }
+
+    public function cancelSubscription(string $id): array
+    {
+        return $this->client()->subscriptions->cancel($id, [], $this->options())->toArray();
+    }
+
+    public function retrieveInvoice(string $id, array $params = []): array
+    {
+        return $this->client()->invoices->retrieve($id, $params, $this->options())->toArray();
     }
 
     public function createPortalSession(array $params): array

@@ -46,6 +46,13 @@ versionamento semantico.
 
 ### Aggiunto
 
+- **Abbonamenti pagati dentro la pagina.** `OnlineSubscriptions::startInPage()`
+  crea l'abbonamento Stripe con `default_incomplete` e restituisce il client
+  secret per il Payment Element (`payment`, o `setup` con la prima fattura a
+  zero). Un ordine del negozio si paga nella stessa prima fattura: `invoice.paid`
+  divide l'importo fra abbonamento e ordine (riferimento `{fattura}:order`),
+  `invoice.payment_failed` lascia l'ordine pagabile. Nuovi
+  `SubscriptionGateway::createSubscription()` e `StripeCatalog::orderProduct()`.
 - **Etichette con codice a barre** in PDF (#116), da stampare dalla scheda
   dell'articolo, dalla variante e dal carico: EAN-13/EAN-8 col codificatore del
   core, fogli A4 da 24, 40 e 65 e rotoli termici 50 × 30 e 40 × 25, campi e

@@ -74,6 +74,16 @@ Funzionalità `online_subscriptions` (richiede `online_sales` e
 - **`OnlineSubscriptions`**:
   - `start()` crea l'abbonamento `pending` e la Checkout Session (metadati
     `subscription_id`);
+  - `startInPage($customer, $items, $billing, $coupon, $orderId = 0)` crea
+    l'abbonamento `pending` e quello di Stripe con
+    `payment_behavior: default_incomplete`, per pagare dentro la pagina del
+    sito (Payment Element). L'una tantum e, se c'è, l'ordine (`awaiting_payment`,
+    dello stesso cliente, con la riga Stripe `pending` o `failed`) vanno in
+    `add_invoice_items`: la prima fattura li paga insieme. Restituisce
+    `client_secret` e `intent`: `payment` (dalla `confirmation_secret` della
+    fattura) o `setup` quando la prima fattura è a zero (`pending_setup_intent`).
+    La riga di pagamento dell'ordine prende il riferimento
+    `{fattura}:order` (`SubscriptionEvents::ORDER_SUFFIX`);
   - `changePlan()`, `cancel()`, `portalUrl()`;
   - `reconcile()` (oraria, dentro `StripeReconcileTask`) e `commitments()`
     (`SubscriptionCommitmentTask`).
@@ -90,7 +100,11 @@ Funzionalità `online_subscriptions` (richiede `online_sales` e
   cambio dell'elenco va rifatto «Collega webhook» in ogni ambiente.
 - **Pagamenti**: `invoice.paid` scrive una riga di `gst_payments` già `paid`,
   con `subscription_id`, `order_id = 0` e `provider_reference` = id della
-  fattura.
+  fattura. Se la fattura paga anche un ordine (c'è la riga `{fattura}:order`),
+  l'abbonamento prende l'importo meno quello dell'ordine e l'ordine passa da
+  `OnlinePayments::succeeded()`, con tutti i suoi controlli: un importo che non
+  torna lascia l'evento «Da controllare». `invoice.payment_failed` segna fallita
+  la riga dell'ordine, che resta pagabile.
 - **Stati**: li scrive solo `SubscriptionStatus::move()`, con la storia.
 
 ## Abbonamenti da ufficio

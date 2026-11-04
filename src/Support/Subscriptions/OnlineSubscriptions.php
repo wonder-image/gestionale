@@ -3,12 +3,14 @@
 namespace Wonder\Plugin\Gestionale\Support\Subscriptions;
 
 use DateTimeImmutable;
+use RuntimeException;
 use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
+use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Plan;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
@@ -23,6 +25,8 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
+use Wonder\Plugin\Gestionale\Support\Payments\OnlinePayments;
 use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Providers\ExternalReferences;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
@@ -30,8 +34,9 @@ use Wonder\Plugin\Gestionale\Support\Tax\TaxResolver;
 use Wonder\Sql\Transaction;
 
 /**
- * Gli abbonamenti online (G10 §2): sottoscrizione con Stripe Checkout, cambio
- * piano, disdetta, portale di Stripe, riallineamento e fine del vincolo.
+ * Gli abbonamenti online (G10 §2): sottoscrizione con Stripe Checkout o
+ * dentro la pagina del sito, cambio piano, disdetta, portale di Stripe,
+ * riallineamento e fine del vincolo.
  *
  * La verità dello stato la decidono le notifiche (`SubscriptionEvents`): qui
  * si crea l'abbonamento `pending`, si chiede a Stripe e si registra quello che
@@ -62,6 +67,113 @@ final class OnlineSubscriptions
      * @return array{subscription_id: int, code: string, url: string}
      */
     public static function start(int $customerId, array|string $items, array $billing, string $couponCode, array $urls): array
+    {
+        $made = self::create($customerId, $items, $billing, $couponCode);
+        ['row' => $row, 'gateway' => $gateway] = $made;
+        $id = (int) $row['id'];
+        // Il ritorno da Stripe porta il codice dell'abbonamento, che nasce solo adesso.
+        $urls = array_map(static fn ($url): string => str_replace('{SUBSCRIPTION}', rawurlencode((string) $row['code']), (string) $url), $urls);
+
+        try {
+            $session = self::checkoutSession($gateway, $row, $made['lines'], $made['item_ids'], $made['amounts']['one_time'], $made['coupon'], $made['trial'], $made['email'], $urls);
+        } catch (Throwable $error) {
+            Errors::report('stripe', 'subscription.checkout', $error, ['subscription' => $id]);
+            SubscriptionStatus::move($id, 'cancelled', 'system', 'Stripe non ha aperto il pagamento');
+
+            throw UserError::make('subscription.stripe_unavailable');
+        }
+
+        ExternalReferences::save('subscription', $id, 'stripe', 'checkout_session', (string) $session['id'], $gateway->environment());
+
+        return ['subscription_id' => $id, 'code' => (string) $row['code'], 'url' => (string) ($session['url'] ?? '')];
+    }
+
+    /**
+     * La sottoscrizione pagata dentro la pagina del sito (Payment Element):
+     * stesso abbonamento `pending` di {@see start()}, ma su Stripe nasce
+     * subito una Subscription `default_incomplete`, la cui prima fattura il
+     * cliente paga con il client secret.
+     *
+     * Con `$orderId` la prima fattura porta anche quanto resta da pagare
+     * dell'ordine del checkout, che deve essere in attesa di pagamento con
+     * una riga Stripe aperta: un solo addebito per tutto. La riga si lega a
+     * `{fattura}:order`, e `invoice.paid` divide l'importo.
+     *
+     * `intent` dice al sito come confermare: `payment` se la prima fattura ha
+     * un importo, `setup` se è a zero (prova senza altro da pagare).
+     * `invoice_id` e `environment` servono a {@see dropInPage()} se il
+     * cliente non paga e riprova.
+     *
+     * @param list<array{price_code: string, quantity?: int, customization?: array<int|string, mixed>, parent?: int}>|string $items
+     * @param array<string, mixed> $billing i campi `billing_` del form del sito
+     * @return array{subscription_id: int, code: string, client_secret: string, intent: string, invoice_id: string, environment: string}
+     */
+    public static function startInPage(int $customerId, array|string $items, array $billing, string $couponCode, int $orderId = 0): array
+    {
+        // L'ordine si controlla prima: un ordine non pagabile non lascia abbonamenti `pending`.
+        $payment = $orderId > 0 ? self::orderPayment($orderId, $customerId) : null;
+        $made = self::create($customerId, $items, $billing, $couponCode);
+        ['row' => $row, 'gateway' => $gateway] = $made;
+        $id = (int) $row['id'];
+
+        try {
+            $remote = self::inPageSubscription($gateway, $row, $made, $payment);
+            $invoice = is_array($remote['latest_invoice'] ?? null) ? $remote['latest_invoice'] : [];
+            Subscription::update(['provider_reference' => (string) $remote['id']], $id);
+
+            if ($payment !== null) {
+                Ledger::attach((int) $payment['id'], 'stripe', (string) ($invoice['id'] ?? '').SubscriptionEvents::ORDER_SUFFIX, $gateway->environment());
+            }
+        } catch (Throwable $error) {
+            Errors::report('stripe', 'subscription.in_page', $error, ['subscription' => $id, 'order' => $orderId]);
+            SubscriptionStatus::move($id, 'cancelled', 'system', 'Stripe non ha aperto il pagamento');
+
+            throw UserError::make('subscription.stripe_unavailable');
+        }
+
+        $setup = is_array($remote['pending_setup_intent'] ?? null) ? $remote['pending_setup_intent'] : [];
+        $paying = (int) ($invoice['amount_due'] ?? 0) > 0;
+        $secret = $paying ? (string) ($invoice['confirmation_secret']['client_secret'] ?? '') : (string) ($setup['client_secret'] ?? '');
+
+        return ['subscription_id' => $id, 'code' => (string) $row['code'], 'client_secret' => $secret, 'intent' => $paying ? 'payment' : 'setup', 'invoice_id' => (string) ($invoice['id'] ?? ''), 'environment' => $gateway->environment()];
+    }
+
+    /**
+     * L'ordine pagato in pagina torna al carrello: l'abbonamento nato con lui
+     * cade su Stripe (la prima fattura si annulla) e qui, così non tiene
+     * occupato il limite del cliente. Una fattura già pagata non si tocca.
+     */
+    public static function dropInPage(string $invoiceId, string $environment): void
+    {
+        $gateway = SubscriptionGateways::get($environment) ?? throw UserError::make('subscription.unavailable');
+        $invoice = $gateway->retrieveInvoice($invoiceId);
+        $status = (string) ($invoice['status'] ?? '');
+
+        if ($status === 'paid') {
+            throw new RuntimeException("Fattura {$invoiceId} già pagata.");
+        }
+
+        $reference = StripeSubscriptionData::invoiceSubscription($invoice);
+
+        // Scaduto o già chiuso su Stripe, la fattura è già annullata.
+        if ($reference !== '' && !in_array($status, ['void', 'uncollectible'], true)) {
+            $gateway->cancelSubscription($reference);
+        }
+
+        $row = SubscriptionEvents::find($reference, StripeSubscriptionData::invoiceLocalId($invoice), $environment);
+
+        if ($row !== null && (string) $row['status'] === 'pending') {
+            SubscriptionStatus::move((int) $row['id'], 'cancelled', 'system', 'Ordine tornato al carrello');
+        }
+    }
+
+    /**
+     * Abbonamento `pending` e righe, nella stessa transazione, con i
+     * controlli del sito: funzione accesa, cliente, numero di righe, limite.
+     *
+     * @return array{row: array<string, mixed>, item_ids: list<int>, lines: list<array<string, mixed>>, amounts: array<string, mixed>, coupon: ?array<string, mixed>, trial: int, email: string, gateway: SubscriptionGateway}
+     */
+    private static function create(int $customerId, array|string $items, array $billing, string $couponCode): array
     {
         $gateway = SubscriptionGateways::get();
 
@@ -121,22 +233,37 @@ final class OnlineSubscriptions
 
             return [$row, $itemIds];
         });
-        $id = (int) $row['id'];
-        // Il ritorno da Stripe porta il codice dell'abbonamento, che nasce solo adesso.
-        $urls = array_map(static fn ($url): string => str_replace('{SUBSCRIPTION}', rawurlencode((string) $row['code']), (string) $url), $urls);
 
-        try {
-            $session = self::checkoutSession($gateway, $row, $lines, $itemIds, $amounts['one_time'], $coupon, $trial, (string) ($contact['email'] ?? ''), $urls);
-        } catch (Throwable $error) {
-            Errors::report('stripe', 'subscription.checkout', $error, ['subscription' => $id]);
-            SubscriptionStatus::move($id, 'cancelled', 'system', 'Stripe non ha aperto il pagamento');
+        return [
+            'row' => $row,
+            'item_ids' => $itemIds,
+            'lines' => $lines,
+            'amounts' => $amounts,
+            'coupon' => $coupon,
+            'trial' => $trial,
+            'email' => (string) ($contact['email'] ?? ''),
+            'gateway' => $gateway,
+        ];
+    }
 
+    /**
+     * La riga di pagamento dell'ordine che entra nella prima fattura: ordine
+     * del cliente, in attesa di pagamento, con una riga Stripe aperta.
+     *
+     * @return array<string, mixed>
+     */
+    private static function orderPayment(int $orderId, int $customerId): array
+    {
+        $order = Order::findById($orderId);
+        $payment = OnlinePayments::payment($orderId);
+
+        if (!is_array($order) || (string) ($order['status'] ?? '') !== 'awaiting_payment' || (int) ($order['customer_id'] ?? 0) !== $customerId
+            || $payment === null || (string) $payment['provider'] !== 'stripe' || !in_array((string) $payment['status'], ['pending', 'failed'], true)
+            || (float) $payment['amount'] <= 0.0) {
             throw UserError::make('subscription.stripe_unavailable');
         }
 
-        ExternalReferences::save('subscription', $id, 'stripe', 'checkout_session', (string) $session['id'], $gateway->environment());
-
-        return ['subscription_id' => $id, 'code' => (string) $row['code'], 'url' => (string) ($session['url'] ?? '')];
+        return $payment;
     }
 
     /**
@@ -798,6 +925,107 @@ final class OnlineSubscriptions
         }
 
         return $gateway->createCheckoutSession($params, 'subscription-checkout-'.(string) $row['code']);
+    }
+
+    /**
+     * La Subscription di Stripe per il pagamento in pagina: righe ricorrenti
+     * come nel Checkout, con il coupon su ognuna perché non sconti l'ordine
+     * né l'una tantum; una tantum e ordine in `add_invoice_items`, solo
+     * nella prima fattura.
+     *
+     * @param array<string, mixed> $row
+     * @param array{lines: list<array<string, mixed>>, item_ids: list<int>, amounts: array<string, mixed>, coupon: ?array<string, mixed>, trial: int, email: string} $made
+     * @param array<string, mixed>|null $payment la riga di pagamento dell'ordine
+     * @return array<string, mixed>
+     */
+    private static function inPageSubscription(SubscriptionGateway $gateway, array $row, array $made, ?array $payment): array
+    {
+        $catalog = new StripeCatalog($gateway);
+        $inclusive = (string) $row['prices_include_tax'] === 'true';
+        $lines = array_values($made['lines']);
+        $slots = StripeCatalog::slots(array_map(static fn (array $line): array => ['plan_price_id' => (int) $line['price']['id'], 'surcharge' => (float) $line['surcharge']], $lines));
+        $discounts = $made['coupon'] !== null ? [['promotion_code' => $catalog->promotionCodeFor($made['coupon'])]] : [];
+        $items = [];
+        $once = [];
+
+        foreach ($lines as $index => $line) {
+            $item = [
+                'price' => $catalog->priceFor((int) $line['price']['id'], (float) $line['surcharge'], $slots[$index]),
+                'quantity' => (int) $line['quantity'],
+                // `syncItems` ritrova la riga da qui.
+                'metadata' => ['item_id' => (string) $made['item_ids'][$index]],
+            ];
+
+            if ((int) $line['tax_id'] > 0 && (float) $line['tax_rate'] > 0.0) {
+                $item['tax_rates'] = [$catalog->taxRateFor((int) $line['tax_id'], (float) $line['tax_rate'], $inclusive)];
+            }
+
+            if ($discounts !== []) {
+                $item['discounts'] = $discounts;
+            }
+
+            SubscriptionItem::update(['provider_price' => $item['price']], $made['item_ids'][$index]);
+            $items[] = $item;
+        }
+
+        // L'una tantum (#76): fuori dalla Subscription non c'è `product_data`, serve il prodotto del piano.
+        foreach ($made['amounts']['one_time']['lines'] ?? [] as $oneTime) {
+            $line = $lines[$oneTime['index']];
+            $item = [
+                'price_data' => [
+                    'currency' => 'eur',
+                    'product' => $catalog->productFor((int) $line['plan']['id']),
+                    'unit_amount' => (int) round((float) $oneTime['unit_price'] * 100),
+                    'tax_behavior' => $inclusive ? 'inclusive' : 'exclusive',
+                ],
+                'quantity' => (int) $line['quantity'],
+            ];
+
+            if ((int) $line['tax_id'] > 0 && (float) $line['tax_rate'] > 0.0) {
+                $item['tax_rates'] = [$catalog->taxRateFor((int) $line['tax_id'], (float) $line['tax_rate'], $inclusive)];
+            }
+
+            $once[] = $item;
+        }
+
+        $metadata = ['subscription_id' => (string) (int) $row['id'], 'subscription_code' => (string) $row['code']];
+
+        if ($payment !== null) {
+            // Quanto resta dell'ordine, IVA e sconti già dentro: una voce sola, senza aliquote.
+            $once[] = [
+                'price_data' => [
+                    'currency' => 'eur',
+                    'product' => $catalog->orderProduct(),
+                    'unit_amount' => (int) round((float) $payment['amount'] * 100),
+                    'tax_behavior' => 'inclusive',
+                ],
+                'quantity' => 1,
+                'metadata' => ['order_id' => (string) (int) $payment['order_id']],
+            ];
+            $metadata['order_id'] = (string) (int) $payment['order_id'];
+        }
+
+        $params = [
+            'customer' => $catalog->customerFor((int) $row['customer_id'], $made['email']),
+            'items' => $items,
+            // La prima fattura resta aperta finché il cliente non la paga dalla pagina.
+            'payment_behavior' => 'default_incomplete',
+            'payment_settings' => ['payment_method_types' => ['card', 'link'], 'save_default_payment_method' => 'on_subscription'],
+            'billing_mode' => ['type' => 'flexible'],
+            'metadata' => $metadata,
+            'expand' => ['latest_invoice.confirmation_secret', 'pending_setup_intent'],
+        ];
+
+        if ($once !== []) {
+            $params['add_invoice_items'] = $once;
+        }
+
+        if ($made['trial'] > 0) {
+            $params['trial_period_days'] = $made['trial'];
+            $params['metadata']['trial_days'] = (string) $made['trial'];
+        }
+
+        return $gateway->createSubscription($params, 'subscription-in-page-'.(string) $row['code']);
     }
 
     /**
