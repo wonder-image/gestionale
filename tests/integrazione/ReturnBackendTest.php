@@ -201,7 +201,7 @@ check('la scheda offre «Registra reso» solo con la funzionalità accesa e prim
     });
 });
 
-check('il pulsante apre la pagina dell\'ordine e porta con sé il ritorno all\'elenco, non alla scheda', function () {
+check('il pulsante porta come ritorno la scheda, che a sua volta torna all\'elenco', function () {
     return prova(static function (): bool {
         accendiFunzionalita(['orders', 'returns']);
         [$ordine] = ordineVenduto(3);
@@ -221,11 +221,13 @@ check('il pulsante apre la pagina dell\'ordine e porta con sé il ritorno all\'e
         $con = $href();
         unset($_GET['torna']);
 
-        // Il ritorno è l'elenco: la scheda lo aggiunge da sé alla fine, e un
-        // ritorno che fosse già la scheda si annida a ogni azione.
-        return str_contains($senza, '?ordine='.$ordine) && !str_contains($senza, 'torna=') && !str_contains($senza, '#')
-            && str_contains($con, '&torna='.rawurlencode('/backend/ordini/?page=2'))
-            && !str_contains($con, rawurlencode(OrderResource::detailUrl($ordine)));
+        // Freccia e salvataggio tornano alla scheda, col suo ritorno: un livello solo.
+        $scheda = OrderResource::detailUrl($ordine, '/backend/ordini/?page=2');
+
+        return str_contains($senza, '?ordine='.$ordine) && !str_contains($senza, '#')
+            && str_contains($senza, '&torna='.rawurlencode(OrderResource::detailUrl($ordine)))
+            && str_contains($con, '&torna='.rawurlencode($scheda))
+            && substr_count($con, 'torna') === 2;
     });
 });
 
