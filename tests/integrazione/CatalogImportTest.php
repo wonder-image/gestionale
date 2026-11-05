@@ -207,6 +207,34 @@ check('controllo: uno SKU usato da più prodotti del catalogo si ferma', functio
     return $esito['errors'] !== [] || fallito([$ambigui[0].': '.$esito['action']]);
 });
 
+check('controllo: tutta l\'esportazione con la colonna ID si ricarica senza errori, doppioni e SKU vuoti compresi', function () use ($layout, $export) {
+    $righe = [];
+    $line = 2;
+
+    foreach ($export as $r) {
+        $righe[] = riga(cella($r), $line++);
+    }
+
+    $esiti = $layout->validate($righe, new Context(1, 0));
+    $diversi = array_filter($esiti, static fn (array $e): bool => $e['action'] !== 'unchanged' || $e['errors'] !== []);
+
+    return $diversi === [] || fallito(array_map(static fn (array $e): string => $e['data']['_product_id'].' '.$e['data']['sku'].': '.$e['action'].' '.implode('; ', $e['errors']), array_slice($diversi, 0, 10)));
+});
+
+check('controllo: con l\'ID si cambia lo SKU, ma non con uno già di un altro prodotto', function () use ($layout, $nero, $perSku) {
+    $altro = (string) array_key_first(array_diff_key($perSku, [$nero['sku'] => true]));
+    $esiti = $layout->validate([
+        riga(['id' => $nero['id'], 'sku' => $nero['sku'].'-RINOMINATO'], 2),
+        riga(['id' => $nero['id'], 'sku' => $altro], 3),
+        riga(['id' => $nero['id'], 'sku' => ''], 4),
+    ], new Context(1, 0));
+
+    return $esiti[0]['action'] === 'update' && $esiti[0]['errors'] === [] && $esiti[0]['data']['_product_id'] === (string) $nero['id']
+        && $esiti[1]['errors'] !== []
+        && $esiti[2]['errors'] !== []
+        || fallito(array_map(static fn (array $e): string => $e['data']['sku'].': '.$e['action'].' '.implode('; ', $e['errors']), $esiti));
+});
+
 check('controllo: SKU doppio, numero sbagliato, tipo nuovo e codice articolo diverso', function () use ($layout, $nero) {
     $esiti = $layout->validate([
         riga(['sku' => $nero['sku'], 'price' => '12'], 2),
@@ -332,13 +360,13 @@ try {
             && (int) $prodotto['product_model_id'] === (int) $modello['id'];
     }));
 
-    check('giro completo: file → abbinamento → scrittura → annullo', fn () => prova(function () use ($nero, $iva) {
+    check('giro completo: file con ID → abbinamento → scrittura → annullo', fn () => prova(function () use ($nero, $iva) {
         $csv = ProductExport::csv([
-            ['sku' => $nero['sku'], 'price' => 77.0],
+            ['id' => $nero['id'], 'sku' => $nero['sku'], 'price' => 77.0],
             ['sku' => 'IMPORT-TEST-2', 'article' => 'Borraccia da prova', 'price' => 9.0],
         ], $iva, array_values(array_filter(
             ProductExport::columns($iva),
-            static fn ($c): bool => in_array($c->key, ['sku', 'article', 'price'], true)
+            static fn ($c): bool => in_array($c->key, ['id', 'sku', 'article', 'price'], true)
         )));
         $file = tempnam(sys_get_temp_dir(), 'wi-import').'.csv';
         file_put_contents($file, $csv);

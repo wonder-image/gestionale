@@ -62,7 +62,7 @@ final class CatalogLayout extends Layout
 
     /** Dove va ogni colonna, detto come nella scheda del prodotto. */
     private const FIELDS = [
-        'id' => 'Non si legge: lo decide il gestionale',
+        'id' => 'ID del prodotto nel gestionale: se c\'è, dice quale aggiornare anche se lo SKU è vuoto o ripetuto',
         'group' => 'Codice dell\'articolo: le righe con lo stesso codice sono versioni dello stesso articolo',
         'sku' => 'Codice della versione: dice quale prodotto aggiornare o creare',
         'ean' => 'EAN della versione',
@@ -173,6 +173,7 @@ final class CatalogLayout extends Layout
     public function validate(array $rows, Context $context): array
     {
         $export = $this->export($context);
+        $byId = $this->exportById($context);
         $models = $this->models($context);
         $attributes = $this->attributes($context);
         $seenSkus = [];
@@ -187,20 +188,32 @@ final class CatalogLayout extends Layout
             $group = trim((string) ($data['group'] ?? ''));
             $skuKey = mb_strtolower($sku, 'UTF-8');
             $groupKey = mb_strtolower($group, 'UTF-8');
-            $current = $export[$skuKey] ?? null;
+            // L'ID del file esportato vince sullo SKU: regge doppioni e SKU vuoti già in catalogo.
+            $id = (int) trim((string) ($row['data']['id'] ?? ''));
+            $byIdRow = $id > 0 ? ($byId[$id] ?? null) : null;
+            $current = $byIdRow ?? ($export[$skuKey] ?? null);
+            $sameSku = $byIdRow !== null && $skuKey === mb_strtolower(trim((string) $byIdRow['sku']), 'UTF-8');
 
             if ($sku === '') {
-                $errors[] = self::text('sku_missing');
+                if (!$sameSku) {
+                    $errors[] = self::text('sku_missing');
+                }
+            } elseif ($sameSku) {
+                // SKU invariato: un doppione già nel catalogo non è colpa del file.
             } elseif (isset($seenSkus[$skuKey])) {
                 $errors[] = self::text('sku_duplicate', ['line' => $seenSkus[$skuKey]]);
             } else {
                 $seenSkus[$skuKey] = $row['line'];
+
+                if ($byIdRow !== null && isset($export[$skuKey])) {
+                    $errors[] = self::text('sku_taken');
+                }
             }
 
             if ($current !== null) {
                 $mode = 'update';
 
-                if (!empty($current['_ambiguous'])) {
+                if ($byIdRow === null && !empty($current['_ambiguous'])) {
                     $errors[] = self::text('sku_ambiguous');
                 }
 
@@ -262,7 +275,7 @@ final class CatalogLayout extends Layout
     public function apply(array $data, Context $context): array
     {
         $mode = (string) ($data['_mode'] ?? '');
-        $current = $mode === 'update' ? ($this->export($context)[mb_strtolower(trim((string) $data['sku']), 'UTF-8')] ?? null) : null;
+        $current = $mode === 'update' ? ($this->exportById($context)[(int) ($data['_product_id'] ?? 0)] ?? null) : null;
         $changes = [];
 
         if ($mode === 'update') {
@@ -335,6 +348,8 @@ final class CatalogLayout extends Layout
         }
 
         $context->forget('catalog.export');
+        $context->forget('catalog.export_ids');
+        $context->forget('catalog.export_rows');
         $context->forget('catalog.models');
 
         return ['action' => $mode === 'update' ? 'update' : 'create', 'changes' => $changes];
@@ -407,10 +422,10 @@ final class CatalogLayout extends Layout
      */
     private function export(Context $context): array
     {
-        return $context->remember('catalog.export', static function (): array {
+        return $context->remember('catalog.export', function () use ($context): array {
             $bySku = [];
 
-            foreach (ProductExport::of(true)['rows'] as $row) {
+            foreach ($this->exportRows($context) as $row) {
                 $sku = mb_strtolower(trim((string) $row['sku']), 'UTF-8');
 
                 if ($sku === '') {
@@ -423,6 +438,30 @@ final class CatalogLayout extends Layout
 
             return $bySku;
         });
+    }
+
+    /**
+     * Le righe dell'esportazione per id del prodotto.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function exportById(Context $context): array
+    {
+        return $context->remember('catalog.export_ids', function () use ($context): array {
+            $byId = [];
+
+            foreach ($this->exportRows($context) as $row) {
+                $byId[(int) $row['id']] = $row;
+            }
+
+            return $byId;
+        });
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function exportRows(Context $context): array
+    {
+        return $context->remember('catalog.export_rows', static fn (): array => ProductExport::of(true)['rows']);
     }
 
     /** @return array<string, array<string, mixed>> gli articoli per codice in minuscolo */
