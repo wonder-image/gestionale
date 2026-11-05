@@ -153,6 +153,19 @@ versionamento semantico.
   `ErrorKeysTest` le trova.
 
 ### Aggiunto
+- **Listini per canale e regola in percentuale (#162).** Un listino può valere
+  su uno o più canali (sito, ufficio, portale B2B, cassa, eBay, marketplace,
+  Google, Meta; tabella `gst_price_list_channels`, un listino per canale) e
+  avere una regola per i prodotti senza riga: ricarico o sconto in percentuale
+  sul prezzo di catalogo (`price_rule`, `percent`). L'ordine è listino del
+  cliente → listino del canale → prezzo base; vince il primo listino che trova
+  il prodotto, una riga vince sulla percentuale, scaduti e spenti si saltano,
+  niente cumulo. `PriceLists::candidates()`, `loadAll()`, `resolve()`,
+  `headerOf()`, `forChannel()`, `assignChannels()`. `orders.price_list_id` e
+  ogni riga registrano il listino usato. I feed Google e Meta usano il listino
+  del loro canale. Nuovo tracciato `price_lists` («Prezzi di listino») per
+  cambiare i prezzi in blocco: aggiorna o aggiunge righe, non ne cancella.
+  Un listino con canali assegnati non si elimina.
 - **Importa nell'elenco dei prodotti (#84).** Il file dell'esportazione si
   ricarica: uno SKU che c'è si aggiorna (solo le celle cambiate), uno nuovo
   diventa una versione o un articolo, la giacenza si muove con causale

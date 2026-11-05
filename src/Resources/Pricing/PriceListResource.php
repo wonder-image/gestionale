@@ -12,6 +12,7 @@ use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\App\Support\Repeater;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
@@ -28,13 +29,18 @@ use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
+use Wonder\Plugin\Gestionale\Support\Pricing\Import\PriceListLayout;
+use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceListTransfer;
+use Wonder\Plugin\Gestionale\Support\Sales\Channels;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 
 /**
- * «Listini»: i prezzi riservati a un cliente (G1, `customer_price_lists`).
+ * «Listini»: i prezzi riservati a un cliente o a un canale di vendita
+ * (G1, `customer_price_lists`; canali e regola in percentuale #162).
  * Le righe stanno in un repeater: prodotto, quantità minima (lo scaglione) e
- * prezzo. Si scaricano e si ricaricano in csv o xlsx.
+ * prezzo. Si scaricano e si ricaricano in csv o xlsx. I prodotti senza riga
+ * seguono la regola: nessuna, ricarico o sconto in percentuale sul prezzo base.
  *
  * Un listino assegnato a clienti o ordini non si elimina: si spegne.
  */
@@ -45,6 +51,9 @@ final class PriceListResource extends GestionaleResource
 
     /** Le righe lette dal file caricato, scritte dopo il salvataggio. */
     private static ?array $imported = null;
+
+    /** I canali scelti nel form, scritti dopo il salvataggio. */
+    private static ?array $channels = null;
 
     public static function path(): string
     {
@@ -81,6 +90,9 @@ final class PriceListResource extends GestionaleResource
             'name' => 'Nome',
             'currency' => 'Valuta',
             'prices_include_tax' => 'Prezzi',
+            'price_rule' => 'Prodotti senza riga',
+            'percent' => 'Percentuale',
+            'channels' => 'Canali',
             'valid_from' => 'Dal',
             'valid_to' => 'Al',
             'active' => 'Stato',
@@ -99,6 +111,12 @@ final class PriceListResource extends GestionaleResource
                 ->select(['true' => 'IVA inclusa', 'false' => 'IVA esclusa'])
                 ->value('true')
                 ->label('Prezzi'),
+            FormField::key('price_rule')
+                ->select(['none' => 'Prezzo di catalogo', 'markup' => 'Ricarico in %', 'discount' => 'Sconto in %'])
+                ->value('none')
+                ->label('Prodotti senza riga'),
+            FormField::key('percent')->number()->decimal(2)->label('Percentuale'),
+            FormField::key('channels')->checkbox()->options(Channels::priceListChannels())->value([])->label('Canali'),
             FormField::key('valid_from')->dateInput()->label('Dal'),
             FormField::key('valid_to')->dateInput()->label('Al'),
             FormField::key('active')
@@ -137,7 +155,7 @@ final class PriceListResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Listino')
-                        ->tooltip('Si assegna dalla scheda del cliente. Vale se è attivo, fra le date (vuote = sempre) e se la valuta è quella dell\'ordine; altrimenti il cliente paga i prezzi di catalogo. «IVA inclusa» o «esclusa» dice come sono scritti i prezzi qui sotto.')
+                        ->tooltip('Si assegna dalla scheda del cliente o a uno o più canali qui sotto. Il listino del cliente viene prima di quello del canale. Vale se è attivo, fra le date (vuote = sempre) e se la valuta è quella dell\'ordine; altrimenti il cliente paga i prezzi di catalogo. «IVA inclusa» o «esclusa» dice come sono scritti i prezzi qui sotto.')
                         ->columnSpan(12),
                     static::getInput('name')->columnSpan(6),
                     static::getInput('currency')->columnSpan(2),
@@ -146,6 +164,14 @@ final class PriceListResource extends GestionaleResource
                     static::getInput('valid_from')->columnSpan(3),
                     static::getInput('valid_to')->columnSpan(3),
                     static::getInput('note')->columnSpan(6),
+                ])->columns(12)->columnSpan(12),
+                (new Card)->components([
+                    SectionTitle::make('Regola e canali')
+                        ->tooltip('La regola vale per i prodotti che non hanno una riga qui sotto, a ogni quantità: ricarico o sconto in percentuale sul prezzo pieno di catalogo (non su quello scontato). Una riga del prodotto vince sempre sulla regola. Un canale ha un solo listino: gli ordini e i feed di quel canale usano questo listino quando il cliente non ne ha uno suo.')
+                        ->columnSpan(12),
+                    static::getInput('price_rule')->columnSpan(4),
+                    static::getInput('percent')->columnSpan(2),
+                    static::getInput('channels')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
                     SectionTitle::make('Prezzi')
@@ -173,6 +199,9 @@ final class PriceListResource extends GestionaleResource
             TableColumn::key('customers')
                 ->text()
                 ->formatter(static fn (array $row): string => (string) (int) sqlCount(Contact::$table, 'price_list_id = '.(int) ($row['id'] ?? 0)." AND deleted = 'false'")),
+            TableColumn::key('channels')
+                ->text()
+                ->formatter(static fn (array $row): string => static::escape(static::channelLabels((int) ($row['id'] ?? 0)))),
             TableColumn::key('valid_to')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(static::validity($row))),
@@ -187,6 +216,12 @@ final class PriceListResource extends GestionaleResource
                 'delete',
             ]),
         ];
+    }
+
+    public static function tableLayoutSchema(): TableLayoutSchema
+    {
+        // «Importa» (#162): i prezzi di più listini da un file; i permessi li decide PriceListLayout::permits().
+        return parent::tableLayoutSchema()->importLayout(PriceListLayout::KEY);
     }
 
     public static function pageSchema(): PageSchema
@@ -326,10 +361,66 @@ final class PriceListResource extends GestionaleResource
             throw UserError::refusal('price_list.invalid_dates');
         }
 
+        $rule = (string) ($values['price_rule'] ?? 'none');
+        $rule = in_array($rule, PriceLists::RULES, true) ? $rule : 'none';
+        $percent = (float) (Numbers::fromForm($values['percent'] ?? null) ?? '0');
+
+        if ($rule !== 'none' && ($percent <= 0 || ($rule === 'discount' && $percent >= 100) || $percent > 999)) {
+            throw UserError::refusal($rule === 'discount' ? 'price_list.invalid_discount' : 'price_list.invalid_markup');
+        }
+
+        $values['price_rule'] = $rule;
+        $values['percent'] = $rule === 'none' ? '0' : number_format($percent, 2, '.', '');
+
+        static::$channels = static::requestedChannels($_POST['channels'] ?? ($values['channels'] ?? []));
+        static::checkChannels(static::$channels, $action === 'update' ? (int) ($oldValues['id'] ?? ($_GET['id'] ?? 0)) : 0);
+        unset($values['channels']);
+
         static::checkItems(Repeater::rowsFromRequest('items', (array) $_POST));
         static::$imported = static::uploadedRows();
 
         return $values;
+    }
+
+    /**
+     * I canali dal form, solo quelli noti.
+     *
+     * @return list<string>
+     */
+    public static function requestedChannels(mixed $value): array
+    {
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            $value = is_array($decoded) ? $decoded : ($value === '' ? [] : [$value]);
+        }
+
+        return array_values(array_intersect(array_keys(Channels::priceListChannels()), array_map('strval', (array) $value)));
+    }
+
+    /** Un canale ha un solo listino: se è già di un altro, si rifiuta. @param list<string> $channels */
+    private static function checkChannels(array $channels, int $priceListId): void
+    {
+        foreach ($channels as $channel) {
+            $owner = PriceLists::forChannelAny($channel);
+
+            if ($owner > 0 && $owner !== $priceListId) {
+                $found = PriceList::find(['id' => $owner]);
+                $name = is_array($found) && array_key_exists('id', $found) ? html_entity_decode((string) ($found['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8') : '#'.$owner;
+
+                throw UserError::refusal('price_list.channel_taken', [
+                    'channel' => Channels::priceListChannels()[$channel] ?? $channel,
+                    'list' => $name,
+                ]);
+            }
+        }
+    }
+
+    /** «Sito, Google Shopping», vuoto se nessuno. */
+    public static function channelLabels(int $priceListId): string
+    {
+        $labels = Channels::priceListChannels();
+
+        return implode(', ', array_map(static fn (string $channel): string => $labels[$channel] ?? $channel, PriceLists::channelsOf($priceListId)));
     }
 
     /** Le date senza ora; quelle «zero» di MySQL vuote. */
@@ -339,6 +430,12 @@ final class PriceListResource extends GestionaleResource
             if (array_key_exists($column, $values)) {
                 $values[$column] = static::day($values[$column]);
             }
+        }
+
+        $values['channels'] = PriceLists::channelsOf((int) ($values['id'] ?? 0));
+
+        if (($values['price_rule'] ?? 'none') === 'none' || (float) ($values['percent'] ?? 0) <= 0) {
+            $values['percent'] = '';
         }
 
         return $values;
@@ -377,11 +474,22 @@ final class PriceListResource extends GestionaleResource
     public static function afterStore(object $result, array $values = []): void
     {
         static::writeImported((int) ($result->insert_id ?? 0));
+        static::writeChannels((int) ($result->insert_id ?? 0));
     }
 
     public static function afterUpdate(int|string $id, object $result, array $values = []): void
     {
         static::writeImported((int) $id);
+        static::writeChannels((int) $id);
+    }
+
+    private static function writeChannels(int $priceListId): void
+    {
+        if ($priceListId > 0 && static::$channels !== null) {
+            PriceLists::assignChannels($priceListId, static::$channels);
+        }
+
+        static::$channels = null;
     }
 
     /** Quanti clienti e ordini lo usano. */
@@ -392,7 +500,8 @@ final class PriceListResource extends GestionaleResource
         }
 
         return (int) sqlCount(Order::$table, 'price_list_id = '.$id." AND deleted = 'false'")
-            + (int) sqlCount(Contact::$table, 'price_list_id = '.$id." AND deleted = 'false'");
+            + (int) sqlCount(Contact::$table, 'price_list_id = '.$id." AND deleted = 'false'")
+            + count(PriceLists::channelsOf($id));
     }
 
     /** Un listino in uso non si elimina: si spegne. */

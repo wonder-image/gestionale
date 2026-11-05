@@ -49,6 +49,7 @@ return [
     'import' => [
         'layouts' => [
             \Wonder\Plugin\Gestionale\Support\Catalog\Import\CatalogLayout::KEY => \Wonder\Plugin\Gestionale\Support\Catalog\Import\CatalogLayout::class,
+            \Wonder\Plugin\Gestionale\Support\Pricing\Import\PriceListLayout::KEY => \Wonder\Plugin\Gestionale\Support\Pricing\Import\PriceListLayout::class,
         ],
     ],
     // Classi del sito che estendono Extensions\GestionaleExtension (piano 4).

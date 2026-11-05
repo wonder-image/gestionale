@@ -6,6 +6,7 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductExport;
+use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
 use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 
 /**
@@ -17,6 +18,9 @@ use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
  * e foto) e il prezzo è quello che il cliente paga, IVA compresa e con la
  * campagna di sconto in corso.
  *
+ * Con un listino assegnato al canale del feed (`google`, `meta`, #162) il
+ * prezzo è quello del listino e la campagna non si applica, come nel carrello.
+ *
  * Tutto puro tranne `of()` e `withCampaigns()`.
  */
 final class ProductFeed
@@ -26,14 +30,16 @@ final class ProductFeed
      *
      * @return array{rows: list<array<string, mixed>>, pricesIncludeTax: bool, currency: string, now: string}
      */
-    public static function of(): array
+    public static function of(string $channel = ''): array
     {
         $export = ProductExport::of();
         $now = date('Y-m-d H:i:s');
         $rows = array_values(array_filter($export['rows'], [self::class, 'eligible']));
+        $rows = Gestionale::feature('discount_campaigns') ? self::withCampaigns($rows, $now) : $rows;
+        $lists = PriceLists::loadAll([PriceLists::forChannel($channel)], $now, self::currency());
 
         return [
-            'rows' => Gestionale::feature('discount_campaigns') ? self::withCampaigns($rows, $now) : $rows,
+            'rows' => self::withPriceLists($rows, $lists, $export['pricesIncludeTax']),
             'pricesIncludeTax' => $export['pricesIncludeTax'],
             'currency' => self::currency(),
             'now' => $now,
@@ -69,6 +75,35 @@ final class ProductFeed
 
             if ($campaign !== null) {
                 $rows[$index]['campaign'] = ['price' => (float) $campaign['price'], 'ends_at' => (string) $campaign['ends_at']];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Il prezzo del listino del canale al posto di quello di catalogo, per
+     * una unità: l'articolo che il listino non trova resta com'è. Con il
+     * prezzo di listino cadono scontato e campagna.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @param list<array<string, mixed>> $lists da `PriceLists::loadAll()`
+     * @return list<array<string, mixed>>
+     */
+    public static function withPriceLists(array $rows, array $lists, bool $pricesIncludeTax): array
+    {
+        if ($lists === []) {
+            return $rows;
+        }
+
+        foreach ($rows as $index => $row) {
+            $listed = PriceLists::resolve($lists, (int) ($row['id'] ?? 0), 1.0, (float) ($row['price'] ?? 0), $pricesIncludeTax, (float) ($row['tax_rate'] ?? 0));
+
+            if ($listed['price'] > 0) {
+                $rows[$index]['price'] = $listed['price'];
+                $rows[$index]['price_list_id'] = $listed['price_list_id'];
+                $rows[$index]['sale_price'] = null;
+                unset($rows[$index]['campaign']);
             }
         }
 

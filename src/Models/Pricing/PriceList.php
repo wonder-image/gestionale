@@ -6,6 +6,7 @@ use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -17,6 +18,10 @@ use Wonder\Sql\TableSchema as Column;
  * vogliono dire senza limite; fuori dalle date, spento o in un'altra valuta
  * il listino non vale e le righe tornano al prezzo di catalogo
  * (`Support\Pricing\PriceLists`).
+ *
+ * `price_rule` e `percent` danno la regola in percentuale (#162): ricarico o
+ * sconto sul prezzo base per i prodotti senza una riga propria nel listino.
+ * Il listino si può anche assegnare a uno o più canali (`PriceListChannel`).
  *
  * Non si sincronizza: è lavoro del commerciante.
  */
@@ -38,6 +43,8 @@ final class PriceList extends Model
             Column::key('name'),
             Column::key('currency')->length(3)->default('EUR'),
             Column::key('prices_include_tax')->enum(['true', 'false'])->default('true'),
+            Column::key('price_rule')->enum(['none', 'markup', 'discount'])->default('none'),
+            Columns::decimal('percent', '5,2'),
             Column::key('valid_from')->date(),
             Column::key('valid_to')->date(),
             Column::key('active')->enum(['true', 'false'])->default('true'),
@@ -52,6 +59,8 @@ final class PriceList extends Model
             Field::key('name')->text()->sanitize(),
             Field::key('currency')->text()->sanitize(false),
             Field::key('prices_include_tax')->text()->sanitize(false),
+            Field::key('price_rule')->text()->sanitize(false),
+            Field::key('percent')->number()->decimals(2),
             Field::key('valid_from')->date(),
             Field::key('valid_to')->date(),
             Field::key('active')->text()->sanitize(false),

@@ -26,6 +26,29 @@ final class Channels
         'pos' => ['feature' => 'pos', 'label' => 'Cassa', 'name' => 'Vendita in cassa'],
     ];
 
+    /**
+     * I canali che possono avere un listino (#162): quelli degli ordini
+     * (`Order::CHANNELS`) e quelli esterni dei feed e dei marketplace.
+     *
+     * @var array<string, string>
+     */
+    public const PRICE_LIST_CHANNELS = [
+        'online' => 'Sito',
+        'office' => 'Ufficio',
+        'b2b_portal' => 'Portale B2B',
+        'pos' => 'Cassa',
+        'ebay' => 'eBay',
+        'marketplace' => 'Marketplace (bindCommerce)',
+        'google' => 'Google Shopping',
+        'meta' => 'Meta (Facebook e Instagram)',
+    ];
+
+    /** @return array<string, string> */
+    public static function priceListChannels(): array
+    {
+        return self::PRICE_LIST_CHANNELS;
+    }
+
     /** @return array<string, array{feature: string, label: string, name: string}> */
     public static function all(): array
     {

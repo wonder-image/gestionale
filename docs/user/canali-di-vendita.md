@@ -34,3 +34,10 @@ grigio, e riprende a contare se riaccendi il canale.
 
 Le schede di coupon e campagne mostrano sempre **tutti** i canali: quelli
 spenti sono attenuati, così vedi subito dove vale e dove no.
+
+## Un listino per canale
+
+Ogni canale può avere il suo listino: il sito, l'ufficio, la cassa, il
+portale B2B, eBay, i marketplace, Google Shopping e Meta. Lo scegli nella
+scheda del listino, campo **Canali**. Il listino del cliente vince sempre su
+quello del canale. Vedi [Listini cliente](promozioni-listini-cliente.md).

@@ -111,7 +111,7 @@ final class ProductExports
                 : ProductExport::csv($export['rows'], $export['pricesIncludeTax'], $columns);
         }
 
-        $feed = ProductFeed::of();
+        $feed = ProductFeed::of($key === 'meta' ? 'meta' : 'google');
         $options = [
             'pricesIncludeTax' => $feed['pricesIncludeTax'],
             'currency' => $feed['currency'],
