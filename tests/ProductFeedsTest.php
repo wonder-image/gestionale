@@ -8,6 +8,7 @@ require __DIR__ . '/harness.php';
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\GoogleMerchant;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\MetaCatalog;
+use Wonder\App\Import\Column;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductExports;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductFeed;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductFeeds;
@@ -281,6 +282,17 @@ check('feed: sbloccato si scrive, bloccato si cancella, non scaduto resta', func
     rmdir($dir);
 
     return $ok;
+});
+
+check('tracciati: solo Excel e CSV, gli attributi solo se il tracciato li chiede', static function (): bool {
+    $colonne = [Column::make('sku', 'Codice'), Column::make('available', 'Disponibili')];
+
+    return ProductExports::LAYOUT_FORMATS === ['xlsx', 'csv']
+        && ProductExports::layoutColumns(null) === null
+        && ProductExports::layoutColumns(0) === null
+        && !ProductExports::wantsAttributes(null)
+        && !ProductExports::wantsAttributes($colonne)
+        && ProductExports::wantsAttributes([...$colonne, Column::make('attr:3', 'Colore')]);
 });
 
 summary();

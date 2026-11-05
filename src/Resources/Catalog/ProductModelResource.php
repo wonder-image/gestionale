@@ -1374,7 +1374,9 @@ HTML
             ->searchFields(['name', 'sku'])
             // «Esporta» (D64): solo i file concessi dal pannello Funzionalità, area «Esportazioni».
             ->download(ProductExports::granted())
-            ->downloadUsing(static fn (string $format) => ProductExports::send($format))
+            ->downloadUsing(static fn (string $format, ?int $layoutId = null) => ProductExports::send($format, $layoutId))
+            // I tracciati del catalogo (Dev → File → Tracciati file), solo per Excel e CSV.
+            ->downloadLayouts(CatalogLayout::KEY, ProductExports::LAYOUT_FORMATS)
             ->filterCustom('Stato', 'visible', ['' => 'Tutti', 'true' => 'Pubblicato', 'false' => 'Bozza']);
 
         $tipi = static::activeTypes();

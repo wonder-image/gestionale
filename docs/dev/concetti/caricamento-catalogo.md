@@ -10,11 +10,22 @@ e nel bottone) e li vede chi può fare `update` su `ProductModelResource`.
 
 Il file è lo stesso dell'esportazione (`ProductExport`): stesse colonne, stesse
 intestazioni, più qualche nome comune (`Codice`, `Quantità`, `Nome`,
-`Prezzo`…). Un tracciato salvato in Set-up → Gestionale → Tracciati file vale
+`Prezzo`…). Un tracciato salvato in Dev → File → Tracciati file vale
 per l'esportazione e per il caricamento. La voce è
 `Resources\System\ImportLayoutResource`: sottoclasse di quella del core con lo
-stesso `path()`, che la sostituisce, la sposta nel gruppo Gestionale e la
-mostra solo con `import_catalog` accesa.
+stesso `path()`, che la sostituisce e la mostra solo con `import_catalog`
+accesa; il posto nel menu resta quello del core.
+
+In «Esporta» dei prodotti i tracciati del catalogo compaiono sotto
+«Tracciati», solo per Excel e CSV: `ProductModelResource` dichiara
+`->downloadLayouts(CatalogLayout::KEY, ProductExports::LAYOUT_FORMATS)` accanto
+a `downloadUsing()`, e il gestore riceve l'id scelto
+(`ProductExports::send($format, $layoutId)`). `ProductExports::layoutColumns()`
+legge le colonne con `Profile::for()` (null senza tracciato o con un tracciato
+di un'altra fonte: allora il file ha le colonne di sempre); gli attributi si
+leggono dal DB solo se il tracciato ha una colonna `attr:<id>`
+(`wantsAttributes()`). Il tracciato predefinito non si applica da solo
+all'esportazione: le voci Excel e CSV in alto restano complete.
 
 ## Colonne e file di esempio
 

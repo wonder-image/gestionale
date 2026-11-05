@@ -6,6 +6,14 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **I tracciati del catalogo si scelgono in «Esporta» dei prodotti.** Sotto
+  «Tracciati» c'è ogni tracciato salvato, in Excel e CSV, e il file ha solo le
+  sue colonne (`ProductExports::send($format, $layoutId)`,
+  `layoutColumns()`, `downloadLayouts()` in `ProductModelResource`). Richiede
+  `wonder-image/app` con `TableLayoutSchema::downloadLayouts()`.
+- **«Tracciati file» passa in Dev → File**, accanto a Download: la sottoclasse
+  del gestionale non sposta più la voce in Set-up → Gestionale, la mostra solo
+  con «Caricamento del catalogo» accesa.
 - **Scheda abbonamento: il riquadro «Periodo» è più corto.** Le date stanno
   due per riga e quelle vuote (prova, vincolo, disdetta, chiusura, fine) non
   si mostrano; «Iniziato» e «Prossimo rinnovo» restano sempre

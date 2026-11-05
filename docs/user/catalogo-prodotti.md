@@ -591,6 +591,12 @@ disponibili, se è pubblicato, online e attivo, categorie, link e foto. Escono
 anche le bozze, e i filtri dell'elenco non contano: il foglio è sempre
 completo. Lo può scaricare chi vede l'elenco.
 
+Se hai salvato un tracciato in Dev → File → **Tracciati file** (per esempio
+«Disponibilità», con solo codice e quantità), lo trovi nello stesso pulsante
+sotto **Tracciati**, in Excel o CSV: il foglio ha solo le colonne del
+tracciato, nel suo ordine e con i suoi nomi. Le voci Excel e CSV in alto
+scaricano sempre tutte le colonne.
+
 Se il tuo negozio li ha, nello stesso pulsante trovi anche i file per i
 cataloghi di fuori:
 
@@ -635,7 +641,7 @@ scaricare l'elenco, cambiare quello che ti serve e ricaricarlo così com'è.
 
 Il pulsante c'è solo se è accesa la funzionalità **Caricamento del catalogo**
 (Set-up → Gestionale → Funzionalità). Con la stessa funzionalità compare
-Set-up → Gestionale → **Tracciati file**, dove salvi l'ordine e i nomi delle
+Dev → File → **Tracciati file**, dove salvi l'ordine e i nomi delle
 colonne del file.
 
 1. **Scegli il file.** Va bene anche un foglio tuo: le colonne si chiamano
