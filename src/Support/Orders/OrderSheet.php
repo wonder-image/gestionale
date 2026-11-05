@@ -141,15 +141,16 @@ final class OrderSheet
 
     /**
      * I totali: sconto, spedizione e costi compaiono solo se sono diversi da zero.
-     * Se l'ordine ha usato un coupon, subito dopo compare una riga informativa col
-     * codice e quanto ha fatto risparmiare (merce o spedizione): non entra nei
-     * totali, che sono già calcolati. `$redemption` è la riga di
-     * `gst_coupon_redemptions` dell'ordine, se c'è. I dati restano visibili
-     * anche a funzionalità spenta: sono storia.
+     * Per ogni coupon usato dall'ordine compare una riga informativa col codice e
+     * quanto ha fatto risparmiare (merce o spedizione): non entra nei totali, che
+     * sono già calcolati. `$redemptions` sono le righe di `gst_coupon_redemptions`
+     * dell'ordine, nell'ordine di applicazione; una riga sola si può passare
+     * anche da sola. Un ordine di prima, senza usi registrati, mostra il solo
+     * codice. I dati restano visibili anche a funzionalità spenta: sono storia.
      *
-     * @param array<string, mixed>|null $redemption
+     * @param list<array<string, mixed>>|array<string, mixed>|null $redemptions
      */
-    public static function totals(array $order, ?array $redemption = null): string
+    public static function totals(array $order, ?array $redemptions = null): string
     {
         $voci = [['Prodotti', $order['products_total'] ?? 0, false, false]];
 
@@ -159,10 +160,22 @@ final class OrderSheet
             }
         }
 
+        $redemptions ??= [];
+
+        // Compatibilità: una riga sola passata senza lista.
+        if ($redemptions !== [] && !array_is_list($redemptions)) {
+            $redemptions = [$redemptions];
+        }
+
         $codice = trim((string) ($order['coupon_code'] ?? ''));
 
-        if ($codice !== '') {
-            $voci[] = ['Coupon '.$codice, 'risparmio '.self::money($redemption['discount_amount'] ?? 0), false, true];
+        foreach ($redemptions as $redemption) {
+            $nome = trim((string) ($redemption['code'] ?? '')) ?: $codice;
+            $voci[] = ['Coupon '.$nome, 'risparmio '.self::money($redemption['discount_amount'] ?? 0), false, true];
+        }
+
+        if ($redemptions === [] && $codice !== '') {
+            $voci[] = ['Coupon '.$codice, '—', false, true];
         }
 
         $voci[] = ['Imponibile', $order['taxable_total'] ?? 0, false, false];

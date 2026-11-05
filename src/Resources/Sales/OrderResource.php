@@ -751,7 +751,7 @@ final class OrderResource extends GestionaleResource
                 (new Card)->components(static::headerItems($order, $metodi, static::rowsOf(Payment::class, ['order_id' => $id], 'id')))->columns(12)->columnSpan(12),
             ]),
             (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components([
-                $riquadro('Totali', OrderSheet::totals($order, static::rowsOf(CouponRedemption::class, ['order_id' => $id])[0] ?? null)),
+                $riquadro('Totali', OrderSheet::totals($order, static::rowsOf(CouponRedemption::class, ['order_id' => $id], 'id'))),
                 $riquadro('Riepilogo IVA', OrderSheet::taxSummary(static::rowsOf(OrderTaxSummary::class, ['order_id' => $id])),
                     'L\'imposta si calcola sul totale imponibile di ogni aliquota, non riga per riga.'),
             ]),
