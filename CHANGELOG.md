@@ -6,6 +6,10 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Il nome del prezzo di un abbonamento è facoltativo.** Lasciato vuoto, lo
+  compone `PlanPriceRules::autoName()` dall'addebito, dal vincolo e dalla prova
+  («Mensile con vincolo annuale», «Annuale, 14 giorni di prova») e si salva
+  così; `SubscriptionProductForm::prepareRows()` lo applica prima delle regole.
 - **Tolta la funzionalità «Abbonamenti online».** Il sito vende un
   abbonamento con *Abbonamenti* e *Vendita online* accese e con
   **Acquistabile online** nella sua scheda, come per i prodotti. La regola sta

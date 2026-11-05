@@ -102,4 +102,27 @@ check('la ricorrenza dall\'addebito: annuale a anni, il resto a mesi', fn () =>
     && PlanPriceRules::intervalOf(24) === 'year'
 );
 
+check('il nome automatico lo dicono addebito, vincolo e prova', fn () =>
+    PlanPriceRules::autoName(1) === 'Mensile'
+    && PlanPriceRules::autoName(12) === 'Annuale'
+    && PlanPriceRules::autoName(1, 12) === 'Mensile con vincolo annuale'
+    && PlanPriceRules::autoName(12, 12) === 'Annuale'
+    && PlanPriceRules::autoName(1, 18) === 'Mensile con vincolo di 18 mesi'
+    && PlanPriceRules::autoName(5) === 'Ogni 5 mesi'
+    && PlanPriceRules::autoName(1, 0, 14) === 'Mensile, 14 giorni di prova'
+    && PlanPriceRules::autoName(3, 12, 1) === 'Trimestrale con vincolo annuale, 1 giorno di prova'
+);
+
+check('nel form un prezzo senza nome prende quello automatico, uno col nome lo tiene', function (): bool {
+    $righe = \Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionProductForm::prepareRows('prices', [
+        ['name' => '', 'price' => '19', 'term_months' => '1', 'commitment_months' => '12'],
+        ['name' => 'Pro', 'price' => '190', 'term_months' => '12'],
+        ['name' => '', 'price' => ''],
+    ]);
+
+    return count($righe) === 2
+        && $righe[0]['name'] === 'Mensile con vincolo annuale'
+        && $righe[1]['name'] === 'Pro';
+});
+
 summary();

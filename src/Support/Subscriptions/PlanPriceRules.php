@@ -7,7 +7,7 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 /**
  * Le regole di un prezzo di un piano (G10 §1.2), pure: niente database.
  *
- * - un nome;
+ * - un nome: se manca, lo compone {@see autoName()} dall'addebito;
  * - prezzo non negativo, prezzo scontato (se c'è) più basso del prezzo;
  * - una tantum (se c'è) non negativa;
  * - mesi per addebito coerenti con l'intervallo: da 1 a 12 per il mensile,
@@ -103,6 +103,31 @@ final class PlanPriceRules
     public static function intervalOf(int $term): string
     {
         return $term >= 12 && $term % 12 === 0 ? 'year' : 'month';
+    }
+
+    /** Il nome di un periodo in mesi, per l'addebito e per il vincolo. */
+    public const TERM_LABELS = [1 => 'Mensile', 2 => 'Bimestrale', 3 => 'Trimestrale', 6 => 'Semestrale', 12 => 'Annuale', 24 => 'Biennale'];
+
+    /**
+     * Il nome di un prezzo lasciato vuoto: «Mensile», «Mensile con vincolo
+     * annuale», «Annuale, 14 giorni di prova». Un vincolo non più lungo
+     * dell'addebito non aggiunge nulla.
+     */
+    public static function autoName(int $term, int $commitment = 0, int $trialDays = 0): string
+    {
+        $name = static::TERM_LABELS[$term] ?? 'Ogni '.$term.' mesi';
+
+        if ($commitment > $term) {
+            $name .= ' con vincolo '.(isset(static::TERM_LABELS[$commitment])
+                ? mb_strtolower(static::TERM_LABELS[$commitment])
+                : 'di '.$commitment.' mesi');
+        }
+
+        if ($trialDays > 0) {
+            $name .= ', '.$trialDays.($trialDays === 1 ? ' giorno' : ' giorni').' di prova';
+        }
+
+        return $name;
     }
 
     /** I mesi di un addebito proposti per un intervallo, se il form non li dice. */

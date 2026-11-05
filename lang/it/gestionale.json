@@ -400,7 +400,7 @@
             "plan": {
                 "name_required": "Scrivi il nome del piano.",
                 "no_prices": "Un piano ha almeno un prezzo.",
-                "price_name_required": "Ogni prezzo ha un nome («Mensile», «Annuale»).",
+                "price_name_required": "Ogni prezzo ha un nome: lascialo vuoto e si compone dall'addebito.",
                 "price_invalid": "Il prezzo «{{name}}» deve essere un numero, zero o più.",
                 "sale_not_lower": "Il prezzo scontato di «{{name}}» deve essere più basso del prezzo.",
                 "term_mismatch": "L'addebito di «{{name}}» non è valido: scegli da mensile ad annuale.",
