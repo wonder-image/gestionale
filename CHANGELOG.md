@@ -84,6 +84,10 @@ versionamento semantico.
   spenta non si vede e l'abbonamento nuovo prende il predefinito.
 
 ### Corretto
+- **Il catalogo esportato si ricarica.** Il caricamento trova il prodotto
+  dalla colonna «ID» del file, quando c'è, e solo dopo dallo SKU: SKU vuoti o
+  ripetuti già nel catalogo non fermano più le righe invariate. Dall'ID si può
+  cambiare lo SKU, se non è già di un altro prodotto (`import.sku_taken`).
 - **404 di PDF e CSV.** Gli scaricamenti del backend (PDF, stampa, proforma,
   CSV dei clienti di un lotto, righe di un listino) rispondono con la pagina
   404 del core invece del testo semplice (#79).
