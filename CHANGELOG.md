@@ -10,6 +10,10 @@ versionamento semantico.
   due per riga e quelle vuote (prova, vincolo, disdetta, chiusura, fine) non
   si mostrano; «Iniziato» e «Prossimo rinnovo» restano sempre
   (`SubscriptionResource::periodItems()`). I servizi salgono in pagina.
+- **Il nome del prezzo di un abbonamento è facoltativo.** Lasciato vuoto, lo
+  compone `PlanPriceRules::autoName()` dall'addebito, dal vincolo e dalla prova
+  («Mensile con vincolo annuale», «Annuale, 14 giorni di prova») e si salva
+  così; `SubscriptionProductForm::prepareRows()` lo applica prima delle regole.
 - **Catalogo › Attributi segue la Scheda tecnica.** Gli attributi sono la
   scheda tecnica dell'articolo: con la funzionalità spenta la voce non compare
   più nel menu (`AttributeResource::$feature = 'technical_sheet'`).
