@@ -3,7 +3,11 @@
 namespace Wonder\Plugin\Gestionale\Support\Catalog\Exports;
 
 use InvalidArgumentException;
+use Wonder\App\Import\Column;
+use Wonder\App\Import\Layouts;
+use Wonder\App\Import\Profile;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Catalog\Import\CatalogLayout;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductExport;
 use Wonder\Plugin\Gestionale\Support\Export\Download;
 
@@ -78,8 +82,11 @@ final class ProductExports
         return ProductExport::fileName($format['extension'], $time, $format['file']);
     }
 
-    /** Scarica il file; un formato non concesso non parte. */
-    public static function send(string $key): void
+    /** I formati che accettano un tracciato salvato del catalogo. */
+    public const LAYOUT_FORMATS = ['xlsx', 'csv'];
+
+    /** Scarica il file; un formato non concesso non parte. `$layoutId`: il tracciato scelto in «Esporta». */
+    public static function send(string $key, ?int $layoutId = null): void
     {
         $format = self::format($key);
 
@@ -87,20 +94,21 @@ final class ProductExports
             throw new InvalidArgumentException('Esportazione non disponibile: '.$key);
         }
 
-        Download::send(self::body($key), $format['mime'], self::fileName($key));
+        Download::send(self::body($key, $layoutId), $format['mime'], self::fileName($key));
     }
 
     /** Il contenuto del file, letto dal database. */
-    public static function body(string $key): string
+    public static function body(string $key, ?int $layoutId = null): string
     {
         self::format($key);
 
-        if ($key === 'xlsx' || $key === 'csv') {
-            $export = ProductExport::of();
+        if (in_array($key, self::LAYOUT_FORMATS, true)) {
+            $columns = self::layoutColumns($layoutId);
+            $export = ProductExport::of(self::wantsAttributes($columns));
 
             return $key === 'xlsx'
-                ? ProductExport::xlsx($export['rows'], $export['pricesIncludeTax'])
-                : ProductExport::csv($export['rows'], $export['pricesIncludeTax']);
+                ? ProductExport::xlsx($export['rows'], $export['pricesIncludeTax'], $columns)
+                : ProductExport::csv($export['rows'], $export['pricesIncludeTax'], $columns);
         }
 
         $feed = ProductFeed::of();
@@ -115,6 +123,37 @@ final class ProductExports
         return $key === 'meta'
             ? MetaCatalog::csv($feed['rows'], $options)
             : GoogleMerchant::xml($feed['rows'], $options);
+    }
+
+    /**
+     * Le colonne del tracciato del catalogo scelto, nel suo ordine e con le
+     * sue intestazioni; null (le colonne di sempre) senza tracciato o con
+     * un tracciato di un'altra fonte.
+     *
+     * @return list<Column>|null
+     */
+    public static function layoutColumns(?int $layoutId): ?array
+    {
+        if ($layoutId === null || $layoutId <= 0) {
+            return null;
+        }
+
+        // Il tracciato registrato, se un sito lo sostituisce.
+        $columns = Profile::for(Layouts::find(CatalogLayout::KEY) ?? new CatalogLayout(), $layoutId);
+
+        return $columns === null ? null : array_values(array_filter($columns, static fn ($column): bool => $column instanceof Column));
+    }
+
+    /** @param list<Column>|null $columns */
+    public static function wantsAttributes(?array $columns): bool
+    {
+        foreach ($columns ?? [] as $column) {
+            if (str_starts_with($column->key, 'attr:')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return array{feature: string, label: string, extension: string, mime: string, file: string} */
