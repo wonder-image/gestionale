@@ -6,6 +6,10 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Scheda abbonamento: il riquadro «Periodo» è più corto.** Le date stanno
+  due per riga e quelle vuote (prova, vincolo, disdetta, chiusura, fine) non
+  si mostrano; «Iniziato» e «Prossimo rinnovo» restano sempre
+  (`SubscriptionResource::periodItems()`). I servizi salgono in pagina.
 - **Il nome del prezzo di un abbonamento è facoltativo.** Lasciato vuoto, lo
   compone `PlanPriceRules::autoName()` dall'addebito, dal vincolo e dalla prova
   («Mensile con vincolo annuale», «Annuale, 14 giorni di prova») e si salva

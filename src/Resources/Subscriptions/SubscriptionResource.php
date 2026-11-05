@@ -294,14 +294,8 @@ final class SubscriptionResource extends GestionaleResource
             (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components([
                 $riquadro('Totali del periodo', [RichText::make(static::totals($row))->tag('div')->columnSpan(12)]),
                 $riquadro('Periodo', [
-                    $dato('Iniziato', static::day($row['started_at'] ?? '')),
                     $dato('Periodo in corso', static::range($row['current_period_start'] ?? '', $row['current_period_end'] ?? '')),
-                    $dato('Prossimo rinnovo', static::day($row['next_renewal_at'] ?? '')),
-                    $dato('Fine prova', static::day($row['trial_ends_at'] ?? '')),
-                    $dato('Fine vincolo', static::day($row['commitment_ends_at'] ?? '')),
-                    $dato('Disdetta chiesta', static::day($row['cancel_requested_at'] ?? '')),
-                    $dato('Chiuso', static::day($row['cancelled_at'] ?? '')),
-                    $dato('Finito', static::day($row['ended_at'] ?? '')),
+                    ...static::periodItems($row),
                 ], 'Il periodo in corso e le date che contano: la fine della prova, del vincolo, il prossimo rinnovo. Con una disdetta durante il vincolo, «Disdetta chiesta» dice quando: vale a fine vincolo.'),
             ]),
             $tabella('Servizi', SubscriptionItemTableResource::embed($id), true),
@@ -309,6 +303,39 @@ final class SubscriptionResource extends GestionaleResource
             $tabella('Storia dei servizi', SubscriptionItemChangeTableResource::embed($id)),
             $tabella('Storico', SubscriptionHistoryTableResource::embed($id)),
         ])->columns(12);
+    }
+
+    /**
+     * Le date del periodo, due per riga: le prime due sempre, le altre solo se
+     * ci sono, così il riquadro non spinge in basso i servizi.
+     *
+     * @param array<string, mixed> $row
+     * @return list<DataItem>
+     */
+    protected static function periodItems(array $row): array
+    {
+        $date = [
+            'Iniziato' => 'started_at',
+            'Prossimo rinnovo' => 'next_renewal_at',
+            'Fine prova' => 'trial_ends_at',
+            'Fine vincolo' => 'commitment_ends_at',
+            'Disdetta chiesta' => 'cancel_requested_at',
+            'Chiuso' => 'cancelled_at',
+            'Finito' => 'ended_at',
+        ];
+        $items = [];
+
+        foreach ($date as $etichetta => $campo) {
+            $valore = static::day($row[$campo] ?? '');
+
+            if ($valore === '' && !in_array($campo, ['started_at', 'next_renewal_at'], true)) {
+                continue;
+            }
+
+            $items[] = DataItem::make($etichetta, $valore !== '' ? $valore : '—')->columnSpan(6);
+        }
+
+        return $items;
     }
 
     /**

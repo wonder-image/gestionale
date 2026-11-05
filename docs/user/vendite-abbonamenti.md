@@ -164,7 +164,8 @@ Cliccando sul codice si apre la scheda, disegnata come quella dell'ordine:
   e **nota**;
 * a destra **Totali del periodo** (servizi, sconto e coupon, imponibile, IVA,
   totale) e **Periodo** (inizio, periodo in corso, prossimo rinnovo, fine della
-  prova e del vincolo, disdetta);
+  prova e del vincolo, disdetta), due date per riga; le date che non ci sono
+  (nessuna prova, nessun vincolo, nessuna disdetta) non compaiono;
 * sotto, a sezioni che si aprono e chiudono: **Servizi** (le righe, con prezzo,
   quantità, personalizzazioni e prossimo rinnovo di ognuna), **Pagamenti e
   rinnovi**, **Storia dei servizi** (aggiunti, tolti, cambiati, corretti) e

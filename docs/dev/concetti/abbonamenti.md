@@ -174,7 +174,7 @@ dell'ordine e ne riusa i pezzi:
   con *Annulla*, sempre a menu e in rosso.
 - **Colonne**: a sinistra `headerItems()` (stato, pagamento, rinnovo, cliente
   con email e telefono dal contatto, fatturazione con `OrderSheet::address()`,
-  piano, metodo, nota); a destra `totals()` e la card *Periodo*.
+  piano, metodo, nota); a destra `totals()` e la card *Periodo* (`periodItems()`: due date per riga, le vuote nascoste).
 - **Sezioni**: `Accordion` con le tabelle `SubscriptionItemTableResource`,
   `SubscriptionPaymentTableResource`, `SubscriptionItemChangeTableResource` e
   `SubscriptionHistoryTableResource`. Estendono `OrderSectionResource`, che
