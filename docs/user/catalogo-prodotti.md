@@ -601,29 +601,22 @@ Se hai salvato un tracciato in Dev → File → **Tracciati file** (per esempio
 nella scheda **Esporta** scegli il tracciato (o *Tutte le colonne*), poi il
 formato, Excel o CSV, e premi **Scarica**. Il foglio ha solo le colonne del
 tracciato, nel suo ordine e con i suoi nomi; con *Tutte le colonne* ha l'elenco
-completo. Il file per Catalogo Meta ignora i
-tracciati: ha sempre le sue colonne.
+completo.
 
-Se il tuo negozio li ha, nella stessa scheda trovi anche i file per i
-cataloghi di fuori:
+### Feed prodotti per Meta e Google
 
-- **Catalogo Meta (.csv)**: da caricare in Commerce Manager per Facebook e
-  Instagram (Catalogo → Origini dei dati → Aggiungi articoli → Carica file);
-- **Google Merchant Center (.xml)**: da caricare in Merchant Center come
-  origine dati di prodotto.
+Se il tuo negozio li ha, nel bottone **File** c'è anche la scheda **Feed
+prodotti**, con un riquadro per ogni catalogo di fuori:
 
-In questi file entra solo quello che si compra sul sito: articoli pubblicati e
-online, opzioni attive con prezzo, foto e pagina. Il prezzo è quello che paga
-il cliente, IVA compresa e con lo sconto in corso. Il marchio, se l'articolo
-non ne ha uno, è il nome del negozio.
+- **Catalogo Meta**: per Facebook e Instagram, da Commerce Manager;
+- **Google Merchant Center**: come origine dati di prodotto.
 
-### Il feed che si aggiorna da solo
-
-Invece di caricare il file a mano, puoi dare a Google e a Meta un **indirizzo
-fisso**: lo trovi in **Funzionalità → Esportazioni**, sotto la voce accesa,
-come «Indirizzo del feed» (per esempio
-`https://iltuonegozio.it/shared/feeds/google-merchant.xml`). Il file a
-quell'indirizzo si riscrive da solo con prezzi e giacenze aggiornati.
+Ogni riquadro ha l'**indirizzo fisso** del feed (per esempio
+`https://iltuonegozio.it/shared/feeds/google-merchant.xml`), con il bottone
+**Copia**, la data dell'ultimo aggiornamento («Aggiornato il … alle … · ogni 6
+ore», oppure «Non ancora generato») e **Scarica ora**, se ti serve il file da
+caricare a mano. Il file a quell'indirizzo si riscrive da solo con prezzi e
+giacenze aggiornati: basta dare l'indirizzo una volta.
 
 - In **Merchant Center**: Prodotti → Origini dati → Aggiungi origine dati →
   *Recupero pianificato* (o "File da un URL"), e incolli l'indirizzo.
@@ -631,14 +624,21 @@ quell'indirizzo si riscrive da solo con prezzi e giacenze aggiornati.
   *Feed di dati* → *Feed programmato*, e incolli l'indirizzo
   (`.../shared/feeds/catalogo-meta.csv`).
 
-Accanto all'indirizzo scegli **ogni quanto aggiornarlo**: ogni ora, ogni 6 ore
-(di serie) o una volta al giorno, e vedi quando è stato aggiornato l'ultima
-volta. Google e Meta passano a prenderlo una volta al giorno, all'ora che
-imposti da loro: ogni 6 ore basta perché trovino sempre dati freschi. Se la
-voce viene spenta, il file sparisce dall'indirizzo.
+Nei feed entra solo quello che si compra sul sito: articoli pubblicati e
+online, opzioni attive con prezzo, foto e pagina. Il prezzo è quello che paga
+il cliente, IVA compresa e con lo sconto in corso. Il marchio, se l'articolo
+non ne ha uno, è il nome del negozio. I tracciati non contano: il feed ha
+sempre le colonne che chiedono Meta e Google.
 
-Quali file vedi nella scheda Esporta del pulsante File lo decide chi ha installato il gestionale: se ti
-serve un file che non c'è, chiedilo a loro.
+Accendere i feed e scegliere **ogni quanto aggiornarli** (ogni ora, ogni 6 ore
+di serie, o una volta al giorno) si fa in **Funzionalità → Esportazioni**, e
+lo può fare solo un amministratore. Google e Meta passano a prendere il file una
+volta al giorno, all'ora che imposti da loro: ogni 6 ore basta perché trovino
+sempre dati freschi. Se la voce viene spenta, il file sparisce dall'indirizzo
+e la scheda non compare più.
+
+Quali file e quali feed vedi nel pulsante File lo decide chi ha installato il
+gestionale: se ti serve qualcosa che non c'è, chiedilo a loro.
 
 ## Caricare un file
 

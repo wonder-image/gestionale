@@ -121,6 +121,48 @@ final class ProductFeeds
     }
 
     /**
+     * I feed accesi per la scheda «Feed prodotti» del bottone «File»
+     * (`TableLayoutSchema::feeds()`). Le dipendenze si passano per i test.
+     *
+     * @param (callable(string): bool)|null $enabled la funzionalità è sbloccata
+     * @param (callable(string): int)|null $every ogni quante ore
+     * @param (callable(string): string)|null $url l'indirizzo del feed
+     * @return list<array{format: string, label: string, url: string, updated_at: ?int, every: string}>
+     */
+    public static function forTable(
+        ?string $dir = null,
+        ?callable $enabled = null,
+        ?callable $every = null,
+        ?callable $url = null,
+    ): array {
+        $enabled ??= static fn (string $key): bool => Gestionale::feature(self::feature($key));
+        $settings = null;
+        $every ??= static function (string $key) use (&$settings): int {
+            $settings ??= FeaturePanel::settings();
+
+            return self::every($key, $settings[self::feature($key)] ?? []);
+        };
+        $url ??= static fn (string $key): string => self::url($key);
+        $out = [];
+
+        foreach (array_keys(self::FEEDS) as $key) {
+            if (!$enabled($key)) {
+                continue;
+            }
+
+            $out[] = [
+                'format' => $key,
+                'label' => ProductExports::FORMATS[$key]['label'],
+                'url' => $url($key),
+                'updated_at' => self::writtenAt($key, $dir),
+                'every' => self::EVERY[$every($key)] ?? self::EVERY[self::DEFAULT_EVERY],
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * Un giro dell'attività: per ogni feed, sbloccato e scaduto si riscrive,
      * bloccato si cancella. Le dipendenze si passano per i test.
      *

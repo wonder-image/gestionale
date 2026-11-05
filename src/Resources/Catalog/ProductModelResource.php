@@ -71,6 +71,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\RelatedProducts;
 use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
 use Wonder\Plugin\Gestionale\Support\Catalog\RelatedProductsEditor;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductExports;
+use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductFeeds;
 use Wonder\Plugin\Gestionale\Support\Catalog\SaleUnits;
 use Wonder\Plugin\Gestionale\Support\Catalog\Skeleton;
 use Wonder\Plugin\Gestionale\Support\Catalog\VersionName;
@@ -1376,6 +1377,8 @@ HTML
             ->downloadUsing(static fn (string $format, ?int $layoutId = null) => ProductExports::send($format, $layoutId))
             // I tracciati del catalogo (Dev → File → Tracciati file), solo per Excel e CSV.
             ->downloadLayouts(CatalogLayout::KEY, ProductExports::LAYOUT_FORMATS)
+            // Meta e Google sono feed a indirizzo fisso: scheda «Feed prodotti», non Esporta.
+            ->feeds(ProductFeeds::forTable())
             ->filterCustom('Stato', 'visible', ['' => 'Tutti', 'true' => 'Pubblicato', 'false' => 'Bozza']);
 
         $tipi = static::activeTypes();

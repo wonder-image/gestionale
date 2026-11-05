@@ -103,10 +103,14 @@ articolo di tipo `simple`. «Multiprodotto» la richiede. Spenta:
 
 ## Esportazioni
 
-L'area **Esportazioni** decide quali file offre la scheda «Esporta» del bottone «File» nella tabella dei
-prodotti: `export_products` (Excel e CSV: il formato si sceglie nella scheda «Esporta» del bottone «File»),
-`export_meta` (Catalogo Meta, .csv) e `export_google` (Google Merchant Center,
-.xml). Con nessuna concessa il pulsante sparisce. Per un sito che le vuole dal
+L'area **Esportazioni** decide cosa offre il bottone «File» nella tabella dei
+prodotti: `export_products` dà Excel e CSV nella scheda «Esporta» (con i
+tracciati), `export_meta` (Catalogo Meta, .csv) e `export_google` (Google
+Merchant Center, .xml) danno un riquadro ciascuno nella scheda «Feed prodotti».
+I feed non sono formati di Esporta: `ProductModelResource` passa
+`ProductFeeds::forTable()` a `TableLayoutSchema::feeds()` (indirizzo fisso,
+ultimo aggiornamento, frequenza) e «Scarica ora» usa la stessa rotta di export
+con `?format=`. Con nessuna concessa il pulsante sparisce. Per un sito che le vuole dal
 primo giorno:
 
 ```php

@@ -6,6 +6,12 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Catalogo Meta e Google Merchant Center escono da «Esporta» e vanno nella
+  scheda «Feed prodotti» del bottone «File».** Un riquadro per feed acceso, con
+  l'indirizzo fisso da copiare, l'ultimo aggiornamento con la frequenza e
+  «Scarica ora». Esporta resta per Excel e CSV con i tracciati. Le voci si
+  accendono sempre in Funzionalità. Nuovo `ProductFeeds::forTable()`, passato a
+  `TableLayoutSchema::feeds()`. Richiede `wonder-image/app` con `feeds()`.
 - **Nell'elenco dei prodotti «Esporta» e «Importa» sono un solo bottone
   «File».** Si apre una finestra con le schede Esporta e Importa; il formato e
   il tracciato proposti sono gli ultimi usati. Il gestionale non aggiunge più

@@ -284,6 +284,33 @@ check('feed: sbloccato si scrive, bloccato si cancella, non scaduto resta', func
     return $ok;
 });
 
+check('feed: la scheda «Feed prodotti» elenca solo i feed accesi, con data e frequenza', function () {
+    $dir = sys_get_temp_dir().'/gst-feeds-'.bin2hex(random_bytes(4));
+    mkdir($dir);
+    file_put_contents($dir.'/google-merchant.xml', 'x');
+    touch($dir.'/google-merchant.xml', 1700000000);
+
+    $feeds = ProductFeeds::forTable(
+        $dir,
+        static fn (string $k): bool => $k !== 'meta',
+        static fn (string $k): int => 99, // scelta che non c'è: vale il default
+        static fn (string $k): string => 'https://negozio.it/shared/feeds/'.$k,
+    );
+    $tutti = ProductFeeds::forTable($dir, static fn (): bool => true, static fn (): int => 24, static fn (): string => '');
+
+    array_map('unlink', glob($dir.'/*'));
+    rmdir($dir);
+
+    return $feeds === [[
+        'format' => 'google',
+        'label' => ProductExports::FORMATS['google']['label'],
+        'url' => 'https://negozio.it/shared/feeds/google',
+        'updated_at' => 1700000000,
+        'every' => 'Ogni 6 ore',
+    ]] && array_column($tutti, 'format') === ['meta', 'google']
+        && $tutti[0]['updated_at'] === null && $tutti[0]['every'] === 'Una volta al giorno';
+});
+
 check('tracciati: solo Excel e CSV, gli attributi solo se il tracciato li chiede', static function (): bool {
     $colonne = [Column::make('sku', 'Codice'), Column::make('available', 'Disponibili')];
 

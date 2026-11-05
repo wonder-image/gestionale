@@ -70,8 +70,8 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Esportazione prodotti | Esportazioni | Scarica i prodotti in Excel (.xlsx) o CSV (.csv): una riga per opzione, intestazioni in italiano. | — |
 | Caricamento del catalogo | Importazioni | Carica prodotti, prezzi, giacenze e foto da un file Excel o CSV dalla scheda **Importa** del pulsante **File**; l'ordine delle colonne si salva in Dev → File → Tracciati file, e un tracciato salvato si sceglie anche nella scheda **Esporta** del pulsante **File**. | — |
 | Esportazione contatti | Esportazioni | Scarica clienti e fornitori in Excel (.xlsx) o CSV (.csv): anagrafica, recapiti e fatturazione, celle come testo. | — |
-| Catalogo Meta | Esportazioni | Scarica il file per il catalogo di Facebook e Instagram (.csv con i campi di Meta). | — |
-| Google Merchant Center | Esportazioni | Scarica il feed per Google Merchant Center (.xml RSS con i campi g:). | — |
+| Catalogo Meta | Esportazioni | Feed a indirizzo fisso per il catalogo di Facebook e Instagram (.csv con i campi di Meta): indirizzo, ultimo aggiornamento e «Scarica ora» nella scheda **Feed prodotti** del pulsante **File**. | — |
+| Google Merchant Center | Esportazioni | Feed a indirizzo fisso per Google Merchant Center (.xml RSS con i campi g:): indirizzo, ultimo aggiornamento e «Scarica ora» nella scheda **Feed prodotti** del pulsante **File**. | — |
 | TikTok Shop | Esportazioni | Sincronizzazione del catalogo con TikTok Shop. | — |
 | Amazon | Esportazioni | Sincronizzazione del catalogo con Amazon. | — |
 <!-- funzionalita:fine -->
