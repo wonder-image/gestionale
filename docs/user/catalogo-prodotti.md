@@ -657,7 +657,10 @@ colonne del file.
 
 Cosa fa ogni riga:
 
-- uno **SKU che c'è già** aggiorna quell'opzione, ma solo le celle che hai
+- se la riga ha l'**ID** (la prima colonna del file esportato), aggiorna quel
+  prodotto: da lì puoi anche cambiare lo SKU, purché non sia già di un altro
+  prodotto. Nelle righe nuove lascia l'ID vuoto;
+- senza ID, uno **SKU che c'è già** aggiorna quell'opzione, ma solo le celle che hai
   cambiato. Una cella vuota non cancella niente;
 - uno **SKU nuovo** con il codice articolo di un articolo che c'è aggiunge
   un'opzione a quell'articolo;
@@ -676,8 +679,9 @@ Qualche regola:
 - Le **foto** si mettono come indirizzo che comincia con `https://`; il
   gestionale le scarica (PNG, JPG o WebP, fino a 8 MB).
 - Multiprodotti e abbonamenti si aggiornano ma non si creano da file.
-- Se nel catalogo due prodotti hanno lo stesso SKU, quella riga si ferma:
-  correggi lo SKU di uno dei due dal backend e ricarica il file.
+- Se nel catalogo due prodotti hanno lo stesso SKU (o uno non ce l'ha), il
+  file esportato si ricarica lo stesso grazie all'ID. Una riga senza ID con
+  quello SKU invece si ferma: correggi lo SKU di uno dei due dal backend.
 
 Hai sbagliato file? Alla fine c'è **Annulla il caricamento**: le righe create
 spariscono e quelle modificate tornano com'erano, giacenze comprese. I

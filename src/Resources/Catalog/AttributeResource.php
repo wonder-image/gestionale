@@ -50,6 +50,8 @@ class AttributeResource extends GestionaleResource
     public static string $orderColumn = 'position';
     public static string $orderDirection = 'ASC';
     public static string $docsPage = 'catalogo/catalogo-attributi';
+    // Gli attributi sono la scheda tecnica: spenta, la voce sparisce.
+    public static string $feature = 'technical_sheet';
 
     /** Tipo di un attributo nuovo: quello che serve quasi sempre. */
     public const DEFAULT_TYPE = 'select';
@@ -386,7 +388,8 @@ class AttributeResource extends GestionaleResource
             ->inSection('catalogo')
             ->title('Attributi')
             ->order(43)
-            ->access(Gestionale::area('catalogo'));
+            ->access(Gestionale::area('catalogo'))
+            ->enabled(static::featureActive());
     }
 
     /** Vero quando quell'attributo si sceglie da un elenco di valori. */
