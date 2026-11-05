@@ -94,10 +94,10 @@ rifiutato. Coupon, campagne, corrieri e metodi di spedizione hanno
 | `customization_update` | campi da cambiare; `options` è l'elenco completo | CustomizationResource `update` |
 | `product_set_customizations` | elenco completo delle personalizzazioni dell'articolo di una versione, con obbligatoria e sovrapprezzo proprio | ProductResource `update` |
 | `product_set_related` | elenco completo degli articoli suggeriti o alternativi dell'articolo di una versione, nell'ordine dato | ProductModelResource `update` |
-| `quote_create` | preventivo in bozza: obbligatori `customer_id` e `lines` (righe `product`, `custom`, `text`); facoltativi consegna, pagamento, sconto, scadenza, note | QuoteResource `store` |
-| `quote_get` | un preventivo con stato, revisione, scadenza, totali e righe | QuoteResource `edit` |
+| `quote_create` | preventivo in bozza: obbligatori `customer_id` e `lines` (righe `product`, `custom`, `text`); facoltativi consegna, pagamento, sconto, scadenza, note e `referent_id` (assente = il referente principale, `0` = nessuno) | QuoteResource `store` |
+| `quote_get` | un preventivo con stato, revisione, scadenza, referente (`referent_id`, `referent_name`), totali e righe | QuoteResource `edit` |
 | `customers_list` | clienti a pagine, i più recenti prima; `query` cerca per nome, ragione sociale, email, partita IVA, codice fiscale | CustomerResource `list` |
-| `customer_get` | un cliente con anagrafica, fatturazione e indirizzi di spedizione | CustomerResource `view` |
+| `customer_get` | un cliente con anagrafica, fatturazione e indirizzi di spedizione; con i referenti accesi anche `people` (i suoi referenti) e `companies` (le aziende di cui è referente) | CustomerResource `view` |
 
 Le liste restituiscono al massimo 50 righe. Le scritture girano in una
 transazione; un errore delle regole torna come risultato con `isError`, non

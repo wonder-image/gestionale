@@ -5,6 +5,19 @@ versionamento semantico.
 
 ## 0.1.0 — non rilasciata
 
+### Aggiunto
+- **Referenti delle aziende (#145).** Con i referenti di
+  `wonder-image/customer-account` accesi, la scheda di un'azienda elenca le sue
+  persone e quella di una persona le sue aziende (una scheda, un accesso);
+  l'elenco dei clienti ha il filtro «Referenti», la colonna «Referenti /
+  aziende» e lo stesso dato nell'export. Preventivi, ordini da ufficio e DDT
+  hanno il referente (`referent_id`, `referent_name`, colonne nuove senza
+  migrazione di dati), proposto dal principale e stampato «Alla c.a.» sul PDF;
+  le loro email vanno anche all'azienda e ai referenti che ricevono i documenti
+  (`DocumentReferents`). MCP: `customer_get` con `people` / `companies`,
+  `quote_create` con `referent_id`. Richiede `wonder-image/customer-account`
+  con `ContactRelations`.
+
 ### Cambiato
 - **Catalogo Meta e Google Merchant Center escono da «Esporta» e vanno nella
   scheda «Feed prodotti» del bottone «File».** Un riquadro per feed acceso, con

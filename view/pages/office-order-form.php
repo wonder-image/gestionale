@@ -111,6 +111,26 @@ try {
         });
     }
 
+    // I referenti dell'azienda scelta: «Nessun referente», poi chi riceve i documenti.
+    function referents(list) {
+        var node = field('referent_id');
+        var primary = 0;
+
+        if (!node) {
+            return;
+        }
+
+        node.innerHTML = '';
+        node.appendChild(new Option('Nessun referente', '0'));
+        (list || []).forEach(function (r) {
+            node.appendChild(new Option(r.label, String(r.id)));
+            if (r.is_primary && !primary) {
+                primary = r.id;
+            }
+        });
+        node.value = String(primary);
+    }
+
     function panels(data) {
         var html = (data && data.html) || {};
 
@@ -210,6 +230,7 @@ try {
         load(event.detail.id, function (data) {
             var main;
 
+            referents(data.referents);
             fill(data.customer || {});
             panels(data);
             main = state.addresses.filter(function (a) { return a.is_default; })[0]
@@ -222,6 +243,7 @@ try {
     customerId.addEventListener('change', function () {
         if (customerId.value === '') {
             ++seq;
+            referents([]);
             panels(null);
         }
     });
