@@ -6,6 +6,12 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Nell'elenco dei prodotti «Esporta» e «Importa» sono un solo bottone
+  «File».** Si apre una finestra con le schede Esporta e Importa; il formato e
+  il tracciato proposti sono gli ultimi usati. Il gestionale non aggiunge più
+  «Importa» a mano: usa `importLayout(CatalogLayout::KEY)` e la funzionalità
+  «Caricamento del catalogo» e il permesso li controlla
+  `CatalogLayout::permits()`. Richiede `wonder-image/app` col bottone «File».
 - **I tracciati del catalogo si scelgono in «Esporta» dei prodotti.** Sotto
   «Tracciati» c'è ogni tracciato salvato, in Excel e CSV, e il file ha solo le
   sue colonne (`ProductExports::send($format, $layoutId)`,
