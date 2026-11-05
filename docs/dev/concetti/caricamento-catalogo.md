@@ -32,7 +32,12 @@ l'anteprima e crea quei prodotti.
 
 ## Una riga, una versione
 
-La chiave è lo **SKU** (senza la colonna il caricamento non parte).
+La chiave è l'**ID** del prodotto, quando la riga ce l'ha e il prodotto
+esiste (`exportById()`); altrimenti lo **SKU** (senza la colonna SKU il
+caricamento non parte). Con l'ID il file esportato si ricarica anche se il
+catalogo ha SKU vuoti o ripetuti: lo SKU invariato non si controlla, quello
+cambiato non può essere già di un altro prodotto (`sku_taken`) né vuoto.
+Un ID che non c'è (file di un altro negozio) torna allo SKU.
 
 | Lo SKU… | Codice articolo | Azione |
 | --- | --- | --- |
@@ -42,16 +47,17 @@ La chiave è lo **SKU** (senza la colonna il caricamento non parte).
 | non c'è | vuoto o nuovo | `new_model`: un articolo nuovo di tipo «Prodotto», serve il nome |
 
 Il tipo di un articolo non si cambia; multiprodotti e abbonamenti non si
-creano e non prendono versioni da file. Uno SKU ripetuto nel file è un errore
-(`sku_duplicate`); uno SKU che nel catalogo hanno più prodotti ferma la riga
-(`sku_ambiguous`), perché non si sa quale aggiornare: va corretto dal backend.
+creano e non prendono versioni da file. Uno SKU nuovo o cambiato ripetuto nel
+file è un errore (`sku_duplicate`); senza ID, uno SKU che nel catalogo hanno
+più prodotti ferma la riga (`sku_ambiguous`), perché non si sa quale
+aggiornare.
 
 ## Le celle
 
 Le legge `CatalogCells`, pura: numeri all'italiana (`1.234,50 €`), Sì/No coi
 sinonimi, liste con `|`, categorie `Padre › Figlia` (la prima è la
 principale, quelle che mancano si creano), descrizioni confrontate in testo
-semplice. `id` e `link` si ignorano. Una cella vuota di codice articolo, nome,
+semplice. `link` si ignora; `id` serve solo a trovare il prodotto, non si scrive. Una cella vuota di codice articolo, nome,
 tipo, unità, prezzo, peso e disponibili non cancella niente.
 
 - **Prezzi.** L'intestazione dice «IVA inclusa» o «IVA esclusa»: se

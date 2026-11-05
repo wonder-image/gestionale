@@ -10,6 +10,9 @@ versionamento semantico.
   due per riga e quelle vuote (prova, vincolo, disdetta, chiusura, fine) non
   si mostrano; «Iniziato» e «Prossimo rinnovo» restano sempre
   (`SubscriptionResource::periodItems()`). I servizi salgono in pagina.
+- **Catalogo › Attributi segue la Scheda tecnica.** Gli attributi sono la
+  scheda tecnica dell'articolo: con la funzionalità spenta la voce non compare
+  più nel menu (`AttributeResource::$feature = 'technical_sheet'`).
 - **Tolta la funzionalità «Abbonamenti online».** Il sito vende un
   abbonamento con *Abbonamenti* e *Vendita online* accese e con
   **Acquistabile online** nella sua scheda, come per i prodotti. La regola sta
@@ -88,6 +91,10 @@ versionamento semantico.
   spenta non si vede e l'abbonamento nuovo prende il predefinito.
 
 ### Corretto
+- **Il catalogo esportato si ricarica.** Il caricamento trova il prodotto
+  dalla colonna «ID» del file, quando c'è, e solo dopo dallo SKU: SKU vuoti o
+  ripetuti già nel catalogo non fermano più le righe invariate. Dall'ID si può
+  cambiare lo SKU, se non è già di un altro prodotto (`import.sku_taken`).
 - **404 di PDF e CSV.** Gli scaricamenti del backend (PDF, stampa, proforma,
   CSV dei clienti di un lotto, righe di un listino) rispondono con la pagina
   404 del core invece del testo semplice (#79).

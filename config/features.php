@@ -98,7 +98,7 @@ return [
     ],
     'technical_sheet' => [
         'name' => 'Scheda tecnica',
-        'description' => 'Caratteristiche dell\'articolo e delle sue opzioni (materiale, simboli di lavaggio…). Spenta, la scheda non le chiede e quelle già scritte restano salvate.',
+        'description' => 'Caratteristiche dell\'articolo e delle sue opzioni (materiale, simboli di lavaggio…). Spenta, la scheda non le chiede, la voce Catalogo › Attributi sparisce e quelle già scritte restano salvate.',
         'area' => 'Scheda prodotto',
         'release' => 'G5',
     ],

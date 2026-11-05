@@ -6,6 +6,7 @@ require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
+use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\VariantResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
 use Wonder\Plugin\Gestionale\Support\Features\FeatureGuards;
@@ -89,6 +90,16 @@ check('accese, la scheda chiede misure, unità e tipo fiscale', function () use 
     }
 
     return true;
+});
+
+check('la pagina Attributi segue la Scheda tecnica', function () use ($forza) {
+    $forza(['technical_sheet' => false]);
+    $spenta = AttributeResource::featureActive() || AttributeResource::navigationSchema()->toArray()['enabled'] !== false;
+    $forza(['technical_sheet' => true]);
+    $accesa = AttributeResource::featureActive();
+    $forza(null);
+
+    return AttributeResource::$feature === 'technical_sheet' && !$spenta && $accesa;
 });
 
 check('la pagina Varianti segue la funzionalità', function () use ($forza) {
