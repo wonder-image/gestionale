@@ -4,7 +4,7 @@ icon: sliders
 
 # Attributi
 
-> **Inclusa.** Fanno parte del gestionale, non c'è niente da attivare.
+> **Con la funzionalità Scheda tecnica.** Si accende in Set-up › Funzionalità; spenta, la voce Catalogo › Attributi non compare e gli attributi già scritti restano salvati.
 
 ## A cosa servono
 

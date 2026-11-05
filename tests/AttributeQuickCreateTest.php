@@ -31,7 +31,11 @@ $rifiuto = static function (array $valori) use ($rapido): string {
 };
 
 check('lo store API degli attributi è aperto al modal, e solo quello', function () {
+    // L'API vive con la Scheda tecnica: spenta, la scheda non chiede caratteristiche.
+    $stato = new ReflectionProperty(\Wonder\Plugin\Gestionale\Gestionale::class, 'features');
+    $stato->setValue(null, ['technical_sheet' => true]);
     $schema = AttributeResource::apiSchema()->toArray();
+    $stato->setValue(null, null);
 
     return ($schema['enabled'] ?? false) === true
         && ($schema['routes']['store'] ?? false) === true
