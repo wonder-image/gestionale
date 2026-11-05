@@ -16,11 +16,11 @@ use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
-use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Payments\Installments;
@@ -84,7 +84,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
             $url .= '&rata='.$payment;
         }
 
-        return $back === '' ? $url : $url.'&torna='.rawurlencode($back);
+        return SafeRedirect::withBack($url, $back);
     }
 
     /** Dove si posta: la stessa rotta della pagina, in POST. */
@@ -255,7 +255,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
             FormField::key('reference')->text()->label('Riferimento'),
             FormField::key('order_id')->hidden()->value((string) ($ordine['id'] ?? 0)),
             FormField::key('payment_id')->hidden()->value((string) ($rata['id'] ?? '')),
-            FormField::key('back')->hidden()->value(StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '')),
+            FormField::key('back')->hidden()->value(SafeRedirect::backFromRequest()),
         ];
     }
 
@@ -378,7 +378,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
     public static function submitFormPage(array $values): string
     {
         $orderId = (int) ($values['order_id'] ?? 0);
-        $back = StockAdjustmentResource::backUrlFrom($values['back'] ?? '');
+        $back = SafeRedirect::fromRequest($values['back'] ?? '', '');
         $user = LegacyGlobals::get('USER');
         $result = static::run($orderId, $values, is_object($user) ? (int) ($user->id ?? 0) : 0);
 

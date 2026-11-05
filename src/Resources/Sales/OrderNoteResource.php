@@ -11,9 +11,9 @@ use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\Backend\Support\FlashAlert;
 use Wonder\Elements\Components\Modal;
+use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
-use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
 /**
@@ -201,7 +201,7 @@ final class OrderNoteResource extends NavigationOnlyResource
     {
         $orderId = (int) ($values['order_id'] ?? 0);
         $result = static::run($orderId, $values);
-        $back = StockAdjustmentResource::backUrlFrom($values['back'] ?? '');
+        $back = SafeRedirect::fromRequest($values['back'] ?? '', '');
 
         if (headers_sent()) {
             return $result['message'];

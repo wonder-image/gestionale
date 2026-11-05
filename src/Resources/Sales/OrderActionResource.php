@@ -9,10 +9,10 @@ use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\Backend\Support\FlashAlert;
+use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Shipping\Shipment;
-use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\Lifecycle;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
@@ -158,7 +158,7 @@ final class OrderActionResource extends NavigationOnlyResource
             is_object($user) ? (int) ($user->id ?? 0) : 0,
             static::shipmentValues($values)
         );
-        $back = StockAdjustmentResource::backUrlFrom($values['torna'] ?? '');
+        $back = SafeRedirect::fromRequest($values['torna'] ?? '', '');
 
         if (headers_sent()) {
             return $result['message'];

@@ -36,8 +36,9 @@ La spunta **Rientra a magazzino** si regola da sola col motivo: parte **spenta**
 per *Danneggiato* e *Difettoso* (merce rotta, di solito non si rivende), accesa
 per gli altri. Puoi sempre cambiarla.
 
-Premendo **Salva** il reso nasce subito come **Ricevuto**, e ti dice quanti
-pezzi sono rientrati.
+Premendo **Salva** il reso nasce subito come **Ricevuto**, ti dice quanti
+pezzi sono rientrati e ti riporta alla scheda dell'ordine. La freccia indietro
+in alto fa lo stesso senza salvare.
 
 ## Cosa succede in magazzino
 

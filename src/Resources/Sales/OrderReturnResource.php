@@ -15,12 +15,12 @@ use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturn;
 use Wonder\Plugin\Gestionale\Models\Sales\SalesReturnItem;
-use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
@@ -72,7 +72,7 @@ final class OrderReturnResource extends NavigationOnlyResource
     {
         $url = static::submitUrl().'?ordine='.$orderId;
 
-        return $back === '' ? $url : $url.'&torna='.rawurlencode($back);
+        return SafeRedirect::withBack($url, $back);
     }
 
     /** Dove si posta: la stessa rotta della pagina, in POST. */
@@ -123,7 +123,7 @@ final class OrderReturnResource extends NavigationOnlyResource
         return [
             FormField::key('internal_note')->text()->label('Nota interna'),
             FormField::key('order_id')->hidden()->value((string) ($ordine['id'] ?? 0)),
-            FormField::key('back')->hidden()->value(StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '')),
+            FormField::key('back')->hidden()->value(SafeRedirect::backFromRequest()),
         ];
     }
 
@@ -407,7 +407,7 @@ final class OrderReturnResource extends NavigationOnlyResource
     public static function submitFormPage(array $values): string
     {
         $orderId = (int) ($values['order_id'] ?? 0);
-        $back = StockAdjustmentResource::backUrlFrom($values['back'] ?? '');
+        $back = SafeRedirect::fromRequest($values['back'] ?? '', '');
         $user = LegacyGlobals::get('USER');
         $userId = is_object($user) ? (int) ($user->id ?? 0) : 0;
         $status = (string) ($values['action'] ?? '') !== '';
@@ -425,8 +425,10 @@ final class OrderReturnResource extends NavigationOnlyResource
             FlashAlert::custom('Attenzione', $result['message'], 'warning');
         }
 
+        // Le azioni della tabella restano sulla scheda; la pagina torna da dove si era partiti.
         $detail = OrderResource::detailUrl($orderId, $back !== '' ? $back : null);
-        header('Location: '.($result['ok'] || $status ? $detail : static::urlFor($orderId, $back)));
+        $done = $status ? $detail : ($back !== '' ? $back : OrderResource::detailUrl($orderId));
+        header('Location: '.($result['ok'] || $status ? $done : static::urlFor($orderId, $back)));
 
         exit();
     }

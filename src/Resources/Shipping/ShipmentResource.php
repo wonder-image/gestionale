@@ -16,6 +16,7 @@ use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
 use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\RichText;
+use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
@@ -26,7 +27,6 @@ use Wonder\Plugin\Gestionale\Models\Shipping\ShipmentStatusLog;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderActionResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
-use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Backend\RowMenu;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
@@ -262,7 +262,7 @@ final class ShipmentResource extends GestionaleResource
     {
         $url = static::namedUrl('view', '/backend/'.static::path().'/'.$id.'/', ['id' => $id]);
 
-        return $back === null || $back === '' ? $url : $url.'?torna='.rawurlencode($back);
+        return SafeRedirect::withBack($url, (string) $back);
     }
 
     /** @param array<string, mixed> $params */
@@ -646,7 +646,7 @@ final class ShipmentResource extends GestionaleResource
     /** Le finestre della scheda di una spedizione. @param array<string, mixed> $shipment */
     public static function modalsFor(array $shipment): string
     {
-        return static::modals([$shipment], StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? ''));
+        return static::modals([$shipment], SafeRedirect::backFromRequest());
     }
 
     // ── La scheda ────────────────────────────────────────────────────────

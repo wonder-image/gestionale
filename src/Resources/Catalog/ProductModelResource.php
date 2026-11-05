@@ -10602,7 +10602,7 @@ HTML
         }
 
         return '<a href="'.static::escape(
-            StockAdjustmentResource::urlFor((int) $product['id'])
+            StockAdjustmentResource::urlFor((int) $product['id'], (string) ($_SERVER['REQUEST_URI'] ?? ''))
         ).'">Rettifica la giacenza</a>';
     }
 }

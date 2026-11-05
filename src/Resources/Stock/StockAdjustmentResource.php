@@ -14,6 +14,7 @@ use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
@@ -65,7 +66,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
     {
         $url = static::pageUrl().'?versione='.$productId;
 
-        return $back === '' ? $url : $url.'&torna='.rawurlencode($back);
+        return SafeRedirect::withBack($url, $back);
     }
 
     /**
@@ -77,43 +78,6 @@ final class StockAdjustmentResource extends NavigationOnlyResource
     public static function submitUrl(): string
     {
         return static::pageUrl();
-    }
-
-    /**
-     * L'indirizzo del ritorno, se è di questo backend: un percorso che
-     * comincia con una barra sola, o niente.
-     *
-     * Un `torna=` che arriva dalla query string è testo di chiunque: accettare
-     * un indirizzo esterno vorrebbe dire spedire il commerciante altrove dopo
-     * un salvataggio andato a buon fine.
-     */
-    public static function backUrlFrom(mixed $value): string
-    {
-        $url = trim((string) ($value ?? ''));
-
-        // Le rotte del core tornano indirizzi assoluti
-        // (`https://sito/backend/...`): vanno bene finché sono di questo sito,
-        // e se ne tengono percorso e query.
-        if (preg_match('#^https?://#i', $url) === 1) {
-            $host = (string) (parse_url($url, PHP_URL_HOST) ?? '');
-
-            if ($host === '' || strcasecmp($host, (string) ($_SERVER['HTTP_HOST'] ?? '')) !== 0) {
-                return '';
-            }
-
-            $path = (string) (parse_url($url, PHP_URL_PATH) ?? '/');
-            $query = (string) (parse_url($url, PHP_URL_QUERY) ?? '');
-            $url = $query === '' ? $path : $path.'?'.$query;
-        }
-
-        // I browser leggono "\" come "/" e saltano tab e a capo: `/\altrove`
-        // e `/<tab>/altrove` sono `//altrove`, cioè un altro sito. Un ritorno
-        // buono non ha né spazi, né caratteri di controllo, né barre storte.
-        if (preg_match('/[\x00-\x20\x7f\\\\]/', $url) === 1) {
-            return '';
-        }
-
-        return str_starts_with($url, '/') && !str_starts_with($url, '//') ? $url : '';
     }
 
     public static function formSchema(): array
@@ -139,7 +103,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
             // campi, al salvataggio non si saprebbe più di quale opzione si
             // stava parlando.
             FormField::key('product_id')->hidden()->value((string) static::productId()),
-            FormField::key('back')->hidden()->value(static::backUrlFrom($_GET['torna'] ?? '')),
+            FormField::key('back')->hidden()->value(SafeRedirect::backFromRequest()),
         ];
     }
 
@@ -198,7 +162,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
     public static function submitFormPage(array $values): string
     {
         $productId = (int) ($values['product_id'] ?? 0) ?: static::productId();
-        $back = static::backUrlFrom($values['back'] ?? '');
+        $back = SafeRedirect::fromRequest($values['back'] ?? '', '');
 
         try {
             return static::adjust($productId, $values, $back);
