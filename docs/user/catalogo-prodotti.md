@@ -597,10 +597,11 @@ Per scaricare in fretta bastano tre passi: **File**, la scelta già pronta
 già scelti sono gli ultimi che hai usato.
 
 Se hai salvato un tracciato in Dev → File → **Tracciati file** (per esempio
-«Disponibilità», con solo codice e quantità), lo trovi nella stessa scheda
-sotto **Tracciati**, in Excel o CSV: il foglio ha solo le colonne del
-tracciato, nel suo ordine e con i suoi nomi. Le voci Excel e CSV in alto
-scaricano sempre tutte le colonne. Il file per Catalogo Meta ignora i
+«Disponibilità», con solo codice e quantità), lo scarichi dal bottone **File**:
+nella scheda **Esporta** scegli il tracciato (o *Tutte le colonne*), poi il
+formato, Excel o CSV, e premi **Scarica**. Il foglio ha solo le colonne del
+tracciato, nel suo ordine e con i suoi nomi; con *Tutte le colonne* ha l'elenco
+completo. Il file per Catalogo Meta ignora i
 tracciati: ha sempre le sue colonne.
 
 Se il tuo negozio li ha, nella stessa scheda trovi anche i file per i

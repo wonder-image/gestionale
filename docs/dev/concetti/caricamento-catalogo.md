@@ -18,8 +18,8 @@ per l'esportazione e per il caricamento. La voce è
 stesso `path()`, che la sostituisce e la mostra solo con `import_catalog`
 accesa; il posto nel menu resta quello del core.
 
-Nella scheda «Esporta» del bottone «File» dei prodotti i tracciati del catalogo compaiono sotto
-«Tracciati», solo per Excel e CSV: `ProductModelResource` dichiara
+Nella scheda «Esporta» del bottone «File» dei prodotti i tracciati del catalogo compaiono nel select
+«Tracciato», solo per Excel e CSV: `ProductModelResource` dichiara
 `->downloadLayouts(CatalogLayout::KEY, ProductExports::LAYOUT_FORMATS)` accanto
 a `downloadUsing()`, e il gestore riceve l'id scelto
 (`ProductExports::send($format, $layoutId)`). `ProductExports::layoutColumns()`
@@ -27,7 +27,7 @@ legge le colonne con `Profile::for()` (null senza tracciato o con un tracciato
 di un'altra fonte: allora il file ha le colonne di sempre); gli attributi si
 leggono dal DB solo se il tracciato ha una colonna `attr:<id>`
 (`wantsAttributes()`). Il tracciato predefinito non si applica da solo
-all'esportazione: le voci Excel e CSV in alto restano complete.
+all'esportazione: *Tutte le colonne* resta il file completo.
 
 ## Colonne e file di esempio
 
