@@ -6,6 +6,10 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Scheda abbonamento: il riquadro «Periodo» è più corto.** Le date stanno
+  due per riga e quelle vuote (prova, vincolo, disdetta, chiusura, fine) non
+  si mostrano; «Iniziato» e «Prossimo rinnovo» restano sempre
+  (`SubscriptionResource::periodItems()`). I servizi salgono in pagina.
 - **Tolta la funzionalità «Abbonamenti online».** Il sito vende un
   abbonamento con *Abbonamenti* e *Vendita online* accese e con
   **Acquistabile online** nella sua scheda, come per i prodotti. La regola sta
