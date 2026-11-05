@@ -603,7 +603,7 @@ tracciato, nel suo ordine e con i suoi nomi. Le voci Excel e CSV in alto
 scaricano sempre tutte le colonne. Il file per Catalogo Meta ignora i
 tracciati: ha sempre le sue colonne.
 
-Se il tuo negozio li ha, nello stesso pulsante trovi anche i file per i
+Se il tuo negozio li ha, nella stessa scheda trovi anche i file per i
 cataloghi di fuori:
 
 - **Catalogo Meta (.csv)**: da caricare in Commerce Manager per Facebook e
@@ -636,7 +636,7 @@ volta. Google e Meta passano a prenderlo una volta al giorno, all'ora che
 imposti da loro: ogni 6 ore basta perché trovino sempre dati freschi. Se la
 voce viene spenta, il file sparisce dall'indirizzo.
 
-Quali file vedi nel pulsante lo decide chi ha installato il gestionale: se ti
+Quali file vedi nella scheda Esporta del pulsante File lo decide chi ha installato il gestionale: se ti
 serve un file che non c'è, chiedilo a loro.
 
 ## Caricare un file

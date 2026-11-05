@@ -3635,4 +3635,12 @@ check('l\'import del catalogo passa da importLayout(): niente «Importa» tra i 
         && !str_contains($html, 'Importa');
 });
 
+check('CatalogLayout::permits() dice no con «Caricamento del catalogo» spenta, anche a chi può modificare', function () use ($forza) {
+    $forza(['import_catalog' => false]);
+    $no = (new \Wonder\Plugin\Gestionale\Support\Catalog\Import\CatalogLayout())->permits((object) ['authority' => ['admin']]);
+    $forza(null);
+
+    return $no === false;
+});
+
 summary();

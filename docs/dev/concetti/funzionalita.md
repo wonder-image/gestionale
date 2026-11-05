@@ -103,7 +103,7 @@ articolo di tipo `simple`. «Multiprodotto» la richiede. Spenta:
 
 ## Esportazioni
 
-L'area **Esportazioni** decide quali file offre «Esporta» nella tabella dei
+L'area **Esportazioni** decide quali file offre la scheda «Esporta» del bottone «File» nella tabella dei
 prodotti: `export_products` (Excel e CSV: il formato si sceglie nel menu),
 `export_meta` (Catalogo Meta, .csv) e `export_google` (Google Merchant Center,
 .xml). Con nessuna concessa il pulsante sparisce. Per un sito che le vuole dal

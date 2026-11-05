@@ -1,12 +1,14 @@
 # Caricamento del catalogo da file
 
-«Importa» nell'elenco dei prodotti apre la pagina di caricamento del core
+Nell'elenco dei prodotti il bottone «File» ha due schede, Esporta e Importa; «Importa» apre la pagina di caricamento del core
 (`ImportResource`, vedi `docs/app/concetti/importazione.md` nel pacchetto
 `wonder-image/app`) col tracciato `catalog`:
 `Support\Catalog\Import\CatalogLayout`, registrato in `config/module.php`
-(`import.layouts`). Il bottone e la pagina ci sono solo con la funzionalità
-`import_catalog` accesa (`Gestionale::feature()`, in `CatalogLayout::permits()`
-e nel bottone) e li vede chi può fare `update` su `ProductModelResource`.
+(`import.layouts`). `ProductModelResource::tableLayoutSchema()` la dichiara con
+`importLayout(CatalogLayout::KEY)`, senza `if`: i permessi li decide
+`CatalogLayout::permits()`. La scheda e la pagina ci sono solo con la
+funzionalità `import_catalog` accesa (`Gestionale::feature()`) e le vede chi può
+fare `update` su `ProductModelResource`.
 
 Il file è lo stesso dell'esportazione (`ProductExport`): stesse colonne, stesse
 intestazioni, più qualche nome comune (`Codice`, `Quantità`, `Nome`,
@@ -16,7 +18,7 @@ per l'esportazione e per il caricamento. La voce è
 stesso `path()`, che la sostituisce e la mostra solo con `import_catalog`
 accesa; il posto nel menu resta quello del core.
 
-In «Esporta» dei prodotti i tracciati del catalogo compaiono sotto
+Nella scheda «Esporta» del bottone «File» dei prodotti i tracciati del catalogo compaiono sotto
 «Tracciati», solo per Excel e CSV: `ProductModelResource` dichiara
 `->downloadLayouts(CatalogLayout::KEY, ProductExports::LAYOUT_FORMATS)` accanto
 a `downloadUsing()`, e il gestore riceve l'id scelto
