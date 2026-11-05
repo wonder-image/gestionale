@@ -6,6 +6,10 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Il nome del prezzo di un abbonamento è facoltativo.** Lasciato vuoto, lo
+  compone `PlanPriceRules::autoName()` dall'addebito, dal vincolo e dalla prova
+  («Mensile con vincolo annuale», «Annuale, 14 giorni di prova») e si salva
+  così; `SubscriptionProductForm::prepareRows()` lo applica prima delle regole.
 - **Catalogo › Attributi segue la Scheda tecnica.** Gli attributi sono la
   scheda tecnica dell'articolo: con la funzionalità spenta la voce non compare
   più nel menu (`AttributeResource::$feature = 'technical_sheet'`).

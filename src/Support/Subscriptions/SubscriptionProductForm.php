@@ -32,7 +32,13 @@ final class SubscriptionProductForm
     /** Ogni quanto si paga un prezzo: i mesi coperti da un addebito. @return array<string, string> */
     public static function termOptions(): array
     {
-        return ['1' => 'Mensile', '2' => 'Bimestrale', '3' => 'Trimestrale', '6' => 'Semestrale', '12' => 'Annuale'];
+        $options = [];
+
+        foreach ([1, 2, 3, 6, 12] as $term) {
+            $options[(string) $term] = PlanPriceRules::TERM_LABELS[$term];
+        }
+
+        return $options;
     }
 
     /**
@@ -49,7 +55,7 @@ final class SubscriptionProductForm
             FormField::key('prices')
                 ->repeater([
                     RepeaterColumn::key('id')->hidden(),
-                    RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(3),
+                    RepeaterColumn::key('name')->text()->label('Nome')->placeholder('Automatico')->columnSpan(3),
                     RepeaterColumn::key('price')->number()->decimal(2)->label('Prezzo')->columnSpan(2),
                     RepeaterColumn::key('term_months')->select(static::termOptions())->label('Addebito')->columnSpan(2),
                     RepeaterColumn::key('one_time_price')->number()->decimal(2)->label('Una tantum')->columnSpan(2),
@@ -102,7 +108,7 @@ final class SubscriptionProductForm
         ];
     }
 
-    public const PRICES_TOOLTIP = 'Un prezzo per riga. «Addebito» dice ogni quanto si paga il prezzo: mensile, trimestrale… annuale. Il prezzo è IVA inclusa o esclusa come il listino; il prezzo scontato, se più basso, vince. Vincolo zero vuol dire nessun vincolo. «A fine vincolo passa a» propone solo i prezzi già salvati: per un prezzo nuovo, salva e poi sceglilo. Un prezzo cambiato vale per i nuovi abbonati.';
+    public const PRICES_TOOLTIP = 'Un prezzo per riga. Il nome, se lo lasci vuoto, lo compone l\'addebito con vincolo e prova: «Mensile con vincolo annuale». «Addebito» dice ogni quanto si paga il prezzo: mensile, trimestrale… annuale. Il prezzo è IVA inclusa o esclusa come il listino; il prezzo scontato, se più basso, vince. Vincolo zero vuol dire nessun vincolo. «A fine vincolo passa a» propone solo i prezzi già salvati: per un prezzo nuovo, salva e poi sceglilo. Un prezzo cambiato vale per i nuovi abbonati.';
 
     public const MAIN_TOOLTIP = 'Il nome, le descrizioni e le foto li vede il cliente nella pagina dell\'abbonamento. «Bozza» lo toglie dal sito e dall\'ufficio, ma lo lascia agli abbonati. «Si lega a»: si compra solo insieme a un abbonamento di uno di questi, come l\'hosting col dominio, e va sullo stesso abbonamento. Un livello solo: si scelgono abbonamenti che non si legano a nulla.';
 
@@ -291,6 +297,12 @@ final class SubscriptionProductForm
             $row['trial_days'] = (int) trim((string) ($row['trial_days'] ?? '0'));
             $row['renewal_plan_price_id'] = max(0, (int) ($row['renewal_plan_price_id'] ?? 0));
             $row['active'] = ($row['active'] ?? 'true') === 'false' ? 'false' : 'true';
+
+            // Senza nome lo dice quello che si è scelto: «Mensile con vincolo annuale».
+            if ($row['name'] === '') {
+                $row['name'] = PlanPriceRules::autoName($row['term_months'], $row['commitment_months'], $row['trial_days']);
+            }
+
             $clean[] = $row;
         }
 

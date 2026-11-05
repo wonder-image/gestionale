@@ -68,7 +68,9 @@ Il sovrapprezzo, se c'è, si paga a ogni periodo del servizio, per la quantità.
 
 Un piano ha uno o più prezzi, una riga per prezzo:
 
-* **Nome**: «Mensile», «Annuale».
+* **Nome**: facoltativo. Se lo lasci vuoto si compone da quello che scegli
+  nella riga: «Mensile», «Mensile con vincolo annuale», «Annuale, 14 giorni di
+  prova». Scrivilo solo se vuoi un nome tuo, ad esempio «Pro».
 * **Prezzo**: IVA inclusa o esclusa come i prezzi del catalogo
   (*Impostazioni → Prezzi del catalogo*).
 * **Addebito**: ogni quanto si paga il prezzo: Mensile, Bimestrale,
