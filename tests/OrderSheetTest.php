@@ -46,6 +46,28 @@ check('i totali con sconto e spedizione li mostrano', function () use ($ordine) 
     return str_contains($html, 'Sconto') && str_contains($html, 'Spedizione');
 });
 
+check('con più coupon ogni codice ha la sua riga di risparmio', function () use ($ordine) {
+    $html = OrderSheet::totals(['coupon_code' => 'ESTATE10, SPEDIZIONE'] + $ordine, [
+        ['code' => 'ESTATE10', 'discount_amount' => '10.00'],
+        ['code' => 'SPEDIZIONE', 'discount_amount' => '5.90'],
+    ]);
+
+    return str_contains($html, 'Coupon ESTATE10') && str_contains($html, 'risparmio 10,00 €')
+        && str_contains($html, 'Coupon SPEDIZIONE') && str_contains($html, 'risparmio 5,90 €');
+});
+
+check('un coupon solo, passato come riga, resta leggibile', function () use ($ordine) {
+    $html = OrderSheet::totals(['coupon_code' => 'ESTATE10'] + $ordine, ['code' => 'ESTATE10', 'discount_amount' => '10.00']);
+
+    return str_contains($html, 'Coupon ESTATE10') && str_contains($html, 'risparmio 10,00 €');
+});
+
+check('un ordine di prima, senza usi registrati, mostra il codice senza importo', function () use ($ordine) {
+    $html = OrderSheet::totals(['coupon_code' => 'VECCHIO'] + $ordine);
+
+    return str_contains($html, 'Coupon VECCHIO') && !str_contains($html, 'risparmio');
+});
+
 check('lo sconto di una riga si legge in percentuale, in euro o con un trattino', fn () =>
     OrderSheet::discount(['discount_type' => 'percent', 'discount_value' => '10.000']) === '10%'
     && OrderSheet::discount(['discount_type' => 'amount', 'discount_value' => '5.00']) === '5,00 €'

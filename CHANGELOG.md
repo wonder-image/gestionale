@@ -115,6 +115,11 @@ versionamento semantico.
   spenta non si vede e l'abbonamento nuovo prende il predefinito.
 
 ### Corretto
+- **Scheda dell'ordine: il risparmio di ogni coupon** (gestionale#113). Con più
+  coupon nei totali c'era il risparmio del solo primo; ora ogni coupon ha la sua
+  riga. `OrderSheet::totals()` accetta la lista degli usi (una riga sola resta
+  valida); un ordine senza usi registrati mostra il codice senza importo, non
+  «0,00 €».
 - **Freccia indietro e salvataggio tornano da dove si era partiti.** Le
   pagine-form (rettifica giacenza, reso, pagamenti, spedizioni, note, azioni
   dell'ordine, nuovo abbonamento) leggono e scrivono il `torna=` con

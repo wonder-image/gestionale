@@ -39,7 +39,9 @@ stati: **Ordine**, **Pagamento** e come arriva la merce — **Spedizione**
 *Pronto per il ritiro*, *Ritirato*) o **Consegna** per un ordine senza nessuna
 delle due. Poi il **cliente** (un link: apre la sua scheda, se è in
 anagrafica), gli indirizzi di **Fatturazione** e di spedizione, il metodo di
-pagamento e le note. A destra i **Totali** e il **Riepilogo IVA**. Sotto, i
+pagamento e le note. A destra i **Totali** e il **Riepilogo IVA**. Nei totali
+ogni coupon usato ha una sua riga col codice e quanto ha fatto risparmiare; è
+solo un'informazione, lo sconto è già nei totali. Sotto, i
 riquadri a tendina:
 
 * **Righe** — cosa ha comprato, con quantità e prezzi (aperto di default);

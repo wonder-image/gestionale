@@ -85,6 +85,9 @@ da spenta `Coupons::apply` lancia `coupon.inactive`, la pagina sparisce e i dati
   `redeem` fallisce per un motivo del coupon, fuori dalla transazione il coupon esce dal
   carrello e nessun ordine nasce. `release` (da `Lifecycle::cancel`, quindi anche dalla scadenza)
   mette `released_at`; è idempotente. Un reso non rilascia.
+* **Scheda dell'ordine**: `OrderSheet::totals($order, $redemptions)` riceve tutte le righe di
+  `gst_coupon_redemptions` dell'ordine (per `id`) e scrive una riga informativa per coupon, con
+  codice e `discount_amount`. Senza righe (ordini di prima) mostra il solo `coupon_code`.
 * **Cliente**: l'account o, da ospite, l'email dell'ordine. Il limite per cliente e il primo
   ordine usano quella.
 * **Stato** (programmato, in corso, finito) è `Campaigns::status`, lo stesso delle campagne.
