@@ -35,7 +35,8 @@ Si gestiscono in **Promozioni → Listini**.
   18,00. Un prodotto che ha una riga paga il prezzo della riga.
 * **Canali**: i canali in cui il listino vale per chi non ne ha uno suo. Un
   canale ha un solo listino: se lo scegli in due listini, il secondo non si
-  salva e il messaggio dice quale listino lo tiene già.
+  salva e il messaggio dice quale listino lo tiene già. Un modulo che collega
+  un nuovo canale (per esempio un marketplace) lo aggiunge da solo all'elenco.
 
 ## Le righe e gli scaglioni
 

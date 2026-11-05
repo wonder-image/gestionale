@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Sales;
 
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Pricing\PriceListChannels;
 
 /**
  * I canali di vendita che il sito ha acceso: sito, ufficio, cassa.
@@ -27,8 +28,8 @@ final class Channels
     ];
 
     /**
-     * I canali che possono avere un listino (#162): quelli degli ordini
-     * (`Order::CHANNELS`) e quelli esterni dei feed e dei marketplace.
+     * @deprecated i canali dei listini stanno in `PriceListChannels`, estendibile
+     * dai moduli e dal sito; questa costante resta per chi la leggeva.
      *
      * @var array<string, string>
      */
@@ -43,10 +44,14 @@ final class Channels
         'meta' => 'Meta (Facebook e Instagram)',
     ];
 
-    /** @return array<string, string> */
+    /**
+     * I canali che possono avere un listino, dal registro `PriceListChannels`.
+     *
+     * @return array<string, string>
+     */
     public static function priceListChannels(): array
     {
-        return self::PRICE_LIST_CHANNELS;
+        return PriceListChannels::all();
     }
 
     /** @return array<string, array{feature: string, label: string, name: string}> */

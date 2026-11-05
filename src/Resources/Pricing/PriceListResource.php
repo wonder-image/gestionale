@@ -30,9 +30,9 @@ use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Pricing\Import\PriceListLayout;
+use Wonder\Plugin\Gestionale\Support\Pricing\PriceListChannels;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceListTransfer;
-use Wonder\Plugin\Gestionale\Support\Sales\Channels;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 
 /**
@@ -116,7 +116,7 @@ final class PriceListResource extends GestionaleResource
                 ->value('none')
                 ->label('Prodotti senza riga'),
             FormField::key('percent')->number()->decimal(2)->label('Percentuale'),
-            FormField::key('channels')->checkbox()->options(Channels::priceListChannels())->value([])->label('Canali'),
+            FormField::key('channels')->checkbox()->options(PriceListChannels::all())->value([])->label('Canali'),
             FormField::key('valid_from')->dateInput()->label('Dal'),
             FormField::key('valid_to')->dateInput()->label('Al'),
             FormField::key('active')
@@ -394,7 +394,7 @@ final class PriceListResource extends GestionaleResource
             $value = is_array($decoded) ? $decoded : ($value === '' ? [] : [$value]);
         }
 
-        return array_values(array_intersect(array_keys(Channels::priceListChannels()), array_map('strval', (array) $value)));
+        return array_values(array_intersect(array_keys(PriceListChannels::all()), array_map('strval', (array) $value)));
     }
 
     /** Un canale ha un solo listino: se è già di un altro, si rifiuta. @param list<string> $channels */
@@ -408,7 +408,7 @@ final class PriceListResource extends GestionaleResource
                 $name = is_array($found) && array_key_exists('id', $found) ? html_entity_decode((string) ($found['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8') : '#'.$owner;
 
                 throw UserError::refusal('price_list.channel_taken', [
-                    'channel' => Channels::priceListChannels()[$channel] ?? $channel,
+                    'channel' => PriceListChannels::all()[$channel] ?? $channel,
                     'list' => $name,
                 ]);
             }
@@ -418,7 +418,7 @@ final class PriceListResource extends GestionaleResource
     /** «Sito, Google Shopping», vuoto se nessuno. */
     public static function channelLabels(int $priceListId): string
     {
-        $labels = Channels::priceListChannels();
+        $labels = PriceListChannels::all();
 
         return implode(', ', array_map(static fn (string $channel): string => $labels[$channel] ?? $channel, PriceLists::channelsOf($priceListId)));
     }

@@ -18,7 +18,8 @@ restano.
 | `Models\Pricing\PriceListItem` | righe: prodotto, quantità minima, prezzo |
 | `Models\Pricing\PriceListChannel` | `gst_price_list_channels`: un canale (unico) → un listino |
 | `Support\Pricing\PriceLists` | l'unica porta: carica, sceglie, risolve il prezzo |
-| `Support\Sales\Channels::PRICE_LIST_CHANNELS` | i canali che possono avere un listino |
+| `Support\Pricing\PriceListChannels` | il registro dei canali che possono avere un listino |
+| `Support\Pricing\ChannelPrice` | il prezzo di un prodotto su un canale: l'unico punto per export e integrazioni |
 | `Support\Pricing\Import\PriceListLayout` | il tracciato `price_lists` per caricare righe da file |
 
 ## I canali
@@ -84,11 +85,45 @@ anche per gli ospiti; la cassa usa `pos`.
 
 ## Export e feed
 
-`ProductFeed` (Google e Meta) prende il listino di `forChannel('google')` /
-`forChannel('meta')` e lo risolve a quantità 1. Con un prezzo di listino il feed
-non manda il prezzo scontato né la campagna. eBay e bindCommerce non hanno
-ancora codice: quando arriva, `forChannel('ebay')` / `forChannel('marketplace')`
-e `ProductFeed::withPriceLists()` sono il punto da usare.
+Ogni export e integrazione legge il prezzo da `ChannelPrice`, mai da
+`PriceLists` o dai campi del prodotto:
+
+```php
+ChannelPrice::apply($rows, 'google', $includesTax); // righe con id, price, tax_rate
+ChannelPrice::of('ebay', $productId, $basePrice, $includesTax, $taxRate);
+// ['price' => ..., 'price_list_id' => ...] oppure null: vale il prezzo del prodotto
+ChannelPrice::lists('meta');                         // i listini validi oggi, per i cicli
+```
+
+Il listino si risolve a quantità 1 (`of()` accetta una quantità diversa). Con un
+prezzo di listino la riga perde il prezzo scontato (`sale_price` a null) e la
+campagna. `ProductFeed` (Google e Meta) passa da qui; eBay e bindCommerce, quando
+arrivano, fanno lo stesso con `ebay` e `marketplace`. L'export xlsx/csv del
+catalogo resta a prezzi di catalogo. `ProductFeed::withPriceLists()` è
+deprecato: usa `ChannelPrice::applyLists()`.
+
+## Agganciare un nuovo canale
+
+1. **Registra il canale.** In un modulo, nel `config/module.php`:
+
+   ```php
+   'price_lists' => ['channels' => ['amazon' => 'Amazon']],
+   ```
+
+   Nel sito, in un file di config: `PriceListChannels::set('amazon', 'Amazon')`.
+   La chiave è minuscola, `[a-z][a-z0-9_]`, al più 30 caratteri; una voce non
+   valida finisce nel log e si salta. `false` toglie un canale (anche del
+   gestionale), il sito ha l'ultima parola sui moduli.
+2. **Leggi il prezzo** con `ChannelPrice::apply()` / `of()` passando la chiave.
+   Un canale non registrato lancia `InvalidArgumentException`: un refuso non
+   manda mai il prezzo base per sbaglio.
+3. **Non toccare** `LinePrice`, `PriceLists` né il form: il canale compare da
+   solo tra i *Canali* del listino.
+
+Un canale tolto dal registro sparisce dal form; il suo listino resta assegnato
+finché qualcuno non risalva la scheda. Gli ordini non passano da
+`ChannelPrice`: usano prima il listino del cliente, poi quello del canale
+(vedi sopra).
 
 ## Il tracciato per i prezzi in blocco
 

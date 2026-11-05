@@ -52,6 +52,10 @@ return [
             \Wonder\Plugin\Gestionale\Support\Pricing\Import\PriceListLayout::KEY => \Wonder\Plugin\Gestionale\Support\Pricing\Import\PriceListLayout::class,
         ],
     ],
+    // Canali dei listini oltre a PriceListChannels::CORE: chiave => etichetta, false toglie (#162).
+    'price_lists' => [
+        'channels' => [],
+    ],
     // Classi del sito che estendono Extensions\GestionaleExtension (piano 4).
     'extensions' => [],
     // Funzionalità aggiunte dal sito e chiavi da sbloccare alla prima installazione.

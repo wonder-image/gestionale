@@ -166,6 +166,11 @@ versionamento semantico.
   del loro canale. Nuovo tracciato `price_lists` («Prezzi di listino») per
   cambiare i prezzi in blocco: aggiorna o aggiunge righe, non ne cancella.
   Un listino con canali assegnati non si elimina.
+  I canali stanno in un registro estendibile (`PriceListChannels`: modulo
+  con `price_lists.channels`, sito con `set()`, `false` toglie) e ogni export
+  o integrazione legge il prezzo da `ChannelPrice` (`apply()`, `of()`,
+  `lists()`): un canale nuovo non tocca `LinePrice`. Deprecati
+  `Channels::PRICE_LIST_CHANNELS` e `ProductFeed::withPriceLists()`.
 - **Importa nell'elenco dei prodotti (#84).** Il file dell'esportazione si
   ricarica: uno SKU che c'è si aggiorna (solo le celle cambiate), uno nuovo
   diventa una versione o un articolo, la giacenza si muove con causale

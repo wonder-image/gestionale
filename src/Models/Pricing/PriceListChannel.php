@@ -11,9 +11,9 @@ use Wonder\Sql\TableSchema as Column;
  * Il listino di un canale di vendita (#162): un canale ha al più un listino,
  * un listino può valere su più canali.
  *
- * I canali sono quelli degli ordini (`Order::CHANNELS`) e quelli esterni dei
- * feed e dei marketplace (`Channels::PRICE_LIST_CHANNELS`). Si scrive dal form
- * del listino; il prezzo lo risolve `Support\Pricing\PriceLists`.
+ * I canali sono quelli del registro `Support\Pricing\PriceListChannels`
+ * (ordini, feed, marketplace, più quelli dei moduli). Si scrive dal form del
+ * listino; il prezzo per canale lo dà `Support\Pricing\ChannelPrice`.
  */
 final class PriceListChannel extends Model
 {

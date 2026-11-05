@@ -6,7 +6,7 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductExport;
-use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
+use Wonder\Plugin\Gestionale\Support\Pricing\ChannelPrice;
 use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 
 /**
@@ -19,7 +19,8 @@ use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
  * campagna di sconto in corso.
  *
  * Con un listino assegnato al canale del feed (`google`, `meta`, #162) il
- * prezzo è quello del listino e la campagna non si applica, come nel carrello.
+ * prezzo è quello del listino, letto da `ChannelPrice`, e la campagna non si
+ * applica, come nel carrello.
  *
  * Tutto puro tranne `of()` e `withCampaigns()`.
  */
@@ -36,10 +37,10 @@ final class ProductFeed
         $now = date('Y-m-d H:i:s');
         $rows = array_values(array_filter($export['rows'], [self::class, 'eligible']));
         $rows = Gestionale::feature('discount_campaigns') ? self::withCampaigns($rows, $now) : $rows;
-        $lists = PriceLists::loadAll([PriceLists::forChannel($channel)], $now, self::currency());
+        $lists = $channel === '' ? [] : ChannelPrice::lists($channel, $now, self::currency());
 
         return [
-            'rows' => self::withPriceLists($rows, $lists, $export['pricesIncludeTax']),
+            'rows' => ChannelPrice::applyLists($rows, $lists, $export['pricesIncludeTax']),
             'pricesIncludeTax' => $export['pricesIncludeTax'],
             'currency' => self::currency(),
             'now' => $now,
@@ -82,32 +83,15 @@ final class ProductFeed
     }
 
     /**
-     * Il prezzo del listino del canale al posto di quello di catalogo, per
-     * una unità: l'articolo che il listino non trova resta com'è. Con il
-     * prezzo di listino cadono scontato e campagna.
+     * @deprecated usa `ChannelPrice::applyLists()`, l'unico punto del prezzo per canale.
      *
      * @param list<array<string, mixed>> $rows
-     * @param list<array<string, mixed>> $lists da `PriceLists::loadAll()`
+     * @param list<array<string, mixed>> $lists
      * @return list<array<string, mixed>>
      */
     public static function withPriceLists(array $rows, array $lists, bool $pricesIncludeTax): array
     {
-        if ($lists === []) {
-            return $rows;
-        }
-
-        foreach ($rows as $index => $row) {
-            $listed = PriceLists::resolve($lists, (int) ($row['id'] ?? 0), 1.0, (float) ($row['price'] ?? 0), $pricesIncludeTax, (float) ($row['tax_rate'] ?? 0));
-
-            if ($listed['price'] > 0) {
-                $rows[$index]['price'] = $listed['price'];
-                $rows[$index]['price_list_id'] = $listed['price_list_id'];
-                $rows[$index]['sale_price'] = null;
-                unset($rows[$index]['campaign']);
-            }
-        }
-
-        return $rows;
+        return ChannelPrice::applyLists($rows, $lists, $pricesIncludeTax);
     }
 
     /** Il nome nel feed: "Maglia - Blu / S", o solo "Maglia". */
