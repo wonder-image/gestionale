@@ -584,20 +584,27 @@ la storia pure.
 
 ## Scaricare l'elenco
 
-Nell'elenco dei prodotti, il pulsante **Esporta** scarica tutti gli articoli in
+Nell'elenco dei prodotti, il pulsante **File** apre una finestra con due
+schede, **Esporta** e **Importa**. In **Esporta** scarichi tutti gli articoli in
 un foglio: **Excel (.xlsx)** oppure **CSV (.csv)**. C'è una riga per ogni
 opzione in vendita, con codice articolo, SKU, EAN, prezzi, quanti ne hai
 disponibili, se è pubblicato, online e attivo, categorie, link e foto. Escono
 anche le bozze, e i filtri dell'elenco non contano: il foglio è sempre
 completo. Lo può scaricare chi vede l'elenco.
 
-Se hai salvato un tracciato in Dev → File → **Tracciati file** (per esempio
-«Disponibilità», con solo codice e quantità), lo trovi nello stesso pulsante
-sotto **Tracciati**, in Excel o CSV: il foglio ha solo le colonne del
-tracciato, nel suo ordine e con i suoi nomi. Le voci Excel e CSV in alto
-scaricano sempre tutte le colonne.
+Per scaricare in fretta bastano tre passi: **File**, la scelta già pronta
+(Excel, CSV o un tracciato), **Scarica**. Il formato e il tracciato che vedi
+già scelti sono gli ultimi che hai usato.
 
-Se il tuo negozio li ha, nello stesso pulsante trovi anche i file per i
+Se hai salvato un tracciato in Dev → File → **Tracciati file** (per esempio
+«Disponibilità», con solo codice e quantità), lo scarichi dal bottone **File**:
+nella scheda **Esporta** scegli il tracciato (o *Tutte le colonne*), poi il
+formato, Excel o CSV, e premi **Scarica**. Il foglio ha solo le colonne del
+tracciato, nel suo ordine e con i suoi nomi; con *Tutte le colonne* ha l'elenco
+completo. Il file per Catalogo Meta ignora i
+tracciati: ha sempre le sue colonne.
+
+Se il tuo negozio li ha, nella stessa scheda trovi anche i file per i
 cataloghi di fuori:
 
 - **Catalogo Meta (.csv)**: da caricare in Commerce Manager per Facebook e
@@ -630,16 +637,16 @@ volta. Google e Meta passano a prenderlo una volta al giorno, all'ora che
 imposti da loro: ogni 6 ore basta perché trovino sempre dati freschi. Se la
 voce viene spenta, il file sparisce dall'indirizzo.
 
-Quali file vedi nel pulsante lo decide chi ha installato il gestionale: se ti
+Quali file vedi nella scheda Esporta del pulsante File lo decide chi ha installato il gestionale: se ti
 serve un file che non c'è, chiedilo a loro.
 
 ## Caricare un file
 
-Il pulsante **Importa**, accanto a Esporta, fa il contrario: carichi un foglio
+La scheda **Importa** del pulsante **File** fa il contrario: carichi un foglio
 (Excel o CSV) e il gestionale aggiorna i prodotti. Il modo più semplice è
 scaricare l'elenco, cambiare quello che ti serve e ricaricarlo così com'è.
 
-Il pulsante c'è solo se è accesa la funzionalità **Caricamento del catalogo**
+La scheda c'è solo se è accesa la funzionalità **Caricamento del catalogo**
 (Set-up → Gestionale → Funzionalità). Con la stessa funzionalità compare
 Dev → File → **Tracciati file**, dove salvi l'ordine e i nomi delle
 colonne del file.

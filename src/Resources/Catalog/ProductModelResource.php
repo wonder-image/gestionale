@@ -5,7 +5,6 @@ namespace Wonder\Plugin\Gestionale\Resources\Catalog;
 use Closure;
 use Throwable;
 use Wonder\App\ResourceSchema\ApiSchema;
-use Wonder\App\Resources\Config\ImportResource;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -1390,13 +1389,8 @@ HTML
             ->filterQuery('Marchio', 'marchio', static::brandFilterOptions(), static fn (array $values): string => static::brandCondition($values))
             ->filterQuery('Categoria', 'categoria', static::categoryFilterOptions(), static fn (array $values): string => static::categoryCondition($values));
 
-        // «Importa» (#84): lo stesso file dell'esportazione, riletto; si accende in Funzionalità.
-        if (Gestionale::feature('import_catalog') && static::allows((array) ($GLOBALS['USER']->authority ?? []), 'update')) {
-            $layout->buttonCustom(
-                Button::to(ImportResource::url(['layout' => CatalogLayout::KEY]), 'Importa')
-                    ->variant('secondary')->outline()->size('sm')->icon('bi bi-upload', 'start')
-            );
-        }
+        // «Importa» (#84) vive nel bottone «File»; la funzionalità e il permesso li controlla CatalogLayout::permits().
+        $layout->importLayout(CatalogLayout::KEY);
 
         if ($tipi === ['simple' => 'Prodotto']) {
             return $layout;

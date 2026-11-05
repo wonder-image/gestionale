@@ -3627,4 +3627,20 @@ check('la galleria: la prima grande, quattro piccole, «+N» sull\'ultima e le a
         && str_contains(ProductModelResource::galleryHtml([], 'Maglia', 'g4'), 'Nessuna foto');
 });
 
+check('l\'import del catalogo passa da importLayout(): niente «Importa» tra i bottoni a mano', function () {
+    $layout = ProductModelResource::tableLayoutSchema()->toArray();
+    $html = implode('', array_map('strval', (array) ($layout['buttons_custom'] ?? [])));
+
+    return ($layout['import']['layout'] ?? null) === \Wonder\Plugin\Gestionale\Support\Catalog\Import\CatalogLayout::KEY
+        && !str_contains($html, 'Importa');
+});
+
+check('CatalogLayout::permits() dice no con «Caricamento del catalogo» spenta, anche a chi può modificare', function () use ($forza) {
+    $forza(['import_catalog' => false]);
+    $no = (new \Wonder\Plugin\Gestionale\Support\Catalog\Import\CatalogLayout())->permits((object) ['authority' => ['admin']]);
+    $forza(null);
+
+    return $no === false;
+});
+
 summary();
