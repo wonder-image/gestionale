@@ -27,7 +27,7 @@ icon: barcode
 - **Copie per variante**: quante etichette uguali per ogni variante.
 - **Da stampare**: nome del prodotto, variante, SKU, prezzo, codice a barre.
   Togli quello che non ti serve; se togli tutto si stampano i campi di partenza.
-- **Prima casella libera**: per riusare un foglio A4 già cominciato. Le
+- **Comincia dalla casella n°**: per riusare un foglio A4 già cominciato. Le
   caselle si contano da sinistra a destra, riga per riga, partendo da 1. Con un
   rotolo non c'è.
 

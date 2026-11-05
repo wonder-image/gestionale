@@ -9,6 +9,7 @@ use Wonder\Backend\Support\ResourceFormLayoutRenderer as Layout;
 use Wonder\Elements\Components\Alert;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
+use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Components\Text;
 use Wonder\Elements\Form\Form;
 use Wonder\Http\Csrf;
@@ -28,10 +29,14 @@ if (!Gestionale::feature('barcode_labels')) {
 
     echo Layout::render(
         (new Form())->columns(12)->components([
-            (new Card())->columns(12)->columnSpan(12)->components([
-                ...LabelsResource::formFields(),
-                Text::make('Formato: '.$format->name.' (lo cambi nelle Impostazioni). Al massimo '.Labels::MAX_LABELS.' etichette per PDF.')->muted()->small()->columnSpan(12),
-                Button::make('Crea il PDF')->icon('bi bi-file-earmark-pdf')->variant('primary')->type('submit')->columnSpan(['default' => 12, 'md' => 4]),
+            (new Card())->columns(12)->columnSpan(['default' => 12, 'lg' => 8])->components(LabelsResource::formFields()),
+            (new Card())->columns(12)->columnSpan(['default' => 12, 'lg' => 4])->components([
+                SectionTitle::make('Stampa')
+                    ->tooltip('Copie per variante: quante etichette uguali per ogni variante. Comincia dalla casella n°: su un foglio A4 già usato in parte, la prima casella ancora libera, contando da sinistra a destra e riga per riga a partire da 1. Con un rotolo non serve.')
+                    ->columnSpan(12),
+                ...LabelsResource::printFields(),
+                Text::make('Formato: '.$format->name.'. Al massimo '.Labels::MAX_LABELS.' etichette per PDF.')->muted()->small()->columnSpan(12),
+                Button::make('Crea il PDF')->icon('bi bi-file-earmark-pdf')->variant('primary')->type('submit')->columnSpan(12),
             ]),
         ]),
         [

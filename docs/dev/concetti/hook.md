@@ -91,8 +91,11 @@ selettore dei coupon (`ScopeForm`): `LabelsResource::printQuery()` ne fa la
 richiesta di `Labels::respond('scope', …)`, e `Labels::forScope()` passa i
 modelli per `Labels::modelsInScope()` (che usa `ScopeMatcher`, abbonamenti
 esclusi) e stampa le varianti attive, al massimo `Labels::MAX_LABELS`. Le
-scelte di stampa (campi, prima casella) sono `LabelDialog::fields()`, le stesse
-della finestra del carico.
+scelte di stampa sono `LabelDialog::printedField()` (i campi) e
+`LabelDialog::startField()` (la casella da cui partire, solo sul foglio), le
+stesse della finestra del carico (`LabelDialog::fields()`). Nella pagina il
+selettore e i campi stanno a sinistra (`LabelsResource::formFields()`), copie e
+casella a destra (`LabelsResource::printFields()`).
 
 ## Regole
 
