@@ -11,9 +11,9 @@
  */
 
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
+use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderNoteResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
-use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\View\View;
 
 $ordine = (array) ($ITEM ?? []);
@@ -29,6 +29,6 @@ echo ResourceFormLayoutRenderer::renderLayout(OrderResource::showLayoutSchema($o
 
 // Le finestre (azioni e note) stanno fuori dal disegno: il layout non contiene campi.
 echo OrderResource::actionModalsFor($ordine);
-echo OrderNoteResource::modal($ordine, StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? ''));
+echo OrderNoteResource::modal($ordine, SafeRedirect::backFromRequest());
 
 View::end();

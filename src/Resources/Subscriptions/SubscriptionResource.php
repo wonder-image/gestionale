@@ -20,6 +20,7 @@ use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
 use Wonder\Elements\Components\Modal;
 use Wonder\Http\Route;
+use Wonder\Http\SafeRedirect;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\Gestionale\Gestionale;
@@ -172,7 +173,7 @@ final class SubscriptionResource extends GestionaleResource
             ->results()
             ->hideButtonAdd()
             ->buttonCustom(
-                Button::to(OfficeSubscriptionResource::submitUrl(), 'Nuovo abbonamento')
+                Button::to(SafeRedirect::withBack(OfficeSubscriptionResource::submitUrl(), (string) ($_SERVER['REQUEST_URI'] ?? '')), 'Nuovo abbonamento')
                     ->variant('dark')->size('sm')->icon('bi bi-plus-lg', 'start')
             )
             ->filterSearch()

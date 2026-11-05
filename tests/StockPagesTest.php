@@ -106,35 +106,39 @@ check('il link porta l\'opzione e la strada del ritorno', function () {
         && str_contains($url, 'torna=');
 });
 
-check('la strada del ritorno accetta solo indirizzi di questo sito', function () {
-    // Un `torna=https://altrove.example` sarebbe un redirect aperto. Le rotte
-    // del core però tornano indirizzi assoluti di **questo** sito, e quelli
-    // devono passare.
-    $_SERVER['HTTP_HOST'] = TEST_HOST;
+// Il controllo vero è `SafeRedirect` di app (con i suoi test): qui conta che
+// il link della rettifica ci passi e scarti i ritorni fuori dal sito.
+$conRitorno = static function (string $back): bool {
+    $app = $_ENV['APP_URL'] ?? null;
+    $_ENV['APP_URL'] = TEST_URL;
 
-    return StockAdjustmentResource::backUrlFrom('https://altrove.example/x') === ''
-        && StockAdjustmentResource::backUrlFrom('//altrove.example') === ''
-        && StockAdjustmentResource::backUrlFrom('/backend/app/gestionale/giacenze/?p=2')
-            === '/backend/app/gestionale/giacenze/?p=2'
-        && StockAdjustmentResource::backUrlFrom(TEST_URL.'/backend/app/gestionale/giacenze/?cerca=TSH')
-            === '/backend/app/gestionale/giacenze/?cerca=TSH';
-});
+    try {
+        return str_contains(StockAdjustmentResource::urlFor(7, $back), 'torna=');
+    } finally {
+        if ($app === null) {
+            unset($_ENV['APP_URL']);
+        } else {
+            $_ENV['APP_URL'] = $app;
+        }
+    }
+};
 
-check('la strada del ritorno non si fa aggirare da barre storte o spazi', function () {
+check('la strada del ritorno accetta solo indirizzi di questo sito', fn () =>
+    !$conRitorno('https://altrove.example/x')
+    && !$conRitorno('//altrove.example')
+    && $conRitorno('/backend/app/gestionale/giacenze/?p=2')
+    && $conRitorno(TEST_URL.'/backend/app/gestionale/giacenze/?cerca=TSH')
+);
+
+check('la strada del ritorno non si fa aggirare da barre storte o a capo', fn () =>
     // I browser leggono "\" come "/" e saltano tab e a capo: `/\altrove`
     // e `/<tab>/altrove` sono `//altrove`, cioè un altro sito.
-    $_SERVER['HTTP_HOST'] = TEST_HOST;
-
-    return StockAdjustmentResource::backUrlFrom('/\\altrove.example') === ''
-        && StockAdjustmentResource::backUrlFrom(TEST_URL.'//altrove.example') === ''
-        && StockAdjustmentResource::backUrlFrom(TEST_URL.'/\\altrove.example') === ''
-        && StockAdjustmentResource::backUrlFrom("/\t/altrove.example") === ''
-        && StockAdjustmentResource::backUrlFrom("/\n/altrove.example") === ''
-        && StockAdjustmentResource::backUrlFrom('/backend/app/gestionale/giacenze/?p=2')
-            === '/backend/app/gestionale/giacenze/?p=2'
-        && StockAdjustmentResource::backUrlFrom(TEST_URL.'/backend/app/gestionale/giacenze/?cerca=TSH&sotto=1')
-            === '/backend/app/gestionale/giacenze/?cerca=TSH&sotto=1';
-});
+    !$conRitorno('/\\altrove.example')
+    && !$conRitorno(TEST_URL.'/\\altrove.example')
+    && !$conRitorno("/\t/altrove.example")
+    && !$conRitorno("/\n/altrove.example")
+    && $conRitorno(TEST_URL.'/backend/app/gestionale/giacenze/?cerca=TSH&sotto=1')
+);
 
 check('le giacenze sono un elenco del core in sola consultazione', function () {
     $pagine = (array) (StockLevelResource::pageSchema()->toArray()['pages'] ?? []);

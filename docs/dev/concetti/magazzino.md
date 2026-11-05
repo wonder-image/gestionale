@@ -72,9 +72,12 @@ Tre cose da sapere se la si tocca:
 2. **Il controller delle pagine-form non intercetta niente.** Un `UserError`
    che vola via da `submitFormPage()` diventa una pagina 500: i rifiuti si
    catturano lì dentro e diventano un `FlashAlert` più un redirect.
-3. **Gli indirizzi del ritorno si controllano.** `backUrlFrom()` accetta solo
-   percorsi o indirizzi assoluti di questo sito: un `torna=` che arriva dalla
-   query string è testo di chiunque.
+3. **Gli indirizzi del ritorno si controllano.** Si leggono con
+   `Wonder\Http\SafeRedirect` (`backFromRequest()` per `?torna=`,
+   `fromRequest()` per i campi nascosti) e si aggiungono ai link con
+   `SafeRedirect::withBack()`: passano solo percorsi o indirizzi assoluti di
+   questo sito, perché un `torna=` che arriva dalla query string è testo di
+   chiunque. `StockAdjustmentResource::backUrlFrom()` non c'è più.
 
 **Carichi, scarichi e inventari.** Le tre Resource dicono solo tipo, nomi e
 posto nel menu (Giacenze 10 · Carichi 20 · Scarichi 30 · Inventari 40 ·

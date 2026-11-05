@@ -39,3 +39,12 @@ commercialista.
 
 Accanto a ogni passo c'è **Vai**: porta dritto alla pagina da compilare. Dopo
 aver salvato, torna alla home e vedrai il passo sparito.
+
+## Tornare indietro
+
+Le pagine che si aprono da una lista o da una scheda (una rettifica di
+giacenza, un reso, un pagamento, un nuovo abbonamento…) hanno in alto la
+**freccia indietro**: riporta alla pagina da cui sei partito. Anche dopo
+**Salva** torni lì, con i filtri e la pagina della lista com'erano. Se hai
+aperto la pagina dal menu, la freccia non compare e il salvataggio ti porta
+alla lista della sezione.

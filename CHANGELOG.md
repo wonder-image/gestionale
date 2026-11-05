@@ -95,6 +95,13 @@ versionamento semantico.
   spenta non si vede e l'abbonamento nuovo prende il predefinito.
 
 ### Corretto
+- **Freccia indietro e salvataggio tornano da dove si era partiti.** Le
+  pagine-form (rettifica giacenza, reso, pagamenti, spedizioni, note, azioni
+  dell'ordine, nuovo abbonamento) leggono e scrivono il `torna=` con
+  `Wonder\Http\SafeRedirect` del core; i link che le aprono lo passano. *Registra
+  reso* torna alla scheda dell'ordine, col suo ritorno. Rimosso
+  `StockAdjustmentResource::backUrlFrom()`: chi lo chiamava usi
+  `SafeRedirect::backFromRequest()` o `SafeRedirect::fromRequest()`.
 - **Il catalogo esportato si ricarica.** Il caricamento trova il prodotto
   dalla colonna «ID» del file, quando c'è, e solo dopo dallo SKU: SKU vuoti o
   ripetuti già nel catalogo non fermano più le righe invariate. Dall'ID si può

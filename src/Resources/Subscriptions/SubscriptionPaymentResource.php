@@ -15,10 +15,10 @@ use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentResource;
-use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Payments\Installments;
@@ -58,7 +58,7 @@ final class SubscriptionPaymentResource extends NavigationOnlyResource
     {
         $url = static::submitUrl().'?abbonamento='.$subscription.'&rata='.$payment;
 
-        return $back === '' ? $url : $url.'&torna='.rawurlencode($back);
+        return SafeRedirect::withBack($url, $back);
     }
 
     public static function submitUrl(): string
@@ -116,7 +116,7 @@ final class SubscriptionPaymentResource extends NavigationOnlyResource
             FormField::key('reference')->text()->label('Riferimento'),
             FormField::key('subscription_id')->hidden()->value((string) ($abbonamento['id'] ?? 0)),
             FormField::key('payment_id')->hidden()->value((string) ($rata['id'] ?? '')),
-            FormField::key('back')->hidden()->value(StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '')),
+            FormField::key('back')->hidden()->value(SafeRedirect::backFromRequest()),
         ];
     }
 
@@ -185,7 +185,7 @@ final class SubscriptionPaymentResource extends NavigationOnlyResource
         $user = LegacyGlobals::get('USER');
         $result = static::run($values, is_object($user) ? (int) ($user->id ?? 0) : 0);
         $subscriptionId = (int) ($values['subscription_id'] ?? 0);
-        $back = StockAdjustmentResource::backUrlFrom($values['back'] ?? '');
+        $back = SafeRedirect::fromRequest($values['back'] ?? '', '');
 
         if (headers_sent()) {
             return $result['message'];

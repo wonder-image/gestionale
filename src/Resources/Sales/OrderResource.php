@@ -20,6 +20,7 @@ use Wonder\Elements\Components\DataItem;
 use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
+use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
@@ -29,7 +30,6 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\Shipping\Shipment;
 use Wonder\Plugin\Gestionale\Resources\Shipping\ShipmentResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
-use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Documents\OrderProforma;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
@@ -409,17 +409,16 @@ final class OrderResource extends GestionaleResource
         return ['returns' => Gestionale::feature('returns'), 'shipping' => Gestionale::feature('shipping'), 'delivery_notes' => Gestionale::feature('delivery_notes')];
     }
 
-    /** «Registra reso» porta a una pagina con le righe da compilare: porta con sé il ritorno all'elenco, e la scheda lo rimette da sé. @return array<string, string> */
+    /** «Registra reso» porta a una pagina con le righe da compilare: la freccia e il salvataggio tornano a questa scheda, col suo ritorno. @return array<string, string> */
     private static function registerReturnButton(array $order): array
     {
         $id = (int) ($order['id'] ?? 0);
-        $torna = StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '');
 
         return [
             'label' => 'Registra reso',
             'icon' => 'bi-arrow-return-left',
             'class' => 'btn-outline-secondary btn-sm',
-            'href' => OrderReturnResource::urlFor($id, $torna),
+            'href' => OrderReturnResource::urlFor($id, static::detailUrl($id, SafeRedirect::backFromRequest())),
         ];
     }
 
@@ -448,7 +447,7 @@ final class OrderResource extends GestionaleResource
     public static function actionModalsFor(array $order): string
     {
         $per = ['order_id' => (int) ($order['id'] ?? 0)];
-        $back = StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '');
+        $back = SafeRedirect::backFromRequest();
 
         $html = static::actionModals(
             $order,
@@ -663,7 +662,7 @@ final class OrderResource extends GestionaleResource
     {
         $url = static::routeUrl('view', '/backend/'.static::path().'/'.$id.'/', ['id' => $id]);
 
-        return $back === null || $back === '' ? $url : $url.'?torna='.rawurlencode($back);
+        return SafeRedirect::withBack($url, (string) $back);
     }
 
     /**

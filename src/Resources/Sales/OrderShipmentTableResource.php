@@ -4,11 +4,11 @@ namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
 use Throwable;
 use Wonder\App\ResourceSchema\TableColumn;
+use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Shipping\Shipment;
 use Wonder\Plugin\Gestionale\Models\Shipping\ShipmentItem;
 use Wonder\Plugin\Gestionale\Resources\Shipping\ShipmentResource;
-use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Orders\StatusLabels;
 
@@ -59,7 +59,7 @@ final class OrderShipmentTableResource extends OrderSectionResource
 
     public static function tableSchema(): array
     {
-        $back = static fn (): string => StockAdjustmentResource::backUrlFrom($_GET['torna'] ?? '');
+        $back = static fn (): string => SafeRedirect::backFromRequest();
 
         return [
             TableColumn::key('code')

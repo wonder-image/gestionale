@@ -19,7 +19,6 @@ use Wonder\Plugin\Gestionale\Models\System\Feature;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderReturnResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderReturnTableResource;
-use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
@@ -178,8 +177,8 @@ check('«Chiudi» e «Annulla» passano da Returns, con la loro frase', function
 });
 
 check('il ritorno fuori dal backend è scartato', function () {
-    return StockAdjustmentResource::backUrlFrom('https://altro.sito/') === ''
-        && StockAdjustmentResource::backUrlFrom('//altro.sito/') === '';
+    return !str_contains(OrderReturnResource::urlFor(9, 'https://altro.sito/'), 'torna=')
+        && !str_contains(OrderReturnResource::urlFor(9, '//altro.sito/'), 'torna=');
 });
 
 check('la scheda offre «Registra reso» solo con la funzionalità accesa e prima di «Annulla»', function () {

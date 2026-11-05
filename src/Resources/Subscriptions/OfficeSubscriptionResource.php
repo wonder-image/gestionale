@@ -15,6 +15,7 @@ use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
@@ -196,7 +197,7 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
             header('Location: '.SubscriptionResource::detailUrl($result['id']));
         } else {
             FlashAlert::custom('Attenzione', $result['message'], 'warning');
-            header('Location: '.static::submitUrl());
+            header('Location: '.SafeRedirect::withBack(static::submitUrl(), SafeRedirect::backFromRequest()));
         }
 
         exit();
