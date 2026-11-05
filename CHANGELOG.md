@@ -6,6 +6,9 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Cambiato
+- **Catalogo › Attributi segue la Scheda tecnica.** Gli attributi sono la
+  scheda tecnica dell'articolo: con la funzionalità spenta la voce non compare
+  più nel menu (`AttributeResource::$feature = 'technical_sheet'`).
 - **Tolta la funzionalità «Abbonamenti online».** Il sito vende un
   abbonamento con *Abbonamenti* e *Vendita online* accese e con
   **Acquistabile online** nella sua scheda, come per i prodotti. La regola sta

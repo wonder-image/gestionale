@@ -163,6 +163,9 @@ nome di un'icona del font non c'è più.
 
 Gli attributi di livello `model` stanno nel riquadro *Scheda tecnica* di
 `ProductModelResource` (`technicalSheetCard()`), che c'è sempre, anche vuoto.
+`AttributeResource` ha `$feature = 'technical_sheet'`: con la funzionalità
+spenta la voce Catalogo › Attributi, le sue rotte e lo store API della
+creazione rapida sono spenti.
 
 - **Più valori per attributo.** Un attributo a valori di livello `model` è un
   gruppo di caselle a pillole (`technicalField()`): il POST porta
