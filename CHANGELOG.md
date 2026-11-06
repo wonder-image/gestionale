@@ -145,6 +145,12 @@ versionamento semantico.
   spenta non si vede e l'abbonamento nuovo prende il predefinito.
 
 ### Corretto
+- **Listini: i rifiuti del form non sono più una pagina 500.** Uno sconto
+  fuori da 0–100, un ricarico a zero, le date al contrario, un canale già di un
+  altro listino, una riga senza prodotto o un foglio importato non valido
+  tornano sul form come avviso rosso: `PriceListResource` usa
+  `UserError::make()` (`InvalidArgumentException`) al posto di
+  `UserError::refusal()`, che vale solo per l'eliminazione.
 - **Scheda dell'ordine: il risparmio di ogni coupon** (gestionale#113). Con più
   coupon nei totali c'era il risparmio del solo primo; ora ogni coupon ha la sua
   riga. `OrderSheet::totals()` accetta la lista degli usi (una riga sola resta

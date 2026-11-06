@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Pricing;
 
+use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 use Wonder\App\Permission\Access;
 use Wonder\App\ResourceSchema\ApiSchema;
@@ -425,7 +427,7 @@ final class PriceListResource extends GestionaleResource
         $values['valid_to'] = $to;
 
         if ($from !== '' && $to !== '' && $to < $from) {
-            throw UserError::refusal('price_list.invalid_dates');
+            throw UserError::make('price_list.invalid_dates');
         }
 
         $rule = (string) ($values['price_rule'] ?? 'none');
@@ -433,7 +435,7 @@ final class PriceListResource extends GestionaleResource
         $percent = (float) (Numbers::fromForm($values['percent'] ?? null) ?? '0');
 
         if ($rule !== 'none' && ($percent <= 0 || ($rule === 'discount' && $percent >= 100) || $percent > 999)) {
-            throw UserError::refusal($rule === 'discount' ? 'price_list.invalid_discount' : 'price_list.invalid_markup');
+            throw UserError::make($rule === 'discount' ? 'price_list.invalid_discount' : 'price_list.invalid_markup');
         }
 
         $values['price_rule'] = $rule;
@@ -498,7 +500,7 @@ final class PriceListResource extends GestionaleResource
                 $found = PriceList::find(['id' => $owner]);
                 $name = is_array($found) && array_key_exists('id', $found) ? html_entity_decode((string) ($found['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8') : '#'.$owner;
 
-                throw UserError::refusal('price_list.channel_taken', [
+                throw UserError::make('price_list.channel_taken', [
                     'channel' => PriceListChannels::all()[$channel] ?? $channel,
                     'list' => $name,
                 ]);
@@ -651,17 +653,17 @@ final class PriceListResource extends GestionaleResource
             $price = Numbers::fromForm($row['price'] ?? null);
 
             if ($productId <= 0) {
-                throw UserError::refusal('price_list.item_no_product', ['row' => $line]);
+                throw UserError::make('price_list.item_no_product', ['row' => $line]);
             }
 
             if ((float) $min <= 0 || $price === null || (float) $price < 0) {
-                throw UserError::refusal('price_list.item_invalid', ['row' => $line]);
+                throw UserError::make('price_list.item_invalid', ['row' => $line]);
             }
 
             $key = $productId.'|'.round((float) $min, 3);
 
             if (isset($seen[$key])) {
-                throw UserError::refusal('price_list.item_duplicate', ['row' => $line]);
+                throw UserError::make('price_list.item_duplicate', ['row' => $line]);
             }
 
             $seen[$key] = true;
@@ -684,13 +686,18 @@ final class PriceListResource extends GestionaleResource
         }
 
         if ((int) $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) ($file['tmp_name'] ?? ''))) {
-            throw UserError::refusal('price_list.import_unreadable');
+            throw UserError::make('price_list.import_unreadable');
         }
 
-        return PriceListTransfer::fromTable(
-            PriceListTransfer::readFile((string) $file['tmp_name'], (string) ($file['name'] ?? '')),
-            PriceListTransfer::skuIds()
-        );
+        // I rifiuti del foglio sono RuntimeException: il form intercetta solo InvalidArgumentException.
+        try {
+            return PriceListTransfer::fromTable(
+                PriceListTransfer::readFile((string) $file['tmp_name'], (string) ($file['name'] ?? '')),
+                PriceListTransfer::skuIds()
+            );
+        } catch (RuntimeException $e) {
+            throw new InvalidArgumentException($e->getMessage(), 0, $e);
+        }
     }
 
     private static function writeImported(int $priceListId): void
