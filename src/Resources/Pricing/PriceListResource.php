@@ -27,6 +27,7 @@ use Wonder\Plugin\Gestionale\Models\Pricing\PriceList;
 use Wonder\Plugin\Gestionale\Models\Pricing\PriceListItem;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductFeed;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Pricing\Import\PriceListLayout;
@@ -88,9 +89,8 @@ final class PriceListResource extends GestionaleResource
     {
         return [
             'name' => 'Nome',
-            'currency' => 'Valuta',
             'prices_include_tax' => 'Prezzi',
-            'price_rule' => 'Prodotti senza riga',
+            'price_rule' => 'I prodotti senza una riga',
             'percent' => 'Percentuale',
             'channels' => 'Canali',
             'valid_from' => 'Dal',
@@ -106,16 +106,16 @@ final class PriceListResource extends GestionaleResource
     {
         return [
             FormField::key('name')->text()->label('Nome')->required(),
-            FormField::key('currency')->text()->value('EUR')->label('Valuta')->required(),
             FormField::key('prices_include_tax')
                 ->select(['true' => 'IVA inclusa', 'false' => 'IVA esclusa'])
                 ->value('true')
                 ->label('Prezzi'),
             FormField::key('price_rule')
-                ->select(['none' => 'Prezzo di catalogo', 'markup' => 'Ricarico in %', 'discount' => 'Sconto in %'])
+                ->select(['none' => 'Mantengono il prezzo originale', 'discount' => 'Hanno uno sconto', 'markup' => 'Hanno un ricarico'])
                 ->value('none')
-                ->label('Prodotti senza riga'),
-            FormField::key('percent')->number()->decimal(2)->label('Percentuale'),
+                ->label('I prodotti senza una riga'),
+            FormField::key('percent')->number()->decimal(2)->label('Percentuale')
+                ->visibleWhen('price_rule', ['discount', 'markup']),
             FormField::key('channels')->checkbox()->options(static::channelOptions((int) (static::currentId() ?? 0)))->value([])->label('Canali'),
             FormField::key('valid_from')->dateInput()->label('Dal'),
             FormField::key('valid_to')->dateInput()->label('Al'),
@@ -155,19 +155,18 @@ final class PriceListResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Listino')
-                        ->tooltip('Si assegna dalla scheda del cliente o a uno o più canali qui sotto. Il listino del cliente viene prima di quello del canale. Vale se è attivo, fra le date (vuote = sempre) e se la valuta è quella dell\'ordine; altrimenti il cliente paga i prezzi di catalogo. «IVA inclusa» o «esclusa» dice come sono scritti i prezzi qui sotto.')
+                        ->tooltip('Si assegna dalla scheda del cliente o a uno o più canali qui sotto. Il listino del cliente viene prima di quello del canale. Vale se è attivo, fra le date (vuote = sempre); altrimenti il cliente paga i prezzi di catalogo. «IVA inclusa» o «esclusa» dice come sono scritti i prezzi qui sotto.')
                         ->columnSpan(12),
                     static::getInput('name')->columnSpan(6),
-                    static::getInput('currency')->columnSpan(2),
-                    static::getInput('prices_include_tax')->columnSpan(2),
-                    static::getInput('active')->columnSpan(2),
+                    static::getInput('prices_include_tax')->columnSpan(3),
+                    static::getInput('active')->columnSpan(3),
                     static::getInput('valid_from')->columnSpan(3),
                     static::getInput('valid_to')->columnSpan(3),
                     static::getInput('note')->columnSpan(6),
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
                     SectionTitle::make('Regola e canali')
-                        ->tooltip('La regola vale per i prodotti che non hanno una riga qui sotto, a ogni quantità: ricarico o sconto in percentuale sul prezzo pieno di catalogo (non su quello scontato). Una riga del prodotto vince sempre sulla regola. Un canale ha un solo listino: gli ordini e i feed di quel canale usano questo listino quando il cliente non ne ha uno suo.')
+                        ->tooltip('Dice cosa pagano i prodotti che non hanno una riga qui sotto, a ogni quantità: il prezzo di catalogo, oppure uno sconto o un ricarico in percentuale sul prezzo pieno (non su quello scontato). Una riga del prodotto vince sempre sulla regola. Un canale ha un solo listino: gli ordini e i feed di quel canale usano questo listino quando il cliente non ne ha uno suo.')
                         ->columnSpan(12),
                     static::getInput('price_rule')->columnSpan(4),
                     static::getInput('percent')->columnSpan(2),
@@ -271,9 +270,9 @@ final class PriceListResource extends GestionaleResource
     public static function navigationSchema(): NavigationSchema
     {
         return parent::navigationSchema()
-            ->section('promozioni', 'Promozioni', 'bi-percent', 360)
+            ->section('catalogo', 'Catalogo', 'bi-box-seam', 340)
             ->title('Listini')
-            ->order(30)
+            ->order(46)
             ->access(Gestionale::area('promozioni'));
     }
 
@@ -345,13 +344,9 @@ final class PriceListResource extends GestionaleResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
-        $currency = strtoupper(trim((string) ($values['currency'] ?? 'EUR')));
-
-        if (preg_match('/^[A-Z]{3}$/', $currency) !== 1) {
-            throw UserError::refusal('price_list.invalid_currency');
-        }
-
-        $values['currency'] = $currency;
+        // La valuta non si sceglie: quella del catalogo, o quella già salvata.
+        $currency = strtoupper(trim((string) ($oldValues['currency'] ?? '')));
+        $values['currency'] = preg_match('/^[A-Z]{3}$/', $currency) === 1 ? $currency : ProductFeed::currency();
         $from = static::day($values['valid_from'] ?? '');
         $to = static::day($values['valid_to'] ?? '');
         $values['valid_from'] = $from;
