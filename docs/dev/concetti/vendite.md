@@ -251,8 +251,9 @@ allegato (`Mailer::send(..., $attachments)`).
 
 ## Il referente del documento (#145)
 
-Con i referenti di `wonder-image/customer-account` accesi
-(`ContactRelations::enabled()`), preventivi, ordini da ufficio e DDT hanno il
+Con i referenti di `wonder-image/customer-account` (sempre attivi da
+customer-account#8; `ContactRelations::enabled()` resta per le versioni di
+prima), preventivi, ordini da ufficio e DDT hanno il
 **referente**: `orders.referent_id` / `referent_name` e
 `delivery_notes.referent_id` / `referent_name`, colonne nuove con default `0`
 e `''`. I documenti di prima restano validi così come sono.

@@ -29,7 +29,7 @@ chiuso.
 ## La bozza
 
 * **Luogo di consegna** — parte dall'ordine, si può cambiare.
-* **Referente** — con i referenti accesi parte da quello dell'ordine e si può
+* **Referente** — parte da quello dell'ordine e si può
   cambiare o togliere; il suo nome va sul PDF come «Alla c.a.».
 * **Trasporto** — *a cura del* mittente, del destinatario o del vettore; il
   **vettore** dai tuoi corrieri; **inizio trasporto** (vuoto = il momento
@@ -51,8 +51,7 @@ codice, lotto e quantità, causale, trasporto e spazio per le firme.
 Dopo l'emissione:
 
 * **PDF** — lo apri o lo stampi;
-* **Invia per email** — il cliente lo riceve allegato; con i referenti accesi
-  va in copia anche all'email dell'azienda e ai referenti che ricevono i
+* **Invia per email** — il cliente lo riceve allegato; va in copia anche all'email dell'azienda e ai referenti che ricevono i
   documenti;
 * **Annulla DDT** — il DDT resta, annullato, con il suo numero; le righe
   tornano da consegnare e l'evasione torna indietro.

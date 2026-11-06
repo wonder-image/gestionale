@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Pricing;
 
 use InvalidArgumentException;
 use Wonder\Plugin\Gestionale\Support\Catalog\Exports\ProductFeed;
+use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
 
 /**
  * Il prezzo di un prodotto su un canale (#162): l'unico punto da cui feed,
@@ -56,7 +57,16 @@ final class ChannelPrice
      */
     public static function apply(array $rows, string $channel, bool $includesTax): array
     {
-        return self::applyLists($rows, self::lists($channel), $includesTax);
+        $lists = self::lists($channel);
+        $facts = null;
+
+        if (PriceLists::needsFacts($lists)) {
+            // Un feed ha molte righe: i fatti si leggono una volta per tutto il catalogo.
+            $catalog = ProductScope::catalog();
+            $facts = static fn (int $id): array => $catalog[$id]['facts'] ?? ProductScope::facts($id);
+        }
+
+        return self::applyLists($rows, $lists, $includesTax, $facts);
     }
 
     /**
@@ -66,16 +76,17 @@ final class ChannelPrice
      *
      * @param list<array<string, mixed>> $rows
      * @param list<array<string, mixed>> $lists da `lists()` o `PriceLists::loadAll()`
+     * @param (callable(int): array<string, mixed>)|null $facts i fatti per il selettore, come in `PriceLists::resolve()`
      * @return list<array<string, mixed>>
      */
-    public static function applyLists(array $rows, array $lists, bool $includesTax): array
+    public static function applyLists(array $rows, array $lists, bool $includesTax, ?callable $facts = null): array
     {
         if ($lists === []) {
             return $rows;
         }
 
         foreach ($rows as $index => $row) {
-            $hit = PriceLists::resolve($lists, (int) ($row['id'] ?? 0), 1.0, (float) ($row['price'] ?? 0), $includesTax, (float) ($row['tax_rate'] ?? 0));
+            $hit = PriceLists::resolve($lists, (int) ($row['id'] ?? 0), 1.0, (float) ($row['price'] ?? 0), $includesTax, (float) ($row['tax_rate'] ?? 0), $facts);
 
             if ($hit['price'] > 0) {
                 $rows[$index]['price'] = $hit['price'];

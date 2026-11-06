@@ -8,25 +8,29 @@ Un listino (`PriceList`, `gst_price_lists`) è un elenco di prezzi riservati.
 Vale per i clienti che ce l'hanno nella scheda e per i canali di vendita a cui
 è assegnato (#162). Una sola funzionalità li accende tutti:
 `customer_price_lists` (G1). Da spenta nessun listino si applica, ma i dati
-restano.
+restano. Nel backend stanno nel menu **Catalogo → Listini**.
 
 ## Chi fa cosa
 
 | Classe | Compito |
 | --- | --- |
-| `Models\Pricing\PriceList` | testata: valuta, IVA inclusa/esclusa, date, stato, `price_rule`, `percent` |
+| `Models\Pricing\PriceList` | testata: IVA inclusa/esclusa, date, stato, `price_rule`, `percent`, `applies_to_all` |
+| `Models\Pricing\PriceList{Category,Tag,Brand,ProductModel}` | il selettore «Si applica a», come per i coupon (`ProductScope` owner `price_list`) |
 | `Models\Pricing\PriceListItem` | righe: prodotto, quantità minima, prezzo |
 | `Models\Pricing\PriceListChannel` | `gst_price_list_channels`: un canale (unico) → un listino |
 | `Support\Pricing\PriceLists` | l'unica porta: carica, sceglie, risolve il prezzo |
 | `Support\Pricing\PriceListChannels` | il registro dei canali che possono avere un listino |
 | `Support\Pricing\ChannelPrice` | il prezzo di un prodotto su un canale: l'unico punto per export e integrazioni |
+| `Support\Pricing\PriceListSeeder` | «Crea le righe dalla selezione»: `rows()` pura, `seed()` scrive |
 | `Support\Pricing\Import\PriceListLayout` | il tracciato `price_lists` per caricare righe da file |
 
 ## I canali
 
-`office`, `online`, `b2b_portal`, `pos` sono i canali degli ordini;
-`ebay`, `marketplace` (bindCommerce), `google` e `meta` sono quelli esterni dei
-feed. Un canale ha **al più un listino**, un listino può stare su più canali.
+`online`, `office`, `pos` sono i canali degli ordini; `google` e `meta` quelli
+dei feed (`PriceListChannels::CORE`). Il form mostra solo i canali accesi
+(`PriceListChannels::active()`): sito, ufficio e cassa secondo
+`Channels::active()`, Google e Meta con `export_google` / `export_meta`, quelli
+di un modulo o del sito sempre. Un canale ha **al più un listino**, un listino può stare su più canali.
 Il form rifiuta un canale già di un altro listino
 (`price_list.channel_taken`). Un listino con canali assegnati non si cancella.
 
@@ -40,6 +44,10 @@ PriceLists::forChannelAny('online');                    // id, senza guardare la
 `assignChannels()` riscrive solo i canali del listino che riceve: non sposta un
 canale da un altro listino, il controllo lo fa il chiamante.
 
+La valuta non si sceglie nel form: un listino nuovo prende quella di default
+del negozio (`ProductFeed::currency()`), uno esistente tiene la sua.
+`loadAll()` scarta ancora un listino in un'altra valuta.
+
 ## L'ordine di risoluzione
 
 ```
@@ -49,7 +57,7 @@ listino del cliente → listino del canale dell'ordine → prezzo base
 ```php
 $ids   = PriceLists::candidates($contactListId, $channel); // [cliente, canale], senza doppioni
 $lists = PriceLists::loadAll($ids, $now, $currency);       // salta scaduti, spenti, altra valuta
-$hit   = PriceLists::resolve($lists, $productId, $qty, $basePrice, $includesTax, $taxRate);
+$hit   = PriceLists::resolve($lists, $productId, $qty, $basePrice, $includesTax, $taxRate, $facts);
 // ['price' => ..., 'price_list_id' => ...] oppure null: vale il prezzo base
 ```
 
@@ -62,12 +70,35 @@ Regole di `resolve()`:
   `percent`) vale per i prodotti senza riga, a ogni quantità, e per quelli con
   righe di cui la quantità non raggiunge nessuno scaglione. Si calcola sul
   prezzo pieno di catalogo (`PriceLists::byRule()`), non su quello scontato.
-  Un listino con una regola trova quindi sempre il prodotto.
+  Un listino con una regola trova quindi sempre i prodotti della sua selezione.
+* **«Si applica a»** limita la regola: *Tutto il catalogo* (con gli articoli
+  esclusi) o *Solo la selezione* di categorie (con le sottocategorie), tag,
+  marchi e articoli, con lo stesso `ScopeMatcher` dei coupon. Un prodotto fuori
+  dalla selezione non prende la regola e si passa al listino dopo. **Una riga
+  vince sempre**, anche fuori dalla selezione. `$facts` sono i fatti del
+  prodotto (`ProductScope::facts()`), come array o come callable `fn (int $id)`;
+  servono solo se un listino ha una regola e una selezione che non è tutto il
+  catalogo (`PriceLists::needsFacts()`, `scopeIsAll()`), altrimenti si
+  ignorano. `ChannelPrice::apply()` legge i fatti di tutto il catalogo una volta
+  (`ProductScope::catalog()`). Un listino senza chiave `scope` vale per tutto.
 * Un listino scaduto, non ancora cominciato, spento o in un'altra valuta lo
   scarta `loadAll()`: si passa al successivo.
 
 Il prezzo esce nella stessa base IVA dell'ordine: `resolve()` converte da
 IVA inclusa a esclusa (e viceversa) con l'aliquota del prodotto.
+
+## Creare le righe dalla selezione
+
+Nella scheda in modifica, il bottone **Crea le righe dalla selezione** (POST
+`/{id}/crea-righe/`, rotta `seed`, permesso di modifica delle promozioni, CSRF
+verificato in `PriceListResource::seedRows()`) chiama `PriceListSeeder::seed()`:
+una riga a quantità 1 per ogni prodotto attivo della selezione che non ha già
+una riga e ha un prezzo maggiore di zero. Il prezzo è quello della regola, o il
+prezzo pieno senza regola, portato alla base IVA del listino con l'aliquota
+dell'articolo (senza aliquota non si converte). Le righe esistenti non si
+toccano, la posizione continua dopo l'ultima; le righe nate così sono righe
+come le altre e non seguono più la percentuale. Dopo ogni scrittura diretta si
+svuota `RequestMemo::forget(PriceList::MEMO_GROUP)`.
 
 ## Negli ordini
 
@@ -90,15 +121,16 @@ Ogni export e integrazione legge il prezzo da `ChannelPrice`, mai da
 
 ```php
 ChannelPrice::apply($rows, 'google', $includesTax); // righe con id, price, tax_rate
-ChannelPrice::of('ebay', $productId, $basePrice, $includesTax, $taxRate);
+ChannelPrice::of('google', $productId, $basePrice, $includesTax, $taxRate);
 // ['price' => ..., 'price_list_id' => ...] oppure null: vale il prezzo del prodotto
 ChannelPrice::lists('meta');                         // i listini validi oggi, per i cicli
 ```
 
 Il listino si risolve a quantità 1 (`of()` accetta una quantità diversa). Con un
 prezzo di listino la riga perde il prezzo scontato (`sale_price` a null) e la
-campagna. `ProductFeed` (Google e Meta) passa da qui; eBay e bindCommerce, quando
-arrivano, fanno lo stesso con `ebay` e `marketplace`. L'export xlsx/csv del
+campagna. `ProductFeed` (Google e Meta) passa da qui; un modulo che porta un
+canale nuovo (eBay, un marketplace) registra la sua chiave e fa lo stesso.
+L'export xlsx/csv del
 catalogo resta a prezzi di catalogo. `ProductFeed::withPriceLists()` è
 deprecato: usa `ChannelPrice::applyLists()`.
 

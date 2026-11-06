@@ -72,9 +72,6 @@ suo codice e il costo. Per cambiare qualcosa c'è **Modifica** in alto.
 
 ## Referenti e aziende
 
-> Compare solo se il sito ha acceso i **referenti**. Spenti, le schede restano
-> come prima.
-
 Un'azienda ha spesso più persone con cui parli: chi ordina, chi paga, chi
 riceve la merce. Nel form di un'**azienda** il riquadro **Referenti e aziende**
 elenca queste persone; nel form di una **persona** elenca le aziende per cui

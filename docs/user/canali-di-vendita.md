@@ -37,7 +37,7 @@ spenti sono attenuati, così vedi subito dove vale e dove no.
 
 ## Un listino per canale
 
-Ogni canale può avere il suo listino: il sito, l'ufficio, la cassa, il
-portale B2B, eBay, i marketplace, Google Shopping e Meta. Lo scegli nella
-scheda del listino, campo **Canali**. Il listino del cliente vince sempre su
+Ogni canale acceso può avere il suo listino: il sito, l'ufficio, la cassa,
+Google Shopping e Meta (con i loro feed attivi) e i canali dei moduli
+installati. Lo scegli nella scheda del listino, campo **Canali**. Il listino del cliente vince sempre su
 quello del canale. Vedi [Listini cliente](promozioni-listini-cliente.md).
