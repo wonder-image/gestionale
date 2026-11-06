@@ -12,21 +12,21 @@ use Wonder\Plugin\Gestionale\Support\Sales\Channels;
 PriceListChannels::reset();
 
 check('il registro parte dai canali del gestionale', function () {
-    return array_keys(PriceListChannels::all([])) === ['online', 'office', 'b2b_portal', 'pos', 'ebay', 'marketplace', 'google', 'meta']
+    return array_keys(PriceListChannels::all([])) === ['online', 'office', 'pos', 'google', 'meta']
         && PriceListChannels::label('google', []) === 'Google Shopping';
 });
 
 check('un modulo aggiunge, rinomina e toglie i suoi canali', function () {
     $configs = [
         ['price_lists' => ['channels' => ['amazon' => 'Amazon', 'meta' => 'Meta Shops']]],
-        ['price_lists' => ['channels' => ['b2b_portal' => false]]],
+        ['price_lists' => ['channels' => ['pos' => false]]],
         ['import' => ['layouts' => []]],
     ];
     $all = PriceListChannels::all($configs);
 
     return ($all['amazon'] ?? null) === 'Amazon'
         && $all['meta'] === 'Meta Shops'
-        && !array_key_exists('b2b_portal', $all)
+        && !array_key_exists('pos', $all)
         && PriceListChannels::has('amazon', $configs)
         && !PriceListChannels::has('amazon', []);
 });
@@ -57,7 +57,22 @@ check('una voce non valida si salta, le altre restano', function () {
         && !array_key_exists('Con Spazi', $all)
         && !array_key_exists('vuoto', $all)
         && !array_key_exists('numero', $all)
-        && count($all) === 9;
+        && count($all) === 6;
+});
+
+check('attivi: le vendite accese, i feed col loro interruttore, i canali dei moduli sempre', function () {
+    $all = PriceListChannels::all([['price_lists' => ['channels' => ['amazon' => 'Amazon']]]]);
+    $off = array_keys(PriceListChannels::activeFrom([], $all));
+    $on = array_keys(PriceListChannels::activeFrom(['office_sales' => true, 'pos' => true, 'export_meta' => true], $all));
+
+    return $off === ['online', 'amazon']
+        && $on === ['office', 'pos', 'meta', 'amazon']
+        && !in_array('google', $on, true);
+});
+
+check('nessun canale scrive bindCommerce', function () {
+    return !str_contains(strtolower(implode(' ', PriceListChannels::all([]))), 'bindcommerce')
+        && !str_contains(strtolower(implode(' ', Channels::PRICE_LIST_CHANNELS)), 'bindcommerce');
 });
 
 check('Channels::priceListChannels() legge il registro', function () {

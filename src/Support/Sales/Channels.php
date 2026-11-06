@@ -36,10 +36,7 @@ final class Channels
     public const PRICE_LIST_CHANNELS = [
         'online' => 'Sito',
         'office' => 'Ufficio',
-        'b2b_portal' => 'Portale B2B',
         'pos' => 'Cassa',
-        'ebay' => 'eBay',
-        'marketplace' => 'Marketplace (bindCommerce)',
         'google' => 'Google Shopping',
         'meta' => 'Meta (Facebook e Instagram)',
     ];

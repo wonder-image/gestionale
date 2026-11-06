@@ -116,7 +116,7 @@ final class PriceListResource extends GestionaleResource
                 ->value('none')
                 ->label('Prodotti senza riga'),
             FormField::key('percent')->number()->decimal(2)->label('Percentuale'),
-            FormField::key('channels')->checkbox()->options(PriceListChannels::all())->value([])->label('Canali'),
+            FormField::key('channels')->checkbox()->options(static::channelOptions((int) (static::currentId() ?? 0)))->value([])->label('Canali'),
             FormField::key('valid_from')->dateInput()->label('Dal'),
             FormField::key('valid_to')->dateInput()->label('Al'),
             FormField::key('active')
@@ -394,7 +394,29 @@ final class PriceListResource extends GestionaleResource
             $value = is_array($decoded) ? $decoded : ($value === '' ? [] : [$value]);
         }
 
-        return array_values(array_intersect(array_keys(PriceListChannels::all()), array_map('strval', (array) $value)));
+        $known = array_keys(static::channelOptions((int) (static::currentId() ?? 0)));
+
+        return array_values(array_intersect($known, array_map('strval', (array) $value)));
+    }
+
+    /**
+     * I canali da scegliere: quelli accesi sul sito, più quelli già assegnati
+     * al listino anche se spenti (con «non attivo»), così non si perdono.
+     *
+     * @return array<string, string>
+     */
+    public static function channelOptions(int $priceListId): array
+    {
+        $all = PriceListChannels::all();
+        $options = PriceListChannels::active();
+
+        foreach ($priceListId > 0 ? PriceLists::channelsOf($priceListId) : [] as $channel) {
+            if (!isset($options[$channel])) {
+                $options[$channel] = ($all[$channel] ?? $channel).' (non attivo)';
+            }
+        }
+
+        return $options;
     }
 
     /** Un canale ha un solo listino: se è già di un altro, si rifiuta. @param list<string> $channels */

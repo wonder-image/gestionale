@@ -5,15 +5,21 @@ namespace Wonder\Plugin\Gestionale\Support\Pricing;
 use Throwable;
 use Wonder\App\Logger;
 use Wonder\App\Module\ConfigRepository;
+use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Sales\Channels;
 
 /**
  * I canali che possono avere un listino (#162), per chiave → etichetta.
  *
- * Il gestionale porta quelli degli ordini e i feed che conosce (`CORE`). Un
- * modulo (eBay, un marketplace, un nuovo feed) aggiunge, rinomina o toglie
+ * Il gestionale porta i suoi canali di vendita e i feed che conosce (`CORE`).
+ * Un modulo (eBay, un marketplace, un nuovo feed) aggiunge, rinomina o toglie
  * (`false`) i suoi con `price_lists.channels` nella propria configurazione; il
  * sito ha l'ultima parola con `PriceListChannels::set()`. Una voce che non è
  * un'etichetta va nel log e si salta.
+ *
+ * `active()` è quello che vede il commerciante: i canali del gestionale solo
+ * se la loro funzionalità è accesa (`ACTIVATION`), quelli di un modulo o del
+ * sito sempre, perché registrarli è già accenderli.
  *
  * Il prezzo di un canale lo dà `ChannelPrice`: chi aggiunge un canale non
  * tocca né `PriceLists` né `LinePrice`.
@@ -27,12 +33,20 @@ final class PriceListChannels
     public const CORE = [
         'online' => 'Sito',
         'office' => 'Ufficio',
-        'b2b_portal' => 'Portale B2B',
         'pos' => 'Cassa',
-        'ebay' => 'eBay',
-        'marketplace' => 'Marketplace (bindCommerce)',
         'google' => 'Google Shopping',
         'meta' => 'Meta (Facebook e Instagram)',
+    ];
+
+    /**
+     * La funzionalità che accende un canale del gestionale. Sito, ufficio e
+     * cassa seguono `Channels::activeFrom()` (con nessuno acceso vale il sito).
+     *
+     * @var array<string, string>
+     */
+    public const ACTIVATION = [
+        'google' => 'export_google',
+        'meta' => 'export_meta',
     ];
 
     /** @var array<string, string|false> */
@@ -81,6 +95,41 @@ final class PriceListChannels
         }
 
         return $channels;
+    }
+
+    /**
+     * I canali accesi, nell'ordine del registro.
+     *
+     * @return array<string, string>
+     */
+    public static function active(): array
+    {
+        return self::activeFrom(Gestionale::features(), self::all());
+    }
+
+    /**
+     * @param array<string, bool> $features
+     * @param array<string, string> $all i canali del registro, da `all()`
+     * @return array<string, string>
+     */
+    public static function activeFrom(array $features, array $all): array
+    {
+        $sales = Channels::activeFrom($features);
+        $active = [];
+
+        foreach ($all as $key => $label) {
+            $on = match (true) {
+                array_key_exists($key, Channels::all()) => in_array($key, $sales, true),
+                isset(self::ACTIVATION[$key]) => !empty($features[self::ACTIVATION[$key]]),
+                default => true,
+            };
+
+            if ($on) {
+                $active[$key] = $label;
+            }
+        }
+
+        return $active;
     }
 
     public static function has(string $key, ?array $configs = null): bool
