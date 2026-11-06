@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Plugin\Gestionale\Support\Pricing\PriceListSeeder;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceListTransfer;
 
@@ -114,5 +115,43 @@ check('import: prezzo non numerico, rifiuto', fn () => str_contains($rifiuto([Pr
 check('import: quantità minima zero, rifiuto', fn () => $rifiuto([PriceListTransfer::HEADERS, ['AB-1', '', 0, 2]]) !== '');
 check('import: stesso SKU e stessa quantità due volte, rifiuto', fn () => str_contains($rifiuto([PriceListTransfer::HEADERS, ['AB-1', '', 1, 2], ['ab-1', '', '1', 3]]), 'stessa quantità'));
 check('import: file senza righe, rifiuto', fn () => str_contains($rifiuto([PriceListTransfer::HEADERS]), 'non ha righe'));
+
+// «Si applica a»: la regola vale solo dentro il selettore.
+$selezione = ['all' => false, 'categories' => [4], 'tags' => [], 'brands' => [], 'models' => [], 'excluded_models' => [31]];
+$scontoScelto = ['id' => 9, 'prices_include_tax' => true, 'rule' => 'discount', 'percent' => 10.0, 'scope' => $selezione, 'items' => [12 => [['min_quantity' => 1.0, 'price' => 5.0]]]];
+$fatti = [
+    10 => ['categories' => [4], 'tags' => [], 'brand_id' => 0, 'model_id' => 30],
+    11 => ['categories' => [4], 'tags' => [], 'brand_id' => 0, 'model_id' => 31],
+    12 => ['categories' => [8], 'tags' => [], 'brand_id' => 0, 'model_id' => 32],
+    13 => ['categories' => [8], 'tags' => [], 'brand_id' => 0, 'model_id' => 33],
+];
+$daFatti = static fn (int $id): array => $fatti[$id] ?? [];
+
+check('selettore: prodotto della selezione, vale la regola', fn () => PriceLists::resolve([$scontoScelto], 10, 1, 20.0, true, 22, $daFatti) === ['price' => 18.0, 'price_list_id' => 9]);
+check('selettore: prodotto escluso, prezzo di catalogo', fn () => PriceLists::resolve([$scontoScelto], 11, 1, 20.0, true, 22, $daFatti)['price_list_id'] === 0);
+check('selettore: prodotto fuori dalla selezione, prezzo di catalogo', fn () => PriceLists::resolve([$scontoScelto], 13, 1, 20.0, true, 22, $daFatti)['price_list_id'] === 0);
+check('selettore: la riga vince anche fuori dalla selezione', fn () => PriceLists::resolve([$scontoScelto], 12, 1, 20.0, true, 22, $daFatti)['price'] === 5.0);
+check('selettore: i fatti anche come array', fn () => PriceLists::resolve([$scontoScelto], 10, 1, 20.0, true, 22, $fatti[10])['price'] === 18.0);
+check('selettore: fuori selezione si passa al listino dopo', fn () => PriceLists::resolve([$scontoScelto, $canale], 13, 1, 20.0, true, 22, $daFatti) === ['price' => 16.0, 'price_list_id' => 5]);
+check('selettore: senza chiave scope vale tutto il catalogo', fn () => PriceLists::scopeIsAll($canale));
+check('selettore: tutto il catalogo con esclusi non è «tutto»', fn () => !PriceLists::scopeIsAll(['scope' => ['all' => true, 'excluded_models' => [3]]]));
+check('selettore: fatti solo se una regola ha una selezione', fn () => PriceLists::needsFacts([$canale, $scontoScelto]) && !PriceLists::needsFacts([$canale, $cliente, null]));
+check('selettore: senza regola i fatti non servono', fn () => !PriceLists::needsFacts([['rule' => 'none', 'scope' => $selezione]]));
+
+// «Crea le righe dalla selezione».
+$catalogo = [
+    10 => ['price' => 20.0, 'facts' => $fatti[10]],
+    11 => ['price' => 20.0, 'facts' => $fatti[11]],
+    12 => ['price' => 30.0, 'facts' => ['categories' => [4], 'tags' => [], 'brand_id' => 0, 'model_id' => 32]],
+    13 => ['price' => 0.0, 'facts' => ['categories' => [4], 'tags' => [], 'brand_id' => 0, 'model_id' => 33]],
+    14 => ['price' => 50.0, 'facts' => $fatti[13]],
+];
+
+check('righe: solo la selezione, senza esclusi, senza chi ha già la riga, senza prezzo zero', fn () => array_column(PriceListSeeder::rows(['rule' => 'none'], $selezione, $catalogo, [12], true, []), 'product_id') === [10]);
+check('righe: senza regola il prezzo di catalogo', fn () => PriceListSeeder::rows(['rule' => 'none'], $selezione, $catalogo, [], true, [])[1] === ['product_id' => 12, 'min_quantity' => '1', 'price' => '30.00']);
+check('righe: con la regola il prezzo scontato', fn () => PriceListSeeder::rows(['rule' => 'discount', 'percent' => 10], $selezione, $catalogo, [], true, [])[0]['price'] === '18.00');
+check('righe: tutto il catalogo prende anche gli altri', fn () => count(PriceListSeeder::rows(['rule' => 'none'], ['all' => true], $catalogo, [], true, [])) === 4);
+check('righe: listino IVA esclusa da catalogo IVA inclusa', fn () => PriceListSeeder::rows(['rule' => 'none', 'prices_include_tax' => false], $selezione, $catalogo, [12], true, [30 => 25.0])[0]['price'] === '16.00');
+check('righe: aliquota sconosciuta, prezzo non convertito', fn () => PriceListSeeder::rows(['rule' => 'none', 'prices_include_tax' => false], $selezione, $catalogo, [12], true, [])[0]['price'] === '20.00');
 
 summary();

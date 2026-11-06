@@ -39,7 +39,7 @@ anche prima di inviarlo.
    l'email con il PDF allegato. Spento, o se il cliente non ha un'email, scarichi il PDF
    da **Revisioni inviate** e lo mandi tu.
 
-Con i referenti accesi (vedi [Referenti e
+Con i referenti (vedi [Referenti e
 aziende](anagrafiche.md#referenti-e-aziende)) il preventivo ha anche il campo
 **Referente**, come l'ordine da ufficio: il suo nome va sul PDF come «Alla
 c.a.». L'email parte comunque all'indirizzo del documento e va **in copia**

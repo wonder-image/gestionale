@@ -14,11 +14,15 @@ use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\App\Support\Repeater;
+use Wonder\Backend\Support\FlashAlert;
+use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\Dropdown;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\Http\Csrf;
+use Wonder\Http\Exceptions\NotFoundHttpException;
 use Wonder\Http\Route;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -33,7 +37,11 @@ use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Pricing\Import\PriceListLayout;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceListChannels;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
+use Wonder\Plugin\Gestionale\Support\Pricing\PriceListSeeder;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceListTransfer;
+use Wonder\Plugin\Gestionale\Support\Promotions\ScopeForm;
+use Wonder\Plugin\Gestionale\Support\RequestMemo;
+use Wonder\Sql\Transaction;
 use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 
 /**
@@ -41,12 +49,17 @@ use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
  * (G1, `customer_price_lists`; canali e regola in percentuale #162).
  * Le righe stanno in un repeater: prodotto, quantità minima (lo scaglione) e
  * prezzo. Si scaricano e si ricaricano in csv o xlsx. I prodotti senza riga
- * seguono la regola: nessuna, ricarico o sconto in percentuale sul prezzo base.
+ * seguono la regola (nessuna, ricarico o sconto in percentuale sul prezzo
+ * base) solo se stanno in «Si applica a», il selettore dei coupon
+ * (`ScopeForm`). «Crea le righe dalla selezione» scrive le righe mancanti
+ * (`PriceListSeeder`).
  *
  * Un listino assegnato a clienti o ordini non si elimina: si spegne.
  */
 final class PriceListResource extends GestionaleResource
 {
+    use ScopeForm;
+
     public static string $model = PriceList::class;
     public static string $feature = 'customer_price_lists';
 
@@ -90,6 +103,7 @@ final class PriceListResource extends GestionaleResource
         return [
             'name' => 'Nome',
             'prices_include_tax' => 'Prezzi',
+            'applies_to_all' => 'Si applica a',
             'price_rule' => 'I prodotti senza una riga',
             'percent' => 'Percentuale',
             'channels' => 'Canali',
@@ -116,6 +130,7 @@ final class PriceListResource extends GestionaleResource
                 ->label('I prodotti senza una riga'),
             FormField::key('percent')->number()->decimal(2)->label('Percentuale')
                 ->visibleWhen('price_rule', ['discount', 'markup']),
+            ...static::scopeFields(),
             FormField::key('channels')->checkbox()->options(static::channelOptions((int) (static::currentId() ?? 0)))->value([])->label('Canali'),
             FormField::key('valid_from')->dateInput()->label('Dal'),
             FormField::key('valid_to')->dateInput()->label('Al'),
@@ -165,11 +180,22 @@ final class PriceListResource extends GestionaleResource
                     static::getInput('note')->columnSpan(6),
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
-                    SectionTitle::make('Regola e canali')
-                        ->tooltip('Dice cosa pagano i prodotti che non hanno una riga qui sotto, a ogni quantità: il prezzo di catalogo, oppure uno sconto o un ricarico in percentuale sul prezzo pieno (non su quello scontato). Una riga del prodotto vince sempre sulla regola. Un canale ha un solo listino: gli ordini e i feed di quel canale usano questo listino quando il cliente non ne ha uno suo.')
+                    SectionTitle::make('Si applica a')
+                        ->tooltip('I prodotti del listino: «Tutto il catalogo» o «Solo la selezione» di categorie (con le sottocategorie), tag, marchi e articoli; gli articoli esclusi restano sempre fuori. La regola vale solo per questi prodotti, sul prezzo pieno (non su quello scontato); gli altri pagano il prezzo di catalogo. Una riga in «Prezzi» vince sempre, anche fuori dalla selezione. «Crea le righe dalla selezione», in alto, scrive una riga per ogni prodotto della selezione che non ce l\'ha.')
                         ->columnSpan(12),
+                    static::getInput('applies_to_all')->columnSpan(12),
+                    static::getInput('categories')->columnSpan(12),
+                    static::getInput('tags')->columnSpan(12),
+                    static::getInput('brands')->columnSpan(12),
+                    static::getInput('models')->columnSpan(12),
+                    static::getInput('excluded_models')->columnSpan(12),
                     static::getInput('price_rule')->columnSpan(4),
                     static::getInput('percent')->columnSpan(2),
+                ])->columns(12)->columnSpan(12),
+                (new Card)->components([
+                    SectionTitle::make('Canali')
+                        ->tooltip('Un canale ha un solo listino: gli ordini e i feed di quel canale usano questo listino quando il cliente non ne ha uno suo. Si vedono solo i canali accesi.')
+                        ->columnSpan(12),
                     static::getInput('channels')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
@@ -233,6 +259,13 @@ final class PriceListResource extends GestionaleResource
                 'edit' => 'Modifica listino',
             ])
             ->actions('edit', static fn (array $item): array => (int) ($item['id'] ?? 0) > 0 ? [
+                Button::post(static::seedUrl((int) $item['id']), 'Crea le righe dalla selezione')
+                    ->icon('bi bi-magic', 'start')->variant('secondary')->outline()->size('sm')
+                    ->confirm(
+                        'Si crea una riga per ogni prodotto di «Si applica a» che non ne ha una, con il prezzo di catalogo o quello della regola. Le righe che ci sono non cambiano. Salva prima le modifiche del form: si usa il listino salvato.',
+                        'Crea le righe',
+                        'Crea'
+                    ),
                 // Il formato si sceglie nel menu, come nell'«Esporta» degli elenchi.
                 Dropdown::make('Scarica')->icon('bi bi-download')->variant('dark')->outline()->size('sm')->align('end')
                     ->item('Excel (.xlsx)', static::itemsUrl((int) $item['id'], 'xlsx'))
@@ -250,6 +283,45 @@ final class PriceListResource extends GestionaleResource
             ->permit(Access::roles(Gestionale::area('promozioni'), 'edit'))
             ->where('id', '[0-9]+')
             ->where('format', 'xlsx|csv');
+
+        Route::post('/{id}/crea-righe/', Gestionale::handlerPath('backend/pricing/price-list-seed.php'), [
+            'resource' => $slug,
+            'resource_action' => 'seed',
+        ])->name('seed')
+            ->permit(Access::roles(Gestionale::area('promozioni'), 'edit'))
+            ->where('id', '[0-9]+');
+    }
+
+    public static function seedUrl(int $id): string
+    {
+        return static::routeUrl('seed', '/backend/'.static::path().'/'.$id.'/crea-righe/', ['id' => $id]);
+    }
+
+    /** Il POST di «Crea le righe dalla selezione»: scrive le righe e torna alla scheda. */
+    public static function seedRows(int $id): never
+    {
+        $list = $id > 0 && static::featureActive() ? PriceList::findById($id) : null;
+
+        if (!is_array($list) || !isset($list['id']) || (string) ($list['deleted'] ?? 'false') !== 'false') {
+            throw new NotFoundHttpException();
+        }
+
+        if (!Csrf::verify()) {
+            FlashAlert::custom('Attenzione', UserError::make('stock_document.expired')->getMessage(), 'warning');
+        } else {
+            $count = PriceListSeeder::seed($id);
+            FlashAlert::saved(match ($count) {
+                0 => 'Nessuna riga da creare: i prodotti della selezione hanno già una riga.',
+                1 => 'Creata 1 riga.',
+                default => 'Create '.$count.' righe.',
+            });
+        }
+
+        if (!headers_sent()) {
+            header('Location: '.static::routeUrl('edit', '/backend/'.static::path().'/'.$id.'/edit/', ['id' => $id]));
+        }
+
+        exit();
     }
 
     public static function itemsUrl(int $id, string $format): string
@@ -373,8 +445,10 @@ final class PriceListResource extends GestionaleResource
 
         static::checkItems(Repeater::rowsFromRequest('items', (array) $_POST));
         static::$imported = static::uploadedRows();
+        $values['applies_to_all'] = ($values['applies_to_all'] ?? 'true') === 'false' ? 'false' : 'true';
 
-        return $values;
+        // Il selettore non è una colonna: si salva nei ponti.
+        return array_diff_key($values, array_flip(static::FIELDS));
     }
 
     /**
@@ -449,7 +523,12 @@ final class PriceListResource extends GestionaleResource
             }
         }
 
-        $values['channels'] = PriceLists::channelsOf((int) ($values['id'] ?? 0));
+        $id = (int) ($values['id'] ?? 0);
+        $values['channels'] = PriceLists::channelsOf($id);
+
+        if ($mode === 'edit' && $id > 0) {
+            $values = static::loadScope('price_list', $id) + $values;
+        }
 
         if (($values['price_rule'] ?? 'none') === 'none' || (float) ($values['percent'] ?? 0) <= 0) {
             $values['percent'] = '';
@@ -490,14 +569,34 @@ final class PriceListResource extends GestionaleResource
 
     public static function afterStore(object $result, array $values = []): void
     {
-        static::writeImported((int) ($result->insert_id ?? 0));
-        static::writeChannels((int) ($result->insert_id ?? 0));
+        $id = (int) ($result->insert_id ?? 0);
+        static::writeImported($id);
+        static::writeChannels($id);
+        static::writeScope($id);
     }
 
     public static function afterUpdate(int|string $id, object $result, array $values = []): void
     {
         static::writeImported((int) $id);
         static::writeChannels((int) $id);
+        static::writeScope((int) $id);
+    }
+
+    public static function afterDelete(int|string $id, object $result, array $values = []): void
+    {
+        RequestMemo::forget(PriceList::MEMO_GROUP);
+        parent::afterDelete($id, $result, $values);
+    }
+
+    /** Il backend scrive la testata con una query diretta: la memoria si svuota. */
+    private static function writeScope(int $priceListId): void
+    {
+        RequestMemo::forget(PriceList::MEMO_GROUP);
+
+        if ($priceListId > 0 && array_key_exists('applies_to_all', (array) $_POST)) {
+            $post = (array) $_POST;
+            Transaction::run(static fn () => static::saveScope('price_list', $priceListId, static::readScope($post)));
+        }
     }
 
     private static function writeChannels(int $priceListId): void

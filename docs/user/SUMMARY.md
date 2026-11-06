@@ -19,6 +19,7 @@
 * [Etichette con codice a barre](catalogo-etichette.md)
 * [FAQ](catalogo-faq.md)
 * [Selezioni e ordine nel sito](catalogo-selezioni.md)
+* [Listini](promozioni-listini-cliente.md)
 
 ## Magazzino
 
@@ -55,7 +56,6 @@
 
 * [Campagne di sconto](promozioni-campagne.md)
 * [Coupon](promozioni-coupon.md)
-* [Listini cliente](promozioni-listini-cliente.md)
 
 ## Anagrafiche
 

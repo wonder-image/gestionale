@@ -7,6 +7,7 @@ use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Columns;
+use Wonder\Plugin\Gestionale\Support\ForgetsRequestMemo;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -22,11 +23,18 @@ use Wonder\Sql\TableSchema as Column;
  * `price_rule` e `percent` danno la regola in percentuale (#162): ricarico o
  * sconto sul prezzo base per i prodotti senza una riga propria nel listino.
  * Il listino si può anche assegnare a uno o più canali (`PriceListChannel`).
+ * `applies_to_all` e i ponti `PriceList{Category,Tag,Brand,ProductModel}`
+ * dicono a quali prodotti vale la regola, come per i coupon: di default
+ * tutto il catalogo, così i listini di prima non cambiano.
  *
  * Non si sincronizza: è lavoro del commerciante.
  */
 final class PriceList extends Model
 {
+    use ForgetsRequestMemo;
+
+    public const MEMO_GROUP = 'price_lists';
+
     public static string $table = 'gst_price_lists';
     public static string $folder = 'gestionale/pricing';
     public static string $icon = 'bi bi-journal-text';
@@ -45,6 +53,7 @@ final class PriceList extends Model
             Column::key('prices_include_tax')->enum(['true', 'false'])->default('true'),
             Column::key('price_rule')->enum(['none', 'markup', 'discount'])->default('none'),
             Columns::decimal('percent', '5,2'),
+            Column::key('applies_to_all')->enum(['true', 'false'])->default('true'),
             Column::key('valid_from')->date(),
             Column::key('valid_to')->date(),
             Column::key('active')->enum(['true', 'false'])->default('true'),
@@ -61,6 +70,7 @@ final class PriceList extends Model
             Field::key('prices_include_tax')->text()->sanitize(false),
             Field::key('price_rule')->text()->sanitize(false),
             Field::key('percent')->number()->decimals(2),
+            Field::key('applies_to_all')->text()->sanitize(false),
             Field::key('valid_from')->date(),
             Field::key('valid_to')->date(),
             Field::key('active')->text()->sanitize(false),

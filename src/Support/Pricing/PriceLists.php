@@ -7,6 +7,8 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Pricing\PriceList;
 use Wonder\Plugin\Gestionale\Models\Pricing\PriceListChannel;
 use Wonder\Plugin\Gestionale\Models\Pricing\PriceListItem;
+use Wonder\Plugin\Gestionale\Support\Promotions\ProductScope;
+use Wonder\Plugin\Gestionale\Support\Promotions\ScopeMatcher;
 
 /**
  * Il prezzo di listino di una riga (architettura 4.6): se il listino vale,
@@ -23,6 +25,10 @@ use Wonder\Plugin\Gestionale\Models\Pricing\PriceListItem;
  * in percentuale, e un listino con la percentuale trova sempre il prodotto.
  * Le percentuali non si sommano mai. Se nessuno lo trova vale il prezzo base.
  *
+ * La regola vale solo per i prodotti nel selettore del listino («Si applica
+ * a», come per i coupon: `scope` da `ProductScope`). Una riga propria vale
+ * sempre, anche fuori dal selettore.
+ *
  * `load()`, `forContact()` e `forChannel()` leggono il database; `applies()`,
  * `tier()`, `toBasis()`, `byRule()` e `resolve()` sono pure e si provano senza.
  */
@@ -34,7 +40,7 @@ final class PriceLists
     /**
      * Il listino e le sue righe per prodotto, o `null` se non vale.
      *
-     * @return array{id: int, prices_include_tax: bool, rule: string, percent: float, items: array<int, list<array{min_quantity: float, price: float}>>}|null
+     * @return array{id: int, prices_include_tax: bool, rule: string, percent: float, scope: array<string, mixed>, items: array<int, list<array{min_quantity: float, price: float}>>}|null
      */
     public static function load(int $priceListId, string $now, string $currency): ?array
     {
@@ -66,6 +72,7 @@ final class PriceLists
             'prices_include_tax' => ($list['prices_include_tax'] ?? 'true') === 'true',
             'rule' => in_array($rule, self::RULES, true) ? $rule : 'none',
             'percent' => max(0.0, (float) ($list['percent'] ?? 0)),
+            'scope' => ProductScope::of('price_list', $priceListId),
             'items' => $items,
         ];
     }
@@ -167,10 +174,15 @@ final class PriceLists
      * catalogo, già nella base dell'ordine; il prezzo scontato non conta.
      * Prezzo 0 e listino 0 se nessuno lo trova.
      *
+     * `$facts` sono i fatti del prodotto per il selettore (`ProductScope::facts()`),
+     * o chi li dà: si leggono solo se un listino ha una regola e un selettore
+     * che non prende tutto. Senza, li legge il database.
+     *
      * @param list<array<string, mixed>|null> $lists
+     * @param array<string, mixed>|callable(int): array<string, mixed>|null $facts
      * @return array{price: float, price_list_id: int}
      */
-    public static function resolve(array $lists, int $productId, float $quantity, float $basePrice, bool $orderIncludesTax, float $taxRate): array
+    public static function resolve(array $lists, int $productId, float $quantity, float $basePrice, bool $orderIncludesTax, float $taxRate, array|callable|null $facts = null): array
     {
         foreach ($lists as $list) {
             if (!is_array($list)) {
@@ -179,8 +191,18 @@ final class PriceLists
 
             $price = self::unitPrice($list, $productId, $quantity, $orderIncludesTax, $taxRate);
 
-            if ($price <= 0.0) {
-                $price = self::byRule((string) ($list['rule'] ?? 'none'), (float) ($list['percent'] ?? 0), $basePrice);
+            if ($price <= 0.0 && ($list['rule'] ?? 'none') !== 'none') {
+                if (self::scopeIsAll($list)) {
+                    $inScope = true;
+                } else {
+                    if (!is_array($facts)) {
+                        $facts = is_callable($facts) ? (array) $facts($productId) : ProductScope::facts($productId);
+                    }
+
+                    $inScope = ScopeMatcher::matches((array) $list['scope'], $facts);
+                }
+
+                $price = $inScope ? self::byRule((string) $list['rule'], (float) ($list['percent'] ?? 0), $basePrice) : 0.0;
             }
 
             if ($price > 0.0) {
@@ -207,6 +229,28 @@ final class PriceLists
         }
 
         return (int) ($lists[0]['id'] ?? 0);
+    }
+
+    /** Se la regola del listino vale per tutto il catalogo, senza esclusi (senza selettore: sì). @param array<string, mixed> $list */
+    public static function scopeIsAll(array $list): bool
+    {
+        if (!isset($list['scope']) || !is_array($list['scope'])) {
+            return true;
+        }
+
+        return !empty($list['scope']['all']) && empty($list['scope']['excluded_models']);
+    }
+
+    /** Se per questi listini servono i fatti dei prodotti. @param list<array<string, mixed>|null> $lists */
+    public static function needsFacts(array $lists): bool
+    {
+        foreach ($lists as $list) {
+            if (is_array($list) && ($list['rule'] ?? 'none') !== 'none' && !self::scopeIsAll($list)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Il prezzo base con il ricarico o lo sconto in percentuale; 0 se la regola non c'è. */

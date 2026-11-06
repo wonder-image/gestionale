@@ -12,6 +12,11 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCategory;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelTag;
+use Wonder\Plugin\Gestionale\Models\Pricing\PriceList;
+use Wonder\Plugin\Gestionale\Models\Pricing\PriceListBrand;
+use Wonder\Plugin\Gestionale\Models\Pricing\PriceListCategory;
+use Wonder\Plugin\Gestionale\Models\Pricing\PriceListProductModel;
+use Wonder\Plugin\Gestionale\Models\Pricing\PriceListTag;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponBrand;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponCategory;
@@ -32,7 +37,7 @@ use Wonder\Plugin\Gestionale\Support\RequestMemo;
  * Una campagna e un coupon scelgono i prodotti allo stesso modo, quindi la
  * lettura è una sola: `OWNERS` dice, per ciascun proprietario, quale Model
  * tiene la testata e quali i ponti. Il coupon e le FAQ si aggiungono qui,
- * senza duplicare niente.
+ * senza duplicare niente; il listino usa il selettore per la sua regola.
  */
 final class ProductScope
 {
@@ -61,6 +66,14 @@ final class ProductScope
             'tags' => FaqTag::class,
             'brands' => FaqBrand::class,
             'product_models' => FaqProductModel::class,
+        ],
+        'price_list' => [
+            'model' => PriceList::class,
+            'key' => 'price_list_id',
+            'categories' => PriceListCategory::class,
+            'tags' => PriceListTag::class,
+            'brands' => PriceListBrand::class,
+            'product_models' => PriceListProductModel::class,
         ],
     ];
 

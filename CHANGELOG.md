@@ -20,6 +20,22 @@ versionamento semantico.
   con `ContactRelations`.
 
 ### Cambiato
+- **Listini: «Si applica a», righe dalla selezione, menu Catalogo.** Il
+  listino ha il selettore dei coupon (tutto il catalogo con gli esclusi, o
+  categorie, tag, marchi e articoli; tabelle `gst_price_list_{categories,tags,
+  brands,product_models}`, colonna `applies_to_all`): la regola in percentuale
+  vale solo per quei prodotti, una riga vince sempre. `PriceLists::resolve()`
+  accetta i fatti del prodotto (array o callable), `ChannelPrice::apply()` li
+  legge una volta per il feed. Il bottone «Crea le righe dalla selezione»
+  (`PriceListSeeder`) scrive una riga per ogni prodotto della selezione che non
+  ce l'ha, con il prezzo della regola nella base IVA del listino. Listini va in
+  Catalogo, la valuta sparisce dal form (vale quella del negozio), la regola si
+  legge «I prodotti senza una riga: mantengono il prezzo originale / hanno uno
+  sconto / hanno un ricarico» con la percentuale solo se serve. Il campo Canali
+  mostra solo i canali accesi; portale B2B, eBay e marketplace escono dal
+  registro di base (li porta il modulo che li collega).
+- **Referenti sempre attivi** (con customer-account#8): le guide non parlano
+  più di un interruttore.
 - **Catalogo Meta e Google Merchant Center escono da «Esporta» e vanno nella
   scheda «Feed prodotti» del bottone «File».** Un riquadro per feed acceso, con
   l'indirizzo fisso da copiare, l'ultimo aggiornamento con la frequenza e
