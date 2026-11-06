@@ -113,7 +113,8 @@ final class Quotes
             $email = $sent['status'];
 
             if ($sent['sent'] !== []) {
-                OrderQuoteRevision::update(['sent_to' => implode(', ', $sent['sent'])], $result['revision_id']);
+                // Anche chi l'ha avuto in copia.
+                OrderQuoteRevision::update(['sent_to' => implode(', ', [...$sent['sent'], ...($sent['cc'] ?? [])])], $result['revision_id']);
             }
         }
 

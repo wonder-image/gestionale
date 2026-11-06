@@ -39,10 +39,14 @@ Gli altri hook nascono con il sotto-progetto che li usa.
 
 | Chiave | Email | Messaggio |
 |---|---|---|
-| `stock.low_stock` | i prodotti sotto la scorta minima | `['to' => list<string>, 'subject' => string, 'body' => string]` |
+| `stock.low_stock` | i prodotti sotto la scorta minima | `['to' => list<string>, 'cc' => list<string>, 'subject' => string, 'body' => string, 'attachments' => array]` |
+| `order.<chiave>` | le email degli ordini (`OrderNotifier`) | come sopra; `cc` pieno per `quote_sent`, `office_confirmed`, `delivery_note_sent` con i referenti |
 
-- `to` può tornare come lista o come stringa separata da virgole: il gestionale
-  lo rilegge e scarta gli indirizzi non validi.
+- `to` e `cc` possono tornare come lista o come stringa separata da virgole: il
+  gestionale li rilegge e scarta gli indirizzi non validi. Dal `cc` si tolgono
+  i doppioni e chi è già in `to`.
+- Le copie viaggiano nel CC della prima email accettata: con più `to` le altre
+  partono senza copia. Se nessuna email parte, le copie finiscono in `failed`.
 - Un `to` vuoto **ferma l'invio**, e gli avvisi contano come mandati: è una
   scelta del sito, non un guasto.
 - Un `to` fatto solo di indirizzi non validi ferma l'invio allo stesso modo, ma

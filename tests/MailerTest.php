@@ -52,6 +52,16 @@ final class SoloScrittoMale extends GestionaleExtension
     }
 }
 
+final class CopiaAlCapo extends GestionaleExtension
+{
+    public function beforeEmailSend(string $key, array $message): array
+    {
+        $message['cc'] = ['capo@negozio.test'];
+
+        return $message;
+    }
+}
+
 final class EstensioneRotta extends GestionaleExtension
 {
     public function beforeEmailSend(string $key, array $message): array
@@ -134,7 +144,7 @@ check('una email per destinatario, con oggetto e corpo', function () use ($posti
     Mailer::useTransport($postino());
     $esito = Mailer::send('prova', ['a@x.it', 'b@y.it'], 'Oggetto', '<p>Corpo</p>');
 
-    return $esito === ['status' => Mailer::SENT, 'to' => ['a@x.it', 'b@y.it'], 'sent' => ['a@x.it', 'b@y.it'], 'failed' => []]
+    return $esito === ['status' => Mailer::SENT, 'to' => ['a@x.it', 'b@y.it'], 'cc' => [], 'sent' => ['a@x.it', 'b@y.it'], 'failed' => []]
         && $inviate === [['a@x.it', 'Oggetto', '<p>Corpo</p>'], ['b@y.it', 'Oggetto', '<p>Corpo</p>']];
 });
 
@@ -231,6 +241,75 @@ check('senza il sito avviato non parte niente, e lo dice', function () use ($pul
 
     // Qui `sendMail()` non c'è: il test non deve mai mandare email vere.
     return !function_exists('sendMail') && $esito['status'] === Mailer::FAILED;
+});
+
+/** @var list<array{0: string, 1: list<string>}> */
+$conCopia = [];
+
+$postinoCc = static function (bool|callable $esito = true) use (&$conCopia): callable {
+    return static function (string $to, string $subject, string $body, array $files = [], array $cc = []) use (&$conCopia, $esito): bool {
+        $conCopia[] = [$to, $cc];
+
+        return is_callable($esito) ? $esito($to) : $esito;
+    };
+};
+
+check('le copie viaggiano in CC sulla stessa email, senza doppioni né il destinatario', function () use ($postinoCc, $pulisci, &$conCopia) {
+    $pulisci();
+    $conCopia = [];
+    Mailer::useTransport($postinoCc());
+    $esito = Mailer::send('prova', ['a@x.it'], 'Oggetto', 'x', [], ['b@y.it', 'A@x.it', 'B@y.it', 'scritto-male']);
+
+    return $esito['status'] === Mailer::SENT
+        && $conCopia === [['a@x.it', ['b@y.it']]]
+        && $esito['cc'] === ['b@y.it']
+        && $esito['sent'] === ['a@x.it'];
+});
+
+check('con più destinatari la copia parte una volta sola', function () use ($postinoCc, $pulisci, &$conCopia) {
+    $pulisci();
+    $conCopia = [];
+    Mailer::useTransport($postinoCc());
+    Mailer::send('prova', ['a@x.it', 'c@z.it'], 'Oggetto', 'x', [], ['b@y.it']);
+
+    return $conCopia === [['a@x.it', ['b@y.it']], ['c@z.it', []]];
+});
+
+check('se la prima email salta, la copia passa alla successiva', function () use ($postinoCc, $pulisci, &$conCopia) {
+    $pulisci();
+    $conCopia = [];
+    Mailer::useTransport($postinoCc(static fn (string $to): bool => $to !== 'a@x.it'));
+    $esito = Mailer::send('prova', ['a@x.it', 'c@z.it'], 'Oggetto', 'x', [], ['b@y.it']);
+
+    return $conCopia === [['a@x.it', ['b@y.it']], ['c@z.it', ['b@y.it']]]
+        && $esito['cc'] === ['b@y.it']
+        && $esito['failed'] === ['a@x.it'];
+});
+
+check('se non parte niente, anche le copie sono fallite', function () use ($postinoCc, $pulisci) {
+    $pulisci();
+    Mailer::useTransport($postinoCc(false));
+    $esito = Mailer::send('prova', ['a@x.it'], 'Oggetto', 'x', [], ['b@y.it']);
+
+    return $esito['status'] === Mailer::FAILED && $esito['cc'] === [] && $esito['failed'] === ['a@x.it', 'b@y.it'];
+});
+
+check('l\'hook vede e cambia le copie', function () use ($postinoCc, $pulisci, &$conCopia) {
+    $pulisci();
+    $conCopia = [];
+    Extensions::use([CopiaAlCapo::class]);
+    Mailer::useTransport($postinoCc());
+    $esito = Mailer::send('prova', ['a@x.it'], 'Oggetto', 'x', [], ['b@y.it']);
+
+    return $conCopia === [['a@x.it', ['capo@negozio.test']]] && $esito['cc'] === ['capo@negozio.test'];
+});
+
+check('senza copie il risultato ha cc vuoto', function () use ($postino, $pulisci) {
+    $pulisci();
+    Mailer::useTransport($postino());
+    $esito = Mailer::send('prova', ['a@x.it'], 'Oggetto', 'x');
+
+    return $esito['cc'] === [];
 });
 
 $pulisci();
