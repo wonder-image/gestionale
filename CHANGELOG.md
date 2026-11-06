@@ -13,8 +13,9 @@ versionamento semantico.
   aziende» e lo stesso dato nell'export. Preventivi, ordini da ufficio e DDT
   hanno il referente (`referent_id`, `referent_name`, colonne nuove senza
   migrazione di dati), proposto dal principale e stampato «Alla c.a.» sul PDF;
-  le loro email vanno anche all'azienda e ai referenti che ricevono i documenti
-  (`DocumentReferents`). MCP: `customer_get` con `people` / `companies`,
+  le loro email vanno in CC all'azienda e ai referenti che ricevono i documenti
+  (`DocumentReferents`, CC del core da wonder-image/app#202). `Mailer::send()`
+  accetta `$cc`, l'hook `beforeEmailSend` lo vede e il risultato ha `cc`. MCP: `customer_get` con `people` / `companies`,
   `quote_create` con `referent_id`. Richiede `wonder-image/customer-account`
   con `ContactRelations`.
 

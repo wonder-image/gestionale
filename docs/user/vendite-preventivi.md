@@ -43,7 +43,8 @@ Con i referenti accesi (vedi [Referenti e
 aziende](anagrafiche.md#referenti-e-aziende)) il preventivo ha anche il campo
 **Referente**, come l'ordine da ufficio: il suo nome va sul PDF come «Alla
 c.a.». L'email parte comunque all'indirizzo del documento e va **in copia**
-all'email dell'azienda e ai referenti che ricevono i documenti.
+all'email dell'azienda e ai referenti che ricevono i documenti: è un'unica
+email, e ognuno vede chi altro l'ha ricevuta.
 
 Il preventivo passa a **Inviato**.
 

@@ -15,8 +15,10 @@ use Wonder\Plugin\Gestionale\Support\Errors\Errors;
  * può cambiare oggetto, corpo e destinatari, o fermare l'invio togliendo
  * tutti i destinatari. Se ne lascia solo di non validi l'invio si ferma lo
  * stesso, ma resta una segnalazione: somiglia più a uno sbaglio che a una
- * scelta. Poi parte un'email per destinatario, perché così la manda il core;
- * un indirizzo che salta non ferma gli altri.
+ * scelta. Poi parte un'email per destinatario; un indirizzo che salta non
+ * ferma gli altri. Le copie (`cc`) viaggiano sulla prima email accettata, nel
+ * CC vero del core (wonder-image/app#202); con un core più vecchio partono a
+ * parte, una per indirizzo.
  *
  * Chi chiama decide cosa fare di un invio fallito: qui si mette solo nel log,
  * indirizzo per indirizzo.
@@ -30,7 +32,7 @@ final class Mailer
     /** Sempre lo stesso: il registro del core conta le ripetizioni sulla stessa riga. */
     private const ONLY_INVALID = 'L\'hook beforeEmailSend ha lasciato solo destinatari non validi.';
 
-    /** @var (callable(string, string, string, array<string, string>): bool)|null */
+    /** @var (callable(string, string, string, array<string, string>, list<string>): bool)|null */
     private static $transport = null;
 
     /** @var (callable(string, array): void)|null */
@@ -39,22 +41,29 @@ final class Mailer
     /**
      * `$attachments` sono i file da allegare, percorso => nome con cui arriva
      * (G9: il PDF del preventivo e della conferma). L'hook li vede e li può
-     * togliere.
+     * togliere. `$cc` sono le copie: anche loro passano dall'hook, e in
+     * `cc` del risultato restano quelle partite davvero.
      *
      * @param list<string> $to
      * @param array<string, string> $attachments
-     * @return array{status: string, to: list<string>, sent: list<string>, failed: list<string>}
+     * @param list<string> $cc
+     * @return array{status: string, to: list<string>, cc: list<string>, sent: list<string>, failed: list<string>}
      */
-    public static function send(string $key, array $to, string $subject, string $body, array $attachments = []): array
+    public static function send(string $key, array $to, string $subject, string $body, array $attachments = [], array $cc = []): array
     {
-        $original = ['to' => $to, 'subject' => $subject, 'body' => $body, 'attachments' => $attachments];
+        $original = ['to' => $to, 'cc' => $cc, 'subject' => $subject, 'body' => $body, 'attachments' => $attachments];
         $message = Extensions::filter('beforeEmailSend', $original, $key);
         $message = is_array($message) ? $message + $original : $original;
 
-        $parsed = Recipients::parse(is_array($message['to'])
-            ? implode(',', array_map('strval', $message['to']))
-            : (string) $message['to']);
+        $parsed = self::addresses($message['to']);
         $recipients = $parsed['valid'];
+
+        // Chi è già destinatario non riceve anche la copia.
+        $main = array_map(static fn (string $a): string => mb_strtolower($a, 'UTF-8'), $recipients);
+        $copies = array_values(array_filter(
+            self::addresses($message['cc'] ?? [])['valid'],
+            static fn (string $a): bool => !in_array(mb_strtolower($a, 'UTF-8'), $main, true)
+        ));
 
         if ($recipients === []) {
             // Un `to` vuoto è uno stop voluto; solo indirizzi storti, no.
@@ -65,7 +74,7 @@ final class Mailer
                 ]);
             }
 
-            return ['status' => self::CANCELLED, 'to' => [], 'sent' => [], 'failed' => []];
+            return ['status' => self::CANCELLED, 'to' => [], 'cc' => [], 'sent' => [], 'failed' => []];
         }
 
         $subject = (string) $message['subject'];
@@ -74,25 +83,32 @@ final class Mailer
         $transport = self::$transport ?? self::defaultTransport();
         $sent = [];
         $failed = [];
+        $pending = $copies;
+        $copied = [];
 
         foreach ($recipients as $address) {
             try {
-                if ($transport($address, $subject, $body, $files) !== true) {
+                if ($transport($address, $subject, $body, $files, $pending) !== true) {
                     throw new RuntimeException('Il server di posta non ha accettato l\'email.');
                 }
 
                 $sent[] = $address;
+                // Le copie una volta sola: le altre email partono senza.
+                $copied = [...$copied, ...$pending];
+                $pending = [];
             } catch (Throwable $error) {
                 $failed[] = $address;
-                Errors::internal($error, 'mail.'.$key, ['to' => $address]);
+                Errors::internal($error, 'mail.'.$key, ['to' => $address, 'cc' => $pending]);
             }
         }
 
         return [
             'status' => $sent === [] ? self::FAILED : self::SENT,
             'to' => $recipients,
+            'cc' => $copied,
             'sent' => $sent,
-            'failed' => $failed,
+            // Le copie non partite contano come fallite.
+            'failed' => [...$failed, ...$pending],
         ];
     }
 
@@ -178,6 +194,27 @@ final class Mailer
         );
     }
 
+    /** @return array{valid: list<string>, invalid: list<string>} */
+    private static function addresses(mixed $value): array
+    {
+        return Recipients::parse(is_array($value) ? implode(',', array_map('strval', $value)) : (string) $value);
+    }
+
+    /** Il core sa mettere in copia? Solo da wonder-image/app#202 `sendMail()` ha `$options`. */
+    private static function coreSupportsCc(): bool
+    {
+        try {
+            foreach ((new \ReflectionFunction('sendMail'))->getParameters() as $parameter) {
+                if ($parameter->getName() === 'options') {
+                    return true;
+                }
+            }
+        } catch (Throwable) {
+        }
+
+        return false;
+    }
+
     /** @return callable(string, array): void */
     private static function defaultReporter(string $key): callable
     {
@@ -186,10 +223,10 @@ final class Mailer
         };
     }
 
-    /** @return callable(string, string, string, array<string, string>): bool */
+    /** @return callable(string, string, string, array<string, string>, list<string>): bool */
     private static function defaultTransport(): callable
     {
-        return static function (string $to, string $subject, string $body, array $attachments = []): bool {
+        return static function (string $to, string $subject, string $body, array $attachments = [], array $cc = []): bool {
             // Le funzioni globali del core ci sono solo nel sito avviato:
             // non in un comando `forge`, non nei test.
             if (!function_exists('sendMail')) {
@@ -198,7 +235,30 @@ final class Mailer
 
             // Su Brevo il core manda la risposta-a senza guardarla, e Brevo ne
             // rifiuta una vuota: l'email non partirebbe mai.
-            return (bool) sendMail(self::replyTo(), $to, $subject, self::shield($body), $attachments === [] ? null : $attachments);
+            $from = self::replyTo();
+            $html = self::shield($body);
+            $files = $attachments === [] ? null : $attachments;
+
+            if ($cc === [] || self::coreSupportsCc()) {
+                return (bool) ($cc === []
+                    ? sendMail($from, $to, $subject, $html, $files)
+                    : sendMail($from, $to, $subject, $html, $files, options: ['cc' => $cc]));
+            }
+
+            // Core senza CC: la copia parte a parte, solo se l'originale è partita.
+            if (!sendMail($from, $to, $subject, $html, $files)) {
+                return false;
+            }
+
+            foreach ($cc as $address) {
+                try {
+                    sendMail($from, $address, $subject, $html, $files);
+                } catch (Throwable $error) {
+                    Errors::internal($error, 'mail.cc', ['to' => $address]);
+                }
+            }
+
+            return true;
         };
     }
 }

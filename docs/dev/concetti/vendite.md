@@ -273,10 +273,13 @@ Il DDT eredita il referente dall'ordine (`DeliveryNotes`), e il PDF lo stampa
 «Alla c.a.» nel riquadro del cliente (`DocumentPdf::billingLines()`).
 
 Le mail `quote_sent`, `office_confirmed` e `delivery_note_sent`
-(`OrderNotifier::COPY_KEYS`) vanno a `order.email` e, in più, agli indirizzi di
-`copyEmails()`. Sono destinatari in più della stessa mail, non CC veri: il core
-non ha ancora il CC in `sendMail()` (wonder-image/app#201). Quando ci sarà,
-basta spostare `copyEmails()` nel CC dentro `OrderNotifier::recipients()`.
+(`OrderNotifier::COPY_KEYS`) vanno a `order.email`, con gli indirizzi di
+`copyEmails()` nel **CC vero** della stessa mail (`OrderNotifier::copies()` →
+`Mailer::send(..., $cc)` → `sendMail(..., options: ['cc' => ...])` del core,
+wonder-image/app#202). Il risultato di `OrderNotifier::send()` ha `cc` con le
+copie partite; il preventivo le registra in `sent_to` insieme ai destinatari.
+Con un core senza `$options` in `sendMail()` le copie partono come email a
+parte, una per indirizzo e solo se l'originale è partita.
 
 Con i referenti spenti non c'è niente da scegliere, il campo non compare e le
 mail partono come prima.

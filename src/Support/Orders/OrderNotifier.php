@@ -33,20 +33,20 @@ final class OrderNotifier
     /**
      * @param array{instructions?: string, deadline?: string, url?: string, order_url?: string, account_url?: string, carrier?: string, tracking?: string, location?: string} $extra
      * @param array<string, string> $attachments percorso => nome (G9: il PDF)
-     * @return array{status: string, to: list<string>, sent: list<string>, failed: list<string>}
+     * @return array{status: string, to: list<string>, cc: list<string>, sent: list<string>, failed: list<string>}
      */
     public static function send(string $key, int $orderId, array $extra = [], array $attachments = []): array
     {
         $order = Order::findById($orderId);
 
         if (!is_array($order) || $order === []) {
-            return ['status' => self::NOT_FOUND, 'to' => [], 'sent' => [], 'failed' => []];
+            return ['status' => self::NOT_FOUND, 'to' => [], 'cc' => [], 'sent' => [], 'failed' => []];
         }
 
         $to = self::recipients($key, $order);
 
         if ($to === []) {
-            return ['status' => self::NO_RECIPIENTS, 'to' => [], 'sent' => [], 'failed' => []];
+            return ['status' => self::NO_RECIPIENTS, 'to' => [], 'cc' => [], 'sent' => [], 'failed' => []];
         }
 
         $method = (int) ($order['payment_method_id'] ?? 0) > 0
@@ -60,7 +60,7 @@ final class OrderNotifier
             'order_url' => in_array($key, OrderEmail::MERCHANT_KEYS, true) ? OrderResource::detailUrl($orderId) : '',
         ]);
 
-        return Mailer::send('order.'.$key, $to, $email['subject'], $email['body'], $attachments);
+        return Mailer::send('order.'.$key, $to, $email['subject'], $email['body'], $attachments, self::copies($key, $order));
     }
 
     /**
@@ -96,15 +96,24 @@ final class OrderNotifier
             )['valid'];
         }
 
-        $to = Recipients::parse((string) ($order['email'] ?? ''))['valid'];
+        return Recipients::parse((string) ($order['email'] ?? ''))['valid'];
+    }
 
-        // Documenti d'ufficio: in copia l'azienda e i referenti che li ricevono.
-        if (in_array($key, self::COPY_KEYS, true) && (int) ($order['customer_id'] ?? 0) > 0) {
-            $company = Contact::findById((int) $order['customer_id']);
-            $to = array_values(array_unique([...$to, ...DocumentReferents::copyEmails($order, is_array($company) ? $company : null)]));
+    /**
+     * Documenti d'ufficio: in CC l'azienda e i referenti che li ricevono.
+     *
+     * @param array<string, mixed> $order
+     * @return list<string>
+     */
+    private static function copies(string $key, array $order): array
+    {
+        if (!in_array($key, self::COPY_KEYS, true) || (int) ($order['customer_id'] ?? 0) <= 0) {
+            return [];
         }
 
-        return $to;
+        $company = Contact::findById((int) $order['customer_id']);
+
+        return DocumentReferents::copyEmails($order, is_array($company) ? $company : null);
     }
 
     /** @return list<array<string, mixed>> */
