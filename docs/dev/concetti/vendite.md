@@ -249,6 +249,38 @@ Una classe che non esiste o non estende `DocumentPdf` non vale: resta quella
 del modulo. Le email `quote_sent` e `office_confirmed` portano il PDF
 allegato (`Mailer::send(..., $attachments)`).
 
+## Il referente del documento (#145)
+
+Con i referenti di `wonder-image/customer-account` accesi
+(`ContactRelations::enabled()`), preventivi, ordini da ufficio e DDT hanno il
+**referente**: `orders.referent_id` / `referent_name` e
+`delivery_notes.referent_id` / `referent_name`, colonne nuove con default `0`
+e `''`. I documenti di prima restano validi così come sono.
+
+Tutto passa da `Support\Contacts\DocumentReferents`:
+
+- `options($companyId)` legge `ContactRelations::peopleOf()` e tiene solo i
+  legami vivi, con la persona viva, che hanno `receives_documents`;
+- `defaultFor()` propone il principale (`is_primary`), altrimenti nessuno;
+- `resolve($companyId, $id)` controlla il referente scelto contro le opzioni e
+  copia il nome sul documento. Un id che non è fra le opzioni diventa `0` / `''`;
+- `copyEmails($order, $company)` dà gli indirizzi in copia, senza doppioni e
+  senza quello che riceve già la mail: l'email dell'azienda, solo se è
+  un'azienda con referenti, e quelle dei referenti;
+- `useReader()` serve solo ai test.
+
+Il DDT eredita il referente dall'ordine (`DeliveryNotes`), e il PDF lo stampa
+«Alla c.a.» nel riquadro del cliente (`DocumentPdf::billingLines()`).
+
+Le mail `quote_sent`, `office_confirmed` e `delivery_note_sent`
+(`OrderNotifier::COPY_KEYS`) vanno a `order.email` e, in più, agli indirizzi di
+`copyEmails()`. Sono destinatari in più della stessa mail, non CC veri: il core
+non ha ancora il CC in `sendMail()` (wonder-image/app#201). Quando ci sarà,
+basta spostare `copyEmails()` nel CC dentro `OrderNotifier::recipients()`.
+
+Con i referenti spenti non c'è niente da scegliere, il campo non compare e le
+mail partono come prima.
+
 ## Le rate (G9)
 
 Una **rata** è una riga `payment` di `gst_payments` con `due_date`, scritta

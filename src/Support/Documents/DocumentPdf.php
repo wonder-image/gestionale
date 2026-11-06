@@ -474,6 +474,8 @@ abstract class DocumentPdf
             $g('cf') !== '' && $g('cf') !== $g('pi') ? 'C.F. '.$g('cf') : '',
             $g('sdi') !== '' ? 'SDI '.$g('sdi') : ($g('pec') !== '' ? 'PEC '.$g('pec') : ''),
             trim((string) ($order['email'] ?? '')),
+            // Il referente scelto sul documento (#145): vuoto, la riga non c'è.
+            trim((string) ($order['referent_name'] ?? '')) !== '' ? 'Alla c.a. '.trim((string) $order['referent_name']) : '',
         ], static fn (string $line): bool => trim($line) !== ''));
     }
 

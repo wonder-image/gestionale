@@ -31,7 +31,10 @@ use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\CustomerOrderTableResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource;
+use Wonder\Plugin\CustomerAccount\Resources\Concerns\HasContactRelations;
+use Wonder\Plugin\CustomerAccount\Models\ContactRelation;
 use Wonder\Plugin\CustomerAccount\Support\ContactExport;
+use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
@@ -56,6 +59,8 @@ use Wonder\Sql\Transaction;
  */
 class CustomerResource extends GestionaleResource
 {
+    use HasContactRelations;
+
     public static string $model = Contact::class;
     public static string $orderColumn = 'id';
     public static string $orderDirection = 'DESC';
@@ -173,7 +178,8 @@ class CustomerResource extends GestionaleResource
                 ->label('Listino');
         }
 
-        return $fields;
+        // #145: «Referenti» e «Aziende», solo con relations.enabled.
+        return [...$fields, ...static::contactRelationFields()];
     }
 
     /** Il listino del cliente: solo per i clienti, con «Listini cliente». */
@@ -317,6 +323,7 @@ class CustomerResource extends GestionaleResource
                     ->columnSpan(12),
                 static::getInput('addresses')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
+            ...static::relationCards(),
             (new Card)->components([
                 SectionTitle::make('Note')->columnSpan(12),
                 static::getInput('note')->columnSpan(12),
@@ -326,6 +333,87 @@ class CustomerResource extends GestionaleResource
         return (new Form)->components([
             (new Container)->components($cards)->columns(12)->columnSpan(12),
         ])->columns(12);
+    }
+
+    /**
+     * La card «Referenti» (azienda) o «Aziende» (persona): i due repeater
+     * seguono il tipo della scheda, il campo nascosto dice al salvataggio che
+     * il form li ha mostrati.
+     *
+     * @return list<Card>
+     */
+    protected static function relationCards(): array
+    {
+        if (!ContactRelations::enabled()) {
+            return [];
+        }
+
+        return [
+            (new Card)->components([
+                SectionTitle::make(__t('gestionale.contacts.relations.title'))
+                    ->tooltip(__t('gestionale.contacts.relations.tooltip'))
+                    ->columnSpan(12),
+                static::getInput(self::RELATION_PEOPLE)->columnSpan(12),
+                static::getInput(self::RELATION_COMPANIES)->columnSpan(12),
+                static::getInput(self::RELATION_MARKER)->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
+        ];
+    }
+
+    /** Vero per le persone che sono referenti vivi di almeno un'azienda viva. */
+    protected static function onlyReferentSql(): string
+    {
+        $contacts = Contact::$table;
+        $relations = ContactRelation::$table;
+
+        return "(is_customer <> 'true' AND is_supplier <> 'true' AND EXISTS(SELECT 1 FROM {$relations} cr
+            JOIN {$contacts} rc ON rc.id = cr.company_id AND rc.deleted = 'false'
+            WHERE cr.person_id = {$contacts}.id AND cr.deleted = 'false'))";
+    }
+
+    /** I nomi dell'altro lato dei legami, per la colonna della lista. */
+    protected static function relationNamesSql(): string
+    {
+        $contacts = Contact::$table;
+        $relations = ContactRelation::$table;
+
+        return "(SELECT GROUP_CONCAT(IF(rc.type = 'business' AND TRIM(rc.business_name) <> '', TRIM(rc.business_name),
+                TRIM(CONCAT_WS(' ', rc.surname, rc.name))) ORDER BY cr.position SEPARATOR ', ')
+            FROM {$relations} cr
+            JOIN {$contacts} rc ON rc.deleted = 'false'
+                AND rc.id = IF({$contacts}.type = 'business', cr.person_id, cr.company_id)
+            WHERE cr.deleted = 'false'
+              AND IF({$contacts}.type = 'business', cr.company_id, cr.person_id) = {$contacts}.id) AS relation_names";
+    }
+
+    /**
+     * I nomi dell'altro lato dei legami di una scheda, per l'export.
+     *
+     * @param array<string, mixed> $row
+     */
+    public static function relationNames(array $row): string
+    {
+        $id = (int) ($row['id'] ?? 0);
+        $rows = Contacts::isCompany($row) ? ContactRelations::peopleOf($id) : ContactRelations::companiesOf($id);
+        $names = [];
+
+        foreach ($rows as $relation) {
+            if (($relation['deleted'] ?? 'false') !== 'false' || ($relation['contact']['deleted'] ?? 'false') !== 'false') {
+                continue;
+            }
+
+            $title = trim((string) ($relation['job_title'] ?? ''));
+            $name = Contacts::displayName((array) $relation['contact']);
+            $names[] = $title !== '' ? $name.' ('.$title.')' : $name;
+        }
+
+        return implode('; ', $names);
+    }
+
+    /** Una persona creata da una riga dei referenti non è né cliente né fornitore. */
+    protected static function relationPersonPayload(array $values): array
+    {
+        return ['is_customer' => 'false', 'is_supplier' => 'false'] + $values;
     }
 
     public static function tableSchema(): array
@@ -341,6 +429,11 @@ class CustomerResource extends GestionaleResource
                 ->hiddenDevice('mobile'),
             TableColumn::key('city')->text()
                 ->hiddenDevice('mobile'),
+            ...(ContactRelations::enabled() ? [
+                TableColumn::key('relation_names')->text()
+                    ->label(__t('gestionale.contacts.relations.column'))
+                    ->hiddenDevice('mobile'),
+            ] : []),
             TableColumn::key('active')
                 ->booleanBadge()
                 ->badgeOn('Attiva', 'bi-check-circle', 'success')
@@ -368,12 +461,31 @@ class CustomerResource extends GestionaleResource
                 WHERE u.id = {$contactTable}.user_id
                   AND u.deleted = 'false'
                   AND COALESCE(u.password, '') <> '') AS has_local_password"
+            .(ContactRelations::enabled() ? ",\n             ".static::relationNamesSql() : '')
         )
             ->download($formats)->downloadAsText();
 
+        if (ContactRelations::enabled()) {
+            $only = static::onlyReferentSql();
+            $layout->filterQuery(
+                __t('gestionale.contacts.relations.filter'),
+                'referents',
+                ['only' => __t('gestionale.contacts.relations.filter_only'), 'hide' => __t('gestionale.contacts.relations.filter_hide')],
+                static fn (array $values): string => match ($values[0] ?? '') {
+                    'only' => $only,
+                    'hide' => "NOT {$only}",
+                    default => '1 = 1',
+                }
+            );
+        }
+
+        $extra = ContactRelations::enabled()
+            ? [['label' => (string) __t('gestionale.contacts.relations.column'), 'value' => [static::class, 'relationNames']]]
+            : [];
+
         // Senza formati concessi l'«Esporta» non c'è: niente colonne da preparare.
         return $formats === [] ? $layout : $layout
-            ->downloadColumns(ContactExport::columns(static::labelSchema(), [Contacts::class, 'displayName']))
+            ->downloadColumns(ContactExport::columns(static::labelSchema(), [Contacts::class, 'displayName'], $extra))
             ->downloadFileName(create_link(static::titleLabel()).'-'.date('Y-m-d'));
     }
 
@@ -612,7 +724,13 @@ class CustomerResource extends GestionaleResource
     public static function querySchema(): array
     {
         $schema = parent::querySchema();
-        $schema['condition'] = "deleted = 'false' AND ".static::roleColumn()." = 'true'";
+        $role = static::roleColumn()." = 'true'";
+
+        // #145: con i referenti accesi ci sono anche le persone che sono solo
+        // referenti di un'azienda, senza ruolo. Il filtro «Referenti» le separa.
+        $schema['condition'] = ContactRelations::enabled()
+            ? "deleted = 'false' AND ({$role} OR ".static::onlyReferentSql().')'
+            : "deleted = 'false' AND {$role}";
 
         return $schema;
     }
@@ -714,7 +832,8 @@ class CustomerResource extends GestionaleResource
         $customer = ($values['is_customer'] ?? static::storedRole($id, 'is_customer')) === 'true';
         $supplier = ($values['is_supplier'] ?? static::storedRole($id, 'is_supplier')) === 'true';
 
-        if (!$customer && !$supplier) {
+        // #145: una persona che è solo referente di un'azienda non ha ruolo.
+        if (!$customer && !$supplier && !static::isOnlyReferent($values, $id, $_POST)) {
             throw UserError::make('contact.no_role');
         }
 
@@ -826,6 +945,44 @@ class CustomerResource extends GestionaleResource
     }
 
     /** Il ruolo già salvato, per quando il campo non è stato stampato. */
+    /**
+     * Vero per una persona legata ad almeno un'azienda viva. Il core toglie i
+     * repeater dai valori prima di `mutateRequestValues()`: le aziende scritte
+     * nel form si leggono dal POST, quelle salvate dal database.
+     *
+     * @param array<string, mixed> $values
+     * @param array<string, mixed> $post
+     */
+    protected static function isOnlyReferent(array $values, int $id, array $post): bool
+    {
+        if (!ContactRelations::enabled()) {
+            return false;
+        }
+
+        $type = (string) ($values['type'] ?? ($id > 0 ? (Contact::findById($id)['type'] ?? 'private') : 'private'));
+
+        if ($type === 'business') {
+            return false;
+        }
+
+        if (isset($post[self::RELATION_MARKER])) {
+            $ids = array_map(
+                static fn (array $row): int => (int) ($row[ContactRelations::COMPANY] ?? 0),
+                array_filter((array) ($post[self::RELATION_COMPANIES] ?? []), 'is_array')
+            );
+
+            return in_array('business', ContactRelations::typesOf($ids), true);
+        }
+
+        foreach (ContactRelations::companiesOf($id) as $relation) {
+            if (($relation['deleted'] ?? 'false') === 'false' && ($relation['contact']['deleted'] ?? 'false') === 'false') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     protected static function storedRole(int $id, string $column): string
     {
         if ($id <= 0) {

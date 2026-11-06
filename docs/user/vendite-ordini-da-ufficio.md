@@ -25,6 +25,10 @@ Dal menu **⋯** di ogni bozza: **Conferma ordine** (senza email al cliente) ed
   riempiono fatturazione, consegna, metodo e condizione di pagamento dalla sua
   scheda: per questo ordine li puoi cambiare. Il cliente nuovo si crea con
   **Nuovo cliente**, in un'altra scheda del browser; poi cercalo qui.
+* **Referente** — compare solo se il sito ha acceso i referenti (vedi [Referenti
+  e aziende](anagrafiche.md#referenti-e-aziende)). Parte dal **referente
+  principale** dell'azienda e puoi scegliere un altro fra quelli che ricevono i
+  documenti, oppure nessuno. Il suo nome si stampa sul PDF come «Alla c.a.».
 * **Fatturazione** — i dati del documento.
 * **Consegna** — *Spedizione*, *Ritiro in sede* o *Nessuna consegna*. Con la
   spedizione servono l'indirizzo e, con le spedizioni attive, il metodo. Il

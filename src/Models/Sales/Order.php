@@ -125,6 +125,9 @@ final class Order extends Model
             Column::key('customer_id')->int()->default(0),
             Column::key('email')->length(150),
             Column::key('phone')->length(50),
+            // Referente dell'azienda scelto sul documento, nome copiato
+            Column::key('referent_id')->int()->default(0),
+            Column::key('referent_name')->length(255),
             ...static::billingAddress()->tableSchema(),
             ...static::shippingTableSchema(),
             Column::key('price_list_id')->int()->default(0),
@@ -191,6 +194,8 @@ final class Order extends Model
             Field::key('customer_id')->number()->decimals(0),
             Field::key('email')->email(),
             Field::key('phone')->text()->sanitize(false),
+            Field::key('referent_id')->number()->decimals(0),
+            Field::key('referent_name')->text(),
             ...static::billingAddress()->dataSchema(),
             ...static::shippingDataSchema(),
             Field::key('price_list_id')->number()->decimals(0),
