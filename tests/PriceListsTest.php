@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceListSeeder;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceListTransfer;
@@ -153,5 +154,20 @@ check('righe: con la regola il prezzo scontato', fn () => PriceListSeeder::rows(
 check('righe: tutto il catalogo prende anche gli altri', fn () => count(PriceListSeeder::rows(['rule' => 'none'], ['all' => true], $catalogo, [], true, [])) === 4);
 check('righe: listino IVA esclusa da catalogo IVA inclusa', fn () => PriceListSeeder::rows(['rule' => 'none', 'prices_include_tax' => false], $selezione, $catalogo, [12], true, [30 => 25.0])[0]['price'] === '16.00');
 check('righe: aliquota sconosciuta, prezzo non convertito', fn () => PriceListSeeder::rows(['rule' => 'none', 'prices_include_tax' => false], $selezione, $catalogo, [12], true, [])[0]['price'] === '20.00');
+
+/** Il tipo dell'errore del form: il controller del backend intercetta solo InvalidArgumentException. */
+$errore = static function (array $valori): string {
+    try {
+        PriceListResource::mutateRequestValues($valori, 'store', 'backend', ['currency' => 'EUR']);
+    } catch (Throwable $e) {
+        return get_class($e);
+    }
+
+    return '';
+};
+
+check('form: sconto oltre 100 torna sul form, non è un 500', fn () => is_a($errore(['price_rule' => 'discount', 'percent' => '150']), InvalidArgumentException::class, true));
+check('form: ricarico a zero torna sul form', fn () => is_a($errore(['price_rule' => 'markup', 'percent' => '0']), InvalidArgumentException::class, true));
+check('form: date al contrario tornano sul form', fn () => is_a($errore(['valid_from' => '2026-12-31', 'valid_to' => '2026-01-01']), InvalidArgumentException::class, true));
 
 summary();
