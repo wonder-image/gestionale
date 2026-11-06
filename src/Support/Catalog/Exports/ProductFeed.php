@@ -6,6 +6,7 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Catalog\Measures;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductExport;
+use Wonder\Plugin\Gestionale\Support\Pricing\ChannelPrice;
 use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
 
 /**
@@ -17,6 +18,10 @@ use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
  * e foto) e il prezzo è quello che il cliente paga, IVA compresa e con la
  * campagna di sconto in corso.
  *
+ * Con un listino assegnato al canale del feed (`google`, `meta`, #162) il
+ * prezzo è quello del listino, letto da `ChannelPrice`, e la campagna non si
+ * applica, come nel carrello.
+ *
  * Tutto puro tranne `of()` e `withCampaigns()`.
  */
 final class ProductFeed
@@ -26,14 +31,16 @@ final class ProductFeed
      *
      * @return array{rows: list<array<string, mixed>>, pricesIncludeTax: bool, currency: string, now: string}
      */
-    public static function of(): array
+    public static function of(string $channel = ''): array
     {
         $export = ProductExport::of();
         $now = date('Y-m-d H:i:s');
         $rows = array_values(array_filter($export['rows'], [self::class, 'eligible']));
+        $rows = Gestionale::feature('discount_campaigns') ? self::withCampaigns($rows, $now) : $rows;
+        $lists = $channel === '' ? [] : ChannelPrice::lists($channel, $now, self::currency());
 
         return [
-            'rows' => Gestionale::feature('discount_campaigns') ? self::withCampaigns($rows, $now) : $rows,
+            'rows' => ChannelPrice::applyLists($rows, $lists, $export['pricesIncludeTax']),
             'pricesIncludeTax' => $export['pricesIncludeTax'],
             'currency' => self::currency(),
             'now' => $now,
@@ -73,6 +80,18 @@ final class ProductFeed
         }
 
         return $rows;
+    }
+
+    /**
+     * @deprecated usa `ChannelPrice::applyLists()`, l'unico punto del prezzo per canale.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @param list<array<string, mixed>> $lists
+     * @return list<array<string, mixed>>
+     */
+    public static function withPriceLists(array $rows, array $lists, bool $pricesIncludeTax): array
+    {
+        return ChannelPrice::applyLists($rows, $lists, $pricesIncludeTax);
     }
 
     /** Il nome nel feed: "Maglia - Blu / S", o solo "Maglia". */

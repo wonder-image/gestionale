@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Support\Pricing;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Pricing\PriceList;
+use Wonder\Plugin\Gestionale\Models\Pricing\PriceListChannel;
 use Wonder\Plugin\Gestionale\Models\Pricing\PriceListItem;
 
 /**
@@ -16,15 +17,24 @@ use Wonder\Plugin\Gestionale\Models\Pricing\PriceListItem;
  * dell'ordine. Altrimenti non c'è: le righe tornano al prezzo di catalogo e
  * `LinePrice` sceglie fra campagna, prezzo scontato e prezzo base.
  *
- * `load()` e `forContact()` leggono il database; `applies()`, `tier()` e
- * `toBasis()` sono pure e si provano senza.
+ * Una riga può avere più listini candidati (#162): prima quello del cliente,
+ * poi quello del canale dell'ordine. `resolve()` li prova in ordine e vince il
+ * primo che «trova» il prodotto: una riga propria del prodotto batte la regola
+ * in percentuale, e un listino con la percentuale trova sempre il prodotto.
+ * Le percentuali non si sommano mai. Se nessuno lo trova vale il prezzo base.
+ *
+ * `load()`, `forContact()` e `forChannel()` leggono il database; `applies()`,
+ * `tier()`, `toBasis()`, `byRule()` e `resolve()` sono pure e si provano senza.
  */
 final class PriceLists
 {
+    /** Le regole in percentuale: nessuna, ricarico o sconto sul prezzo base. */
+    public const RULES = ['none', 'markup', 'discount'];
+
     /**
      * Il listino e le sue righe per prodotto, o `null` se non vale.
      *
-     * @return array{id: int, prices_include_tax: bool, items: array<int, list<array{min_quantity: float, price: float}>>}|null
+     * @return array{id: int, prices_include_tax: bool, rule: string, percent: float, items: array<int, list<array{min_quantity: float, price: float}>>}|null
      */
     public static function load(int $priceListId, string $now, string $currency): ?array
     {
@@ -49,11 +59,168 @@ final class PriceLists
             ];
         }
 
+        $rule = (string) ($list['price_rule'] ?? 'none');
+
         return [
             'id' => $priceListId,
             'prices_include_tax' => ($list['prices_include_tax'] ?? 'true') === 'true',
+            'rule' => in_array($rule, self::RULES, true) ? $rule : 'none',
+            'percent' => max(0.0, (float) ($list['percent'] ?? 0)),
             'items' => $items,
         ];
+    }
+
+    /**
+     * I listini che valgono, nell'ordine dato, senza doppioni né quelli che
+     * non valgono (scaduti, spenti, d'altra valuta).
+     *
+     * @param list<int> $ids
+     * @return list<array<string, mixed>>
+     */
+    public static function loadAll(array $ids, string $now, string $currency): array
+    {
+        $lists = [];
+
+        foreach (array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)) as $id) {
+            $list = self::load($id, $now, $currency);
+
+            if ($list !== null) {
+                $lists[] = $list;
+            }
+        }
+
+        return $lists;
+    }
+
+    /** Il listino di un canale di vendita, 0 se nessuno o con la funzionalità spenta. */
+    public static function forChannel(string $channel): int
+    {
+        return Gestionale::feature('customer_price_lists') ? self::forChannelAny($channel) : 0;
+    }
+
+    /** Il listino assegnato al canale, anche con la funzionalità spenta (per il form). */
+    public static function forChannelAny(string $channel): int
+    {
+        if (trim($channel) === '') {
+            return 0;
+        }
+
+        $found = PriceListChannel::find(['channel' => $channel]);
+        $row = is_array($found) && array_key_exists('id', $found) ? $found : (is_array($found) ? (array_values(array_filter($found, 'is_array'))[0] ?? null) : null);
+
+        return is_array($row) ? max(0, (int) ($row['price_list_id'] ?? 0)) : 0;
+    }
+
+    /**
+     * I canali assegnati a un listino.
+     *
+     * @return list<string>
+     */
+    public static function channelsOf(int $priceListId): array
+    {
+        if ($priceListId <= 0) {
+            return [];
+        }
+
+        $found = PriceListChannel::find(['price_list_id' => $priceListId]);
+        $rows = is_array($found) ? (array_key_exists('id', $found) ? [$found] : array_filter($found, 'is_array')) : [];
+
+        return array_values(array_unique(array_map(static fn (array $row): string => (string) $row['channel'], $rows)));
+    }
+
+    /**
+     * Assegna al listino esattamente questi canali. Un canale ha un solo
+     * listino: chi chiama controlla prima che non sia già di un altro.
+     *
+     * @param list<string> $channels
+     */
+    public static function assignChannels(int $priceListId, array $channels): void
+    {
+        if ($priceListId <= 0) {
+            return;
+        }
+
+        PriceListChannel::query()->Delete(PriceListChannel::$table, 'WHERE `price_list_id` = '.$priceListId);
+
+        foreach (array_values(array_unique($channels)) as $channel) {
+            PriceListChannel::create(['channel' => $channel, 'price_list_id' => $priceListId]);
+        }
+    }
+
+    /**
+     * I listini candidati di una riga: prima quello del cliente, poi quello
+     * del canale.
+     *
+     * @return list<int>
+     */
+    public static function candidates(int $contactListId, string $channel): array
+    {
+        return array_values(array_unique(array_filter([$contactListId, self::forChannel($channel)], static fn (int $id): bool => $id > 0)));
+    }
+
+    /**
+     * Il prezzo di una riga fra più listini, già nella base dell'ordine.
+     *
+     * Vince il primo listino che trova il prodotto: con una riga propria
+     * (lo scaglione per quella quantità) o, se non ce l'ha, con la regola in
+     * percentuale sul prezzo base. `$basePrice` è il prezzo pieno del
+     * catalogo, già nella base dell'ordine; il prezzo scontato non conta.
+     * Prezzo 0 e listino 0 se nessuno lo trova.
+     *
+     * @param list<array<string, mixed>|null> $lists
+     * @return array{price: float, price_list_id: int}
+     */
+    public static function resolve(array $lists, int $productId, float $quantity, float $basePrice, bool $orderIncludesTax, float $taxRate): array
+    {
+        foreach ($lists as $list) {
+            if (!is_array($list)) {
+                continue;
+            }
+
+            $price = self::unitPrice($list, $productId, $quantity, $orderIncludesTax, $taxRate);
+
+            if ($price <= 0.0) {
+                $price = self::byRule((string) ($list['rule'] ?? 'none'), (float) ($list['percent'] ?? 0), $basePrice);
+            }
+
+            if ($price > 0.0) {
+                return ['price' => $price, 'price_list_id' => (int) ($list['id'] ?? 0)];
+            }
+        }
+
+        return ['price' => 0.0, 'price_list_id' => 0];
+    }
+
+    /**
+     * Il listino da registrare sulla testata: il primo dei candidati usato da
+     * una riga, altrimenti il primo che vale, 0 se nessuno.
+     *
+     * @param list<array<string, mixed>> $lists
+     * @param list<int> $used
+     */
+    public static function headerOf(array $lists, array $used): int
+    {
+        foreach ($lists as $list) {
+            if (in_array((int) ($list['id'] ?? 0), $used, true)) {
+                return (int) $list['id'];
+            }
+        }
+
+        return (int) ($lists[0]['id'] ?? 0);
+    }
+
+    /** Il prezzo base con il ricarico o lo sconto in percentuale; 0 se la regola non c'è. */
+    public static function byRule(string $rule, float $percent, float $basePrice): float
+    {
+        if ($basePrice <= 0.0 || $percent <= 0.0) {
+            return 0.0;
+        }
+
+        return match ($rule) {
+            'markup' => round($basePrice * (1 + $percent / 100), 2),
+            'discount' => $percent < 100 ? round($basePrice * (1 - $percent / 100), 2) : 0.0,
+            default => 0.0,
+        };
     }
 
     /** Il listino assegnato a un cliente, 0 se nessuno o con la funzionalità spenta. */

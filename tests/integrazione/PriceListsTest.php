@@ -23,6 +23,7 @@ use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Orders\Cart;
+use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
 use Wonder\Sql\Transaction;
 
@@ -267,6 +268,75 @@ check('listino e campagna non si sommano: vale il listino', function () {
         $r = riga($carrello, $p);
 
         return (string) $r['price_source'] === 'price_list' && prezzo($r) === 9.0;
+    });
+});
+
+check('online (#162): l\'ospite paga il listino del canale online', function () {
+    return prova(static function (): bool {
+        $p = articolo(10);
+        $canale = listino([[$p, 1, 8.0]]);
+        PriceLists::assignChannels($canale, ['online']);
+        $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        Cart::add($carrello, ['product_id' => $p, 'quantity' => 1]);
+        $r = riga($carrello, $p);
+
+        return prezzo($r) === 8.0 && (int) $r['price_list_id'] === $canale
+            && (int) Order::findById($carrello)['price_list_id'] === $canale;
+    });
+});
+
+check('online (#162): il listino del cliente vince su quello del canale', function () {
+    return prova(static function (): bool {
+        $p = articolo(10);
+        $altro = articolo(20);
+        $canale = listino([[$p, 1, 8.0], [$altro, 1, 18.0]]);
+        PriceLists::assignChannels($canale, ['online']);
+        $suo = listino([[$p, 1, 9.0]]);
+        $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid(), 'customer_id' => cliente($suo)])['id'];
+        Cart::add($carrello, ['product_id' => $p, 'quantity' => 1]);
+        Cart::add($carrello, ['product_id' => $altro, 'quantity' => 1]);
+
+        return prezzo(riga($carrello, $p)) === 9.0
+            && prezzo(riga($carrello, $altro)) === 18.0
+            && (int) riga($carrello, $altro)['price_list_id'] === $canale
+            && (int) Order::findById($carrello)['price_list_id'] === $suo;
+    });
+});
+
+check('online (#162): la regola in percentuale vale sui prodotti senza riga', function () {
+    return prova(static function (): bool {
+        $p = articolo(10);
+        $conRiga = articolo(10);
+        $canale = listino([[$conRiga, 1, 9.5]], ['price_rule' => 'discount', 'percent' => '20.00']);
+        PriceLists::assignChannels($canale, ['online']);
+        $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        Cart::add($carrello, ['product_id' => $p, 'quantity' => 3]);
+        Cart::add($carrello, ['product_id' => $conRiga, 'quantity' => 1]);
+
+        return prezzo(riga($carrello, $p)) === 8.0 && prezzo(riga($carrello, $conRiga)) === 9.5;
+    });
+});
+
+check('online (#162): il listino scaduto del canale non vale', function () {
+    return prova(static function (): bool {
+        $p = articolo(10);
+        $canale = listino([[$p, 1, 8.0]], ['valid_to' => date('Y-m-d', time() - 86400 * 2)]);
+        PriceLists::assignChannels($canale, ['online']);
+        $carrello = (int) Cart::open(['cart_token' => 'tok-'.uniqid()])['id'];
+        Cart::add($carrello, ['product_id' => $p, 'quantity' => 1]);
+
+        return prezzo(riga($carrello, $p)) === 10.0 && (int) (Order::findById($carrello)['price_list_id'] ?? 0) === 0;
+    });
+});
+
+check('(#162) i canali assegnati si rileggono e si sostituiscono', function () {
+    return prova(static function (): bool {
+        $a = listino([]);
+        PriceLists::assignChannels($a, ['online', 'pos']);
+        $prima = PriceLists::forChannelAny('pos') === $a && count(PriceLists::channelsOf($a)) === 2;
+        PriceLists::assignChannels($a, ['ebay']);
+
+        return $prima && PriceLists::channelsOf($a) === ['ebay'] && PriceLists::forChannelAny('online') === 0;
     });
 });
 

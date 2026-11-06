@@ -41,7 +41,15 @@
                 "image_size": "L'immagine supera gli 8 MB.",
                 "product_missing": "Questo prodotto non esiste più: scarica di nuovo il file.",
                 "model_missing": "Questo articolo non esiste più: scarica di nuovo il file.",
-                "save_failed": "Non sono riuscito a salvare la riga: riprova."
+                "save_failed": "Non sono riuscito a salvare la riga: riprova.",
+                "list_missing": "Manca il listino: scrivi il nome o l'ID.",
+                "list_unknown": "Il listino «{{list}}» non esiste: crealo prima dal backend.",
+                "list_ambiguous": "Ci sono più listini che si chiamano «{{list}}»: scrivi l'ID.",
+                "sku_unknown": "Lo SKU «{{sku}}» non è di nessun prodotto del catalogo.",
+                "min_quantity": "La quantità minima deve essere un numero più grande di zero.",
+                "list_price": "Il prezzo deve essere un numero, zero o più.",
+                "list_row_duplicate": "Lo stesso prezzo (listino, SKU e quantità) compare già alla riga {{line}}: tienine una sola.",
+                "list_row_missing": "Questa riga di listino non esiste più: carica di nuovo il file."
             },
             "stock": {
                 "insufficient": "Non c'è abbastanza giacenza di {{product}}.",
@@ -287,7 +295,10 @@
                 "item_no_product": "Riga {{row}}: scegli il prodotto.",
                 "item_invalid": "Riga {{row}}: la quantità minima è più di 0 e il prezzo non è negativo.",
                 "item_duplicate": "Riga {{row}}: quel prodotto ha già uno scaglione con la stessa quantità minima.",
-                "in_use": "Questo listino è assegnato a clienti o ordini ({{count}}) e non si elimina: mettilo su «Non attivo».",
+                "in_use": "Questo listino è assegnato a clienti, ordini o canali ({{count}}) e non si elimina: mettilo su «Non attivo» oppure toglilo dai canali.",
+                "invalid_markup": "Il ricarico è una percentuale da più di 0 a 999.",
+                "invalid_discount": "Lo sconto è una percentuale da più di 0 a meno di 100.",
+                "channel_taken": "Il canale «{{channel}}» ha già il listino «{{list}}»: toglilo da lì prima di assegnarlo a questo.",
                 "import_format": "Il file va caricato in formato .xlsx o .csv.",
                 "import_unreadable": "Il file non si legge: scaricalo di nuovo dal listino e riprova.",
                 "import_too_many": "Il file ha più di {{max}} righe: dividilo in più listini.",

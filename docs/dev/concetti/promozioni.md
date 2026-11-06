@@ -46,7 +46,9 @@ quali i ponti. Il coupon usa lo stesso selettore con la sua voce
 solo per le righe di prodotto a prezzo automatico e lo passa a `LinePrice` come
 `campaign_price`. La priorità è **manuale → listino → campagna → prezzo scontato →
 base**; la riga porta `price_source = 'campaign'` e `discount_campaign_id`.
-Un prezzo di campagna a `0` è un omaggio, non l'assenza di campagna.
+Un prezzo di campagna a `0` è un omaggio, non l'assenza di campagna. Come si
+sceglie il listino (cliente, canale, regola in percentuale) lo spiega
+[Listini](listini.md).
 
 Le campagne **non si cumulano**: ne vince una sola, quella che costa meno, e a
 parità la più vecchia.

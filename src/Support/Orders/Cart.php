@@ -232,19 +232,13 @@ final class Cart
                 }
             }
 
-            // Il listino: nel carrello quello del cliente collegato, nelle bozze
-            // d'ufficio quello scelto sulla testata. Scaduto, spento o d'altra valuta non vale.
-            $priceListId = (int) ($cart['price_list_id'] ?? 0);
-
-            if ((string) ($cart['stage'] ?? '') === 'cart') {
-                $priceListId = PriceLists::forContact((int) ($cart['customer_id'] ?? 0));
-
-                if ($priceListId !== (int) ($cart['price_list_id'] ?? 0)) {
-                    Order::update(['price_list_id' => $priceListId], $cartId);
-                }
-            }
-
-            $priceList = PriceLists::load($priceListId, $now, (string) ($cart['currency'] ?? 'EUR'));
+            // I listini (#162): prima quello del cliente (nel carrello quello del
+            // cliente collegato, nelle bozze quello scelto sulla testata), poi
+            // quello del canale dell'ordine. Scaduto, spento o d'altra valuta non vale.
+            $isCart = (string) ($cart['stage'] ?? '') === 'cart';
+            $contactListId = $isCart ? PriceLists::forContact((int) ($cart['customer_id'] ?? 0)) : (int) ($cart['price_list_id'] ?? 0);
+            $priceLists = PriceLists::loadAll(PriceLists::candidates($contactListId, $channel), $now, (string) ($cart['currency'] ?? 'EUR'));
+            $usedLists = [];
             $includesTax = (string) ($cart['prices_include_tax'] ?? 'true') === 'true';
 
             $shipping = Gestionale::feature('shipping');
@@ -364,10 +358,19 @@ final class Cart
 
                 $manualPrice = self::manualPrice($item);
                 // Il listino vince sulla campagna (non si sommano); l'IVA serve
-                // a portarlo nella base dell'ordine.
-                $listPrice = $productId > 0 && (string) $item['type'] === 'product' && $manualPrice === ''
-                    ? PriceLists::unitPrice($priceList, $productId, (float) ($item['quantity'] ?? 0), $includesTax, is_array($tax) ? (float) ($tax['rate'] ?? 0) : 0.0)
-                    : 0.0;
+                // a portarlo nella base dell'ordine. La regola in percentuale
+                // parte dal prezzo pieno del prodotto, già nella base dell'ordine.
+                $listed = $productId > 0 && (string) $item['type'] === 'product' && $manualPrice === ''
+                    ? PriceLists::resolve(
+                        $priceLists,
+                        $productId,
+                        (float) ($item['quantity'] ?? 0),
+                        is_array($product) ? (float) ($product['price'] ?? 0) : 0.0,
+                        $includesTax,
+                        is_array($tax) ? (float) ($tax['rate'] ?? 0) : 0.0
+                    )
+                    : ['price' => 0.0, 'price_list_id' => 0];
+                $listPrice = $listed['price'];
                 $campaign = $productId > 0 && (string) $item['type'] === 'product'
                     && $manualPrice === '' && $listPrice <= 0.0
                     ? Campaigns::forProduct($productId, $now, $channel)
@@ -398,8 +401,12 @@ final class Cart
                     'tax_rate' => is_array($tax) ? (float) ($tax['rate'] ?? 0) : 0.0,
                     'tax_nature' => is_array($tax) ? (string) ($tax['nature'] ?? '') : '',
                     'discount_campaign_id' => $campaignId,
-                    'price_list_id' => $price['price_source'] === 'price_list' ? $priceListId : 0,
+                    'price_list_id' => $price['price_source'] === 'price_list' ? $listed['price_list_id'] : 0,
                 ] + $price : [];
+
+                if ($price['price_source'] === 'price_list' && $listed['price_list_id'] > 0) {
+                    $usedLists[$listed['price_list_id']] = true;
+                }
             }
 
             // I coupon si rivalutano a ogni ricalcolo: quelli che non valgono
@@ -453,7 +460,12 @@ final class Cart
                 self::renumber($cartId);
             }
 
-            Order::update([
+            // Nel carrello la testata registra il listino usato dalle righe
+            // (quello del cliente prima di quello del canale), altrimenti il
+            // primo che vale. Nelle bozze resta quello scelto a mano.
+            $header = $isCart ? ['price_list_id' => PriceLists::headerOf($priceLists, array_keys($usedLists))] : [];
+
+            Order::update($header + [
                 'vat_collectability' => VatCollectability::forCustomer((int) ($cart['customer_id'] ?? 0)),
                 'products_total' => $totals['products_total'],
                 'discount_total' => $totals['discount_total'],

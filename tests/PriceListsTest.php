@@ -52,6 +52,32 @@ check('riga: prodotto nel listino, scaglione e conversione insieme', fn () => Pr
 check('riga: prodotto fuori listino, 0 (prezzo di catalogo)', fn () => PriceLists::unitPrice($caricato, 8, 10, true, 22) === 0.0);
 check('riga: nessun listino, 0 (prezzo di catalogo)', fn () => PriceLists::unitPrice(null, 7, 10, true, 22) === 0.0);
 
+// Regola in percentuale e più listini (#162).
+check('regola: ricarico sul prezzo base', fn () => PriceLists::byRule('markup', 10, 20.0) === 22.0);
+check('regola: sconto sul prezzo base', fn () => PriceLists::byRule('discount', 15, 20.0) === 17.0);
+check('regola: nessuna regola, 0', fn () => PriceLists::byRule('none', 10, 20.0) === 0.0);
+check('regola: percentuale zero, 0', fn () => PriceLists::byRule('markup', 0, 20.0) === 0.0);
+check('regola: sconto del 100% o più, 0 (non regala)', fn () => PriceLists::byRule('discount', 100, 20.0) === 0.0);
+check('regola: prezzo base zero, 0', fn () => PriceLists::byRule('discount', 10, 0.0) === 0.0);
+
+$cliente = ['id' => 3, 'prices_include_tax' => true, 'rule' => 'none', 'percent' => 0.0, 'items' => [7 => [['min_quantity' => 1.0, 'price' => 9.0]]]];
+$canale = ['id' => 5, 'prices_include_tax' => true, 'rule' => 'discount', 'percent' => 20.0, 'items' => [8 => [['min_quantity' => 1.0, 'price' => 6.0]]]];
+$soloRighe = ['id' => 6, 'prices_include_tax' => true, 'rule' => 'none', 'percent' => 0.0, 'items' => [8 => [['min_quantity' => 1.0, 'price' => 6.0]]]];
+
+check('più listini: il listino del cliente vince su quello del canale', fn () => PriceLists::resolve([$cliente, $canale], 7, 1, 10.0, true, 22) === ['price' => 9.0, 'price_list_id' => 3]);
+check('più listini: prodotto fuori dal listino cliente, vale la riga del canale', fn () => PriceLists::resolve([$cliente, $canale], 8, 1, 10.0, true, 22) === ['price' => 6.0, 'price_list_id' => 5]);
+check('più listini: prodotto senza righe, vale la percentuale del canale', fn () => PriceLists::resolve([$cliente, $canale], 9, 1, 10.0, true, 22) === ['price' => 8.0, 'price_list_id' => 5]);
+check('più listini: prodotto in nessun listino, prezzo di catalogo', fn () => PriceLists::resolve([$cliente, $soloRighe], 9, 1, 10.0, true, 22) === ['price' => 0.0, 'price_list_id' => 0]);
+check('più listini: la riga vince sulla percentuale dello stesso listino', fn () => PriceLists::resolve([$canale], 8, 1, 10.0, true, 22)['price'] === 6.0);
+check('più listini: la percentuale vale a ogni quantità', fn () => PriceLists::resolve([$canale], 9, 500, 10.0, true, 22)['price'] === 8.0);
+check('più listini: le percentuali non si sommano, vince il primo', fn () => PriceLists::resolve([['rule' => 'markup', 'percent' => 10.0] + $soloRighe, $canale], 9, 1, 10.0, true, 22) === ['price' => 11.0, 'price_list_id' => 6]);
+check('più listini: righe senza lo scaglione raggiunto, vale la percentuale', fn () => PriceLists::resolve([['items' => [9 => [['min_quantity' => 10.0, 'price' => 5.0]]]] + $canale], 9, 2, 10.0, true, 22)['price'] === 8.0);
+check('più listini: un listino scaduto non arriva (load lo scarta), vale il successivo', fn () => PriceLists::resolve([null, $canale], 9, 1, 10.0, true, 22)['price_list_id'] === 5);
+check('più listini: nessun listino, prezzo di catalogo', fn () => PriceLists::resolve([], 7, 1, 10.0, true, 22) === ['price' => 0.0, 'price_list_id' => 0]);
+check('testata: il primo listino usato da una riga', fn () => PriceLists::headerOf([$cliente, $canale], [5]) === 5);
+check('testata: nessuna riga col listino, il primo che vale', fn () => PriceLists::headerOf([$cliente, $canale], []) === 3);
+check('testata: nessun listino, 0', fn () => PriceLists::headerOf([], []) === 0);
+
 $sku = ['ab-1' => 11, 'cd-2' => 22];
 
 /** Il messaggio del rifiuto, o '' se il foglio passa. */
