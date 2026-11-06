@@ -1,6 +1,19 @@
 {
     "gestionale": {
         "name": "Gestionale",
+        "contacts": {
+            "relations": {
+                "title": "Referenti e aziende",
+                "tooltip": "Le persone che lavorano per questa azienda, o le aziende per cui lavora questa persona. Un referente che riceve i documenti li ha in copia quando li mandi.",
+                "filter": "Referenti",
+                "filter_only": "Solo i referenti",
+                "filter_hide": "Senza i referenti",
+                "column": "Referenti / aziende",
+                "referent_badge": "Referente",
+                "export_people": "Referenti",
+                "export_companies": "Aziende"
+            }
+        },
         "errors": {
             "import": {
                 "sku_column": "Manca la colonna «SKU»: è quella che dice quale prodotto aggiornare.",

@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentData;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdfs;
@@ -65,7 +66,7 @@ final class OfficeOrders
     private const HEADER = [
         'customer_id', 'email', 'phone', 'location_id', 'shipping_method_id',
         'payment_method_id', 'payment_term_id', 'customer_note', 'internal_note', 'document_note',
-        'price_list_id',
+        'price_list_id', 'referent_id',
     ];
 
     /** Gli stati da cui un preventivo si modifica: dopo la modifica torna da inviare (G9 §3.1). */
@@ -186,6 +187,12 @@ final class OfficeOrders
             'payment_term_id' => (int) ($contact['payment_term_id'] ?? 0),
             'price_list_id' => PriceLists::forContact($contactId),
         ];
+
+        // Solo con le relazioni attive e un referente principale.
+        $referent = DocumentReferents::defaultFor($contactId);
+        if ($referent > 0) {
+            $out['referent_id'] = $referent;
+        }
 
         foreach (self::billingKeys() as $key) {
             $out['billing_'.$key] = (string) ($contact[$key] ?? '');
@@ -800,6 +807,13 @@ final class OfficeOrders
             if (trim((string) ($values[$key] ?? '')) === '' && isset($defaults[$key])) {
                 $values[$key] = $defaults[$key];
             }
+        }
+
+        // Il referente vale solo se è fra quelli dell'azienda; il nome si copia.
+        if (array_key_exists('referent_id', $values)) {
+            $values = DocumentReferents::resolve($customerId, (int) $values['referent_id']) + $values;
+        } elseif (!$update && isset($defaults['referent_id'])) {
+            $values = DocumentReferents::resolve($customerId, (int) $defaults['referent_id']) + $values;
         }
 
         // Coordinate vuote: NULL, non una stringa vuota in una colonna numerica.

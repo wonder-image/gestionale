@@ -38,9 +38,10 @@ final class QuoteTools
 
         return [
             'quote_create' => [
-                'description' => 'Crea un preventivo in bozza per un cliente (`customer_id`, un contatto del gestionale) con le sue righe. Righe: `product` (product_id della versione e quantity; unit_price vuoto = prezzo di listino), `custom` (name, quantity, unit_price, tax_category_id facoltativo, vuoto vale il tipo di IVA predefinito), `text` (solo name, una nota). Cliente, righe, quantità e prezzi li decide l\'utente: se mancano chiediglieli, non inventarli. Il preventivo non parte verso il cliente: si invia dal backend.',
+                'description' => 'Crea un preventivo in bozza per un cliente (`customer_id`, un contatto del gestionale) con le sue righe. Righe: `product` (product_id della versione e quantity; unit_price vuoto = prezzo di listino), `custom` (name, quantity, unit_price, tax_category_id facoltativo, vuoto vale il tipo di IVA predefinito), `text` (solo name, una nota). Cliente, righe, quantità e prezzi li decide l\'utente: se mancano chiediglieli, non inventarli. `referent_id` sceglie il referente dell\'azienda (fra quelli che ricevono i documenti, vedi `customer_get`): assente vale il principale, 0 nessuno. Il preventivo non parte verso il cliente: si invia dal backend.',
                 'schema' => self::schema([
                     'customer_id' => $id,
+                    'referent_id' => ['type' => 'integer', 'minimum' => 0],
                     'lines' => ['type' => 'array', 'minItems' => 1, 'maxItems' => OfficeOrderRules::MAX_LINES, 'items' => [
                         'type' => 'object',
                         'properties' => (object) [
@@ -96,7 +97,7 @@ final class QuoteTools
         $data = ['lines' => self::lines($args['lines'] ?? null)];
 
         foreach ([
-            'customer_id', 'fulfillment_type', 'shipping_method_id', 'shipping_amount', 'payment_method_id', 'payment_term_id',
+            'customer_id', 'referent_id', 'fulfillment_type', 'shipping_method_id', 'shipping_amount', 'payment_method_id', 'payment_term_id',
             'manual_discount_type', 'manual_discount_value', 'quote_expires_at', 'customer_note', 'internal_note', 'document_note',
         ] as $key) {
             if (array_key_exists($key, $args) && $args[$key] !== null) {
@@ -209,6 +210,8 @@ final class QuoteTools
             'revision' => (int) ($row['quote_revision'] ?? 0),
             'expires_at' => (string) ($row['quote_expires_at'] ?? ''),
             'customer_id' => (int) ($row['customer_id'] ?? 0),
+            'referent_id' => (int) ($row['referent_id'] ?? 0),
+            'referent_name' => (string) ($row['referent_name'] ?? ''),
             'email' => (string) ($row['email'] ?? ''),
             'fulfillment_type' => (string) ($row['fulfillment_type'] ?? ''),
             'products_total' => (float) ($row['products_total'] ?? 0),

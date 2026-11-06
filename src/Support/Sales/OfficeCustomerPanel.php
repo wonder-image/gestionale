@@ -15,6 +15,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
+use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
 /**
@@ -61,6 +62,11 @@ final class OfficeCustomerPanel
             'customer' => (object) OfficeOrders::customerDefaults($contactId),
             'contact' => $valori,
             'addresses' => array_map(static fn (array $a): array => self::address($a), $addresses),
+            'referents' => array_map(static fn (array $r): array => [
+                'id' => $r['id'],
+                'label' => $r['name'].($r['job_title'] !== '' ? ' — '.$r['job_title'] : ''),
+                'is_primary' => $r['is_primary'],
+            ], DocumentReferents::options($contactId)),
             'html' => [
                 'contacts' => self::contactsHtml($contact),
                 'billing' => self::billingHtml($contact),

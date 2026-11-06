@@ -2,6 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Mcp;
 
+use Throwable;
+use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
@@ -37,7 +39,7 @@ final class ContactTools
                 'run' => self::customersList(...),
             ],
             'customer_get' => [
-                'description' => 'Legge un cliente per id: anagrafica, contatti, dati di fatturazione e indirizzi di spedizione.',
+                'description' => 'Legge un cliente per id: anagrafica, contatti, dati di fatturazione e indirizzi di spedizione. Con i referenti attivi, `people` (per un\'azienda: le persone con ruolo, principale, riceve i documenti) e `companies` (per una persona: le aziende di cui è referente).',
                 'schema' => self::schema(['id' => ['type' => 'integer', 'minimum' => 1]], ['id']),
                 'permission' => [CustomerResource::class, 'view'],
                 'write' => false,
@@ -99,6 +101,48 @@ final class ContactTools
             return $out;
         }, ContactAddressResource::addressesOf($id));
 
+        if (ContactRelations::enabled()) {
+            $customer += self::relations($id, Contacts::isCompany($row));
+        }
+
         return ['result' => $customer];
+    }
+
+    /**
+     * I legami vivi della scheda (#145): le persone di un'azienda, le aziende
+     * di una persona. Un errore di lettura lascia l'elenco vuoto.
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function relations(int $id, bool $company): array
+    {
+        $side = $company ? ContactRelations::PERSON : ContactRelations::COMPANY;
+
+        try {
+            $rows = $company ? ContactRelations::peopleOf($id) : ContactRelations::companiesOf($id);
+        } catch (Throwable) {
+            $rows = [];
+        }
+
+        $out = [];
+
+        foreach ($rows as $row) {
+            $contact = is_array($row['contact'] ?? null) ? $row['contact'] : [];
+
+            if (($row['deleted'] ?? 'false') !== 'false' || ($contact['deleted'] ?? 'false') !== 'false') {
+                continue;
+            }
+
+            $out[] = [
+                'id' => (int) ($row[$side] ?? 0),
+                'display_name' => Contacts::displayName($contact),
+                'email' => (string) ($contact['email'] ?? ''),
+                'job_title' => (string) ($row['job_title'] ?? ''),
+                'is_primary' => ($row['is_primary'] ?? 'false') === 'true',
+                'receives_documents' => ($row['receives_documents'] ?? 'false') === 'true',
+            ];
+        }
+
+        return [$company ? 'people' : 'companies' => $out];
     }
 }

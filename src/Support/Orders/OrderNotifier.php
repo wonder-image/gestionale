@@ -3,12 +3,14 @@
 namespace Wonder\Plugin\Gestionale\Support\Orders;
 
 use Wonder\Plugin\Gestionale\Extensions\OrderEmailExtras;
+use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
+use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 
@@ -22,6 +24,9 @@ use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
  */
 final class OrderNotifier
 {
+    /** Le mail al cliente che vanno in copia ai referenti dell'azienda (#145). */
+    public const COPY_KEYS = ['quote_sent', 'office_confirmed', 'delivery_note_sent'];
+
     public const NO_RECIPIENTS = 'no_recipients';
     public const NOT_FOUND = 'not_found';
 
@@ -91,7 +96,15 @@ final class OrderNotifier
             )['valid'];
         }
 
-        return Recipients::parse((string) ($order['email'] ?? ''))['valid'];
+        $to = Recipients::parse((string) ($order['email'] ?? ''))['valid'];
+
+        // Documenti d'ufficio: in copia l'azienda e i referenti che li ricevono.
+        if (in_array($key, self::COPY_KEYS, true) && (int) ($order['customer_id'] ?? 0) > 0) {
+            $company = Contact::findById((int) $order['customer_id']);
+            $to = array_values(array_unique([...$to, ...DocumentReferents::copyEmails($order, is_array($company) ? $company : null)]));
+        }
+
+        return $to;
     }
 
     /** @return list<array<string, mixed>> */

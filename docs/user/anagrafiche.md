@@ -70,6 +70,32 @@ Dall'elenco dei fornitori il nome apre la sua scheda, come per i clienti:
 ricevuti da lui (il numero apre il carico) e gli **articoli forniti**, con il
 suo codice e il costo. Per cambiare qualcosa c'è **Modifica** in alto.
 
+## Referenti e aziende
+
+> Compare solo se il sito ha acceso i **referenti**. Spenti, le schede restano
+> come prima.
+
+Un'azienda ha spesso più persone con cui parli: chi ordina, chi paga, chi
+riceve la merce. Nel form di un'**azienda** il riquadro **Referenti e aziende**
+elenca queste persone; nel form di una **persona** elenca le aziende per cui
+lavora. La stessa persona può essere referente di più aziende ed è sempre
+**una scheda sola**, con un solo accesso al sito.
+
+Per ogni referente scegli la sua scheda, oppure scrivi nome, cognome ed email
+di una persona nuova: la scheda nasce da sola, senza essere né cliente né
+fornitore. Poi:
+
+- **Mansione** — per esempio *Acquisti* o *Amministrazione*;
+- **Referente principale** — è il referente proposto quando fai un preventivo,
+  un ordine da ufficio o un DDT per quell'azienda;
+- **Riceve i documenti** — solo chi ha questa risposta si può scegliere sui
+  documenti e riceve in copia le loro email.
+
+Nell'elenco dei clienti il filtro **Referenti** mostra solo queste persone o le
+nasconde, e la colonna **Referenti / aziende** dice chi è legato a chi; lo dice
+anche l'export. Togliere un referente dal riquadro non elimina la sua scheda e
+non cambia i documenti già fatti, che ne conservano il nome.
+
 ## Eliminare o disattivare
 
 Una scheda con un **account sul sito** non si elimina: chi ha le credenziali

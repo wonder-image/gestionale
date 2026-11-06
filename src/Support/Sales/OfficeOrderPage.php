@@ -16,7 +16,9 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
+use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
@@ -79,7 +81,7 @@ final class OfficeOrderPage
         ];
 
         $sinistra = [
-            (new Card)->components([
+            (new Card)->components(array_values(array_filter([
                 RichText::make('<div class="d-flex align-items-center justify-content-between gap-2">'
                     .SectionTitle::make('Cliente')->tooltip('Scegliendo il cliente si riempiono fatturazione, consegna e pagamento dalla sua scheda. Il cliente nuovo si crea in un\'altra scheda; poi cercalo qui.')->render('bootstrap')
                     .Button::to(self::newCustomerUrl(), 'Nuovo cliente')->icon('bi bi-person-plus')->variant('secondary')->outline()->size('sm')->blank()->render('bootstrap')
@@ -90,13 +92,17 @@ final class OfficeOrderPage
                     ->label('Cliente')
                     ->value($customerId > 0 ? (string) $customerId : '')
                     ->columnSpan(12),
+                // Il referente dell'azienda: lo script rifà le opzioni quando cambia il cliente.
+                ContactRelations::enabled()
+                    ? self::field(FormField::key('referent_id')->select(self::referentOptions($customerId)), 'referent_id', 'Referente', 12, (string) ($values['referent_id'] ?? '0'))
+                    : null,
                 // Sotto il cliente, a chi va l'email: il PDF del preventivo o la conferma.
                 FormField::key('notify')->toggle()
                     ->label($quote ? 'Manda l\'email con il PDF' : 'Alla conferma scrivi al cliente')
                     ->value($quote ? 'true' : 'false')
                     ->columnSpan(12),
                 ...$nascosti,
-            ])->columns(12)->columnSpan(12),
+            ])))->columns(12)->columnSpan(12),
             self::panel('Contatti', 'contacts', OfficeCustomerPanel::CONTACTS_MODAL),
             self::panel('Fatturazione', 'billing', OfficeCustomerPanel::BILLING_MODAL),
             self::panel('Indirizzi di consegna', 'addresses', ''),
@@ -177,6 +183,22 @@ final class OfficeOrderPage
             (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components($componenti),
             $pulsanti,
         ])->columns(12);
+    }
+
+    /**
+     * Le scelte del referente: nessuno, poi chi riceve i documenti dell'azienda.
+     *
+     * @return array<string, string>
+     */
+    public static function referentOptions(int $customerId): array
+    {
+        $options = ['0' => 'Nessun referente'];
+
+        foreach (DocumentReferents::options($customerId) as $option) {
+            $options[(string) $option['id']] = $option['name'].($option['job_title'] !== '' ? ' — '.$option['job_title'] : '');
+        }
+
+        return $options;
     }
 
     /** Un campo della testata: etichetta, valore, larghezza e l'aggancio per lo script (`data-wi-oo-field`). */
