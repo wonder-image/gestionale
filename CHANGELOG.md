@@ -20,6 +20,15 @@ versionamento semantico.
   con `ContactRelations`.
 
 ### Cambiato
+- **Listini: «Si applica a» con tre scelte.** *Tutto il catalogo*, *Filtra
+  catalogo* (con «Cerca prodotti», che salva e crea le righe dei prodotti
+  trovati) e *Seleziona prodotti* (solo le righe); il modo non è una colonna
+  (`PriceListResource::scopeMode()` / `scopeFor()`), i filtri vengono da
+  `ScopeForm::scopeFilterFields()`. La card Prezzi compare con *Seleziona
+  prodotti* o quando ci sono righe; Canali sta in alto a destra accanto a
+  Listino, senza titolo doppio; il canale Meta si chiama «Meta». Tolto il campo
+  «Importa righe» dalla scheda: per caricare da file resta «Importa»
+  nell'elenco (tracciato *Prezzi di listino*).
 - **Listini: «Si applica a», righe dalla selezione, menu Catalogo.** Il
   listino ha il selettore dei coupon (tutto il catalogo con gli esclusi, o
   categorie, tag, marchi e articoli; tabelle `gst_price_list_{categories,tags,

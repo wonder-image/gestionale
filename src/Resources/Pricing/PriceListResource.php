@@ -2,8 +2,6 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Pricing;
 
-use InvalidArgumentException;
-use RuntimeException;
 use Throwable;
 use Wonder\App\Permission\Access;
 use Wonder\App\ResourceSchema\ApiSchema;
@@ -17,11 +15,11 @@ use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\App\Support\Repeater;
 use Wonder\Backend\Support\FlashAlert;
-use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\Dropdown;
 use Wonder\Elements\Components\SectionTitle;
+use Wonder\Elements\Form\Components\Submit;
 use Wonder\Elements\Form\Form;
 use Wonder\Http\Csrf;
 use Wonder\Http\Exceptions\NotFoundHttpException;
@@ -40,7 +38,6 @@ use Wonder\Plugin\Gestionale\Support\Pricing\Import\PriceListLayout;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceListChannels;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceListSeeder;
-use Wonder\Plugin\Gestionale\Support\Pricing\PriceListTransfer;
 use Wonder\Plugin\Gestionale\Support\Promotions\ScopeForm;
 use Wonder\Plugin\Gestionale\Support\RequestMemo;
 use Wonder\Sql\Transaction;
@@ -53,7 +50,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
  * prezzo. Si scaricano e si ricaricano in csv o xlsx. I prodotti senza riga
  * seguono la regola (nessuna, ricarico o sconto in percentuale sul prezzo
  * base) solo se stanno in «Si applica a», il selettore dei coupon
- * (`ScopeForm`). «Crea le righe dalla selezione» scrive le righe mancanti
+ * (`ScopeForm`). «Cerca prodotti» scrive le righe mancanti
  * (`PriceListSeeder`).
  *
  * Un listino assegnato a clienti o ordini non si elimina: si spegne.
@@ -65,8 +62,21 @@ final class PriceListResource extends GestionaleResource
     public static string $model = PriceList::class;
     public static string $feature = 'customer_price_lists';
 
-    /** Le righe lette dal file caricato, scritte dopo il salvataggio. */
-    private static ?array $imported = null;
+    /**
+     * «Si applica a»: tutto, i prodotti dei filtri, o solo quelli delle righe.
+     * Non è una colonna: `applies_to_all` e i ponti la dicono già (vedi
+     * `scopeMode()`).
+     *
+     * @var array<string, string>
+     */
+    public const SCOPE_MODES = [
+        'all' => 'Tutto il catalogo',
+        'filter' => 'Filtra catalogo',
+        'products' => 'Seleziona prodotti',
+    ];
+
+    /** Il bottone «Cerca prodotti»: salva e crea le righe dai filtri. */
+    public const SEARCH = 'search_products';
 
     /** I canali scelti nel form, scritti dopo il salvataggio. */
     private static ?array $channels = null;
@@ -106,6 +116,7 @@ final class PriceListResource extends GestionaleResource
             'name' => 'Nome',
             'prices_include_tax' => 'Prezzi',
             'applies_to_all' => 'Si applica a',
+            'scope_mode' => 'Si applica a',
             'price_rule' => 'I prodotti senza una riga',
             'percent' => 'Percentuale',
             'channels' => 'Canali',
@@ -132,8 +143,14 @@ final class PriceListResource extends GestionaleResource
                 ->label('I prodotti senza una riga'),
             FormField::key('percent')->number()->decimal(2)->label('Percentuale')
                 ->visibleWhen('price_rule', ['discount', 'markup']),
-            ...static::scopeFields(),
-            FormField::key('channels')->checkbox()->options(static::channelOptions((int) (static::currentId() ?? 0)))->value([])->label('Canali'),
+            FormField::key('scope_mode')
+                ->select(static::SCOPE_MODES)
+                ->value('all')
+                ->label('Si applica a')
+                ->required(),
+            ...static::scopeFilterFields('scope_mode', 'filter', ['all', 'filter']),
+            // Il titolo è quello della card.
+            FormField::key('channels')->checkbox()->options(static::channelOptions((int) (static::currentId() ?? 0)))->value([])->label(''),
             FormField::key('valid_from')->dateInput()->label('Dal'),
             FormField::key('valid_to')->dateInput()->label('Al'),
             FormField::key('active')
@@ -168,11 +185,24 @@ final class PriceListResource extends GestionaleResource
 
     public static function formLayoutSchema(): ?Form
     {
+        $id = (int) (static::currentId() ?? 0);
+        $prices = (new Card)->components([
+            SectionTitle::make('Prezzi')
+                ->tooltip('Una riga per prodotto e scaglione: «Da quantità» è la quantità minima da cui vale il prezzo. Con più righe dello stesso prodotto vale quella con la quantità più alta raggiunta. Un prodotto che non c\'è si paga a prezzo di catalogo. Il listino sostituisce le campagne; coupon e sconto dell\'ordine si aggiungono.')
+                ->columnSpan(12),
+            static::getInput('items')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+
+        // Con le righe la card si vede sempre; senza, con «Seleziona prodotti» o dopo «Cerca prodotti».
+        if (!static::hasItems($id)) {
+            $prices->visibleWhen('scope_mode', 'products');
+        }
+
         return (new Form)->components([
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Listino')
-                        ->tooltip('Si assegna dalla scheda del cliente o a uno o più canali qui sotto. Il listino del cliente viene prima di quello del canale. Vale se è attivo, fra le date (vuote = sempre); altrimenti il cliente paga i prezzi di catalogo. «IVA inclusa» o «esclusa» dice come sono scritti i prezzi qui sotto.')
+                        ->tooltip('Si assegna dalla scheda del cliente o a uno o più canali qui accanto. Il listino del cliente viene prima di quello del canale. Vale se è attivo, fra le date (vuote = sempre); altrimenti il cliente paga i prezzi di catalogo. «IVA inclusa» o «esclusa» dice come sono scritti i prezzi.')
                         ->columnSpan(12),
                     static::getInput('name')->columnSpan(6),
                     static::getInput('prices_include_tax')->columnSpan(3),
@@ -180,12 +210,18 @@ final class PriceListResource extends GestionaleResource
                     static::getInput('valid_from')->columnSpan(3),
                     static::getInput('valid_to')->columnSpan(3),
                     static::getInput('note')->columnSpan(6),
-                ])->columns(12)->columnSpan(12),
+                ])->columns(12)->columnSpan(8),
+                (new Card)->components([
+                    SectionTitle::make('Canali')
+                        ->tooltip('Un canale ha un solo listino: gli ordini e i feed di quel canale usano questo listino quando il cliente non ne ha uno suo. Si vedono solo i canali accesi.')
+                        ->columnSpan(12),
+                    static::getInput('channels')->columnSpan(12),
+                ])->columns(12)->columnSpan(4),
                 (new Card)->components([
                     SectionTitle::make('Si applica a')
-                        ->tooltip('I prodotti del listino: «Tutto il catalogo» o «Solo la selezione» di categorie (con le sottocategorie), tag, marchi e articoli; gli articoli esclusi restano sempre fuori. La regola vale solo per questi prodotti, sul prezzo pieno (non su quello scontato); gli altri pagano il prezzo di catalogo. Una riga in «Prezzi» vince sempre, anche fuori dalla selezione. «Crea le righe dalla selezione», in alto, scrive una riga per ogni prodotto della selezione che non ce l\'ha.')
+                        ->tooltip('«Tutto il catalogo»: la regola vale per tutti i prodotti. «Filtra catalogo»: solo per quelli di categorie (con le sottocategorie), tag, marchi e articoli scelti; «Cerca prodotti» salva e scrive una riga per ogni prodotto trovato che non ce l\'ha. «Seleziona prodotti»: valgono solo le righe in «Prezzi». Gli articoli esclusi restano sempre fuori. La regola vale sul prezzo pieno (non su quello scontato); gli altri prodotti pagano il prezzo di catalogo. Una riga in «Prezzi» vince sempre.')
                         ->columnSpan(12),
-                    static::getInput('applies_to_all')->columnSpan(12),
+                    static::getInput('scope_mode')->columnSpan(12),
                     static::getInput('categories')->columnSpan(12),
                     static::getInput('tags')->columnSpan(12),
                     static::getInput('brands')->columnSpan(12),
@@ -193,27 +229,29 @@ final class PriceListResource extends GestionaleResource
                     static::getInput('excluded_models')->columnSpan(12),
                     static::getInput('price_rule')->columnSpan(4),
                     static::getInput('percent')->columnSpan(2),
-                ])->columns(12)->columnSpan(12),
-                (new Card)->components([
-                    SectionTitle::make('Canali')
-                        ->tooltip('Un canale ha un solo listino: gli ordini e i feed di quel canale usano questo listino quando il cliente non ne ha uno suo. Si vedono solo i canali accesi.')
+                    (new Submit(static::SEARCH))
+                        ->label('Cerca prodotti')
+                        ->buttonClass('btn btn-outline-secondary')
+                        ->visibleWhen('scope_mode', 'filter')
                         ->columnSpan(12),
-                    static::getInput('channels')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
-                (new Card)->components([
-                    SectionTitle::make('Prezzi')
-                        ->tooltip('Una riga per prodotto e scaglione: «Da quantità» è la quantità minima da cui vale il prezzo. Con più righe dello stesso prodotto vale quella con la quantità più alta raggiunta. Un prodotto che non c\'è si paga a prezzo di catalogo. Il listino sostituisce le campagne; coupon e sconto dell\'ordine si aggiungono.')
-                        ->columnSpan(12),
-                    static::getInput('items')->columnSpan(12),
-                ])->columns(12)->columnSpan(12),
-                (new Card)->components([
-                    SectionTitle::make('Carica da file')
-                        ->tooltip('Un file .csv o .xlsx con le colonne SKU, Prodotto, Quantità minima e Prezzo, come quello che scarichi da qui. Il prodotto lo dice lo SKU. Al salvataggio le righe del file sostituiscono tutte le righe del listino.')
-                        ->columnSpan(12),
-                    '<div class="col-12"><input type="file" name="price_list_import" accept=".csv,.xlsx" class="form-control"></div>',
-                ])->columns(12)->columnSpan(12),
+                $prices,
             ])->columns(12)->columnSpan(12),
         ]);
+    }
+
+    /** Il listino ha già righe. */
+    private static function hasItems(int $id): bool
+    {
+        if ($id <= 0) {
+            return false;
+        }
+
+        try {
+            return (int) sqlCount(PriceListItem::$table, 'price_list_id = '.$id." AND deleted = 'false'") > 0;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     public static function tableSchema(): array
@@ -261,13 +299,6 @@ final class PriceListResource extends GestionaleResource
                 'edit' => 'Modifica listino',
             ])
             ->actions('edit', static fn (array $item): array => (int) ($item['id'] ?? 0) > 0 ? [
-                Button::post(static::seedUrl((int) $item['id']), 'Crea le righe dalla selezione')
-                    ->icon('bi bi-magic', 'start')->variant('secondary')->outline()->size('sm')
-                    ->confirm(
-                        'Si crea una riga per ogni prodotto di «Si applica a» che non ne ha una, con il prezzo di catalogo o quello della regola. Le righe che ci sono non cambiano. Salva prima le modifiche del form: si usa il listino salvato.',
-                        'Crea le righe',
-                        'Crea'
-                    ),
                 // Il formato si sceglie nel menu, come nell'«Esporta» degli elenchi.
                 Dropdown::make('Scarica')->icon('bi bi-download')->variant('dark')->outline()->size('sm')->align('end')
                     ->item('Excel (.xlsx)', static::itemsUrl((int) $item['id'], 'xlsx'))
@@ -299,7 +330,7 @@ final class PriceListResource extends GestionaleResource
         return static::routeUrl('seed', '/backend/'.static::path().'/'.$id.'/crea-righe/', ['id' => $id]);
     }
 
-    /** Il POST di «Crea le righe dalla selezione»: scrive le righe e torna alla scheda. */
+    /** Il POST della rotta `seed` (per chi la chiamava): scrive le righe e torna alla scheda. */
     public static function seedRows(int $id): never
     {
         $list = $id > 0 && static::featureActive() ? PriceList::findById($id) : null;
@@ -310,15 +341,27 @@ final class PriceListResource extends GestionaleResource
 
         if (!Csrf::verify()) {
             FlashAlert::custom('Attenzione', UserError::make('stock_document.expired')->getMessage(), 'warning');
-        } else {
-            $count = PriceListSeeder::seed($id);
-            FlashAlert::saved(match ($count) {
-                0 => 'Nessuna riga da creare: i prodotti della selezione hanno già una riga.',
-                1 => 'Creata 1 riga.',
-                default => 'Create '.$count.' righe.',
-            });
+            static::backToEdit($id);
         }
 
+        static::searchProducts($id);
+    }
+
+    /** «Cerca prodotti»: crea le righe mancanti, lo dice e torna alla scheda. */
+    private static function searchProducts(int $id): never
+    {
+        $count = PriceListSeeder::seed($id);
+        FlashAlert::saved(match ($count) {
+            0 => 'Nessun prodotto nuovo: quelli trovati hanno già una riga.',
+            1 => 'Trovato 1 prodotto: creata 1 riga.',
+            default => 'Trovati '.$count.' prodotti: create '.$count.' righe.',
+        });
+
+        static::backToEdit($id);
+    }
+
+    private static function backToEdit(int $id): never
+    {
         if (!headers_sent()) {
             header('Location: '.static::routeUrl('edit', '/backend/'.static::path().'/'.$id.'/edit/', ['id' => $id]));
         }
@@ -446,11 +489,10 @@ final class PriceListResource extends GestionaleResource
         unset($values['channels']);
 
         static::checkItems(Repeater::rowsFromRequest('items', (array) $_POST));
-        static::$imported = static::uploadedRows();
-        $values['applies_to_all'] = ($values['applies_to_all'] ?? 'true') === 'false' ? 'false' : 'true';
+        $values['applies_to_all'] = static::modeOf($values['scope_mode'] ?? null) === 'all' ? 'true' : 'false';
 
-        // Il selettore non è una colonna: si salva nei ponti.
-        return array_diff_key($values, array_flip(static::FIELDS));
+        // Il selettore e il modo non sono colonne: si salvano nei ponti.
+        return array_diff_key($values, array_flip([...static::FIELDS, 'scope_mode', static::SEARCH]));
     }
 
     /**
@@ -532,6 +574,8 @@ final class PriceListResource extends GestionaleResource
             $values = static::loadScope('price_list', $id) + $values;
         }
 
+        $values['scope_mode'] = static::scopeMode($values);
+
         if (($values['price_rule'] ?? 'none') === 'none' || (float) ($values['percent'] ?? 0) <= 0) {
             $values['percent'] = '';
         }
@@ -571,17 +615,70 @@ final class PriceListResource extends GestionaleResource
 
     public static function afterStore(object $result, array $values = []): void
     {
-        $id = (int) ($result->insert_id ?? 0);
-        static::writeImported($id);
-        static::writeChannels($id);
-        static::writeScope($id);
+        static::afterSave((int) ($result->insert_id ?? 0));
     }
 
     public static function afterUpdate(int|string $id, object $result, array $values = []): void
     {
-        static::writeImported((int) $id);
-        static::writeChannels((int) $id);
-        static::writeScope((int) $id);
+        static::afterSave((int) $id);
+    }
+
+    /** Canali e selettore; con «Cerca prodotti» anche le righe, poi di nuovo la scheda. */
+    private static function afterSave(int $id): void
+    {
+        static::writeChannels($id);
+        static::writeScope($id);
+        $post = (array) $_POST;
+
+        // Un Invio nel form preme il primo submit: le righe si creano solo coi filtri.
+        if ($id > 0 && array_key_exists(static::SEARCH, $post) && static::modeOf($post['scope_mode'] ?? null) === 'filter') {
+            static::searchProducts($id);
+        }
+    }
+
+    /**
+     * Il modo di «Si applica a» di un listino salvato: `all` se vale per
+     * tutto, `filter` se ha filtri, altrimenti `products` (solo le righe).
+     *
+     * @param array<string, mixed> $values come `loadScope()`
+     */
+    public static function scopeMode(array $values): string
+    {
+        if (($values['applies_to_all'] ?? 'true') !== 'false') {
+            return 'all';
+        }
+
+        foreach (static::FIELDS as $field) {
+            if ($field !== 'excluded_models' && array_filter((array) ($values[$field] ?? [])) !== []) {
+                return 'filter';
+            }
+        }
+
+        return 'products';
+    }
+
+    /** Il modo dal form, `all` se sconosciuto. */
+    public static function modeOf(mixed $value): string
+    {
+        return is_string($value) && isset(static::SCOPE_MODES[$value]) ? $value : 'all';
+    }
+
+    /**
+     * Il selettore da salvare per un modo: con «Seleziona prodotti» niente
+     * filtri, così la regola non vale per nessun prodotto oltre le righe.
+     *
+     * @param array{all: bool, categories: list<int>, tags: list<int>, brands: list<int>, models: list<int>, excluded_models: list<int>} $scope come `readScope()`
+     * @return array{all: bool, categories: list<int>, tags: list<int>, brands: list<int>, models: list<int>, excluded_models: list<int>}
+     */
+    public static function scopeFor(string $mode, array $scope): array
+    {
+        $scope['all'] = $mode === 'all';
+
+        if ($mode === 'products') {
+            $scope = ['all' => false, 'categories' => [], 'tags' => [], 'brands' => [], 'models' => [], 'excluded_models' => []];
+        }
+
+        return $scope;
     }
 
     public static function afterDelete(int|string $id, object $result, array $values = []): void
@@ -595,9 +692,10 @@ final class PriceListResource extends GestionaleResource
     {
         RequestMemo::forget(PriceList::MEMO_GROUP);
 
-        if ($priceListId > 0 && array_key_exists('applies_to_all', (array) $_POST)) {
+        if ($priceListId > 0 && array_key_exists('scope_mode', (array) $_POST)) {
             $post = (array) $_POST;
-            Transaction::run(static fn () => static::saveScope('price_list', $priceListId, static::readScope($post)));
+            $scope = static::scopeFor(static::modeOf($post['scope_mode']), static::readScope($post));
+            Transaction::run(static fn () => static::saveScope('price_list', $priceListId, $scope));
         }
     }
 
@@ -674,39 +772,6 @@ final class PriceListResource extends GestionaleResource
     private static function emptyRow(array $row): bool
     {
         return (int) ($row['product_id'] ?? 0) <= 0 && trim((string) ($row['price'] ?? '')) === '';
-    }
-
-    /** Le righe del file caricato, `null` se non c'è un file. */
-    private static function uploadedRows(): ?array
-    {
-        $file = $_FILES['price_list_import'] ?? null;
-
-        if (!is_array($file) || (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
-            return null;
-        }
-
-        if ((int) $file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) ($file['tmp_name'] ?? ''))) {
-            throw UserError::make('price_list.import_unreadable');
-        }
-
-        // I rifiuti del foglio sono RuntimeException: il form intercetta solo InvalidArgumentException.
-        try {
-            return PriceListTransfer::fromTable(
-                PriceListTransfer::readFile((string) $file['tmp_name'], (string) ($file['name'] ?? '')),
-                PriceListTransfer::skuIds()
-            );
-        } catch (RuntimeException $e) {
-            throw new InvalidArgumentException($e->getMessage(), 0, $e);
-        }
-    }
-
-    private static function writeImported(int $priceListId): void
-    {
-        if ($priceListId > 0 && static::$imported !== null) {
-            PriceListTransfer::replace($priceListId, static::$imported);
-        }
-
-        static::$imported = null;
     }
 
     /** Una data come `Y-m-d` (dal form anche `d/m/Y`); vuota se non lo è. */
