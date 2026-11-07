@@ -1,664 +1,662 @@
 {
-    "gestionale": {
-        "name": "Gestionale",
-        "contacts": {
-            "relations": {
-                "title": "Referenti e aziende",
-                "tooltip": "Le persone che lavorano per questa azienda, o le aziende per cui lavora questa persona. Un referente che riceve i documenti li ha in copia quando li mandi.",
-                "filter": "Referenti",
-                "filter_only": "Solo i referenti",
-                "filter_hide": "Senza i referenti",
-                "column": "Referenti / aziende",
-                "referent_badge": "Referente",
-                "export_people": "Referenti",
-                "export_companies": "Aziende"
+    "name": "Gestionale",
+    "contacts": {
+        "relations": {
+            "title": "Referenti e aziende",
+            "tooltip": "Le persone che lavorano per questa azienda, o le aziende per cui lavora questa persona. Un referente che riceve i documenti li ha in copia quando li mandi.",
+            "filter": "Referenti",
+            "filter_only": "Solo i referenti",
+            "filter_hide": "Senza i referenti",
+            "column": "Referenti / aziende",
+            "referent_badge": "Referente",
+            "export_people": "Referenti",
+            "export_companies": "Aziende"
+        }
+    },
+    "errors": {
+        "import": {
+            "sku_column": "Manca la colonna «SKU»: è quella che dice quale prodotto aggiornare.",
+            "price_tax_included": "I prezzi del negozio sono IVA esclusa, ma la colonna del prezzo dice «IVA inclusa»: scarica di nuovo il file e riprova.",
+            "price_tax_excluded": "I prezzi del negozio sono IVA inclusa, ma la colonna del prezzo dice «IVA esclusa»: scarica di nuovo il file e riprova.",
+            "sku_missing": "Manca lo SKU: scrivilo per aggiornare o creare il prodotto.",
+            "sku_duplicate": "Questo SKU compare già alla riga {{line}}: tienine una sola.",
+            "sku_ambiguous": "Questo SKU è usato da più prodotti del catalogo: ricarica il file esportato con la colonna «ID», oppure correggi lo SKU dal backend.",
+            "sku_taken": "Questo SKU è già di un altro prodotto del catalogo: scegline uno diverso.",
+            "group_mismatch": "Questo SKU appartiene all'articolo {{group}}: il codice articolo del file è diverso.",
+            "type_change": "Il tipo di un articolo che esiste già non si cambia da file.",
+            "type_new": "Da file si creano solo prodotti di tipo «Prodotto»: multiprodotti e abbonamenti si creano dal backend.",
+            "version_type": "A un multiprodotto o a un abbonamento non si aggiungono versioni da file.",
+            "article_missing": "Manca il nome dell'articolo: scrivilo per creare il prodotto.",
+            "number": "«{{column}}» non è un numero.",
+            "negative": "«{{column}}» non può essere negativo.",
+            "boolean": "«{{column}}» si scrive Sì o No.",
+            "sale_price": "Il prezzo scontato deve essere più basso del prezzo.",
+            "unit": "Unità di misura sconosciuta: usa una fra {{units}}.",
+            "available_type": "La giacenza di un multiprodotto o di un abbonamento non si cambia da file: lascia la colonna com'era.",
+            "image_https": "L'indirizzo dell'immagine deve cominciare con https://.",
+            "image_type": "L'immagine deve essere PNG, JPG o WebP.",
+            "image_save": "Non sono riuscito a salvare l'immagine: riprova più tardi.",
+            "image_download": "Non sono riuscito a scaricare l'immagine: controlla l'indirizzo.",
+            "image_size": "L'immagine supera gli 8 MB.",
+            "product_missing": "Questo prodotto non esiste più: scarica di nuovo il file.",
+            "model_missing": "Questo articolo non esiste più: scarica di nuovo il file.",
+            "save_failed": "Non sono riuscito a salvare la riga: riprova.",
+            "list_missing": "Manca il listino: scrivi il nome o l'ID.",
+            "list_unknown": "Il listino «{{list}}» non esiste: crealo prima dal backend.",
+            "list_ambiguous": "Ci sono più listini che si chiamano «{{list}}»: scrivi l'ID.",
+            "sku_unknown": "Lo SKU «{{sku}}» non è di nessun prodotto del catalogo.",
+            "min_quantity": "La quantità minima deve essere un numero più grande di zero.",
+            "list_price": "Il prezzo deve essere un numero, zero o più.",
+            "list_row_duplicate": "Lo stesso prezzo (listino, SKU e quantità) compare già alla riga {{line}}: tienine una sola.",
+            "list_row_missing": "Questa riga di listino non esiste più: carica di nuovo il file."
+        },
+        "stock": {
+            "insufficient": "Non c'è abbastanza giacenza di {{product}}.",
+            "zero_quantity": "Questa rettifica non cambia niente: scrivi una quantità diversa da quella di adesso.",
+            "unknown_reason": "Scegli una causale per questo movimento.",
+            "product_missing": "Questa opzione in vendita non esiste più: ricarica la pagina e riprova.",
+            "no_location": "Manca la sede del magazzino: apri Set Up → Sedi e salva la sede principale.",
+            "quantity_missing": "Scrivi quanti pezzi: la casella è vuota.",
+            "location_duplicate": "La sede {{location}} compare due volte nelle righe della giacenza: tienine una sola.",
+            "location_unknown": "Una riga della giacenza punta a una sede che non è più del magazzino: ricarica la pagina e riprova."
+        },
+        "feature": {
+            "multi_location_in_use": "«Più sedi» non si spegne: {{where}}. Riporta la merce nella sede principale con un trasferimento e ricevi quelli in viaggio, poi riprova.",
+            "products_in_use": "«Prodotto» non si spegne: {{count}} nel catalogo. Eliminali, poi riprova.",
+            "subscriptions_in_use": "«Abbonamenti» non si spegne: {{count}}. Aspetta che finiscano, poi riprova.",
+            "variants_in_use": "«Varianti» non si spegne: {{count}}. Lascia una versione sola a ogni articolo, poi riprova."
+        },
+        "stock_document": {
+            "not_found": "Questo documento di magazzino non esiste più.",
+            "not_draft": "Questo documento è già stato confermato o annullato: non si modifica più. Per correggerlo annullalo e duplicalo.",
+            "cannot_cancel": "Si annulla solo un documento confermato (o un trasferimento in viaggio).",
+            "cannot_delete": "Si elimina solo una bozza: un documento confermato si annulla.",
+            "unknown_type": "Questo tipo di documento non c'è.",
+            "reason_required": "Scegli la causale dello scarico.",
+            "unknown_reason": "Questa causale non va con questo documento.",
+            "no_rows": "Aggiungi almeno una riga.",
+            "nothing_counted": "Scrivi il numero contato di almeno una riga.",
+            "quantity_required": "La riga {{row}} non ha pezzi: scrivi un numero maggiore di zero.",
+            "invalid_quantity": "La riga {{row}} ha una quantità che non va: scrivi solo cifre, da zero a 9.999.999.",
+            "duplicate_product": "La stessa versione compare due volte (riga {{row}}): tienine una sola.",
+            "too_many_rows": "Un documento tiene al massimo 500 righe: dividilo in due.",
+            "invalid_lines": "Le righe non si sono lette: ricarica la pagina e riprova.",
+            "expired": "La pagina è scaduta: ricaricala e riprova.",
+            "location_unknown": "La sede scelta non è più del magazzino: ricarica la pagina e riprova.",
+            "invalid_cost": "La riga {{row}} ha un costo che non va: scrivi un numero da zero in su, per esempio 2,50.",
+            "invalid_rate": "La riga {{row}} ha un'aliquota IVA che non va: scrivi un numero da 0 a 100, per esempio 22.",
+            "invalid_date": "La data del documento del fornitore non va: sceglila dal calendario.",
+            "supplier_unknown": "Il fornitore scelto non c'è più fra i fornitori: ricarica la pagina e scegline un altro.",
+            "duplicate_batch": "La stessa versione con lo stesso lotto compare due volte (riga {{row}}): tienine una sola, o cambia il lotto.",
+            "invalid_expiry": "La scadenza della riga {{row}} non va: sceglila dal calendario.",
+            "batch_required": "La riga {{row}} è di un articolo con i lotti: scrivi il lotto.",
+            "transfer_destination_required": "Scegli la sede d'arrivo del trasferimento.",
+            "transfer_same_location": "Partenza e arrivo sono la stessa sede: scegli una sede d'arrivo diversa.",
+            "cannot_receive": "Si riceve solo un trasferimento in viaggio.",
+            "transfer_moved": "La merce non è più tutta nella sede d'arrivo: una parte è già uscita, e il trasferimento non si annulla. Riportala con un trasferimento nuovo."
+        },
+        "delivery_note": {
+            "not_found": "Questo DDT non c'è più.",
+            "not_draft": "Questo DDT è già emesso: non si modifica più. Puoi annullarlo e farne un altro.",
+            "not_issued": "Si manda solo un DDT emesso.",
+            "cannot_cancel": "Si annulla solo un DDT emesso.",
+            "order_not_ready": "Il DDT si fa da un ordine confermato: prima conferma l'ordine.",
+            "nothing_to_deliver": "Non c'è niente da mettere nel DDT: le righe di quest'ordine sono già tutte in DDT emessi.",
+            "no_rows": "Il DDT non ha righe: almeno una quantità deve essere maggiore di zero.",
+            "invalid_quantity": "La quantità di «{{name}}» non va: scrivi un numero da zero in su.",
+            "too_much": "Di «{{name}}» puoi consegnare al massimo {{max}}: il resto è già in altri DDT emessi.",
+            "invalid_weight": "Il peso non va: scrivi i chili con la virgola, per esempio 12,5.",
+            "invalid_date": "La data d'inizio del trasporto non va: sceglila dal calendario."
+        },
+        "quote": {
+            "not_found": "Questo preventivo non c'è più.",
+            "not_editable": "Questo preventivo è già stato accettato: è diventato un ordine e si modifica da lì.",
+            "invalid_expiry": "La validità del preventivo non va: sceglila dal calendario.",
+            "cannot_send": "Si invia un preventivo da inviare: questo è già accettato, rifiutato o scaduto. Modificalo per riaprirlo.",
+            "cannot_accept": "Si accetta un preventivo inviato o ancora in bozza.",
+            "cannot_reject": "Si rifiuta solo un preventivo inviato.",
+            "cannot_delete": "Un preventivo già inviato non si elimina: il cliente ha il suo PDF. Rifiutalo o lascialo scadere."
+        },
+        "office_order": {
+            "too_many_rows": "Un ordine tiene al massimo {{max}} righe: dividilo in due.",
+            "invalid_lines": "Le righe non si sono lette: ricarica la pagina e riprova.",
+            "name_required": "La riga {{row}} è una riga libera: scrivi cosa vendi.",
+            "price_required": "La riga {{row}} è una riga libera: scrivi il prezzo.",
+            "quantity_required": "La riga {{row}} non ha quantità: scrivi un numero maggiore di zero.",
+            "invalid_quantity": "La riga {{row}} ha una quantità che non va: scrivi un numero maggiore di zero, per esempio 2 o 1,5.",
+            "invalid_price": "La riga {{row}} ha un prezzo che non va: scrivi un numero da zero in su, per esempio 12,50.",
+            "invalid_discount": "Lo sconto della riga {{row}} non va: un importo da zero in su, o una percentuale fino a 100.",
+            "invalid_order_discount": "Lo sconto sul totale non va: un importo da zero in su, o una percentuale fino a 100.",
+            "invalid_fulfillment": "Scegli come arriva la merce: spedizione, ritiro o nessuna consegna.",
+            "not_draft": "Quest'ordine è già confermato: non si modifica più. Puoi annullarne delle righe.",
+            "customer_required": "Scegli il cliente dell'ordine.",
+            "no_rows": "Aggiungi almeno una riga con un prodotto o una riga libera.",
+            "address_required": "L'ordine si spedisce: scrivi l'indirizzo di consegna (via, città e paese).",
+            "billing_required": "Completa la fatturazione del cliente (intestatario, via, città e paese) prima di confermare.",
+            "out_of_stock": "Di «{{name}}» ne hai {{available}} e l'ordine ne chiede {{wanted}}: l'ordine non si conferma. Carica la merce, riduci la riga o toglila.",
+            "customer_unknown": "Il cliente scelto non c'è più: ricarica la pagina e sceglilo di nuovo.",
+            "product_unknown": "Una versione dell'ordine non si vende più: «{{name}}». Toglila e riprova.",
+            "customization_required": "«{{name}}» chiede una personalizzazione: da ufficio non si sceglie ancora. Vendilo come riga libera.",
+            "bundle_choice_required": "«{{name}}» è un multiprodotto con scelte: da ufficio non si sceglie ancora. Vendilo come riga libera.",
+            "cannot_delete": "Si elimina solo una bozza: un ordine confermato si annulla.",
+            "invalid_cancel": "La quantità da annullare di «{{name}}» non va: scrivi un numero da zero in su.",
+            "cancel_too_much": "Di «{{name}}» puoi annullare al massimo {{max}}: il resto è già partito o annullato.",
+            "nothing_to_cancel": "Scrivi la quantità da annullare di almeno una riga.",
+            "not_cancellable": "Si annullano righe solo di un ordine confermato e non ancora chiuso."
+        },
+        "order": {
+            "zero_quantity": "Una riga d'ordine deve avere una quantità maggiore di zero.",
+            "reservation_lost": "I pezzi che avevi messo da parte non ci sono più: l'ordine resta in attesa e ti scriviamo appena rientrano.",
+            "not_found": "Questo ordine non esiste più.",
+            "not_an_order": "Questo è ancora un carrello: non ha uno stato da cambiare.",
+            "cancelled_cannot_confirm": "L'ordine è stato annullato e non si può confermare.",
+            "completed_cannot_cancel": "L'ordine è chiuso: per disfarlo serve un reso.",
+            "not_reopenable": "Questo ordine non si può più modificare: è già pagato o non è più in attesa.",
+            "payment_in_progress": "Il pagamento di questo ordine è già partito: non si può più modificare.",
+            "reopen_retry": "Non riusciamo a modificare l'ordine in questo momento: riprova tra poco.",
+            "unknown_fulfillment": "«{{status}}» non è uno stato di evasione.",
+            "empty_cart": "Il carrello è vuoto.",
+            "payment_method_unavailable": "Questo metodo di pagamento non è disponibile.",
+            "invalid_details": "Alcuni dati dell'ordine non sono validi: {{fields}}. Controllali e riprova.",
+            "address_incomplete": "Per la spedizione servono almeno la città e l'indirizzo.",
+            "pickup_location_unavailable": "La sede di ritiro scelta non è disponibile: scegline un'altra.",
+            "shipping_method_required": "Scegli come spedire l'ordine.",
+            "shipping_unavailable": "Non spediamo all'indirizzo indicato: cambialo o scegli il ritiro in sede."
+        },
+        "cart": {
+            "not_opened": "Non è stato possibile aprire il carrello. Riprova.",
+            "not_a_cart": "Questo ordine non è più un carrello e non si può modificare.",
+            "product_unavailable": "Questo articolo non è più in vendita.",
+            "not_enough_stock": "Di «{{name}}» restano {{available}} pezzi.",
+            "item_not_found": "Questa riga non è nel tuo carrello.",
+            "child_line": "Questa riga fa parte di un multiprodotto: cambia o togli il multiprodotto, non il suo componente."
+        },
+        "payment": {
+            "zero_amount": "Un pagamento deve avere un importo maggiore di zero.",
+            "reference_other_order": "Questo riferimento del gateway è già di un altro ordine: controlla la notifica prima di registrare l'incasso.",
+            "unknown_provider": "Il gateway «{{provider}}» non è fra quelli che gestiamo: scegli Stripe, PayPal, Nexi o un incasso a mano.",
+            "already_paid": "Questo pagamento è già incassato: non si può dichiarare fallito. Se i soldi sono tornati indietro, registra un rimborso.",
+            "future_date": "La data dell'incasso è nel futuro: indica il giorno in cui il denaro è arrivato, oggi o prima.",
+            "invalid_date": "La data dell'incasso non è valida: usa il formato anno-mese-giorno, per esempio 2026-10-01.",
+            "over_balance": "L'importo supera quanto resta da incassare ({{residuo}}): scrivi al massimo quella cifra.",
+            "order_closed": "Quest'ordine è annullato: non si registrano incassi.",
+            "installment_not_pending": "Questa rata non è più in attesa: forse è già stata pagata o annullata. Ricarica la pagina.",
+            "reference_used": "Questo riferimento è già su un altro incasso: controlla il numero di CRO o di operazione."
+        },
+        "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
+        "tag": {
+            "name_required": "Scrivi il nome del tag."
+        },
+        "faq": {
+            "question_required": "Scrivi la domanda.",
+            "answer_required": "Scrivi la risposta."
+        },
+        "selection": {
+            "name_required": "Scrivi il nome della selezione.",
+            "source_category_required": "Scegli almeno una categoria da cui prendere gli articoli.",
+            "source_tag_required": "Scegli almeno un tag da cui prendere gli articoli.",
+            "source_brand_required": "Scegli almeno un marchio da cui prendere gli articoli."
+        },
+        "brand": {
+            "name_required": "Scrivi il nome del marchio."
+        },
+        "category": {
+            "name_required": "Scrivi il nome della categoria.",
+            "loop": "Una categoria non può stare sotto sé stessa o sotto una sua sottocategoria.",
+            "parent_missing": "La categoria padre scelta non esiste più: ricarica la pagina e riprova."
+        },
+        "attribute": {
+            "type_locked": "Questo attributo ha dei valori: eliminali prima di cambiargli tipo.",
+            "level_locked": "Questo attributo è già su degli articoli: per cambiarne l'uso crea un attributo nuovo.",
+            "text_level": "Un Testo o un Numero non crea opzioni: scegli «Scheda tecnica dell'articolo» o «Scheda tecnica di ogni opzione».",
+            "quick_name": "Scrivi il nome della caratteristica.",
+            "quick_type": "Da qui nascono solo caratteristiche Testo o Numero. Elenchi, Colori, Fantasie e Icone si creano da Catalogo → Attributi, perché hanno valori e immagini da preparare.",
+            "quick_unit": "Scegli un'unità di misura dall'elenco, o nessuna."
+        },
+        "customization": {
+            "required": "Compila questo campo.",
+            "too_long": "Al massimo {{max}} caratteri.",
+            "bad_option": "Scegli una delle opzioni proposte.",
+            "unknown": "Questo campo non appartiene all'articolo.",
+            "unavailable": "«{{name}}» chiede una personalizzazione che al momento non si può scegliere.",
+            "max_length": "Scrivi quanti caratteri si possono usare, da 1 a 1000.",
+            "decimals": "Scrivi quanti decimali può avere il numero, da 0 a 6.",
+            "not_number": "Scrivi un numero, senza segno né unità di misura.",
+            "whole_number": "Scrivi un numero intero, senza decimali.",
+            "too_many_decimals": "Al massimo {{max}} decimali.",
+            "few_options": "Una scelta ha bisogno di almeno due opzioni.",
+            "surcharge": "Il sovrapprezzo non può essere negativo.",
+            "kind": "Scegli se è un testo, un numero o una scelta.",
+            "in_use": "È collegata ad articoli o piani ({{count}}) e non si elimina: disattivala, e non si propone più.",
+            "quick_name": "Scrivi il nome della personalizzazione.",
+            "link_target": "Un collegamento va a un articolo oppure a un piano, non a tutti e due né a nessuno.",
+            "scope_required": "Accendi almeno uno fra «Per i prodotti» e «Per gli abbonamenti».",
+            "linked_products": "È collegata ad articoli ({{count}}): toglila dalle loro schede prima di spegnere «Per i prodotti».",
+            "linked_plans": "È collegata a piani d'abbonamento ({{count}}): toglila dalle loro schede prima di spegnere «Per gli abbonamenti».",
+            "not_for_products": "«{{name}}» non è per i prodotti: accendi «Per i prodotti» nella sua scheda.",
+            "not_for_subscriptions": "«{{name}}» non è per gli abbonamenti: accendi «Per gli abbonamenti» nella sua scheda."
+        },
+        "product": {
+            "products_off": "«Prodotto» è spento nelle Funzionalità: accendilo per creare un prodotto singolo.",
+            "sku_taken": "Questo SKU è già in catalogo, su un altro articolo o su un'altra opzione in vendita: cambialo.",
+            "ean_invalid": "L'EAN deve avere 8 o 13 cifre.",
+            "ean_taken": "Questo EAN è già di un'altra opzione in vendita.",
+            "one_page_option": "Un articolo può avere un solo attributo «Opzione con foto proprie»: togli le spunte di uno dei due.",
+            "no_versions": "Un articolo deve avere almeno un'opzione in vendita.",
+            "has_movements": "Questo articolo ha movimenti di magazzino e non si elimina: mettilo su «Nascosto» se non lo vendi più.",
+            "in_orders": "Questo multiprodotto è già in degli ordini e non si elimina: mettilo su «Nascosto» se non lo vendi più.",
+            "stock_negative": "La giacenza non può essere un numero negativo: scrivi quanti pezzi ci sono davvero.",
+            "min_stock_invalid": "La scorta minima è un numero di pezzi, zero o più: con zero non arriva nessun avviso.",
+            "backorder_lead_days_invalid": "I giorni di attesa vanno da 0 a 365.",
+            "supplier_missing": "Scegli il fornitore di questa riga, o togli codice e costo.",
+            "supplier_invalid": "Il fornitore scelto non c'è più, o non è più un fornitore attivo: ricarica la pagina e riprova.",
+            "supplier_cost_negative": "Il costo d'acquisto non può essere negativo: lascialo vuoto se non lo sai.",
+            "supplier_cost_invalid": "Il costo d'acquisto non è un numero: scrivilo come 12,50, o lascialo vuoto se non lo sai.",
+            "supplier_cost_too_high": "Il costo d'acquisto arriva al massimo a 99.999.999,99 €: controlla le cifre.",
+            "supplier_sku_too_long": "Il codice del fornitore arriva al massimo a {{max}} caratteri: accorcialo.",
+            "supplier_duplicate": "{{supplier}} compare due volte: tieni una riga sola per fornitore."
+        },
+        "contact": {
+            "vat_taken": "Questa partita IVA è già di {{contact}}: apri quella scheda invece di crearne un'altra.",
+            "tax_code_taken": "Questo codice fiscale è già di {{contact}}.",
+            "email_taken": "Questa email è già di {{contact}}.",
+            "no_role": "Di' se è un cliente, un fornitore o tutti e due.",
+            "vat_collectability_invalid": "Esigibilità IVA non valida: scegli I, D, S o lascia la predefinita.",
+            "has_account": "Questa scheda ha un account sul sito e non si elimina: mettila su «Non attiva» se non lavori più con lei.",
+            "supplier_in_use": "Questo fornitore ha ancora dei costi d'acquisto su articoli o opzioni in vendita ({{count}}) e non si elimina: metti la scheda su «Non attiva» se non lavori più con lui.",
+            "supplier_role_in_use": "Questa scheda è ancora il fornitore di articoli o opzioni in vendita ({{count}}): toglila dai loro fornitori prima di cambiarle ruolo, o mettila su «Non attiva»."
+        },
+        "settings": {
+            "batch_expiry_days_invalid": "I giorni prima della scadenza vanno da 0 a 3650.",
+            "payment_due_days_invalid": "I giorni di preavviso per le scadenze vanno da 0 a 365.",
+            "quote_validity_days_invalid": "La validità dei preventivi va da 1 a 365 giorni.",
+            "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo.",
+            "subscription_unpaid_days_invalid": "I giorni prima di «non pagato» vanno da 1 a 365.",
+            "subscriptions_per_customer_invalid": "Gli abbonamenti in corso per cliente sono un numero intero da 0 (senza limite) in su."
+        },
+        "payment_method": {
+            "in_use": "Questo metodo è già su ordini o pagamenti ({{count}}) e non si elimina: mettilo su «Non attivo» e non si propone più."
+        },
+        "payment_account": {
+            "in_use": "Questo conto è collegato a dei metodi di pagamento ({{count}}) e non si elimina: scollegalo dai metodi, oppure mettilo su «Non attivo».",
+            "invalid_iban": "L'IBAN non è valido: servono da 15 a 34 tra lettere e cifre, senza altri segni."
+        },
+        "payment_term": {
+            "no_installments": "Serve almeno una rata: aggiungi i giorni e la percentuale.",
+            "invalid_days": "Rata {{row}}: i giorni sono un numero intero da 0 a {{max}}.",
+            "invalid_percentage": "Rata {{row}}: la percentuale va da più di 0 a 100.",
+            "percentages_sum": "Le percentuali delle rate fanno {{sum}}%: devono fare 100%.",
+            "in_use": "Questa condizione è usata da ordini, clienti o pagamenti ({{count}}) e non si elimina: mettila su «Non attiva»."
+        },
+        "price_list": {
+            "invalid_currency": "La valuta è un codice di tre lettere, per esempio EUR.",
+            "invalid_dates": "La fine della validità viene prima dell'inizio.",
+            "item_no_product": "Riga {{row}}: scegli il prodotto.",
+            "item_invalid": "Riga {{row}}: la quantità minima è più di 0 e il prezzo non è negativo.",
+            "item_duplicate": "Riga {{row}}: quel prodotto ha già uno scaglione con la stessa quantità minima.",
+            "in_use": "Questo listino è assegnato a clienti, ordini o canali ({{count}}) e non si elimina: mettilo su «Non attivo» oppure toglilo dai canali.",
+            "invalid_markup": "Il ricarico è una percentuale da più di 0 a 999.",
+            "invalid_discount": "Lo sconto è una percentuale da più di 0 a meno di 100.",
+            "channel_taken": "Il canale «{{channel}}» ha già il listino «{{list}}»: toglilo da lì prima di assegnarlo a questo.",
+            "import_format": "Il file va caricato in formato .xlsx o .csv.",
+            "import_unreadable": "Il file non si legge: scaricalo di nuovo dal listino e riprova.",
+            "import_too_many": "Il file ha più di {{max}} righe: dividilo in più listini.",
+            "import_no_sku": "Riga {{row}} del file: manca lo SKU.",
+            "import_unknown_sku": "Riga {{row}} del file: nessun prodotto ha lo SKU «{{sku}}».",
+            "import_invalid_number": "Riga {{row}} del file: la quantità minima è più di 0 e il prezzo non è negativo.",
+            "import_duplicate": "Riga {{row}} del file: lo SKU «{{sku}}» ha già uno scaglione con la stessa quantità minima.",
+            "import_empty": "Il file non ha righe: il listino resta com'era."
+        },
+        "return": {
+            "order_not_returnable": "Su quest'ordine non si può registrare un reso: serve un ordine confermato, in lavorazione o completato, con i resi attivi.",
+            "nothing_selected": "Scrivi la quantità di almeno una riga: non c'è niente da rendere.",
+            "line_not_returnable": "Una delle righe non è un prodotto di quest'ordine: ricarica la pagina e riprova.",
+            "over_quantity": "Di {{product}} se ne possono rendere al massimo {{max}}: il resto è già stato reso.",
+            "unknown_reason": "Scegli il motivo del reso per ogni riga.",
+            "not_found": "Questo reso non esiste più.",
+            "cannot_complete": "Solo un reso ricevuto si può chiudere.",
+            "cannot_cancel": "Solo un reso ricevuto si può annullare.",
+            "already_restocked": "La merce di questo reso è già rientrata a magazzino: per correggere la giacenza usa una rettifica in Magazzino.",
+            "invalid_quantity": "La quantità di {{product}} non è valida: scrivi un numero maggiore di zero, oppure lascia la casella vuota."
+        },
+        "bundle": {
+            "unknown_mode": "Scegli se il multiprodotto è fisso, a scelta o misto.",
+            "no_components": "Aggiungi almeno un prodotto alla composizione.",
+            "no_groups": "Aggiungi almeno un gruppo di scelta.",
+            "zero_quantity": "La quantità di ogni prodotto deve essere maggiore di zero.",
+            "duplicate_product": "Lo stesso prodotto compare due volte nello stesso elenco.",
+            "group_range": "Nel gruppo «{{name}}» il minimo e il massimo non tornano: il minimo parte da 0, il massimo da 1, il minimo non supera il massimo e il massimo non supera le opzioni.",
+            "group_name": "Scrivi il nome del gruppo.",
+            "negative_surcharge": "Il sovrapprezzo non può essere negativo.",
+            "unknown_option": "Una delle scelte non appartiene a questo multiprodotto.",
+            "too_few": "«{{name}}»: scegli almeno {{min}}.",
+            "too_many": "«{{name}}»: scegli al massimo {{max}}.",
+            "not_bundle": "Questo articolo non è un multiprodotto.",
+            "component_unavailable": "«{{name}}» non è più in vendita, e la confezione non si può comporre.",
+            "nested": "«{{name}}» è già un multiprodotto, e un multiprodotto non entra in un altro.",
+            "options_invalid": "Le opzioni di un gruppo non sono leggibili: riaprile e salva di nuovo.",
+            "feature_off": "I multiprodotti sono spenti: attiva la funzionalità per venderli.",
+            "in_use": "«{{name}}» fa parte di multiprodotti ({{bundles}}): toglilo prima dalla loro composizione."
+        },
+        "campaign": {
+            "ends_before_starts": "La campagna non può finire prima di cominciare.",
+            "percent_out_of_range": "La percentuale di sconto deve essere maggiore di 0 e al massimo 100.",
+            "amount_negative": "L'importo dello sconto deve essere maggiore di zero.",
+            "scope_empty": "Scegli a quali prodotti si applica la campagna, oppure «tutto il catalogo»."
+        },
+        "coupon": {
+            "unknown": "Questo codice sconto non esiste.",
+            "inactive": "Questo codice sconto non è attivo.",
+            "not_started": "Questo codice sconto non è ancora valido.",
+            "expired": "Questo codice sconto è scaduto.",
+            "min_order": "Il carrello non raggiunge la spesa minima richiesta da questo codice sconto.",
+            "exhausted": "Questo codice sconto è stato usato il numero massimo di volte.",
+            "already_used": "Hai già usato questo codice sconto.",
+            "not_first_order": "Questo codice sconto vale solo sul primo ordine.",
+            "not_yours": "Questo codice sconto non è disponibile per il tuo account.",
+            "no_eligible_products": "Nessun prodotto nel carrello rientra in questo codice sconto.",
+            "has_manual_discount": "Su questo carrello c'è già uno sconto: non si somma a un codice.",
+            "channel": "Questo codice sconto non vale per questo canale di vendita.",
+            "code_required": "Scrivi il codice del coupon.",
+            "code_taken": "Esiste già un coupon con questo codice (anche eliminato): scegline un altro.",
+            "percent_out_of_range": "La percentuale di sconto deve essere maggiore di 0 e al massimo 100.",
+            "amount_not_positive": "L'importo dello sconto deve essere maggiore di zero.",
+            "ends_before_starts": "Il coupon non può finire prima di cominciare.",
+            "type_not_allowed": "Questo tipo di coupon non si crea da qui.",
+            "customer_unknown": "Uno dei clienti scelti non esiste più.",
+            "duration_months_required": "Scrivi per quanti mesi vale il coupon sugli abbonamenti.",
+            "subscriptions_free_shipping": "La spedizione gratuita non vale per gli abbonamenti: scegli una percentuale o un importo.",
+            "not_for_subscriptions": "Questo codice sconto non vale per gli abbonamenti.",
+            "not_stackable": "Questo codice sconto non si somma agli altri già applicati.",
+            "already_applied": "Questo codice sconto è già applicato.",
+            "code_used": "Questo codice sconto è già stato usato.",
+            "batch_subscriptions": "I codici in blocco non valgono per gli abbonamenti: spegni «Per gli abbonamenti» su questo coupon.",
+            "batch_quantity": "Scegli quanti codici generare: da 1 a 10.000.",
+            "batch_prefix": "Il prefisso può avere al più 20 caratteri fra lettere, cifre, «-» e «_».",
+            "batch_failed": "Non sono riuscito a generare codici diversi da quelli esistenti: riprova con un altro prefisso."
+        },
+        "shipping": {
+            "no_method_for_destination": "Non spediamo verso questa destinazione.",
+            "not_available": "Il metodo di spedizione «{{method}}» non si può usare per questo ordine: {{reason}}.",
+            "reason_method": "Non è attivo o non è offerto per questo canale",
+            "reason_zone": "Non spedisce verso questa destinazione",
+            "reason_weight": "Non copre il peso della merce",
+            "reason_nothing": "Non c'è nulla da spedire",
+            "rate_no_brackets": "Il listino «{{zone}}» non ha nessuno scaglione di prezzo: scrivine almeno uno, oppure spegni il listino.",
+            "fixed_price_missing": "Il listino «{{zone}}» è a prezzo fisso ma non ha l'importo: scrivilo, oppure spegni il listino.",
+            "bracket_duplicate": "Il listino «{{zone}}» ha due scaglioni con lo stesso peso massimo.",
+            "bracket_weight": "Nel listino «{{zone}}» ogni scaglione di prezzo ha un peso massimo maggiore di zero.",
+            "bracket_amount": "Nel listino «{{zone}}» ogni scaglione ha un importo, e non è negativo.",
+            "excess_duplicate": "Il listino «{{zone}}» ha più di una tariffa al kg: ne basta una.",
+            "rate_negative": "Nel listino «{{zone}}» i valori (maggiorazione, minimo, soglie, contrassegno, divisore, arrotondamento) non possono essere negativi.",
+            "markup_out_of_range": "Nel listino «{{zone}}» il margine non può scendere sotto −100 %: il prezzo andrebbe sotto zero.",
+            "zone_no_areas": "Scrivi almeno un'area: un paese, e se serve una provincia.",
+            "area_duplicate": "L'area {{area}} è scritta due volte nella stessa zona.",
+            "carrier_in_use": "Questo corriere è su {{count}} metodi di spedizione: spegnilo invece di eliminarlo, oppure toglilo dai metodi.",
+            "zone_in_use": "Questa zona ha {{count}} listini accesi: toglila dai metodi di spedizione o spegni i listini, poi eliminala.",
+            "method_in_use": "Questo metodo è su {{count}} ordini o carrelli: spegnilo invece di eliminarlo.",
+            "area_country": "Il paese di un'area è una sigla di due lettere, per esempio IT. «{{country}}» non lo è."
+        },
+        "shipment": {
+            "feature_off": "Le spedizioni non sono attive: accendile dalle funzionalità.",
+            "order_not_open": "Questo ordine non si spedisce: deve essere confermato e con consegna a domicilio.",
+            "nothing_to_ship": "Scegli almeno un articolo da spedire, con una quantità maggiore di zero.",
+            "over_quantity": "Non puoi spedire più di quanto resta da spedire, né articoli che non fanno parte di questo ordine o che non si spediscono.",
+            "not_found": "Questa spedizione non esiste.",
+            "bad_transition": "Da questo stato la spedizione non può passare a quello richiesto.",
+            "tracking_required": "Con questo corriere serve il numero di tracking: il cliente lo usa per seguire il pacco.",
+            "bad_date": "La data di spedizione non è valida: scrivila come giorno, mese e anno.",
+            "not_pickup_point": "La sede scelta per questo ordine non è un punto di ritiro attivo.",
+            "location_closed": "La sede di ritiro è chiusa in questo momento.",
+            "pickup_exists": "Questo ordine ha già un ritiro in corso."
+        },
+        "batch": {
+            "expiry_mismatch": "Il lotto della riga {{row}} c'è già con un'altra scadenza ({{expiry}}): controlla il lotto o la data.",
+            "wrong_product": "Il lotto scelto nella riga {{row}} non è di quella versione: ricarica la pagina e sceglilo di nuovo.",
+            "in_use": "Questo lotto ha dei movimenti: non si elimina.",
+            "invalid_expiry": "La scadenza non è una data valida: scrivila come gg/mm/aaaa o lasciala vuota."
+        },
+        "catalog": {
+            "batches_in_stock": "Ci sono ancora pezzi in un lotto di questo articolo: scaricali prima di spegnere «Gestisci lotti e scadenze».",
+            "related_self": "Un articolo non si collega a sé stesso: togli la riga che lo nomina.",
+            "related_not_found": "L'articolo collegato {{id}} non esiste o è stato eliminato."
+        },
+        "plan": {
+            "name_required": "Scrivi il nome del piano.",
+            "no_prices": "Un piano ha almeno un prezzo.",
+            "price_name_required": "Ogni prezzo ha un nome: lascialo vuoto e si compone dall'addebito.",
+            "price_invalid": "Il prezzo «{{name}}» deve essere un numero, zero o più.",
+            "sale_not_lower": "Il prezzo scontato di «{{name}}» deve essere più basso del prezzo.",
+            "term_mismatch": "L'addebito di «{{name}}» non è valido: scegli da mensile ad annuale.",
+            "negative_period": "Vincolo e giorni di prova di «{{name}}» non possono essere negativi.",
+            "renewal_invalid": "Il prezzo di rinnovo di «{{name}}» deve essere un altro prezzo, già salvato, di un piano attivo.",
+            "price_in_use": "Il prezzo «{{name}}» è usato da un abbonamento e non si toglie: spegnilo.",
+            "in_use": "Il piano non si elimina, {{count}}: spegnilo.",
+            "feature_duplicate": "Il limite «{{key}}» è scritto due volte: tienine uno.",
+            "link_self": "Un piano non si lega a se stesso.",
+            "link_depth": "I legami vanno a un livello solo: un piano si lega a piani che non si legano a nulla, e un piano a cui altri si legano non si lega a sua volta.",
+            "has_children": "Il piano non si elimina: {{names}} si legano a lui. Togli il legame dalla loro scheda."
+        },
+        "subscription": {
+            "unavailable": "Gli abbonamenti online non sono disponibili in questo momento.",
+            "account_required": "Per abbonarti accedi al tuo account o creane uno.",
+            "interval_mismatch": "Questi servizi non si rinnovano insieme: la durata di ognuno deve essere un multiplo della più corta (mensile e annuale sì, bimestrale e trimestrale no).",
+            "limit_reached": "C'è già un abbonamento in corso ({{code}}): i servizi nuovi si aggiungono a quello, dalla sezione Abbonamenti.",
+            "price_unavailable": "Questo piano non è più disponibile: scegline un altro.",
+            "stripe_unavailable": "Il pagamento non si è aperto: riprova tra qualche minuto.",
+            "not_live": "Questo abbonamento non è in corso: non si può cambiare.",
+            "already_cancelled": "La disdetta di questo abbonamento è già registrata.",
+            "not_found": "Abbonamento non trovato.",
+            "customer_required": "Scegli il cliente dell'abbonamento.",
+            "items_required": "Aggiungi almeno un servizio all'abbonamento.",
+            "too_many_items": "Un abbonamento online ha al più {{max}} servizi: togline qualcuno.",
+            "parent_required": "Il servizio «{{name}}» si appoggia a un altro: scegli a quale.",
+            "parent_invalid": "Il servizio «{{name}}» non si appoggia a quello scelto.",
+            "item_not_live": "Questo servizio non è in corso: non si può cambiare.",
+            "item_committed": "Il servizio è in vincolo fino al {{date}}: si toglie a fine vincolo.",
+            "link_broken": "Il piano «{{name}}» non va con i legami di questa riga (il servizio a cui si appoggia o quelli che si appoggiano a lei): togli o cambia prima quelli.",
+            "last_item_online": "L'ultimo servizio di un abbonamento online non si toglie con il credito: disdici l'abbonamento.",
+            "stripe_failed": "Stripe non ha accettato la modifica: riprova tra qualche minuto."
+        },
+        "tax": {
+            "rule_missing": "Manca la regola IVA per «{{product}}»: paese {{country}}, cliente {{customer_type}}. Aggiungila fra le Regole IVA e riprova.",
+            "charge_without_goods": "La spedizione prende l'aliquota IVA della merce: aggiungi almeno un prodotto o togli la spedizione."
+        },
+        "mcp": {
+            "auth": {
+                "https": "Il server MCP risponde solo in HTTPS.",
+                "missing": "Manca il token: invia l'intestazione Authorization: Bearer <token>.",
+                "invalid": "Token non valido.",
+                "user": "L'utente di questo token non esiste o non è attivo.",
+                "token": "Token non valido, revocato o non attivo.",
+                "ip": "Questo token non vale da questo indirizzo IP.",
+                "domain": "Questo token non vale per questo dominio."
+            },
+            "invalid_request": "Richiesta JSON-RPC non valida.",
+            "object": "`{{field}}` deve essere un oggetto.",
+            "method": "Metodo non supportato: {{method}}.",
+            "unknown_tool": "Strumento sconosciuto: {{name}}.",
+            "forbidden": "Il token non ha il permesso per questa operazione.",
+            "scope": {
+                "catalog_read": "Leggere il catalogo: prodotti, prezzi, categorie, attributi e personalizzazioni",
+                "catalog_write": "Modificare il catalogo",
+                "stock_write": "Rettificare le giacenze",
+                "sales_read": "Leggere ordini e preventivi",
+                "sales_write": "Cambiare lo stato degli ordini e creare preventivi",
+                "contacts_read": "Leggere i clienti: anagrafica, contatti e indirizzi"
+            },
+            "disabled": "Il server MCP non è attivo.",
+            "internal": "Errore interno: riprova; se si ripete, guarda il log del server.",
+            "parse": "Il corpo della richiesta non è JSON valido.",
+            "nothing_to_change": "Nessun campo da modificare.",
+            "sale_price": "Il prezzo scontato deve essere minore del prezzo.",
+            "not_negative": "`{{field}}` deve essere un numero non negativo.",
+            "reason": "Causale non ammessa.",
+            "stock_unchanged": "La giacenza è già questa: nessun movimento.",
+            "main_category": "`main_category_id` deve essere tra le categorie scelte.",
+            "status": "Stato d'ordine non valido.",
+            "action_unavailable": "Azione non disponibile per questo ordine adesso. Disponibili: {{available}}.",
+            "action_failed": "Azione non riuscita.",
+            "product_not_found": "Prodotto {{id}} non trovato.",
+            "category_not_found": "Categoria {{id}} non trovata.",
+            "order_not_found": "Ordine {{id}} non trovato.",
+            "id": "`{{field}}` deve essere un id intero positivo.",
+            "required": "`{{field}}` è obbligatorio.",
+            "boolean": "`{{field}}` deve essere true o false.",
+            "category_loop": "Una categoria non può stare dentro sé stessa o dentro una sua sottocategoria.",
+            "save_failed": "Salvataggio non riuscito (campi: {{fields}}).",
+            "unit": "Unità di vendita non ammessa. Ammesse: {{units}}.",
+            "tax_category": "Tipo di IVA {{id}} non trovato o non visibile.",
+            "missing_fields": "Mancano campi obbligatori: {{fields}}. Chiedili all'utente, non inventarli.",
+            "feature_off": "La funzione `{{feature}}` non è attiva in questo gestionale.",
+            "attribute_not_found": "Attributo {{id}} non trovato.",
+            "attribute_type": "Tipo di attributo non ammesso. Ammessi: {{types}}.",
+            "attribute_no_values": "Solo gli attributi a elenco (select, color, pattern, icon) hanno valori: testo e numero no.",
+            "attribute_axis": "«{{name}}» crea le opzioni in vendita: si cambia dalla scheda dell'articolo, generando le opzioni.",
+            "attribute_level": "«{{name}}» va su un'opzione con foto, e questo prodotto non ne ha una.",
+            "attribute_single": "«{{name}}» ha un solo valore: passa un testo o un numero, non un elenco.",
+            "attribute_number": "«{{name}}» vuole un numero.",
+            "value_not_found": "Valore {{id}} non trovato tra quelli dell'attributo {{attribute}}.",
+            "customization_not_found": "Personalizzazione {{id}} non trovata.",
+            "customization_options": "Solo una personalizzazione di tipo `choice` ha opzioni.",
+            "option_not_found": "Opzione {{id}} non trovata tra quelle della personalizzazione.",
+            "quotes_disabled": "I preventivi non sono attivi in questo gestionale.",
+            "quote_not_found": "Preventivo {{id}} non trovato.",
+            "customer_not_found": "Cliente {{id}} non trovato tra i contatti."
+        }
+    },
+    "emails": {
+        "order": {
+            "received": {
+                "subject": "Abbiamo ricevuto il tuo ordine :number",
+                "title": "Grazie, l'ordine è arrivato",
+                "intro": "Abbiamo registrato il tuo ordine :number del :date. Appena il pagamento risulta, te lo confermiamo."
+            },
+            "processing": {
+                "subject": "Abbiamo ricevuto il tuo ordine :number",
+                "title": "Grazie, l'ordine è arrivato",
+                "intro": "Abbiamo registrato il tuo ordine :number del :date. Il pagamento è in elaborazione: appena la banca lo conferma, te lo scriviamo."
+            },
+            "paid": {
+                "subject": "Abbiamo ricevuto il pagamento dell'ordine :number",
+                "title": "Grazie, il pagamento è arrivato",
+                "intro": "Abbiamo ricevuto il pagamento dell'ordine :number del :date."
+            },
+            "confirmed": {
+                "subject": "Ordine :number confermato",
+                "title": "Ordine confermato",
+                "intro": "Il pagamento è a posto: prepariamo l'ordine :number."
+            },
+            "quote_sent": {
+                "subject": "Preventivo :quote",
+                "title": "Il tuo preventivo",
+                "intro": "Ti mandiamo il preventivo :quote, valido fino al :expires: lo trovi in allegato. Per accettarlo rispondi a questa email."
+            },
+            "office_confirmed": {
+                "subject": "Ordine :number confermato",
+                "title": "Ordine confermato",
+                "intro": "Abbiamo confermato l'ordine :number: in allegato trovi la conferma, con le scadenze dei pagamenti."
+            },
+            "delivery_note_sent": {
+                "subject": "Documento di trasporto :ddt",
+                "title": "Documento di trasporto",
+                "intro": "In allegato il documento di trasporto :ddt della merce dell'ordine :number."
+            },
+            "reminder": {
+                "subject": "L'ordine :number aspetta il pagamento",
+                "title": "Manca il pagamento",
+                "intro": "L'ordine :number è ancora in attesa. Teniamo la merce da parte fino al :deadline, poi lo annulliamo."
+            },
+            "cancelled": {
+                "subject": "Ordine :number annullato",
+                "title": "Ordine annullato",
+                "intro": "L'ordine :number è stato annullato. Se avevi già pagato, ti restituiamo l'importo."
+            },
+            "shipped": {
+                "subject": "L'ordine :number è in viaggio",
+                "title": "Il tuo ordine è partito",
+                "intro": "Abbiamo affidato al corriere l'ordine :number. Se hai ordinato più articoli, il resto può arrivare con un'altra spedizione.",
+                "carrier_line": "Corriere: :carrier",
+                "tracking_line": "Numero di tracking: :tracking"
+            },
+            "ready_for_pickup": {
+                "subject": "L'ordine :number è pronto per il ritiro",
+                "title": "Il tuo ordine ti aspetta",
+                "intro": "L'ordine :number è pronto: puoi passare a ritirarlo.",
+                "location_line": "Dove: :location"
+            },
+            "merchant_new": {
+                "subject": "Nuovo ordine :number",
+                "title": "È arrivato un ordine",
+                "intro": "Ordine :number del :date, :total. Metodo di pagamento: :method."
+            },
+            "merchant_paid": {
+                "subject": "Nuovo ordine :number pagato: da confermare",
+                "title": "È arrivato un ordine pagato",
+                "intro": "Ordine :number del :date, :total, pagato con :method. Controlla che la merce ci sia e confermalo dal backend: il cliente riceve la conferma solo allora."
+            },
+            "merchant_cancelled": {
+                "subject": "Ordine :number annullato per mancato pagamento",
+                "title": "Ordine annullato",
+                "intro": "L'ordine :number è scaduto senza pagamento: la merce è tornata disponibile."
+            },
+            "account": {
+                "title": "Crea la tua password per seguire i tuoi ordini",
+                "button": "Scegli la password"
+            },
+            "link": {
+                "customer": "Vedi l'ordine",
+                "merchant": "Apri l'ordine nel gestionale"
+            },
+            "bank": {
+                "title": "Dati per il bonifico",
+                "holder": "Intestatario",
+                "bank_name": "Banca",
+                "iban": "IBAN",
+                "bic": "BIC/SWIFT",
+                "reference": "Causale",
+                "reference_value": "Ordine :number"
             }
         },
-        "errors": {
-            "import": {
-                "sku_column": "Manca la colonna «SKU»: è quella che dice quale prodotto aggiornare.",
-                "price_tax_included": "I prezzi del negozio sono IVA esclusa, ma la colonna del prezzo dice «IVA inclusa»: scarica di nuovo il file e riprova.",
-                "price_tax_excluded": "I prezzi del negozio sono IVA inclusa, ma la colonna del prezzo dice «IVA esclusa»: scarica di nuovo il file e riprova.",
-                "sku_missing": "Manca lo SKU: scrivilo per aggiornare o creare il prodotto.",
-                "sku_duplicate": "Questo SKU compare già alla riga {{line}}: tienine una sola.",
-                "sku_ambiguous": "Questo SKU è usato da più prodotti del catalogo: ricarica il file esportato con la colonna «ID», oppure correggi lo SKU dal backend.",
-                "sku_taken": "Questo SKU è già di un altro prodotto del catalogo: scegline uno diverso.",
-                "group_mismatch": "Questo SKU appartiene all'articolo {{group}}: il codice articolo del file è diverso.",
-                "type_change": "Il tipo di un articolo che esiste già non si cambia da file.",
-                "type_new": "Da file si creano solo prodotti di tipo «Prodotto»: multiprodotti e abbonamenti si creano dal backend.",
-                "version_type": "A un multiprodotto o a un abbonamento non si aggiungono versioni da file.",
-                "article_missing": "Manca il nome dell'articolo: scrivilo per creare il prodotto.",
-                "number": "«{{column}}» non è un numero.",
-                "negative": "«{{column}}» non può essere negativo.",
-                "boolean": "«{{column}}» si scrive Sì o No.",
-                "sale_price": "Il prezzo scontato deve essere più basso del prezzo.",
-                "unit": "Unità di misura sconosciuta: usa una fra {{units}}.",
-                "available_type": "La giacenza di un multiprodotto o di un abbonamento non si cambia da file: lascia la colonna com'era.",
-                "image_https": "L'indirizzo dell'immagine deve cominciare con https://.",
-                "image_type": "L'immagine deve essere PNG, JPG o WebP.",
-                "image_save": "Non sono riuscito a salvare l'immagine: riprova più tardi.",
-                "image_download": "Non sono riuscito a scaricare l'immagine: controlla l'indirizzo.",
-                "image_size": "L'immagine supera gli 8 MB.",
-                "product_missing": "Questo prodotto non esiste più: scarica di nuovo il file.",
-                "model_missing": "Questo articolo non esiste più: scarica di nuovo il file.",
-                "save_failed": "Non sono riuscito a salvare la riga: riprova.",
-                "list_missing": "Manca il listino: scrivi il nome o l'ID.",
-                "list_unknown": "Il listino «{{list}}» non esiste: crealo prima dal backend.",
-                "list_ambiguous": "Ci sono più listini che si chiamano «{{list}}»: scrivi l'ID.",
-                "sku_unknown": "Lo SKU «{{sku}}» non è di nessun prodotto del catalogo.",
-                "min_quantity": "La quantità minima deve essere un numero più grande di zero.",
-                "list_price": "Il prezzo deve essere un numero, zero o più.",
-                "list_row_duplicate": "Lo stesso prezzo (listino, SKU e quantità) compare già alla riga {{line}}: tienine una sola.",
-                "list_row_missing": "Questa riga di listino non esiste più: carica di nuovo il file."
+        "subscription": {
+            "confirmed": {
+                "subject": "Abbonamento :plan attivato",
+                "title": "Abbonamento attivato",
+                "intro": "Grazie: il tuo abbonamento :plan è attivo.",
+                "trial_line": "La prova gratuita dura fino al :trial: fino ad allora non paghi niente.",
+                "renewal_line": "Il prossimo rinnovo è il :renewal.",
+                "button": "Vedi il tuo abbonamento"
             },
-            "stock": {
-                "insufficient": "Non c'è abbastanza giacenza di {{product}}.",
-                "zero_quantity": "Questa rettifica non cambia niente: scrivi una quantità diversa da quella di adesso.",
-                "unknown_reason": "Scegli una causale per questo movimento.",
-                "product_missing": "Questa opzione in vendita non esiste più: ricarica la pagina e riprova.",
-                "no_location": "Manca la sede del magazzino: apri Set Up → Sedi e salva la sede principale.",
-                "quantity_missing": "Scrivi quanti pezzi: la casella è vuota.",
-                "location_duplicate": "La sede {{location}} compare due volte nelle righe della giacenza: tienine una sola.",
-                "location_unknown": "Una riga della giacenza punta a una sede che non è più del magazzino: ricarica la pagina e riprova."
+            "payment_failed": {
+                "subject": "Il rinnovo di :plan non è riuscito",
+                "title": "Rinnovo non riuscito",
+                "intro": "Non siamo riusciti ad addebitare il rinnovo del tuo abbonamento :plan. Riproveremo nei prossimi giorni: intanto controlla la carta.",
+                "button": "Aggiorna la carta"
             },
-            "feature": {
-                "multi_location_in_use": "«Più sedi» non si spegne: {{where}}. Riporta la merce nella sede principale con un trasferimento e ricevi quelli in viaggio, poi riprova.",
-                "products_in_use": "«Prodotto» non si spegne: {{count}} nel catalogo. Eliminali, poi riprova.",
-                "subscriptions_in_use": "«Abbonamenti» non si spegne: {{count}}. Aspetta che finiscano, poi riprova.",
-                "variants_in_use": "«Varianti» non si spegne: {{count}}. Lascia una versione sola a ogni articolo, poi riprova."
+            "cancel_requested": {
+                "subject": "Disdetta di :plan registrata",
+                "title": "Disdetta registrata",
+                "intro": "Abbiamo registrato la disdetta del tuo abbonamento :plan: resta attivo fino al :end, poi non si rinnova.",
+                "button": "Vedi il tuo abbonamento"
             },
-            "stock_document": {
-                "not_found": "Questo documento di magazzino non esiste più.",
-                "not_draft": "Questo documento è già stato confermato o annullato: non si modifica più. Per correggerlo annullalo e duplicalo.",
-                "cannot_cancel": "Si annulla solo un documento confermato (o un trasferimento in viaggio).",
-                "cannot_delete": "Si elimina solo una bozza: un documento confermato si annulla.",
-                "unknown_type": "Questo tipo di documento non c'è.",
-                "reason_required": "Scegli la causale dello scarico.",
-                "unknown_reason": "Questa causale non va con questo documento.",
-                "no_rows": "Aggiungi almeno una riga.",
-                "nothing_counted": "Scrivi il numero contato di almeno una riga.",
-                "quantity_required": "La riga {{row}} non ha pezzi: scrivi un numero maggiore di zero.",
-                "invalid_quantity": "La riga {{row}} ha una quantità che non va: scrivi solo cifre, da zero a 9.999.999.",
-                "duplicate_product": "La stessa versione compare due volte (riga {{row}}): tienine una sola.",
-                "too_many_rows": "Un documento tiene al massimo 500 righe: dividilo in due.",
-                "invalid_lines": "Le righe non si sono lette: ricarica la pagina e riprova.",
-                "expired": "La pagina è scaduta: ricaricala e riprova.",
-                "location_unknown": "La sede scelta non è più del magazzino: ricarica la pagina e riprova.",
-                "invalid_cost": "La riga {{row}} ha un costo che non va: scrivi un numero da zero in su, per esempio 2,50.",
-                "invalid_rate": "La riga {{row}} ha un'aliquota IVA che non va: scrivi un numero da 0 a 100, per esempio 22.",
-                "invalid_date": "La data del documento del fornitore non va: sceglila dal calendario.",
-                "supplier_unknown": "Il fornitore scelto non c'è più fra i fornitori: ricarica la pagina e scegline un altro.",
-                "duplicate_batch": "La stessa versione con lo stesso lotto compare due volte (riga {{row}}): tienine una sola, o cambia il lotto.",
-                "invalid_expiry": "La scadenza della riga {{row}} non va: sceglila dal calendario.",
-                "batch_required": "La riga {{row}} è di un articolo con i lotti: scrivi il lotto.",
-                "transfer_destination_required": "Scegli la sede d'arrivo del trasferimento.",
-                "transfer_same_location": "Partenza e arrivo sono la stessa sede: scegli una sede d'arrivo diversa.",
-                "cannot_receive": "Si riceve solo un trasferimento in viaggio.",
-                "transfer_moved": "La merce non è più tutta nella sede d'arrivo: una parte è già uscita, e il trasferimento non si annulla. Riportala con un trasferimento nuovo."
+            "proforma": {
+                "subject": "Abbonamento :plan: proforma del periodo :period",
+                "title": "Il tuo abbonamento si rinnova",
+                "intro": "In allegato il proforma del periodo :period del tuo abbonamento :plan: :total, con le scadenze e le coordinate per il pagamento."
             },
-            "delivery_note": {
-                "not_found": "Questo DDT non c'è più.",
-                "not_draft": "Questo DDT è già emesso: non si modifica più. Puoi annullarlo e farne un altro.",
-                "not_issued": "Si manda solo un DDT emesso.",
-                "cannot_cancel": "Si annulla solo un DDT emesso.",
-                "order_not_ready": "Il DDT si fa da un ordine confermato: prima conferma l'ordine.",
-                "nothing_to_deliver": "Non c'è niente da mettere nel DDT: le righe di quest'ordine sono già tutte in DDT emessi.",
-                "no_rows": "Il DDT non ha righe: almeno una quantità deve essere maggiore di zero.",
-                "invalid_quantity": "La quantità di «{{name}}» non va: scrivi un numero da zero in su.",
-                "too_much": "Di «{{name}}» puoi consegnare al massimo {{max}}: il resto è già in altri DDT emessi.",
-                "invalid_weight": "Il peso non va: scrivi i chili con la virgola, per esempio 12,5.",
-                "invalid_date": "La data d'inizio del trasporto non va: sceglila dal calendario."
-            },
-            "quote": {
-                "not_found": "Questo preventivo non c'è più.",
-                "not_editable": "Questo preventivo è già stato accettato: è diventato un ordine e si modifica da lì.",
-                "invalid_expiry": "La validità del preventivo non va: sceglila dal calendario.",
-                "cannot_send": "Si invia un preventivo da inviare: questo è già accettato, rifiutato o scaduto. Modificalo per riaprirlo.",
-                "cannot_accept": "Si accetta un preventivo inviato o ancora in bozza.",
-                "cannot_reject": "Si rifiuta solo un preventivo inviato.",
-                "cannot_delete": "Un preventivo già inviato non si elimina: il cliente ha il suo PDF. Rifiutalo o lascialo scadere."
-            },
-            "office_order": {
-                "too_many_rows": "Un ordine tiene al massimo {{max}} righe: dividilo in due.",
-                "invalid_lines": "Le righe non si sono lette: ricarica la pagina e riprova.",
-                "name_required": "La riga {{row}} è una riga libera: scrivi cosa vendi.",
-                "price_required": "La riga {{row}} è una riga libera: scrivi il prezzo.",
-                "quantity_required": "La riga {{row}} non ha quantità: scrivi un numero maggiore di zero.",
-                "invalid_quantity": "La riga {{row}} ha una quantità che non va: scrivi un numero maggiore di zero, per esempio 2 o 1,5.",
-                "invalid_price": "La riga {{row}} ha un prezzo che non va: scrivi un numero da zero in su, per esempio 12,50.",
-                "invalid_discount": "Lo sconto della riga {{row}} non va: un importo da zero in su, o una percentuale fino a 100.",
-                "invalid_order_discount": "Lo sconto sul totale non va: un importo da zero in su, o una percentuale fino a 100.",
-                "invalid_fulfillment": "Scegli come arriva la merce: spedizione, ritiro o nessuna consegna.",
-                "not_draft": "Quest'ordine è già confermato: non si modifica più. Puoi annullarne delle righe.",
-                "customer_required": "Scegli il cliente dell'ordine.",
-                "no_rows": "Aggiungi almeno una riga con un prodotto o una riga libera.",
-                "address_required": "L'ordine si spedisce: scrivi l'indirizzo di consegna (via, città e paese).",
-                "billing_required": "Completa la fatturazione del cliente (intestatario, via, città e paese) prima di confermare.",
-                "out_of_stock": "Di «{{name}}» ne hai {{available}} e l'ordine ne chiede {{wanted}}: l'ordine non si conferma. Carica la merce, riduci la riga o toglila.",
-                "customer_unknown": "Il cliente scelto non c'è più: ricarica la pagina e sceglilo di nuovo.",
-                "product_unknown": "Una versione dell'ordine non si vende più: «{{name}}». Toglila e riprova.",
-                "customization_required": "«{{name}}» chiede una personalizzazione: da ufficio non si sceglie ancora. Vendilo come riga libera.",
-                "bundle_choice_required": "«{{name}}» è un multiprodotto con scelte: da ufficio non si sceglie ancora. Vendilo come riga libera.",
-                "cannot_delete": "Si elimina solo una bozza: un ordine confermato si annulla.",
-                "invalid_cancel": "La quantità da annullare di «{{name}}» non va: scrivi un numero da zero in su.",
-                "cancel_too_much": "Di «{{name}}» puoi annullare al massimo {{max}}: il resto è già partito o annullato.",
-                "nothing_to_cancel": "Scrivi la quantità da annullare di almeno una riga.",
-                "not_cancellable": "Si annullano righe solo di un ordine confermato e non ancora chiuso."
-            },
-            "order": {
-                "zero_quantity": "Una riga d'ordine deve avere una quantità maggiore di zero.",
-                "reservation_lost": "I pezzi che avevi messo da parte non ci sono più: l'ordine resta in attesa e ti scriviamo appena rientrano.",
-                "not_found": "Questo ordine non esiste più.",
-                "not_an_order": "Questo è ancora un carrello: non ha uno stato da cambiare.",
-                "cancelled_cannot_confirm": "L'ordine è stato annullato e non si può confermare.",
-                "completed_cannot_cancel": "L'ordine è chiuso: per disfarlo serve un reso.",
-                "not_reopenable": "Questo ordine non si può più modificare: è già pagato o non è più in attesa.",
-                "payment_in_progress": "Il pagamento di questo ordine è già partito: non si può più modificare.",
-                "reopen_retry": "Non riusciamo a modificare l'ordine in questo momento: riprova tra poco.",
-                "unknown_fulfillment": "«{{status}}» non è uno stato di evasione.",
-                "empty_cart": "Il carrello è vuoto.",
-                "payment_method_unavailable": "Questo metodo di pagamento non è disponibile.",
-                "invalid_details": "Alcuni dati dell'ordine non sono validi: {{fields}}. Controllali e riprova.",
-                "address_incomplete": "Per la spedizione servono almeno la città e l'indirizzo.",
-                "pickup_location_unavailable": "La sede di ritiro scelta non è disponibile: scegline un'altra.",
-                "shipping_method_required": "Scegli come spedire l'ordine.",
-                "shipping_unavailable": "Non spediamo all'indirizzo indicato: cambialo o scegli il ritiro in sede."
-            },
-            "cart": {
-                "not_opened": "Non è stato possibile aprire il carrello. Riprova.",
-                "not_a_cart": "Questo ordine non è più un carrello e non si può modificare.",
-                "product_unavailable": "Questo articolo non è più in vendita.",
-                "not_enough_stock": "Di «{{name}}» restano {{available}} pezzi.",
-                "item_not_found": "Questa riga non è nel tuo carrello.",
-                "child_line": "Questa riga fa parte di un multiprodotto: cambia o togli il multiprodotto, non il suo componente."
-            },
-            "payment": {
-                "zero_amount": "Un pagamento deve avere un importo maggiore di zero.",
-                "reference_other_order": "Questo riferimento del gateway è già di un altro ordine: controlla la notifica prima di registrare l'incasso.",
-                "unknown_provider": "Il gateway «{{provider}}» non è fra quelli che gestiamo: scegli Stripe, PayPal, Nexi o un incasso a mano.",
-                "already_paid": "Questo pagamento è già incassato: non si può dichiarare fallito. Se i soldi sono tornati indietro, registra un rimborso.",
-                "future_date": "La data dell'incasso è nel futuro: indica il giorno in cui il denaro è arrivato, oggi o prima.",
-                "invalid_date": "La data dell'incasso non è valida: usa il formato anno-mese-giorno, per esempio 2026-10-01.",
-                "over_balance": "L'importo supera quanto resta da incassare ({{residuo}}): scrivi al massimo quella cifra.",
-                "order_closed": "Quest'ordine è annullato: non si registrano incassi.",
-                "installment_not_pending": "Questa rata non è più in attesa: forse è già stata pagata o annullata. Ricarica la pagina.",
-                "reference_used": "Questo riferimento è già su un altro incasso: controlla il numero di CRO o di operazione."
-            },
-            "generic": "Operazione non riuscita. Riprova, e se continua avvisa chi ti segue.",
-            "tag": {
-                "name_required": "Scrivi il nome del tag."
-            },
-            "faq": {
-                "question_required": "Scrivi la domanda.",
-                "answer_required": "Scrivi la risposta."
-            },
-            "selection": {
-                "name_required": "Scrivi il nome della selezione.",
-                "source_category_required": "Scegli almeno una categoria da cui prendere gli articoli.",
-                "source_tag_required": "Scegli almeno un tag da cui prendere gli articoli.",
-                "source_brand_required": "Scegli almeno un marchio da cui prendere gli articoli."
-            },
-            "brand": {
-                "name_required": "Scrivi il nome del marchio."
-            },
-            "category": {
-                "name_required": "Scrivi il nome della categoria.",
-                "loop": "Una categoria non può stare sotto sé stessa o sotto una sua sottocategoria.",
-                "parent_missing": "La categoria padre scelta non esiste più: ricarica la pagina e riprova."
-            },
-            "attribute": {
-                "type_locked": "Questo attributo ha dei valori: eliminali prima di cambiargli tipo.",
-                "level_locked": "Questo attributo è già su degli articoli: per cambiarne l'uso crea un attributo nuovo.",
-                "text_level": "Un Testo o un Numero non crea opzioni: scegli «Scheda tecnica dell'articolo» o «Scheda tecnica di ogni opzione».",
-                "quick_name": "Scrivi il nome della caratteristica.",
-                "quick_type": "Da qui nascono solo caratteristiche Testo o Numero. Elenchi, Colori, Fantasie e Icone si creano da Catalogo → Attributi, perché hanno valori e immagini da preparare.",
-                "quick_unit": "Scegli un'unità di misura dall'elenco, o nessuna."
-            },
-            "customization": {
-                "required": "Compila questo campo.",
-                "too_long": "Al massimo {{max}} caratteri.",
-                "bad_option": "Scegli una delle opzioni proposte.",
-                "unknown": "Questo campo non appartiene all'articolo.",
-                "unavailable": "«{{name}}» chiede una personalizzazione che al momento non si può scegliere.",
-                "max_length": "Scrivi quanti caratteri si possono usare, da 1 a 1000.",
-                "decimals": "Scrivi quanti decimali può avere il numero, da 0 a 6.",
-                "not_number": "Scrivi un numero, senza segno né unità di misura.",
-                "whole_number": "Scrivi un numero intero, senza decimali.",
-                "too_many_decimals": "Al massimo {{max}} decimali.",
-                "few_options": "Una scelta ha bisogno di almeno due opzioni.",
-                "surcharge": "Il sovrapprezzo non può essere negativo.",
-                "kind": "Scegli se è un testo, un numero o una scelta.",
-                "in_use": "È collegata ad articoli o piani ({{count}}) e non si elimina: disattivala, e non si propone più.",
-                "quick_name": "Scrivi il nome della personalizzazione.",
-                "link_target": "Un collegamento va a un articolo oppure a un piano, non a tutti e due né a nessuno.",
-                "scope_required": "Accendi almeno uno fra «Per i prodotti» e «Per gli abbonamenti».",
-                "linked_products": "È collegata ad articoli ({{count}}): toglila dalle loro schede prima di spegnere «Per i prodotti».",
-                "linked_plans": "È collegata a piani d'abbonamento ({{count}}): toglila dalle loro schede prima di spegnere «Per gli abbonamenti».",
-                "not_for_products": "«{{name}}» non è per i prodotti: accendi «Per i prodotti» nella sua scheda.",
-                "not_for_subscriptions": "«{{name}}» non è per gli abbonamenti: accendi «Per gli abbonamenti» nella sua scheda."
-            },
-            "product": {
-                "products_off": "«Prodotto» è spento nelle Funzionalità: accendilo per creare un prodotto singolo.",
-                "sku_taken": "Questo SKU è già in catalogo, su un altro articolo o su un'altra opzione in vendita: cambialo.",
-                "ean_invalid": "L'EAN deve avere 8 o 13 cifre.",
-                "ean_taken": "Questo EAN è già di un'altra opzione in vendita.",
-                "one_page_option": "Un articolo può avere un solo attributo «Opzione con foto proprie»: togli le spunte di uno dei due.",
-                "no_versions": "Un articolo deve avere almeno un'opzione in vendita.",
-                "has_movements": "Questo articolo ha movimenti di magazzino e non si elimina: mettilo su «Nascosto» se non lo vendi più.",
-                "in_orders": "Questo multiprodotto è già in degli ordini e non si elimina: mettilo su «Nascosto» se non lo vendi più.",
-                "stock_negative": "La giacenza non può essere un numero negativo: scrivi quanti pezzi ci sono davvero.",
-                "min_stock_invalid": "La scorta minima è un numero di pezzi, zero o più: con zero non arriva nessun avviso.",
-                "backorder_lead_days_invalid": "I giorni di attesa vanno da 0 a 365.",
-                "supplier_missing": "Scegli il fornitore di questa riga, o togli codice e costo.",
-                "supplier_invalid": "Il fornitore scelto non c'è più, o non è più un fornitore attivo: ricarica la pagina e riprova.",
-                "supplier_cost_negative": "Il costo d'acquisto non può essere negativo: lascialo vuoto se non lo sai.",
-                "supplier_cost_invalid": "Il costo d'acquisto non è un numero: scrivilo come 12,50, o lascialo vuoto se non lo sai.",
-                "supplier_cost_too_high": "Il costo d'acquisto arriva al massimo a 99.999.999,99 €: controlla le cifre.",
-                "supplier_sku_too_long": "Il codice del fornitore arriva al massimo a {{max}} caratteri: accorcialo.",
-                "supplier_duplicate": "{{supplier}} compare due volte: tieni una riga sola per fornitore."
-            },
-            "contact": {
-                "vat_taken": "Questa partita IVA è già di {{contact}}: apri quella scheda invece di crearne un'altra.",
-                "tax_code_taken": "Questo codice fiscale è già di {{contact}}.",
-                "email_taken": "Questa email è già di {{contact}}.",
-                "no_role": "Di' se è un cliente, un fornitore o tutti e due.",
-                "vat_collectability_invalid": "Esigibilità IVA non valida: scegli I, D, S o lascia la predefinita.",
-                "has_account": "Questa scheda ha un account sul sito e non si elimina: mettila su «Non attiva» se non lavori più con lei.",
-                "supplier_in_use": "Questo fornitore ha ancora dei costi d'acquisto su articoli o opzioni in vendita ({{count}}) e non si elimina: metti la scheda su «Non attiva» se non lavori più con lui.",
-                "supplier_role_in_use": "Questa scheda è ancora il fornitore di articoli o opzioni in vendita ({{count}}): toglila dai loro fornitori prima di cambiarle ruolo, o mettila su «Non attiva»."
-            },
-            "settings": {
-                "batch_expiry_days_invalid": "I giorni prima della scadenza vanno da 0 a 3650.",
-                "payment_due_days_invalid": "I giorni di preavviso per le scadenze vanno da 0 a 365.",
-                "quote_validity_days_invalid": "La validità dei preventivi va da 1 a 365 giorni.",
-                "email_invalid": "«{{email}}» non è un indirizzo email: correggilo o toglilo.",
-                "subscription_unpaid_days_invalid": "I giorni prima di «non pagato» vanno da 1 a 365.",
-                "subscriptions_per_customer_invalid": "Gli abbonamenti in corso per cliente sono un numero intero da 0 (senza limite) in su."
-            },
-            "payment_method": {
-                "in_use": "Questo metodo è già su ordini o pagamenti ({{count}}) e non si elimina: mettilo su «Non attivo» e non si propone più."
-            },
-            "payment_account": {
-                "in_use": "Questo conto è collegato a dei metodi di pagamento ({{count}}) e non si elimina: scollegalo dai metodi, oppure mettilo su «Non attivo».",
-                "invalid_iban": "L'IBAN non è valido: servono da 15 a 34 tra lettere e cifre, senza altri segni."
-            },
-            "payment_term": {
-                "no_installments": "Serve almeno una rata: aggiungi i giorni e la percentuale.",
-                "invalid_days": "Rata {{row}}: i giorni sono un numero intero da 0 a {{max}}.",
-                "invalid_percentage": "Rata {{row}}: la percentuale va da più di 0 a 100.",
-                "percentages_sum": "Le percentuali delle rate fanno {{sum}}%: devono fare 100%.",
-                "in_use": "Questa condizione è usata da ordini, clienti o pagamenti ({{count}}) e non si elimina: mettila su «Non attiva»."
-            },
-            "price_list": {
-                "invalid_currency": "La valuta è un codice di tre lettere, per esempio EUR.",
-                "invalid_dates": "La fine della validità viene prima dell'inizio.",
-                "item_no_product": "Riga {{row}}: scegli il prodotto.",
-                "item_invalid": "Riga {{row}}: la quantità minima è più di 0 e il prezzo non è negativo.",
-                "item_duplicate": "Riga {{row}}: quel prodotto ha già uno scaglione con la stessa quantità minima.",
-                "in_use": "Questo listino è assegnato a clienti, ordini o canali ({{count}}) e non si elimina: mettilo su «Non attivo» oppure toglilo dai canali.",
-                "invalid_markup": "Il ricarico è una percentuale da più di 0 a 999.",
-                "invalid_discount": "Lo sconto è una percentuale da più di 0 a meno di 100.",
-                "channel_taken": "Il canale «{{channel}}» ha già il listino «{{list}}»: toglilo da lì prima di assegnarlo a questo.",
-                "import_format": "Il file va caricato in formato .xlsx o .csv.",
-                "import_unreadable": "Il file non si legge: scaricalo di nuovo dal listino e riprova.",
-                "import_too_many": "Il file ha più di {{max}} righe: dividilo in più listini.",
-                "import_no_sku": "Riga {{row}} del file: manca lo SKU.",
-                "import_unknown_sku": "Riga {{row}} del file: nessun prodotto ha lo SKU «{{sku}}».",
-                "import_invalid_number": "Riga {{row}} del file: la quantità minima è più di 0 e il prezzo non è negativo.",
-                "import_duplicate": "Riga {{row}} del file: lo SKU «{{sku}}» ha già uno scaglione con la stessa quantità minima.",
-                "import_empty": "Il file non ha righe: il listino resta com'era."
-            },
-            "return": {
-                "order_not_returnable": "Su quest'ordine non si può registrare un reso: serve un ordine confermato, in lavorazione o completato, con i resi attivi.",
-                "nothing_selected": "Scrivi la quantità di almeno una riga: non c'è niente da rendere.",
-                "line_not_returnable": "Una delle righe non è un prodotto di quest'ordine: ricarica la pagina e riprova.",
-                "over_quantity": "Di {{product}} se ne possono rendere al massimo {{max}}: il resto è già stato reso.",
-                "unknown_reason": "Scegli il motivo del reso per ogni riga.",
-                "not_found": "Questo reso non esiste più.",
-                "cannot_complete": "Solo un reso ricevuto si può chiudere.",
-                "cannot_cancel": "Solo un reso ricevuto si può annullare.",
-                "already_restocked": "La merce di questo reso è già rientrata a magazzino: per correggere la giacenza usa una rettifica in Magazzino.",
-                "invalid_quantity": "La quantità di {{product}} non è valida: scrivi un numero maggiore di zero, oppure lascia la casella vuota."
-            },
-            "bundle": {
-                "unknown_mode": "Scegli se il multiprodotto è fisso, a scelta o misto.",
-                "no_components": "Aggiungi almeno un prodotto alla composizione.",
-                "no_groups": "Aggiungi almeno un gruppo di scelta.",
-                "zero_quantity": "La quantità di ogni prodotto deve essere maggiore di zero.",
-                "duplicate_product": "Lo stesso prodotto compare due volte nello stesso elenco.",
-                "group_range": "Nel gruppo «{{name}}» il minimo e il massimo non tornano: il minimo parte da 0, il massimo da 1, il minimo non supera il massimo e il massimo non supera le opzioni.",
-                "group_name": "Scrivi il nome del gruppo.",
-                "negative_surcharge": "Il sovrapprezzo non può essere negativo.",
-                "unknown_option": "Una delle scelte non appartiene a questo multiprodotto.",
-                "too_few": "«{{name}}»: scegli almeno {{min}}.",
-                "too_many": "«{{name}}»: scegli al massimo {{max}}.",
-                "not_bundle": "Questo articolo non è un multiprodotto.",
-                "component_unavailable": "«{{name}}» non è più in vendita, e la confezione non si può comporre.",
-                "nested": "«{{name}}» è già un multiprodotto, e un multiprodotto non entra in un altro.",
-                "options_invalid": "Le opzioni di un gruppo non sono leggibili: riaprile e salva di nuovo.",
-                "feature_off": "I multiprodotti sono spenti: attiva la funzionalità per venderli.",
-                "in_use": "«{{name}}» fa parte di multiprodotti ({{bundles}}): toglilo prima dalla loro composizione."
-            },
-            "campaign": {
-                "ends_before_starts": "La campagna non può finire prima di cominciare.",
-                "percent_out_of_range": "La percentuale di sconto deve essere maggiore di 0 e al massimo 100.",
-                "amount_negative": "L'importo dello sconto deve essere maggiore di zero.",
-                "scope_empty": "Scegli a quali prodotti si applica la campagna, oppure «tutto il catalogo»."
-            },
-            "coupon": {
-                "unknown": "Questo codice sconto non esiste.",
-                "inactive": "Questo codice sconto non è attivo.",
-                "not_started": "Questo codice sconto non è ancora valido.",
-                "expired": "Questo codice sconto è scaduto.",
-                "min_order": "Il carrello non raggiunge la spesa minima richiesta da questo codice sconto.",
-                "exhausted": "Questo codice sconto è stato usato il numero massimo di volte.",
-                "already_used": "Hai già usato questo codice sconto.",
-                "not_first_order": "Questo codice sconto vale solo sul primo ordine.",
-                "not_yours": "Questo codice sconto non è disponibile per il tuo account.",
-                "no_eligible_products": "Nessun prodotto nel carrello rientra in questo codice sconto.",
-                "has_manual_discount": "Su questo carrello c'è già uno sconto: non si somma a un codice.",
-                "channel": "Questo codice sconto non vale per questo canale di vendita.",
-                "code_required": "Scrivi il codice del coupon.",
-                "code_taken": "Esiste già un coupon con questo codice (anche eliminato): scegline un altro.",
-                "percent_out_of_range": "La percentuale di sconto deve essere maggiore di 0 e al massimo 100.",
-                "amount_not_positive": "L'importo dello sconto deve essere maggiore di zero.",
-                "ends_before_starts": "Il coupon non può finire prima di cominciare.",
-                "type_not_allowed": "Questo tipo di coupon non si crea da qui.",
-                "customer_unknown": "Uno dei clienti scelti non esiste più.",
-                "duration_months_required": "Scrivi per quanti mesi vale il coupon sugli abbonamenti.",
-                "subscriptions_free_shipping": "La spedizione gratuita non vale per gli abbonamenti: scegli una percentuale o un importo.",
-                "not_for_subscriptions": "Questo codice sconto non vale per gli abbonamenti.",
-                "not_stackable": "Questo codice sconto non si somma agli altri già applicati.",
-                "already_applied": "Questo codice sconto è già applicato.",
-                "code_used": "Questo codice sconto è già stato usato.",
-                "batch_subscriptions": "I codici in blocco non valgono per gli abbonamenti: spegni «Per gli abbonamenti» su questo coupon.",
-                "batch_quantity": "Scegli quanti codici generare: da 1 a 10.000.",
-                "batch_prefix": "Il prefisso può avere al più 20 caratteri fra lettere, cifre, «-» e «_».",
-                "batch_failed": "Non sono riuscito a generare codici diversi da quelli esistenti: riprova con un altro prefisso."
-            },
-            "shipping": {
-                "no_method_for_destination": "Non spediamo verso questa destinazione.",
-                "not_available": "Il metodo di spedizione «{{method}}» non si può usare per questo ordine: {{reason}}.",
-                "reason_method": "Non è attivo o non è offerto per questo canale",
-                "reason_zone": "Non spedisce verso questa destinazione",
-                "reason_weight": "Non copre il peso della merce",
-                "reason_nothing": "Non c'è nulla da spedire",
-                "rate_no_brackets": "Il listino «{{zone}}» non ha nessuno scaglione di prezzo: scrivine almeno uno, oppure spegni il listino.",
-                "fixed_price_missing": "Il listino «{{zone}}» è a prezzo fisso ma non ha l'importo: scrivilo, oppure spegni il listino.",
-                "bracket_duplicate": "Il listino «{{zone}}» ha due scaglioni con lo stesso peso massimo.",
-                "bracket_weight": "Nel listino «{{zone}}» ogni scaglione di prezzo ha un peso massimo maggiore di zero.",
-                "bracket_amount": "Nel listino «{{zone}}» ogni scaglione ha un importo, e non è negativo.",
-                "excess_duplicate": "Il listino «{{zone}}» ha più di una tariffa al kg: ne basta una.",
-                "rate_negative": "Nel listino «{{zone}}» i valori (maggiorazione, minimo, soglie, contrassegno, divisore, arrotondamento) non possono essere negativi.",
-                "markup_out_of_range": "Nel listino «{{zone}}» il margine non può scendere sotto −100 %: il prezzo andrebbe sotto zero.",
-                "zone_no_areas": "Scrivi almeno un'area: un paese, e se serve una provincia.",
-                "area_duplicate": "L'area {{area}} è scritta due volte nella stessa zona.",
-                "carrier_in_use": "Questo corriere è su {{count}} metodi di spedizione: spegnilo invece di eliminarlo, oppure toglilo dai metodi.",
-                "zone_in_use": "Questa zona ha {{count}} listini accesi: toglila dai metodi di spedizione o spegni i listini, poi eliminala.",
-                "method_in_use": "Questo metodo è su {{count}} ordini o carrelli: spegnilo invece di eliminarlo.",
-                "area_country": "Il paese di un'area è una sigla di due lettere, per esempio IT. «{{country}}» non lo è."
-            },
-            "shipment": {
-                "feature_off": "Le spedizioni non sono attive: accendile dalle funzionalità.",
-                "order_not_open": "Questo ordine non si spedisce: deve essere confermato e con consegna a domicilio.",
-                "nothing_to_ship": "Scegli almeno un articolo da spedire, con una quantità maggiore di zero.",
-                "over_quantity": "Non puoi spedire più di quanto resta da spedire, né articoli che non fanno parte di questo ordine o che non si spediscono.",
-                "not_found": "Questa spedizione non esiste.",
-                "bad_transition": "Da questo stato la spedizione non può passare a quello richiesto.",
-                "tracking_required": "Con questo corriere serve il numero di tracking: il cliente lo usa per seguire il pacco.",
-                "bad_date": "La data di spedizione non è valida: scrivila come giorno, mese e anno.",
-                "not_pickup_point": "La sede scelta per questo ordine non è un punto di ritiro attivo.",
-                "location_closed": "La sede di ritiro è chiusa in questo momento.",
-                "pickup_exists": "Questo ordine ha già un ritiro in corso."
-            },
-            "batch": {
-                "expiry_mismatch": "Il lotto della riga {{row}} c'è già con un'altra scadenza ({{expiry}}): controlla il lotto o la data.",
-                "wrong_product": "Il lotto scelto nella riga {{row}} non è di quella versione: ricarica la pagina e sceglilo di nuovo.",
-                "in_use": "Questo lotto ha dei movimenti: non si elimina.",
-                "invalid_expiry": "La scadenza non è una data valida: scrivila come gg/mm/aaaa o lasciala vuota."
-            },
-            "catalog": {
-                "batches_in_stock": "Ci sono ancora pezzi in un lotto di questo articolo: scaricali prima di spegnere «Gestisci lotti e scadenze».",
-                "related_self": "Un articolo non si collega a sé stesso: togli la riga che lo nomina.",
-                "related_not_found": "L'articolo collegato {{id}} non esiste o è stato eliminato."
-            },
-            "plan": {
-                "name_required": "Scrivi il nome del piano.",
-                "no_prices": "Un piano ha almeno un prezzo.",
-                "price_name_required": "Ogni prezzo ha un nome: lascialo vuoto e si compone dall'addebito.",
-                "price_invalid": "Il prezzo «{{name}}» deve essere un numero, zero o più.",
-                "sale_not_lower": "Il prezzo scontato di «{{name}}» deve essere più basso del prezzo.",
-                "term_mismatch": "L'addebito di «{{name}}» non è valido: scegli da mensile ad annuale.",
-                "negative_period": "Vincolo e giorni di prova di «{{name}}» non possono essere negativi.",
-                "renewal_invalid": "Il prezzo di rinnovo di «{{name}}» deve essere un altro prezzo, già salvato, di un piano attivo.",
-                "price_in_use": "Il prezzo «{{name}}» è usato da un abbonamento e non si toglie: spegnilo.",
-                "in_use": "Il piano non si elimina, {{count}}: spegnilo.",
-                "feature_duplicate": "Il limite «{{key}}» è scritto due volte: tienine uno.",
-                "link_self": "Un piano non si lega a se stesso.",
-                "link_depth": "I legami vanno a un livello solo: un piano si lega a piani che non si legano a nulla, e un piano a cui altri si legano non si lega a sua volta.",
-                "has_children": "Il piano non si elimina: {{names}} si legano a lui. Togli il legame dalla loro scheda."
-            },
-            "subscription": {
-                "unavailable": "Gli abbonamenti online non sono disponibili in questo momento.",
-                "account_required": "Per abbonarti accedi al tuo account o creane uno.",
-                "interval_mismatch": "Questi servizi non si rinnovano insieme: la durata di ognuno deve essere un multiplo della più corta (mensile e annuale sì, bimestrale e trimestrale no).",
-                "limit_reached": "C'è già un abbonamento in corso ({{code}}): i servizi nuovi si aggiungono a quello, dalla sezione Abbonamenti.",
-                "price_unavailable": "Questo piano non è più disponibile: scegline un altro.",
-                "stripe_unavailable": "Il pagamento non si è aperto: riprova tra qualche minuto.",
-                "not_live": "Questo abbonamento non è in corso: non si può cambiare.",
-                "already_cancelled": "La disdetta di questo abbonamento è già registrata.",
-                "not_found": "Abbonamento non trovato.",
-                "customer_required": "Scegli il cliente dell'abbonamento.",
-                "items_required": "Aggiungi almeno un servizio all'abbonamento.",
-                "too_many_items": "Un abbonamento online ha al più {{max}} servizi: togline qualcuno.",
-                "parent_required": "Il servizio «{{name}}» si appoggia a un altro: scegli a quale.",
-                "parent_invalid": "Il servizio «{{name}}» non si appoggia a quello scelto.",
-                "item_not_live": "Questo servizio non è in corso: non si può cambiare.",
-                "item_committed": "Il servizio è in vincolo fino al {{date}}: si toglie a fine vincolo.",
-                "link_broken": "Il piano «{{name}}» non va con i legami di questa riga (il servizio a cui si appoggia o quelli che si appoggiano a lei): togli o cambia prima quelli.",
-                "last_item_online": "L'ultimo servizio di un abbonamento online non si toglie con il credito: disdici l'abbonamento.",
-                "stripe_failed": "Stripe non ha accettato la modifica: riprova tra qualche minuto."
-            },
-            "tax": {
-                "rule_missing": "Manca la regola IVA per «{{product}}»: paese {{country}}, cliente {{customer_type}}. Aggiungila fra le Regole IVA e riprova.",
-                "charge_without_goods": "La spedizione prende l'aliquota IVA della merce: aggiungi almeno un prodotto o togli la spedizione."
-            },
-            "mcp": {
-                "auth": {
-                    "https": "Il server MCP risponde solo in HTTPS.",
-                    "missing": "Manca il token: invia l'intestazione Authorization: Bearer <token>.",
-                    "invalid": "Token non valido.",
-                    "user": "L'utente di questo token non esiste o non è attivo.",
-                    "token": "Token non valido, revocato o non attivo.",
-                    "ip": "Questo token non vale da questo indirizzo IP.",
-                    "domain": "Questo token non vale per questo dominio."
-                },
-                "invalid_request": "Richiesta JSON-RPC non valida.",
-                "object": "`{{field}}` deve essere un oggetto.",
-                "method": "Metodo non supportato: {{method}}.",
-                "unknown_tool": "Strumento sconosciuto: {{name}}.",
-                "forbidden": "Il token non ha il permesso per questa operazione.",
-                "scope": {
-                    "catalog_read": "Leggere il catalogo: prodotti, prezzi, categorie, attributi e personalizzazioni",
-                    "catalog_write": "Modificare il catalogo",
-                    "stock_write": "Rettificare le giacenze",
-                    "sales_read": "Leggere ordini e preventivi",
-                    "sales_write": "Cambiare lo stato degli ordini e creare preventivi",
-                    "contacts_read": "Leggere i clienti: anagrafica, contatti e indirizzi"
-                },
-                "disabled": "Il server MCP non è attivo.",
-                "internal": "Errore interno: riprova; se si ripete, guarda il log del server.",
-                "parse": "Il corpo della richiesta non è JSON valido.",
-                "nothing_to_change": "Nessun campo da modificare.",
-                "sale_price": "Il prezzo scontato deve essere minore del prezzo.",
-                "not_negative": "`{{field}}` deve essere un numero non negativo.",
-                "reason": "Causale non ammessa.",
-                "stock_unchanged": "La giacenza è già questa: nessun movimento.",
-                "main_category": "`main_category_id` deve essere tra le categorie scelte.",
-                "status": "Stato d'ordine non valido.",
-                "action_unavailable": "Azione non disponibile per questo ordine adesso. Disponibili: {{available}}.",
-                "action_failed": "Azione non riuscita.",
-                "product_not_found": "Prodotto {{id}} non trovato.",
-                "category_not_found": "Categoria {{id}} non trovata.",
-                "order_not_found": "Ordine {{id}} non trovato.",
-                "id": "`{{field}}` deve essere un id intero positivo.",
-                "required": "`{{field}}` è obbligatorio.",
-                "boolean": "`{{field}}` deve essere true o false.",
-                "category_loop": "Una categoria non può stare dentro sé stessa o dentro una sua sottocategoria.",
-                "save_failed": "Salvataggio non riuscito (campi: {{fields}}).",
-                "unit": "Unità di vendita non ammessa. Ammesse: {{units}}.",
-                "tax_category": "Tipo di IVA {{id}} non trovato o non visibile.",
-                "missing_fields": "Mancano campi obbligatori: {{fields}}. Chiedili all'utente, non inventarli.",
-                "feature_off": "La funzione `{{feature}}` non è attiva in questo gestionale.",
-                "attribute_not_found": "Attributo {{id}} non trovato.",
-                "attribute_type": "Tipo di attributo non ammesso. Ammessi: {{types}}.",
-                "attribute_no_values": "Solo gli attributi a elenco (select, color, pattern, icon) hanno valori: testo e numero no.",
-                "attribute_axis": "«{{name}}» crea le opzioni in vendita: si cambia dalla scheda dell'articolo, generando le opzioni.",
-                "attribute_level": "«{{name}}» va su un'opzione con foto, e questo prodotto non ne ha una.",
-                "attribute_single": "«{{name}}» ha un solo valore: passa un testo o un numero, non un elenco.",
-                "attribute_number": "«{{name}}» vuole un numero.",
-                "value_not_found": "Valore {{id}} non trovato tra quelli dell'attributo {{attribute}}.",
-                "customization_not_found": "Personalizzazione {{id}} non trovata.",
-                "customization_options": "Solo una personalizzazione di tipo `choice` ha opzioni.",
-                "option_not_found": "Opzione {{id}} non trovata tra quelle della personalizzazione.",
-                "quotes_disabled": "I preventivi non sono attivi in questo gestionale.",
-                "quote_not_found": "Preventivo {{id}} non trovato.",
-                "customer_not_found": "Cliente {{id}} non trovato tra i contatti."
+            "reminder": {
+                "subject": "Abbonamento :plan: una rata è scaduta",
+                "title": "Promemoria di pagamento",
+                "intro": "Una rata del tuo abbonamento :plan è scaduta e non risulta ancora pagata. Se hai già pagato, non considerare questo messaggio."
             }
-        },
-        "emails": {
-            "order": {
-                "received": {
-                    "subject": "Abbiamo ricevuto il tuo ordine :number",
-                    "title": "Grazie, l'ordine è arrivato",
-                    "intro": "Abbiamo registrato il tuo ordine :number del :date. Appena il pagamento risulta, te lo confermiamo."
-                },
-                "processing": {
-                    "subject": "Abbiamo ricevuto il tuo ordine :number",
-                    "title": "Grazie, l'ordine è arrivato",
-                    "intro": "Abbiamo registrato il tuo ordine :number del :date. Il pagamento è in elaborazione: appena la banca lo conferma, te lo scriviamo."
-                },
-                "paid": {
-                    "subject": "Abbiamo ricevuto il pagamento dell'ordine :number",
-                    "title": "Grazie, il pagamento è arrivato",
-                    "intro": "Abbiamo ricevuto il pagamento dell'ordine :number del :date."
-                },
-                "confirmed": {
-                    "subject": "Ordine :number confermato",
-                    "title": "Ordine confermato",
-                    "intro": "Il pagamento è a posto: prepariamo l'ordine :number."
-                },
-                "quote_sent": {
-                    "subject": "Preventivo :quote",
-                    "title": "Il tuo preventivo",
-                    "intro": "Ti mandiamo il preventivo :quote, valido fino al :expires: lo trovi in allegato. Per accettarlo rispondi a questa email."
-                },
-                "office_confirmed": {
-                    "subject": "Ordine :number confermato",
-                    "title": "Ordine confermato",
-                    "intro": "Abbiamo confermato l'ordine :number: in allegato trovi la conferma, con le scadenze dei pagamenti."
-                },
-                "delivery_note_sent": {
-                    "subject": "Documento di trasporto :ddt",
-                    "title": "Documento di trasporto",
-                    "intro": "In allegato il documento di trasporto :ddt della merce dell'ordine :number."
-                },
-                "reminder": {
-                    "subject": "L'ordine :number aspetta il pagamento",
-                    "title": "Manca il pagamento",
-                    "intro": "L'ordine :number è ancora in attesa. Teniamo la merce da parte fino al :deadline, poi lo annulliamo."
-                },
-                "cancelled": {
-                    "subject": "Ordine :number annullato",
-                    "title": "Ordine annullato",
-                    "intro": "L'ordine :number è stato annullato. Se avevi già pagato, ti restituiamo l'importo."
-                },
-                "shipped": {
-                    "subject": "L'ordine :number è in viaggio",
-                    "title": "Il tuo ordine è partito",
-                    "intro": "Abbiamo affidato al corriere l'ordine :number. Se hai ordinato più articoli, il resto può arrivare con un'altra spedizione.",
-                    "carrier_line": "Corriere: :carrier",
-                    "tracking_line": "Numero di tracking: :tracking"
-                },
-                "ready_for_pickup": {
-                    "subject": "L'ordine :number è pronto per il ritiro",
-                    "title": "Il tuo ordine ti aspetta",
-                    "intro": "L'ordine :number è pronto: puoi passare a ritirarlo.",
-                    "location_line": "Dove: :location"
-                },
-                "merchant_new": {
-                    "subject": "Nuovo ordine :number",
-                    "title": "È arrivato un ordine",
-                    "intro": "Ordine :number del :date, :total. Metodo di pagamento: :method."
-                },
-                "merchant_paid": {
-                    "subject": "Nuovo ordine :number pagato: da confermare",
-                    "title": "È arrivato un ordine pagato",
-                    "intro": "Ordine :number del :date, :total, pagato con :method. Controlla che la merce ci sia e confermalo dal backend: il cliente riceve la conferma solo allora."
-                },
-                "merchant_cancelled": {
-                    "subject": "Ordine :number annullato per mancato pagamento",
-                    "title": "Ordine annullato",
-                    "intro": "L'ordine :number è scaduto senza pagamento: la merce è tornata disponibile."
-                },
-                "account": {
-                    "title": "Crea la tua password per seguire i tuoi ordini",
-                    "button": "Scegli la password"
-                },
-                "link": {
-                    "customer": "Vedi l'ordine",
-                    "merchant": "Apri l'ordine nel gestionale"
-                },
-                "bank": {
-                    "title": "Dati per il bonifico",
-                    "holder": "Intestatario",
-                    "bank_name": "Banca",
-                    "iban": "IBAN",
-                    "bic": "BIC/SWIFT",
-                    "reference": "Causale",
-                    "reference_value": "Ordine :number"
-                }
-            },
-            "subscription": {
-                "confirmed": {
-                    "subject": "Abbonamento :plan attivato",
-                    "title": "Abbonamento attivato",
-                    "intro": "Grazie: il tuo abbonamento :plan è attivo.",
-                    "trial_line": "La prova gratuita dura fino al :trial: fino ad allora non paghi niente.",
-                    "renewal_line": "Il prossimo rinnovo è il :renewal.",
-                    "button": "Vedi il tuo abbonamento"
-                },
-                "payment_failed": {
-                    "subject": "Il rinnovo di :plan non è riuscito",
-                    "title": "Rinnovo non riuscito",
-                    "intro": "Non siamo riusciti ad addebitare il rinnovo del tuo abbonamento :plan. Riproveremo nei prossimi giorni: intanto controlla la carta.",
-                    "button": "Aggiorna la carta"
-                },
-                "cancel_requested": {
-                    "subject": "Disdetta di :plan registrata",
-                    "title": "Disdetta registrata",
-                    "intro": "Abbiamo registrato la disdetta del tuo abbonamento :plan: resta attivo fino al :end, poi non si rinnova.",
-                    "button": "Vedi il tuo abbonamento"
-                },
-                "proforma": {
-                    "subject": "Abbonamento :plan: proforma del periodo :period",
-                    "title": "Il tuo abbonamento si rinnova",
-                    "intro": "In allegato il proforma del periodo :period del tuo abbonamento :plan: :total, con le scadenze e le coordinate per il pagamento."
-                },
-                "reminder": {
-                    "subject": "Abbonamento :plan: una rata è scaduta",
-                    "title": "Promemoria di pagamento",
-                    "intro": "Una rata del tuo abbonamento :plan è scaduta e non risulta ancora pagata. Se hai già pagato, non considerare questo messaggio."
-                }
-            }
-        },
-        "setup": {
-            "google": {
-                "title": "Collega {{apis}}",
-                "browser": "Nella Google Cloud Console abilita {{apis}} e crea una chiave API limitata ai referrer HTTP del sito: va in «Chiave pubblica».",
-                "server": "Nella Google Cloud Console abilita {{apis}} e crea una chiave API limitata a queste API: con l'ID progetto va in «Chiave privata».",
-                "oauth": "In Google Auth Platform crea un ID client OAuth 2.0 di tipo «Applicazione web» con il dominio del sito tra le origini JavaScript autorizzate: va in «Google Client ID»."
-            }
+        }
+    },
+    "setup": {
+        "google": {
+            "title": "Collega {{apis}}",
+            "browser": "Nella Google Cloud Console abilita {{apis}} e crea una chiave API limitata ai referrer HTTP del sito: va in «Chiave pubblica».",
+            "server": "Nella Google Cloud Console abilita {{apis}} e crea una chiave API limitata a queste API: con l'ID progetto va in «Chiave privata».",
+            "oauth": "In Google Auth Platform crea un ID client OAuth 2.0 di tipo «Applicazione web» con il dominio del sito tra le origini JavaScript autorizzate: va in «Google Client ID»."
         }
     }
 }

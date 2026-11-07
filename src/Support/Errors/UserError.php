@@ -110,7 +110,7 @@ final class UserError extends InvalidArgumentException
         }
 
         $data = json_decode((string) file_get_contents($file), true);
-        $node = is_array($data) ? ($data['gestionale']['errors'] ?? null) : null;
+        $node = is_array($data) ? ($data['errors'] ?? null) : null;
 
         foreach (explode('.', $key) as $step) {
             if (!is_array($node) || !isset($node[$step])) {

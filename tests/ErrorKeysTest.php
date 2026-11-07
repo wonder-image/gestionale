@@ -43,7 +43,7 @@ $chiavi = static function (): array {
 
 $frase = static function (string $chiave): ?string {
     $dati = json_decode((string) file_get_contents(__DIR__.'/../lang/it/gestionale.json'), true);
-    $nodo = $dati['gestionale']['errors'] ?? null;
+    $nodo = $dati['errors'] ?? null;
 
     foreach (explode('.', $chiave) as $passo) {
         if (!is_array($nodo) || !isset($nodo[$passo])) {

@@ -55,6 +55,22 @@ di chi le usa.
 php tests/ErrorKeysTest.php
 ```
 
+### Il file di lingua comincia dalle sue chiavi
+
+Il core mette ogni file di lingua sotto una chiave uguale al suo nome:
+`lang/it/gestionale.json` diventa `gestionale.…`. Il file comincia quindi
+direttamente con `name`, `errors`, `emails`, …, senza ripetere
+`"gestionale": {…}` come radice: con la radice ogni `__t('gestionale.x')`
+cercherebbe `gestionale.gestionale.x` e la pagina mostrerebbe «Chiave di
+traduzione mancante». Chi legge il file a mano (i ripieghi di `UserError`,
+`SetupChecks`, `OrderEmail`, `SubscriptionEmail`) parte dalla radice del JSON.
+`tests/TranslationKeysTest.php` controlla la radice e che ogni
+`__t('gestionale.…')` scritto per intero in `src/` abbia la sua frase.
+
+```bash
+php tests/TranslationKeysTest.php
+```
+
 ### Le chiavi dei fornitori e della vendita senza giacenza
 
 | Chiave | Metodo | Quando |

@@ -145,6 +145,14 @@ versionamento semantico.
   spenta non si vede e l'abbonamento nuovo prende il predefinito.
 
 ### Corretto
+- **Clienti: «Chiave di traduzione mancante: 'gestionale.contacts.relations.column'».**
+  Il core mette ogni file di lingua sotto una chiave uguale al suo nome, ma
+  `lang/it/gestionale.json` ripeteva `"gestionale": {…}` come radice e ogni
+  `__t('gestionale.…')` cercava `gestionale.gestionale.…`. La radice è tolta
+  (le chiavi restano le stesse); `UserError`, `SetupChecks`, `OrderEmail` e
+  `SubscriptionEmail` leggono il file senza `['gestionale']`.
+  `tests/TranslationKeysTest.php` controlla che nessun file di lingua ripeta la
+  radice e che ogni `__t('gestionale.…')` scritto in `src/` abbia la sua frase.
 - **Listini: i rifiuti del form non sono più una pagina 500.** Uno sconto
   fuori da 0–100, un ricarico a zero, le date al contrario, un canale già di un
   altro listino, una riga senza prodotto o un foglio importato non valido
