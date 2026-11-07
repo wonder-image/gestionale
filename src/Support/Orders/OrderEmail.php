@@ -178,7 +178,7 @@ final class OrderEmail
     {
         $file = Gestionale::root().'/lang/it/gestionale.json';
         $data = is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
-        $text = is_array($data) ? ($data['gestionale']['emails']['order'][$key][$part] ?? '') : '';
+        $text = is_array($data) ? ($data['emails']['order'][$key][$part] ?? '') : '';
 
         return is_string($text) ? $text : '';
     }

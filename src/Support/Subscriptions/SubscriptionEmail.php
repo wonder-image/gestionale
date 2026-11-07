@@ -96,7 +96,7 @@ final class SubscriptionEmail
     {
         $file = Gestionale::root().'/lang/it/gestionale.json';
         $data = is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
-        $text = is_array($data) ? ($data['gestionale']['emails']['subscription'][$key][$part] ?? '') : '';
+        $text = is_array($data) ? ($data['emails']['subscription'][$key][$part] ?? '') : '';
 
         return is_string($text) ? $text : '';
     }

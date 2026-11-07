@@ -982,7 +982,7 @@ qualunque, invece, diventa una pagina di errore 500.
 throw UserError::make('attribute.type_locked');
 ```
 
-Il testo sta in `lang/it/gestionale.json` sotto `gestionale.errors`.
+Il testo sta in `lang/it/gestionale.json` sotto `errors`.
 
 ## Codici e indirizzi
 
