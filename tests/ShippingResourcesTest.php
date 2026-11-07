@@ -330,7 +330,7 @@ check('i valori del listino non negativi, il margine non sotto −100 %', functi
 
 check('le frasi della validazione esistono in italiano', function () {
     $json = json_decode((string) file_get_contents(__DIR__ . '/../lang/it/gestionale.json'), true);
-    $frasi = $json['gestionale']['errors']['shipping'] ?? [];
+    $frasi = $json['errors']['shipping'] ?? [];
 
     foreach ([
         'rate_no_brackets', 'fixed_price_missing', 'bracket_duplicate', 'bracket_weight', 'bracket_amount', 'excess_duplicate',

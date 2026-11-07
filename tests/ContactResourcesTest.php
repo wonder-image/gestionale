@@ -14,6 +14,23 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 // La scheda vera si prova nel test d'integrazione: `AddressExtension` del
 // core chiede `__t()`, che esiste solo a sito avviato.
 
+// Qui basta un `__t()` finto che legga il file del modulo come il core:
+// `gestionale.x` è la chiave `x` di `lang/it/gestionale.json`.
+if (!function_exists('__t')) {
+    function __t(string $key, array $replacements = []): string
+    {
+        static $dati = null;
+        $dati ??= json_decode((string) file_get_contents(__DIR__.'/../lang/it/gestionale.json'), true);
+        $nodo = str_starts_with($key, 'gestionale.') ? $dati : null;
+
+        foreach (explode('.', substr($key, strlen('gestionale.'))) as $passo) {
+            $nodo = is_array($nodo) ? ($nodo[$passo] ?? null) : null;
+        }
+
+        return is_string($nodo) ? $nodo : $key;
+    }
+}
+
 check('i due elenchi guardano la stessa tabella', fn () =>
     CustomerResource::$model === Contact::class
     && SupplierResource::$model === Contact::class

@@ -380,7 +380,7 @@ check('un coupon cancellato dopo essere stato applicato esce con il motivo unkno
 });
 
 check('ogni motivo di rifiuto ha la sua frase in italiano', function () {
-    $frasi = json_decode((string) file_get_contents(__DIR__.'/../../lang/it/gestionale.json'), true)['gestionale']['errors']['coupon'] ?? [];
+    $frasi = json_decode((string) file_get_contents(__DIR__.'/../../lang/it/gestionale.json'), true)['errors']['coupon'] ?? [];
     $motivi = ['unknown', 'inactive', 'not_started', 'expired', 'min_order', 'exhausted', 'already_used', 'not_first_order', 'not_yours', 'no_eligible_products', 'has_manual_discount', 'channel'];
 
     foreach ($motivi as $motivo) {

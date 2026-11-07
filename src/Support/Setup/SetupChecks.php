@@ -111,7 +111,7 @@ final class SetupChecks
 
         if ($text === '') {
             $data = json_decode((string) @file_get_contents(Gestionale::root().'/lang/it/gestionale.json'), true);
-            $node = $data['gestionale'] ?? null;
+            $node = is_array($data) ? $data : null;
 
             foreach (explode('.', $path) as $step) {
                 $node = is_array($node) ? ($node[$step] ?? null) : null;
