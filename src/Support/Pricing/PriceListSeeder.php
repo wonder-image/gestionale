@@ -11,7 +11,7 @@ use Wonder\Plugin\Gestionale\Support\Promotions\ScopeMatcher;
 use Wonder\Sql\Transaction;
 
 /**
- * «Crea le righe dalla selezione»: una riga per ogni prodotto attivo del
+ * «Cerca prodotti»: una riga per ogni prodotto attivo del
  * selettore del listino che non ne ha ancora una.
  *
  * Il prezzo è quello pieno del catalogo, o quello con la regola del listino

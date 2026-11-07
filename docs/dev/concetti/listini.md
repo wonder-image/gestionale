@@ -21,7 +21,7 @@ restano. Nel backend stanno nel menu **Catalogo → Listini**.
 | `Support\Pricing\PriceLists` | l'unica porta: carica, sceglie, risolve il prezzo |
 | `Support\Pricing\PriceListChannels` | il registro dei canali che possono avere un listino |
 | `Support\Pricing\ChannelPrice` | il prezzo di un prodotto su un canale: l'unico punto per export e integrazioni |
-| `Support\Pricing\PriceListSeeder` | «Crea le righe dalla selezione»: `rows()` pura, `seed()` scrive |
+| `Support\Pricing\PriceListSeeder` | «Cerca prodotti»: `rows()` pura, `seed()` scrive |
 | `Support\Pricing\Import\PriceListLayout` | il tracciato `price_lists` per caricare righe da file |
 
 ## I canali
@@ -87,11 +87,22 @@ Regole di `resolve()`:
 Il prezzo esce nella stessa base IVA dell'ordine: `resolve()` converte da
 IVA inclusa a esclusa (e viceversa) con l'aliquota del prodotto.
 
-## Creare le righe dalla selezione
+## Si applica a e «Cerca prodotti»
 
-Nella scheda in modifica, il bottone **Crea le righe dalla selezione** (POST
-`/{id}/crea-righe/`, rotta `seed`, permesso di modifica delle promozioni, CSRF
-verificato in `PriceListResource::seedRows()`) chiama `PriceListSeeder::seed()`:
+Il form ha `scope_mode` (`PriceListResource::SCOPE_MODES`: `all`, `filter`,
+`products`), che non è una colonna: `scopeFor()` lo traduce nel selettore
+(`applies_to_all` e i ponti; con `products` niente filtri, così la regola non
+vale per nessuno e contano solo le righe) e `scopeMode()` lo rilegge dal
+listino salvato (`filter` se c'è almeno un filtro, esclusi a parte). I filtri
+sono `ScopeForm::scopeFilterFields('scope_mode', 'filter', ['all', 'filter'])`.
+La card Prezzi ha `visibleWhen('scope_mode', 'products')` finché il listino non
+ha righe.
+
+«Cerca prodotti» è un `Submit` (`search_products`) del form, visibile con
+`filter`: il form si salva, poi `afterSave()` chiama `searchProducts()` solo se
+il modo inviato è `filter` (un Invio nel form preme il primo submit) e torna
+alla scheda. La rotta POST `/{id}/crea-righe/` (`seed`, CSRF verificato in
+`seedRows()`) resta per chi la chiamava. Entrambe usano `PriceListSeeder::seed()`:
 una riga a quantità 1 per ogni prodotto attivo della selezione che non ha già
 una riga e ha un prezzo maggiore di zero. Il prezzo è quello della regola, o il
 prezzo pieno senza regola, portato alla base IVA del listino con l'aliquota
@@ -164,5 +175,5 @@ compare come «Importa» nell'elenco dei listini. Colonne: **Listino** (nome o
 id), **SKU**, Prodotto (non letta), **Quantità minima** (vuota = 1),
 **Prezzo**. Una riga esistente (listino, prodotto, quantità) cambia prezzo, una
 nuova si aggiunge; **non cancella mai** righe. Le frasi d'errore stanno in
-`gestionale.errors.import.*`. Il campo «Importa righe» della scheda resta e
-sostituisce invece tutte le righe di quel listino.
+`gestionale.errors.import.*`. È l'unico modo di caricare righe da file: la
+scheda non ha più il campo «Importa righe».

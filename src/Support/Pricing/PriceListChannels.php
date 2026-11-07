@@ -35,7 +35,7 @@ final class PriceListChannels
         'office' => 'Ufficio',
         'pos' => 'Cassa',
         'google' => 'Google Shopping',
-        'meta' => 'Meta (Facebook e Instagram)',
+        'meta' => 'Meta',
     ];
 
     /**

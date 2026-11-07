@@ -139,7 +139,7 @@ check('selettore: tutto il catalogo con esclusi non è «tutto»', fn () => !Pri
 check('selettore: fatti solo se una regola ha una selezione', fn () => PriceLists::needsFacts([$canale, $scontoScelto]) && !PriceLists::needsFacts([$canale, $cliente, null]));
 check('selettore: senza regola i fatti non servono', fn () => !PriceLists::needsFacts([['rule' => 'none', 'scope' => $selezione]]));
 
-// «Crea le righe dalla selezione».
+// «Cerca prodotti».
 $catalogo = [
     10 => ['price' => 20.0, 'facts' => $fatti[10]],
     11 => ['price' => 20.0, 'facts' => $fatti[11]],
@@ -154,6 +154,15 @@ check('righe: con la regola il prezzo scontato', fn () => PriceListSeeder::rows(
 check('righe: tutto il catalogo prende anche gli altri', fn () => count(PriceListSeeder::rows(['rule' => 'none'], ['all' => true], $catalogo, [], true, [])) === 4);
 check('righe: listino IVA esclusa da catalogo IVA inclusa', fn () => PriceListSeeder::rows(['rule' => 'none', 'prices_include_tax' => false], $selezione, $catalogo, [12], true, [30 => 25.0])[0]['price'] === '16.00');
 check('righe: aliquota sconosciuta, prezzo non convertito', fn () => PriceListSeeder::rows(['rule' => 'none', 'prices_include_tax' => false], $selezione, $catalogo, [12], true, [])[0]['price'] === '20.00');
+
+// «Si applica a»: il modo del form, dal listino salvato e verso il selettore.
+check('modo: tutto il catalogo, anche con gli esclusi', fn () => PriceListResource::scopeMode(['applies_to_all' => 'true', 'excluded_models' => [3]]) === 'all');
+check('modo: un filtro vuol dire «Filtra catalogo»', fn () => PriceListResource::scopeMode(['applies_to_all' => 'false', 'tags' => [2]]) === 'filter');
+check('modo: senza filtri (esclusi a parte) è «Seleziona prodotti»', fn () => PriceListResource::scopeMode(['applies_to_all' => 'false', 'excluded_models' => [3]]) === 'products');
+check('modo: valore sconosciuto vale tutto il catalogo', fn () => PriceListResource::modeOf('boh') === 'all' && PriceListResource::modeOf(null) === 'all' && PriceListResource::modeOf('filter') === 'filter');
+check('modo: «Seleziona prodotti» salva un selettore vuoto', fn () => PriceListResource::scopeFor('products', ['all' => true, 'categories' => [1], 'tags' => [], 'brands' => [], 'models' => [], 'excluded_models' => [4]]) === ['all' => false, 'categories' => [], 'tags' => [], 'brands' => [], 'models' => [], 'excluded_models' => []]);
+check('modo: «Filtra catalogo» tiene i filtri e non vale per tutto', fn () => PriceListResource::scopeFor('filter', ['all' => true, 'categories' => [1], 'tags' => [], 'brands' => [], 'models' => [], 'excluded_models' => []])['all'] === false);
+check('modo: «Seleziona prodotti» non vale per nessun prodotto', fn () => PriceLists::resolve([['id' => 9, 'rule' => 'discount', 'percent' => 10, 'items' => [], 'scope' => PriceListResource::scopeFor('products', ['all' => false, 'categories' => [], 'tags' => [], 'brands' => [], 'models' => [], 'excluded_models' => []])]], 10, 1, 20.0, true, 22, $daFatti)['price_list_id'] === 0);
 
 /** Il tipo dell'errore del form: il controller del backend intercetta solo InvalidArgumentException. */
 $errore = static function (array $valori): string {

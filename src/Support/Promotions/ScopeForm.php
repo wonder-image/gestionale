@@ -51,25 +51,43 @@ trait ScopeForm
                 ->value('true')
                 ->label('Si applica a')
                 ->required(),
+            ...static::scopeFilterFields('applies_to_all', 'false'),
+        ];
+    }
+
+    /**
+     * Categorie, tag, marchi e articoli, visibili quando `$field` vale uno di
+     * `$values`; gli esclusi con `$excludedValues`, sempre se `null`. Per chi
+     * ha un suo modo di scegliere (i listini hanno tre opzioni).
+     *
+     * @param string|list<string> $values
+     * @param string|list<string>|null $excludedValues
+     * @return list<\Wonder\App\ResourceSchema\Input>
+     */
+    public static function scopeFilterFields(string $field, string|array $values, string|array|null $excludedValues = null): array
+    {
+        $excluded = FormField::key('excluded_models')
+            ->selectSearch(static::scopeOptions(ProductModel::class), true)
+            ->label('Articoli esclusi');
+
+        return [
             FormField::key('categories')
                 ->selectSearch(static::scopeCategoryOptions(), true)
                 ->label('Categorie')
-                ->visibleWhen('applies_to_all', 'false'),
+                ->visibleWhen($field, $values),
             FormField::key('tags')
                 ->selectSearch(static::scopeOptions(Tag::class), true)
                 ->label('Tag')
-                ->visibleWhen('applies_to_all', 'false'),
+                ->visibleWhen($field, $values),
             FormField::key('brands')
                 ->selectSearch(static::scopeOptions(Brand::class), true)
                 ->label('Marchi')
-                ->visibleWhen('applies_to_all', 'false'),
+                ->visibleWhen($field, $values),
             FormField::key('models')
                 ->selectSearch(static::scopeOptions(ProductModel::class), true)
                 ->label('Articoli')
-                ->visibleWhen('applies_to_all', 'false'),
-            FormField::key('excluded_models')
-                ->selectSearch(static::scopeOptions(ProductModel::class), true)
-                ->label('Articoli esclusi'),
+                ->visibleWhen($field, $values),
+            $excludedValues === null ? $excluded : $excluded->visibleWhen($field, $excludedValues),
         ];
     }
 

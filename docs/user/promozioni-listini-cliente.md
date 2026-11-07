@@ -27,9 +27,18 @@ Si gestiscono in **Catalogo → Listini**.
 * **Dal / Al**: estremi compresi; vuoti, il listino vale sempre. Scaduto o
   non ancora cominciato, il cliente paga i prezzi di catalogo.
 * **Stato**: un listino non attivo non si applica.
-* **Si applica a**: *Tutto il catalogo*, con gli **articoli esclusi** che
-  restano fuori, o *Solo la selezione* di **categorie** (con le
-  sottocategorie), **tag**, **marchi** e **articoli**. Funziona come nei coupon.
+* **Si applica a**:
+  * *Tutto il catalogo*: la regola vale per tutti i prodotti, tranne gli
+    **articoli esclusi**;
+  * *Filtra catalogo*: vale per i prodotti di **categorie** (con le
+    sottocategorie), **tag**, **marchi** e **articoli** scelti, tranne gli
+    esclusi. **Cerca prodotti** salva e crea le righe dei prodotti trovati
+    (vedi sotto);
+  * *Seleziona prodotti*: la regola non vale per nessuno, contano solo le
+    righe che scrivi in **Prezzi**.
+
+  La card **Prezzi** compare con *Seleziona prodotti*, dopo **Cerca
+  prodotti** o quando il listino ha già delle righe.
 * **I prodotti senza una riga**: *Mantengono il prezzo originale*, *Hanno uno
   sconto* o *Hanno un ricarico*. Con sconto o ricarico compare la
   **Percentuale**. Vale per i prodotti della selezione che non hanno una riga
@@ -38,7 +47,7 @@ Si gestiscono in **Catalogo → Listini**.
   prodotti fuori dalla selezione pagano il prezzo di catalogo; un prodotto che
   ha una riga paga sempre il prezzo della riga, anche se è fuori dalla
   selezione.
-* **Canali**: i canali in cui il listino vale per chi non ne ha uno suo. Vedi
+* **Canali** (in alto a destra): i canali in cui il listino vale per chi non ne ha uno suo. Vedi
   solo i canali accesi (sito, ufficio, cassa, Google e Meta se i feed sono
   attivi, quelli dei moduli installati). Un
   canale ha un solo listino: se lo scegli in due listini, il secondo non si
@@ -59,17 +68,18 @@ Con 4 maglie si paga 9,00 l'una, con 12 si paga 8,00. Un prodotto che non è
 nel listino si paga a prezzo di catalogo, oppure con la regola in percentuale
 se il listino ne ha una.
 
-## Creare le righe dalla selezione
+## Cercare i prodotti
 
-Se vuoi un prezzo diverso per ogni prodotto, scegli la selezione, salva e poi
-premi **Crea le righe dalla selezione** in alto nella scheda. Il gestionale
+Se vuoi un prezzo diverso per ogni prodotto, scegli *Filtra catalogo*, imposta
+i filtri e premi **Cerca prodotti**. Il listino si salva e il gestionale
 scrive una riga (da quantità 1) per ogni prodotto attivo della selezione che
 non ce l'ha ancora, con il prezzo già calcolato dalla regola (o il prezzo di
 catalogo se i prodotti mantengono il prezzo originale), nella base IVA del
 listino. Poi correggi a mano i prezzi che vuoi.
 
 * Le righe che c'erano già non cambiano: puoi premerlo di nuovo dopo aver
-  aggiunto prodotti al catalogo o alla selezione.
+  aggiunto prodotti al catalogo o ai filtri.
+* Se torni a *Tutto il catalogo* le righe restano.
 * I prodotti senza prezzo restano fuori.
 * Le righe create sono righe come le altre: se poi cambi la percentuale, non si
   ricalcolano.
@@ -78,15 +88,13 @@ listino. Poi correggi a mano i prezzi che vuoi.
 
 Dalla scheda del listino, il pulsante **Scarica** apre un menu da cui scegli
 **Excel (.xlsx)** o **CSV (.csv)** per le righe del listino (colonne
-SKU, Prodotto, Quantità minima, Prezzo). Lo stesso file, modificato, si
-ricarica nel campo **Importa righe**: al salvataggio **sostituisce tutte le
-righe** del listino. Il prodotto lo riconosce dallo SKU; se una riga ha uno
-SKU sconosciuto o un numero sbagliato, il file non entra e il messaggio dice
-quale riga correggere.
+SKU, Prodotto, Quantità minima, Prezzo).
 
 Per cambiare molti prezzi in una volta, anche di più listini, dall'elenco
 dei listini usa **Importa** con il tracciato *Prezzi di listino*: colonne Listino (nome
-o numero), SKU, Prodotto, Quantità minima e Prezzo. Il file cambia il prezzo
+o numero), SKU, Prodotto, Quantità minima e Prezzo. Il prodotto lo riconosce
+dallo SKU; se una riga ha uno SKU sconosciuto o un numero sbagliato, il
+messaggio dice quale riga correggere. Il file cambia il prezzo
 delle righe che ci sono già e aggiunge quelle nuove; non cancella nessuna
 riga.
 
