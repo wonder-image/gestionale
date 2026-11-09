@@ -389,8 +389,8 @@ class CustomerResource extends GestionaleResource
                 SectionTitle::make(__t('gestionale.contacts.relations.title'))
                     ->tooltip(__t('gestionale.contacts.relations.tooltip'))
                     ->columnSpan(12),
-                static::getInput(self::RELATION_PEOPLE)->columnSpan(12),
-                static::getInput(self::RELATION_COMPANIES)->columnSpan(12),
+                // Il form dichiara un solo repeater, quello del lato della scheda
+                static::getInput(static::relationSide() === ContactRelations::COMPANY ? self::RELATION_PEOPLE : self::RELATION_COMPANIES)->columnSpan(12),
                 static::getInput(self::RELATION_MARKER)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];

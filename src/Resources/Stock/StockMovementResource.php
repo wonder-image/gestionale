@@ -18,7 +18,7 @@ use Wonder\Elements\Components\DataItem;
 use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Stock\Batch;
@@ -590,7 +590,7 @@ final class StockMovementResource extends GestionaleResource
         }
 
         if ($fornitore > 0) {
-            $contatto = static::one(Contact::class, $fornitore);
+            $contatto = static::one(Company::class, $fornitore);
             $dati[] = $dato('Fornitore', $contatto === [] ? '#'.$fornitore : Contacts::displayName($contatto));
         }
 
