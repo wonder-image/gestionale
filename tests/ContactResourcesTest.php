@@ -5,6 +5,8 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Backend\Support\QuickCreateStore;
+use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
@@ -282,6 +284,24 @@ check('nel repeater degli indirizzi la via ha l\'aiuto di Google, senza campi ge
 
     return str_contains($colonne['street'] ?? '', 'data-wi-place="addresses[]["')
         && array_intersect(['place_id', 'lat', 'lng'], array_keys($colonne)) === [];
+});
+
+check('la creazione rapida dei legami: target, campi, errore senza id', function () {
+    $quick = static function (string $resource, string $parent): array {
+        $method = new ReflectionMethod($resource, 'relationQuickCreate');
+
+        return (array) $method->invoke(null, $parent);
+    };
+    $referente = $quick(CompanyResource::class, ContactRelations::COMPANY);
+    $azienda = $quick(CustomerResource::class, ContactRelations::PERSON);
+    $vuoto = CustomerResource::quickCreateStore(['email' => 'a@example.com'], 'name');
+    $senzaNome = CompanyResource::quickCreateStore(['pi' => 'IT01234567890'], 'business_name');
+
+    return $referente[0] === CustomerResource::class && $referente[1] === ['name', 'surname', 'email']
+        && $azienda[0] === CompanyResource::class && $azienda[1] === ['business_name', 'pi']
+        && is_subclass_of(CompanyResource::class, QuickCreateStore::class)
+        && !isset($vuoto['id']) && str_contains((string) ($vuoto['error'] ?? ''), 'nome')
+        && !isset($senzaNome['id']) && str_contains((string) ($senzaNome['error'] ?? ''), 'ragione sociale');
 });
 
 summary();

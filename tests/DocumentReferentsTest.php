@@ -63,6 +63,7 @@ check('l\'opzione porta nome, email ripulita, ruolo e principale', function () {
     return $prima['name'] === 'Cognome1 Nome1'
         && $prima['email'] === 'p1@example.com'
         && $prima['job_title'] === 'Acquisti'
+        && $prima['role'] === 'Acquisti' && $prima['department'] === ''
         && $prima['is_primary'] === true;
 });
 

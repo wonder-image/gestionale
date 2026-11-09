@@ -33,6 +33,9 @@ Dal menu **⋯** di ogni bozza: **Conferma ordine** (senza email al cliente) ed
   [Referenti e aziende](anagrafiche.md#referenti-e-aziende)). Parte dal
   **referente principale** e puoi sceglierne un altro fra i suoi referenti,
   oppure nessuno. Il suo nome si stampa sul PDF come «Alla c.a.».
+* **Brand** — solo per un'azienda che ha dei brand (vedi
+  [Brand](anagrafiche.md#brand)): parte dal primo, puoi sceglierne un altro
+  fra i suoi o nessuno.
   Le sedi di consegna di un'azienda si gestiscono come gli indirizzi di una
   persona: scegli quella giusta, modificala, eliminala o aggiungine una con
   **Aggiungi indirizzo**, senza lasciare l'ordine.

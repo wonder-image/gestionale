@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Plugin\CustomerAccount\Resources\CompanyBrandResource as BaseCompanyBrandResource;
 use Wonder\App\Resources\Support\NavigationOnlyResource;
 use Wonder\App\Resources\Config\SocietyLocationResource;
 use Wonder\App\Resources\Config\ImportLayoutResource as CoreImportLayoutResource;
@@ -93,13 +94,15 @@ check('ogni Resource parte da una base del modulo o del core', function () use (
     // GestionaleResource per le pagine legate a una funzionalità,
     // NavigationOnlyResource per quelle senza dati, SingletonResource per le
     // righe uniche (impostazioni), SocietyLocationResource e ImportLayoutResource
-    // per le pagine del core che il gestionale sostituisce.
+    // per le pagine del core che il gestionale sostituisce, BaseCompanyBrandResource
+    // per la pagina di customer-account che il gestionale ripubblica.
     $basi = [
         GestionaleResource::class,
         NavigationOnlyResource::class,
         SingletonResource::class,
         SocietyLocationResource::class,
         CoreImportLayoutResource::class,
+        BaseCompanyBrandResource::class,
     ];
 
     foreach ($classi as $classe) {

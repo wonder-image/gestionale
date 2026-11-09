@@ -264,6 +264,7 @@ customer-account) e ogni documento con un cliente ha due colonne:
 | `company_id` | l'**azienda** (`companies`); `0` = documento di una persona |
 | `user_id` | l'account della persona, se c'è |
 | `referent_name` | copia del nome del referente, solo con `company_id` |
+| `brand_id` | il brand dell'azienda (`company_brands` di customer-account), solo su `gst_orders`; `0` = nessuno |
 
 `company_id` è su `gst_orders`, `gst_delivery_notes`, `gst_sales_returns`,
 `gst_payments`, `gst_subscriptions`, `gst_coupon_customers` e
@@ -298,6 +299,24 @@ Tutto passa da `Support\Contacts\DocumentReferents`:
   senza quello che riceve già la mail: l'email dell'azienda e quelle dei
   referenti;
 - `useReader()` serve solo ai test.
+
+Ogni riga di `people()` / `options()` porta anche `department` (il reparto di
+customer-account) e `role`: la mansione, o l'etichetta del reparto se la
+mansione è vuota. Le tendine dei referenti mostrano `role`.
+
+### Il brand
+
+Preventivi e ordini da ufficio di un'azienda hanno `brand_id`: il nome
+commerciale (customer-account, `CompanyBrands`) a cui si legheranno i progetti
+nati dal preventivo. `OfficeOrders::save()` lo accetta solo se
+`CompanyBrands::belongsTo($brandId, $companyId)`, altrimenti scrive `0`; senza
+valore nel payload propone `OfficeOrders::defaultBrand()` (il primo brand
+dell'azienda). Il pannello cliente (`OfficeCustomerPanel`) manda `brands` e lo
+script della pagina ricostruisce la tendina `brand_id`
+(`OfficeOrderPage::brandOptions()`). La card *Brand* del form azienda è
+`CompanyResource::brandCards()`, hook di `CustomerResource`; la Resource che
+crea il brand al volo è `Contacts\CompanyBrandResource`, la stessa di
+customer-account su `app/gestionale/brand` con i permessi dell'area contatti.
 
 Il DDT eredita `company_id` e `referent_name` dall'ordine (`DeliveryNotes`), e
 il PDF stampa il referente «Alla c.a.» nel riquadro del cliente

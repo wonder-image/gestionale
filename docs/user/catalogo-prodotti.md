@@ -353,7 +353,8 @@ spuntare.
 
 ## Dove si trova: categorie e marchio
 
-Nel riquadro **Dove si trova** scegli marchio, tag e categorie. Le categorie
+Nel riquadro **Dove si trova** scegli marchio, tag e categorie. Il marchio si
+cerca scrivendo una parte del nome; se non c'è, il **+** lo crea. Le categorie
 sono un albero solo: **spunta tutte quelle in cui l'articolo deve comparire**.
 
 Fra quelle spuntate, una ha la **stella piena**: è la principale, quella che

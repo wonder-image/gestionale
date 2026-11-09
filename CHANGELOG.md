@@ -44,11 +44,24 @@ versionamento semantico.
 
 ### Cambiato
 - **Anagrafiche: ritocchi dopo la prova (#77).**
-  - Nei riquadri *Referenti* e *Aziende* la scheda si sceglie dalla tendina;
-    **Nuovo referente** / **Nuova azienda** la crea in una finestra
-    (`QuickContacts`, `POST /anagrafiche/nuova/`, rotta `contacts.quick_create`)
+  - Nei riquadri *Referenti* e *Aziende* la scheda si cerca nella tendina e il
+    **+** della riga la crea in una finestra (quick-create del core,
+    wonder-image/app#205: `CustomerResource` implementa `QuickCreateStore`)
     e la seleziona. Prima cerca il doppione per email o partita IVA e, se chi
-    scrive lo vede, seleziona quello. Vale anche sul form di creazione.
+    scrive lo vede, seleziona quello. Vale anche sul form di creazione. Tolti
+    `POST /anagrafiche/nuova/` e la rotta `contacts.quick_create`.
+  - I riquadri si chiamano **Referenti** (sulle aziende) e **Aziende** (sui
+    clienti), non più «Referenti e aziende». Ogni referente ha il **Reparto**
+    (customer-account); sui documenti, senza mansione, compare il reparto
+    (`DocumentReferents`: `department`, `role`).
+  - **Brand delle aziende**: la card *Brand* è la prima del form di
+    un'azienda (e di un fornitore), ricerca multipla con **+**
+    (`Contacts\CompanyBrandResource` su `app/gestionale/brand`, permessi
+    dell'area contatti). Ordini da ufficio e preventivi hanno `brand_id`
+    (colonna nuova, indice `ind_brand`), scelto fra i brand dell'azienda e
+    proposto dal primo (`OfficeOrders::defaultBrand`).
+  - Il **Marchio** degli articoli si cerca nella tendina (`selectSearch`).
+
   - La scheda di un'azienda elenca i referenti e quella di una persona le
     aziende, con link alla loro scheda (`CustomerSheet::relations()`).
   - Ordini da ufficio e preventivi: la ricerca del cliente trova anche i

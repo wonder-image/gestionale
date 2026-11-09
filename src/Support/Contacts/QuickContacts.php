@@ -11,8 +11,9 @@ use Wonder\Plugin\CustomerAccount\Support\ContactEvents;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 
 /**
- * La scheda creata al volo dal form dei legami: il referente dalla scheda di
- * un'azienda, l'azienda dalla scheda di una persona.
+ * La scheda creata al volo dal «+» nelle righe dei legami (la creazione
+ * rapida di `CustomerResource::quickCreateStore()`): il referente dalla scheda
+ * di un'azienda, l'azienda dalla scheda di una persona.
  *
  * Prima di creare cerca un doppione (email per le persone, partita IVA per le
  * aziende): se c'è e chi scrive lo vede, torna quello e il form lo seleziona.
@@ -21,22 +22,6 @@ use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
  */
 final class QuickContacts
 {
-    public const PERSON = 'person';
-    public const COMPANY = 'company';
-
-    /**
-     * @param array<string, mixed> $post `type` (person, company) e i campi della finestra
-     * @return array{ok: bool, message: string, id: int, label: string, existing: bool}
-     */
-    public static function create(array $post): array
-    {
-        return match ((string) ($post['type'] ?? '')) {
-            self::PERSON => self::person($post),
-            self::COMPANY => self::company($post),
-            default => self::error('Non so che scheda creare.'),
-        };
-    }
-
     /**
      * Un referente: nome o cognome, email facoltativa. Non è cliente.
      *

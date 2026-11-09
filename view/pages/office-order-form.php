@@ -141,6 +141,23 @@ try {
         node.dispatchEvent(new Event('change', {bubbles: true}));
     }
 
+    // I brand dell'azienda scelta: «Nessun brand», poi i suoi; proposto il primo.
+    function brands(list) {
+        var node = field('brand_id');
+
+        if (!node) {
+            return;
+        }
+
+        node.innerHTML = '';
+        node.appendChild(new Option('Nessun brand', '0'));
+        (list || []).forEach(function (b) {
+            node.appendChild(new Option(b.label, String(b.id)));
+        });
+        node.value = list && list.length ? String(list[0].id) : '0';
+        node.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+
     function panels(data) {
         var html = (data && data.html) || {};
 
@@ -249,6 +266,7 @@ try {
             var main;
 
             referents(data.referents);
+            brands(data.brands);
             fill(data.customer || {});
             panels(data);
             main = state.addresses.filter(function (a) { return a.is_default; })[0]
@@ -264,6 +282,7 @@ try {
             set('customer_id', '');
             set('company_id', '0');
             referents([]);
+            brands([]);
             panels(null);
         }
     });

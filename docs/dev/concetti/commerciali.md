@@ -112,7 +112,8 @@ quello corrente: la forma resta la stessa, cambia `agent_id = N` in
 ## Test
 
 - `tests/QuickContactsTest.php` — controlli di `SalesAgentUsers::create()`
-  prima del database.
+  prima del database (la creazione rapida di referenti e aziende è in
+  `tests/ContactResourcesTest.php`).
 - `tests/SalesAgentsTest.php` — ruolo, `restricted`, SQL delle regole,
   `none()` senza scheda, `withoutAgents`, `forDocument`.
 - `tests/integrazione/SalesAgentsTest.php` — visibilità reale di contatti,

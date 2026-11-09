@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
+use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
@@ -104,6 +105,9 @@ final class OfficeOrderPage
                     ? self::field(FormField::key('referent')->select(self::referentOptions($companyId)), 'referent', 'Referente', 12, (string) ($companyId > 0 ? $customerId : 0))
                         ->hiddenWhen('company_id', ['0', ''])
                     : null,
+                // Il brand dell'azienda: lo script rifà le opzioni come per il referente.
+                self::field(FormField::key('brand_id')->select(self::brandOptions($companyId)), 'brand_id', 'Brand', 12, (string) ($companyId > 0 ? (int) ($values['brand_id'] ?? 0) : 0))
+                    ->hiddenWhen('company_id', ['0', '']),
                 // Sotto il cliente, a chi va l'email: il PDF del preventivo o la conferma.
                 FormField::key('notify')->toggle()
                     ->label($quote ? 'Manda l\'email con il PDF' : 'Alla conferma scrivi al cliente')
@@ -204,7 +208,23 @@ final class OfficeOrderPage
         $options = ['0' => 'Nessun referente'];
 
         foreach (DocumentReferents::people($companyId) as $option) {
-            $options[(string) $option['id']] = $option['name'].($option['job_title'] !== '' ? ' — '.$option['job_title'] : '');
+            $options[(string) $option['id']] = $option['name'].($option['role'] !== '' ? ' — '.$option['role'] : '');
+        }
+
+        return $options;
+    }
+
+    /**
+     * Le scelte del brand: nessuno, poi quelli dell'azienda.
+     *
+     * @return array<string, string>
+     */
+    public static function brandOptions(int $companyId): array
+    {
+        $options = ['0' => 'Nessun brand'];
+
+        foreach (CompanyBrands::of($companyId) as $brand) {
+            $options[(string) $brand['id']] = CompanyBrands::label($brand);
         }
 
         return $options;

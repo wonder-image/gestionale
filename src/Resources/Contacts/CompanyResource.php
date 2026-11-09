@@ -4,6 +4,9 @@ namespace Wonder\Plugin\Gestionale\Resources\Contacts;
 
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
+use Wonder\Elements\Components\Card;
+use Wonder\Elements\Components\SectionTitle;
+use Wonder\Plugin\CustomerAccount\Resources\Concerns\HasCompanyBrands;
 use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Gestionale;
@@ -17,10 +20,13 @@ use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
  * Stessa scheda delle persone, su `companies`: i documenti la legano con
  * `company_id`, non ha account, i suoi indirizzi stanno in
  * `company_addresses`. Con gli acquisti accesi sceglie il ruolo.
- * `SupplierResource` la estende per l'elenco dei fornitori.
+ * `SupplierResource` la estende per l'elenco dei fornitori. La prima cosa
+ * che chiede è il brand: il nome commerciale, condiviso tra ragioni sociali.
  */
 class CompanyResource extends CustomerResource
 {
+    use HasCompanyBrands;
+
     public static string $model = Company::class;
 
     public static function relationSide(): string
@@ -82,6 +88,34 @@ class CompanyResource extends CustomerResource
             'all' => 'tutte',
             'article' => 'le',
             'this' => 'questa',
+        ];
+    }
+
+    public static function brandResource(): string
+    {
+        return CompanyBrandResource::class;
+    }
+
+    public static function formSchema(): array
+    {
+        return [...static::brandFields(), ...parent::formSchema()];
+    }
+
+    public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
+    {
+        return static::withBrandValues(parent::mutateFormValues($values, $mode, $context));
+    }
+
+    protected static function brandCards(): array
+    {
+        return [
+            (new Card)->components([
+                SectionTitle::make(__t('gestionale.contacts.brands.title'))
+                    ->tooltip(__t('gestionale.contacts.brands.tooltip'))
+                    ->columnSpan(12),
+                static::getInput(static::$brandsInput)->columnSpan(12),
+                static::getInput(static::$brandsMarker)->columnSpan(12),
+            ])->columns(12)->columnSpan(12),
         ];
     }
 

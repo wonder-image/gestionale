@@ -100,6 +100,20 @@ Dall'elenco dei fornitori il nome apre la sua scheda, come per i clienti:
 ricevuti da lui (il numero apre il carico) e gli **articoli forniti**, con il
 suo codice e il costo. Per cambiare qualcosa c'è **Modifica** in alto.
 
+## Brand
+
+Il **brand** è il nome commerciale con cui un'azienda si presenta: *RClass* può
+essere il nome commerciale di due ragioni sociali, e una ragione sociale può
+avere più brand (per esempio un ristorante e un albergo). Nel form di
+un'**azienda** il brand è la **prima cosa** che si sceglie: cercalo scrivendo
+una parte del nome e selezionane uno o più; se non c'è, il **+** lo crea. Un
+brand con lo stesso nome di uno che c'è già non si duplica: si seleziona
+quello.
+
+I preventivi e gli ordini da ufficio di un'azienda hanno il campo **Brand**,
+fra i brand di quell'azienda: parte dal primo. Servirà per legare al brand i
+progetti nati dal preventivo.
+
 ## Referenti e aziende
 
 Un'azienda ha spesso più persone con cui parli: chi ordina, chi paga, chi
@@ -108,16 +122,19 @@ nel form di una **persona** il riquadro **Aziende** elenca le aziende per cui
 lavora. La stessa persona può essere referente di più aziende ed è sempre
 **una scheda sola**, con un solo accesso al sito.
 
-Per ogni riga scegli la scheda dalla tendina, come per le categorie e i tag dei
-prodotti. Se non c'è, sotto al riquadro c'è **Nuovo referente** (o **Nuova
-azienda** nel form di una persona): scrivi nome, cognome ed email (o ragione
-sociale e partita IVA), e la scheda nasce e si seleziona da sola. Prima di
-crearla si controlla che non esista già: con la stessa **email** o la stessa
-**partita IVA** si seleziona quella che c'è, senza doppioni. Il referente nuovo
-non è né cliente né fornitore; l'azienda nuova è cliente. Funziona anche quando
-crei un cliente o un'azienda nuovi. Poi:
+Per ogni riga cerca la scheda nella tendina scrivendo una parte del nome. Se non
+c'è, il **+** accanto alla tendina apre una finestra: scrivi nome, cognome ed
+email (o ragione sociale e partita IVA), e la scheda nasce e si seleziona nella
+riga. Prima di crearla si controlla che non esista già: con la stessa **email**
+o la stessa **partita IVA** si seleziona quella che c'è, senza doppioni. Il
+referente nuovo non è né cliente né fornitore; l'azienda nuova è cliente.
+Funziona anche quando crei un cliente o un'azienda nuovi. Poi:
 
-- **Mansione** — per esempio *Acquisti* o *Amministrazione*;
+- **Reparto** — *Amministrazione*, *Acquisti*, *Commerciale*, *Tecnico*,
+  *Direzione* o *Altro*: dice a chi mandare le email che riguardano quel
+  reparto (per esempio le fatture all'amministrazione, anche con la newsletter);
+- **Mansione** — il ruolo scritto a mano, per esempio *Responsabile acquisti*;
+  se manca, sui documenti compare il reparto;
 - **Referente principale** — è il referente proposto quando fai un preventivo,
   un ordine da ufficio o un DDT per quell'azienda;
 - **Riceve i documenti** — chi ha questa risposta riceve in copia le email dei

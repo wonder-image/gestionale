@@ -8,6 +8,7 @@ use Wonder\App\Visibility\RowVisibility;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
@@ -70,7 +71,7 @@ final class OfficeOrders
     private const HEADER = [
         'customer_id', 'email', 'phone', 'location_id', 'shipping_method_id',
         'payment_method_id', 'payment_term_id', 'customer_note', 'internal_note', 'document_note',
-        'price_list_id', 'company_id',
+        'price_list_id', 'company_id', 'brand_id',
     ];
 
     /** Gli stati da cui un preventivo si modifica: dopo la modifica torna da inviare (G9 §3.1). */
@@ -240,6 +241,7 @@ final class OfficeOrders
             'customer_id' => (int) $referent['customer_id'],
             'company_id' => $companyId,
             'referent_name' => (string) $referent['referent_name'],
+            'brand_id' => self::defaultBrand($companyId),
             'email' => (string) ($company['email'] ?? '') !== '' ? (string) $company['email'] : (string) ($person['email'] ?? ''),
             'phone' => trim((string) ($company['phone_prefix'] ?? '').' '.(string) ($company['phone'] ?? '')),
             'payment_method_id' => (int) ($company['payment_method_id'] ?? 0),
@@ -852,6 +854,9 @@ final class OfficeOrders
             $personId = array_key_exists('customer_id', $data) ? $customerId : DocumentReferents::defaultFor($companyId);
             $values = DocumentReferents::resolve($companyId, $personId) + $values;
             $customerId = (int) $values['customer_id'];
+            // Il brand vale solo se è dell'azienda; senza, il primo dei suoi.
+            $brandId = array_key_exists('brand_id', $data) ? (int) $data['brand_id'] : self::defaultBrand($companyId);
+            $values['brand_id'] = CompanyBrands::belongsTo($brandId, $companyId) ? $brandId : 0;
             $defaults = self::customerDefaults($customerId, $companyId);
         } elseif ($customerId > 0) {
             if (self::alive(Contact::class, $customerId) === [] || !self::reachable(Contact::$table, $customerId)) {
@@ -860,8 +865,10 @@ final class OfficeOrders
 
             $defaults = self::customerDefaults($customerId);
             $values['referent_name'] = '';
+            $values['brand_id'] = 0;
         } elseif (array_key_exists('company_id', $values) || array_key_exists('customer_id', $values)) {
             $values['referent_name'] = '';
+            $values['brand_id'] = 0;
         }
 
         if ($companyId > 0 || $customerId > 0 || array_key_exists('customer_id', $values)) {
@@ -1048,5 +1055,11 @@ final class OfficeOrders
         } catch (Throwable) {
             return [];
         }
+    }
+
+    /** Il brand proposto per un documento dell'azienda: il primo dei suoi, o nessuno. */
+    public static function defaultBrand(int $companyId): int
+    {
+        return CompanyBrands::idsOf($companyId)[0] ?? 0;
     }
 }
