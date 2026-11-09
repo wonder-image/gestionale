@@ -17,7 +17,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
@@ -59,7 +59,7 @@ $conta = static function (string $model): int {
 /** Le tabelle che la prova tocca, contate prima e dopo l'annullamento. */
 $tabelle = static fn (): array => array_map($conta, [
     ProductModel::class, Product::class, ProductSupplier::class,
-    Contact::class, Location::class, StockMovement::class,
+    Company::class, Location::class, StockMovement::class,
 ]);
 
 $prima = $tabelle();
@@ -129,8 +129,7 @@ $nuovaSede = static function (string $nome, int $posizione): int {
 };
 
 $fornitore = static function (string $nome): int {
-    $creato = Contact::create([
-        'type' => 'business',
+    $creato = Company::create([
         'business_name' => $nome,
         'country' => 'IT',
         'is_customer' => 'false',

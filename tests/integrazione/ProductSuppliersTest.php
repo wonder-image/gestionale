@@ -14,7 +14,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductResource;
 use Wonder\Plugin\Gestionale\Seeding\ContactsDemo;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -68,8 +68,7 @@ try {
         };
 
         $fornitore = static function (string $nome): int {
-            $creato = Contact::create([
-                'type' => 'business',
+            $creato = Company::create([
                 'business_name' => $nome,
                 'country' => 'IT',
                 'is_customer' => 'false',
@@ -222,10 +221,10 @@ try {
         // I fornitori del sito si mettono da parte, e per ora anche il sud:
         // da quanti ne propone la scheda dipende come si compilano, e la
         // prova conta i suoi.
-        Contact::query()->Update(Contact::$table, ['active' => 'false'], 'is_supplier', 'true');
-        Contact::update(['active' => 'true'], $nord);
+        Company::query()->Update(Company::$table, ['active' => 'false'], 'is_supplier', 'true');
+        Company::update(['active' => 'true'], $nord);
         $spento = $fornitore('Prova Vernici Ferme Srl');
-        Contact::update(['active' => 'false'], $spento);
+        Company::update(['active' => 'false'], $spento);
 
         // Esegue la prova come una richiesta della scheda: gli acquisti
         // accesi, o spenti, sopra a quello che dice il database, una sede
@@ -363,7 +362,7 @@ try {
         });
 
         // --- Due fornitori o più: il bottone e la finestra.
-        Contact::update(['active' => 'true'], $sud);
+        Company::update(['active' => 'true'], $sud);
 
         check('con più fornitori la scheda salva quelli della finestra, in ordine, e il costo vuoto a NULL', function () use ($scheda, $nord, $sud, $salva, $modo, $legami, $json) {
             $salva($scheda, ['suppliers' => $json([

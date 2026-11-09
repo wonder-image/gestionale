@@ -18,7 +18,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
@@ -53,7 +53,7 @@ $conta = static function (string $model): int {
 
 /** Le tabelle che la prova tocca, contate prima e dopo l'annullamento. */
 $tabelle = static fn (): array => array_map($conta, [
-    ProductModel::class, ProductVariant::class, Product::class, ProductSupplier::class, Contact::class,
+    ProductModel::class, ProductVariant::class, Product::class, ProductSupplier::class, Company::class,
 ]);
 
 $prima = $tabelle();
@@ -700,8 +700,7 @@ try {
         };
 
         $fornitore = static function (string $nome, bool $attivo = true): int {
-            $creato = Contact::create([
-                'type' => 'business',
+            $creato = Company::create([
                 'business_name' => $nome,
                 'country' => 'IT',
                 'is_customer' => 'false',
@@ -776,7 +775,7 @@ try {
 
         // I fornitori del sito si mettono da parte: da quanti ne propone la
         // scheda dipende come si compilano (P109), e la prova conta i suoi.
-        Contact::query()->Update(Contact::$table, ['active' => 'false'], 'is_supplier', 'true');
+        Company::query()->Update(Company::$table, ['active' => 'false'], 'is_supplier', 'true');
 
         $nord = $fornitore('Prova Filati Nord');
 

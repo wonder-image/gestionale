@@ -29,7 +29,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
 use Wonder\Plugin\Gestionale\Seeding\ContactsDemo;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
@@ -82,8 +82,8 @@ $idDi = static fn (string $model, string $ref): int => (int) ($demo($model, $ref
 
 /** L'id della scheda fornitore di prova con quel riferimento, `0` se non c'è. */
 $fornitoreId = static function (string $ref): int {
-    $riga = Contact::find([
-        'code' => DemoCode::forModel(Contact::class, $ref),
+    $riga = Company::find([
+        'code' => DemoCode::forModel(Company::class, $ref),
         'is_supplier' => 'true',
         'deleted' => 'false',
     ], 1);
@@ -153,9 +153,9 @@ try {
         // avrebbe il segno nel codice: si rinomina, e l'annullamento la
         // rimette com'era.
         foreach (['Filati Nord Spa', 'Imballaggi Sud Srl'] as $nome) {
-            foreach ($righe(Contact::class) as $scheda) {
+            foreach ($righe(Company::class) as $scheda) {
                 if (!DemoCode::is((string) ($scheda['code'] ?? '')) && DemoCode::sameName((string) ($scheda['business_name'] ?? ''), $nome)) {
-                    Contact::update(['business_name' => $nome.' vera'], (int) $scheda['id']);
+                    Company::update(['business_name' => $nome.' vera'], (int) $scheda['id']);
                 }
             }
         }
