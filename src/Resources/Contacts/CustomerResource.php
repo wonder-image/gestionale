@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Resources\Contacts;
 
 use Wonder\App\ResourceSchema\ApiSchema;
+use Wonder\Backend\Support\QuickCreateStore;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -14,8 +15,6 @@ use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Throwable;
 use Wonder\Elements\Components\Accordion;
-use Wonder\Elements\Components\Button;
-use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
@@ -63,7 +62,7 @@ use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
  * Non è `final`: la estende `CompanyResource`, e i test con una classe
  * anonima.
  */
-class CustomerResource extends GestionaleResource
+class CustomerResource extends GestionaleResource implements QuickCreateStore
 {
     use HasContactRelations;
 
@@ -364,6 +363,7 @@ class CustomerResource extends GestionaleResource
         $chiE[] = static::getInput('active')->columnSpan(3);
 
         $cards = [
+            ...static::brandCards(),
             (new Card)->components($chiE)->columns(12)->columnSpan(12),
             (new Card)->components([
                 SectionTitle::make('Contatti')->columnSpan(12),
@@ -410,6 +410,12 @@ class CustomerResource extends GestionaleResource
         ])->columns(12);
     }
 
+    /** La card «Brand», prima di tutto: solo le aziende ne hanno. */
+    protected static function brandCards(): array
+    {
+        return [];
+    }
+
     /**
      * La card «Referenti» (azienda) o «Aziende» (persona): i due repeater
      * seguono il tipo della scheda, il campo nascosto dice al salvataggio che
@@ -423,184 +429,53 @@ class CustomerResource extends GestionaleResource
             return [];
         }
 
+        $company = static::relationSide() === ContactRelations::COMPANY;
+
         return [
             (new Card)->components([
-                SectionTitle::make(__t('gestionale.contacts.relations.title'))
-                    ->tooltip(__t('gestionale.contacts.relations.tooltip'))
+                SectionTitle::make(__t('gestionale.contacts.relations.'.($company ? 'title_people' : 'title_companies')))
+                    ->tooltip(__t('gestionale.contacts.relations.'.($company ? 'tooltip_people' : 'tooltip_companies')))
                     ->columnSpan(12),
                 // Il form dichiara un solo repeater, quello del lato della scheda
-                static::getInput(static::relationSide() === ContactRelations::COMPANY ? self::RELATION_PEOPLE : self::RELATION_COMPANIES)->columnSpan(12),
+                static::getInput($company ? self::RELATION_PEOPLE : self::RELATION_COMPANIES)->columnSpan(12),
                 static::getInput(self::RELATION_MARKER)->columnSpan(12),
-                ...static::quickRelationParts(),
             ])->columns(12)->columnSpan(12),
         ];
     }
 
     /**
-     * «Nuovo referente» (lato azienda) o «Nuova azienda» (lato persona): la
-     * scheda si crea dalla finestra e si seleziona in una riga dei legami.
-     * Se c'è già (stessa email o partita IVA) si seleziona quella.
-     *
-     * @return list<object>
+     * Il «+» nelle righe dei legami, lo stesso input dei brand: dalla scheda
+     * di un'azienda si crea un referente, da quella di una persona
+     * un'azienda. La crea `quickCreateStore()` del target.
      */
-    protected static function quickRelationParts(): array
+    protected static function relationQuickCreate(string $parentColumn): ?array
     {
-        try {
-            $endpoint = (string) __r('api.gestionale.backend.contacts.quick_create');
-        } catch (Throwable) {
-            return [];
-        }
-
-        $company = static::relationSide() === ContactRelations::COMPANY;
-        $type = $company ? QuickContacts::PERSON : QuickContacts::COMPANY;
-        $repeater = $company ? self::RELATION_PEOPLE : self::RELATION_COMPANIES;
-        $column = $company ? 'person_id' : 'company_id';
-        $modalId = 'wi-quick-relation';
-        $label = __t($company ? 'gestionale.contacts.relations.quick_person' : 'gestionale.contacts.relations.quick_company');
-        $field = static fn (string $key, string $text, int $span): Input => FormField::key('quick_'.$key)
-            ->text()
-            ->label(__t('gestionale.contacts.relations.quick_fields.'.$text))
-            ->attribute('data-wi-quick-field="'.$key.'"')
-            ->columnSpan($span);
-
-        $fields = $company
-            ? [$field('name', 'name', 6), $field('surname', 'surname', 6), $field('email', 'email', 12)]
-            : [$field('business_name', 'business_name', 12), $field('pi', 'pi', 12)];
-
-        return [
-            Button::make($label)
-                ->variant('secondary')
-                ->outline()
-                ->opensModal($modalId)
-                ->columnSpan(12),
-            Modal::make($label)
-                ->id($modalId)
-                ->help(__t('gestionale.contacts.relations.quick_help'))
-                ->columns(12)
-                ->components([
-                    RichText::make('<div class="alert alert-danger small mb-0" data-wi-quick-error role="alert" hidden></div>')
-                        ->tag('div')->columnSpan(12),
-                    ...$fields,
-                ])
-                ->footer([
-                    Button::make(__t('gestionale.contacts.relations.quick_cancel'))->variant('secondary')->attr('data-bs-dismiss', 'modal'),
-                    Button::make(__t('gestionale.contacts.relations.quick_save'))->attr('data-wi-quick-save', 'true'),
-                ]),
-            RichText::make(
-                '<div class="small text-body-secondary" data-wi-quick-relation="'.static::escape($modalId).'"'
-                .' data-wi-endpoint="'.static::escape($endpoint).'"'
-                .' data-wi-type="'.static::escape($type).'"'
-                .' data-wi-repeater="'.static::escape($repeater).'"'
-                .' data-wi-column="'.static::escape($column).'"></div>'
-                .static::quickRelationScript()
-            )->tag('div')->columnSpan(12),
-        ];
+        return $parentColumn === ContactRelations::COMPANY
+            ? [CustomerResource::class, ['name', 'surname', 'email'], null, (string) __t('gestionale.contacts.relations.quick_person')]
+            : [CompanyResource::class, ['business_name', 'pi'], null, (string) __t('gestionale.contacts.relations.quick_company')];
     }
 
     /**
-     * Il codice della finestra: sposta il modal fuori dal form (i suoi campi
-     * non vanno salvati con la scheda), manda i dati all'endpoint e mette la
-     * scheda nella prima riga vuota dei legami, o in una nuova.
+     * La creazione rapida (QuickCreateStore): passa da `QuickContacts`, che
+     * cerca prima il doppione per email o partita IVA e salva come l'utente
+     * della sessione (la scheda di un commerciale nasce sua).
      */
-    protected static function quickRelationScript(): string
+    public static function quickCreateStore(array $values, string $labelField): array
     {
-        return <<<'HTML'
-<script>
-(function () {
-  function setUp() {
-    document.querySelectorAll('[data-wi-quick-relation]').forEach(function (box) {
-      if (box.dataset.wiReady) return;
-      box.dataset.wiReady = 'true';
+        $result = static::relationSide() === ContactRelations::COMPANY
+            ? QuickContacts::company($values)
+            : QuickContacts::person($values);
 
-      var modal = document.getElementById(box.dataset.wiQuickRelation);
-      if (!modal) return;
-      document.body.appendChild(modal);
+        if (!$result['ok']) {
+            return ['error' => $result['message']];
+        }
 
-      var error = modal.querySelector('[data-wi-quick-error]');
-      var save = modal.querySelector('[data-wi-quick-save]');
-      var fields = function () { return modal.querySelectorAll('[data-wi-quick-field]'); };
-
-      modal.addEventListener('show.bs.modal', function () {
-        fields().forEach(function (input) { input.value = ''; });
-        error.hidden = true;
-      });
-
-      save.addEventListener('click', function () {
-        var body = { type: box.dataset.wiType };
-        fields().forEach(function (input) { body[input.dataset.wiQuickField] = input.value; });
-        var token = document.querySelector('meta[name="wi-csrf"]');
-        save.disabled = true;
-        error.hidden = true;
-
-        fetch(box.dataset.wiEndpoint, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-WI-CSRF': token ? token.content : '' },
-          body: JSON.stringify(body)
-        }).then(function (response) {
-          return response.json().catch(function () { return {}; }).then(function (json) { return { ok: response.ok, json: json }; });
-        }).then(function (result) {
-          var data = result.json && typeof result.json.response === 'object' && result.json.response ? result.json.response : {};
-          if (!result.ok || !data.id) {
-            error.textContent = (result.json && typeof result.json.response === 'string' && result.json.response) || 'Non sono riuscito a salvare la scheda.';
-            error.hidden = false;
-            return;
-          }
-          place(box, data);
-          if (window.bootstrap && window.bootstrap.Modal) window.bootstrap.Modal.getOrCreateInstance(modal).hide();
-          box.textContent = data.existing ? (data.message || '') : '';
-        }).catch(function () {
-          error.textContent = 'Non sono riuscito a salvare la scheda.';
-          error.hidden = false;
-        }).finally(function () { save.disabled = false; });
-      });
-    });
-  }
-
-  // La scheda in tutte le tendine della colonna, poi nella riga: quella che
-  // l'ha già, la prima vuota o una nuova.
-  function place(box, data) {
-    var repeater = document.querySelector('[data-wi-repeater="' + box.dataset.wiRepeater + '"]');
-    if (!repeater) return;
-    var column = '[' + box.dataset.wiColumn + ']';
-    var id = String(data.id);
-    var selects = function (root) {
-      return Array.prototype.filter.call(root.querySelectorAll('select'), function (s) { return s.name.slice(-column.length) === column; });
-    };
-    var template = repeater.querySelector('template');
-
-    selects(repeater).concat(template ? selects(template.content) : []).forEach(function (select) {
-      if (!Array.prototype.some.call(select.options, function (o) { return o.value === id; })) {
-        select.appendChild(new Option(data.label, id, false, false));
-      }
-    });
-
-    var rows = Array.prototype.filter.call(repeater.querySelectorAll('.wi-repeater-row:not(.d-none):not(.wi-repeater-row-deleted)'), function (row) {
-      return !row.closest('template');
-    });
-    var pick = function (row) { return selects(row)[0]; };
-
-    if (rows.some(function (row) { var s = pick(row); return s && s.value === id; })) return;
-
-    var row = rows.filter(function (r) { var s = pick(r); return s && s.value === ''; })[0];
-    if (!row) {
-      var add = repeater.querySelector('button[onclick*="wiRepeaterAddRow"]');
-      var ids = add ? (add.getAttribute('onclick').match(/'([^']+)'/g) || []).map(function (x) { return x.slice(1, -1); }) : [];
-      row = ids.length >= 2 && typeof window.wiRepeaterAddRow === 'function' ? window.wiRepeaterAddRow(ids[0], ids[1]) : null;
-    }
-    var select = row ? pick(row) : null;
-    if (!select) return;
-
-    select.value = id;
-    if (window.jQuery) window.jQuery(select).trigger('change');
-    else select.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setUp);
-  else setUp();
-})();
-</script>
-HTML;
+        return [
+            'id' => $result['id'],
+            'label' => $result['label'],
+            'item' => ['id' => $result['id'], 'name' => $result['label']],
+            'message' => $result['existing'] ? $result['message'] : '',
+        ];
     }
 
     /**

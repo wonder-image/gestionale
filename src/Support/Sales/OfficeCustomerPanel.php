@@ -18,6 +18,7 @@ use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
+use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
@@ -86,6 +87,7 @@ final class OfficeCustomerPanel
             'contact' => $valori,
             'addresses' => array_map(static fn (array $a): array => self::address($a), $addresses),
             'referents' => [],
+            'brands' => [],
             'html' => [
                 'contacts' => self::contactsHtml($contact),
                 'billing' => self::billingHtml($contact),
@@ -126,9 +128,13 @@ final class OfficeCustomerPanel
             'addresses' => $righe,
             'referents' => array_map(static fn (array $r): array => [
                 'id' => $r['id'],
-                'label' => $r['name'].($r['job_title'] !== '' ? ' — '.$r['job_title'] : ''),
+                'label' => $r['name'].($r['role'] !== '' ? ' — '.$r['role'] : ''),
                 'is_primary' => $r['is_primary'],
             ], DocumentReferents::people($companyId)),
+            'brands' => array_map(static fn (array $b): array => [
+                'id' => (int) $b['id'],
+                'label' => CompanyBrands::label($b),
+            ], CompanyBrands::of($companyId)),
             'html' => [
                 'contacts' => self::contactsHtml($company),
                 'billing' => self::companyBillingHtml($company),

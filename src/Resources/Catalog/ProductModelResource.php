@@ -249,7 +249,7 @@ class ProductModelResource extends GestionaleResource
             // sotto: il primo raggruppa, gli altri compongono il nome.
             FormField::key('axes_order')->hidden(),
             FormField::key('brand_id')
-                ->select(static::brandOptions())
+                ->selectSearch(static::brandOptions())
                 ->label('Marchio')
                 ->quickCreate(BrandResource::class),
             // Parte dal tipo predefinito: quasi nessuno lo cambia, ma il

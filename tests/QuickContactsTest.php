@@ -16,12 +16,6 @@ check('l\'etichetta è come nelle tendine dei legami', function () {
         && QuickContacts::label(['id' => 7]) === '#7';
 });
 
-check('il tipo sconosciuto non crea niente', function () {
-    $r = QuickContacts::create(['type' => 'altro']);
-
-    return $r['ok'] === false && $r['id'] === 0;
-});
-
 check('il referente vuole nome o cognome ed email valida', function () {
     $vuoto = QuickContacts::person(['email' => 'a@example.com']);
     $email = QuickContacts::person(['name' => 'Mario', 'email' => 'non-email']);

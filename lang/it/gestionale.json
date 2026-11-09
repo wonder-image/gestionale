@@ -2,8 +2,10 @@
     "name": "Gestionale",
     "contacts": {
         "relations": {
-            "title": "Referenti e aziende",
-            "tooltip": "Le persone che lavorano per questa azienda, o le aziende per cui lavora questa persona. Un referente che riceve i documenti li ha in copia quando li mandi.",
+            "title_people": "Referenti",
+            "title_companies": "Aziende",
+            "tooltip_people": "Le persone che lavorano per questa azienda, con il loro reparto (es. Amministrazione): servirà per mandare a ognuno le email che lo riguardano. Un referente che riceve i documenti li ha in copia quando li mandi.",
+            "tooltip_companies": "Le aziende per cui lavora questa persona, con il suo ruolo e reparto. Se riceve i documenti li ha in copia quando li mandi.",
             "filter": "Referenti",
             "filter_only": "Solo i referenti",
             "filter_hide": "Senza i referenti",
@@ -12,17 +14,11 @@
             "export_people": "Referenti",
             "export_companies": "Aziende",
             "quick_person": "Nuovo referente",
-            "quick_company": "Nuova azienda",
-            "quick_help": "Se c'è già una scheda con la stessa email o partita IVA, si seleziona quella invece di crearne un'altra.",
-            "quick_cancel": "Annulla",
-            "quick_save": "Crea e seleziona",
-            "quick_fields": {
-                "name": "Nome",
-                "surname": "Cognome",
-                "email": "Email",
-                "business_name": "Ragione sociale",
-                "pi": "Partita IVA"
-            }
+            "quick_company": "Nuova azienda"
+        },
+        "brands": {
+            "title": "Brand",
+            "tooltip": "Il nome commerciale con cui il cliente si presenta. Un brand può stare su più ragioni sociali e una ragione sociale può avere più brand: i preventivi si legano al brand."
         }
     },
     "errors": {

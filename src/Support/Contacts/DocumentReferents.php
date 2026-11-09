@@ -21,7 +21,7 @@ final class DocumentReferents
     private static $reader = null;
 
     /**
-     * @return list<array{id: int, name: string, email: string, job_title: string, is_primary: bool}>
+     * @return list<array{id: int, name: string, email: string, job_title: string, department: string, role: string, is_primary: bool}>
      */
     public static function options(int $companyId): array
     {
@@ -32,14 +32,14 @@ final class DocumentReferents
      * Tutte le persone legate all'azienda, anche quelle che non ricevono i
      * documenti: fra queste si sceglie il referente.
      *
-     * @return list<array{id: int, name: string, email: string, job_title: string, is_primary: bool}>
+     * @return list<array{id: int, name: string, email: string, job_title: string, department: string, role: string, is_primary: bool}>
      */
     public static function people(int $companyId): array
     {
         return self::read($companyId, false);
     }
 
-    /** @return list<array{id: int, name: string, email: string, job_title: string, is_primary: bool}> */
+    /** @return list<array{id: int, name: string, email: string, job_title: string, department: string, role: string, is_primary: bool}> */
     private static function read(int $companyId, bool $onlyDocuments): array
     {
         if ($companyId <= 0 || !ContactRelations::enabled()) {
@@ -62,7 +62,7 @@ final class DocumentReferents
      * vivi, con la persona viva e, con `$onlyDocuments`, che ricevono i documenti.
      *
      * @param list<array<string, mixed>> $rows
-     * @return list<array{id: int, name: string, email: string, job_title: string, is_primary: bool}>
+     * @return list<array{id: int, name: string, email: string, job_title: string, department: string, role: string, is_primary: bool}>
      */
     public static function fromRows(array $rows, bool $onlyDocuments = true): array
     {
@@ -85,7 +85,10 @@ final class DocumentReferents
                 'id' => $id,
                 'name' => Contacts::displayName($contact),
                 'email' => strtolower(trim((string) ($contact['email'] ?? ''))),
-                'job_title' => trim((string) ($row['job_title'] ?? '')),
+                'job_title' => $job = trim((string) ($row['job_title'] ?? '')),
+                'department' => $department = (string) ($row['department'] ?? ''),
+                // Il ruolo, altrimenti il reparto: è quello che si legge nelle tendine.
+                'role' => $job !== '' || $department === '' ? $job : ContactRelations::departmentLabel($department),
                 'is_primary' => ($row['is_primary'] ?? 'false') === 'true',
             ];
         }
