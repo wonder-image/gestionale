@@ -13,6 +13,7 @@ use Wonder\Plugin\Gestionale\Resources\Sales\OfficeOrderResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeCustomerPanel;
+use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderForm;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderPage;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeSearch;
 
@@ -176,5 +177,10 @@ check('l\'azione del menu ⋯ su una bozza inesistente lancia il 404 del core', 
 
     return true;
 });
+
+check('la testata posta porta anche l\'azienda, non solo la persona', fn () =>
+    OfficeOrderForm::header(['customer' => 'company:7', 'customer_id' => '3', 'company_id' => '7'])
+        === ['customer_id' => '3', 'company_id' => '7']
+);
 
 summary();
