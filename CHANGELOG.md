@@ -59,6 +59,9 @@ versionamento semantico.
     (`Contacts\CompanyBrandResource` su `app/gestionale/brand`, permessi
     dell'area contatti). Ordini da ufficio e preventivi hanno il brand
     dell'azienda, scelto fra i suoi e proposto dal predefinito.
+  - **Capogruppo**: nella stessa card il campo *Capogruppo*
+    (`companies.parent_id`, un livello solo), validato da `HasCompanyGroup`
+    di customer-account.
   - **Brand sul documento** (`Support\Contacts\DocumentBrands`):
     - `gst_orders.brand_id` diventa `company_brand_id` (indice
       `ind_company_brand`), per non confonderlo con il marchio degli articoli;
