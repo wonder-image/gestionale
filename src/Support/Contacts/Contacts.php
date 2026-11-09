@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Contacts;
 
 use Throwable;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 
 /**
@@ -16,10 +17,10 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
  */
 final class Contacts
 {
-    /** @param array<string, mixed> $row */
+    /** Vero per una riga di `companies`: solo le aziende hanno la ragione sociale. @param array<string, mixed> $row */
     public static function isCompany(array $row): bool
     {
-        return strtolower(trim((string) ($row['type'] ?? ''))) === 'business';
+        return trim((string) ($row['business_name'] ?? '')) !== '';
     }
 
     /** @param array<string, mixed> $row */
@@ -125,7 +126,7 @@ final class Contacts
      *
      * @return array<string, mixed>
      */
-    public static function duplicateOf(string $column, string $value, ?int $ignoreId): array
+    public static function duplicateOf(string $column, string $value, ?int $ignoreId, string $model = Contact::class): array
     {
         $value = trim($value);
 
@@ -134,7 +135,7 @@ final class Contacts
         }
 
         try {
-            $rows = Contact::find([$column => $value, 'deleted' => 'false']);
+            $rows = $model::find([$column => $value, 'deleted' => 'false']);
         } catch (Throwable) {
             // Senza database (test degli schemi, comandi) non c'è niente da
             // confrontare: il valore è libero.
@@ -158,6 +159,7 @@ final class Contacts
 
     /**
      * I fornitori da proporre in una tendina, id => nome, in ordine di nome.
+     * Un fornitore è sempre un'azienda: gli id sono di `companies`.
      *
      * Solo quelli attivi, più quelli di `$keepIds` anche se non lo sono più:
      * sono i fornitori già legati a quello che stai modificando. Senza, la
@@ -180,7 +182,7 @@ final class Contacts
             .')';
 
         try {
-            $rows = Contact::find($condition);
+            $rows = Company::find($condition);
         } catch (Throwable) {
             // Senza database (test degli schemi, comandi) non c'è nessuno da
             // proporre.

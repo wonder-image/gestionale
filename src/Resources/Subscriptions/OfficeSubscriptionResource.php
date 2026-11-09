@@ -17,12 +17,14 @@ use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Http\SafeRedirect;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentTerm;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionProductForm;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
+use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderEditor;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\OfficeSubscriptions;
@@ -97,9 +99,12 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
     public static function formSchema(): array
     {
         return [
+            FormField::key('company_id')->selectSearch(['' => 'Nessuna: è una persona'] + static::companyOptions())
+                ->label('Azienda'),
+            // Con l'azienda è il referente (facoltativo), senza è il cliente.
             FormField::key('customer_id')->searchText(OfficeOrderEditor::customersUrl())
                 ->emptyText('Nessun cliente trovato: crealo dai Contatti.')
-                ->label('Cliente')->required(),
+                ->label('Cliente / referente'),
             FormField::key('items')
                 ->repeater([
                     RepeaterColumn::key('plan_price_id')->select(['' => 'Scegli'] + static::priceOptions())->label('Piano e prezzo')->columnSpan(6),
@@ -138,8 +143,9 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
                     SectionTitle::make('Abbonamento')
                         ->tooltip('Dal giorno scelto parte il primo periodo (dopo la prova, se il prezzo ne ha una): nascono le rate della condizione di pagamento e il cliente riceve il proforma. A ogni rinnovo lo stesso, finché non lo disdici.')
                         ->columnSpan(12),
-                    static::getInput('customer_id')->columnSpan(6),
-                    static::getInput('starts_at')->columnSpan(6),
+                    static::getInput('company_id')->columnSpan(4),
+                    static::getInput('customer_id')->columnSpan(4),
+                    static::getInput('starts_at')->columnSpan(4),
                     static::getInput('payment_method_id')->columnSpan(4),
                     static::getInput('payment_term_id')->columnSpan(4),
                     static::getInput('coupon')->columnSpan(4),
@@ -168,6 +174,7 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
         try {
             $id = OfficeSubscriptions::create([
                 'customer_id' => (int) ($values['customer_id'] ?? 0),
+                'company_id' => (int) ($values['company_id'] ?? 0),
                 'items' => static::itemsFrom($values['items'] ?? []),
                 'starts_at' => OrderPaymentResource::dateFrom($values['starts_at'] ?? ''),
                 'payment_method_id' => (int) ($values['payment_method_id'] ?? 0),
@@ -312,6 +319,20 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
     }
 
     /** Le condizioni di pagamento attive. @return array<int, string> */
+    /** Le aziende, id => ragione sociale. @return array<int, string> */
+    public static function companyOptions(): array
+    {
+        $options = [];
+
+        foreach (static::rows(Company::class, []) as $company) {
+            $options[(int) $company['id']] = Contacts::displayName($company);
+        }
+
+        asort($options, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return $options;
+    }
+
     public static function termOptions(): array
     {
         $options = [];

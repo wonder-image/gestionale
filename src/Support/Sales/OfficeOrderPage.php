@@ -12,6 +12,7 @@ use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
@@ -71,9 +72,13 @@ final class OfficeOrderPage
         $paese = static fn (string $key): string => $v($key) !== '' ? $v($key) : 'IT';
 
         $customerId = (int) ($values['customer_id'] ?? 0);
+        $companyId = (int) ($values['company_id'] ?? 0);
         // Testata dell'ordine nascosta: la riempiono la scheda del cliente e
-        // l'indirizzo spuntato, e la posta il form come prima.
+        // l'indirizzo spuntato, e la posta il form come prima. `customer_id`
+        // è la persona (con un'azienda, il referente), `company_id` l'azienda.
         $nascosti = [
+            self::hidden('customer_id', $customerId > 0 ? (string) $customerId : ''),
+            self::hidden('company_id', (string) $companyId),
             self::hidden('email', $v('email')),
             self::hidden('phone', $v('phone')),
             ...array_map(static fn (string $k): Input => self::hidden('billing_'.$k, $v('billing_'.$k)), OfficeOrders::billingKeys()),
@@ -86,15 +91,18 @@ final class OfficeOrderPage
                     .SectionTitle::make('Cliente')->tooltip('Scegliendo il cliente si riempiono fatturazione, consegna e pagamento dalla sua scheda. Il cliente nuovo si crea in un\'altra scheda; poi cercalo qui.')->render('bootstrap')
                     .Button::to(self::newCustomerUrl(), 'Nuovo cliente')->icon('bi bi-person-plus')->variant('secondary')->outline()->size('sm')->blank()->render('bootstrap')
                     .'</div>')->tag('div')->columnSpan(12),
-                FormField::key('customer_id')->searchText(OfficeOrderEditor::customersUrl())
-                    ->valueLabel(self::customerLabel($customerId))
+                // Persone e aziende: il valore è la chiave composta (`contact:12`, `company:7`).
+                FormField::key('customer')->searchText(self::customersSearchUrl())
+                    ->valueLabel(self::customerLabel($customerId, $companyId))
                     ->emptyText('Nessun cliente trovato: crealo con «Nuovo cliente».')
                     ->label('Cliente')
-                    ->value($customerId > 0 ? (string) $customerId : '')
+                    ->value(OfficeSearch::customerKey($customerId, $companyId))
                     ->columnSpan(12),
-                // Il referente dell'azienda: lo script rifà le opzioni quando cambia il cliente.
+                // Il referente dell'azienda: lo script rifà le opzioni quando
+                // cambia il cliente e scrive la scelta in `customer_id`.
                 ContactRelations::enabled()
-                    ? self::field(FormField::key('referent_id')->select(self::referentOptions($customerId)), 'referent_id', 'Referente', 12, (string) ($values['referent_id'] ?? '0'))
+                    ? self::field(FormField::key('referent')->select(self::referentOptions($companyId)), 'referent', 'Referente', 12, (string) ($companyId > 0 ? $customerId : 0))
+                        ->hiddenWhen('company_id', ['0', ''])
                     : null,
                 // Sotto il cliente, a chi va l'email: il PDF del preventivo o la conferma.
                 FormField::key('notify')->toggle()
@@ -103,6 +111,7 @@ final class OfficeOrderPage
                     ->columnSpan(12),
                 ...$nascosti,
             ])))->columns(12)->columnSpan(12),
+            // La Fatturazione di un'azienda apre la sua finestra: lo script cambia il bersaglio.
             self::panel('Contatti', 'contacts', OfficeCustomerPanel::CONTACTS_MODAL),
             self::panel('Fatturazione', 'billing', OfficeCustomerPanel::BILLING_MODAL),
             self::panel('Indirizzi di consegna', 'addresses', ''),
@@ -190,11 +199,11 @@ final class OfficeOrderPage
      *
      * @return array<string, string>
      */
-    public static function referentOptions(int $customerId): array
+    public static function referentOptions(int $companyId): array
     {
         $options = ['0' => 'Nessun referente'];
 
-        foreach (DocumentReferents::options($customerId) as $option) {
+        foreach (DocumentReferents::options($companyId) as $option) {
             $options[(string) $option['id']] = $option['name'].($option['job_title'] !== '' ? ' — '.$option['job_title'] : '');
         }
 
@@ -230,7 +239,7 @@ final class OfficeOrderPage
             ->size('sm')
             ->attr('data-bs-toggle', 'modal')
             ->attr('data-bs-target', '#'.$modal)
-            ->attr('data-wi-oo-edit', true)
+            ->attr('data-wi-oo-edit', $key)
             ->attr('disabled', true)
             ->render('bootstrap');
 
@@ -242,20 +251,32 @@ final class OfficeOrderPage
         ])->columns(12)->columnSpan(12);
     }
 
-    /** Il nome del cliente scelto, nel campo di ricerca. */
-    private static function customerLabel(int $customerId): string
+    /** Il nome del cliente scelto, nel campo di ricerca: la ragione sociale o la persona. */
+    private static function customerLabel(int $customerId, int $companyId = 0): string
     {
-        if ($customerId <= 0) {
+        if ($companyId <= 0 && $customerId <= 0) {
             return '';
         }
 
         try {
-            $customer = Contact::findById($customerId);
+            $row = $companyId > 0 ? Company::findById($companyId) : Contact::findById($customerId);
         } catch (Throwable) {
             return '';
         }
 
-        return is_array($customer) && $customer !== [] ? Contacts::displayName($customer) : '';
+        if (!is_array($row) || $row === []) {
+            return '';
+        }
+
+        return $companyId > 0 ? trim((string) ($row['business_name'] ?? '')) : Contacts::displayName($row);
+    }
+
+    /** La ricerca del cliente con persone e aziende (`mixed=1`). */
+    private static function customersSearchUrl(): string
+    {
+        $url = OfficeOrderEditor::customersUrl();
+
+        return $url.(str_contains($url, '?') ? '&' : '?').'mixed=1';
     }
 
     /** *Nuovo cliente*: la pagina di creazione, dalla rotta con il nome. */

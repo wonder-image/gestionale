@@ -68,6 +68,7 @@ check('ogni Resource con dati dichiara la sua funzionalità', function () use ($
         // I clienti ci sono sempre; i fornitori arrivano con gli acquisti, e
         // infatti `SupplierResource` dichiara la sua funzionalità.
         'Wonder\\Plugin\\Gestionale\\Resources\\Contacts\\CustomerResource',
+        'Wonder\\Plugin\\Gestionale\\Resources\\Contacts\\CompanyResource',
     ];
     $mancanti = [];
 
@@ -137,6 +138,7 @@ check('solo i Model proprietari del modulo usano il prefisso gst_', function () 
 
         $shared = [
             'Wonder\\Plugin\\Gestionale\\Models\\Contacts\\Contact' => \Wonder\Plugin\CustomerAccount\Models\Contact::class,
+            'Wonder\\Plugin\\Gestionale\\Models\\Contacts\\Company' => \Wonder\Plugin\CustomerAccount\Models\Company::class,
             'Wonder\\Plugin\\Gestionale\\Models\\Contacts\\ContactAddress' => \Wonder\Plugin\CustomerAccount\Models\ContactAddress::class,
             'Wonder\\Plugin\\Gestionale\\Models\\System\\ExternalReference' => \Wonder\App\Models\System\ExternalReference::class,
         ];

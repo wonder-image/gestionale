@@ -3,7 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Orders;
 
 use Wonder\Plugin\Gestionale\Extensions\OrderEmailExtras;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentAccount;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
@@ -107,11 +107,11 @@ final class OrderNotifier
      */
     private static function copies(string $key, array $order): array
     {
-        if (!in_array($key, self::COPY_KEYS, true) || (int) ($order['customer_id'] ?? 0) <= 0) {
+        if (!in_array($key, self::COPY_KEYS, true) || (int) ($order['company_id'] ?? 0) <= 0) {
             return [];
         }
 
-        $company = Contact::findById((int) $order['customer_id']);
+        $company = Company::findById((int) $order['company_id']);
 
         return DocumentReferents::copyEmails($order, is_array($company) ? $company : null);
     }

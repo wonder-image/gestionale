@@ -177,6 +177,7 @@ final class SubscriptionEvents
                 'type' => 'payment',
                 'subscription_id' => $id,
                 'customer_id' => (int) ($row['customer_id'] ?? 0),
+                'company_id' => (int) ($row['company_id'] ?? 0),
                 'amount' => number_format($own, 2, '.', ''),
                 'currency' => $paid['currency'],
                 'status' => 'paid',

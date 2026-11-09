@@ -123,10 +123,10 @@ final class Order extends Model
             Column::key('fulfillment_status')->enum(static::FULFILLMENT_STATUSES)->default('unfulfilled'),
             // Cliente
             Column::key('customer_id')->int()->default(0),
+            Column::key('company_id')->int()->default(0),
             Column::key('email')->length(150),
             Column::key('phone')->length(50),
-            // Referente dell'azienda scelto sul documento, nome copiato
-            Column::key('referent_id')->int()->default(0),
+            // Con `company_id` la persona è il referente: il nome si copia
             Column::key('referent_name')->length(255),
             ...static::billingAddress()->tableSchema(),
             ...static::shippingTableSchema(),
@@ -168,6 +168,7 @@ final class Order extends Model
             'ind_order_number' => ['index' => 'order_number'],
             'ind_cart_token' => ['index' => 'cart_token'],
             'ind_customer' => ['index' => 'customer_id'],
+            'ind_company' => ['index' => 'company_id'],
             'ind_status' => ['index' => 'status'],
             'ind_last_activity' => ['index' => 'last_activity_at'],
         ];
@@ -192,9 +193,9 @@ final class Order extends Model
             Field::key('payment_status')->text()->sanitize(false),
             Field::key('fulfillment_status')->text()->sanitize(false),
             Field::key('customer_id')->number()->decimals(0),
+            Field::key('company_id')->number()->decimals(0),
             Field::key('email')->email(),
             Field::key('phone')->text()->sanitize(false),
-            Field::key('referent_id')->number()->decimals(0),
             Field::key('referent_name')->text(),
             ...static::billingAddress()->dataSchema(),
             ...static::shippingDataSchema(),

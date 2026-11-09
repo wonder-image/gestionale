@@ -84,7 +84,7 @@ final class QuoteResource extends OfficeOrderResource
                     : static::escape(static::number($row).((int) ($row['quote_revision'] ?? 0) > 1 ? ' rev. '.(int) $row['quote_revision'] : ''))),
             TableColumn::key('customer')
                 ->text()
-                ->formatter(static fn (array $row): string => static::escape(OrderResource::customerName($row))),
+                ->formatter(static fn (array $row): string => static::escape(OrderResource::customerLabel($row))),
             TableColumn::key('total')->price()->size('little'),
             TableColumn::key('status')
                 ->text()

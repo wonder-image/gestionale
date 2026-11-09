@@ -111,6 +111,13 @@ check('con gli acquisti sbloccati ci sono tutti e due i numeri', function () {
         && str_contains($markup, '2 fornitori');
 });
 
+check('le aziende hanno il loro link', function () {
+    $markup = ContactsWidget::markup(3, null, 2);
+
+    return str_contains($markup, 'Aziende') && str_contains($markup, '2 aziende')
+        && str_contains(ContactsWidget::markup(0, null, 0), 'Nessuna ancora');
+});
+
 check('una rubrica vuota lo dice, e il singolare è singolare', fn () =>
     str_contains(ContactsWidget::markup(0, null), 'Nessuno ancora')
     && str_contains(ContactsWidget::markup(1, null), '1 cliente')

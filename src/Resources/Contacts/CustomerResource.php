@@ -20,6 +20,7 @@ use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
@@ -43,18 +44,18 @@ use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 use Wonder\Plugin\Custom\Fattura\Valori\EsigibilitaIva;
-use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 use Wonder\Sql\Transaction;
 
 /**
- * "Clienti": l'elenco di chi compra, e la scheda della rubrica.
+ * "Clienti": le persone della rubrica, e la loro scheda.
  *
- * La scheda è **una sola** per clienti e fornitori: chi è tutti e due si
- * modifica in un posto, e la sua partita IVA resta una. Quello che cambia fra
- * i due elenchi — titolo, indirizzo, filtro, funzionalità — sta in
- * `SupplierResource`, che estende questa.
+ * Le aziende hanno la loro Resource, `CompanyResource`, che estende questa:
+ * cambiano modello, legami e colonne dei documenti (i punti di estensione
+ * sono `documentColumn()`, `hasAccount()`, `addressModel()` e
+ * `relationSide()`). `SupplierResource` estende quella delle aziende: i
+ * fornitori sono sempre aziende.
  *
- * Non è `final`: la estende `SupplierResource`, e i test con una classe
+ * Non è `final`: la estende `CompanyResource`, e i test con una classe
  * anonima.
  */
 class CustomerResource extends GestionaleResource
@@ -70,6 +71,48 @@ class CustomerResource extends GestionaleResource
     public static function roleColumn(): string
     {
         return 'is_customer';
+    }
+
+    /** Vero per le Resource delle aziende. */
+    public static function isCompanySide(): bool
+    {
+        return static::relationSide() === ContactRelations::COMPANY;
+    }
+
+    /** La colonna dei documenti che punta a questa scheda. */
+    public static function documentColumn(): string
+    {
+        return 'customer_id';
+    }
+
+    /** Solo le persone hanno un account sul sito. */
+    public static function hasAccount(): bool
+    {
+        return true;
+    }
+
+    /** Il modello degli indirizzi di consegna. @return class-string */
+    public static function addressModel(): string
+    {
+        return ContactAddress::class;
+    }
+
+    /** La colonna che lega gli indirizzi di consegna alla scheda. */
+    public static function addressColumn(): string
+    {
+        return 'contact_id';
+    }
+
+    /** Il campo «Ruolo» (cliente, fornitore): solo per le aziende, con gli acquisti. */
+    public static function rolesShown(): bool
+    {
+        return false;
+    }
+
+    /** Le colonne controllate contro i doppioni. @return array<string, string> */
+    protected static function uniqueColumns(): array
+    {
+        return ['cf' => 'contact.tax_code_taken', 'email' => 'contact.email_taken'];
     }
 
     public static function path(): string
@@ -106,26 +149,17 @@ class CustomerResource extends GestionaleResource
             'auth_method' => 'Accesso',
             'roles' => 'Ruolo',
             'is_customer' => 'Ruolo',
-            'is_supplier' => 'Fornitore',
             'note' => 'Note',
             'active' => 'Stato',
             'addresses' => 'Indirizzi di consegna',
             'label' => 'Etichetta',
-            ...Contact::billing()->labels(),
+            ...static::$model::billing()->labels(),
         ];
     }
 
     public static function formSchema(): array
     {
-        $billing = Contact::billing()->formSchema();
-
-        // I campi aziendali si vedono solo per le aziende: un privato non deve
-        // incontrare la parola "SDI" (D20).
-        foreach (['business_name', 'pi', 'sdi', 'pec'] as $key) {
-            if (isset($billing[$key])) {
-                $billing[$key]->visibleWhen('type', 'business');
-            }
-        }
+        $billing = static::$model::billing()->formSchema();
 
         $fields = [
             ...array_values($billing),
@@ -139,11 +173,9 @@ class CustomerResource extends GestionaleResource
             static::addressesField(),
         ];
 
-        // Il ruolo si sceglie solo dove c'è una scelta: senza gli acquisti
-        // sbloccati i fornitori non esistono, e ogni scheda è un cliente
-        // (D20). Chiederlo lo stesso sarebbe una domanda con una risposta
-        // sola, e quella sbagliata rifiutata.
-        if (Gestionale::feature('purchasing')) {
+        // Il ruolo si sceglie solo dove c'è una scelta: le persone sono solo
+        // clienti, e senza gli acquisti i fornitori non esistono (D20).
+        if (static::rolesShown()) {
             $fields[] = FormField::key('roles')
                 ->select(Contacts::ROLE_CHOICES)
                 ->value(static::defaultRoleChoice())
@@ -271,25 +303,27 @@ class CustomerResource extends GestionaleResource
 
     public static function formLayoutSchema(): ?Form
     {
-        $acquisti = Gestionale::feature('purchasing');
+        $ruoli = static::rolesShown();
+        $azienda = static::isCompanySide();
 
         $chiE = [
             SectionTitle::make('Dettagli')
-                ->tooltip($acquisti
-                    ? 'Una scheda è una sola identità fiscale: la stessa azienda a cui vendi e da cui compri è una riga sola, con il ruolo «Cliente e fornitore». Cambiando ruolo la scheda passa nell\'altro elenco.'
-                    : 'Una scheda è una sola identità fiscale: la stessa persona non si scrive due volte.')
+                ->tooltip(match (true) {
+                    $ruoli => 'Un\'azienda è una sola identità fiscale: quella a cui vendi e da cui compri è una riga sola, con il ruolo «Cliente e fornitore».',
+                    $azienda => 'Un\'azienda è una sola identità fiscale: la stessa partita IVA non si scrive due volte.',
+                    default => 'Una persona: le aziende per cui lavora si legano più sotto.',
+                })
                 ->columnSpan(12),
-            static::getInput('type')->columnSpan(3),
-            static::getInput('name')->columnSpan(3),
-            static::getInput('surname')->columnSpan(3),
-            static::getInput('business_name')->columnSpan($acquisti ? 6 : 8),
+            ...($azienda
+                ? [static::getInput('business_name')->columnSpan($ruoli ? 6 : 9)]
+                : [static::getInput('name')->columnSpan(4), static::getInput('surname')->columnSpan(5)]),
         ];
 
-        if ($acquisti) {
-            $chiE[] = static::getInput('roles')->columnSpan(4);
+        if ($ruoli) {
+            $chiE[] = static::getInput('roles')->columnSpan(3);
         }
 
-        $chiE[] = static::getInput('active')->columnSpan($acquisti ? 2 : 3);
+        $chiE[] = static::getInput('active')->columnSpan(3);
 
         $cards = [
             (new Card)->components($chiE)->columns(12)->columnSpan(12),
@@ -303,10 +337,12 @@ class CustomerResource extends GestionaleResource
                 SectionTitle::make('Dati di fatturazione')
                     ->tooltip('Partita IVA e codice fiscale li controlla il framework: se sono sbagliati non si salvano.')
                     ->columnSpan(12),
-                static::getInput('cf')->columnSpan(4),
-                static::getInput('pi')->columnSpan(4),
-                static::getInput('sdi')->columnSpan(2),
-                static::getInput('pec')->columnSpan(2),
+                ...($azienda ? [
+                    static::getInput('cf')->columnSpan(4),
+                    static::getInput('pi')->columnSpan(4),
+                    static::getInput('sdi')->columnSpan(2),
+                    static::getInput('pec')->columnSpan(2),
+                ] : [static::getInput('cf')->columnSpan(6)]),
                 static::getInput('street')->columnSpan(9),
                 static::getInput('number')->columnSpan(3),
                 static::getInput('country')->columnSpan(3),
@@ -360,30 +396,39 @@ class CustomerResource extends GestionaleResource
         ];
     }
 
-    /** Vero per le persone che sono referenti vivi di almeno un'azienda viva. */
+    /**
+     * Vero per le persone che sono referenti vivi di almeno un'azienda viva.
+     * Un'azienda non è mai «solo referente».
+     */
     protected static function onlyReferentSql(): string
     {
-        $contacts = Contact::$table;
+        if (static::isCompanySide()) {
+            return '0 = 1';
+        }
+
+        $table = static::$model::$table;
+        $companies = Company::$table;
         $relations = ContactRelation::$table;
 
-        return "(is_customer <> 'true' AND is_supplier <> 'true' AND EXISTS(SELECT 1 FROM {$relations} cr
-            JOIN {$contacts} rc ON rc.id = cr.company_id AND rc.deleted = 'false'
-            WHERE cr.person_id = {$contacts}.id AND cr.deleted = 'false'))";
+        return "(is_customer <> 'true' AND EXISTS(SELECT 1 FROM {$relations} cr
+            JOIN {$companies} rc ON rc.id = cr.company_id AND rc.deleted = 'false'
+            WHERE cr.person_id = {$table}.id AND cr.deleted = 'false'))";
     }
 
     /** I nomi dell'altro lato dei legami, per la colonna della lista. */
     protected static function relationNamesSql(): string
     {
-        $contacts = Contact::$table;
+        $table = static::$model::$table;
         $relations = ContactRelation::$table;
 
-        return "(SELECT GROUP_CONCAT(IF(rc.type = 'business' AND TRIM(rc.business_name) <> '', TRIM(rc.business_name),
-                TRIM(CONCAT_WS(' ', rc.surname, rc.name))) ORDER BY cr.position SEPARATOR ', ')
+        [$other, $name, $mine, $theirs] = static::isCompanySide()
+            ? [Contact::$table, "TRIM(CONCAT_WS(' ', rc.surname, rc.name))", 'company_id', 'person_id']
+            : [Company::$table, 'TRIM(rc.business_name)', 'person_id', 'company_id'];
+
+        return "(SELECT GROUP_CONCAT({$name} ORDER BY cr.position SEPARATOR ', ')
             FROM {$relations} cr
-            JOIN {$contacts} rc ON rc.deleted = 'false'
-                AND rc.id = IF({$contacts}.type = 'business', cr.person_id, cr.company_id)
-            WHERE cr.deleted = 'false'
-              AND IF({$contacts}.type = 'business', cr.company_id, cr.person_id) = {$contacts}.id) AS relation_names";
+            JOIN {$other} rc ON rc.deleted = 'false' AND rc.id = cr.{$theirs}
+            WHERE cr.deleted = 'false' AND cr.{$mine} = {$table}.id) AS relation_names";
     }
 
     /**
@@ -394,7 +439,7 @@ class CustomerResource extends GestionaleResource
     public static function relationNames(array $row): string
     {
         $id = (int) ($row['id'] ?? 0);
-        $rows = Contacts::isCompany($row) ? ContactRelations::peopleOf($id) : ContactRelations::companiesOf($id);
+        $rows = static::isCompanySide() ? ContactRelations::peopleOf($id) : ContactRelations::companiesOf($id);
         $names = [];
 
         foreach ($rows as $relation) {
@@ -410,10 +455,10 @@ class CustomerResource extends GestionaleResource
         return implode('; ', $names);
     }
 
-    /** Una persona creata da una riga dei referenti non è né cliente né fornitore. */
+    /** Una persona creata da una riga dei referenti non è cliente. */
     protected static function relationPersonPayload(array $values): array
     {
-        return ['is_customer' => 'false', 'is_supplier' => 'false'] + $values;
+        return ['is_customer' => 'false'] + $values;
     }
 
     public static function tableSchema(): array
@@ -451,21 +496,27 @@ class CustomerResource extends GestionaleResource
 
     public static function tableLayoutSchema(): TableLayoutSchema
     {
-        $contactTable = Contact::$table;
+        $contactTable = static::$model::$table;
         $formats = ContactExports::granted();
-        $layout = parent::tableLayoutSchema()->select(
-            "(SELECT GROUP_CONCAT(DISTINCT af.provider ORDER BY af.provider SEPARATOR ',')
+        $select = array_filter([
+            static::hasAccount() ? "(SELECT GROUP_CONCAT(DISTINCT af.provider ORDER BY af.provider SEPARATOR ',')
                 FROM auth_federated af
                 WHERE af.user_id = {$contactTable}.user_id AND af.deleted = 'false') AS auth_providers,
              EXISTS(SELECT 1 FROM `user` u
                 WHERE u.id = {$contactTable}.user_id
                   AND u.deleted = 'false'
-                  AND COALESCE(u.password, '') <> '') AS has_local_password"
-            .(ContactRelations::enabled() ? ",\n             ".static::relationNamesSql() : '')
-        )
-            ->download($formats)->downloadAsText();
+                  AND COALESCE(u.password, '') <> '') AS has_local_password" : '',
+            ContactRelations::enabled() ? static::relationNamesSql() : '',
+        ]);
+        $layout = parent::tableLayoutSchema();
 
-        if (ContactRelations::enabled()) {
+        if ($select !== []) {
+            $layout = $layout->select(implode(",\n             ", $select));
+        }
+
+        $layout = $layout->download($formats)->downloadAsText();
+
+        if (ContactRelations::enabled() && !static::isCompanySide()) {
             $only = static::onlyReferentSql();
             $layout->filterQuery(
                 __t('gestionale.contacts.relations.filter'),
@@ -485,7 +536,8 @@ class CustomerResource extends GestionaleResource
 
         // Senza formati concessi l'«Esporta» non c'è: niente colonne da preparare.
         return $formats === [] ? $layout : $layout
-            ->downloadColumns(ContactExport::columns(static::labelSchema(), [Contacts::class, 'displayName'], $extra))
+            ->downloadColumns(ContactExport::columns(static::labelSchema(), [Contacts::class, 'displayName'], $extra,
+                static::isCompanySide() ? ContactExport::COMPANY_FIELDS : ContactExport::PERSON_FIELDS))
             ->downloadFileName(create_link(static::titleLabel()).'-'.date('Y-m-d'));
     }
 
@@ -572,7 +624,8 @@ class CustomerResource extends GestionaleResource
     public static function showLayoutSchema(array $contact): Container
     {
         $id = (int) ($contact['id'] ?? 0);
-        $userId = (int) ($contact['user_id'] ?? 0);
+        $userId = static::hasAccount() ? (int) ($contact['user_id'] ?? 0) : 0;
+        $column = static::documentColumn();
         $vendite = Gestionale::feature('orders');
 
         $accordion = static fn (string $titolo, string $html, bool $aperto = false): Accordion => $aperto
@@ -582,7 +635,7 @@ class CustomerResource extends GestionaleResource
         $sinistra = [];
 
         if ($vendite) {
-            $mine = '`customer_id` = '.$id.($userId > 0 ? ' OR `user_id` = '.$userId : '');
+            $mine = '`'.$column.'` = '.$id.($userId > 0 ? ' OR `user_id` = '.$userId : '');
             $ordini = static::rowsOf(Order::class, $mine);
             $carrelli = array_values(array_map(
                 static fn (array $o): int => (int) $o['id'],
@@ -601,7 +654,7 @@ class CustomerResource extends GestionaleResource
 
         $sinistra[] = (new Card)->components([
             SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
-            ...CustomerSheet::data($contact, static::authMethod(static::withAccount($contact))),
+            ...CustomerSheet::data($contact, static::hasAccount() ? static::authMethod(static::withAccount($contact)) : '—'),
             ...(static::paymentDefaultsShown()
                 ? CustomerSheet::payment(
                     static::officeMethods()[(int) ($contact['payment_method_id'] ?? 0)] ?? '',
@@ -614,14 +667,16 @@ class CustomerResource extends GestionaleResource
         ])->columns(12)->columnSpan(12);
 
         if ($vendite) {
-            $sinistra[] = $accordion('Ordini', CustomerOrderTableResource::embedForCustomer($id, $userId), true);
+            $sinistra[] = $accordion('Ordini', static::isCompanySide()
+                ? CustomerOrderTableResource::embedForCompany($id)
+                : CustomerOrderTableResource::embedForCustomer($id, $userId), true);
             $sinistra[] = $accordion('Prodotti nel carrello', OrderItemTableResource::embedMany($carrelli, 'Nessun prodotto nel carrello.'));
         }
 
         // Gli abbonamenti, dal sito e dall'ufficio, con la funzionalità accesa (G10).
         if (Gestionale::feature('subscriptions')) {
             $sinistra[] = $accordion('Abbonamenti', CustomerSheet::subscriptionsTable(
-                static::rowsOf(Subscription::class, ['customer_id' => $id, 'deleted' => 'false'])
+                static::rowsOf(Subscription::class, [$column => $id, 'deleted' => 'false'])
             ), true);
         }
 
@@ -636,7 +691,7 @@ class CustomerResource extends GestionaleResource
         return (new Container)->components([
             (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components($sinistra),
             (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components($destra),
-            $accordion('Coupon assegnati', CustomerSheet::couponsTable(CustomerSheet::coupons($id))),
+            $accordion('Coupon assegnati', CustomerSheet::couponsTable(CustomerSheet::coupons($id, $column))),
         ])->columns(12);
     }
 
@@ -646,6 +701,10 @@ class CustomerResource extends GestionaleResource
      */
     protected static function deliveryCard(int $contactId): Card
     {
+        if (static::isCompanySide()) {
+            return static::companyDeliveryCard($contactId);
+        }
+
         $indirizzi = ContactAddressResource::addressesOf($contactId);
         $riquadri = [];
 
@@ -667,6 +726,25 @@ class CustomerResource extends GestionaleResource
                 ? [RichText::make('<p class="text-muted">'.static::escape(CustomerSheet::noDelivery()).'</p>')->tag('div')->columnSpan(12)]
                 : $riquadri),
             RichText::make(ContactAddressResource::openButton('Aggiungi indirizzo')->icon('bi bi-plus-lg')->variant('primary')->outline()->size('sm')->render('bootstrap'))->tag('div')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+    }
+
+    /** Gli indirizzi di un'azienda, in lettura: si cambiano dalla modifica. */
+    protected static function companyDeliveryCard(int $companyId): Card
+    {
+        $riquadri = [];
+
+        foreach (static::rowsOf(static::addressModel(), [static::addressColumn() => $companyId, 'deleted' => 'false'], 'position') as $indirizzo) {
+            $riquadri[] = (new Card)->components([
+                RichText::make(CustomerSheet::delivery($indirizzo))->tag('div')->columnSpan(12),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        return (new Card)->components([
+            SectionTitle::make('Indirizzi di consegna')->columnSpan(12),
+            ...($riquadri === []
+                ? [RichText::make('<p class="text-muted">'.static::escape(CustomerSheet::noDelivery()).'</p>')->tag('div')->columnSpan(12)]
+                : $riquadri),
         ])->columns(12)->columnSpan(12);
     }
 
@@ -724,15 +802,21 @@ class CustomerResource extends GestionaleResource
     public static function querySchema(): array
     {
         $schema = parent::querySchema();
-        $role = static::roleColumn()." = 'true'";
+        $role = static::listCondition();
 
         // #145: con i referenti accesi ci sono anche le persone che sono solo
         // referenti di un'azienda, senza ruolo. Il filtro «Referenti» le separa.
-        $schema['condition'] = ContactRelations::enabled()
+        $schema['condition'] = ContactRelations::enabled() && !static::isCompanySide()
             ? "deleted = 'false' AND ({$role} OR ".static::onlyReferentSql().')'
             : "deleted = 'false' AND {$role}";
 
         return $schema;
+    }
+
+    /** Le righe dell'elenco, oltre a `deleted`. */
+    protected static function listCondition(): string
+    {
+        return static::roleColumn()." = 'true'";
     }
 
     /**
@@ -752,7 +836,7 @@ class CustomerResource extends GestionaleResource
             $values['phone_prefix'] = VisitorCountry::phonePrefix();
         }
 
-        if (!Gestionale::feature('purchasing')) {
+        if (!static::rolesShown()) {
             return $values;
         }
 
@@ -784,7 +868,7 @@ class CustomerResource extends GestionaleResource
         // sono. Senza questo `unset` il framework riscriverebbe le due colonne
         // con il loro valore di default, e la scheda cambierebbe ruolo da
         // sola al primo salvataggio.
-        unset($values['roles'], $values['is_customer'], $values['is_supplier']);
+        unset($values['roles'], $values['is_customer'], $values['is_supplier'], $values['type']);
 
         // Metodo e condizione si scrivono solo dove il form li mostra: un
         // salvataggio da un'altra pagina non li azzera.
@@ -818,7 +902,7 @@ class CustomerResource extends GestionaleResource
             $values['price_list_id'] = max(0, (int) $values['price_list_id']);
         }
 
-        if (Gestionale::feature('purchasing') && $choice !== '') {
+        if (static::rolesShown() && $choice !== '') {
             $values = [...$values, ...Contacts::rolesFromChoice($choice)];
         }
 
@@ -829,36 +913,33 @@ class CustomerResource extends GestionaleResource
             $values[static::roleColumn()] = 'true';
         }
 
-        $customer = ($values['is_customer'] ?? static::storedRole($id, 'is_customer')) === 'true';
-        $supplier = ($values['is_supplier'] ?? static::storedRole($id, 'is_supplier')) === 'true';
+        $values = static::checkRoles($values, $id);
 
-        // #145: una persona che è solo referente di un'azienda non ha ruolo.
-        if (!$customer && !$supplier && !static::isOnlyReferent($values, $id, $_POST)) {
-            throw UserError::make('contact.no_role');
-        }
-
-        // Un fornitore che smette di esserlo sparirebbe dalla tendina degli
-        // articoli e delle opzioni che comprano da lui, e al primo salvataggio
-        // li perderebbe.
-        if ($id > 0 && !$supplier && static::storedRole($id, 'is_supplier') === 'true') {
-            $links = ProductSuppliers::countForSupplier($id);
-
-            if ($links > 0) {
-                throw UserError::make('contact.supplier_role_in_use', ['count' => $links]);
-            }
-        }
-
-        foreach ([
-            'pi' => 'contact.vat_taken',
-            'cf' => 'contact.tax_code_taken',
-            'email' => 'contact.email_taken',
-        ] as $column => $key) {
+        foreach (static::uniqueColumns() as $column => $key) {
             $value = trim((string) ($values[$column] ?? ''));
-            $duplicate = Contacts::duplicateOf($column, $value, $id > 0 ? $id : null);
+            $duplicate = Contacts::duplicateOf($column, $value, $id > 0 ? $id : null, static::$model);
 
             if ($duplicate !== []) {
                 throw UserError::make($key, ['contact' => Contacts::displayName($duplicate)]);
             }
+        }
+
+        return $values;
+    }
+
+    /**
+     * I ruoli dopo il salvataggio: una persona che non è cliente deve essere
+     * referente di un'azienda (#145).
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    protected static function checkRoles(array $values, int $id): array
+    {
+        $customer = ($values['is_customer'] ?? static::storedRole($id, 'is_customer')) === 'true';
+
+        if (!$customer && !static::isOnlyReferent($values, $id, $_POST)) {
+            throw UserError::make('contact.person_no_role');
         }
 
         return $values;
@@ -871,43 +952,30 @@ class CustomerResource extends GestionaleResource
      * scheda. Quando arriveranno ordini e documenti (G4) la stessa regola
      * varrà per loro: si disattiva, non si cancella.
      *
-     * Lo stesso per un fornitore con dei costi d'acquisto su articoli o
-     * opzioni in vendita, anche ad acquisti spenti: il costo resta salvato e
-     * tornerà.
+     * I fornitori in uso li controlla `CompanyResource`.
      */
     public static function assertDeletable(int|string $id): void
     {
-        $row = Contact::findById((int) $id);
+        $row = static::$model::findById((int) $id);
 
-        if (is_array($row) && (int) ($row['user_id'] ?? 0) > 0) {
+        if (static::hasAccount() && is_array($row) && (int) ($row['user_id'] ?? 0) > 0) {
             throw UserError::refusal('contact.has_account');
-        }
-
-        $links = ProductSuppliers::countForSupplier((int) $id);
-
-        if ($links > 0) {
-            throw UserError::refusal('contact.supplier_in_use', ['count' => $links]);
         }
     }
 
-    /**
-     * La scheda se ne va con i suoi indirizzi di consegna.
-     *
-     * Prima di cancellare la scheda se ne vanno i suoi costi sulle opzioni
-     * già eliminate: nessuno li vede più, e la chiave esterna li terrebbe
-     * fermi.
-     */
+    /** La scheda se ne va con i suoi indirizzi di consegna. */
     public static function deleteRecord(int|string $id): object
     {
         static::assertDeletable($id);
-        ProductSuppliers::dropForRemovedProducts((int) $id);
 
         // Gli indirizzi di consegna se ne vanno con la scheda, anche quelli
         // già tolti dalla griglia: da soli la terrebbero ferma. Insieme, così
         // una scheda che non si cancella non resta senza indirizzi.
         return Transaction::run(static function () use ($id): object {
-            foreach (static::rowsOf(ContactAddress::class, ['contact_id' => (int) $id, 'deleted' => ['true', 'false']]) as $row) {
-                ContactAddress::delete((int) $row['id']);
+            $addresses = static::addressModel();
+
+            foreach (static::rowsOf($addresses, [static::addressColumn() => (int) $id, 'deleted' => ['true', 'false']]) as $row) {
+                $addresses::delete((int) $row['id']);
             }
 
             return parent::deleteRecord($id);
@@ -959,19 +1027,17 @@ class CustomerResource extends GestionaleResource
             return false;
         }
 
-        $type = (string) ($values['type'] ?? ($id > 0 ? (Contact::findById($id)['type'] ?? 'private') : 'private'));
-
-        if ($type === 'business') {
+        if (static::isCompanySide()) {
             return false;
         }
 
         if (isset($post[self::RELATION_MARKER])) {
-            $ids = array_map(
+            $ids = array_filter(array_map(
                 static fn (array $row): int => (int) ($row[ContactRelations::COMPANY] ?? 0),
                 array_filter((array) ($post[self::RELATION_COMPANIES] ?? []), 'is_array')
-            );
+            ));
 
-            return in_array('business', ContactRelations::typesOf($ids), true);
+            return ContactRelations::existingCounterparts(ContactRelations::PERSON, $ids) !== [];
         }
 
         foreach (ContactRelations::companiesOf($id) as $relation) {
@@ -989,7 +1055,7 @@ class CustomerResource extends GestionaleResource
             return 'false';
         }
 
-        $row = Contact::findById($id);
+        $row = static::$model::findById($id);
 
         return is_array($row) ? (string) ($row[$column] ?? 'false') : 'false';
     }
@@ -1016,8 +1082,8 @@ class CustomerResource extends GestionaleResource
                 RepeaterColumn::key('cap')->text()->label('CAP')->columnSpan(2),
             ])
             ->relation(
-                RepeaterRelation::make(ContactAddress::$table, 'contact_id')
-                    ->model(ContactAddress::class)
+                RepeaterRelation::make(static::addressModel()::$table, static::addressColumn())
+                    ->model(static::addressModel())
                     ->positionKey('position')
             )
             ->nested()

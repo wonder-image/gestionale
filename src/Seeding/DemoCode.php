@@ -10,6 +10,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\Package;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Support\Text\Slug as TextSlug;
 use Wonder\Plugin\Gestionale\Support\RequestMemo;
@@ -54,6 +55,7 @@ final class DemoCode
         ],
         // Il privato aveva il prefisso nel cognome, le aziende nella ragione sociale.
         Contact::class => ['Prova Bianchi', 'Prova Rossi Srl', 'Prova Filati Nord Spa', 'Prova Imballaggi Sud Srl'],
+        Company::class => ['Prova Rossi Srl', 'Prova Filati Nord Spa', 'Prova Imballaggi Sud Srl'],
     ];
 
     /** Come si chiama una riga nei messaggi del comando. */
@@ -66,6 +68,7 @@ final class DemoCode
         Customization::class => 'personalizzazione',
         ProductModel::class => 'articolo',
         Contact::class => 'scheda',
+        Company::class => 'azienda',
     ];
 
     /** `cat_` e `accessori` fanno `cat_demo-accessori`. */

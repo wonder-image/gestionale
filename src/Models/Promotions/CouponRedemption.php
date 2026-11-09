@@ -33,6 +33,7 @@ final class CouponRedemption extends Model
             Column::key('coupon_id')->int()->null(false)->foreign(Coupon::$table),
             Column::key('order_id')->int()->null(false)->foreign(Order::$table),
             Column::key('customer_id')->int()->default(0),
+            Column::key('company_id')->int()->default(0),
             Column::key('email'),
             // Il codice scritto dal cliente; per un codice generato anche il suo id.
             Column::key('coupon_code_id')->int()->default(0),
@@ -49,6 +50,7 @@ final class CouponRedemption extends Model
             'ind_coupon' => ['index' => 'coupon_id'],
             'ind_order' => ['index' => 'order_id'],
             'ind_customer' => ['index' => 'customer_id'],
+            'ind_company' => ['index' => 'company_id'],
             'ind_coupon_code' => ['index' => 'coupon_code_id'],
         ];
     }
@@ -59,6 +61,7 @@ final class CouponRedemption extends Model
             Field::key('coupon_id')->number()->decimals(0),
             Field::key('order_id')->number()->decimals(0),
             Field::key('customer_id')->number()->decimals(0),
+            Field::key('company_id')->number()->decimals(0),
             Field::key('email')->text()->sanitize(false),
             Field::key('coupon_code_id')->number()->decimals(0),
             Field::key('code')->text()->sanitize(false),

@@ -84,6 +84,7 @@ check('la conferma vuole bozza, cliente, fatturazione, una riga e l\'indirizzo s
     return $rifiuto(fn () => OfficeOrderRules::assertConfirmable($bozza, $righe)) === null
         && $rifiuto(fn () => OfficeOrderRules::assertConfirmable(['status' => 'confirmed'] + $bozza, $righe)) === 'office_order.not_draft'
         && $rifiuto(fn () => OfficeOrderRules::assertConfirmable(['customer_id' => 0] + $bozza, $righe)) === 'office_order.customer_required'
+        && $rifiuto(fn () => OfficeOrderRules::assertConfirmable(['customer_id' => 0, 'company_id' => 7] + $bozza, $righe)) === null
         && $rifiuto(fn () => OfficeOrderRules::assertConfirmable($bozza, [['type' => 'text', 'quantity' => 0]])) === 'office_order.no_rows'
         && $rifiuto(fn () => OfficeOrderRules::assertConfirmable(['billing_street' => ''] + $bozza, $righe)) === 'office_order.billing_required'
         && $rifiuto(fn () => OfficeOrderRules::assertConfirmable(['billing_type' => 'business'] + $bozza, $righe)) === 'office_order.billing_required'

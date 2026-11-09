@@ -14,6 +14,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerKind;
 
 /**
  * Gli utilizzi di un coupon nella sua scheda (gestionale#113): ordine, cliente,
@@ -76,7 +77,9 @@ final class CouponRedemptionTableResource extends GestionaleResource
                 ->formatter(static fn (array $row): string => CouponCodeTableResource::orderLink((int) ($row['order_id'] ?? 0), (string) ($row['order_number'] ?? ''))),
             TableColumn::key('customer_id')
                 ->text()
-                ->formatter(static fn (array $row): string => static::escapeStored(CouponResource::customerName((int) ($row['customer_id'] ?? 0), (string) ($row['email'] ?? '')))),
+                ->formatter(static fn (array $row): string => static::escapeStored((int) ($row['company_id'] ?? 0) > 0
+                    ? CustomerKind::name($row)
+                    : CouponResource::customerName((int) ($row['customer_id'] ?? 0), (string) ($row['email'] ?? '')))),
             TableColumn::key('code')
                 ->text()
                 ->sortable()

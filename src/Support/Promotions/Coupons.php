@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Promotions;
 
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponCode;
@@ -289,6 +290,7 @@ final class Coupons
                 'code' => (string) $coupon['code'],
                 'order_id' => $orderId,
                 'customer_id' => (int) ($order['customer_id'] ?? 0),
+                'company_id' => (int) ($order['company_id'] ?? 0),
                 'email' => trim((string) ($order['email'] ?? '')),
                 'discount_amount' => number_format(round((float) ($row['discount_amount'] ?? 0), 2), 2, '.', ''),
                 'redeemed_at' => $now,
@@ -484,6 +486,7 @@ final class Coupons
         $id = (int) $coupon['id'];
         $codeId = (int) ($coupon['coupon_code_id'] ?? 0);
         $customerId = (int) ($cart['customer_id'] ?? 0);
+        $companyId = (int) ($cart['company_id'] ?? 0);
         $email = mb_strtolower(trim((string) ($cart['email'] ?? '')));
         $used = array_filter(
             self::rows($lock ? CouponRedemption::findForUpdate(['coupon_id' => $id]) : CouponRedemption::find(['coupon_id' => $id])),
@@ -492,29 +495,49 @@ final class Coupons
 
         // Una persona è il suo account **o** la sua email: chi ha usato il codice da ospite non lo
         // riusa registrandosi con la stessa email.
-        $mine = array_filter($used, static function (array $row) use ($customerId, $email): bool {
+        // Con l'azienda il cliente è lei: contano i suoi utilizzi, non quelli del referente.
+        $mine = array_filter($used, static function (array $row) use ($customerId, $companyId, $email): bool {
+            if ($companyId > 0) {
+                return (int) ($row['company_id'] ?? 0) === $companyId;
+            }
+
             return ($customerId > 0 && (int) ($row['customer_id'] ?? 0) === $customerId)
                 || ($email !== '' && mb_strtolower(trim((string) ($row['email'] ?? ''))) === $email);
         });
 
+        $links = self::rows(CouponCustomer::find(['coupon_id' => $id]));
+
         return $coupon + [
             'scope' => ProductScope::of('coupon', $id),
-            'customers' => array_map(
-                static fn (array $row): int => (int) $row['customer_id'],
-                self::rows(CouponCustomer::find(['coupon_id' => $id]))
-            ),
+            'customers' => self::linked($links, 'customer_id'),
+            'companies' => self::linked($links, 'company_id'),
             'used_total' => count($used),
             'used_by_customer' => count($mine),
             'code_used' => $codeId > 0 && array_filter($used, static fn (array $row): bool => (int) ($row['coupon_code_id'] ?? 0) === $codeId) !== [],
-            'has_previous_orders' => self::hasPreviousOrders((int) ($cart['id'] ?? 0), $customerId, $email),
+            'has_previous_orders' => self::hasPreviousOrders((int) ($cart['id'] ?? 0), $customerId, $email, $companyId),
         ];
     }
 
+    /**
+     * Gli id riservati di una colonna (`customer_id` o `company_id`), senza gli zeri.
+     *
+     * @param list<array<string, mixed>> $links
+     * @return list<int>
+     */
+    private static function linked(array $links, string $column): array
+    {
+        return array_values(array_filter(
+            array_map(static fn (array $row): int => (int) ($row[$column] ?? 0), $links),
+            static fn (int $id): bool => $id > 0
+        ));
+    }
+
     /** Chi ha già un ordine vero (non annullato, non il carrello di adesso). */
-    private static function hasPreviousOrders(int $cartId, int $customerId, string $email): bool
+    private static function hasPreviousOrders(int $cartId, int $customerId, string $email, int $companyId = 0): bool
     {
         // L'account o l'email: un ordine fatto da ospite con questa email conta anche per il cliente registrato.
         $wheres = array_filter([
+            $companyId > 0 ? ['company_id' => $companyId, 'deleted' => 'false'] : null,
             $customerId > 0 ? ['customer_id' => $customerId, 'deleted' => 'false'] : null,
             $email !== '' ? ['email' => $email, 'deleted' => 'false'] : null,
         ]);
@@ -564,6 +587,7 @@ final class Coupons
         return [
             'channel' => (string) ($cart['channel'] ?? ''),
             'customer_id' => (int) ($cart['customer_id'] ?? 0),
+            'company_id' => (int) ($cart['company_id'] ?? 0),
             'email' => (string) ($cart['email'] ?? ''),
             'has_manual_discount' => (string) ($cart['manual_discount_type'] ?? 'none') !== 'none'
                 && (float) ($cart['manual_discount_value'] ?? 0) > 0,
@@ -619,24 +643,25 @@ final class Coupons
 
     /**
      * I coupon riservati al cliente, con gli utilizzi suoi non rilasciati. Li
-     * usano la scheda del backend e il pannello del cliente.
+     * usano la scheda del backend e il pannello del cliente. `$column` è
+     * `company_id` per un'azienda.
      *
      * @return list<array{coupon: array<string, mixed>, used: int}>
      */
-    public static function reserved(int $customerId): array
+    public static function reserved(int $customerId, string $column = 'customer_id'): array
     {
-        if ($customerId <= 0 || !Gestionale::feature('coupons')) {
+        if ($customerId <= 0 || !Gestionale::feature('coupons') || !in_array($column, ['customer_id', 'company_id'], true)) {
             return [];
         }
 
         $reserved = [];
-        foreach (self::rows(CouponCustomer::find(['customer_id' => $customerId])) as $link) {
+        foreach (self::rows(CouponCustomer::find([$column => $customerId])) as $link) {
             $coupon = Coupon::find(['id' => (int) $link['coupon_id']], 1);
             if (!is_array($coupon) || !isset($coupon['id'])) {
                 continue;
             }
             $used = count(array_filter(
-                self::rows(CouponRedemption::find(['coupon_id' => (int) $coupon['id'], 'customer_id' => $customerId])),
+                self::rows(CouponRedemption::find(['coupon_id' => (int) $coupon['id'], $column => $customerId])),
                 static fn (array $row): bool => self::empty((string) ($row['released_at'] ?? ''))
             ));
             $reserved[] = ['coupon' => $coupon, 'used' => $used];
@@ -653,7 +678,7 @@ final class Coupons
      * esistono, spedizione gratuita o mesi mancanti su un coupon degli
      * abbonamenti. La spedizione gratuita non ha valore da controllare.
      *
-     * @param array<string, mixed> $draft code, discount_type, discount_value, starts_at, ends_at, customers
+     * @param array<string, mixed> $draft code, discount_type, discount_value, starts_at, ends_at, customers, companies
      */
     public static function validate(array $draft, int $exceptId = 0): void
     {
@@ -723,6 +748,14 @@ final class Coupons
 
             if (!is_array($found) || (int) ($found['id'] ?? 0) <= 0) {
                 throw UserError::make('coupon.customer_unknown');
+            }
+        }
+
+        foreach ((array) ($draft['companies'] ?? []) as $companyId) {
+            $found = Company::find(['id' => (int) $companyId, 'deleted' => 'false'], 1);
+
+            if (!is_array($found) || (int) ($found['id'] ?? 0) <= 0) {
+                throw UserError::make('coupon.company_unknown');
             }
         }
     }

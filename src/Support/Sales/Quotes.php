@@ -234,7 +234,8 @@ final class Quotes
      */
     public static function assertSendable(array $order, array $items): void
     {
-        if ((int) ($order['customer_id'] ?? 0) <= 0) {
+        // Un'azienda può non avere referenti.
+        if ((int) ($order['customer_id'] ?? 0) <= 0 && (int) ($order['company_id'] ?? 0) <= 0) {
             throw UserError::make('office_order.customer_required');
         }
 

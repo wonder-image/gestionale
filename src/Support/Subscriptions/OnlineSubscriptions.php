@@ -495,7 +495,9 @@ final class OnlineSubscriptions
         }
 
         $gateway = self::gateway($row);
-        $customer = ExternalReferences::find('contact', (int) $row['customer_id'], 'stripe', 'customer', $gateway->environment());
+        $customer = (int) ($row['company_id'] ?? 0) > 0
+            ? ExternalReferences::find('company', (int) $row['company_id'], 'stripe', 'customer', $gateway->environment())
+            : ExternalReferences::find('contact', (int) $row['customer_id'], 'stripe', 'customer', $gateway->environment());
 
         if ($customer === null || trim((string) $customer['external_id']) === '') {
             throw UserError::make('subscription.not_found');
@@ -776,7 +778,7 @@ final class OnlineSubscriptions
      *
      * @return array<string, mixed>
      */
-    public static function couponFor(string $code, int $customerId, ?string $now = null, string $channel = 'online'): array
+    public static function couponFor(string $code, int $customerId, ?string $now = null, string $channel = 'online', int $companyId = 0): array
     {
         $now ??= date('Y-m-d H:i:s');
         $coupon = Coupons::find($code) ?? throw UserError::make('coupon.unknown');
@@ -809,7 +811,12 @@ final class OnlineSubscriptions
 
         $reserved = self::rows(CouponCustomer::find(['coupon_id' => (int) $coupon['id'], 'deleted' => 'false']));
 
-        if ($reserved !== [] && !in_array($customerId, array_map(static fn (array $r): int => (int) $r['customer_id'], $reserved), true)) {
+        // Riservato: vale per la persona del suo `customer_id` o per l'azienda del suo `company_id`.
+        $mine = array_filter($reserved, static fn (array $r): bool => (int) ($r['company_id'] ?? 0) > 0
+            ? $companyId > 0 && (int) $r['company_id'] === $companyId
+            : $customerId > 0 && (int) $r['customer_id'] === $customerId);
+
+        if ($reserved !== [] && $mine === []) {
             throw UserError::make('coupon.not_yours');
         }
 

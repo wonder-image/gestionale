@@ -8,7 +8,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
@@ -162,12 +162,12 @@ trait CatalogDemoRows
         return $result;
     }
 
-    /** L'id della scheda fornitore di prova con quel riferimento, `0` se non c'è. */
+    /** L'id dell'azienda fornitrice di prova con quel riferimento, `0` se non c'è. */
     private static function supplierId(string $ref): int
     {
         try {
-            $row = Contact::find([
-                'code' => DemoCode::forModel(Contact::class, $ref),
+            $row = Company::find([
+                'code' => DemoCode::forModel(Company::class, $ref),
                 'is_supplier' => 'true',
                 'deleted' => 'false',
             ], 1);

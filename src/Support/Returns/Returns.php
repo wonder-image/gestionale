@@ -148,6 +148,7 @@ final class Returns
                 'number' => $number,
                 'order_id' => $orderId,
                 'customer_id' => (int) ($order['customer_id'] ?? 0),
+                'company_id' => (int) ($order['company_id'] ?? 0),
                 'channel' => 'office',
                 'status' => 'received',
                 'location_id' => $locationId,

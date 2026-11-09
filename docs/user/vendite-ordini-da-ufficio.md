@@ -21,14 +21,18 @@ quanto vuoi. Quando lo **confermi** tiene lo stesso numero, la merce esce e nasc
 Dal menu **⋯** di ogni bozza: **Conferma ordine** (senza email al cliente) ed
 **Elimina**.
 
-* **Cliente** — cercalo per nome, email o partita IVA. Scegliendolo si
-  riempiono fatturazione, consegna, metodo e condizione di pagamento dalla sua
-  scheda: per questo ordine li puoi cambiare. Il cliente nuovo si crea con
+* **Cliente** — una persona o un'**azienda**: cercala per nome, ragione
+  sociale, email o partita IVA (le aziende compaiono per prime). Scegliendolo si
+  riempiono fatturazione, consegna, listino, metodo e condizione di pagamento
+  dalla sua scheda: per questo ordine li puoi cambiare. Con un'azienda valgono
+  il **suo** listino e le **sue** condizioni. Il cliente nuovo si crea con
   **Nuovo cliente**, in un'altra scheda del browser; poi cercalo qui.
-* **Referente** — compare solo se il sito ha acceso i referenti (vedi [Referenti
-  e aziende](anagrafiche.md#referenti-e-aziende)). Parte dal **referente
-  principale** dell'azienda e puoi scegliere un altro fra quelli che ricevono i
+* **Referente** — solo per un'azienda, e se il sito ha acceso i referenti (vedi
+  [Referenti e aziende](anagrafiche.md#referenti-e-aziende)). Parte dal
+  **referente principale** e puoi sceglierne un altro fra quelli che ricevono i
   documenti, oppure nessuno. Il suo nome si stampa sul PDF come «Alla c.a.».
+  Le sedi di consegna di un'azienda qui si scelgono soltanto: per cambiarle
+  c'è **Modifica azienda**, che apre la sua scheda.
 * **Fatturazione** — i dati del documento.
 * **Consegna** — *Spedizione*, *Ritiro in sede* o *Nessuna consegna*. Con la
   spedizione servono l'indirizzo e, con le spedizioni attive, il metodo. Il

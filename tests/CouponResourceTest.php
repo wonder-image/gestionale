@@ -30,7 +30,7 @@ check('il form ha i campi del coupon, quelli del selettore e i clienti riservati
         'code', 'name', 'discount_type', 'discount_value', 'min_order_amount',
         'usage_limit', 'usage_limit_per_customer', 'first_order_only', 'exclude_discounted_products',
         'starts_at', 'ends_at', 'active', 'applies_online', 'applies_office', 'applies_pos',
-        'applies_to_all', 'categories', 'tags', 'brands', 'models', 'excluded_models', 'customers', 'note',
+        'applies_to_all', 'categories', 'tags', 'brands', 'models', 'excluded_models', 'customers', 'companies', 'note',
     ];
 
     return array_diff($attesi, $campi()) === [];
@@ -52,6 +52,13 @@ check('il valore dello sconto si nasconde con la spedizione gratuita', function 
 
 check('i clienti riservati si scelgono in una ricerca a scelta multipla', function () {
     $campo = CouponResource::getInput('customers');
+    $schema = (new ReflectionProperty($campo, 'schema'))->getValue($campo);
+
+    return !empty($schema['multiple']);
+});
+
+check('le aziende riservate si scelgono in una ricerca a scelta multipla', function () {
+    $campo = CouponResource::getInput('companies');
     $schema = (new ReflectionProperty($campo, 'schema'))->getValue($campo);
 
     return !empty($schema['multiple']);

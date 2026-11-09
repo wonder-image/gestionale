@@ -20,6 +20,11 @@ use Wonder\View\View;
  * cliente con una chiamata JSON e i riquadri si ridisegnano dalla risposta.
  * L'indirizzo spuntato scrive i campi nascosti `shipping_*` dell'ordine;
  * senza spunta si copiano quelli di fatturazione.
+ *
+ * La ricerca `customer` trova persone e aziende con la chiave composta
+ * (`contact:12`, `company:7`); la scelta scrive i nascosti `customer_id`
+ * (persona o referente) e `company_id`. Il «Referente» c'è solo per
+ * un'azienda e scrive `customer_id`.
  */
 
 /** @var class-string<\Wonder\Plugin\Gestionale\Resources\Sales\OfficeOrderResource> $resource */
@@ -45,9 +50,10 @@ echo ResourceFormLayoutRenderer::render(OfficeOrderPage::layout($resource, $valu
 echo OfficeCustomerPanel::modals(OfficeOrderEditor::customerSaveUrl());
 
 $customerId = (int) ($values['customer_id'] ?? 0);
+$companyId = (int) ($values['company_id'] ?? 0);
 
 try {
-    $panel = $customerId > 0 ? OfficeCustomerPanel::payload($customerId) : [];
+    $panel = $customerId > 0 || $companyId > 0 ? OfficeCustomerPanel::payload($customerId, $companyId) : [];
 } catch (Throwable) {
     $panel = [];
 }
@@ -61,10 +67,11 @@ try {
     var customersUrl = <?=$json(OfficeOrderEditor::customersUrl())?>;
     var saveUrl = <?=$json(OfficeOrderEditor::customerSaveUrl())?>;
     var quoteUrl = <?=$json(OfficeOrderEditor::shippingQuoteUrl())?>;
-    var modals = <?=$json([OfficeCustomerPanel::CONTACTS_MODAL, OfficeCustomerPanel::BILLING_MODAL, \Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource::MODAL_ID])?>;
+    var modals = <?=$json([OfficeCustomerPanel::CONTACTS_MODAL, OfficeCustomerPanel::BILLING_MODAL, \Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource::MODAL_ID, OfficeCustomerPanel::COMPANY_BILLING_MODAL])?>;
     var shippingKeys = <?=$json(\Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders::shippingKeys())?>;
     var billingKeys = <?=$json(\Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders::billingKeys())?>;
-    var customerId = form.querySelector('[name="customer_id"][data-wi-remote-search-value]');
+    // La ricerca: il valore è la chiave composta del cliente.
+    var customer = form.querySelector('[name="customer"][data-wi-remote-search-value]');
     // Le azioni che non salvano le righe.
     var withoutLines = <?=$json(OfficeOrderPage::WITHOUT_LINES)?>;
     var EMPTY = '<p class="text-muted small mb-0">Scegli un cliente.</p>';
@@ -104,16 +111,18 @@ try {
         node.dispatchEvent(new Event('change', {bubbles: true}));
     }
 
-    // I dati della scheda del cliente riempiono la testata.
-    function fill(customer) {
-        Object.keys(customer).forEach(function (key) {
-            set(key, customer[key]);
+    // I dati della scheda del cliente riempiono la testata, con persona,
+    // azienda e referente.
+    function fill(data) {
+        Object.keys(data).forEach(function (key) {
+            set(key, data[key]);
         });
+        set('referent', parseInt(data.company_id, 10) > 0 ? (data.customer_id || 0) : 0);
     }
 
     // I referenti dell'azienda scelta: «Nessun referente», poi chi riceve i documenti.
     function referents(list) {
-        var node = field('referent_id');
+        var node = field('referent');
         var primary = 0;
 
         if (!node) {
@@ -129,6 +138,7 @@ try {
             }
         });
         node.value = String(primary);
+        node.dispatchEvent(new Event('change', {bubbles: true}));
     }
 
     function panels(data) {
@@ -146,7 +156,15 @@ try {
         state.addresses = (data && data.addresses) || [];
         document.querySelectorAll('[data-wi-oo-edit]').forEach(function (button) {
             button.disabled = !state.contact;
+            // La fatturazione di un'azienda ha la sua finestra.
+            if (button.getAttribute('data-wi-oo-edit') === 'billing') {
+                button.setAttribute('data-bs-target', '#' + (company() ? modals[3] : modals[1]));
+            }
         });
+    }
+
+    function company() {
+        return !!state.contact && state.contact.kind === 'company';
     }
 
     function boxes() {
@@ -199,10 +217,10 @@ try {
         check(found ? found.id : 0);
     }
 
-    function load(id, done) {
+    function load(key, done) {
         var mine = ++seq;
 
-        window.fetch(customersUrl + (customersUrl.indexOf('?') === -1 ? '?' : '&') + 'id=' + encodeURIComponent(id), {
+        window.fetch(customersUrl + (customersUrl.indexOf('?') === -1 ? '?' : '&') + 'key=' + encodeURIComponent(key), {
             credentials: 'same-origin',
             headers: {Accept: 'application/json'}
         }).then(function (response) {
@@ -223,7 +241,7 @@ try {
     // Un cliente nuovo: testata dalla sua scheda, riquadri, spuntato il
     // predefinito (o l'unico indirizzo che c'è).
     form.addEventListener('wi:search-select', function (event) {
-        if (!event.target.contains(customerId)) {
+        if (!event.target.contains(customer)) {
             return;
         }
 
@@ -240,13 +258,24 @@ try {
         });
     });
 
-    customerId.addEventListener('change', function () {
-        if (customerId.value === '') {
+    customer.addEventListener('change', function () {
+        if (customer.value === '') {
             ++seq;
+            set('customer_id', '');
+            set('company_id', '0');
             referents([]);
             panels(null);
         }
     });
+
+    // Il referente scelto è la persona del documento.
+    if (field('referent')) {
+        field('referent').addEventListener('change', function () {
+            if (parseInt((field('company_id') || {}).value, 10) > 0) {
+                set('customer_id', parseInt(field('referent').value, 10) > 0 ? field('referent').value : '0');
+            }
+        });
+    }
 
     // La spunta fa da scelta singola: toglierla torna alla fatturazione.
     document.addEventListener('change', function (event) {
@@ -261,33 +290,6 @@ try {
     });
 
     // Le finestre si aprono sul cliente scelto, con i valori della scheda.
-    function billingEmpty() {
-        return ['business_name', 'cf', 'pi', 'street'].every(function (key) {
-            return !String(state.contact[key] || '').trim();
-        });
-    }
-
-    function setType(modal, value) {
-        var radio = modal.querySelector('[name="type"][value="' + value + '"]');
-        var input = radio || modal.querySelector('[name="type"]:not([type=hidden])');
-
-        if (!input) {
-            return;
-        }
-
-        if (radio) {
-            radio.checked = true;
-        } else {
-            input.value = value;
-        }
-
-        input.dispatchEvent(new Event('change', {bubbles: true}));
-
-        if (input.tagName === 'SELECT' && window.jQuery) {
-            window.jQuery(input).trigger('change');
-        }
-    }
-
     document.addEventListener('show.bs.modal', function (event) {
         var modal = event.target;
         var $ = window.jQuery;
@@ -302,7 +304,13 @@ try {
         target = modal.querySelector('[name="contact_id"]');
 
         if (target) {
-            target.value = state.contact.id;
+            target.value = company() ? ((field('customer_id') || {}).value || 0) : state.contact.id;
+        }
+
+        target = modal.querySelector('[name="company_id"]');
+
+        if (target) {
+            target.value = company() ? state.contact.company_id : 0;
         }
 
         if (modal.id === modals[2]) {
@@ -327,12 +335,6 @@ try {
                 $(input).trigger('change');
             }
         });
-
-        // La tipologia va scelta a parte (le caselle a spunta sopra si
-        // saltano); con la fatturazione ancora vuota si parte da Società.
-        if (modal.id === modals[1]) {
-            setType(modal, billingEmpty() ? 'business' : (state.contact.type || 'business'));
-        }
 
         country = modal.querySelector('[name="country"]');
         province = modal.querySelector('[name="province"]');
@@ -563,7 +565,7 @@ try {
         var type = form.querySelector('[name="fulfillment_type"]');
         var missing = function (key) { return String((field('shipping_' + key) || {}).value || '').trim() === ''; };
 
-        if (customerId.value === '') {
+        if (!(parseInt((field('customer_id') || {}).value, 10) > 0) && !(parseInt((field('company_id') || {}).value, 10) > 0)) {
             return 'Scegli il cliente dell\'ordine.';
         }
 

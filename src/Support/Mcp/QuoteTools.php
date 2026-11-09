@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Mcp;
 
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
@@ -38,10 +39,10 @@ final class QuoteTools
 
         return [
             'quote_create' => [
-                'description' => 'Crea un preventivo in bozza per un cliente (`customer_id`, un contatto del gestionale) con le sue righe. Righe: `product` (product_id della versione e quantity; unit_price vuoto = prezzo di listino), `custom` (name, quantity, unit_price, tax_category_id facoltativo, vuoto vale il tipo di IVA predefinito), `text` (solo name, una nota). Cliente, righe, quantità e prezzi li decide l\'utente: se mancano chiediglieli, non inventarli. `referent_id` sceglie il referente dell\'azienda (fra quelli che ricevono i documenti, vedi `customer_get`): assente vale il principale, 0 nessuno. Il preventivo non parte verso il cliente: si invia dal backend.',
+                'description' => 'Crea un preventivo in bozza per un cliente: una persona (`customer_id`) oppure un\'azienda (`company_id`, con `customer_id` facoltativo come referente). Serve almeno uno dei due. Righe: `product` (product_id della versione e quantity; unit_price vuoto = prezzo di listino), `custom` (name, quantity, unit_price, tax_category_id facoltativo, vuoto vale il tipo di IVA predefinito), `text` (solo name, una nota). Cliente, righe, quantità e prezzi li decide l\'utente: se mancano chiediglieli, non inventarli. Con `company_id`, `customer_id` sceglie il referente fra le persone collegate all\'azienda: assente vale il principale, 0 nessuno. Le condizioni (listino, pagamento) sono dell\'azienda. Il preventivo non parte verso il cliente: si invia dal backend.',
                 'schema' => self::schema([
-                    'customer_id' => $id,
-                    'referent_id' => ['type' => 'integer', 'minimum' => 0],
+                    'customer_id' => ['type' => 'integer', 'minimum' => 0],
+                    'company_id' => ['type' => 'integer', 'minimum' => 0],
                     'lines' => ['type' => 'array', 'minItems' => 1, 'maxItems' => OfficeOrderRules::MAX_LINES, 'items' => [
                         'type' => 'object',
                         'properties' => (object) [
@@ -68,7 +69,7 @@ final class QuoteTools
                     'customer_note' => $text,
                     'internal_note' => $text,
                     'document_note' => $text,
-                ], ['customer_id', 'lines']),
+                ], ['lines']),
                 'permission' => [QuoteResource::class, 'store'],
                 'write' => true,
                 'run' => self::quoteCreate(...),
@@ -87,17 +88,21 @@ final class QuoteTools
     {
         self::quotesActive();
 
-        $customerId = self::int($args, 'customer_id');
-        $contact = Contact::findById($customerId);
+        $customerId = (int) ($args['customer_id'] ?? 0);
+        $companyId = (int) ($args['company_id'] ?? 0);
 
-        if (!is_array($contact) || $contact === [] || (string) ($contact['deleted'] ?? 'false') === 'true') {
-            throw McpError::make('customer_not_found', 0, ['id' => $customerId]);
+        if ($companyId > 0) {
+            self::alive(Company::findById($companyId), $companyId);
+        } elseif ($customerId > 0) {
+            self::alive(Contact::findById($customerId), $customerId);
+        } else {
+            throw McpError::make('customer_not_found', 0, ['id' => 0]);
         }
 
         $data = ['lines' => self::lines($args['lines'] ?? null)];
 
         foreach ([
-            'customer_id', 'referent_id', 'fulfillment_type', 'shipping_method_id', 'shipping_amount', 'payment_method_id', 'payment_term_id',
+            'company_id', 'customer_id', 'fulfillment_type', 'shipping_method_id', 'shipping_amount', 'payment_method_id', 'payment_term_id',
             'manual_discount_type', 'manual_discount_value', 'quote_expires_at', 'customer_note', 'internal_note', 'document_note',
         ] as $key) {
             if (array_key_exists($key, $args) && $args[$key] !== null) {
@@ -109,6 +114,14 @@ final class QuoteTools
         $after = self::quote(self::quoteRow($id));
 
         return ['result' => $after, 'subject' => $id, 'after' => $after];
+    }
+
+    /** Un cliente esistente e non eliminato, o l'errore. */
+    private static function alive(mixed $row, int $id): void
+    {
+        if (!is_array($row) || $row === [] || (string) ($row['deleted'] ?? 'false') === 'true') {
+            throw McpError::make('customer_not_found', 0, ['id' => $id]);
+        }
     }
 
     private static function quoteGet(array $args): array
@@ -210,7 +223,7 @@ final class QuoteTools
             'revision' => (int) ($row['quote_revision'] ?? 0),
             'expires_at' => (string) ($row['quote_expires_at'] ?? ''),
             'customer_id' => (int) ($row['customer_id'] ?? 0),
-            'referent_id' => (int) ($row['referent_id'] ?? 0),
+            'company_id' => (int) ($row['company_id'] ?? 0),
             'referent_name' => (string) ($row['referent_name'] ?? ''),
             'email' => (string) ($row['email'] ?? ''),
             'fulfillment_type' => (string) ($row['fulfillment_type'] ?? ''),

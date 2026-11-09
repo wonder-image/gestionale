@@ -29,8 +29,8 @@ chiuso.
 ## La bozza
 
 * **Luogo di consegna** — parte dall'ordine, si può cambiare.
-* **Referente** — parte da quello dell'ordine e si può
-  cambiare o togliere; il suo nome va sul PDF come «Alla c.a.».
+* **Referente** — solo se il cliente è un'azienda: parte da quello
+  dell'ordine e si può cambiare o togliere; il suo nome va sul PDF come «Alla c.a.».
 * **Trasporto** — *a cura del* mittente, del destinatario o del vettore; il
   **vettore** dai tuoi corrieri; **inizio trasporto** (vuoto = il momento
   dell'emissione); **aspetto dei beni**, **colli**, **peso lordo** e **netto**,

@@ -13,13 +13,12 @@ use Wonder\Elements\Components\Badge;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionPaymentResource;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionResource;
-use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerKind;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Payments\DuePayments;
 
@@ -255,14 +254,14 @@ final class ScheduleResource extends GestionaleResource
     public static function customerOf(array $row): string
     {
         if ((int) ($row['order_id'] ?? 0) === 0 && (int) ($row['subscription_id'] ?? 0) > 0) {
-            $contact = (int) ($row['customer_id'] ?? 0) > 0 ? Contact::findById((int) $row['customer_id']) : null;
+            $name = CustomerKind::name($row);
 
-            return is_array($contact) && $contact !== [] ? Contacts::displayName($contact) : '—';
+            return $name !== '' ? $name : '—';
         }
 
         $order = static::orderOf((int) ($row['order_id'] ?? 0));
 
-        return $order === [] ? '—' : OrderResource::customerName($order);
+        return $order === [] ? '—' : OrderResource::customerLabel($order);
     }
 
     private static function subscriptionLink(int $subscriptionId): string

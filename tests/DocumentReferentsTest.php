@@ -44,11 +44,11 @@ ContactRelations::useEnabled(false);
 check('con i referenti spenti non c\'è niente da scegliere', fn () =>
     DocumentReferents::options(10) === []
     && DocumentReferents::defaultFor(10) === 0
-    && DocumentReferents::copyEmails(['customer_id' => 10, 'email' => 'x@example.com']) === []
+    && DocumentReferents::copyEmails(['company_id' => 10, 'email' => 'x@example.com']) === []
 );
 
 check('con i referenti spenti un referente passato diventa nessuno', fn () =>
-    DocumentReferents::resolve(10, 1) === ['referent_id' => 0, 'referent_name' => '']
+    DocumentReferents::resolve(10, 1) === ['customer_id' => 0, 'referent_name' => '']
 );
 
 ContactRelations::useEnabled(true);
@@ -77,41 +77,41 @@ check('senza principale non si propone nessuno', function () use ($righe) {
 });
 
 check('un referente valido si copia con il suo nome', fn () =>
-    DocumentReferents::resolve(10, 2) === ['referent_id' => 2, 'referent_name' => 'Cognome2 Nome2']
+    DocumentReferents::resolve(10, 2) === ['customer_id' => 2, 'referent_name' => 'Cognome2 Nome2']
 );
 
 check('un referente che non riceve i documenti, cancellato o di un\'altra azienda diventa nessuno', fn () =>
-    DocumentReferents::resolve(10, 3) === ['referent_id' => 0, 'referent_name' => '']
-    && DocumentReferents::resolve(10, 4) === ['referent_id' => 0, 'referent_name' => '']
-    && DocumentReferents::resolve(11, 1) === ['referent_id' => 0, 'referent_name' => '']
-    && DocumentReferents::resolve(10, 0) === ['referent_id' => 0, 'referent_name' => '']
+    DocumentReferents::resolve(10, 3) === ['customer_id' => 0, 'referent_name' => '']
+    && DocumentReferents::resolve(10, 4) === ['customer_id' => 0, 'referent_name' => '']
+    && DocumentReferents::resolve(11, 1) === ['customer_id' => 0, 'referent_name' => '']
+    && DocumentReferents::resolve(10, 0) === ['customer_id' => 0, 'referent_name' => '']
 );
 
 check('in copia vanno l\'azienda e i referenti, non chi riceve già la mail', fn () =>
     DocumentReferents::copyEmails(
-        ['customer_id' => 10, 'email' => 'P2@example.com'],
-        ['type' => 'business', 'email' => 'info@rossi.it'],
+        ['company_id' => 10, 'email' => 'P2@example.com'],
+        ['id' => 10, 'email' => 'info@rossi.it'],
     ) === ['info@rossi.it', 'p1@example.com']
 );
 
 check('niente doppioni né indirizzi non validi in copia', fn () =>
     DocumentReferents::copyEmails(
-        ['customer_id' => 10, 'email' => 'info@rossi.it'],
-        ['type' => 'business', 'email' => 'info@rossi.it'],
+        ['company_id' => 10, 'email' => 'info@rossi.it'],
+        ['id' => 10, 'email' => 'info@rossi.it'],
     ) === ['p1@example.com', 'p2@example.com']
 );
 
-check('un privato non manda in copia la sua email', fn () =>
+check('una scheda che non è l\'azienda del documento non va in copia', fn () =>
     DocumentReferents::copyEmails(
-        ['customer_id' => 10, 'email' => 'p1@example.com'],
-        ['type' => 'private', 'email' => 'privato@example.com'],
+        ['company_id' => 10, 'email' => 'p1@example.com'],
+        ['id' => 3, 'email' => 'privato@example.com'],
     ) === ['p2@example.com']
 );
 
 check('un\'azienda senza referenti non aggiunge copie, nemmeno la sua email', fn () =>
     DocumentReferents::copyEmails(
-        ['customer_id' => 11, 'email' => 'x@example.com'],
-        ['type' => 'business', 'email' => 'info@altra.it'],
+        ['company_id' => 11, 'email' => 'x@example.com'],
+        ['id' => 11, 'email' => 'info@altra.it'],
     ) === []
 );
 

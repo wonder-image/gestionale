@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Providers\Payments;
 use RuntimeException;
 use Throwable;
 use Wonder\App\Credentials;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
@@ -453,6 +454,10 @@ final class StripeProvider implements PaymentProvider
     /** Il Customer della scheda in questo ambiente: lo crea al primo pagamento. */
     private function customer(array $order, string $environment, PaymentIntent $intents): string
     {
+        if ((int) ($order['company_id'] ?? 0) > 0) {
+            return $this->companyCustomer($order, $environment, $intents);
+        }
+
         $contactId = (int) ($order['customer_id'] ?? 0);
 
         if ($contactId <= 0) {
@@ -473,6 +478,50 @@ final class StripeProvider implements PaymentProvider
         ]), 'contact-'.$contactId.'-'.$environment);
 
         ExternalReferences::save('contact', $contactId, 'stripe', 'customer', (string) $customer->id, $environment);
+
+        return (string) $customer->id;
+    }
+
+    /**
+     * Il Customer dell'azienda: l'id resta in `external_references` con
+     * entity_type `company`, senza colonne su `companies`.
+     */
+    private function companyCustomer(array $order, string $environment, PaymentIntent $intents): string
+    {
+        $companyId = (int) $order['company_id'];
+        $saved = ExternalReferences::find('company', $companyId, 'stripe', 'customer', $environment);
+
+        if ($saved !== null && trim((string) $saved['external_id']) !== '') {
+            return (string) $saved['external_id'];
+        }
+
+        $company = Company::findById($companyId);
+        $company = is_array($company) && isset($company['id']) ? $company : [];
+        $referentId = (int) ($order['customer_id'] ?? 0);
+        $referent = $referentId > 0 ? Contact::findById($referentId) : null;
+        $email = trim((string) ($company['email'] ?? ''));
+
+        if ($email === '') {
+            $email = trim((string) (is_array($referent) ? ($referent['email'] ?? '') : ''));
+        }
+
+        if ($email === '') {
+            $email = trim((string) ($order['email'] ?? ''));
+        }
+
+        $metadata = ['company_id' => (string) $companyId];
+
+        if ($referentId > 0) {
+            $metadata['contact_id'] = (string) $referentId;
+        }
+
+        $customer = $intents->createCustomer(array_filter([
+            'email' => $email,
+            'name' => trim((string) ($company['business_name'] ?? '')),
+            'metadata' => $metadata,
+        ]), 'company-'.$companyId.'-'.$environment);
+
+        ExternalReferences::save('company', $companyId, 'stripe', 'customer', (string) $customer->id, $environment);
 
         return (string) $customer->id;
     }

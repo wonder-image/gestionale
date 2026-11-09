@@ -236,7 +236,7 @@ final class Cart
             // cliente collegato, nelle bozze quello scelto sulla testata), poi
             // quello del canale dell'ordine. Scaduto, spento o d'altra valuta non vale.
             $isCart = (string) ($cart['stage'] ?? '') === 'cart';
-            $contactListId = $isCart ? PriceLists::forContact((int) ($cart['customer_id'] ?? 0)) : (int) ($cart['price_list_id'] ?? 0);
+            $contactListId = $isCart ? PriceLists::forDocument($cart) : (int) ($cart['price_list_id'] ?? 0);
             $priceLists = PriceLists::loadAll(PriceLists::candidates($contactListId, $channel), $now, (string) ($cart['currency'] ?? 'EUR'));
             $usedLists = [];
             $includesTax = (string) ($cart['prices_include_tax'] ?? 'true') === 'true';
@@ -466,7 +466,7 @@ final class Cart
             $header = $isCart ? ['price_list_id' => PriceLists::headerOf($priceLists, array_keys($usedLists))] : [];
 
             Order::update($header + [
-                'vat_collectability' => VatCollectability::forCustomer((int) ($cart['customer_id'] ?? 0)),
+                'vat_collectability' => VatCollectability::forDocument($cart),
                 'products_total' => $totals['products_total'],
                 'discount_total' => $totals['discount_total'],
                 'shipping_total' => $totals['shipping_total'],

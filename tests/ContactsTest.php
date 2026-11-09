@@ -71,9 +71,9 @@ check('una risposta che non esiste non accende niente', fn () =>
     Contacts::rolesFromChoice('') === [] && Contacts::rolesFromChoice('capo') === []
 );
 
-check('il tipo azienda si riconosce', fn () =>
-    Contacts::isCompany(['type' => 'business']) === true
-    && Contacts::isCompany(['type' => 'private']) === false
+check('un\'azienda si riconosce dalla ragione sociale', fn () =>
+    Contacts::isCompany(['business_name' => 'Rossi Srl']) === true
+    && Contacts::isCompany(['business_name' => '  ', 'name' => 'Mario']) === false
     && Contacts::isCompany([]) === false
 );
 

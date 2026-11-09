@@ -57,6 +57,7 @@ final class Subscription extends Model
                 'code', 'subtotal', 'discount_total', 'tax_total', 'total',
             ]),
             Column::key('customer_id')->int()->default(0),
+            Column::key('company_id')->int()->default(0),
             // Il prezzo di prima di G10b: resta finché lo script di
             // migrazione non ha creato le righe, poi si toglie.
             Column::key('plan_price_id')->int()->default(0),
@@ -93,6 +94,7 @@ final class Subscription extends Model
     {
         return [
             'ind_customer' => ['index' => 'customer_id'],
+            'ind_company' => ['index' => 'company_id'],
             'ind_status' => ['index' => 'status'],
             'ind_provider_reference' => ['index' => 'provider_reference'],
         ];
@@ -103,6 +105,7 @@ final class Subscription extends Model
         return [
             Field::key('code')->text()->uniqueCode(Codes::SUBSCRIPTION),
             Field::key('customer_id')->number()->decimals(0),
+            Field::key('company_id')->number()->decimals(0),
             Field::key('channel')->text()->sanitize(false),
             Field::key('status')->text()->sanitize(false),
             Field::key('provider')->text()->sanitize(false),

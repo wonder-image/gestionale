@@ -20,6 +20,20 @@ versionamento semantico.
   con `ContactRelations`.
 
 ### Cambiato
+- **Persone e aziende separate (#77).** Le aziende hanno la loro scheda
+  (`companies` di customer-account, menu «Aziende», `CompanyResource`) e i
+  fornitori sono sempre aziende; le persone non hanno più *Privato / azienda*.
+  I documenti (ordini, preventivi, DDT, resi, pagamenti, abbonamenti, coupon)
+  hanno `company_id`: con un'azienda valgono il suo listino e le sue
+  condizioni, e `customer_id` è il referente. **Tolta `referent_id`**: il
+  referente è `customer_id`, `referent_name` resta come copia.
+  `DocumentCompanyMigration` porta i documenti e i `supplier_id` sulle aziende
+  leggendo `contact_company_map` (una volta sola, in transazione, registrata in
+  `gst_migrations`). Nuovo `CustomerKind` (`of`, `record`, `name`);
+  `PriceLists::forDocument()` / `forCompany()`,
+  `VatCollectability::forDocument()`. MCP: `quote_create` con `company_id`
+  (senza `referent_id`), `customers_list` con `kind`, `customer_get` con
+  `kind`. Richiede customer-account con `CompanySplitMigration`.
 - **Listini: «Si applica a» con tre scelte.** *Tutto il catalogo*, *Filtra
   catalogo* (con «Cerca prodotti», che salva e crea le righe dei prodotti
   trovati) e *Seleziona prodotti* (solo le righe); il modo non è una colonna

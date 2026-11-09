@@ -20,7 +20,6 @@ use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionItems;
  */
 final class CustomerSheet
 {
-    private const TYPES = ['private' => 'Privato', 'business' => 'Azienda'];
 
     private const ADDRESS_KEYS = ['business_name', 'name', 'surname', 'street', 'number', 'more', 'cap', 'city', 'province'];
 
@@ -71,14 +70,9 @@ final class CustomerSheet
             ->html($html)
             ->columnSpan(['default' => 12, 'sm' => $colonne]);
 
-        $items = [
-            $dato('Tipo', self::TYPES[$get('type')] ?? ''),
-            $dato('Nome', trim($get('name').' '.$get('surname'))),
-        ];
-
-        if ($get('type') === 'business') {
-            $items[] = $dato('Ragione sociale', $get('business_name'));
-        }
+        $items = self::isCompany($contact)
+            ? [$dato('Tipo', 'Azienda'), $dato('Ragione sociale', $get('business_name'))]
+            : [$dato('Tipo', 'Persona'), $dato('Nome', trim($get('name').' '.$get('surname')))];
 
         $items[] = $dato('Ruolo', Contacts::roles($contact));
         $items[] = $dato('Stato', ($contact['active'] ?? 'true') === 'false'
@@ -133,7 +127,7 @@ final class CustomerSheet
 
         $items = [$dato('Codice fiscale', $get('cf'))];
 
-        if ($get('type') === 'business') {
+        if (self::isCompany($contact)) {
             $items[] = $dato('Partita IVA', $get('pi'));
             $items[] = $dato('SDI', $get('sdi'));
             $items[] = $dato('PEC', $get('pec'));
@@ -142,6 +136,12 @@ final class CustomerSheet
         $items[] = $dato('Indirizzo', OrderSheet::address(self::prefixed($contact), 'c'), true, 12);
 
         return $items;
+    }
+
+    /** Una riga di `companies`: ha la ragione sociale (o la partita IVA); la persona no. */
+    private static function isCompany(array $row): bool
+    {
+        return trim((string) ($row['pi'] ?? '')) !== '' || Contacts::isCompany($row);
     }
 
     /**
@@ -178,7 +178,7 @@ final class CustomerSheet
      *
      * @return list<array{code: string, name: string, discount: string, period: string, used: string, state: string}>
      */
-    public static function coupons(int $customerId): array
+    public static function coupons(int $customerId, string $column = 'customer_id'): array
     {
         $now = date('Y-m-d H:i:s');
 
@@ -194,7 +194,7 @@ final class CustomerSheet
                 'used' => $limit > 0 ? $reserved['used'].' / '.$limit : (string) $reserved['used'],
                 'state' => CouponResource::statusLabel($coupon, $now),
             ];
-        }, Coupons::reserved($customerId));
+        }, Coupons::reserved($customerId, $column));
     }
 
     /** La tabella dei coupon del cliente, o la frase se non ne ha. */

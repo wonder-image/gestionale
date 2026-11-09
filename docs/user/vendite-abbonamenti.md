@@ -133,7 +133,8 @@ Un abbonamento ha una o più righe, una per servizio. Le regole:
 In *Impostazioni → Vendite*, **Abbonamenti in corso per cliente** dice quanti
 abbonamenti in corso può avere un cliente: di serie **1**, con **0** senza
 limite. Vale online e da ufficio. Al limite non se ne apre un altro: i servizi
-nuovi si **aggiungono** all'abbonamento che c'è.
+nuovi si **aggiungono** all'abbonamento che c'è. Gli abbonamenti di un'azienda
+contano per l'azienda, non per il suo referente.
 
 ## Gli abbonamenti
 
@@ -241,13 +242,16 @@ dopo 24 ore si chiude da solo.
 
 ## Abbonamenti da ufficio
 
-Dall'elenco *Abbonamenti*, **Nuovo abbonamento**: scegli il cliente e, con
+Dall'elenco *Abbonamenti*, **Nuovo abbonamento**: scegli il cliente — una
+persona, oppure un'**Azienda** con, se vuoi, il suo referente in **Cliente /
+referente** (vuoto: il referente principale) — e, con
 **«Aggiungi servizio»**, una riga per servizio: piano e prezzo, quantità e, per
 un servizio legato, la riga a cui **si appoggia** (contando dall'alto). Le
 personalizzazioni stanno nelle informazioni avanzate della riga, ognuna coi
 piani che la chiedono fra parentesi. Poi la data d'inizio, il metodo e la
-condizione di pagamento (vuoti: quelli della scheda del cliente) e, se vuoi, un
-coupon. Niente Stripe: il cliente paga come per un ordine da ufficio.
+condizione di pagamento (vuoti: quelli della scheda del cliente o
+dell'azienda) e, se vuoi, un coupon. Con un'azienda l'email va all'azienda, con
+i referenti in copia. Niente Stripe: il cliente paga come per un ordine da ufficio.
 
 * L'abbonamento parte **attivo** dalla data scelta (o *in prova*, se il prezzo
   ne ha una): non aspetta il primo pagamento.

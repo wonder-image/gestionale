@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Sales;
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
@@ -65,8 +66,8 @@ final class OfficeSearch
 
         foreach ($words as $word) {
             $like = "'%".addcslashes(Contact::connection()->real_escape_string($word), '%_')."%'";
-            $conditions[] = '(`name` LIKE '.$like.' OR `surname` LIKE '.$like.' OR `business_name` LIKE '.$like
-                .' OR `email` LIKE '.$like.' OR `pi` LIKE '.$like.' OR `cf` LIKE '.$like.')';
+            $conditions[] = '(`name` LIKE '.$like.' OR `surname` LIKE '.$like
+                .' OR `email` LIKE '.$like.' OR `cf` LIKE '.$like.')';
         }
 
         $rows = Contact::find(implode(' AND ', $conditions), self::CUSTOMER_LIMIT, 'id', 'DESC');
@@ -77,6 +78,113 @@ final class OfficeSearch
             'label' => Contacts::displayName($row),
             'detail' => trim(implode(' · ', array_filter([(string) ($row['email'] ?? ''), (string) ($row['city'] ?? '')]))),
         ], $rows);
+    }
+
+    /**
+     * Persone e aziende clienti attive, per l'intestatario di un documento.
+     *
+     * L'`id` di ogni risultato è la chiave composta del cliente:
+     * `contact:12` per una persona, `company:7` per un'azienda (vedi
+     * `customerKey()`). Le aziende si cercano su ragione sociale, P.IVA, CF
+     * ed email; il dettaglio le distingue con «Azienda · P.IVA …».
+     *
+     * @return list<array{id: string, kind: string, label: string, detail: string}>
+     */
+    public static function customerChoices(string $q): array
+    {
+        $words = self::words($q);
+
+        if ($words === []) {
+            return [];
+        }
+
+        $companies = array_map(static fn (array $row): array => [
+            'id' => self::customerKey(0, (int) $row['id']),
+            'kind' => 'company',
+            'label' => trim((string) ($row['business_name'] ?? '')) ?: 'Azienda #'.(int) $row['id'],
+            'detail' => self::companyDetail($row),
+        ], self::rows(Company::class, $words, ['business_name', 'pi', 'cf', 'email']));
+
+        $people = array_map(static fn (array $row): array => [
+            'id' => self::customerKey((int) $row['id'], 0),
+            'kind' => 'contact',
+            'label' => Contacts::displayName($row),
+            'detail' => trim(implode(' · ', array_filter([(string) ($row['email'] ?? ''), (string) ($row['city'] ?? '')]))),
+        ], self::rows(Contact::class, $words, ['name', 'surname', 'email', 'cf']));
+
+        // Metà posti a testa; quelli che una parte non usa vanno all'altra.
+        $half = intdiv(self::CUSTOMER_LIMIT, 2);
+        $companies = array_slice($companies, 0, max($half, self::CUSTOMER_LIMIT - count($people)));
+
+        return array_slice([...$companies, ...$people], 0, self::CUSTOMER_LIMIT);
+    }
+
+    /** La chiave composta del cliente: `company:N` se c'è l'azienda, altrimenti `contact:N`. */
+    public static function customerKey(int $contactId, int $companyId): string
+    {
+        if ($companyId > 0) {
+            return 'company:'.$companyId;
+        }
+
+        return $contactId > 0 ? 'contact:'.$contactId : '';
+    }
+
+    /**
+     * Da chiave composta a `[contact_id, company_id]`. Un numero da solo è una
+     * persona (le ricerche di prima); una chiave non valida dà `[0, 0]`.
+     *
+     * @return array{0: int, 1: int}
+     */
+    public static function parseCustomerKey(string $key): array
+    {
+        $key = trim($key);
+
+        if (preg_match('/^(contact|company):(\d+)$/', $key, $m) === 1) {
+            return $m[1] === 'company' ? [0, (int) $m[2]] : [(int) $m[2], 0];
+        }
+
+        return ctype_digit($key) ? [(int) $key, 0] : [0, 0];
+    }
+
+    /** @param array<string, mixed> $row */
+    public static function companyDetail(array $row): string
+    {
+        $pi = trim((string) ($row['pi'] ?? ''));
+
+        return implode(' · ', array_filter([
+            'Azienda',
+            $pi !== '' ? 'P.IVA '.$pi : '',
+            trim((string) ($row['email'] ?? '')),
+            trim((string) ($row['city'] ?? '')),
+        ]));
+    }
+
+    /** @return list<string> */
+    private static function words(string $q): array
+    {
+        return array_slice(preg_split('/\s+/u', trim($q), -1, PREG_SPLIT_NO_EMPTY) ?: [], 0, 5);
+    }
+
+    /**
+     * Le schede clienti attive che contengono ogni parola in una delle colonne.
+     *
+     * @param class-string<Contact|Company> $model
+     * @param list<string> $words
+     * @param list<string> $columns
+     * @return list<array<string, mixed>>
+     */
+    private static function rows(string $model, array $words, array $columns): array
+    {
+        $conditions = ["`deleted` = 'false'", "`is_customer` = 'true'", "`active` = 'true'"];
+
+        foreach ($words as $word) {
+            $like = "'%".addcslashes($model::connection()->real_escape_string($word), '%_')."%'";
+            $conditions[] = '('.implode(' OR ', array_map(static fn (string $c): string => '`'.$c.'` LIKE '.$like, $columns)).')';
+        }
+
+        $rows = $model::find(implode(' AND ', $conditions), self::CUSTOMER_LIMIT, 'id', 'DESC');
+
+        return is_array($rows) ? (isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'))) : [];
     }
 
     /**

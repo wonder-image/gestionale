@@ -90,6 +90,17 @@ final class CustomerOrderTableResource extends OrderSectionResource
         return static::embedWhere(static::condition($customerId, $userId));
     }
 
+    /** Gli ordini intestati a un'azienda. */
+    public static function embedForCompany(int $companyId): string
+    {
+        return $companyId <= 0 ? static::embedMany([]) : static::embedWhere(static::companyCondition($companyId));
+    }
+
+    public static function companyCondition(int $companyId): string
+    {
+        return "`stage` = 'order' AND `status` NOT IN ('awaiting_payment', 'abandoned') AND `company_id` = ".max(0, $companyId);
+    }
+
     /** La condizione degli ordini del cliente, pubblica perché la usa anche la scheda per leggerli. */
     public static function condition(int $customerId, int $userId = 0): string
     {

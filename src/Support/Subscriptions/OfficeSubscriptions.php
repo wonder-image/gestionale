@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Support\Subscriptions;
 use DateTimeImmutable;
 use RuntimeException;
 use Throwable;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
@@ -16,6 +17,7 @@ use Wonder\Plugin\Gestionale\Models\Subscriptions\SubscriptionStatusLog;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentData;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdfs;
@@ -52,18 +54,36 @@ final class OfficeSubscriptions
      * vincolo del suo prezzo e quello dell'abbonamento è il più lontano.
      * `plan_price_id` da solo vale come una riga sola.
      *
-     * @param array{customer_id: int, items?: list<array{plan_price_id: int, quantity?: int, customization?: array<int|string, mixed>, parent?: int}>, plan_price_id?: int, starts_at?: string, payment_method_id?: int, payment_term_id?: int, coupon?: string, note?: string, user_id?: int} $input
+     * Con `company_id` il cliente è l'azienda: `customer_id` è il referente
+     * (controllato fra i suoi, anche 0) e intestazione, pagamento e limite di
+     * abbonamenti sono quelli dell'azienda.
+     *
+     * @param array{customer_id: int, company_id?: int, items?: list<array{plan_price_id: int, quantity?: int, customization?: array<int|string, mixed>, parent?: int}>, plan_price_id?: int, starts_at?: string, payment_method_id?: int, payment_term_id?: int, coupon?: string, note?: string, user_id?: int} $input
      */
     public static function create(array $input): int
     {
+        $companyId = (int) ($input['company_id'] ?? 0);
         $customerId = (int) ($input['customer_id'] ?? 0);
-        $contact = $customerId > 0 ? Contact::findById($customerId) : null;
 
-        if (!is_array($contact) || (int) ($contact['id'] ?? 0) <= 0 || (string) ($contact['deleted'] ?? 'false') !== 'false') {
-            throw UserError::make('subscription.customer_required');
+        if ($companyId > 0) {
+            $company = self::alive(Company::class, $companyId);
+
+            if ($company === []) {
+                throw UserError::make('subscription.company_unknown');
+            }
+
+            $customerId = (int) DocumentReferents::resolve($companyId, $customerId > 0 ? $customerId : DocumentReferents::defaultFor($companyId))['customer_id'];
+            // Intestazione e condizioni sono dell'azienda.
+            $contact = $company;
+        } else {
+            $contact = self::alive(Contact::class, $customerId);
+
+            if ($contact === []) {
+                throw UserError::make('subscription.customer_required');
+            }
         }
 
-        Subscriptions::assertRoom($customerId);
+        Subscriptions::assertRoom($customerId, $companyId);
 
         $items = $input['items'] ?? null;
 
@@ -73,10 +93,14 @@ final class OfficeSubscriptions
 
         $start = self::day((string) ($input['starts_at'] ?? '')) ?? new DateTimeImmutable('today');
         $billing = OnlineSubscriptions::billingFor([], $contact);
+
+        if ($companyId > 0) {
+            $billing['billing_type'] = 'business';
+        }
         $includeTax = (string) (Setting::current()['catalog_prices_include_tax'] ?? 'true') === 'true';
         $lines = SubscriptionItems::prepare(is_array($items) ? $items : [], $billing, $includeTax);
         $coupon = trim((string) ($input['coupon'] ?? '')) !== ''
-            ? OnlineSubscriptions::couponFor((string) $input['coupon'], $customerId, $start->format('Y-m-d H:i:s'), 'office')
+            ? OnlineSubscriptions::couponFor((string) $input['coupon'], $customerId, $start->format('Y-m-d H:i:s'), 'office', $companyId)
             : null;
         $term = min(array_column($lines, 'term'));
         $amounts = SubscriptionAmounts::ofItems($lines, $coupon, $includeTax, 0, $term);
@@ -90,11 +114,12 @@ final class OfficeSubscriptions
         $methodId = (int) ($input['payment_method_id'] ?? 0) ?: (int) ($contact['payment_method_id'] ?? 0);
         $termId = (int) ($input['payment_term_id'] ?? 0) ?: (int) ($contact['payment_term_id'] ?? 0);
 
-        $id = Transaction::run(static function () use ($billing, $customerId, $lines, $coupon, $includeTax, $amounts, $taxId, $taxRate, $start, $trial, $firstPeriod, $commitment, $input, $userId, $methodId, $termId): int {
+        $id = Transaction::run(static function () use ($billing, $customerId, $companyId, $lines, $coupon, $includeTax, $amounts, $taxId, $taxRate, $start, $trial, $firstPeriod, $commitment, $input, $userId, $methodId, $termId): int {
             // Il codice si dà qui: `create()` non lo genera, e il proforma prende il nome da lui.
             $created = Subscription::create($billing + [
                 'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION),
                 'customer_id' => $customerId,
+                'company_id' => $companyId,
                 'channel' => 'office',
                 'status' => $trial > 0 ? 'trialing' : 'active',
                 'provider' => 'manual',
@@ -143,6 +168,19 @@ final class OfficeSubscriptions
         }
 
         return $id;
+    }
+
+    /**
+     * Una scheda (persona o azienda) non eliminata, o vuota.
+     *
+     * @param class-string<Contact|Company> $model
+     * @return array<string, mixed>
+     */
+    private static function alive(string $model, int $id): array
+    {
+        $row = $id > 0 ? $model::findById($id) : null;
+
+        return is_array($row) && (int) ($row['id'] ?? 0) > 0 && (string) ($row['deleted'] ?? 'false') === 'false' ? $row : [];
     }
 
     /**

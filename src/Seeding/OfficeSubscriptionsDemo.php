@@ -6,6 +6,7 @@ use DateTimeImmutable;
 use Wonder\App\Support\DefaultRows;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentMethod;
@@ -52,10 +53,11 @@ final class OfficeSubscriptionsDemo
     /** @return int righe create */
     public static function create(): int
     {
-        $customer = Contact::find(['code' => DemoCode::forModel(Contact::class, 'rossi-abbigliamento'), 'deleted' => 'false'], 1);
+        $company = Company::find(['code' => DemoCode::forModel(Company::class, 'rossi-abbigliamento'), 'deleted' => 'false'], 1);
+        $referent = Contact::find(['code' => DemoCode::forModel(Contact::class, 'rossi-marco'), 'deleted' => 'false'], 1);
         $base = self::priceId('base-mensile');
 
-        if (!is_array($customer) || !isset($customer['id']) || $base <= 0) {
+        if (!is_array($company) || !isset($company['id']) || $base <= 0) {
             if (!self::exists('ufficio') || !self::exists('servizi')) {
                 DemoData::note('Gli abbonamenti da ufficio di prova vogliono i contatti e i piani di prova: creali e rilancia il comando.');
             }
@@ -63,7 +65,10 @@ final class OfficeSubscriptionsDemo
             return 0;
         }
 
-        $created = self::subscription('ufficio', (int) $customer['id'], ['plan_price_id' => $base]);
+        $created = self::subscription('ufficio', is_array($referent) ? (int) ($referent['id'] ?? 0) : 0, [
+            'plan_price_id' => $base,
+            'company_id' => (int) $company['id'],
+        ]);
         $domain = self::priceId('dominio-annuale');
         $hosting = self::priceId('hosting-annuale');
         $support = self::priceId('assistenza-mensile');

@@ -2,7 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Seeding;
 
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
@@ -266,8 +266,8 @@ final class StockDocumentsDemo
     /** Il primo fornitore delle anagrafiche di prova, o 0. */
     private static function demoSupplier(): int
     {
-        $prefix = DemoCode::prefixOf(Contact::class);
-        $row = Contact::find("`code` LIKE '".$prefix."demo-%' AND `is_supplier` = 'true' AND `deleted` = 'false'", 1, 'id', 'ASC');
+        $prefix = DemoCode::prefixOf(Company::class);
+        $row = Company::find("`code` LIKE '".$prefix."demo-%' AND `is_supplier` = 'true' AND `deleted` = 'false'", 1, 'id', 'ASC');
 
         return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
     }
