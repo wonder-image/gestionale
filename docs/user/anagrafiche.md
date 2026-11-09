@@ -121,6 +121,28 @@ nasconde, e la colonna **Referenti / aziende** dice chi è legato a chi; lo dice
 anche l'export. Togliere un referente dal riquadro non elimina la sua scheda e
 non cambia i documenti già fatti, che ne conservano il nome.
 
+## Comprare sul sito per un'azienda
+
+Con la funzionalità **Account aziendali** (serve *Vendita online*) una persona
+con l'account sul sito può ordinare anche per le aziende a cui è collegata.
+Lo decide la colonna **Accesso all'area clienti** del riquadro Referenti:
+
+- **Nessuno** — la persona compra solo per sé;
+- **Ordina** — nel checkout sceglie in **Acquista come** se comprare per sé o
+  per l'azienda;
+- **Gestisce l'azienda** — come *Ordina*, e nell'area clienti vede anche gli
+  ordini e gli abbonamenti fatti dagli altri per l'azienda e ne cambia i dati
+  di fatturazione nella scheda **La mia azienda**.
+
+Quando la persona compra per un'azienda, l'ordine è intestato all'azienda con
+i suoi dati di fatturazione (sempre fattura, da società), il suo listino e il
+suo metodo di pagamento proposto; la persona è il referente dell'ordine. Se
+all'azienda mancano dati di fatturazione, il sito non fa ordinare e chiede di
+completarli. Gli abbonamenti si comprano sempre per sé.
+
+Le persone dell'azienda si vedono nella scheda **La mia azienda** ma si
+cambiano solo qui, dal gestionale.
+
 ## Eliminare o disattivare
 
 Una scheda con un **account sul sito** non si elimina: chi ha le credenziali

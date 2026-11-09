@@ -64,6 +64,7 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Imballaggi | Spedizioni | Le scatole in cui si spedisce, con il loro peso, da scegliere nella scheda prodotto. | Spedizioni |
 | Corrieri | Spedizioni | Etichette e tracking dal corriere. | Spedizioni |
 | Vendita online | Canali di vendita | Il sito vende: coupon, campagne e metodi di pagamento valgono per il sito. | Ordini |
+| [Account aziendali](anagrafiche.md#comprare-sul-sito-per-unazienda) | Clienti | Sul sito la persona compra anche per le aziende a cui è collegata, con i dati di fatturazione, il listino e le condizioni dell'azienda; chi la gestisce vede ordini e abbonamenti di tutti. | Vendita online |
 | Vendita in ufficio | Canali di vendita | Gli ordini si fanno dal gestionale: coupon, campagne e metodi di pagamento valgono anche per l'ufficio; le rate si seguono nello Scadenzario. | Ordini |
 | Vendita in cassa | Canali di vendita | Vendita in sede con documento commerciale e corrispettivi. | Ordini |
 | Server MCP | Integrazioni | Collega gli assistenti IA (Claude, ChatGPT, Cursor) a prodotti, prezzi, giacenze, categorie, ordini e preventivi, con i permessi del backend. | — |

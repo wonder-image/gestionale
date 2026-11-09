@@ -6,6 +6,13 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Aggiunto
+- **Account aziendali (#77).** Nuova funzionalità `company_accounts` (area
+  Clienti, richiede `online_sales`): sul sito la persona con accesso «Ordina» o
+  «Gestisce l'azienda» compra per l'azienda e chi la gestisce ne vede ordini e
+  abbonamenti nell'area clienti. Il checkout del modulo scrive `company_id` e
+  `referent_name` su carrello e ordine. Il lato sito è in
+  `wonder-image/ecommerce` (`CheckoutCompany`); doc utente in
+  *Persone, aziende e fornitori*.
 - **Referenti delle aziende (#145).** Con i referenti di
   `wonder-image/customer-account` accesi, la scheda di un'azienda elenca le sue
   persone e quella di una persona le sue aziende (una scheda, un accesso);
