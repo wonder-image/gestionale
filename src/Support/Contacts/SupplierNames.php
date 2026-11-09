@@ -3,12 +3,13 @@
 namespace Wonder\Plugin\Gestionale\Support\Contacts;
 
 use Throwable;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 
 /**
  * I nomi dei fornitori per gli elenchi del magazzino (G3, Acquisti): una
  * lettura per richiesta, eliminati e non attivi compresi, perché un carico o
- * un movimento vecchio tiene il suo fornitore anche dopo.
+ * un movimento vecchio tiene il suo fornitore anche dopo. I fornitori sono
+ * aziende (`companies`).
  */
 final class SupplierNames
 {
@@ -23,7 +24,7 @@ final class SupplierNames
         }
 
         try {
-            $rows = Contact::find("`is_supplier` = 'true' AND `deleted` IN ('true', 'false')");
+            $rows = Company::find("`is_supplier` = 'true' AND `deleted` IN ('true', 'false')");
         } catch (Throwable) {
             return self::$names = [];
         }

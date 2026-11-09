@@ -329,6 +329,7 @@ final class Installments
             'order_id' => $column === 'order_id' ? (int) $order['id'] : 0,
             'subscription_id' => $column === 'subscription_id' ? (int) $order['id'] : 0,
             'customer_id' => (int) ($order['customer_id'] ?? 0),
+            'company_id' => (int) ($order['company_id'] ?? 0),
             'payment_method_id' => (int) ($order['payment_method_id'] ?? 0),
             'payment_account_id' => (int) ($order['payment_account_id'] ?? 0),
             'amount' => self::money($amount),

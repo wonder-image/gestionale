@@ -24,8 +24,8 @@ namespace Wonder\Plugin\Gestionale\Support\Promotions;
 final class CouponRules
 {
     /**
-     * @param array<string, mixed> $coupon la riga del coupon più `scope`, `customers`, `used_total`, `used_by_customer`, `code_used`, `has_previous_orders`
-     * @param array{channel?: string, customer_id?: int, email?: string, has_manual_discount?: bool, lines?: list<array{facts?: array<string, mixed>, price_source?: string, line_total?: float|int|string, is_product?: bool}>} $cart
+     * @param array<string, mixed> $coupon la riga del coupon più `scope`, `customers`, `companies`, `used_total`, `used_by_customer`, `code_used`, `has_previous_orders`
+     * @param array{channel?: string, customer_id?: int, company_id?: int, email?: string, has_manual_discount?: bool, lines?: list<array{facts?: array<string, mixed>, price_source?: string, line_total?: float|int|string, is_product?: bool}>} $cart
      * @return array{ok: true, eligible: list<int>, eligible_total: float, amount: float}|array{ok: false, reason: string}
      */
     public static function check(array $coupon, array $cart, string $now): array
@@ -57,9 +57,14 @@ final class CouponRules
             return static::refuse('has_manual_discount');
         }
 
-        $reserved = array_map('intval', (array) ($coupon['customers'] ?? []));
+        // Riservato a persone e/o aziende: basta essere una delle due.
+        $people = array_map('intval', (array) ($coupon['customers'] ?? []));
+        $companies = array_map('intval', (array) ($coupon['companies'] ?? []));
+        $companyId = (int) ($cart['company_id'] ?? 0);
 
-        if ($reserved !== [] && !in_array((int) ($cart['customer_id'] ?? 0), $reserved, true)) {
+        if (($people !== [] || $companies !== [])
+            && !in_array((int) ($cart['customer_id'] ?? 0), $people, true)
+            && !($companyId > 0 && in_array($companyId, $companies, true))) {
             return static::refuse('not_yours');
         }
 

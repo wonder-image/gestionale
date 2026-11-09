@@ -109,6 +109,23 @@ check('un coupon riservato non è per gli altri, ospite compreso', function () u
         && $motivo(CouponRules::check($riservato, $carrello([$riga(50)], ['customer_id' => 9]), ORA)) === '';
 });
 
+check('un coupon riservato a un\'azienda vale per i suoi documenti, non per il referente da solo', function () use ($coupon, $riga, $carrello, $motivo) {
+    $riservato = $coupon(['companies' => [5]]);
+
+    return $motivo(CouponRules::check($riservato, $carrello([$riga(50)], ['customer_id' => 7, 'company_id' => 5]), ORA)) === ''
+        && $motivo(CouponRules::check($riservato, $carrello([$riga(50)], ['customer_id' => 0, 'company_id' => 5]), ORA)) === ''
+        && $motivo(CouponRules::check($riservato, $carrello([$riga(50)], ['customer_id' => 7]), ORA)) === 'not_yours'
+        && $motivo(CouponRules::check($riservato, $carrello([$riga(50)], ['customer_id' => 7, 'company_id' => 6]), ORA)) === 'not_yours';
+});
+
+check('persone e aziende riservate insieme: basta essere una delle due', function () use ($coupon, $riga, $carrello, $motivo) {
+    $riservato = $coupon(['customers' => [3], 'companies' => [5]]);
+
+    return $motivo(CouponRules::check($riservato, $carrello([$riga(50)], ['customer_id' => 3]), ORA)) === ''
+        && $motivo(CouponRules::check($riservato, $carrello([$riga(50)], ['customer_id' => 0, 'company_id' => 5]), ORA)) === ''
+        && $motivo(CouponRules::check($riservato, $carrello([$riga(50)], ['customer_id' => 4, 'company_id' => 6]), ORA)) === 'not_yours';
+});
+
 check('il limite totale: esaurito a limite, libero un uso prima', function () use ($coupon, $riga, $carrello, $motivo) {
     $c = $carrello([$riga(50)]);
 

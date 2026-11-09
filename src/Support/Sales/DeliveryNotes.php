@@ -72,7 +72,7 @@ final class DeliveryNotes
                 'reason' => 'sale',
                 'order_id' => $orderId,
                 'customer_id' => (int) ($order['customer_id'] ?? 0),
-                'referent_id' => (int) ($order['referent_id'] ?? 0),
+                'company_id' => (int) ($order['company_id'] ?? 0),
                 'referent_name' => (string) ($order['referent_name'] ?? ''),
                 'from_location_id' => (int) ($order['location_id'] ?? 0),
                 'transport_by' => in_array((string) ($settings['delivery_transport_by'] ?? ''), DeliveryNote::TRANSPORT_BY, true) ? (string) $settings['delivery_transport_by'] : 'sender',

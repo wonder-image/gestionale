@@ -74,7 +74,7 @@ check('un privato non mostra i campi aziendali', function () use ($azienda) {
     $dati = resa(CustomerSheet::data($privato, 'Nessun account'));
     $fatt = resa(CustomerSheet::billing($privato));
 
-    return str_contains($dati, 'Privato') && !str_contains($dati, 'Ragione sociale')
+    return str_contains($dati, 'Persona') && !str_contains($dati, 'Ragione sociale')
         && str_contains($fatt, 'Codice fiscale') && !str_contains($fatt, 'SDI') && !str_contains($fatt, 'PEC') && !str_contains($fatt, 'Partita IVA');
 });
 

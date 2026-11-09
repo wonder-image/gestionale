@@ -860,4 +860,25 @@ check('la conferma con merchant_notice avvisa cliente e commerciante, una volta'
     });
 });
 
+check('l\'azienda del modulo va su carrello e ordine col referente; senza la chiave resta quella di prima', function () {
+    return prova(static function (): bool {
+        [$carrello] = carrelloPronto();
+        $metodo = metodoDiProva(PaymentTiming::DEFERRED);
+        Checkout::preview($carrello, ['payment_method_id' => $metodo, 'company_id' => 1, 'referent_name' => 'Verdi Anna']);
+        $anteprima = (array) Order::findById($carrello);
+        Checkout::preview($carrello, ['payment_method_id' => $metodo]);
+        $intatto = (array) Order::findById($carrello);
+        $ordine = senzaPosta(static fn (): array => Checkout::place($carrello, datiCheckout($metodo) + ['company_id' => 1, 'referent_name' => 'Verdi Anna']))['order_id'];
+        $scritto = (array) Order::findById($ordine);
+        [$altro] = carrelloPronto();
+        Checkout::preview($altro, ['payment_method_id' => $metodo, 'company_id' => 0, 'referent_name' => 'Verdi Anna']);
+        $persona = (array) Order::findById($altro);
+
+        return (int) $anteprima['company_id'] === 1 && $anteprima['referent_name'] === 'Verdi Anna'
+            && (int) $intatto['company_id'] === 1
+            && (int) $scritto['company_id'] === 1 && $scritto['referent_name'] === 'Verdi Anna'
+            && (int) $persona['company_id'] === 0 && (string) $persona['referent_name'] === '';
+    });
+});
+
 summary();

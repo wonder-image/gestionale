@@ -249,29 +249,73 @@ Una classe che non esiste o non estende `DocumentPdf` non vale: resta quella
 del modulo. Le email `quote_sent` e `office_confirmed` portano il PDF
 allegato (`Mailer::send(..., $attachments)`).
 
-## Il referente del documento (#145)
+## Il cliente del documento: persona o azienda (#77)
 
-Con i referenti di `wonder-image/customer-account` (sempre attivi da
-customer-account#8; `ContactRelations::enabled()` resta per le versioni di
-prima), preventivi, ordini da ufficio e DDT hanno il
-**referente**: `orders.referent_id` / `referent_name` e
-`delivery_notes.referent_id` / `referent_name`, colonne nuove con default `0`
-e `''`. I documenti di prima restano validi così come sono.
+Da gestionale#77 le aziende hanno una tabella loro (`companies`, di
+customer-account) e ogni documento con un cliente ha due colonne:
+
+| Colonna | Significato |
+|---|---|
+| `customer_id` | la **persona** (`contacts`): chi compra, oppure il referente dell'azienda; `0` = nessuno |
+| `company_id` | l'**azienda** (`companies`); `0` = documento di una persona |
+| `user_id` | l'account della persona, se c'è |
+| `referent_name` | copia del nome del referente, solo con `company_id` |
+
+`company_id` è su `gst_orders`, `gst_delivery_notes`, `gst_sales_returns`,
+`gst_payments`, `gst_subscriptions`, `gst_coupon_customers` e
+`gst_coupon_redemptions`. La vecchia colonna `referent_id` non c'è più: il
+referente è `customer_id`. I `supplier_id` puntano a `companies` (i fornitori
+sono sempre aziende).
+
+Chi è il cliente lo dice `Support\Contacts\CustomerKind`:
+
+- `of($document)` → `business` con `company_id` o con una P.IVA nello
+  snapshot, altrimenti `private`;
+- `record($document)` → la scheda dell'azienda se c'è, altrimenti quella della
+  persona;
+- `name($document)` → ragione sociale o nome.
+
+Listino e IVA seguono l'azienda quando c'è: `PriceLists::forDocument()` /
+`forCompany()` e `VatCollectability::forDocument()`.
+
+### Il referente
 
 Tutto passa da `Support\Contacts\DocumentReferents`:
 
 - `options($companyId)` legge `ContactRelations::peopleOf()` e tiene solo i
   legami vivi, con la persona viva, che hanno `receives_documents`;
-- `defaultFor()` propone il principale (`is_primary`), altrimenti nessuno;
-- `resolve($companyId, $id)` controlla il referente scelto contro le opzioni e
-  copia il nome sul documento. Un id che non è fra le opzioni diventa `0` / `''`;
+- `defaultFor($companyId)` propone il principale (`is_primary`), altrimenti nessuno;
+- `resolve($companyId, $personId)` controlla la persona scelta contro le
+  opzioni e dà `customer_id` e `referent_name`. Un id che non è fra le opzioni
+  diventa `0` / `''`;
 - `copyEmails($order, $company)` dà gli indirizzi in copia, senza doppioni e
-  senza quello che riceve già la mail: l'email dell'azienda, solo se è
-  un'azienda con referenti, e quelle dei referenti;
+  senza quello che riceve già la mail: l'email dell'azienda e quelle dei
+  referenti;
 - `useReader()` serve solo ai test.
 
-Il DDT eredita il referente dall'ordine (`DeliveryNotes`), e il PDF lo stampa
-«Alla c.a.» nel riquadro del cliente (`DocumentPdf::billingLines()`).
+Il DDT eredita `company_id` e `referent_name` dall'ordine (`DeliveryNotes`), e
+il PDF stampa il referente «Alla c.a.» nel riquadro del cliente
+(`DocumentPdf::billingLines()`).
+
+### La migrazione dei documenti
+
+`Migrations\DocumentCompanyMigration` gira dopo `CompanySplitMigration` di
+customer-account, che sposta le schede `type = business` in `companies` e
+scrive `contact_company_map` (contatto → azienda, con l'azione `moved`,
+`linked` o `supplier`). La migrazione del gestionale:
+
+1. aggiunge `company_id` alle tabelle dei documenti (anche su un'installazione
+   nuova);
+2. con la mappa, mette l'azienda in `company_id`: un'azienda **spostata** lascia
+   in `customer_id` il vecchio `referent_id` (o `0`), un'azienda **collegata**
+   (aveva un account) lascia la persona;
+3. rimappa `supplier_id` in due passi (prima negativo, poi positivo), perché un
+   id nuovo può coincidere con uno vecchio;
+4. toglie le chiavi esterne `supplier_id → contacts`, che la sincronizzazione
+   delle tabelle ricrea verso `companies`;
+5. scrive `document_company` in `gst_migrations` e non gira più.
+
+Tutto in una transazione: se qualcosa va storto non cambia niente.
 
 Le mail `quote_sent`, `office_confirmed` e `delivery_note_sent`
 (`OrderNotifier::COPY_KEYS`) vanno a `order.email`, con gli indirizzi di

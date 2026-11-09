@@ -6,12 +6,13 @@ use Throwable;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 
 /**
- * Il referente di un documento d'ufficio (preventivo, ordine, DDT).
+ * Il referente di un documento intestato a un'azienda (`company_id`).
  *
- * Si sceglie fra i referenti dell'azienda che ricevono i documenti
- * (`receives_documents`); il principale è proposto di default. Il nome si copia
- * sul documento, così resta anche se il legame cambia. Con le relazioni spente
- * non c'è niente da scegliere e i documenti restano come prima.
+ * Il referente è la persona del documento (`customer_id`): si sceglie fra
+ * quelli dell'azienda che ricevono i documenti (`receives_documents`), e il
+ * principale è proposto di default. Il nome si copia in `referent_name`, così
+ * resta anche se il legame cambia. Con le relazioni spente non c'è niente da
+ * scegliere.
  */
 final class DocumentReferents
 {
@@ -90,19 +91,19 @@ final class DocumentReferents
      * Il referente scelto, controllato contro quelli dell'azienda. Un id che non
      * è fra le opzioni diventa «nessun referente».
      *
-     * @return array{referent_id: int, referent_name: string}
+     * @return array{customer_id: int, referent_name: string}
      */
-    public static function resolve(int $companyId, int $referentId): array
+    public static function resolve(int $companyId, int $personId): array
     {
-        if ($referentId > 0) {
+        if ($personId > 0) {
             foreach (self::options($companyId) as $option) {
-                if ($option['id'] === $referentId) {
-                    return ['referent_id' => $option['id'], 'referent_name' => $option['name']];
+                if ($option['id'] === $personId) {
+                    return ['customer_id' => $option['id'], 'referent_name' => $option['name']];
                 }
             }
         }
 
-        return ['referent_id' => 0, 'referent_name' => ''];
+        return ['customer_id' => 0, 'referent_name' => ''];
     }
 
     /**
@@ -116,7 +117,7 @@ final class DocumentReferents
      */
     public static function copyEmails(array $order, ?array $company = null): array
     {
-        $companyId = (int) ($order['customer_id'] ?? 0);
+        $companyId = (int) ($order['company_id'] ?? 0);
         $options = self::options($companyId);
 
         if ($options === []) {
@@ -126,7 +127,7 @@ final class DocumentReferents
         $exclude = array_map('strtolower', array_map('trim', preg_split('/[,;\s]+/', (string) ($order['email'] ?? '')) ?: []));
         $emails = [];
 
-        if ($company !== null && Contacts::isCompany($company)) {
+        if ($company !== null && (int) ($company['id'] ?? 0) === $companyId) {
             $emails[] = strtolower(trim((string) ($company['email'] ?? '')));
         }
 

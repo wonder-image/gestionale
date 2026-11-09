@@ -29,6 +29,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\DeliveryNote;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\System\SettingResource;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerKind;
 use Wonder\Plugin\Gestionale\Support\Documents\DeliveryNotePdf;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
@@ -468,9 +469,17 @@ final class DeliveryNoteResource extends GestionaleResource
     /** Il destinatario, come nel DDT. */
     public static function customerOf(array $row): string
     {
-        $business = trim(html_entity_decode((string) ($row['billing_business_name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        $decode = static fn (string $v): string => trim(html_entity_decode($v, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        $business = $decode((string) ($row['billing_business_name'] ?? ''));
 
-        return $business !== '' ? $business : trim(html_entity_decode((string) ($row['billing_name'] ?? '').' '.(string) ($row['billing_surname'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        if ($business === '' && (int) ($row['company_id'] ?? 0) > 0) {
+            $business = CustomerKind::name($row);
+        }
+
+        $name = $business !== '' ? $business : $decode((string) ($row['billing_name'] ?? '').' '.(string) ($row['billing_surname'] ?? ''));
+        $referente = (int) ($row['company_id'] ?? 0) > 0 ? $decode((string) ($row['referent_name'] ?? '')) : '';
+
+        return $referente !== '' && $referente !== $name ? $name.' — rif. '.$referente : $name;
     }
 
     public static function editUrl(int $id): string

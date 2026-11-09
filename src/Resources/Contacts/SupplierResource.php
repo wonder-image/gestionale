@@ -19,14 +19,14 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Stock\StockValue;
 
 /**
- * "Fornitori": lo stesso elenco visto dall'altra parte.
+ * "Fornitori": le aziende da cui si compra.
  *
  * Cambia il titolo, l'indirizzo, il filtro e la funzionalità che lo governa.
- * Chi è cliente e fornitore compare in tutti e due gli elenchi e si modifica
+ * Un'azienda cliente e fornitore compare in «Aziende» e qui, e si modifica
  * una volta sola. La scheda in lettura è come quella del cliente, con quello
  * che conta per un fornitore: i suoi dati, i carichi e gli articoli che vende.
  */
-final class SupplierResource extends CustomerResource
+final class SupplierResource extends CompanyResource
 {
     public static string $feature = 'purchasing';
 
@@ -80,6 +80,11 @@ final class SupplierResource extends CustomerResource
         return parent::navigationSchema()->order(20);
     }
 
+    protected static function listCondition(): string
+    {
+        return "is_supplier = 'true'";
+    }
+
     /** La scheda del fornitore: i suoi dati e la fatturazione, poi carichi e articoli forniti. */
     public static function showLayoutSchema(array $contact): Container
     {
@@ -91,7 +96,7 @@ final class SupplierResource extends CustomerResource
         $sinistra = [
             (new Card)->components([
                 SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
-                ...CustomerSheet::data($contact, static::authMethod(static::withAccount($contact))),
+                ...CustomerSheet::data($contact, '—'),
             ])->columns(12)->columnSpan(12),
             $accordion('Carichi', static::receiptsTable(static::receipts($id)), true),
             $accordion('Articoli forniti', static::productsTable(static::supplied($id))),

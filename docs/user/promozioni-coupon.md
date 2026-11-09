@@ -89,7 +89,10 @@ lettere che si confondono (niente 0/O o 1/I).
 * **Tutto il catalogo**, oppure **Solo la selezione**: categorie (con le loro
   sottocategorie), tag, marchi e articoli. Gli **articoli esclusi** non hanno
   mai lo sconto.
-* **Clienti riservati**: se ne scegli, solo loro possono usare il codice.
+* **Clienti riservati** e **Aziende riservate**: se ne scegli, solo loro
+  possono usare il codice. Un'azienda riservata vale per gli ordini intestati a
+  lei, chiunque sia il referente; su quegli ordini anche «utilizzi per cliente»
+  conta l'azienda.
 
 ## Gli utilizzi
 

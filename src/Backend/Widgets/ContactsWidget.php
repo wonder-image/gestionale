@@ -7,12 +7,14 @@ use Wonder\App\Permission\Access;
 use Wonder\Backend\Contracts\HomeWidget;
 use Wonder\Elements\Components\LinkListCard;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\SupplierResource;
 
 /**
- * "Anagrafiche": quanti clienti e quanti fornitori ci sono.
+ * "Anagrafiche": quanti clienti (persone), quante aziende e quanti fornitori.
  *
  * Due numeri e due link. Serve a due cose: dire a colpo d'occhio se la rubrica
  * si sta riempiendo, e dare la strada più corta per aggiungere una scheda —
@@ -41,16 +43,21 @@ final class ContactsWidget implements HomeWidget
     public function render(): string
     {
         return self::markup(
-            self::count('is_customer'),
-            Gestionale::feature('purchasing') ? self::count('is_supplier') : null
+            self::count(Contact::class, 'is_customer'),
+            Gestionale::feature('purchasing') ? self::count(Company::class, 'is_supplier') : null,
+            self::count(Company::class, 'deleted', 'false')
         );
     }
 
-    /** `null` fra i fornitori vuol dire "gli acquisti sono bloccati". */
-    public static function markup(int $customers, ?int $suppliers): string
+    /** `null` fra i fornitori vuol dire "gli acquisti sono bloccati"; fra le aziende, "non contate". */
+    public static function markup(int $customers, ?int $suppliers, ?int $companies = null): string
     {
         $card = LinkListCard::make('Anagrafiche')->icon('bi-people')->count(false)
             ->link('Clienti', '/backend/'.CustomerResource::path(), '', '', self::text($customers, 'cliente', 'clienti'));
+
+        if ($companies !== null) {
+            $card->link('Aziende', '/backend/'.CompanyResource::path(), '', '', self::text($companies, 'azienda', 'aziende', 'Nessuna ancora'));
+        }
 
         if ($suppliers !== null) {
             $card->link('Fornitori', '/backend/'.SupplierResource::path(), '', '', self::text($suppliers, 'fornitore', 'fornitori'));
@@ -59,20 +66,20 @@ final class ContactsWidget implements HomeWidget
         return WidgetCard::column($card);
     }
 
-    private static function text(int $count, string $singular, string $plural): string
+    private static function text(int $count, string $singular, string $plural, string $none = 'Nessuno ancora'): string
     {
         return match ($count) {
-            0 => 'Nessuno ancora',
+            0 => $none,
             1 => '1 '.$singular,
             default => $count.' '.$plural,
         };
     }
 
-    /** Quante schede vive hanno quel ruolo; zero se il database non risponde. */
-    private static function count(string $column): int
+    /** Quante schede vive hanno quel valore; zero se il database non risponde. */
+    private static function count(string $model, string $column, string $value = 'true'): int
     {
         try {
-            $rows = Contact::find([$column => 'true', 'deleted' => 'false']);
+            $rows = $model::find([$column => $value, 'deleted' => 'false']);
         } catch (Throwable) {
             return 0;
         }

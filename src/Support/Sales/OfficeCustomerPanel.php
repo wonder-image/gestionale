@@ -11,7 +11,11 @@ use Wonder\Elements\Components\Choice;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
 use Wonder\Elements\Components\Modal;
+use Throwable;
+use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
@@ -23,6 +27,11 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
  * Contatti, Fatturazione e Indirizzi di consegna, come nella scheda del
  * cliente. Si modificano dalle finestre e si salvano sulla scheda con una
  * chiamata JSON, senza ricaricare la pagina.
+ *
+ * Il cliente è una persona (`contacts`) o un'azienda (`companies`, con
+ * `company_id`): per l'azienda i riquadri mostrano i suoi dati, Contatti e
+ * Fatturazione si salvano sulla sua scheda, le sedi di consegna si spuntano
+ * ma si cambiano solo dalla scheda dell'azienda.
  */
 final class OfficeCustomerPanel
 {
@@ -30,21 +39,36 @@ final class OfficeCustomerPanel
 
     public const BILLING_MODAL = 'wi-oo-fatturazione';
 
+    public const COMPANY_BILLING_MODAL = 'wi-oo-fatturazione-azienda';
+
     /** I campi della scheda che la finestra «Contatti» può cambiare. */
     public const CONTACT_KEYS = ['email', 'phone_prefix', 'phone'];
 
     /** I campi della scheda che la finestra «Fatturazione» può cambiare. */
-    public const BILLING_KEYS = ['type', 'name', 'surname', 'business_name', 'cf', 'pi', 'sdi', 'pec', 'country', 'street', 'number', 'province', 'city', 'cap', 'more'];
+    public const BILLING_KEYS = ['name', 'surname', 'cf', 'country', 'street', 'number', 'province', 'city', 'cap', 'more'];
+
+    /** Lo stesso per un'azienda. */
+    public const COMPANY_BILLING_KEYS = ['business_name', 'cf', 'pi', 'sdi', 'pec', 'country', 'street', 'number', 'province', 'city', 'cap', 'more'];
 
     /**
      * Tutto quello che serve alla pagina dopo aver scelto (o cambiato) un
      * cliente: i valori dell'ordine, quelli della scheda per le finestre, gli
      * indirizzi e l'HTML dei tre riquadri. Vuoto se la scheda non c'è.
      *
+     * Con `$companyId` il cliente è l'azienda e `$contactId` il referente
+     * scelto (0: il principale, se c'è). `customer` è
+     * `OfficeOrders::customerDefaults()`; `contact` ha `kind` (`contact` o
+     * `company`), `id`, `company_id` e i campi delle finestre; `referents` le
+     * persone dell'azienda (vuoto per una persona).
+     *
      * @return array<string, mixed>
      */
-    public static function payload(int $contactId): array
+    public static function payload(int $contactId, int $companyId = 0): array
     {
+        if ($companyId > 0) {
+            return self::companyPayload($contactId, $companyId);
+        }
+
         $contact = self::contact($contactId);
 
         if ($contact === null) {
@@ -52,7 +76,7 @@ final class OfficeCustomerPanel
         }
 
         $addresses = ContactAddressResource::addressesOf($contactId);
-        $valori = ['id' => $contactId];
+        $valori = ['kind' => 'contact', 'id' => $contactId, 'company_id' => 0];
 
         foreach (array_merge(self::CONTACT_KEYS, self::BILLING_KEYS) as $key) {
             $valori[$key] = (string) ($contact[$key] ?? '');
@@ -62,15 +86,54 @@ final class OfficeCustomerPanel
             'customer' => (object) OfficeOrders::customerDefaults($contactId),
             'contact' => $valori,
             'addresses' => array_map(static fn (array $a): array => self::address($a), $addresses),
-            'referents' => array_map(static fn (array $r): array => [
-                'id' => $r['id'],
-                'label' => $r['name'].($r['job_title'] !== '' ? ' — '.$r['job_title'] : ''),
-                'is_primary' => $r['is_primary'],
-            ], DocumentReferents::options($contactId)),
+            'referents' => [],
             'html' => [
                 'contacts' => self::contactsHtml($contact),
                 'billing' => self::billingHtml($contact),
                 'addresses' => self::addressesHtml($addresses),
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private static function companyPayload(int $contactId, int $companyId): array
+    {
+        $company = self::company($companyId);
+
+        if ($company === null) {
+            return [];
+        }
+
+        $customer = OfficeOrders::customerDefaults($contactId, $companyId);
+        $addresses = self::companyAddresses($companyId);
+        $valori = ['kind' => 'company', 'id' => (int) ($customer['customer_id'] ?? 0), 'company_id' => $companyId];
+
+        foreach (array_merge(self::CONTACT_KEYS, self::COMPANY_BILLING_KEYS) as $key) {
+            $valori[$key] = (string) ($company[$key] ?? '');
+        }
+
+        // Le sedi non hanno la ragione sociale: è quella dell'azienda.
+        $ragione = (string) ($company['business_name'] ?? '');
+        $righe = array_map(static function (array $a) use ($ragione): array {
+            $out = self::address($a);
+            $out['business_name'] = $out['business_name'] !== '' ? $out['business_name'] : $ragione;
+
+            return $out;
+        }, $addresses);
+
+        return [
+            'customer' => (object) $customer,
+            'contact' => $valori,
+            'addresses' => $righe,
+            'referents' => array_map(static fn (array $r): array => [
+                'id' => $r['id'],
+                'label' => $r['name'].($r['job_title'] !== '' ? ' — '.$r['job_title'] : ''),
+                'is_primary' => $r['is_primary'],
+            ], DocumentReferents::options($companyId)),
+            'html' => [
+                'contacts' => self::contactsHtml($company),
+                'billing' => self::companyBillingHtml($company),
+                'addresses' => self::companyAddressesHtml($addresses, $companyId),
             ],
         ];
     }
@@ -91,9 +154,7 @@ final class OfficeCustomerPanel
     /** @param array<string, mixed> $contact */
     public static function billingHtml(array $contact): string
     {
-        $nome = (string) ($contact['type'] ?? '') === 'business'
-            ? trim((string) ($contact['business_name'] ?? ''))
-            : trim((string) ($contact['name'] ?? '').' '.(string) ($contact['surname'] ?? ''));
+        $nome = trim((string) ($contact['name'] ?? '').' '.(string) ($contact['surname'] ?? ''));
         $items = array_map(
             static fn (DataItem $item): DataItem => $item->columnSpan(12),
             CustomerSheet::billing($contact)
@@ -103,6 +164,58 @@ final class OfficeCustomerPanel
             DataItem::make('Intestatario', $nome !== '' ? $nome : '—')->columnSpan(12),
             ...$items,
         ]));
+    }
+
+    /** @param array<string, mixed> $company */
+    public static function companyBillingHtml(array $company): string
+    {
+        $ragione = trim((string) ($company['business_name'] ?? ''));
+        $items = array_map(
+            static fn (DataItem $item): DataItem => $item->columnSpan(12),
+            CustomerSheet::billing($company)
+        );
+
+        return ResourceFormLayoutRenderer::renderLayout((new Container)->columns(12)->components([
+            DataItem::make('Ragione sociale', $ragione !== '' ? $ragione : '—')->columnSpan(12),
+            ...$items,
+        ]));
+    }
+
+    /**
+     * Le sedi di consegna dell'azienda, solo a spunta: si aggiungono e si
+     * cambiano dalla scheda dell'azienda, che «Modifica azienda» apre in una
+     * nuova scheda del browser.
+     *
+     * @param list<array<string, mixed>> $addresses
+     */
+    public static function companyAddressesHtml(array $addresses, int $companyId): string
+    {
+        $html = '';
+
+        foreach ($addresses as $address) {
+            $etichetta = trim((string) ($address['label'] ?? ''));
+            $predefinito = (string) ($address['is_default'] ?? '') === 'true';
+
+            $html .= Choice::make('oo_address', (int) ($address['id'] ?? 0))
+                ->type('checkbox')
+                ->title(($etichetta !== '' ? $etichetta : 'Indirizzo').($predefinito ? ' · Predefinito' : ''))
+                ->text(self::line($address))
+                ->render('bootstrap');
+        }
+
+        $html .= '<p class="text-muted small mb-2">'.OrderSheet::esc($addresses === []
+            ? CustomerSheet::noDelivery()
+            : 'Senza spunta si spedisce all\'indirizzo di fatturazione. Le sedi si cambiano dalla scheda dell\'azienda.').'</p>';
+
+        return '<div class="d-grid gap-2">'.$html.'</div>'
+            .'<div class="mt-2">'.Button::to(CompanyResource::editUrlFor($companyId), 'Modifica azienda')
+                ->type('a')
+                ->blank()
+                ->icon('bi bi-box-arrow-up-right')
+                ->variant('secondary')
+                ->outline()
+                ->size('sm')
+                ->render('bootstrap').'</div>';
     }
 
     /**
@@ -157,11 +270,18 @@ final class OfficeCustomerPanel
      * Resource, preparazione della tabella, `afterUpdate`), `save` e `delete`
      * dagli indirizzi della scheda.
      *
+     * Con `$companyId` si salva la scheda dell'azienda; le sue sedi da qui
+     * non si cambiano.
+     *
      * @param array<string, mixed> $post
      * @return array{ok: bool, message: string, id?: int}
      */
-    public static function save(string $action, int $contactId, array $post): array
+    public static function save(string $action, int $contactId, array $post, int $companyId = 0): array
     {
+        if ($companyId > 0) {
+            return self::saveCompany($action, $companyId, $post);
+        }
+
         if (in_array($action, ['save', 'delete'], true)) {
             if (self::contact($contactId) === null) {
                 return ['ok' => false, 'message' => 'Scheda non trovata.'];
@@ -192,7 +312,43 @@ final class OfficeCustomerPanel
             $values[$key] = trim((string) ($post[$key] ?? ''));
         }
 
-        return self::update($contactId, $values, $old);
+        return self::update(CustomerResource::class, $contactId, $values, $old);
+    }
+
+    /**
+     * @param array<string, mixed> $post
+     * @return array{ok: bool, message: string}
+     */
+    private static function saveCompany(string $action, int $companyId, array $post): array
+    {
+        $keys = match ($action) {
+            'contacts' => self::CONTACT_KEYS,
+            'billing' => self::COMPANY_BILLING_KEYS,
+            'save', 'delete' => [],
+            default => null,
+        };
+
+        if ($keys === null) {
+            return ['ok' => false, 'message' => 'Azione non riconosciuta.'];
+        }
+
+        if ($keys === []) {
+            return ['ok' => false, 'message' => 'Le sedi di un\'azienda si cambiano dalla sua scheda.'];
+        }
+
+        $old = self::company($companyId);
+
+        if ($old === null) {
+            return ['ok' => false, 'message' => 'Azienda non trovata.'];
+        }
+
+        $values = [];
+
+        foreach ($keys as $key) {
+            $values[$key] = trim((string) ($post[$key] ?? ''));
+        }
+
+        return self::update(CompanyResource::class, $companyId, $values, $old);
     }
 
     /**
@@ -205,7 +361,7 @@ final class OfficeCustomerPanel
 
         $contatti = Modal::make('Contatti')
             ->id(self::CONTACTS_MODAL)
-            ->form($saveUrl, hidden: ['action' => 'contacts', 'contact_id' => 0])
+            ->form($saveUrl, hidden: ['action' => 'contacts', 'contact_id' => 0, 'company_id' => 0])
             ->columns(12)
             ->components([
                 $campo('email', 12),
@@ -219,17 +375,12 @@ final class OfficeCustomerPanel
             ->id(self::BILLING_MODAL)
             ->size('lg')
             ->help('Si salva sulla scheda del cliente: vale anche per i prossimi ordini.')
-            ->form($saveUrl, hidden: ['action' => 'billing', 'contact_id' => 0])
+            ->form($saveUrl, hidden: ['action' => 'billing', 'contact_id' => 0, 'company_id' => 0])
             ->columns(12)
             ->components([
-                $campo('type', 4),
                 $campo('name', 4),
                 $campo('surname', 4),
-                $campo('business_name', 12),
-                $campo('cf', 6),
-                $campo('pi', 6),
-                $campo('sdi', 4),
-                $campo('pec', 8),
+                $campo('cf', 4),
                 $campo('street', 9),
                 $campo('number', 3),
                 $campo('country', 3),
@@ -241,8 +392,34 @@ final class OfficeCustomerPanel
             ->cancel('Indietro')
             ->submit('Salva');
 
+        $azienda = static fn (string $key, int $col): Input => CompanyResource::getInput($key)->columnSpan($col);
+
+        $fatturazioneAzienda = Modal::make('Fatturazione')
+            ->id(self::COMPANY_BILLING_MODAL)
+            ->size('lg')
+            ->help('Si salva sulla scheda dell\'azienda: vale anche per i prossimi ordini.')
+            ->form($saveUrl, hidden: ['action' => 'billing', 'contact_id' => 0, 'company_id' => 0])
+            ->columns(12)
+            ->components([
+                $azienda('business_name', 12),
+                $azienda('cf', 4),
+                $azienda('pi', 4),
+                $azienda('sdi', 4),
+                $azienda('pec', 12),
+                $azienda('street', 9),
+                $azienda('number', 3),
+                $azienda('country', 3),
+                $azienda('province', 3),
+                $azienda('city', 3),
+                $azienda('cap', 3),
+                $azienda('more', 12),
+            ])
+            ->cancel('Indietro')
+            ->submit('Salva');
+
         return $contatti->render('bootstrap')
             .$fatturazione->render('bootstrap')
+            .$fatturazioneAzienda->render('bootstrap')
             .ContactAddressResource::modals(0);
     }
 
@@ -297,31 +474,69 @@ final class OfficeCustomerPanel
     }
 
     /**
+     * L'azienda, solo se è un cliente.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function company(int $companyId): ?array
+    {
+        $company = $companyId > 0 ? Company::findById($companyId) : null;
+
+        if (!is_array($company) || $company === [] || (string) ($company['deleted'] ?? 'false') === 'true') {
+            return null;
+        }
+
+        return (string) ($company[CompanyResource::roleColumn()] ?? 'false') === 'true' ? $company : null;
+    }
+
+    /**
+     * Le sedi di consegna dell'azienda, la predefinita per prima.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function companyAddresses(int $companyId): array
+    {
+        try {
+            $rows = CompanyAddress::find(['company_id' => $companyId, 'deleted' => 'false'], null, 'position', 'ASC');
+        } catch (Throwable) {
+            return [];
+        }
+
+        $rows = is_array($rows) ? (isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'))) : [];
+
+        usort($rows, static fn (array $a, array $b): int => [(string) ($b['is_default'] ?? '') === 'true', (int) ($a['position'] ?? 0)]
+            <=> [(string) ($a['is_default'] ?? '') === 'true', (int) ($b['position'] ?? 0)]);
+
+        return $rows;
+    }
+
+    /**
      * Il giro di `ResourcePageController::update()` del core, su una parte
      * dei campi: controlli della Resource, preparazione della tabella, poi
      * `afterUpdate` ed export.
      *
+     * @param class-string<CustomerResource> $resource
      * @param array<string, string> $values
      * @param array<string, mixed> $old
      * @return array{ok: bool, message: string}
      */
-    private static function update(int $id, array $values, array $old): array
+    private static function update(string $resource, int $id, array $values, array $old): array
     {
         $GLOBALS['ALERT'] = '';
-        $table = CustomerResource::modelTable();
+        $table = $resource::modelTable();
         LegacyGlobals::set('NAME', (object) [
             'table' => $table,
-            'folder' => CustomerResource::legacyFolder(),
-            'schema' => CustomerResource::prepareSchemaName(),
+            'folder' => $resource::legacyFolder(),
+            'schema' => $resource::prepareSchemaName(),
         ]);
 
         try {
-            $values = CustomerResource::mutateRequestValues(CustomerResource::stripRelationInputValues($values), 'update', 'backend', $old);
+            $values = $resource::mutateRequestValues($resource::stripRelationInputValues($values), 'update', 'backend', $old);
         } catch (\InvalidArgumentException|\JsonException $error) {
             return ['ok' => false, 'message' => $error->getMessage()];
         }
 
-        $schema = CustomerResource::prepareSchemaName();
+        $schema = $resource::prepareSchemaName();
 
         if (Table::has($schema)) {
             $values = Table::key($schema)->prepareFor($table, $values, $old);
@@ -333,16 +548,16 @@ final class OfficeCustomerPanel
             return ['ok' => false, 'message' => strip_tags((string) $GLOBALS['ALERT'])];
         }
 
-        $modelClass = CustomerResource::modelClass();
+        $modelClass = $resource::modelClass();
         $result = $modelClass::query()->Update($modelClass::$table, $values, 'id', $id);
 
         if (empty($result->success)) {
             return ['ok' => false, 'message' => 'Non sono riuscito a salvare la scheda.'];
         }
 
-        CustomerResource::afterUpdate($id, $result, $values);
-        CustomerResource::exportSyncData();
+        $resource::afterUpdate($id, $result, $values);
+        $resource::exportSyncData();
 
-        return ['ok' => true, 'message' => 'Scheda del cliente aggiornata.'];
+        return ['ok' => true, 'message' => $resource::isCompanySide() ? 'Scheda dell\'azienda aggiornata.' : 'Scheda del cliente aggiornata.'];
     }
 }

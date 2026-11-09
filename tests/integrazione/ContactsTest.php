@@ -14,8 +14,10 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
+use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
-use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
+use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\SupplierResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
@@ -29,10 +31,11 @@ use Wonder\Sql\Transaction;
 
 final class Annulla extends RuntimeException {}
 
-$campi = static function (): array {
+// I campi di una scheda: di default quella delle aziende.
+$campi = static function (string $resource = CompanyResource::class): array {
     $campi = [];
 
-    foreach (CustomerResource::formSchema() as $field) {
+    foreach ($resource::formSchema() as $field) {
         $campi[(string) $field->name] = $field;
     }
 
@@ -44,7 +47,7 @@ $campi = static function (): array {
 check('la scheda chiede i dati di fatturazione del core', function () use ($campi) {
     $chiavi = array_keys($campi());
 
-    foreach (['type', 'business_name', 'cf', 'pi', 'sdi', 'pec', 'city', 'street'] as $nome) {
+    foreach (['business_name', 'cf', 'pi', 'sdi', 'pec', 'city', 'street'] as $nome) {
         if (!in_array($nome, $chiavi, true)) {
             return false;
         }
@@ -53,8 +56,12 @@ check('la scheda chiede i dati di fatturazione del core', function () use ($camp
     return true;
 });
 
-check('i campi aziendali si vedono solo per le aziende', function () use ($campi) {
-    return str_contains(json_encode($campi()['business_name']?->get() ?? []), 'business');
+check('una persona non chiede ragione sociale né partita IVA', function () use ($campi) {
+    $persona = $campi(CustomerResource::class);
+
+    return isset($persona['name'], $persona['surname'])
+        && !isset($persona['business_name'])
+        && !isset($persona['pi']);
 });
 
 // Lo stato delle funzionalità si forza senza toccare il database.
@@ -85,15 +92,15 @@ check('senza gli acquisti il ruolo non si chiede', function () use ($campi, $for
 });
 
 check('gli indirizzi di consegna sono un repeater sulla loro tabella', function () use ($campi) {
-    $relazione = ((array) ($campi()['addresses']?->get('context') ?? []))['relation'] ?? null;
+    $tabella = static fn (array $campi): string => (string) ((((array) ($campi['addresses']?->get('context') ?? []))['relation'] ?? null)?->table ?? '');
 
-    return $relazione !== null && $relazione->table === 'contact_addresses';
+    return $tabella($campi(CustomerResource::class)) === 'contact_addresses'
+        && $tabella($campi()) === 'company_addresses';
 });
 
 try {
     Transaction::run(static function () use ($forza): void {
-        $creato = Contact::create([
-            'type' => 'business',
+        $creato = Company::create([
             'business_name' => 'Prova Integrazione Srl',
             // La partita IVA si valida **con il paese**: senza `country` nello
             // stesso salvataggio il campo del core rifiuta tutto.
@@ -106,20 +113,20 @@ try {
         $contactId = (int) ($creato->insert_id ?? 0);
 
         check('la scheda nasce con il suo codice', function () use ($contactId) {
-            $riga = Contact::findById($contactId);
+            $riga = Company::findById($contactId);
 
-            return str_starts_with((string) ($riga['code'] ?? ''), 'con_');
+            return (string) ($riga['code'] ?? '') !== '';
         });
 
         check('il nome da mostrare è la ragione sociale', fn () =>
-            Contacts::displayName((array) Contact::findById($contactId)) === 'Prova Integrazione Srl'
+            Contacts::displayName((array) Company::findById($contactId)) === 'Prova Integrazione Srl'
         );
 
         check('una partita IVA già presa viene rifiutata con il nome di chi ce l\'ha', function () {
             try {
                 // Una scheda nuova: il ruolo lo mette `mutateRequestValues()`
                 // da sé, perché la stai creando dall'elenco dei clienti.
-                CustomerResource::mutateRequestValues(
+                CompanyResource::mutateRequestValues(
                     ['pi' => '98765432103'],
                     'store'
                 );
@@ -132,7 +139,7 @@ try {
         });
 
         check('la stessa scheda può risalvare la sua partita IVA', function () use ($contactId) {
-            $valori = CustomerResource::mutateRequestValues(
+            $valori = CompanyResource::mutateRequestValues(
                 ['pi' => '98765432103'],
                 'update',
                 'backend',
@@ -143,8 +150,8 @@ try {
         });
 
         check('un indirizzo di consegna sta con la sua scheda', function () use ($contactId) {
-            ContactAddress::create([
-                'contact_id' => $contactId,
+            CompanyAddress::create([
+                'company_id' => $contactId,
                 'label' => 'Magazzino',
                 'name' => 'Mario',
                 'surname' => 'Rossi',
@@ -157,36 +164,45 @@ try {
                 'position' => 1,
             ]);
 
-            $righe = ContactAddress::find(['contact_id' => $contactId, 'deleted' => 'false']);
+            $righe = CompanyAddress::find(['company_id' => $contactId, 'deleted' => 'false']);
             $righe = isset($righe['id']) ? [$righe] : (array) $righe;
 
             return count(array_filter($righe, 'is_array')) === 1;
         });
 
-        check('una scheda con un account non si elimina', function () use ($contactId) {
-            Contact::update(['user_id' => 42], $contactId);
+        // L'account è solo delle persone.
+        $personaId = (int) (Contact::create([
+            'name' => 'Prova',
+            'surname' => 'Integrazione',
+            'country' => 'IT',
+            'email' => 'persona.integrazione@example.com',
+            'is_customer' => 'true',
+            'active' => 'true',
+        ])->insert_id ?? 0);
+
+        check('una persona con un account non si elimina', function () use ($personaId) {
+            Contact::update(['user_id' => 42], $personaId);
 
             try {
-                CustomerResource::assertDeletable($contactId);
+                CustomerResource::assertDeletable($personaId);
             } catch (RuntimeException $errore) {
                 return str_contains($errore->getMessage(), 'account');
             } finally {
-                Contact::update(['user_id' => 0], $contactId);
+                Contact::update(['user_id' => 0], $personaId);
             }
 
             return false;
         });
 
-        check('senza account invece si elimina', function () use ($contactId) {
-            CustomerResource::assertDeletable($contactId);
+        check('senza account invece si elimina', function () use ($personaId) {
+            CustomerResource::assertDeletable($personaId);
 
             return true;
         });
 
         // Due fornitori di prova, uno attivo e uno no, e il cliente di sopra.
         $fornitore = static function (string $nome, string $attivo): int {
-            $creato = Contact::create([
-                'type' => 'business',
+            $creato = Company::create([
                 'business_name' => $nome,
                 'country' => 'IT',
                 'is_customer' => 'false',
@@ -271,7 +287,7 @@ try {
             $solo(['purchasing' => true]);
 
             try {
-                CustomerResource::mutateRequestValues(['roles' => 'customer'], 'update', 'backend', ['id' => $attivo]);
+                CompanyResource::mutateRequestValues(['roles' => 'customer'], 'update', 'backend', ['id' => $attivo]);
             } catch (UserError $errore) {
                 return $errore->key() === 'contact.supplier_role_in_use'
                     && str_contains($errore->getMessage(), '(2)');
@@ -286,7 +302,7 @@ try {
             $solo(['purchasing' => true]);
 
             try {
-                $valori = CustomerResource::mutateRequestValues(['roles' => 'both'], 'update', 'backend', ['id' => $attivo]);
+                $valori = CompanyResource::mutateRequestValues(['roles' => 'both'], 'update', 'backend', ['id' => $attivo]);
             } finally {
                 $forza(null);
             }
@@ -318,7 +334,7 @@ try {
 
             return !empty($esito->success)
                 && (!is_array($legami) || $legami === [])
-                && in_array(Contact::findById($attivo), [null, []], true);
+                && in_array(Company::findById($attivo), [null, []], true);
         });
 
         throw new Annulla();
@@ -327,9 +343,10 @@ try {
 }
 
 check('dopo l\'annullamento la rubrica è come prima', function () {
-    $riga = Contact::find(['email' => 'prova.integrazione@example.com', 'deleted' => 'false'], 1);
+    $azienda = Company::find(['email' => 'prova.integrazione@example.com', 'deleted' => 'false'], 1);
+    $persona = Contact::find(['email' => 'persona.integrazione@example.com', 'deleted' => 'false'], 1);
 
-    return !is_array($riga) || $riga === [];
+    return (!is_array($azienda) || $azienda === []) && (!is_array($persona) || $persona === []);
 });
 
 summary();

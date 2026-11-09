@@ -12,7 +12,7 @@ require __DIR__.'/../harness.php';
 require __DIR__.'/supporto/compra.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
 use Wonder\Plugin\Gestionale\Models\Stock\StockMovement;
@@ -59,8 +59,7 @@ function rifiuto(callable $fn): ?string
 
 function fornitore(string $nome): int
 {
-    return (int) (Contact::create([
-        'type' => 'business',
+    return (int) (Company::create([
         'business_name' => $nome,
         'country' => 'IT',
         'is_customer' => 'false',

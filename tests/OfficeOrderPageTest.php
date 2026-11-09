@@ -8,9 +8,14 @@ require __DIR__ . '/harness.php';
 use Wonder\App\Theme;
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
 use Wonder\Http\Exceptions\NotFoundHttpException;
+use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Resources\Sales\OfficeOrderResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
+use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
+use Wonder\Plugin\Gestionale\Support\Sales\OfficeCustomerPanel;
+use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderForm;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderPage;
+use Wonder\Plugin\Gestionale\Support\Sales\OfficeSearch;
 
 Theme::set('bootstrap');
 
@@ -34,7 +39,11 @@ check('la testata: ricerca del cliente, dati nascosti per lo script, i tre riqua
 
     return preg_match('/<input[^>]*type="hidden"[^>]*name="billing_business_name"[^>]*value="Rossi &amp; figli"[^>]*data-wi-oo-field="billing_business_name"/', $html) === 1
         && str_contains($html, 'data-wi-oo-field="billing_country"') && str_contains($html, 'data-wi-oo-field="shipping_street"')
-        && str_contains($html, 'name="customer_id"') && str_contains($html, 'data-wi-remote-search-value')
+        && preg_match('/<input[^>]*name="customer"[^>]*data-wi-remote-search-value/', $html) === 1
+        && str_contains($html, 'mixed=1')
+        && preg_match('/<input[^>]*type="hidden"[^>]*name="customer_id"[^>]*data-wi-oo-field="customer_id"/', $html) === 1
+        && preg_match('/<input[^>]*type="hidden"[^>]*name="company_id"[^>]*value="0"[^>]*data-wi-oo-field="company_id"/', $html) === 1
+        && !str_contains($html, 'name="referent_id"')
         && str_contains($html, 'data-wi-remote-search') && str_contains($html, 'data-wi-remote-search-results')
         && str_contains($html, 'data-wi-oo-panel="contacts"') && str_contains($html, 'data-wi-oo-panel="billing"')
         && str_contains($html, 'data-wi-oo-panel="addresses"') && substr_count($html, 'data-wi-oo-edit') === 2
@@ -43,6 +52,58 @@ check('la testata: ricerca del cliente, dati nascosti per lo script, i tre riqua
         && str_contains($html, 'data-wi-office-editor')
         && str_contains($html, 'value="5,00"')
         && str_contains($html, 'Consegna &lt;b&gt;presto&lt;/b&gt;') && !str_contains($html, '<b>presto</b>');
+});
+
+check('la chiave composta del cliente: persona, azienda, numero da solo', function () {
+    return OfficeSearch::customerKey(12, 0) === 'contact:12'
+        && OfficeSearch::customerKey(3, 7) === 'company:7'
+        && OfficeSearch::customerKey(0, 0) === ''
+        && OfficeSearch::parseCustomerKey('contact:12') === [12, 0]
+        && OfficeSearch::parseCustomerKey('company:7') === [0, 7]
+        && OfficeSearch::parseCustomerKey(' 15 ') === [15, 0]
+        && OfficeSearch::parseCustomerKey('company:x') === [0, 0]
+        && OfficeSearch::parseCustomerKey('') === [0, 0]
+        && OfficeSearch::companyDetail(['pi' => '01234567890', 'email' => 'a@b.it', 'city' => '']) === 'Azienda · P.IVA 01234567890 · a@b.it'
+        && OfficeSearch::companyDetail([]) === 'Azienda';
+});
+
+check('un\'azienda cliente: ragione sociale e P.IVA in fatturazione, sedi solo a spunta, «Modifica azienda» in un\'altra scheda', function () {
+    $sedi = OfficeCustomerPanel::companyAddressesHtml([['id' => 4, 'label' => 'Magazzino', 'is_default' => 'true', 'street' => 'Via Roma', 'number' => '1', 'city' => 'Milano']], 7);
+    $fatturazione = OfficeCustomerPanel::companyBillingHtml(['business_name' => 'Rossi srl', 'pi' => '01234567890', 'cf' => '01234567890', 'sdi' => 'ABC1234', 'pec' => 'rossi@pec.it']);
+
+    return str_contains($sedi, 'name="oo_address" value="4"') && str_contains($sedi, 'Magazzino · Predefinito')
+        && !str_contains($sedi, 'data-wi-oo-address-delete') && !str_contains($sedi, 'Aggiungi indirizzo')
+        && preg_match('/<a href="[^"]*aziende\/7\/edit\/"[^>]*target="_blank"[^>]*>.*Modifica azienda/', $sedi) === 1
+        && str_contains($fatturazione, 'Ragione sociale') && str_contains($fatturazione, 'Rossi srl')
+        && str_contains($fatturazione, '01234567890') && str_contains($fatturazione, 'ABC1234') && str_contains($fatturazione, 'rossi@pec.it');
+});
+
+check('con le relazioni accese, il Referente dell\'azienda: chi riceve i documenti, scelto quello del documento, nascosto senza azienda', function () use ($bozza, $pagina) {
+    ContactRelations::useEnabled(true);
+    DocumentReferents::useReader(static fn (int $companyId): array => [
+        ['contact_id' => 3, 'receives_documents' => 'true', 'is_primary' => 'true', 'job_title' => 'Acquisti', 'contact' => ['id' => 3, 'name' => 'Anna', 'surname' => 'Bianchi']],
+        ['contact_id' => 5, 'receives_documents' => 'false', 'contact' => ['id' => 5, 'name' => 'Luca', 'surname' => 'Verdi']],
+    ]);
+
+    try {
+        $html = $pagina(OfficeOrderResource::class, $bozza + ['company_id' => 7, 'customer_id' => 3]);
+        $select = preg_match('/<select[^>]*name="referent"[^>]*>.*?<\/select>/s', $html, $m) === 1 ? $m[0] : '';
+    } finally {
+        ContactRelations::useEnabled(null);
+        DocumentReferents::useReader(null);
+    }
+
+    return $select !== ''
+        && str_contains($select, 'data-wi-oo-field="referent"')
+        && preg_match('/<option[^>]*value="3"[^>]*selected/', $select) === 1
+        && str_contains($select, 'Acquisti') && !str_contains($select, 'value="5"')
+        && str_contains($html, 'company_id') && preg_match('/data-[a-z-]*hidden[a-z-]*=/', $html) === 1;
+});
+
+check('i Modifica dei riquadri dicono quale finestra aprono', function () use ($bozza, $pagina) {
+    $html = $pagina(OfficeOrderResource::class, $bozza);
+
+    return str_contains($html, 'data-wi-oo-edit="contacts"') && str_contains($html, 'data-wi-oo-edit="billing"');
 });
 
 check('la consegna sta sotto le righe e sopra il pagamento, l\'indirizzo non è più a vista', function () use ($bozza, $pagina) {
@@ -116,5 +177,10 @@ check('l\'azione del menu ⋯ su una bozza inesistente lancia il 404 del core', 
 
     return true;
 });
+
+check('la testata posta porta anche l\'azienda, non solo la persona', fn () =>
+    OfficeOrderForm::header(['customer' => 'company:7', 'customer_id' => '3', 'company_id' => '7'])
+        === ['customer_id' => '3', 'company_id' => '7']
+);
 
 summary();

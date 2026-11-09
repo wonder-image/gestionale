@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Tax;
 
 use Wonder\Plugin\Custom\Fattura\Fattura;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\System\Setting;
 
@@ -23,7 +24,21 @@ final class VatCollectability
         return self::valid((string) (Setting::current()['vat_collectability'] ?? '')) ?? 'I';
     }
 
-    /** Quella del cliente, o la predefinita. */
+    /** Quella del cliente di un documento: l'azienda se c'è, altrimenti la persona. */
+    public static function forDocument(array $document): string
+    {
+        $companyId = (int) ($document['company_id'] ?? 0);
+
+        if ($companyId > 0) {
+            $company = Company::findById($companyId);
+
+            return self::valid((string) (is_array($company) ? ($company['vat_collectability'] ?? '') : '')) ?? self::default();
+        }
+
+        return self::forCustomer((int) ($document['customer_id'] ?? 0));
+    }
+
+    /** Quella della persona, o la predefinita. */
     public static function forCustomer(int $customerId): string
     {
         $contact = $customerId > 0 ? Contact::findById($customerId) : null;

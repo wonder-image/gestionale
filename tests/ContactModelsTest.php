@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Support\Codes;
@@ -44,33 +45,40 @@ check('la scheda ha il suo prefisso nel codice', function () use ($campo) {
 });
 
 check('i dati di fatturazione arrivano dal core, non riscritti qui', function () use ($colonne) {
-    // `AddressExtension::billing()`: tipo, ragione sociale, CF e partita IVA
-    // già validati, SDI, PEC, indirizzo e telefono.
-    $c = $colonne(Contact::class);
+    // `AddressExtension::billing()`: privato sulle persone, azienda sulle aziende.
+    $persona = $colonne(Contact::class);
+    $azienda = $colonne(Company::class);
+    $comuni = ['cf', 'country', 'province', 'city', 'cap', 'street', 'number', 'phone_prefix', 'phone'];
 
-    foreach ([
-        'type', 'name', 'surname', 'business_name', 'cf', 'pi', 'sdi', 'pec',
-        'country', 'province', 'city', 'cap', 'street', 'number',
-        'phone_prefix', 'phone',
-    ] as $nome) {
-        if (!isset($c[$nome])) {
+    foreach ([...$comuni, 'name', 'surname'] as $nome) {
+        if (!isset($persona[$nome])) {
             return false;
         }
     }
 
-    return true;
+    foreach ([...$comuni, 'business_name', 'pi', 'sdi', 'pec'] as $nome) {
+        if (!isset($azienda[$nome])) {
+            return false;
+        }
+    }
+
+    // Niente più Privato/Società sulla persona.
+    return !isset($persona['type']) && !isset($persona['business_name']) && !isset($persona['pi']);
 });
 
-check('i due ruoli stanno sulla stessa scheda', function () use ($colonne) {
-    $c = $colonne(Contact::class);
+check('le persone sono clienti, le aziende anche fornitori', function () use ($colonne) {
+    $persona = $colonne(Contact::class);
+    $azienda = $colonne(Company::class);
 
-    return isset($c['is_customer'], $c['is_supplier']);
+    return isset($persona['is_customer']) && !isset($persona['is_supplier'])
+        && isset($azienda['is_customer'], $azienda['is_supplier']);
 });
 
 check('partita IVA e codice fiscale li controlla il core', function () use ($campo) {
     // Non sono caselle di testo: il framework ha un campo apposta per
     // ognuno, e rifiuta da sé i codici sbagliati.
-    return $campo(Contact::class, 'pi') instanceof \Wonder\Data\Fields\Vat
+    return $campo(Company::class, 'pi') instanceof \Wonder\Data\Fields\Vat
+        && $campo(Company::class, 'cf') instanceof \Wonder\Data\Fields\Tin
         && $campo(Contact::class, 'cf') instanceof \Wonder\Data\Fields\Tin;
 });
 
@@ -78,9 +86,17 @@ check('listino e pagamento nascono come colonne, senza chiave esterna', function
     // Le tabelle non esistono ancora: una chiave esterna non avrebbe dove
     // puntare, e lo zero la farebbe fallire comunque.
     $c = $colonne(Contact::class);
+    $a = $colonne(Company::class);
 
     foreach (['user_id', 'price_list_id', 'payment_method_id', 'payment_term_id'] as $nome) {
         if (!isset($c[$nome]) || $c[$nome]->getSchema('foreign_table') !== null) {
+            return false;
+        }
+    }
+
+    // Con un'azienda nel documento valgono le sue condizioni.
+    foreach (['price_list_id', 'payment_method_id', 'payment_term_id', 'vat_collectability'] as $nome) {
+        if (!isset($a[$nome]) || $a[$nome]->getSchema('foreign_table') !== null) {
             return false;
         }
     }

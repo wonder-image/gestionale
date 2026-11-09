@@ -5,7 +5,7 @@ namespace Wonder\Plugin\Gestionale\Support\Stock;
 use Wonder\App\Models\User\User;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\SupplierNames;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocumentStatusLog;
@@ -202,7 +202,7 @@ final class StockDocumentSheet
             return '';
         }
 
-        $contact = Contact::find('`id` = '.$id." AND `deleted` IN ('true', 'false')", 1);
+        $contact = Company::find('`id` = '.$id." AND `deleted` IN ('true', 'false')", 1);
         $name = is_array($contact) && isset($contact['id']) ? self::text(Contacts::displayName($contact)) : 'Fornitore #'.$id;
         $number = self::text((string) ($document['supplier_document_number'] ?? ''));
         $date = substr((string) ($document['supplier_document_date'] ?? ''), 0, 10);

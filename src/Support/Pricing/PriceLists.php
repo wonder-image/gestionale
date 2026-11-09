@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Pricing;
 
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Pricing\PriceList;
 use Wonder\Plugin\Gestionale\Models\Pricing\PriceListChannel;
@@ -267,7 +268,27 @@ final class PriceLists
         };
     }
 
-    /** Il listino assegnato a un cliente, 0 se nessuno o con la funzionalità spenta. */
+    /** Il listino del cliente di un documento: quello dell'azienda se c'è, altrimenti della persona. */
+    public static function forDocument(array $document): int
+    {
+        $companyId = (int) ($document['company_id'] ?? 0);
+
+        return $companyId > 0 ? self::forCompany($companyId) : self::forContact((int) ($document['customer_id'] ?? 0));
+    }
+
+    /** Il listino di un'azienda, 0 se nessuno o con la funzionalità spenta. */
+    public static function forCompany(int $companyId): int
+    {
+        if ($companyId <= 0 || !Gestionale::feature('customer_price_lists')) {
+            return 0;
+        }
+
+        $company = Company::findById($companyId);
+
+        return is_array($company) ? max(0, (int) ($company['price_list_id'] ?? 0)) : 0;
+    }
+
+    /** Il listino assegnato a una persona, 0 se nessuno o con la funzionalità spenta. */
     public static function forContact(int $contactId): int
     {
         if ($contactId <= 0 || !Gestionale::feature('customer_price_lists')) {

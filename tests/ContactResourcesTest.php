@@ -6,7 +6,9 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\SupplierResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
@@ -31,33 +33,50 @@ if (!function_exists('__t')) {
     }
 }
 
-check('i due elenchi guardano la stessa tabella', fn () =>
+// Lo stato delle funzionalità si forza senza database: `features()` è
+// memoizzato.
+$forza = static function (array $stato): void {
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
+};
+
+check('le persone stanno nei contatti, aziende e fornitori nelle aziende', fn () =>
     CustomerResource::$model === Contact::class
-    && SupplierResource::$model === Contact::class
+    && CompanyResource::$model === Company::class
+    && SupplierResource::$model === Company::class
 );
 
 check('ognuno ha il suo indirizzo e il suo titolo', fn () =>
     CustomerResource::path() === 'app/gestionale/clienti'
+    && CompanyResource::path() === 'app/gestionale/aziende'
     && SupplierResource::path() === 'app/gestionale/fornitori'
     && CustomerResource::titleLabel() === 'Clienti'
+    && CompanyResource::titleLabel() === 'Aziende'
     && SupplierResource::titleLabel() === 'Fornitori'
 );
 
 check('i fornitori esistono solo con gli acquisti sbloccati', fn () =>
     SupplierResource::$feature === 'purchasing'
     && CustomerResource::$feature === ''
+    && CompanyResource::$feature === ''
 );
 
-check('le due voci stanno sotto Anagrafiche', fn () =>
-    (CustomerResource::navigationSchema()->toArray()['section_key'] ?? '') === 'anagrafiche'
-    && (SupplierResource::navigationSchema()->toArray()['section_key'] ?? '') === 'anagrafiche'
-);
+check('le tre voci stanno sotto Anagrafiche', function () {
+    foreach ([CustomerResource::class, CompanyResource::class, SupplierResource::class] as $classe) {
+        if (($classe::navigationSchema()->toArray()['section_key'] ?? '') !== 'anagrafiche') {
+            return false;
+        }
+    }
+
+    return true;
+});
 
 check('ogni elenco mostra solo i suoi', function () {
     $clienti = (string) (CustomerResource::querySchema()['condition'] ?? '');
+    $aziende = (string) (CompanyResource::querySchema()['condition'] ?? '');
     $fornitori = (string) (SupplierResource::querySchema()['condition'] ?? '');
 
     return str_contains($clienti, "is_customer = 'true'")
+        && !str_contains($aziende, 'is_')
         && str_contains($fornitori, "is_supplier = 'true'");
 });
 
@@ -70,14 +89,11 @@ check('una partita IVA già presa si ferma con il nome di chi ce l\'ha', functio
         && str_contains($errore->getMessage(), 'partita IVA');
 });
 
-check('una scheda senza ruolo viene rifiutata', function () {
+check('un\'azienda senza ruolo viene rifiutata', function () use ($forza) {
+    $forza(['purchasing' => true]);
+
     try {
-        CustomerResource::mutateRequestValues(
-            ['is_customer' => 'false', 'is_supplier' => 'false'],
-            'update',
-            'backend',
-            ['id' => 0]
-        );
+        CompanyResource::mutateRequestValues(['roles' => 'none'], 'update', 'backend', ['id' => 0]);
     } catch (UserError $errore) {
         return $errore->key() === 'contact.no_role';
     }
@@ -85,30 +101,36 @@ check('una scheda senza ruolo viene rifiutata', function () {
     return false;
 });
 
+check('una persona che non è cliente va legata a un\'azienda', fn () =>
+    str_contains(UserError::make('contact.person_no_role')->getMessage(), 'referente')
+);
+
 check('un cliente nuovo nasce cliente', function () {
     $valori = CustomerResource::mutateRequestValues(['name' => 'Mario'], 'store');
 
-    return ($valori['is_customer'] ?? '') === 'true';
+    return ($valori['is_customer'] ?? '') === 'true' && !isset($valori['is_supplier']);
 });
 
-check('un fornitore nuovo nasce fornitore', function () {
-    $valori = SupplierResource::mutateRequestValues(['name' => 'Mario'], 'store');
+check('un\'azienda nuova nasce cliente, un fornitore nuovo nasce fornitore', function () use ($forza) {
+    $forza(['purchasing' => true]);
+    $azienda = CompanyResource::mutateRequestValues(['business_name' => 'Rossi Srl'], 'store');
+    $fornitore = SupplierResource::mutateRequestValues(['business_name' => 'Filati Nord'], 'store');
 
-    return ($valori['is_supplier'] ?? '') === 'true';
+    return ($azienda['is_customer'] ?? '') === 'true' && ($fornitore['is_supplier'] ?? '') === 'true';
 });
 
-// Lo stato delle funzionalità si forza senza database: `features()` è
-// memoizzato. Il campo "Ruolo" esiste solo con gli acquisti sbloccati, e
-// senza non c'è niente da scegliere.
-$forza = static function (array $stato): void {
-    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato);
-};
+check('le persone non hanno il campo Ruolo', function () use ($forza) {
+    $forza(['purchasing' => true]);
+
+    return !CustomerResource::rolesShown()
+        && !isset(CustomerResource::mutateFormValues(['id' => 0], 'create')['roles']);
+});
 
 check('con gli acquisti bloccati il ruolo non si chiede', function () use ($forza) {
     $forza(['purchasing' => false]);
 
-    $creazione = CustomerResource::mutateFormValues(['id' => 0], 'create');
-    $modifica = CustomerResource::mutateFormValues(
+    $creazione = CompanyResource::mutateFormValues(['id' => 0], 'create');
+    $modifica = CompanyResource::mutateFormValues(
         ['id' => 7, 'is_customer' => 'true', 'is_supplier' => 'false'],
         'edit'
     );
@@ -119,14 +141,14 @@ check('con gli acquisti bloccati il ruolo non si chiede', function () use ($forz
 check('il campo si apre sul ruolo dell\'elenco da cui arrivi', function () use ($forza) {
     $forza(['purchasing' => true]);
 
-    return (CustomerResource::mutateFormValues(['id' => 0], 'create')['roles'] ?? '') === 'customer'
+    return (CompanyResource::mutateFormValues(['id' => 0], 'create')['roles'] ?? '') === 'customer'
         && (SupplierResource::mutateFormValues(['id' => 0], 'create')['roles'] ?? '') === 'supplier';
 });
 
 check('una scheda già salvata si riapre sul suo ruolo', function () use ($forza) {
     $forza(['purchasing' => true]);
 
-    $valori = CustomerResource::mutateFormValues(
+    $valori = CompanyResource::mutateFormValues(
         ['id' => 7, 'is_customer' => 'true', 'is_supplier' => 'true'],
         'edit'
     );
@@ -141,16 +163,15 @@ check('una scheda già salvata si riapre sul suo ruolo', function () use ($forza
     return ($valori['roles'] ?? '') === 'both' && ($orfana['roles'] ?? '') === 'supplier';
 });
 
-check('da "Clienti" si può creare la scheda di un fornitore', function () use ($forza) {
+check('da "Aziende" si può creare un fornitore', function () use ($forza) {
     $forza(['purchasing' => true]);
 
-    $valori = CustomerResource::mutateRequestValues(
-        ['name' => 'Mario', 'roles' => 'supplier'],
+    $valori = CompanyResource::mutateRequestValues(
+        ['business_name' => 'Filati Nord', 'roles' => 'supplier'],
         'store'
     );
 
-    // Il ruolo dell'elenco non si impone sopra una scelta esplicita: la
-    // scheda nasce fornitore, e sparisce dall'elenco da cui l'hai creata.
+    // Il ruolo dell'elenco non si impone sopra una scelta esplicita.
     return ($valori['is_customer'] ?? '') === 'false'
         && ($valori['is_supplier'] ?? '') === 'true'
         && !isset($valori['roles']);
@@ -159,11 +180,11 @@ check('da "Clienti" si può creare la scheda di un fornitore', function () use (
 check('"Cliente e fornitore" accende tutti e due i ruoli', function () use ($forza) {
     $forza(['purchasing' => true]);
 
-    $valori = CustomerResource::mutateRequestValues(
+    $valori = CompanyResource::mutateRequestValues(
         ['roles' => 'both'],
         'update',
         'backend',
-        ['id' => 7]
+        ['id' => 0]
     );
 
     return ($valori['is_customer'] ?? '') === 'true' && ($valori['is_supplier'] ?? '') === 'true';
@@ -172,8 +193,8 @@ check('"Cliente e fornitore" accende tutti e due i ruoli', function () use ($for
 check('con gli acquisti bloccati un ruolo arrivato da fuori non conta', function () use ($forza) {
     $forza(['purchasing' => false]);
 
-    $valori = CustomerResource::mutateRequestValues(
-        ['name' => 'Mario', 'roles' => 'supplier'],
+    $valori = CompanyResource::mutateRequestValues(
+        ['business_name' => 'Rossi Srl', 'roles' => 'supplier'],
         'store'
     );
 
@@ -182,13 +203,15 @@ check('con gli acquisti bloccati un ruolo arrivato da fuori non conta', function
 
 $forza([]);
 
-check('clienti e fornitori hanno ciascuno la sua scheda in lettura', function () {
+check('clienti, aziende e fornitori hanno ciascuno la sua scheda in lettura', function () {
     $clienti = json_encode(CustomerResource::pageSchema()->toArray());
+    $aziende = json_encode(CompanyResource::pageSchema()->toArray());
     $fornitori = json_encode(SupplierResource::pageSchema()->toArray());
 
-    return CustomerResource::hasSheet() && SupplierResource::hasSheet()
-        && str_contains($clienti, 'customer-show.php') && !str_contains($clienti, 'supplier-show.php')
-        && str_contains($fornitori, 'supplier-show.php') && !str_contains($fornitori, 'customer-show.php');
+    return CustomerResource::hasSheet() && CompanyResource::hasSheet() && SupplierResource::hasSheet()
+        && str_contains($clienti, 'customer-show.php')
+        && str_contains($aziende, 'company-show.php')
+        && str_contains($fornitori, 'supplier-show.php') && !str_contains($fornitori, 'company-show.php');
 });
 
 check('la scheda del fornitore: carichi e articoli forniti, o la frase se non ce ne sono', fn () =>
@@ -209,7 +232,8 @@ check('il nome in elenco apre la scheda, per i clienti e per i fornitori', funct
         return '';
     };
 
-    return $link(CustomerResource::class) === 'view' && $link(SupplierResource::class) === 'view';
+    return $link(CustomerResource::class) === 'view' && $link(CompanyResource::class) === 'view'
+        && $link(SupplierResource::class) === 'view';
 });
 
 check('l\'indirizzo della scheda e quello della modifica sono diversi e portano l\'id', fn () =>
@@ -218,8 +242,9 @@ check('l\'indirizzo della scheda e quello della modifica sono diversi e portano 
     && CustomerResource::viewUrl(7) !== CustomerResource::editUrlFor(7)
 );
 
-check('il titolo della scheda è il nome del cliente', fn () =>
-    CustomerResource::pageTitle(['type' => 'business', 'business_name' => 'Rossi Srl']) === 'Rossi Srl'
+check('il titolo della scheda è il nome del cliente o dell\'azienda', fn () =>
+    CustomerResource::pageTitle(['name' => 'Marco', 'surname' => 'Rossi']) === 'Rossi Marco'
+    && CompanyResource::pageTitle(['business_name' => 'Rossi Srl']) === 'Rossi Srl'
 );
 
 check('il gestionale distingue password e provider federati', function () {

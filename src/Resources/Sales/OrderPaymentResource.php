@@ -448,6 +448,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
                 'order_id' => $orderId,
                 'amount' => $amount,
                 'customer_id' => (int) ($ordine['customer_id'] ?? 0),
+                'company_id' => (int) ($ordine['company_id'] ?? 0),
                 'payment_method_id' => (int) ($metodo['id'] ?? $ordine['payment_method_id'] ?? 0),
                 'currency' => (string) ($ordine['currency'] ?? 'EUR'),
                 'provider' => PaymentMethod::ledgerProvider((string) ($metodo['provider'] ?? '')),

@@ -11,6 +11,7 @@ require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__.'/../harness.php';
 
 use Wonder\App\Theme;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeCustomerPanel;
@@ -43,8 +44,18 @@ function prova(callable $corpo): mixed
 function clienteDiProva(string $email = 'anna.pannello@example.com'): int
 {
     $creato = Contact::create([
-        'type' => 'private', 'name' => 'Anna', 'surname' => 'Pannello', 'country' => 'IT',
+        'name' => 'Anna', 'surname' => 'Pannello', 'country' => 'IT',
         'email' => $email, 'is_customer' => 'true', 'active' => 'true',
+    ]);
+
+    return (int) ($creato->insert_id ?? 0);
+}
+
+function aziendaDiProva(array $piu = []): int
+{
+    $creato = Company::create($piu + [
+        'business_name' => 'Pannello srl', 'pi' => '01234567890', 'country' => 'IT',
+        'email' => 'pannello.srl@example.com', 'is_customer' => 'true', 'is_supplier' => 'false', 'active' => 'true',
     ]);
 
     return (int) ($creato->insert_id ?? 0);
@@ -75,18 +86,43 @@ check('Contatti: un\'email già usata da un altro cliente non passa', function (
     });
 });
 
-check('Fatturazione: un\'azienda con i suoi dati si salva', function () {
+check('Fatturazione: i dati della persona si salvano', function () {
     return prova(static function (): bool {
         $id = clienteDiProva();
         $esito = OfficeCustomerPanel::save('billing', $id, [
-            'type' => 'business', 'business_name' => 'Pannello srl', 'name' => 'Anna', 'surname' => 'Pannello',
-            'cf' => '', 'pi' => '01234567890', 'sdi' => 'ABC1234', 'pec' => '', 'country' => 'IT',
+            'name' => 'Anna', 'surname' => 'Pannello', 'cf' => 'PNNNNA80A41F205X', 'country' => 'IT',
             'street' => 'Via Roma', 'number' => '1', 'province' => 'MI', 'city' => 'Milano', 'cap' => '20100', 'more' => '',
         ]);
         $riga = (array) Contact::findById($id);
 
-        return $esito['ok'] === true && $riga['type'] === 'business' && $riga['business_name'] === 'Pannello srl'
-            && $riga['street'] === 'Via Roma' && $riga['email'] === 'anna.pannello@example.com';
+        return $esito['ok'] === true && $riga['street'] === 'Via Roma' && $riga['email'] === 'anna.pannello@example.com';
+    });
+});
+
+check('Fatturazione di un\'azienda: si salva sulla sua scheda', function () {
+    return prova(static function (): bool {
+        $id = aziendaDiProva();
+        $esito = OfficeCustomerPanel::save('billing', 0, [
+            'business_name' => 'Pannello due srl', 'cf' => '', 'pi' => '01234567890', 'sdi' => 'ABC1234', 'pec' => '', 'country' => 'IT',
+            'street' => 'Via Roma', 'number' => '1', 'province' => 'MI', 'city' => 'Milano', 'cap' => '20100', 'more' => '',
+        ], $id);
+        $riga = (array) Company::findById($id);
+
+        return $esito['ok'] === true && $riga['business_name'] === 'Pannello due srl' && $riga['sdi'] === 'ABC1234';
+    });
+});
+
+check('il payload di un\'azienda: tipo, sedi solo a spunta, nessun referente senza legami', function () {
+    return prova(static function (): bool {
+        $id = aziendaDiProva();
+        $p = OfficeCustomerPanel::payload(0, $id);
+        $sede = OfficeCustomerPanel::save('save', 0, ['address_id' => 0, 'label' => 'Sede', 'street' => 'Via Roma', 'number' => '1', 'cap' => '24100', 'city' => 'Bergamo', 'country' => 'IT'], $id);
+
+        return ($p['contact']['kind'] ?? '') === 'company' && (int) ($p['contact']['company_id'] ?? 0) === $id
+            && ($p['referents'] ?? null) === []
+            && str_contains($p['html']['billing'], 'Pannello srl')
+            && !str_contains($p['html']['addresses'], 'data-wi-oo-address-delete')
+            && $sede['ok'] === false;
     });
 });
 
@@ -136,20 +172,14 @@ check('azione sconosciuta o scheda che non c\'è: niente da fare', function () {
         && OfficeCustomerPanel::payload(0) === [];
 });
 
-check('un fornitore non si legge né si modifica dal pannello, indirizzi compresi', function () {
+check('un\'azienda solo fornitore non si legge né si modifica dal pannello', function () {
     return prova(static function (): bool {
-        $creato = Contact::create([
-            'type' => 'business', 'business_name' => 'Fornitore Prova', 'country' => 'IT',
-            'email' => 'fornitore.pannello@example.com', 'is_customer' => 'false', 'is_supplier' => 'true', 'active' => 'true',
-        ]);
-        $id = (int) ($creato->insert_id ?? 0);
-        $contatti = OfficeCustomerPanel::save('contacts', $id, ['email' => 'cambiata@example.com', 'phone_prefix' => '', 'phone' => '']);
-        $indirizzo = OfficeCustomerPanel::save('save', $id, ['address_id' => 0, 'label' => 'Sede', 'street' => 'Via Roma', 'number' => '1', 'cap' => '24100', 'city' => 'Bergamo', 'country' => 'IT']);
+        $id = aziendaDiProva(['business_name' => 'Fornitore Prova', 'pi' => '', 'email' => 'fornitore.pannello@example.com', 'is_customer' => 'false', 'is_supplier' => 'true']);
+        $contatti = OfficeCustomerPanel::save('contacts', 0, ['email' => 'cambiata@example.com', 'phone_prefix' => '', 'phone' => ''], $id);
 
-        return $id > 0 && OfficeCustomerPanel::payload($id) === []
-            && $contatti['ok'] === false && $indirizzo['ok'] === false
-            && ((array) Contact::findById($id))['email'] === 'fornitore.pannello@example.com'
-            && ContactAddressResource::addressesOf($id) === [];
+        return $id > 0 && OfficeCustomerPanel::payload(0, $id) === []
+            && $contatti['ok'] === false
+            && ((array) Company::findById($id))['email'] === 'fornitore.pannello@example.com';
     });
 });
 

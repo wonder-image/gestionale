@@ -186,7 +186,7 @@ final class Tools
                 'run' => self::productSetCategories(...),
             ],
             'orders_list' => [
-                'description' => 'Elenca gli ordini, i più recenti prima. Filtri facoltativi: stato e numero d\'ordine o email. Al massimo '.self::LIST_LIMIT.'.',
+                'description' => 'Elenca gli ordini, i più recenti prima. Filtri facoltativi: stato e numero d\'ordine, email o ragione sociale. Al massimo '.self::LIST_LIMIT.'.',
                 'schema' => self::schema([
                     'status' => ['type' => 'string', 'enum' => Order::LIVE_STATUSES],
                     'query' => ['type' => 'string'],
@@ -617,7 +617,7 @@ final class Tools
 
         if ($query !== '') {
             $like = "'%".Order::connection()->real_escape_string(addcslashes($query, '%_\\'))."%'";
-            $conditions[] = '(`order_number` LIKE '.$like.' OR `email` LIKE '.$like.')';
+            $conditions[] = '(`order_number` LIKE '.$like.' OR `email` LIKE '.$like.' OR `billing_business_name` LIKE '.$like.')';
         }
 
         $limit = min(self::LIST_LIMIT, max(1, (int) ($args['limit'] ?? 20)));
@@ -805,6 +805,11 @@ final class Tools
             'payment_status' => (string) ($order['payment_status'] ?? ''),
             'fulfillment_status' => (string) ($order['fulfillment_status'] ?? ''),
             'email' => (string) ($order['email'] ?? ''),
+            // Con `company_id` il cliente è l'azienda e `customer_id` il referente.
+            'customer' => OrderResource::customerName($order),
+            'customer_id' => (int) ($order['customer_id'] ?? 0),
+            'company_id' => (int) ($order['company_id'] ?? 0),
+            'referent_name' => OrderResource::referentOf($order),
             'total' => (float) ($order['total'] ?? 0),
             'currency' => (string) ($order['currency'] ?? 'EUR'),
             'available_actions' => self::actions($order),

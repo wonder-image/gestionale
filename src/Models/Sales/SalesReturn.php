@@ -46,6 +46,7 @@ final class SalesReturn extends Model
             Column::key('number')->length(20),
             Column::key('order_id')->int()->null(false)->foreign(Order::$table),
             Column::key('customer_id')->int()->default(0),
+            Column::key('company_id')->int()->default(0),
             Column::key('channel')->enum(static::CHANNELS)->default('office'),
             Column::key('status')->enum(static::STATUSES)->default('received'),
             // Dove rientra la merce: serve al movimento `return`, sempre valorizzata.
@@ -76,6 +77,7 @@ final class SalesReturn extends Model
             Field::key('number')->text()->sanitize(false),
             Field::key('order_id')->number()->decimals(0),
             Field::key('customer_id')->number()->decimals(0),
+            Field::key('company_id')->number()->decimals(0),
             Field::key('channel')->text()->sanitize(false),
             Field::key('status')->text()->sanitize(false),
             Field::key('location_id')->number()->decimals(0),

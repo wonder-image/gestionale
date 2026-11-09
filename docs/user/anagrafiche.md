@@ -2,17 +2,28 @@
 icon: people
 ---
 
-# Clienti e fornitori
+# Persone, aziende e fornitori
 
 > **Inclusa.** I clienti ci sono sempre. I **fornitori** compaiono solo con la
 > funzionalità *Acquisti* sbloccata.
 
-## Una scheda, una persona
+## Persone e aziende
 
-Clienti e fornitori sono due elenchi della **stessa rubrica**. La stessa
-azienda a cui vendi e da cui compri è **una scheda sola**: la apri e scegli
-**Ruolo → Cliente e fornitore**. Da lì compare in tutti e due gli elenchi e si
-modifica in un posto solo.
+La rubrica ha due tipi di scheda:
+
+- **Persone** — chi compra per sé, i referenti delle aziende, chi ha un
+  accesso al sito. Solo una persona può avere un account.
+- **Aziende** — le ditte a cui vendi o da cui compri, con ragione sociale,
+  partita IVA, SDI e PEC. Un'azienda esiste anche senza nessuna persona.
+
+Persone e aziende si collegano fra loro (vedi *Referenti e aziende* sotto):
+la stessa persona può lavorare per più aziende e un'azienda può avere più
+referenti. Non c'è più un campo *Privato o azienda*: chi è un'azienda ha la sua
+scheda fra le **Aziende**.
+
+I **fornitori** sono sempre aziende. La stessa azienda a cui vendi e da cui
+compri è **una scheda sola**: la apri e scegli **Ruolo → Cliente e fornitore**.
+Da lì compare in tutti e due gli elenchi e si modifica in un posto solo.
 
 Il campo **Ruolo** ha tre risposte — *Cliente*, *Fornitore*, *Cliente e
 fornitore* — e nasce già sul ruolo dell'elenco da cui hai premuto *Aggiungi*.
@@ -23,7 +34,9 @@ cliente.
 
 Per questo partita IVA, codice fiscale ed email sono **unici**: se li riscrivi
 su una scheda nuova, il gestionale ti dice di chi sono già e ti lascia aprire
-quella invece di crearne una seconda.
+quella invece di crearne una seconda. Partita IVA e codice fiscale li controlla
+il gestionale: se sono sbagliati, il salvataggio si ferma e te lo dice. Lo
+stesso vale per l'email, di cui viene controllato anche il dominio.
 
 Un fornitore scritto fra i **fornitori** di un articolo, o di una sua
 opzione, non smette di essere fornitore: da *Fornitore* o *Cliente e
@@ -33,12 +46,26 @@ fornitori (vedi [Da chi lo compri e a
 quanto](catalogo-prodotti.md#da-chi-lo-compri-e-a-quanto)), oppure lascialo
 fornitore e metti la scheda su **Non attiva** (vedi sotto).
 
-## Privato o azienda
+## Chi è il cliente di un documento
 
-Il campo **Tipo** decide il resto della scheda: a un privato non vengono
-chiesti ragione sociale, partita IVA, SDI e PEC. Partita IVA e codice fiscale
-li controlla il gestionale: se sono sbagliati, il salvataggio si ferma e te lo
-dice. Lo stesso vale per l'email, di cui viene controllato anche il dominio.
+Su preventivi, ordini, DDT, abbonamenti e resi il cliente è **una persona** o
+**un'azienda**:
+
+- con una **persona** valgono il suo listino e i suoi pagamenti, e la fattura
+  è da privato (o da azienda se la persona ha una partita IVA sua);
+- con un'**azienda** valgono il **listino e le condizioni di pagamento
+  dell'azienda**, la fattura è sempre all'azienda e la persona scelta è il suo
+  **referente** (*Alla c.a.* sul PDF, in copia sulle email).
+
+Nei documenti fatti prima di questa versione, i clienti che erano aziende sono
+stati spostati sulle schede delle **Aziende**: il loro referente, se c'era,
+resta la persona del documento.
+
+## Dati di fatturazione
+
+Sia le persone sia le aziende hanno i **dati di fatturazione**: una persona
+può avere il suo codice fiscale e il suo indirizzo, un'azienda ha i suoi.
+Online, chi compra sceglie se fatturare a sé o a una delle sue aziende.
 
 ## Indirizzi di consegna
 
@@ -59,8 +86,9 @@ scheda ma non dagli ordini già fatti, che ne conservano una copia.
 
 In alto le **statistiche** e, a destra, i **dati di fatturazione** (codice
 fiscale, e per un'azienda partita IVA, SDI e PEC, più l'indirizzo). Sotto, **tutti
-i suoi dati** — tipo, nome, ruolo, stato, email, telefono, accesso al sito e note
-— e gli **indirizzi di consegna**. Poi gli ordini, il carrello, gli
+i suoi dati** — nome o ragione sociale, ruolo, stato, email, telefono, accesso al
+sito (solo per le persone) e note — e gli **indirizzi di consegna**. La scheda di
+un'azienda elenca anche i suoi **referenti**. Poi gli ordini, il carrello, gli
 **abbonamenti** (con la funzionalità *Abbonamenti*) e, in fondo, i coupon.
 
 ## La scheda del fornitore
@@ -73,8 +101,8 @@ suo codice e il costo. Per cambiare qualcosa c'è **Modifica** in alto.
 ## Referenti e aziende
 
 Un'azienda ha spesso più persone con cui parli: chi ordina, chi paga, chi
-riceve la merce. Nel form di un'**azienda** il riquadro **Referenti e aziende**
-elenca queste persone; nel form di una **persona** elenca le aziende per cui
+riceve la merce. Nel form di un'**azienda** il riquadro **Referenti** elenca queste persone;
+nel form di una **persona** il riquadro **Aziende** elenca le aziende per cui
 lavora. La stessa persona può essere referente di più aziende ed è sempre
 **una scheda sola**, con un solo accesso al sito.
 
@@ -92,6 +120,28 @@ Nell'elenco dei clienti il filtro **Referenti** mostra solo queste persone o le
 nasconde, e la colonna **Referenti / aziende** dice chi è legato a chi; lo dice
 anche l'export. Togliere un referente dal riquadro non elimina la sua scheda e
 non cambia i documenti già fatti, che ne conservano il nome.
+
+## Comprare sul sito per un'azienda
+
+Con la funzionalità **Account aziendali** (serve *Vendita online*) una persona
+con l'account sul sito può ordinare anche per le aziende a cui è collegata.
+Lo decide la colonna **Accesso all'area clienti** del riquadro Referenti:
+
+- **Nessuno** — la persona compra solo per sé;
+- **Ordina** — nel checkout sceglie in **Acquista come** se comprare per sé o
+  per l'azienda;
+- **Gestisce l'azienda** — come *Ordina*, e nell'area clienti vede anche gli
+  ordini e gli abbonamenti fatti dagli altri per l'azienda e ne cambia i dati
+  di fatturazione nella scheda **La mia azienda**.
+
+Quando la persona compra per un'azienda, l'ordine è intestato all'azienda con
+i suoi dati di fatturazione (sempre fattura, da società), il suo listino e il
+suo metodo di pagamento proposto; la persona è il referente dell'ordine. Se
+all'azienda mancano dati di fatturazione, il sito non fa ordinare e chiede di
+completarli. Gli abbonamenti si comprano sempre per sé.
+
+Le persone dell'azienda si vedono nella scheda **La mia azienda** ma si
+cambiano solo qui, dal gestionale.
 
 ## Eliminare o disattivare
 
@@ -113,7 +163,7 @@ toglilo prima dai fornitori di quegli articoli e di quelle opzioni.
 
 ## Nella home
 
-Il riquadro **Anagrafiche** dice quante schede ci sono e porta ai due elenchi.
+Il riquadro **Anagrafiche** dice quante persone e aziende ci sono e porta agli elenchi.
 # Storage condiviso
 
 Le schede contatto e gli indirizzi di consegna (`contacts`, `contact_addresses`)

@@ -238,6 +238,22 @@ final class Ledger
     }
 
     /**
+     * L'azienda del documento: quella passata, se no quella dell'ordine.
+     *
+     * @param array<string, mixed> $data
+     */
+    private static function companyId(array $data, int $orderId): int
+    {
+        if (array_key_exists('company_id', $data)) {
+            return (int) $data['company_id'];
+        }
+
+        $order = $orderId > 0 ? Order::findById($orderId) : null;
+
+        return is_array($order) ? (int) ($order['company_id'] ?? 0) : 0;
+    }
+
+    /**
      * La riga nuova, o quella che c'era già.
      *
      * @param array<string, mixed> $data
@@ -289,6 +305,7 @@ final class Ledger
                 'type' => $type,
                 'order_id' => $orderId,
                 'customer_id' => (int) ($data['customer_id'] ?? 0),
+                'company_id' => self::companyId($data, $orderId),
                 'payment_method_id' => (int) ($data['payment_method_id'] ?? 0),
                 'payment_account_id' => (int) ($data['payment_account_id'] ?? 0),
                 'amount' => self::money($amount),

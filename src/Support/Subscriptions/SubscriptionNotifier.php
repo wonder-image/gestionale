@@ -3,15 +3,17 @@
 namespace Wonder\Plugin\Gestionale\Support\Subscriptions;
 
 use Throwable;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
 use Wonder\Plugin\Gestionale\Resources\Subscriptions\SubscriptionResource;
+use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Mail\Mailer;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 
 /**
  * Manda le email di un abbonamento al cliente, all'indirizzo della sua
- * scheda. Come per gli ordini, un'email che non parte non ferma niente: chi
+ * scheda (l'azienda, con i referenti in copia). Come per gli ordini, un'email che non parte non ferma niente: chi
  * chiama riceve l'esito e va avanti.
  */
 final class SubscriptionNotifier
@@ -30,7 +32,14 @@ final class SubscriptionNotifier
         }
 
         $contact = (int) ($subscription['customer_id'] ?? 0) > 0 ? Contact::findById((int) $subscription['customer_id']) : null;
-        $to = Recipients::parse(is_array($contact) ? (string) ($contact['email'] ?? '') : '')['valid'];
+        $personEmail = is_array($contact) ? (string) ($contact['email'] ?? '') : '';
+        $companyId = (int) ($subscription['company_id'] ?? 0);
+        $company = $companyId > 0 ? Company::findById($companyId) : null;
+        $company = is_array($company) && (int) ($company['id'] ?? 0) > 0 ? $company : null;
+        // Con l'azienda scrive a lei (o al referente se non ha email), gli altri in copia come per gli ordini.
+        $address = $company !== null && trim((string) ($company['email'] ?? '')) !== '' ? (string) $company['email'] : $personEmail;
+        $to = Recipients::parse($address)['valid'];
+        $copies = $companyId > 0 ? DocumentReferents::copyEmails(['email' => implode(',', $to)] + $subscription, $company) : [];
 
         if ($to === []) {
             return ['status' => 'no_recipients'] + $empty;
@@ -41,7 +50,7 @@ final class SubscriptionNotifier
             'account_url' => self::accountUrl(),
         ]);
 
-        return Mailer::send('subscription.'.$key, $to, $email['subject'], $email['body'], $attachments);
+        return Mailer::send('subscription.'.$key, $to, $email['subject'], $email['body'], $attachments, $copies);
     }
 
     /** La sezione *Abbonamenti* dell'area cliente, se il sito ha la rotta. */

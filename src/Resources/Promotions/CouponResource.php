@@ -23,6 +23,7 @@ use Wonder\Http\Csrf;
 use Wonder\Http\Exceptions\NotFoundHttpException;
 use Wonder\Http\Route;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponCustomer;
@@ -118,6 +119,7 @@ class CouponResource extends GestionaleResource
             'duration' => 'Durata',
             'duration_months' => 'Mesi',
             'customers' => 'Clienti riservati',
+            'companies' => 'Aziende riservate',
             'status' => 'Stato',
             'note' => 'Note',
         ];
@@ -161,6 +163,9 @@ class CouponResource extends GestionaleResource
             FormField::key('customers')
                 ->selectSearch(static::customerOptions(), true)
                 ->label('Clienti riservati'),
+            FormField::key('companies')
+                ->selectSearch(static::companyOptions(), true)
+                ->label('Aziende riservate'),
             FormField::key('note')->textarea()->label('Note'),
         ];
     }
@@ -203,6 +208,7 @@ class CouponResource extends GestionaleResource
             static::getInput('models')->columnSpan(12),
             static::getInput('excluded_models')->columnSpan(12),
             static::getInput('customers')->columnSpan(12),
+            static::getInput('companies')->columnSpan(12),
         ])->columns(12)->columnSpan(12);
 
         $side = [];
@@ -479,13 +485,22 @@ class CouponResource extends GestionaleResource
                 : []),
         ]);
 
-        $customers = array_map(
-            static fn (array $link): string => static::escape(static::customerName((int) $link['customer_id'], '')),
-            static::rowsOf(CouponCustomer::class, ['coupon_id' => $id])
-        );
+        $links = static::rowsOf(CouponCustomer::class, ['coupon_id' => $id]);
+        $customers = [];
+        $companies = [];
+
+        foreach ($links as $link) {
+            if ((int) ($link['company_id'] ?? 0) > 0) {
+                $companies[] = static::escape(static::companyName((int) $link['company_id']));
+            } elseif ((int) ($link['customer_id'] ?? 0) > 0) {
+                $customers[] = static::escape(static::customerName((int) $link['customer_id'], ''));
+            }
+        }
+
         $scope = $card('Prodotti e clienti', [
             static::sheetRow('Prodotti', static::scopeHtml('coupon', $id), true)->columnSpan(12),
             static::sheetRow('Clienti riservati', implode(', ', $customers), true)->columnSpan(12),
+            static::sheetRow('Aziende riservate', implode(', ', $companies), true)->columnSpan(12),
         ]);
 
         $blocks = [
@@ -773,12 +788,15 @@ class CouponResource extends GestionaleResource
         $values['batch'] = (string) ($oldValues['batch'] ?? 'false') === 'true' ? 'true' : 'false';
 
         Coupons::validate(
-            ['customers' => static::readCustomers((array) $_POST)] + $values,
+            [
+                'customers' => static::readCustomers((array) $_POST),
+                'companies' => static::readCompanies((array) $_POST),
+            ] + $values,
             (int) ($oldValues['id'] ?? 0)
         );
 
         // Selettore e clienti riservati non sono colonne: si salvano a parte.
-        return array_diff_key($values, array_flip([...static::FIELDS, 'customers']));
+        return array_diff_key($values, array_flip([...static::FIELDS, 'customers', 'companies']));
     }
 
     /** Riempie il form con il selettore, i clienti riservati e le date senza ora. */
@@ -794,10 +812,9 @@ class CouponResource extends GestionaleResource
 
         if ($mode === 'edit' && $id > 0) {
             $values = static::loadScope('coupon', $id) + $values;
-            $values['customers'] = array_map(
-                static fn (array $row): string => (string) $row['customer_id'],
-                static::rowsOf(CouponCustomer::class, ['coupon_id' => $id])
-            );
+            $links = static::rowsOf(CouponCustomer::class, ['coupon_id' => $id]);
+            $values['customers'] = static::linkIds($links, 'customer_id');
+            $values['companies'] = static::linkIds($links, 'company_id');
         }
 
         return $values;
@@ -831,8 +848,9 @@ class CouponResource extends GestionaleResource
     {
         $post = (array) $_POST;
         $customers = static::readCustomers($post);
+        $companies = static::readCompanies($post);
 
-        Transaction::run(static function () use ($id, $post, $customers): void {
+        Transaction::run(static function () use ($id, $post, $customers, $companies): void {
             static::saveScope('coupon', $id, static::readScope($post));
 
             foreach (static::rowsOf(CouponCustomer::class, ['coupon_id' => $id]) as $row) {
@@ -842,7 +860,57 @@ class CouponResource extends GestionaleResource
             foreach ($customers as $customerId) {
                 CouponCustomer::create(['coupon_id' => $id, 'customer_id' => $customerId]);
             }
+
+            foreach ($companies as $companyId) {
+                CouponCustomer::create(['coupon_id' => $id, 'customer_id' => 0, 'company_id' => $companyId]);
+            }
         });
+    }
+
+    /**
+     * Gli id di una colonna dei riservati, come stringhe per il form.
+     *
+     * @param list<array<string, mixed>> $links
+     * @return list<string>
+     */
+    protected static function linkIds(array $links, string $column): array
+    {
+        $ids = [];
+
+        foreach ($links as $link) {
+            if ((int) ($link[$column] ?? 0) > 0) {
+                $ids[] = (string) (int) $link[$column];
+            }
+        }
+
+        return $ids;
+    }
+
+    /** @param array<string, mixed> $post @return list<int> */
+    protected static function readCompanies(array $post): array
+    {
+        return static::scopeIds($post['companies'] ?? null);
+    }
+
+    /** Le aziende da proporre, id => ragione sociale. @return array<int, string> */
+    protected static function companyOptions(): array
+    {
+        $names = [];
+
+        foreach (static::rowsOf(Company::class, []) as $row) {
+            $names[(int) $row['id']] = Contacts::displayName($row);
+        }
+
+        asort($names, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return $names;
+    }
+
+    public static function companyName(int $companyId): string
+    {
+        $row = $companyId > 0 ? (static::rowsOf(Company::class, ['id' => $companyId])[0] ?? null) : null;
+
+        return is_array($row) ? Contacts::displayName($row) : '';
     }
 
     /**

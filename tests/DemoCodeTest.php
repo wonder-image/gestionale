@@ -157,7 +157,8 @@ check('i vecchi nomi sono tutti quelli con «Prova » davanti, uno per riga crea
         }
     }
 
-    return count($nomi) === 19 && count(array_unique($nomi)) === 19;
+    // Le tre aziende possono stare ancora nei contatti o già nelle aziende.
+    return count($nomi) === 22 && count(array_unique($nomi)) === 19;
 });
 
 check('le note dicono quante righe e quali', fn () =>

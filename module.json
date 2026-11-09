@@ -35,7 +35,10 @@
     },
     "database": {
         "models": "src/Models",
-        "defaults": "Wonder\\Plugin\\Gestionale\\Seeding\\Defaults"
+        "defaults": "Wonder\\Plugin\\Gestionale\\Seeding\\Defaults",
+        "migrations": [
+            "Wonder\\Plugin\\Gestionale\\Migrations\\DocumentCompanyMigration"
+        ]
     },
     "console": {
         "commands": [

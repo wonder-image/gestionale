@@ -7,6 +7,7 @@ use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Promotions\OrderCoupon;
@@ -229,13 +230,20 @@ final class OrdersDemo
 
         $guest = !empty($plan['guest']);
         // L'ospite compra senza scheda: è il caso in cui il cliente non è un link.
-        $customer = !empty($plan['company']) ? self::customer('rossi-abbigliamento') : ($guest ? 0 : self::customer('verdi'));
+        // L'ordine d'azienda lo fa il titolare: la persona compra, l'azienda è il cliente.
+        $customer = !empty($plan['company']) ? self::customer('rossi-marco') : ($guest ? 0 : self::customer('verdi'));
+        $company = !empty($plan['company']) ? self::company('rossi-abbigliamento') : 0;
         $email = $guest ? 'ospite.demo@example.com' : (!empty($plan['company']) ? 'amministrazione.rossi@example.com' : 'anna.verdi@example.com');
         $cartId = (int) Cart::open([
             'cart_token' => 'demo-'.$ref,
             'customer_id' => $customer,
             'email' => $email,
         ])['id'];
+
+        if ($company > 0) {
+            // Prima delle righe: listino e condizioni sono quelli dell'azienda.
+            Order::update(['company_id' => $company], $cartId);
+        }
 
         $bundle = !empty($plan['bundle']);
 
@@ -424,9 +432,10 @@ final class OrdersDemo
             $term = PaymentTerm::find(['code' => 'riba-30-60-fm', 'deleted' => 'false'], 1);
         }
 
-        $customer = self::customer('rossi-abbigliamento');
+        $company = self::company('rossi-abbigliamento');
+        $customer = self::customer('rossi-marco');
 
-        if ($customer <= 0) {
+        if ($company <= 0) {
             DemoData::note('L\'ordine da ufficio «'.$ref.'» vende all\'azienda di prova: crea prima i contatti e rilancia il comando.');
 
             return 0;
@@ -435,6 +444,7 @@ final class OrdersDemo
         $method = self::method((string) $plan['method']);
         $quote = !empty($plan['quote']);
         $orderId = OfficeOrders::save(0, [
+            'company_id' => $company,
             'customer_id' => $customer,
             'fulfillment_type' => 'shipping',
             'payment_method_id' => (int) ($method['id'] ?? 0),
@@ -527,6 +537,13 @@ final class OrdersDemo
     private static function customer(string $ref): int
     {
         $row = Contact::find(['code' => DemoCode::forModel(Contact::class, $ref), 'deleted' => 'false'], 1);
+
+        return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+    }
+
+    private static function company(string $ref): int
+    {
+        $row = Company::find(['code' => DemoCode::forModel(Company::class, $ref), 'deleted' => 'false'], 1);
 
         return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
     }

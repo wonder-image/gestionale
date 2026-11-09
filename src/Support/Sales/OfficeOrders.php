@@ -7,6 +7,8 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
@@ -66,7 +68,7 @@ final class OfficeOrders
     private const HEADER = [
         'customer_id', 'email', 'phone', 'location_id', 'shipping_method_id',
         'payment_method_id', 'payment_term_id', 'customer_note', 'internal_note', 'document_note',
-        'price_list_id', 'referent_id',
+        'price_list_id', 'company_id',
     ];
 
     /** Gli stati da cui un preventivo si modifica: dopo la modifica torna da inviare (G9 §3.1). */
@@ -167,20 +169,28 @@ final class OfficeOrders
     /**
      * I dati che la scheda del cliente propone alla bozza: email, telefono,
      * fatturazione, la consegna predefinita (o la fatturazione), metodo e
-     * condizione di pagamento.
+     * condizione di pagamento, listino.
+     *
+     * Con un'azienda valgono i suoi (fattura da società) e la persona è il
+     * referente: quella passata se è fra i suoi, altrimenti il principale.
      *
      * @return array<string, mixed>
      */
-    public static function customerDefaults(int $contactId): array
+    public static function customerDefaults(int $contactId, int $companyId = 0): array
     {
-        $contact = $contactId > 0 ? Contact::findById($contactId) : null;
+        if ($companyId > 0) {
+            return self::companyDefaults($companyId, $contactId);
+        }
 
-        if (!is_array($contact) || $contact === [] || (string) ($contact['deleted'] ?? 'false') === 'true') {
+        $contact = self::alive(Contact::class, $contactId);
+
+        if ($contact === []) {
             return [];
         }
 
         $out = [
             'customer_id' => $contactId,
+            'company_id' => 0,
             'email' => (string) ($contact['email'] ?? ''),
             'phone' => trim((string) ($contact['phone_prefix'] ?? '').' '.(string) ($contact['phone'] ?? '')),
             'payment_method_id' => (int) ($contact['payment_method_id'] ?? 0),
@@ -188,15 +198,11 @@ final class OfficeOrders
             'price_list_id' => PriceLists::forContact($contactId),
         ];
 
-        // Solo con le relazioni attive e un referente principale.
-        $referent = DocumentReferents::defaultFor($contactId);
-        if ($referent > 0) {
-            $out['referent_id'] = $referent;
-        }
-
         foreach (self::billingKeys() as $key) {
             $out['billing_'.$key] = (string) ($contact[$key] ?? '');
         }
+        // Una persona fattura da privata.
+        $out['billing_type'] = 'private';
 
         $address = self::defaultAddress($contactId);
 
@@ -206,6 +212,61 @@ final class OfficeOrders
         }
 
         return $out;
+    }
+
+    /** @return array<string, mixed> */
+    private static function companyDefaults(int $companyId, int $personId): array
+    {
+        $company = self::alive(Company::class, $companyId);
+
+        if ($company === []) {
+            return [];
+        }
+
+        $referent = DocumentReferents::resolve($companyId, $personId > 0 ? $personId : DocumentReferents::defaultFor($companyId));
+        $person = self::alive(Contact::class, (int) $referent['customer_id']);
+
+        $out = [
+            'customer_id' => (int) $referent['customer_id'],
+            'company_id' => $companyId,
+            'referent_name' => (string) $referent['referent_name'],
+            'email' => (string) ($company['email'] ?? '') !== '' ? (string) $company['email'] : (string) ($person['email'] ?? ''),
+            'phone' => trim((string) ($company['phone_prefix'] ?? '').' '.(string) ($company['phone'] ?? '')),
+            'payment_method_id' => (int) ($company['payment_method_id'] ?? 0),
+            'payment_term_id' => (int) ($company['payment_term_id'] ?? 0),
+            'price_list_id' => PriceLists::forCompany($companyId),
+        ];
+
+        foreach (self::billingKeys() as $key) {
+            $out['billing_'.$key] = (string) ($company[$key] ?? '');
+        }
+        $out['billing_type'] = 'business';
+
+        $address = self::defaultAddress($companyId, true);
+
+        foreach (self::shippingKeys() as $key) {
+            $source = $address !== [] ? $address : $company;
+            $out['shipping_'.$key] = (string) ($source[$key] ?? '');
+        }
+        // Le sedi non hanno la ragione sociale: è quella dell'azienda.
+        if ($out['shipping_business_name'] === '') {
+            $out['shipping_business_name'] = (string) ($company['business_name'] ?? '');
+        }
+
+        return $out;
+    }
+
+    /**
+     * Una scheda (persona o azienda) non eliminata, o vuota.
+     *
+     * @param class-string<Contact|Company> $model
+     * @return array<string, mixed>
+     */
+    private static function alive(string $model, int $id): array
+    {
+        $row = $id > 0 ? $model::findById($id) : null;
+
+        return is_array($row) && isset($row['id']) && (string) ($row['deleted'] ?? 'false') !== 'true' ? $row : [];
     }
 
     /** Una bozza si elimina; un ordine confermato no, si annulla. */
@@ -523,7 +584,7 @@ final class OfficeOrders
         }
 
         Order::update([
-            'vat_collectability' => VatCollectability::forCustomer((int) ($order['customer_id'] ?? 0)),
+            'vat_collectability' => VatCollectability::forDocument($order),
             'products_total' => $totals['products_total'],
             'discount_total' => $totals['discount_total'],
             'shipping_total' => $totals['shipping_total'],
@@ -769,20 +830,35 @@ final class OfficeOrders
         }
 
         $customerId = (int) ($values['customer_id'] ?? 0);
+        $companyId = (int) ($values['company_id'] ?? 0);
         $defaults = [];
 
-        if ($customerId > 0) {
-            $contact = Contact::findById($customerId);
+        if ($companyId > 0) {
+            if (self::alive(Company::class, $companyId) === []) {
+                throw UserError::make('office_order.customer_unknown');
+            }
 
-            if (!is_array($contact) || $contact === [] || (string) ($contact['deleted'] ?? 'false') === 'true') {
+            // La persona vale solo se è un referente dell'azienda; senza, il principale.
+            $personId = array_key_exists('customer_id', $data) ? $customerId : DocumentReferents::defaultFor($companyId);
+            $values = DocumentReferents::resolve($companyId, $personId) + $values;
+            $customerId = (int) $values['customer_id'];
+            $defaults = self::customerDefaults($customerId, $companyId);
+        } elseif ($customerId > 0) {
+            if (self::alive(Contact::class, $customerId) === []) {
                 throw UserError::make('office_order.customer_unknown');
             }
 
             $defaults = self::customerDefaults($customerId);
-            // `user_id` è l'account del cliente sul sito, come per gli ordini
-            // online: così l'ordine compare nella sua area. L'operatore resta
-            // nello storico, mai qui (lo vedrebbe come suo).
-            $values['user_id'] = (int) ($contact['user_id'] ?? 0);
+            $values['referent_name'] = '';
+        } elseif (array_key_exists('company_id', $values) || array_key_exists('customer_id', $values)) {
+            $values['referent_name'] = '';
+        }
+
+        if ($companyId > 0 || $customerId > 0 || array_key_exists('customer_id', $values)) {
+            // `user_id` è l'account della persona sul sito, come per gli ordini
+            // online: così l'ordine compare nella sua area (con un'azienda, quella
+            // del referente). L'operatore resta nello storico, mai qui.
+            $values['user_id'] = (int) (self::alive(Contact::class, $customerId)['user_id'] ?? 0);
         }
 
         foreach (array_merge(
@@ -807,13 +883,6 @@ final class OfficeOrders
             if (trim((string) ($values[$key] ?? '')) === '' && isset($defaults[$key])) {
                 $values[$key] = $defaults[$key];
             }
-        }
-
-        // Il referente vale solo se è fra quelli dell'azienda; il nome si copia.
-        if (array_key_exists('referent_id', $values)) {
-            $values = DocumentReferents::resolve($customerId, (int) $values['referent_id']) + $values;
-        } elseif (!$update && isset($defaults['referent_id'])) {
-            $values = DocumentReferents::resolve($customerId, (int) $defaults['referent_id']) + $values;
         }
 
         // Coordinate vuote: NULL, non una stringa vuota in una colonna numerica.
@@ -919,10 +988,12 @@ final class OfficeOrders
     }
 
     /** @return array<string, mixed> */
-    private static function defaultAddress(int $contactId): array
+    private static function defaultAddress(int $ownerId, bool $company = false): array
     {
         try {
-            $rows = ContactAddress::find(['contact_id' => $contactId, 'deleted' => 'false'], null, 'position', 'ASC');
+            $rows = $company
+                ? CompanyAddress::find(['company_id' => $ownerId, 'deleted' => 'false'], null, 'position', 'ASC')
+                : ContactAddress::find(['contact_id' => $ownerId, 'deleted' => 'false'], null, 'position', 'ASC');
         } catch (Throwable) {
             return [];
         }

@@ -29,7 +29,9 @@ use Wonder\Plugin\Gestionale\Models\Promotions\CouponRedemption;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
 use Wonder\Plugin\Gestionale\Models\Shipping\Shipment;
 use Wonder\Plugin\Gestionale\Resources\Shipping\ShipmentResource;
+use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerKind;
 use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Documents\OrderProforma;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
@@ -124,7 +126,7 @@ final class OrderResource extends GestionaleResource
                 ->formatter(static fn (array $row): string => static::fulfillmentCell((string) ($row['fulfillment_type'] ?? ''))),
             TableColumn::key('customer')
                 ->text()
-                ->formatter(static fn (array $row): string => static::escape(static::customerName($row)))
+                ->formatter(static fn (array $row): string => static::escape(static::customerLabel($row)))
                 ->hiddenDevice('mobile'),
             TableColumn::key('total')->price()->size('little')->sortable(),
             TableColumn::key('ordered_at')
@@ -676,13 +678,23 @@ final class OrderResource extends GestionaleResource
         return str_replace('__ROW_ID__', $placeholder, $url);
     }
 
-    /** Il nome del cliente: un link alla sua scheda se l'ordine ne ha una, altrimenti solo il nome. */
+    /** Il nome del cliente: un link alla scheda dell'azienda o della persona, se l'ordine ne ha una. */
     protected static function customerLink(array $order): string
     {
         $nome = static::escape(static::customerName($order));
-        $url = static::customerUrl($order);
+        $url = static::companyUrl($order) ?: static::customerUrl($order);
+        $html = $url === '' ? $nome : '<a href="'.static::escape($url).'">'.$nome.'</a>';
+        $referente = static::referentOf($order);
 
-        return $url === '' ? $nome : '<a href="'.static::escape($url).'">'.$nome.'</a>';
+        if ($referente === '') {
+            return $html;
+        }
+
+        // Con l'azienda, `customer_id` è il referente: il link va alla sua scheda.
+        $rif = static::escape($referente);
+        $urlReferente = static::customerUrl($order);
+
+        return $html.' — rif. '.($urlReferente === '' ? $rif : '<a href="'.static::escape($urlReferente).'">'.$rif.'</a>');
     }
 
     /**
@@ -697,6 +709,11 @@ final class OrderResource extends GestionaleResource
             return $business;
         }
 
+        // Azienda senza snapshot (es. bozza): la ragione sociale dalla scheda.
+        if ((int) ($row['company_id'] ?? 0) > 0 && ($company = CustomerKind::name($row)) !== '') {
+            return $company;
+        }
+
         $name = trim(trim((string) ($row['billing_name'] ?? '')).' '.trim((string) ($row['billing_surname'] ?? '')));
 
         if ($name !== '') {
@@ -706,6 +723,26 @@ final class OrderResource extends GestionaleResource
         $email = trim((string) ($row['email'] ?? ''));
 
         return $email !== '' ? $email : '—';
+    }
+
+    /** Il cliente negli elenchi: «Rossi Abbigliamento — rif. Marco Rossi» se c'è un referente. */
+    public static function customerLabel(array $row): string
+    {
+        $referente = static::referentOf($row);
+
+        return static::customerName($row).($referente !== '' ? ' — rif. '.$referente : '');
+    }
+
+    /** Il referente dell'azienda sul documento (snapshot `referent_name`); vuoto senza azienda. */
+    public static function referentOf(array $row): string
+    {
+        if ((int) ($row['company_id'] ?? 0) <= 0) {
+            return '';
+        }
+
+        $referente = trim((string) ($row['referent_name'] ?? ''));
+
+        return $referente !== '' && $referente !== static::customerName($row) ? $referente : '';
     }
 
     /** Un importo all'italiana, con l'euro: `1.234,50 €`. */
@@ -778,6 +815,14 @@ final class OrderResource extends GestionaleResource
         $id = (int) ($order['customer_id'] ?? 0);
 
         return $id > 0 ? CustomerResource::viewUrl($id) : '';
+    }
+
+    /** L'indirizzo della scheda dell'azienda di un ordine; vuoto se l'ordine non ne ha una. */
+    public static function companyUrl(array $order): string
+    {
+        $id = (int) ($order['company_id'] ?? 0);
+
+        return $id > 0 ? CompanyResource::viewUrl($id) : '';
     }
 
     /** Il badge dello stato del pagamento, con «Prova» se i soldi non sono veri. */

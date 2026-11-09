@@ -210,6 +210,12 @@ return [
         'requires' => ['orders'],
         'release' => 'G6',
     ],
+    'company_accounts' => [
+        'name' => 'Account aziendali',
+        'description' => 'Sul sito la persona compra anche per le aziende a cui è collegata: ordine intestato all\'azienda, con i suoi dati di fatturazione, listino e condizioni. Gli amministratori dell\'azienda vedono ordini e abbonamenti di tutti.',
+        'area' => 'Clienti',
+        'requires' => ['online_sales'],
+    ],
     'office_sales' => [
         'name' => 'Vendita in ufficio',
         'description' => 'Gli ordini si fanno dal gestionale: coupon, campagne e metodi di pagamento valgono anche per l\'ufficio; le rate si seguono nello Scadenzario.',

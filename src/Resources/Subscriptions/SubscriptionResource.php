@@ -28,6 +28,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionModels;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\PlanPrice;
 use Wonder\Plugin\Gestionale\Models\Subscriptions\Subscription;
+use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderPaymentTableResource;
@@ -35,6 +36,7 @@ use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerKind;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Subscriptions\SubscriptionItems;
 
@@ -141,7 +143,7 @@ final class SubscriptionResource extends GestionaleResource
             TableColumn::key('code')->text()->link('view'),
             TableColumn::key('customer_id')
                 ->text()
-                ->formatter(static fn (array $row): string => static::escape(static::customerName((int) ($row['customer_id'] ?? 0)))),
+                ->formatter(static fn (array $row): string => static::escape(static::documentCustomer($row))),
             // Non è una colonna: il piano è quello della riga principale.
             TableColumn::key('plan')
                 ->text()
@@ -353,10 +355,15 @@ final class SubscriptionResource extends GestionaleResource
             ->html($html)
             ->columnSpan(['default' => 12, 'sm' => 4]);
         $customerId = (int) ($row['customer_id'] ?? 0);
-        $cliente = $customerId > 0 ? (static::rowsOf(Contact::class, ['id' => $customerId])[0] ?? []) : [];
-        $link = $customerId > 0
-            ? '<a href="'.static::escape(CustomerResource::viewUrl($customerId)).'">'.static::escape(static::customerName($customerId)).'</a>'
-            : '';
+        $companyId = (int) ($row['company_id'] ?? 0);
+        // Con l'azienda il cliente è lei, e il referente si mostra accanto.
+        $cliente = CustomerKind::record($row);
+        $link = match (true) {
+            $companyId > 0 => '<a href="'.static::escape(CompanyResource::viewUrl($companyId)).'">'.static::escape(static::documentCustomer($row)).'</a>'
+                .($customerId > 0 ? ' · <a href="'.static::escape(CustomerResource::viewUrl($customerId)).'">'.static::escape(static::customerName($customerId)).'</a>' : ''),
+            $customerId > 0 => '<a href="'.static::escape(CustomerResource::viewUrl($customerId)).'">'.static::escape(static::customerName($customerId)).'</a>',
+            default => '',
+        };
         $metodo = (int) ($row['payment_method_id'] ?? 0);
         $nota = trim((string) ($row['note'] ?? ''));
 
@@ -704,6 +711,18 @@ final class SubscriptionResource extends GestionaleResource
             'cron' => 'Automatico',
             'system' => 'Sistema',
         ][$source] ?? $source;
+    }
+
+    /** Il cliente del documento: l'azienda se c'è, altrimenti la persona. @param array<string, mixed> $row */
+    protected static function documentCustomer(array $row): string
+    {
+        if ((int) ($row['company_id'] ?? 0) > 0) {
+            $name = CustomerKind::name($row);
+
+            return $name !== '' ? $name : '#'.(int) $row['company_id'];
+        }
+
+        return static::customerName((int) ($row['customer_id'] ?? 0));
     }
 
     protected static function customerName(int $customerId): string

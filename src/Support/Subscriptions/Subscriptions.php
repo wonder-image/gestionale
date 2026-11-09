@@ -67,16 +67,19 @@ final class Subscriptions
      *
      * @throws UserError
      */
-    public static function assertRoom(int $customerId): void
+    public static function assertRoom(int $customerId, int $companyId = 0): void
     {
         $limit = self::perCustomer();
 
-        if ($limit === 0 || $customerId <= 0) {
+        if ($limit === 0 || ($customerId <= 0 && $companyId <= 0)) {
             return;
         }
 
+        // Con l'azienda il cliente è lei: contano i suoi abbonamenti, non quelli del referente.
+        $owner = $companyId > 0 ? '`company_id` = '.$companyId : '`customer_id` = '.$customerId.' AND `company_id` = 0';
+
         $rows = self::rows(Subscription::find(
-            '`customer_id` = '.$customerId." AND `status` IN ('".implode("','", [...Subscription::LIVE, 'pending'])."') AND `deleted` = 'false'",
+            $owner." AND `status` IN ('".implode("','", [...Subscription::LIVE, 'pending'])."') AND `deleted` = 'false'",
             null,
             'id',
             'DESC'

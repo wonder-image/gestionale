@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Models\Stock\StockAlert;
@@ -47,7 +48,7 @@ $conta = static function (string $model): int {
 /** Le tabelle che la prova tocca, contate prima e dopo l'annullamento. */
 $tabelle = static fn (): array => array_map($conta, [
     ProductModel::class, ProductVariant::class, Product::class, ProductImage::class,
-    StockAlert::class, Contact::class, ContactAddress::class,
+    StockAlert::class, Company::class, Contact::class, ContactAddress::class,
 ]);
 
 $prima = $tabelle();
@@ -214,8 +215,7 @@ check('con l\'opzione tolta se ne vanno anche il suo avviso di scorta e la sua f
 }));
 
 check('con l\'opzione tolta se ne vanno anche i suoi fornitori', fn () => annullando(function (): bool {
-    $fornitore = (int) (Contact::create([
-        'type' => 'business',
+    $fornitore = (int) (Company::create([
         'business_name' => 'Prova Fornitore Eliminazioni Srl',
         'country' => 'IT',
         'is_customer' => 'false',
@@ -264,8 +264,8 @@ check('un\'opzione tolta dalla griglia con dei movimenti ferma ancora l\'elimina
 function schedaConIndirizzi(): array
 {
     $creato = Contact::create([
-        'type' => 'business',
-        'business_name' => 'Prova Eliminazione Srl',
+        'name' => 'Prova',
+        'surname' => 'Eliminazione',
         'country' => 'IT',
         'is_customer' => 'true',
         'active' => 'true',

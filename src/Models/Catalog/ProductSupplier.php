@@ -5,7 +5,7 @@ namespace Wonder\Plugin\Gestionale\Models\Catalog;
 use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Support\Columns;
 use Wonder\Sql\TableSchema as Column;
 
@@ -42,7 +42,7 @@ final class ProductSupplier extends Model
     {
         return [
             Column::key('product_id')->int()->null(false)->foreign(Product::$table),
-            Column::key('supplier_id')->int()->null(false)->foreign(Contact::$table),
+            Column::key('supplier_id')->int()->null(false)->foreign(Company::$table),
             Column::key('supplier_sku')->length(100),
             // Quattro decimali come il costo dei movimenti; nella scheda se ne
             // scrivono due.

@@ -7,7 +7,7 @@ use RuntimeException;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSupplier;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Stock\Stock as StockRow;
 use Wonder\Plugin\Gestionale\Models\Locations\Location;
 use Wonder\Plugin\Gestionale\Models\Stock\StockDocument;
@@ -383,7 +383,7 @@ final class StockDocuments
             $locationId = (int) $document['location_id'];
             $supplierId = (int) ($document['supplier_id'] ?? 0);
             $supplierAlive = $purchase && $supplierId > 0
-                && self::rows(Contact::find(['id' => $supplierId, 'is_supplier' => 'true', 'deleted' => 'false'], 1)) !== [];
+                && self::rows(Company::find(['id' => $supplierId, 'is_supplier' => 'true', 'deleted' => 'false'], 1)) !== [];
 
             $from = self::isStockLocation($locationId) ? $locationId : 0;
             $to = (int) ($document['to_location_id'] ?? 0);
@@ -747,7 +747,7 @@ final class StockDocuments
         $fields = StockDocumentRules::supplierHeader(array_intersect_key($header, array_flip($keys)) + $stored);
 
         if ($fields['supplier_id'] > 0
-            && self::rows(Contact::find(['id' => $fields['supplier_id'], 'is_supplier' => 'true', 'deleted' => 'false'], 1)) === []) {
+            && self::rows(Company::find(['id' => $fields['supplier_id'], 'is_supplier' => 'true', 'deleted' => 'false'], 1)) === []) {
             throw UserError::make('stock_document.supplier_unknown');
         }
 

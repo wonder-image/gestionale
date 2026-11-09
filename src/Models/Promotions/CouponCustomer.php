@@ -26,7 +26,8 @@ final class CouponCustomer extends Model
     {
         return [
             Column::key('coupon_id')->int()->null(false)->foreign(Coupon::$table),
-            Column::key('customer_id')->int()->null(false),
+            Column::key('customer_id')->int()->default(0),
+            Column::key('company_id')->int()->default(0),
         ];
     }
 
@@ -35,6 +36,7 @@ final class CouponCustomer extends Model
         return [
             'ind_coupon' => ['index' => 'coupon_id'],
             'ind_customer' => ['index' => 'customer_id'],
+            'ind_company' => ['index' => 'company_id'],
         ];
     }
 
@@ -43,6 +45,7 @@ final class CouponCustomer extends Model
         return [
             Field::key('coupon_id')->number()->decimals(0),
             Field::key('customer_id')->number()->decimals(0),
+            Field::key('company_id')->number()->decimals(0),
         ];
     }
 }
