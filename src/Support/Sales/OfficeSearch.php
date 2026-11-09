@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Sales;
 
 use Wonder\App\Visibility\RowVisibility;
+use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
@@ -88,7 +89,9 @@ final class OfficeSearch
      * L'`id` di ogni risultato è la chiave composta del cliente:
      * `contact:12` per una persona, `company:7` per un'azienda (vedi
      * `customerKey()`). Le aziende si cercano su ragione sociale, P.IVA, CF
-     * ed email; il dettaglio le distingue con «Azienda · P.IVA …».
+     * ed email; il dettaglio le distingue con «Azienda · P.IVA …». Le persone
+     * legate a un'azienda cliente compaiono anche come «Persona — Azienda»
+     * (`company:7:12`): sceglierle apre l'azienda con quel referente.
      *
      * @return list<array{id: string, kind: string, label: string, detail: string}>
      */
@@ -114,6 +117,8 @@ final class OfficeSearch
             'detail' => trim(implode(' · ', array_filter([(string) ($row['email'] ?? ''), (string) ($row['city'] ?? '')]))),
         ], self::rows(Contact::class, $words, ['name', 'surname', 'email', 'cf']));
 
+        $people = [...self::referents($words), ...$people];
+
         // Metà posti a testa; quelli che una parte non usa vanno all'altra.
         $half = intdiv(self::CUSTOMER_LIMIT, 2);
         $companies = array_slice($companies, 0, max($half, self::CUSTOMER_LIMIT - count($people)));
@@ -121,11 +126,73 @@ final class OfficeSearch
         return array_slice([...$companies, ...$people], 0, self::CUSTOMER_LIMIT);
     }
 
-    /** La chiave composta del cliente: `company:N` se c'è l'azienda, altrimenti `contact:N`. */
-    public static function customerKey(int $contactId, int $companyId): string
+    /**
+     * Le persone che contengono le parole, una riga per ogni azienda cliente
+     * (attiva e visibile) a cui sono legate. La persona non deve essere cliente.
+     *
+     * @param list<string> $words
+     * @return list<array{id: string, kind: string, label: string, detail: string}>
+     */
+    private static function referents(array $words): array
+    {
+        if (!ContactRelations::enabled()) {
+            return [];
+        }
+
+        $persons = self::rows(Contact::class, $words, ['name', 'surname', 'email'], false);
+        $links = [];
+
+        foreach ($persons as $person) {
+            foreach (ContactRelations::companiesOf((int) $person['id']) as $link) {
+                if (($link['deleted'] ?? 'false') === 'true') {
+                    continue;
+                }
+
+                $links[] = [$person, (int) ($link['company_id'] ?? 0)];
+            }
+        }
+
+        $ids = array_values(array_unique(array_filter(array_column($links, 1))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $where = "`id` IN (".implode(', ', $ids).") AND `deleted` = 'false' AND `is_customer` = 'true' AND `active` = 'true'";
+        $companies = [];
+
+        foreach (self::list(Company::find(RowVisibility::applySql(Company::$table, $where, RowVisibility::currentUser()))) as $company) {
+            $companies[(int) $company['id']] = $company;
+        }
+
+        $out = [];
+
+        foreach ($links as [$person, $companyId]) {
+            if (!isset($companies[$companyId])) {
+                continue;
+            }
+
+            $business = trim((string) ($companies[$companyId]['business_name'] ?? '')) ?: 'Azienda #'.$companyId;
+            $out[] = [
+                'id' => self::customerKey((int) $person['id'], $companyId, true),
+                'kind' => 'company',
+                'label' => Contacts::displayName($person).' — '.$business,
+                'detail' => implode(' · ', array_filter(['Referente', trim((string) ($person['email'] ?? ''))])),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * La chiave composta del cliente: `company:N` se c'è l'azienda, altrimenti
+     * `contact:N`. Con `$withReferent` l'azienda porta anche la persona
+     * (`company:N:P`).
+     */
+    public static function customerKey(int $contactId, int $companyId, bool $withReferent = false): string
     {
         if ($companyId > 0) {
-            return 'company:'.$companyId;
+            return 'company:'.$companyId.($withReferent && $contactId > 0 ? ':'.$contactId : '');
         }
 
         return $contactId > 0 ? 'contact:'.$contactId : '';
@@ -133,7 +200,8 @@ final class OfficeSearch
 
     /**
      * Da chiave composta a `[contact_id, company_id]`. Un numero da solo è una
-     * persona (le ricerche di prima); una chiave non valida dà `[0, 0]`.
+     * persona (le ricerche di prima); `company:N:P` dà anche il referente P;
+     * una chiave non valida dà `[0, 0]`.
      *
      * @return array{0: int, 1: int}
      */
@@ -141,8 +209,12 @@ final class OfficeSearch
     {
         $key = trim($key);
 
-        if (preg_match('/^(contact|company):(\d+)$/', $key, $m) === 1) {
-            return $m[1] === 'company' ? [0, (int) $m[2]] : [(int) $m[2], 0];
+        if (preg_match('/^company:(\d+)(?::(\d+))?$/', $key, $m) === 1) {
+            return [(int) ($m[2] ?? 0), (int) $m[1]];
+        }
+
+        if (preg_match('/^contact:(\d+)$/', $key, $m) === 1) {
+            return [(int) $m[1], 0];
         }
 
         return ctype_digit($key) ? [(int) $key, 0] : [0, 0];
@@ -175,17 +247,25 @@ final class OfficeSearch
      * @param list<string> $columns
      * @return list<array<string, mixed>>
      */
-    private static function rows(string $model, array $words, array $columns): array
+    private static function rows(string $model, array $words, array $columns, bool $customers = true): array
     {
-        $conditions = ["`deleted` = 'false'", "`is_customer` = 'true'", "`active` = 'true'"];
+        $conditions = $customers ? ["`deleted` = 'false'", "`is_customer` = 'true'", "`active` = 'true'"] : ["`deleted` = 'false'"];
 
         foreach ($words as $word) {
             $like = "'%".addcslashes($model::connection()->real_escape_string($word), '%_')."%'";
             $conditions[] = '('.implode(' OR ', array_map(static fn (string $c): string => '`'.$c.'` LIKE '.$like, $columns)).')';
         }
 
-        $rows = $model::find(RowVisibility::applySql($model::$table, implode(' AND ', $conditions), RowVisibility::currentUser()), self::CUSTOMER_LIMIT, 'id', 'DESC');
+        // Le persone dei referenti non filtrano per visibilità: conta quella dell'azienda.
+        $where = implode(' AND ', $conditions);
+        $where = $customers ? RowVisibility::applySql($model::$table, $where, RowVisibility::currentUser()) : $where;
 
+        return self::list($model::find($where, self::CUSTOMER_LIMIT, 'id', 'DESC'));
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function list(mixed $rows): array
+    {
         return is_array($rows) ? (isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'))) : [];
     }
 

@@ -20,17 +20,22 @@ commerciale.
 
 ## Aggiungere un commerciale
 
-1. In **Utenti** crea l'utente con il ruolo **Commerciale**. È l'accesso con
-   cui entra nel pannello.
-2. In **Anagrafiche → Commerciali** premi **Nuovo commerciale** e scegli
-   l'utente. Puoi collegare la sua **scheda anagrafica** (un contatto), utile
-   domani per le provvigioni.
+1. In **Anagrafiche → Commerciali** premi **Nuovo commerciale** e scrivi
+   **nome**, **cognome** ed **email**. Al salvataggio nasce il suo utente con
+   il ruolo **Commerciale**, e gli arriva una mail per scegliere la password ed
+   entrare nel pannello. Se la mail non arriva, può usare «Password
+   dimenticata».
+2. Puoi collegare la sua **scheda anagrafica** (un contatto), utile domani per
+   le provvigioni.
 3. **Provvigione %** e **Sconto massimo %** compaiono solo quando attivi le
    funzionalità *Provvigioni* e *Sconto massimo dei commerciali*.
 
-Ogni utente ha una sola scheda da commerciale. Un utente con il ruolo
-Commerciale ma senza scheda attiva entra nel pannello e non vede nessun
-cliente.
+Ogni utente ha una sola scheda da commerciale: in modifica l'utente si vede ma
+non si cambia. Se l'email è già di un commerciale con la sua scheda, il
+salvataggio si ferma e te lo dice; se è di un utente con un altro ruolo (per
+esempio un operatore d'ufficio), si ferma anche lì: cambia il ruolo da
+**Utenti** o usa un'altra email. Un utente con il ruolo Commerciale ma senza
+scheda attiva entra nel pannello e non vede nessun cliente.
 
 > Se all'utente dai anche il ruolo **Vendite**, torna un operatore d'ufficio e
 > vede tutto.

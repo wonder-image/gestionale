@@ -15,7 +15,16 @@ ha `sales_agent` e **nessun** ruolo d'ufficio (`SalesAgents::OFFICE`: `admin`,
 Il perimetro è la riga di `gst_sales_agents` con il suo `user_id`, attiva e non
 eliminata (`idOf()`, in cache per richiesta; `forget()` la svuota dopo un
 salvataggio e nei test). Un utente per scheda: lo controlla
-`SalesAgentResource::mutateRequestValues`. Senza scheda attiva il commerciale
+`SalesAgentResource::mutateRequestValues`.
+
+L'utente nasce dalla pagina «Nuovo commerciale»: il form in creazione ha
+`user_name`, `user_surname`, `user_email` (non sono colonne, si tolgono prima
+del salvataggio) e `SalesAgentUsers::create()` chiama `user()` di app col ruolo
+`sales_agent` nell'area `backend`, poi `Wonder\Backend\Support\WelcomeMail::send()`
+(link `password_set`, la mail non blocca). Un'email già di un commerciale senza
+scheda si riusa; con scheda dà `sales_agent.user_taken`, con un altro ruolo
+`sales_agent.user_other_role`. In modifica `user_id` è disabilitato e la
+Resource lo scarta: l'utente non si cambia. Senza scheda attiva il commerciale
 non vede nulla (`RowVisibility::none()`).
 
 ## Le regole
@@ -102,6 +111,8 @@ quello corrente: la forma resta la stessa, cambia `agent_id = N` in
 
 ## Test
 
+- `tests/QuickContactsTest.php` — controlli di `SalesAgentUsers::create()`
+  prima del database.
 - `tests/SalesAgentsTest.php` — ruolo, `restricted`, SQL delle regole,
   `none()` senza scheda, `withoutAgents`, `forDocument`.
 - `tests/integrazione/SalesAgentsTest.php` — visibilità reale di contatti,

@@ -88,7 +88,9 @@ In alto le **statistiche** e, a destra, i **dati di fatturazione** (codice
 fiscale, e per un'azienda partita IVA, SDI e PEC, più l'indirizzo). Sotto, **tutti
 i suoi dati** — nome o ragione sociale, ruolo, stato, email, telefono, accesso al
 sito (solo per le persone) e note — e gli **indirizzi di consegna**. La scheda di
-un'azienda elenca anche i suoi **referenti**. Poi gli ordini, il carrello, gli
+un'azienda elenca anche i suoi **referenti**, quella di una persona le **aziende**
+per cui è referente: il nome apre la loro scheda, sotto c'è la mansione e se è il
+principale o riceve i documenti. Poi gli ordini, il carrello, gli
 **abbonamenti** (con la funzionalità *Abbonamenti*) e, in fondo, i coupon.
 
 ## La scheda del fornitore
@@ -106,15 +108,20 @@ nel form di una **persona** il riquadro **Aziende** elenca le aziende per cui
 lavora. La stessa persona può essere referente di più aziende ed è sempre
 **una scheda sola**, con un solo accesso al sito.
 
-Per ogni referente scegli la sua scheda, oppure scrivi nome, cognome ed email
-di una persona nuova: la scheda nasce da sola, senza essere né cliente né
-fornitore. Poi:
+Per ogni riga scegli la scheda dalla tendina, come per le categorie e i tag dei
+prodotti. Se non c'è, sotto al riquadro c'è **Nuovo referente** (o **Nuova
+azienda** nel form di una persona): scrivi nome, cognome ed email (o ragione
+sociale e partita IVA), e la scheda nasce e si seleziona da sola. Prima di
+crearla si controlla che non esista già: con la stessa **email** o la stessa
+**partita IVA** si seleziona quella che c'è, senza doppioni. Il referente nuovo
+non è né cliente né fornitore; l'azienda nuova è cliente. Funziona anche quando
+crei un cliente o un'azienda nuovi. Poi:
 
 - **Mansione** — per esempio *Acquisti* o *Amministrazione*;
 - **Referente principale** — è il referente proposto quando fai un preventivo,
   un ordine da ufficio o un DDT per quell'azienda;
-- **Riceve i documenti** — solo chi ha questa risposta si può scegliere sui
-  documenti e riceve in copia le loro email.
+- **Riceve i documenti** — chi ha questa risposta riceve in copia le email dei
+  documenti. Sui documenti si può scegliere qualsiasi referente.
 
 Nell'elenco dei clienti il filtro **Referenti** mostra solo queste persone o le
 nasconde, e la colonna **Referenti / aziende** dice chi è legato a chi; lo dice

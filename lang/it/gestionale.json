@@ -10,7 +10,19 @@
             "column": "Referenti / aziende",
             "referent_badge": "Referente",
             "export_people": "Referenti",
-            "export_companies": "Aziende"
+            "export_companies": "Aziende",
+            "quick_person": "Nuovo referente",
+            "quick_company": "Nuova azienda",
+            "quick_help": "Se c'è già una scheda con la stessa email o partita IVA, si seleziona quella invece di crearne un'altra.",
+            "quick_cancel": "Annulla",
+            "quick_save": "Crea e seleziona",
+            "quick_fields": {
+                "name": "Nome",
+                "surname": "Cognome",
+                "email": "Email",
+                "business_name": "Ragione sociale",
+                "pi": "Partita IVA"
+            }
         }
     },
     "errors": {
@@ -286,6 +298,10 @@
             "user_required": "Scegli l'utente del commerciale: senza utente non entra nel pannello.",
             "user_not_agent": "L'utente scelto non ha il ruolo «Commerciale»: daglielo da Utenti, poi riprova.",
             "user_taken": "Questo utente è già un commerciale: modifica quella scheda.",
+            "user_fields": "Scrivi almeno nome ed email del commerciale.",
+            "user_email": "L'email del commerciale non è valida.",
+            "user_other_role": "C'è già un utente con questa email ma con un altro ruolo: cambialo da Utenti oppure usa un'altra email.",
+            "user_not_created": "Non sono riuscito a creare l'utente del commerciale: controlla che email e username non siano già usati.",
             "invalid_percent": "{{field}} va da 0 a 100."
         },
         "payment_term": {

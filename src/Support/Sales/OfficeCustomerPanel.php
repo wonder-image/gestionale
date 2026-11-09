@@ -12,8 +12,6 @@ use Wonder\Elements\Components\Choice;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\DataItem;
 use Wonder\Elements\Components\Modal;
-use Throwable;
-use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
@@ -130,11 +128,11 @@ final class OfficeCustomerPanel
                 'id' => $r['id'],
                 'label' => $r['name'].($r['job_title'] !== '' ? ' — '.$r['job_title'] : ''),
                 'is_primary' => $r['is_primary'],
-            ], DocumentReferents::options($companyId)),
+            ], DocumentReferents::people($companyId)),
             'html' => [
                 'contacts' => self::contactsHtml($company),
                 'billing' => self::companyBillingHtml($company),
-                'addresses' => self::companyAddressesHtml($addresses, $companyId),
+                'addresses' => self::addressesHtml($addresses),
             ],
         ];
     }
@@ -180,43 +178,6 @@ final class OfficeCustomerPanel
             DataItem::make('Ragione sociale', $ragione !== '' ? $ragione : '—')->columnSpan(12),
             ...$items,
         ]));
-    }
-
-    /**
-     * Le sedi di consegna dell'azienda, solo a spunta: si aggiungono e si
-     * cambiano dalla scheda dell'azienda, che «Modifica azienda» apre in una
-     * nuova scheda del browser.
-     *
-     * @param list<array<string, mixed>> $addresses
-     */
-    public static function companyAddressesHtml(array $addresses, int $companyId): string
-    {
-        $html = '';
-
-        foreach ($addresses as $address) {
-            $etichetta = trim((string) ($address['label'] ?? ''));
-            $predefinito = (string) ($address['is_default'] ?? '') === 'true';
-
-            $html .= Choice::make('oo_address', (int) ($address['id'] ?? 0))
-                ->type('checkbox')
-                ->title(($etichetta !== '' ? $etichetta : 'Indirizzo').($predefinito ? ' · Predefinito' : ''))
-                ->text(self::line($address))
-                ->render('bootstrap');
-        }
-
-        $html .= '<p class="text-muted small mb-2">'.OrderSheet::esc($addresses === []
-            ? CustomerSheet::noDelivery()
-            : 'Senza spunta si spedisce all\'indirizzo di fatturazione. Le sedi si cambiano dalla scheda dell\'azienda.').'</p>';
-
-        return '<div class="d-grid gap-2">'.$html.'</div>'
-            .'<div class="mt-2">'.Button::to(CompanyResource::editUrlFor($companyId), 'Modifica azienda')
-                ->type('a')
-                ->blank()
-                ->icon('bi bi-box-arrow-up-right')
-                ->variant('secondary')
-                ->outline()
-                ->size('sm')
-                ->render('bootstrap').'</div>';
     }
 
     /**
@@ -271,8 +232,7 @@ final class OfficeCustomerPanel
      * Resource, preparazione della tabella, `afterUpdate`), `save` e `delete`
      * dagli indirizzi della scheda.
      *
-     * Con `$companyId` si salva la scheda dell'azienda; le sue sedi da qui
-     * non si cambiano.
+     * Con `$companyId` si salva la scheda dell'azienda, sedi comprese.
      *
      * @param array<string, mixed> $post
      * @return array{ok: bool, message: string, id?: int}
@@ -333,14 +293,14 @@ final class OfficeCustomerPanel
             return ['ok' => false, 'message' => 'Azione non riconosciuta.'];
         }
 
-        if ($keys === []) {
-            return ['ok' => false, 'message' => 'Le sedi di un\'azienda si cambiano dalla sua scheda.'];
-        }
-
         $old = self::company($companyId);
 
         if ($old === null) {
             return ['ok' => false, 'message' => 'Azienda non trovata.'];
+        }
+
+        if ($keys === []) {
+            return ContactAddressResource::run($action, $companyId, (int) ($post['address_id'] ?? 0), $post, ContactAddressResource::OWNER_COMPANY);
         }
 
         $values = [];
@@ -502,18 +462,7 @@ final class OfficeCustomerPanel
      */
     private static function companyAddresses(int $companyId): array
     {
-        try {
-            $rows = CompanyAddress::find(['company_id' => $companyId, 'deleted' => 'false'], null, 'position', 'ASC');
-        } catch (Throwable) {
-            return [];
-        }
-
-        $rows = is_array($rows) ? (isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'))) : [];
-
-        usort($rows, static fn (array $a, array $b): int => [(string) ($b['is_default'] ?? '') === 'true', (int) ($a['position'] ?? 0)]
-            <=> [(string) ($a['is_default'] ?? '') === 'true', (int) ($b['position'] ?? 0)]);
-
-        return $rows;
+        return ContactAddressResource::addressesOf($companyId, ContactAddressResource::OWNER_COMPANY);
     }
 
     /**

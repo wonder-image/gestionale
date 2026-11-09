@@ -61,24 +61,27 @@ check('la chiave composta del cliente: persona, azienda, numero da solo', functi
         && OfficeSearch::parseCustomerKey('contact:12') === [12, 0]
         && OfficeSearch::parseCustomerKey('company:7') === [0, 7]
         && OfficeSearch::parseCustomerKey(' 15 ') === [15, 0]
+        && OfficeSearch::customerKey(3, 7, true) === 'company:7:3'
+        && OfficeSearch::customerKey(0, 7, true) === 'company:7'
+        && OfficeSearch::parseCustomerKey('company:7:3') === [3, 7]
+        && OfficeSearch::parseCustomerKey('contact:12:3') === [0, 0]
         && OfficeSearch::parseCustomerKey('company:x') === [0, 0]
         && OfficeSearch::parseCustomerKey('') === [0, 0]
         && OfficeSearch::companyDetail(['pi' => '01234567890', 'email' => 'a@b.it', 'city' => '']) === 'Azienda · P.IVA 01234567890 · a@b.it'
         && OfficeSearch::companyDetail([]) === 'Azienda';
 });
 
-check('un\'azienda cliente: ragione sociale e P.IVA in fatturazione, sedi solo a spunta, «Modifica azienda» in un\'altra scheda', function () {
-    $sedi = OfficeCustomerPanel::companyAddressesHtml([['id' => 4, 'label' => 'Magazzino', 'is_default' => 'true', 'street' => 'Via Roma', 'number' => '1', 'city' => 'Milano']], 7);
+check('un\'azienda cliente: ragione sociale e P.IVA in fatturazione, sedi gestite come per i privati, senza «Modifica azienda»', function () {
+    $sedi = OfficeCustomerPanel::addressesHtml([['id' => 4, 'label' => 'Magazzino', 'is_default' => 'true', 'street' => 'Via Roma', 'number' => '1', 'city' => 'Milano']]);
     $fatturazione = OfficeCustomerPanel::companyBillingHtml(['business_name' => 'Rossi srl', 'pi' => '01234567890', 'cf' => '01234567890', 'sdi' => 'ABC1234', 'pec' => 'rossi@pec.it']);
 
     return str_contains($sedi, 'name="oo_address" value="4"') && str_contains($sedi, 'Magazzino · Predefinito')
-        && !str_contains($sedi, 'data-wi-oo-address-delete') && !str_contains($sedi, 'Aggiungi indirizzo')
-        && preg_match('/<a href="[^"]*aziende\/7\/edit\/"[^>]*target="_blank"[^>]*>.*Modifica azienda/', $sedi) === 1
+        && str_contains($sedi, 'data-wi-oo-address-delete') && !str_contains($sedi, 'Modifica azienda')
         && str_contains($fatturazione, 'Ragione sociale') && str_contains($fatturazione, 'Rossi srl')
         && str_contains($fatturazione, '01234567890') && str_contains($fatturazione, 'ABC1234') && str_contains($fatturazione, 'rossi@pec.it');
 });
 
-check('con le relazioni accese, il Referente dell\'azienda: chi riceve i documenti, scelto quello del documento, nascosto senza azienda', function () use ($bozza, $pagina) {
+check('con le relazioni accese, il Referente dell\'azienda: tutte le sue persone, scelto quello del documento, nascosto senza azienda', function () use ($bozza, $pagina) {
     ContactRelations::useEnabled(true);
     DocumentReferents::useReader(static fn (int $companyId): array => [
         ['contact_id' => 3, 'receives_documents' => 'true', 'is_primary' => 'true', 'job_title' => 'Acquisti', 'contact' => ['id' => 3, 'name' => 'Anna', 'surname' => 'Bianchi']],
@@ -96,7 +99,7 @@ check('con le relazioni accese, il Referente dell\'azienda: chi riceve i documen
     return $select !== ''
         && str_contains($select, 'data-wi-oo-field="referent"')
         && preg_match('/<option[^>]*value="3"[^>]*selected/', $select) === 1
-        && str_contains($select, 'Acquisti') && !str_contains($select, 'value="5"')
+        && str_contains($select, 'Acquisti') && str_contains($select, 'value="5"')
         && str_contains($html, 'company_id') && preg_match('/data-[a-z-]*hidden[a-z-]*=/', $html) === 1;
 });
 

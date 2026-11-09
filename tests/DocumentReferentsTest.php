@@ -80,9 +80,13 @@ check('un referente valido si copia con il suo nome', fn () =>
     DocumentReferents::resolve(10, 2) === ['customer_id' => 2, 'referent_name' => 'Cognome2 Nome2']
 );
 
-check('un referente che non riceve i documenti, cancellato o di un\'altra azienda diventa nessuno', fn () =>
-    DocumentReferents::resolve(10, 3) === ['customer_id' => 0, 'referent_name' => '']
-    && DocumentReferents::resolve(10, 4) === ['customer_id' => 0, 'referent_name' => '']
+check('fra le persone dell\'azienda c\'è anche chi non riceve i documenti', fn () =>
+    array_column(DocumentReferents::people(10), 'id') === [1, 2, 3]
+    && DocumentReferents::resolve(10, 3) === ['customer_id' => 3, 'referent_name' => 'Cognome3 Nome3']
+);
+
+check('un referente cancellato o di un\'altra azienda diventa nessuno', fn () =>
+    DocumentReferents::resolve(10, 4) === ['customer_id' => 0, 'referent_name' => '']
     && DocumentReferents::resolve(11, 1) === ['customer_id' => 0, 'referent_name' => '']
     && DocumentReferents::resolve(10, 0) === ['customer_id' => 0, 'referent_name' => '']
 );

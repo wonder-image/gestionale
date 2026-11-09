@@ -43,6 +43,25 @@ versionamento semantico.
   con `ContactRelations`.
 
 ### Cambiato
+- **Anagrafiche: ritocchi dopo la prova (#77).**
+  - Nei riquadri *Referenti* e *Aziende* la scheda si sceglie dalla tendina;
+    **Nuovo referente** / **Nuova azienda** la crea in una finestra
+    (`QuickContacts`, `POST /anagrafiche/nuova/`, rotta `contacts.quick_create`)
+    e la seleziona. Prima cerca il doppione per email o partita IVA e, se chi
+    scrive lo vede, seleziona quello. Vale anche sul form di creazione.
+  - La scheda di un'azienda elenca i referenti e quella di una persona le
+    aziende, con link alla loro scheda (`CustomerSheet::relations()`).
+  - Ordini da ufficio e preventivi: la ricerca del cliente trova anche i
+    referenti («Persona — Azienda», `company:<azienda>:<persona>`); il
+    referente si sceglie fra tutte le persone dell'azienda
+    (`DocumentReferents::people()`), le copie email restano a chi riceve i
+    documenti. Le sedi dell'azienda si gestiscono come gli indirizzi di una
+    persona; tolto «Modifica azienda».
+  - *Nuovo commerciale* crea l'utente: nome, cognome ed email, ruolo
+    `sales_agent`, mail di benvenuto (`SalesAgentUsers`, `WelcomeMail` di
+    app). In modifica l'utente non si cambia. Nuovi errori
+    `sales_agent.user_fields`, `user_email`, `user_other_role`,
+    `user_not_created`.
 - **Persone e aziende separate (#77).** Le aziende hanno la loro scheda
   (`companies` di customer-account, menu «Aziende», `CompanyResource`) e i
   fornitori sono sempre aziende; le persone non hanno più *Privato / azienda*.

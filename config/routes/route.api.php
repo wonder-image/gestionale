@@ -58,4 +58,7 @@ Route::area('api')->response('json')->backend()->translatable(false)->csrf()
             ->name('sales.customer_save')->guarded()->permit(Access::roles(Gestionale::area('vendite'), 'create'));
         Route::post('/vendite/spedizione/', Gestionale::handlerPath('api/sales/shipping-quote.php'))
             ->name('sales.shipping_quote')->guarded()->permit(Access::roles(Gestionale::area('vendite'), 'create'));
+        // #77: la scheda creata al volo dal form dei legami (referente o azienda).
+        Route::post('/anagrafiche/nuova/', Gestionale::handlerPath('api/contacts/quick-create.php'))
+            ->name('contacts.quick_create')->guarded()->permit(Access::roles(Gestionale::area('contatti'), 'create'));
     });

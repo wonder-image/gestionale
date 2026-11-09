@@ -179,6 +179,10 @@ o l'area cliente del sito gli mostrerebbe gli ordini dell'ufficio.
   (`Shipments::remaining()`): `quantity` scende, `quantity_cancelled` sale, la
   merce rientra con `Allocation::restore()`, i totali si rifanno con i prezzi
   scritti e le rate con `Installments::recalculate()`. Tutto = `Lifecycle::cancel()`.
+- `OfficeSearch` trova anche i referenti di un'azienda cliente: la riga
+  `company:<azienda>:<persona>` apre l'azienda con quel referente. Le sedi
+  dell'azienda passano da `ContactAddressResource` con `OWNER_COMPANY`, come
+  gli indirizzi di una persona.
 - `OfficeCustomerPanel` legge e modifica solo schede cliente
   (`CustomerResource::roleColumn()`): un fornitore dà un payload vuoto e
   `ok => false` su contatti, fatturazione e indirizzi.
@@ -282,8 +286,10 @@ Listino e IVA seguono l'azienda quando c'è: `PriceLists::forDocument()` /
 
 Tutto passa da `Support\Contacts\DocumentReferents`:
 
-- `options($companyId)` legge `ContactRelations::peopleOf()` e tiene solo i
-  legami vivi, con la persona viva, che hanno `receives_documents`;
+- `people($companyId)` legge `ContactRelations::peopleOf()` e tiene i legami
+  vivi con la persona viva: fra questi si sceglie il referente;
+- `options($companyId)` tiene in più solo chi ha `receives_documents`: sono le
+  copie delle email;
 - `defaultFor($companyId)` propone il principale (`is_primary`), altrimenti nessuno;
 - `resolve($companyId, $personId)` controlla la persona scelta contro le
   opzioni e dà `customer_id` e `referent_name`. Un id che non è fra le opzioni

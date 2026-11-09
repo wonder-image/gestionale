@@ -164,6 +164,31 @@ final class CustomerSheet
                 : '');
     }
 
+    /**
+     * L'elenco dei legami della scheda: i referenti di un'azienda o le aziende
+     * di una persona, ognuno col link alla sua scheda (se c'è) e il dettaglio.
+     *
+     * @param list<array{name: string, url: string, detail: string}> $items
+     */
+    public static function relations(array $items, string $empty): string
+    {
+        if ($items === []) {
+            return '<p class="text-muted mb-0">'.htmlspecialchars($empty, ENT_QUOTES).'</p>';
+        }
+
+        $html = '';
+
+        foreach ($items as $item) {
+            $name = htmlspecialchars($item['name'], ENT_QUOTES);
+            $html .= '<li class="list-group-item px-0">'
+                .($item['url'] !== '' ? '<a href="'.htmlspecialchars($item['url'], ENT_QUOTES).'">'.$name.'</a>' : $name)
+                .($item['detail'] !== '' ? '<div class="small text-body-secondary">'.htmlspecialchars($item['detail'], ENT_QUOTES).'</div>' : '')
+                .'</li>';
+        }
+
+        return '<ul class="list-group list-group-flush">'.$html.'</ul>';
+    }
+
     /** La frase degli indirizzi di consegna che non ci sono. */
     public static function noDelivery(): string
     {
