@@ -212,7 +212,7 @@ final class Checkout
                 'shipping_method_id' => $type === 'shipping' && $shipping ? (int) $data['shipping_method_id'] : 0,
                 'payment_method_id' => $payment === null ? 0 : (int) $payment['id'],
                 'last_activity_at' => date('Y-m-d H:i:s'),
-            ] + $contact + self::addresses($data));
+            ] + self::buyer($data) + $contact + self::addresses($data));
 
             // Il primo ricalcolo toglie il metodo che non copre più
             // l'indirizzo; poi, se ne resta uno solo, si sceglie da sé.
@@ -766,10 +766,33 @@ final class Checkout
         ];
 
         $fields['fulfillment_type'] = $type;
+        $fields += self::buyer($data);
 
         // I campi dell'ordine vengono prima: un `shipping[method_id]` nel
         // modulo non deve poter riscrivere `shipping_method_id`.
         return $fields + self::addresses($data);
+    }
+
+    /**
+     * L'azienda per cui si compra e il nome del referente, solo se il modulo li
+     * manda: chi chiama ha già controllato che la persona possa comprare per lei.
+     * Senza azienda il referente si svuota.
+     *
+     * @param array<string, mixed> $data
+     * @return array{company_id?: int, referent_name?: string}
+     */
+    private static function buyer(array $data): array
+    {
+        if (!array_key_exists('company_id', $data)) {
+            return [];
+        }
+
+        $companyId = max(0, (int) $data['company_id']);
+
+        return [
+            'company_id' => $companyId,
+            'referent_name' => $companyId > 0 ? trim((string) ($data['referent_name'] ?? '')) : '',
+        ];
     }
 
     /**
