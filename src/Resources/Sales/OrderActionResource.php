@@ -20,6 +20,7 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Sales\DeliveryNotes;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
 use Wonder\Plugin\Gestionale\Support\Shipping\Shipments;
+use Wonder\App\Visibility\RowVisibility;
 
 /**
  * Le azioni sull'ordine dalla scheda: Conferma, Segna evaso, Annulla e, con le
@@ -109,7 +110,8 @@ final class OrderActionResource extends NavigationOnlyResource
      */
     public static function run(string $action, int $orderId, int $userId, array $values = []): array
     {
-        $order = $orderId > 0 ? Order::findById($orderId) : null;
+        // Solo gli ordini che chi agisce può vedere: il commerciale, i suoi (#77).
+        $order = $orderId > 0 ? RowVisibility::current()->findById(Order::class, $orderId) : null;
 
         if (!is_array($order) || $order === []
             || (string) ($order['deleted'] ?? 'false') === 'true'

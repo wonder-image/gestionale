@@ -6,6 +6,22 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Aggiunto
+- **Commerciali (#77).** Nuova funzionalità `sales_agents` (area Vendite,
+  richiede `orders` e `office_sales`) con il ruolo `sales_agent`, la tabella
+  `gst_sales_agents` e la pagina *Anagrafiche → Commerciali*. Il commerciale
+  vede, crea e modifica solo i suoi clienti, le aziende e i loro documenti:
+  regole OR su `RowVisibility` di `wonder-image/app` (`SalesAgents::register()`
+  da `config/boot.php`), anche negli strumenti MCP. `agent_id` su contatti,
+  aziende, ordini, DDT, resi e abbonamenti; il documento nuovo prende il
+  commerciale dell'azienda o della persona (`SalesAgents::forDocument`) e lo
+  tiene; DDT e resi lo copiano dall'ordine. Lo Scadenzario mostra al commerciale solo
+  le rate dei suoi ordini, abbonamenti e clienti; pagamento e azioni dell'ordine
+  aprono solo ordini che vede; i Fornitori non sono per lui. Provvigione e
+  sconto massimo compaiono nel form solo con la loro funzionalità. Filtro «Commerciale» negli elenchi per l'ufficio, riquadro «I miei
+  clienti» in home, riquadri del negozio senza `sales_agent`. Le parti
+  successive (rete, provvigioni, sconto massimo, listini, codici, obiettivi)
+  sono nel catalogo con `created => false`. Doc utente *Commerciali*, doc dev
+  *Commerciali: visibilità per riga*.
 - **Account aziendali (#77).** Nuova funzionalità `company_accounts` (area
   Clienti, richiede `online_sales`): sul sito la persona con accesso «Ordina» o
   «Gestisce l'azienda» compra per l'azienda e chi la gestisce ne vede ordini e

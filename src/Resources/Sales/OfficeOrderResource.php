@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 use Throwable;
 use Wonder\App\LegacyGlobals;
 use Wonder\App\Permission\Access;
@@ -113,12 +114,12 @@ class OfficeOrderResource extends GestionaleResource
 
     public static function tableLayoutSchema(): TableLayoutSchema
     {
-        return TableLayoutSchema::for(static::class)
+        return SalesAgents::filter(TableLayoutSchema::for(static::class)
             ->title('Bozze')
             ->results()
             ->buttonAdd(true, 'Nuovo ordine')
             ->filterSearch()
-            ->searchFields(['order_number', 'billing_name', 'billing_surname', 'billing_business_name', 'email']);
+            ->searchFields(['order_number', 'billing_name', 'billing_surname', 'billing_business_name', 'email']));
     }
 
     /**

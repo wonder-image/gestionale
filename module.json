@@ -33,6 +33,11 @@
     "permissions": {
         "definitions": "config/permissions.php"
     },
+    "boot": {
+        "files": [
+            "config/boot.php"
+        ]
+    },
     "database": {
         "models": "src/Models",
         "defaults": "Wonder\\Plugin\\Gestionale\\Seeding\\Defaults",

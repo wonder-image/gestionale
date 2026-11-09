@@ -44,6 +44,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\MovementPeriod;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Orders\StatusLabels;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 
 /**
  * "Ordini": gli ordini veri, in sola consultazione.
@@ -155,7 +156,7 @@ final class OrderResource extends GestionaleResource
 
     public static function tableLayoutSchema(): TableLayoutSchema
     {
-        return TableLayoutSchema::for(static::class)
+        return SalesAgents::filter(TableLayoutSchema::for(static::class)
             ->title('Ordini')
             ->results()
             ->hideButtonAdd()
@@ -178,7 +179,7 @@ final class OrderResource extends GestionaleResource
                 'periodo',
                 MovementPeriod::filterOptions(),
                 static fn (array $values): string => MovementPeriod::sql((string) ($values[0] ?? ''), 'ordered_at', new DateTimeImmutable('now'))
-            );
+            ));
     }
 
     /**

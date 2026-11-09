@@ -19,9 +19,22 @@ return [
     // Per cambiarle nel sito: `permissions` in custom/config/modules/gestionale.php,
     // ogni area indicata sostituisce per intero quella di default.
     'permissions' => [
-        'catalogo' => ['*' => ['administrator'], 'view' => ['administrator', 'sales', 'warehouse']],
-        'contatti' => ['administrator', 'sales'],
-        'vendite' => ['*' => ['administrator', 'sales'], 'view' => ['administrator', 'sales', 'warehouse']],
+        'catalogo' => ['*' => ['administrator'], 'view' => ['administrator', 'sales', 'warehouse', 'sales_agent']],
+        // `sales_agent` (#77) vede, crea e modifica solo le proprie righe
+        // (visibilità per riga, Support\SalesAgents\SalesAgents); non elimina.
+        'contatti' => [
+            '*' => ['administrator', 'sales'],
+            'view' => ['administrator', 'sales', 'sales_agent'],
+            'create' => ['administrator', 'sales', 'sales_agent'],
+            'edit' => ['administrator', 'sales', 'sales_agent'],
+        ],
+        'vendite' => [
+            '*' => ['administrator', 'sales'],
+            'view' => ['administrator', 'sales', 'warehouse', 'sales_agent'],
+            'create' => ['administrator', 'sales', 'sales_agent'],
+            'edit' => ['administrator', 'sales', 'sales_agent'],
+        ],
+        'commerciali' => ['administrator'],
         'spedizioni' => ['administrator', 'sales', 'warehouse'],
         'promozioni' => ['administrator'],
         'magazzino' => ['*' => ['administrator', 'warehouse'], 'view' => ['administrator', 'warehouse', 'sales']],
@@ -43,6 +56,7 @@ return [
             \Wonder\Plugin\Gestionale\Backend\Widgets\StockValueWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\ExpiringBatchesWidget::class,
             \Wonder\Plugin\Gestionale\Backend\Widgets\ContactsWidget::class,
+            \Wonder\Plugin\Gestionale\Backend\Widgets\SalesAgentWidget::class,
         ],
     ],
     // Tracciati di «Carica da file» (#84).

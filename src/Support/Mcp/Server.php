@@ -6,6 +6,7 @@ use Throwable;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\System\McpLog;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\App\Visibility\RowVisibility;
 
 /**
  * Il server MCP (Streamable HTTP, solo POST, senza sessioni né stream):
@@ -144,7 +145,9 @@ final class Server
                 $failure = self::text('missing_fields', ['fields' => implode(', ', $missing)]);
                 $kind = 'missing';
             } else {
-                $outcome = ($tool['run'])($arguments, $caller);
+                // Lo strumento legge come chi lo chiama: il commerciale vede solo i suoi (#77).
+                $user = (object) ['id' => $caller->userId, 'authority' => $caller->authority];
+                $outcome = RowVisibility::as($user, static fn () => ($tool['run'])($arguments, $caller));
             }
         } catch (McpError $error) {
             $failure = $error->getMessage();

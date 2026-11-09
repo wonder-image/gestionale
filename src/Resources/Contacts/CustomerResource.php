@@ -45,6 +45,8 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 use Wonder\Plugin\Custom\Fattura\Valori\EsigibilitaIva;
 use Wonder\Sql\Transaction;
+use Wonder\App\Visibility\RowVisibility;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 
 /**
  * "Clienti": le persone della rubrica, e la loro scheda.
@@ -210,8 +212,41 @@ class CustomerResource extends GestionaleResource
                 ->label('Listino');
         }
 
+        if (static::agentShown()) {
+            $fields[] = FormField::key('agent_id')
+                ->select(['' => 'Nessuno'] + SalesAgents::options(false))
+                ->label('Commerciale');
+        }
+
         // #145: «Referenti» e «Aziende», solo con relations.enabled.
         return [...$fields, ...static::contactRelationFields()];
+    }
+
+    /** Il commerciale del cliente (#77): lo sceglie l'ufficio, mai il commerciale. */
+    public static function agentShown(): bool
+    {
+        return static::roleColumn() === 'is_customer'
+            && SalesAgents::enabled()
+            && !SalesAgents::restricted(RowVisibility::currentUser());
+    }
+
+    /** @return list<Card> */
+    protected static function agentCards(): array
+    {
+        if (!static::agentShown()) {
+            return [];
+        }
+
+        return [
+            (new Card)->components([
+                SectionTitle::make('Commerciale')
+                    ->tooltip(static::isCompanySide()
+                        ? 'Il commerciale vede e gestisce l\'azienda, i suoi referenti e i suoi documenti. Gli ordini nuovi dell\'azienda vanno a lui.'
+                        : 'Il commerciale vede e gestisce questo cliente e i suoi documenti. Gli ordini nuovi del cliente vanno a lui.')
+                    ->columnSpan(12),
+                static::getInput('agent_id')->columnSpan(6),
+            ])->columns(12)->columnSpan(12),
+        ];
     }
 
     /** Il listino del cliente: solo per i clienti, con «Listini cliente». */
@@ -351,6 +386,7 @@ class CustomerResource extends GestionaleResource
                 static::getInput('cap')->columnSpan(3),
                 static::getInput('more')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
+            ...static::agentCards(),
             ...static::paymentCards(),
             ...static::priceListCards(),
             (new Card)->components([
@@ -525,6 +561,19 @@ class CustomerResource extends GestionaleResource
                 static fn (array $values): string => match ($values[0] ?? '') {
                     'only' => $only,
                     'hide' => "NOT {$only}",
+                    default => '1 = 1',
+                }
+            );
+        }
+
+        if (static::agentShown()) {
+            $layout->filterQuery(
+                'Commerciale',
+                'agent',
+                ['none' => 'Nessuno'] + SalesAgents::options(false),
+                static fn (array $values): string => match (true) {
+                    ($values[0] ?? '') === 'none' => '`agent_id` = 0',
+                    ctype_digit((string) ($values[0] ?? '')) => '`agent_id` = '.(int) $values[0],
                     default => '1 = 1',
                 }
             );
@@ -902,6 +951,8 @@ class CustomerResource extends GestionaleResource
             $values['price_list_id'] = max(0, (int) $values['price_list_id']);
         }
 
+        $values = static::agentValue($values, $action);
+
         if (static::rolesShown() && $choice !== '') {
             $values = [...$values, ...Contacts::rolesFromChoice($choice)];
         }
@@ -922,6 +973,32 @@ class CustomerResource extends GestionaleResource
             if ($duplicate !== []) {
                 throw UserError::make($key, ['contact' => Contacts::displayName($duplicate)]);
             }
+        }
+
+        return $values;
+    }
+
+    /**
+     * Il commerciale si scrive solo dove il form lo mostra; il cliente creato
+     * da un commerciale nasce suo e lui non lo può spostare (#77).
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    protected static function agentValue(array $values, string $action): array
+    {
+        if (static::agentShown()) {
+            if (array_key_exists('agent_id', $values)) {
+                $values['agent_id'] = max(0, (int) $values['agent_id']);
+            }
+
+            return $values;
+        }
+
+        unset($values['agent_id']);
+        $own = SalesAgents::current();
+        if ($action === 'store' && $own > 0) {
+            $values['agent_id'] = $own;
         }
 
         return $values;

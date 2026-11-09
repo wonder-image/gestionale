@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Support\Subscriptions;
 use DateTimeImmutable;
 use RuntimeException;
 use Throwable;
+use Wonder\App\Visibility\RowVisibility;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
@@ -24,6 +25,7 @@ use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdfs;
 use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Payments\Installments;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Sql\Transaction;
 
@@ -68,7 +70,7 @@ final class OfficeSubscriptions
         if ($companyId > 0) {
             $company = self::alive(Company::class, $companyId);
 
-            if ($company === []) {
+            if ($company === [] || !RowVisibility::visible(Company::$table, $companyId, RowVisibility::currentUser())) {
                 throw UserError::make('subscription.company_unknown');
             }
 
@@ -78,7 +80,8 @@ final class OfficeSubscriptions
         } else {
             $contact = self::alive(Contact::class, $customerId);
 
-            if ($contact === []) {
+            // Il commerciale usa solo i clienti che vede (#77).
+            if ($contact === [] || !RowVisibility::visible(Contact::$table, $customerId, RowVisibility::currentUser())) {
                 throw UserError::make('subscription.customer_required');
             }
         }
@@ -113,13 +116,15 @@ final class OfficeSubscriptions
         $userId = (int) ($input['user_id'] ?? 0);
         $methodId = (int) ($input['payment_method_id'] ?? 0) ?: (int) ($contact['payment_method_id'] ?? 0);
         $termId = (int) ($input['payment_term_id'] ?? 0) ?: (int) ($contact['payment_term_id'] ?? 0);
+        $agentId = SalesAgents::forDocument(['customer_id' => $customerId, 'company_id' => $companyId], RowVisibility::currentUser());
 
-        $id = Transaction::run(static function () use ($billing, $customerId, $companyId, $lines, $coupon, $includeTax, $amounts, $taxId, $taxRate, $start, $trial, $firstPeriod, $commitment, $input, $userId, $methodId, $termId): int {
+        $id = Transaction::run(static function () use ($billing, $customerId, $companyId, $lines, $coupon, $includeTax, $amounts, $taxId, $taxRate, $start, $trial, $firstPeriod, $commitment, $input, $userId, $methodId, $termId, $agentId): int {
             // Il codice si dà qui: `create()` non lo genera, e il proforma prende il nome da lui.
             $created = Subscription::create($billing + [
                 'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION),
                 'customer_id' => $customerId,
                 'company_id' => $companyId,
+                'agent_id' => $agentId,
                 'channel' => 'office',
                 'status' => $trial > 0 ? 'trialing' : 'active',
                 'provider' => 'manual',

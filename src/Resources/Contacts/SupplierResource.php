@@ -2,7 +2,11 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Contacts;
 
+use Wonder\App\Permission\Access;
 use Wonder\App\ResourceSchema\NavigationSchema;
+use Wonder\App\ResourceSchema\PermissionSchema;
+use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 use Wonder\Elements\Components\Accordion;
 use Wonder\Elements\Components\Badge;
 use Wonder\Elements\Components\Card;
@@ -77,7 +81,20 @@ final class SupplierResource extends CompanyResource
 
     public static function navigationSchema(): NavigationSchema
     {
-        return parent::navigationSchema()->order(20);
+        return parent::navigationSchema()
+            ->order(20)
+            ->authority(SalesAgents::withoutAgents(Access::viewers(Gestionale::area('contatti'))));
+    }
+
+    // I fornitori sono acquisti: il commerciale non li vede né li crea (#77).
+    public static function permissionSchema(): PermissionSchema
+    {
+        $schema = PermissionSchema::for(static::class);
+        foreach (Access::backendActions(Gestionale::area('contatti')) as $action => $authorities) {
+            $schema->backend($action, SalesAgents::withoutAgents($authorities));
+        }
+
+        return $schema;
     }
 
     protected static function listCondition(): string

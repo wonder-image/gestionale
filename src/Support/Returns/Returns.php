@@ -148,6 +148,8 @@ final class Returns
                 'number' => $number,
                 'order_id' => $orderId,
                 'customer_id' => (int) ($order['customer_id'] ?? 0),
+                // Il commerciale segue la vendita (#77).
+                'agent_id' => (int) ($order['agent_id'] ?? 0),
                 'company_id' => (int) ($order['company_id'] ?? 0),
                 'channel' => 'office',
                 'status' => 'received',

@@ -31,6 +31,7 @@ use Wonder\Plugin\Gestionale\Support\Providers\ExternalReferences;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxResolver;
 use Wonder\Sql\Transaction;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 
 /**
  * Gli abbonamenti online (G10 §2): sottoscrizione con Stripe Checkout o
@@ -212,12 +213,15 @@ final class OnlineSubscriptions
         // L'aliquota dell'abbonamento è un riepilogo: quella delle righe se è una sola, altrimenti 0.
         [$taxId, $taxRate] = count($rates) === 1 ? [(int) $lines[0]['tax_id'], (float) $rates[0]] : [0, 0.0];
         $now = new DateTimeImmutable();
+        // Online compra il cliente: il commerciale è quello della sua scheda (#77).
+        $agentId = SalesAgents::forContact($customerId);
 
-        [$row, $itemIds] = Transaction::run(static function () use ($gateway, $billing, $customerId, $coupon, $includeTax, $amounts, $taxId, $taxRate, $lines, $now, $trial): array {
+        [$row, $itemIds] = Transaction::run(static function () use ($gateway, $billing, $customerId, $coupon, $includeTax, $amounts, $taxId, $taxRate, $lines, $now, $trial, $agentId): array {
             // Il codice si dà qui: `create()` non lo genera, e serve a Stripe e al ritorno dal pagamento.
             $created = Subscription::create($billing + [
                 'code' => Code::make(Subscription::class, Codes::SUBSCRIPTION),
                 'customer_id' => $customerId,
+                'agent_id' => $agentId,
                 'channel' => 'online',
                 'status' => 'pending',
                 'provider' => 'stripe',
