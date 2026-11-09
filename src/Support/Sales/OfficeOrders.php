@@ -23,6 +23,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentData;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
@@ -71,7 +72,7 @@ final class OfficeOrders
     private const HEADER = [
         'customer_id', 'email', 'phone', 'location_id', 'shipping_method_id',
         'payment_method_id', 'payment_term_id', 'customer_note', 'internal_note', 'document_note',
-        'price_list_id', 'company_id', 'brand_id',
+        'price_list_id', 'company_id',
     ];
 
     /** Gli stati da cui un preventivo si modifica: dopo la modifica torna da inviare (G9 §3.1). */
@@ -88,7 +89,7 @@ final class OfficeOrders
      * righe; un preventivo già inviato che si modifica torna `draft` e al
      * prossimo invio la revisione sale.
      *
-     * @param array<string, mixed> $data testata (vedi `HEADER`, `billing_*`, `shipping_*`, `fulfillment_type`, sconto, `shipping_amount`, `quote_expires_at`) e `lines`
+     * @param array<string, mixed> $data testata (vedi `HEADER`, `company_brand_id`, `billing_*`, `shipping_*`, `fulfillment_type`, sconto, `shipping_amount`, `quote_expires_at`) e `lines`
      * @return int l'id della bozza
      */
     public static function save(int $orderId, array $data, int $userId = 0, string $stage = 'order'): int
@@ -114,7 +115,7 @@ final class OfficeOrders
 
         return Transaction::run(static function () use ($orderId, $data, $userId, $header, $lines, $shipping, $stage, $expires): int {
             $order = $orderId > 0 ? self::draft($orderId, $stage) : null;
-            $values = self::headerValues($data, $header, $order !== null);
+            $values = self::headerValues($data, $header, $order);
 
             // Il commerciale si fissa alla nascita; una bozza nata senza cliente lo prende al primo (#77).
             if ((int) ($order['agent_id'] ?? 0) === 0) {
@@ -234,14 +235,16 @@ final class OfficeOrders
             return [];
         }
 
-        $referent = DocumentReferents::resolve($companyId, $personId > 0 ? $personId : DocumentReferents::defaultFor($companyId));
+        // Il referente proposto è il principale fra chi segue il brand proposto.
+        $brandId = self::defaultBrand($companyId);
+        $referent = DocumentReferents::resolve($companyId, $personId > 0 ? $personId : DocumentReferents::defaultFor($companyId, $brandId));
         $person = self::alive(Contact::class, (int) $referent['customer_id']);
 
         $out = [
             'customer_id' => (int) $referent['customer_id'],
             'company_id' => $companyId,
             'referent_name' => (string) $referent['referent_name'],
-            'brand_id' => self::defaultBrand($companyId),
+            'company_brand_id' => $brandId,
             'email' => (string) ($company['email'] ?? '') !== '' ? (string) $company['email'] : (string) ($person['email'] ?? ''),
             'phone' => trim((string) ($company['phone_prefix'] ?? '').' '.(string) ($company['phone'] ?? '')),
             'payment_method_id' => (int) ($company['payment_method_id'] ?? 0),
@@ -821,12 +824,17 @@ final class OfficeOrders
      * sconto già puliti. Un cliente scelto deve esistere; i campi vuoti della
      * fatturazione e della consegna li riempie la sua scheda.
      *
+     * Il brand non è in `HEADER`: lo decide `DocumentBrands::resolve()`, e il
+     * suo nome non arriva mai dalla richiesta.
+     *
      * @param array<string, mixed> $data
      * @param array{fulfillment_type: string, manual_discount_type: string, manual_discount_value: float} $header
+     * @param array<string, mixed>|null $order la bozza salvata, in modifica
      * @return array<string, mixed>
      */
-    private static function headerValues(array $data, array $header, bool $update = false): array
+    private static function headerValues(array $data, array $header, ?array $order = null): array
     {
+        $update = $order !== null;
         $values = [
             'fulfillment_type' => $header['fulfillment_type'],
             'manual_discount_type' => $header['manual_discount_type'],
@@ -850,13 +858,17 @@ final class OfficeOrders
                 throw UserError::make('office_order.customer_unknown');
             }
 
-            // La persona vale solo se è un referente dell'azienda; senza, il principale.
-            $personId = array_key_exists('customer_id', $data) ? $customerId : DocumentReferents::defaultFor($companyId);
-            $values = DocumentReferents::resolve($companyId, $personId) + $values;
+            $brand = DocumentBrands::resolve(
+                $companyId,
+                array_key_exists('company_brand_id', $data) ? max(0, (int) $data['company_brand_id']) : null,
+                $order
+            );
+            $brandId = (int) ($brand['company_brand_id'] ?? $order['company_brand_id'] ?? 0);
+            // La persona vale solo se è un referente dell'azienda; senza, il
+            // principale fra chi segue il brand (o fra tutti).
+            $personId = array_key_exists('customer_id', $data) ? $customerId : DocumentReferents::defaultFor($companyId, $brandId);
+            $values = $brand + DocumentReferents::resolve($companyId, $personId) + $values;
             $customerId = (int) $values['customer_id'];
-            // Il brand vale solo se è dell'azienda; senza, il primo dei suoi.
-            $brandId = array_key_exists('brand_id', $data) ? (int) $data['brand_id'] : self::defaultBrand($companyId);
-            $values['brand_id'] = CompanyBrands::belongsTo($brandId, $companyId) ? $brandId : 0;
             $defaults = self::customerDefaults($customerId, $companyId);
         } elseif ($customerId > 0) {
             if (self::alive(Contact::class, $customerId) === [] || !self::reachable(Contact::$table, $customerId)) {
@@ -865,10 +877,12 @@ final class OfficeOrders
 
             $defaults = self::customerDefaults($customerId);
             $values['referent_name'] = '';
-            $values['brand_id'] = 0;
+            $values['company_brand_id'] = 0;
+            $values['company_brand_name'] = '';
         } elseif (array_key_exists('company_id', $values) || array_key_exists('customer_id', $values)) {
             $values['referent_name'] = '';
-            $values['brand_id'] = 0;
+            $values['company_brand_id'] = 0;
+            $values['company_brand_name'] = '';
         }
 
         if ($companyId > 0 || $customerId > 0 || array_key_exists('customer_id', $values)) {
@@ -1057,9 +1071,9 @@ final class OfficeOrders
         }
     }
 
-    /** Il brand proposto per un documento dell'azienda: il primo dei suoi, o nessuno. */
+    /** Il brand proposto per un documento dell'azienda: il suo predefinito, altrimenti il primo, o nessuno. */
     public static function defaultBrand(int $companyId): int
     {
-        return CompanyBrands::idsOf($companyId)[0] ?? 0;
+        return CompanyBrands::defaultOf($companyId);
     }
 }

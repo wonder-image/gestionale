@@ -111,8 +111,11 @@ brand con lo stesso nome di uno che c'è già non si duplica: si seleziona
 quello.
 
 I preventivi e gli ordini da ufficio di un'azienda hanno il campo **Brand**,
-fra i brand di quell'azienda: parte dal primo. Servirà per legare al brand i
-progetti nati dal preventivo.
+fra i brand di quell'azienda: parte dal **predefinito** (o dal primo). Servirà
+per legare al brand i progetti nati dal preventivo. Il documento tiene il nome
+del brand com'era: se poi il brand cambia nome, si stacca dall'azienda o si
+archivia, il preventivo non cambia. Unendo due brand doppioni, i documenti
+passano al brand che resta.
 
 ## Referenti e aziende
 

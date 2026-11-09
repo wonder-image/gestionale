@@ -103,6 +103,26 @@ check('con le relazioni accese, il Referente dell\'azienda: tutte le sue persone
         && str_contains($html, 'company_id') && preg_match('/data-[a-z-]*hidden[a-z-]*=/', $html) === 1;
 });
 
+check('il Brand dell\'azienda: tendina `company_brand_id`, il brand salvato resta anche se l\'azienda non l\'ha più', function () use ($bozza, $pagina) {
+    $salvata = ['id' => 9, 'company_id' => 7, 'customer_id' => 0, 'company_brand_id' => 5, 'company_brand_name' => 'Rossi & <C>'] + $bozza;
+    DocumentReferents::useReader(static fn (): array => []);
+
+    try {
+        $html = $pagina(OfficeOrderResource::class, $salvata);
+    } finally {
+        DocumentReferents::useReader(null);
+    }
+
+    $select = preg_match('/<select[^>]*name="company_brand_id"[^>]*>.*?<\/select>/s', $html, $m) === 1 ? $m[0] : '';
+
+    return $select !== '' && str_contains($select, 'data-wi-oo-field="company_brand_id"')
+        && preg_match('/<option[^>]*value="5"[^>]*selected[^>]*>Rossi &amp; &lt;C&gt; \(non più dell/', $select) === 1
+        && !str_contains($html, 'name="brand_id"') && !str_contains($html, '<C>')
+        // Su un documento nuovo, o di un'altra azienda, un id qualunque non diventa una scelta.
+        && OfficeOrderPage::brandOptions(7, ['company_id' => 7, 'company_brand_id' => 5]) === ['0' => 'Nessun brand']
+        && OfficeOrderPage::brandOptions(8, $salvata) === ['0' => 'Nessun brand'];
+});
+
 check('i Modifica dei riquadri dicono quale finestra aprono', function () use ($bozza, $pagina) {
     $html = $pagina(OfficeOrderResource::class, $bozza);
 

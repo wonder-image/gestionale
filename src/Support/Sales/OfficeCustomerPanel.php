@@ -59,7 +59,7 @@ final class OfficeCustomerPanel
      * scelto (0: il principale, se c'è). `customer` è
      * `OfficeOrders::customerDefaults()`; `contact` ha `kind` (`contact` o
      * `company`), `id`, `company_id` e i campi delle finestre; `referents` le
-     * persone dell'azienda (vuoto per una persona).
+     * persone dell'azienda e `brands` i suoi brand (vuoti per una persona).
      *
      * @return array<string, mixed>
      */
@@ -131,10 +131,12 @@ final class OfficeCustomerPanel
                 'label' => $r['name'].($r['role'] !== '' ? ' — '.$r['role'] : ''),
                 'is_primary' => $r['is_primary'],
             ], DocumentReferents::people($companyId)),
-            'brands' => array_map(static fn (array $b): array => [
-                'id' => (int) $b['id'],
-                'label' => CompanyBrands::label($b),
-            ], CompanyBrands::of($companyId)),
+            // Il predefinito è quello che la tendina propone (`CompanyBrands::defaultOf()`).
+            'brands' => array_map(static fn (array $link): array => [
+                'id' => $link['brand_id'],
+                'label' => CompanyBrands::label($link['brand']),
+                'is_default' => $link['is_default'],
+            ], CompanyBrands::linksOf($companyId)),
             'html' => [
                 'contacts' => self::contactsHtml($company),
                 'billing' => self::companyBillingHtml($company),

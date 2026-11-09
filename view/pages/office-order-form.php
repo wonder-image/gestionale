@@ -24,7 +24,8 @@ use Wonder\View\View;
  * La ricerca `customer` trova persone e aziende con la chiave composta
  * (`contact:12`, `company:7`); la scelta scrive i nascosti `customer_id`
  * (persona o referente) e `company_id`. Il «Referente» c'è solo per
- * un'azienda e scrive `customer_id`.
+ * un'azienda e scrive `customer_id`; anche il «Brand» (`company_brand_id`),
+ * proposto dal predefinito. Cambiare il brand non cambia il referente scelto.
  */
 
 /** @var class-string<\Wonder\Plugin\Gestionale\Resources\Sales\OfficeOrderResource> $resource */
@@ -141,9 +142,11 @@ try {
         node.dispatchEvent(new Event('change', {bubbles: true}));
     }
 
-    // I brand dell'azienda scelta: «Nessun brand», poi i suoi; proposto il primo.
+    // I brand dell'azienda scelta: «Nessun brand», poi i suoi; proposto il
+    // predefinito, altrimenti il primo (come `CompanyBrands::defaultOf()`).
     function brands(list) {
-        var node = field('brand_id');
+        var node = field('company_brand_id');
+        var chosen = 0;
 
         if (!node) {
             return;
@@ -153,8 +156,11 @@ try {
         node.appendChild(new Option('Nessun brand', '0'));
         (list || []).forEach(function (b) {
             node.appendChild(new Option(b.label, String(b.id)));
+            if (b.is_default && !chosen) {
+                chosen = b.id;
+            }
         });
-        node.value = list && list.length ? String(list[0].id) : '0';
+        node.value = String(chosen || (list && list.length ? list[0].id : 0));
         node.dispatchEvent(new Event('change', {bubbles: true}));
     }
 

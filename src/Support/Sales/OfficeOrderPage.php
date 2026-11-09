@@ -20,6 +20,7 @@ use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
@@ -106,7 +107,7 @@ final class OfficeOrderPage
                         ->hiddenWhen('company_id', ['0', ''])
                     : null,
                 // Il brand dell'azienda: lo script rifà le opzioni come per il referente.
-                self::field(FormField::key('brand_id')->select(self::brandOptions($companyId)), 'brand_id', 'Brand', 12, (string) ($companyId > 0 ? (int) ($values['brand_id'] ?? 0) : 0))
+                self::field(FormField::key('company_brand_id')->select(self::brandOptions($companyId, $values)), 'company_brand_id', 'Brand', 12, (string) ($companyId > 0 ? (int) ($values['company_brand_id'] ?? 0) : 0))
                     ->hiddenWhen('company_id', ['0', '']),
                 // Sotto il cliente, a chi va l'email: il PDF del preventivo o la conferma.
                 FormField::key('notify')->toggle()
@@ -215,16 +216,25 @@ final class OfficeOrderPage
     }
 
     /**
-     * Le scelte del brand: nessuno, poi quelli dell'azienda.
+     * Le scelte del brand: nessuno, poi quelli dell'azienda. Il brand di un
+     * documento salvato resta fra le scelte anche se l'azienda non l'ha più
+     * (staccato o archiviato): altrimenti la tendina lo perderebbe salvando.
      *
+     * @param array<string, mixed> $values il documento
      * @return array<string, string>
      */
-    public static function brandOptions(int $companyId): array
+    public static function brandOptions(int $companyId, array $values = []): array
     {
         $options = ['0' => 'Nessun brand'];
 
         foreach (CompanyBrands::of($companyId) as $brand) {
             $options[(string) $brand['id']] = CompanyBrands::label($brand);
+        }
+
+        $saved = (int) ($values['company_brand_id'] ?? 0);
+
+        if ($saved > 0 && (int) ($values['id'] ?? 0) > 0 && (int) ($values['company_id'] ?? 0) === $companyId && !isset($options[(string) $saved])) {
+            $options[(string) $saved] = DocumentBrands::nameOf($values).' (non più dell\'azienda)';
         }
 
         return $options;

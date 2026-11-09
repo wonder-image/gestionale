@@ -32,6 +32,7 @@ use Wonder\Plugin\Gestionale\Resources\Shipping\ShipmentResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerKind;
+use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Documents\OrderProforma;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderActions;
@@ -874,6 +875,8 @@ final class OrderResource extends GestionaleResource
             $dato('Pagamento', static::paymentBadge((string) ($order['payment_status'] ?? ''), OnlinePayments::inTest((int) ($order['id'] ?? 0))), true),
             $dato(static::fulfillmentLabel($consegna), StatusLabels::fulfillmentBadge($consegna, (string) ($order['fulfillment_status'] ?? '')), true),
             $dato('Cliente', static::customerLink($order), true),
+            // Il brand com'era sul documento, non quello di oggi.
+            ...(($brand = DocumentBrands::nameOf($order)) === '' ? [] : [$dato('Brand', $brand)]),
             $dato('Email', (string) ($order['email'] ?? '')),
             $dato('Telefono', (string) ($order['phone'] ?? '')),
             $dato('Fatturazione', OrderSheet::address($order, 'billing'), true),

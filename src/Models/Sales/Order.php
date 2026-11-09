@@ -130,8 +130,11 @@ final class Order extends Model
             Column::key('phone')->length(50),
             // Con `company_id` la persona è il referente: il nome si copia
             Column::key('referent_name')->length(255),
-            // Il brand dell'azienda con cui si fa il preventivo: poi ci si legano i progetti.
-            Column::key('brand_id')->int()->default(0),
+            // Il brand dell'azienda (customer-account, non il marchio degli
+            // articoli) con cui si fa il preventivo: poi ci si legano i progetti.
+            // Il nome si copia come quello del referente.
+            Column::key('company_brand_id')->int()->default(0),
+            Column::key('company_brand_name')->length(255),
             ...static::billingAddress()->tableSchema(),
             ...static::shippingTableSchema(),
             Column::key('price_list_id')->int()->default(0),
@@ -173,7 +176,7 @@ final class Order extends Model
             'ind_cart_token' => ['index' => 'cart_token'],
             'ind_customer' => ['index' => 'customer_id'],
             'ind_company' => ['index' => 'company_id'],
-            'ind_brand' => ['index' => 'brand_id'],
+            'ind_company_brand' => ['index' => 'company_brand_id'],
             'ind_agent' => ['index' => 'agent_id'],
             'ind_status' => ['index' => 'status'],
             'ind_last_activity' => ['index' => 'last_activity_at'],
@@ -204,7 +207,8 @@ final class Order extends Model
             Field::key('email')->email(),
             Field::key('phone')->text()->sanitize(false),
             Field::key('referent_name')->text(),
-            Field::key('brand_id')->number()->decimals(0),
+            Field::key('company_brand_id')->number()->decimals(0),
+            Field::key('company_brand_name')->text(),
             ...static::billingAddress()->dataSchema(),
             ...static::shippingDataSchema(),
             Field::key('price_list_id')->number()->decimals(0),

@@ -57,9 +57,31 @@ versionamento semantico.
   - **Brand delle aziende**: la card *Brand* è la prima del form di
     un'azienda (e di un fornitore), ricerca multipla con **+**
     (`Contacts\CompanyBrandResource` su `app/gestionale/brand`, permessi
-    dell'area contatti). Ordini da ufficio e preventivi hanno `brand_id`
-    (colonna nuova, indice `ind_brand`), scelto fra i brand dell'azienda e
-    proposto dal primo (`OfficeOrders::defaultBrand`).
+    dell'area contatti). Ordini da ufficio e preventivi hanno il brand
+    dell'azienda, scelto fra i suoi e proposto dal predefinito.
+  - **Brand sul documento** (`Support\Contacts\DocumentBrands`):
+    - `gst_orders.brand_id` diventa `company_brand_id` (indice
+      `ind_company_brand`), per non confonderlo con il marchio degli articoli;
+      `Migrations\OrderCompanyBrandMigration` copia i valori e i nomi una
+      volta sola (`order_company_brand` in `gst_migrations`). La colonna
+      vecchia la toglie la sincronizzazione delle tabelle.
+    - Il nome si copia in `company_brand_name` (come `referent_name`), si
+      svuota con il brand a `0` e non arriva mai dalla richiesta; la scheda
+      dell'ordine lo mostra (`DocumentBrands::nameOf()`, con ripiego sul
+      brand di oggi per i documenti di prima).
+    - Salvare non ricalcola più il brand: in modifica, senza il campo o con
+      lo stesso brand, resta quello salvato anche se staccato o archiviato;
+      un brand diverso dev'essere dell'azienda oggi, altrimenti l'errore
+      `office_order.brand_unknown` invece dell'azzeramento in silenzio. Il
+      predefinito è `CompanyBrands::defaultOf()` (`OfficeOrders::defaultBrand`,
+      pannello cliente con `is_default`); in modifica la tendina tiene il
+      brand salvato anche se l'azienda non l'ha più.
+    - Corretto: la scelta della tendina *Brand* non arrivava al salvataggio
+      (`OfficeOrderForm::header()` la scartava).
+    - L'unione di due brand (`company.brand_merged`) sposta i documenti sul
+      brand che resta, senza toccare il nome copiato.
+    - `DocumentReferents::defaultFor($companyId, $brandId = 0)`: con il brand
+      propone prima il principale fra chi lo segue.
   - Il **Marchio** degli articoli si cerca nella tendina (`selectSearch`).
 
   - La scheda di un'azienda elenca i referenti e quella di una persona le
