@@ -29,7 +29,8 @@ versionamento semantico.
   referente è `customer_id`, `referent_name` resta come copia.
   `DocumentCompanyMigration` porta i documenti e i `supplier_id` sulle aziende
   leggendo `contact_company_map` (una volta sola, in transazione, registrata in
-  `gst_migrations`). Nuovo `CustomerKind` (`of`, `record`, `name`);
+  `gst_migrations`); documenti e movimenti di magazzino leggono il fornitore
+  da `companies`. Nuovo `CustomerKind` (`of`, `record`, `name`);
   `PriceLists::forDocument()` / `forCompany()`,
   `VatCollectability::forDocument()`. MCP: `quote_create` con `company_id`
   (senza `referent_id`), `customers_list` con `kind`, `customer_get` con
