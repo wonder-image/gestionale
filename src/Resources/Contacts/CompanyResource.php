@@ -98,7 +98,7 @@ class CompanyResource extends CustomerResource
 
     public static function formSchema(): array
     {
-        return [...static::brandFields(), ...parent::formSchema()];
+        return [...static::brandFields(), ...static::groupFields(), ...parent::formSchema()];
     }
 
     public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
@@ -115,6 +115,8 @@ class CompanyResource extends CustomerResource
                     ->columnSpan(12),
                 static::getInput(static::$brandsInput)->columnSpan(12),
                 static::getInput(static::$brandsMarker)->columnSpan(12),
+                // La capogruppo: un livello solo, la valida `HasCompanyGroup`.
+                static::getInput(static::$groupInput)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];
     }

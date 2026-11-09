@@ -77,6 +77,35 @@ check('senza principale non si propone nessuno', function () use ($righe) {
     return $out;
 });
 
+check('con il brand si propone il principale fra chi segue quel brand', function () use ($righe) {
+    // Il 7 segue solo il brand 4 ed è principale; l'1 è principale e li segue tutti.
+    $perBrand = static fn (int $id, int $brand = 0): array => match ($brand) {
+        4 => [riga(7, ['is_primary' => 'true']), riga(2)],
+        5 => [riga(2)],
+        default => [riga(1, ['is_primary' => 'true']), riga(7, ['is_primary' => 'true']), riga(2)],
+    };
+    DocumentReferents::useReader($perBrand);
+    $out = DocumentReferents::defaultFor(10, 4) === 7
+        && DocumentReferents::defaultFor(10) === 1
+        && DocumentReferents::defaultFor(10, 0) === 1;
+    DocumentReferents::useReader(fn (int $id): array => $id === 10 ? $righe : []);
+
+    return $out;
+});
+
+check('se fra chi segue il brand non c\'è un principale, il principale di tutti', function () use ($righe) {
+    $letti = [];
+    DocumentReferents::useReader(static function (int $id, int $brand = 0) use (&$letti): array {
+        $letti[] = $brand;
+
+        return $brand === 5 ? [riga(2)] : [riga(1, ['is_primary' => 'true']), riga(2)];
+    });
+    $out = DocumentReferents::defaultFor(10, 5) === 1 && $letti === [5, 0];
+    DocumentReferents::useReader(fn (int $id): array => $id === 10 ? $righe : []);
+
+    return $out;
+});
+
 check('un referente valido si copia con il suo nome', fn () =>
     DocumentReferents::resolve(10, 2) === ['customer_id' => 2, 'referent_name' => 'Cognome2 Nome2']
 );

@@ -264,7 +264,8 @@ customer-account) e ogni documento con un cliente ha due colonne:
 | `company_id` | l'**azienda** (`companies`); `0` = documento di una persona |
 | `user_id` | l'account della persona, se c'è |
 | `referent_name` | copia del nome del referente, solo con `company_id` |
-| `brand_id` | il brand dell'azienda (`company_brands` di customer-account), solo su `gst_orders`; `0` = nessuno |
+| `company_brand_id` | il brand dell'azienda (`company_brands` di customer-account, non il marchio degli articoli `gst_brands`), solo su `gst_orders`; `0` = nessuno |
+| `company_brand_name` | copia del nome del brand, solo su `gst_orders` |
 
 `company_id` è su `gst_orders`, `gst_delivery_notes`, `gst_sales_returns`,
 `gst_payments`, `gst_subscriptions`, `gst_coupon_customers` e
@@ -291,7 +292,9 @@ Tutto passa da `Support\Contacts\DocumentReferents`:
   vivi con la persona viva: fra questi si sceglie il referente;
 - `options($companyId)` tiene in più solo chi ha `receives_documents`: sono le
   copie delle email;
-- `defaultFor($companyId)` propone il principale (`is_primary`), altrimenti nessuno;
+- `defaultFor($companyId, $brandId = 0)` propone il principale (`is_primary`),
+  altrimenti nessuno; con il brand prima il principale fra chi segue quel brand
+  (`ContactRelations::peopleOf($companyId, $brandId)`), poi quello di tutti;
 - `resolve($companyId, $personId)` controlla la persona scelta contro le
   opzioni e dà `customer_id` e `referent_name`. Un id che non è fra le opzioni
   diventa `0` / `''`;
@@ -306,17 +309,51 @@ mansione è vuota. Le tendine dei referenti mostrano `role`.
 
 ### Il brand
 
-Preventivi e ordini da ufficio di un'azienda hanno `brand_id`: il nome
+Preventivi e ordini da ufficio di un'azienda hanno `company_brand_id`: il nome
 commerciale (customer-account, `CompanyBrands`) a cui si legheranno i progetti
-nati dal preventivo. `OfficeOrders::save()` lo accetta solo se
-`CompanyBrands::belongsTo($brandId, $companyId)`, altrimenti scrive `0`; senza
-valore nel payload propone `OfficeOrders::defaultBrand()` (il primo brand
-dell'azienda). Il pannello cliente (`OfficeCustomerPanel`) manda `brands` e lo
-script della pagina ricostruisce la tendina `brand_id`
-(`OfficeOrderPage::brandOptions()`). La card *Brand* del form azienda è
-`CompanyResource::brandCards()`, hook di `CustomerResource`; la Resource che
-crea il brand al volo è `Contacts\CompanyBrandResource`, la stessa di
-customer-account su `app/gestionale/brand` con i permessi dell'area contatti.
+nati dal preventivo. Si chiama così per non confonderlo con il marchio degli
+articoli (`Catalog\Brand`, `brand_id` su modelli, listini, coupon e campagne).
+Il nome si copia in `company_brand_name`, come `referent_name`: resta com'era
+anche se il brand cambia nome, si stacca o si archivia.
+
+Tutto passa da `Support\Contacts\DocumentBrands`:
+
+- `resolve($companyId, $brandId, $stored)` — chiamato da
+  `OfficeOrders::headerValues()` con la bozza salvata in modifica. Nuovo
+  documento senza `company_brand_id`: `CompanyBrands::defaultOf()` (il
+  predefinito, altrimenti il primo). Documento salvato della stessa azienda
+  senza il campo, o con lo stesso brand: resta com'è, senza rivalidarlo (un
+  brand staccato o archiviato non si perde). Un brand diverso deve essere
+  dell'azienda oggi (`CompanyBrands::belongsTo()` senza data), altrimenti
+  `UserError` `office_order.brand_unknown`; `0` va sempre bene. Cambiata
+  l'azienda, senza il campo vale il predefinito della nuova; il vecchio brand
+  ancora postato è un errore. Persona o nessun cliente: `0` e nome vuoto;
+- `nameOf($order)` — il nome da stampare: quello copiato, altrimenti (documenti
+  di prima) `CompanyBrands::find()`. È testo: chi lo stampa lo escapa. La
+  scheda dell'ordine lo mostra sotto il cliente;
+- `merged()` — ascoltatore di `company.brand_merged` (`register()` da
+  `config/boot.php`): una UPDATE porta `company_brand_id` da `from_id` a
+  `into_id`, senza toccare `company_brand_name`;
+- `useBrands()` serve solo ai test.
+
+`company_brand_name` non arriva mai dalla richiesta: `OfficeOrderForm::header()`
+non lo lascia passare e `company_brand_id` non è in `OfficeOrders::HEADER`. Con
+il brand noto, il referente proposto è `DocumentReferents::defaultFor($companyId,
+$brandId)`: nel pannello cliente (brand predefinito) e nel salvataggio senza
+`customer_id` (MCP, codice). Cambiare il brand nella pagina non cambia il
+referente già scelto.
+
+Il pannello cliente (`OfficeCustomerPanel`) manda `brands` con `is_default` e lo
+script della pagina ricostruisce la tendina `company_brand_id` proponendo il
+predefinito. In modifica `OfficeOrderPage::brandOptions($companyId, $values)`
+aggiunge il brand salvato se l'azienda non l'ha più, «(non più dell'azienda)».
+La card *Brand* del form azienda è `CompanyResource::brandCards()`, hook di
+`CustomerResource`, con il repeater di customer-account (brand, ruolo,
+predefinito); la Resource che crea il brand al volo è
+`Contacts\CompanyBrandResource`, la stessa di customer-account su
+`app/gestionale/brand` con i permessi dell'area contatti.
+
+DDT, resi e revisioni del preventivo non portano il brand: lo legge l'ordine.
 
 Il DDT eredita `company_id` e `referent_name` dall'ordine (`DeliveryNotes`), e
 il PDF stampa il referente «Alla c.a.» nel riquadro del cliente
@@ -341,6 +378,17 @@ scrive `contact_company_map` (contatto → azienda, con l'azione `moved`,
 5. scrive `document_company` in `gst_migrations` e non gira più.
 
 Tutto in una transazione: se qualcosa va storto non cambia niente.
+
+`Migrations\OrderCompanyBrandMigration` porta il brand da `brand_id` a
+`company_brand_id`. Gira prima della sincronizzazione delle tabelle, quindi
+crea da sé `company_brand_id` e `company_brand_name` se mancano; copia l'id
+dove `company_brand_id` è `0` e il nome da `company_brands` dove manca, poi
+scrive `order_company_brand` in `gst_migrations`. La colonna `brand_id` non la
+cancella: la toglie dopo la sincronizzazione delle tabelle del core, che fa
+cadere le colonne non più nello schema; per questo un'istruzione che fallisce
+lancia un'eccezione e ferma l'aggiornamento prima. Senza `brand_id` né
+`company_brand_id` non fa niente. Le istruzioni sono in `plan()`, provato in
+`tests/OrderCompanyBrandMigrationTest.php`.
 
 Le mail `quote_sent`, `office_confirmed` e `delivery_note_sent`
 (`OrderNotifier::COPY_KEYS`) vanno a `order.email`, con gli indirizzi di

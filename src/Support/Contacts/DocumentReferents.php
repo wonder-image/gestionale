@@ -13,11 +13,11 @@ use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
  * proposto di default. Le copie delle mail vanno solo a chi riceve i
  * documenti (`options()`, `receives_documents`). Il nome si copia in `referent_name`, così
  * resta anche se il legame cambia. Con le relazioni spente non c'è niente da
- * scegliere.
+ * scegliere. Con il brand del documento si propone prima chi segue quel brand.
  */
 final class DocumentReferents
 {
-    /** @var null|callable(int): list<array<string, mixed>> */
+    /** @var null|callable(int, int): list<array<string, mixed>> azienda, brand (0 = tutti) */
     private static $reader = null;
 
     /**
@@ -39,15 +39,19 @@ final class DocumentReferents
         return self::read($companyId, false);
     }
 
-    /** @return list<array{id: int, name: string, email: string, job_title: string, department: string, role: string, is_primary: bool}> */
-    private static function read(int $companyId, bool $onlyDocuments): array
+    /**
+     * Con `$brandId` solo chi segue quel brand o tutti i brand (`ContactRelations::peopleOf()`).
+     *
+     * @return list<array{id: int, name: string, email: string, job_title: string, department: string, role: string, is_primary: bool}>
+     */
+    private static function read(int $companyId, bool $onlyDocuments, int $brandId = 0): array
     {
         if ($companyId <= 0 || !ContactRelations::enabled()) {
             return [];
         }
 
         try {
-            $rows = self::$reader !== null ? (self::$reader)($companyId) : ContactRelations::peopleOf($companyId);
+            $rows = self::$reader !== null ? (self::$reader)($companyId, $brandId) : ContactRelations::peopleOf($companyId, $brandId);
         } catch (Throwable $error) {
             error_log('[gestionale] referenti di '.$companyId.' non letti: '.$error->getMessage());
 
@@ -96,12 +100,18 @@ final class DocumentReferents
         return $out;
     }
 
-    /** Il referente proposto per un documento nuovo: il principale, altrimenti nessuno. */
-    public static function defaultFor(int $companyId): int
+    /**
+     * Il referente proposto per un documento nuovo: il principale, altrimenti
+     * nessuno. Con il brand del documento, prima il principale fra chi segue
+     * quel brand; se fra loro non c'è, il principale di tutti.
+     */
+    public static function defaultFor(int $companyId, int $brandId = 0): int
     {
-        foreach (self::people($companyId) as $option) {
-            if ($option['is_primary']) {
-                return $option['id'];
+        foreach (array_unique([max(0, $brandId), 0]) as $brand) {
+            foreach (self::read($companyId, false, $brand) as $option) {
+                if ($option['is_primary']) {
+                    return $option['id'];
+                }
             }
         }
 

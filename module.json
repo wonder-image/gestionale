@@ -42,7 +42,8 @@
         "models": "src/Models",
         "defaults": "Wonder\\Plugin\\Gestionale\\Seeding\\Defaults",
         "migrations": [
-            "Wonder\\Plugin\\Gestionale\\Migrations\\DocumentCompanyMigration"
+            "Wonder\\Plugin\\Gestionale\\Migrations\\DocumentCompanyMigration",
+            "Wonder\\Plugin\\Gestionale\\Migrations\\OrderCompanyBrandMigration"
         ]
     },
     "console": {

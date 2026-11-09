@@ -143,6 +143,7 @@
             "billing_required": "Completa la fatturazione del cliente (intestatario, via, città e paese) prima di confermare.",
             "out_of_stock": "Di «{{name}}» ne hai {{available}} e l'ordine ne chiede {{wanted}}: l'ordine non si conferma. Carica la merce, riduci la riga o toglila.",
             "customer_unknown": "Il cliente scelto non c'è più: ricarica la pagina e sceglilo di nuovo.",
+            "brand_unknown": "Il brand scelto non è (più) di quest'azienda: ricarica la pagina e scegline uno fra i suoi, o nessuno.",
             "product_unknown": "Una versione dell'ordine non si vende più: «{{name}}». Toglila e riprova.",
             "customization_required": "«{{name}}» chiede una personalizzazione: da ufficio non si sceglie ancora. Vendilo come riga libera.",
             "bundle_choice_required": "«{{name}}» è un multiprodotto con scelte: da ufficio non si sceglie ancora. Vendilo come riga libera.",
