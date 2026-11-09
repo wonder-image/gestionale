@@ -22,6 +22,15 @@ Permissions::addPermission(
         ->tx('text-dark')
         ->color('warning')
         ->creator(['admin', 'administrator'])
+)->addPermission(
+    // Non `sales`: la visibilità per riga nasconderebbe i dati anche all'ufficio (#77).
+    Permission::make('sales_agent', 'backend')
+        ->name('Commerciale')
+        ->icon("<i class='bi bi-person-badge'></i>")
+        ->bg('bg-info')
+        ->tx('text-dark')
+        ->color('info')
+        ->creator(['admin', 'administrator'])
 );
 
 return Permissions::instance();

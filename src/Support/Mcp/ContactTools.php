@@ -12,6 +12,7 @@ use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeCustomerPanel;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
+use Wonder\App\Visibility\RowVisibility;
 
 /**
  * Gli strumenti MCP dei clienti: solo lettura. La scheda si modifica dal
@@ -76,7 +77,8 @@ final class ContactTools
                 $conditions[] = '('.implode(' OR ', array_map(static fn (string $c): string => "`{$c}` LIKE {$like}", $columns)).')';
             }
 
-            foreach (self::rows($model::find(implode(' AND ', $conditions), $offset.', '.$limit, 'id', 'DESC')) as $row) {
+            $where = RowVisibility::applySql($model::$table, implode(' AND ', $conditions), RowVisibility::currentUser());
+            foreach (self::rows($model::find($where, $offset.', '.$limit, 'id', 'DESC')) as $row) {
                 $out[] = [
                     'id' => (int) $row['id'],
                     'kind' => $side,
@@ -100,7 +102,8 @@ final class ContactTools
         $row = $company ? Company::findById($id) : Contact::findById($id);
 
         if (!is_array($row) || $row === [] || (string) ($row['deleted'] ?? 'false') === 'true'
-            || (string) ($row['is_customer'] ?? 'false') !== 'true') {
+            || (string) ($row['is_customer'] ?? 'false') !== 'true'
+            || !RowVisibility::current()->visible(($company ? Company::class : Contact::class)::$table, $id)) {
             throw McpError::make('customer_not_found', 0, ['id' => $id]);
         }
 

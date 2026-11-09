@@ -6,6 +6,7 @@ use Throwable;
 use Wonder\App\Permission\Access;
 use Wonder\Backend\Contracts\HomeWidget;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\ScheduleResource;
@@ -32,7 +33,8 @@ final class DuePaymentsWidget implements HomeWidget
 
     public function authorities(): array
     {
-        return Access::viewers(Gestionale::area('vendite'));
+        // I totali sono di tutti: il commerciale ha il suo riquadro.
+        return SalesAgents::withoutAgents(Access::viewers(Gestionale::area('vendite')));
     }
 
     public function order(): int

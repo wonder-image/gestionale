@@ -15,6 +15,7 @@
 * [Magazzino](concetti/magazzino.md)
 * [Fornitori e costi d'acquisto](concetti/acquisti.md)
 * [Vendite: ordini, pagamenti e resi](concetti/vendite.md)
+* [Commerciali: visibilità per riga](concetti/commerciali.md)
 * [Promozioni: campagne di sconto](concetti/promozioni.md)
 * [Listini: cliente, canale e regola in percentuale](concetti/listini.md)
 * [Abbonamenti: piani, importi e limiti](concetti/abbonamenti.md)

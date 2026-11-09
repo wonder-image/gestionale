@@ -188,8 +188,9 @@ Lo stato viaggia con `shared/sync-data.json` al deploy.
 | `administrator` | commerciante | usa solo le funzionalità attive, nelle aree che gli sono concesse |
 | `sales` | Vendite | ordini, preventivi, clienti e spedizioni; legge catalogo e magazzino |
 | `warehouse` | Magazzino | giacenze, lotti e documenti di magazzino, spedizioni; legge catalogo e ordini |
+| `sales_agent` | Commerciale | solo i propri clienti e i loro documenti, con `sales_agents` accesa; legge il catalogo |
 
-`sales` e `warehouse` sono definiti in `config/permissions.php` e li assegna
+`sales`, `warehouse` e `sales_agent` sono definiti in `config/permissions.php` e li assegna
 `admin` o `administrator` dalla gestione utenti.
 
 ## Aree permessi
@@ -203,9 +204,10 @@ I default sono in `permissions` di `config/module.php`. `admin` è sempre inclus
 
 | Area | Pagine | Chi (default) |
 |---|---|---|
-| `catalogo` | prodotti, modelli, categorie, marchi, tag, attributi, personalizzazioni, piani | `administrator`; in lettura anche `sales`, `warehouse` |
-| `contatti` | clienti, fornitori, indirizzi | `administrator`, `sales` |
-| `vendite` | ordini, preventivi, ordini d'ufficio, DDT, scadenzario, abbonamenti | `administrator`, `sales`; in lettura anche `warehouse` |
+| `catalogo` | prodotti, modelli, categorie, marchi, tag, attributi, personalizzazioni, piani | `administrator`; in lettura anche `sales`, `warehouse`, `sales_agent` |
+| `contatti` | clienti, fornitori, indirizzi | `administrator`, `sales`; `sales_agent` vede, crea e modifica |
+| `vendite` | ordini, preventivi, ordini d'ufficio, DDT, scadenzario, abbonamenti | `administrator`, `sales`; `sales_agent` vede, crea e modifica; in lettura anche `warehouse` |
+| `commerciali` | commerciali | `administrator` |
 | `spedizioni` | spedizioni | `administrator`, `sales`, `warehouse` |
 | `promozioni` | coupon, campagne di sconto | `administrator` |
 | `magazzino` | giacenze, movimenti, lotti, documenti, rettifiche | `administrator`, `warehouse`; in lettura anche `sales` |
@@ -213,6 +215,9 @@ I default sono in `permissions` di `config/module.php`. `admin` è sempre inclus
 | `impostazioni_pagamenti` | conti, metodi, termini di pagamento | solo `admin` |
 | `fiscale` | aliquote, categorie e regole IVA | solo `admin` |
 | `impostazioni` | impostazioni e funzionalità del gestionale | solo `admin` |
+
+Per `sales_agent` l'area dice solo quali pagine apre: quali righe vede lo
+decide la visibilità per riga (vedi [Commerciali](commerciali.md)).
 
 Una regola è una lista di ruoli (vale per tutte le azioni) o una mappa per
 azione (`view`, `create`, `edit`, `delete`, `*` per le altre). Le Resource

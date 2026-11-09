@@ -60,6 +60,7 @@
 ## Anagrafiche
 
 * [Clienti e fornitori](anagrafiche.md)
+* [Commerciali](commerciali.md)
 
 ## Ogni giorno
 

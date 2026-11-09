@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Sales;
 
+use Wonder\App\Visibility\RowVisibility;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
@@ -70,7 +71,8 @@ final class OfficeSearch
                 .' OR `email` LIKE '.$like.' OR `cf` LIKE '.$like.')';
         }
 
-        $rows = Contact::find(implode(' AND ', $conditions), self::CUSTOMER_LIMIT, 'id', 'DESC');
+        // Il commerciale trova solo i suoi clienti (#77).
+        $rows = Contact::find(RowVisibility::applySql(Contact::$table, implode(' AND ', $conditions), RowVisibility::currentUser()), self::CUSTOMER_LIMIT, 'id', 'DESC');
         $rows = is_array($rows) ? (isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'))) : [];
 
         return array_map(static fn (array $row): array => [
@@ -182,7 +184,7 @@ final class OfficeSearch
             $conditions[] = '('.implode(' OR ', array_map(static fn (string $c): string => '`'.$c.'` LIKE '.$like, $columns)).')';
         }
 
-        $rows = $model::find(implode(' AND ', $conditions), self::CUSTOMER_LIMIT, 'id', 'DESC');
+        $rows = $model::find(RowVisibility::applySql($model::$table, implode(' AND ', $conditions), RowVisibility::currentUser()), self::CUSTOMER_LIMIT, 'id', 'DESC');
 
         return is_array($rows) ? (isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'))) : [];
     }

@@ -14,6 +14,7 @@ use Wonder\Plugin\Gestionale\Support\Backend\RowMenu;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Orders\StatusLabels;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderForm;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 
 /**
  * *Vendite → Preventivi* (G9 §3.1): la stessa pagina dell'ordine da ufficio,
@@ -110,13 +111,13 @@ final class QuoteResource extends OfficeOrderResource
             $stati[$stato] = StatusLabels::order($stato)['label'];
         }
 
-        return TableLayoutSchema::for(static::class)
+        return SalesAgents::filter(TableLayoutSchema::for(static::class)
             ->title('Preventivi')
             ->results()
             ->buttonAdd(true, 'Nuovo preventivo')
             ->filterSearch()
             ->searchFields(['order_number', 'quote_number', 'billing_name', 'billing_surname', 'billing_business_name', 'email'])
-            ->filterCustom('Stato', 'status', $stati);
+            ->filterCustom('Stato', 'status', $stati));
     }
 
     /** Il numero del preventivo: quello dell'ordine; i vecchi preventivi inviati hanno il loro. */

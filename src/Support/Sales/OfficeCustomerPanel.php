@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Support\Sales;
 use Wonder\App\LegacyGlobals;
 use Wonder\App\ResourceSchema\Input;
 use Wonder\App\Table;
+use Wonder\App\Visibility\RowVisibility;
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Choice;
@@ -470,7 +471,8 @@ final class OfficeCustomerPanel
             return null;
         }
 
-        return $contact;
+        // Il commerciale non legge né modifica i clienti degli altri (#77).
+        return RowVisibility::visible(Contact::$table, $contactId, RowVisibility::currentUser()) ? $contact : null;
     }
 
     /**
@@ -486,7 +488,11 @@ final class OfficeCustomerPanel
             return null;
         }
 
-        return (string) ($company[CompanyResource::roleColumn()] ?? 'false') === 'true' ? $company : null;
+        if ((string) ($company[CompanyResource::roleColumn()] ?? 'false') !== 'true') {
+            return null;
+        }
+
+        return RowVisibility::visible(Company::$table, $companyId, RowVisibility::currentUser()) ? $company : null;
     }
 
     /**

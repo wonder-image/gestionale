@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Support\Sales;
 
 use RuntimeException;
 use Throwable;
+use Wonder\App\Visibility\RowVisibility;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
@@ -40,6 +41,7 @@ use Wonder\Plugin\Gestionale\Support\Payments\Installments;
 use Wonder\Plugin\Gestionale\Support\Pricing\LinePrice;
 use Wonder\Plugin\Gestionale\Support\Pricing\OrderTotals;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 use Wonder\Plugin\Gestionale\Support\Shipping\Shipments;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Tax\ChargeSplit;
@@ -112,6 +114,14 @@ final class OfficeOrders
         return Transaction::run(static function () use ($orderId, $data, $userId, $header, $lines, $shipping, $stage, $expires): int {
             $order = $orderId > 0 ? self::draft($orderId, $stage) : null;
             $values = self::headerValues($data, $header, $order !== null);
+
+            // Il commerciale si fissa alla nascita; una bozza nata senza cliente lo prende al primo (#77).
+            if ((int) ($order['agent_id'] ?? 0) === 0) {
+                $agentId = SalesAgents::forDocument($values + (array) $order, RowVisibility::currentUser());
+                if ($agentId > 0) {
+                    $values['agent_id'] = $agentId;
+                }
+            }
 
             if ($stage === 'quote') {
                 $values['quote_expires_at'] = $expires ?? (string) ($order['quote_expires_at'] ?? '') ?: self::defaultExpiry();
@@ -834,7 +844,7 @@ final class OfficeOrders
         $defaults = [];
 
         if ($companyId > 0) {
-            if (self::alive(Company::class, $companyId) === []) {
+            if (self::alive(Company::class, $companyId) === [] || !self::reachable(Company::$table, $companyId)) {
                 throw UserError::make('office_order.customer_unknown');
             }
 
@@ -844,7 +854,7 @@ final class OfficeOrders
             $customerId = (int) $values['customer_id'];
             $defaults = self::customerDefaults($customerId, $companyId);
         } elseif ($customerId > 0) {
-            if (self::alive(Contact::class, $customerId) === []) {
+            if (self::alive(Contact::class, $customerId) === [] || !self::reachable(Contact::$table, $customerId)) {
                 throw UserError::make('office_order.customer_unknown');
             }
 
@@ -920,11 +930,18 @@ final class OfficeOrders
     }
 
     /** @return array<string, mixed> */
+    /** Il commerciale usa solo i clienti che vede (#77). */
+    private static function reachable(string $table, int $id): bool
+    {
+        return RowVisibility::visible($table, $id, RowVisibility::currentUser());
+    }
+
     private static function draft(int $orderId, string $stage = 'order'): array
     {
         $order = Order::findForUpdate(['id' => $orderId], 1);
 
-        if (!is_array($order) || $order === [] || (string) ($order['deleted'] ?? 'false') === 'true') {
+        if (!is_array($order) || $order === [] || (string) ($order['deleted'] ?? 'false') === 'true'
+            || !RowVisibility::visible(Order::$table, $orderId, RowVisibility::currentUser())) {
             throw UserError::make($stage === 'quote' ? 'quote.not_found' : 'office_order.not_draft');
         }
 

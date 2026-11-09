@@ -11,6 +11,7 @@ use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderRules;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxCategories;
+use Wonder\App\Visibility\RowVisibility;
 
 /**
  * Gli strumenti MCP dei preventivi: un preventivo è un ordine con `stage`
@@ -92,9 +93,9 @@ final class QuoteTools
         $companyId = (int) ($args['company_id'] ?? 0);
 
         if ($companyId > 0) {
-            self::alive(Company::findById($companyId), $companyId);
+            self::alive(RowVisibility::current()->findById(Company::class, $companyId), $companyId);
         } elseif ($customerId > 0) {
-            self::alive(Contact::findById($customerId), $customerId);
+            self::alive(RowVisibility::current()->findById(Contact::class, $customerId), $customerId);
         } else {
             throw McpError::make('customer_not_found', 0, ['id' => 0]);
         }
@@ -201,7 +202,7 @@ final class QuoteTools
     /** @return array<string, mixed> */
     private static function quoteRow(int $id): array
     {
-        $row = $id > 0 ? Order::findById($id) : null;
+        $row = $id > 0 ? RowVisibility::current()->findById(Order::class, $id) : null;
 
         if (!is_array($row) || $row === [] || (string) ($row['deleted'] ?? 'false') === 'true' || (string) ($row['stage'] ?? '') !== 'quote') {
             throw McpError::make('quote_not_found', 0, ['id' => $id]);

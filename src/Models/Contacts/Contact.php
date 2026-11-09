@@ -17,6 +17,8 @@ final class Contact extends \Wonder\Plugin\CustomerAccount\Models\Contact
         return [
             ...parent::tableSchema(),
             \Wonder\Sql\TableSchema::key('price_list_id')->int(),
+            // Il commerciale assegnato (#77).
+            \Wonder\Sql\TableSchema::key('agent_id')->int(),
             \Wonder\Sql\TableSchema::key('payment_method_id')->int(),
             \Wonder\Sql\TableSchema::key('payment_term_id')->int(),
             // Vuota: quella delle impostazioni.
@@ -29,6 +31,7 @@ final class Contact extends \Wonder\Plugin\CustomerAccount\Models\Contact
         return [
             ...parent::dataSchema(),
             \Wonder\Data\UploadSchema::key('price_list_id')->number()->decimals(0),
+            \Wonder\Data\UploadSchema::key('agent_id')->number()->decimals(0),
             \Wonder\Data\UploadSchema::key('payment_method_id')->number()->decimals(0),
             \Wonder\Data\UploadSchema::key('payment_term_id')->number()->decimals(0),
             \Wonder\Data\UploadSchema::key('vat_collectability')->text()->sanitize(false),

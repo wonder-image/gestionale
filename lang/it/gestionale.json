@@ -282,6 +282,12 @@
             "in_use": "Questo conto è collegato a dei metodi di pagamento ({{count}}) e non si elimina: scollegalo dai metodi, oppure mettilo su «Non attivo».",
             "invalid_iban": "L'IBAN non è valido: servono da 15 a 34 tra lettere e cifre, senza altri segni."
         },
+        "sales_agent": {
+            "user_required": "Scegli l'utente del commerciale: senza utente non entra nel pannello.",
+            "user_not_agent": "L'utente scelto non ha il ruolo «Commerciale»: daglielo da Utenti, poi riprova.",
+            "user_taken": "Questo utente è già un commerciale: modifica quella scheda.",
+            "invalid_percent": "{{field}} va da 0 a 100."
+        },
         "payment_term": {
             "no_installments": "Serve almeno una rata: aggiungi i giorni e la percentuale.",
             "invalid_days": "Rata {{row}}: i giorni sono un numero intero da 0 a {{max}}.",

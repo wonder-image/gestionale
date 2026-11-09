@@ -25,6 +25,7 @@ use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxTotals;
 use Throwable;
 use Wonder\Sql\Transaction;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 
 /**
@@ -345,10 +346,16 @@ final class Checkout
             // `user_id` è l'account di chi compra (anche l'ospite appena
             // creato): senza, l'email di conferma non sa a chi offrire il
             // link all'area riservata o alla scelta della password.
+            // Online compra il cliente: il commerciale è quello della sua azienda o scheda (#77).
+            $agentId = (int) ($cart['agent_id'] ?? 0) > 0 ? 0 : SalesAgents::forDocument([
+                'customer_id' => (int) ($data['customer_id'] ?? $cart['customer_id'] ?? 0),
+                'company_id' => (int) ($data['company_id'] ?? $cart['company_id'] ?? 0),
+            ]);
             Order::update([
                 'stage' => 'order',
                 'status' => $status,
-            ] + ($number !== '' ? ['order_number' => $number] : [])
+            ] + ($agentId > 0 ? ['agent_id' => $agentId] : [])
+              + ($number !== '' ? ['order_number' => $number] : [])
               + ($online ? [] : ['ordered_at' => date('Y-m-d H:i:s')])
               + ((int) ($data['user_id'] ?? 0) > 0 ? ['user_id' => (int) $data['user_id']] : []), $cartId);
 

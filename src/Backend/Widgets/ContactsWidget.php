@@ -7,6 +7,7 @@ use Wonder\App\Permission\Access;
 use Wonder\Backend\Contracts\HomeWidget;
 use Wonder\Elements\Components\LinkListCard;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
@@ -32,7 +33,8 @@ final class ContactsWidget implements HomeWidget
 
     public function authorities(): array
     {
-        return Access::viewers(Gestionale::area('contatti'));
+        // I totali sono di tutti: il commerciale ha il suo riquadro.
+        return SalesAgents::withoutAgents(Access::viewers(Gestionale::area('contatti')));
     }
 
     public function order(): int

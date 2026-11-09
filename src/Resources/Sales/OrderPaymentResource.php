@@ -28,6 +28,7 @@ use Wonder\Plugin\Gestionale\Support\Payments\Ledger;
 use Wonder\Plugin\Gestionale\Support\Payments\PaymentStatus;
 use Wonder\Plugin\Gestionale\Support\Stock\BatchExpiry;
 use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
+use Wonder\App\Visibility\RowVisibility;
 
 /**
  * «Registra pagamento»: il denaro arrivato a mano — il bonifico guardato
@@ -297,7 +298,8 @@ final class OrderPaymentResource extends NavigationOnlyResource
      */
     public static function run(int $orderId, array $values, int $userId): array
     {
-        $ordine = $orderId > 0 ? Order::findById($orderId) : null;
+        // Solo gli ordini che chi agisce può vedere: il commerciale, i suoi (#77).
+        $ordine = $orderId > 0 ? RowVisibility::current()->findById(Order::class, $orderId) : null;
 
         if (!is_array($ordine) || $ordine === []
             || (string) ($ordine['deleted'] ?? 'false') === 'true'
@@ -473,7 +475,7 @@ final class OrderPaymentResource extends NavigationOnlyResource
     private static function currentOrder(): array
     {
         $id = (int) ($_GET['ordine'] ?? $_POST['order_id'] ?? 0);
-        $ordine = $id > 0 ? Order::findById($id) : null;
+        $ordine = $id > 0 ? RowVisibility::current()->findById(Order::class, $id) : null;
 
         return is_array($ordine) && $ordine !== [] ? $ordine : [];
     }
