@@ -20,12 +20,14 @@ use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderEditor;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentUsers;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 
 /**
  * «Commerciali» (#77, funzionalità `sales_agents`): chi vende per il negozio e
  * vede solo i propri clienti. Il commerciale è un utente del backend col ruolo
- * `sales_agent`; qui si lega a lui la scheda, una per utente.
+ * `sales_agent`, creato da questa pagina con nome, cognome ed email (riceve
+ * la mail per scegliere la password); una scheda per utente.
  *
  * Solo l'ufficio (area `commerciali`) li gestisce. I clienti si assegnano
  * dalla scheda del cliente o dell'azienda.
@@ -78,13 +80,20 @@ final class SalesAgentResource extends GestionaleResource
         ];
     }
 
+    /** I campi dell'utente nuovo: non sono colonne del commerciale. */
+    private const USER_FIELDS = ['user_name', 'user_surname', 'user_email'];
+
     public static function formSchema(): array
     {
         return [
+            // In modifica l'utente si vede ma non si cambia.
             FormField::key('user_id')
-                ->select(['' => 'Scegli'] + SalesAgents::userOptions())
+                ->select(['' => '—'] + SalesAgents::userOptions())
                 ->label('Utente')
-                ->required(),
+                ->disabled(),
+            FormField::key('user_name')->text()->label('Nome')->required(),
+            FormField::key('user_surname')->text()->label('Cognome'),
+            FormField::key('user_email')->email()->label('Email')->required(),
             FormField::key('contact_id')->searchText(OfficeOrderEditor::customersUrl())
                 ->emptyText('Nessun contatto trovato: crealo dai Contatti.')
                 ->label('Scheda anagrafica'),
@@ -113,10 +122,16 @@ final class SalesAgentResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Commerciale')
-                        ->tooltip('L\'utente è chi entra nel pannello: crealo da Utenti col ruolo «Commerciale», poi sceglilo qui. Vede e gestisce solo i clienti e le aziende assegnati a lui e le vendite che ha fatto. Un commerciale non attivo non entra più nei suoi clienti: i suoi restano assegnati finché non li sposti.')
+                        ->tooltip('Al salvataggio nasce l\'utente col ruolo «Commerciale»: riceve una mail per scegliere la password ed entrare nel pannello. Vede e gestisce solo i clienti e le aziende assegnati a lui e le vendite che ha fatto. Un commerciale non attivo non entra più nei suoi clienti: i suoi restano assegnati finché non li sposti.')
                         ->columnSpan(12),
-                    static::getInput('user_id')->columnSpan(6),
-                    static::getInput('active')->columnSpan(6),
+                    ...(static::currentId() === null
+                        ? [
+                            static::getInput('user_name')->columnSpan(4),
+                            static::getInput('user_surname')->columnSpan(4),
+                            static::getInput('user_email')->columnSpan(4),
+                        ]
+                        : [static::getInput('user_id')->columnSpan(6)]),
+                    static::getInput('active')->columnSpan(static::currentId() === null ? 12 : 6),
                     static::getInput('contact_id')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
@@ -199,7 +214,20 @@ final class SalesAgentResource extends GestionaleResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
-        if (array_key_exists('user_id', $values) || $action === 'store') {
+        // Nuovo commerciale: l'utente nasce qui (o si riusa se è già commerciale).
+        if ($action === 'store') {
+            $values['user_id'] = SalesAgentUsers::create(
+                (string) ($values['user_name'] ?? ''),
+                (string) ($values['user_surname'] ?? ''),
+                (string) ($values['user_email'] ?? '')
+            );
+        } else {
+            // L'utente di un commerciale non si cambia.
+            unset($values['user_id']);
+        }
+        $values = array_diff_key($values, array_flip(self::USER_FIELDS));
+
+        if (array_key_exists('user_id', $values)) {
             $userId = (int) ($values['user_id'] ?? 0);
             if ($userId <= 0) {
                 throw UserError::make('sales_agent.user_required');

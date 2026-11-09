@@ -9,8 +9,9 @@ use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
  * Il referente di un documento intestato a un'azienda (`company_id`).
  *
  * Il referente è la persona del documento (`customer_id`): si sceglie fra
- * quelli dell'azienda che ricevono i documenti (`receives_documents`), e il
- * principale è proposto di default. Il nome si copia in `referent_name`, così
+ * tutte le persone legate all'azienda (`people()`), e il principale è
+ * proposto di default. Le copie delle mail vanno solo a chi riceve i
+ * documenti (`options()`, `receives_documents`). Il nome si copia in `referent_name`, così
  * resta anche se il legame cambia. Con le relazioni spente non c'è niente da
  * scegliere.
  */
@@ -24,6 +25,23 @@ final class DocumentReferents
      */
     public static function options(int $companyId): array
     {
+        return self::read($companyId, true);
+    }
+
+    /**
+     * Tutte le persone legate all'azienda, anche quelle che non ricevono i
+     * documenti: fra queste si sceglie il referente.
+     *
+     * @return list<array{id: int, name: string, email: string, job_title: string, is_primary: bool}>
+     */
+    public static function people(int $companyId): array
+    {
+        return self::read($companyId, false);
+    }
+
+    /** @return list<array{id: int, name: string, email: string, job_title: string, is_primary: bool}> */
+    private static function read(int $companyId, bool $onlyDocuments): array
+    {
         if ($companyId <= 0 || !ContactRelations::enabled()) {
             return [];
         }
@@ -36,17 +54,17 @@ final class DocumentReferents
             return [];
         }
 
-        return self::fromRows($rows);
+        return self::fromRows($rows, $onlyDocuments);
     }
 
     /**
      * Dalle righe di `ContactRelations::peopleOf()` alle opzioni: solo legami
-     * vivi, con la persona viva, che ricevono i documenti.
+     * vivi, con la persona viva e, con `$onlyDocuments`, che ricevono i documenti.
      *
      * @param list<array<string, mixed>> $rows
      * @return list<array{id: int, name: string, email: string, job_title: string, is_primary: bool}>
      */
-    public static function fromRows(array $rows): array
+    public static function fromRows(array $rows, bool $onlyDocuments = true): array
     {
         $out = [];
         $seen = [];
@@ -58,7 +76,7 @@ final class DocumentReferents
             if ($id <= 0 || isset($seen[$id])
                 || ($row['deleted'] ?? 'false') !== 'false'
                 || ($contact['deleted'] ?? 'false') !== 'false'
-                || ($row['receives_documents'] ?? 'false') !== 'true') {
+                || ($onlyDocuments && ($row['receives_documents'] ?? 'false') !== 'true')) {
                 continue;
             }
 
@@ -78,7 +96,7 @@ final class DocumentReferents
     /** Il referente proposto per un documento nuovo: il principale, altrimenti nessuno. */
     public static function defaultFor(int $companyId): int
     {
-        foreach (self::options($companyId) as $option) {
+        foreach (self::people($companyId) as $option) {
             if ($option['is_primary']) {
                 return $option['id'];
             }
@@ -96,7 +114,7 @@ final class DocumentReferents
     public static function resolve(int $companyId, int $personId): array
     {
         if ($personId > 0) {
-            foreach (self::options($companyId) as $option) {
+            foreach (self::people($companyId) as $option) {
                 if ($option['id'] === $personId) {
                     return ['customer_id' => $option['id'], 'referent_name' => $option['name']];
                 }

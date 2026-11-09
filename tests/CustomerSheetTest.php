@@ -124,4 +124,15 @@ check('gli abbonamenti del cliente: il più recente in alto, codice alla scheda,
         && str_contains(CustomerSheet::subscriptionsTable([]), 'Nessun abbonamento');
 });
 
+check('i legami: nome col link alla scheda, dettaglio, escape e frase quando non ce ne sono', function () {
+    $html = CustomerSheet::relations([
+        ['name' => 'Rossi <i>', 'url' => '/backend/clienti/5/', 'detail' => 'CEO · Principale'],
+        ['name' => 'Senza scheda', 'url' => '', 'detail' => ''],
+    ], 'Nessun referente.');
+
+    return str_contains($html, '<a href="/backend/clienti/5/">Rossi &lt;i&gt;</a>') && str_contains($html, 'CEO · Principale')
+        && str_contains($html, '>Senza scheda</li>')
+        && str_contains(CustomerSheet::relations([], 'Nessun referente.'), 'Nessun referente.');
+});
+
 summary();

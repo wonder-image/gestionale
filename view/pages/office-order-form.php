@@ -120,7 +120,7 @@ try {
         set('referent', parseInt(data.company_id, 10) > 0 ? (data.customer_id || 0) : 0);
     }
 
-    // I referenti dell'azienda scelta: «Nessun referente», poi chi riceve i documenti.
+    // I referenti dell'azienda scelta: «Nessun referente», poi le persone dell'azienda.
     function referents(list) {
         var node = field('referent');
         var primary = 0;
@@ -314,6 +314,13 @@ try {
         }
 
         if (modal.id === modals[2]) {
+            // Le sedi d'azienda non hanno la ragione sociale: è quella dell'azienda.
+            target = modal.querySelector('[name="business_name"]');
+
+            if (target) {
+                (target.closest('[class*="col-"]') || target.parentNode).hidden = company();
+            }
+
             return;
         }
 
@@ -427,6 +434,7 @@ try {
         body = new FormData();
         body.append('action', 'delete');
         body.append('contact_id', state.contact.id);
+        body.append('company_id', company() ? state.contact.company_id : 0);
         body.append('address_id', button.getAttribute('data-wi-oo-address-delete'));
         post(body, function (data) {
             saved('delete', data);

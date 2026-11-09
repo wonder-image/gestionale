@@ -12,7 +12,8 @@ use Wonder\Plugin\Gestionale\Support\Sales\OfficeSearch;
 $key = ApiRequest::string('key');
 [$contactId, $companyId] = $key !== '' ? OfficeSearch::parseCustomerKey($key) : [ApiRequest::int('id'), 0];
 
-if ($companyId > 0) {
+// Il referente della chiave (`company:7:12`, dalla ricerca) vale se non c'è `referent`.
+if ($companyId > 0 && ApiRequest::int('referent') > 0) {
     $contactId = ApiRequest::int('referent');
 }
 

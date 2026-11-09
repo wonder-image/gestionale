@@ -14,6 +14,8 @@ use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Throwable;
 use Wonder\Elements\Components\Accordion;
+use Wonder\Elements\Components\Button;
+use Wonder\Elements\Components\Modal;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\RichText;
@@ -40,6 +42,7 @@ use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerStats;
+use Wonder\Plugin\Gestionale\Support\Contacts\QuickContacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
@@ -428,8 +431,176 @@ class CustomerResource extends GestionaleResource
                 // Il form dichiara un solo repeater, quello del lato della scheda
                 static::getInput(static::relationSide() === ContactRelations::COMPANY ? self::RELATION_PEOPLE : self::RELATION_COMPANIES)->columnSpan(12),
                 static::getInput(self::RELATION_MARKER)->columnSpan(12),
+                ...static::quickRelationParts(),
             ])->columns(12)->columnSpan(12),
         ];
+    }
+
+    /**
+     * «Nuovo referente» (lato azienda) o «Nuova azienda» (lato persona): la
+     * scheda si crea dalla finestra e si seleziona in una riga dei legami.
+     * Se c'è già (stessa email o partita IVA) si seleziona quella.
+     *
+     * @return list<object>
+     */
+    protected static function quickRelationParts(): array
+    {
+        try {
+            $endpoint = (string) __r('api.gestionale.backend.contacts.quick_create');
+        } catch (Throwable) {
+            return [];
+        }
+
+        $company = static::relationSide() === ContactRelations::COMPANY;
+        $type = $company ? QuickContacts::PERSON : QuickContacts::COMPANY;
+        $repeater = $company ? self::RELATION_PEOPLE : self::RELATION_COMPANIES;
+        $column = $company ? 'person_id' : 'company_id';
+        $modalId = 'wi-quick-relation';
+        $label = __t($company ? 'gestionale.contacts.relations.quick_person' : 'gestionale.contacts.relations.quick_company');
+        $field = static fn (string $key, string $text, int $span): Input => FormField::key('quick_'.$key)
+            ->text()
+            ->label(__t('gestionale.contacts.relations.quick_fields.'.$text))
+            ->attribute('data-wi-quick-field="'.$key.'"')
+            ->columnSpan($span);
+
+        $fields = $company
+            ? [$field('name', 'name', 6), $field('surname', 'surname', 6), $field('email', 'email', 12)]
+            : [$field('business_name', 'business_name', 12), $field('pi', 'pi', 12)];
+
+        return [
+            Button::make($label)
+                ->variant('secondary')
+                ->outline()
+                ->opensModal($modalId)
+                ->columnSpan(12),
+            Modal::make($label)
+                ->id($modalId)
+                ->help(__t('gestionale.contacts.relations.quick_help'))
+                ->columns(12)
+                ->components([
+                    RichText::make('<div class="alert alert-danger small mb-0" data-wi-quick-error role="alert" hidden></div>')
+                        ->tag('div')->columnSpan(12),
+                    ...$fields,
+                ])
+                ->footer([
+                    Button::make(__t('gestionale.contacts.relations.quick_cancel'))->variant('secondary')->attr('data-bs-dismiss', 'modal'),
+                    Button::make(__t('gestionale.contacts.relations.quick_save'))->attr('data-wi-quick-save', 'true'),
+                ]),
+            RichText::make(
+                '<div class="small text-body-secondary" data-wi-quick-relation="'.static::escape($modalId).'"'
+                .' data-wi-endpoint="'.static::escape($endpoint).'"'
+                .' data-wi-type="'.static::escape($type).'"'
+                .' data-wi-repeater="'.static::escape($repeater).'"'
+                .' data-wi-column="'.static::escape($column).'"></div>'
+                .static::quickRelationScript()
+            )->tag('div')->columnSpan(12),
+        ];
+    }
+
+    /**
+     * Il codice della finestra: sposta il modal fuori dal form (i suoi campi
+     * non vanno salvati con la scheda), manda i dati all'endpoint e mette la
+     * scheda nella prima riga vuota dei legami, o in una nuova.
+     */
+    protected static function quickRelationScript(): string
+    {
+        return <<<'HTML'
+<script>
+(function () {
+  function setUp() {
+    document.querySelectorAll('[data-wi-quick-relation]').forEach(function (box) {
+      if (box.dataset.wiReady) return;
+      box.dataset.wiReady = 'true';
+
+      var modal = document.getElementById(box.dataset.wiQuickRelation);
+      if (!modal) return;
+      document.body.appendChild(modal);
+
+      var error = modal.querySelector('[data-wi-quick-error]');
+      var save = modal.querySelector('[data-wi-quick-save]');
+      var fields = function () { return modal.querySelectorAll('[data-wi-quick-field]'); };
+
+      modal.addEventListener('show.bs.modal', function () {
+        fields().forEach(function (input) { input.value = ''; });
+        error.hidden = true;
+      });
+
+      save.addEventListener('click', function () {
+        var body = { type: box.dataset.wiType };
+        fields().forEach(function (input) { body[input.dataset.wiQuickField] = input.value; });
+        var token = document.querySelector('meta[name="wi-csrf"]');
+        save.disabled = true;
+        error.hidden = true;
+
+        fetch(box.dataset.wiEndpoint, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-WI-CSRF': token ? token.content : '' },
+          body: JSON.stringify(body)
+        }).then(function (response) {
+          return response.json().catch(function () { return {}; }).then(function (json) { return { ok: response.ok, json: json }; });
+        }).then(function (result) {
+          var data = result.json && typeof result.json.response === 'object' && result.json.response ? result.json.response : {};
+          if (!result.ok || !data.id) {
+            error.textContent = (result.json && typeof result.json.response === 'string' && result.json.response) || 'Non sono riuscito a salvare la scheda.';
+            error.hidden = false;
+            return;
+          }
+          place(box, data);
+          if (window.bootstrap && window.bootstrap.Modal) window.bootstrap.Modal.getOrCreateInstance(modal).hide();
+          box.textContent = data.existing ? (data.message || '') : '';
+        }).catch(function () {
+          error.textContent = 'Non sono riuscito a salvare la scheda.';
+          error.hidden = false;
+        }).finally(function () { save.disabled = false; });
+      });
+    });
+  }
+
+  // La scheda in tutte le tendine della colonna, poi nella riga: quella che
+  // l'ha già, la prima vuota o una nuova.
+  function place(box, data) {
+    var repeater = document.querySelector('[data-wi-repeater="' + box.dataset.wiRepeater + '"]');
+    if (!repeater) return;
+    var column = '[' + box.dataset.wiColumn + ']';
+    var id = String(data.id);
+    var selects = function (root) {
+      return Array.prototype.filter.call(root.querySelectorAll('select'), function (s) { return s.name.slice(-column.length) === column; });
+    };
+    var template = repeater.querySelector('template');
+
+    selects(repeater).concat(template ? selects(template.content) : []).forEach(function (select) {
+      if (!Array.prototype.some.call(select.options, function (o) { return o.value === id; })) {
+        select.appendChild(new Option(data.label, id, false, false));
+      }
+    });
+
+    var rows = Array.prototype.filter.call(repeater.querySelectorAll('.wi-repeater-row:not(.d-none):not(.wi-repeater-row-deleted)'), function (row) {
+      return !row.closest('template');
+    });
+    var pick = function (row) { return selects(row)[0]; };
+
+    if (rows.some(function (row) { var s = pick(row); return s && s.value === id; })) return;
+
+    var row = rows.filter(function (r) { var s = pick(r); return s && s.value === ''; })[0];
+    if (!row) {
+      var add = repeater.querySelector('button[onclick*="wiRepeaterAddRow"]');
+      var ids = add ? (add.getAttribute('onclick').match(/'([^']+)'/g) || []).map(function (x) { return x.slice(1, -1); }) : [];
+      row = ids.length >= 2 && typeof window.wiRepeaterAddRow === 'function' ? window.wiRepeaterAddRow(ids[0], ids[1]) : null;
+    }
+    var select = row ? pick(row) : null;
+    if (!select) return;
+
+    select.value = id;
+    if (window.jQuery) window.jQuery(select).trigger('change');
+    else select.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setUp);
+  else setUp();
+})();
+</script>
+HTML;
     }
 
     /**
@@ -737,11 +908,72 @@ class CustomerResource extends GestionaleResource
             static::deliveryCard($id),
         ];
 
+        if (($legami = static::relationsCard($id)) !== null) {
+            array_splice($destra, 1, 0, [$legami]);
+        }
+
         return (new Container)->components([
             (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components($sinistra),
             (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components($destra),
             $accordion('Coupon assegnati', CustomerSheet::couponsTable(CustomerSheet::coupons($id, $column))),
         ])->columns(12);
+    }
+
+    /**
+     * I legami della scheda, con i referenti accesi: per un'azienda le sue
+     * persone, per una persona le sue aziende. Ognuno porta alla sua scheda.
+     */
+    protected static function relationsCard(int $id): ?Card
+    {
+        if ($id <= 0 || !ContactRelations::enabled()) {
+            return null;
+        }
+
+        $azienda = static::isCompanySide();
+        $items = [];
+
+        foreach ($azienda ? ContactRelations::peopleOf($id) : ContactRelations::companiesOf($id) as $row) {
+            $altro = $row[$azienda ? 'contact' : 'company'] ?? null;
+
+            if (($row['deleted'] ?? 'false') === 'true' || !is_array($altro) || ($altro['deleted'] ?? 'false') === 'true') {
+                continue;
+            }
+
+            $altroId = (int) $altro['id'];
+            $dettaglio = array_filter([
+                trim((string) ($row['job_title'] ?? '')),
+                ($row['is_primary'] ?? 'false') === 'true' ? 'Principale' : '',
+                ($row['receives_documents'] ?? 'false') === 'true' ? 'Riceve i documenti' : '',
+                $azienda ? trim((string) ($altro['email'] ?? '')) : '',
+            ]);
+
+            $items[] = [
+                'name' => $azienda
+                    ? Contacts::displayName($altro)
+                    : (trim((string) ($altro['business_name'] ?? '')) ?: 'Azienda #'.$altroId),
+                'url' => $azienda ? CustomerResource::viewUrl($altroId) : static::companyUrl($altro),
+                'detail' => implode(' · ', $dettaglio),
+            ];
+        }
+
+        return (new Card)->components([
+            SectionTitle::make($azienda ? 'Referenti' : 'Aziende')
+                ->tooltip($azienda ? 'Le persone legate all\'azienda: si aggiungono dalla modifica.' : 'Le aziende di cui la persona è referente: si aggiungono dalla modifica.')
+                ->columnSpan(12),
+            RichText::make(CustomerSheet::relations($items, $azienda ? 'Nessun referente.' : 'Non è referente di nessuna azienda.'))->tag('div')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+    }
+
+    /** La scheda di un'azienda: da cliente, da fornitore o nessuna. */
+    private static function companyUrl(array $company): string
+    {
+        $id = (int) ($company['id'] ?? 0);
+
+        if (($company['is_customer'] ?? 'false') === 'true') {
+            return CompanyResource::viewUrl($id);
+        }
+
+        return ($company['is_supplier'] ?? 'false') === 'true' ? SupplierResource::viewUrl($id) : '';
     }
 
     /**

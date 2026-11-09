@@ -22,17 +22,20 @@ Dal menu **⋯** di ogni bozza: **Conferma ordine** (senza email al cliente) ed
 **Elimina**.
 
 * **Cliente** — una persona o un'**azienda**: cercala per nome, ragione
-  sociale, email o partita IVA (le aziende compaiono per prime). Scegliendolo si
+  sociale, email o partita IVA (le aziende compaiono per prime). Puoi cercare
+  anche un **referente**: compare come «Persona — Azienda» e sceglierlo apre
+  l'azienda con quel referente già scelto. Scegliendolo si
   riempiono fatturazione, consegna, listino, metodo e condizione di pagamento
   dalla sua scheda: per questo ordine li puoi cambiare. Con un'azienda valgono
   il **suo** listino e le **sue** condizioni. Il cliente nuovo si crea con
   **Nuovo cliente**, in un'altra scheda del browser; poi cercalo qui.
 * **Referente** — solo per un'azienda, e se il sito ha acceso i referenti (vedi
   [Referenti e aziende](anagrafiche.md#referenti-e-aziende)). Parte dal
-  **referente principale** e puoi sceglierne un altro fra quelli che ricevono i
-  documenti, oppure nessuno. Il suo nome si stampa sul PDF come «Alla c.a.».
-  Le sedi di consegna di un'azienda qui si scelgono soltanto: per cambiarle
-  c'è **Modifica azienda**, che apre la sua scheda.
+  **referente principale** e puoi sceglierne un altro fra i suoi referenti,
+  oppure nessuno. Il suo nome si stampa sul PDF come «Alla c.a.».
+  Le sedi di consegna di un'azienda si gestiscono come gli indirizzi di una
+  persona: scegli quella giusta, modificala, eliminala o aggiungine una con
+  **Aggiungi indirizzo**, senza lasciare l'ordine.
 * **Fatturazione** — i dati del documento.
 * **Consegna** — *Spedizione*, *Ritiro in sede* o *Nessuna consegna*. Con la
   spedizione servono l'indirizzo e, con le spedizioni attive, il metodo. Il

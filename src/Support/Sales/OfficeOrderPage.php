@@ -195,7 +195,7 @@ final class OfficeOrderPage
     }
 
     /**
-     * Le scelte del referente: nessuno, poi chi riceve i documenti dell'azienda.
+     * Le scelte del referente: nessuno, poi le persone dell'azienda.
      *
      * @return array<string, string>
      */
@@ -203,7 +203,7 @@ final class OfficeOrderPage
     {
         $options = ['0' => 'Nessun referente'];
 
-        foreach (DocumentReferents::options($companyId) as $option) {
+        foreach (DocumentReferents::people($companyId) as $option) {
             $options[(string) $option['id']] = $option['name'].($option['job_title'] !== '' ? ' — '.$option['job_title'] : '');
         }
 

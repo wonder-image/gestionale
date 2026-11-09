@@ -13,8 +13,9 @@ use Wonder\App\Support\GoogleMaps;
 use Wonder\Backend\Support\FlashAlert;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Modal;
-use Wonder\Plugin\CustomerAccount\Account\AccountAddresses;
+use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
 use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
@@ -26,11 +27,18 @@ use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
  * Non ha una pagina sua: la scheda del cliente apre le finestre e questa
  * riceve il POST, poi riporta alla scheda. Gli indirizzi sono sempre di una
  * scheda sola e uno solo è il predefinito.
+ *
+ * Le stesse regole valgono per le sedi di un'azienda (`company_addresses`):
+ * `run()` e `addressesOf()` prendono `OWNER_COMPANY` come ultimo argomento.
  */
 final class ContactAddressResource extends NavigationOnlyResource
 {
     /** La finestra che aggiunge e modifica; la scheda la apre dai pulsanti. */
     public const MODAL_ID = 'wi-indirizzo';
+
+    /** Di chi sono gli indirizzi: la persona o l'azienda. */
+    public const OWNER_CONTACT = 'contact';
+    public const OWNER_COMPANY = 'company';
 
     /** I campi che la finestra manda, con la lunghezza massima di ciascuno. */
     public const FIELDS = [
@@ -166,9 +174,10 @@ final class ContactAddressResource extends NavigationOnlyResource
      * @param array<string, mixed> $values
      * @return array{ok: bool, message: string, id?: int}
      */
-    public static function run(string $action, int $contactId, int $addressId, array $values = []): array
+    public static function run(string $action, int $contactId, int $addressId, array $values = [], string $owner = self::OWNER_CONTACT): array
     {
-        $contact = $contactId > 0 ? Contact::findById($contactId) : null;
+        $ownerModel = static::owner($owner)['owner'];
+        $contact = $contactId > 0 ? $ownerModel::findById($contactId) : null;
 
         if (!is_array($contact) || $contact === [] || (string) ($contact['deleted'] ?? 'false') === 'true') {
             return ['ok' => false, 'message' => 'Scheda non trovata.'];
@@ -177,7 +186,7 @@ final class ContactAddressResource extends NavigationOnlyResource
         $esistente = null;
 
         if ($addressId > 0 || $action !== 'save') {
-            $esistente = static::ownAddress($contactId, $addressId);
+            $esistente = static::ownAddress($contactId, $addressId, $owner);
 
             if ($esistente === null) {
                 return ['ok' => false, 'message' => 'Indirizzo non trovato.'];
@@ -185,9 +194,9 @@ final class ContactAddressResource extends NavigationOnlyResource
         }
 
         return match ($action) {
-            'save' => static::save($contactId, $esistente, static::clean($values)),
-            'default' => static::makeDefault($contactId, $addressId),
-            'delete' => static::remove($contactId, $addressId),
+            'save' => static::save($contactId, $esistente, static::clean($values), $owner),
+            'default' => static::makeDefault($contactId, $addressId, $owner),
+            'delete' => static::remove($contactId, $addressId, $owner),
             default => ['ok' => false, 'message' => 'Azione non riconosciuta.'],
         };
     }
@@ -221,10 +230,12 @@ final class ContactAddressResource extends NavigationOnlyResource
      *
      * @return list<array<string, mixed>>
      */
-    public static function addressesOf(int $contactId): array
+    public static function addressesOf(int $contactId, string $owner = self::OWNER_CONTACT): array
     {
+        ['model' => $model, 'column' => $column] = static::owner($owner);
+
         try {
-            $rows = ContactAddress::find(['contact_id' => $contactId, 'deleted' => 'false'], null, 'position', 'ASC');
+            $rows = $model::find([$column => $contactId, 'deleted' => 'false'], null, 'position', 'ASC');
         } catch (Throwable) {
             return [];
         }
@@ -318,7 +329,7 @@ final class ContactAddressResource extends NavigationOnlyResource
             ->id(static::MODAL_ID)
             ->size('lg')
             ->help('L\'etichetta serve a riconoscerlo (Casa, Ufficio, Magazzino) e si vede solo qui. L\'azienda è facoltativa, per le consegne in ufficio. Nome e cognome sono di chi ritira: spesso non è il titolare della scheda. Il predefinito è uno solo per scheda: scegliendo questo, l\'altro smette di esserlo.')
-            ->form(static::submitUrl(), hidden: ['contact_id' => $contactId, 'action' => 'save', 'address_id' => 0])
+            ->form(static::submitUrl(), hidden: ['contact_id' => $contactId, 'company_id' => 0, 'action' => 'save', 'address_id' => 0])
             ->columns(12)
             ->components([
                 $campo('label', 'Etichetta', 12),
@@ -379,9 +390,9 @@ final class ContactAddressResource extends NavigationOnlyResource
      *
      * @return array<string, mixed>|null
      */
-    private static function ownAddress(int $contactId, int $addressId): ?array
+    private static function ownAddress(int $contactId, int $addressId, string $owner): ?array
     {
-        foreach (static::addressesOf($contactId) as $riga) {
+        foreach (static::addressesOf($contactId, $owner) as $riga) {
             if ((int) ($riga['id'] ?? 0) === $addressId) {
                 return $riga;
             }
@@ -395,7 +406,7 @@ final class ContactAddressResource extends NavigationOnlyResource
      * @param array<string, string> $clean
      * @return array{ok: bool, message: string, id?: int}
      */
-    private static function save(int $contactId, ?array $existing, array $clean): array
+    private static function save(int $contactId, ?array $existing, array $clean, string $owner): array
     {
         $problema = static::problem($clean);
 
@@ -403,10 +414,18 @@ final class ContactAddressResource extends NavigationOnlyResource
             return ['ok' => false, 'message' => $problema];
         }
 
+        ['model' => $model, 'column' => $column] = static::owner($owner);
+
+        // La sede di un'azienda ha già la ragione sociale dell'azienda.
+        if ($owner === self::OWNER_COMPANY) {
+            unset($clean['business_name']);
+        }
+
         if ($existing === null) {
-            $creato = ContactAddress::create(array_merge($clean, [
-                'contact_id' => $contactId,
-                'position' => AccountAddresses::nextPosition($contactId),
+            $ultima = $model::find([$column => $contactId], 1, null, null, 'MAX(`position`) AS max_position');
+            $creato = $model::create(array_merge($clean, [
+                $column => $contactId,
+                'position' => (int) (is_array($ultima) ? ($ultima['max_position'] ?? 0) : 0) + 1,
             ]));
 
             if (empty($creato->success)) {
@@ -416,59 +435,73 @@ final class ContactAddressResource extends NavigationOnlyResource
             $id = (int) ($creato->insert_id ?? 0);
         } else {
             $id = (int) $existing['id'];
-            ContactAddress::update($clean, $id);
+            $model::update($clean, $id);
         }
 
         if ($clean['is_default'] === 'true') {
-            static::clearDefaultExcept($contactId, $id);
+            static::clearDefaultExcept($contactId, $id, $owner);
         }
 
-        static::ensureDefault($contactId);
+        static::ensureDefault($contactId, $owner);
 
         return ['ok' => true, 'message' => $existing === null ? 'Indirizzo aggiunto.' : 'Indirizzo salvato.', 'id' => $id];
     }
 
     /** @return array{ok: bool, message: string} */
-    private static function makeDefault(int $contactId, int $addressId): array
+    private static function makeDefault(int $contactId, int $addressId, string $owner): array
     {
-        ContactAddress::update(['is_default' => 'true'], $addressId);
-        static::clearDefaultExcept($contactId, $addressId);
+        $model = static::owner($owner)['model'];
+        $model::update(['is_default' => 'true'], $addressId);
+        static::clearDefaultExcept($contactId, $addressId, $owner);
 
         return ['ok' => true, 'message' => 'Indirizzo predefinito aggiornato.'];
     }
 
     /** @return array{ok: bool, message: string} */
-    private static function remove(int $contactId, int $addressId): array
+    private static function remove(int $contactId, int $addressId, string $owner): array
     {
+        $model = static::owner($owner)['model'];
         // Nel cestino, come fa la griglia della scheda: `Model::delete` cancellerebbe la riga.
-        $fatto = sqlModify(ContactAddress::$table, ['deleted' => 'true', 'is_default' => 'false'], 'id', $addressId);
+        $fatto = sqlModify($model::$table, ['deleted' => 'true', 'is_default' => 'false'], 'id', $addressId);
 
         if (empty($fatto->success)) {
             return ['ok' => false, 'message' => 'Non sono riuscito a eliminare l\'indirizzo.'];
         }
 
-        static::ensureDefault($contactId);
+        static::ensureDefault($contactId, $owner);
 
         return ['ok' => true, 'message' => 'Indirizzo eliminato.'];
     }
 
     /** Se la scheda ha indirizzi, uno è sempre il predefinito: in mancanza, il primo. */
-    private static function ensureDefault(int $contactId): void
+    private static function ensureDefault(int $contactId, string $owner): void
     {
-        $righe = static::addressesOf($contactId);
+        $righe = static::addressesOf($contactId, $owner);
 
         if ($righe !== [] && (string) ($righe[0]['is_default'] ?? '') !== 'true') {
-            ContactAddress::update(['is_default' => 'true'], (int) $righe[0]['id']);
+            static::owner($owner)['model']::update(['is_default' => 'true'], (int) $righe[0]['id']);
         }
     }
 
     /** Uno solo è il predefinito: gli altri della scheda tornano a «no». */
-    private static function clearDefaultExcept(int $contactId, int $keepId): void
+    private static function clearDefaultExcept(int $contactId, int $keepId, string $owner): void
     {
-        foreach (static::addressesOf($contactId) as $riga) {
+        foreach (static::addressesOf($contactId, $owner) as $riga) {
             if ((int) $riga['id'] !== $keepId && (string) ($riga['is_default'] ?? '') === 'true') {
-                ContactAddress::update(['is_default' => 'false'], (int) $riga['id']);
+                static::owner($owner)['model']::update(['is_default' => 'false'], (int) $riga['id']);
             }
         }
+    }
+
+    /**
+     * Tabella, colonna e scheda di chi possiede gli indirizzi.
+     *
+     * @return array{model: class-string<ContactAddress|CompanyAddress>, column: string, owner: class-string<Contact|Company>}
+     */
+    private static function owner(string $owner): array
+    {
+        return $owner === self::OWNER_COMPANY
+            ? ['model' => CompanyAddress::class, 'column' => 'company_id', 'owner' => Company::class]
+            : ['model' => ContactAddress::class, 'column' => 'contact_id', 'owner' => Contact::class];
     }
 }
