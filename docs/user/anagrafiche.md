@@ -63,6 +63,11 @@ esce dall'elenco dei clienti e lo trovi fra i fornitori. Senza la funzionalità
 *Acquisti* il campo non c'è: i fornitori non esistono e ogni scheda è di un
 cliente.
 
+Creando una scheda il form mostra subito chi è, i contatti e la
+fatturazione; pagamento, indirizzi di consegna, collegamenti e note stanno nel
+riquadro chiuso **Altri dati (facoltativi)**: aprilo se servono, oppure
+aggiungili dopo. In modifica si vede tutto.
+
 Per questo partita IVA, codice fiscale ed email sono **unici**: se li riscrivi
 su una scheda nuova, il gestionale ti dice di chi sono già e ti lascia aprire
 quella invece di crearne una seconda. Partita IVA e codice fiscale li controlla
@@ -104,8 +109,11 @@ schermi stretti vanno uno sotto l'altro.
 
 Tutte le email e i telefoni di una persona, di un'azienda o di un fornitore
 stanno nel riquadro **Contatti** della scheda: una riga per contatto, con il
-tipo (*Email* o *Telefono*), un'etichetta (*Lavoro*, *Personale*,
-*Fatturazione*, *Altro*) e **Principale**. Il principale di ogni tipo è quello
+tipo (*Email* o *Telefono*) e **Principale**. Scegli il tipo e la riga mostra
+solo il suo campo: l'email, oppure prefisso e numero (il prefisso parte da
+quello del paese del sito, come la nazione negli indirizzi). L'etichetta
+(*Lavoro*, *Personale*, *Fatturazione*, *Altro*) sta in **Informazioni
+avanzate** della riga, chiusa finché non serve. Il principale di ogni tipo è quello
 che il gestionale usa (ordini, documenti, ricerche, export): uno per tipo, e se
 non ne scegli uno lo è la prima riga. Cambiando principale il vecchio resta,
 come riga normale. Un'email scritta male o ripetuta ferma il salvataggio, e una
@@ -116,7 +124,12 @@ chi è).
   bloccata: si cambia dal suo account, non dal gestionale (nemmeno dalle
   finestre dell'ordine, che lo dicono). Le altre email non servono mai per
   accedere.
-- Le righe di un'**azienda** hanno anche **Si occupa di**: le aree a cui va
+- Una scheda che ha già un contatto non resta **senza**: l'ultima riga non si
+  elimina (il cestino è spento) e un riquadro svuotato non si salva. Se
+  l'ultimo contatto è sbagliato, cambialo. Una scheda nuova può nascere senza
+  contatti.
+- Le righe di un'**azienda** hanno anche **Si occupa di**, nelle informazioni
+  avanzate della riga: le aree a cui va
   quell'email (vuoto = tutte). Così *amministrazione@* riceve proforma e
   solleciti anche senza creare un referente (vedi sotto).
 
@@ -217,10 +230,15 @@ passano al brand che resta. Sui **PDF** (preventivo, conferma d'ordine,
 proforma e DDT, che lo prende dal suo ordine) il brand si stampa nel riquadro
 del cliente, su una riga sua fra *Alla c.a.* e la ragione sociale.
 
-La scheda del brand ha **logo**, **sito**, **dominio** (ricavato dal sito) e
-**descrizione**. Con la funzionalità **Brand kit** (area *Anagrafiche*, serve
-*Brand*) ci sono anche email e telefono del brand, social, colori, tono,
-settore, lingua e il link ai materiali; spenta, quei campi non si vedono e
+La scheda del brand ha **logo**, **sito**, **domini email** (uno o più, per
+riconoscere le email del brand; vuoto, si ricava dal sito) e **descrizione**.
+Con la funzionalità **Brand kit** (area *Anagrafiche*, serve *Brand*) ci sono
+anche i **recapiti** del brand (più email e telefoni, ognuno con la sua
+etichetta), social, **colori** (scelti col selettore o scritti in HEX, per
+esempio `#1a2b3c`), tono, **settore** (da una tendina con le sezioni ATECO),
+**lingua** (da una tendina, di serie *Italiano*) e il link ai materiali; un
+settore scritto a mano prima di questa versione resta salvato ma la tendina lo
+mostra vuoto finché non ne scegli uno; spenta, quei campi non si vedono e
 restano salvati. Il logo compare accanto al brand nell'ordine da ufficio e
 nella scheda dell'ordine.
 

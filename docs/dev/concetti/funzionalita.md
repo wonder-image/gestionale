@@ -147,7 +147,10 @@ Le conseguenze, tutte da `CustomerMode`:
   nasce `is_customer = 'false'`);
 - `QuickContacts` e `Contacts\CompanyBrandResource::quickCreateStore()`
   rifiutano le schede fuori modo; `OfficeSearch::customerChoices()` cerca solo
-  quello che il modo ammette; `OfficeOrders` rifiuta un cliente **nuovo** fuori
+  quello che il modo ammette (un referente dà la riga della **sua azienda**,
+  chiave `company:N:P` con il referente già scelto, mai «Persona — Azienda»;
+  chi è anche privato ha la riga *Privato* a parte, `contact:N`; un'azienda
+  già trovata non si ripete); `OfficeOrders` rifiuta un cliente **nuovo** fuori
   modo (`office_order.customer_people_only` / `customer_companies_only`), un
   documento di prima si salva com'è.
 

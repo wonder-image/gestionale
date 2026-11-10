@@ -194,6 +194,23 @@ versionamento semantico.
   (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
 
 ### Cambiato
+- **Form di persone e aziende più corto in creazione**: pagamento, indirizzi
+  di consegna, collegamenti e note in un `Accordion` chiuso «Altri dati
+  (facoltativi)» (`CustomerResource::formSchema()`, solo senza `currentId()`);
+  in modifica il form resta com'è.
+- **Ricerca del cliente** (preventivi, ordini da ufficio, abbonamenti):
+  cercando un referente compare l'**azienda** con il referente già scelto
+  (`company:N:P`, dettaglio «Azienda · referente … · P.IVA»), non più
+  «Persona — Azienda»; chi è anche cliente privato ha la sua voce *Privato*
+  (`contact:N`), così si sceglie con quale veste procedere. Un'azienda già
+  trovata per nome non si ripete (`OfficeSearch::referents($words, $skip)`).
+- **Label doppie tolte**: il riquadro «Contatti» (`CustomerResource`) e
+  quello dei brand (`CompanyResource::brandCards()`) non ripetono sopra le
+  righe il titolo della card.
+- **Riquadro «Contatti»** con customer-account aggiornato: mostra solo i
+  campi del tipo scelto, etichetta e «Si occupa di» nelle informazioni
+  avanzate della riga, prefisso del paese del sito, e almeno un contatto per
+  la scheda che ne aveva (vedi la guida, *Contatti*).
 - **Copie dei documenti di un'azienda senza referenti**: le email
   dell'azienda per l'area (o la principale) vanno in copia anche quando
   nessun referente riceve i documenti (prima nessuna copia), sempre senza chi

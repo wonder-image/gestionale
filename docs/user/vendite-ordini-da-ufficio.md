@@ -23,8 +23,10 @@ Dal menu **⋯** di ogni bozza: **Conferma ordine** (senza email al cliente) ed
 
 * **Cliente** — una persona o un'**azienda**: cercala per nome, ragione
   sociale, email o partita IVA (le aziende compaiono per prime). Puoi cercare
-  anche un **referente**: compare come «Persona — Azienda» e sceglierlo apre
-  l'azienda con quel referente già scelto. Scegliendolo si
+  anche un **referente**: compare la sua **azienda** («Azienda · referente
+  …»), che si apre con quel referente già scelto. Se la persona è anche
+  cliente privato compaiono due voci, *Privato* e la sua azienda: scegli tu
+  con quale veste procedere. Scegliendolo si
   riempiono fatturazione, consegna, listino, metodo e condizione di pagamento
   dalla sua scheda: per questo ordine li puoi cambiare. Con un'azienda valgono
   il **suo** listino e le **sue** condizioni. Il cliente nuovo si crea qui
