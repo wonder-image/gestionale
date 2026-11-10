@@ -413,8 +413,9 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         }
 
         $cards = [
-            ...static::brandCards(),
             (new Card)->components($chiE)->columns(12)->columnSpan(12),
+            // I brand dopo il nome: la scheda comincia da chi è l'azienda.
+            ...static::brandCards(),
             (new Card)->components([
                 SectionTitle::make($testo($azienda ? 'points_company' : 'points_person'))->columnSpan(12),
                 $aiuto($azienda ? (static::relationsShown() ? 'points_company_help' : 'points_company_alone_help') : 'points_person_help'),
@@ -430,10 +431,10 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 SectionTitle::make('Dati di fatturazione')->columnSpan(12),
                 $aiuto($azienda ? 'billing_company_help' : 'billing_person_help'),
                 ...($azienda ? [
-                    static::getInput('cf')->columnSpan(4),
-                    static::getInput('pi')->columnSpan(4),
+                    static::getInput('cf')->columnSpan(3),
+                    static::getInput('pi')->columnSpan(3),
                     static::getInput('sdi')->columnSpan(2),
-                    static::getInput('pec')->columnSpan(2),
+                    static::getInput('pec')->columnSpan(4),
                 ] : [static::getInput('cf')->columnSpan(6)]),
                 static::getInput('street')->columnSpan(9),
                 static::getInput('number')->columnSpan(3),
@@ -558,7 +559,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'));
     }
 
-    /** La card «Brand», prima di tutto: solo le aziende ne hanno. */
+    /** La card «Brand», subito dopo il nome: solo le aziende ne hanno. */
     protected static function brandCards(): array
     {
         return [];
