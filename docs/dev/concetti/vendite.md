@@ -491,6 +491,11 @@ scheda, con le tendine di tutte le aziende).
   di creare. Permessi (area contatti) e CSRF li controlla il proxy del core;
   dal modal passano solo nome, cognome, email, `role` e l'azienda (o ragione
   sociale e P.IVA, o il nome del brand).
+- I campi di una persona nuova (nome, cognome, email) sono
+  `CustomerResource::quickPersonFields()`, usati anche dal «+» dei referenti
+  nella scheda dell'azienda: l'email non è un campo del form (sta nel riquadro
+  «Contatti»), quindi ogni finestra li dichiara nel suo layout invece di
+  passare da `getInput()`.
 
 Il DDT eredita `company_id` e `referent_name` dall'ordine (`DeliveryNotes`), e
 il PDF stampa il referente «Alla c.a.» nel riquadro del cliente
