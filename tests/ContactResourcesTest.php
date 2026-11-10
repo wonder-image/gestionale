@@ -293,8 +293,8 @@ check('nel repeater degli indirizzi la via cerca anche per nome, riempie «Press
     $pulita = CustomerResource::prepareRepeaterRelationRow('addresses', ['street' => 'Via Roma', 'place_id' => 'x<y', 'lat' => '45.46', 'lng' => '9.19'], []);
     $buona = CustomerResource::prepareRepeaterRelationRow('addresses', ['place_id' => 'ChIJabc_def-123', 'lat' => '45.46', 'lng' => '9.19'], []);
 
-    return str_contains($colonne['street'] ?? '', 'data-wi-place="addresses[]["') && str_contains($colonne['street'] ?? '', 'data-wi-place-names')
-        && str_contains($colonne['street'] ?? '', 'data-ca-place-name="business_name"')
+    return str_contains($colonne['street'] ?? '', 'data-wi-place="addresses["') && str_contains($colonne['street'] ?? '', 'data-wi-place-names')
+        && str_contains($colonne['street'] ?? '', 'data-wi-place-name="business_name"') && !str_contains($colonne['street'] ?? '', 'data-ca-place-name')
         && count(array_intersect(['place_id', 'lat', 'lng', 'business_name'], array_keys($colonne))) === 4
         && $pulita['place_id'] === null && $pulita['lat'] === 45.46 && ($pulita['street'] ?? '') === 'Via Roma'
         && $buona['place_id'] === 'ChIJabc_def-123' && $buona['lng'] === 9.19;

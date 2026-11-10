@@ -40,7 +40,7 @@ Ci sono due modi di autenticarsi, entrambi con `Authorization: Bearer <token>`.
   `WWW-Authenticate: Bearer`.
 
 Il modulo richiede una versione di `wonder-image/app` con OAuth: il vincolo
-in `composer.json` è `^2.4.0-beta.6 || dev-main`.
+in `composer.json` è `^2.4.0-beta.7 || dev-main`.
 Dopo l'aggiornamento serve `php forge update`: crea le tabelle `oauth_*` e la
 colonna `mcp_logs.oauth_grant_id`.
 

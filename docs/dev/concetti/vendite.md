@@ -334,7 +334,13 @@ Persone, aziende e fornitori (`CustomerResource` e sottoclassi) hanno il
 riquadro «Contatti» di customer-account (`contactBoxFields()`: input
 `contact_points`, marker `contact_box_form`, lo script `contactFormScript()`
 nella card) al posto dei campi `email`, `phone_prefix`, `phone` e di «Altri
-contatti». In `mutateRequestValues()`:
+contatti». Le colonne per tipo e «Email di accesso» compaiono con le regole
+del framework (`visibleWhen()` / `hiddenWhen()` sulle colonne, cercate nella
+riga dalla lib `2.1.2-alpha.41`): il layout prende il campo intero con
+`getInput()` e non tocca le sue colonne, quindi le regole arrivano come le
+dichiara customer-account. Lo script resta solo nella card «Contatti» (un
+principale per tipo, riga dell'email di accesso bloccata); le finestre
+dell'ordine e degli indirizzi non lo stampano. In `mutateRequestValues()`:
 
 1. `applyContactPoints($values, $oldValues)` rimette il principale di ogni tipo
    in `email` / `phone_prefix` / `phone`, **prima** dei controlli: il doppione
@@ -363,11 +369,15 @@ dell'azienda, `DocumentReferents`, email proposta dall'ordine, MCP).
 Indirizzi: la fatturazione di persone e aziende (`withGeo()`,
 `withNameSearch()` dei modelli di customer-account) ha `place_id`, `lat`, `lng`
 nascosti nel layout (e nelle finestre dell'ordine, `BILLING_KEYS`), ripuliti
-con `GoogleMaps::cleanGeo()` solo se arrivano; sulla via delle aziende
-`data-ca-place-name="business_name"`. Il repeater degli indirizzi e la
-finestra di `ContactAddressResource` hanno «Presso» (`business_name`, anche per
-le sedi d'azienda), la ricerca per nome (`data-wi-place-names`,
-`data-ca-place-name`) e place ID e coordinate (nel repeater colonne nascoste,
+con `GoogleMaps::cleanGeo()` solo se arrivano; la fatturazione delle aziende
+scrive il nome dell'attività scelta nella ragione sociale vuota
+(`Company::billing()` con `withNameSearch(nameKey: 'business_name')`: lo fa la
+lib, anche nella finestra «Fatturazione» dell'ordine). Il repeater degli
+indirizzi e la finestra di `ContactAddressResource` hanno «Presso»
+(`business_name`, anche per le sedi d'azienda), la ricerca per nome che lo
+riempie se è vuoto (nel repeater `->text()->placeSearch('addresses[', true,
+'business_name')`, nella finestra `ContactAddress::address()->withNameSearch(nameKey:
+'business_name')`) e place ID e coordinate (nel repeater colonne nascoste,
 ripulite in `prepareRepeaterRelationRow()`). Place ID e coordinate arrivano dal
 browser e non decidono niente. L'ordine copia dalla sede `shipping_place_id`,
 `shipping_lat`, `shipping_lng` (`shippingKeys()`); la fatturazione dell'ordine

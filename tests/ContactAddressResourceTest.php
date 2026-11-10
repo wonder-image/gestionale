@@ -202,13 +202,14 @@ check('l\'azienda è facoltativa e si tiene, tagliata come gli altri campi', fun
         && ContactAddressResource::problem(ContactAddressResource::clean($valido)) === null;
 });
 
-check('la finestra cerca anche per nome dell\'attività, che riempie «Presso»; lo script di customer-account c\'è', function () {
+check('la finestra cerca anche per nome dell\'attività, che riempie «Presso» (lo fa la lib); niente script di customer-account', function () {
     $html = ContactAddressResource::modals(12);
     $via = preg_match('/<input[^>]*name="street"[^>]*>/', $html, $m) === 1 ? $m[0] : '';
     $codice = (string) file_get_contents(__DIR__.'/../src/Resources/Contacts/ContactAddressResource.php');
 
-    return str_contains($via, 'data-wi-place-names') && str_contains($via, 'data-ca-place-name="business_name"')
-        && str_contains($html, 'Presso') && str_contains($html, 'window.caContactForm')
+    return str_contains($via, 'data-wi-place=""') && str_contains($via, 'data-wi-place-names') && str_contains($via, 'data-wi-place-name="business_name"')
+        && preg_match('/<input[^>]*name="business_name"/', $html) === 1
+        && !str_contains($html, 'data-ca-place-name') && !str_contains($html, 'caContactForm')
         // Anche le sedi di un'azienda tengono «Presso».
         && !str_contains($codice, "unset(\$clean['business_name'])");
 });

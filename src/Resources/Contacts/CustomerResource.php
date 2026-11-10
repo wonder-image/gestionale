@@ -215,10 +215,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         // Email e telefono stanno nel riquadro «Contatti», non nei campi della fatturazione.
         $billing = array_diff_key(static::$model::billing()->formSchema(), ['phone_prefix' => true, 'phone' => true]);
 
-        // Un'attività cercata per nome dà la ragione sociale, se è vuota (lo script di customer-account).
-        if (isset($billing['business_name'], $billing['street'])) {
-            $billing['street']->attribute('data-ca-place-name="business_name"');
-        }
+        // Un'attività cercata per nome dà la ragione sociale, se è vuota: lo dichiara
+        // `Company::billing()` di customer-account (`withNameSearch(nameKey: 'business_name')`).
 
         $fields = [
             ...array_values($billing),
@@ -408,7 +406,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                     ->columnSpan(12),
                 static::getInput(static::$pointsInput)->columnSpan(12),
                 static::getInput(static::$boxMarker)->columnSpan(12),
-                // Lo script del riquadro e della ricerca per nome negli indirizzi (customer-account).
+                // Lo script del riquadro (customer-account): un principale per tipo, email di accesso bloccata.
                 static::contactFormScript(),
             ])->columns(12)->columnSpan(12),
             (new Card)->components([
@@ -1570,10 +1568,10 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 RepeaterColumn::key('business_name')->text()->label('Presso')->columnSpan(3),
                 RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(3),
                 RepeaterColumn::key('surname')->text()->label('Cognome')->columnSpan(3),
-                // La riga la ricava places.js dal nome della via: il prefisso dichiarato vale per tutte.
-                // Si cerca anche per nome dell'attività, che riempie «Presso» se è vuoto.
+                // La riga la ricava la lib dal nome della via (prefisso che finisce per `[`).
+                // Si cerca anche per nome dell'attività, che riempie «Presso» della stessa riga se è vuoto.
                 RepeaterColumn::key('street')->text()->label('Indirizzo o attività')
-                    ->attribute('data-wi-place="addresses[][" data-wi-place-names data-ca-place-name="business_name"')->columnSpan(8),
+                    ->placeSearch('addresses[', true, 'business_name')->columnSpan(8),
                 RepeaterColumn::key('number')->text()->label('Civico')->columnSpan(2),
                 RepeaterColumn::key('is_default')
                     ->select(['false' => 'No', 'true' => 'Sì'])

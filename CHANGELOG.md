@@ -194,6 +194,22 @@ versionamento semantico.
   (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
 
 ### Cambiato
+- **Il gestionale chiede `wonder-image/app` `^2.4.0-beta.7 || dev-main`**
+  (anche `frameworkCompatibility` in `module.json`) e la lib
+  `2.1.2-alpha.41`: le colonne del riquadro «Contatti» per tipo e il nome
+  dell'attività scelta negli indirizzi li fa il framework, non più lo script di
+  customer-account. **Chi aggiorna deve avere il core almeno a
+  `2.4.0-beta.7`**, con la lib alpha.41.
+- **Nome dell'attività negli indirizzi, dichiarato.** Niente più
+  `data-ca-place-name` né `data-wi-place` scritto a mano: la via del repeater
+  degli indirizzi usa `->text()->placeSearch('addresses[', true,
+  'business_name')` (prima `data-wi-place="addresses[]["`), la finestra di
+  `ContactAddressResource` `ContactAddress::address()->withNameSearch(nameKey:
+  'business_name')`, la fatturazione delle aziende (scheda e finestra
+  «Fatturazione» dell'ordine d'ufficio) lo prende da `Company::billing()` di
+  customer-account. La finestra degli indirizzi e le finestre dell'ordine non
+  stampano più lo script di customer-account, che resta solo nella card
+  «Contatti» della scheda.
 - **Copie dei documenti di un'azienda senza referenti**: le email
   dell'azienda per l'area (o la principale) vanno in copia anche quando
   nessun referente riceve i documenti (prima nessuna copia), sempre senza chi

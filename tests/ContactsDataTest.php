@@ -19,6 +19,17 @@ use Wonder\Plugin\Gestionale\Support\Mcp\ContactTools;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeCustomerPanel;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
 
+// Fuori dall'app le funzioni dei paesi non esistono: ne bastano di minime perché i select si rendano.
+if (!function_exists('countries')) {
+    function countries(): array { return ['IT' => 'Italia', 'FR' => 'France']; }
+}
+if (!function_exists('states')) {
+    function states(string $country): array { return $country === 'IT' ? ['BG' => 'Bergamo', 'MI' => 'Milano'] : []; }
+}
+if (!function_exists('phonePrefix')) {
+    function phonePrefix(): array { return ['+39' => '+39', '+33' => '+33']; }
+}
+
 /*
  * I dati nuovi di customer-account nel gestionale: indirizzi per brand, altri
  * contatti, dati e kit del brand, MCP. Quello che vuole il database (scrittura
@@ -328,8 +339,81 @@ check('la card «Contatti» ha il riquadro, il marker e lo script; la fatturazio
 
     return $nomi($contatti) === ['contact_points', 'contact_box_form'] && $script !== [] && str_contains($script[0], 'caContactForm')
         && array_slice($nomi($fatturazione), -3) === ['place_id', 'lat', 'lng'] && array_slice($nomi($persona), -3) === ['place_id', 'lat', 'lng']
-        && str_contains($via($fatturazione), 'data-wi-place-names') && str_contains($via($fatturazione), 'data-ca-place-name="business_name"')
-        && !str_contains($via($persona), 'data-ca-place-name');
+        && str_contains($via($fatturazione), 'data-wi-place-names') && str_contains($via($fatturazione), 'data-wi-place-name="business_name"')
+        && str_contains($via($persona), 'data-wi-place-names') && !str_contains($via($persona), 'data-wi-place-name=')
+        && !str_contains($via($fatturazione).$via($persona), 'data-ca-place-name');
+});
+
+check('resa del riquadro in persone, aziende e fornitori: le colonne per tipo e «Email di accesso» con le regole del framework, nelle righe e nel modello; script una volta', function () use ($card, $forza) {
+    $forza(['private_customers' => true, 'companies' => true, 'purchasing' => true]);
+    $regola = static fn (string $modo, string $campo, string $valori): string => 'data-'.$modo.'-when="'.$campo.'" data-'.$modo.'-when-values="'.$valori.'" data-wi-conditional-container="true"';
+    $ok = true;
+
+    try {
+        foreach ([CustomerResource::class, CompanyResource::class, SupplierResource::class] as $resource) {
+            $contatti = $card($resource, 'Contatti');
+            $riquadro = array_values(array_filter($contatti, static fn ($c): bool => $c instanceof \Wonder\App\ResourceSchema\Input && $c->name === 'contact_points'))[0] ?? null;
+            $script = implode('', array_filter($contatti, 'is_string'));
+            $righe = \Wonder\Plugin\CustomerAccount\Support\ContactPoints::formRows([
+                ['kind' => 'email', 'value' => 'ada@example.com', 'label' => 'access', 'is_primary' => true, 'locked' => true],
+                ['kind' => 'phone', 'value' => '3331112222', 'phone_prefix' => '+39', 'label' => 'work', 'is_primary' => true, 'locked' => false],
+            ], $resource !== CustomerResource::class);
+            $html = $riquadro instanceof \Wonder\App\ResourceSchema\Input ? $riquadro->value($righe)->render('bootstrap') : '';
+            [$esistenti, $modello] = array_pad(explode('<template', $html, 2), 2, '');
+
+            foreach ([$esistenti, $modello] as $parte) {
+                $ok = $ok
+                    && substr_count($parte, $regola('visible', 'kind', 'email')) >= 1
+                    && substr_count($parte, $regola('visible', 'kind', 'phone')) >= 2
+                    && str_contains($parte, $regola('hidden', 'locked', '1'))
+                    && str_contains($parte, $regola('visible', 'locked', '1'));
+            }
+
+            $ok = $ok && substr_count($esistenti, $regola('visible', 'kind', 'email')) === 2
+                && str_contains($esistenti, 'name="contact_points[row_1][locked]"') && str_contains($esistenti, '<option value="1" selected>')
+                && str_contains($modello, 'name="contact_points[__ROW_KEY__][email]"')
+                && !str_contains($html, 'data-ca-point-only') && !str_contains($html, '<option value="access"')
+                && substr_count($script, 'window.caContactForm = true') === 1;
+        }
+    } finally {
+        $forza(null);
+    }
+
+    return $ok;
+});
+
+check('resa del repeater degli indirizzi: la via cerca per nome e scrive «Presso» della sua riga, nelle righe salvate e nel modello', function () use ($forza) {
+    $forza(['private_customers' => true, 'companies' => true]);
+
+    try {
+        $campo = (new ReflectionMethod(CompanyResource::class, 'addressesField'))->invoke(null);
+        $html = $campo->value([['id' => 3, 'label' => 'Magazzino', 'business_name' => 'Bar Sport', 'street' => 'Via Roma', 'country' => 'IT']])->render('bootstrap');
+    } finally {
+        $forza(null);
+    }
+
+    [$esistenti, $modello] = array_pad(explode('<template', $html, 2), 2, '');
+    $via = static fn (string $parte, string $riga): bool => preg_match('/<input[^>]*name="addresses\['.preg_quote($riga, '/').'\]\[street\]"[^>]*data-wi-place="addresses\[" data-wi-place-names data-wi-place-name="business_name"/', $parte) === 1;
+
+    return $via($esistenti, 'row_1') && $via($modello, '__ROW_KEY__')
+        && str_contains($esistenti, 'name="addresses[row_1][business_name]"') && str_contains($modello, 'name="addresses[__ROW_KEY__][business_name]"')
+        && !str_contains($html, 'data-ca-place-name');
+});
+
+check('finestre dell\'ordine d\'ufficio: la fatturazione dell\'azienda e l\'indirizzo scrivono il nome dell\'attività, la persona no; niente script del riquadro', function () use ($forza) {
+    $forza(['private_customers' => true, 'companies' => true]);
+
+    try {
+        $html = OfficeCustomerPanel::modals('/backend/office-orders/customer');
+    } finally {
+        $forza(null);
+    }
+
+    preg_match_all('/<input[^>]*name="street"[^>]*>/', $html, $vie);
+    $nomi = array_map(static fn (string $via): bool => str_contains($via, 'data-wi-place-name="business_name"'), $vie[0]);
+
+    return count($vie[0]) === 3 && $nomi === [false, true, true]
+        && !str_contains($html, 'data-ca-place-name') && !str_contains($html, 'caContactForm');
 });
 
 check('place ID e coordinate della fatturazione si ripuliscono, e solo se arrivano', function () {

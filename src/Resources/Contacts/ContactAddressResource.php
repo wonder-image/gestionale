@@ -14,7 +14,6 @@ use Wonder\Backend\Support\FlashAlert;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Modal;
 use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
-use Wonder\Plugin\CustomerAccount\Support\ContactFormScript;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
@@ -332,8 +331,9 @@ final class ContactAddressResource extends NavigationOnlyResource
 
         // Paese, provincia e prefisso sono i campi del core: il paese ricarica le
         // province, il prefisso è l'elenco internazionale. La via ha l'aiuto di
-        // Google, che scrive place ID e coordinate nei tre campi nascosti.
-        $core = ContactAddress::address()->formSchema('IT');
+        // Google, che scrive place ID e coordinate nei tre campi nascosti e, per
+        // un'attività, il suo nome in «Presso» se è vuoto (la lib).
+        $core = ContactAddress::address()->withNameSearch(nameKey: 'business_name')->formSchema('IT');
 
         return Modal::make('Aggiungi indirizzo')
             ->id(static::MODAL_ID)
@@ -348,7 +348,7 @@ final class ContactAddressResource extends NavigationOnlyResource
                 $campo('surname', 'Cognome', 6),
                 $core['country']->label('Paese')->columnSpan(12),
                 // Si cerca anche per nome dell'attività: scelta una, il suo nome va in «Presso» se è vuoto.
-                $core['street']->label('Indirizzo o attività')->maxLength(static::FIELDS['street'])->attribute('data-ca-place-name="business_name"')->columnSpan(8),
+                $core['street']->label('Indirizzo o attività')->maxLength(static::FIELDS['street'])->columnSpan(8),
                 $campo('number', 'Civico', 4),
                 $core['province']->label('Provincia')->columnSpan(4),
                 $campo('city', 'Città', 5),
@@ -363,7 +363,7 @@ final class ContactAddressResource extends NavigationOnlyResource
             ])
             ->cancel('Indietro')
             ->submit('Salva')
-            ->render('bootstrap').static::script().ContactFormScript::html();
+            ->render('bootstrap').static::script();
     }
 
     /**
