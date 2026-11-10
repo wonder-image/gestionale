@@ -295,8 +295,8 @@ check('indirizzi: di consegna per le persone, di consegna e ritiro dove si scegl
 check('metodo e termini di pagamento senza scelta si salvano vuoti, mai a 0', function () {
     $sorgente = (string) file_get_contents(__DIR__.'/../src/Resources/Contacts/CustomerResource.php');
 
-    return substr_count($sorgente, "\$values['payment_method_id'] > 0 ? (int) \$values['payment_method_id'] : null") === 1
-        && substr_count($sorgente, "\$values['payment_term_id'] > 0 ? (int) \$values['payment_term_id'] : null") === 1;
+    return substr_count($sorgente, "\$values['payment_method_id'] > 0 ? (int) \$values['payment_method_id'] : ''") === 1
+        && substr_count($sorgente, "\$values['payment_term_id'] > 0 ? (int) \$values['payment_term_id'] : ''") === 1;
 });
 
 check('la scheda di chi è solo referente si apre: dati e indirizzi, senza le parti del cliente', function () use ($modo, $forza) {

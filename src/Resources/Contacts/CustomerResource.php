@@ -1326,15 +1326,16 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         if (!static::paymentDefaultsShown()) {
             unset($values['payment_method_id'], $values['payment_term_id']);
         } else {
-            // Vuoto resta vuoto: lo 0 non è un metodo.
+            // Vuoto resta vuoto: lo 0 non è un metodo. Stringa vuota e non
+            // `null`, che il salvataggio salterebbe lasciando il valore di prima.
             if (array_key_exists('payment_method_id', $values)) {
-                $values['payment_method_id'] = (int) $values['payment_method_id'] > 0 ? (int) $values['payment_method_id'] : null;
+                $values['payment_method_id'] = (int) $values['payment_method_id'] > 0 ? (int) $values['payment_method_id'] : '';
             }
 
             if (count(static::activeTerms()) <= 1) {
                 unset($values['payment_term_id']);
             } elseif (array_key_exists('payment_term_id', $values)) {
-                $values['payment_term_id'] = (int) $values['payment_term_id'] > 0 ? (int) $values['payment_term_id'] : null;
+                $values['payment_term_id'] = (int) $values['payment_term_id'] > 0 ? (int) $values['payment_term_id'] : '';
             }
         }
 
