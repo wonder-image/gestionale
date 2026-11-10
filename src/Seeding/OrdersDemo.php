@@ -446,6 +446,10 @@ final class OrdersDemo
 
         $method = self::method((string) $plan['method']);
         $quote = !empty($plan['quote']);
+        // La riga libera prende la categoria fiscale dell'articolo: senza, niente regola IVA.
+        $sold = Product::findById((int) $product['id']);
+        $model = ProductModel::findById((int) ($sold['product_model_id'] ?? 0));
+        $taxCategory = (int) (is_array($model) ? ($model['tax_category_id'] ?? 0) : 0);
         $orderId = OfficeOrders::save(0, [
             'company_id' => $company,
             'customer_id' => $customer,
@@ -455,7 +459,7 @@ final class OrdersDemo
             'document_note' => 'Consegna al magazzino, dal lunedì al venerdì.',
             'lines' => [
                 ['type' => 'product', 'product_id' => $product['id'], 'quantity' => '2'],
-                ['type' => 'custom', 'name' => 'Etichettatura personalizzata', 'quantity' => '1', 'unit_price' => '15'],
+                ['type' => 'custom', 'tax_category_id' => $taxCategory, 'name' => 'Etichettatura personalizzata', 'quantity' => '1', 'unit_price' => '15'],
             ],
         ], 0, $quote ? 'quote' : 'order');
 
