@@ -63,12 +63,23 @@ esce dall'elenco dei clienti e lo trovi fra i fornitori. Senza la funzionalità
 *Acquisti* il campo non c'è: i fornitori non esistono e ogni scheda è di un
 cliente.
 
-Creando una scheda il form mostra subito chi è, i contatti, la fatturazione e
-gli **indirizzi di consegna**. Per un'azienda, subito sotto i contatti c'è anche
-il riquadro **Referenti**: le persone con cui parli si scrivono insieme ai
-recapiti dell'azienda. Pagamento, note e, per una persona, le aziende per cui
-lavora stanno nel riquadro chiuso **Altri dati (facoltativi)**: aprilo se
-servono, oppure aggiungili dopo. In modifica si vede tutto.
+Il form di una persona, di un'azienda e di un fornitore ha le stesse sezioni
+nello stesso ordine, in creazione e in modifica:
+
+1. **Azienda** (o **Persona**): ragione sociale o nome e cognome, ruolo, stato;
+2. **Brand**, per le aziende, con la funzionalità *Brand*;
+3. **Recapiti dell'azienda** (per una persona **Email e telefoni**): le email
+   e i telefoni generici, come info@, amministrazione o centralino;
+4. **Referenti** (per una persona **Aziende**): le persone con cui parli, con
+   il loro contatto di lavoro. L'email di una persona precisa va qui, non nei
+   recapiti dell'azienda;
+5. **Dati di fatturazione**;
+6. **Indirizzi di consegna**: non compare per chi è solo fornitore;
+7. **Altri dati**: pagamento e note. In creazione è chiuso; in modifica si apre
+   da solo se c'è qualcosa di compilato.
+
+Sotto il titolo di ogni sezione una riga dice che cosa va scritto lì. Brand e
+referenti partono senza righe: premi *Aggiungi* solo se servono.
 
 Per questo partita IVA, codice fiscale ed email sono **unici**: se li riscrivi
 su una scheda nuova, il gestionale ti dice di chi sono già e ti lascia aprire
@@ -110,7 +121,8 @@ schermi stretti vanno uno sotto l'altro.
 ## Contatti
 
 Tutte le email e i telefoni di una persona, di un'azienda o di un fornitore
-stanno nel riquadro **Contatti** della scheda: una riga per contatto, con il
+stanno nel riquadro dei contatti della scheda (**Recapiti dell'azienda** per
+aziende e fornitori, **Email e telefoni** per le persone): una riga per contatto, con il
 tipo (*Email* o *Telefono*) e **Principale**. Scegli il tipo e la riga mostra
 solo il suo campo: l'email, oppure prefisso e numero (il prefisso parte da
 quello del paese del sito, come la nazione negli indirizzi). L'etichetta
@@ -274,6 +286,11 @@ riceve la merce. Nel form di un'**azienda** il riquadro **Referenti** elenca que
 nel form di una **persona** il riquadro **Aziende** elenca le aziende per cui
 lavora. La stessa persona può essere referente di più aziende ed è sempre
 **una scheda sola**, con un solo accesso al sito.
+
+Una riga mostra solo quello che serve di solito: la persona, la mansione,
+l'email e il telefono di lavoro. Aree, referente principale, documenti in
+copia, accesso all'area clienti e brand seguiti stanno in **Altre opzioni**
+della riga, chiuse finché non servono.
 
 Per ogni riga cerca la scheda nella tendina scrivendo una parte del nome. Se la
 persona non c'è ancora, lascia la tendina su *Nuova persona* e scrivi **Nome** e

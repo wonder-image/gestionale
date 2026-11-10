@@ -328,6 +328,30 @@ cui si occupa, vuota = tutte) e `role`: la mansione, o le etichette delle aree
 (`areasLabel()`) se la mansione è vuota. Le tendine dei referenti mostrano
 `role`.
 
+### Layout del form delle anagrafiche
+
+`CustomerResource::formLayoutSchema()` disegna le stesse sezioni per persone,
+aziende e fornitori, in creazione e in modifica: chi è, `brandCards()`,
+recapiti, `relationCards()`, fatturazione, consegna, `Accordion` «Altri dati»
+(`paymentCards()` e note). Regole:
+
+- ogni card ha un `HelpText` visibile sotto il titolo; i testi stanno in
+  `gestionale.contacts.form.*` e `gestionale.contacts.relations.tooltip_*`;
+- la card dei recapiti si chiama «Recapiti dell'azienda» o «Email e telefoni»
+  (`form.points_company` / `form.points_person`): input, marker e script del
+  riquadro di customer-account non cambiano;
+- `contactPeopleField()` e `contactCompaniesField()` sono ridefiniti qui: riga
+  corta (scheda, mansione, email e telefono di lavoro) e il resto dietro
+  `repeaterAdvanced()` con l'etichetta `form.relation_advanced`; i repeater di
+  referenti e brand usano `repeaterStartEmpty()`. Le chiavi postate sono le
+  stesse del trait;
+- la consegna ha `hiddenWhen('roles', 'supplier')` quando `rolesShown()`;
+- «Altri dati» è chiuso in creazione e, in modifica, aperto solo se
+  `otherDataFilled()` trova note, pagamento, listino o commerciale.
+
+Una sottoclasse che aggiunge sezioni usa gli hook `brandCards()`,
+`relationCards()` e `paymentCards()`, senza riscrivere il layout.
+
 ### Contatti e indirizzi della scheda (customer-account)
 
 Persone, aziende e fornitori (`CustomerResource` e sottoclassi) hanno il
