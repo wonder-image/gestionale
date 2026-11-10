@@ -100,7 +100,7 @@ final class ShippingMethodResource extends GestionaleResource
             FormField::key('name')->text()->label('Nome')->required(),
             FormField::key('description')->text()->label('Tempi di consegna'),
             FormField::key('carrier_id')
-                ->select(['0' => '—'] + array_map('strval', static::carrierOptions()))
+                ->select(['0' => 'Nessuno'] + array_map('strval', static::carrierOptions()))
                 ->value('0')
                 ->label('Corriere'),
             FormField::key('applies_online')->toggle()->value(Channels::defaults()['applies_online'])->label('Sito'),
@@ -582,7 +582,7 @@ HTML)->tag('div');
             TableColumn::key('name')->text()->link('edit'),
             TableColumn::key('carrier_id')
                 ->text()
-                ->formatter(static fn (array $row): string => static::escape(static::carrierOptions()[(int) ($row['carrier_id'] ?? 0)] ?? '—')),
+                ->formatter(static fn (array $row): string => static::escape(static::carrierOptions()[(int) ($row['carrier_id'] ?? 0)] ?? '')),
             TableColumn::key('zones')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(static::zonesLabel((int) ($row['id'] ?? 0)))),
@@ -645,7 +645,7 @@ HTML)->tag('div');
             }
         }
 
-        return $names === [] ? '—' : implode(', ', $names);
+        return $names === [] ? 'Nessuna' : implode(', ', $names);
     }
 
     /**

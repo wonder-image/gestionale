@@ -161,7 +161,7 @@ check('un riferimento che non c\'è più si vede', function () {
         }
     }
 
-    return $formatter(['tax_id' => 999]) === '—';
+    return $formatter(['tax_id' => 999]) === 'Non trovata';
 });
 
 summary();

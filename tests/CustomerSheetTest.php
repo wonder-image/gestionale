@@ -28,10 +28,11 @@ check('le statistiche sono caselle con etichetta e valore all\'italiana', functi
         && str_contains($html, 'Scontrino medio') && str_contains($html, '10/09/2026');
 });
 
-check('senza ordini le date sono un trattino e il carrello dice «vuoto»', function () {
+check('senza ordini date e scontrino dicono «nessuno», il carrello «vuoto», e nessun trattino', function () {
     $html = CustomerSheet::stats(CustomerStats::of([], []));
 
-    return str_contains($html, '—') && str_contains($html, 'Carrello') && str_contains($html, 'vuoto');
+    return substr_count($html, 'nessuno') === 3 && !str_contains($html, '—')
+        && str_contains($html, 'Carrello') && str_contains($html, 'vuoto');
 });
 
 check('il carrello pieno dice quanti pezzi e quanto vale', function () {
@@ -78,10 +79,11 @@ check('un privato non mostra i campi aziendali', function () use ($azienda) {
         && str_contains($fatt, 'Codice fiscale') && !str_contains($fatt, 'SDI') && !str_contains($fatt, 'PEC') && !str_contains($fatt, 'Partita IVA');
 });
 
-check('dove un dato manca c\'è il trattino', function () use ($azienda) {
-    $html = resa([...CustomerSheet::data([...$azienda, 'note' => ''], '—'), ...CustomerSheet::points([])]);
+check('dove un dato manca c\'è «Non indicato», senza recapiti «Nessun recapito»', function () use ($azienda) {
+    $html = resa([...CustomerSheet::data([...$azienda, 'note' => ''], 'Nessun accesso'), ...CustomerSheet::points([])]);
 
-    return substr_count($html, '—') >= 2 && str_contains($html, 'Contatti');
+    return str_contains($html, 'Non indicato') && str_contains($html, 'Nessun recapito')
+        && str_contains($html, 'Nessun accesso') && !str_contains($html, '—') && str_contains($html, 'Contatti');
 });
 
 check('la card di un indirizzo di consegna: etichetta, predefinito, indirizzo e telefono', function () {
@@ -105,7 +107,7 @@ check('senza indirizzi la frase dice che si spedisce alla fatturazione', fn () =
 );
 
 check('una scheda non attiva si legge «Non attiva»', fn () =>
-    str_contains(resa(CustomerSheet::data([...$azienda, 'active' => 'false'], '—')), 'Non attiva')
+    str_contains(resa(CustomerSheet::data([...$azienda, 'active' => 'false'], 'Nessun accesso')), 'Non attiva')
 );
 
 check('i coupon: un cliente senza coupon o non valido ha una lista vuota', fn () =>

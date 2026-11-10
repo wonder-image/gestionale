@@ -210,14 +210,14 @@ final class OfficeSubscriptionResource extends NavigationOnlyResource
         exit();
     }
 
-    /** I prezzi attivi degli abbonamenti in vendita, «Piano — Prezzo». @return array<int, string> */
+    /** I prezzi attivi degli abbonamenti in vendita, «Piano · Prezzo». @return array<int, string> */
     public static function priceOptions(): array
     {
         $options = [];
 
         foreach (SubscriptionModels::live() as $plan) {
             foreach (static::rows(PlanPrice::class, ['product_model_id' => (int) $plan['id'], 'active' => 'true'], 'position') as $price) {
-                $options[(int) $price['id']] = trim((string) $plan['name']).' — '.SubscriptionProductForm::priceLabel($price);
+                $options[(int) $price['id']] = trim((string) $plan['name']).' · '.SubscriptionProductForm::priceLabel($price);
             }
         }
 

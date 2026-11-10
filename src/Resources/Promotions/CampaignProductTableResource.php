@@ -180,14 +180,16 @@ final class CampaignProductTableResource extends GestionaleResource
         return $html !== '' ? $html : $vuoto;
     }
 
-    /** "Articolo — opzione" con lo SKU sotto. */
+    /** "Articolo · opzione" con lo SKU sotto. */
     public static function nameCell(array $row): string
     {
         $names = ProductNames::of($row, [
             (int) ($row['product_model_id'] ?? 0) => trim((string) ($row['model_name'] ?? '')),
         ]);
-        $html = static::escapeStored($names['article'])
-            .($names['option'] !== '' ? ' — '.static::escapeStored($names['option']) : '');
+        $html = implode(' · ', array_map(
+            static fn (string $part): string => static::escapeStored($part),
+            array_values(array_filter([$names['article'], $names['option']], static fn (string $part): bool => $part !== ''))
+        ));
         $sku = trim((string) ($row['sku'] ?? ''));
 
         return $html.($sku !== '' ? '<div class="text-muted small">'.static::escapeStored($sku).'</div>' : '');

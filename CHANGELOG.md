@@ -194,6 +194,22 @@ versionamento semantico.
   (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
 
 ### Cambiato
+- **Form dell'azienda: referenti insieme ai contatti.** In creazione e in modifica il riquadro «Referenti» sta subito dopo «Contatti», fuori da «Altri dati (facoltativi)». Una riga con la tendina vuota crea la persona da «Nome» e «Cognome» (customer-account) e le dà l'email di lavoro della riga; `CustomerResource::relationPersonPayload()` la fa cliente quando `CustomerMode::people()` (modi persone ed entrambi), referente e basta in modo «solo aziende». Il «+» della finestra crea ancora un referente non cliente.
+- **Indirizzi di consegna fuori da «Altri dati (facoltativi)»**: in creazione la card sta dopo la fatturazione, per persone e aziende. Nel riquadro chiuso restano pagamento, note e, per le persone, le aziende.
+- **Niente trattini come testo visibile** (nessun «—» o «–» in backend, pagine,
+  email e PDF): le tendine hanno «Nessuno» o «Nessuna» come opzione vuota; i
+  valori mancanti restano vuoti nelle tabelle e nei documenti di magazzino,
+  nelle schede compare «Non indicato» (`DataItem::placeholder()`) e il metodo
+  d'accesso di chi non ha un account è «Nessun accesso». Articolo e opzione
+  sono separati da «·» («Maglia · Rossa, M»), come piano e prezzo
+  dell'abbonamento; ruoli, referenti e SKU vanno tra parentesi. Il peso di
+  spedizione si legge «1,4 kg (1,2 di prodotto e 0,2 di scatola)», il periodo
+  dell'abbonamento «dal X al Y». Una riga d'inventario non contata mostra
+  «Non contata»; il titolo di una rata senza scadenza non ha più «del».
+- **API dei trattini**: nuovo `ProductNames::join()`; `orDash` rinominato
+  `orEmpty` in `OrderPaymentTableResource` e `SubscriptionPaymentTableResource`;
+  `BatchExpiry::label()` restituisce '' quando la data manca; `CategoryTree`
+  rientra con «· »; nuova chiave di lingua `bundle.component_missing`.
 - **Form di persone e aziende più corto in creazione**: pagamento, indirizzi
   di consegna, collegamenti e note in un `Accordion` chiuso «Altri dati
   (facoltativi)» (`CustomerResource::formSchema()`, solo senza `currentId()`);

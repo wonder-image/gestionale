@@ -21,11 +21,11 @@ check('status: scaduto da ieri, oggi si vende ancora, in scadenza entro i giorni
     && BatchExpiry::status('2026-10-14', $oggi, 0) === 'ok'
 );
 
-check('badge: rosso scaduto, giallo in scadenza, testo semplice altrimenti, trattino senza', fn () =>
+check('badge: rosso scaduto, giallo in scadenza, testo semplice altrimenti, vuoto senza', fn () =>
     BatchExpiry::badge('2026-10-01', $oggi, 30) === '<span class="badge text-bg-danger">01/10/2026 · scaduto</span>'
     && BatchExpiry::badge('2026-10-20', $oggi, 30) === '<span class="badge text-bg-warning">20/10/2026</span>'
     && BatchExpiry::badge('2027-01-01', $oggi, 30) === '01/01/2027'
-    && BatchExpiry::badge(null, $oggi, 30) === '—'
+    && BatchExpiry::badge(null, $oggi, 30) === ''
 );
 
 check('filtro Stato: con pezzi, in scadenza e scaduti sui soli lotti con pezzi, esauriti, tutti', function () use ($oggi) {

@@ -140,7 +140,7 @@ check('le celle si disegnano davvero, con il segno e le etichette', function () 
         && $celle['quantity'] === '-3'
         && $celle['quantity_before'] === '10'
         && $celle['quantity_after'] === '7'
-        && $celle['product_id'] === '—';
+        && $celle['product_id'] === 'Prodotto non trovato';
 });
 
 check('Chi: il nome dell\'utente, altrimenti l\'origine', fn () =>
@@ -393,7 +393,7 @@ check('la nota della scheda va a capo e non esce come HTML', function () use ($s
         && str_contains($html, 'Caduto &lt;b&gt;dallo&lt;/b&gt; scaffale<br />');
 });
 
-check('la scheda: la sede solo con più sedi; lotto e fornitore solo se ci sono; senza costo un trattino', function () use ($scheda, $movimento, $unaSede, $dueSedi, $voce) {
+check('la scheda: la sede solo con più sedi; lotto e fornitore solo se ci sono; senza costo «Non indicato»', function () use ($scheda, $movimento, $unaSede, $dueSedi, $voce) {
     $una = $scheda($movimento, $unaSede);
     $due = $scheda($movimento, $dueSedi);
     $senzaCosto = $scheda(['unit_cost' => null] + $movimento, $unaSede);
@@ -402,7 +402,7 @@ check('la scheda: la sede solo con più sedi; lotto e fornitore solo se ci sono;
     return !str_contains($una, '>Sede<') && $voce($due, 'Sede', 'Magazzino')
         && !str_contains($una, '>Lotto<') && !str_contains($una, '>Fornitore<')
         && $voce($conLotto, 'Lotto', '#4')
-        && $voce($senzaCosto, 'Costo unitario', '—');
+        && $voce($senzaCosto, 'Costo unitario', 'Non indicato');
 });
 
 check('la versione della scheda porta alla sua pagina', function () use ($scheda, $movimento, $unaSede) {

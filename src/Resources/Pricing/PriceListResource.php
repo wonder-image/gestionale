@@ -161,7 +161,7 @@ final class PriceListResource extends GestionaleResource
             FormField::key('items')
                 ->repeater([
                     RepeaterColumn::key('id')->hidden(),
-                    RepeaterColumn::key('product_id')->select(['' => '—'] + static::productOptions())->label('Prodotto')->columnFill(),
+                    RepeaterColumn::key('product_id')->select(['' => 'Nessuno'] + static::productOptions())->label('Prodotto')->columnFill(),
                     RepeaterColumn::key('min_quantity')->number()->decimal(0)->value('1')->label('Da quantità')->columnSpan(2),
                     RepeaterColumn::key('price')->number()->decimal(2)->label('Prezzo')->columnSpan(3),
                 ])
@@ -432,7 +432,7 @@ final class PriceListResource extends GestionaleResource
 
         foreach ($products as $product) {
             $sku = trim((string) ($product['sku'] ?? ''));
-            $label = ProductNames::full($product, $names).($sku !== '' ? ' — '.$sku : '');
+            $label = ProductNames::full($product, $names).($sku !== '' ? ' ('.$sku.')' : '');
             $options[(int) $product['id']] = ($product['active'] ?? 'false') === 'true' ? $label : $label.' (disattivato)';
         }
 

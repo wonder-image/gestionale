@@ -529,7 +529,8 @@ final class OrderPaymentResource extends NavigationOnlyResource
         $titolo = 'Registra pagamento: ordine '.trim((string) ($ordine['order_number'] ?? ''));
 
         if ($rata !== null) {
-            $titolo .= ', '.lcfirst($rata['note'] !== '' ? $rata['note'] : 'rata').' del '.BatchExpiry::label($rata['due_date']);
+            $scadenzaRata = BatchExpiry::label($rata['due_date']);
+            $titolo .= ', '.lcfirst($rata['note'] !== '' ? $rata['note'] : 'rata').($scadenzaRata !== '' ? ' del '.$scadenzaRata : '');
         }
 
         return $titolo;

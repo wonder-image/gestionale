@@ -178,7 +178,7 @@ class CompanyResource extends CustomerResource
             FormField::key(static::$brandsInput)
                 ->repeater([
                     RepeaterColumn::key('brand_id')
-                        ->selectSearch(['' => '—'] + ContactVisibility::options(CompanyBrand::$table, CompanyBrands::options(), ContactVisibility::rememberedBrands()))
+                        ->selectSearch(['' => 'Nessuno'] + ContactVisibility::options(CompanyBrand::$table, CompanyBrands::options(), ContactVisibility::rememberedBrands()))
                         ->quickCreate(static::brandResource(), ['name'], null, 'name', (string) __t('contacts.brand_add'))
                         ->label((string) __t('contacts.brand'))
                         ->columnSpan(6),
@@ -210,7 +210,7 @@ class CompanyResource extends CustomerResource
 
         return [
             FormField::key(static::$groupInput)
-                ->selectSearch(['' => '—'] + ContactVisibility::options(Company::$table, CompanyGroups::options(), array_filter([static::storedParent()])))
+                ->selectSearch(['' => 'Nessuno'] + ContactVisibility::options(Company::$table, CompanyGroups::options(), array_filter([static::storedParent()])))
                 ->label((string) __t('contacts.company_parent')),
         ];
     }

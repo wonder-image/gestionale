@@ -352,6 +352,7 @@
         "bundle": {
             "unknown_mode": "Scegli se il multiprodotto è fisso, a scelta o misto.",
             "no_components": "Aggiungi almeno un prodotto alla composizione.",
+            "component_missing": "Scegli il prodotto di ogni riga.",
             "no_groups": "Aggiungi almeno un gruppo di scelta.",
             "zero_quantity": "La quantità di ogni prodotto deve essere maggiore di zero.",
             "duplicate_product": "Lo stesso prodotto compare due volte nello stesso elenco.",

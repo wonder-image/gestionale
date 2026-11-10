@@ -272,7 +272,7 @@ check('l\'anteprima è una tabella del core: cerca per nome o SKU e ogni riga ha
             && str_contains($anteprima, 'gst_products__search_input')
             && str_contains($anteprima, 'Con la campagna')
             && array_keys($colonne) === ['photo', 'model_name', 'price', 'campaign_price']
-            && str_contains($colonne['model_name']($riga), 'Maglia — Blu / M')
+            && str_contains($colonne['model_name']($riga), 'Maglia · Blu / M')
             && str_contains($colonne['model_name']($riga), 'MAGLIA-BLU-M')
             && str_contains($colonne['price']($riga), '50,00 €')
             && str_contains($colonne['campaign_price']($riga), '40,00 €');

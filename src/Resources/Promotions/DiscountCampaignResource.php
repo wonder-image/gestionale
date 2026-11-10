@@ -365,7 +365,7 @@ class DiscountCampaignResource extends GestionaleResource
             }
         }
 
-        return $names === [] ? '—' : implode(', ', $names);
+        return $names === [] ? 'Nessuno' : implode(', ', $names);
     }
 
     public static function statusLabel(array $row, string $now): string

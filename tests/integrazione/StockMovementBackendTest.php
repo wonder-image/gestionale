@@ -132,12 +132,12 @@ check('un movimento nato da un ordine mostra il numero dell\'ordine, con il link
     });
 });
 
-check('la cella della versione dice «Articolo — Versione»', function () {
+check('la cella della versione dice «Articolo · Versione»', function () {
     return prova(static function (): bool {
         [, $prodotto] = venditaDiProva();
         $celle = celleDi(movimentoDi($prodotto, 'sale'));
 
-        return stripos($celle['product_id'], 'Prova vendite') !== false && $celle['product_id'] !== '—';
+        return stripos($celle['product_id'], 'Prova vendite') !== false && $celle['product_id'] !== 'Prodotto non trovato';
     });
 });
 

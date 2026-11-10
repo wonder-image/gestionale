@@ -385,7 +385,7 @@ final class OrderResource extends GestionaleResource
     private static function iconCell(?array $icon): string
     {
         if ($icon === null) {
-            return '<span class="text-body-secondary">—</span>';
+            return '';
         }
 
         return '<i class="bi '.$icon[0].' text-muted" data-bs-toggle="tooltip" data-bs-title="'.static::escape($icon[1]).'" aria-label="'.static::escape($icon[1]).'"></i>';
@@ -684,7 +684,7 @@ final class OrderResource extends GestionaleResource
     /** Il nome del cliente: un link alla scheda dell'azienda o della persona, se l'ordine ne ha una. */
     protected static function customerLink(array $order): string
     {
-        $nome = static::escape(static::customerName($order));
+        $nome = static::escape(static::customerName($order) ?: 'Cliente non indicato');
         $url = static::companyUrl($order) ?: static::customerUrl($order);
         $html = $url === '' ? $nome : '<a href="'.static::escape($url).'">'.$nome.'</a>';
         $referente = static::referentOf($order);
@@ -697,12 +697,12 @@ final class OrderResource extends GestionaleResource
         $rif = static::escape($referente);
         $urlReferente = static::customerUrl($order);
 
-        return $html.' — rif. '.($urlReferente === '' ? $rif : '<a href="'.static::escape($urlReferente).'">'.$rif.'</a>');
+        return $html.' (rif. '.($urlReferente === '' ? $rif : '<a href="'.static::escape($urlReferente).'">'.$rif.'</a>').')';
     }
 
     /**
      * Il nome con cui l'ordine si riconosce: ragione sociale, poi nome e
-     * cognome della fatturazione, poi l'email. Mai vuoto.
+     * cognome della fatturazione, poi l'email; vuoto se manca tutto.
      */
     public static function customerName(array $row): string
     {
@@ -723,17 +723,15 @@ final class OrderResource extends GestionaleResource
             return $name;
         }
 
-        $email = trim((string) ($row['email'] ?? ''));
-
-        return $email !== '' ? $email : '—';
+        return trim((string) ($row['email'] ?? ''));
     }
 
-    /** Il cliente negli elenchi: «Rossi Abbigliamento — rif. Marco Rossi» se c'è un referente. */
+    /** Il cliente negli elenchi: «Rossi Abbigliamento (rif. Marco Rossi)» se c'è un referente. */
     public static function customerLabel(array $row): string
     {
         $referente = static::referentOf($row);
 
-        return static::customerName($row).($referente !== '' ? ' — rif. '.$referente : '');
+        return trim(static::customerName($row).($referente !== '' ? ' (rif. '.$referente.')' : ''));
     }
 
     /** Il referente dell'azienda sul documento (snapshot `referent_name`); vuoto senza azienda. */
@@ -754,7 +752,7 @@ final class OrderResource extends GestionaleResource
         return OrderSheet::money($value);
     }
 
-    /** `15/10/2025 10:30`; vuota o zero diventano un trattino. */
+    /** `15/10/2025 10:30`; vuota o zero diventano una stringa vuota. */
     public static function date(string $value): string
     {
         return OrderSheet::date($value);

@@ -288,7 +288,7 @@ final class SubscriptionResource extends GestionaleResource
         $tabella = static fn (string $titolo, string $html, bool $aperto = false): Accordion => $aperto
             ? Accordion::make($titolo)->expanded()->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12)
             : Accordion::make($titolo)->components([RichText::make($html)->tag('div')->columnSpan(12)])->columnSpan(12);
-        $dato = static fn (string $etichetta, string $valore): DataItem => DataItem::make($etichetta, $valore !== '' ? $valore : '—')->columnSpan(12);
+        $dato = static fn (string $etichetta, string $valore): DataItem => DataItem::make($etichetta, $valore)->placeholder('Non indicato')->columnSpan(12);
 
         return (new Container)->components([
             (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components([
@@ -335,7 +335,7 @@ final class SubscriptionResource extends GestionaleResource
                 continue;
             }
 
-            $items[] = DataItem::make($etichetta, $valore !== '' ? $valore : '—')->columnSpan(6);
+            $items[] = DataItem::make($etichetta, $valore)->placeholder('Non indicato')->columnSpan(6);
         }
 
         return $items;
@@ -351,8 +351,9 @@ final class SubscriptionResource extends GestionaleResource
      */
     protected static function headerItems(array $row): array
     {
-        $dato = static fn (string $etichetta, string $valore, bool $html = false): DataItem => DataItem::make($etichetta, $valore !== '' ? $valore : '—')
+        $dato = static fn (string $etichetta, string $valore, bool $html = false): DataItem => DataItem::make($etichetta, $valore)
             ->html($html)
+            ->placeholder('Non indicato')
             ->columnSpan(['default' => 12, 'sm' => 4]);
         $customerId = (int) ($row['customer_id'] ?? 0);
         $companyId = (int) ($row['company_id'] ?? 0);
@@ -699,7 +700,7 @@ final class SubscriptionResource extends GestionaleResource
 
         $plan = SubscriptionModels::find((int) $price['product_model_id']);
 
-        return trim(($plan !== null ? (string) $plan['name'].' — ' : '').(string) $price['name']);
+        return trim(($plan !== null ? (string) $plan['name'].' · ' : '').(string) $price['name']);
     }
 
     public static function sourceLabel(string $source): string
@@ -748,11 +749,12 @@ final class SubscriptionResource extends GestionaleResource
         return date('d/m/Y', strtotime($value));
     }
 
+    /** «dal 12/10/2026 al 12/11/2026»; con una data sola, solo quella. */
     protected static function range(mixed $from, mixed $to): string
     {
         $from = static::day($from);
         $to = static::day($to);
 
-        return $from !== '' && $to !== '' ? $from.' – '.$to : $from.$to;
+        return trim(($from !== '' ? 'dal '.$from : '').($to !== '' ? ' al '.$to : ''));
     }
 }

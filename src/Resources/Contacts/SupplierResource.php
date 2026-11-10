@@ -119,7 +119,7 @@ final class SupplierResource extends CompanyResource
         $sinistra = [
             (new Card)->components([
                 SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
-                ...CustomerSheet::data($contact, '—'),
+                ...CustomerSheet::data($contact, 'Nessun accesso'),
                 ...static::pointItems($id, $contact),
             ])->columns(12)->columnSpan(12),
             $accordion('Carichi', static::receiptsTable(static::receipts($id)), true),
@@ -166,11 +166,11 @@ final class SupplierResource extends CompanyResource
         $body = '';
 
         foreach ($receipts as $doc) {
-            $numero = trim((string) ($doc['number'] ?? '')) ?: '—';
+            $numero = trim((string) ($doc['number'] ?? '')) ?: 'Senza numero';
             [$parola, $colore] = $stati[(string) ($doc['status'] ?? '')] ?? [(string) ($doc['status'] ?? ''), 'light'];
             $body .= '<tr><td class="fw-semibold"><a href="'.OrderSheet::esc(StockDocumentResource::pageUrl($doc)).'">'.OrderSheet::esc($numero).'</a></td>'
                 .'<td>'.OrderSheet::esc(substr(OrderSheet::date((string) ($doc['date'] ?? '')), 0, 10)).'</td>'
-                .'<td>'.OrderSheet::esc(trim((string) ($doc['supplier_document_number'] ?? '')) ?: '—').'</td>'
+                .'<td>'.OrderSheet::esc(trim((string) ($doc['supplier_document_number'] ?? ''))).'</td>'
                 .'<td>'.Badge::make($parola)->variant($colore)->inline()->render('bootstrap').'</td></tr>';
         }
 
@@ -207,7 +207,7 @@ final class SupplierResource extends CompanyResource
                 'name' => match (true) {
                     $article === '' => $option !== '' ? $option : (string) ($product['sku'] ?? ''),
                     $option === '' || $option === $article => $article,
-                    default => $article.' — '.$option,
+                    default => $article.' · '.$option,
                 },
                 'sku' => (string) ($product['sku'] ?? ''),
                 'supplier_sku' => (string) ($link['supplier_sku'] ?? ''),
@@ -231,9 +231,9 @@ final class SupplierResource extends CompanyResource
 
         foreach ($products as $row) {
             $body .= '<tr><td>'.OrderSheet::esc($row['name']).'</td>'
-                .'<td>'.OrderSheet::esc($row['sku'] ?: '—').'</td>'
-                .'<td>'.OrderSheet::esc($row['supplier_sku'] ?: '—').'</td>'
-                .'<td class="text-end">'.($row['cost'] === null ? '—' : OrderSheet::esc(StockValue::money($row['cost']))).'</td></tr>';
+                .'<td>'.OrderSheet::esc($row['sku']).'</td>'
+                .'<td>'.OrderSheet::esc($row['supplier_sku']).'</td>'
+                .'<td class="text-end">'.($row['cost'] === null ? '' : OrderSheet::esc(StockValue::money($row['cost']))).'</td></tr>';
         }
 
         return '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr>'

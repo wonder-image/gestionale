@@ -125,7 +125,7 @@ check('l\'accesso all\'area clienti lo alza solo chi vede tutte le aziende e pu�
 });
 
 check('le scelte dei select: il commerciale vede solo le sue (più quelle già scelte)', function () use ($commerciale, $ufficio) {
-    $scelte = ['' => '—', 4 => 'Rossi', 6 => 'Altrui', 8 => 'Già scelto'];
+    $scelte = ['' => 'Nessuno', 4 => 'Rossi', 6 => 'Altrui', 8 => 'Già scelto'];
     $suo = RowVisibility::as($commerciale, static fn (): array => ContactVisibility::options(CompanyBrand::$table, $scelte, [8]));
     $tutte = RowVisibility::as($ufficio, static fn (): array => ContactVisibility::options(CompanyBrand::$table, $scelte));
 

@@ -153,7 +153,7 @@ check('il tracking si legge come testo anche se porta HTML, e il link è cliccab
         && str_contains($con, 'rel="noopener')
         && str_contains($con, 'target="_blank"')
         && str_contains($senza, '&lt;i&gt;9&lt;/i&gt;') && !str_contains($senza, '<a ')
-        && $vuoto === '—'
+        && $vuoto === ''
         && !str_contains($falso, '<a ');
 });
 

@@ -88,7 +88,7 @@ final class SalesAgentResource extends GestionaleResource
         return [
             // In modifica l'utente si vede ma non si cambia.
             FormField::key('user_id')
-                ->select(['' => '—'] + SalesAgents::userOptions())
+                ->select(['' => 'Nessuno'] + SalesAgents::userOptions())
                 ->label('Utente')
                 ->disabled(),
             FormField::key('user_name')->text()->label('Nome')->required(),

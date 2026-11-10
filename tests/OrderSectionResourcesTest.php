@@ -134,7 +134,7 @@ check('Righe: il nome come sta nel database (con le entità) si legge una volta 
         && !str_contains($grezzo, '<script>');
 });
 
-check('Righe: lo sconto si legge in percentuale, in euro o con un trattino', function () {
+check('Righe: lo sconto si legge in percentuale, in euro o resta vuoto', function () {
     $sconto = array_values(array_filter(
         OrderItemTableResource::tableSchema(),
         static fn ($c): bool => (string) $c->name === 'discount_value'
@@ -142,7 +142,7 @@ check('Righe: lo sconto si legge in percentuale, in euro o con un trattino', fun
 
     return str_contains($sconto(['discount_type' => 'percent', 'discount_value' => '10.000']), '10%')
         && str_contains($sconto(['discount_type' => 'amount', 'discount_value' => '5.00']), '5,00 €')
-        && str_contains($sconto(['discount_type' => 'none', 'discount_value' => '0']), '—');
+        && $sconto(['discount_type' => 'none', 'discount_value' => '0']) === '';
 });
 
 check('Righe: la riga di sola nota non mostra quantità né importi', function () {
@@ -183,7 +183,7 @@ check('Storico: gli stati si leggono con le parole del gestionale', function () 
 
     return str_contains($cosa(['field' => 'payment_status']), 'Pagamento')
         && str_contains($a(['field' => 'status', 'to_value' => 'confirmed']), 'Confermato')
-        && str_contains($a(['field' => 'status', 'to_value' => '']), '—');
+        && $a(['field' => 'status', 'to_value' => '']) === '';
 });
 
 check('Righe: vale la foto copiata sulla riga; le righe che non sono prodotti non ne hanno', fn () =>
@@ -260,7 +260,7 @@ check('Pagamenti: il metodo è quello scelto in Stripe (Klarna), e chi l\'ha ges
 
     return $metodo(['payment_method_id' => 0, 'provider_method' => 'klarna']) === 'Klarna'
         && $gestore(['provider' => 'stripe']) === 'Stripe'
-        && $gestore(['provider' => 'manual']) === '—'
+        && $gestore(['provider' => 'manual']) === ''
         && OrderPaymentTableResource::labelSchema()['provider'] === 'Gestito da';
 });
 

@@ -229,7 +229,7 @@ check('render inventario: Attesi · Contati · Differenza, Aggiungi versioni con
         ['id' => 3, 'label' => 'C', 'sku' => '', 'ean' => '', 'photo' => '', 'stock' => 2.0, 'inactive' => false, 'quantity' => '', 'expected' => null],
     ];
     $html = StockDocumentEditor::render($righe, '/x/', 'stocktake', [
-        'categories' => ['4' => 'Maglie', '5' => '— <b>Rosse</b>'],
+        'categories' => ['4' => 'Maglie', '5' => '· <b>Rosse</b>'],
         'brands' => ['9' => 'Marca & Co'],
     ]);
     $carico = StockDocumentEditor::render([], '/x/');
@@ -238,7 +238,7 @@ check('render inventario: Attesi · Contati · Differenza, Aggiungi versioni con
         && str_contains($html, '>Attesi</th>') && str_contains($html, '>Contati</th>') && str_contains($html, '>Differenza</th>')
         && !str_contains($html, '>Pezzi</th>')
         && str_contains($html, '<option value="all">Tutte le versioni</option>')
-        && str_contains($html, '<optgroup label="Categorie"><option value="category:4">Maglie</option><option value="category:5">— &lt;b&gt;Rosse&lt;/b&gt;</option></optgroup>')
+        && str_contains($html, '<optgroup label="Categorie"><option value="category:4">Maglie</option><option value="category:5">· &lt;b&gt;Rosse&lt;/b&gt;</option></optgroup>')
         && str_contains($html, '<option value="brand:9">Marca &amp; Co</option>')
         && str_contains($html, 'data-wi-stock-scope-add>Aggiungi versioni</button>')
         && str_contains($html, '3 righe · 2 contate · 1 con differenza')
@@ -344,7 +344,7 @@ JS;
     @unlink($base);
 
     $atteso = [
-        'start' => [['4', '6', '+2'], ['3', '', '—'], '2 righe · 1 contata · 1 con differenza',
+        'start' => [['4', '6', '+2'], ['3', '', ''], '2 righe · 1 contata · 1 con differenza',
             ['contate' => '1 riga contata', 'differenza' => '1 con differenza', 'correzione' => 'la giacenza di quella versione si corregge']],
         'newCount' => [['5', '5', '0'], '2 righe · 1 contata · 0 con differenza',
             ['contate' => '1 riga contata', 'differenza' => 'nessuna differenza', 'correzione' => 'la giacenza non cambia']],
@@ -352,7 +352,7 @@ JS;
         'zero' => [['3', '0', '−3'], ['contate' => '2 righe contate', 'differenza' => '2 con differenza', 'correzione' => 'la giacenza di quelle 2 versioni si corregge']],
         'place' => [['10', '6', '−4'], ['1', '0', '−1']],
         'placeBack' => ['4', '6', '+2'],
-        'scope' => [3, ['2', '', '—'], 'Aggiunta 1 versione.'],
+        'scope' => [3, ['2', '', ''], 'Aggiunta 1 versione.'],
         'again' => 'Ci sono già tutte.',
         'crowded' => [3, 'Sarebbero 5 righe: un documento ne tiene al massimo 4. Conta per categorie o per marchi.'],
         'scopeUrl' => '/cerca/?scope=brand&scope_id=3&location=1',

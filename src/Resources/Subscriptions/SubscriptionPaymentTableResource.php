@@ -94,13 +94,13 @@ final class SubscriptionPaymentTableResource extends OrderSectionResource
                 ->formatter(static fn (array $row): string => static::escape(SubscriptionResource::day($row['paid_at'] ?? ''))),
             TableColumn::key('payment_method_id')
                 ->text()
-                ->formatter(static fn (array $row): string => OrderPaymentTableResource::orDash(PaymentMethod::choiceLabel(
+                ->formatter(static fn (array $row): string => OrderPaymentTableResource::orEmpty(PaymentMethod::choiceLabel(
                     (string) ($row['provider_method'] ?? ''),
                     OrderPaymentTableResource::methodName((int) ($row['payment_method_id'] ?? 0))
                 ))),
             TableColumn::key('provider')
                 ->text()
-                ->formatter(static fn (array $row): string => OrderPaymentTableResource::orDash(OrderPaymentTableResource::providerName((string) ($row['provider'] ?? '')))),
+                ->formatter(static fn (array $row): string => OrderPaymentTableResource::orEmpty(OrderPaymentTableResource::providerName((string) ($row['provider'] ?? '')))),
             TableColumn::key('actions')
                 ->text()
                 ->size('little')

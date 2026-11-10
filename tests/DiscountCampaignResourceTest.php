@@ -91,7 +91,7 @@ check('lo stato si ricava dalle date e dall\'interruttore', function () {
 
 check('i canali si leggono per nome', function () {
     return DiscountCampaignResource::channelsLabel(['applies_online' => 'true', 'applies_office' => 'false', 'applies_pos' => 'true']) === 'Online, Cassa'
-        && DiscountCampaignResource::channelsLabel(['applies_online' => 'false', 'applies_office' => 'false', 'applies_pos' => 'false']) === '—';
+        && DiscountCampaignResource::channelsLabel(['applies_online' => 'false', 'applies_office' => 'false', 'applies_pos' => 'false']) === 'Nessuno';
 });
 
 check('il periodo si legge dalle date, «sempre» se mancano', function () {

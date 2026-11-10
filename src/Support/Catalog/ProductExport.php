@@ -314,7 +314,7 @@ final class ProductExport
                 'sku' => self::text((string) ($product['sku'] ?? '')),
                 'ean' => trim((string) ($product['ean'] ?? '')),
                 'mpn' => self::text((string) ($product['mpn'] ?? '')),
-                'article' => $names['article'] === '—' ? '' : $names['article'],
+                'article' => $names['article'],
                 'option' => self::text($names['option']),
                 'type' => $bundle ? 'Multiprodotto' : ($subscription ? 'Abbonamento' : 'Prodotto'),
                 'brand' => $brand !== null ? self::text((string) ($brand['name'] ?? '')) : '',

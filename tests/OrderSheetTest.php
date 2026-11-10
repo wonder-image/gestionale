@@ -23,8 +23,8 @@ check('l\'indirizzo si scrive su righe e il testo è escapato', function () use 
         && str_contains($html, '20100 Milano (MI)');
 });
 
-check('un indirizzo vuoto si dice con un trattino', fn () =>
-    str_contains(OrderSheet::address([], 'shipping'), '—')
+check('un indirizzo vuoto si dice «Non indicato»', fn () =>
+    str_contains(OrderSheet::address([], 'shipping'), 'Non indicato')
 );
 
 check('il riepilogo IVA ha aliquota, imponibile, imposta e totale', function () {
@@ -68,17 +68,17 @@ check('un ordine di prima, senza usi registrati, mostra il codice senza importo'
     return str_contains($html, 'Coupon VECCHIO') && !str_contains($html, 'risparmio');
 });
 
-check('lo sconto di una riga si legge in percentuale, in euro o con un trattino', fn () =>
+check('lo sconto di una riga si legge in percentuale, in euro o resta vuoto', fn () =>
     OrderSheet::discount(['discount_type' => 'percent', 'discount_value' => '10.000']) === '10%'
     && OrderSheet::discount(['discount_type' => 'amount', 'discount_value' => '5.00']) === '5,00 €'
-    && OrderSheet::discount(['discount_type' => 'none', 'discount_value' => '0']) === '—'
+    && OrderSheet::discount(['discount_type' => 'none', 'discount_value' => '0']) === ''
 );
 
 check('lo storico traduce campo e stati con le parole del gestionale', fn () =>
     OrderSheet::logField('payment_status') === 'Pagamento'
     && OrderSheet::logValue('status', 'pending') === 'In attesa'
     && OrderSheet::logValue('payment_status', 'unpaid') === 'Da pagare'
-    && OrderSheet::logValue('status', '') === '—'
+    && OrderSheet::logValue('status', '') === ''
 );
 
 check('lo stato di un pagamento è un badge', fn () =>

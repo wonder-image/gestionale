@@ -909,7 +909,7 @@ final class OnlineSubscriptions
             $item = [
                 'price_data' => [
                     'currency' => 'eur',
-                    'product_data' => ['name' => trim(html_entity_decode((string) ($line['plan']['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')).' – una tantum'],
+                    'product_data' => ['name' => trim(html_entity_decode((string) ($line['plan']['name'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')).' (una tantum)'],
                     'unit_amount' => (int) round((float) $once['unit_price'] * 100),
                     'tax_behavior' => $inclusive ? 'inclusive' : 'exclusive',
                 ],

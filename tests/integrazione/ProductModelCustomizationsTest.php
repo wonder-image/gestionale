@@ -145,7 +145,7 @@ check('la disattivata già collegata si vede con «(disattivata)», per un altro
             && ($suoi[(string) $attiva] ?? '') === 'Zeta Attiva'
             && !isset($loro[(string) $spenta])
             && ($loro[(string) $attiva] ?? '') === 'Zeta Attiva'
-            && ($suoi[''] ?? '') === '—';
+            && ($suoi[''] ?? '') === 'Nessuna';
     });
 });
 

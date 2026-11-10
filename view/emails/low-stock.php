@@ -31,7 +31,7 @@
     <?php $meta = implode(' · ', array_filter([$item['sku'], $item['location'] ?? ''])); ?>
     <tr style="border-bottom: 1px solid #e5e5e5;">
         <td>
-            <b><?= $e($item['article']) ?></b><?php if ($item['option'] !== '') { ?> — <?= $e($item['option']) ?><?php } ?>
+            <?php if ($item['article'] !== '') { ?><b><?= $e($item['article']) ?></b><?php } ?><?php if ($item['article'] !== '' && $item['option'] !== '') { ?> · <?php } ?><?= $e($item['option']) ?>
             <?php if ($meta !== '') { ?><br><small style="color: #777;"><?= $e($meta) ?></small><?php } ?>
         </td>
         <td style="text-align: right; white-space: nowrap;">

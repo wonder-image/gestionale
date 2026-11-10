@@ -14,6 +14,7 @@ use Wonder\Plugin\Gestionale\Support\Errors\Errors;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStockEmail;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStockReport;
+use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 
 /**
  * "Sotto scorta": i prodotti da riordinare.
@@ -85,7 +86,7 @@ HTML);
 
         foreach (array_slice($items, 0, self::LIMIT) as $item) {
             $name = htmlspecialchars(
-                $item['option'] !== '' ? $item['article'].' — '.$item['option'] : $item['article'],
+                ProductNames::join($item),
                 ENT_QUOTES,
                 'UTF-8'
             );

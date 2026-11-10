@@ -1147,7 +1147,7 @@ check('la finestra «Fornitori» ha una riga per fornitore, con la sua «x», e 
 
     $bottoni = array_map(static fn (Button $bottone) => $bottone->getLabel(), $finestra->footer);
     $attributi = array_map(static fn (Button $bottone) => (array) $bottone->getSchema('attributes'), $finestra->footer);
-    $tendina = ['' => '—', 5 => 'Filati Nord', 6 => 'Lanificio Sud', 7 => 'Tessuti Est'];
+    $tendina = ['' => 'Nessuno', 5 => 'Filati Nord', 6 => 'Lanificio Sud', 7 => 'Tessuti Est'];
 
     return $finestra->getSchema('id') === 'wi-product-suppliers'
         && $finestra->getTitle() === 'Fornitori'
@@ -1584,7 +1584,7 @@ check('il riquadro Magazzino spiega come si scrive la giacenza, e ha una riga pe
         && $con['larghezza'] === 12
         && $con['colonne'] === ['location_id' => ['Sede', 5], 'stock' => ['Giacenza', 3], 'min_stock' => ['Scorta minima', 3]]
         && $senza['colonne'] === ['location_id' => ['Sede', 7], 'stock' => ['Giacenza', 4]]
-        && $con['sedi'] === ['' => '—', 1 => 'Milano', 2 => 'Roma']
+        && $con['sedi'] === ['' => 'Nessuna', 1 => 'Milano', 2 => 'Roma']
         // Niente relazione: le righe le compone e le legge la scheda.
         && ($con['contesto']['relation'] ?? null) === null
         && ($con['contesto']['nested'] ?? false) === true
@@ -1714,7 +1714,7 @@ check('la finestra «Giacenza» ha una riga per sede, con la sua «x», e niente
             'wi_location_stock[1][location_id]', 'wi_location_stock[1][stock]', 'wi_location_stock[1][min_stock]',
         ]
         && $linee === ['0', '1']
-        && $scelte === [['' => '—', 1 => 'Milano', 2 => 'Roma'], ['' => '—', 1 => 'Milano', 2 => 'Roma']]
+        && $scelte === [['' => 'Nessuna', 1 => 'Milano', 2 => 'Roma'], ['' => 'Nessuna', 1 => 'Milano', 2 => 'Roma']]
         && count($togli) === 2
         && $togli[0][0] === ''
         && str_contains($togli[0][1], 'data-wi-location-remove="0"')

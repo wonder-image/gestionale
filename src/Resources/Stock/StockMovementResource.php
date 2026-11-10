@@ -581,7 +581,7 @@ final class StockMovementResource extends GestionaleResource
             $dato('Prima', static::plain((float) ($movement['quantity_before'] ?? 0))),
             $dato('Pezzi', static::signed((float) ($movement['quantity'] ?? 0))),
             $dato('Dopo', static::plain((float) ($movement['quantity_after'] ?? 0))),
-            $dato('Costo unitario', $costo > 0 ? OrderResource::money($costo) : '—'),
+            $dato('Costo unitario', $costo > 0 ? OrderResource::money($costo) : 'Non indicato'),
         );
 
         // Lotti e fornitori arrivano con G3: senza sono 0 e non si mostrano.
@@ -710,18 +710,16 @@ final class StockMovementResource extends GestionaleResource
         return number_format($value, $decimals, ',', '.');
     }
 
-    /** «Maglia — Rossa, M»: l'articolo e la versione, come ovunque nel gestionale. */
+    /** «Maglia · Rossa, M»: l'articolo e la versione, come ovunque nel gestionale. */
     public static function productLabel(int $productId): string
     {
         $product = static::one(Product::class, $productId);
 
         if ($product === []) {
-            return '—';
+            return 'Prodotto non trovato';
         }
 
-        $names = ProductNames::of($product, ProductNames::models([$product]));
-
-        return $names['option'] === '' ? $names['article'] : $names['article'].' — '.$names['option'];
+        return ProductNames::full($product, ProductNames::models([$product]));
     }
 
     private static function locationLabel(int $locationId): string

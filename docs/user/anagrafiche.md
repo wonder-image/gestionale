@@ -63,10 +63,12 @@ esce dall'elenco dei clienti e lo trovi fra i fornitori. Senza la funzionalità
 *Acquisti* il campo non c'è: i fornitori non esistono e ogni scheda è di un
 cliente.
 
-Creando una scheda il form mostra subito chi è, i contatti e la
-fatturazione; pagamento, indirizzi di consegna, collegamenti e note stanno nel
-riquadro chiuso **Altri dati (facoltativi)**: aprilo se servono, oppure
-aggiungili dopo. In modifica si vede tutto.
+Creando una scheda il form mostra subito chi è, i contatti, la fatturazione e
+gli **indirizzi di consegna**. Per un'azienda, subito sotto i contatti c'è anche
+il riquadro **Referenti**: le persone con cui parli si scrivono insieme ai
+recapiti dell'azienda. Pagamento, note e, per una persona, le aziende per cui
+lavora stanno nel riquadro chiuso **Altri dati (facoltativi)**: aprilo se
+servono, oppure aggiungili dopo. In modifica si vede tutto.
 
 Per questo partita IVA, codice fiscale ed email sono **unici**: se li riscrivi
 su una scheda nuova, il gestionale ti dice di chi sono già e ti lascia aprire
@@ -273,8 +275,13 @@ nel form di una **persona** il riquadro **Aziende** elenca le aziende per cui
 lavora. La stessa persona può essere referente di più aziende ed è sempre
 **una scheda sola**, con un solo accesso al sito.
 
-Per ogni riga cerca la scheda nella tendina scrivendo una parte del nome. Se non
-c'è, il **+** accanto alla tendina apre una finestra: scrivi nome, cognome ed
+Per ogni riga cerca la scheda nella tendina scrivendo una parte del nome. Se la
+persona non c'è ancora, lascia la tendina su *Nuova persona* e scrivi **Nome** e
+**Cognome** nella riga: al salvataggio la scheda nasce con l'**email di lavoro**
+della riga come sua email. Se il gestionale vende anche alle persone, il
+referente creato così è anche **cliente** e lo trovi nell'elenco dei clienti;
+con *solo aziende* resta referente. In alternativa il **+** accanto alla
+tendina apre una finestra: scrivi nome, cognome ed
 email (o ragione sociale e partita IVA), e la scheda nasce e si seleziona nella
 riga. Prima di crearla si controlla che non esista già: con la stessa **email**
 o la stessa **partita IVA** si seleziona quella che c'è, senza doppioni. Il

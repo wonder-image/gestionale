@@ -48,12 +48,12 @@ final class OrderSheet
         return number_format((float) $value, 2, ',', '.').' €';
     }
 
-    /** `15/10/2025 10:30`; vuota o zero diventano un trattino. */
+    /** `15/10/2025 10:30`; vuota o zero diventano una stringa vuota. */
     public static function date(string $value): string
     {
         $time = $value === '' || str_starts_with($value, '0000') ? false : strtotime($value);
 
-        return $time === false ? '—' : date('d/m/Y H:i', $time);
+        return $time === false ? '' : date('d/m/Y H:i', $time);
     }
 
     /** Un numero senza zeri inutili: `2.000` → `2`, `1.500` → `1,5`. */
@@ -62,7 +62,7 @@ final class OrderSheet
         return rtrim(rtrim(number_format((float) $value, 3, ',', ''), '0'), ',');
     }
 
-    /** L'indirizzo su righe: destinatario, via, località; un trattino se manca tutto. */
+    /** L'indirizzo su righe: destinatario, via, località; «Non indicato» se manca tutto. */
     public static function address(array $order, string $prefix): string
     {
         $get = static fn (string $key): string => trim((string) ($order[$prefix.'_'.$key] ?? ''));
@@ -95,7 +95,7 @@ final class OrderSheet
         }
 
         if ($righe === []) {
-            return '<span class="text-muted">—</span>';
+            return '<span class="text-muted">Non indicato</span>';
         }
 
         return implode('<br>', array_map(static fn (string $r): string => self::esc($r), $righe));
@@ -107,13 +107,13 @@ final class OrderSheet
         return self::ITEM_TYPES[$type] ?? $type;
     }
 
-    /** Lo sconto di una riga: `10%`, `5,00 €` o un trattino. */
+    /** Lo sconto di una riga: `10%`, `5,00 €` o vuoto. */
     public static function discount(array $item): string
     {
         return match ((string) ($item['discount_type'] ?? 'none')) {
             'percent' => self::number($item['discount_value'] ?? 0).'%',
             'amount' => self::money($item['discount_value'] ?? 0),
-            default => '—',
+            default => '',
         };
     }
 
@@ -175,7 +175,7 @@ final class OrderSheet
         }
 
         if ($redemptions === [] && $codice !== '') {
-            $voci[] = ['Coupon '.$codice, '—', false, true];
+            $voci[] = ['Coupon '.$codice, '', false, true];
         }
 
         $voci[] = ['Imponibile', $order['taxable_total'] ?? 0, false, false];
@@ -212,11 +212,11 @@ final class OrderSheet
         return self::LOG_FIELDS[$field] ?? $field;
     }
 
-    /** Un valore dello storico, con le parole dello stato quando il campo è uno stato; un trattino se vuoto. */
+    /** Un valore dello storico, con le parole dello stato quando il campo è uno stato; vuoto se manca. */
     public static function logValue(string $field, string $value): string
     {
         if ($value === '') {
-            return '—';
+            return '';
         }
 
         // G9: il preventivo accettato diventa un ordine.

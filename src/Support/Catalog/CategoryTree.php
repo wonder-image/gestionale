@@ -94,7 +94,7 @@ final class CategoryTree
                 continue;
             }
 
-            $options[(string) $id] = str_repeat('— ', (int) $row['depth']).(string) ($row['name'] ?? '');
+            $options[(string) $id] = str_repeat('· ', (int) $row['depth']).(string) ($row['name'] ?? '');
         }
 
         return $options;

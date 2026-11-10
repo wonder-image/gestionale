@@ -377,7 +377,7 @@ window.wiOfficeEditor = window.wiOfficeEditor || (function () {
 
             row.discountType = el('select', 'form-select form-select-sm');
             row.discountType.setAttribute('aria-label', 'Tipo di sconto');
-            [['none', '—'], ['percent', '%'], ['amount', '€']].forEach(function (pair) {
+            [['none', 'Nessuno'], ['percent', '%'], ['amount', '€']].forEach(function (pair) {
                 var node = el('option', '', pair[1]);
                 node.value = pair[0];
                 row.discountType.appendChild(node);

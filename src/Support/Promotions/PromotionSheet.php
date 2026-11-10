@@ -16,12 +16,12 @@ use Wonder\Elements\Components\RichText;
  */
 trait PromotionSheet
 {
-    /** Una riga della scheda: etichetta piccola sopra, valore sotto; «—» se manca. */
+    /** Una riga della scheda: etichetta piccola sopra, valore sotto; «Non indicato» se manca. */
     protected static function sheetRow(string $label, string $value, bool $html = false): RichText
     {
         $value = trim($value) !== ''
             ? ($html ? $value : static::escape($value))
-            : '<span class="text-muted">—</span>';
+            : '<span class="text-muted">Non indicato</span>';
 
         return RichText::make(
             '<div class="small text-muted">'.static::escape($label).'</div><div>'.$value.'</div>'
@@ -69,7 +69,8 @@ trait PromotionSheet
 
             $names = $options();
             $items = array_map(
-                static fn (int $id): string => static::escape(trim((string) ($names[(string) $id] ?? '#'.$id), " \t\n\r\0\x0B—-")),
+                // Il nome senza i «· » di rientro dell'albero delle categorie.
+                static fn (int $id): string => static::escape(trim((string) preg_replace('/^[·\s]+/u', '', (string) ($names[(string) $id] ?? '#'.$id)))),
                 $ids
             );
             $html .= '<div class="mt-2"><span class="small text-muted">'.static::escape($label).'</span><br>'.implode(', ', $items).'</div>';

@@ -420,15 +420,14 @@ final class StockLevelResource extends GestionaleResource
         )));
     }
 
-    /** "Articolo — Versione"; con una versione sola, l'articolo (D20). */
+    /** "Articolo · Versione"; con una versione sola, l'articolo (D20). */
     private static function name(array $row): string
     {
         $names = ProductNames::of($row, [
             (int) ($row['product_model_id'] ?? 0) => trim((string) ($row['model_name'] ?? '')),
         ]);
 
-        return static::escape($names['article'])
-            .($names['option'] !== '' ? ' — '.static::escape($names['option']) : '');
+        return static::escape(ProductNames::join($names));
     }
 
     /** La prima foto pronta: della versione, poi della variante, poi dell'articolo. */

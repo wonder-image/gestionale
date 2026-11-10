@@ -25,7 +25,7 @@ View::layout('backend.show', ['TITLE' => 'Lotto '.$sheet['number']]);
                 <dt class="col-sm-3">Versione</dt>
                 <dd class="col-sm-9"><a href="<?=$e($sheet['product_url'])?>"><?=$e($sheet['product'])?></a></dd>
                 <dt class="col-sm-3">Scadenza</dt>
-                <dd class="col-sm-9"><?=$sheet['expiry']?></dd>
+                <dd class="col-sm-9"><?=$sheet['expiry'] !== '' ? $sheet['expiry'] : '<span class="text-muted">Senza scadenza</span>'?></dd>
                 <?php if ($sheet['supplier'] !== '') { ?>
                 <dt class="col-sm-3">Fornitore</dt>
                 <dd class="col-sm-9"><?=$e($sheet['supplier'])?></dd>

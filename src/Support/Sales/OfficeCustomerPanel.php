@@ -138,7 +138,7 @@ final class OfficeCustomerPanel
             'proposed' => (int) ($addresses[0]['id'] ?? 0),
             'referents' => array_map(static fn (array $r): array => [
                 'id' => $r['id'],
-                'label' => $r['name'].($r['role'] !== '' ? ' — '.$r['role'] : ''),
+                'label' => $r['name'].($r['role'] !== '' ? ' ('.$r['role'].')' : ''),
                 'is_primary' => $r['is_primary'],
             ], DocumentReferents::people($companyId)),
             // Il predefinito è quello che la tendina propone (`CompanyBrands::defaultOf()`).
@@ -161,7 +161,8 @@ final class OfficeCustomerPanel
     public static function contactsHtml(array $contact): string
     {
         $get = static fn (string $key): string => trim((string) ($contact[$key] ?? ''));
-        $dato = static fn (string $etichetta, string $valore): DataItem => DataItem::make($etichetta, $valore !== '' ? $valore : '—')
+        $dato = static fn (string $etichetta, string $valore): DataItem => DataItem::make($etichetta, $valore)
+            ->placeholder('Non indicato')
             ->columnSpan(12);
 
         return ResourceFormLayoutRenderer::renderLayout((new Container)->columns(12)->components([
@@ -180,7 +181,7 @@ final class OfficeCustomerPanel
         );
 
         return ResourceFormLayoutRenderer::renderLayout((new Container)->columns(12)->components([
-            DataItem::make('Intestatario', $nome !== '' ? $nome : '—')->columnSpan(12),
+            DataItem::make('Intestatario', $nome)->placeholder('Non indicato')->columnSpan(12),
             ...$items,
         ]));
     }
@@ -195,7 +196,7 @@ final class OfficeCustomerPanel
         );
 
         return ResourceFormLayoutRenderer::renderLayout((new Container)->columns(12)->components([
-            DataItem::make('Ragione sociale', $ragione !== '' ? $ragione : '—')->columnSpan(12),
+            DataItem::make('Ragione sociale', $ragione)->placeholder('Non indicata')->columnSpan(12),
             ...$items,
         ]));
     }
