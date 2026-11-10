@@ -6,7 +6,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\AttributeValue;
 use Wonder\Plugin\Gestionale\Models\Catalog\Customization;
 use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationOption;
-use Wonder\Plugin\Gestionale\Models\Catalog\ProductModelCustomization;
+use Wonder\Plugin\Gestionale\Models\Catalog\CustomizationLink;
 use Wonder\Plugin\Gestionale\Resources\Catalog\AttributeResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\CustomizationResource;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
@@ -699,13 +699,13 @@ final class CatalogTools
         Transaction::run(static function () use ($modelId, $wanted): void {
             $existing = [];
 
-            foreach (self::rows(ProductModelCustomization::find(['product_model_id' => $modelId, 'deleted' => 'false'])) as $link) {
+            foreach (self::rows(CustomizationLink::find(['product_model_id' => $modelId, 'deleted' => 'false'])) as $link) {
                 $existing[(int) $link['customization_id']] = $link;
             }
 
             foreach ($existing as $customizationId => $link) {
                 if (!isset($wanted[$customizationId])) {
-                    ProductModelCustomization::delete((int) $link['id']);
+                    CustomizationLink::delete((int) $link['id']);
                 }
             }
 
@@ -715,8 +715,8 @@ final class CatalogTools
                 $values = $entry + ['product_model_id' => $modelId, 'customization_id' => $customizationId, 'position' => ++$position];
 
                 self::saved(isset($existing[$customizationId])
-                    ? ProductModelCustomization::update($values, (int) $existing[$customizationId]['id'])
-                    : ProductModelCustomization::create($values));
+                    ? CustomizationLink::update($values, (int) $existing[$customizationId]['id'])
+                    : CustomizationLink::create($values));
             }
         });
 

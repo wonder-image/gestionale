@@ -214,8 +214,10 @@ check('la guardia: «Più sedi» non si spegne con pezzi in un\'altra sede o in 
         $messaggio = $e->getMessage();
     }
 
-    // Senza niente fuori dalla principale si spegne; il sito di prova può già avere pezzi altrove.
-    $altrove = (int) sqlCount('gst_stock', "`location_id` NOT IN (".$principale.', '.$negozio.") AND `quantity` <> 0 AND `deleted` = 'false'") > 0;
+    // Senza niente fuori dalla principale si spegne; il sito di prova può già
+    // avere pezzi altrove o un trasferimento in viaggio.
+    $altrove = (int) sqlCount('gst_stock', "`location_id` NOT IN (".$principale.', '.$negozio.") AND `quantity` <> 0 AND `deleted` = 'false'") > 0
+        || (int) sqlCount('gst_stock_documents', "`type` = 'transfer' AND `status` = 'in_transit' AND `id` <> ".(int) $id." AND `deleted` = 'false'") > 0;
 
     return ($libera === null || $altrove)
         && $viaggio === 'feature.multi_location_in_use'

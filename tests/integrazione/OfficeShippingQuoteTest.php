@@ -33,6 +33,7 @@ function prova(callable $corpo): mixed
     try {
         Transaction::run(static function () use ($corpo, &$esito): void {
             \Wonder\Plugin\Gestionale\Seeding\ShippingDemo::clear();
+            accendiFunzionalita(['measures']);
             $esito = $corpo();
 
             throw new Annulla();

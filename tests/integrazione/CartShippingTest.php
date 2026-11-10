@@ -44,6 +44,7 @@ function prova(callable $corpo): mixed
         Transaction::run(static function () use ($corpo, &$esito): void {
             // Il sito di prova può avere i dati demo: i test partono da zone vuote.
             \Wonder\Plugin\Gestionale\Seeding\ShippingDemo::clear();
+            accendiFunzionalita(['measures']);
             $esito = $corpo();
 
             throw new Annulla();

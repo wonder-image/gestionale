@@ -62,7 +62,7 @@ $preparati = static function (array $richiesta) use ($controller): array {
     return (new ReflectionMethod(ResourceApiController::class, 'preparedValues'))->invoke($controller, $endpoint, 'store', null);
 };
 
-$riga = static fn (int $id): array => (new ReflectionMethod(ResourceApiController::class, 'resourceRow'))->invoke($controller, $id, ['*']);
+$riga = static fn (int $id): array => (new ReflectionMethod(ResourceApiController::class, 'resourceRow'))->invoke($controller, $id, null, ['*']);
 
 $prima = $conta();
 
@@ -104,9 +104,9 @@ try {
             trim((string) ($item['code'] ?? '')) !== '' && trim((string) ($item['slug'] ?? '')) !== ''
         );
 
-        // Il nome passa dalla sistemazione della tabella, come dalla scheda dell'attributo.
+        // Il nome resta come è scritto, come dalla scheda dell'attributo.
         check('nasce Numero, sull\'articolo, con la sua unità', fn () =>
-            ($item['name'] ?? '') === 'Spessore Integrazione'
+            ($item['name'] ?? '') === 'Spessore integrazione'
             && ($item['type'] ?? '') === 'number'
             && ($item['level'] ?? '') === 'model'
             && ($item['unit'] ?? '') === 'mm'
@@ -131,7 +131,7 @@ try {
             && ($rapido['level'] ?? '') === 'model'
             && ($rapido['is_filterable'] ?? '') === 'false'
             && ($rapido['is_visible'] ?? '') === 'true'
-            && ($rapido['name'] ?? '') === 'Spessore Integrazione'
+            && ($rapido['name'] ?? '') === 'Spessore integrazione'
         );
 
         check('un Elenco non nasce da qui', function () use ($preparati): bool {

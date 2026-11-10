@@ -307,12 +307,12 @@ check('hiddenForms: il form di Annulla con la domanda solo sul confermato; Dupli
         && StockReceiptResource::hiddenForms([]) === '';
 });
 
-check('azioni: indirizzo e permessi di admin e administrator', function () {
+check('azioni: indirizzo e permessi dell\'area magazzino', function () {
     $permessi = (array) (StockDocumentActionResource::permissionSchema()->toArray()['backend'] ?? []);
 
     return str_contains(StockDocumentActionResource::submitUrl(), 'documento-magazzino-azione')
-        && ($permessi['edit'] ?? []) === ['admin', 'administrator']
-        && ($permessi['update'] ?? []) === ['admin', 'administrator'];
+        && ($permessi['edit'] ?? []) === ['admin', 'administrator', 'warehouse']
+        && ($permessi['update'] ?? []) === ['admin', 'administrator', 'warehouse'];
 });
 
 summary();

@@ -5,6 +5,22 @@ versionamento semantico.
 
 ## 0.1.0 — non rilasciata
 
+### Corretto
+- Anagrafiche: salvare un'azienda, un fornitore o una persona senza modifiche
+  non cambia più i recapiti (un contatto con etichetta non diventa principale,
+  il prefisso senza telefono resta) e il «Paese» di una persona senza paese
+  resta vuoto invece di mostrare il primo dell'elenco
+  (`Contact::billingFormSchema()` di customer-account).
+- MCP: `product_set_customizations` usa `CustomizationLink` al posto della
+  classe `ProductModelCustomization`, che non esiste più (lo strumento andava
+  in errore).
+- Dati di prova degli ordini (`OrdersDemo`): l'ordine con carta è ricevuto
+  prima della conferma e la riga libera da ufficio ha la categoria fiscale.
+- Test di integrazione: accendono da sé le funzionalità che provano (misure,
+  varianti, tipi di IVA, correlati, scheda tecnica) e non dipendono più dallo
+  stato del sito di prova; attese allineate ai nomi salvati come scritti, al
+  ruolo `warehouse` e alle sedi dell'azienda dal pannello ordine.
+
 ### Aggiunto
 - **Novità di customer-account (riquadro dei contatti, contatti di lavoro,
   indirizzi per nome) nel gestionale:**

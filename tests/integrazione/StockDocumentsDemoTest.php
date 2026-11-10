@@ -9,6 +9,7 @@ $GLOBALS['ROOT'] = SITE;
 require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
+require __DIR__ . '/supporto/dati-di-prova-da-capo.php';
 require __DIR__ . '/supporto/compra.php';
 require __DIR__ . '/supporto/dns-fixture.php';
 
@@ -76,14 +77,9 @@ $conG3(false);
 
 try {
     Transaction::run(static function () use (&$esito, $righe, $giacenze): void {
-        DemoData::reset();
-        Demo::registerAll();
+        // Si parte puliti, come `--fresh`.
+        datiDiProvaDaCapo();
         $esito['registrato'] = array_keys(DemoData::all());
-
-        // Si parte puliti, come `--fresh`: prima l'ultimo registrato.
-        foreach (DemoData::inClearOrder() as $dati) {
-            ($dati['clear'])();
-        }
 
         ContactsDemo::create();
         CatalogDemo::create();
@@ -176,8 +172,8 @@ try {
         $esito['restano_eliminati'] = count($righe(StockDocument::class, "code LIKE '".str_replace('_', '\\_', DemoCode::prefixOf(StockDocument::class))."demo-%' AND deleted IN ('true', 'false')"));
 
         // Senza articoli di prova non si crea niente e il comando lo dice.
-        CatalogDemo::clear();
-        $note = DemoData::notes();
+        datiDiProvaDaCapo();
+        $note = [];
 
         try {
             $esito['senza_catalogo'] = StockDocumentsDemo::create();
@@ -206,12 +202,7 @@ $conG3(true);
 
 try {
     Transaction::run(static function () use (&$g3, $righe, $giacenze): void {
-        DemoData::reset();
-        Demo::registerAll();
-
-        foreach (DemoData::inClearOrder() as $dati) {
-            ($dati['clear'])();
-        }
+        datiDiProvaDaCapo();
 
         ContactsDemo::create();
         CatalogDemo::create();

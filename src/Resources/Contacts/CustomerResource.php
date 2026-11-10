@@ -219,7 +219,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     public static function formSchema(): array
     {
         // Email e telefono stanno nel riquadro «Contatti», non nei campi della fatturazione.
-        $billing = array_diff_key(static::$model::billing()->formSchema(), ['phone_prefix' => true, 'phone' => true]);
+        $billing = array_diff_key(static::$model::billingFormSchema(), ['phone_prefix' => true, 'phone' => true]);
 
         // Un'attività cercata per nome dà la ragione sociale, se è vuota (lo script di customer-account).
         if (isset($billing['business_name'], $billing['street'])) {

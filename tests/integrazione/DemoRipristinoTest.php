@@ -9,13 +9,16 @@ $GLOBALS['ROOT'] = SITE;
 require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
+require __DIR__ . '/supporto/dati-di-prova-da-capo.php';
 
 use Wonder\Plugin\Gestionale\Models\Catalog\Attribute;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
-use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
+use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
 use Wonder\Plugin\Gestionale\Seeding\ContactsDemo;
+use Wonder\Plugin\Gestionale\Seeding\Demo;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
 use Wonder\Sql\Transaction;
 
@@ -37,26 +40,33 @@ $cancella = static function (string $model, int $id): void {
     $model::query()->Update($model::$table, ['deleted' => 'true'], 'id', $id);
 };
 
+// Si parte puliti, dall'ultimo registrato: un ordine di prova già sul sito
+// terrebbe occupati contatti e articoli, e non si potrebbero rifare.
+$pulisci = static function (): void {
+    datiDiProvaDaCapo();
+};
+
 $idDelCodice = static function (string $model, string $ref): int {
     $riga = $model::find(['code' => DemoCode::forModel($model, $ref), 'deleted' => 'false'], 1);
 
     return is_array($riga) ? (int) ($riga['id'] ?? 0) : 0;
 };
 
-check('un contatto di prova cancellato torna al suo posto invece di far morire i dati di prova', function () use ($cancella, $idDelCodice) {
+check('un contatto di prova cancellato torna al suo posto invece di far morire i dati di prova', function () use ($pulisci, $cancella, $idDelCodice) {
     $esito = false;
 
     try {
-        Transaction::run(static function () use (&$esito, $cancella, $idDelCodice): void {
+        Transaction::run(static function () use (&$esito, $pulisci, $cancella, $idDelCodice): void {
+            $pulisci();
             ContactsDemo::create();
-            $prima = $idDelCodice(Contact::class, 'filati-nord');
-            $cancella(Contact::class, $prima);
+            $prima = $idDelCodice(Company::class, 'filati-nord');
+            $cancella(Company::class, $prima);
 
             $creati = ContactsDemo::create();
 
             $esito = $prima > 0
                 && $creati >= 1
-                && $idDelCodice(Contact::class, 'filati-nord') === $prima;
+                && $idDelCodice(Company::class, 'filati-nord') === $prima;
 
             throw new Annulla();
         });
@@ -66,7 +76,7 @@ check('un contatto di prova cancellato torna al suo posto invece di far morire i
     return $esito;
 });
 
-check('una riga di catalogo di prova cancellata torna al suo posto invece di essere rifatta', function () use ($cancella, $idDelCodice) {
+check('una riga di catalogo di prova cancellata torna al suo posto invece di essere rifatta', function () use ($pulisci, $cancella, $idDelCodice) {
     $esito = false;
     $marca = static function (): int {
         $ensure = new ReflectionMethod(CatalogDemo::class, 'ensure');
@@ -81,7 +91,8 @@ check('una riga di catalogo di prova cancellata torna al suo posto invece di ess
     };
 
     try {
-        Transaction::run(static function () use (&$esito, $cancella, $idDelCodice, $marca): void {
+        Transaction::run(static function () use (&$esito, $pulisci, $cancella, $idDelCodice, $marca): void {
+            $pulisci();
             $marca();
             $prima = $idDelCodice(Brand::class, 'maglificio-aurora');
             $cancella(Brand::class, $prima);
@@ -113,11 +124,12 @@ $sparita = static function (string $model, int $id): bool {
     return !is_array($riga) || !isset($riga['id']);
 };
 
-check('un attributo di prova cancellato dal backend si rifà da zero, coi suoi valori', function () use ($cancella, $idDelCodice, $sparita) {
+check('un attributo di prova cancellato dal backend si rifà da zero, coi suoi valori', function () use ($pulisci, $cancella, $idDelCodice, $sparita) {
     $esito = false;
 
     try {
-        Transaction::run(static function () use (&$esito, $cancella, $idDelCodice, $sparita): void {
+        Transaction::run(static function () use (&$esito, $pulisci, $cancella, $idDelCodice, $sparita): void {
+            $pulisci();
             $attributo = new ReflectionMethod(CatalogDemo::class, 'attribute');
             $attributo->invoke(null, 'colore');
             $prima = $idDelCodice(Attribute::class, 'colore');
@@ -140,11 +152,12 @@ check('un attributo di prova cancellato dal backend si rifà da zero, coi suoi v
     return $esito;
 });
 
-check('un articolo di prova cancellato dal backend si rifà da zero, con le sue opzioni', function () use ($cancella, $idDelCodice, $sparita) {
+check('un articolo di prova cancellato dal backend si rifà da zero, con le sue opzioni', function () use ($pulisci, $cancella, $idDelCodice, $sparita) {
     $esito = false;
 
     try {
-        Transaction::run(static function () use (&$esito, $cancella, $idDelCodice, $sparita): void {
+        Transaction::run(static function () use (&$esito, $pulisci, $cancella, $idDelCodice, $sparita): void {
+            $pulisci();
             CatalogDemo::create();
             $ref = 'cappello-di-lana';
             $prima = $idDelCodice(ProductModel::class, $ref);

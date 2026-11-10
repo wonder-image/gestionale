@@ -30,6 +30,7 @@ function prova(callable $corpo): mixed
 
     try {
         Transaction::run(static function () use ($corpo, &$esito): void {
+            accendiFunzionalita(['related_suggested', 'related_alternative']);
             $esito = $corpo();
 
             throw new Annulla();

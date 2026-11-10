@@ -46,7 +46,7 @@ $prima = [$conta(ProductModel::class), $conta(ProductVariant::class), $conta(Pro
 // spegne a mano, qualunque cosa abbia acceso il sito.
 Gestionale::feature('multi_location');
 $unaSede = new ReflectionProperty(Gestionale::class, 'features');
-$unaSede->setValue(null, array_merge((array) $unaSede->getValue(), ['multi_location' => false]));
+$unaSede->setValue(null, array_merge((array) $unaSede->getValue(), ['multi_location' => false, 'technical_sheet' => true, 'variants' => true]));
 Locations::reset();
 
 try {

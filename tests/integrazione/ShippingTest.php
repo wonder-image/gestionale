@@ -39,6 +39,7 @@ function prova(callable $corpo): mixed
         Transaction::run(static function () use ($corpo, &$esito): void {
             // Il sito di prova può avere i dati demo: i test partono da zone vuote.
             \Wonder\Plugin\Gestionale\Seeding\ShippingDemo::clear();
+            accendiFunzionalita(['measures']);
             $esito = $corpo();
 
             throw new Annulla();
@@ -153,8 +154,8 @@ check('il canale dell\'ordine decide quali metodi si offrono', fn () => prova(st
     $online = carrello([[articolo(1.0), 1]]);
     $ufficio = carrello([[articolo(1.0), 1]], ['channel' => 'office']);
 
-    return nomi(Shipping::options($online)) === ['Solo Online']
-        && nomi(Shipping::options($ufficio)) === ['Solo Ufficio'];
+    return nomi(Shipping::options($online)) === ['Solo online']
+        && nomi(Shipping::options($ufficio)) === ['Solo ufficio'];
 }));
 
 check('i metodi sono in ordine di position', fn () => prova(static function (): bool {
