@@ -24,6 +24,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
+use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentData;
@@ -872,7 +873,8 @@ final class OfficeOrders
                 array_key_exists('company_brand_id', $data) ? max(0, (int) $data['company_brand_id']) : null,
                 $order
             );
-            $brandId = (int) ($brand['company_brand_id'] ?? $order['company_brand_id'] ?? 0);
+            // Senza «Brand» referente e sedi non seguono il brand, che resta com'è.
+            $brandId = Brands::enabled() ? (int) ($brand['company_brand_id'] ?? $order['company_brand_id'] ?? 0) : 0;
             // La persona vale solo se è un referente dell'azienda; senza, il
             // principale fra chi segue il brand (o fra tutti).
             $personId = array_key_exists('customer_id', $data) ? $customerId : DocumentReferents::defaultFor($companyId, $brandId);
@@ -1128,9 +1130,9 @@ final class OfficeOrders
         }
     }
 
-    /** Il brand proposto per un documento dell'azienda: il suo predefinito, altrimenti il primo, o nessuno. */
+    /** Il brand proposto per un documento dell'azienda: il suo predefinito, altrimenti il primo, o nessuno; senza «Brand» nessuno. */
     public static function defaultBrand(int $companyId): int
     {
-        return CompanyBrands::defaultOf($companyId);
+        return Brands::enabled() ? CompanyBrands::defaultOf($companyId) : 0;
     }
 }

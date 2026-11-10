@@ -95,18 +95,22 @@ check('cambiare brand non sovrascrive una sede scelta o scritta: lo script la ti
         && str_contains($cambio, 'if (autoBrand ||');
 });
 
-check('il repeater degli indirizzi di un\'azienda ha i brand (vuoto = tutti), solo dove ci sono le aziende', function () use ($forza, $colonneIndirizzi, $chiavi) {
-    $forza(['private_customers' => true, 'companies' => true, 'purchasing' => true]);
+check('il repeater degli indirizzi di un\'azienda ha i brand (vuoto = tutti), solo con «Brand»', function () use ($forza, $colonneIndirizzi, $chiavi) {
+    $forza(['private_customers' => true, 'companies' => true, 'purchasing' => true, 'brands' => true]);
     $azienda = $colonneIndirizzi(CompanyResource::class);
     $fornitore = $colonneIndirizzi(SupplierResource::class);
     $persona = $colonneIndirizzi(CustomerResource::class);
     $marcatore = in_array(CustomerResource::ADDRESS_BRANDS_MARKER, $chiavi(CompanyResource::class), true);
-    $forza(['private_customers' => true, 'companies' => false, 'purchasing' => true]);
+    $forza(['private_customers' => true, 'companies' => false, 'purchasing' => true, 'brands' => true]);
     $soloPersone = $colonneIndirizzi(SupplierResource::class);
+    $forza(['private_customers' => true, 'companies' => true, 'purchasing' => true]);
+    $senzaBrand = $colonneIndirizzi(CompanyResource::class);
+    $senzaMarcatore = !in_array(CustomerResource::ADDRESS_BRANDS_MARKER, $chiavi(CompanyResource::class), true);
     $forza(null);
 
     return in_array('brand_ids', $azienda, true) && in_array('brand_ids', $fornitore, true) && $marcatore
-        && !in_array('brand_ids', $persona, true) && !in_array('brand_ids', $soloPersone, true);
+        && !in_array('brand_ids', $persona, true) && !in_array('brand_ids', $soloPersone, true)
+        && !in_array('brand_ids', $senzaBrand, true) && $senzaMarcatore;
 });
 
 check('i brand non vanno al salvataggio della riga dell\'indirizzo', function () {
@@ -174,14 +178,14 @@ check('il brand del gestionale eredita logo, sito, dominio e descrizione', funct
     return array_intersect(['name', 'logo', 'website', 'domain', 'description'], $campi) === ['name', 'logo', 'website', 'domain', 'description'];
 });
 
-check('«Brand kit» nel pannello: Anagrafiche, spenta di serie, richiede le aziende; accesa mostra il kit', function () use ($forza, $chiavi) {
+check('«Brand kit» nel pannello: Anagrafiche, spenta di serie, richiede «Brand»; accesa mostra il kit', function () use ($forza, $chiavi) {
     $voce = FeatureCatalog::all()['brand_kit'] ?? [];
-    $forza(['companies' => true, 'brand_kit' => true]);
+    $forza(['companies' => true, 'brands' => true, 'brand_kit' => true]);
     $conKit = $chiavi(CompanyBrandResource::class);
     $forza(null);
 
     return ($voce['area'] ?? '') === 'Anagrafiche' && ($voce['default'] ?? true) === false
-        && ($voce['requires'] ?? []) === ['companies']
+        && ($voce['requires'] ?? []) === ['brands']
         && in_array('socials', $conKit, true) && in_array('colors', $conKit, true);
 });
 
@@ -205,14 +209,20 @@ check('lo script mette il logo con il DOM, senza HTML', function () {
 
 // --- MCP ---
 
-check('customer_get espone aree, altri contatti, brand e sedi per brand, con lo stesso permesso', function () {
+check('customer_get espone aree, altri contatti, brand e sedi per brand, con lo stesso permesso', function () use ($forza) {
+    $forza(['private_customers' => true, 'companies' => true, 'brands' => true]);
     $tool = ContactTools::all()['customer_get'];
+    $forza(['private_customers' => true, 'companies' => true]);
+    $senzaBrand = ContactTools::all()['customer_get'];
+    $forza(null);
     $schema = json_encode($tool['schema']);
 
     return str_contains($schema, 'brand_id')
         && str_contains($tool['description'], 'departments') && str_contains($tool['description'], 'contact_points')
         && str_contains($tool['description'], 'brands') && str_contains($tool['description'], 'non ricevono documenti')
-        && $tool['permission'] === [CustomerResource::class, 'view'] && $tool['write'] === false;
+        && $tool['permission'] === [CustomerResource::class, 'view'] && $tool['write'] === false
+        && !str_contains(json_encode($senzaBrand['schema']), 'brand_id') && !str_contains($senzaBrand['description'], 'brand')
+        && str_contains($senzaBrand['description'], 'departments');
 });
 
 summary();

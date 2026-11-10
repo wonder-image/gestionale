@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
+use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
@@ -109,7 +110,9 @@ final class OfficeCustomerPanel
             return [];
         }
 
-        $brandId = max(0, $brandId ?? OfficeOrders::defaultBrand($companyId));
+        // Senza «Brand» le sedi e il referente non seguono un brand.
+        $brands = Brands::enabled();
+        $brandId = $brands ? max(0, $brandId ?? OfficeOrders::defaultBrand($companyId)) : 0;
         $customer = OfficeOrders::customerDefaults($contactId, $companyId, $brandId);
         $addresses = OfficeOrders::companyAddresses($companyId, $brandId);
         $valori = ['kind' => 'company', 'id' => (int) ($customer['customer_id'] ?? 0), 'company_id' => $companyId];
@@ -144,7 +147,7 @@ final class OfficeCustomerPanel
                 'is_default' => $link['is_default'],
                 // Un URL controllato: lo script lo mette in `src` senza HTML.
                 'logo' => DocumentBrands::logoUrl($link['brand']),
-            ], CompanyBrands::linksOf($companyId)),
+            ], $brands ? CompanyBrands::linksOf($companyId) : []),
             'html' => [
                 'contacts' => self::contactsHtml($company),
                 'billing' => self::companyBillingHtml($company),

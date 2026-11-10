@@ -22,8 +22,9 @@ Tutte e due spente non si può: il pannello lo rifiuta.
 
 - **Solo persone** — per chi vende a privati. Spariscono dal menu e dalle
   schede le **Aziende** e quello che è solo loro: brand, referenti,
-  capogruppo, reparti, e la funzionalità *Account aziendali*, che si spegne
-  da sola perché ha bisogno delle aziende. Le pagine delle aziende non si
+  capogruppo, reparti, e le funzionalità *Brand*, *Gruppi di aziende* e
+  *Account aziendali*, che si spengono da sole perché hanno bisogno delle
+  aziende. Le pagine delle aziende non si
   aprono nemmeno dall'indirizzo. I **fornitori** restano (sono sempre
   aziende, li governa *Acquisti*), con i loro dati ma senza brand,
   capogruppo e referenti.
@@ -91,6 +92,14 @@ Nei documenti fatti prima di questa versione, i clienti che erano aziende sono
 stati spostati sulle schede delle **Aziende**: il loro referente, se c'era,
 resta la persona del documento.
 
+## Pagamento
+
+Nel form di un cliente (persona o azienda) il riquadro **Pagamento** tiene su
+una riga quello che vale per i suoi ordini: **metodo** e **condizione di
+pagamento** proposti dall'ordine da ufficio, **esigibilità IVA**, **listino** e
+**commerciale**, ognuno se la sua funzionalità è accesa. Sul telefono e sugli
+schermi stretti vanno uno sotto l'altro.
+
 ## Dati di fatturazione
 
 Sia le persone sia le aziende hanno i **dati di fatturazione**: una persona
@@ -150,6 +159,10 @@ suo codice e il costo. Per cambiare qualcosa c'è **Modifica** in alto.
 
 ## Brand
 
+> Con la funzionalità **Brand** (area *Anagrafiche*, serve *Aziende*, spenta
+> di serie). Si accende da sola all'aggiornamento se nel gestionale c'è già
+> almeno un brand e nessuno l'ha mai spenta.
+
 Il **brand** è il nome commerciale con cui un'azienda si presenta: *RClass* può
 essere il nome commerciale di due ragioni sociali, e una ragione sociale può
 avere più brand (per esempio un ristorante e un albergo). Nel form di
@@ -158,24 +171,49 @@ una parte del nome e selezionane uno o più; se non c'è, il **+** lo crea. Un
 brand con lo stesso nome di uno che c'è già non si duplica: si seleziona
 quello.
 
+Tutti i brand stanno in **Anagrafiche → Brand**: da lì li apri, li modifichi
+e, se puoi creare schede, ne aggiungi uno nuovo. Un commerciale vede solo i
+brand delle sue aziende e ne crea uno solo dal **+** (vedi
+[Commerciali](commerciali.md)).
+
 I preventivi e gli ordini da ufficio di un'azienda hanno il campo **Brand**,
 fra i brand di quell'azienda: parte dal **predefinito** (o dal primo). Servirà
 per legare al brand i progetti nati dal preventivo. Il documento tiene il nome
 del brand com'era: se poi il brand cambia nome, si stacca dall'azienda o si
 archivia, il preventivo non cambia. Unendo due brand doppioni, i documenti
-passano al brand che resta.
+passano al brand che resta. Sui **PDF** (preventivo, conferma d'ordine,
+proforma e DDT, che lo prende dal suo ordine) il brand si stampa nel riquadro
+del cliente, su una riga sua fra *Alla c.a.* e la ragione sociale.
 
 La scheda del brand ha **logo**, **sito**, **dominio** (ricavato dal sito) e
 **descrizione**. Con la funzionalità **Brand kit** (area *Anagrafiche*, serve
-*Aziende*) ci sono anche email e telefono del brand, social, colori, tono,
+*Brand*) ci sono anche email e telefono del brand, social, colori, tono,
 settore, lingua e il link ai materiali; spenta, quei campi non si vedono e
 restano salvati. Il logo compare accanto al brand nell'ordine da ufficio e
 nella scheda dell'ordine.
 
-Ogni **indirizzo di consegna** di un'azienda ha il campo **Brand**: se scegli
+Con **Brand** spenta i brand **non si vedono e non si cancellano**: spariscono
+la voce di menu, il riquadro nella scheda dell'azienda, il campo nei
+preventivi e negli ordini, i brand seguiti dei referenti e quelli degli
+indirizzi, la riga sui PDF. Un documento salvato con un brand lo tiene anche se
+lo risalvi, e lo mostra di nuovo quando riaccendi la funzionalità; un documento
+nuovo nasce senza brand. Senza brand le sedi proposte e i referenti in copia
+non guardano il brand.
+
+Con la funzionalità *Brand* ogni **indirizzo di consegna** di un'azienda ha il campo **Brand**: se scegli
 uno o più brand l'indirizzo vale solo per loro, vuoto vale per tutti. Nei
 preventivi e negli ordini da ufficio si propongono prima le sedi del brand del
 documento, poi quelle per tutti; le sedi degli altri brand non compaiono.
+
+## Gruppi di aziende
+
+> Con la funzionalità **Gruppi di aziende** (area *Anagrafiche*, serve
+> *Aziende*, spenta di serie).
+
+Nel form di un'azienda il campo **Capogruppo** dice a capo di quale gruppo sta:
+l'azienda madre. Il gruppo ha un livello solo: una capogruppo non ha a sua
+volta una capogruppo. Spenta la funzionalità, il campo non si vede e la
+capogruppo già scelta resta salvata.
 
 ## Referenti e aziende
 
@@ -196,7 +234,8 @@ Funziona anche quando crei un cliente o un'azienda nuovi. Poi:
 - **Si occupa di** — una o più aree fra *Amministrazione*, *Acquisti*,
   *Commerciale*, *Tecnico*, *Direzione* e *Altro*; vuoto vuol dire che si
   occupa di tutto. Dice a chi mandare i documenti (vedi sotto);
-- **Brand seguiti** — i brand dell'azienda di cui si occupa; vuoto = tutti;
+- **Brand seguiti** — con la funzionalità *Brand*, i brand dell'azienda di cui
+  si occupa; vuoto = tutti;
 - **Mansione** — il ruolo scritto a mano, per esempio *Responsabile acquisti*;
   se manca, sui documenti e nelle tendine compaiono le aree di cui si occupa;
 - **Referente principale** — è il referente proposto quando fai un preventivo,

@@ -43,13 +43,15 @@ Dal menu **⋯** di ogni bozza: **Conferma ordine** (senza email al cliente) ed
   oppure nessuno. Il suo nome si stampa sul PDF come «Alla c.a.». Se non
   c'è, **Aggiungi** accanto alla tendina lo crea in una finestra, già legato
   all'azienda scelta, e lo sceglie.
-* **Brand** — solo per un'azienda che ha dei brand (vedi
+* **Brand** — con la funzionalità *Brand*, per un'azienda (vedi
   [Brand](anagrafiche.md#brand)): parte dal predefinito dell'azienda, puoi
   sceglierne un altro fra i suoi o nessuno. **Aggiungi** accanto alla tendina
   crea un brand nuovo già legato all'azienda (in fondo ai suoi, senza cambiare
   il predefinito) e lo sceglie. Scegliendo l'azienda, il referente
   proposto è il principale fra chi segue quel brand. Riaprendo un ordine il brand resta
-  quello salvato, anche se nel frattempo l'azienda non l'ha più. Accanto
+  quello salvato, anche se nel frattempo l'azienda non l'ha più (o se la
+  funzionalità è spenta: allora non si vede, ma resta). Sul PDF il brand va
+  su una riga sua fra «Alla c.a.» e la ragione sociale. Accanto
   compare il **logo** del brand, se c'è. Le sedi proposte seguono il brand:
   prima quelle del brand, poi quelle per tutti. Cambiando brand la lista si
   aggiorna, e la sede proposta cambia solo se non ne hai già spuntata o

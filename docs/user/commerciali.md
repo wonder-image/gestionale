@@ -54,10 +54,11 @@ va. Un commerciale vede:
 Quando un commerciale crea un cliente, il cliente è suo: non può assegnarlo a
 qualcun altro. Solo l'ufficio sposta i clienti.
 
-Il commerciale vede e modifica i **brand** legati alle sue aziende, e nelle
-tendine (referenti, aziende, brand, capogruppo) trova solo le schede che vede.
-Un brand nuovo lo crea con il **+** della scheda o dell'ordine: nasce legato
-alla sua azienda. Non dà a un referente l'accesso all'area clienti
+Con la funzionalità *Brand*, il commerciale vede e modifica i **brand** legati
+alle sue aziende (anche in **Anagrafiche → Brand**, dove trova solo quelli), e
+nelle tendine (referenti, aziende, brand, capogruppo) trova solo le schede che
+vede. Un brand nuovo lo crea con il **+** della scheda o dell'ordine, non con
+*Aggiungi* della pagina dei brand: nasce legato alla sua azienda. Non dà a un referente l'accesso all'area clienti
 (*Ordina*, *Gestisce l'azienda*): lo fa l'ufficio. Se prova a creare una scheda
 o un brand che esiste già fra quelli di altri, il gestionale lo ferma senza
 dire di chi è: chiede all'ufficio.

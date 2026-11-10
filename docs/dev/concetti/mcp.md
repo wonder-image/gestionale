@@ -97,7 +97,7 @@ rifiutato. Coupon, campagne, corrieri e metodi di spedizione hanno
 | `quote_create` | preventivo in bozza: obbligatorio `lines` (righe `product`, `custom`, `text`) e un cliente: `company_id` (un'azienda, con le sue condizioni; `customer_id` facoltativo è il referente: assente = il principale, `0` = nessuno) oppure `customer_id` (una persona); facoltativi consegna, pagamento, sconto, scadenza, note | QuoteResource `store` |
 | `quote_get` | un preventivo con stato, revisione, scadenza, cliente (`customer_id`, `company_id`, `referent_name`), totali e righe | QuoteResource `edit` |
 | `customers_list` | clienti a pagine, i più recenti prima; `kind` (`person` o `company`) ne sceglie un tipo, senza prima le aziende poi le persone; `query` cerca per nome, ragione sociale, email, partita IVA, codice fiscale; ogni riga ha `kind` | CustomerResource / CompanyResource `list` |
-| `customer_get` | un cliente con `id` e `kind` (default `person`): anagrafica, fatturazione e indirizzi di spedizione; per un'azienda `people` (i suoi referenti), per una persona `companies` (le aziende di cui è referente) | CustomerResource / CompanyResource `view` |
+| `customer_get` | un cliente con `id` e `kind` (default `person`): anagrafica, fatturazione e indirizzi di spedizione; per un'azienda `people` (i suoi referenti), per una persona `companies` (le aziende di cui è referente); con la funzionalità «Brand» anche `brands`, i `brand_ids` delle sedi e il parametro `brand_id` (spenta, né dati né parametro né descrizione) | CustomerResource / CompanyResource `view` |
 
 Le liste restituiscono al massimo 50 righe. Le scritture girano in una
 transazione; un errore delle regole torna come risultato con `isError`, non

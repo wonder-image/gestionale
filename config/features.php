@@ -19,15 +19,32 @@ return [
     ],
     'companies' => [
         'name' => 'Aziende',
-        'description' => 'Clienti con partita IVA, con brand, referenti, capogruppo e reparti. Spenta, il gestionale lavora solo con persone: aziende e referenti spariscono da menu, schede e ordini, e i dati restano. I fornitori restano con gli Acquisti.',
+        'description' => 'Clienti con partita IVA e i loro referenti (con «Brand» e «Gruppi di aziende», anche brand e capogruppo). Spenta, il gestionale lavora solo con persone: aziende e referenti spariscono da menu, schede e ordini, e i dati restano. I fornitori restano con gli Acquisti.',
         'area' => 'Anagrafiche',
         'default' => true,
+    ],
+    // I brand delle aziende di customer-account, letti solo da
+    // `Support\Contacts\Brands::enabled()`. Spenta di serie; senza riga nasce
+    // accesa dove i brand ci sono già (`default_if`, vedi FeatureState::defaults).
+    'brands' => [
+        'name' => 'Brand',
+        'description' => 'Il nome commerciale delle aziende, anche condiviso fra più ragioni sociali: voce «Brand» in Anagrafiche, brand nella scheda dell\'azienda, nei preventivi, negli ordini e nei documenti stampati, brand seguiti dai referenti e sedi per brand. Spenta, i brand non si vedono e restano salvati, anche sui documenti.',
+        'area' => 'Anagrafiche',
+        'requires' => ['companies'],
+        'default_if' => [\Wonder\Plugin\Gestionale\Support\Contacts\Brands::class, 'inUse'],
     ],
     // Il brand kit di customer-account (`CompanyBrands::useKit()`): recapiti,
     // social, colori, tono e materiali del brand, oltre a logo, sito e descrizione.
     'brand_kit' => [
         'name' => 'Brand kit',
         'description' => 'Nella scheda di un brand, oltre a logo, sito e descrizione: email e telefono, social, colori, tono, settore, lingua e il link ai materiali. Spenta, quei campi non si vedono e restano salvati.',
+        'area' => 'Anagrafiche',
+        'requires' => ['brands'],
+    ],
+    // La capogruppo delle aziende (`companies.parent_id`, `HasCompanyGroup`).
+    'company_groups' => [
+        'name' => 'Gruppi di aziende',
+        'description' => 'Nella scheda di un\'azienda il campo «Capogruppo»: l\'azienda a capo del gruppo di cui fa parte, su un livello solo. Spenta, il campo non si vede e la capogruppo già scelta resta salvata.',
         'area' => 'Anagrafiche',
         'requires' => ['companies'],
     ],

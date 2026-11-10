@@ -20,6 +20,10 @@
         "brands": {
             "title": "Brand",
             "tooltip": "Il nome commerciale con cui il cliente si presenta. Un brand può stare su più ragioni sociali e una ragione sociale può avere più brand: i preventivi si legano al brand."
+        },
+        "groups": {
+            "title": "Gruppo",
+            "tooltip": "L'azienda a capo del gruppo di cui fa parte questa: un livello solo, una capogruppo non ha a sua volta una capogruppo."
         }
     },
     "errors": {

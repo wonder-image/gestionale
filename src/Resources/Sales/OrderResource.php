@@ -32,6 +32,7 @@ use Wonder\Plugin\Gestionale\Resources\Shipping\ShipmentResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerKind;
+use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Backend\HeaderActions;
 use Wonder\Plugin\Gestionale\Support\Documents\OrderProforma;
@@ -875,8 +876,8 @@ final class OrderResource extends GestionaleResource
             $dato('Pagamento', static::paymentBadge((string) ($order['payment_status'] ?? ''), OnlinePayments::inTest((int) ($order['id'] ?? 0))), true),
             $dato(static::fulfillmentLabel($consegna), StatusLabels::fulfillmentBadge($consegna, (string) ($order['fulfillment_status'] ?? '')), true),
             $dato('Cliente', static::customerLink($order), true),
-            // Il brand com'era sul documento; il logo, se c'è, è quello di oggi.
-            ...(($brand = DocumentBrands::nameOf($order)) === '' ? [] : [$dato('Brand', trim(DocumentBrands::logoOf($order).' '.static::escape($brand)), true)]),
+            // Il brand com'era sul documento, con «Brand»; il logo, se c'è, è quello di oggi.
+            ...(!Brands::enabled() || ($brand = DocumentBrands::nameOf($order)) === '' ? [] : [$dato('Brand', trim(DocumentBrands::logoOf($order).' '.static::escape($brand)), true)]),
             $dato('Email', (string) ($order['email'] ?? '')),
             $dato('Telefono', (string) ($order['phone'] ?? '')),
             $dato('Fatturazione', OrderSheet::address($order, 'billing'), true),

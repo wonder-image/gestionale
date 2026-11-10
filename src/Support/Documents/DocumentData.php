@@ -11,17 +11,35 @@ use Wonder\Plugin\Gestionale\Models\Sales\DeliveryNoteItem;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderTaxSummary;
+use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
+use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Payments\Installments;
 use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 
 /**
  * I dati di un PDF di vendita, letti una volta: la società (`$SOCIETY` del
- * core), l'ordine o il preventivo, le righe senza la spedizione (che sta nei
- * totali), il riepilogo IVA e il pagamento. `DocumentPdf` disegna questi, e
- * basta.
+ * core), l'ordine o il preventivo, il nome del brand, le righe senza la
+ * spedizione (che sta nei totali), il riepilogo IVA e il pagamento.
+ * `DocumentPdf` disegna questi, e basta.
  */
 final class DocumentData
 {
+    /**
+     * Il nome del brand da stampare: quello copiato sul documento
+     * (`DocumentBrands::nameOf()`), solo con «Brand» accesa. Spenta non si
+     * stampa e resta salvato: alla riaccensione torna sul PDF.
+     *
+     * @param array<string, mixed> $order
+     */
+    public static function brand(array $order): string
+    {
+        try {
+            return Brands::enabled() ? DocumentBrands::nameOf($order) : '';
+        } catch (Throwable) {
+            return '';
+        }
+    }
+
     /** @return array<string, mixed> */
     public static function forOrder(int $orderId): array
     {
@@ -41,6 +59,7 @@ final class DocumentData
         return [
             'society' => self::society(),
             'order' => $order,
+            'brand' => self::brand($order),
             'items' => self::ordered($items),
             'taxes' => self::rows(OrderTaxSummary::find(['order_id' => $orderId])),
             'payment' => self::payment($order),
@@ -79,6 +98,8 @@ final class DocumentData
             'society' => self::society(),
             'note' => $note,
             'order' => is_array($order) ? $order : [],
+            // Il DDT non copia il brand: è quello dell'ordine da cui nasce.
+            'brand' => self::brand(is_array($order) ? $order : []),
             'items' => self::rows(DeliveryNoteItem::find(['delivery_note_id' => $id, 'deleted' => 'false'], null, 'position', 'ASC')),
             'taxes' => [],
             'payment' => [],

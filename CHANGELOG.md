@@ -6,6 +6,34 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Aggiunto
+- **Funzionalità «Brand»** (`brands`, area *Anagrafiche*, richiede *Aziende*,
+  spenta di serie), letta solo da `Support\Contacts\Brands::enabled()`.
+  Accesa: voce **Anagrafiche → Brand** (`CompanyBrandResource`, permessi
+  dell'area contatti; il commerciale vede solo i suoi e crea solo dalla «+»),
+  card dei brand nella scheda azienda, tendina, «Nuovo brand», logo e sedi per
+  brand in ordine e preventivo, brand seguiti dei referenti, brand degli
+  indirizzi, brand nella scheda dell'ordine, sui PDF e nell'MCP. Spenta niente
+  di tutto questo compare né si raggiunge (pagine, «+», MCP), il POST perde
+  i brand (`withoutHiddenBrands()`) e `DocumentBrands::resolve()` lascia com'è
+  il brand di un documento salvato (uno nuovo nasce senza): i dati restano e
+  tornano alla riaccensione. **Brand kit** ora richiede *Brand*.
+  - **Si accende da sola dove i brand ci sono già**: nuova chiave del catalogo
+    `default_if` (un callable), applicata da `FeatureState::defaults()` solo a
+    una voce senza riga in `gst_features` (lettura, `Defaults::features()`,
+    `FeaturePanel::ensureRows()`). Per `brands` è `Brands::inUse()` (almeno un
+    brand non cancellato). Una riga già scritta, anche spenta a mano, non si
+    tocca; il `forge update` in locale scrive la riga una volta sola e il
+    deploy la porta in produzione.
+- **Funzionalità «Gruppi di aziende»** (`company_groups`, *Anagrafiche*,
+  richiede *Aziende*, spenta di serie): il campo *Capogruppo* della scheda
+  azienda. Spenta non c'è e un `parent_id` postato non arriva al salvataggio
+  (`CompanyResource::mutateRequestValues()` lo toglie prima di
+  `HasCompanyGroup`): resta quello salvato.
+- **Brand sui PDF**: preventivo, conferma d'ordine, proforma e DDT (che lo
+  legge dal suo ordine) stampano il brand del documento su una riga sua, senza
+  etichetta, fra «Alla c.a.» e la ragione sociale (`DocumentData::brand()`,
+  `DocumentPdf::billingLines()`), solo con «Brand» accesa. «Alla c.a.» passa
+  in testa al blocco del cliente.
 - **Novità di customer-account nel gestionale** (aree dei referenti, altri
   contatti, dati del brand, indirizzi per brand):
   - **Documenti per area.** `DocumentReferents::recipients()` sceglie chi
@@ -96,6 +124,12 @@ versionamento semantico.
   con `ContactRelations`.
 
 ### Sicurezza
+- **Brand spenti, brand irraggiungibili**: con «Brand» spenta le pagine del
+  brand non hanno rotte, la «+» rifiuta, l'MCP non dà né accetta brand, il POST
+  di aziende e referenti perde brand e brand seguiti, ordine e preventivo
+  ignorano `company_brand_id`. La voce di menu usa l'area `contatti` e la
+  regola per riga dei brand (`SalesAgents::brandsRule()`) come le pagine.
+  Il nome del brand sui PDF passa da `DocumentPdf::text()` come le altre righe.
 - **Brand per riga.** Regola di visibilità su `company_brands`
   (`SalesAgents::brandsRule()`): il commerciale vede, elenca, modifica e legge
   via API solo i brand legati con un legame aperto a un'azienda sua; l'ufficio
@@ -124,6 +158,11 @@ versionamento semantico.
   (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
 
 ### Cambiato
+- **Scheda di persone e aziende: «Pagamento» su una riga.** Metodo e
+  condizione di pagamento, esigibilità IVA, listino e commerciale stanno in un
+  solo riquadro *Pagamento* (prima *Commerciale*, *Pagamento* e *Listino*),
+  sulla stessa riga da schermi larghi (`lg`) in su a colonne uguali (in
+  cinque, metodo e condizione un dodicesimo in più), uno per riga sotto.
 - **Referenti: «Reparto» diventa «Si occupa di»** (più aree, vuoto = tutto,
   da customer-account): `DocumentReferents` non legge più `department` ma
   `departments`; le righe di `people()` / `options()` portano `departments`.

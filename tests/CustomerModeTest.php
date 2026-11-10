@@ -60,6 +60,7 @@ $modo = static function (string $modo) use ($forza): void {
         'purchasing' => true,
         'orders' => true,
         'office_sales' => true,
+        'brands' => $modo !== CustomerMode::PEOPLE,
     ]);
 };
 
@@ -269,13 +270,18 @@ check('creazione rapida: rispetta il modo e vuole l\'azienda dove serve, prima d
         && !isset($brandSenzaAzienda['id']) && str_contains((string) ($brandSenzaAzienda['error'] ?? ''), 'Scegli prima')
         && !$azienda['ok'] && str_contains($azienda['message'], 'solo con le persone')
         && !$referente['ok'] && str_contains($referente['message'], 'solo con le persone')
-        && !isset($brand['id']) && str_contains((string) ($brand['error'] ?? ''), 'solo con le persone')
+        && !isset($brand['id']) && str_contains((string) ($brand['error'] ?? ''), 'brand delle aziende sono spenti')
         && !isset($daAzienda['id']);
 });
 
-/** L'ordine da ufficio disegnato nel modo dato, da chi può creare schede. */
-$ordine = static function (string $m, array $valori = []) use ($modo, $forza): string {
+/** L'ordine da ufficio disegnato nel modo dato, da chi può creare schede; `$brand` false spegne «Brand». */
+$ordine = static function (string $m, array $valori = [], bool $brand = true) use ($modo, $forza): string {
     $modo($m);
+
+    if (!$brand) {
+        $forza(['brands' => false] + (array) (new ReflectionProperty(Gestionale::class, 'features'))->getValue());
+    }
+
     $utente = LegacyGlobals::get('USER');
     LegacyGlobals::set('USER', (object) ['authority' => ['administrator']]);
 
@@ -303,6 +309,14 @@ check('ordine da ufficio: cliente, referente e brand nuovi in una finestra, nien
         && !str_contains($html, '/create/') && !str_contains($html, 'target="_blank"')
         // Il `company_id` dell'ordine resta uno solo: quello delle finestre ha un altro nome.
         && preg_match_all('/name="company_id"/', $html) === 1;
+});
+
+check('ordine da ufficio senza «Brand»: referente sì, tendina, «Nuovo brand» e logo no', function () use ($ordine) {
+    $html = $ordine(CustomerMode::BOTH, [], false);
+
+    return str_contains($html, 'name="referent"') && str_contains($html, 'Nuovo referente')
+        && !str_contains($html, 'name="company_brand_id"') && !str_contains($html, 'Nuovo brand')
+        && !str_contains($html, 'app-gestionale-brand') && !str_contains($html, 'data-wi-oo-brand-logo');
 });
 
 check('ordine da ufficio, solo persone: «Nuovo cliente», senza azienda, referente né brand', function () use ($ordine) {

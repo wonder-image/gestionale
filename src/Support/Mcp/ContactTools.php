@@ -12,6 +12,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
+use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
@@ -41,6 +42,9 @@ final class ContactTools
     /** @return array<string, array<string, mixed>> */
     public static function all(): array
     {
+        // I brand solo con «Brand»: spenta, né nella descrizione né nei parametri.
+        $brands = Brands::enabled();
+
         return [
             'customers_list' => [
                 'description' => 'Elenca i clienti, i più recenti prima: id, `kind` (`person` o `company`), nome da mostrare, email, telefono, città, partita IVA (aziende), attivo. `kind` limita a persone o aziende (assente: prima le aziende, poi le persone). `query` cerca per nome, cognome, ragione sociale, email, partita IVA o codice fiscale. Al massimo '.Tools::LIST_LIMIT.' per tipo e pagina; `offset` per le successive.',
@@ -55,11 +59,13 @@ final class ContactTools
                 'run' => self::customersList(...),
             ],
             'customer_get' => [
-                'description' => 'Legge un cliente per id e `kind` (`person`, predefinito, o `company`): anagrafica, contatti (con `contact_points`, le email e i telefoni in più: non ricevono documenti), dati di fatturazione e indirizzi di spedizione. Con i referenti attivi, `people` (per un\'azienda: le persone con ruolo, `departments` = le aree di cui si occupano, vuota = tutte, principale, riceve i documenti) e `companies` (per una persona: le aziende di cui è referente). Un\'azienda ha anche `brands` (nome, ruolo, predefinito, logo, sito, dominio, descrizione); i suoi indirizzi hanno `brand_ids` (vuota = per tutti) e con `brand_id` vengono prima quelli di quel brand, senza quelli degli altri. Per un preventivo d\'azienda usa `company_id` e una persona di `people` come `customer_id`.',
+                'description' => 'Legge un cliente per id e `kind` (`person`, predefinito, o `company`): anagrafica, contatti (con `contact_points`, le email e i telefoni in più: non ricevono documenti), dati di fatturazione e indirizzi di spedizione. Con i referenti attivi, `people` (per un\'azienda: le persone con ruolo, `departments` = le aree di cui si occupano, vuota = tutte, principale, riceve i documenti) e `companies` (per una persona: le aziende di cui è referente). '
+                    .($brands ? 'Un\'azienda ha anche `brands` (nome, ruolo, predefinito, logo, sito, dominio, descrizione); i suoi indirizzi hanno `brand_ids` (vuota = per tutti) e con `brand_id` vengono prima quelli di quel brand, senza quelli degli altri. ' : '')
+                    .'Per un preventivo d\'azienda usa `company_id` e una persona di `people` come `customer_id`.',
                 'schema' => self::schema([
                     'id' => ['type' => 'integer', 'minimum' => 1],
                     'kind' => ['type' => 'string', 'enum' => self::KINDS],
-                    'brand_id' => ['type' => 'integer', 'minimum' => 0],
+                    ...($brands ? ['brand_id' => ['type' => 'integer', 'minimum' => 0]] : []),
                 ], ['id']),
                 'permission' => [CustomerResource::class, 'view'],
                 'write' => false,
@@ -128,25 +134,26 @@ final class ContactTools
 
         $customer['active'] = (string) ($row['active'] ?? 'true') === 'true';
         $customer['contact_points'] = self::points($company ? ContactPoints::COMPANY : ContactPoints::CONTACT, $id);
-        // Gli indirizzi dell'azienda per brand: un brand che non è suo lascia solo quelli per tutti.
+        // Gli indirizzi dell'azienda per brand: un brand che non è suo lascia solo quelli per tutti. Senza «Brand» tutti.
+        $brands = $company && Brands::enabled();
         $addresses = $company
-            ? OfficeOrders::companyAddresses($id, max(0, (int) filter_var($args['brand_id'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['default' => 0]])))
+            ? OfficeOrders::companyAddresses($id, $brands ? max(0, (int) filter_var($args['brand_id'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['default' => 0]])) : 0)
             : ContactAddressResource::addressesOf($id);
-        $customer['addresses'] = array_map(static function (array $address) use ($company): array {
+        $customer['addresses'] = array_map(static function (array $address) use ($brands): array {
             $out = ['id' => (int) ($address['id'] ?? 0), 'is_default' => (string) ($address['is_default'] ?? '') === 'true'];
 
             foreach (OfficeOrders::shippingKeys() as $key) {
                 $out[$key] = (string) ($address[$key] ?? '');
             }
 
-            if ($company) {
+            if ($brands) {
                 $out['brand_ids'] = array_map('intval', (array) ($address['brand_ids'] ?? []));
             }
 
             return $out;
         }, $addresses);
 
-        if ($company && CustomerMode::companies()) {
+        if ($brands) {
             $customer['brands'] = self::brands($id);
         }
 

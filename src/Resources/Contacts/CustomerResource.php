@@ -40,6 +40,7 @@ use Wonder\Plugin\CustomerAccount\Support\ContactExport;
 use Wonder\Plugin\CustomerAccount\Support\ContactPoints;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\CustomerAccount\Models\CompanyBrand;
+use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
@@ -75,6 +76,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 {
     use HasContactRelations {
         syncRepeaterRelations as relationsSyncRepeaterRelations;
+        contactRelationFields as allContactRelationFields;
     }
 
     public static string $model = Contact::class;
@@ -281,25 +283,6 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             && !SalesAgents::restricted(RowVisibility::currentUser());
     }
 
-    /** @return list<Card> */
-    protected static function agentCards(): array
-    {
-        if (!static::agentShown()) {
-            return [];
-        }
-
-        return [
-            (new Card)->components([
-                SectionTitle::make('Commerciale')
-                    ->tooltip(static::isCompanySide()
-                        ? 'Il commerciale vede e gestisce l\'azienda, i suoi referenti e i suoi documenti. Gli ordini nuovi dell\'azienda vanno a lui.'
-                        : 'Il commerciale vede e gestisce questo cliente e i suoi documenti. Gli ordini nuovi del cliente vanno a lui.')
-                    ->columnSpan(12),
-                static::getInput('agent_id')->columnSpan(6),
-            ])->columns(12)->columnSpan(12),
-        ];
-    }
-
     /** Il listino del cliente: solo per i clienti, con «Listini cliente». */
     public static function priceListShown(): bool
     {
@@ -336,53 +319,50 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         return $condizioni;
     }
 
-    /** @return list<Card> */
+    /**
+     * Il blocco «Pagamento»: metodo, condizione, esigibilità IVA, listino e
+     * commerciale, ognuno se c'è, su una riga da schermi larghi (`lg`) in
+     * su, a colonne uguali; sotto, uno per riga. In cinque i dodicesimi non
+     * si dividono: i primi due (metodo e condizione) ne hanno uno in più.
+     *
+     * @return list<Card>
+     */
     protected static function paymentCards(): array
     {
         if (!static::sellsTo()) {
             return [];
         }
 
-        $esigibilita = static::getInput('vat_collectability')->columnSpan(6);
+        $offices = static::paymentDefaultsShown();
+        $term = $offices && count(static::activeTerms()) > 1;
+        $keys = array_keys(array_filter([
+            'payment_method_id' => $offices,
+            'payment_term_id' => $term,
+            'vat_collectability' => true,
+            'price_list_id' => static::priceListShown(),
+            'agent_id' => static::agentShown(),
+        ]));
+        $tooltip = implode(' ', array_filter([
+            $offices ? 'Quello che il nuovo ordine da ufficio propone per questo cliente: si può sempre cambiare sull\'ordine.' : '',
+            $term ? 'La condizione dice in quante rate e quando paga.' : '',
+            'Con la scissione dei pagamenti (S) il cliente paga solo l\'imponibile: l\'IVA la versa lui.',
+            static::priceListShown() ? 'Il listino dà i prezzi riservati a questo cliente, nel negozio e sugli ordini da ufficio; i prodotti che non ha restano al prezzo di catalogo.' : '',
+            static::agentShown() ? (static::isCompanySide()
+                ? 'Il commerciale vede e gestisce l\'azienda, i suoi referenti e i suoi documenti; gli ordini nuovi dell\'azienda vanno a lui.'
+                : 'Il commerciale vede e gestisce questo cliente e i suoi documenti; gli ordini nuovi del cliente vanno a lui.') : '',
+        ]));
 
-        if (!static::paymentDefaultsShown()) {
-            return [
-                (new Card)->components([
-                    SectionTitle::make('Pagamento')
-                        ->tooltip('Con la scissione dei pagamenti (S) il cliente paga solo l\'imponibile: l\'IVA la versa lui.')
-                        ->columnSpan(12),
-                    $esigibilita,
-                ])->columns(12)->columnSpan(12),
-            ];
-        }
+        $fields = [];
 
-        $condizione = count(static::activeTerms()) > 1;
-
-        return [
-            (new Card)->components([
-                SectionTitle::make('Pagamento')
-                    ->tooltip('Quello che il nuovo ordine da ufficio propone per questo cliente: si può sempre cambiare sull\'ordine.'.($condizione ? ' La condizione dice in quante rate e quando paga.' : '').' Con la scissione dei pagamenti (S) il cliente paga solo l\'imponibile.')
-                    ->columnSpan(12),
-                static::getInput('payment_method_id')->columnSpan(6),
-                ...($condizione ? [static::getInput('payment_term_id')->columnSpan(6)] : []),
-                $esigibilita,
-            ])->columns(12)->columnSpan(12),
-        ];
-    }
-
-    /** @return list<Card> */
-    protected static function priceListCards(): array
-    {
-        if (!static::priceListShown()) {
-            return [];
+        foreach ($keys as $index => $key) {
+            $width = intdiv(12, count($keys)) + ($index < 12 % count($keys) ? 1 : 0);
+            $fields[] = static::getInput($key)->columnSpan(['default' => 12, 'lg' => $width]);
         }
 
         return [
             (new Card)->components([
-                SectionTitle::make('Listino')
-                    ->tooltip('I prezzi riservati a questo cliente, nel negozio e sugli ordini da ufficio. I prodotti che il listino non ha restano al prezzo di catalogo.')
-                    ->columnSpan(12),
-                static::getInput('price_list_id')->columnSpan(6),
+                SectionTitle::make('Pagamento')->tooltip($tooltip)->columnSpan(12),
+                ...$fields,
             ])->columns(12)->columnSpan(12),
         ];
     }
@@ -440,9 +420,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 static::getInput('cap')->columnSpan(3),
                 static::getInput('more')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
-            ...static::agentCards(),
             ...static::paymentCards(),
-            ...static::priceListCards(),
             (new Card)->components([
                 SectionTitle::make('Indirizzi di consegna')
                     ->tooltip('Dove si consegna, quando non è l\'indirizzo di fatturazione. Il destinatario è chi il corriere deve cercare.')
@@ -1410,7 +1388,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
      */
     public static function addressBrandsShown(): bool
     {
-        return static::isCompanySide() && CustomerMode::companies();
+        return static::isCompanySide() && Brands::enabled();
     }
 
     /**
@@ -1429,7 +1407,56 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             unset($post[self::RELATION_MARKER]);
         }
 
-        return static::relationsSyncRepeaterRelations($parentId, $post, $files, $action, $context);
+        return static::relationsSyncRepeaterRelations($parentId, static::withoutHiddenBrands($post), $files, $action, $context);
+    }
+
+    /**
+     * Senza «Brand» il POST perde i brand: i brand seguiti delle righe dei
+     * legami (una riga senza `brand_ids` tiene i suoi). Con «Brand» com'è.
+     *
+     * @param array<string, mixed> $post
+     * @return array<string, mixed>
+     */
+    protected static function withoutHiddenBrands(array $post): array
+    {
+        $input = static::relationInputName();
+
+        if (Brands::enabled() || !is_array($post[$input] ?? null)) {
+            return $post;
+        }
+
+        foreach ($post[$input] as $key => $row) {
+            if (is_array($row)) {
+                unset($post[$input][$key]['brand_ids']);
+            }
+        }
+
+        return $post;
+    }
+
+    /**
+     * I repeater dei legami di customer-account; senza «Brand» la riga del
+     * referente non ha la colonna dei brand seguiti.
+     *
+     * @return list<Input>
+     */
+    public static function contactRelationFields(): array
+    {
+        $fields = static::allContactRelationFields();
+
+        if (Brands::enabled()) {
+            return $fields;
+        }
+
+        foreach ($fields as $field) {
+            $columns = $field->get('context')['columns'] ?? null;
+
+            if (is_array($columns)) {
+                $field->context('columns', array_values(array_filter($columns, static fn ($column): bool => !($column instanceof Input && $column->name === 'brand_ids'))));
+            }
+        }
+
+        return $fields;
     }
 
     /** I brand seguiti da un referente: fra quelli che chi scrive vede (customer-account tiene solo quelli dell'azienda). */

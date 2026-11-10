@@ -24,6 +24,7 @@ use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
+use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Contacts\QuickContacts;
@@ -119,9 +120,9 @@ final class OfficeOrderPage
                         'referent', 'Referente', 12, (string) ($companyId > 0 ? $customerId : 0)
                     )->hiddenWhen('company_id', ['0', ''])
                     : null,
-                // Il brand dell'azienda: lo script rifà le opzioni come per il
-                // referente; il «+» lo crea già legato all'azienda.
-                CustomerMode::companies()
+                // Il brand dell'azienda, con «Brand»: lo script rifà le opzioni
+                // come per il referente; il «+» lo crea già legato all'azienda.
+                Brands::enabled()
                     ? self::field(
                         FormField::key('company_brand_id')->select(self::brandOptions($companyId, $values))
                             ->quickCreate(CompanyBrandResource::class, ['name'], self::brandModal(), 'name', 'Nuovo brand'),
@@ -129,7 +130,7 @@ final class OfficeOrderPage
                     )->hiddenWhen('company_id', ['0', ''])
                     : null,
                 // Il logo del brand scelto: lo ridisegna lo script (`logo()`).
-                CustomerMode::companies()
+                Brands::enabled()
                     ? RichText::make('<div data-wi-oo-brand-logo>'.DocumentBrands::logoOf($values).'</div>')->tag('div')->columnSpan(12)
                     : null,
                 // Sotto il cliente, a chi va l'email: il PDF del preventivo o la conferma.

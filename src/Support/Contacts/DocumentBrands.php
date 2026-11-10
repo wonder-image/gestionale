@@ -41,6 +41,9 @@ final class DocumentBrands
      * - Un brand diverso dev'essere dell'azienda oggi, altrimenti è un errore:
      *   azzerarlo in silenzio cambierebbe il documento senza dirlo. `0` (nessun
      *   brand) va sempre bene.
+     * - Senza «Brand» (`Brands::enabled()`) il brand indicato si ignora: il
+     *   documento salvato della stessa azienda resta com'è, uno nuovo (o di
+     *   un'altra azienda) nasce senza brand.
      *
      * @param int|null $brandId il brand indicato; null se il campo non arriva
      * @param array<string, mixed>|null $stored il documento salvato, in modifica
@@ -48,7 +51,13 @@ final class DocumentBrands
      */
     public static function resolve(int $companyId, ?int $brandId, ?array $stored = null): array
     {
-        if ($stored !== null && (int) ($stored['company_id'] ?? 0) === $companyId) {
+        $same = $stored !== null && (int) ($stored['company_id'] ?? 0) === $companyId;
+
+        if (!Brands::enabled()) {
+            return $same ? [] : ['company_brand_id' => 0, 'company_brand_name' => ''];
+        }
+
+        if ($same) {
             $storedId = (int) ($stored['company_brand_id'] ?? 0);
 
             if ($brandId === null || $brandId === $storedId) {

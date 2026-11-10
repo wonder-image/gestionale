@@ -148,12 +148,14 @@ final class FeaturePanel
     private static function ensureRows(array $keys): bool
     {
         $present = array_column(self::rows(), 'feature_key');
-        $catalog = FeatureCatalog::all();
+        $missing = array_diff($keys, $present);
+        // La riga nuova nasce come la voce senza riga: accesa se `default` o `default_if`.
+        $defaults = $missing === [] ? [] : FeatureState::defaults(FeatureCatalog::all(), array_fill_keys($present, false));
         $changed = false;
 
-        foreach (array_diff($keys, $present) as $key) {
+        foreach ($missing as $key) {
             $old = Feature::find(['feature_key' => $key, 'deleted' => 'true'], 1);
-            $enabled = ($catalog[$key]['default'] ?? false) === true ? 'true' : 'false';
+            $enabled = ($defaults[$key] ?? false) ? 'true' : 'false';
 
             if (is_array($old) && isset($old['id'])) {
                 sqlModify(Feature::$table, ['enabled' => $enabled, 'deleted' => 'false'], 'id', (int) $old['id']);

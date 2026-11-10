@@ -224,7 +224,8 @@ final class DocumentReferents
     public static function copyEmails(array $order, ?array $company = null, string $document = ''): array
     {
         $companyId = (int) ($order['company_id'] ?? 0);
-        $options = self::recipients($companyId, $document, (int) ($order['company_brand_id'] ?? 0));
+        // Senza «Brand» i brand seguiti non contano: il documento vale per tutti.
+        $options = self::recipients($companyId, $document, Brands::enabled() ? (int) ($order['company_brand_id'] ?? 0) : 0);
 
         if ($options === []) {
             return [];

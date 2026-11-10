@@ -88,6 +88,20 @@ seeding (`Defaults::features()`) e nel pannello, che scrive la riga a `true`.
 Con la riga vale la riga. Serve alle voci nuove che i siti avevano già, come
 `products`.
 
+`'default_if' => [Classe::class, 'metodo']` fa lo stesso solo se il callable
+risponde sì: serve a una voce nuova che va accesa **dove i suoi dati ci sono
+già**. Si chiama solo per una voce senza riga, negli stessi tre punti (lettura,
+seeding, pannello: `FeaturePanel::ensureRows()` crea la riga mancante con il
+valore di `defaults()`). Una riga scritta (dal seeding o dal pannello, anche
+spenta a mano) non si tocca più: la scelta di chi l'ha spenta resta. È la
+strada giusta anche invece di una migrazione: `gst_features` è `localOnly` e
+si sincronizza con `sync-data.json`, quindi la decisione la prende il `forge
+update` in locale (`Defaults::features()`, solo righe mancanti) e arriva in
+produzione con il deploy; una migrazione che scrivesse lo stato in produzione
+verrebbe sovrascritta dall'import. Lo usa «Brand» (`Brands::inUse()`: c'è almeno
+un brand non cancellato). Il limite: decide il database locale, quindi deve
+avere i brand che ha la produzione (o la funzionalità si accende a mano).
+
 ### «Prodotto» (`products`)
 
 Governa il prodotto singolo: la voce *Catalogo → Prodotti* e la creazione di un
@@ -119,7 +133,8 @@ dei cambi resta quello di sempre. Spente insieme le rifiuta
 Le conseguenze, tutte da `CustomerMode`:
 
 - `CompanyResource::shownInMode()` → con `people` niente menu, pagine (anche
-  la scheda in lettura) e API delle aziende; `SupplierResource` resta (lo
+  la scheda in lettura) e API delle aziende (e, per dipendenza, niente
+  `brands`, `brand_kit`, `company_groups`); `SupplierResource` resta (lo
   governa `purchasing`), senza brand, capogruppo, referenti e ruolo
   «Cliente e fornitore»;
 - `CustomerResource::relationsShown()` → referenti e aziende delle persone
@@ -139,9 +154,43 @@ Le conseguenze, tutte da `CustomerMode`:
 Niente si cancella: i marcatori dei repeater non arrivano nel POST e i
 legami restano come sono.
 
-«Brand kit» (`brand_kit`, spenta di serie) richiede `companies`: accende il
+### Brand e gruppi (`brands`, `company_groups`, `brand_kit`)
+
+«Brand» (`brands`, spenta di serie, richiede `companies`, `default_if`
+`Brands::inUse()`) si legge **solo** da `Support\Contacts\Brands::enabled()`
+(`CustomerMode::companies()` e la funzionalità; stato non letto = spenta).
+Accesa:
+
+- `Contacts\CompanyBrandResource` ha la voce *Anagrafiche → Brand*
+  (`navigationSchema()`, area `contatti`, ordine 17) e le pagine; spenta, né
+  voce né pagine né «+» (`quickCreateStore()` rifiuta);
+- `CompanyResource`: card dei brand (`brandFields()`, `withBrandValues()`),
+  colonna `brand_ids` degli indirizzi (`addressBrandsShown()`);
+  `CustomerResource::contactRelationFields()` tiene la colonna dei brand
+  seguiti del repeater dei referenti;
+- ordine e preventivo: tendina, «Nuovo brand» e logo (`OfficeOrderPage`),
+  brand proposto (`OfficeOrders::defaultBrand()`), brand e sedi del pannello
+  (`OfficeCustomerPanel`);
+- scheda dell'ordine (`OrderResource`), PDF (`DocumentData::brand()`), copie
+  email per brand (`DocumentReferents::copyEmails()`), MCP (`customer_get`:
+  `brands`, `brand_ids`, parametro `brand_id`, descrizione).
+
+Spenta, quello che arriva comunque si ignora: `withoutHiddenBrands()` toglie
+dal POST il marcatore e i brand dell'azienda e i `brand_ids` dei legami (una
+riga senza `brand_ids` tiene i suoi); `DocumentBrands::resolve()` lascia com'è
+il documento salvato della stessa azienda e fa nascere senza brand uno nuovo;
+referente e sedi proposti non seguono il brand. I dati non si toccano.
+
+«Brand kit» (`brand_kit`, spenta di serie) richiede `brands`: accende il
 kit del brand di customer-account (`CompanyBrands::useKit()`) nel form del
-brand e nei dati che dà l'MCP.
+brand (form, layout, valori e salvataggio: l'elenco non mostra il kit) e nei
+dati che dà l'MCP.
+
+«Gruppi di aziende» (`company_groups`, spenta di serie, richiede `companies`)
+mostra la *Capogruppo* (`CompanyResource::groupsShown()`). Spenta, il campo non
+c'è e `CompanyResource::mutateRequestValues()` toglie `parent_id` prima della
+validazione di `HasCompanyGroup`: non arriva al salvataggio e resta quello
+salvato. Senza brand la card della capogruppo si chiama «Gruppo».
 
 ## Esportazioni
 

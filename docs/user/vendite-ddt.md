@@ -30,7 +30,8 @@ chiuso.
 
 * **Luogo di consegna** — parte dall'ordine, si può cambiare.
 * **Referente** — solo se il cliente è un'azienda: parte da quello
-  dell'ordine e si può cambiare o togliere; il suo nome va sul PDF come «Alla c.a.».
+  dell'ordine e si può cambiare o togliere; il suo nome va sul PDF come «Alla c.a.». Con la funzionalità *Brand*, sotto c'è
+  il brand dell'ordine, se ne ha uno.
 * **Trasporto** — *a cura del* mittente, del destinatario o del vettore; il
   **vettore** dai tuoi corrieri; **inizio trasporto** (vuoto = il momento
   dell'emissione); **aspetto dei beni**, **colli**, **peso lordo** e **netto**,

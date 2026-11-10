@@ -327,6 +327,11 @@ articoli (`Catalog\Brand`, `brand_id` su modelli, listini, coupon e campagne).
 Il nome si copia in `company_brand_name`, come `referent_name`: resta com'era
 anche se il brand cambia nome, si stacca o si archivia.
 
+Tutto questo vale con la funzionalità «Brand» (`Brands::enabled()`, vedi
+[Funzionalità](funzionalita.md)).
+Spenta, il brand non si mostra né si sceglie, e `resolve()` non cambia quello
+salvato (vedi sotto).
+
 Tutto passa da `Support\Contacts\DocumentBrands`:
 
 - `resolve($companyId, $brandId, $stored)` — chiamato da
@@ -338,7 +343,10 @@ Tutto passa da `Support\Contacts\DocumentBrands`:
   dell'azienda oggi (`CompanyBrands::belongsTo()` senza data), altrimenti
   `UserError` `office_order.brand_unknown`; `0` va sempre bene. Cambiata
   l'azienda, senza il campo vale il predefinito della nuova; il vecchio brand
-  ancora postato è un errore. Persona o nessun cliente: `0` e nome vuoto;
+  ancora postato è un errore. Persona o nessun cliente: `0` e nome vuoto.
+  Con «Brand» spenta il brand indicato si ignora: lo stesso documento resta
+  com'è (anche al risalvataggio), uno nuovo o di un'altra azienda nasce con
+  `0` e nome vuoto.
 - `nameOf($order)` — il nome da stampare: quello copiato, altrimenti (documenti
   di prima) `CompanyBrands::find()`. È testo: chi lo stampa lo escapa. La
   scheda dell'ordine lo mostra sotto il cliente;
@@ -362,9 +370,19 @@ La card *Brand* del form azienda è `CompanyResource::brandCards()`, hook di
 `CustomerResource`, con il repeater di customer-account (brand, ruolo,
 predefinito); la Resource che crea il brand al volo è
 `Contacts\CompanyBrandResource`, la stessa di customer-account su
-`app/gestionale/brand` con i permessi dell'area contatti.
+`app/gestionale/brand` con i permessi dell'area contatti e la voce
+*Anagrafiche → Brand*.
 
 DDT, resi e revisioni del preventivo non portano il brand: lo legge l'ordine.
+
+Sui PDF il brand è `brand` dei dati (`DocumentData::brand($order)`: il nome di
+`nameOf()`, vuoto con «Brand» spenta; per il DDT quello del suo ordine).
+`DocumentPdf::billingLines()` lo stampa senza etichetta, nello stile delle
+altre righe, nell'ordine: «Alla c.a.» (referente), brand, ragione sociale o
+nome, indirizzo, dati fiscali, email. Passa da `text()` come le altre righe.
+Spenta la funzionalità, il PDF rigenerato non ha il brand; riaccesa sì: il
+nome resta sul documento. Le email dei documenti non ripetono il blocco del
+cliente.
 
 Le sedi proposte seguono il brand: `OfficeOrders::companyAddresses($companyId,
 $brandId)` legge `CompanyAddresses::addressesFor()` e le mette in ordine con

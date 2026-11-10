@@ -6,6 +6,7 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 
 // Le etichette delle aree chiedono `__t()`, che esiste solo a sito avviato:
@@ -240,10 +241,20 @@ check('un\'azienda che non compila le aree non cambia: tutti quelli che ricevono
 
 check('in copia l\'area del documento e il brand dell\'ordine, solo le email principali', function () use ($perArea) {
     DocumentReferents::useReader($perArea);
-    $preventivo = DocumentReferents::copyEmails(['company_id' => 10, 'email' => 'info@rossi.it', 'company_brand_id' => 7], ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    $funzionalita = new ReflectionProperty(Gestionale::class, 'features');
+    $ordine = ['company_id' => 10, 'email' => 'info@rossi.it', 'company_brand_id' => 9];
+    $funzionalita->setValue(null, ['companies' => true, 'brands' => true]);
+    $preventivo = DocumentReferents::copyEmails(['company_brand_id' => 7] + $ordine, ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    $conBrand = DocumentReferents::copyEmails($ordine, ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    // Senza «Brand» i brand seguiti non contano: il 5 segue il brand 9 e basta.
+    $funzionalita->setValue(null, ['companies' => true]);
+    $senzaBrand = DocumentReferents::copyEmails(['company_brand_id' => 7] + $ordine, ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    $funzionalita->setValue(null, null);
     $proforma = DocumentReferents::copyEmails(['company_id' => 10, 'email' => 'info@rossi.it'], ['id' => 10, 'email' => 'info@rossi.it'], 'subscription.proforma');
 
-    return $preventivo === ['p1@example.com', 'p2@example.com'] && $proforma === ['p1@example.com', 'p3@example.com'];
+    return $preventivo === ['p1@example.com', 'p2@example.com'] && $proforma === ['p1@example.com', 'p3@example.com']
+        && in_array('p5@example.com', $conBrand, true) && in_array('p5@example.com', $senzaBrand, true)
+        && !in_array('p5@example.com', $preventivo, true);
 });
 
 check('senza mansione il ruolo sono le aree di cui si occupa', function () use ($perArea) {
