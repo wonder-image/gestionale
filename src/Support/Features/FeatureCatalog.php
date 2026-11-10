@@ -17,9 +17,11 @@ final class FeatureCatalog
      * `requires` vuole tutte le funzionalità della lista, `requires_any`
      * almeno una (la Personalizzazione va con Ordini o con Abbonamenti).
      * `replaces` elenca le chiavi tolte di cui la voce prende il posto.
-     * `default => true` fa nascere la voce sbloccata quando non ha ancora la riga.
+     * `default => true` fa nascere la voce sbloccata quando non ha ancora la riga;
+     * `default_if` (un callable senza argomenti) solo se risponde sì, ad esempio
+     * perché i dati che governa ci sono già.
      *
-     * @return array<string, array{key: string, name: string, description: string, area: string, requires: list<string>, requires_any: list<string>, replaces: list<string>, module: string, release: string, created: bool, default: bool}>
+     * @return array<string, array{key: string, name: string, description: string, area: string, requires: list<string>, requires_any: list<string>, replaces: list<string>, module: string, release: string, created: bool, default: bool, default_if: callable|null}>
      */
     public static function fromArray(array $package, array $extra = []): array
     {
@@ -59,6 +61,7 @@ final class FeatureCatalog
                     // Costruita, salvo `created => false`.
                     'created' => ($feature['created'] ?? true) !== false,
                     'default' => ($feature['default'] ?? false) === true,
+                    'default_if' => is_callable($feature['default_if'] ?? null) ? $feature['default_if'] : null,
                 ];
             }
         }

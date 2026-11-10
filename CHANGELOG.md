@@ -6,6 +6,70 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Aggiunto
+- **Novità di customer-account (riquadro dei contatti, contatti di lavoro,
+  indirizzi per nome) nel gestionale:**
+  - **Riquadro «Contatti»** su persone, aziende e fornitori al posto di email,
+    prefisso, telefono e «Altri contatti» (`contactBoxFields()`, script del
+    modulo nella card). `mutateRequestValues()` chiama `applyContactPoints()`
+    prima dei controlli (il doppione dell'email vale sul principale, con il
+    messaggio generico per le schede non visibili), toglie riquadro e marker,
+    chiama `assertRelationContacts($_POST)`. Le aziende hanno «Si occupa di»
+    sulle righe. Senza riquadro (creazione rapida, finestre dell'ordine, API,
+    MCP) i campi singoli funzionano come prima. Le schede in lettura mostrano
+    tutti i contatti (`ContactPoints::all()`): principale, «Email di accesso»,
+    etichette e aree (`CustomerSheet::points()` al posto di «Altri contatti»;
+    `data()` non porta più email e telefono).
+  - **Email di accesso bloccata**: una persona con un account sul sito tiene
+    `contacts.email`; dal riquadro si ignora, da un campo singolo diverso
+    (finestra dell'ordine, API) l'errore `contact.access_email_locked`.
+  - **Contatti di lavoro dei referenti** (colonne del trait nel repeater, una
+    riga loro): `contact_email` (di lavoro, altrimenti della persona) e il
+    telefono di lavoro in `DocumentReferents` (`email`, nuovo `phone`,
+    `emailOf()`), scheda dell'azienda, email proposta dall'ordine quando
+    l'azienda non ne ha, abbonamenti e MCP.
+  - **Email dell'azienda per area** (`DocumentReferents::companyEmails()` su
+    `ContactPoints::companyEmailsFor()`, stessa mappa documento → area dei
+    referenti; nessuna casella dell'area → la principale): in copia nei
+    documenti degli ordini, destinatario dei documenti degli abbonamenti.
+  - **Indirizzi**: ricerca anche per nome dell'attività, place ID e coordinate
+    della fatturazione (campi nascosti nel layout e nelle finestre dell'ordine,
+    ripuliti con `GoogleMaps::cleanGeo()`), «Presso» (`business_name`) nel
+    repeater degli indirizzi e nella finestra di `ContactAddressResource`, anche
+    per le sedi d'azienda, riempito dal nome dell'attività scelta. Place ID e
+    coordinate anche nel repeater degli indirizzi. Tolta da
+    `Models\Contacts\ContactAddress` la dichiarazione doppia di
+    `business_name` (è già di customer-account, stesso schema).
+  - **MCP** `customer_get`: `contact_points` da `ContactPoints::all()` (con
+    `is_primary` e `departments`), `email` dei referenti = `contact_email` con
+    `work_email` / `work_phone`, place ID e coordinate della fatturazione.
+- **Funzionalità «Brand»** (`brands`, area *Anagrafiche*, richiede *Aziende*,
+  spenta di serie), letta solo da `Support\Contacts\Brands::enabled()`.
+  Accesa: voce **Anagrafiche → Brand** (`CompanyBrandResource`, permessi
+  dell'area contatti; il commerciale vede solo i suoi e crea solo dalla «+»),
+  card dei brand nella scheda azienda, tendina, «Nuovo brand», logo e sedi per
+  brand in ordine e preventivo, brand seguiti dei referenti, brand degli
+  indirizzi, brand nella scheda dell'ordine, sui PDF e nell'MCP. Spenta niente
+  di tutto questo compare né si raggiunge (pagine, «+», MCP), il POST perde
+  i brand (`withoutHiddenBrands()`) e `DocumentBrands::resolve()` lascia com'è
+  il brand di un documento salvato (uno nuovo nasce senza): i dati restano e
+  tornano alla riaccensione. **Brand kit** ora richiede *Brand*.
+  - **Si accende da sola dove i brand ci sono già**: nuova chiave del catalogo
+    `default_if` (un callable), applicata da `FeatureState::defaults()` solo a
+    una voce senza riga in `gst_features` (lettura, `Defaults::features()`,
+    `FeaturePanel::ensureRows()`). Per `brands` è `Brands::inUse()` (almeno un
+    brand non cancellato). Una riga già scritta, anche spenta a mano, non si
+    tocca; il `forge update` in locale scrive la riga una volta sola e il
+    deploy la porta in produzione.
+- **Funzionalità «Gruppi di aziende»** (`company_groups`, *Anagrafiche*,
+  richiede *Aziende*, spenta di serie): il campo *Capogruppo* della scheda
+  azienda. Spenta non c'è e un `parent_id` postato non arriva al salvataggio
+  (`CompanyResource::mutateRequestValues()` lo toglie prima di
+  `HasCompanyGroup`): resta quello salvato.
+- **Brand sui PDF**: preventivo, conferma d'ordine, proforma e DDT (che lo
+  legge dal suo ordine) stampano il brand del documento su una riga sua, senza
+  etichetta, fra «Alla c.a.» e la ragione sociale (`DocumentData::brand()`,
+  `DocumentPdf::billingLines()`), solo con «Brand» accesa. «Alla c.a.» passa
+  in testa al blocco del cliente.
 - **Novità di customer-account nel gestionale** (aree dei referenti, altri
   contatti, dati del brand, indirizzi per brand):
   - **Documenti per area.** `DocumentReferents::recipients()` sceglie chi
@@ -96,6 +160,12 @@ versionamento semantico.
   con `ContactRelations`.
 
 ### Sicurezza
+- **Brand spenti, brand irraggiungibili**: con «Brand» spenta le pagine del
+  brand non hanno rotte, la «+» rifiuta, l'MCP non dà né accetta brand, il POST
+  di aziende e referenti perde brand e brand seguiti, ordine e preventivo
+  ignorano `company_brand_id`. La voce di menu usa l'area `contatti` e la
+  regola per riga dei brand (`SalesAgents::brandsRule()`) come le pagine.
+  Il nome del brand sui PDF passa da `DocumentPdf::text()` come le altre righe.
 - **Brand per riga.** Regola di visibilità su `company_brands`
   (`SalesAgents::brandsRule()`): il commerciale vede, elenca, modifica e legge
   via API solo i brand legati con un legame aperto a un'azienda sua; l'ufficio
@@ -124,6 +194,15 @@ versionamento semantico.
   (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
 
 ### Cambiato
+- **Copie dei documenti di un'azienda senza referenti**: le email
+  dell'azienda per l'area (o la principale) vanno in copia anche quando
+  nessun referente riceve i documenti (prima nessuna copia), sempre senza chi
+  riceve già la mail. Serve alle caselle come *acquisti@* senza referente.
+- **Scheda di persone e aziende: «Pagamento» su una riga.** Metodo e
+  condizione di pagamento, esigibilità IVA, listino e commerciale stanno in un
+  solo riquadro *Pagamento* (prima *Commerciale*, *Pagamento* e *Listino*),
+  sulla stessa riga da schermi larghi (`lg`) in su a colonne uguali (in
+  cinque, metodo e condizione un dodicesimo in più), uno per riga sotto.
 - **Referenti: «Reparto» diventa «Si occupa di»** (più aree, vuoto = tutto,
   da customer-account): `DocumentReferents` non legge più `department` ma
   `departments`; le righe di `people()` / `options()` portano `departments`.

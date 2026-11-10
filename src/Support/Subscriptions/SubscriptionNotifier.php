@@ -32,12 +32,15 @@ final class SubscriptionNotifier
         }
 
         $contact = (int) ($subscription['customer_id'] ?? 0) > 0 ? Contact::findById((int) $subscription['customer_id']) : null;
-        $personEmail = is_array($contact) ? (string) ($contact['email'] ?? '') : '';
         $companyId = (int) ($subscription['company_id'] ?? 0);
+        // Il referente di un'azienda si scrive all'email per quell'azienda (di lavoro, se c'è).
+        $personEmail = $companyId > 0 ? DocumentReferents::emailOf($companyId, (int) ($subscription['customer_id'] ?? 0)) : '';
+        $personEmail = $personEmail !== '' ? $personEmail : (is_array($contact) ? (string) ($contact['email'] ?? '') : '');
         $company = $companyId > 0 ? Company::findById($companyId) : null;
         $company = is_array($company) && (int) ($company['id'] ?? 0) > 0 ? $company : null;
-        // Con l'azienda scrive a lei (o al referente se non ha email), gli altri in copia come per gli ordini.
-        $address = $company !== null && trim((string) ($company['email'] ?? '')) !== '' ? (string) $company['email'] : $personEmail;
+        // Con l'azienda scrive alla sua prima email per l'area del documento (o alla
+        // principale; al referente se non ne ha), gli altri in copia come per gli ordini.
+        $address = $company !== null ? (DocumentReferents::companyEmails($companyId, 'subscription.'.$key, $company)[0] ?? $personEmail) : $personEmail;
         $to = Recipients::parse($address)['valid'];
         // Il brand non è dell'abbonamento: contano solo le aree (`subscription.` + la chiave).
         $copies = $companyId > 0 ? DocumentReferents::copyEmails(['email' => implode(',', $to), 'company_brand_id' => 0] + $subscription, $company, 'subscription.'.$key) : [];

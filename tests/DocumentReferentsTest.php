@@ -6,6 +6,7 @@ require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 
 // Le etichette delle aree chiedono `__t()`, che esiste solo a sito avviato:
@@ -163,12 +164,14 @@ check('una scheda che non è l\'azienda del documento non va in copia', fn () =>
     ) === ['p2@example.com']
 );
 
-check('un\'azienda senza referenti non aggiunge copie, nemmeno la sua email', fn () =>
-    DocumentReferents::copyEmails(
-        ['company_id' => 11, 'email' => 'x@example.com'],
-        ['id' => 11, 'email' => 'info@altra.it'],
-    ) === []
-);
+check('un\'azienda senza referenti: in copia le sue email (la principale se non ne ha per l\'area), mai chi riceve già', function () {
+    DocumentReferents::useCompanyReader(static fn (): array => []);
+    $principale = DocumentReferents::copyEmails(['company_id' => 11, 'email' => 'x@example.com'], ['id' => 11, 'email' => 'info@altra.it']);
+    $stessa = DocumentReferents::copyEmails(['company_id' => 11, 'email' => 'info@altra.it'], ['id' => 11, 'email' => 'info@altra.it']);
+    DocumentReferents::useCompanyReader(null);
+
+    return $principale === ['info@altra.it'] && $stessa === [];
+});
 
 check('un errore di lettura lascia l\'elenco vuoto', function () {
     DocumentReferents::useReader(fn (): array => throw new RuntimeException('db giù'));
@@ -240,10 +243,20 @@ check('un\'azienda che non compila le aree non cambia: tutti quelli che ricevono
 
 check('in copia l\'area del documento e il brand dell\'ordine, solo le email principali', function () use ($perArea) {
     DocumentReferents::useReader($perArea);
-    $preventivo = DocumentReferents::copyEmails(['company_id' => 10, 'email' => 'info@rossi.it', 'company_brand_id' => 7], ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    $funzionalita = new ReflectionProperty(Gestionale::class, 'features');
+    $ordine = ['company_id' => 10, 'email' => 'info@rossi.it', 'company_brand_id' => 9];
+    $funzionalita->setValue(null, ['companies' => true, 'brands' => true]);
+    $preventivo = DocumentReferents::copyEmails(['company_brand_id' => 7] + $ordine, ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    $conBrand = DocumentReferents::copyEmails($ordine, ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    // Senza «Brand» i brand seguiti non contano: il 5 segue il brand 9 e basta.
+    $funzionalita->setValue(null, ['companies' => true]);
+    $senzaBrand = DocumentReferents::copyEmails(['company_brand_id' => 7] + $ordine, ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    $funzionalita->setValue(null, null);
     $proforma = DocumentReferents::copyEmails(['company_id' => 10, 'email' => 'info@rossi.it'], ['id' => 10, 'email' => 'info@rossi.it'], 'subscription.proforma');
 
-    return $preventivo === ['p1@example.com', 'p2@example.com'] && $proforma === ['p1@example.com', 'p3@example.com'];
+    return $preventivo === ['p1@example.com', 'p2@example.com'] && $proforma === ['p1@example.com', 'p3@example.com']
+        && in_array('p5@example.com', $conBrand, true) && in_array('p5@example.com', $senzaBrand, true)
+        && !in_array('p5@example.com', $preventivo, true);
 });
 
 check('senza mansione il ruolo sono le aree di cui si occupa', function () use ($perArea) {
@@ -253,6 +266,68 @@ check('senza mansione il ruolo sono le aree di cui si occupa', function () use (
     return $terzo['departments'] === ['administration'] && $terzo['role'] === 'Amministrazione'
         && DocumentReferents::areasLabel(['purchasing', 'administration', 'sconosciuta']) === 'Acquisti, Amministrazione'
         && DocumentReferents::areasLabel([]) === '';
+});
+
+// --- Contatti di lavoro ed email dell'azienda per area ---
+
+check('il referente si scrive all\'email per quell\'azienda (di lavoro se c\'è) con il telefono di lavoro', function () {
+    $righe = DocumentReferents::fromRows([
+        riga(1, ['contact_email' => 'anna@rossi.it', 'work_email' => 'anna@rossi.it', 'work_phone_prefix' => '+39', 'work_phone' => '0212345'], ['phone_prefix' => '+39', 'phone' => '333']),
+        riga(2, ['contact_email' => 'p2@example.com', 'work_email' => ''], ['phone_prefix' => '+39', 'phone' => '3401234567']),
+        riga(3, [], ['email' => 'P3@Example.com']),
+    ]);
+
+    return array_column($righe, 'email') === ['anna@rossi.it', 'p2@example.com', 'p3@example.com']
+        && array_column($righe, 'phone') === ['+39 0212345', '+39 3401234567', ''];
+});
+
+check('le email dell\'azienda: quelle dell\'area del documento, altrimenti la principale della scheda', function () {
+    $chieste = [];
+    DocumentReferents::useCompanyReader(static function (int $id, string $area) use (&$chieste): array {
+        $chieste[] = $area;
+
+        return $area === 'administration' ? ['amministrazione@rossi.it', 'INFO@rossi.it'] : [];
+    });
+    $azienda = ['id' => 10, 'email' => 'info@rossi.it'];
+    $sollecito = DocumentReferents::companyEmails(10, 'subscription.reminder', $azienda);
+    $preventivo = DocumentReferents::companyEmails(10, 'quote_sent', $azienda);
+    $senzaScheda = DocumentReferents::companyEmails(10, 'quote_sent');
+    DocumentReferents::useCompanyReader(static fn (): array => throw new RuntimeException('db giù'));
+    $errore = DocumentReferents::companyEmails(10, 'quote_sent', $azienda);
+    DocumentReferents::useCompanyReader(null);
+
+    return $sollecito === ['amministrazione@rossi.it', 'info@rossi.it'] && $preventivo === ['info@rossi.it']
+        && $senzaScheda === [] && $errore === ['info@rossi.it']
+        && $chieste === ['administration', 'purchasing', 'purchasing'];
+});
+
+check('in copia caselle dell\'azienda e referenti, senza doppioni né chi riceve già', function () use ($perArea) {
+    DocumentReferents::useReader(static fn (int $id, int $brand = 0, string $area = ''): array => [
+        riga(1, ['contact_email' => 'acquisti@rossi.it']),
+        riga(2, ['contact_email' => 'luca@rossi.it']),
+    ]);
+    DocumentReferents::useCompanyReader(static fn (): array => ['acquisti@rossi.it', 'info@rossi.it']);
+    $copie = DocumentReferents::copyEmails(['company_id' => 10, 'email' => 'info@rossi.it'], ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    DocumentReferents::useCompanyReader(null);
+    DocumentReferents::useReader(null);
+
+    return $copie === ['acquisti@rossi.it', 'luca@rossi.it'];
+});
+
+check('l\'email di un referente per l\'azienda; vuota per chi non è suo referente', function () {
+    DocumentReferents::useReader(static fn (): array => [riga(1, ['contact_email' => 'anna@rossi.it', 'receives_documents' => 'false'])]);
+    $suo = DocumentReferents::emailOf(10, 1);
+    $altro = DocumentReferents::emailOf(10, 9);
+    DocumentReferents::useReader(null);
+
+    return $suo === 'anna@rossi.it' && $altro === '' && DocumentReferents::emailOf(10, 0) === '';
+});
+
+check('il sollecito di un abbonamento va alla prima email dell\'azienda per l\'amministrazione, il referente per l\'azienda', function () {
+    $codice = (string) file_get_contents(__DIR__.'/../src/Support/Subscriptions/SubscriptionNotifier.php');
+
+    return str_contains($codice, "DocumentReferents::companyEmails(\$companyId, 'subscription.'.\$key, \$company)[0] ?? \$personEmail")
+        && str_contains($codice, 'DocumentReferents::emailOf($companyId');
 });
 
 DocumentReferents::useReader(null);

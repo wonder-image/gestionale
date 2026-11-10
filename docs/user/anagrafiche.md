@@ -22,8 +22,9 @@ Tutte e due spente non si può: il pannello lo rifiuta.
 
 - **Solo persone** — per chi vende a privati. Spariscono dal menu e dalle
   schede le **Aziende** e quello che è solo loro: brand, referenti,
-  capogruppo, reparti, e la funzionalità *Account aziendali*, che si spegne
-  da sola perché ha bisogno delle aziende. Le pagine delle aziende non si
+  capogruppo, reparti, e le funzionalità *Brand*, *Gruppi di aziende* e
+  *Account aziendali*, che si spengono da sole perché hanno bisogno delle
+  aziende. Le pagine delle aziende non si
   aprono nemmeno dall'indirizzo. I **fornitori** restano (sono sempre
   aziende, li governa *Acquisti*), con i loro dati ma senza brand,
   capogruppo e referenti.
@@ -91,18 +92,58 @@ Nei documenti fatti prima di questa versione, i clienti che erano aziende sono
 stati spostati sulle schede delle **Aziende**: il loro referente, se c'era,
 resta la persona del documento.
 
+## Pagamento
+
+Nel form di un cliente (persona o azienda) il riquadro **Pagamento** tiene su
+una riga quello che vale per i suoi ordini: **metodo** e **condizione di
+pagamento** proposti dall'ordine da ufficio, **esigibilità IVA**, **listino** e
+**commerciale**, ognuno se la sua funzionalità è accesa. Sul telefono e sugli
+schermi stretti vanno uno sotto l'altro.
+
+## Contatti
+
+Tutte le email e i telefoni di una persona, di un'azienda o di un fornitore
+stanno nel riquadro **Contatti** della scheda: una riga per contatto, con il
+tipo (*Email* o *Telefono*), un'etichetta (*Lavoro*, *Personale*,
+*Fatturazione*, *Altro*) e **Principale**. Il principale di ogni tipo è quello
+che il gestionale usa (ordini, documenti, ricerche, export): uno per tipo, e se
+non ne scegli uno lo è la prima riga. Cambiando principale il vecchio resta,
+come riga normale. Un'email scritta male o ripetuta ferma il salvataggio, e una
+email già di un'altra scheda pure (se la scheda non è fra le tue, senza dire di
+chi è).
+
+- Una persona con un **account sul sito** ha in testa l'**Email di accesso**,
+  bloccata: si cambia dal suo account, non dal gestionale (nemmeno dalle
+  finestre dell'ordine, che lo dicono). Le altre email non servono mai per
+  accedere.
+- Le righe di un'**azienda** hanno anche **Si occupa di**: le aree a cui va
+  quell'email (vuoto = tutte). Così *amministrazione@* riceve proforma e
+  solleciti anche senza creare un referente (vedi sotto).
+
+La scheda in lettura mostra tutti i contatti, con il principale, l'email di
+accesso e le aree. Le finestre *Contatti* dell'ordine da ufficio cambiano solo
+email e telefono principali.
+
 ## Dati di fatturazione
 
 Sia le persone sia le aziende hanno i **dati di fatturazione**: una persona
 può avere il suo codice fiscale e il suo indirizzo, un'azienda ha i suoi.
 Online, chi compra sceglie se fatturare a sé o a una delle sue aziende.
+Nell'indirizzo si cerca anche il **nome di un'attività** (un negozio, un
+ufficio): Google completa l'indirizzo e, per un'azienda con la ragione sociale
+vuota, la scrive con il nome dell'attività. Place ID e coordinate si salvano
+senza vederli.
 
 ## Indirizzi di consegna
 
 L'indirizzo della scheda è quello **di fatturazione**. Dove si consegna si
 scrive nel riquadro *Indirizzi di consegna*: uno per il magazzino, uno per
 casa, uno per il cantiere. Il **destinatario** è chi il corriere deve cercare,
-e spesso non è chi compra.
+e spesso non è chi compra. **Presso** è l'attività o la società a
+quell'indirizzo (facoltativo): cercando nella via il nome di un'attività si
+riempie da solo, se è vuoto, e resta modificabile. Vale anche per le sedi di
+un'azienda, nel form e nelle finestre dell'ordine da ufficio. L'ordine copia
+dalla sede scelta anche place ID e coordinate.
 
 Gli indirizzi si gestiscono anche dalla **scheda del cliente** (il nome nell'elenco
 la apre): il riquadro *Indirizzi di consegna* mostra una card per indirizzo, con
@@ -150,6 +191,10 @@ suo codice e il costo. Per cambiare qualcosa c'è **Modifica** in alto.
 
 ## Brand
 
+> Con la funzionalità **Brand** (area *Anagrafiche*, serve *Aziende*, spenta
+> di serie). Si accende da sola all'aggiornamento se nel gestionale c'è già
+> almeno un brand e nessuno l'ha mai spenta.
+
 Il **brand** è il nome commerciale con cui un'azienda si presenta: *RClass* può
 essere il nome commerciale di due ragioni sociali, e una ragione sociale può
 avere più brand (per esempio un ristorante e un albergo). Nel form di
@@ -158,24 +203,49 @@ una parte del nome e selezionane uno o più; se non c'è, il **+** lo crea. Un
 brand con lo stesso nome di uno che c'è già non si duplica: si seleziona
 quello.
 
+Tutti i brand stanno in **Anagrafiche → Brand**: da lì li apri, li modifichi
+e, se puoi creare schede, ne aggiungi uno nuovo. Un commerciale vede solo i
+brand delle sue aziende e ne crea uno solo dal **+** (vedi
+[Commerciali](commerciali.md)).
+
 I preventivi e gli ordini da ufficio di un'azienda hanno il campo **Brand**,
 fra i brand di quell'azienda: parte dal **predefinito** (o dal primo). Servirà
 per legare al brand i progetti nati dal preventivo. Il documento tiene il nome
 del brand com'era: se poi il brand cambia nome, si stacca dall'azienda o si
 archivia, il preventivo non cambia. Unendo due brand doppioni, i documenti
-passano al brand che resta.
+passano al brand che resta. Sui **PDF** (preventivo, conferma d'ordine,
+proforma e DDT, che lo prende dal suo ordine) il brand si stampa nel riquadro
+del cliente, su una riga sua fra *Alla c.a.* e la ragione sociale.
 
 La scheda del brand ha **logo**, **sito**, **dominio** (ricavato dal sito) e
 **descrizione**. Con la funzionalità **Brand kit** (area *Anagrafiche*, serve
-*Aziende*) ci sono anche email e telefono del brand, social, colori, tono,
+*Brand*) ci sono anche email e telefono del brand, social, colori, tono,
 settore, lingua e il link ai materiali; spenta, quei campi non si vedono e
 restano salvati. Il logo compare accanto al brand nell'ordine da ufficio e
 nella scheda dell'ordine.
 
-Ogni **indirizzo di consegna** di un'azienda ha il campo **Brand**: se scegli
+Con **Brand** spenta i brand **non si vedono e non si cancellano**: spariscono
+la voce di menu, il riquadro nella scheda dell'azienda, il campo nei
+preventivi e negli ordini, i brand seguiti dei referenti e quelli degli
+indirizzi, la riga sui PDF. Un documento salvato con un brand lo tiene anche se
+lo risalvi, e lo mostra di nuovo quando riaccendi la funzionalità; un documento
+nuovo nasce senza brand. Senza brand le sedi proposte e i referenti in copia
+non guardano il brand.
+
+Con la funzionalità *Brand* ogni **indirizzo di consegna** di un'azienda ha il campo **Brand**: se scegli
 uno o più brand l'indirizzo vale solo per loro, vuoto vale per tutti. Nei
 preventivi e negli ordini da ufficio si propongono prima le sedi del brand del
 documento, poi quelle per tutti; le sedi degli altri brand non compaiono.
+
+## Gruppi di aziende
+
+> Con la funzionalità **Gruppi di aziende** (area *Anagrafiche*, serve
+> *Aziende*, spenta di serie).
+
+Nel form di un'azienda il campo **Capogruppo** dice a capo di quale gruppo sta:
+l'azienda madre. Il gruppo ha un livello solo: una capogruppo non ha a sua
+volta una capogruppo. Spenta la funzionalità, il campo non si vede e la
+capogruppo già scelta resta salvata.
 
 ## Referenti e aziende
 
@@ -196,13 +266,18 @@ Funziona anche quando crei un cliente o un'azienda nuovi. Poi:
 - **Si occupa di** — una o più aree fra *Amministrazione*, *Acquisti*,
   *Commerciale*, *Tecnico*, *Direzione* e *Altro*; vuoto vuol dire che si
   occupa di tutto. Dice a chi mandare i documenti (vedi sotto);
-- **Brand seguiti** — i brand dell'azienda di cui si occupa; vuoto = tutti;
+- **Brand seguiti** — con la funzionalità *Brand*, i brand dell'azienda di cui
+  si occupa; vuoto = tutti;
 - **Mansione** — il ruolo scritto a mano, per esempio *Responsabile acquisti*;
   se manca, sui documenti e nelle tendine compaiono le aree di cui si occupa;
 - **Referente principale** — è il referente proposto quando fai un preventivo,
   un ordine da ufficio o un DDT per quell'azienda;
 - **Riceve i documenti** — chi ha questa risposta riceve in copia le email dei
-  documenti. Sui documenti si può scegliere qualsiasi referente.
+  documenti. Sui documenti si può scegliere qualsiasi referente;
+- **Email di lavoro**, **Prefisso**, **Telefono di lavoro** — i contatti del
+  referente per quell'azienda (facoltativi). Se c'è l'email di lavoro i
+  documenti di quell'azienda vanno lì e non alla sua email personale; la
+  scheda dell'azienda e l'ordine la mostrano. Non serve mai per accedere al sito.
 
 ### A chi vanno in copia i documenti
 
@@ -214,16 +289,22 @@ brand del documento (o tutti), il principale per primo. Se nessuno corrisponde,
 vale la regola di sempre: tutti quelli che ricevono i documenti. Così
 un'azienda per cui non compili le aree non vede cambiare niente.
 
-Le copie vanno all'**email principale** di ogni referente: gli *Altri contatti*
-non ricevono mai documenti e non servono per accedere al sito.
+Dell'azienda ricevono le email del suo riquadro *Contatti* che si occupano di
+quell'area (o di tutto); se nessuna corrisponde, la sua email principale, come
+prima. Nessuno riceve lo stesso documento due volte.
 
-### Altri contatti
+- **Preventivo, conferma, DDT**: destinatario l'email del documento (di solito
+  quella dell'azienda); in copia le email dell'azienda per gli *Acquisti* (o la
+  principale) e i referenti degli *Acquisti* che ricevono i documenti, all'email
+  di lavoro se ce l'hanno.
+- **Proforma, solleciti e pagamenti non riusciti degli abbonamenti**:
+  destinatario la prima email dell'azienda per l'*Amministrazione* (o la
+  principale; senza, il referente); in copia le altre email per
+  l'*Amministrazione* e i referenti dell'*Amministrazione*.
 
-Persone e aziende hanno, sotto email e telefono, il riquadro **Altri
-contatti**: email e telefoni in più, ognuno con un'etichetta (*Lavoro*,
-*Personale*, *Fatturazione*, *Altro*). Un'email scritta male o ripetuta (anche
-uguale a quella principale) ferma il salvataggio. Si leggono nella scheda, in
-*Tutti i suoi dati*, anche in quella di un referente.
+Le copie vanno all'email del referente **per quell'azienda** (di lavoro, se
+c'è, altrimenti la sua principale): gli altri contatti della persona non
+ricevono mai documenti e non servono per accedere al sito.
 
 Nell'elenco delle persone il filtro **Ruolo → Referenti** mostra solo queste
 persone (*Clienti* solo chi compra per sé), e la colonna **Referenti /

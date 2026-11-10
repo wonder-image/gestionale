@@ -306,17 +306,72 @@ Tutto passa da `Support\Contacts\DocumentReferents`:
   `delivery_note_sent` → `purchasing`; `subscription.proforma`, `.reminder`,
   `.payment_failed` → `administration`; il resto: nessuna area). Un modulo la
   cambia con `useArea($document, $area)`;
+- `companyEmails($companyId, $document, $company)` dà le email dell'azienda
+  per l'area del documento: `ContactPoints::companyEmailsFor($companyId,
+  area($document))` (le caselle del riquadro «Contatti» con quell'area o
+  nessuna, la principale per prima); vuota o illeggibile → la principale della
+  scheda (`$company['email']`), come prima delle aree;
 - `copyEmails($order, $company, $document)` dà gli indirizzi in copia, senza
-  doppioni e senza quello che riceve già la mail: l'email dell'azienda e
-  quelle principali dei `recipients()` (mai gli «altri contatti» di
-  `ContactPoints`). `OrderNotifier` passa la chiave dell'email,
-  `SubscriptionNotifier` `subscription.` + la sua;
-- `useReader()` serve solo ai test.
+  doppioni e senza quelli che ricevono già la mail: `companyEmails()` e le
+  email dei `recipients()`. L'email di un referente è `contact_email` delle
+  righe di `peopleFor()` (di lavoro se c'è, altrimenti la principale della
+  persona); `fromRows()` dà anche `phone` (di lavoro, o quello della persona).
+  `OrderNotifier` passa la chiave dell'email; `SubscriptionNotifier` scrive
+  alla prima di `companyEmails()` (o al referente, `emailOf()`) e copia il
+  resto con `subscription.` + la sua chiave;
+- `emailOf($companyId, $personId)`: l'email per l'azienda di un suo referente
+  (anche l'email proposta dall'ordine quando l'azienda non ne ha una);
+- `useReader()` e `useCompanyReader()` servono solo ai test.
 
 Ogni riga di `people()` / `options()` porta anche `departments` (le aree di
 cui si occupa, vuota = tutte) e `role`: la mansione, o le etichette delle aree
 (`areasLabel()`) se la mansione è vuota. Le tendine dei referenti mostrano
 `role`.
+
+### Contatti e indirizzi della scheda (customer-account)
+
+Persone, aziende e fornitori (`CustomerResource` e sottoclassi) hanno il
+riquadro «Contatti» di customer-account (`contactBoxFields()`: input
+`contact_points`, marker `contact_box_form`, lo script `contactFormScript()`
+nella card) al posto dei campi `email`, `phone_prefix`, `phone` e di «Altri
+contatti». In `mutateRequestValues()`:
+
+1. `applyContactPoints($values, $oldValues)` rimette il principale di ogni tipo
+   in `email` / `phone_prefix` / `phone`, **prima** dei controlli: il doppione
+   dell'email (`contact.email_taken`, o `contact.duplicate_hidden` per una
+   scheda che chi scrive non vede) vale sul principale come prima;
+2. `keepAccessEmail()`: una persona con account (`ContactPoints::lockedEmail()`)
+   tiene `contacts.email`. Il riquadro la ignora già; un campo singolo diverso
+   (finestra dell'ordine, API) ferma con `contact.access_email_locked`;
+3. `assertRelationContacts($_POST)` controlla i contatti di lavoro del
+   repeater dei legami (con il DNS: è il form);
+4. riquadro e marker escono dai valori; le righe le scrive `ContactPoints::syncAll()`
+   da `syncRepeaterRelations()` del trait.
+
+Senza marker (creazione rapida `QuickContacts`, finestre dell'ordine, API, MCP)
+i campi singoli passano come prima. La finestra «Contatti» dell'ordine si fa i
+suoi campi (`email` non è più un campo della scheda). Le schede in lettura
+mostrano `ContactPoints::all()` (`CustomerResource::pointItems()`,
+`CustomerSheet::points()`): principale, «Email di accesso», etichette e aree.
+
+Il repeater dei referenti ha le colonne di lavoro del trait
+(`workContactColumns()`: email 6, prefisso 2, telefono 4, una riga sua); il
+filtro dei brand toglie solo `brand_ids`. Ovunque si scrive o si mostra
+l'email di un referente per un'azienda si usa `contact_email` (scheda
+dell'azienda, `DocumentReferents`, email proposta dall'ordine, MCP).
+
+Indirizzi: la fatturazione di persone e aziende (`withGeo()`,
+`withNameSearch()` dei modelli di customer-account) ha `place_id`, `lat`, `lng`
+nascosti nel layout (e nelle finestre dell'ordine, `BILLING_KEYS`), ripuliti
+con `GoogleMaps::cleanGeo()` solo se arrivano; sulla via delle aziende
+`data-ca-place-name="business_name"`. Il repeater degli indirizzi e la
+finestra di `ContactAddressResource` hanno «Presso» (`business_name`, anche per
+le sedi d'azienda), la ricerca per nome (`data-wi-place-names`,
+`data-ca-place-name`) e place ID e coordinate (nel repeater colonne nascoste,
+ripulite in `prepareRepeaterRelationRow()`). Place ID e coordinate arrivano dal
+browser e non decidono niente. L'ordine copia dalla sede `shipping_place_id`,
+`shipping_lat`, `shipping_lng` (`shippingKeys()`); la fatturazione dell'ordine
+non ha colonne geo e non ne prende.
 
 ### Il brand
 
@@ -326,6 +381,11 @@ nati dal preventivo. Si chiama così per non confonderlo con il marchio degli
 articoli (`Catalog\Brand`, `brand_id` su modelli, listini, coupon e campagne).
 Il nome si copia in `company_brand_name`, come `referent_name`: resta com'era
 anche se il brand cambia nome, si stacca o si archivia.
+
+Tutto questo vale con la funzionalità «Brand» (`Brands::enabled()`, vedi
+[Funzionalità](funzionalita.md)).
+Spenta, il brand non si mostra né si sceglie, e `resolve()` non cambia quello
+salvato (vedi sotto).
 
 Tutto passa da `Support\Contacts\DocumentBrands`:
 
@@ -338,7 +398,10 @@ Tutto passa da `Support\Contacts\DocumentBrands`:
   dell'azienda oggi (`CompanyBrands::belongsTo()` senza data), altrimenti
   `UserError` `office_order.brand_unknown`; `0` va sempre bene. Cambiata
   l'azienda, senza il campo vale il predefinito della nuova; il vecchio brand
-  ancora postato è un errore. Persona o nessun cliente: `0` e nome vuoto;
+  ancora postato è un errore. Persona o nessun cliente: `0` e nome vuoto.
+  Con «Brand» spenta il brand indicato si ignora: lo stesso documento resta
+  com'è (anche al risalvataggio), uno nuovo o di un'altra azienda nasce con
+  `0` e nome vuoto.
 - `nameOf($order)` — il nome da stampare: quello copiato, altrimenti (documenti
   di prima) `CompanyBrands::find()`. È testo: chi lo stampa lo escapa. La
   scheda dell'ordine lo mostra sotto il cliente;
@@ -362,9 +425,19 @@ La card *Brand* del form azienda è `CompanyResource::brandCards()`, hook di
 `CustomerResource`, con il repeater di customer-account (brand, ruolo,
 predefinito); la Resource che crea il brand al volo è
 `Contacts\CompanyBrandResource`, la stessa di customer-account su
-`app/gestionale/brand` con i permessi dell'area contatti.
+`app/gestionale/brand` con i permessi dell'area contatti e la voce
+*Anagrafiche → Brand*.
 
 DDT, resi e revisioni del preventivo non portano il brand: lo legge l'ordine.
+
+Sui PDF il brand è `brand` dei dati (`DocumentData::brand($order)`: il nome di
+`nameOf()`, vuoto con «Brand» spenta; per il DDT quello del suo ordine).
+`DocumentPdf::billingLines()` lo stampa senza etichetta, nello stile delle
+altre righe, nell'ordine: «Alla c.a.» (referente), brand, ragione sociale o
+nome, indirizzo, dati fiscali, email. Passa da `text()` come le altre righe.
+Spenta la funzionalità, il PDF rigenerato non ha il brand; riaccesa sì: il
+nome resta sul documento. Le email dei documenti non ripetono il blocco del
+cliente.
 
 Le sedi proposte seguono il brand: `OfficeOrders::companyAddresses($companyId,
 $brandId)` legge `CompanyAddresses::addressesFor()` e le mette in ordine con

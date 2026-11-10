@@ -41,8 +41,8 @@ anche prima di inviarlo.
 
 Quando il cliente è un'azienda (vedi [Chi è il cliente di un
 documento](anagrafiche.md#chi-è-il-cliente-di-un-documento)) il preventivo ha
-anche i campi **Referente** e **Brand**, come l'ordine da ufficio: il nome del referente va sul PDF come «Alla
-c.a.», il brand lega il preventivo al nome commerciale dell'azienda. L'email parte comunque all'indirizzo del documento e va **in copia**
+anche i campi **Referente** e **Brand** (con la funzionalità *Brand*), come l'ordine da ufficio: il nome del referente va sul PDF come «Alla
+c.a.», il brand lega il preventivo al nome commerciale dell'azienda e sul PDF va sulla riga sotto, prima della ragione sociale. L'email parte comunque all'indirizzo del documento e va **in copia**
 all'email dell'azienda e ai referenti che ricevono i documenti: è un'unica
 email, e ognuno vede chi altro l'ha ricevuta.
 

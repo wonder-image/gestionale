@@ -73,8 +73,10 @@ dei brand dell'azienda tiene solo quelli che il commerciale vede o ha appena
 creato con la «+» (`linkableBrands()`, i nuovi in sessione); capogruppo e
 brand principale non visibili si rifiutano. La «+» del brand, per lui, non
 aggancia un brand con lo stesso nome che non vede (rifiuta con un messaggio
-generico) e non mostra i nomi simili di altri. La pagina del brand non ha
-«Aggiungi» per lui: il brand nasce dalla «+», legato alla sua azienda.
+generico) e non mostra i nomi simili di altri. La pagina del brand (voce
+*Anagrafiche → Brand*, con la funzionalità «Brand») gli elenca solo i suoi,
+con la stessa regola, e non ha «Aggiungi» per lui: il brand nasce dalla «+»,
+legato alla sua azienda.
 Un doppione (email, codice fiscale, partita IVA) di una scheda che non vede si
 rifiuta senza nominarla (`contact.duplicate_hidden`, e nella creazione rapida).
 

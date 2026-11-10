@@ -55,8 +55,9 @@ final class FeatureState
     }
 
     /**
-     * Una voce con `default => true` e senza riga propria conta come sbloccata.
-     * Con la riga, vale la riga.
+     * Una voce con `default => true`, o con un `default_if` che risponde sì, e
+     * senza riga propria conta come sbloccata. Con la riga, vale la riga: il
+     * `default_if` si chiama solo senza.
      *
      * @param array<string, array<string, mixed>> $catalog
      * @param array<string, bool> $unlocked
@@ -65,7 +66,13 @@ final class FeatureState
     public static function defaults(array $catalog, array $unlocked): array
     {
         foreach ($catalog as $key => $feature) {
-            if (($feature['default'] ?? false) === true && !array_key_exists($key, $unlocked)) {
+            if (array_key_exists($key, $unlocked)) {
+                continue;
+            }
+
+            $if = $feature['default_if'] ?? null;
+
+            if (($feature['default'] ?? false) === true || (is_callable($if) && $if() === true)) {
                 $unlocked[$key] = true;
             }
         }

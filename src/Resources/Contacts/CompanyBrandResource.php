@@ -13,8 +13,8 @@ use Wonder\Plugin\CustomerAccount\Models\CompanyBrand;
 use Wonder\Plugin\CustomerAccount\Resources\CompanyBrandResource as BaseCompanyBrandResource;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
-use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\QuickContacts;
 
 /**
@@ -26,7 +26,8 @@ use Wonder\Plugin\Gestionale\Support\Contacts\QuickContacts;
  * brand legati a un'azienda sua (`SalesAgents::brandsRule()`, applicata dal
  * core a elenco, scheda, modifica e API): qui si restringono anche le
  * scelte del «Brand principale», gli avvisi dei nomi simili e la «+».
- * Senza le aziende (`CustomerMode`) la Resource non ha pagine.
+ * Con la funzionalità «Brand» (`Brands::enabled()`) ha la voce «Brand» in
+ * Anagrafiche; spenta, niente menu, pagine (anche dall'URL) né «+».
  */
 class CompanyBrandResource extends BaseCompanyBrandResource
 {
@@ -86,21 +87,32 @@ class CompanyBrandResource extends BaseCompanyBrandResource
         return $brand !== null ? (int) ($brand['parent_id'] ?? 0) : null;
     }
 
-    /** Senza le aziende il brand non ha pagine; chi ha una visibilità per riga lo crea solo dalla «+», legato alla sua azienda. */
+    /** Senza «Brand» il brand non ha pagine; chi ha una visibilità per riga lo crea solo dalla «+», legato alla sua azienda. */
     public static function pageSchema(): PageSchema
     {
         $schema = parent::pageSchema();
 
-        if (!CustomerMode::companies()) {
+        if (!Brands::enabled()) {
             return $schema->only([]);
         }
 
         return ContactVisibility::restricted(CompanyBrand::$table) ? $schema->disable(['create', 'store']) : $schema;
     }
 
+    /** La voce «Brand» in Anagrafiche, dopo le aziende, con i permessi dell'area contatti. */
     public static function navigationSchema(): NavigationSchema
     {
-        return CustomerMode::companies() ? parent::navigationSchema() : parent::navigationSchema()->enabled(false);
+        return NavigationSchema::for(static::class)
+            ->section('anagrafiche', 'Anagrafiche', 'bi-people', 320)
+            ->title('Brand')
+            ->order(17)
+            ->access(Gestionale::area('contatti'))
+            ->enabled(Brands::enabled());
+    }
+
+    public static function icon(): string
+    {
+        return 'bi-tags';
     }
 
     /** Gli avvisi dei nomi simili, solo fra i brand che chi scrive vede. */
@@ -175,8 +187,8 @@ class CompanyBrandResource extends BaseCompanyBrandResource
      */
     public static function quickCreateStore(array $values, string $labelField): array
     {
-        if (!CustomerMode::companies()) {
-            return ['error' => 'Il gestionale lavora solo con le persone: i brand delle aziende non si creano.'];
+        if (!Brands::enabled()) {
+            return ['error' => 'I brand delle aziende sono spenti: si accendono da Set Up → Funzionalità.'];
         }
 
         $companyId = 0;

@@ -9,6 +9,7 @@ use Wonder\App\Theme;
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
 use Wonder\Http\Exceptions\NotFoundHttpException;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Resources\Sales\OfficeOrderResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
@@ -106,10 +107,16 @@ check('con le relazioni accese, il Referente dell\'azienda: tutte le sue persone
 check('il Brand dell\'azienda: tendina `company_brand_id`, il brand salvato resta anche se l\'azienda non l\'ha più', function () use ($bozza, $pagina) {
     $salvata = ['id' => 9, 'company_id' => 7, 'customer_id' => 0, 'company_brand_id' => 5, 'company_brand_name' => 'Rossi & <C>'] + $bozza;
     DocumentReferents::useReader(static fn (): array => []);
+    $funzionalita = new ReflectionProperty(Gestionale::class, 'features');
 
     try {
+        $funzionalita->setValue(null, ['private_customers' => true, 'companies' => true, 'brands' => true]);
         $html = $pagina(OfficeOrderResource::class, $salvata);
+        // Senza «Brand» la tendina non c'è: il documento non posta il brand e tiene il suo.
+        $funzionalita->setValue(null, ['private_customers' => true, 'companies' => true]);
+        $spenta = $pagina(OfficeOrderResource::class, $salvata);
     } finally {
+        $funzionalita->setValue(null, null);
         DocumentReferents::useReader(null);
     }
 
@@ -120,7 +127,8 @@ check('il Brand dell\'azienda: tendina `company_brand_id`, il brand salvato rest
         && !str_contains($html, 'name="brand_id"') && !str_contains($html, '<C>')
         // Su un documento nuovo, o di un'altra azienda, un id qualunque non diventa una scelta.
         && OfficeOrderPage::brandOptions(7, ['company_id' => 7, 'company_brand_id' => 5]) === ['0' => 'Nessun brand']
-        && OfficeOrderPage::brandOptions(8, $salvata) === ['0' => 'Nessun brand'];
+        && OfficeOrderPage::brandOptions(8, $salvata) === ['0' => 'Nessun brand']
+        && !str_contains($spenta, 'company_brand_id') && !str_contains($spenta, 'Rossi &amp; &lt;C&gt;');
 });
 
 check('i Modifica dei riquadri dicono quale finestra aprono', function () use ($bozza, $pagina) {

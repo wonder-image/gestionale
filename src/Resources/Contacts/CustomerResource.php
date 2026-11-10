@@ -37,9 +37,11 @@ use Wonder\Plugin\CustomerAccount\Resources\Concerns\HasContactRelations;
 use Wonder\Plugin\CustomerAccount\Models\ContactRelation;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\CustomerAccount\Support\ContactExport;
+use Wonder\App\Support\GoogleMaps;
 use Wonder\Plugin\CustomerAccount\Support\ContactPoints;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\CustomerAccount\Models\CompanyBrand;
+use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
@@ -75,6 +77,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 {
     use HasContactRelations {
         syncRepeaterRelations as relationsSyncRepeaterRelations;
+        contactRelationFields as allContactRelationFields;
     }
 
     public static string $model = Contact::class;
@@ -209,11 +212,16 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
     public static function formSchema(): array
     {
-        $billing = static::$model::billing()->formSchema();
+        // Email e telefono stanno nel riquadro «Contatti», non nei campi della fatturazione.
+        $billing = array_diff_key(static::$model::billing()->formSchema(), ['phone_prefix' => true, 'phone' => true]);
+
+        // Un'attività cercata per nome dà la ragione sociale, se è vuota (lo script di customer-account).
+        if (isset($billing['business_name'], $billing['street'])) {
+            $billing['street']->attribute('data-ca-place-name="business_name"');
+        }
 
         $fields = [
             ...array_values($billing),
-            FormField::key('email')->email()->label('Email'),
             FormField::key('active')
                 ->select(['true' => 'Attiva', 'false' => 'Non attiva'])
                 ->value('true')
@@ -221,8 +229,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 ->required(),
             FormField::key('note')->textarea()->label('Note'),
             static::addressesField(),
-            // «Altri contatti»: email e telefoni in più (customer-account), mai di accesso né destinatari di documenti.
-            ...static::contactPointFields(),
+            // Il riquadro «Contatti» di customer-account: tutte le email e i telefoni, con il principale.
+            ...static::contactBoxFields(),
             ...(static::addressBrandsShown() ? [FormField::key(self::ADDRESS_BRANDS_MARKER)->hidden()->value('1')] : []),
         ];
 
@@ -281,25 +289,6 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             && !SalesAgents::restricted(RowVisibility::currentUser());
     }
 
-    /** @return list<Card> */
-    protected static function agentCards(): array
-    {
-        if (!static::agentShown()) {
-            return [];
-        }
-
-        return [
-            (new Card)->components([
-                SectionTitle::make('Commerciale')
-                    ->tooltip(static::isCompanySide()
-                        ? 'Il commerciale vede e gestisce l\'azienda, i suoi referenti e i suoi documenti. Gli ordini nuovi dell\'azienda vanno a lui.'
-                        : 'Il commerciale vede e gestisce questo cliente e i suoi documenti. Gli ordini nuovi del cliente vanno a lui.')
-                    ->columnSpan(12),
-                static::getInput('agent_id')->columnSpan(6),
-            ])->columns(12)->columnSpan(12),
-        ];
-    }
-
     /** Il listino del cliente: solo per i clienti, con «Listini cliente». */
     public static function priceListShown(): bool
     {
@@ -336,53 +325,50 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         return $condizioni;
     }
 
-    /** @return list<Card> */
+    /**
+     * Il blocco «Pagamento»: metodo, condizione, esigibilità IVA, listino e
+     * commerciale, ognuno se c'è, su una riga da schermi larghi (`lg`) in
+     * su, a colonne uguali; sotto, uno per riga. In cinque i dodicesimi non
+     * si dividono: i primi due (metodo e condizione) ne hanno uno in più.
+     *
+     * @return list<Card>
+     */
     protected static function paymentCards(): array
     {
         if (!static::sellsTo()) {
             return [];
         }
 
-        $esigibilita = static::getInput('vat_collectability')->columnSpan(6);
+        $offices = static::paymentDefaultsShown();
+        $term = $offices && count(static::activeTerms()) > 1;
+        $keys = array_keys(array_filter([
+            'payment_method_id' => $offices,
+            'payment_term_id' => $term,
+            'vat_collectability' => true,
+            'price_list_id' => static::priceListShown(),
+            'agent_id' => static::agentShown(),
+        ]));
+        $tooltip = implode(' ', array_filter([
+            $offices ? 'Quello che il nuovo ordine da ufficio propone per questo cliente: si può sempre cambiare sull\'ordine.' : '',
+            $term ? 'La condizione dice in quante rate e quando paga.' : '',
+            'Con la scissione dei pagamenti (S) il cliente paga solo l\'imponibile: l\'IVA la versa lui.',
+            static::priceListShown() ? 'Il listino dà i prezzi riservati a questo cliente, nel negozio e sugli ordini da ufficio; i prodotti che non ha restano al prezzo di catalogo.' : '',
+            static::agentShown() ? (static::isCompanySide()
+                ? 'Il commerciale vede e gestisce l\'azienda, i suoi referenti e i suoi documenti; gli ordini nuovi dell\'azienda vanno a lui.'
+                : 'Il commerciale vede e gestisce questo cliente e i suoi documenti; gli ordini nuovi del cliente vanno a lui.') : '',
+        ]));
 
-        if (!static::paymentDefaultsShown()) {
-            return [
-                (new Card)->components([
-                    SectionTitle::make('Pagamento')
-                        ->tooltip('Con la scissione dei pagamenti (S) il cliente paga solo l\'imponibile: l\'IVA la versa lui.')
-                        ->columnSpan(12),
-                    $esigibilita,
-                ])->columns(12)->columnSpan(12),
-            ];
-        }
+        $fields = [];
 
-        $condizione = count(static::activeTerms()) > 1;
-
-        return [
-            (new Card)->components([
-                SectionTitle::make('Pagamento')
-                    ->tooltip('Quello che il nuovo ordine da ufficio propone per questo cliente: si può sempre cambiare sull\'ordine.'.($condizione ? ' La condizione dice in quante rate e quando paga.' : '').' Con la scissione dei pagamenti (S) il cliente paga solo l\'imponibile.')
-                    ->columnSpan(12),
-                static::getInput('payment_method_id')->columnSpan(6),
-                ...($condizione ? [static::getInput('payment_term_id')->columnSpan(6)] : []),
-                $esigibilita,
-            ])->columns(12)->columnSpan(12),
-        ];
-    }
-
-    /** @return list<Card> */
-    protected static function priceListCards(): array
-    {
-        if (!static::priceListShown()) {
-            return [];
+        foreach ($keys as $index => $key) {
+            $width = intdiv(12, count($keys)) + ($index < 12 % count($keys) ? 1 : 0);
+            $fields[] = static::getInput($key)->columnSpan(['default' => 12, 'lg' => $width]);
         }
 
         return [
             (new Card)->components([
-                SectionTitle::make('Listino')
-                    ->tooltip('I prezzi riservati a questo cliente, nel negozio e sugli ordini da ufficio. I prodotti che il listino non ha restano al prezzo di catalogo.')
-                    ->columnSpan(12),
-                static::getInput('price_list_id')->columnSpan(6),
+                SectionTitle::make('Pagamento')->tooltip($tooltip)->columnSpan(12),
+                ...$fields,
             ])->columns(12)->columnSpan(12),
         ];
     }
@@ -415,12 +401,15 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             ...static::brandCards(),
             (new Card)->components($chiE)->columns(12)->columnSpan(12),
             (new Card)->components([
-                SectionTitle::make('Contatti')->columnSpan(12),
-                static::getInput('email')->columnSpan(6),
-                static::getInput('phone_prefix')->columnSpan(2),
-                static::getInput('phone')->columnSpan(4),
+                SectionTitle::make('Contatti')
+                    ->tooltip(static::isCompanySide()
+                        ? 'Tutte le email e i telefoni dell\'azienda. Il principale di ogni tipo è quello della scheda; «Si occupa di» dice a quali documenti va un\'email (vuoto = a tutti).'
+                        : 'Tutte le email e i telefoni della persona. Il principale di ogni tipo è quello della scheda; con un account sul sito l\'email di accesso non si cambia da qui.')
+                    ->columnSpan(12),
                 static::getInput(static::$pointsInput)->columnSpan(12),
-                static::getInput(static::$pointsMarker)->columnSpan(12),
+                static::getInput(static::$boxMarker)->columnSpan(12),
+                // Lo script del riquadro e della ricerca per nome negli indirizzi (customer-account).
+                static::contactFormScript(),
             ])->columns(12)->columnSpan(12),
             (new Card)->components([
                 SectionTitle::make('Dati di fatturazione')
@@ -439,10 +428,12 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 static::getInput('city')->columnSpan(3),
                 static::getInput('cap')->columnSpan(3),
                 static::getInput('more')->columnSpan(12),
+                // Place ID e coordinate dalla ricerca di Google: nascosti, ma devono arrivare al POST.
+                static::getInput('place_id'),
+                static::getInput('lat'),
+                static::getInput('lng'),
             ])->columns(12)->columnSpan(12),
-            ...static::agentCards(),
             ...static::paymentCards(),
-            ...static::priceListCards(),
             (new Card)->components([
                 SectionTitle::make('Indirizzi di consegna')
                     ->tooltip('Dove si consegna, quando non è l\'indirizzo di fatturazione. Il destinatario è chi il corriere deve cercare.')
@@ -835,7 +826,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         $sinistra[] = (new Card)->components([
             SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
             ...CustomerSheet::data($contact, static::hasAccount() ? static::authMethod(static::withAccount($contact)) : '—'),
-            ...static::pointItems($id),
+            ...static::pointItems($id, $contact),
             ...(static::paymentDefaultsShown()
                 ? CustomerSheet::payment(
                     static::officeMethods()[(int) ($contact['payment_method_id'] ?? 0)] ?? '',
@@ -900,7 +891,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 (new Card)->components([
                     SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
                     ...CustomerSheet::data($contact, static::authMethod(static::withAccount($contact)), 'Referente'),
-                    ...static::pointItems($id),
+                    ...static::pointItems($id, $contact),
                 ])->columns(12)->columnSpan(12),
             ]),
             (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components($destra),
@@ -908,22 +899,29 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     }
 
     /**
-     * Gli altri contatti della scheda in lettura; vuota se non ce ne sono o
-     * se non si leggono.
+     * I contatti della scheda in lettura (`ContactPoints::all()`): principali,
+     * email di accesso, altri, con le aree per le aziende. Senza id, o se i
+     * contatti non si leggono, restano i principali della scheda.
      *
+     * @param array<string, mixed> $contact la scheda
      * @return list<\Wonder\Elements\Components\DataItem>
      */
-    public static function pointItems(int $id): array
+    public static function pointItems(int $id, array $contact = []): array
     {
-        if ($id <= 0) {
-            return [];
-        }
+        $primary = [
+            ['kind' => ContactPoints::EMAIL, 'value' => (string) ($contact['email'] ?? ''), 'is_primary' => true],
+            ['kind' => ContactPoints::PHONE, 'value' => (string) ($contact['phone'] ?? ''), 'phone_prefix' => (string) ($contact['phone_prefix'] ?? ''), 'is_primary' => true],
+        ];
 
         try {
-            return CustomerSheet::points(ContactPoints::of(static::contactPointOwner(), $id), ContactPoints::labels());
+            $rows = $id > 0 ? ContactPoints::all(static::contactPointOwner(), $id, $contact) : $primary;
         } catch (Throwable) {
-            return [];
+            $rows = $primary;
         }
+
+        $labels = ContactPoints::labels() + [ContactPoints::ACCESS_LABEL => 'Email di accesso'];
+
+        return CustomerSheet::points($rows, $labels, static::isCompanySide() ? ContactRelations::departments() : []);
     }
 
     /**
@@ -947,11 +945,13 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             }
 
             $altroId = (int) $altro['id'];
+            // I contatti per quell'azienda: quelli di lavoro se ci sono, altrimenti (email) quelli della persona.
             $dettaglio = array_filter([
                 trim((string) ($row['job_title'] ?? '')),
                 ($row['is_primary'] ?? 'false') === 'true' ? 'Principale' : '',
                 ($row['receives_documents'] ?? 'false') === 'true' ? 'Riceve i documenti' : '',
-                $azienda ? trim((string) ($altro['email'] ?? '')) : '',
+                $azienda ? trim((string) ($row['contact_email'] ?? ($altro['email'] ?? ''))) : trim((string) ($row['work_email'] ?? '')),
+                trim((string) ($row['work_phone_prefix'] ?? '').' '.(string) ($row['work_phone'] ?? '')),
             ]);
 
             $items[] = [
@@ -1155,11 +1155,21 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         $id = (int) ($oldValues['id'] ?? 0);
         $choice = trim((string) ($values['roles'] ?? ''));
 
-        // Gli altri contatti non sono colonne della scheda: si controllano qui
-        // e li scrive `syncRepeaterRelations()` dal POST; come i marcatori,
-        // non arrivano al salvataggio della scheda.
-        static::assertContactPoints($values, $oldValues);
-        unset($values[static::$pointsInput], $values[static::$pointsMarker], $values[self::ADDRESS_BRANDS_MARKER]);
+        // Il riquadro «Contatti» rimette il principale in `email`, `phone_prefix`,
+        // `phone` prima dei controlli (doppioni compresi); le altre righe le
+        // scrive `syncRepeaterRelations()` dal POST. Come i marcatori, non
+        // arrivano al salvataggio della scheda. Senza riquadro (creazione
+        // rapida, finestre dell'ordine, API) i campi singoli passano come prima.
+        $values = static::applyContactPoints($values, $oldValues);
+        $values = static::keepAccessEmail($values, $oldValues);
+        // I contatti di lavoro dei referenti: il repeater qui non arriva più (`stripRelationInputValues()`).
+        static::assertRelationContacts($_POST);
+        unset($values[static::$pointsInput], $values[static::$pointsMarker], $values[static::$boxMarker], $values[self::ADDRESS_BRANDS_MARKER]);
+
+        // Place ID e coordinate della fatturazione arrivano dal browser: ripuliti, e solo se postati.
+        if (array_intersect_key($values, array_flip(['place_id', 'lat', 'lng'])) !== []) {
+            $values = GoogleMaps::cleanGeo($values) + $values;
+        }
 
         // I ruoli non arrivano più come due caselle da spuntare: li decide il
         // campo "Ruolo", e dove quel campo non si stampa restano quelli che
@@ -1239,6 +1249,37 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             && ContactVisibility::visibleIds(static::$model::$table, [$parent]) === []) {
             throw new \InvalidArgumentException((string) __t('contacts.company_parent_missing'));
         }
+
+        return $values;
+    }
+
+    /**
+     * L'email di accesso di una persona con un account sul sito
+     * (`ContactPoints::lockedEmail()`) non si cambia dal gestionale: il
+     * riquadro «Contatti» la ignora già (`applyContactPoints()` toglie
+     * `email`); un campo singolo (finestra dell'ordine, API) che ne porta
+     * un'altra ferma il salvataggio, la stessa passa e non si riscrive. Le
+     * aziende non hanno account.
+     *
+     * @param array<string, mixed> $values
+     * @param array<string, mixed>|null $oldValues la scheda salvata
+     * @return array<string, mixed>
+     */
+    protected static function keepAccessEmail(array $values, ?array $oldValues): array
+    {
+        $locked = ContactPoints::lockedEmail(static::contactPointOwner(), $oldValues ?? []);
+
+        if ($locked === null || !array_key_exists('email', $values)) {
+            return $values;
+        }
+
+        $email = is_scalar($values['email']) ? strtolower(trim((string) $values['email'])) : '';
+
+        if ($email !== $locked) {
+            throw UserError::make('contact.access_email_locked');
+        }
+
+        unset($values['email']);
 
         return $values;
     }
@@ -1410,7 +1451,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
      */
     public static function addressBrandsShown(): bool
     {
-        return static::isCompanySide() && CustomerMode::companies();
+        return static::isCompanySide() && Brands::enabled();
     }
 
     /**
@@ -1429,7 +1470,56 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             unset($post[self::RELATION_MARKER]);
         }
 
-        return static::relationsSyncRepeaterRelations($parentId, $post, $files, $action, $context);
+        return static::relationsSyncRepeaterRelations($parentId, static::withoutHiddenBrands($post), $files, $action, $context);
+    }
+
+    /**
+     * Senza «Brand» il POST perde i brand: i brand seguiti delle righe dei
+     * legami (una riga senza `brand_ids` tiene i suoi). Con «Brand» com'è.
+     *
+     * @param array<string, mixed> $post
+     * @return array<string, mixed>
+     */
+    protected static function withoutHiddenBrands(array $post): array
+    {
+        $input = static::relationInputName();
+
+        if (Brands::enabled() || !is_array($post[$input] ?? null)) {
+            return $post;
+        }
+
+        foreach ($post[$input] as $key => $row) {
+            if (is_array($row)) {
+                unset($post[$input][$key]['brand_ids']);
+            }
+        }
+
+        return $post;
+    }
+
+    /**
+     * I repeater dei legami di customer-account; senza «Brand» la riga del
+     * referente non ha la colonna dei brand seguiti.
+     *
+     * @return list<Input>
+     */
+    public static function contactRelationFields(): array
+    {
+        $fields = static::allContactRelationFields();
+
+        if (Brands::enabled()) {
+            return $fields;
+        }
+
+        foreach ($fields as $field) {
+            $columns = $field->get('context')['columns'] ?? null;
+
+            if (is_array($columns)) {
+                $field->context('columns', array_values(array_filter($columns, static fn ($column): bool => !($column instanceof Input && $column->name === 'brand_ids'))));
+            }
+        }
+
+        return $fields;
     }
 
     /** I brand seguiti da un referente: fra quelli che chi scrive vede (customer-account tiene solo quelli dell'azienda). */
@@ -1452,6 +1542,11 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     ): array {
         if ($inputName === 'addresses') {
             unset($payload['brand_ids']);
+
+            // Place ID e coordinate arrivano dal browser: ripuliti, mai per decidere qualcosa.
+            if (array_intersect_key($payload, array_flip(['place_id', 'lat', 'lng'])) !== []) {
+                $payload = GoogleMaps::cleanGeo($payload) + $payload;
+            }
         }
 
         return parent::prepareRepeaterRelationRow($inputName, $payload, $row, $existingRow, $action, $context);
@@ -1471,19 +1566,27 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             ->repeater([
                 RepeaterColumn::key('id')->hidden(),
                 RepeaterColumn::key('label')->text()->label('Etichetta')->columnSpan(3),
+                // «Presso»: l'attività o la società a quell'indirizzo (customer-account).
+                RepeaterColumn::key('business_name')->text()->label('Presso')->columnSpan(3),
                 RepeaterColumn::key('name')->text()->label('Nome')->columnSpan(3),
                 RepeaterColumn::key('surname')->text()->label('Cognome')->columnSpan(3),
+                // La riga la ricava places.js dal nome della via: il prefisso dichiarato vale per tutte.
+                // Si cerca anche per nome dell'attività, che riempie «Presso» se è vuoto.
+                RepeaterColumn::key('street')->text()->label('Indirizzo o attività')
+                    ->attribute('data-wi-place="addresses[][" data-wi-place-names data-ca-place-name="business_name"')->columnSpan(8),
+                RepeaterColumn::key('number')->text()->label('Civico')->columnSpan(2),
                 RepeaterColumn::key('is_default')
                     ->select(['false' => 'No', 'true' => 'Sì'])
                     ->label('Predefinito')
-                    ->columnSpan(3),
-                // La riga la ricava places.js dal nome della via: il prefisso dichiarato vale per tutte.
-                RepeaterColumn::key('street')->text()->label('Indirizzo')->attribute('data-wi-place="addresses[]["')->columnSpan(10),
-                RepeaterColumn::key('number')->text()->label('Civico')->columnSpan(2),
+                    ->columnSpan(2),
                 RepeaterColumn::key('country')->country('province')->value('IT')->label('Paese')->columnSpan(3),
                 RepeaterColumn::key('province')->states('IT')->label('Provincia')->columnSpan(3),
                 RepeaterColumn::key('city')->text()->label('Città')->columnSpan(4),
                 RepeaterColumn::key('cap')->text()->label('CAP')->columnSpan(2),
+                // Place ID e coordinate li scrive Google: nascosti, ripuliti in `prepareRepeaterRelationRow()`.
+                RepeaterColumn::key('place_id')->hidden(),
+                RepeaterColumn::key('lat')->hidden(),
+                RepeaterColumn::key('lng')->hidden(),
                 ...$brands,
             ])
             ->relation(

@@ -7,6 +7,7 @@ require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\Gestionale\Extensions\Extensions;
 use Wonder\Plugin\Gestionale\Extensions\GestionaleExtension;
+use Wonder\Plugin\Gestionale\Support\Documents\DeliveryNotePdf;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentFiles;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdf;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentPdfs;
@@ -187,6 +188,29 @@ check('l\'azienda è la prima riga dell\'indirizzo di spedizione, e manca se non
     $senza = $righe->invoke($pdf, $dati['order']);
 
     return $con[0] === 'Rossi & Figli Srl' && $con[1] === 'Marco' && $senza[0] === 'Marco';
+});
+
+check('il blocco del cliente: «Alla c.a.», poi il brand senza etichetta, poi la ragione sociale', function () use ($dati) {
+    $righe = new ReflectionMethod(DocumentPdf::class, 'billingLines');
+    $ordine = [...$dati['order'], 'referent_name' => 'Anna Bianchi'];
+    $con = $righe->invoke(new QuotePdf(['brand' => 'Hotel &amp; Spa'] + $dati), $ordine);
+    $senzaBrand = $righe->invoke(new QuotePdf($dati), $ordine);
+    $senzaReferente = $righe->invoke(new QuotePdf(['brand' => 'RClass'] + $dati), $dati['order']);
+
+    return array_slice($con, 0, 3) === ['Alla c.a. Anna Bianchi', 'Hotel &amp; Spa', 'Rossi & Figli Srl']
+        && DocumentPdf::text($con[1]) === 'Hotel & Spa'
+        && array_slice($senzaBrand, 0, 2) === ['Alla c.a. Anna Bianchi', 'Rossi & Figli Srl']
+        && array_slice($senzaReferente, 0, 2) === ['RClass', 'Rossi & Figli Srl']
+        && !in_array('Alla c.a. Anna Bianchi', array_slice($con, 3), true);
+});
+
+check('il DDT stampa il brand dell\'ordine da cui nasce, tra il referente e il destinatario', function () use ($dati) {
+    $righe = new ReflectionMethod(DocumentPdf::class, 'billingLines');
+    $nota = ['referent_name' => 'Anna Bianchi', 'billing_business_name' => 'Rossi & Figli Srl', 'billing_country' => 'IT'];
+    $ddt = new DeliveryNotePdf(['society' => $dati['society'], 'note' => $nota, 'order' => ['company_brand_id' => 3], 'brand' => 'RClass', 'items' => [], 'taxes' => [], 'payment' => []]);
+    $pdf = $ddt->render();
+
+    return $righe->invoke($ddt, $nota) === ['Alla c.a. Anna Bianchi', 'RClass', 'Rossi & Figli Srl'] && str_starts_with($pdf, '%PDF');
 });
 
 summary();

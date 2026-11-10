@@ -20,6 +20,7 @@ use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
+use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
@@ -34,12 +35,15 @@ use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
  * che chiede è il brand: il nome commerciale, condiviso tra ragioni sociali.
  *
  * Con il gestionale «solo persone» (`CustomerMode`) l'elenco e le sue pagine
- * spariscono; i fornitori restano, senza brand, capogruppo e referenti.
+ * spariscono; i fornitori restano, senza brand, capogruppo e referenti. I
+ * brand ci sono con «Brand» (`Brands::enabled()`), la capogruppo con «Gruppi
+ * di aziende» (`groupsShown()`): spente, un POST che li porta non li tocca.
  */
 class CompanyResource extends CustomerResource
 {
     use HasCompanyBrands {
         syncRepeaterRelations as brandsSyncRepeaterRelations;
+        mutateRequestValues as groupMutateRequestValues;
         brandFields as allBrandFields;
         groupFields as allGroupFields;
     }
@@ -119,17 +123,40 @@ class CompanyResource extends CustomerResource
         return CompanyBrandResource::class;
     }
 
-    /** Brand e capogruppo sono delle aziende clienti: con le sole persone non si chiedono. */
+    /** La capogruppo, con «Gruppi di aziende» e dove ci sono le aziende. */
+    public static function groupsShown(): bool
+    {
+        return CustomerMode::companies() && Gestionale::feature('company_groups');
+    }
+
+    /** Brand e capogruppo, ognuno con la sua funzionalità. */
     public static function formSchema(): array
     {
-        $extras = CustomerMode::companies() ? [...static::brandFields(), ...static::groupFields()] : [];
-
-        return [...$extras, ...parent::formSchema()];
+        return [
+            ...(Brands::enabled() ? static::brandFields() : []),
+            ...(static::groupsShown() ? static::groupFields() : []),
+            ...parent::formSchema(),
+        ];
     }
 
     public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
     {
-        return static::withBrandValues(parent::mutateFormValues($values, $mode, $context));
+        $values = parent::mutateFormValues($values, $mode, $context);
+
+        return Brands::enabled() ? static::withBrandValues($values) : $values;
+    }
+
+    /**
+     * Senza «Gruppi di aziende» la capogruppo postata non arriva al
+     * salvataggio: resta quella salvata. Accesa la valida `HasCompanyGroup`.
+     */
+    public static function mutateRequestValues(array $values, string $action, string $context = 'backend', ?array $oldValues = null): array
+    {
+        if (!static::groupsShown()) {
+            unset($values[static::$groupInput]);
+        }
+
+        return static::groupMutateRequestValues($values, $action, $context, $oldValues);
     }
 
     /**
@@ -225,13 +252,23 @@ class CompanyResource extends CustomerResource
         string $action = 'store',
         string $context = 'backend'
     ): array {
-        $summary = static::brandsSyncRepeaterRelations($parentId, static::withLinkableBrands($post), $files, $action, $context);
+        $summary = static::brandsSyncRepeaterRelations($parentId, static::withLinkableBrands(static::withoutHiddenBrands($post)), $files, $action, $context);
 
         if (static::addressBrandsShown() && isset($post[self::ADDRESS_BRANDS_MARKER])) {
             $summary['address_brands'] = static::syncAddressBrands((int) $parentId, $post, $files);
         }
 
         return $summary;
+    }
+
+    /** Senza «Brand» anche i brand dell'azienda: senza il marcatore i legami restano come sono. */
+    protected static function withoutHiddenBrands(array $post): array
+    {
+        if (!Brands::enabled()) {
+            unset($post[static::$brandsMarker], $post[static::$brandsInput]);
+        }
+
+        return parent::withoutHiddenBrands($post);
     }
 
     /**
@@ -301,21 +338,27 @@ class CompanyResource extends CustomerResource
         return $out;
     }
 
+    /** La card dei brand, con la capogruppo; solo la capogruppo, senza «Brand». */
     protected static function brandCards(): array
     {
-        if (!CustomerMode::companies()) {
+        $brands = Brands::enabled();
+        $groups = static::groupsShown();
+
+        if (!$brands && !$groups) {
             return [];
         }
 
         return [
             (new Card)->components([
-                SectionTitle::make(__t('gestionale.contacts.brands.title'))
-                    ->tooltip(__t('gestionale.contacts.brands.tooltip'))
+                SectionTitle::make($brands ? __t('gestionale.contacts.brands.title') : __t('gestionale.contacts.groups.title'))
+                    ->tooltip($brands ? __t('gestionale.contacts.brands.tooltip') : __t('gestionale.contacts.groups.tooltip'))
                     ->columnSpan(12),
-                static::getInput(static::$brandsInput)->columnSpan(12),
-                static::getInput(static::$brandsMarker)->columnSpan(12),
+                ...($brands ? [
+                    static::getInput(static::$brandsInput)->columnSpan(12),
+                    static::getInput(static::$brandsMarker)->columnSpan(12),
+                ] : []),
                 // La capogruppo: un livello solo, la valida `HasCompanyGroup`.
-                static::getInput(static::$groupInput)->columnSpan(12),
+                ...($groups ? [static::getInput(static::$groupInput)->columnSpan(12)] : []),
             ])->columns(12)->columnSpan(12),
         ];
     }

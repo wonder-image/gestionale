@@ -24,6 +24,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
+use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentData;
@@ -242,14 +243,22 @@ final class OfficeOrders
         $brandId = $brandId ?? self::defaultBrand($companyId);
         $referent = DocumentReferents::resolve($companyId, $personId > 0 ? $personId : DocumentReferents::defaultFor($companyId, $brandId));
         $person = self::alive(Contact::class, (int) $referent['customer_id']);
+        $referentContact = ['email' => (string) ($person['email'] ?? ''), 'phone' => trim((string) ($person['phone_prefix'] ?? '').' '.(string) ($person['phone'] ?? ''))];
+
+        foreach ((int) $referent['customer_id'] > 0 ? DocumentReferents::people($companyId) : [] as $option) {
+            if ($option['id'] === (int) $referent['customer_id']) {
+                $referentContact = ['email' => $option['email'], 'phone' => $option['phone']];
+            }
+        }
 
         $out = [
             'customer_id' => (int) $referent['customer_id'],
             'company_id' => $companyId,
             'referent_name' => (string) $referent['referent_name'],
             'company_brand_id' => $brandId,
-            'email' => (string) ($company['email'] ?? '') !== '' ? (string) $company['email'] : (string) ($person['email'] ?? ''),
-            'phone' => trim((string) ($company['phone_prefix'] ?? '').' '.(string) ($company['phone'] ?? '')),
+            // L'email dell'azienda; senza, quella del referente per l'azienda (di lavoro, se c'è).
+            'email' => (string) ($company['email'] ?? '') !== '' ? (string) $company['email'] : $referentContact['email'],
+            'phone' => trim((string) ($company['phone_prefix'] ?? '').' '.(string) ($company['phone'] ?? '')) ?: $referentContact['phone'],
             'payment_method_id' => (int) ($company['payment_method_id'] ?? 0),
             'payment_term_id' => (int) ($company['payment_term_id'] ?? 0),
             'price_list_id' => PriceLists::forCompany($companyId),
@@ -872,7 +881,8 @@ final class OfficeOrders
                 array_key_exists('company_brand_id', $data) ? max(0, (int) $data['company_brand_id']) : null,
                 $order
             );
-            $brandId = (int) ($brand['company_brand_id'] ?? $order['company_brand_id'] ?? 0);
+            // Senza «Brand» referente e sedi non seguono il brand, che resta com'è.
+            $brandId = Brands::enabled() ? (int) ($brand['company_brand_id'] ?? $order['company_brand_id'] ?? 0) : 0;
             // La persona vale solo se è un referente dell'azienda; senza, il
             // principale fra chi segue il brand (o fra tutti).
             $personId = array_key_exists('customer_id', $data) ? $customerId : DocumentReferents::defaultFor($companyId, $brandId);
@@ -1128,9 +1138,9 @@ final class OfficeOrders
         }
     }
 
-    /** Il brand proposto per un documento dell'azienda: il suo predefinito, altrimenti il primo, o nessuno. */
+    /** Il brand proposto per un documento dell'azienda: il suo predefinito, altrimenti il primo, o nessuno; senza «Brand» nessuno. */
     public static function defaultBrand(int $companyId): int
     {
-        return CompanyBrands::defaultOf($companyId);
+        return Brands::enabled() ? CompanyBrands::defaultOf($companyId) : 0;
     }
 }

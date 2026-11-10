@@ -7,7 +7,9 @@ require __DIR__ . '/harness.php';
 
 use Wonder\Plugin\CustomerAccount\Support\CompanyEvents;
 use Wonder\Plugin\CustomerAccount\Support\ContactEvents;
+use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
+use Wonder\Plugin\Gestionale\Support\Documents\DocumentData;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderForm;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrders;
@@ -51,6 +53,12 @@ final class BrandFinti
 }
 
 DocumentBrands::useBrands(BrandFinti::class);
+
+// «Brand» accesa; i controlli a funzionalità spenta la spengono e la riaccendono.
+$forza = static function (bool $brand): void {
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, ['private_customers' => true, 'companies' => true, 'brands' => $brand]);
+};
+$forza(true);
 
 $rifiuto = static function (callable $fn): string {
     try {
@@ -120,6 +128,32 @@ check('cliente privato o nessun cliente: brand a zero e nome vuoto, il nome post
 
     return $valori['company_brand_id'] === 0 && $valori['company_brand_name'] === ''
         && $valori['referent_name'] === '';
+});
+
+check('senza «Brand» il brand postato si ignora: il salvato resta, il nuovo nasce senza', function () use ($forza, $salvato) {
+    $forza(false);
+
+    try {
+        return DocumentBrands::resolve(10, null, $salvato) === []
+            && DocumentBrands::resolve(10, 3, $salvato) === []
+            && DocumentBrands::resolve(10, 99, $salvato) === []
+            && DocumentBrands::resolve(10, null, ['company_brand_name' => ''] + $salvato) === []
+            && DocumentBrands::resolve(10, null) === ['company_brand_id' => 0, 'company_brand_name' => '']
+            && DocumentBrands::resolve(10, 3) === ['company_brand_id' => 0, 'company_brand_name' => '']
+            && DocumentBrands::resolve(11, null, $salvato) === ['company_brand_id' => 0, 'company_brand_name' => ''];
+    } finally {
+        $forza(true);
+    }
+});
+
+check('il brand da stampare: quello del documento con «Brand», niente senza', function () use ($forza) {
+    $ordine = ['company_id' => 10, 'company_brand_id' => 3, 'company_brand_name' => 'RClass 2019'];
+    $acceso = DocumentData::brand($ordine);
+    $forza(false);
+    $spento = [DocumentData::brand($ordine), OfficeOrders::defaultBrand(10)];
+    $forza(true);
+
+    return $acceso === 'RClass 2019' && $spento === ['', 0] && DocumentData::brand([]) === '';
 });
 
 check('il form posta il brand, mai il suo nome', fn () =>

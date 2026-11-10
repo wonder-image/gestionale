@@ -20,6 +20,7 @@ use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
  * @phpstan-type Data array{
  *     society: array<string, string>,
  *     order: array<string, mixed>,
+ *     brand?: string,
  *     items: list<array<string, mixed>>,
  *     taxes: list<array<string, mixed>>,
  *     payment: array{method?: string, term?: string, installments?: list<array{due_date: string, amount: float}>, iban?: string, holder?: string, bank?: string},
@@ -460,13 +461,23 @@ abstract class DocumentPdf
         $this->pdf->SetDrawColor(0, 0, 0);
     }
 
-    /** @return list<string> */
+    /**
+     * Il blocco del cliente: chi lo riceve («Alla c.a.», il referente del
+     * documento, #145), il brand (`brand` dei dati, senza etichetta: è il
+     * nome con cui il cliente si presenta), poi la ragione sociale o il nome,
+     * l'indirizzo e i dati fiscali. Una riga vuota non c'è. È testo: lo
+     * scrive `text()`, come le altre righe.
+     *
+     * @return list<string>
+     */
     protected function billingLines(array $order): array
     {
         $g = static fn (string $k): string => trim(html_entity_decode((string) ($order['billing_'.$k] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         $name = $g('business_name') !== '' ? $g('business_name') : trim($g('name').' '.$g('surname'));
 
         return array_values(array_filter([
+            trim((string) ($order['referent_name'] ?? '')) !== '' ? 'Alla c.a. '.trim((string) $order['referent_name']) : '',
+            trim((string) ($this->data['brand'] ?? '')),
             $name,
             trim($g('street').' '.$g('number')),
             trim($g('cap').' '.$g('city').($g('province') !== '' ? ' ('.$g('province').')' : '').' '.($g('country') !== 'IT' ? $g('country') : '')),
@@ -474,8 +485,6 @@ abstract class DocumentPdf
             $g('cf') !== '' && $g('cf') !== $g('pi') ? 'C.F. '.$g('cf') : '',
             $g('sdi') !== '' ? 'SDI '.$g('sdi') : ($g('pec') !== '' ? 'PEC '.$g('pec') : ''),
             trim((string) ($order['email'] ?? '')),
-            // Il referente scelto sul documento (#145): vuoto, la riga non c'è.
-            trim((string) ($order['referent_name'] ?? '')) !== '' ? 'Alla c.a. '.trim((string) $order['referent_name']) : '',
         ], static fn (string $line): bool => trim($line) !== ''));
     }
 

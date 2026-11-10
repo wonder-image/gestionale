@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
+require __DIR__ . '/supporto/SenzaDns.php';
 
 use Wonder\App\Visibility\RowVisibility;
 use Wonder\Plugin\CustomerAccount\Models\CompanyBrand;
@@ -50,7 +51,7 @@ if (!function_exists('__t')) {
 }
 
 $forza = static function (array $stato): void {
-    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato + ['sales_agents' => true, 'private_customers' => true, 'companies' => true]);
+    (new ReflectionProperty(Gestionale::class, 'features'))->setValue(null, $stato + ['sales_agents' => true, 'private_customers' => true, 'companies' => true, 'brands' => true]);
 };
 $forza([]);
 (new ReflectionProperty(SalesAgents::class, 'ids'))->setValue(null, [10 => 5]);
@@ -150,15 +151,63 @@ check('il brand principale: il commerciale non ne sceglie uno che non vede', fun
     return false;
 });
 
-check('pagine del brand: senza aziende nessuna, il commerciale crea solo dalla «+»', function () use ($commerciale, $forza) {
+check('pagine del brand: senza aziende o senza «Brand» nessuna, il commerciale crea solo dalla «+»', function () use ($commerciale, $ufficio, $forza) {
     $pagine = static fn (): array => (array) CompanyBrandResource::pageSchema()->get('pages');
     $suo = RowVisibility::as($commerciale, $pagine);
+    $ufficioPagine = RowVisibility::as($ufficio, $pagine);
     $forza(['companies' => false]);
     $soloPersone = $pagine();
+    $forza(['brands' => false]);
+    $senzaBrand = $pagine();
     $forza([]);
 
     return ($suo['create'] ?? true) === false && ($suo['store'] ?? true) === false && ($suo['edit'] ?? false) === true
-        && array_filter($soloPersone) === [];
+        && ($suo['list'] ?? false) === true && ($ufficioPagine['create'] ?? false) === true
+        && array_filter($soloPersone) === [] && array_filter($senzaBrand) === [];
+});
+
+check('voce «Brand» in Anagrafiche con i permessi dei contatti, solo con «Brand»', function () use ($forza) {
+    $voce = CompanyBrandResource::navigationSchema();
+    $forza(['brands' => false]);
+    $spenta = CompanyBrandResource::navigationSchema();
+    $forza([]);
+
+    return $voce->get('enabled') === true && $voce->get('section_key') === 'anagrafiche' && $voce->get('title') === 'Brand'
+        && in_array('sales_agent', (array) $voce->get('authority'), true) && in_array('sales', (array) $voce->get('authority'), true)
+        && $spenta->get('enabled') === false;
+});
+
+check('senza «Brand» la «+» del brand rifiuta, prima di toccare il database', function () use ($forza) {
+    $forza(['brands' => false]);
+    $esito = CompanyBrandResource::quickCreateStore(['name' => 'Rossi', 'link_company_id' => '7'], 'name');
+    $forza([]);
+
+    return isset($esito['error']) && !isset($esito['id']);
+});
+
+check('senza «Brand» i brand postati di un\'azienda e i brand seguiti dei referenti non si scrivono', function () use ($forza) {
+    $colonne = static function (): array {
+        $nomi = [];
+
+        foreach (CompanyResource::contactRelationFields() as $campo) {
+            foreach ((array) ($campo->get('context')['columns'] ?? []) as $colonna) {
+                $nomi[] = $colonna->name;
+            }
+        }
+
+        return $nomi;
+    };
+    $togli = new ReflectionMethod(CompanyResource::class, 'withoutHiddenBrands');
+    $post = ['company_brands_form' => '1', 'brands' => [['brand_id' => '4']], 'contact_people' => [['person_id' => '3', 'brand_ids' => ['4'], 'job_title' => 'Acquisti']]];
+    $forza(['brands' => false]);
+    $senza = [$colonne(), $togli->invoke(null, $post)];
+    $forza([]);
+    $con = [$colonne(), $togli->invoke(null, $post)];
+    $persona = (new ReflectionMethod(CustomerResource::class, 'withoutHiddenBrands'))->invoke(null, ['contact_companies' => [['company_id' => '7', 'job_title' => 'x']]]);
+
+    return !in_array('brand_ids', $senza[0], true) && in_array('person_id', $senza[0], true) && in_array('brand_ids', $con[0], true)
+        && $senza[1] === ['contact_people' => [['person_id' => '3', 'job_title' => 'Acquisti']]]
+        && $con[1] === $post && $persona === ['contact_companies' => [['company_id' => '7', 'job_title' => 'x']]];
 });
 
 check('senza aziende le sedi d\'azienda non si toccano', function () use ($forza) {
@@ -222,6 +271,35 @@ check('il doppione che non si vede non si nomina; il referente nuovo si lega con
         && !str_contains($codice, 'allRowsOf')
         && str_contains($scheda, "UserError::make('contact.duplicate_hidden')")
         && !str_contains(UserError::make('contact.duplicate_hidden')->getMessage(), '{{');
+});
+
+/** Le persone con un doppione: `anna@rossi.it` è già della scheda 8. */
+class PersoneConDoppione extends \Wonder\Plugin\CustomerAccount\Models\Contact
+{
+    public static function find(string|array|null $condition = null, string|int|null $limit = null, ?string $order = null, ?string $orderDirection = null, string|array $columns = '*'): mixed
+    {
+        return is_array($condition) && ($condition['email'] ?? '') === 'anna@rossi.it' ? [['id' => 8, 'name' => 'Anna', 'surname' => 'Rossi']] : [];
+    }
+}
+
+final class PersoneDiProva extends CustomerResource
+{
+    public static string $model = PersoneConDoppione::class;
+}
+
+check('il doppione dell\'email principale vale anche dal riquadro: nominato a chi lo vede, generico per gli altri', function () use ($commerciale, $ufficio) {
+    $valori = ['name' => 'Anna', 'contact_box_form' => '1', 'contact_points' => [['kind' => 'email', 'email' => 'Anna@Rossi.it', 'is_primary' => 'true']]];
+    $chiave = static function (object $utente) use ($valori): string {
+        try {
+            RowVisibility::as($utente, static fn (): array => PersoneDiProva::mutateRequestValues($valori, 'store'));
+        } catch (UserError $errore) {
+            return $errore->key();
+        }
+
+        return '';
+    };
+
+    return $chiave($ufficio) === 'contact.email_taken' && $chiave($commerciale) === 'contact.duplicate_hidden';
 });
 
 check('i ganci si registrano al boot accanto ai commerciali', function () {
