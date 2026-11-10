@@ -4,8 +4,8 @@
         "relations": {
             "title_people": "Referenti",
             "title_companies": "Aziende",
-            "tooltip_people": "Le persone che lavorano per questa azienda, con il loro reparto (es. Amministrazione): servirà per mandare a ognuno le email che lo riguardano. Un referente che riceve i documenti li ha in copia quando li mandi.",
-            "tooltip_companies": "Le aziende per cui lavora questa persona, con il suo ruolo e reparto. Se riceve i documenti li ha in copia quando li mandi.",
+            "tooltip_people": "Le persone che lavorano per questa azienda e di cosa si occupano (es. Acquisti, Amministrazione; vuoto = di tutto). Un referente che riceve i documenti li ha in copia quando riguardano la sua area.",
+            "tooltip_companies": "Le aziende per cui lavora questa persona, con la sua mansione e di cosa si occupa. Se riceve i documenti li ha in copia quando riguardano la sua area.",
             "filter": "Ruolo",
             "filter_all": "Tutti",
             "filter_customers": "Clienti",

@@ -88,6 +88,41 @@ final class CustomerSheet
     }
 
     /**
+     * Gli altri contatti della scheda (email e telefoni in più di
+     * customer-account), un recapito per riga con la sua etichetta. Vuota
+     * senza recapiti: la scheda non mostra una voce vuota. Tutto escapato.
+     *
+     * @param list<array{kind?: string, value?: string, phone_prefix?: string, label?: string}> $points
+     * @param array<string, string> $labels etichetta => testo (`ContactPoints::labels()`)
+     * @return list<DataItem>
+     */
+    public static function points(array $points, array $labels = []): array
+    {
+        $lines = [];
+
+        foreach ($points as $point) {
+            $value = trim((string) ($point['value'] ?? ''));
+
+            if ($value === '') {
+                continue;
+            }
+
+            if (($point['kind'] ?? '') === 'phone') {
+                $value = trim((string) ($point['phone_prefix'] ?? '').' '.$value);
+            }
+
+            $label = $labels[(string) ($point['label'] ?? '')] ?? '';
+            $lines[] = OrderSheet::esc($value).($label !== '' ? ' <span class="text-muted">· '.OrderSheet::esc($label).'</span>' : '');
+        }
+
+        if ($lines === []) {
+            return [];
+        }
+
+        return [DataItem::make('Altri contatti', implode('<br>', $lines))->html(true)->columnSpan(['default' => 12, 'sm' => 8])];
+    }
+
+    /**
      * Metodo e condizione di pagamento predefiniti (G9), per «Tutti i suoi
      * dati». La condizione è `null` quando non si sceglie (una sola attiva).
      *

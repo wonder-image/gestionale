@@ -6,6 +6,38 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Aggiunto
+- **Novità di customer-account nel gestionale** (aree dei referenti, altri
+  contatti, dati del brand, indirizzi per brand):
+  - **Documenti per area.** `DocumentReferents::recipients()` sceglie chi
+    riceve in copia un documento con `ContactRelations::peopleFor()`: chi
+    riceve i documenti e «si occupa di» l'area del documento (o di tutto) e
+    segue il suo brand (o tutti), il principale per primo. La mappa
+    documento → area è una sola (`DocumentReferents::AREAS`, estendibile con
+    `useArea()`): preventivo, conferma e DDT → *Acquisti*; proforma, solleciti
+    e pagamenti non riusciti degli abbonamenti → *Amministrazione*. Se nessuno
+    corrisponde vale la regola di prima (tutti quelli che ricevono i
+    documenti). Le copie vanno solo alle email principali. Il ruolo nelle
+    tendine e sui documenti, senza mansione, sono le aree (`departments`).
+  - **Sedi per brand.** Ordine e preventivo propongono prima le sedi del
+    brand del documento, poi quelle per tutti
+    (`OfficeOrders::companyAddresses()` / `forBrand()` su
+    `CompanyAddresses::addressesFor()`); cambiando brand la lista si aggiorna
+    senza cambiare una sede già spuntata o salvata dall'operatore. Il
+    repeater degli indirizzi di un'azienda ha la colonna **Brand** (vuoto =
+    tutti), scritta con `CompanyAddresses::setBrands()` dopo i brand
+    dell'azienda. Anche `customer_get` dell'MCP (`brand_id`).
+  - **Altri contatti** nel form e nella scheda in lettura di persone, aziende
+    e fornitori, anche in quella del referente (`HasContactPoints`):
+    controllati in `mutateRequestValues()`, mai al salvataggio della scheda,
+    mai email di accesso né destinatari di documenti.
+  - **Dati del brand**: la Resource del brand eredita logo, sito, dominio e
+    descrizione; funzionalità **Brand kit** (`brand_kit`, Anagrafiche, spenta,
+    richiede *Aziende*) per il kit. Logo del brand nell'ordine da ufficio e
+    nella scheda dell'ordine (`DocumentBrands::logoOf()`, URL solo http(s) o
+    del sito, escapato).
+  - **MCP** `customer_get`: `departments` dei legami, `contact_points`,
+    `brands` con i dati del brand (il kit solo con la funzionalità) e
+    `brand_ids` delle sedi.
 - **Con chi lavora il gestionale.** Due funzionalità nuove, area
   *Anagrafiche*, accese di serie: **Clienti privati** (`private_customers`) e
   **Aziende** (`companies`). Insieme danno il modo, letto solo da
@@ -64,6 +96,9 @@ versionamento semantico.
   con `ContactRelations`.
 
 ### Cambiato
+- **Referenti: «Reparto» diventa «Si occupa di»** (più aree, vuoto = tutto,
+  da customer-account): `DocumentReferents` non legge più `department` ma
+  `departments`; le righe di `people()` / `options()` portano `departments`.
 - **Anagrafiche: «Cliente» è un ruolo.** L'elenco delle persone si chiama
   **Persone** (con persone e aziende) con il filtro **Ruolo** a vista (*Tutti*,
   *Clienti*, *Referenti*, al posto di «Referenti: solo / senza»), **Clienti**

@@ -165,6 +165,18 @@ del brand com'era: se poi il brand cambia nome, si stacca dall'azienda o si
 archivia, il preventivo non cambia. Unendo due brand doppioni, i documenti
 passano al brand che resta.
 
+La scheda del brand ha **logo**, **sito**, **dominio** (ricavato dal sito) e
+**descrizione**. Con la funzionalità **Brand kit** (area *Anagrafiche*, serve
+*Aziende*) ci sono anche email e telefono del brand, social, colori, tono,
+settore, lingua e il link ai materiali; spenta, quei campi non si vedono e
+restano salvati. Il logo compare accanto al brand nell'ordine da ufficio e
+nella scheda dell'ordine.
+
+Ogni **indirizzo di consegna** di un'azienda ha il campo **Brand**: se scegli
+uno o più brand l'indirizzo vale solo per loro, vuoto vale per tutti. Nei
+preventivi e negli ordini da ufficio si propongono prima le sedi del brand del
+documento, poi quelle per tutti; le sedi degli altri brand non compaiono.
+
 ## Referenti e aziende
 
 Un'azienda ha spesso più persone con cui parli: chi ordina, chi paga, chi
@@ -181,15 +193,37 @@ o la stessa **partita IVA** si seleziona quella che c'è, senza doppioni. Il
 referente nuovo non è né cliente né fornitore; l'azienda nuova è cliente.
 Funziona anche quando crei un cliente o un'azienda nuovi. Poi:
 
-- **Reparto** — *Amministrazione*, *Acquisti*, *Commerciale*, *Tecnico*,
-  *Direzione* o *Altro*: dice a chi mandare le email che riguardano quel
-  reparto (per esempio le fatture all'amministrazione, anche con la newsletter);
+- **Si occupa di** — una o più aree fra *Amministrazione*, *Acquisti*,
+  *Commerciale*, *Tecnico*, *Direzione* e *Altro*; vuoto vuol dire che si
+  occupa di tutto. Dice a chi mandare i documenti (vedi sotto);
+- **Brand seguiti** — i brand dell'azienda di cui si occupa; vuoto = tutti;
 - **Mansione** — il ruolo scritto a mano, per esempio *Responsabile acquisti*;
-  se manca, sui documenti compare il reparto;
+  se manca, sui documenti e nelle tendine compaiono le aree di cui si occupa;
 - **Referente principale** — è il referente proposto quando fai un preventivo,
   un ordine da ufficio o un DDT per quell'azienda;
 - **Riceve i documenti** — chi ha questa risposta riceve in copia le email dei
   documenti. Sui documenti si può scegliere qualsiasi referente.
+
+### A chi vanno in copia i documenti
+
+Ogni documento ha la sua area: **preventivo, conferma dell'ordine e DDT** vanno
+a chi si occupa degli **Acquisti**; **proforma, solleciti e pagamenti non
+riusciti degli abbonamenti** a chi si occupa dell'**Amministrazione**. In copia
+va chi **riceve i documenti** e si occupa di quell'area (o di tutto) e segue il
+brand del documento (o tutti), il principale per primo. Se nessuno corrisponde,
+vale la regola di sempre: tutti quelli che ricevono i documenti. Così
+un'azienda per cui non compili le aree non vede cambiare niente.
+
+Le copie vanno all'**email principale** di ogni referente: gli *Altri contatti*
+non ricevono mai documenti e non servono per accedere al sito.
+
+### Altri contatti
+
+Persone e aziende hanno, sotto email e telefono, il riquadro **Altri
+contatti**: email e telefoni in più, ognuno con un'etichetta (*Lavoro*,
+*Personale*, *Fatturazione*, *Altro*). Un'email scritta male o ripetuta (anche
+uguale a quella principale) ferma il salvataggio. Si leggono nella scheda, in
+*Tutti i suoi dati*, anche in quella di un referente.
 
 Nell'elenco delle persone il filtro **Ruolo → Referenti** mostra solo queste
 persone (*Clienti* solo chi compra per sé), e la colonna **Referenti /

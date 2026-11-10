@@ -7,7 +7,9 @@ use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\CustomerAccount\Resources\Concerns\HasCompanyBrands;
+use Wonder\App\Support\Repeater;
 use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
+use Wonder\Plugin\CustomerAccount\Support\CompanyAddresses;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
@@ -29,7 +31,9 @@ use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
  */
 class CompanyResource extends CustomerResource
 {
-    use HasCompanyBrands;
+    use HasCompanyBrands {
+        syncRepeaterRelations as brandsSyncRepeaterRelations;
+    }
 
     public static string $model = Company::class;
 
@@ -117,6 +121,81 @@ class CompanyResource extends CustomerResource
     public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
     {
         return static::withBrandValues(parent::mutateFormValues($values, $mode, $context));
+    }
+
+    /** Gli indirizzi di consegna del form con i brand per cui valgono (`brand_ids`, vuoto = tutti). */
+    public static function hydrateRepeaterFormValues(
+        array $values,
+        int|string|null $parentId = null,
+        ?array $post = null,
+        ?array $files = null
+    ): array {
+        $values = parent::hydrateRepeaterFormValues($values, $parentId, $post, $files);
+
+        if (static::addressBrandsShown() && is_array($values['addresses'] ?? null)) {
+            $values['addresses'] = CompanyAddresses::withBrandIds(array_values($values['addresses']));
+        }
+
+        return $values;
+    }
+
+    /**
+     * Prima i legami (indirizzi, referenti, contatti, poi i brand
+     * dell'azienda), poi i brand degli indirizzi: `setBrands()` tiene solo i
+     * brand legati all'azienda, e su una scheda nuova lo sono appena dopo.
+     */
+    public static function syncRepeaterRelations(
+        int|string $parentId,
+        array $post,
+        array $files = [],
+        string $action = 'store',
+        string $context = 'backend'
+    ): array {
+        $summary = static::brandsSyncRepeaterRelations($parentId, $post, $files, $action, $context);
+
+        if (static::addressBrandsShown() && isset($post[self::ADDRESS_BRANDS_MARKER])) {
+            $summary['address_brands'] = static::syncAddressBrands((int) $parentId, $post, $files);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * Scrive i brand di ogni indirizzo postato. Una riga con l'id è
+     * quell'indirizzo, se è dell'azienda; una riga nuova è l'indirizzo
+     * che il sync del core ha messo nella stessa posizione (le righe le
+     * scrive in ordine, con `position` da zero).
+     *
+     * @return array<int, list<int>> indirizzo => brand rimasti
+     */
+    protected static function syncAddressBrands(int $companyId, array $post, array $files = []): array
+    {
+        $field = static::repeaterRelations()['addresses']['field'] ?? null;
+        $rows = Repeater::rowsFromRequest('addresses', $post, $files, $field !== null ? Repeater::columnDefaults($field) : []);
+        $live = [];
+
+        foreach (static::rowsOf(CompanyAddress::class, ['company_id' => $companyId, 'deleted' => 'false'], 'position') as $address) {
+            $live[(int) $address['id']] = (int) ($address['position'] ?? 0);
+        }
+
+        $byPosition = array_flip($live);
+        $out = [];
+
+        foreach (array_values(array_filter($rows, 'is_array')) as $position => $row) {
+            if (!array_key_exists('brand_ids', $row)) {
+                continue;
+            }
+
+            $id = (int) ($row['id'] ?? 0);
+            $id = $id > 0 ? (isset($live[$id]) ? $id : 0) : (int) ($byPosition[$position] ?? 0);
+
+            if ($id > 0) {
+                $brandIds = is_array($row['brand_ids']) ? $row['brand_ids'] : [$row['brand_ids']];
+                $out[$id] = CompanyAddresses::setBrands($id, $brandIds);
+            }
+        }
+
+        return $out;
     }
 
     protected static function brandCards(): array

@@ -23,6 +23,14 @@ return [
         'area' => 'Anagrafiche',
         'default' => true,
     ],
+    // Il brand kit di customer-account (`CompanyBrands::useKit()`): recapiti,
+    // social, colori, tono e materiali del brand, oltre a logo, sito e descrizione.
+    'brand_kit' => [
+        'name' => 'Brand kit',
+        'description' => 'Nella scheda di un brand, oltre a logo, sito e descrizione: email e telefono, social, colori, tono, settore, lingua e il link ai materiali. Spenta, quei campi non si vedono e restano salvati.',
+        'area' => 'Anagrafiche',
+        'requires' => ['companies'],
+    ],
     'orders' => [
         'name' => 'Ordini',
         'description' => 'Gestione degli ordini con stati e scarico del magazzino.',

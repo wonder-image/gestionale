@@ -128,6 +128,10 @@ final class OfficeOrderPage
                         'company_brand_id', 'Brand', 12, (string) ($companyId > 0 ? (int) ($values['company_brand_id'] ?? 0) : 0)
                     )->hiddenWhen('company_id', ['0', ''])
                     : null,
+                // Il logo del brand scelto: lo ridisegna lo script (`logo()`).
+                CustomerMode::companies()
+                    ? RichText::make('<div data-wi-oo-brand-logo>'.DocumentBrands::logoOf($values).'</div>')->tag('div')->columnSpan(12)
+                    : null,
                 // Sotto il cliente, a chi va l'email: il PDF del preventivo o la conferma.
                 FormField::key('notify')->toggle()
                     ->label($quote ? 'Manda l\'email con il PDF' : 'Alla conferma scrivi al cliente')

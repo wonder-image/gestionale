@@ -6,22 +6,89 @@ use Throwable;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 
 /**
- * Il referente di un documento intestato a un'azienda (`company_id`).
+ * Il referente di un documento intestato a un'azienda (`company_id`), e a
+ * chi dell'azienda va in copia.
  *
  * Il referente è la persona del documento (`customer_id`): si sceglie fra
  * tutte le persone legate all'azienda (`people()`), e il principale è
- * proposto di default. Le copie delle mail vanno solo a chi riceve i
- * documenti (`options()`, `receives_documents`). Il nome si copia in `referent_name`, così
- * resta anche se il legame cambia. Con le relazioni spente non c'è niente da
- * scegliere. Con il brand del documento si propone prima chi segue quel brand.
+ * proposto di default. Il nome si copia in `referent_name`, così resta anche
+ * se il legame cambia. Con il brand del documento si propone prima chi segue
+ * quel brand.
+ *
+ * Le copie delle mail (`recipients()`) vanno a chi riceve i documenti e «si
+ * occupa di» l'area del documento (`AREAS`) o di tutto, e segue il brand del
+ * documento o tutti: `ContactRelations::peopleFor()`. Se nessuno corrisponde
+ * vale la regola di prima: tutti quelli che ricevono i documenti. Un'azienda
+ * che non compila le aree non vede cambiare niente. Le email sono solo quelle
+ * principali delle schede: gli «altri contatti» non ricevono mai documenti.
  */
 final class DocumentReferents
 {
-    /** @var null|callable(int, int): list<array<string, mixed>> azienda, brand (0 = tutti) */
+    /**
+     * L'area di ogni documento che parte verso un'azienda: chi compra riceve
+     * preventivo, conferma e DDT; chi paga proforma e solleciti degli
+     * abbonamenti. Un documento che non è qui va a chi riceve i documenti,
+     * qualunque cosa segua. Le chiavi sono quelle delle email (`OrderNotifier`,
+     * `subscription.` + quelle di `SubscriptionNotifier`); un sito ne aggiunge
+     * o ne cambia con `useArea()`.
+     */
+    public const AREAS = [
+        'quote_sent' => 'purchasing',
+        'office_confirmed' => 'purchasing',
+        'delivery_note_sent' => 'purchasing',
+        'subscription.proforma' => 'administration',
+        'subscription.reminder' => 'administration',
+        'subscription.payment_failed' => 'administration',
+    ];
+
+    /** @var array<string, string> le aree cambiate o aggiunte da `useArea()` */
+    private static array $areas = [];
+
+    /** @var null|callable(int, int, string): list<array<string, mixed>> azienda, brand (0 = tutti), area ('' = tutte) */
     private static $reader = null;
 
     /**
-     * @return list<array{id: int, name: string, email: string, job_title: string, department: string, role: string, is_primary: bool}>
+     * Cambia o aggiunge l'area di un documento; vuota = a chi riceve i
+     * documenti, qualunque area segua. Un modulo lo chiama al boot.
+     */
+    public static function useArea(string $document, string $area): void
+    {
+        self::$areas[trim($document)] = trim($area);
+    }
+
+    /** L'area di un documento; vuota se non ne ha una. */
+    public static function area(string $document): string
+    {
+        return self::$areas[$document] ?? self::AREAS[$document] ?? '';
+    }
+
+    /**
+     * Chi dell'azienda riceve un documento: chi riceve i documenti fra chi si
+     * occupa della sua area (o di tutto) e segue il brand (o tutti), il
+     * principale per primo. Nessuno così: tutti quelli che ricevono i
+     * documenti, come prima delle aree.
+     *
+     * @return list<array{id: int, name: string, email: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
+     */
+    public static function recipients(int $companyId, string $document = '', int $brandId = 0): array
+    {
+        $area = self::area($document);
+
+        if ($area !== '' || $brandId > 0) {
+            $matching = self::read($companyId, true, max(0, $brandId), $area);
+
+            if ($matching !== []) {
+                return $matching;
+            }
+        }
+
+        return self::read($companyId, true);
+    }
+
+    /**
+     * Tutti quelli che ricevono i documenti, senza guardare area e brand.
+     *
+     * @return list<array{id: int, name: string, email: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
      */
     public static function options(int $companyId): array
     {
@@ -32,7 +99,7 @@ final class DocumentReferents
      * Tutte le persone legate all'azienda, anche quelle che non ricevono i
      * documenti: fra queste si sceglie il referente.
      *
-     * @return list<array{id: int, name: string, email: string, job_title: string, department: string, role: string, is_primary: bool}>
+     * @return list<array{id: int, name: string, email: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
      */
     public static function people(int $companyId): array
     {
@@ -40,18 +107,19 @@ final class DocumentReferents
     }
 
     /**
-     * Con `$brandId` solo chi segue quel brand o tutti i brand (`ContactRelations::peopleOf()`).
+     * Con `$brandId` solo chi segue quel brand o tutti i brand, con `$area`
+     * solo chi se ne occupa o si occupa di tutto (`ContactRelations::peopleFor()`).
      *
-     * @return list<array{id: int, name: string, email: string, job_title: string, department: string, role: string, is_primary: bool}>
+     * @return list<array{id: int, name: string, email: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
      */
-    private static function read(int $companyId, bool $onlyDocuments, int $brandId = 0): array
+    private static function read(int $companyId, bool $onlyDocuments, int $brandId = 0, string $area = ''): array
     {
         if ($companyId <= 0 || !ContactRelations::enabled()) {
             return [];
         }
 
         try {
-            $rows = self::$reader !== null ? (self::$reader)($companyId, $brandId) : ContactRelations::peopleOf($companyId, $brandId);
+            $rows = self::$reader !== null ? (self::$reader)($companyId, $brandId, $area) : ContactRelations::peopleFor($companyId, $area, $brandId);
         } catch (Throwable $error) {
             error_log('[gestionale] referenti di '.$companyId.' non letti: '.$error->getMessage());
 
@@ -62,11 +130,11 @@ final class DocumentReferents
     }
 
     /**
-     * Dalle righe di `ContactRelations::peopleOf()` alle opzioni: solo legami
+     * Dalle righe di `ContactRelations::peopleFor()` alle opzioni: solo legami
      * vivi, con la persona viva e, con `$onlyDocuments`, che ricevono i documenti.
      *
      * @param list<array<string, mixed>> $rows
-     * @return list<array{id: int, name: string, email: string, job_title: string, department: string, role: string, is_primary: bool}>
+     * @return list<array{id: int, name: string, email: string, job_title: string, departments: list<string>, role: string, is_primary: bool}>
      */
     public static function fromRows(array $rows, bool $onlyDocuments = true): array
     {
@@ -90,14 +158,20 @@ final class DocumentReferents
                 'name' => Contacts::displayName($contact),
                 'email' => strtolower(trim((string) ($contact['email'] ?? ''))),
                 'job_title' => $job = trim((string) ($row['job_title'] ?? '')),
-                'department' => $department = (string) ($row['department'] ?? ''),
-                // Il ruolo, altrimenti il reparto: è quello che si legge nelle tendine.
-                'role' => $job !== '' || $department === '' ? $job : ContactRelations::departmentLabel($department),
+                'departments' => $areas = ContactRelations::cleanDepartments($row['departments'] ?? []),
+                // La mansione, altrimenti le aree di cui si occupa: è quello che si legge nelle tendine.
+                'role' => $job !== '' ? $job : self::areasLabel($areas),
                 'is_primary' => ($row['is_primary'] ?? 'false') === 'true',
             ];
         }
 
         return $out;
+    }
+
+    /** «Acquisti, Amministrazione»: le aree di un referente da leggere; vuota = si occupa di tutto. @param list<string> $areas */
+    public static function areasLabel(array $areas): string
+    {
+        return implode(', ', array_filter(array_map(static fn (string $area): string => ContactRelations::departmentLabel($area), $areas)));
     }
 
     /**
@@ -139,17 +213,18 @@ final class DocumentReferents
 
     /**
      * Gli indirizzi in copia per le mail al cliente di un documento: l'email
-     * dell'azienda e quelle dei referenti che ricevono i documenti, senza
-     * doppioni e senza l'indirizzo che riceve già la mail.
+     * dell'azienda e quelle dei referenti che lo ricevono (`recipients()`,
+     * con l'area di `$document` e il brand del documento), senza doppioni e
+     * senza l'indirizzo che riceve già la mail.
      *
      * @param array<string, mixed> $order
      * @param array<string, mixed>|null $company la scheda dell'azienda, se già letta
      * @return list<string>
      */
-    public static function copyEmails(array $order, ?array $company = null): array
+    public static function copyEmails(array $order, ?array $company = null, string $document = ''): array
     {
         $companyId = (int) ($order['company_id'] ?? 0);
-        $options = self::options($companyId);
+        $options = self::recipients($companyId, $document, (int) ($order['company_brand_id'] ?? 0));
 
         if ($options === []) {
             return [];

@@ -113,7 +113,7 @@ final class OrderNotifier
 
         $company = Company::findById((int) $order['company_id']);
 
-        return DocumentReferents::copyEmails($order, is_array($company) ? $company : null);
+        return DocumentReferents::copyEmails($order, is_array($company) ? $company : null, $key);
     }
 
     /** @return list<array<string, mixed>> */

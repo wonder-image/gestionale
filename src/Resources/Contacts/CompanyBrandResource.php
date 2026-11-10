@@ -4,6 +4,7 @@ namespace Wonder\Plugin\Gestionale\Resources\Contacts;
 
 use Throwable;
 use Wonder\App\ResourceSchema\PermissionSchema;
+use Wonder\Elements\Form\Form;
 use Wonder\Plugin\CustomerAccount\Resources\CompanyBrandResource as BaseCompanyBrandResource;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\Gestionale\Gestionale;
@@ -25,6 +26,51 @@ class CompanyBrandResource extends BaseCompanyBrandResource
     public static function permissionSchema(): PermissionSchema
     {
         return PermissionSchema::for(static::class)->access(Gestionale::area('contatti'));
+    }
+
+    /*
+     * I campi sono quelli di customer-account (nome, brand principale, logo,
+     * sito, dominio, descrizione e, con il kit, il resto): qui si accende
+     * solo il brand kit, con la funzionalità «Brand kit», prima di disegnare
+     * o salvare il form. Non al boot del modulo: lì lo stato delle
+     * funzionalità si leggerebbe prima del database e resterebbe «tutto
+     * spento» per la richiesta.
+     */
+
+    public static function formSchema(): array
+    {
+        static::useKit();
+
+        return parent::formSchema();
+    }
+
+    public static function formLayoutSchema(): ?Form
+    {
+        static::useKit();
+
+        return parent::formLayoutSchema();
+    }
+
+    public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
+    {
+        static::useKit();
+
+        return parent::mutateFormValues($values, $mode, $context);
+    }
+
+    public static function mutateRequestValues(array $values, string $action, string $context = 'backend', ?array $oldValues = null): array
+    {
+        static::useKit();
+
+        return parent::mutateRequestValues($values, $action, $context, $oldValues);
+    }
+
+    /** Accende il kit con la funzionalità; non lo spegne mai, se l'ha acceso il sito. */
+    public static function useKit(): void
+    {
+        if (Gestionale::feature('brand_kit')) {
+            CompanyBrands::useKit();
+        }
     }
 
     /**

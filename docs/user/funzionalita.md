@@ -35,7 +35,8 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Funzionalità | Area | A cosa serve | Serve prima |
 |---|---|---|---|
 | [Clienti privati](anagrafiche.md#con-chi-lavora-il-gestionale) | Anagrafiche | Si vende anche alle persone, senza azienda. Spenta, il gestionale lavora solo con aziende: le persone sono i loro referenti, l'elenco si chiama «Referenti» e un cliente privato non si crea più. Le schede già salvate restano. | — |
-| [Aziende](anagrafiche.md#con-chi-lavora-il-gestionale) | Anagrafiche | Clienti con partita IVA, con brand, referenti, capogruppo e reparti. Spenta, il gestionale lavora solo con persone: aziende e referenti spariscono da menu, schede e ordini, e i dati restano. I fornitori restano con gli Acquisti. | — |
+| [Aziende](anagrafiche.md#con-chi-lavora-il-gestionale) | Anagrafiche | Clienti con partita IVA, con brand, referenti (e le aree di cui si occupano), capogruppo. Spenta, il gestionale lavora solo con persone: aziende e referenti spariscono da menu, schede e ordini, e i dati restano. I fornitori restano con gli Acquisti. | — |
+| [Brand kit](anagrafiche.md#brand) | Anagrafiche | Nella scheda di un brand, oltre a logo, sito e descrizione: email e telefono, social, colori, tono, settore, lingua e il link ai materiali. Spenta, quei campi non si vedono e restano salvati. | Aziende |
 | Ordini | Vendite | Gestione degli ordini con stati e scarico del magazzino. | — |
 | Preventivi | Vendite | Preventivi con PDF e revisioni: accettato, il preventivo diventa un ordine da ufficio. | Ordini, Vendita in ufficio |
 | Resi | Vendite | Richiesta, approvazione, motivo e ricarico a magazzino. | Ordini |

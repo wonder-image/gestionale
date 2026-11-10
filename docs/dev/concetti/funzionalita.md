@@ -139,6 +139,10 @@ Le conseguenze, tutte da `CustomerMode`:
 Niente si cancella: i marcatori dei repeater non arrivano nel POST e i
 legami restano come sono.
 
+«Brand kit» (`brand_kit`, spenta di serie) richiede `companies`: accende il
+kit del brand di customer-account (`CompanyBrands::useKit()`) nel form del
+brand e nei dati che dà l'MCP.
+
 ## Esportazioni
 
 L'area **Esportazioni** decide cosa offre il bottone «File» nella tabella dei

@@ -138,7 +138,7 @@ final class QuickContacts
     /**
      * Lega la persona all'azienda dal lato della persona: i suoi legami di
      * prima tornano tali e quali (mansione, principale, documenti, accesso,
-     * reparto), quello nuovo si aggiunge in fondo.
+     * aree, brand seguiti), quello nuovo si aggiunge in fondo.
      */
     private static function link(int $personId, int $companyId): void
     {

@@ -39,7 +39,8 @@ final class SubscriptionNotifier
         // Con l'azienda scrive a lei (o al referente se non ha email), gli altri in copia come per gli ordini.
         $address = $company !== null && trim((string) ($company['email'] ?? '')) !== '' ? (string) $company['email'] : $personEmail;
         $to = Recipients::parse($address)['valid'];
-        $copies = $companyId > 0 ? DocumentReferents::copyEmails(['email' => implode(',', $to)] + $subscription, $company) : [];
+        // Il brand non è dell'abbonamento: contano solo le aree (`subscription.` + la chiave).
+        $copies = $companyId > 0 ? DocumentReferents::copyEmails(['email' => implode(',', $to), 'company_brand_id' => 0] + $subscription, $company, 'subscription.'.$key) : [];
 
         if ($to === []) {
             return ['status' => 'no_recipients'] + $empty;

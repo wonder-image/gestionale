@@ -875,8 +875,8 @@ final class OrderResource extends GestionaleResource
             $dato('Pagamento', static::paymentBadge((string) ($order['payment_status'] ?? ''), OnlinePayments::inTest((int) ($order['id'] ?? 0))), true),
             $dato(static::fulfillmentLabel($consegna), StatusLabels::fulfillmentBadge($consegna, (string) ($order['fulfillment_status'] ?? '')), true),
             $dato('Cliente', static::customerLink($order), true),
-            // Il brand com'era sul documento, non quello di oggi.
-            ...(($brand = DocumentBrands::nameOf($order)) === '' ? [] : [$dato('Brand', $brand)]),
+            // Il brand com'era sul documento; il logo, se c'è, è quello di oggi.
+            ...(($brand = DocumentBrands::nameOf($order)) === '' ? [] : [$dato('Brand', trim(DocumentBrands::logoOf($order).' '.static::escape($brand)), true)]),
             $dato('Email', (string) ($order['email'] ?? '')),
             $dato('Telefono', (string) ($order['phone'] ?? '')),
             $dato('Fatturazione', OrderSheet::address($order, 'billing'), true),

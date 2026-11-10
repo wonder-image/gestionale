@@ -35,7 +35,9 @@ use Wonder\Plugin\Gestionale\Resources\Sales\CustomerOrderTableResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderItemTableResource;
 use Wonder\Plugin\CustomerAccount\Resources\Concerns\HasContactRelations;
 use Wonder\Plugin\CustomerAccount\Models\ContactRelation;
+use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\CustomerAccount\Support\ContactExport;
+use Wonder\Plugin\CustomerAccount\Support\ContactPoints;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
@@ -75,6 +77,9 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     public static string $orderColumn = 'id';
     public static string $orderDirection = 'DESC';
     public static string $docsPage = 'anagrafiche/anagrafiche';
+
+    /** Il campo che dice al salvataggio che il form ha mostrato i brand degli indirizzi. */
+    public const ADDRESS_BRANDS_MARKER = 'address_brands_form';
 
     /** La colonna del ruolo che questo elenco mostra. */
     public static function roleColumn(): string
@@ -212,6 +217,9 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 ->required(),
             FormField::key('note')->textarea()->label('Note'),
             static::addressesField(),
+            // «Altri contatti»: email e telefoni in più (customer-account), mai di accesso né destinatari di documenti.
+            ...static::contactPointFields(),
+            ...(static::addressBrandsShown() ? [FormField::key(self::ADDRESS_BRANDS_MARKER)->hidden()->value('1')] : []),
         ];
 
         // Il ruolo si sceglie solo dove c'è una scelta: le persone sono solo
@@ -407,6 +415,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 static::getInput('email')->columnSpan(6),
                 static::getInput('phone_prefix')->columnSpan(2),
                 static::getInput('phone')->columnSpan(4),
+                static::getInput(static::$pointsInput)->columnSpan(12),
+                static::getInput(static::$pointsMarker)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
             (new Card)->components([
                 SectionTitle::make('Dati di fatturazione')
@@ -434,6 +444,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                     ->tooltip('Dove si consegna, quando non è l\'indirizzo di fatturazione. Il destinatario è chi il corriere deve cercare.')
                     ->columnSpan(12),
                 static::getInput('addresses')->columnSpan(12),
+                ...(static::addressBrandsShown() ? [static::getInput(self::ADDRESS_BRANDS_MARKER)->columnSpan(12)] : []),
             ])->columns(12)->columnSpan(12),
             ...static::relationCards(),
             (new Card)->components([
@@ -820,6 +831,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         $sinistra[] = (new Card)->components([
             SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
             ...CustomerSheet::data($contact, static::hasAccount() ? static::authMethod(static::withAccount($contact)) : '—'),
+            ...static::pointItems($id),
             ...(static::paymentDefaultsShown()
                 ? CustomerSheet::payment(
                     static::officeMethods()[(int) ($contact['payment_method_id'] ?? 0)] ?? '',
@@ -884,10 +896,30 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 (new Card)->components([
                     SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
                     ...CustomerSheet::data($contact, static::authMethod(static::withAccount($contact)), 'Referente'),
+                    ...static::pointItems($id),
                 ])->columns(12)->columnSpan(12),
             ]),
             (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components($destra),
         ])->columns(12);
+    }
+
+    /**
+     * Gli altri contatti della scheda in lettura; vuota se non ce ne sono o
+     * se non si leggono.
+     *
+     * @return list<\Wonder\Elements\Components\DataItem>
+     */
+    public static function pointItems(int $id): array
+    {
+        if ($id <= 0) {
+            return [];
+        }
+
+        try {
+            return CustomerSheet::points(ContactPoints::of(static::contactPointOwner(), $id), ContactPoints::labels());
+        } catch (Throwable) {
+            return [];
+        }
     }
 
     /**
@@ -1119,6 +1151,12 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         $id = (int) ($oldValues['id'] ?? 0);
         $choice = trim((string) ($values['roles'] ?? ''));
 
+        // Gli altri contatti non sono colonne della scheda: si controllano qui
+        // e li scrive `syncRepeaterRelations()` dal POST; come i marcatori,
+        // non arrivano al salvataggio della scheda.
+        static::assertContactPoints($values, $oldValues);
+        unset($values[static::$pointsInput], $values[static::$pointsMarker], $values[self::ADDRESS_BRANDS_MARKER]);
+
         // I ruoli non arrivano più come due caselle da spuntare: li decide il
         // campo "Ruolo", e dove quel campo non si stampa restano quelli che
         // sono. Senza questo `unset` il framework riscriverebbe le due colonne
@@ -1346,9 +1384,43 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         return is_array($row) ? (string) ($row[$column] ?? 'false') : 'false';
     }
 
+    /**
+     * I brand per cui vale un indirizzo di consegna: solo per le aziende, dove
+     * ci sono. Non è una colonna di `company_addresses`: la legge
+     * `CompanyResource::hydrateRepeaterFormValues()` e la scrive
+     * `CompanyResource::syncRepeaterRelations()`, dopo i brand dell'azienda.
+     */
+    public static function addressBrandsShown(): bool
+    {
+        return static::isCompanySide() && CustomerMode::companies();
+    }
+
+    /** I brand non vanno al salvataggio della riga dell'indirizzo: non sono una colonna. */
+    public static function prepareRepeaterRelationRow(
+        string $inputName,
+        array $payload,
+        array $row,
+        ?array $existingRow = null,
+        string $action = 'store',
+        string $context = 'backend'
+    ): array {
+        if ($inputName === 'addresses') {
+            unset($payload['brand_ids']);
+        }
+
+        return parent::prepareRepeaterRelationRow($inputName, $payload, $row, $existingRow, $action, $context);
+    }
+
     /** Gli indirizzi di consegna, dentro la scheda. */
     protected static function addressesField(): Input
     {
+        // Le scelte sono tutti i brand, come in customer-account: il form non
+        // sa quale azienda mostra e `CompanyAddresses::setBrands()` tiene solo
+        // quelli legati all'azienda.
+        $brands = static::addressBrandsShown()
+            ? [RepeaterColumn::key('brand_ids')->selectSearch(CompanyBrands::options(), true)->label('Brand (vuoto = tutti)')->columnSpan(12)]
+            : [];
+
         return FormField::key('addresses')
             ->repeater([
                 RepeaterColumn::key('id')->hidden(),
@@ -1366,6 +1438,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 RepeaterColumn::key('province')->states('IT')->label('Provincia')->columnSpan(3),
                 RepeaterColumn::key('city')->text()->label('Città')->columnSpan(4),
                 RepeaterColumn::key('cap')->text()->label('CAP')->columnSpan(2),
+                ...$brands,
             ])
             ->relation(
                 RepeaterRelation::make(static::addressModel()::$table, static::addressColumn())

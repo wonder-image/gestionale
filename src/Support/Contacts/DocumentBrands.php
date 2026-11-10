@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Contacts;
 
+use Wonder\Plugin\CustomerAccount\Models\CompanyBrand;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\CustomerAccount\Support\CompanyEvents;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
@@ -85,6 +86,62 @@ final class DocumentBrands
         $name = trim((string) ($order['company_brand_name'] ?? ''));
 
         return $name !== '' ? $name : self::name($brandId);
+    }
+
+    /**
+     * L'URL del logo di un brand, solo se è http(s) o un percorso del sito:
+     * vuoto altrimenti. Chi lo stampa lo escapa comunque.
+     *
+     * @param array<string, mixed> $brand la riga del brand
+     */
+    public static function logoUrl(array $brand): string
+    {
+        try {
+            $url = trim(CompanyBrand::logoUrl($brand));
+        } catch (\Throwable) {
+            return '';
+        }
+
+        return self::safeUrl($url);
+    }
+
+    /** Un URL buono per `src`: http(s) o un percorso del sito (`/…`, non `//…`); vuoto altrimenti. Pura. */
+    public static function safeUrl(string $url): string
+    {
+        return preg_match('#^(https?://|/(?!/))#i', $url) === 1 ? $url : '';
+    }
+
+    /**
+     * Il logo del brand di un documento, in HTML escapato; vuoto se il
+     * documento non ha brand o il brand non ha logo. Il brand è quello di
+     * oggi: il logo non si copia sul documento.
+     *
+     * @param array<string, mixed> $order
+     */
+    public static function logoOf(array $order): string
+    {
+        $brandId = (int) ($order['company_brand_id'] ?? 0);
+
+        if ($brandId <= 0 || (int) ($order['company_id'] ?? 0) <= 0) {
+            return '';
+        }
+
+        $brand = self::$brands::find($brandId);
+
+        return is_array($brand) ? self::logoHtml(self::logoUrl($brand), self::nameOf($order)) : '';
+    }
+
+    /** `<img>` del logo con URL e testo escapati; vuoto senza un URL buono. Pura. */
+    public static function logoHtml(string $url, string $name): string
+    {
+        $url = self::safeUrl($url);
+
+        if ($url === '') {
+            return '';
+        }
+
+        return '<img src="'.htmlspecialchars($url, ENT_QUOTES, 'UTF-8').'" alt="'.htmlspecialchars($name, ENT_QUOTES, 'UTF-8')
+            .'" class="img-fluid" style="max-height: 3rem">';
     }
 
     /**

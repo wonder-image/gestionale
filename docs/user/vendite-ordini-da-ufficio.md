@@ -49,7 +49,11 @@ Dal menu **⋯** di ogni bozza: **Conferma ordine** (senza email al cliente) ed
   crea un brand nuovo già legato all'azienda (in fondo ai suoi, senza cambiare
   il predefinito) e lo sceglie. Scegliendo l'azienda, il referente
   proposto è il principale fra chi segue quel brand. Riaprendo un ordine il brand resta
-  quello salvato, anche se nel frattempo l'azienda non l'ha più.
+  quello salvato, anche se nel frattempo l'azienda non l'ha più. Accanto
+  compare il **logo** del brand, se c'è. Le sedi proposte seguono il brand:
+  prima quelle del brand, poi quelle per tutti. Cambiando brand la lista si
+  aggiorna, e la sede proposta cambia solo se non ne hai già spuntata o
+  aggiunta una tu (né se stai riaprendo un documento salvato).
   Le sedi di consegna di un'azienda si gestiscono come gli indirizzi di una
   persona: scegli quella giusta, modificala, eliminala o aggiungine una con
   **Aggiungi indirizzo**, senza lasciare l'ordine.

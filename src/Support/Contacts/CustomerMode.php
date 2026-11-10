@@ -19,7 +19,7 @@ use Wonder\Plugin\Gestionale\Gestionale;
  */
 final class CustomerMode
 {
-    /** Solo persone: niente aziende, brand, referenti, capogruppo, reparti. */
+    /** Solo persone: niente aziende, brand, referenti (e le loro aree), capogruppo. */
     public const PEOPLE = 'people';
 
     /** Persone e aziende. */
