@@ -510,7 +510,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     {
         return static::relationRepeater(self::RELATION_PEOPLE, ContactRelations::COMPANY, [
             RepeaterColumn::key('id')->hidden(),
-            self::withRelationQuickCreate(
+            static::withRelationQuickCreate(
                 RepeaterColumn::key(ContactRelations::PERSON)
                     ->selectSearch(['' => static::relationText('new_person')] + static::relationOptions(ContactRelations::COMPANY))
                     ->label(static::relationText('person'))
@@ -540,7 +540,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     {
         return static::relationRepeater(self::RELATION_COMPANIES, ContactRelations::PERSON, [
             RepeaterColumn::key('id')->hidden(),
-            self::withRelationQuickCreate(
+            static::withRelationQuickCreate(
                 RepeaterColumn::key(ContactRelations::COMPANY)
                     ->selectSearch(['' => (string) __t('contacts.option_none_f')] + static::relationOptions(ContactRelations::PERSON))
                     ->label(static::relationText('company'))
