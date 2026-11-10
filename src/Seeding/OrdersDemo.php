@@ -286,6 +286,9 @@ final class OrdersDemo
 
         $orderId = (int) $placed['order_id'];
 
+        // Col gateway l'ordine nasce «In pagamento»: qui il cliente di prova ha già pagato.
+        Lifecycle::receive($orderId, ['source' => 'system']);
+
         match ((string) $plan['end']) {
             'paid' => Lifecycle::confirm($orderId, ['payment' => true, 'notify' => false, 'source' => 'system']),
             'fulfilled' => self::fulfilled($orderId, $ref),
