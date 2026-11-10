@@ -17,6 +17,7 @@ use Throwable;
 use Wonder\Elements\Components\Accordion;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\HelpText;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
@@ -207,6 +208,11 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             'addresses' => 'Indirizzi di consegna',
             'label' => 'Etichetta',
             ...static::$model::billing()->labels(),
+            'cf' => 'Codice fiscale',
+            'pi' => 'Partita IVA',
+            'sdi' => 'Codice SDI',
+            'pec' => 'PEC',
+            'cap' => 'CAP',
         ];
     }
 
@@ -377,17 +383,14 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     {
         $ruoli = static::rolesShown();
         $azienda = static::isCompanySide();
+        $testo = static fn (string $chiave): string => (string) __t('gestionale.contacts.form.'.$chiave);
+        $aiuto = static fn (string $chiave): HelpText => HelpText::make($testo($chiave))->columnSpan(12);
 
         $chiE = [
-            SectionTitle::make('Dettagli')
-                ->tooltip(match (true) {
-                    $ruoli => 'Un\'azienda è una sola identità fiscale: quella a cui vendi e da cui compri è una riga sola, con il ruolo «Cliente e fornitore».',
-                    $azienda => 'Un\'azienda è una sola identità fiscale: la stessa partita IVA non si scrive due volte.',
-                    default => static::relationsShown() ? 'Una persona: le aziende per cui lavora si legano più sotto.' : 'Una persona.',
-                })
-                ->columnSpan(12),
+            SectionTitle::make($testo($azienda ? 'who_company' : 'who_person'))->columnSpan(12),
+            ...($ruoli ? [$aiuto('who_roles_help')] : []),
             ...($azienda
-                ? [static::getInput('business_name')->columnSpan($ruoli ? 6 : 9)]
+                ? [static::getInput('business_name')->required()->columnSpan($ruoli ? 6 : 9)]
                 : [static::getInput('name')->columnSpan(4), static::getInput('surname')->columnSpan(5)]),
         ];
 
@@ -397,27 +400,35 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
         $chiE[] = static::getInput('active')->columnSpan(3);
 
+        // Solo chi compra ha una consegna: con il ruolo «Fornitore» la card si nasconde.
+        $consegna = (new Card)->components([
+            SectionTitle::make('Indirizzi di consegna')->columnSpan(12),
+            $aiuto('delivery_help'),
+            static::getInput('addresses')->columnSpan(12),
+            ...(static::addressBrandsShown() ? [static::getInput(self::ADDRESS_BRANDS_MARKER)->columnSpan(12)] : []),
+        ])->columns(12)->columnSpan(12);
+
+        if ($ruoli) {
+            $consegna->hiddenWhen('roles', 'supplier');
+        }
+
         $cards = [
             ...static::brandCards(),
             (new Card)->components($chiE)->columns(12)->columnSpan(12),
             (new Card)->components([
-                SectionTitle::make('Contatti')
-                    ->tooltip(static::isCompanySide()
-                        ? 'Tutte le email e i telefoni dell\'azienda. Il principale di ogni tipo è quello della scheda; «Si occupa di» dice a quali documenti va un\'email (vuoto = a tutti).'
-                        : 'Tutte le email e i telefoni della persona. Il principale di ogni tipo è quello della scheda; con un account sul sito l\'email di accesso non si cambia da qui.')
-                    ->columnSpan(12),
-                // Il titolo è già quello della card: niente secondo «Contatti» sopra le righe.
+                SectionTitle::make($testo($azienda ? 'points_company' : 'points_person'))->columnSpan(12),
+                $aiuto($azienda ? (static::relationsShown() ? 'points_company_help' : 'points_company_alone_help') : 'points_person_help'),
+                // Il titolo è già quello della card: niente secondo titolo sopra le righe.
                 static::getInput(static::$pointsInput)->label('')->columnSpan(12),
                 static::getInput(static::$boxMarker)->columnSpan(12),
                 // Lo script del riquadro e della ricerca per nome negli indirizzi (customer-account).
                 static::contactFormScript(),
             ])->columns(12)->columnSpan(12),
-            // Lato azienda i referenti stanno coi contatti, anche in creazione.
-            ...($azienda ? static::relationCards() : []),
+            // I legami stanno subito dopo i recapiti, da tutti e due i lati.
+            ...static::relationCards(),
             (new Card)->components([
-                SectionTitle::make('Dati di fatturazione')
-                    ->tooltip('Partita IVA e codice fiscale li controlla il framework: se sono sbagliati non si salvano.')
-                    ->columnSpan(12),
+                SectionTitle::make('Dati di fatturazione')->columnSpan(12),
+                $aiuto($azienda ? 'billing_company_help' : 'billing_person_help'),
                 ...($azienda ? [
                     static::getInput('cf')->columnSpan(4),
                     static::getInput('pi')->columnSpan(4),
@@ -436,41 +447,115 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 static::getInput('lat'),
                 static::getInput('lng'),
             ])->columns(12)->columnSpan(12),
-            (new Card)->components([
-                SectionTitle::make('Indirizzi di consegna')
-                    ->tooltip('Dove si consegna, quando non è l\'indirizzo di fatturazione. Il destinatario è chi il corriere deve cercare.')
-                    ->columnSpan(12),
-                static::getInput('addresses')->columnSpan(12),
-                ...(static::addressBrandsShown() ? [static::getInput(self::ADDRESS_BRANDS_MARKER)->columnSpan(12)] : []),
-            ])->columns(12)->columnSpan(12),
+            $consegna,
         ];
 
         $extra = [
             ...static::paymentCards(),
-            ...($azienda ? [] : static::relationCards()),
             (new Card)->components([
                 SectionTitle::make('Note')->columnSpan(12),
                 static::getInput('note')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];
 
-        // In creazione quello che si può aggiungere dopo sta in un riquadro chiuso:
-        // il form mostra subito chi è, i contatti (con i referenti), la fatturazione e la consegna.
-        if (static::currentId() === null) {
-            $extra = [
-                Accordion::make('Altri dati (facoltativi)')
-                    ->description($azienda ? 'Pagamento e note: si possono aggiungere anche dopo.' : 'Pagamento, aziende e note: si possono aggiungere anche dopo.')
-                    ->components($extra)
-                    ->columns(12)
-                    ->columnSpan(12),
-            ];
+        // Quello che serve di rado sta in un riquadro chiuso, in creazione e in
+        // modifica: si apre da solo se la scheda ha già un pagamento o una nota.
+        $nuova = static::currentId() === null;
+        $altri = Accordion::make($testo($nuova ? 'other_new' : 'other'))
+            ->description($testo(static::paymentCards() === [] ? 'other_help_notes' : 'other_help'))
+            ->components($extra)
+            ->columns(12)
+            ->columnSpan(12);
+
+        if (!$nuova && static::otherDataFilled()) {
+            $altri->expanded();
         }
 
-        $cards = [...$cards, ...$extra];
+        $cards[] = $altri;
 
         return (new Form)->components([
             (new Container)->components($cards)->columns(12)->columnSpan(12),
         ])->columns(12);
+    }
+
+    /** La scheda aperta ha già uno dei dati di «Altri dati»: il riquadro nasce aperto. */
+    protected static function otherDataFilled(): bool
+    {
+        try {
+            $row = static::$model::findById((int) static::currentId());
+        } catch (Throwable) {
+            return true;
+        }
+
+        if (!is_array($row)) {
+            return true;
+        }
+
+        foreach (['note', 'payment_method_id', 'payment_term_id', 'price_list_id', 'agent_id'] as $key) {
+            if (!in_array(trim((string) ($row[$key] ?? '')), ['', '0'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * I referenti di un'azienda: la riga chiede chi è e come si raggiunge,
+     * il resto (aree, documenti, accesso, brand) sta dietro «Altre opzioni».
+     * Parte vuoto: un'azienda senza referenti è normale.
+     */
+    protected static function contactPeopleField(): Input
+    {
+        return static::relationRepeater(self::RELATION_PEOPLE, ContactRelations::COMPANY, [
+            RepeaterColumn::key('id')->hidden(),
+            self::withRelationQuickCreate(
+                RepeaterColumn::key(ContactRelations::PERSON)
+                    ->selectSearch(['' => static::relationText('new_person')] + static::relationOptions(ContactRelations::COMPANY))
+                    ->label(static::relationText('person'))
+                    ->columnSpan(6),
+                ContactRelations::COMPANY
+            ),
+            // Con il select vuoto la riga crea la persona: nome e cognome qui, email da quella di lavoro.
+            RepeaterColumn::key('new_name')->text()->label(static::relationText('new_person_name'))->columnSpan(3)
+                ->visibleWhen(ContactRelations::PERSON, ''),
+            RepeaterColumn::key('new_surname')->text()->label(static::relationText('new_surname'))->columnSpan(3)
+                ->visibleWhen(ContactRelations::PERSON, ''),
+            RepeaterColumn::key('job_title')->text()->label(static::relationText('job_title'))->columnSpan(3),
+            RepeaterColumn::key('email')->email()->label('Email')->columnSpan(4),
+            RepeaterColumn::key('phone_prefix')->phonePrefix()->label(static::relationText('work_phone_prefix'))->columnSpan(2),
+            RepeaterColumn::key('phone')->tel()->label('Telefono')->columnSpan(3),
+            static::departmentsColumn()->columnSpan(12),
+            ...static::relationFlagColumns(),
+            static::relationBrandsColumn(),
+        ], static::relationText('add_person'))
+            ->repeaterStartEmpty()
+            ->repeaterAdvanced('departments', 'is_primary', 'receives_documents', 'access', 'brand_ids')
+            ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'));
+    }
+
+    /** Le aziende di una persona, con la stessa riga corta dei referenti. */
+    protected static function contactCompaniesField(): Input
+    {
+        return static::relationRepeater(self::RELATION_COMPANIES, ContactRelations::PERSON, [
+            RepeaterColumn::key('id')->hidden(),
+            self::withRelationQuickCreate(
+                RepeaterColumn::key(ContactRelations::COMPANY)
+                    ->selectSearch(['' => (string) __t('contacts.option_none_f')] + static::relationOptions(ContactRelations::PERSON))
+                    ->label(static::relationText('company'))
+                    ->columnSpan(6),
+                ContactRelations::PERSON
+            ),
+            RepeaterColumn::key('job_title')->text()->label(static::relationText('job_title'))->columnSpan(6),
+            RepeaterColumn::key('email')->email()->label(static::relationText('work_email'))->columnSpan(6),
+            RepeaterColumn::key('phone_prefix')->phonePrefix()->label(static::relationText('work_phone_prefix'))->columnSpan(2),
+            RepeaterColumn::key('phone')->tel()->label(static::relationText('work_phone'))->columnSpan(4),
+            static::departmentsColumn()->columnSpan(12),
+            ...static::relationFlagColumns(),
+        ], static::relationText('add_company'))
+            ->repeaterStartEmpty()
+            ->repeaterAdvanced('departments', 'is_primary', 'receives_documents', 'access')
+            ->repeaterAdvancedLabel((string) __t('gestionale.contacts.form.relation_advanced'));
     }
 
     /** La card «Brand», prima di tutto: solo le aziende ne hanno. */
@@ -496,9 +581,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
         return [
             (new Card)->components([
-                SectionTitle::make(__t('gestionale.contacts.relations.'.($company ? 'title_people' : 'title_companies')))
-                    ->tooltip(__t('gestionale.contacts.relations.'.($company ? 'tooltip_people' : 'tooltip_companies')))
-                    ->columnSpan(12),
+                SectionTitle::make(__t('gestionale.contacts.relations.'.($company ? 'title_people' : 'title_companies')))->columnSpan(12),
+                HelpText::make((string) __t('gestionale.contacts.relations.'.($company ? 'tooltip_people' : 'tooltip_companies')))->columnSpan(12),
                 // Il form dichiara un solo repeater, quello del lato della scheda
                 static::getInput($company ? self::RELATION_PEOPLE : self::RELATION_COMPANIES)->columnSpan(12),
                 static::getInput(self::RELATION_MARKER)->columnSpan(12),

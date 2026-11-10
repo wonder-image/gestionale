@@ -304,12 +304,12 @@ $card = static function (string $resource, string $titolo): array {
     return $trovata;
 };
 
-check('la card «Contatti» ha il riquadro, il marker e lo script; la fatturazione place ID e coordinate nascosti', function () use ($card, $forza) {
+check('la card dei recapiti ha il riquadro, il marker e lo script; la fatturazione place ID e coordinate nascosti', function () use ($card, $forza) {
     $forza(['private_customers' => true, 'companies' => true]);
 
     try {
         $nomi = static fn (array $componenti): array => array_values(array_filter(array_map(static fn ($c): string => $c instanceof \Wonder\App\ResourceSchema\Input ? $c->name : '', $componenti)));
-        $contatti = $card(CompanyResource::class, 'Contatti');
+        $contatti = $card(CompanyResource::class, (string) __t('gestionale.contacts.form.points_company'));
         $fatturazione = $card(CompanyResource::class, 'Dati di fatturazione');
         $persona = $card(CustomerResource::class, 'Dati di fatturazione');
         $via = static function (array $componenti): string {
@@ -372,15 +372,21 @@ check('il repeater dei referenti tiene le colonne di lavoro, anche senza «Brand
             foreach ((array) ($campo->get('context')['columns'] ?? []) as $colonna) {
                 $colonne[$colonna->name] = (int) ($colonna->columnSpan['default'] ?? 0);
             }
+
+            if ($campo->name === CompanyResource::RELATION_PEOPLE) {
+                $avanzate = $campo->get('context')['advanced'] ?? [];
+                $vuoto = $campo->get('context')['start_empty'] ?? null;
+            }
         }
     } finally {
         $forza(null);
     }
 
-    // Persona, mansione, aree (12); email, prefisso, telefono di lavoro (12); i tre flag (12).
-    return ($colonne['email'] ?? 0) === 6 && ($colonne['phone_prefix'] ?? 0) === 2 && ($colonne['phone'] ?? 0) === 4
+    // Persona e nome nuovo (12); mansione, email, prefisso, telefono di lavoro (12); aree e flag dietro «Altre opzioni».
+    return ($colonne['person_id'] ?? 0) + ($colonne['new_name'] ?? 0) + ($colonne['new_surname'] ?? 0) === 12
+        && ($colonne['job_title'] ?? 0) + ($colonne['email'] ?? 0) + ($colonne['phone_prefix'] ?? 0) + ($colonne['phone'] ?? 0) === 12
         && !isset($colonne['brand_ids'])
-        && ($colonne['person_id'] ?? 0) + ($colonne['job_title'] ?? 0) + ($colonne['departments'] ?? 0) === 12;
+        && ($colonne['departments'] ?? 0) === 12 && ($avanzate ?? []) === ['departments', 'is_primary', 'receives_documents', 'access', 'brand_ids'] && $vuoto === true;
 });
 
 summary();

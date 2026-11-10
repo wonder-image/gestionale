@@ -4,8 +4,8 @@
         "relations": {
             "title_people": "Referenti",
             "title_companies": "Aziende",
-            "tooltip_people": "Le persone che lavorano per questa azienda e di cosa si occupano (es. Acquisti, Amministrazione; vuoto = di tutto). Un referente che riceve i documenti li ha in copia quando riguardano la sua area.",
-            "tooltip_companies": "Le aziende per cui lavora questa persona, con la sua mansione e di cosa si occupa. Se riceve i documenti li ha in copia quando riguardano la sua area.",
+            "tooltip_people": "Le persone con cui parli in questa azienda, ognuna con la sua email e il suo telefono di lavoro. In «Altre opzioni» scegli di cosa si occupa e se riceve i documenti in copia.",
+            "tooltip_companies": "Le aziende per cui lavora questa persona, con l'email e il telefono che usa lì. In «Altre opzioni» scegli di cosa si occupa e se riceve i documenti in copia.",
             "filter": "Ruolo",
             "filter_all": "Tutti",
             "filter_customers": "Clienti",
@@ -16,6 +16,24 @@
             "export_companies": "Aziende",
             "quick_person": "Nuovo referente",
             "quick_company": "Nuova azienda"
+        },
+        "form": {
+            "who_company": "Azienda",
+            "who_person": "Persona",
+            "who_roles_help": "Un'azienda si inserisce una volta sola: se le vendi e compri anche da lei, scegli il ruolo «Cliente e fornitore».",
+            "points_company": "Recapiti dell'azienda",
+            "points_company_help": "Email e telefoni generici dell'azienda, come info@, amministrazione o centralino. Quelli di una persona precisa vanno nei referenti, qui sotto.",
+            "points_company_alone_help": "Email e telefoni dell'azienda. Il principale di ogni tipo è quello usato per i documenti.",
+            "points_person": "Email e telefoni",
+            "points_person_help": "I recapiti personali. Se la persona ha un account sul sito, l'email di accesso non si cambia da qui.",
+            "billing_company_help": "Sede legale e dati fiscali, usati sui documenti. Partita IVA e codice fiscale vengono controllati al salvataggio.",
+            "billing_person_help": "Indirizzo e codice fiscale usati sui documenti. Il codice fiscale viene controllato al salvataggio.",
+            "delivery_help": "Solo se la merce va a un indirizzo diverso da quello di fatturazione.",
+            "other_new": "Altri dati (facoltativi)",
+            "other": "Altri dati",
+            "other_help": "Pagamento e note: si possono aggiungere anche dopo.",
+            "other_help_notes": "Note interne: si possono aggiungere anche dopo.",
+            "relation_advanced": "Altre opzioni: di cosa si occupa, documenti e accesso"
         },
         "brands": {
             "title": "Brand",
