@@ -388,9 +388,7 @@ final class OfficeOrderPage
     private static function personModal(bool $referent): Closure
     {
         return static fn (): Container => (new Container)->components([
-            FormField::key('name')->text()->label('Nome')->columnSpan(6),
-            FormField::key('surname')->text()->label('Cognome')->columnSpan(6),
-            FormField::key('email')->email()->label('Email')->columnSpan(12),
+            ...CustomerResource::quickPersonFields(),
             $referent ? self::linkCompanyField() : FormField::key('role')->hidden()->value(QuickContacts::ROLE_CUSTOMER),
         ])->columns(12);
     }

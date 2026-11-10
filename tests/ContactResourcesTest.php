@@ -318,4 +318,19 @@ check('la creazione rapida dei legami: target, campi, errore senza id', function
         && !isset($senzaNome['id']) && str_contains((string) ($senzaNome['error'] ?? ''), 'ragione sociale');
 });
 
+check('la creazione rapida del referente non chiede al form un campo email che non ha', function () {
+    $referente = (array) (new ReflectionMethod(CompanyResource::class, 'relationQuickCreate'))->invoke(null, ContactRelations::COMPANY);
+    $nomi = array_map(static fn ($campo) => $campo->name, CustomerResource::quickPersonFields());
+
+    try {
+        CustomerResource::getInput('email');
+        $nelForm = true;
+    } catch (RuntimeException) {
+        $nelForm = false;
+    }
+
+    // Senza layout la finestra chiamerebbe getInput('email') e la pagina darebbe errore.
+    return ($referente[4] ?? null) instanceof Closure && $nomi === ['name', 'surname', 'email'] && !$nelForm;
+});
+
 summary();

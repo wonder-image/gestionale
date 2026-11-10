@@ -487,6 +487,21 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     }
 
     /**
+     * I campi della finestra «Nuova persona»: l'email non è un campo del form
+     * (sta nel riquadro «Contatti»), quindi la finestra li dichiara da sé.
+     *
+     * @return list<Input>
+     */
+    public static function quickPersonFields(): array
+    {
+        return [
+            FormField::key('name')->text()->label('Nome')->columnSpan(6),
+            FormField::key('surname')->text()->label('Cognome')->columnSpan(6),
+            FormField::key('email')->email()->label('Email')->columnSpan(12),
+        ];
+    }
+
+    /**
      * Il «+» nelle righe dei legami, lo stesso input dei brand: dalla scheda
      * di un'azienda si crea un referente, da quella di una persona
      * un'azienda. La crea `quickCreateStore()` del target.
@@ -494,7 +509,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     protected static function relationQuickCreate(string $parentColumn): ?array
     {
         return $parentColumn === ContactRelations::COMPANY
-            ? [CustomerResource::class, ['name', 'surname', 'email'], null, (string) __t('gestionale.contacts.relations.quick_person')]
+            ? [CustomerResource::class, ['name', 'surname', 'email'], null, (string) __t('gestionale.contacts.relations.quick_person'),
+                static fn (): Container => (new Container)->components(CustomerResource::quickPersonFields())->columns(12)]
             : [CompanyResource::class, ['business_name', 'pi'], null, (string) __t('gestionale.contacts.relations.quick_company')];
     }
 

@@ -424,6 +424,12 @@ versionamento semantico.
   spenta non si vede e l'abbonamento nuovo prende il predefinito.
 
 ### Corretto
+- **Scheda dell'azienda in errore 500** («Input resource non trovato: email
+  in CustomerResource»). Con il riquadro «Contatti» l'email non è più un campo
+  del form delle persone, ma il «+» dei referenti la chiedeva ancora con
+  `getInput()`. La finestra ora ha il suo layout,
+  `CustomerResource::quickPersonFields()` (nome, cognome, email), lo stesso
+  di «Nuovo referente» e «Nuova persona» nell'ordine da ufficio.
 - **Clienti: «Chiave di traduzione mancante: 'gestionale.contacts.relations.column'».**
   Il core mette ogni file di lingua sotto una chiave uguale al suo nome, ma
   `lang/it/gestionale.json` ripeteva `"gestionale": {…}` come radice e ogni
