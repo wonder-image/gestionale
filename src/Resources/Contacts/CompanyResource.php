@@ -354,7 +354,8 @@ class CompanyResource extends CustomerResource
                     ->tooltip($brands ? __t('gestionale.contacts.brands.tooltip') : __t('gestionale.contacts.groups.tooltip'))
                     ->columnSpan(12),
                 ...($brands ? [
-                    static::getInput(static::$brandsInput)->columnSpan(12),
+                    // Il titolo è già quello della card.
+                    static::getInput(static::$brandsInput)->label('')->columnSpan(12),
                     static::getInput(static::$brandsMarker)->columnSpan(12),
                 ] : []),
                 // La capogruppo: un livello solo, la valida `HasCompanyGroup`.

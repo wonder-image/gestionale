@@ -230,10 +230,10 @@ check('la scheda del referente legge gli altri contatti come quella del cliente'
 
 // --- Dati del brand ---
 
-check('il brand del gestionale eredita logo, sito, dominio e descrizione', function () use ($chiavi) {
+check('il brand del gestionale eredita logo, sito, domini email e descrizione', function () use ($chiavi) {
     $campi = $chiavi(CompanyBrandResource::class);
 
-    return array_intersect(['name', 'logo', 'website', 'domain', 'description'], $campi) === ['name', 'logo', 'website', 'domain', 'description'];
+    return array_values(array_intersect(['name', 'logo', 'website', 'domains', 'description'], $campi)) === ['name', 'logo', 'website', 'domains', 'description'];
 });
 
 check('«Brand kit» nel pannello: Anagrafiche, spenta di serie, richiede «Brand»; accesa mostra il kit', function () use ($forza, $chiavi) {
@@ -321,7 +321,7 @@ check('la card «Contatti» ha il riquadro, il marker e lo script; la fatturazio
 
             return '';
         };
-        $script = array_values(array_filter($contatti, 'is_string'));
+        $script = array_values(array_map(static fn ($c): string => (string) (new ReflectionProperty($c, 'text'))->getValue($c), array_filter($contatti, static fn ($c): bool => $c instanceof \Wonder\Elements\Components\RichText)));
     } finally {
         $forza(null);
     }

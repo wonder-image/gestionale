@@ -120,10 +120,12 @@ final class OfficeSearch
             'id' => self::customerKey((int) $row['id'], 0),
             'kind' => 'contact',
             'label' => Contacts::displayName($row),
-            'detail' => trim(implode(' · ', array_filter([(string) ($row['email'] ?? ''), (string) ($row['city'] ?? '')]))),
+            'detail' => implode(' · ', array_filter(['Privato', trim((string) ($row['email'] ?? '')), trim((string) ($row['city'] ?? ''))])),
         ], self::rows(Contact::class, $words, ['name', 'surname', 'email', 'cf'])) : [];
 
-        $people = [...($withCompanies ? self::referents($words) : []), ...$people];
+        // Chi è sia privato sia referente compare due volte: come privato e
+        // come la sua azienda; si sceglie con quale veste procedere.
+        $people = [...($withCompanies ? self::referents($words, array_column($companies, 'id')) : []), ...$people];
 
         // Metà posti a testa; quelli che una parte non usa vanno all'altra.
         $half = intdiv(self::CUSTOMER_LIMIT, 2);
@@ -133,13 +135,16 @@ final class OfficeSearch
     }
 
     /**
-     * Le persone che contengono le parole, una riga per ogni azienda cliente
-     * (attiva e visibile) a cui sono legate. La persona non deve essere cliente.
+     * Le aziende clienti (attive e visibili) delle persone che contengono le
+     * parole: la riga è l'azienda, con il referente già scelto nella chiave
+     * (`company:N:P`). La persona non deve essere cliente; un'azienda già in
+     * `$skip` (chiavi `company:N`) o già trovata non si ripete.
      *
      * @param list<string> $words
+     * @param list<string> $skip
      * @return list<array{id: string, kind: string, label: string, detail: string}>
      */
-    private static function referents(array $words): array
+    private static function referents(array $words, array $skip = []): array
     {
         if (!ContactRelations::enabled()) {
             return [];
@@ -172,18 +177,19 @@ final class OfficeSearch
         }
 
         $out = [];
+        $seen = array_fill_keys($skip, true);
 
         foreach ($links as [$person, $companyId]) {
-            if (!isset($companies[$companyId])) {
+            if (!isset($companies[$companyId]) || isset($seen[self::customerKey(0, $companyId)])) {
                 continue;
             }
 
-            $business = trim((string) ($companies[$companyId]['business_name'] ?? '')) ?: 'Azienda #'.$companyId;
+            $seen[self::customerKey(0, $companyId)] = true;
             $out[] = [
                 'id' => self::customerKey((int) $person['id'], $companyId, true),
                 'kind' => 'company',
-                'label' => Contacts::displayName($person).' — '.$business,
-                'detail' => implode(' · ', array_filter(['Referente', trim((string) ($person['email'] ?? ''))])),
+                'label' => trim((string) ($companies[$companyId]['business_name'] ?? '')) ?: 'Azienda #'.$companyId,
+                'detail' => implode(' · ', array_filter(['Azienda', 'referente '.Contacts::displayName($person), trim((string) ($companies[$companyId]['pi'] ?? '')) !== '' ? 'P.IVA '.trim((string) $companies[$companyId]['pi']) : ''])),
             ];
         }
 

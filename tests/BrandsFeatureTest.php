@@ -62,10 +62,11 @@ $card = static function (string $resource): array {
     $trovate = [];
     $scendi = function (array $componenti) use (&$scendi, &$trovate): void {
         foreach ($componenti as $c) {
-            if ($c instanceof Container) {
-                $scendi($c->components);
-            } elseif ($c instanceof Card && ($c->components[0] ?? null) instanceof SectionTitle) {
+            if ($c instanceof Card && ($c->components[0] ?? null) instanceof SectionTitle) {
                 $trovate[(string) (new ReflectionProperty($c->components[0], 'text'))->getValue($c->components[0])] = $c;
+            } elseif (isset($c->components) && is_array($c->components)) {
+                // Container e Accordion (i dati facoltativi della creazione).
+                $scendi($c->components);
             }
         }
     };

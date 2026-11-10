@@ -406,7 +406,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                         ? 'Tutte le email e i telefoni dell\'azienda. Il principale di ogni tipo è quello della scheda; «Si occupa di» dice a quali documenti va un\'email (vuoto = a tutti).'
                         : 'Tutte le email e i telefoni della persona. Il principale di ogni tipo è quello della scheda; con un account sul sito l\'email di accesso non si cambia da qui.')
                     ->columnSpan(12),
-                static::getInput(static::$pointsInput)->columnSpan(12),
+                // Il titolo è già quello della card: niente secondo «Contatti» sopra le righe.
+                static::getInput(static::$pointsInput)->label('')->columnSpan(12),
                 static::getInput(static::$boxMarker)->columnSpan(12),
                 // Lo script del riquadro e della ricerca per nome negli indirizzi (customer-account).
                 static::contactFormScript(),
@@ -433,6 +434,9 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 static::getInput('lat'),
                 static::getInput('lng'),
             ])->columns(12)->columnSpan(12),
+        ];
+
+        $extra = [
             ...static::paymentCards(),
             (new Card)->components([
                 SectionTitle::make('Indirizzi di consegna')
@@ -447,6 +451,20 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 static::getInput('note')->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ];
+
+        // In creazione quello che si può aggiungere dopo sta in un riquadro chiuso:
+        // il form mostra subito solo chi è, i contatti e la fatturazione.
+        if (static::currentId() === null) {
+            $extra = [
+                Accordion::make('Altri dati (facoltativi)')
+                    ->description('Pagamento, indirizzi di consegna, collegamenti e note: si possono aggiungere anche dopo.')
+                    ->components($extra)
+                    ->columns(12)
+                    ->columnSpan(12),
+            ];
+        }
+
+        $cards = [...$cards, ...$extra];
 
         return (new Form)->components([
             (new Container)->components($cards)->columns(12)->columnSpan(12),
