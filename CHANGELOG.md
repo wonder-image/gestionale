@@ -6,6 +6,14 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Corretto
+- Anagrafiche: metodo e termini di pagamento non scelti restano vuoti (`NULL`)
+  e non più `0`, anche quando si toglie un valore già salvato;
+  `PaymentDefaultsNullMigration` svuota gli `0` già scritti su persone e
+  aziende.
+- Anagrafiche: gli indirizzi compaiono anche per il fornitore, che li usa per
+  il ritiro della merce, nel form e nella scheda. Il riquadro si chiama
+  «Indirizzi di consegna e ritiro» dove si sceglie il ruolo, «Indirizzi di
+  ritiro» sul solo fornitore, «Indirizzi di consegna» per le persone.
 - Anagrafiche: salvare un'azienda, un fornitore o una persona senza modifiche
   non cambia più i recapiti (un contatto con etichetta non diventa principale,
   il prefisso senza telefono resta) e il «Paese» di una persona senza paese

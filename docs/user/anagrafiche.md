@@ -74,7 +74,9 @@ nello stesso ordine, in creazione e in modifica:
    il loro contatto di lavoro. L'email di una persona precisa va qui, non nei
    recapiti dell'azienda;
 5. **Dati di fatturazione**;
-6. **Indirizzi di consegna**: non compare per chi è solo fornitore;
+6. **Indirizzi di consegna e ritiro**: dove consegni al cliente o ritiri dal
+   fornitore. Sul fornitore si chiama **Indirizzi di ritiro**, su una persona
+   **Indirizzi di consegna**;
 7. **Altri dati**: pagamento e note. In creazione è chiuso; in modifica si apre
    da solo se c'è qualcosa di compilato.
 
@@ -117,6 +119,10 @@ una riga quello che vale per i suoi ordini: **metodo** e **condizione di
 pagamento** proposti dall'ordine da ufficio, **esigibilità IVA**, **listino** e
 **commerciale**, ognuno se la sua funzionalità è accesa. Sul telefono e sugli
 schermi stretti vanno uno sotto l'altro.
+
+Metodo e condizione sono facoltativi: lasciati su *Nessuno* restano vuoti e
+l'ordine da ufficio non propone niente. Per toglierne uno già scelto riporta
+il campo su *Nessuno* e salva.
 
 ## Contatti
 
@@ -163,7 +169,7 @@ ufficio): Google completa l'indirizzo e, per un'azienda con la ragione sociale
 vuota, la scrive con il nome dell'attività. Place ID e coordinate si salvano
 senza vederli.
 
-## Indirizzi di consegna
+## Indirizzi di consegna e di ritiro
 
 L'indirizzo della scheda è quello **di fatturazione**. Dove si consegna si
 scrive nel riquadro *Indirizzi di consegna*: uno per il magazzino, uno per
@@ -181,6 +187,12 @@ indirizzo** in fondo. Ogni gesto apre una finestra; non serve passare dal form
 di modifica. Uno solo è il **predefinito** e il primo che scrivi lo diventa; se
 elimini il predefinito, passa al primo rimasto. Un indirizzo eliminato esce dalla
 scheda ma non dagli ordini già fatti, che ne conservano una copia.
+
+Anche un **fornitore** ha i suoi indirizzi: sono quelli dove **ritiri la
+merce**, quando non coincidono con la sede di fatturazione. Il riquadro è lo
+stesso e cambia solo il nome: *Indirizzi di consegna e ritiro* dove scegli se
+l'azienda è cliente, fornitore o tutti e due, *Indirizzi di ritiro* nella
+scheda di chi è solo fornitore.
 
 ## L'elenco delle persone
 
