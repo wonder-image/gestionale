@@ -345,7 +345,13 @@ recapiti, `relationCards()`, fatturazione, consegna, `Accordion` «Altri dati»
   `repeaterAdvanced()` con l'etichetta `form.relation_advanced`; i repeater di
   referenti e brand usano `repeaterStartEmpty()`. Le chiavi postate sono le
   stesse del trait;
-- la consegna ha `hiddenWhen('roles', 'supplier')` quando `rolesShown()`;
+- gli indirizzi restano anche per il fornitore, che li usa per il ritiro:
+  `addressesKind()` sceglie titolo, aiuto e frase vuota (`addresses` con il
+  campo ruoli, altrimenti `delivery`; `SupplierResource` risponde `pickup`) e
+  `addressesTitle()` lo espone alla scheda;
+- metodo e termini di pagamento senza scelta si salvano `NULL`:
+  `mutateRequestValues()` passa la stringa vuota, perché `formToArray()` del
+  framework salta i `null` e lascerebbe il valore di prima;
 - «Altri dati» è chiuso in creazione e, in modifica, aperto solo se
   `otherDataFilled()` trova note, pagamento, listino o commerciale.
 
@@ -555,6 +561,13 @@ cadere le colonne non più nello schema; per questo un'istruzione che fallisce
 lancia un'eccezione e ferma l'aggiornamento prima. Senza `brand_id` né
 `company_brand_id` non fa niente. Le istruzioni sono in `plan()`, provato in
 `tests/OrderCompanyBrandMigrationTest.php`.
+
+`Migrations\PaymentDefaultsNullMigration` porta a `NULL` gli `0` di
+`payment_method_id` e `payment_term_id` su `contacts` e `companies`: lo `0`
+non è un metodo, è il vuoto salvato dalle versioni precedenti. Tocca solo le
+colonne presenti e scrive `payment_defaults_null` in `gst_migrations`. Le
+istruzioni sono in `plan()`, provato in
+`tests/PaymentDefaultsNullMigrationTest.php`.
 
 Le mail `quote_sent`, `office_confirmed` e `delivery_note_sent`
 (`OrderNotifier::COPY_KEYS`) vanno a `order.email`, con gli indirizzi di

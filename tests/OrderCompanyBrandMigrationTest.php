@@ -12,8 +12,10 @@ $compatto = static fn (string $sql): string => (string) preg_replace('/\s+/', ' 
 check('è dichiarata nel manifest, dopo quella delle aziende', function () {
     $migrazioni = (array) (json_decode((string) file_get_contents(__DIR__.'/../module.json'), true)['database']['migrations'] ?? []);
 
-    return array_slice($migrazioni, -1) === [Migration::class]
-        && in_array('Wonder\\Plugin\\Gestionale\\Migrations\\DocumentCompanyMigration', $migrazioni, true);
+    $aziende = array_search('Wonder\\Plugin\\Gestionale\\Migrations\\DocumentCompanyMigration', $migrazioni, true);
+    $brand = array_search(Migration::class, $migrazioni, true);
+
+    return $aziende !== false && $brand !== false && $brand > $aziende;
 });
 
 check('con la colonna vecchia: crea le nuove, copia l\'id dove manca, poi il nome', function () use ($compatto) {

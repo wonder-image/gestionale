@@ -131,6 +131,29 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         return false;
     }
 
+    /**
+     * A cosa servono gli indirizzi della scheda: `delivery` (consegna al
+     * cliente), `pickup` (ritiro dal fornitore) o `addresses` (tutti e due,
+     * dove la scheda può avere entrambi i ruoli).
+     */
+    protected static function addressesKind(): string
+    {
+        return static::rolesShown() ? 'addresses' : 'delivery';
+    }
+
+    public static function addressesTitle(): string
+    {
+        return (string) __t('gestionale.contacts.form.'.static::addressesKind());
+    }
+
+    /** La frase degli indirizzi che non ci sono. */
+    protected static function noAddresses(): string
+    {
+        return static::addressesKind() === 'delivery'
+            ? CustomerSheet::noDelivery()
+            : (string) __t('gestionale.contacts.form.'.static::addressesKind().'_none');
+    }
+
     /** Le colonne controllate contro i doppioni. @return array<string, string> */
     protected static function uniqueColumns(): array
     {
@@ -205,7 +228,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             'is_customer' => 'Ruolo',
             'note' => 'Note',
             'active' => 'Stato',
-            'addresses' => 'Indirizzi di consegna',
+            'addresses' => static::addressesTitle(),
             'label' => 'Etichetta',
             ...static::$model::billing()->labels(),
             'cf' => 'Codice fiscale',
@@ -400,17 +423,13 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
         $chiE[] = static::getInput('active')->columnSpan(3);
 
-        // Solo chi compra ha una consegna: con il ruolo «Fornitore» la card si nasconde.
+        // Con i ruoli gli indirizzi servono anche al fornitore: è dove si ritira la merce.
         $consegna = (new Card)->components([
-            SectionTitle::make('Indirizzi di consegna')->columnSpan(12),
-            $aiuto('delivery_help'),
+            SectionTitle::make(static::addressesTitle())->columnSpan(12),
+            $aiuto(static::addressesKind().'_help'),
             static::getInput('addresses')->columnSpan(12),
             ...(static::addressBrandsShown() ? [static::getInput(self::ADDRESS_BRANDS_MARKER)->columnSpan(12)] : []),
         ])->columns(12)->columnSpan(12);
-
-        if ($ruoli) {
-            $consegna->hiddenWhen('roles', 'supplier');
-        }
 
         $cards = [
             (new Card)->components($chiE)->columns(12)->columnSpan(12),
@@ -1153,9 +1172,9 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         }
 
         return (new Card)->components([
-            SectionTitle::make('Indirizzi di consegna')->columnSpan(12),
+            SectionTitle::make(static::addressesTitle())->columnSpan(12),
             ...($riquadri === []
-                ? [RichText::make('<p class="text-muted">'.static::escape(CustomerSheet::noDelivery()).'</p>')->tag('div')->columnSpan(12)]
+                ? [RichText::make('<p class="text-muted">'.static::escape(static::noAddresses()).'</p>')->tag('div')->columnSpan(12)]
                 : $riquadri),
         ])->columns(12)->columnSpan(12);
     }
@@ -1307,14 +1326,16 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         if (!static::paymentDefaultsShown()) {
             unset($values['payment_method_id'], $values['payment_term_id']);
         } else {
+            // Vuoto resta vuoto: lo 0 non è un metodo. Stringa vuota e non
+            // `null`, che il salvataggio salterebbe lasciando il valore di prima.
             if (array_key_exists('payment_method_id', $values)) {
-                $values['payment_method_id'] = (int) $values['payment_method_id'];
+                $values['payment_method_id'] = (int) $values['payment_method_id'] > 0 ? (int) $values['payment_method_id'] : '';
             }
 
             if (count(static::activeTerms()) <= 1) {
                 unset($values['payment_term_id']);
             } elseif (array_key_exists('payment_term_id', $values)) {
-                $values['payment_term_id'] = (int) $values['payment_term_id'];
+                $values['payment_term_id'] = (int) $values['payment_term_id'] > 0 ? (int) $values['payment_term_id'] : '';
             }
         }
 
