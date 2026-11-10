@@ -129,8 +129,10 @@ quello del paese del sito, come la nazione negli indirizzi). L'etichetta
 (*Lavoro*, *Personale*, *Fatturazione*, *Altro*) sta in **Informazioni
 avanzate** della riga, chiusa finché non serve. Il principale di ogni tipo è quello
 che il gestionale usa (ordini, documenti, ricerche, export): uno per tipo, e se
-non ne scegli uno lo è la prima riga. Cambiando principale il vecchio resta,
-come riga normale. Un'email scritta male o ripetuta ferma il salvataggio, e una
+non ne scegli uno lo è la prima riga che aggiungi. Un contatto già salvato con
+la sua etichetta non diventa principale da solo: salvare una scheda senza
+toccarla la lascia com'è (il numero di telefono viene solo riscritto in cifre,
+senza spazi). Cambiando principale il vecchio resta, come riga normale. Un'email scritta male o ripetuta ferma il salvataggio, e una
 email già di un'altra scheda pure (se la scheda non è fra le tue, senza dire di
 chi è).
 

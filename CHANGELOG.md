@@ -5,6 +5,13 @@ versionamento semantico.
 
 ## 0.1.0 — non rilasciata
 
+### Corretto
+- Anagrafiche: salvare un'azienda, un fornitore o una persona senza modifiche
+  non cambia più i recapiti (un contatto con etichetta non diventa principale,
+  il prefisso senza telefono resta) e il «Paese» di una persona senza paese
+  resta vuoto invece di mostrare il primo dell'elenco
+  (`Contact::billingFormSchema()` di customer-account).
+
 ### Aggiunto
 - **Novità di customer-account (riquadro dei contatti, contatti di lavoro,
   indirizzi per nome) nel gestionale:**
