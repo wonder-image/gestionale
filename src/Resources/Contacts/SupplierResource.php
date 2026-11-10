@@ -53,6 +53,12 @@ final class SupplierResource extends CompanyResource
         return 'pages/supplier-show.php';
     }
 
+    /** Senza il campo «Ruolo» la scheda è solo di un fornitore: gli indirizzi sono di ritiro. */
+    protected static function addressesKind(): string
+    {
+        return static::rolesShown() ? 'addresses' : 'pickup';
+    }
+
     public static function roleColumn(): string
     {
         return 'is_supplier';
@@ -131,6 +137,7 @@ final class SupplierResource extends CompanyResource
                 SectionTitle::make('Dati di fatturazione')->columnSpan(12),
                 ...CustomerSheet::billing($contact),
             ])->columns(12)->columnSpan(12),
+            static::companyDeliveryCard($id),
         ];
 
         return (new Container)->components([

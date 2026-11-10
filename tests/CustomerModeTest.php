@@ -272,6 +272,33 @@ check('form di creazione: recapiti, legami, fatturazione e consegna nello stesso
         && $cliente['is_customer'] === 'true' && $referente['is_customer'] === 'false' && $cliente['name'] === 'Marta';
 });
 
+check('indirizzi: di consegna per le persone, di consegna e ritiro dove si sceglie il ruolo, di ritiro sul fornitore senza ruolo; la sezione non si nasconde al fornitore', function () use ($modo, $forza) {
+    try {
+        $modo(CustomerMode::BOTH);
+        $conRuolo = [CustomerResource::addressesTitle(), CompanyResource::addressesTitle(), SupplierResource::addressesTitle()];
+        $modo(CustomerMode::PEOPLE);
+        $senzaRuolo = SupplierResource::addressesTitle();
+        $forza(['private_customers' => true, 'companies' => true, 'purchasing' => false, 'orders' => true]);
+        $senzaAcquisti = CompanyResource::addressesTitle();
+    } finally {
+        $forza(null);
+    }
+
+    $sorgente = (string) file_get_contents(__DIR__.'/../src/Resources/Contacts/CustomerResource.php');
+
+    return $conRuolo === ['Indirizzi di consegna', 'Indirizzi di consegna e ritiro', 'Indirizzi di consegna e ritiro']
+        && $senzaRuolo === 'Indirizzi di ritiro'
+        && $senzaAcquisti === 'Indirizzi di consegna'
+        && !str_contains($sorgente, "hiddenWhen('roles', 'supplier')");
+});
+
+check('metodo e termini di pagamento senza scelta si salvano vuoti, mai a 0', function () {
+    $sorgente = (string) file_get_contents(__DIR__.'/../src/Resources/Contacts/CustomerResource.php');
+
+    return substr_count($sorgente, "\$values['payment_method_id'] > 0 ? (int) \$values['payment_method_id'] : null") === 1
+        && substr_count($sorgente, "\$values['payment_term_id'] > 0 ? (int) \$values['payment_term_id'] : null") === 1;
+});
+
 check('la scheda di chi è solo referente si apre: dati e indirizzi, senza le parti del cliente', function () use ($modo, $forza) {
     $modo(CustomerMode::BOTH);
     ContactRelations::useEnabled(false);
