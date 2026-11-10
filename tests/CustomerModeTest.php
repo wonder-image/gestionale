@@ -230,7 +230,7 @@ check('solo aziende: la persona nuova è un referente e senza azienda si ferma; 
     return $chiave === 'contact.person_no_role' && !$persone && $aziende;
 });
 
-check('form di creazione: referenti dell\'azienda coi contatti, consegna fuori da «Altri dati»; il referente nuovo è cliente se si vende alle persone', function () use ($modo, $forza) {
+check('form di creazione: recapiti, legami, fatturazione e consegna nello stesso ordine sui due lati, prima di «Altri dati»; il referente nuovo è cliente se si vende alle persone', function () use ($modo, $forza) {
     $modo(CustomerMode::BOTH);
     $payload = new ReflectionMethod(CompanyResource::class, 'relationPersonPayload');
 
@@ -262,9 +262,13 @@ check('form di creazione: referenti dell\'azienda coi contatti, consegna fuori d
     $referenti = (string) __t('gestionale.contacts.relations.title_people');
     $aziende = (string) __t('gestionale.contacts.relations.title_companies');
 
-    return $pos($azienda, 'Contatti') < $pos($azienda, $referenti) && $pos($azienda, $referenti) < $pos($azienda, 'Dati di fatturazione')
-        && $pos($azienda, 'Indirizzi di consegna') < $pos($azienda, 'Altri dati')
-        && $pos($persona, 'Indirizzi di consegna') < $pos($persona, 'Altri dati') && $pos($persona, 'Altri dati') < $pos($persona, $aziende)
+    $recapitiAzienda = (string) __t('gestionale.contacts.form.points_company');
+    $recapitiPersona = (string) __t('gestionale.contacts.form.points_person');
+
+    return $pos($azienda, $recapitiAzienda) > 0 && $pos($azienda, $recapitiAzienda) < $pos($azienda, $referenti) && $pos($azienda, $referenti) < $pos($azienda, 'Dati di fatturazione')
+        && $pos($azienda, 'Dati di fatturazione') < $pos($azienda, 'Indirizzi di consegna') && $pos($azienda, 'Indirizzi di consegna') < $pos($azienda, 'Altri dati')
+        && $pos($persona, $recapitiPersona) > 0 && $pos($persona, $recapitiPersona) < $pos($persona, $aziende) && $pos($persona, $aziende) < $pos($persona, 'Dati di fatturazione')
+        && $pos($persona, 'Indirizzi di consegna') < $pos($persona, 'Altri dati')
         && $cliente['is_customer'] === 'true' && $referente['is_customer'] === 'false' && $cliente['name'] === 'Marta';
 });
 
