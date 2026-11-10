@@ -13,6 +13,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeCustomerPanel;
@@ -75,7 +76,9 @@ final class ContactTools
         $offset = max(0, (int) ($args['offset'] ?? 0));
         $out = [];
 
-        foreach ($kind !== '' ? [$kind] : ['company', 'person'] as $side) {
+        // Il modo del gestionale vale anche qui: senza aziende niente aziende,
+        // con le sole aziende niente persone clienti.
+        foreach (array_filter($kind !== '' ? [$kind] : ['company', 'person'], [self::class, 'kindShown']) as $side) {
             $company = $side === 'company';
             $model = $company ? Company::class : Contact::class;
             $columns = $company ? ['business_name', 'email', 'pi', 'cf'] : ['name', 'surname', 'email', 'cf'];
@@ -110,7 +113,8 @@ final class ContactTools
         $company = (string) ($args['kind'] ?? 'person') === 'company';
         $row = $company ? Company::findById($id) : Contact::findById($id);
 
-        if (!is_array($row) || $row === [] || (string) ($row['deleted'] ?? 'false') === 'true'
+        if (!self::kindShown($company ? 'company' : 'person')
+            || !is_array($row) || $row === [] || (string) ($row['deleted'] ?? 'false') === 'true'
             || (string) ($row['is_customer'] ?? 'false') !== 'true'
             || !RowVisibility::current()->visible(($company ? Company::class : Contact::class)::$table, $id)) {
             throw McpError::make('customer_not_found', 0, ['id' => $id]);
@@ -146,11 +150,17 @@ final class ContactTools
             $customer['brands'] = self::brands($id);
         }
 
-        if (ContactRelations::enabled()) {
+        if (CustomerResource::relationsShown()) {
             $customer += self::relations($id, $company);
         }
 
         return ['result' => $customer];
+    }
+
+    /** Il tipo di cliente esiste nel modo del gestionale (`CustomerMode`), come le pagine. */
+    public static function kindShown(string $kind): bool
+    {
+        return $kind === 'company' ? CustomerMode::companies() : CustomerMode::people();
     }
 
     /**
@@ -224,12 +234,18 @@ final class ContactTools
         }
 
         $out = [];
+        // Solo le schede che il chiamante vede: le aziende di una persona possono essere di altri commerciali.
+        $visible = array_flip(ContactVisibility::visibleIds(
+            ($company ? Contact::class : Company::class)::$table,
+            array_map(static fn (array $row): int => (int) ($row[$side] ?? 0), $rows)
+        ));
 
         foreach ($rows as $row) {
             $other = $row[$company ? 'contact' : 'company'] ?? null;
             $contact = is_array($other) ? $other : [];
 
-            if (($row['deleted'] ?? 'false') !== 'false' || ($contact['deleted'] ?? 'false') !== 'false') {
+            if (($row['deleted'] ?? 'false') !== 'false' || ($contact['deleted'] ?? 'false') !== 'false'
+                || !isset($visible[(int) ($row[$side] ?? 0)])) {
                 continue;
             }
 

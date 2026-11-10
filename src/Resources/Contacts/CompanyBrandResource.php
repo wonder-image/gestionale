@@ -2,12 +2,18 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Contacts;
 
+use InvalidArgumentException;
 use Throwable;
+use Wonder\App\ResourceSchema\FormField;
+use Wonder\App\ResourceSchema\NavigationSchema;
+use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
 use Wonder\Elements\Form\Form;
+use Wonder\Plugin\CustomerAccount\Models\CompanyBrand;
 use Wonder\Plugin\CustomerAccount\Resources\CompanyBrandResource as BaseCompanyBrandResource;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\QuickContacts;
 
@@ -15,6 +21,12 @@ use Wonder\Plugin\Gestionale\Support\Contacts\QuickContacts;
  * I brand delle aziende nel gestionale: stessa scheda di customer-account,
  * con i permessi dell'area contatti, così il «+» compare a chi gestisce
  * le anagrafiche.
+ *
+ * Chi ha una visibilità per riga (il commerciale) vede e modifica solo i
+ * brand legati a un'azienda sua (`SalesAgents::brandsRule()`, applicata dal
+ * core a elenco, scheda, modifica e API): qui si restringono anche le
+ * scelte del «Brand principale», gli avvisi dei nomi simili e la «+».
+ * Senza le aziende (`CustomerMode`) la Resource non ha pagine.
  */
 class CompanyBrandResource extends BaseCompanyBrandResource
 {
@@ -40,8 +52,75 @@ class CompanyBrandResource extends BaseCompanyBrandResource
     public static function formSchema(): array
     {
         static::useKit();
+        $fields = parent::formSchema();
 
-        return parent::formSchema();
+        if (!ContactVisibility::restricted(CompanyBrand::$table)) {
+            return $fields;
+        }
+
+        // Il «Brand principale» fra quelli che vede, più quello già scelto.
+        $keep = array_filter([(int) (static::currentParent() ?? 0)]);
+
+        foreach ($fields as $index => $field) {
+            if ((string) ($field->name ?? '') === 'parent_id') {
+                $fields[$index] = FormField::key('parent_id')
+                    ->selectSearch(['' => '—'] + ContactVisibility::options(CompanyBrand::$table, CompanyBrands::parentOptions(), $keep))
+                    ->label(static::labelSchema()['parent_id']);
+            }
+        }
+
+        return $fields;
+    }
+
+    /** Il brand principale del brand che si sta modificando, dall'indirizzo. */
+    private static function currentParent(): ?int
+    {
+        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+
+        if (preg_match('#/'.preg_quote(basename(static::path()), '#').'/(\d+)/#', $uri, $match) !== 1) {
+            return null;
+        }
+
+        $brand = CompanyBrands::find((int) $match[1]);
+
+        return $brand !== null ? (int) ($brand['parent_id'] ?? 0) : null;
+    }
+
+    /** Senza le aziende il brand non ha pagine; chi ha una visibilità per riga lo crea solo dalla «+», legato alla sua azienda. */
+    public static function pageSchema(): PageSchema
+    {
+        $schema = parent::pageSchema();
+
+        if (!CustomerMode::companies()) {
+            return $schema->only([]);
+        }
+
+        return ContactVisibility::restricted(CompanyBrand::$table) ? $schema->disable(['create', 'store']) : $schema;
+    }
+
+    public static function navigationSchema(): NavigationSchema
+    {
+        return CustomerMode::companies() ? parent::navigationSchema() : parent::navigationSchema()->enabled(false);
+    }
+
+    /** Gli avvisi dei nomi simili, solo fra i brand che chi scrive vede. */
+    public static function formNotices(array $values, string $mode): array
+    {
+        if (!ContactVisibility::restricted(CompanyBrand::$table)) {
+            return parent::formNotices($values, $mode);
+        }
+
+        $similar = CompanyBrands::similar(is_scalar($values['name'] ?? null) ? (string) $values['name'] : '', (int) ($values['id'] ?? 0));
+        $visible = array_flip(ContactVisibility::visibleIds(CompanyBrand::$table, array_map(static fn (array $b): int => (int) $b['id'], $similar)));
+        $names = [];
+
+        foreach ($similar as $brand) {
+            if (isset($visible[(int) $brand['id']])) {
+                $names[] = CompanyBrands::label($brand);
+            }
+        }
+
+        return $names === [] ? [] : [['level' => 'warning', 'message' => (string) __t('contacts.brand_similar', ['names' => implode(', ', $names)])]];
     }
 
     public static function formLayoutSchema(): ?Form
@@ -58,9 +137,21 @@ class CompanyBrandResource extends BaseCompanyBrandResource
         return parent::mutateFormValues($values, $mode, $context);
     }
 
+    /**
+     * Chi ha una visibilità per riga non sceglie come brand principale uno
+     * che non vede (quello già salvato resta); il resto lo controlla
+     * customer-account.
+     */
     public static function mutateRequestValues(array $values, string $action, string $context = 'backend', ?array $oldValues = null): array
     {
         static::useKit();
+        $parent = $values['parent_id'] ?? null;
+        $parentId = is_scalar($parent) && ctype_digit(trim((string) $parent)) ? (int) $parent : 0;
+
+        if ($parentId > 0 && $parentId !== (int) ($oldValues['parent_id'] ?? 0)
+            && ContactVisibility::visibleIds(CompanyBrand::$table, [$parentId]) === []) {
+            throw new InvalidArgumentException((string) __t('contacts.brand_parent_missing'));
+        }
 
         return parent::mutateRequestValues($values, $action, $context, $oldValues);
     }
@@ -103,7 +194,10 @@ class CompanyBrandResource extends BaseCompanyBrandResource
             }
         }
 
-        $result = parent::quickCreateStore(['name' => $values['name'] ?? ''], $labelField);
+        $name = is_scalar($values['name'] ?? null) ? (string) $values['name'] : '';
+        $result = ContactVisibility::restricted(CompanyBrand::$table)
+            ? static::restrictedCreate($name)
+            : parent::quickCreateStore(['name' => $name], $labelField);
         $brandId = (int) ($result['id'] ?? 0);
 
         if ($companyId <= 0 || $brandId <= 0 || CompanyBrands::belongsTo($brandId, $companyId)) {
@@ -117,6 +211,44 @@ class CompanyBrandResource extends BaseCompanyBrandResource
         }
 
         return $result;
+    }
+
+    /**
+     * La «+» di chi vede solo alcuni brand. Un nome già usato da un brand che
+     * vede riprende quello; da un brand che non vede si rifiuta, senza dire
+     * di chi è: agganciarlo gli aprirebbe il brand di altri, crearne un
+     * doppione sporcherebbe l'anagrafica (ci pensa l'ufficio). Niente avviso
+     * dei nomi simili, che nominerebbe brand altrui. Il brand nuovo resta in
+     * sessione: lo può legare alla sua azienda salvando la scheda.
+     *
+     * @return array{id?: int, label?: string, item?: array<string, mixed>, message?: string, error?: string}
+     */
+    protected static function restrictedCreate(string $name): array
+    {
+        $same = CompanyBrands::byName($name);
+
+        if ($same !== null && ContactVisibility::visibleIds(CompanyBrand::$table, [(int) $same['id']]) === []) {
+            return ['error' => 'Non posso creare questo brand: chiedi a chi gestisce le anagrafiche.'];
+        }
+
+        $result = CompanyBrands::findOrCreate($name);
+
+        if ($result === null) {
+            return ['error' => (string) __t('contacts.brand_not_created')];
+        }
+
+        if ($result['created']) {
+            ContactVisibility::rememberBrand($result['id']);
+        }
+
+        $label = CompanyBrands::label($result['brand']);
+
+        return [
+            'id' => $result['id'],
+            'label' => $label,
+            'item' => ['id' => $result['id'], 'name' => $label],
+            'message' => $result['created'] ? '' : (string) __t('contacts.brand_existing', ['name' => $label]),
+        ];
     }
 
     /**

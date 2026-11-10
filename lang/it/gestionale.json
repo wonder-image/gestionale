@@ -273,6 +273,7 @@
             "vat_taken": "Questa partita IVA è già di {{contact}}: apri quella scheda invece di crearne un'altra.",
             "tax_code_taken": "Questo codice fiscale è già di {{contact}}.",
             "email_taken": "Questa email è già di {{contact}}.",
+            "duplicate_hidden": "Questi dati sono già di un'altra scheda: chiedi a chi gestisce le anagrafiche.",
             "no_role": "Di' se è un cliente, un fornitore o tutti e due.",
             "person_no_role": "Una persona che non è cliente va legata almeno a un'azienda, come referente.",
             "vat_collectability_invalid": "Esigibilità IVA non valida: scegli I, D, S o lascia la predefinita.",

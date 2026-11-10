@@ -52,7 +52,7 @@ final class QuickContacts
         $name = self::text($post, 'name', 100);
         $surname = self::text($post, 'surname', 100);
         $email = mb_strtolower(self::text($post, 'email', 190));
-        $customer = ($post['role'] ?? '') === self::ROLE_CUSTOMER;
+        $customer = is_scalar($post['role'] ?? null) && (string) $post['role'] === self::ROLE_CUSTOMER;
         $companyId = array_key_exists(self::LINK_COMPANY, $post) ? self::companyFor($post[self::LINK_COMPANY]) : 0;
 
         if ($companyId < 0) {
@@ -136,23 +136,15 @@ final class QuickContacts
     }
 
     /**
-     * Lega la persona all'azienda dal lato della persona: i suoi legami di
-     * prima tornano tali e quali (mansione, principale, documenti, accesso,
-     * aree, brand seguiti), quello nuovo si aggiunge in fondo.
+     * Lega la persona all'azienda: solo il legame nuovo
+     * (`ContactRelations::attach()`), gli altri suoi legami non si toccano.
+     * Chi chiama ha già controllato che l'azienda sia fra quelle che vede.
      */
     private static function link(int $personId, int $companyId): void
     {
-        if (ContactRelations::isLinked($personId, $companyId)) {
-            return;
+        if (!ContactRelations::attach($companyId, $personId)) {
+            throw new \RuntimeException('Legame non scritto.');
         }
-
-        $rows = array_values(array_filter(
-            ContactRelations::allRowsOf(ContactRelations::PERSON, $personId),
-            static fn (array $row): bool => ($row['deleted'] ?? 'false') === 'false'
-        ));
-        $rows[] = [ContactRelations::COMPANY => $companyId];
-
-        ContactRelations::sync(ContactRelations::PERSON, $personId, $rows);
     }
 
     /**
@@ -216,10 +208,10 @@ final class QuickContacts
 
         $id = (int) $row['id'];
 
+        // Chi non la vede non sa di chi è: il messaggio non nomina la scheda né
+        // il tipo del dato (non si crea un doppione, e l'ufficio la collega).
         if (!self::visible($model, $id)) {
-            return self::error($column === 'pi'
-                ? 'C\'è già un\'azienda con questa partita IVA: chiedi all\'ufficio di collegarla.'
-                : 'C\'è già una persona con questa email: chiedi all\'ufficio di collegarla.');
+            return self::error('Non posso creare questa scheda: chiedi a chi gestisce le anagrafiche.');
         }
 
         $label = self::label($row);
@@ -239,7 +231,8 @@ final class QuickContacts
         try {
             return RowVisibility::visible($model::$table, $id, RowVisibility::currentUser());
         } catch (Throwable) {
-            return true;
+            // Se non si legge, non si vede: come `reachableCompany()`.
+            return false;
         }
     }
 
@@ -309,10 +302,12 @@ final class QuickContacts
         return $email !== '' ? "{$name} · {$email}" : $name;
     }
 
-    /** @param array<string, mixed> $post */
+    /** Un testo della richiesta; un valore non scalare (`name[]=x`) vale vuoto. @param array<string, mixed> $post */
     private static function text(array $post, string $key, int $max): string
     {
-        return mb_substr(trim(strip_tags((string) ($post[$key] ?? ''))), 0, $max);
+        $value = $post[$key] ?? '';
+
+        return is_scalar($value) ? mb_substr(trim(strip_tags((string) $value)), 0, $max) : '';
     }
 
     /** @return array{ok: bool, message: string, id: int, label: string, existing: bool} */

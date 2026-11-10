@@ -39,7 +39,9 @@ use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\CustomerAccount\Support\ContactExport;
 use Wonder\Plugin\CustomerAccount\Support\ContactPoints;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
+use Wonder\Plugin\CustomerAccount\Models\CompanyBrand;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
+use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
@@ -71,7 +73,9 @@ use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
  */
 class CustomerResource extends GestionaleResource implements QuickCreateStore
 {
-    use HasContactRelations;
+    use HasContactRelations {
+        syncRepeaterRelations as relationsSyncRepeaterRelations;
+    }
 
     public static string $model = Contact::class;
     public static string $orderColumn = 'id';
@@ -1217,9 +1221,23 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             $value = trim((string) ($values[$column] ?? ''));
             $duplicate = Contacts::duplicateOf($column, $value, $id > 0 ? $id : null, static::$model);
 
+            // Una scheda che chi scrive non vede non si nomina (né se ne dà il codice).
+            if ($duplicate !== [] && ContactVisibility::visibleIds(static::$model::$table, [(int) $duplicate['id']]) === []) {
+                throw UserError::make('contact.duplicate_hidden');
+            }
+
             if ($duplicate !== []) {
                 throw UserError::make($key, ['contact' => Contacts::displayName($duplicate)]);
             }
+        }
+
+        // La capogruppo è una colonna: chi vede solo alcune aziende non ne
+        // sceglie una che non vede (quella già salvata resta).
+        $parent = (int) ($values['parent_id'] ?? 0);
+
+        if (static::isCompanySide() && $parent > 0 && $parent !== (int) ($oldValues['parent_id'] ?? 0)
+            && ContactVisibility::visibleIds(static::$model::$table, [$parent]) === []) {
+            throw new \InvalidArgumentException((string) __t('contacts.company_parent_missing'));
         }
 
         return $values;
@@ -1395,6 +1413,34 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         return static::isCompanySide() && CustomerMode::companies();
     }
 
+    /**
+     * I legami (referenti, aziende) si scrivono solo dove ci sono le aziende:
+     * con il modo «solo persone» un POST che li porta non li tocca. Gli
+     * altri (indirizzi, altri contatti) come sempre.
+     */
+    public static function syncRepeaterRelations(
+        int|string $parentId,
+        array $post,
+        array $files = [],
+        string $action = 'store',
+        string $context = 'backend'
+    ): array {
+        if (!static::relationsShown()) {
+            unset($post[self::RELATION_MARKER]);
+        }
+
+        return static::relationsSyncRepeaterRelations($parentId, $post, $files, $action, $context);
+    }
+
+    /** I brand seguiti da un referente: fra quelli che chi scrive vede (customer-account tiene solo quelli dell'azienda). */
+    protected static function relationBrandsColumn(): Input
+    {
+        return RepeaterColumn::key('brand_ids')
+            ->selectSearch(ContactVisibility::options(CompanyBrand::$table, CompanyBrands::options()), true)
+            ->label(static::relationText('relation_brands'))
+            ->columnSpan(12);
+    }
+
     /** I brand non vanno al salvataggio della riga dell'indirizzo: non sono una colonna. */
     public static function prepareRepeaterRelationRow(
         string $inputName,
@@ -1418,7 +1464,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         // sa quale azienda mostra e `CompanyAddresses::setBrands()` tiene solo
         // quelli legati all'azienda.
         $brands = static::addressBrandsShown()
-            ? [RepeaterColumn::key('brand_ids')->selectSearch(CompanyBrands::options(), true)->label('Brand (vuoto = tutti)')->columnSpan(12)]
+            ? [RepeaterColumn::key('brand_ids')->selectSearch(ContactVisibility::options(CompanyBrand::$table, CompanyBrands::options()), true)->label('Brand (vuoto = tutti)')->columnSpan(12)]
             : [];
 
         return FormField::key('addresses')

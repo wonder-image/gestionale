@@ -9,7 +9,14 @@ use Wonder\Elements\Components\SectionTitle;
 use Wonder\Plugin\CustomerAccount\Resources\Concerns\HasCompanyBrands;
 use Wonder\App\Support\Repeater;
 use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
+use Wonder\App\ResourceSchema\FormField;
+use Wonder\App\ResourceSchema\RepeaterColumn;
+use Wonder\Plugin\CustomerAccount\Models\CompanyBrand;
+use Wonder\Plugin\CustomerAccount\Models\CompanyBrandLink;
 use Wonder\Plugin\CustomerAccount\Support\CompanyAddresses;
+use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
+use Wonder\Plugin\CustomerAccount\Support\CompanyGroups;
+use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
@@ -33,6 +40,8 @@ class CompanyResource extends CustomerResource
 {
     use HasCompanyBrands {
         syncRepeaterRelations as brandsSyncRepeaterRelations;
+        brandFields as allBrandFields;
+        groupFields as allGroupFields;
     }
 
     public static string $model = Company::class;
@@ -123,6 +132,71 @@ class CompanyResource extends CustomerResource
         return static::withBrandValues(parent::mutateFormValues($values, $mode, $context));
     }
 
+    /**
+     * I brand della scheda. Chi vede solo alcuni brand (il commerciale) sceglie
+     * fra quelli che vede: lo stesso campo di customer-account, con le scelte
+     * ristrette. Gli altri hanno il campo com'è.
+     *
+     * @return list<\Wonder\App\ResourceSchema\Input>
+     */
+    public static function brandFields(): array
+    {
+        if (!ContactVisibility::restricted(CompanyBrand::$table)) {
+            return static::allBrandFields();
+        }
+
+        $yesNo = ['false' => (string) __t('contacts.no'), 'true' => (string) __t('contacts.yes')];
+
+        return [
+            FormField::key(static::$brandsInput)
+                ->repeater([
+                    RepeaterColumn::key('brand_id')
+                        ->selectSearch(['' => '—'] + ContactVisibility::options(CompanyBrand::$table, CompanyBrands::options(), ContactVisibility::rememberedBrands()))
+                        ->quickCreate(static::brandResource(), ['name'], null, 'name', (string) __t('contacts.brand_add'))
+                        ->label((string) __t('contacts.brand'))
+                        ->columnSpan(6),
+                    RepeaterColumn::key('role')
+                        ->select(CompanyBrands::roles())
+                        ->value(CompanyBrandLink::ROLE_OWNER)
+                        ->label((string) __t('contacts.brand_role'))
+                        ->columnSpan(3),
+                    RepeaterColumn::key('is_default')
+                        ->select($yesNo)
+                        ->value('false')
+                        ->label((string) __t('contacts.brand_is_default'))
+                        ->columnSpan(3),
+                ])
+                ->nested()
+                ->repeaterSortable()
+                ->repeaterAddLabel((string) __t('contacts.brand_add_row'))
+                ->label((string) __t('contacts.brands_label')),
+            FormField::key(static::$brandsMarker)->hidden()->value('1'),
+        ];
+    }
+
+    /** La capogruppo fra le aziende che chi scrive vede (più quella già scelta: la valida `mutateRequestValues()`). */
+    public static function groupFields(): array
+    {
+        if (!ContactVisibility::restricted(Company::$table)) {
+            return static::allGroupFields();
+        }
+
+        return [
+            FormField::key(static::$groupInput)
+                ->selectSearch(['' => '—'] + ContactVisibility::options(Company::$table, CompanyGroups::options(), array_filter([static::storedParent()])))
+                ->label((string) __t('contacts.company_parent')),
+        ];
+    }
+
+    /** La capogruppo salvata dell'azienda aperta; 0 se nessuna. */
+    private static function storedParent(): int
+    {
+        $id = (int) (static::currentId() ?? 0);
+        $row = $id > 0 ? static::$model::findById($id) : null;
+
+        return is_array($row) ? (int) ($row['parent_id'] ?? 0) : 0;
+    }
+
     /** Gli indirizzi di consegna del form con i brand per cui valgono (`brand_ids`, vuoto = tutti). */
     public static function hydrateRepeaterFormValues(
         array $values,
@@ -151,13 +225,42 @@ class CompanyResource extends CustomerResource
         string $action = 'store',
         string $context = 'backend'
     ): array {
-        $summary = static::brandsSyncRepeaterRelations($parentId, $post, $files, $action, $context);
+        $summary = static::brandsSyncRepeaterRelations($parentId, static::withLinkableBrands($post), $files, $action, $context);
 
         if (static::addressBrandsShown() && isset($post[self::ADDRESS_BRANDS_MARKER])) {
             $summary['address_brands'] = static::syncAddressBrands((int) $parentId, $post, $files);
         }
 
         return $summary;
+    }
+
+    /**
+     * Il POST dei brand con solo quelli che chi scrive può legare: che vede o
+     * che ha appena creato con la «+» (`ContactVisibility::linkableBrands()`).
+     * Un brand che non vede non si lega alla sua azienda, nemmeno postandone
+     * l'id. Chi vede tutto non cambia.
+     *
+     * @param array<string, mixed> $post
+     * @return array<string, mixed>
+     */
+    protected static function withLinkableBrands(array $post): array
+    {
+        if (!isset($post[static::$brandsMarker]) || !ContactVisibility::restricted(CompanyBrand::$table)) {
+            return $post;
+        }
+
+        $posted = $post[static::$brandsInput] ?? [];
+        $posted = is_array($posted) ? $posted : [$posted];
+        $ids = array_map(static fn ($item): mixed => is_array($item) ? ($item['brand_id'] ?? 0) : $item, $posted);
+        $allowed = array_flip(ContactVisibility::linkableBrands(array_values(array_filter($ids, 'is_scalar'))));
+
+        $post[static::$brandsInput] = array_values(array_filter($posted, static function ($item) use ($allowed): bool {
+            $id = is_array($item) ? ($item['brand_id'] ?? 0) : $item;
+
+            return is_scalar($id) && isset($allowed[(int) $id]);
+        }));
+
+        return $post;
     }
 
     /**

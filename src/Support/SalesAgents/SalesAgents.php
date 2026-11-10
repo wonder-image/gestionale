@@ -5,6 +5,8 @@ namespace Wonder\Plugin\Gestionale\Support\SalesAgents;
 use Throwable;
 use Wonder\App\Models\User\User;
 use Wonder\App\Visibility\RowVisibility;
+use Wonder\Plugin\CustomerAccount\Models\CompanyBrand;
+use Wonder\Plugin\CustomerAccount\Models\CompanyBrandLink;
 use Wonder\Plugin\CustomerAccount\Models\ContactRelation;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
@@ -29,9 +31,11 @@ use Wonder\App\ResourceSchema\TableLayoutSchema;
  * La visibilità è in OR: un documento si vede se `agent_id` è il suo (la
  * vendita è sua) oppure se il cliente o l'azienda del documento gli sono
  * assegnati oggi (eredita lo storico). Un contatto si vede anche se è legato a
- * un'azienda sua. Le sotto-query non possono filtrare `deleted`
- * (`RowVisibility` lo vieta): un cliente eliminato ma ancora assegnato apre
- * comunque i suoi documenti, che il commerciale vedeva già.
+ * un'azienda sua; un brand se è legato oggi (legame aperto) a un'azienda
+ * sua. Le sotto-query non possono filtrare `deleted` (`RowVisibility` lo
+ * vieta: una regola che nomina la colonna toglie il soft delete alla query
+ * principale): un cliente eliminato ma ancora assegnato apre comunque i suoi
+ * documenti, e un legame di referente cancellato apre ancora la persona.
  */
 final class SalesAgents
 {
@@ -115,6 +119,7 @@ final class SalesAgents
     {
         RowVisibility::rule(Contact::$table, static fn (object $user): ?string => self::contactsRule($user));
         RowVisibility::rule(Company::$table, static fn (object $user): ?string => self::companiesRule($user));
+        RowVisibility::rule(CompanyBrand::$table, static fn (object $user): ?string => self::brandsRule($user));
 
         foreach (self::DOCUMENT_TABLES as $model) {
             RowVisibility::rule($model::$table, static fn (object $user): ?string => self::documentsRule($user));
@@ -147,6 +152,23 @@ final class SalesAgents
         $id = self::idOf($user);
 
         return $id > 0 ? '`agent_id` = '.$id : RowVisibility::none();
+    }
+
+    /**
+     * I brand legati con un legame aperto a un'azienda sua: elenco, scheda,
+     * modifica e API del brand. Un brand senza aziende sue non lo vede.
+     */
+    public static function brandsRule(object $user): ?string
+    {
+        if (!self::restricted($user)) {
+            return null;
+        }
+
+        $id = self::idOf($user);
+
+        return $id > 0
+            ? '`id` IN (SELECT `brand_id` FROM `'.CompanyBrandLink::$table.'` WHERE `ended_at` IS NULL AND `company_id` IN ('.self::companiesOf($id).'))'
+            : RowVisibility::none();
     }
 
     public static function documentsRule(object $user): ?string

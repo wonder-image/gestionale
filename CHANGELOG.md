@@ -95,6 +95,34 @@ versionamento semantico.
   `quote_create` con `referent_id`. Richiede `wonder-image/customer-account`
   con `ContactRelations`.
 
+### Sicurezza
+- **Brand per riga.** Regola di visibilità su `company_brands`
+  (`SalesAgents::brandsRule()`): il commerciale vede, elenca, modifica e legge
+  via API solo i brand legati con un legame aperto a un'azienda sua; l'ufficio
+  come prima. Scelte dei select di brand e capogruppo ristrette
+  (`ContactVisibility::options()`), brand non visibili scartati al salvataggio
+  dell'azienda, brand principale e capogruppo non visibili rifiutati. La «+»
+  del brand, per lui, non aggancia un brand altrui con lo stesso nome
+  (messaggio generico), non nomina i simili e ricorda in sessione i brand che
+  crea; niente «Aggiungi» nella pagina del brand.
+- **Legami persona/azienda.** Al boot `ContactVisibility::register()` registra
+  `ContactRelations::useCounterpartFilter()` (scelte e scrittura dei legami
+  solo fra schede visibili, una query per chiamata, nessuna per chi vede tutto)
+  e `useAccessGuard()` (alza l'accesso all'area clienti solo chi vede tutte le
+  aziende e può modificarle). L'MCP mostra solo i legami visibili.
+- **Creazione rapida**: il referente si lega con `ContactRelations::attach()`
+  (solo il legame nuovo); una visibilità che non si legge vale «non visibile»;
+  valori non scalari valgono vuoto; un doppione non visibile si rifiuta senza
+  dire tipo né scheda. Anche il form: `contact.duplicate_hidden` al posto del
+  nome della scheda altrui.
+- **Il modo lato server**: niente sedi d'azienda né legami scritti senza le
+  aziende (`ContactAddressResource::run()`, `CustomerResource::syncRepeaterRelations()`),
+  niente pagine del brand; l'MCP (`customers_list`, `customer_get`) segue il
+  modo come le pagine (`ContactTools::kindShown()`). Le sedi e gli indirizzi di
+  consegna si toccano solo su schede visibili.
+- Non fatto: filtrare i legami cancellati nella regola dei contatti
+  (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
+
 ### Cambiato
 - **Referenti: «Reparto» diventa «Si occupa di»** (più aree, vuoto = tutto,
   da customer-account): `DocumentReferents` non legge più `department` ma
