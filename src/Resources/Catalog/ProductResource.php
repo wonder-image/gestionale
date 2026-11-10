@@ -256,10 +256,10 @@ class ProductResource extends ProductModelResource
 
         // Undici dodicesimi: il dodicesimo è del cestino.
         $columns = [
-            // Il «—» per primo: una riga aggiunta e lasciata lì non scrive
+            // «Nessuna» per prima: una riga aggiunta e lasciata lì non scrive
             // niente su nessuna sede.
             RepeaterColumn::key('location_id')
-                ->select(['' => '—'] + $sedi)
+                ->select(['' => 'Nessuna'] + $sedi)
                 ->label('Sede')
                 ->columnSpan($soglia ? 5 : 7),
             $giacenza,
@@ -391,7 +391,7 @@ class ProductResource extends ProductModelResource
 
             $cards[] = (new Card)->components([
                 SectionTitle::make('Varianti')
-                    ->tooltip('I valori che fanno nascere questa variante — taglia, formato, colore — e che dicono quale delle sorelle è. Qui si leggono: cambiarli vuol dire cambiare variante, e si fa nella griglia della scheda dell\'articolo, dove si vedono tutte insieme.')
+                    ->tooltip('I valori che fanno nascere questa variante (taglia, formato, colore) e che dicono quale delle sorelle è. Qui si leggono: cambiarli vuol dire cambiare variante, e si fa nella griglia della scheda dell\'articolo, dove si vedono tutte insieme.')
                     ->columnSpan(12),
                 RichText::make($letto !== ''
                     ? $letto
@@ -840,7 +840,7 @@ HTML;
             TableColumn::key('product_model_id')
                 ->text()
                 ->formatter(static fn(array $row): string => static::escape(
-                    static::modelNames()[(int) ($row['product_model_id'] ?? 0)] ?? '—'
+                    static::modelNames()[(int) ($row['product_model_id'] ?? 0)] ?? ''
                 )),
             TableColumn::key('sku')->text(),
             TableColumn::key('price')->price()->size('medium'),

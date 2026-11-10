@@ -208,7 +208,7 @@ final class FaqResource extends GestionaleResource
             $parts[] = 'prodotti scelti';
         }
 
-        return $parts === [] ? '—' : ucfirst(implode(' · ', $parts));
+        return $parts === [] ? '' : ucfirst(implode(' · ', $parts));
     }
 
     /**

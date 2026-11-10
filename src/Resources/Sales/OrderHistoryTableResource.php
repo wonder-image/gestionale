@@ -74,7 +74,7 @@ final class OrderHistoryTableResource extends OrderSectionResource
             TableColumn::key('user_id')
                 ->text()
                 ->size('little')
-                ->formatter(static fn (array $row): string => (int) ($row['user_id'] ?? 0) > 0 ? '#'.(int) $row['user_id'] : '—'),
+                ->formatter(static fn (array $row): string => (int) ($row['user_id'] ?? 0) > 0 ? '#'.(int) $row['user_id'] : ''),
         ];
     }
 

@@ -7,6 +7,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStockEmail;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStockNotifier;
+use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 
 /**
  * `php forge gestionale:stock-alerts` — cosa partirebbe adesso, e a chi.
@@ -53,7 +54,7 @@ final class StockAlertsCommand extends Command
         }
 
         foreach ($result['items'] as $item) {
-            $name = $item['article'].($item['option'] !== '' ? ' — '.$item['option'] : '');
+            $name = ProductNames::join($item);
             $sku = $item['sku'] !== '' ? ' ('.$item['sku'].')' : '';
             $location = ($item['location'] ?? '') !== '' ? ' · '.$item['location'] : '';
 

@@ -57,7 +57,7 @@ qualcosa c'è «Modifica». Dopo ogni salvataggio torni alla scheda, e lì trovi
 
 * **Anteprima**: quanti prodotti prende la campagna e, sotto, l'elenco di
   tutti, in una tabella come quella delle righe di un ordine: foto, nome per
-  intero (articolo — opzione) con lo SKU sotto, prezzo di prima e prezzo con la
+  intero (articolo · opzione) con lo SKU sotto, prezzo di prima e prezzo con la
   campagna. La casella **Cerca** filtra per nome o SKU, il nome si può
   ordinare e l'elenco va a pagine. Riguarda la campagna **come è salvata**:
   per vedere l'effetto di una modifica si salva (può restare disattivata).

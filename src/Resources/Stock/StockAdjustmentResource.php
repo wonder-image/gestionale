@@ -21,6 +21,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Stock\Adjustment;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
+use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 use Wonder\Plugin\Gestionale\Support\Stock\Reasons;
 use Wonder\Plugin\Gestionale\Support\Stock\Stock;
 use Wonder\Plugin\Gestionale\Support\Stock\StockOut;
@@ -309,7 +310,7 @@ final class StockAdjustmentResource extends NavigationOnlyResource
             $article = trim((string) ($product['sku'] ?? ''));
         }
 
-        return $option === '' ? $article : $article.' — '.$option;
+        return ProductNames::join(['article' => $article, 'option' => $option]);
     }
 
     /** I pezzi interi si scrivono interi: "3", non "3,000". */

@@ -87,16 +87,16 @@ final class OrderPaymentTableResource extends OrderSectionResource
                 ->formatter(static fn (array $row): string => static::escape(OrderSheet::date((string) ($row['paid_at'] ?? '')))),
             TableColumn::key('payment_method_id')
                 ->text()
-                ->formatter(static fn (array $row): string => static::orDash(PaymentMethod::choiceLabel(
+                ->formatter(static fn (array $row): string => static::orEmpty(PaymentMethod::choiceLabel(
                     (string) ($row['provider_method'] ?? ''),
                     static::methodName((int) ($row['payment_method_id'] ?? 0))
                 ))),
             TableColumn::key('provider')
                 ->text()
-                ->formatter(static fn (array $row): string => static::orDash(static::providerName((string) ($row['provider'] ?? '')))),
+                ->formatter(static fn (array $row): string => static::orEmpty(static::providerName((string) ($row['provider'] ?? '')))),
             TableColumn::key('provider_reference')
                 ->text()
-                ->formatter(static fn (array $row): string => static::orDash((string) ($row['provider_reference'] ?? ''))),
+                ->formatter(static fn (array $row): string => static::orEmpty((string) ($row['provider_reference'] ?? ''))),
             TableColumn::key('actions')
                 ->text()
                 ->size('little')
@@ -164,9 +164,9 @@ final class OrderPaymentTableResource extends OrderSectionResource
         return 'Nessun pagamento registrato.';
     }
 
-    public static function orDash(string $value): string
+    public static function orEmpty(string $value): string
     {
-        return trim($value) !== '' ? static::escape($value) : '—';
+        return trim($value) !== '' ? static::escape($value) : '';
     }
 
     /** Chi ha gestito il pagamento: il gateway (Stripe…); vuoto se l'ha scritto una persona. */

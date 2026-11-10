@@ -658,8 +658,8 @@ check('con due sedi la scorta minima lascia il posto alle righe «Giacenza per s
             'stock' => ['Giacenza', 3, 0, ' pz'],
             'min_stock' => ['Scorta minima', 3, 0, ' pz'],
         ]
-        // Il «—» per primo: una riga lasciata lì non scrive su nessuna sede.
-        && $con['sedi'] === ['' => '—', 1 => 'Milano', 2 => 'Roma']
+        // «Nessuna» per prima: una riga lasciata lì non scrive su nessuna sede.
+        && $con['sedi'] === ['' => 'Nessuna', 1 => 'Milano', 2 => 'Roma']
         && ($con['contesto']['add_label'] ?? null) === 'Aggiungi sede'
         && ($con['contesto']['delete_modal_title'] ?? null) === 'Togli sede'
         && str_starts_with((string) ($con['contesto']['delete_modal_text'] ?? ''), 'Questa sede perde la sua scorta minima al salvataggio. I pezzi restano dove sono')

@@ -50,7 +50,7 @@ check('il select indenta i figli e ha la voce "nessuna"', function () use ($righ
 
     return ($opzioni[''] ?? null) === 'Nessuna, sta in cima'
         && ($opzioni['1'] ?? '') === 'Abbigliamento'
-        && str_starts_with($opzioni['2'] ?? '', '—');
+        && str_starts_with($opzioni['2'] ?? '', '· ');
 });
 
 check('un ciclo si riconosce prima di salvarlo', fn () =>

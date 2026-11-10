@@ -142,12 +142,12 @@ final class TaxRuleResource extends GestionaleResource
             TableColumn::key('tax_category_id')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(
-                    static::taxCategories()[(string) ($row['tax_category_id'] ?? '')] ?? '—'
+                    static::taxCategories()[(string) ($row['tax_category_id'] ?? '')] ?? 'Non trovata'
                 )),
             TableColumn::key('tax_id')
                 ->text()
                 ->formatter(static fn (array $row): string => static::escape(
-                    static::taxes()[(string) ($row['tax_id'] ?? '')] ?? '—'
+                    static::taxes()[(string) ($row['tax_id'] ?? '')] ?? 'Non trovata'
                 )),
             TableColumn::key('active')
                 ->booleanBadge()

@@ -78,11 +78,11 @@ check('un articolo senza varianti non ripete il nome come opzione', fn () =>
 check('articolo e opzione si leggono come nella griglia', fn () =>
     ProductNames::of(['product_model_id' => 10, 'name' => 'Rossa, M'], [10 => 'Maglia']) === ['article' => 'Maglia', 'option' => 'Rossa, M']
     && ProductNames::of(['product_model_id' => 20, 'name' => 'borraccia'], [20 => 'Borraccia']) === ['article' => 'Borraccia', 'option' => '']
-    && ProductNames::of(['product_model_id' => 99, 'name' => 'Sola'], []) === ['article' => '—', 'option' => 'Sola']
+    && ProductNames::of(['product_model_id' => 99, 'name' => 'Sola'], []) === ['article' => '', 'option' => 'Sola']
 );
 
 check('il nome intero è articolo e opzione; senza opzione, il solo articolo', fn () =>
-    ProductNames::full(['product_model_id' => 10, 'name' => 'Blu / M'], [10 => 'Maglia']) === 'Maglia — Blu / M'
+    ProductNames::full(['product_model_id' => 10, 'name' => 'Blu / M'], [10 => 'Maglia']) === 'Maglia · Blu / M'
     && ProductNames::full(['product_model_id' => 20, 'name' => 'borraccia'], [20 => 'Borraccia']) === 'Borraccia'
     && ProductNames::full(['product_model_id' => 99, 'name' => 'Sola'], []) === 'Sola'
 );

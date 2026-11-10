@@ -323,7 +323,7 @@ final class ShipmentResource extends GestionaleResource
     private static function orderLink(int $orderId): string
     {
         if ($orderId <= 0) {
-            return '—';
+            return '';
         }
 
         try {
@@ -340,7 +340,7 @@ final class ShipmentResource extends GestionaleResource
 
     /**
      * Il tracking: sempre testo, mai markup; un link che si apre in un'altra
-     * scheda solo se l'indirizzo è davvero `http(s)`. Senza numero, un trattino.
+     * scheda solo se l'indirizzo è davvero `http(s)`. Senza numero, vuoto.
      *
      * @param array<string, mixed> $shipment
      */
@@ -349,7 +349,7 @@ final class ShipmentResource extends GestionaleResource
         $numero = trim(html_entity_decode((string) ($shipment['tracking_number'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
 
         if ($numero === '') {
-            return '—';
+            return '';
         }
 
         $testo = static::escape($numero);
@@ -662,17 +662,18 @@ final class ShipmentResource extends GestionaleResource
         $id = (int) ($shipment['id'] ?? 0);
         $dato = static fn (string $etichetta, string $valore, bool $html = false): DataItem => DataItem::make($etichetta, $valore)
             ->html($html)
+            ->placeholder('Non indicato')
             ->columnSpan(['default' => 12, 'sm' => 4]);
         $intestazione = [
             $dato('Codice', (string) ($shipment['code'] ?? '')),
             $dato('Ordine', static::orderLink((int) ($shipment['order_id'] ?? 0)), true),
             $dato('Tipo', static::typeLabel((string) ($shipment['type'] ?? ''))),
             $dato('Stato', StatusLabels::badge('shipment', (string) ($shipment['status'] ?? '')), true),
-            $dato('Corriere', static::escape(static::carrierName((int) ($shipment['carrier_id'] ?? 0))) ?: '—', true),
+            $dato('Corriere', static::escape(static::carrierName((int) ($shipment['carrier_id'] ?? 0))), true),
             $dato('Tracking', static::trackingHtml($shipment), true),
             $dato('Partita il', OrderSheet::date((string) ($shipment['shipped_at'] ?? ''))),
             $dato('Consegnata il', OrderSheet::date((string) ($shipment['delivered_at'] ?? ''))),
-            $dato('Nota', nl2br(static::escape(html_entity_decode((string) ($shipment['note'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'))) ?: '—', true),
+            $dato('Nota', nl2br(static::escape(html_entity_decode((string) ($shipment['note'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'))), true),
         ];
 
         return (new Container)->columns(12)->components([
@@ -711,9 +712,9 @@ final class ShipmentResource extends GestionaleResource
         foreach ($log as $voce) {
             $da = (string) ($voce['from_value'] ?? '');
             $a = (string) ($voce['to_value'] ?? '');
-            $utente = (int) ($voce['user_id'] ?? 0) > 0 ? '#'.(int) $voce['user_id'] : '—';
+            $utente = (int) ($voce['user_id'] ?? 0) > 0 ? '#'.(int) $voce['user_id'] : '';
             $righe .= '<tr><td>'.static::escape(OrderSheet::date((string) ($voce['creation'] ?? ''))).'</td>'
-                .'<td>'.static::escape($da === '' ? '—' : StatusLabels::shipment($da)['label']).'</td>'
+                .'<td>'.static::escape($da === '' ? '' : StatusLabels::shipment($da)['label']).'</td>'
                 .'<td>'.static::escape(StatusLabels::shipment($a)['label']).'</td>'
                 .'<td>'.static::escape((string) ($voce['source'] ?? '')).'</td>'
                 .'<td>'.static::escape($utente).'</td></tr>';

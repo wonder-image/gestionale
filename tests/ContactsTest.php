@@ -47,7 +47,7 @@ check('i ruoli si leggono in italiano', fn () =>
     Contacts::roles(['is_customer' => 'true', 'is_supplier' => 'false']) === 'Cliente'
     && Contacts::roles(['is_customer' => 'false', 'is_supplier' => 'true']) === 'Fornitore'
     && Contacts::roles(['is_customer' => 'true', 'is_supplier' => 'true']) === 'Cliente e fornitore'
-    && Contacts::roles(['is_customer' => 'false', 'is_supplier' => 'false']) === '—'
+    && Contacts::roles(['is_customer' => 'false', 'is_supplier' => 'false']) === ''
 );
 
 check('le risposte alla domanda sul ruolo sono tre', fn () =>

@@ -242,9 +242,11 @@ final class ScheduleResource extends GestionaleResource
     /** «In attesa», o «Pagata il 12/10/2026», o «Annullata». */
     public static function statusLabel(array $row): string
     {
+        $giorno = substr(OrderSheet::date((string) ($row['paid_at'] ?? '')), 0, 10);
+
         return match ((string) ($row['status'] ?? '')) {
             'pending' => Badge::make('In attesa')->variant('secondary')->inline()->render('bootstrap'),
-            'paid' => Badge::make('Pagata il '.substr(OrderSheet::date((string) ($row['paid_at'] ?? '')), 0, 10))->variant('success')->inline()->render('bootstrap'),
+            'paid' => Badge::make($giorno !== '' ? 'Pagata il '.$giorno : 'Pagata')->variant('success')->inline()->render('bootstrap'),
             'cancelled' => Badge::make('Annullata')->variant('light')->inline()->render('bootstrap'),
             default => static::escape((string) ($row['status'] ?? '')),
         };
@@ -256,12 +258,12 @@ final class ScheduleResource extends GestionaleResource
         if ((int) ($row['order_id'] ?? 0) === 0 && (int) ($row['subscription_id'] ?? 0) > 0) {
             $name = CustomerKind::name($row);
 
-            return $name !== '' ? $name : '—';
+            return $name;
         }
 
         $order = static::orderOf((int) ($row['order_id'] ?? 0));
 
-        return $order === [] ? '—' : OrderResource::customerLabel($order);
+        return $order === [] ? '' : OrderResource::customerLabel($order);
     }
 
     private static function subscriptionLink(int $subscriptionId): string
@@ -282,7 +284,7 @@ final class ScheduleResource extends GestionaleResource
         $order = static::orderOf($orderId);
 
         if ($order === []) {
-            return '—';
+            return '';
         }
 
         $number = trim((string) ($order['order_number'] ?? ''));
@@ -321,6 +323,6 @@ final class ScheduleResource extends GestionaleResource
             }
         }
 
-        return static::$methods[$id] ?? '—';
+        return static::$methods[$id] ?? '';
     }
 }

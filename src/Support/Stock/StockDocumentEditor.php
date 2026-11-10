@@ -541,7 +541,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
             }
 
             if (current === null && chosen === null) {
-                option = select.appendChild(el('option', '', '—'));
+                option = select.appendChild(el('option', '', 'Nessuna'));
                 option.value = '';
                 option.setAttribute('data-rate', '');
             } else if (chosen === null) {
@@ -637,7 +637,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
             if (row.lineTotal) {
                 line = lineCost(row);
-                row.lineTotal.textContent = line === null ? '—' : money(line);
+                row.lineTotal.textContent = line === null ? '' : money(line);
             }
 
             if (row.netInfo) {
@@ -653,7 +653,7 @@ window.wiStockEditor = window.wiStockEditor || (function () {
 
             diff = difference(row);
             row.stock.textContent = format(expected(row));
-            row.diff.textContent = diff === null ? '—' : (diff > 0 ? '+' : diff < 0 ? '−' : '') + format(Math.abs(diff));
+            row.diff.textContent = diff === null ? '' : (diff > 0 ? '+' : diff < 0 ? '−' : '') + format(Math.abs(diff));
             row.diff.className = 'd-none d-md-table-cell text-end text-nowrap '
                 + (diff === null || diff === 0 ? 'text-body-secondary' : diff > 0 ? 'text-success' : 'text-danger');
         }

@@ -72,7 +72,7 @@ final class OfficeOrderPage
 
         try {
             foreach (PickupPoints::all() as $point) {
-                $pickupPoints[(string) $point['id']] = trim($point['name'].($point['address'] !== '' ? ' — '.$point['address'] : ''), ' —');
+                $pickupPoints[(string) $point['id']] = trim($point['name'].($point['address'] !== '' ? ' ('.$point['address'].')' : ''));
             }
         } catch (Throwable) {
             $pickupPoints = [];
@@ -233,7 +233,7 @@ final class OfficeOrderPage
         $options = ['0' => 'Nessun referente'];
 
         foreach (DocumentReferents::people($companyId) as $option) {
-            $options[(string) $option['id']] = $option['name'].($option['role'] !== '' ? ' — '.$option['role'] : '');
+            $options[(string) $option['id']] = $option['name'].($option['role'] !== '' ? ' ('.$option['role'].')' : '');
         }
 
         return $options;

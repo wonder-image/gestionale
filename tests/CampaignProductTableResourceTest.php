@@ -40,11 +40,11 @@ check('le colonne sono foto, articolo, prezzo e prezzo con la campagna, tutte co
     return $nomi === ['photo', 'model_name', 'price', 'campaign_price'];
 });
 
-check('il nome è «Articolo — opzione» con lo SKU sotto, escapato una volta sola', function () {
+check('il nome è «Articolo · opzione» con lo SKU sotto, escapato una volta sola', function () {
     $riga = ['model_name' => 'Maglia &#8212; <b>', 'name' => 'Blu / M', 'sku' => 'MG-1&amp;2', 'product_model_id' => 7];
     $html = CampaignProductTableResource::nameCell($riga);
 
-    return str_contains($html, 'Maglia — &lt;b&gt; — Blu / M')
+    return str_contains($html, 'Maglia — &lt;b&gt; · Blu / M')
         && str_contains($html, '<div class="text-muted small">MG-1&amp;2</div>')
         && !str_contains($html, '&amp;amp;') && !str_contains($html, '<b>');
 });
@@ -52,7 +52,7 @@ check('il nome è «Articolo — opzione» con lo SKU sotto, escapato una volta 
 check('un prodotto con una versione sola mostra il solo articolo; senza SKU niente riga sotto', function () {
     $html = CampaignProductTableResource::nameCell(['model_name' => 'Tazza', 'name' => '', 'sku' => '', 'product_model_id' => 3]);
 
-    return str_contains($html, 'Tazza') && !str_contains($html, ' — ') && !str_contains($html, 'small');
+    return str_contains($html, 'Tazza') && !str_contains($html, ' · ') && !str_contains($html, 'small');
 });
 
 check('l\'importo sta a destra; uno vuoto o non numerico non scrive niente', fn () =>

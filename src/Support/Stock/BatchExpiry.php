@@ -39,13 +39,13 @@ final class BatchExpiry
         return date('Y-m-d', (int) strtotime($today.' +'.max(0, $days).' days'));
     }
 
-    /** «13/10/2026», o «—» senza scadenza. */
+    /** «13/10/2026», o vuoto senza scadenza. */
     public static function label(?string $expiry): string
     {
         $expiry = substr(trim((string) $expiry), 0, 10);
 
         if ($expiry === '' || str_starts_with($expiry, '0000')) {
-            return '—';
+            return '';
         }
 
         [$y, $m, $d] = explode('-', $expiry) + ['', '', ''];

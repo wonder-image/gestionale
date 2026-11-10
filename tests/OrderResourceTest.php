@@ -68,7 +68,7 @@ check('canale e consegna sono un\'icona con la parola nel tooltip', fn () =>
     && str_contains(OrderResource::channelCell('online'), 'data-bs-title="Online"')
     && str_contains(OrderResource::fulfillmentCell('pickup'), 'data-bs-title="Ritiro in negozio"')
     && str_contains(OrderResource::fulfillmentCell('shipping'), 'bi-truck')
-    && str_contains(OrderResource::fulfillmentCell('boh'), '—')
+    && OrderResource::fulfillmentCell('boh') === ''
 );
 
 check('l\'elenco mostra solo gli ordini veri, non i carrelli', function () {
@@ -119,13 +119,13 @@ check('il cliente si riconosce: ragione sociale, poi nome e cognome, poi email',
     OrderResource::customerName(['billing_business_name' => 'Acme Srl', 'billing_name' => 'Anna']) === 'Acme Srl'
     && OrderResource::customerName(['billing_name' => 'Anna', 'billing_surname' => 'Verdi']) === 'Anna Verdi'
     && OrderResource::customerName(['email' => 'a@b.it']) === 'a@b.it'
-    && OrderResource::customerName([]) === '—'
+    && OrderResource::customerName([]) === ''
 );
 
 check('importi e date all\'italiana', fn () =>
     OrderResource::money('1234.5') === '1.234,50 €'
     && OrderResource::date('2025-10-15 10:30:00') === '15/10/2025 10:30'
-    && OrderResource::date('') === '—'
+    && OrderResource::date('') === ''
 );
 
 check('le celle si disegnano davvero, con le etichette', function () {

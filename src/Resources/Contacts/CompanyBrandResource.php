@@ -65,7 +65,7 @@ class CompanyBrandResource extends BaseCompanyBrandResource
         foreach ($fields as $index => $field) {
             if ((string) ($field->name ?? '') === 'parent_id') {
                 $fields[$index] = FormField::key('parent_id')
-                    ->selectSearch(['' => '—'] + ContactVisibility::options(CompanyBrand::$table, CompanyBrands::parentOptions(), $keep))
+                    ->selectSearch(['' => 'Nessuno'] + ContactVisibility::options(CompanyBrand::$table, CompanyBrands::parentOptions(), $keep))
                     ->label(static::labelSchema()['parent_id']);
             }
         }

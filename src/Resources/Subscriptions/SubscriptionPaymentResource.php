@@ -127,7 +127,8 @@ final class SubscriptionPaymentResource extends NavigationOnlyResource
         $titolo = 'Abbonamento '.(string) ($abbonamento['code'] ?? '');
 
         if ($rata !== null) {
-            $titolo .= ', '.lcfirst($rata['note'] !== '' ? $rata['note'] : 'rata').' del '.BatchExpiry::label($rata['due_date']);
+            $scadenzaRata = BatchExpiry::label($rata['due_date']);
+            $titolo .= ', '.lcfirst($rata['note'] !== '' ? $rata['note'] : 'rata').($scadenzaRata !== '' ? ' del '.$scadenzaRata : '');
         }
 
         return (new Form)->components([

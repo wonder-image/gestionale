@@ -21,7 +21,7 @@ final class StockDocumentSheet
 {
     /**
      * Nell'inventario ogni riga ha anche attesi, differenza e il suo segno
-     * (`up`, `down`, `''`); una riga non contata ha «—» nelle tre celle.
+     * (`up`, `down`, `''`); una riga non contata dice «Non contata» e lascia vuote le altre due.
      *
      * @param array<string, mixed> $document una riga di `gst_stock_documents`
      * Nel carico con «Acquisti» ogni riga ha anche `cost` e `line_total`, e
@@ -110,8 +110,8 @@ final class StockDocumentSheet
 
             if ($costs) {
                 $cost = $item['unit_cost'] ?? null;
-                $line['cost'] = $cost === null ? '—' : StockValue::money((float) $cost);
-                $line['line_total'] = $cost === null || $item['quantity'] === null ? '—' : StockValue::money(round((float) $cost * (float) $item['quantity'], 2));
+                $line['cost'] = $cost === null ? '' : StockValue::money((float) $cost);
+                $line['line_total'] = $cost === null || $item['quantity'] === null ? '' : StockValue::money(round((float) $cost * (float) $item['quantity'], 2));
                 // Scritto IVA inclusa: il costo è l'imponibile, sotto quello scritto e l'aliquota.
                 $line['cost_note'] = self::costNote($item);
             }
@@ -121,7 +121,7 @@ final class StockDocumentSheet
             }
 
             if ($item['quantity'] === null) {
-                return ['quantity' => '—', 'expected' => '—', 'difference' => '—'] + $line;
+                return ['quantity' => 'Non contata', 'expected' => '', 'difference' => ''] + $line;
             }
 
             $difference = self::difference($item);
@@ -277,7 +277,7 @@ final class StockDocumentSheet
             $names[(int) $location['id']] = $location['label'];
         }
 
-        $name = static fn (int $id): string => $id > 0 ? ($names[$id] ?? 'Sede #'.$id) : '—';
+        $name = static fn (int $id): string => $id > 0 ? ($names[$id] ?? 'Sede #'.$id) : 'sede non indicata';
 
         return 'Da '.$name($from).' a '.$name($to);
     }

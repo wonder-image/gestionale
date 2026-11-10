@@ -185,7 +185,7 @@ final class SubscriptionProductForm
 
     /**
      * I prezzi che possono fare da rinnovo: quelli salvati degli abbonamenti
-     * vendibili, «Abbonamento — Prezzo».
+     * vendibili, «Abbonamento · Prezzo».
      *
      * @return array<string, string>
      */
@@ -195,7 +195,7 @@ final class SubscriptionProductForm
 
         foreach (SubscriptionModels::live() as $model) {
             foreach (static::rows(PlanPrice::class, ['product_model_id' => (int) $model['id']], 'position') as $price) {
-                $options[(string) $price['id']] = trim((string) $model['name']).' — '.trim((string) $price['name']);
+                $options[(string) $price['id']] = trim((string) $model['name']).' · '.trim((string) $price['name']);
             }
         }
 

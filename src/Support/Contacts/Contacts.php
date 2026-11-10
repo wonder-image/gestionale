@@ -114,7 +114,7 @@ final class Contacts
             $customer && $supplier => 'Cliente e fornitore',
             $customer => 'Cliente',
             $supplier => 'Fornitore',
-            default => '—',
+            default => '',
         };
     }
 

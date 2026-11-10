@@ -200,7 +200,7 @@ check('cancelQuestion e named: le frasi della spec', fn () =>
     && StockStocktakeResource::cancelQuestion() === "L'inventario {numero} si annulla: i suoi movimenti si stornano e il documento resta, annullato."
 );
 
-check('scheda inventario: attesi, contati e differenza col segno; la riga non contata ha «—»; il totale dell\'inventario', function () use ($utente) {
+check('scheda inventario: attesi, contati e differenza col segno; la riga non contata dice «Non contata»; il totale dell\'inventario', function () use ($utente) {
     return prova(static function () use ($utente): bool {
         [$a, $b, $c, $d] = [articolo(10), articolo(4), articolo(2), articolo(7)];
         $id = StockDocuments::create('stocktake', [], [
@@ -217,7 +217,7 @@ check('scheda inventario: attesi, contati e differenza col segno; la riga non co
                 ['10', '8', '−2', 'down'],
                 ['4', '5,5', '+1,5', 'up'],
                 ['2', '2', '0', ''],
-                ['—', '—', '—', ''],
+                ['', 'Non contata', '', ''],
             ]
             && $scheda['total'] === '4 righe · 3 contate · 2 con differenza';
     });

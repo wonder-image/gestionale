@@ -45,16 +45,16 @@ final class Packages
         $total = self::kg(self::shippingWeight($product, $package));
 
         if ($package === null) {
-            return $total.' kg — senza imballaggio scelto';
+            return $total.' kg, senza imballaggio scelto';
         }
 
         $tare = (float) ($package['weight'] ?? 0);
 
         if ($tare <= 0.0) {
-            return $total.' kg — la scatola scelta non ha una tara';
+            return $total.' kg, la scatola scelta non ha una tara';
         }
 
-        return $total.' kg — '.self::kg($product).' di prodotto e '.self::kg($tare).' di scatola';
+        return $total.' kg ('.self::kg($product).' di prodotto e '.self::kg($tare).' di scatola)';
     }
 
     /** Un peso come si scrive in italiano: "0,2", non "0.200". */

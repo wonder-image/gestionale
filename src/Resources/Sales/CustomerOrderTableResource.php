@@ -59,7 +59,7 @@ final class CustomerOrderTableResource extends OrderSectionResource
                 ->text()
                 ->size('little')
                 ->formatter(static fn (array $row): string => '<a href="'.static::escape(OrderResource::detailUrl((int) ($row['id'] ?? 0))).'">'
-                    .static::escape(trim((string) ($row['order_number'] ?? '')) ?: '—').'</a>'),
+                    .static::escape(trim((string) ($row['order_number'] ?? '')) ?: '#'.(int) ($row['id'] ?? 0)).'</a>'),
             TableColumn::key('ordered_at')->date()->size('medium'),
             TableColumn::key('total')->price()->size('little'),
             TableColumn::key('status')

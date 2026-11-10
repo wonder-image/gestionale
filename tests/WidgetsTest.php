@@ -171,17 +171,17 @@ check('senza prodotti sotto scorta lo dice, senza allarmare', function () {
 check('ogni riga dice cosa riordinare, e il pulsante apre le giacenze filtrate', function () use ($sottoScorta) {
     $html = LowStockWidget::markup([$sottoScorta('Maglia', 'Rossa, M', 1.25, 5.0)], true);
 
-    return str_contains($html, 'Maglia — Rossa, M')
+    return str_contains($html, 'Maglia · Rossa, M')
         && str_contains($html, 'SKU-1')
         && str_contains($html, 'Disponibili 1,25')
         && str_contains($html, 'scorta minima 5')
         && str_contains($html, 'giacenze?gst_products__scorta=sotto');
 });
 
-check('un articolo senza varianti non si porta dietro il trattino', function () use ($sottoScorta) {
+check('un articolo senza varianti non si porta dietro il separatore', function () use ($sottoScorta) {
     $html = LowStockWidget::markup([$sottoScorta('Borraccia', '', 0.0, 3.0)], true);
 
-    return str_contains($html, 'Borraccia') && !str_contains($html, 'Borraccia —');
+    return str_contains($html, 'Borraccia') && !str_contains($html, 'Borraccia ·');
 });
 
 check('oltre le dieci righe il resto si conta, al singolare e al plurale', function () use ($sottoScorta) {
@@ -269,7 +269,7 @@ $negativa = static fn (int $id, float $quantity, int $locations = 1, string $opt
 check('una giacenza sotto zero si vede, con il pulsante per rettificarla', function () use ($negativa) {
     $html = AttentionWidget::markup([], [$negativa(7, -3.0)]);
 
-    return str_contains($html, 'Maglia — Rossa, M')
+    return str_contains($html, 'Maglia · Rossa, M')
         && str_contains($html, 'MAG-7')
         && str_contains($html, 'Giacenza -3')
         && str_contains($html, 'rettifica?versione=7&amp;torna=%2Fbackend%2F')

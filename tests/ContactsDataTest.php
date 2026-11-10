@@ -216,7 +216,7 @@ check('nella scheda in lettura tutti i contatti, escapati: principale, email di 
         && str_contains($html, 'a&lt;b&gt;@example.com') && !str_contains($html, '<b>')
         && str_contains($html, 'mario@example.com · Email di accesso · principale') === false
         && str_contains($html, 'Email di accesso · principale') && str_contains($html, 'Lavoro · Amministrazione')
-        && str_contains($html, '+39 3331234567') && str_contains($vuota, '—')
+        && str_contains($html, '+39 3331234567') && str_contains($vuota, 'Nessun recapito')
         && str_contains($senzaId[0]->render('bootstrap'), 'anna@example.com');
 });
 

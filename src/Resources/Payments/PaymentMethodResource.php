@@ -199,7 +199,7 @@ final class PaymentMethodResource extends GestionaleResource
                 ])->columns(12)->columnSpan(12),
                 (new Card)->components([
                     SectionTitle::make('Istruzioni e fattura')
-                        ->tooltip('Le icone sono i loghi mostrati accanto al metodo nel checkout. Le istruzioni arrivano al cliente nell\'email dell\'ordine. Per il bonifico non scrivere l\'IBAN: lo compone l\'email dal conto scelto. La modalità di pagamento è quella che la fattura elettronica porta con sé (codici MP01–MP23).')
+                        ->tooltip('Le icone sono i loghi mostrati accanto al metodo nel checkout. Le istruzioni arrivano al cliente nell\'email dell\'ordine. Per il bonifico non scrivere l\'IBAN: lo compone l\'email dal conto scelto. La modalità di pagamento è quella che la fattura elettronica porta con sé (codici da MP01 a MP23).')
                         ->columnSpan(12),
                     static::getInput('icons')->columnSpan(12),
                     static::getInput('instructions')->columnSpan(7),
@@ -213,8 +213,8 @@ final class PaymentMethodResource extends GestionaleResource
     {
         return [
             TableColumn::key('name')->text()->link('edit'),
-            TableColumn::key('provider')->text()->formatter(static fn (array $row): string => static::escape(static::providers()[(string) ($row['provider'] ?? '')] ?? '—')),
-            TableColumn::key('timing')->text()->formatter(static fn (array $row): string => static::escape(static::timings()[(string) ($row['timing'] ?? '')] ?? '—')),
+            TableColumn::key('provider')->text()->formatter(static fn (array $row): string => static::escape(static::providers()[(string) ($row['provider'] ?? '')] ?? '')),
+            TableColumn::key('timing')->text()->formatter(static fn (array $row): string => static::escape(static::timings()[(string) ($row['timing'] ?? '')] ?? '')),
             TableColumn::key('active')
                 ->booleanBadge()
                 ->badgeOn('Attivo', 'bi-check-circle', 'success')

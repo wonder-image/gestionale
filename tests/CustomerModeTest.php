@@ -7,6 +7,8 @@ require __DIR__ . '/harness.php';
 
 use Wonder\App\LegacyGlobals;
 use Wonder\App\Theme;
+use Wonder\Elements\Components\Accordion;
+use Wonder\Elements\Components\SectionTitle;
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Backend\Widgets\ContactsWidget;
@@ -226,6 +228,44 @@ check('solo aziende: la persona nuova è un referente e senza azienda si ferma; 
     $forza(null);
 
     return $chiave === 'contact.person_no_role' && !$persone && $aziende;
+});
+
+check('form di creazione: referenti dell\'azienda coi contatti, consegna fuori da «Altri dati»; il referente nuovo è cliente se si vende alle persone', function () use ($modo, $forza) {
+    $modo(CustomerMode::BOTH);
+    $payload = new ReflectionMethod(CompanyResource::class, 'relationPersonPayload');
+
+    try {
+        // I titoli di card e riquadri nell'ordine del form, senza rendere i campi.
+        $titoli = static function (mixed $nodo) use (&$titoli): string {
+            if (is_array($nodo)) {
+                return implode('|', array_filter(array_map($titoli, $nodo)));
+            }
+
+            if (!is_object($nodo)) {
+                return '';
+            }
+
+            $proprio = ($nodo instanceof SectionTitle || $nodo instanceof Accordion) ? (string) $nodo->getText() : '';
+
+            return implode('|', array_filter([$proprio, $titoli(property_exists($nodo, 'components') ? $nodo->components : [])]));
+        };
+        $azienda = $titoli(CompanyResource::formLayoutSchema());
+        $persona = $titoli(CustomerResource::formLayoutSchema());
+        $cliente = $payload->invoke(null, ['name' => 'Marta']);
+        $modo(CustomerMode::COMPANIES);
+        $referente = $payload->invoke(null, ['name' => 'Marta']);
+    } finally {
+        $forza(null);
+    }
+
+    $pos = static fn (string $html, string $testo): int => (int) mb_strpos($html, $testo);
+    $referenti = (string) __t('gestionale.contacts.relations.title_people');
+    $aziende = (string) __t('gestionale.contacts.relations.title_companies');
+
+    return $pos($azienda, 'Contatti') < $pos($azienda, $referenti) && $pos($azienda, $referenti) < $pos($azienda, 'Dati di fatturazione')
+        && $pos($azienda, 'Indirizzi di consegna') < $pos($azienda, 'Altri dati')
+        && $pos($persona, 'Indirizzi di consegna') < $pos($persona, 'Altri dati') && $pos($persona, 'Altri dati') < $pos($persona, $aziende)
+        && $cliente['is_customer'] === 'true' && $referente['is_customer'] === 'false' && $cliente['name'] === 'Marta';
 });
 
 check('la scheda di chi è solo referente si apre: dati e indirizzi, senza le parti del cliente', function () use ($modo, $forza) {

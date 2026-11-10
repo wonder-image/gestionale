@@ -107,7 +107,7 @@ check('i pesi si scrivono come si leggono', fn () =>
 );
 
 check('la frase dice da dove viene il numero', fn () =>
-    Packages::describe(1.2, ['weight' => '0.2']) === '1,4 kg — 1,2 di prodotto e 0,2 di scatola'
+    Packages::describe(1.2, ['weight' => '0.2']) === '1,4 kg (1,2 di prodotto e 0,2 di scatola)'
 );
 
 check('senza il peso del prodotto la frase dice cosa manca', fn () =>
@@ -116,11 +116,11 @@ check('senza il peso del prodotto la frase dice cosa manca', fn () =>
 );
 
 check('senza scatola la frase non la nomina', fn () =>
-    Packages::describe(1.2, null) === '1,2 kg — senza imballaggio scelto'
+    Packages::describe(1.2, null) === '1,2 kg, senza imballaggio scelto'
 );
 
 check('una scatola senza tara lo dice, invece di far finta', fn () =>
-    Packages::describe(1.2, ['weight' => '0']) === '1,2 kg — la scatola scelta non ha una tara'
+    Packages::describe(1.2, ['weight' => '0']) === '1,2 kg, la scatola scelta non ha una tara'
 );
 
 summary();

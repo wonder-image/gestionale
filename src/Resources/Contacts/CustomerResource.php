@@ -412,6 +412,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 // Lo script del riquadro e della ricerca per nome negli indirizzi (customer-account).
                 static::contactFormScript(),
             ])->columns(12)->columnSpan(12),
+            // Lato azienda i referenti stanno coi contatti, anche in creazione.
+            ...($azienda ? static::relationCards() : []),
             (new Card)->components([
                 SectionTitle::make('Dati di fatturazione')
                     ->tooltip('Partita IVA e codice fiscale li controlla il framework: se sono sbagliati non si salvano.')
@@ -434,10 +436,6 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 static::getInput('lat'),
                 static::getInput('lng'),
             ])->columns(12)->columnSpan(12),
-        ];
-
-        $extra = [
-            ...static::paymentCards(),
             (new Card)->components([
                 SectionTitle::make('Indirizzi di consegna')
                     ->tooltip('Dove si consegna, quando non è l\'indirizzo di fatturazione. Il destinatario è chi il corriere deve cercare.')
@@ -445,7 +443,11 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 static::getInput('addresses')->columnSpan(12),
                 ...(static::addressBrandsShown() ? [static::getInput(self::ADDRESS_BRANDS_MARKER)->columnSpan(12)] : []),
             ])->columns(12)->columnSpan(12),
-            ...static::relationCards(),
+        ];
+
+        $extra = [
+            ...static::paymentCards(),
+            ...($azienda ? [] : static::relationCards()),
             (new Card)->components([
                 SectionTitle::make('Note')->columnSpan(12),
                 static::getInput('note')->columnSpan(12),
@@ -453,11 +455,11 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         ];
 
         // In creazione quello che si può aggiungere dopo sta in un riquadro chiuso:
-        // il form mostra subito solo chi è, i contatti e la fatturazione.
+        // il form mostra subito chi è, i contatti (con i referenti), la fatturazione e la consegna.
         if (static::currentId() === null) {
             $extra = [
                 Accordion::make('Altri dati (facoltativi)')
-                    ->description('Pagamento, indirizzi di consegna, collegamenti e note: si possono aggiungere anche dopo.')
+                    ->description($azienda ? 'Pagamento e note: si possono aggiungere anche dopo.' : 'Pagamento, aziende e note: si possono aggiungere anche dopo.')
                     ->components($extra)
                     ->columns(12)
                     ->columnSpan(12),
@@ -620,10 +622,13 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         return implode('; ', $names);
     }
 
-    /** Una persona creata da una riga dei referenti non è cliente. */
+    /**
+     * Una persona creata da una riga dei referenti è anche cliente quando il
+     * gestionale vende alle persone; in modo «solo aziende» resta referente.
+     */
     protected static function relationPersonPayload(array $values): array
     {
-        return ['is_customer' => 'false'] + $values;
+        return ['is_customer' => CustomerMode::people() ? 'true' : 'false'] + $values;
     }
 
     public static function tableSchema(): array
@@ -859,7 +864,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
         $sinistra[] = (new Card)->components([
             SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
-            ...CustomerSheet::data($contact, static::hasAccount() ? static::authMethod(static::withAccount($contact)) : '—'),
+            ...CustomerSheet::data($contact, static::hasAccount() ? static::authMethod(static::withAccount($contact)) : 'Nessun accesso'),
             ...static::pointItems($id, $contact),
             ...(static::paymentDefaultsShown()
                 ? CustomerSheet::payment(

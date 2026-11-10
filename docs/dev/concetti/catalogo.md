@@ -744,7 +744,7 @@ controllo è `LocationRows::normalize()` (`Support\Stock`, pura), che
 `stock.location_unknown` per una sede che il magazzino non mostra più,
 `stock.location_duplicate` per la stessa sede due volte,
 `product.min_stock_invalid` per una soglia che non è un numero da zero in su.
-Una riga con la sede su «—» si scarta. Sulle righe buone passa poi
+Una riga con la sede su «Nessuna» si scarta. Sulle righe buone passa poi
 `LocationStock::assertNotNegative($productId, $rows)`: una giacenza sotto zero
 è `product.stock_negative`, nel repeater come nel JSON della griglia; la scheda
 dell'opzione fa lo stesso controllo nel suo `mutateRequestValues()`.

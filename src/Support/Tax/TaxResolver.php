@@ -84,7 +84,7 @@ final class TaxResolver
         $type = strtolower(trim($customerType));
 
         return UserError::make('tax.rule_missing', [
-            'product' => trim($product) !== '' ? trim($product) : '—',
+            'product' => trim($product) !== '' ? trim($product) : 'senza nome',
             'country' => strtoupper(trim($country)),
             'customer_type' => match ($type) {
                 'business' => 'azienda',

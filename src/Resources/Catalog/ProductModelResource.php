@@ -423,7 +423,7 @@ class ProductModelResource extends GestionaleResource
      */
     protected static function bundleFields(int $modelId): array
     {
-        $prodotti = ['' => '—'] + static::bundleOptionProducts($modelId);
+        $prodotti = ['' => 'Nessuno'] + static::bundleOptionProducts($modelId);
 
         return [
             FormField::key('bundle_mode')
@@ -786,7 +786,7 @@ class ProductModelResource extends GestionaleResource
         }
 
         $messaggi = [
-            'missing' => UserError::make('bundle.component_unavailable', ['name' => '—'])->getMessage(),
+            'missing' => UserError::make('bundle.component_missing')->getMessage(),
             'duplicate' => UserError::make('bundle.duplicate_product')->getMessage(),
         ];
 
@@ -838,7 +838,7 @@ class ProductModelResource extends GestionaleResource
 
         function aggiungi(finestra, voce) {
             var prodotti = dato('data-wi-bundle-products', []);
-            var elenco = '<option value="">—</option>' + prodotti.map(function (prodotto) {
+            var elenco = '<option value="">Nessuno</option>' + prodotti.map(function (prodotto) {
                 var scelto = voce && String(voce.product_id) === String(prodotto.id) ? ' selected' : '';
 
                 return '<option value="' + prodotto.id + '"' + scelto + '>' + testo(prodotto.name) + '</option>';
@@ -1043,7 +1043,7 @@ HTML
         return [
             (new Card)->components([
                 SectionTitle::make('Varianti')
-                    ->tooltip('Aggiungi una variante — colore, taglia, gusto — e spunta i valori: le righe compaiono qui sotto e nascono al salvataggio, con codice, prezzo, giacenza e foto. Togliere una spunta non cancella niente che esista già. Nell\'elenco ci sono le varianti visibili con almeno un valore: si sistemano in Catalogo → Varianti. Con «Una pagina per ogni valore» ogni valore ha la sua pagina nel negozio.')
+                    ->tooltip('Aggiungi una variante (colore, taglia, gusto) e spunta i valori: le righe compaiono qui sotto e nascono al salvataggio, con codice, prezzo, giacenza e foto. Togliere una spunta non cancella niente che esista già. Nell\'elenco ci sono le varianti visibili con almeno un valore: si sistemano in Catalogo → Varianti. Con «Una pagina per ogni valore» ogni valore ha la sua pagina nel negozio.')
                     ->columnSpan(12),
                 // I blocchi stanno in un contenitore loro: il riordino li
                 // sposta con `order`, e dentro un riquadro condiviso
@@ -1874,7 +1874,7 @@ HTML
                 );
 
                 return '<div class="mb-2"><strong>'.static::escape($g['name']).'</strong>'
-                    .' <span class="text-muted">— '.static::escape(static::choicesText($g['min'], $g['max'])).'</span>'
+                    .' <span class="text-muted">('.static::escape(static::choicesText($g['min'], $g['max'])).')</span>'
                     .($opzioni === [] ? '' : '<ul class="mb-0 ps-3">'.implode('', $opzioni).'</ul>').'</div>';
             }, $forma['groups']);
 
@@ -2008,7 +2008,7 @@ HTML
 
         foreach ($urls as $i => $url) {
             $href = static::escape($url);
-            $didascalia = static::escape(($nome !== '' ? $nome.' — ' : '').'foto '.($i + 1).' di '.$totale);
+            $didascalia = static::escape(($nome !== '' ? $nome.' · ' : '').'foto '.($i + 1).' di '.$totale);
 
             if ($i >= 5) {
                 $tessere .= '<a href="'.$href.'" data-fancybox="'.$gruppo.'" data-caption="'.$didascalia.'" hidden tabindex="-1" aria-hidden="true"></a>';
@@ -2045,14 +2045,14 @@ HTML
     /**
      * Una riga della scheda in lettura: l'etichetta piccola, sotto il valore.
      *
-     * Quello che non c'è si dice con un trattino, non con il vuoto: una
+     * Quello che non c'è si dice con «Non indicato», non con il vuoto: una
      * casella bianca lascia il dubbio che manchi la pagina, non il dato.
      */
     protected static function showRow(string $etichetta, string $valore, bool $html = false): RichText
     {
         $valore = trim($valore) !== ''
             ? ($html ? $valore : static::escape($valore))
-            : '<span class="text-muted">—</span>';
+            : '<span class="text-muted">Non indicato</span>';
 
         return RichText::make(
             '<div class="small text-muted">'.static::escape($etichetta).'</div>'
@@ -7067,7 +7067,7 @@ HTML)->tag('div');
             }
         }
 
-        $voci = ['' => '—'];
+        $voci = ['' => 'Nessuna'];
         // Un abbonamento propone quelle «Per gli abbonamenti».
         $abbonamento = static::sheetIsSubscription($modelId);
 
@@ -7869,7 +7869,7 @@ HTML)->tag('div');
     /** Voci di un attributo a elenco, con la voce vuota in cima. @return array<string, mixed> */
     protected static function valueOptions(array $attribute): array
     {
-        return ['' => '—'] + static::valueChoices($attribute);
+        return ['' => 'Nessuno'] + static::valueChoices($attribute);
     }
 
     /**
@@ -8129,7 +8129,7 @@ HTML)->tag('div');
         // Undici dodicesimi: il dodicesimo è del cestino.
         $colonne = [
             RepeaterColumn::key('location_id')
-                ->select(['' => '—'] + static::locationChoices())
+                ->select(['' => 'Nessuna'] + static::locationChoices())
                 ->label('Sede')
                 ->columnSpan($soglia ? 5 : 7),
             $giacenza,
@@ -8201,7 +8201,7 @@ HTML)->tag('div');
 
             $campi = [
                 FormField::key('wi_location_stock['.$i.'][location_id]')
-                    ->select(['' => '—'] + $sedi)
+                    ->select(['' => 'Nessuna'] + $sedi)
                     ->label('')
                     ->columnSpan($soglia ? 5 : 7),
                 $giacenza,
@@ -9392,7 +9392,7 @@ HTML
         for ($i = 0; $i < $righe; $i++) {
             $components[] = (new Container)->components([
                 FormField::key('wi_product_supplier['.$i.'][supplier_id]')
-                    ->select(['' => '—'] + $scelte)
+                    ->select(['' => 'Nessuno'] + $scelte)
                     ->label('')
                     ->columnSpan(5),
                 FormField::key('wi_product_supplier['.$i.'][sku]')

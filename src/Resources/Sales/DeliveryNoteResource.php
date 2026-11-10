@@ -225,17 +225,18 @@ final class DeliveryNoteResource extends GestionaleResource
         $order = (array) ($values['order'] ?? []);
         $dato = static fn (string $etichetta, string $valore, bool $html = false): DataItem => DataItem::make($etichetta, $valore)
             ->html($html)
+            ->placeholder('Non indicato')
             ->columnSpan(['default' => 6, 'md' => 4]);
 
         return (new Form)->components([
             $riquadro('Documento', 'Il DDT accompagna la merce: non muove il magazzino, che è già uscito alla conferma dell\'ordine. Emesso, prende numero e data e non si modifica più.', [
                 $dato('Stato', static::badge($status), true),
-                $dato('Numero', trim((string) ($values['number'] ?? '')) ?: '—'),
-                $dato('Data', substr(OrderSheet::date((string) ($values['date'] ?? '')), 0, 10) ?: '—'),
+                $dato('Numero', trim((string) ($values['number'] ?? '')) ?: 'Assegnato all\'emissione'),
+                $dato('Data', substr(OrderSheet::date((string) ($values['date'] ?? '')), 0, 10) ?: 'Assegnata all\'emissione'),
                 $dato('Ordine', $order !== []
                     ? '<a href="'.static::escape(OrderResource::detailUrl((int) $order['id'])).'">'.static::escape((string) ($order['order_number'] ?? '')).'</a>'
-                    : '—', true),
-                $dato('Destinatario', static::customerOf($values) ?: '—'),
+                    : '', true),
+                $dato('Destinatario', static::customerOf($values)),
             ]),
             $riquadro('Luogo di consegna', 'Dove va la merce: parte dall\'ordine e si può cambiare finché il DDT è in bozza.', [
                 $campo(FormField::key('shipping_business_name')->text()->label('Ragione sociale / Azienda')->value($v('shipping_business_name')), 12),
@@ -479,7 +480,7 @@ final class DeliveryNoteResource extends GestionaleResource
         $name = $business !== '' ? $business : $decode((string) ($row['billing_name'] ?? '').' '.(string) ($row['billing_surname'] ?? ''));
         $referente = (int) ($row['company_id'] ?? 0) > 0 ? $decode((string) ($row['referent_name'] ?? '')) : '';
 
-        return $referente !== '' && $referente !== $name ? $name.' — rif. '.$referente : $name;
+        return $referente !== '' && $referente !== $name ? trim($name.' (rif. '.$referente.')') : $name;
     }
 
     public static function editUrl(int $id): string
@@ -513,7 +514,7 @@ final class DeliveryNoteResource extends GestionaleResource
         $order = static::orderOf($orderId);
 
         if ($order === []) {
-            return '—';
+            return '';
         }
 
         return '<a href="'.static::escape(OrderResource::detailUrl($orderId)).'">'.static::escape((string) ($order['order_number'] ?? '#'.$orderId)).'</a>';

@@ -12,6 +12,7 @@ use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 use Wonder\Plugin\Gestionale\Resources\Stock\StockAdjustmentResource;
 use Wonder\Plugin\Gestionale\Support\Stock\LowStockEmail;
 use Wonder\Plugin\Gestionale\Support\Stock\NegativeStock;
+use Wonder\Plugin\Gestionale\Support\Stock\ProductNames;
 
 /**
  * "Da controllare": le cose ferme che qualcuno deve guardare.
@@ -89,7 +90,7 @@ HTML);
             $items .= <<<HTML
 <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center gap-3">
     <span>
-        <strong>{$service}</strong> — {$action}
+        <strong>{$service}</strong> · {$action}
         <span class="d-block text-body-secondary small">{$message}</span>
         <span class="d-block text-body-secondary small">{$occurrences} volte, ultima {$last}</span>
     </span>
@@ -108,7 +109,7 @@ HTML);
     private static function negativeLine(array $negative): string
     {
         $name = htmlspecialchars(
-            $negative['option'] !== '' ? $negative['article'].' — '.$negative['option'] : $negative['article'],
+            ProductNames::join($negative),
             ENT_QUOTES,
             'UTF-8'
         );

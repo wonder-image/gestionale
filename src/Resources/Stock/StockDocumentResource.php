@@ -802,7 +802,7 @@ abstract class StockDocumentResource extends GestionaleResource
     {
         $number = trim((string) ($row['number'] ?? ''));
         $draft = (string) ($row['status'] ?? '') === 'draft';
-        $text = $number !== '' ? static::escape($number) : ($draft ? 'Bozza' : '—');
+        $text = $number !== '' ? static::escape($number) : ($draft ? 'Bozza' : 'Senza numero');
         $url = (int) ($row['id'] ?? 0) > 0 ? static::pageUrl(['type' => static::type()] + $row) : '';
 
         if ($url === '') {

@@ -37,9 +37,9 @@ final class CustomerSheet
         $caselle = [
             ['Ordini', (string) (int) $stats['orders'].((int) $stats['cancelled'] > 0 ? '<div class="small text-muted fw-normal">'.(int) $stats['cancelled'].' annullati</div>' : '')],
             ['Speso', OrderSheet::money($stats['spent'])],
-            ['Scontrino medio', (int) $stats['orders'] > 0 ? OrderSheet::money($stats['average']) : '—'],
-            ['Primo ordine', self::day((string) $stats['first_order'])],
-            ['Ultimo ordine', self::day((string) $stats['last_order'])],
+            ['Scontrino medio', (int) $stats['orders'] > 0 ? OrderSheet::money($stats['average']) : '<span class="text-muted">nessuno</span>'],
+            ['Primo ordine', OrderSheet::esc(self::day((string) $stats['first_order'])) ?: '<span class="text-muted">nessuno</span>'],
+            ['Ultimo ordine', OrderSheet::esc(self::day((string) $stats['last_order'])) ?: '<span class="text-muted">nessuno</span>'],
             ['Da pagare', (string) (int) $stats['to_pay'].' '.((int) $stats['to_pay'] === 1 ? 'ordine' : 'ordini')],
             ['Carrello', $cart],
         ];
@@ -58,7 +58,7 @@ final class CustomerSheet
     /**
      * I dati della scheda, un `DataItem` ciascuno: tipo, nome, ruolo, stato,
      * accesso al sito, note. I contatti sono in `points()`, quelli di
-     * fatturazione in `billing()`. Dove non c'è un valore compare un trattino. `$role`
+     * fatturazione in `billing()`. Dove non c'è un valore compare «Non indicato». `$role`
      * prende il posto del ruolo salvato (il referente non ne ha uno).
      *
      * @param array<string, mixed> $contact
@@ -69,6 +69,7 @@ final class CustomerSheet
         $get = static fn (string $key): string => trim((string) ($contact[$key] ?? ''));
         $dato = static fn (string $etichetta, string $valore, bool $html = false, int $colonne = 4): DataItem => DataItem::make($etichetta, $valore)
             ->html($html)
+            ->placeholder('Non indicato')
             ->columnSpan(['default' => 12, 'sm' => $colonne]);
 
         $items = self::isCompany($contact)
@@ -90,7 +91,7 @@ final class CustomerSheet
      * un recapito per riga: prima email e telefono principali, poi gli altri,
      * con l'etichetta («Email di accesso» per quella con cui la persona entra
      * nel sito), «principale» e, per le aziende, le aree di cui si occupa.
-     * Senza recapiti una voce con il trattino. Tutto escapato.
+     * Senza recapiti la voce dice «Nessun recapito». Tutto escapato.
      *
      * @param list<array{kind?: string, value?: string, phone_prefix?: string, label?: string, is_primary?: bool, departments?: list<string>}> $points
      * @param array<string, string> $labels etichetta => testo (`ContactPoints::labels()` più quella dell'accesso)
@@ -120,7 +121,7 @@ final class CustomerSheet
             $lines[] = OrderSheet::esc($value).($details !== [] ? ' <span class="text-muted">· '.OrderSheet::esc(implode(' · ', $details)).'</span>' : '');
         }
 
-        return [DataItem::make('Contatti', $lines !== [] ? implode('<br>', $lines) : '—')->html(true)->columnSpan(['default' => 12, 'sm' => 8])];
+        return [DataItem::make('Contatti', implode('<br>', $lines))->html(true)->placeholder('Nessun recapito')->columnSpan(['default' => 12, 'sm' => 8])];
     }
 
     /**
@@ -131,7 +132,8 @@ final class CustomerSheet
      */
     public static function payment(string $method, ?string $term): array
     {
-        $dato = static fn (string $etichetta, string $valore): DataItem => DataItem::make($etichetta, $valore !== '' ? $valore : '—')
+        $dato = static fn (string $etichetta, string $valore): DataItem => DataItem::make($etichetta, $valore)
+            ->placeholder('Non indicato')
             ->columnSpan(['default' => 12, 'sm' => 4]);
         $items = [$dato('Metodo di pagamento', $method)];
 
@@ -160,6 +162,7 @@ final class CustomerSheet
         $get = static fn (string $key): string => trim((string) ($contact[$key] ?? ''));
         $dato = static fn (string $etichetta, string $valore, bool $html = false, int $colonne = 6): DataItem => DataItem::make($etichetta, $valore)
             ->html($html)
+            ->placeholder('Non indicato')
             ->columnSpan(['default' => 12, 'sm' => $colonne]);
 
         $items = [$dato('Codice fiscale', $get('cf'))];
@@ -311,12 +314,10 @@ final class CustomerSheet
             .'</tr></thead><tbody>'.$body.'</tbody></table></div>';
     }
 
-    /** Il giorno senza l'ora: `10/09/2026`; un trattino se manca. */
+    /** Il giorno senza l'ora: `10/09/2026`; vuoto se manca. */
     private static function day(string $value): string
     {
-        $data = OrderSheet::date($value);
-
-        return $data === '—' ? $data : substr($data, 0, 10);
+        return substr(OrderSheet::date($value), 0, 10);
     }
 
     /**
