@@ -355,6 +355,35 @@ predefinito); la Resource che crea il brand al volo è
 
 DDT, resi e revisioni del preventivo non portano il brand: lo legge l'ordine.
 
+### Cliente, referente e brand creati dall'ordine
+
+La pagina non manda più alla creazione del cliente: usa la creazione rapida
+del core (`QuickCreateModal`, `QuickCreateStore`), e le finestre hanno campi
+loro, senza `getInput()` (che costruirebbe ogni volta il form intero della
+scheda, con le tendine di tutte le aziende).
+
+- **Nuova persona / Nuovo cliente** e **Nuova azienda**:
+  `OfficeOrderPage::newCustomerButtons()`, due `QuickCreateButton` su
+  `CustomerResource` (con `role` = `customer`) e `CompanyResource`, secondo
+  `CustomerMode`. Il bottone porta `data-wi-oo-new` (`contact`/`company`): lo
+  script della pagina, su `wi:quick-create:created`, sceglie la chiave
+  composta nella ricerca con `wiRemoteSearch.select()`, che fa partire
+  `wi:search-select` e quindi il caricamento del pannello come a mano.
+- **Referente** e **Brand**: `quickCreate()` sulle due tendine; l'adapter
+  `select` del core aggiunge e sceglie l'opzione. Le loro finestre hanno il
+  campo nascosto `link_company_id` (`QuickContacts::LINK_COMPANY`, non
+  `company_id` per non scambiarsi con quello dell'ordine), scritto dallo script
+  su `show.bs.modal` con l'azienda scelta.
+- Lato server `QuickContacts::person()` lega la persona all'azienda dal lato
+  della persona, ripassando a `ContactRelations::sync()` i suoi legami vivi tali
+  e quali; `CompanyBrandResource::quickCreateStore()` aggiunge il brand con
+  `CompanyBrands::sync()` ripassando quelli aperti con ruolo e predefinito.
+  L'azienda deve essere viva e visibile a chi scrive
+  (`QuickContacts::reachableCompany()`, `RowVisibility`) e si controlla prima
+  di creare. Permessi (area contatti) e CSRF li controlla il proxy del core;
+  dal modal passano solo nome, cognome, email, `role` e l'azienda (o ragione
+  sociale e P.IVA, o il nome del brand).
+
 Il DDT eredita `company_id` e `referent_name` dall'ordine (`DeliveryNotes`), e
 il PDF stampa il referente «Alla c.a.» nel riquadro del cliente
 (`DocumentPdf::billingLines()`).

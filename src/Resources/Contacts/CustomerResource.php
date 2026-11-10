@@ -39,6 +39,7 @@ use Wonder\Plugin\CustomerAccount\Support\ContactExport;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerStats;
 use Wonder\Plugin\Gestionale\Support\Contacts\QuickContacts;
@@ -51,7 +52,11 @@ use Wonder\App\Visibility\RowVisibility;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 
 /**
- * "Clienti": le persone della rubrica, e la loro scheda.
+ * Le persone della rubrica, e la loro scheda: clienti e referenti delle
+ * aziende. L'elenco si chiama come il modo del gestionale (`CustomerMode`):
+ * «Clienti» con le sole persone, «Persone» con persone e aziende (il ruolo si
+ * sceglie col filtro), «Referenti» con le sole aziende. Cliente è un ruolo,
+ * non un tipo di scheda: tabella, classe e percorso restano `clienti`.
  *
  * Le aziende hanno la loro Resource, `CompanyResource`, che estende questa:
  * cambiano modello, legami e colonne dei documenti (i punti di estensione
@@ -131,19 +136,51 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
     public static function titleLabel(): string
     {
-        return 'Clienti';
+        return match (CustomerMode::current()) {
+            CustomerMode::PEOPLE => 'Clienti',
+            CustomerMode::COMPANIES => 'Referenti',
+            default => 'Persone',
+        };
     }
 
     public static function textSchema(): array
     {
-        return [
-            'label' => 'cliente',
-            'plural_label' => 'clienti',
-            'last' => 'ultimi',
-            'all' => 'tutti',
-            'article' => 'i',
-            'this' => 'questo',
-        ];
+        return match (CustomerMode::current()) {
+            CustomerMode::PEOPLE => ['label' => 'cliente', 'plural_label' => 'clienti', 'last' => 'ultimi', 'all' => 'tutti', 'article' => 'i', 'this' => 'questo'],
+            CustomerMode::COMPANIES => ['label' => 'referente', 'plural_label' => 'referenti', 'last' => 'ultimi', 'all' => 'tutti', 'article' => 'i', 'this' => 'questo'],
+            default => ['label' => 'persona', 'plural_label' => 'persone', 'last' => 'ultime', 'all' => 'tutte', 'article' => 'le', 'this' => 'questa'],
+        };
+    }
+
+    /**
+     * L'elenco esiste nel modo del gestionale: le persone sempre (clienti o
+     * referenti), le aziende senza il modo «solo persone» (`CompanyResource`).
+     */
+    public static function shownInMode(): bool
+    {
+        return true;
+    }
+
+    /** Con il modo che la esclude la pagina sparisce come con la funzionalità spenta: menu, URL e API. */
+    public static function featureActive(): bool
+    {
+        return parent::featureActive() && static::shownInMode();
+    }
+
+    /** I legami persona/azienda (referenti), solo dove ci sono le aziende. */
+    public static function relationsShown(): bool
+    {
+        return ContactRelations::enabled() && CustomerMode::companies();
+    }
+
+    /**
+     * Le parti del cliente (pagamento, listino, esigibilità, commerciale):
+     * per le aziende clienti e, dove si vende ai privati, per le persone.
+     * Con le sole aziende una persona è un referente.
+     */
+    public static function sellsTo(): bool
+    {
+        return static::roleColumn() === 'is_customer' && (static::isCompanySide() || CustomerMode::people());
     }
 
     public static function labelSchema(): array
@@ -202,7 +239,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         }
 
         // Esigibilità IVA del cliente (S per la PA): vuota vale le impostazioni.
-        if (static::roleColumn() === 'is_customer') {
+        if (static::sellsTo()) {
             $fields[] = FormField::key('vat_collectability')
                 ->select(['' => 'Predefinita (impostazioni)'] + EsigibilitaIva::Valori)
                 ->label('Esigibilità IVA');
@@ -220,14 +257,14 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 ->label('Commerciale');
         }
 
-        // #145: «Referenti» e «Aziende», solo con relations.enabled.
-        return [...$fields, ...static::contactRelationFields()];
+        // #145: «Referenti» e «Aziende», solo dove ci sono le aziende.
+        return [...$fields, ...(static::relationsShown() ? static::contactRelationFields() : [])];
     }
 
     /** Il commerciale del cliente (#77): lo sceglie l'ufficio, mai il commerciale. */
     public static function agentShown(): bool
     {
-        return static::roleColumn() === 'is_customer'
+        return static::sellsTo()
             && SalesAgents::enabled()
             && !SalesAgents::restricted(RowVisibility::currentUser());
     }
@@ -254,13 +291,13 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     /** Il listino del cliente: solo per i clienti, con «Listini cliente». */
     public static function priceListShown(): bool
     {
-        return static::roleColumn() === 'is_customer' && Gestionale::feature('customer_price_lists');
+        return static::sellsTo() && Gestionale::feature('customer_price_lists');
     }
 
     /** Metodo e condizione predefiniti: solo per i clienti, con «Vendita in ufficio». */
     public static function paymentDefaultsShown(): bool
     {
-        return static::roleColumn() === 'is_customer' && Gestionale::feature('office_sales');
+        return static::sellsTo() && Gestionale::feature('office_sales');
     }
 
     /** I metodi attivi che valgono in ufficio, per id. @return array<int, string> */
@@ -290,7 +327,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     /** @return list<Card> */
     protected static function paymentCards(): array
     {
-        if (static::roleColumn() !== 'is_customer') {
+        if (!static::sellsTo()) {
             return [];
         }
 
@@ -348,7 +385,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 ->tooltip(match (true) {
                     $ruoli => 'Un\'azienda è una sola identità fiscale: quella a cui vendi e da cui compri è una riga sola, con il ruolo «Cliente e fornitore».',
                     $azienda => 'Un\'azienda è una sola identità fiscale: la stessa partita IVA non si scrive due volte.',
-                    default => 'Una persona: le aziende per cui lavora si legano più sotto.',
+                    default => static::relationsShown() ? 'Una persona: le aziende per cui lavora si legano più sotto.' : 'Una persona.',
                 })
                 ->columnSpan(12),
             ...($azienda
@@ -425,7 +462,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
      */
     protected static function relationCards(): array
     {
-        if (!ContactRelations::enabled()) {
+        if (!static::relationsShown()) {
             return [];
         }
 
@@ -480,9 +517,9 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
     /**
      * Vero per le persone che sono referenti vivi di almeno un'azienda viva.
-     * Un'azienda non è mai «solo referente».
+     * Un'azienda non è mai referente.
      */
-    protected static function onlyReferentSql(): string
+    protected static function referentSql(): string
     {
         if (static::isCompanySide()) {
             return '0 = 1';
@@ -492,9 +529,15 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         $companies = Company::$table;
         $relations = ContactRelation::$table;
 
-        return "(is_customer <> 'true' AND EXISTS(SELECT 1 FROM {$relations} cr
+        return "EXISTS(SELECT 1 FROM {$relations} cr
             JOIN {$companies} rc ON rc.id = cr.company_id AND rc.deleted = 'false'
-            WHERE cr.person_id = {$table}.id AND cr.deleted = 'false'))";
+            WHERE cr.person_id = {$table}.id AND cr.deleted = 'false')";
+    }
+
+    /** Le persone che sono solo referenti: non clienti, legate a un'azienda viva. */
+    protected static function onlyReferentSql(): string
+    {
+        return static::isCompanySide() ? '0 = 1' : "(is_customer <> 'true' AND ".static::referentSql().')';
     }
 
     /** I nomi dell'altro lato dei legami, per la colonna della lista. */
@@ -556,7 +599,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 ->hiddenDevice('mobile'),
             TableColumn::key('city')->text()
                 ->hiddenDevice('mobile'),
-            ...(ContactRelations::enabled() ? [
+            ...(static::relationsShown() ? [
                 TableColumn::key('relation_names')->text()
                     ->label(__t('gestionale.contacts.relations.column'))
                     ->hiddenDevice('mobile'),
@@ -588,7 +631,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
                 WHERE u.id = {$contactTable}.user_id
                   AND u.deleted = 'false'
                   AND COALESCE(u.password, '') <> '') AS has_local_password" : '',
-            ContactRelations::enabled() ? static::relationNamesSql() : '',
+            static::relationsShown() ? static::relationNamesSql() : '',
         ]);
         $layout = parent::tableLayoutSchema();
 
@@ -598,17 +641,24 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
         $layout = $layout->download($formats)->downloadAsText();
 
-        if (ContactRelations::enabled() && !static::isCompanySide()) {
-            $only = static::onlyReferentSql();
+        // Con persone e aziende l'elenco tiene clienti e referenti: il ruolo
+        // si sceglie a vista, sopra la tabella. Con un modo solo il ruolo è uno.
+        if (static::relationsShown() && !static::isCompanySide() && CustomerMode::current() === CustomerMode::BOTH) {
+            $referents = static::referentSql();
             $layout->filterQuery(
                 __t('gestionale.contacts.relations.filter'),
-                'referents',
-                ['only' => __t('gestionale.contacts.relations.filter_only'), 'hide' => __t('gestionale.contacts.relations.filter_hide')],
+                'role',
+                [
+                    '' => __t('gestionale.contacts.relations.filter_all'),
+                    'customers' => __t('gestionale.contacts.relations.filter_customers'),
+                    'referents' => __t('gestionale.contacts.relations.filter_referents'),
+                ],
                 static fn (array $values): string => match ($values[0] ?? '') {
-                    'only' => $only,
-                    'hide' => "NOT {$only}",
+                    'customers' => "is_customer = 'true'",
+                    'referents' => $referents,
                     default => '1 = 1',
-                }
+                },
+                'radio'
             );
         }
 
@@ -625,7 +675,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             );
         }
 
-        $extra = ContactRelations::enabled()
+        $extra = static::relationsShown()
             ? [['label' => (string) __t('gestionale.contacts.relations.column'), 'value' => [static::class, 'relationNames']]]
             : [];
 
@@ -654,7 +704,9 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             'view' => 'Scheda '.static::textSchema()['label'],
         ]);
 
-        if (!static::hasSheet()) {
+        // Con la funzionalità o il modo che la escludono la Resource non ha
+        // pagine: la scheda in lettura non si riaccende da qui.
+        if (!static::hasSheet() || !static::featureActive()) {
             return $pages;
         }
 
@@ -711,13 +763,31 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     }
 
     /**
+     * Vero se la scheda in lettura è di un cliente: un'azienda, o una
+     * persona cliente dove si vende ai privati. Le altre persone sono
+     * referenti delle aziende.
+     */
+    public static function isCustomerSheet(array $contact): bool
+    {
+        return static::isCompanySide()
+            || (($contact['is_customer'] ?? 'false') === 'true' && CustomerMode::people());
+    }
+
+    /**
      * La scheda del cliente. A sinistra le statistiche, tutti i suoi dati,
      * gli ordini e il carrello; a destra la fatturazione e gli indirizzi di
      * consegna; in fondo i coupon. Ordini, carrello e statistiche seguono la
      * funzionalità «orders»: spenta, restano dati, indirizzi e coupon.
+     *
+     * Un referente non è cliente: la sua scheda ha i dati, le aziende di cui
+     * è referente e gli indirizzi, senza le parti del cliente.
      */
     public static function showLayoutSchema(array $contact): Container
     {
+        if (!static::isCustomerSheet($contact)) {
+            return static::referentLayoutSchema($contact);
+        }
+
         $id = (int) ($contact['id'] ?? 0);
         $userId = static::hasAccount() ? (int) ($contact['user_id'] ?? 0) : 0;
         $column = static::documentColumn();
@@ -795,12 +865,38 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     }
 
     /**
-     * I legami della scheda, con i referenti accesi: per un'azienda le sue
+     * La scheda di una persona che è solo referente: tutti i suoi dati (con
+     * contatti e accesso al sito), le aziende di cui è referente e gli
+     * indirizzi di consegna. Niente ordini, carrello, statistiche, pagamento,
+     * listino, abbonamenti e coupon: sono del cliente.
+     */
+    protected static function referentLayoutSchema(array $contact): Container
+    {
+        $id = (int) ($contact['id'] ?? 0);
+        $destra = [static::deliveryCard($id)];
+
+        if (($legami = static::relationsCard($id)) !== null) {
+            array_unshift($destra, $legami);
+        }
+
+        return (new Container)->components([
+            (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components([
+                (new Card)->components([
+                    SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
+                    ...CustomerSheet::data($contact, static::authMethod(static::withAccount($contact)), 'Referente'),
+                ])->columns(12)->columnSpan(12),
+            ]),
+            (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components($destra),
+        ])->columns(12);
+    }
+
+    /**
+     * I legami della scheda, dove ci sono le aziende: per un'azienda le sue
      * persone, per una persona le sue aziende. Ognuno porta alla sua scheda.
      */
     protected static function relationsCard(int $id): ?Card
     {
-        if ($id <= 0 || !ContactRelations::enabled()) {
+        if ($id <= 0 || !static::relationsShown()) {
             return null;
         }
 
@@ -960,11 +1056,15 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         $schema = parent::querySchema();
         $role = static::listCondition();
 
-        // #145: con i referenti accesi ci sono anche le persone che sono solo
-        // referenti di un'azienda, senza ruolo. Il filtro «Referenti» le separa.
-        $schema['condition'] = ContactRelations::enabled() && !static::isCompanySide()
-            ? "deleted = 'false' AND ({$role} OR ".static::onlyReferentSql().')'
-            : "deleted = 'false' AND {$role}";
+        // #145: con le aziende ci sono anche le persone che sono solo
+        // referenti di un'azienda, senza ruolo: il filtro «Ruolo» le separa.
+        // Con le sole aziende l'elenco è dei referenti; un cliente privato di
+        // prima resta salvato, nascosto.
+        $schema['condition'] = match (true) {
+            !static::relationsShown() || static::isCompanySide() => "deleted = 'false' AND {$role}",
+            !CustomerMode::people() => "deleted = 'false' AND ".static::referentSql(),
+            default => "deleted = 'false' AND ({$role} OR ".static::onlyReferentSql().')',
+        };
 
         return $schema;
     }
@@ -1064,11 +1164,13 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             $values = [...$values, ...Contacts::rolesFromChoice($choice)];
         }
 
-        // Solo se nessuno ha scelto altro: da "Clienti" si può creare la
+        // Solo se nessuno ha scelto altro: da "Aziende" si può creare la
         // scheda di un fornitore, e forzare il ruolo dell'elenco la
-        // riporterebbe qui contro la volontà di chi l'ha scritta.
+        // riporterebbe qui contro la volontà di chi l'ha scritta. Con le sole
+        // aziende la persona nuova è un referente: `checkRoles()` vuole
+        // l'azienda.
         if ($action === 'store' && !isset($values[static::roleColumn()])) {
-            $values[static::roleColumn()] = 'true';
+            $values[static::roleColumn()] = static::isCompanySide() || CustomerMode::people() ? 'true' : 'false';
         }
 
         $values = static::checkRoles($values, $id);

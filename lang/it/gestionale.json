@@ -6,9 +6,10 @@
             "title_companies": "Aziende",
             "tooltip_people": "Le persone che lavorano per questa azienda, con il loro reparto (es. Amministrazione): servirà per mandare a ognuno le email che lo riguardano. Un referente che riceve i documenti li ha in copia quando li mandi.",
             "tooltip_companies": "Le aziende per cui lavora questa persona, con il suo ruolo e reparto. Se riceve i documenti li ha in copia quando li mandi.",
-            "filter": "Referenti",
-            "filter_only": "Solo i referenti",
-            "filter_hide": "Senza i referenti",
+            "filter": "Ruolo",
+            "filter_all": "Tutti",
+            "filter_customers": "Clienti",
+            "filter_referents": "Referenti",
             "column": "Referenti / aziende",
             "referent_badge": "Referente",
             "export_people": "Referenti",
@@ -72,7 +73,8 @@
             "multi_location_in_use": "«Più sedi» non si spegne: {{where}}. Riporta la merce nella sede principale con un trasferimento e ricevi quelli in viaggio, poi riprova.",
             "products_in_use": "«Prodotto» non si spegne: {{count}} nel catalogo. Eliminali, poi riprova.",
             "subscriptions_in_use": "«Abbonamenti» non si spegne: {{count}}. Aspetta che finiscano, poi riprova.",
-            "variants_in_use": "«Varianti» non si spegne: {{count}}. Lascia una versione sola a ogni articolo, poi riprova."
+            "variants_in_use": "«Varianti» non si spegne: {{count}}. Lascia una versione sola a ogni articolo, poi riprova.",
+            "customers_none": "«Clienti privati» e «Aziende» non si spengono insieme: il gestionale lavora con le persone, con le aziende o con tutte e due. Lasciane accesa una."
         },
         "stock_document": {
             "not_found": "Questo documento di magazzino non esiste più.",
@@ -127,6 +129,8 @@
         },
         "office_order": {
             "too_many_rows": "Un ordine tiene al massimo {{max}} righe: dividilo in due.",
+            "customer_people_only": "Il gestionale lavora solo con le persone: scegli una persona come cliente.",
+            "customer_companies_only": "Il gestionale lavora solo con le aziende: scegli un'azienda come cliente.",
             "invalid_lines": "Le righe non si sono lette: ricarica la pagina e riprova.",
             "name_required": "La riga {{row}} è una riga libera: scrivi cosa vendi.",
             "price_required": "La riga {{row}} è una riga libera: scrivi il prezzo.",

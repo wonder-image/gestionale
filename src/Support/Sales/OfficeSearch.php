@@ -8,6 +8,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Stock\Locations;
 use Wonder\Plugin\Gestionale\Support\Stock\StockVersionSearch;
@@ -92,6 +93,8 @@ final class OfficeSearch
      * ed email; il dettaglio le distingue con «Azienda · P.IVA …». Le persone
      * legate a un'azienda cliente compaiono anche come «Persona — Azienda»
      * (`company:7:12`): sceglierle apre l'azienda con quel referente.
+     * Il modo del gestionale (`CustomerMode`) toglie le aziende (e i loro
+     * referenti) o le persone clienti.
      *
      * @return list<array{id: string, kind: string, label: string, detail: string}>
      */
@@ -103,21 +106,24 @@ final class OfficeSearch
             return [];
         }
 
-        $companies = array_map(static fn (array $row): array => [
+        $withCompanies = CustomerMode::companies();
+        $withPeople = CustomerMode::people();
+
+        $companies = $withCompanies ? array_map(static fn (array $row): array => [
             'id' => self::customerKey(0, (int) $row['id']),
             'kind' => 'company',
             'label' => trim((string) ($row['business_name'] ?? '')) ?: 'Azienda #'.(int) $row['id'],
             'detail' => self::companyDetail($row),
-        ], self::rows(Company::class, $words, ['business_name', 'pi', 'cf', 'email']));
+        ], self::rows(Company::class, $words, ['business_name', 'pi', 'cf', 'email'])) : [];
 
-        $people = array_map(static fn (array $row): array => [
+        $people = $withPeople ? array_map(static fn (array $row): array => [
             'id' => self::customerKey((int) $row['id'], 0),
             'kind' => 'contact',
             'label' => Contacts::displayName($row),
             'detail' => trim(implode(' · ', array_filter([(string) ($row['email'] ?? ''), (string) ($row['city'] ?? '')]))),
-        ], self::rows(Contact::class, $words, ['name', 'surname', 'email', 'cf']));
+        ], self::rows(Contact::class, $words, ['name', 'surname', 'email', 'cf'])) : [];
 
-        $people = [...self::referents($words), ...$people];
+        $people = [...($withCompanies ? self::referents($words) : []), ...$people];
 
         // Metà posti a testa; quelli che una parte non usa vanno all'altra.
         $half = intdiv(self::CUSTOMER_LIMIT, 2);

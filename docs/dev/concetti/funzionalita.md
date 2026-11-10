@@ -101,6 +101,44 @@ articolo di tipo `simple`. «Multiprodotto» la richiede. Spenta:
 - non si spegne con prodotti singoli nel catalogo: i prodotti esistenti
   restano, in vendita, e vanno eliminati prima.
 
+### Con chi lavora il gestionale (`private_customers`, `companies`)
+
+Due voci dell'area *Anagrafiche*, accese di serie, danno il modo del
+gestionale. Si legge **solo** da `Support\Contacts\CustomerMode`:
+`current()` (`people`, `both`, `companies`), `people()` (si vende ai privati)
+e `companies()` (ci sono le aziende). `of(bool, bool)` è la parte pura; con lo
+stato non letto (tutte e due spente) vale `both`.
+
+Sono due interruttori e non una scelta a tre perché il pannello e il motore
+delle dipendenze reggono solo sì/no: così ciò che vive solo con le aziende le
+richiede come ogni altra dipendenza (`company_accounts` ha
+`requires => ['online_sales', 'companies']` e si spegne con loro), e lo storico
+dei cambi resta quello di sempre. Spente insieme le rifiuta
+`FeatureGuards` (`feature.customers_none`).
+
+Le conseguenze, tutte da `CustomerMode`:
+
+- `CompanyResource::shownInMode()` → con `people` niente menu, pagine (anche
+  la scheda in lettura) e API delle aziende; `SupplierResource` resta (lo
+  governa `purchasing`), senza brand, capogruppo, referenti e ruolo
+  «Cliente e fornitore»;
+- `CustomerResource::relationsShown()` → referenti e aziende delle persone
+  (repeater, colonna, filtro, riquadro della scheda) solo con le aziende;
+- `CustomerResource::sellsTo()` → pagamento, listino, esigibilità e
+  commerciale delle persone solo dove si vende ai privati;
+- `titleLabel()` / `textSchema()` delle persone: «Clienti» (`people`),
+  «Persone» con il filtro *Ruolo* a radio (`both`), «Referenti» (`companies`,
+  l'elenco mostra solo le persone legate a un'azienda viva e una persona nuova
+  nasce `is_customer = 'false'`);
+- `QuickContacts` e `Contacts\CompanyBrandResource::quickCreateStore()`
+  rifiutano le schede fuori modo; `OfficeSearch::customerChoices()` cerca solo
+  quello che il modo ammette; `OfficeOrders` rifiuta un cliente **nuovo** fuori
+  modo (`office_order.customer_people_only` / `customer_companies_only`), un
+  documento di prima si salva com'è.
+
+Niente si cancella: i marcatori dei repeater non arrivano nel POST e i
+legami restano come sono.
+
 ## Esportazioni
 
 L'area **Esportazioni** decide cosa offre il bottone «File» nella tabella dei

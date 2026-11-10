@@ -23,6 +23,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentData;
@@ -858,6 +859,12 @@ final class OfficeOrders
                 throw UserError::make('office_order.customer_unknown');
             }
 
+            // Il modo del gestionale vale per il cliente scelto adesso: un
+            // documento di prima resta com'è (cambiare modo nasconde, non cancella).
+            if (!CustomerMode::companies() && (int) ($order['company_id'] ?? 0) !== $companyId) {
+                throw UserError::make('office_order.customer_people_only');
+            }
+
             $brand = DocumentBrands::resolve(
                 $companyId,
                 array_key_exists('company_brand_id', $data) ? max(0, (int) $data['company_brand_id']) : null,
@@ -873,6 +880,10 @@ final class OfficeOrders
         } elseif ($customerId > 0) {
             if (self::alive(Contact::class, $customerId) === [] || !self::reachable(Contact::$table, $customerId)) {
                 throw UserError::make('office_order.customer_unknown');
+            }
+
+            if (!CustomerMode::people() && ((int) ($order['customer_id'] ?? 0) !== $customerId || (int) ($order['company_id'] ?? 0) > 0)) {
+                throw UserError::make('office_order.customer_companies_only');
             }
 
             $defaults = self::customerDefaults($customerId);

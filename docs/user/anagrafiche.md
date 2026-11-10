@@ -7,6 +7,36 @@ icon: people
 > **Inclusa.** I clienti ci sono sempre. I **fornitori** compaiono solo con la
 > funzionalità *Acquisti* sbloccata.
 
+## Con chi lavora il gestionale
+
+Due interruttori di **Set Up → Funzionalità**, area *Anagrafiche*, dicono a chi
+vendi:
+
+| Clienti privati | Aziende | Il gestionale lavora con… | L'elenco delle persone si chiama |
+|---|---|---|---|
+| accesa | accesa | persone e aziende (di serie) | **Persone** |
+| accesa | spenta | solo persone | **Clienti** |
+| spenta | accesa | solo aziende | **Referenti** |
+
+Tutte e due spente non si può: il pannello lo rifiuta.
+
+- **Solo persone** — per chi vende a privati. Spariscono dal menu e dalle
+  schede le **Aziende** e quello che è solo loro: brand, referenti,
+  capogruppo, reparti, e la funzionalità *Account aziendali*, che si spegne
+  da sola perché ha bisogno delle aziende. Le pagine delle aziende non si
+  aprono nemmeno dall'indirizzo. I **fornitori** restano (sono sempre
+  aziende, li governa *Acquisti*), con i loro dati ma senza brand,
+  capogruppo e referenti.
+- **Solo aziende** — per chi vende solo a ditte. Le persone ci sono come
+  **referenti** delle aziende: l'elenco si chiama *Referenti*, ogni persona
+  nuova va legata a un'azienda e un cliente privato non si crea più.
+- **Persone e aziende** — tutto quello che c'è in questa pagina.
+
+Cambiare modo **nasconde e non cancella**: schede, legami, brand e documenti
+restano nel database e tornano quando riaccendi l'interruttore. Un ordine già
+fatto con un cliente che il modo nasconde si riapre e si salva com'è; il
+cliente nuovo di un ordine, invece, deve essere del tipo con cui lavori.
+
 ## Persone e aziende
 
 La rubrica ha due tipi di scheda:
@@ -82,6 +112,17 @@ di modifica. Uno solo è il **predefinito** e il primo che scrivi lo diventa; se
 elimini il predefinito, passa al primo rimasto. Un indirizzo eliminato esce dalla
 scheda ma non dagli ordini già fatti, che ne conservano una copia.
 
+## L'elenco delle persone
+
+Cliente è un **ruolo**, non un tipo di scheda: la stessa persona può essere
+cliente, referente di un'azienda o tutte e due. Per questo, con persone e
+aziende, l'elenco si chiama **Persone** e sopra la tabella c'è il filtro
+**Ruolo** a vista: *Tutti*, *Clienti* (chi compra per sé) e *Referenti* (chi
+è legato a un'azienda). Il nome della persona apre sempre la sua scheda, che
+sia cliente o solo referente. Titoli, *Aggiungi persona*, *Scheda persona* e
+il nome del file esportato seguono l'elenco (*Clienti* o *Referenti* negli
+altri due modi).
+
 ## La scheda del cliente
 
 In alto le **statistiche** e, a destra, i **dati di fatturazione** (codice
@@ -92,6 +133,13 @@ un'azienda elenca anche i suoi **referenti**, quella di una persona le **aziende
 per cui è referente: il nome apre la loro scheda, sotto c'è la mansione e se è il
 principale o riceve i documenti. Poi gli ordini, il carrello, gli
 **abbonamenti** (con la funzionalità *Abbonamenti*) e, in fondo, i coupon.
+
+La scheda di una persona che è **solo referente** si apre come le altre, ma
+mostra solo quello che ha senso per lei: **tutti i suoi dati** (con il ruolo
+*Referente*), le **aziende** di cui è referente e gli **indirizzi di
+consegna**. Statistiche, ordini, carrello, pagamento, listino, abbonamenti e
+coupon sono del cliente e non ci sono. Con il gestionale *solo aziende* ogni
+persona ha questa scheda.
 
 ## La scheda del fornitore
 
@@ -143,14 +191,15 @@ Funziona anche quando crei un cliente o un'azienda nuovi. Poi:
 - **Riceve i documenti** — chi ha questa risposta riceve in copia le email dei
   documenti. Sui documenti si può scegliere qualsiasi referente.
 
-Nell'elenco dei clienti il filtro **Referenti** mostra solo queste persone o le
-nasconde, e la colonna **Referenti / aziende** dice chi è legato a chi; lo dice
-anche l'export. Togliere un referente dal riquadro non elimina la sua scheda e
+Nell'elenco delle persone il filtro **Ruolo → Referenti** mostra solo queste
+persone (*Clienti* solo chi compra per sé), e la colonna **Referenti /
+aziende** dice chi è legato a chi; lo dice anche l'export. Togliere un referente dal riquadro non elimina la sua scheda e
 non cambia i documenti già fatti, che ne conservano il nome.
 
 ## Comprare sul sito per un'azienda
 
-Con la funzionalità **Account aziendali** (serve *Vendita online*) una persona
+Con la funzionalità **Account aziendali** (servono *Vendita online* e
+*Aziende*) una persona
 con l'account sul sito può ordinare anche per le aziende a cui è collegata.
 Lo decide la colonna **Accesso all'area clienti** del riquadro Referenti:
 
@@ -190,7 +239,8 @@ toglilo prima dai fornitori di quegli articoli e di quelle opzioni.
 
 ## Nella home
 
-Il riquadro **Anagrafiche** dice quante persone e aziende ci sono e porta agli elenchi.
+Il riquadro **Anagrafiche** dice quanti clienti e quante aziende ci sono e
+porta agli elenchi; con un modo solo mostra solo quello con cui lavori.
 # Storage condiviso
 
 Le schede contatto e gli indirizzi di consegna (`contacts`, `contact_addresses`)

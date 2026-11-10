@@ -11,6 +11,7 @@ use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 
@@ -22,6 +23,9 @@ use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
  * `company_addresses`. Con gli acquisti accesi sceglie il ruolo.
  * `SupplierResource` la estende per l'elenco dei fornitori. La prima cosa
  * che chiede è il brand: il nome commerciale, condiviso tra ragioni sociali.
+ *
+ * Con il gestionale «solo persone» (`CustomerMode`) l'elenco e le sue pagine
+ * spariscono; i fornitori restano, senza brand, capogruppo e referenti.
  */
 class CompanyResource extends CustomerResource
 {
@@ -54,9 +58,15 @@ class CompanyResource extends CustomerResource
         return 'company_id';
     }
 
+    /** Il ruolo «Cliente e fornitore» c'è solo se le aziende sono anche clienti. */
     public static function rolesShown(): bool
     {
-        return Gestionale::feature('purchasing');
+        return Gestionale::feature('purchasing') && CustomerMode::companies();
+    }
+
+    public static function shownInMode(): bool
+    {
+        return CustomerMode::companies();
     }
 
     protected static function uniqueColumns(): array
@@ -96,9 +106,12 @@ class CompanyResource extends CustomerResource
         return CompanyBrandResource::class;
     }
 
+    /** Brand e capogruppo sono delle aziende clienti: con le sole persone non si chiedono. */
     public static function formSchema(): array
     {
-        return [...static::brandFields(), ...static::groupFields(), ...parent::formSchema()];
+        $extras = CustomerMode::companies() ? [...static::brandFields(), ...static::groupFields()] : [];
+
+        return [...$extras, ...parent::formSchema()];
     }
 
     public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
@@ -108,6 +121,10 @@ class CompanyResource extends CustomerResource
 
     protected static function brandCards(): array
     {
+        if (!CustomerMode::companies()) {
+            return [];
+        }
+
         return [
             (new Card)->components([
                 SectionTitle::make(__t('gestionale.contacts.brands.title'))
@@ -166,8 +183,9 @@ class CompanyResource extends CustomerResource
         $customer = ($values['is_customer'] ?? static::storedRole($id, 'is_customer')) === 'true';
         $supplier = ($values['is_supplier'] ?? static::storedRole($id, 'is_supplier')) === 'true';
 
-        if ($id <= 0 && !static::rolesShown() && !isset($values['is_customer'])) {
-            // Senza acquisti ogni azienda nuova è un cliente.
+        if ($id <= 0 && !static::rolesShown() && !isset($values['is_customer']) && static::roleColumn() === 'is_customer') {
+            // Senza acquisti ogni azienda nuova è un cliente; un fornitore
+            // nuovo senza il campo Ruolo (solo persone) resta fornitore.
             $values['is_customer'] = 'true';
             $customer = true;
         }

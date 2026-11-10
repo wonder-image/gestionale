@@ -6,6 +6,27 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Aggiunto
+- **Con chi lavora il gestionale.** Due funzionalità nuove, area
+  *Anagrafiche*, accese di serie: **Clienti privati** (`private_customers`) e
+  **Aziende** (`companies`). Insieme danno il modo, letto solo da
+  `Support\Contacts\CustomerMode` (`current()`, `people()`, `companies()`):
+  persone e aziende, solo persone, solo aziende; spente insieme le rifiuta
+  `FeatureGuards` (`feature.customers_none`). *Solo persone*: niente menu,
+  pagine (anche dall'URL) e API delle aziende, né brand, referenti,
+  capogruppo e reparti; i fornitori restano con gli Acquisti, senza quelle
+  parti; *Account aziendali* ora richiede *Aziende* e si spegne con lei.
+  *Solo aziende*: le persone sono referenti, l'elenco mostra solo chi è legato
+  a un'azienda, una persona nuova non è cliente e va legata a un'azienda,
+  pagamento e listino delle persone spariscono. Ricerca del cliente, creazioni
+  rapide, ordine da ufficio e riquadro *Anagrafiche* della home seguono il
+  modo. Cambiare modo nasconde, non cancella.
+- **Ordine da ufficio e preventivo: cliente, referente e brand nuovi senza
+  lasciare la pagina.** *Nuova persona* / *Nuova azienda* (o *Nuovo cliente*)
+  aprono la creazione rapida del core e scelgono la scheda nata, con i riquadri
+  ridisegnati; *Aggiungi* accanto a Referente e Brand li crea già legati
+  all'azienda scelta (`link_company_id`), il brand in fondo ai suoi senza
+  toccare ruolo e predefinito degli altri. L'azienda dev'essere visibile a chi
+  scrive. Tolto il collegamento alla pagina di creazione del cliente.
 - **Commerciali (#77).** Nuova funzionalità `sales_agents` (area Vendite,
   richiede `orders` e `office_sales`) con il ruolo `sales_agent`, la tabella
   `gst_sales_agents` e la pagina *Anagrafiche → Commerciali*. Il commerciale
@@ -43,6 +64,18 @@ versionamento semantico.
   con `ContactRelations`.
 
 ### Cambiato
+- **Anagrafiche: «Cliente» è un ruolo.** L'elenco delle persone si chiama
+  **Persone** (con persone e aziende) con il filtro **Ruolo** a vista (*Tutti*,
+  *Clienti*, *Referenti*, al posto di «Referenti: solo / senza»), **Clienti**
+  con le sole persone e **Referenti** con le sole aziende: titoli, *Aggiungi*,
+  *Scheda*, menu ed export seguono. Tabella, classi e percorsi non cambiano.
+- **La scheda di chi è solo referente si apre** dall'elenco (prima la scheda
+  in lettura rimandava all'elenco chi non era cliente): dati, aziende di cui è
+  referente e indirizzi di consegna, senza ordini, carrello, statistiche,
+  pagamento, listino, abbonamenti e coupon.
+- Una Resource delle anagrafiche con la funzionalità (o il modo) spenta non
+  riaccende più la sola scheda in lettura: prima i *Fornitori* senza Acquisti
+  avevano ancora la pagina `view`.
 - **Anagrafiche: ritocchi dopo la prova (#77).**
   - Nei riquadri *Referenti* e *Aziende* la scheda si cerca nella tendina e il
     **+** della riga la crea in una finestra (quick-create del core,

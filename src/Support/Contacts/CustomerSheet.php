@@ -58,12 +58,13 @@ final class CustomerSheet
     /**
      * I dati della scheda, un `DataItem` ciascuno: tipo, nome, ruolo, stato,
      * contatti, accesso al sito, note. Quelli di fatturazione sono in
-     * `billing()`. Dove non c'è un valore compare un trattino.
+     * `billing()`. Dove non c'è un valore compare un trattino. `$role`
+     * prende il posto del ruolo salvato (il referente non ne ha uno).
      *
      * @param array<string, mixed> $contact
      * @return list<DataItem>
      */
-    public static function data(array $contact, string $access): array
+    public static function data(array $contact, string $access, string $role = ''): array
     {
         $get = static fn (string $key): string => trim((string) ($contact[$key] ?? ''));
         $dato = static fn (string $etichetta, string $valore, bool $html = false, int $colonne = 4): DataItem => DataItem::make($etichetta, $valore)
@@ -74,7 +75,7 @@ final class CustomerSheet
             ? [$dato('Tipo', 'Azienda'), $dato('Ragione sociale', $get('business_name'))]
             : [$dato('Tipo', 'Persona'), $dato('Nome', trim($get('name').' '.$get('surname')))];
 
-        $items[] = $dato('Ruolo', Contacts::roles($contact));
+        $items[] = $dato('Ruolo', $role !== '' ? $role : Contacts::roles($contact));
         $items[] = $dato('Stato', ($contact['active'] ?? 'true') === 'false'
             ? Badge::make('Non attiva')->variant('secondary')->inline()->render('bootstrap')
             : Badge::make('Attiva')->variant('success')->inline()->render('bootstrap'), true);

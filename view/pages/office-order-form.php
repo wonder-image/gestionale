@@ -26,6 +26,12 @@ use Wonder\View\View;
  * (persona o referente) e `company_id`. Il «Referente» c'è solo per
  * un'azienda e scrive `customer_id`; anche il «Brand» (`company_brand_id`),
  * proposto dal predefinito. Cambiare il brand non cambia il referente scelto.
+ *
+ * Cliente, referente e brand nuovi nascono nelle finestre della creazione
+ * rapida del core, senza lasciare la pagina: il cliente nato si sceglie come
+ * dalla ricerca (e i riquadri si ridisegnano), referente e brand entrano
+ * nella loro tendina già scelti. Le finestre di referente e brand portano
+ * l'azienda scelta, scritta qui all'apertura.
  */
 
 /** @var class-string<\Wonder\Plugin\Gestionale\Resources\Sales\OfficeOrderResource> $resource */
@@ -280,6 +286,29 @@ try {
             check(main ? main.id : 0);
             ship();
         });
+    });
+
+    // Il cliente nato da «Nuova persona» / «Nuova azienda»: si sceglie come
+    // dalla ricerca, così testata e riquadri si riempiono dalla sua scheda.
+    document.addEventListener('wi:quick-create:created', function (event) {
+        var detail = event.detail || {};
+        var kind = detail.trigger ? detail.trigger.getAttribute('data-wi-oo-new') : '';
+        var root = customer.closest('.form-floating, [data-wi-remote-search]');
+
+        if ((kind !== 'contact' && kind !== 'company') || !detail.id || !root || !window.wiRemoteSearch) {
+            return;
+        }
+
+        window.wiRemoteSearch.select(root, {id: kind + ':' + parseInt(detail.id, 10), label: String(detail.label || '')});
+    });
+
+    // Referente e brand nuovi nascono legati all'azienda scelta adesso.
+    document.addEventListener('show.bs.modal', function (event) {
+        var target = event.target.querySelector ? event.target.querySelector('[data-wi-oo-qc-company]') : null;
+
+        if (target) {
+            target.value = String(parseInt((field('company_id') || {}).value, 10) || 0);
+        }
     });
 
     customer.addEventListener('change', function () {
