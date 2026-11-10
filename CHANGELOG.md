@@ -6,6 +6,42 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Aggiunto
+- **Novità di customer-account (riquadro dei contatti, contatti di lavoro,
+  indirizzi per nome) nel gestionale:**
+  - **Riquadro «Contatti»** su persone, aziende e fornitori al posto di email,
+    prefisso, telefono e «Altri contatti» (`contactBoxFields()`, script del
+    modulo nella card). `mutateRequestValues()` chiama `applyContactPoints()`
+    prima dei controlli (il doppione dell'email vale sul principale, con il
+    messaggio generico per le schede non visibili), toglie riquadro e marker,
+    chiama `assertRelationContacts($_POST)`. Le aziende hanno «Si occupa di»
+    sulle righe. Senza riquadro (creazione rapida, finestre dell'ordine, API,
+    MCP) i campi singoli funzionano come prima. Le schede in lettura mostrano
+    tutti i contatti (`ContactPoints::all()`): principale, «Email di accesso»,
+    etichette e aree (`CustomerSheet::points()` al posto di «Altri contatti»;
+    `data()` non porta più email e telefono).
+  - **Email di accesso bloccata**: una persona con un account sul sito tiene
+    `contacts.email`; dal riquadro si ignora, da un campo singolo diverso
+    (finestra dell'ordine, API) l'errore `contact.access_email_locked`.
+  - **Contatti di lavoro dei referenti** (colonne del trait nel repeater, una
+    riga loro): `contact_email` (di lavoro, altrimenti della persona) e il
+    telefono di lavoro in `DocumentReferents` (`email`, nuovo `phone`,
+    `emailOf()`), scheda dell'azienda, email proposta dall'ordine quando
+    l'azienda non ne ha, abbonamenti e MCP.
+  - **Email dell'azienda per area** (`DocumentReferents::companyEmails()` su
+    `ContactPoints::companyEmailsFor()`, stessa mappa documento → area dei
+    referenti; nessuna casella dell'area → la principale): in copia nei
+    documenti degli ordini, destinatario dei documenti degli abbonamenti.
+  - **Indirizzi**: ricerca anche per nome dell'attività, place ID e coordinate
+    della fatturazione (campi nascosti nel layout e nelle finestre dell'ordine,
+    ripuliti con `GoogleMaps::cleanGeo()`), «Presso» (`business_name`) nel
+    repeater degli indirizzi e nella finestra di `ContactAddressResource`, anche
+    per le sedi d'azienda, riempito dal nome dell'attività scelta. Place ID e
+    coordinate anche nel repeater degli indirizzi. Tolta da
+    `Models\Contacts\ContactAddress` la dichiarazione doppia di
+    `business_name` (è già di customer-account, stesso schema).
+  - **MCP** `customer_get`: `contact_points` da `ContactPoints::all()` (con
+    `is_primary` e `departments`), `email` dei referenti = `contact_email` con
+    `work_email` / `work_phone`, place ID e coordinate della fatturazione.
 - **Funzionalità «Brand»** (`brands`, area *Anagrafiche*, richiede *Aziende*,
   spenta di serie), letta solo da `Support\Contacts\Brands::enabled()`.
   Accesa: voce **Anagrafiche → Brand** (`CompanyBrandResource`, permessi
@@ -158,6 +194,10 @@ versionamento semantico.
   (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
 
 ### Cambiato
+- **Copie dei documenti di un'azienda senza referenti**: le email
+  dell'azienda per l'area (o la principale) vanno in copia anche quando
+  nessun referente riceve i documenti (prima nessuna copia), sempre senza chi
+  riceve già la mail. Serve alle caselle come *acquisti@* senza referente.
 - **Scheda di persone e aziende: «Pagamento» su una riga.** Metodo e
   condizione di pagamento, esigibilità IVA, listino e commerciale stanno in un
   solo riquadro *Pagamento* (prima *Commerciale*, *Pagamento* e *Listino*),

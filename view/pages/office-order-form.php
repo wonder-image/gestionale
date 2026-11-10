@@ -450,18 +450,13 @@ try {
         }
 
         if (modal.id === modals[2]) {
-            // Le sedi d'azienda non hanno la ragione sociale: è quella dell'azienda.
-            target = modal.querySelector('[name="business_name"]');
-
-            if (target) {
-                (target.closest('[class*="col-"]') || target.parentNode).hidden = company();
-            }
-
             return;
         }
 
         Object.keys(state.contact).forEach(function (key) {
-            var input = modal.querySelector('[name="' + key + '"]:not([type=hidden])');
+            // Place ID e coordinate sono nascosti: si riportano anche loro, così salvando non si perdono.
+            var input = modal.querySelector('[name="' + key + '"]:not([type=hidden])')
+                || (['place_id', 'lat', 'lng'].indexOf(key) !== -1 ? modal.querySelector('[name="' + key + '"][type=hidden]') : null);
 
             if (!input || key === 'province') {
                 return;

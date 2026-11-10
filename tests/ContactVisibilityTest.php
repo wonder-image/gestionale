@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
+require __DIR__ . '/supporto/SenzaDns.php';
 
 use Wonder\App\Visibility\RowVisibility;
 use Wonder\Plugin\CustomerAccount\Models\CompanyBrand;
@@ -270,6 +271,35 @@ check('il doppione che non si vede non si nomina; il referente nuovo si lega con
         && !str_contains($codice, 'allRowsOf')
         && str_contains($scheda, "UserError::make('contact.duplicate_hidden')")
         && !str_contains(UserError::make('contact.duplicate_hidden')->getMessage(), '{{');
+});
+
+/** Le persone con un doppione: `anna@rossi.it` è già della scheda 8. */
+class PersoneConDoppione extends \Wonder\Plugin\CustomerAccount\Models\Contact
+{
+    public static function find(string|array|null $condition = null, string|int|null $limit = null, ?string $order = null, ?string $orderDirection = null, string|array $columns = '*'): mixed
+    {
+        return is_array($condition) && ($condition['email'] ?? '') === 'anna@rossi.it' ? [['id' => 8, 'name' => 'Anna', 'surname' => 'Rossi']] : [];
+    }
+}
+
+final class PersoneDiProva extends CustomerResource
+{
+    public static string $model = PersoneConDoppione::class;
+}
+
+check('il doppione dell\'email principale vale anche dal riquadro: nominato a chi lo vede, generico per gli altri', function () use ($commerciale, $ufficio) {
+    $valori = ['name' => 'Anna', 'contact_box_form' => '1', 'contact_points' => [['kind' => 'email', 'email' => 'Anna@Rossi.it', 'is_primary' => 'true']]];
+    $chiave = static function (object $utente) use ($valori): string {
+        try {
+            RowVisibility::as($utente, static fn (): array => PersoneDiProva::mutateRequestValues($valori, 'store'));
+        } catch (UserError $errore) {
+            return $errore->key();
+        }
+
+        return '';
+    };
+
+    return $chiave($ufficio) === 'contact.email_taken' && $chiave($commerciale) === 'contact.duplicate_hidden';
 });
 
 check('i ganci si registrano al boot accanto ai commerciali', function () {

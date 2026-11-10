@@ -243,14 +243,22 @@ final class OfficeOrders
         $brandId = $brandId ?? self::defaultBrand($companyId);
         $referent = DocumentReferents::resolve($companyId, $personId > 0 ? $personId : DocumentReferents::defaultFor($companyId, $brandId));
         $person = self::alive(Contact::class, (int) $referent['customer_id']);
+        $referentContact = ['email' => (string) ($person['email'] ?? ''), 'phone' => trim((string) ($person['phone_prefix'] ?? '').' '.(string) ($person['phone'] ?? ''))];
+
+        foreach ((int) $referent['customer_id'] > 0 ? DocumentReferents::people($companyId) : [] as $option) {
+            if ($option['id'] === (int) $referent['customer_id']) {
+                $referentContact = ['email' => $option['email'], 'phone' => $option['phone']];
+            }
+        }
 
         $out = [
             'customer_id' => (int) $referent['customer_id'],
             'company_id' => $companyId,
             'referent_name' => (string) $referent['referent_name'],
             'company_brand_id' => $brandId,
-            'email' => (string) ($company['email'] ?? '') !== '' ? (string) $company['email'] : (string) ($person['email'] ?? ''),
-            'phone' => trim((string) ($company['phone_prefix'] ?? '').' '.(string) ($company['phone'] ?? '')),
+            // L'email dell'azienda; senza, quella del referente per l'azienda (di lavoro, se c'è).
+            'email' => (string) ($company['email'] ?? '') !== '' ? (string) $company['email'] : $referentContact['email'],
+            'phone' => trim((string) ($company['phone_prefix'] ?? '').' '.(string) ($company['phone'] ?? '')) ?: $referentContact['phone'],
             'payment_method_id' => (int) ($company['payment_method_id'] ?? 0),
             'payment_term_id' => (int) ($company['payment_term_id'] ?? 0),
             'price_list_id' => PriceLists::forCompany($companyId),

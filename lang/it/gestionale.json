@@ -283,7 +283,8 @@
             "vat_collectability_invalid": "Esigibilità IVA non valida: scegli I, D, S o lascia la predefinita.",
             "has_account": "Questa scheda ha un account sul sito e non si elimina: mettila su «Non attiva» se non lavori più con lei.",
             "supplier_in_use": "Questo fornitore ha ancora dei costi d'acquisto su articoli o opzioni in vendita ({{count}}) e non si elimina: metti la scheda su «Non attiva» se non lavori più con lui.",
-            "supplier_role_in_use": "Questa scheda è ancora il fornitore di articoli o opzioni in vendita ({{count}}): toglila dai loro fornitori prima di cambiarle ruolo, o mettila su «Non attiva»."
+            "supplier_role_in_use": "Questa scheda è ancora il fornitore di articoli o opzioni in vendita ({{count}}): toglila dai loro fornitori prima di cambiarle ruolo, o mettila su «Non attiva».",
+            "access_email_locked": "Questa è l'email con cui il cliente accede al sito: si cambia dal suo account, non da qui. Le altre email si aggiungono nel riquadro «Contatti» della scheda."
         },
         "settings": {
             "batch_expiry_days_invalid": "I giorni prima della scadenza vanno da 0 a 3650.",

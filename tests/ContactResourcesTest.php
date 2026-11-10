@@ -281,7 +281,7 @@ check('il gestionale distingue password e provider federati', function () {
         ]) === 'Email e password';
 });
 
-check('nel repeater degli indirizzi la via ha l\'aiuto di Google, senza campi geo', function () {
+check('nel repeater degli indirizzi la via cerca anche per nome, riempie «Presso» e porta place ID e coordinate', function () {
     $campo = (new ReflectionMethod(CustomerResource::class, 'addressesField'))->invoke(null);
     $nome = new ReflectionProperty(\Wonder\App\ResourceSchema\Input::class, 'name');
     $colonne = [];
@@ -290,8 +290,14 @@ check('nel repeater degli indirizzi la via ha l\'aiuto di Google, senza campi ge
         $colonne[(string) $nome->getValue($colonna)] = (string) $colonna->get('attribute');
     }
 
-    return str_contains($colonne['street'] ?? '', 'data-wi-place="addresses[]["')
-        && array_intersect(['place_id', 'lat', 'lng'], array_keys($colonne)) === [];
+    $pulita = CustomerResource::prepareRepeaterRelationRow('addresses', ['street' => 'Via Roma', 'place_id' => 'x<y', 'lat' => '45.46', 'lng' => '9.19'], []);
+    $buona = CustomerResource::prepareRepeaterRelationRow('addresses', ['place_id' => 'ChIJabc_def-123', 'lat' => '45.46', 'lng' => '9.19'], []);
+
+    return str_contains($colonne['street'] ?? '', 'data-wi-place="addresses[]["') && str_contains($colonne['street'] ?? '', 'data-wi-place-names')
+        && str_contains($colonne['street'] ?? '', 'data-ca-place-name="business_name"')
+        && count(array_intersect(['place_id', 'lat', 'lng', 'business_name'], array_keys($colonne))) === 4
+        && $pulita['place_id'] === null && $pulita['lat'] === 45.46 && ($pulita['street'] ?? '') === 'Via Roma'
+        && $buona['place_id'] === 'ChIJabc_def-123' && $buona['lng'] === 9.19;
 });
 
 check('la creazione rapida dei legami: target, campi, errore senza id', function () {

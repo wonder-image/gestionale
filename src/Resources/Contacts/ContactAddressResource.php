@@ -14,6 +14,7 @@ use Wonder\Backend\Support\FlashAlert;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Modal;
 use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
+use Wonder\Plugin\CustomerAccount\Support\ContactFormScript;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
@@ -337,16 +338,17 @@ final class ContactAddressResource extends NavigationOnlyResource
         return Modal::make('Aggiungi indirizzo')
             ->id(static::MODAL_ID)
             ->size('lg')
-            ->help('L\'etichetta serve a riconoscerlo (Casa, Ufficio, Magazzino) e si vede solo qui. L\'azienda è facoltativa, per le consegne in ufficio. Nome e cognome sono di chi ritira: spesso non è il titolare della scheda. Il predefinito è uno solo per scheda: scegliendo questo, l\'altro smette di esserlo.')
+            ->help('L\'etichetta serve a riconoscerlo (Casa, Ufficio, Magazzino) e si vede solo qui. «Presso» è l\'attività o la società a quell\'indirizzo, facoltativa: cercando nell\'indirizzo il nome di un\'attività si riempie da sola. Nome e cognome sono di chi ritira: spesso non è il titolare della scheda. Il predefinito è uno solo per scheda: scegliendo questo, l\'altro smette di esserlo.')
             ->form(static::submitUrl(), hidden: ['contact_id' => $contactId, 'company_id' => 0, 'action' => 'save', 'address_id' => 0])
             ->columns(12)
             ->components([
                 $campo('label', 'Etichetta', 12),
-                $campo('business_name', 'Ragione sociale / Azienda', 12),
+                $campo('business_name', 'Presso', 12),
                 $campo('name', 'Nome', 6),
                 $campo('surname', 'Cognome', 6),
                 $core['country']->label('Paese')->columnSpan(12),
-                $core['street']->label('Indirizzo')->maxLength(static::FIELDS['street'])->columnSpan(8),
+                // Si cerca anche per nome dell'attività: scelta una, il suo nome va in «Presso» se è vuoto.
+                $core['street']->label('Indirizzo o attività')->maxLength(static::FIELDS['street'])->attribute('data-ca-place-name="business_name"')->columnSpan(8),
                 $campo('number', 'Civico', 4),
                 $core['province']->label('Provincia')->columnSpan(4),
                 $campo('city', 'Città', 5),
@@ -361,7 +363,7 @@ final class ContactAddressResource extends NavigationOnlyResource
             ])
             ->cancel('Indietro')
             ->submit('Salva')
-            ->render('bootstrap').static::script();
+            ->render('bootstrap').static::script().ContactFormScript::html();
     }
 
     /**
@@ -424,11 +426,6 @@ final class ContactAddressResource extends NavigationOnlyResource
         }
 
         ['model' => $model, 'column' => $column] = static::owner($owner);
-
-        // La sede di un'azienda ha già la ragione sociale dell'azienda.
-        if ($owner === self::OWNER_COMPANY) {
-            unset($clean['business_name']);
-        }
 
         if ($existing === null) {
             $ultima = $model::find([$column => $contactId], 1, null, null, 'MAX(`position`) AS max_position');

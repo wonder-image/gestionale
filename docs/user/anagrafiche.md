@@ -100,18 +100,50 @@ pagamento** proposti dall'ordine da ufficio, **esigibilità IVA**, **listino** e
 **commerciale**, ognuno se la sua funzionalità è accesa. Sul telefono e sugli
 schermi stretti vanno uno sotto l'altro.
 
+## Contatti
+
+Tutte le email e i telefoni di una persona, di un'azienda o di un fornitore
+stanno nel riquadro **Contatti** della scheda: una riga per contatto, con il
+tipo (*Email* o *Telefono*), un'etichetta (*Lavoro*, *Personale*,
+*Fatturazione*, *Altro*) e **Principale**. Il principale di ogni tipo è quello
+che il gestionale usa (ordini, documenti, ricerche, export): uno per tipo, e se
+non ne scegli uno lo è la prima riga. Cambiando principale il vecchio resta,
+come riga normale. Un'email scritta male o ripetuta ferma il salvataggio, e una
+email già di un'altra scheda pure (se la scheda non è fra le tue, senza dire di
+chi è).
+
+- Una persona con un **account sul sito** ha in testa l'**Email di accesso**,
+  bloccata: si cambia dal suo account, non dal gestionale (nemmeno dalle
+  finestre dell'ordine, che lo dicono). Le altre email non servono mai per
+  accedere.
+- Le righe di un'**azienda** hanno anche **Si occupa di**: le aree a cui va
+  quell'email (vuoto = tutte). Così *amministrazione@* riceve proforma e
+  solleciti anche senza creare un referente (vedi sotto).
+
+La scheda in lettura mostra tutti i contatti, con il principale, l'email di
+accesso e le aree. Le finestre *Contatti* dell'ordine da ufficio cambiano solo
+email e telefono principali.
+
 ## Dati di fatturazione
 
 Sia le persone sia le aziende hanno i **dati di fatturazione**: una persona
 può avere il suo codice fiscale e il suo indirizzo, un'azienda ha i suoi.
 Online, chi compra sceglie se fatturare a sé o a una delle sue aziende.
+Nell'indirizzo si cerca anche il **nome di un'attività** (un negozio, un
+ufficio): Google completa l'indirizzo e, per un'azienda con la ragione sociale
+vuota, la scrive con il nome dell'attività. Place ID e coordinate si salvano
+senza vederli.
 
 ## Indirizzi di consegna
 
 L'indirizzo della scheda è quello **di fatturazione**. Dove si consegna si
 scrive nel riquadro *Indirizzi di consegna*: uno per il magazzino, uno per
 casa, uno per il cantiere. Il **destinatario** è chi il corriere deve cercare,
-e spesso non è chi compra.
+e spesso non è chi compra. **Presso** è l'attività o la società a
+quell'indirizzo (facoltativo): cercando nella via il nome di un'attività si
+riempie da solo, se è vuoto, e resta modificabile. Vale anche per le sedi di
+un'azienda, nel form e nelle finestre dell'ordine da ufficio. L'ordine copia
+dalla sede scelta anche place ID e coordinate.
 
 Gli indirizzi si gestiscono anche dalla **scheda del cliente** (il nome nell'elenco
 la apre): il riquadro *Indirizzi di consegna* mostra una card per indirizzo, con
@@ -241,7 +273,11 @@ Funziona anche quando crei un cliente o un'azienda nuovi. Poi:
 - **Referente principale** — è il referente proposto quando fai un preventivo,
   un ordine da ufficio o un DDT per quell'azienda;
 - **Riceve i documenti** — chi ha questa risposta riceve in copia le email dei
-  documenti. Sui documenti si può scegliere qualsiasi referente.
+  documenti. Sui documenti si può scegliere qualsiasi referente;
+- **Email di lavoro**, **Prefisso**, **Telefono di lavoro** — i contatti del
+  referente per quell'azienda (facoltativi). Se c'è l'email di lavoro i
+  documenti di quell'azienda vanno lì e non alla sua email personale; la
+  scheda dell'azienda e l'ordine la mostrano. Non serve mai per accedere al sito.
 
 ### A chi vanno in copia i documenti
 
@@ -253,16 +289,22 @@ brand del documento (o tutti), il principale per primo. Se nessuno corrisponde,
 vale la regola di sempre: tutti quelli che ricevono i documenti. Così
 un'azienda per cui non compili le aree non vede cambiare niente.
 
-Le copie vanno all'**email principale** di ogni referente: gli *Altri contatti*
-non ricevono mai documenti e non servono per accedere al sito.
+Dell'azienda ricevono le email del suo riquadro *Contatti* che si occupano di
+quell'area (o di tutto); se nessuna corrisponde, la sua email principale, come
+prima. Nessuno riceve lo stesso documento due volte.
 
-### Altri contatti
+- **Preventivo, conferma, DDT**: destinatario l'email del documento (di solito
+  quella dell'azienda); in copia le email dell'azienda per gli *Acquisti* (o la
+  principale) e i referenti degli *Acquisti* che ricevono i documenti, all'email
+  di lavoro se ce l'hanno.
+- **Proforma, solleciti e pagamenti non riusciti degli abbonamenti**:
+  destinatario la prima email dell'azienda per l'*Amministrazione* (o la
+  principale; senza, il referente); in copia le altre email per
+  l'*Amministrazione* e i referenti dell'*Amministrazione*.
 
-Persone e aziende hanno, sotto email e telefono, il riquadro **Altri
-contatti**: email e telefoni in più, ognuno con un'etichetta (*Lavoro*,
-*Personale*, *Fatturazione*, *Altro*). Un'email scritta male o ripetuta (anche
-uguale a quella principale) ferma il salvataggio. Si leggono nella scheda, in
-*Tutti i suoi dati*, anche in quella di un referente.
+Le copie vanno all'email del referente **per quell'azienda** (di lavoro, se
+c'è, altrimenti la sua principale): gli altri contatti della persona non
+ricevono mai documenti e non servono per accedere al sito.
 
 Nell'elenco delle persone il filtro **Ruolo → Referenti** mostra solo queste
 persone (*Clienti* solo chi compra per sé), e la colonna **Referenti /

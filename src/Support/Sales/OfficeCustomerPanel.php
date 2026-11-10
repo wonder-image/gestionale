@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Sales;
 
 use Wonder\App\LegacyGlobals;
+use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\Input;
 use Wonder\App\Table;
 use Wonder\App\Visibility\RowVisibility;
@@ -46,11 +47,11 @@ final class OfficeCustomerPanel
     /** I campi della scheda che la finestra «Contatti» può cambiare. */
     public const CONTACT_KEYS = ['email', 'phone_prefix', 'phone'];
 
-    /** I campi della scheda che la finestra «Fatturazione» può cambiare. */
-    public const BILLING_KEYS = ['name', 'surname', 'cf', 'country', 'street', 'number', 'province', 'city', 'cap', 'more'];
+    /** I campi della scheda che la finestra «Fatturazione» può cambiare; place ID e coordinate li scrive Google. */
+    public const BILLING_KEYS = ['name', 'surname', 'cf', 'country', 'street', 'number', 'province', 'city', 'cap', 'more', 'place_id', 'lat', 'lng'];
 
     /** Lo stesso per un'azienda. */
-    public const COMPANY_BILLING_KEYS = ['business_name', 'cf', 'pi', 'sdi', 'pec', 'country', 'street', 'number', 'province', 'city', 'cap', 'more'];
+    public const COMPANY_BILLING_KEYS = ['business_name', 'cf', 'pi', 'sdi', 'pec', 'country', 'street', 'number', 'province', 'city', 'cap', 'more', 'place_id', 'lat', 'lng'];
 
     /**
      * Tutto quello che serve alla pagina dopo aver scelto (o cambiato) un
@@ -338,15 +339,18 @@ final class OfficeCustomerPanel
     public static function modals(string $saveUrl): string
     {
         $campo = static fn (string $key, int $col): Input => CustomerResource::getInput($key)->columnSpan($col);
+        // La scheda ha il riquadro «Contatti»: qui restano i campi singoli del principale.
+        $telefono = Contact::billing()->formSchema();
 
         $contatti = Modal::make('Contatti')
             ->id(self::CONTACTS_MODAL)
+            ->help('L\'email e il telefono principali della scheda; gli altri contatti si cambiano dalla scheda. L\'email con cui un cliente accede al sito non si cambia da qui.')
             ->form($saveUrl, hidden: ['action' => 'contacts', 'contact_id' => 0, 'company_id' => 0])
             ->columns(12)
             ->components([
-                $campo('email', 12),
-                $campo('phone_prefix', 4),
-                $campo('phone', 8),
+                FormField::key('email')->email()->label('Email')->columnSpan(12),
+                $telefono['phone_prefix']->columnSpan(4),
+                $telefono['phone']->columnSpan(8),
             ])
             ->cancel('Indietro')
             ->submit('Salva');
@@ -368,6 +372,9 @@ final class OfficeCustomerPanel
                 $campo('city', 3),
                 $campo('cap', 3),
                 $campo('more', 12),
+                $campo('place_id', 12),
+                $campo('lat', 12),
+                $campo('lng', 12),
             ])
             ->cancel('Indietro')
             ->submit('Salva');
@@ -393,6 +400,9 @@ final class OfficeCustomerPanel
                 $azienda('city', 3),
                 $azienda('cap', 3),
                 $azienda('more', 12),
+                $azienda('place_id', 12),
+                $azienda('lat', 12),
+                $azienda('lng', 12),
             ])
             ->cancel('Indietro')
             ->submit('Salva');
@@ -400,6 +410,7 @@ final class OfficeCustomerPanel
         return $contatti->render('bootstrap')
             .$fatturazione->render('bootstrap')
             .$fatturazioneAzienda->render('bootstrap')
+            // Porta anche lo script di customer-account (ricerca per nome, «Presso»).
             .ContactAddressResource::modals(0);
     }
 

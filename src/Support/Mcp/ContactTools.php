@@ -37,7 +37,7 @@ final class ContactTools
     public const KINDS = ['person', 'company'];
 
     /** I campi di fatturazione di un'azienda. */
-    public const COMPANY_KEYS = ['business_name', 'cf', 'pi', 'sdi', 'pec', 'country', 'street', 'number', 'province', 'city', 'cap', 'more'];
+    public const COMPANY_KEYS = ['business_name', 'cf', 'pi', 'sdi', 'pec', 'country', 'street', 'number', 'province', 'city', 'cap', 'more', 'place_id', 'lat', 'lng'];
 
     /** @return array<string, array<string, mixed>> */
     public static function all(): array
@@ -59,7 +59,7 @@ final class ContactTools
                 'run' => self::customersList(...),
             ],
             'customer_get' => [
-                'description' => 'Legge un cliente per id e `kind` (`person`, predefinito, o `company`): anagrafica, contatti (con `contact_points`, le email e i telefoni in più: non ricevono documenti), dati di fatturazione e indirizzi di spedizione. Con i referenti attivi, `people` (per un\'azienda: le persone con ruolo, `departments` = le aree di cui si occupano, vuota = tutte, principale, riceve i documenti) e `companies` (per una persona: le aziende di cui è referente). '
+                'description' => 'Legge un cliente per id e `kind` (`person`, predefinito, o `company`): anagrafica, contatti (`contact_points`: tutte le email e i telefoni, i principali per primi con `is_primary`; `label` `access` è l\'email di accesso al sito; per un\'azienda `departments`, le aree a cui va quell\'email, vuota = tutte), dati di fatturazione e indirizzi di spedizione (con `business_name` = presso, `place_id`, `lat`, `lng`). Con i referenti attivi, `people` (per un\'azienda: le persone con ruolo, `departments` = le aree di cui si occupano, vuota = tutte, principale, riceve i documenti; `email` è quella a cui scrivergli per l\'azienda, di lavoro se c\'è, con `work_email` e `work_phone`) e `companies` (per una persona: le aziende di cui è referente, con i contatti di lavoro). '
                     .($brands ? 'Un\'azienda ha anche `brands` (nome, ruolo, predefinito, logo, sito, dominio, descrizione); i suoi indirizzi hanno `brand_ids` (vuota = per tutti) e con `brand_id` vengono prima quelli di quel brand, senza quelli degli altri. ' : '')
                     .'Per un preventivo d\'azienda usa `company_id` e una persona di `people` come `customer_id`.',
                 'schema' => self::schema([
@@ -133,7 +133,7 @@ final class ContactTools
         }
 
         $customer['active'] = (string) ($row['active'] ?? 'true') === 'true';
-        $customer['contact_points'] = self::points($company ? ContactPoints::COMPANY : ContactPoints::CONTACT, $id);
+        $customer['contact_points'] = self::points($company ? ContactPoints::COMPANY : ContactPoints::CONTACT, $id, $row);
         // Gli indirizzi dell'azienda per brand: un brand che non è suo lascia solo quelli per tutti. Senza «Brand» tutti.
         $brands = $company && Brands::enabled();
         $addresses = $company
@@ -171,15 +171,18 @@ final class ContactTools
     }
 
     /**
-     * Le email e i telefoni in più della scheda: solo per leggerli, non
-     * ricevono documenti né aprono un accesso.
+     * Tutti i contatti della scheda (`ContactPoints::all()`), i principali
+     * per primi: `is_primary`, `label` (`access` = l'email con cui la persona
+     * entra nel sito) e, per le aziende, `departments` (vuota = tutto). Solo
+     * per leggerli: si scrive alle email che dicono `contact_email` dei
+     * referenti e le aree, mai a una a caso.
      *
-     * @return list<array{kind: string, label: string, value: string, phone_prefix: string}>
+     * @return list<array{kind: string, label: string, value: string, phone_prefix: string, is_primary: bool, departments: list<string>}>
      */
-    private static function points(string $owner, int $id): array
+    private static function points(string $owner, int $id, array $card): array
     {
         try {
-            $rows = ContactPoints::of($owner, $id);
+            $rows = ContactPoints::all($owner, $id, $card);
         } catch (Throwable) {
             return [];
         }
@@ -189,6 +192,8 @@ final class ContactTools
             'label' => (string) ($point['label'] ?? ''),
             'value' => (string) ($point['value'] ?? ''),
             'phone_prefix' => (string) ($point['phone_prefix'] ?? ''),
+            'is_primary' => !empty($point['is_primary']),
+            'departments' => array_values((array) ($point['departments'] ?? [])),
         ], $rows);
     }
 
@@ -259,7 +264,10 @@ final class ContactTools
             $out[] = [
                 'id' => (int) ($row[$side] ?? 0),
                 'display_name' => Contacts::displayName($contact),
-                'email' => (string) ($contact['email'] ?? ''),
+                // A chi scrivere per quell'azienda: l'email di lavoro se c'è, altrimenti quella della persona.
+                'email' => (string) ($row['contact_email'] ?? ($contact['email'] ?? '')),
+                'work_email' => (string) ($row['work_email'] ?? ''),
+                'work_phone' => trim((string) ($row['work_phone_prefix'] ?? '').' '.(string) ($row['work_phone'] ?? '')),
                 'job_title' => (string) ($row['job_title'] ?? ''),
                 // Le aree di cui si occupa (vuota = tutte), con le etichette da leggere.
                 'departments' => $areas = ContactRelations::cleanDepartments($row['departments'] ?? []),

@@ -46,11 +46,11 @@ function resa(array $items): string
     return implode('', array_map(static fn ($i): string => $i->render('bootstrap'), $items));
 }
 
-check('i dati: anagrafica, contatti e note ci sono, e il testo è escapato', function () use ($azienda) {
+check('i dati: anagrafica, accesso e note ci sono, e il testo è escapato; i contatti stanno in points()', function () use ($azienda) {
     $html = resa(CustomerSheet::data($azienda, 'Email e password'));
 
     return str_contains($html, 'Rossi &lt;b&gt;Srl&lt;/b&gt;') && !str_contains($html, '<b>Srl')
-        && str_contains($html, 'Azienda') && str_contains($html, '+39 3401234567') && str_contains($html, 'a@rossi.it')
+        && str_contains($html, 'Azienda') && !str_contains($html, '3401234567') && !str_contains($html, 'a@rossi.it')
         && str_contains($html, 'Email e password') && str_contains($html, 'Paga a 30 giorni<br')
         && !str_contains($html, '<script>') && str_contains($html, 'Cliente') && str_contains($html, 'Attiva');
 });
@@ -79,9 +79,9 @@ check('un privato non mostra i campi aziendali', function () use ($azienda) {
 });
 
 check('dove un dato manca c\'è il trattino', function () use ($azienda) {
-    $html = resa(CustomerSheet::data([...$azienda, 'note' => '', 'email' => ''], '—'));
+    $html = resa([...CustomerSheet::data([...$azienda, 'note' => ''], '—'), ...CustomerSheet::points([])]);
 
-    return substr_count($html, '<span class="text-muted">—</span>') >= 2;
+    return substr_count($html, '—') >= 2 && str_contains($html, 'Contatti');
 });
 
 check('la card di un indirizzo di consegna: etichetta, predefinito, indirizzo e telefono', function () {

@@ -120,7 +120,7 @@ final class SupplierResource extends CompanyResource
             (new Card)->components([
                 SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
                 ...CustomerSheet::data($contact, '—'),
-                ...static::pointItems($id),
+                ...static::pointItems($id, $contact),
             ])->columns(12)->columnSpan(12),
             $accordion('Carichi', static::receiptsTable(static::receipts($id)), true),
             $accordion('Articoli forniti', static::productsTable(static::supplied($id))),
