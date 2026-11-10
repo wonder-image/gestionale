@@ -641,7 +641,7 @@ check('a funzionalità spenta un multiprodotto esistente si salva lo stesso e la
         $modello = ProductModel::findById($id);
 
         return $errore === ''
-            && $modello['name'] === 'Cesto Rinominato'
+            && $modello['name'] === 'Cesto rinominato'
             && $modello['type'] === 'bundle' && $modello['bundle_mode'] === 'fixed' && $modello['show_components_value'] === 'true'
             && count($dopo) === 1 && (int) $dopo[0]['id'] === (int) $prima[0]['id'];
     });

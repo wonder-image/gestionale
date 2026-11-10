@@ -224,7 +224,7 @@ check('un coupon si può risalvare con il suo stesso codice', function () {
         $id = salva(richiesta(['code' => 'Estate10']));
 
         return errore(static fn () => salva(richiesta(['code' => 'ESTATE10', 'name' => 'Nuovo nome']), $id)) === ''
-            && Coupon::find(['id' => $id], 1)['name'] === 'Nuovo Nome';
+            && Coupon::find(['id' => $id], 1)['name'] === 'Nuovo nome';
     });
 });
 

@@ -181,7 +181,7 @@ try {
             try {
                 Stock::apply(['product_id' => $productId, 'quantity' => -1000, 'reason' => 'inventory']);
             } catch (UserError $e) {
-                return str_contains($e->getMessage(), 'Prova Rettifica · XL');
+                return str_contains($e->getMessage(), 'Prova rettifica · XL');
             } finally {
                 Product::update(['name' => 'Prova rettifica'], $productId);
             }

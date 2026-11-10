@@ -25,10 +25,9 @@ use Wonder\Plugin\Gestionale\Support\Stock\Levels;
 use Wonder\Plugin\Gestionale\Support\Tax\TaxCategories;
 use Wonder\Sql\Transaction;
 
-// Il server risponde solo con la funzionalità `mcp` accesa.
+// Il server risponde solo con la funzionalità `mcp` accesa; i tipi di IVA servono a product_create.
 $stato = new ReflectionProperty(Gestionale::class, 'features');
-$stato->setAccessible(true);
-$stato->setValue(null, array_merge(Gestionale::features(), ['mcp' => true]));
+$stato->setValue(null, array_merge(Gestionale::features(), ['mcp' => true, 'tax_categories' => true]));
 
 final class Annulla extends RuntimeException {}
 
@@ -199,7 +198,7 @@ try {
             $attributo = $chiama('attribute_create', ['name' => 'Solo nome'], $admin)['result'] ?? [];
             $testo = static fn (array $r): string => (string) ($r['content'][0]['text'] ?? '');
 
-            return ($preventivo['isError'] ?? false) === true && str_contains($testo($preventivo), 'customer_id') && str_contains($testo($preventivo), 'lines')
+            return ($preventivo['isError'] ?? false) === true && str_contains($testo($preventivo), 'lines') && !str_contains($testo($preventivo), 'customer_id')
                 && ($attributo['isError'] ?? false) === true && str_contains($testo($attributo), 'type') && str_contains($testo($attributo), 'level')
                 && !str_contains($testo($attributo), 'name');
         });

@@ -112,7 +112,7 @@ check('Fatturazione di un\'azienda: si salva sulla sua scheda', function () {
     });
 });
 
-check('il payload di un\'azienda: tipo, sedi solo a spunta, nessun referente senza legami', function () {
+check('il payload di un\'azienda: tipo, nessun referente senza legami, le sedi si aggiungono dal pannello', function () {
     return prova(static function (): bool {
         $id = aziendaDiProva();
         $p = OfficeCustomerPanel::payload(0, $id);
@@ -122,7 +122,7 @@ check('il payload di un\'azienda: tipo, sedi solo a spunta, nessun referente sen
             && ($p['referents'] ?? null) === []
             && str_contains($p['html']['billing'], 'Pannello srl')
             && !str_contains($p['html']['addresses'], 'data-wi-oo-address-delete')
-            && $sede['ok'] === false;
+            && $sede['ok'] === true && (int) ($sede['id'] ?? 0) > 0;
     });
 });
 

@@ -9,6 +9,7 @@ $GLOBALS['ROOT'] = SITE;
 require SITE.'/vendor/autoload.php';
 require SITE.'/vendor/wonder-image/app/wonder-image.php';
 require __DIR__ . '/../harness.php';
+require __DIR__ . '/supporto/dati-di-prova-da-capo.php';
 
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Gestionale;
@@ -32,8 +33,8 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Tag;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Seeding\CatalogDemo;
 use Wonder\Plugin\Gestionale\Seeding\ContactsDemo;
+use Wonder\Plugin\Gestionale\Seeding\Demo;
 use Wonder\Plugin\Gestionale\Seeding\DemoCode;
-use Wonder\Plugin\Gestionale\Seeding\PromotionsDemo;
 use Wonder\Plugin\Gestionale\Support\Catalog\Bundles;
 use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductAttributes;
@@ -142,10 +143,9 @@ $funzionalita->setValue(null, [...Gestionale::features(), 'low_stock_alerts' => 
 try {
     Transaction::run(static function () use ($conta, $stato, $righe, $idDi, $demo, $tutte, $fornitoreId): void {
         // Il sito può avere già i dati di prova: si parte dal pulito, e la
-        // transazione rimette tutto com'era. Prima le promozioni: le campagne
-        // di prova puntano a marchio, tag e categoria di prova, e li terrebbero.
-        PromotionsDemo::clear();
-        CatalogDemo::clear();
+        // transazione rimette tutto com'era. Tutti, dall'ultimo registrato:
+        // ordini, documenti e campagne di prova terrebbero occupato il catalogo.
+        datiDiProvaDaCapo();
 
         // I fornitori degli articoli di prova sono schede della rubrica di
         // prova: senza, il catalogo nasce senza costi. Una scheda vera con lo
@@ -822,7 +822,7 @@ try {
                 && $demo(ProductModel::class, 'cesto-degustazione') === []
                 && $demo(ProductModel::class, 'cesto-componibile') === []
                 && $demo(ProductModel::class, 'maglietta-girocollo') === []
-                && str_contains($note, 'articolo «Cappello Di Lana»');
+                && str_contains($note, 'articolo «Cappello di lana»');
 
             // Tolto il componente vero, la pulizia porta via anche il cappello.
             BundleComponent::delete($componente);

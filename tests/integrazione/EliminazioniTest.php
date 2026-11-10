@@ -51,6 +51,11 @@ $tabelle = static fn (): array => array_map($conta, [
     StockAlert::class, Company::class, Contact::class, ContactAddress::class,
 ]);
 
+// La griglia delle opzioni vuole «Varianti» accesa, qualunque cosa abbia il sito.
+\Wonder\Plugin\Gestionale\Gestionale::feature('variants');
+$accese = new ReflectionProperty(\Wonder\Plugin\Gestionale\Gestionale::class, 'features');
+$accese->setValue(null, array_merge((array) $accese->getValue(), ['variants' => true]));
+
 $prima = $tabelle();
 
 /** Le righe di un modello, anche quelle nel cestino. @return list<array<string, mixed>> */
@@ -169,13 +174,14 @@ function articoloConOpzioneTolta(string $sku, ?callable $primaDiSalvare = null):
     return ['model' => $modelId, 'kept' => $kept, 'removed' => $removed];
 }
 
-check('un\'opzione tolta dalla griglia resta nel cestino, attaccata alla sua variante', fn () => annullando(function (): bool {
+check('un\'opzione tolta dalla griglia resta nel cestino, attaccata alla sua variante, cestinata con lei', fn () => annullando(function (): bool {
     $articolo = articoloConOpzioneTolta('ELM-1');
     // `findById()` non vede il cestino: si guarda con `righe()`.
     $tolta = righe(Product::class, ['id' => $articolo['removed']])[0] ?? [];
 
     return ($tolta['deleted'] ?? '') === 'true'
-        && ProductVariant::findById((int) ($tolta['product_variant_id'] ?? 0)) !== []
+        // La variante rimasta senza opzioni vive va nel cestino con lei.
+        && (righe(ProductVariant::class, ['id' => (int) ($tolta['product_variant_id'] ?? 0)])[0]['deleted'] ?? '') === 'true'
         && count(righe(ProductVariant::class, ['product_model_id' => $articolo['model']])) === 2;
 }));
 
