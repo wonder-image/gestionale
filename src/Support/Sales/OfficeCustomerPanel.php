@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Resources\Contacts\ContactAddressResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
+use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
@@ -59,14 +60,17 @@ final class OfficeCustomerPanel
      * scelto (0: il principale, se c'è). `customer` è
      * `OfficeOrders::customerDefaults()`; `contact` ha `kind` (`contact` o
      * `company`), `id`, `company_id` e i campi delle finestre; `referents` le
-     * persone dell'azienda e `brands` i suoi brand (vuoti per una persona).
+     * persone dell'azienda e `brands` i suoi brand con il logo (vuoti per una
+     * persona). Le sedi dell'azienda seguono `$brandId` (`null` = il brand
+     * proposto): prima quelle del brand, poi quelle per tutti; `proposed` è
+     * la sede che la pagina spunta se l'operatore non ne ha scelta una.
      *
      * @return array<string, mixed>
      */
-    public static function payload(int $contactId, int $companyId = 0): array
+    public static function payload(int $contactId, int $companyId = 0, ?int $brandId = null): array
     {
         if ($companyId > 0) {
-            return self::companyPayload($contactId, $companyId);
+            return self::companyPayload($contactId, $companyId, $brandId);
         }
 
         $contact = self::contact($contactId);
@@ -97,7 +101,7 @@ final class OfficeCustomerPanel
     }
 
     /** @return array<string, mixed> */
-    private static function companyPayload(int $contactId, int $companyId): array
+    private static function companyPayload(int $contactId, int $companyId, ?int $brandId): array
     {
         $company = self::company($companyId);
 
@@ -105,8 +109,9 @@ final class OfficeCustomerPanel
             return [];
         }
 
-        $customer = OfficeOrders::customerDefaults($contactId, $companyId);
-        $addresses = self::companyAddresses($companyId);
+        $brandId = max(0, $brandId ?? OfficeOrders::defaultBrand($companyId));
+        $customer = OfficeOrders::customerDefaults($contactId, $companyId, $brandId);
+        $addresses = OfficeOrders::companyAddresses($companyId, $brandId);
         $valori = ['kind' => 'company', 'id' => (int) ($customer['customer_id'] ?? 0), 'company_id' => $companyId];
 
         foreach (array_merge(self::CONTACT_KEYS, self::COMPANY_BILLING_KEYS) as $key) {
@@ -126,6 +131,7 @@ final class OfficeCustomerPanel
             'customer' => (object) $customer,
             'contact' => $valori,
             'addresses' => $righe,
+            'proposed' => (int) ($addresses[0]['id'] ?? 0),
             'referents' => array_map(static fn (array $r): array => [
                 'id' => $r['id'],
                 'label' => $r['name'].($r['role'] !== '' ? ' — '.$r['role'] : ''),
@@ -136,6 +142,8 @@ final class OfficeCustomerPanel
                 'id' => $link['brand_id'],
                 'label' => CompanyBrands::label($link['brand']),
                 'is_default' => $link['is_default'],
+                // Un URL controllato: lo script lo mette in `src` senza HTML.
+                'logo' => DocumentBrands::logoUrl($link['brand']),
             ], CompanyBrands::linksOf($companyId)),
             'html' => [
                 'contacts' => self::contactsHtml($company),
@@ -461,16 +469,6 @@ final class OfficeCustomerPanel
         }
 
         return RowVisibility::visible(Company::$table, $companyId, RowVisibility::currentUser()) ? $company : null;
-    }
-
-    /**
-     * Le sedi di consegna dell'azienda, la predefinita per prima.
-     *
-     * @return list<array<string, mixed>>
-     */
-    private static function companyAddresses(int $companyId): array
-    {
-        return ContactAddressResource::addressesOf($companyId, ContactAddressResource::OWNER_COMPANY);
     }
 
     /**

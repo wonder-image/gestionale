@@ -8,6 +8,29 @@
  * il pannello la mostra in sola lettura. Si toglie la riga quando esce.
  */
 return [
+    // Con chi lavora il gestionale (`Support\Contacts\CustomerMode`): tutte e
+    // due accese = persone e aziende, una sola = solo quella. Spente tutte e
+    // due non si può (FeatureGuards). Nascono accese: è il gestionale di sempre.
+    'private_customers' => [
+        'name' => 'Clienti privati',
+        'description' => 'Si vende anche alle persone, senza azienda. Spenta, il gestionale lavora solo con aziende: le persone sono i loro referenti, l\'elenco si chiama «Referenti» e un cliente privato non si crea più. Le schede già salvate restano.',
+        'area' => 'Anagrafiche',
+        'default' => true,
+    ],
+    'companies' => [
+        'name' => 'Aziende',
+        'description' => 'Clienti con partita IVA, con brand, referenti, capogruppo e reparti. Spenta, il gestionale lavora solo con persone: aziende e referenti spariscono da menu, schede e ordini, e i dati restano. I fornitori restano con gli Acquisti.',
+        'area' => 'Anagrafiche',
+        'default' => true,
+    ],
+    // Il brand kit di customer-account (`CompanyBrands::useKit()`): recapiti,
+    // social, colori, tono e materiali del brand, oltre a logo, sito e descrizione.
+    'brand_kit' => [
+        'name' => 'Brand kit',
+        'description' => 'Nella scheda di un brand, oltre a logo, sito e descrizione: email e telefono, social, colori, tono, settore, lingua e il link ai materiali. Spenta, quei campi non si vedono e restano salvati.',
+        'area' => 'Anagrafiche',
+        'requires' => ['companies'],
+    ],
     'orders' => [
         'name' => 'Ordini',
         'description' => 'Gestione degli ordini con stati e scarico del magazzino.',
@@ -269,8 +292,8 @@ return [
     'company_accounts' => [
         'name' => 'Account aziendali',
         'description' => 'Sul sito la persona compra anche per le aziende a cui è collegata: ordine intestato all\'azienda, con i suoi dati di fatturazione, listino e condizioni. Gli amministratori dell\'azienda vedono ordini e abbonamenti di tutti.',
-        'area' => 'Clienti',
-        'requires' => ['online_sales'],
+        'area' => 'Anagrafiche',
+        'requires' => ['online_sales', 'companies'],
     ],
     'office_sales' => [
         'name' => 'Vendita in ufficio',

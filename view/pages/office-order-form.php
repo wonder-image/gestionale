@@ -26,6 +26,12 @@ use Wonder\View\View;
  * (persona o referente) e `company_id`. Il «Referente» c'è solo per
  * un'azienda e scrive `customer_id`; anche il «Brand» (`company_brand_id`),
  * proposto dal predefinito. Cambiare il brand non cambia il referente scelto.
+ *
+ * Cliente, referente e brand nuovi nascono nelle finestre della creazione
+ * rapida del core, senza lasciare la pagina: il cliente nato si sceglie come
+ * dalla ricerca (e i riquadri si ridisegnano), referente e brand entrano
+ * nella loro tendina già scelti. Le finestre di referente e brand portano
+ * l'azienda scelta, scritta qui all'apertura.
  */
 
 /** @var class-string<\Wonder\Plugin\Gestionale\Resources\Sales\OfficeOrderResource> $resource */
@@ -54,7 +60,8 @@ $customerId = (int) ($values['customer_id'] ?? 0);
 $companyId = (int) ($values['company_id'] ?? 0);
 
 try {
-    $panel = $customerId > 0 || $companyId > 0 ? OfficeCustomerPanel::payload($customerId, $companyId) : [];
+    // Le sedi del documento salvato seguono il suo brand.
+    $panel = $customerId > 0 || $companyId > 0 ? OfficeCustomerPanel::payload($customerId, $companyId, $companyId > 0 && (int) ($values['id'] ?? 0) > 0 ? (int) ($values['company_brand_id'] ?? 0) : null) : [];
 } catch (Throwable) {
     $panel = [];
 }
@@ -76,8 +83,12 @@ try {
     // Le azioni che non salvano le righe.
     var withoutLines = <?=$json(OfficeOrderPage::WITHOUT_LINES)?>;
     var EMPTY = '<p class="text-muted small mb-0">Scegli un cliente.</p>';
-    var state = {contact: null, addresses: []};
+    var state = {contact: null, addresses: [], brands: <?=$json($panel['brands'] ?? [])?>};
     var seq = 0;
+    // La sede l'ha scelta (o scritta) l'operatore: cambiare brand non la tocca.
+    var touched = false;
+    // Il brand cambiato dallo script, non dall'operatore.
+    var autoBrand = false;
 
     function editor() {
         var root = form.querySelector('[data-wi-office-editor]');
@@ -161,7 +172,46 @@ try {
             }
         });
         node.value = String(chosen || (list && list.length ? list[0].id : 0));
+        state.brands = list || [];
+        autoBrand = true;
         node.dispatchEvent(new Event('change', {bubbles: true}));
+        autoBrand = false;
+        logo();
+    }
+
+    // Il logo del brand scelto, se c'è: un'immagine fatta con il DOM, l'URL
+    // solo http(s) o del sito, mai HTML.
+    function logo() {
+        var box = form.querySelector('[data-wi-oo-brand-logo]');
+        var node = field('company_brand_id');
+        var id = node ? parseInt(node.value, 10) || 0 : 0;
+        var brand = state.brands.filter(function (b) { return b.id === id; })[0];
+        var url = brand && brand.logo ? String(brand.logo) : '';
+        var img;
+
+        if (!box) {
+            return;
+        }
+
+        box.textContent = '';
+
+        if (!/^(https?:\/\/|\/(?!\/))/i.test(url)) {
+            return;
+        }
+
+        img = document.createElement('img');
+        img.src = url;
+        img.alt = brand.label || '';
+        img.className = 'img-fluid';
+        img.style.maxHeight = '3rem';
+        box.appendChild(img);
+    }
+
+    // Il brand del documento, per le sedi proposte.
+    function brandId() {
+        var node = field('company_brand_id');
+
+        return node ? (parseInt(node.value, 10) || 0) : 0;
     }
 
     function panels(data) {
@@ -240,10 +290,12 @@ try {
         check(found ? found.id : 0);
     }
 
-    function load(key, done) {
+    function load(key, done, brand) {
         var mine = ++seq;
+        var url = customersUrl + (customersUrl.indexOf('?') === -1 ? '?' : '&') + 'key=' + encodeURIComponent(key)
+            + (brand === undefined ? '' : '&oo_brand=' + encodeURIComponent(String(brand)));
 
-        window.fetch(customersUrl + (customersUrl.indexOf('?') === -1 ? '?' : '&') + 'key=' + encodeURIComponent(key), {
+        window.fetch(url, {
             credentials: 'same-origin',
             headers: {Accept: 'application/json'}
         }).then(function (response) {
@@ -271,15 +323,73 @@ try {
         load(event.detail.id, function (data) {
             var main;
 
+            touched = false;
             referents(data.referents);
             brands(data.brands);
             fill(data.customer || {});
             panels(data);
-            main = state.addresses.filter(function (a) { return a.is_default; })[0]
+            // La sede proposta (per un'azienda, prima quelle del brand).
+            main = addressOf(parseInt(data.proposed, 10) || 0)
+                || state.addresses.filter(function (a) { return a.is_default; })[0]
                 || (state.addresses.length === 1 ? state.addresses[0] : null);
             check(main ? main.id : 0);
             ship();
         });
+    });
+
+    // Cambiando brand le sedi si rileggono: prima quelle del brand. La
+    // proposta cambia solo se l'operatore non ha già scelto o scritto una sede.
+    if (field('company_brand_id')) {
+        field('company_brand_id').addEventListener('change', function () {
+            logo();
+
+            if (autoBrand || !company() || customer.value === '') {
+                return;
+            }
+
+            load(customer.value, function (data) {
+                var keep = checked();
+                var node = document.querySelector('[data-wi-oo-panel="addresses"]');
+
+                state.addresses = data.addresses || [];
+
+                if (node) {
+                    node.innerHTML = (data.html && data.html.addresses) || EMPTY;
+                }
+
+                if (touched) {
+                    check(addressOf(keep) ? keep : 0);
+
+                    return;
+                }
+
+                check(parseInt(data.proposed, 10) || 0);
+                ship();
+            }, brandId());
+        });
+    }
+
+    // Il cliente nato da «Nuova persona» / «Nuova azienda»: si sceglie come
+    // dalla ricerca, così testata e riquadri si riempiono dalla sua scheda.
+    document.addEventListener('wi:quick-create:created', function (event) {
+        var detail = event.detail || {};
+        var kind = detail.trigger ? detail.trigger.getAttribute('data-wi-oo-new') : '';
+        var root = customer.closest('.form-floating, [data-wi-remote-search]');
+
+        if ((kind !== 'contact' && kind !== 'company') || !detail.id || !root || !window.wiRemoteSearch) {
+            return;
+        }
+
+        window.wiRemoteSearch.select(root, {id: kind + ':' + parseInt(detail.id, 10), label: String(detail.label || '')});
+    });
+
+    // Referente e brand nuovi nascono legati all'azienda scelta adesso.
+    document.addEventListener('show.bs.modal', function (event) {
+        var target = event.target.querySelector ? event.target.querySelector('[data-wi-oo-qc-company]') : null;
+
+        if (target) {
+            target.value = String(parseInt((field('company_id') || {}).value, 10) || 0);
+        }
     });
 
     customer.addEventListener('change', function () {
@@ -310,6 +420,7 @@ try {
             return;
         }
 
+        touched = true;
         check(box.checked ? parseInt(box.value, 10) : 0);
         ship();
     });
@@ -379,6 +490,10 @@ try {
     function post(body, done) {
         var meta = document.querySelector('meta[name="wi-csrf"]');
 
+        if (company()) {
+            body.append('oo_brand', String(brandId()));
+        }
+
         window.fetch(saveUrl, {
             method: 'POST',
             credentials: 'same-origin',
@@ -416,6 +531,7 @@ try {
 
         if (action === 'save' && data.id) {
             keep = data.id;
+            touched = true;
         } else if (action === 'delete' && !addressOf(keep)) {
             keep = 0;
         }
@@ -617,7 +733,11 @@ try {
 
     if (state.contact) {
         matchSaved();
+        // Un documento riaperto ha già la sua consegna: il brand non la cambia.
+        touched = true;
     }
+
+    logo();
 
     quote();
 

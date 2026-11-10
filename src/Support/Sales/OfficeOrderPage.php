@@ -2,26 +2,31 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Sales;
 
+use Closure;
 use Throwable;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\Input;
 use Wonder\Elements\Components\Button;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
+use Wonder\Elements\Components\QuickCreateButton;
 use Wonder\Elements\Components\RichText;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyBrandResource;
+use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
-use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
+use Wonder\Plugin\Gestionale\Support\Contacts\QuickContacts;
 use Wonder\Plugin\Gestionale\Support\Locations\PickupPoints;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 
@@ -35,6 +40,10 @@ use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
  * articoli, prezzi e disponibilità dal vivo): viaggiano nel solo campo
  * `lines`, scritto dallo script della pagina all'invio. I pulsanti postano
  * `intent`; quelli che non tornano indietro chiedono conferma con la lib.
+ *
+ * Cliente, referente e brand nuovi si creano in una finestra della pagina
+ * (creazione rapida del core): niente uscita, le righe restano. Cosa si
+ * sceglie e cosa si crea segue il modo del gestionale (`CustomerMode`).
  */
 final class OfficeOrderPage
 {
@@ -89,26 +98,40 @@ final class OfficeOrderPage
 
         $sinistra = [
             (new Card)->components(array_values(array_filter([
-                RichText::make('<div class="d-flex align-items-center justify-content-between gap-2">'
-                    .SectionTitle::make('Cliente')->tooltip('Scegliendo il cliente si riempiono fatturazione, consegna e pagamento dalla sua scheda. Il cliente nuovo si crea in un\'altra scheda; poi cercalo qui.')->render('bootstrap')
-                    .Button::to(self::newCustomerUrl(), 'Nuovo cliente')->icon('bi bi-person-plus')->variant('secondary')->outline()->size('sm')->blank()->render('bootstrap')
-                    .'</div>')->tag('div')->columnSpan(12),
+                SectionTitle::make('Cliente')
+                    ->tooltip('Scegliendo il cliente si riempiono fatturazione, consegna e pagamento dalla sua scheda. Se non c\'è, crealo con il bottone qui sotto: si apre una finestra e quello che hai scritto nella pagina resta.')
+                    ->columnSpan(12),
                 // Persone e aziende: il valore è la chiave composta (`contact:12`, `company:7`).
                 FormField::key('customer')->searchText(self::customersSearchUrl())
                     ->valueLabel(self::customerLabel($customerId, $companyId))
-                    ->emptyText('Nessun cliente trovato: crealo con «Nuovo cliente».')
+                    ->emptyText(self::noCustomerText())
                     ->label('Cliente')
                     ->value(OfficeSearch::customerKey($customerId, $companyId))
                     ->columnSpan(12),
+                ...self::newCustomerButtons(),
                 // Il referente dell'azienda: lo script rifà le opzioni quando
-                // cambia il cliente e scrive la scelta in `customer_id`.
-                ContactRelations::enabled()
-                    ? self::field(FormField::key('referent')->select(self::referentOptions($companyId)), 'referent', 'Referente', 12, (string) ($companyId > 0 ? $customerId : 0))
-                        ->hiddenWhen('company_id', ['0', ''])
+                // cambia il cliente e scrive la scelta in `customer_id`. Il
+                // «+» lo crea già legato all'azienda scelta.
+                CustomerResource::relationsShown()
+                    ? self::field(
+                        FormField::key('referent')->select(self::referentOptions($companyId))
+                            ->quickCreate(CustomerResource::class, ['name', 'surname', 'email'], self::personModal(true), 'name', 'Nuovo referente'),
+                        'referent', 'Referente', 12, (string) ($companyId > 0 ? $customerId : 0)
+                    )->hiddenWhen('company_id', ['0', ''])
                     : null,
-                // Il brand dell'azienda: lo script rifà le opzioni come per il referente.
-                self::field(FormField::key('company_brand_id')->select(self::brandOptions($companyId, $values)), 'company_brand_id', 'Brand', 12, (string) ($companyId > 0 ? (int) ($values['company_brand_id'] ?? 0) : 0))
-                    ->hiddenWhen('company_id', ['0', '']),
+                // Il brand dell'azienda: lo script rifà le opzioni come per il
+                // referente; il «+» lo crea già legato all'azienda.
+                CustomerMode::companies()
+                    ? self::field(
+                        FormField::key('company_brand_id')->select(self::brandOptions($companyId, $values))
+                            ->quickCreate(CompanyBrandResource::class, ['name'], self::brandModal(), 'name', 'Nuovo brand'),
+                        'company_brand_id', 'Brand', 12, (string) ($companyId > 0 ? (int) ($values['company_brand_id'] ?? 0) : 0)
+                    )->hiddenWhen('company_id', ['0', ''])
+                    : null,
+                // Il logo del brand scelto: lo ridisegna lo script (`logo()`).
+                CustomerMode::companies()
+                    ? RichText::make('<div data-wi-oo-brand-logo>'.DocumentBrands::logoOf($values).'</div>')->tag('div')->columnSpan(12)
+                    : null,
                 // Sotto il cliente, a chi va l'email: il PDF del preventivo o la conferma.
                 FormField::key('notify')->toggle()
                     ->label($quote ? 'Manda l\'email con il PDF' : 'Alla conferma scrivi al cliente')
@@ -309,20 +332,99 @@ final class OfficeOrderPage
         return $url.(str_contains($url, '?') ? '&' : '?').'mixed=1';
     }
 
-    /** *Nuovo cliente*: la pagina di creazione, dalla rotta con il nome. */
-    private static function newCustomerUrl(): string
+    /**
+     * I bottoni del cliente nuovo, sotto la ricerca: la persona dove si vende
+     * ai privati, l'azienda dove ci sono le aziende. Ognuno apre la finestra
+     * della creazione rapida; lo script della pagina sceglie la scheda nata
+     * (`data-wi-oo-new` dice se è `contact` o `company`) come dalla ricerca.
+     * Chi non può creare schede non li vede (`QuickCreateAuthorizer`).
+     *
+     * @return list<QuickCreateButton>
+     */
+    public static function newCustomerButtons(): array
     {
-        $url = '/backend/'.CustomerResource::path().'/create/';
+        $buttons = [];
 
-        if (function_exists('__r')) {
-            try {
-                $url = (string) __r('backend.resource.'.CustomerResource::slug().'.create') ?: $url;
-            } catch (Throwable) {
-                // Rotta non registrata: resta il percorso.
-            }
+        if (CustomerMode::people()) {
+            $buttons[] = QuickCreateButton::make(CustomerResource::class)
+                ->text(CustomerMode::companies() ? 'Nuova persona' : 'Nuovo cliente')
+                ->fields(['name', 'surname', 'email'])
+                ->layout(self::personModal(false))
+                ->label('name')
+                ->id('wi-oo-new-contact')
+                ->attr('data-wi-oo-new', 'contact');
         }
 
-        return $url;
+        if (CustomerMode::companies()) {
+            $buttons[] = QuickCreateButton::make(CompanyResource::class)
+                ->text('Nuova azienda')
+                ->fields(['business_name', 'pi'])
+                ->layout(self::companyModal())
+                ->label('business_name')
+                ->id('wi-oo-new-company')
+                ->attr('data-wi-oo-new', 'company');
+        }
+
+        $span = count($buttons) > 1 ? 6 : 12;
+
+        return array_map(
+            static fn (QuickCreateButton $button): QuickCreateButton => $button->size('sm')->columnSpan(['default' => 12, 'sm' => $span]),
+            $buttons
+        );
+    }
+
+    /*
+     * Le finestre hanno i loro campi, gli stessi che legge `QuickContacts`
+     * (o il brand): `getInput()` costruirebbe ogni volta il form intero della
+     * scheda, con le tendine di tutte le aziende e persone.
+     */
+
+    /**
+     * La finestra di una persona nuova: nome, cognome, email. Il cliente porta
+     * `role` = `customer`; il referente l'azienda a cui legarlo, che lo script
+     * scrive all'apertura (`data-wi-oo-qc-company`).
+     */
+    private static function personModal(bool $referent): Closure
+    {
+        return static fn (): Container => (new Container)->components([
+            FormField::key('name')->text()->label('Nome')->columnSpan(6),
+            FormField::key('surname')->text()->label('Cognome')->columnSpan(6),
+            FormField::key('email')->email()->label('Email')->columnSpan(12),
+            $referent ? self::linkCompanyField() : FormField::key('role')->hidden()->value(QuickContacts::ROLE_CUSTOMER),
+        ])->columns(12);
+    }
+
+    /** La finestra di un'azienda nuova: ragione sociale e partita IVA, facoltativa. */
+    private static function companyModal(): Closure
+    {
+        return static fn (): Container => (new Container)->components([
+            FormField::key('business_name')->text()->label('Ragione sociale')->required()->columnSpan(12),
+            FormField::key('pi')->text()->label('Partita IVA')->columnSpan(12),
+        ])->columns(12);
+    }
+
+    /** La finestra di un brand nuovo: il nome e l'azienda a cui legarlo. */
+    private static function brandModal(): Closure
+    {
+        return static fn (): Container => (new Container)->components([
+            FormField::key('name')->text()->label('Nome del brand')->required()->columnSpan(12),
+            self::linkCompanyField(),
+        ])->columns(12);
+    }
+
+    private static function linkCompanyField(): Input
+    {
+        return FormField::key(QuickContacts::LINK_COMPANY)->hidden()->value('0')->attribute('data-wi-oo-qc-company');
+    }
+
+    /** La frase della ricerca vuota: dice quali bottoni ci sono. */
+    private static function noCustomerText(): string
+    {
+        return match (CustomerMode::current()) {
+            CustomerMode::PEOPLE => 'Nessun cliente trovato: crealo con «Nuovo cliente».',
+            CustomerMode::COMPANIES => 'Nessuna azienda trovata: creala con «Nuova azienda».',
+            default => 'Nessun cliente trovato: crealo con «Nuova persona» o «Nuova azienda».',
+        };
     }
 
     /** La scadenza del preventivo, in `Y-m-d`: quella salvata o quella di partenza. */

@@ -1,11 +1,12 @@
 <?php
 
 /**
- * La scheda del cliente, in sola lettura.
+ * La scheda di una persona, in sola lettura: cliente o referente.
  *
- * Il disegno sta nella Resource: la pagina apre il layout del backend, stampa
- * i riquadri e chiude. Un `id` che non è un cliente — un fornitore, una scheda
- * cancellata — riporta all'elenco.
+ * Il disegno sta nella Resource, che per un referente toglie le parti del
+ * cliente (ordini, carrello, statistiche, listino…): la pagina apre il layout
+ * del backend, stampa i riquadri e chiude. Una scheda che non c'è o è
+ * cancellata riporta all'elenco.
  *
  * @var array $ITEM
  */
@@ -17,7 +18,7 @@ use Wonder\View\View;
 
 $cliente = (array) ($ITEM ?? []);
 
-if (($cliente['is_customer'] ?? 'false') !== 'true') {
+if ((int) ($cliente['id'] ?? 0) <= 0 || ($cliente['deleted'] ?? 'false') === 'true') {
     header('Location: /backend/'.CustomerResource::path().'/');
     exit;
 }

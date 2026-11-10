@@ -27,17 +27,33 @@ Dal menu **⋯** di ogni bozza: **Conferma ordine** (senza email al cliente) ed
   l'azienda con quel referente già scelto. Scegliendolo si
   riempiono fatturazione, consegna, listino, metodo e condizione di pagamento
   dalla sua scheda: per questo ordine li puoi cambiare. Con un'azienda valgono
-  il **suo** listino e le **sue** condizioni. Il cliente nuovo si crea con
-  **Nuovo cliente**, in un'altra scheda del browser; poi cercalo qui.
+  il **suo** listino e le **sue** condizioni. Il cliente nuovo si crea qui
+  sotto, senza lasciare l'ordine: **Nuova persona** (nome, cognome, email) o
+  **Nuova azienda** (ragione sociale, partita IVA) aprono una finestra e, al
+  salvataggio, il cliente è già scelto e i riquadri si riempiono come se
+  l'avessi cercato. Le righe e tutto quello che hai scritto restano. Con la
+  stessa email o partita IVA di una scheda che c'è già, si sceglie quella.
+  Il gestionale *solo persone* ha **Nuovo cliente** e cerca solo persone;
+  quello *solo aziende* ha solo **Nuova azienda** e cerca aziende e
+  referenti (vedi [Con chi lavora il
+  gestionale](anagrafiche.md#con-chi-lavora-il-gestionale)).
 * **Referente** — solo per un'azienda, e se il sito ha acceso i referenti (vedi
   [Referenti e aziende](anagrafiche.md#referenti-e-aziende)). Parte dal
   **referente principale** e puoi sceglierne un altro fra i suoi referenti,
-  oppure nessuno. Il suo nome si stampa sul PDF come «Alla c.a.».
+  oppure nessuno. Il suo nome si stampa sul PDF come «Alla c.a.». Se non
+  c'è, **Aggiungi** accanto alla tendina lo crea in una finestra, già legato
+  all'azienda scelta, e lo sceglie.
 * **Brand** — solo per un'azienda che ha dei brand (vedi
   [Brand](anagrafiche.md#brand)): parte dal predefinito dell'azienda, puoi
-  sceglierne un altro fra i suoi o nessuno. Scegliendo l'azienda, il referente
+  sceglierne un altro fra i suoi o nessuno. **Aggiungi** accanto alla tendina
+  crea un brand nuovo già legato all'azienda (in fondo ai suoi, senza cambiare
+  il predefinito) e lo sceglie. Scegliendo l'azienda, il referente
   proposto è il principale fra chi segue quel brand. Riaprendo un ordine il brand resta
-  quello salvato, anche se nel frattempo l'azienda non l'ha più.
+  quello salvato, anche se nel frattempo l'azienda non l'ha più. Accanto
+  compare il **logo** del brand, se c'è. Le sedi proposte seguono il brand:
+  prima quelle del brand, poi quelle per tutti. Cambiando brand la lista si
+  aggiorna, e la sede proposta cambia solo se non ne hai già spuntata o
+  aggiunta una tu (né se stai riaprendo un documento salvato).
   Le sedi di consegna di un'azienda si gestiscono come gli indirizzi di una
   persona: scegli quella giusta, modificala, eliminala o aggiungine una con
   **Aggiungi indirizzo**, senza lasciare l'ordine.

@@ -39,14 +39,53 @@ leggono lo stato della funzionalità quando vengono chiamate e restituiscono
 |---|---|
 | contatti | `agent_id` è suo **oppure** la persona è legata (`ContactRelation`) a un'azienda sua |
 | aziende | `agent_id` è suo |
+| brand delle aziende (`company_brands`) | è legato con un legame aperto (`ended_at` nullo) a un'azienda sua |
 | ordini/preventivi, DDT, resi, abbonamenti | `agent_id` è suo **oppure** `customer_id` è un contatto suo **oppure** `company_id` è un'azienda sua |
 | pagamenti (Scadenzario) | l'ordine o l'abbonamento è visibile **oppure** `customer_id` è un contatto suo **oppure** `company_id` è un'azienda sua |
 
 Le condizioni sono in OR: il documento è di chi l'ha fatto (`agent_id`) e
 segue anche il cliente di oggi, così il nuovo commerciale eredita lo storico.
-`RowVisibility` vieta di filtrare `deleted` nelle sotto-query: un cliente
+`RowVisibility` vieta di nominare `deleted` in una regola (toglierebbe il soft
+delete alla query principale), quindi nemmeno nelle sotto-query: un cliente
 eliminato ma ancora assegnato apre comunque i documenti che il commerciale
-vedeva già.
+vedeva già, e un legame di referente cancellato (`contact_relations.deleted`)
+apre ancora la persona. Per chiuderlo serve un aiuto del core (vedi *Limiti*
+sotto).
+
+### Legami, scelte e accessi
+
+`config/boot.php` chiama anche `ContactVisibility::register()`, che dà a
+customer-account i due ganci:
+
+- `ContactRelations::useCounterpartFilter()`: nei repeater «Referenti» e
+  «Aziende» le scelte sono le schede visibili (più quelle già legate) e in
+  scrittura un id non visibile si scarta (`ContactVisibility::visibleIds()`:
+  nessuna query per chi vede tutto, una per chiamata per chi ha la regola);
+- `ContactRelations::useAccessGuard()`: alza l'accesso all'area clienti
+  (`buyer`, `admin`) solo chi vede tutte le aziende e può modificarle
+  (`ContactVisibility::canGrantAccess()`); per il commerciale l'accesso resta
+  quello salvato.
+
+I select costruiti dal gestionale con le scelte di tutti (brand della scheda
+azienda, brand seguiti dei referenti, brand degli indirizzi, capogruppo,
+brand principale) passano da `ContactVisibility::options()`; il salvataggio
+dei brand dell'azienda tiene solo quelli che il commerciale vede o ha appena
+creato con la «+» (`linkableBrands()`, i nuovi in sessione); capogruppo e
+brand principale non visibili si rifiutano. La «+» del brand, per lui, non
+aggancia un brand con lo stesso nome che non vede (rifiuta con un messaggio
+generico) e non mostra i nomi simili di altri. La pagina del brand non ha
+«Aggiungi» per lui: il brand nasce dalla «+», legato alla sua azienda.
+Un doppione (email, codice fiscale, partita IVA) di una scheda che non vede si
+rifiuta senza nominarla (`contact.duplicate_hidden`, e nella creazione rapida).
+
+### Limiti
+
+- Legame cancellato in `contactsRule()`: vedi sopra. Il gancio minimo nel core
+  sarebbe permettere `deleted` dentro una sotto-query esplicita (per esempio
+  una regola che dichiara le sue sotto-query), lasciando il divieto sulla
+  tabella principale.
+- L'esistenza di un doppione resta deducibile (la creazione si rifiuta): non
+  si può evitare senza creare doppioni.
 
 Le regole valgono ovunque si legga attraverso `RowVisibility`: elenchi e schede
 delle Resource (dal core), ricerche dell'ordine da ufficio (`OfficeSearch`,

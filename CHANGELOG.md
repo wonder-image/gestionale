@@ -6,6 +6,59 @@ versionamento semantico.
 ## 0.1.0 — non rilasciata
 
 ### Aggiunto
+- **Novità di customer-account nel gestionale** (aree dei referenti, altri
+  contatti, dati del brand, indirizzi per brand):
+  - **Documenti per area.** `DocumentReferents::recipients()` sceglie chi
+    riceve in copia un documento con `ContactRelations::peopleFor()`: chi
+    riceve i documenti e «si occupa di» l'area del documento (o di tutto) e
+    segue il suo brand (o tutti), il principale per primo. La mappa
+    documento → area è una sola (`DocumentReferents::AREAS`, estendibile con
+    `useArea()`): preventivo, conferma e DDT → *Acquisti*; proforma, solleciti
+    e pagamenti non riusciti degli abbonamenti → *Amministrazione*. Se nessuno
+    corrisponde vale la regola di prima (tutti quelli che ricevono i
+    documenti). Le copie vanno solo alle email principali. Il ruolo nelle
+    tendine e sui documenti, senza mansione, sono le aree (`departments`).
+  - **Sedi per brand.** Ordine e preventivo propongono prima le sedi del
+    brand del documento, poi quelle per tutti
+    (`OfficeOrders::companyAddresses()` / `forBrand()` su
+    `CompanyAddresses::addressesFor()`); cambiando brand la lista si aggiorna
+    senza cambiare una sede già spuntata o salvata dall'operatore. Il
+    repeater degli indirizzi di un'azienda ha la colonna **Brand** (vuoto =
+    tutti), scritta con `CompanyAddresses::setBrands()` dopo i brand
+    dell'azienda. Anche `customer_get` dell'MCP (`brand_id`).
+  - **Altri contatti** nel form e nella scheda in lettura di persone, aziende
+    e fornitori, anche in quella del referente (`HasContactPoints`):
+    controllati in `mutateRequestValues()`, mai al salvataggio della scheda,
+    mai email di accesso né destinatari di documenti.
+  - **Dati del brand**: la Resource del brand eredita logo, sito, dominio e
+    descrizione; funzionalità **Brand kit** (`brand_kit`, Anagrafiche, spenta,
+    richiede *Aziende*) per il kit. Logo del brand nell'ordine da ufficio e
+    nella scheda dell'ordine (`DocumentBrands::logoOf()`, URL solo http(s) o
+    del sito, escapato).
+  - **MCP** `customer_get`: `departments` dei legami, `contact_points`,
+    `brands` con i dati del brand (il kit solo con la funzionalità) e
+    `brand_ids` delle sedi.
+- **Con chi lavora il gestionale.** Due funzionalità nuove, area
+  *Anagrafiche*, accese di serie: **Clienti privati** (`private_customers`) e
+  **Aziende** (`companies`). Insieme danno il modo, letto solo da
+  `Support\Contacts\CustomerMode` (`current()`, `people()`, `companies()`):
+  persone e aziende, solo persone, solo aziende; spente insieme le rifiuta
+  `FeatureGuards` (`feature.customers_none`). *Solo persone*: niente menu,
+  pagine (anche dall'URL) e API delle aziende, né brand, referenti,
+  capogruppo e reparti; i fornitori restano con gli Acquisti, senza quelle
+  parti; *Account aziendali* ora richiede *Aziende* e si spegne con lei.
+  *Solo aziende*: le persone sono referenti, l'elenco mostra solo chi è legato
+  a un'azienda, una persona nuova non è cliente e va legata a un'azienda,
+  pagamento e listino delle persone spariscono. Ricerca del cliente, creazioni
+  rapide, ordine da ufficio e riquadro *Anagrafiche* della home seguono il
+  modo. Cambiare modo nasconde, non cancella.
+- **Ordine da ufficio e preventivo: cliente, referente e brand nuovi senza
+  lasciare la pagina.** *Nuova persona* / *Nuova azienda* (o *Nuovo cliente*)
+  aprono la creazione rapida del core e scelgono la scheda nata, con i riquadri
+  ridisegnati; *Aggiungi* accanto a Referente e Brand li crea già legati
+  all'azienda scelta (`link_company_id`), il brand in fondo ai suoi senza
+  toccare ruolo e predefinito degli altri. L'azienda dev'essere visibile a chi
+  scrive. Tolto il collegamento alla pagina di creazione del cliente.
 - **Commerciali (#77).** Nuova funzionalità `sales_agents` (area Vendite,
   richiede `orders` e `office_sales`) con il ruolo `sales_agent`, la tabella
   `gst_sales_agents` e la pagina *Anagrafiche → Commerciali*. Il commerciale
@@ -42,7 +95,50 @@ versionamento semantico.
   `quote_create` con `referent_id`. Richiede `wonder-image/customer-account`
   con `ContactRelations`.
 
+### Sicurezza
+- **Brand per riga.** Regola di visibilità su `company_brands`
+  (`SalesAgents::brandsRule()`): il commerciale vede, elenca, modifica e legge
+  via API solo i brand legati con un legame aperto a un'azienda sua; l'ufficio
+  come prima. Scelte dei select di brand e capogruppo ristrette
+  (`ContactVisibility::options()`), brand non visibili scartati al salvataggio
+  dell'azienda, brand principale e capogruppo non visibili rifiutati. La «+»
+  del brand, per lui, non aggancia un brand altrui con lo stesso nome
+  (messaggio generico), non nomina i simili e ricorda in sessione i brand che
+  crea; niente «Aggiungi» nella pagina del brand.
+- **Legami persona/azienda.** Al boot `ContactVisibility::register()` registra
+  `ContactRelations::useCounterpartFilter()` (scelte e scrittura dei legami
+  solo fra schede visibili, una query per chiamata, nessuna per chi vede tutto)
+  e `useAccessGuard()` (alza l'accesso all'area clienti solo chi vede tutte le
+  aziende e può modificarle). L'MCP mostra solo i legami visibili.
+- **Creazione rapida**: il referente si lega con `ContactRelations::attach()`
+  (solo il legame nuovo); una visibilità che non si legge vale «non visibile»;
+  valori non scalari valgono vuoto; un doppione non visibile si rifiuta senza
+  dire tipo né scheda. Anche il form: `contact.duplicate_hidden` al posto del
+  nome della scheda altrui.
+- **Il modo lato server**: niente sedi d'azienda né legami scritti senza le
+  aziende (`ContactAddressResource::run()`, `CustomerResource::syncRepeaterRelations()`),
+  niente pagine del brand; l'MCP (`customers_list`, `customer_get`) segue il
+  modo come le pagine (`ContactTools::kindShown()`). Le sedi e gli indirizzi di
+  consegna si toccano solo su schede visibili.
+- Non fatto: filtrare i legami cancellati nella regola dei contatti
+  (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
+
 ### Cambiato
+- **Referenti: «Reparto» diventa «Si occupa di»** (più aree, vuoto = tutto,
+  da customer-account): `DocumentReferents` non legge più `department` ma
+  `departments`; le righe di `people()` / `options()` portano `departments`.
+- **Anagrafiche: «Cliente» è un ruolo.** L'elenco delle persone si chiama
+  **Persone** (con persone e aziende) con il filtro **Ruolo** a vista (*Tutti*,
+  *Clienti*, *Referenti*, al posto di «Referenti: solo / senza»), **Clienti**
+  con le sole persone e **Referenti** con le sole aziende: titoli, *Aggiungi*,
+  *Scheda*, menu ed export seguono. Tabella, classi e percorsi non cambiano.
+- **La scheda di chi è solo referente si apre** dall'elenco (prima la scheda
+  in lettura rimandava all'elenco chi non era cliente): dati, aziende di cui è
+  referente e indirizzi di consegna, senza ordini, carrello, statistiche,
+  pagamento, listino, abbonamenti e coupon.
+- Una Resource delle anagrafiche con la funzionalità (o il modo) spenta non
+  riaccende più la sola scheda in lettura: prima i *Fornitori* senza Acquisti
+  avevano ancora la pagina `view`.
 - **Anagrafiche: ritocchi dopo la prova (#77).**
   - Nei riquadri *Referenti* e *Aziende* la scheda si cerca nella tendina e il
     **+** della riga la crea in una finestra (quick-create del core,

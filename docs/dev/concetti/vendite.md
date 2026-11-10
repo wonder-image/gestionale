@@ -298,14 +298,25 @@ Tutto passa da `Support\Contacts\DocumentReferents`:
 - `resolve($companyId, $personId)` controlla la persona scelta contro le
   opzioni e dà `customer_id` e `referent_name`. Un id che non è fra le opzioni
   diventa `0` / `''`;
-- `copyEmails($order, $company)` dà gli indirizzi in copia, senza doppioni e
-  senza quello che riceve già la mail: l'email dell'azienda e quelle dei
-  referenti;
+- `recipients($companyId, $document, $brandId)` dà chi riceve un documento:
+  `ContactRelations::peopleFor($companyId, area($document), $brandId)` con
+  `receives_documents`, il principale per primo; se nessuno corrisponde, tutti
+  quelli che ricevono i documenti (la regola di prima delle aree);
+- `AREAS` è l'unica mappa documento → area (`quote_sent`, `office_confirmed`,
+  `delivery_note_sent` → `purchasing`; `subscription.proforma`, `.reminder`,
+  `.payment_failed` → `administration`; il resto: nessuna area). Un modulo la
+  cambia con `useArea($document, $area)`;
+- `copyEmails($order, $company, $document)` dà gli indirizzi in copia, senza
+  doppioni e senza quello che riceve già la mail: l'email dell'azienda e
+  quelle principali dei `recipients()` (mai gli «altri contatti» di
+  `ContactPoints`). `OrderNotifier` passa la chiave dell'email,
+  `SubscriptionNotifier` `subscription.` + la sua;
 - `useReader()` serve solo ai test.
 
-Ogni riga di `people()` / `options()` porta anche `department` (il reparto di
-customer-account) e `role`: la mansione, o l'etichetta del reparto se la
-mansione è vuota. Le tendine dei referenti mostrano `role`.
+Ogni riga di `people()` / `options()` porta anche `departments` (le aree di
+cui si occupa, vuota = tutte) e `role`: la mansione, o le etichette delle aree
+(`areasLabel()`) se la mansione è vuota. Le tendine dei referenti mostrano
+`role`.
 
 ### Il brand
 
@@ -354,6 +365,59 @@ predefinito); la Resource che crea il brand al volo è
 `app/gestionale/brand` con i permessi dell'area contatti.
 
 DDT, resi e revisioni del preventivo non portano il brand: lo legge l'ordine.
+
+Le sedi proposte seguono il brand: `OfficeOrders::companyAddresses($companyId,
+$brandId)` legge `CompanyAddresses::addressesFor()` e le mette in ordine con
+`forBrand()` (pura): prima quelle del brand, poi quelle per tutti, in ogni
+gruppo la predefinita; la prima è la proposta (`customerDefaults()`, `proposed`
+nel pannello). Il pannello (`customers.php`, `customer-save.php`) riceve il
+brand della pagina in `oo_brand`; lo script, su `change` del brand, rilegge le
+sedi e spunta la proposta solo se l'operatore non ha già spuntato o salvato
+una sede (`touched`, vero anche per un documento riaperto). Il brand rimesso
+dallo script alla scelta del cliente (`autoBrand`) non rilegge. Nel form
+dell'azienda la colonna `brand_ids` del repeater degli indirizzi (con il
+marcatore `address_brands_form`) si toglie dal payload della riga in
+`prepareRepeaterRelationRow()`, si legge con `CompanyAddresses::withBrandIds()`
+e si scrive con `setBrands()` in `CompanyResource::syncRepeaterRelations()`,
+dopo i brand dell'azienda (su una scheda nuova sono legati solo allora):
+`setBrands()` tiene solo i brand legati all'azienda dell'indirizzo.
+
+Il logo del brand (`DocumentBrands::logoOf()` / `logoHtml()`, URL solo
+http(s) o del sito, tutto escapato) sta nella scheda dell'ordine e sotto la
+tendina del brand; lo script lo ridisegna con il DOM dai `brands` del pannello
+(`logo`). Il brand kit (`brand_kit`) lo accende
+`Contacts\CompanyBrandResource::useKit()` prima di disegnare o salvare il form
+del brand, non al boot: lì lo stato delle funzionalità si leggerebbe prima del
+database e resterebbe memorizzato «tutto spento».
+
+### Cliente, referente e brand creati dall'ordine
+
+La pagina non manda più alla creazione del cliente: usa la creazione rapida
+del core (`QuickCreateModal`, `QuickCreateStore`), e le finestre hanno campi
+loro, senza `getInput()` (che costruirebbe ogni volta il form intero della
+scheda, con le tendine di tutte le aziende).
+
+- **Nuova persona / Nuovo cliente** e **Nuova azienda**:
+  `OfficeOrderPage::newCustomerButtons()`, due `QuickCreateButton` su
+  `CustomerResource` (con `role` = `customer`) e `CompanyResource`, secondo
+  `CustomerMode`. Il bottone porta `data-wi-oo-new` (`contact`/`company`): lo
+  script della pagina, su `wi:quick-create:created`, sceglie la chiave
+  composta nella ricerca con `wiRemoteSearch.select()`, che fa partire
+  `wi:search-select` e quindi il caricamento del pannello come a mano.
+- **Referente** e **Brand**: `quickCreate()` sulle due tendine; l'adapter
+  `select` del core aggiunge e sceglie l'opzione. Le loro finestre hanno il
+  campo nascosto `link_company_id` (`QuickContacts::LINK_COMPANY`, non
+  `company_id` per non scambiarsi con quello dell'ordine), scritto dallo script
+  su `show.bs.modal` con l'azienda scelta.
+- Lato server `QuickContacts::person()` lega la persona all'azienda dal lato
+  della persona, ripassando a `ContactRelations::sync()` i suoi legami vivi tali
+  e quali; `CompanyBrandResource::quickCreateStore()` aggiunge il brand con
+  `CompanyBrands::sync()` ripassando quelli aperti con ruolo e predefinito.
+  L'azienda deve essere viva e visibile a chi scrive
+  (`QuickContacts::reachableCompany()`, `RowVisibility`) e si controlla prima
+  di creare. Permessi (area contatti) e CSRF li controlla il proxy del core;
+  dal modal passano solo nome, cognome, email, `role` e l'azienda (o ragione
+  sociale e P.IVA, o il nome del brand).
 
 Il DDT eredita `company_id` e `referent_name` dall'ordine (`DeliveryNotes`), e
 il PDF stampa il referente «Alla c.a.» nel riquadro del cliente

@@ -27,7 +27,8 @@ use Wonder\Plugin\Gestionale\Support\Stock\StockValue;
  *
  * Cambia il titolo, l'indirizzo, il filtro e la funzionalità che lo governa.
  * Un'azienda cliente e fornitore compare in «Aziende» e qui, e si modifica
- * una volta sola. La scheda in lettura è come quella del cliente, con quello
+ * una volta sola. I fornitori sono sempre aziende e restano anche con il
+ * gestionale «solo persone»: li governano gli Acquisti, non `CustomerMode`. La scheda in lettura è come quella del cliente, con quello
  * che conta per un fornitore: i suoi dati, i carichi e gli articoli che vende.
  */
 final class SupplierResource extends CompanyResource
@@ -38,6 +39,11 @@ final class SupplierResource extends CompanyResource
     public const RECENT_RECEIPTS = 20;
 
     public static function hasSheet(): bool
+    {
+        return true;
+    }
+
+    public static function shownInMode(): bool
     {
         return true;
     }
@@ -114,6 +120,7 @@ final class SupplierResource extends CompanyResource
             (new Card)->components([
                 SectionTitle::make('Tutti i suoi dati')->columnSpan(12),
                 ...CustomerSheet::data($contact, '—'),
+                ...static::pointItems($id),
             ])->columns(12)->columnSpan(12),
             $accordion('Carichi', static::receiptsTable(static::receipts($id)), true),
             $accordion('Articoli forniti', static::productsTable(static::supplied($id))),

@@ -8,8 +8,8 @@ use Wonder\App\Visibility\RowVisibility;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
+use Wonder\Plugin\CustomerAccount\Support\CompanyAddresses;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
-use Wonder\Plugin\CustomerAccount\Models\CompanyAddress;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
@@ -23,6 +23,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\Code;
 use Wonder\Plugin\Gestionale\Support\Catalog\Customizations;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Codes;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 use Wonder\Plugin\Gestionale\Support\Documents\DocumentData;
@@ -185,13 +186,15 @@ final class OfficeOrders
      *
      * Con un'azienda valgono i suoi (fattura da società) e la persona è il
      * referente: quella passata se è fra i suoi, altrimenti il principale.
+     * La consegna proposta segue il brand (`$brandId`; `null` = il brand
+     * proposto all'azienda): prima le sedi di quel brand, poi quelle per tutti.
      *
      * @return array<string, mixed>
      */
-    public static function customerDefaults(int $contactId, int $companyId = 0): array
+    public static function customerDefaults(int $contactId, int $companyId = 0, ?int $brandId = null): array
     {
         if ($companyId > 0) {
-            return self::companyDefaults($companyId, $contactId);
+            return self::companyDefaults($companyId, $contactId, $brandId);
         }
 
         $contact = self::alive(Contact::class, $contactId);
@@ -227,7 +230,7 @@ final class OfficeOrders
     }
 
     /** @return array<string, mixed> */
-    private static function companyDefaults(int $companyId, int $personId): array
+    private static function companyDefaults(int $companyId, int $personId, ?int $brandId = null): array
     {
         $company = self::alive(Company::class, $companyId);
 
@@ -236,7 +239,7 @@ final class OfficeOrders
         }
 
         // Il referente proposto è il principale fra chi segue il brand proposto.
-        $brandId = self::defaultBrand($companyId);
+        $brandId = $brandId ?? self::defaultBrand($companyId);
         $referent = DocumentReferents::resolve($companyId, $personId > 0 ? $personId : DocumentReferents::defaultFor($companyId, $brandId));
         $person = self::alive(Contact::class, (int) $referent['customer_id']);
 
@@ -257,7 +260,7 @@ final class OfficeOrders
         }
         $out['billing_type'] = 'business';
 
-        $address = self::defaultAddress($companyId, true);
+        $address = self::companyAddresses($companyId, $brandId)[0] ?? [];
 
         foreach (self::shippingKeys() as $key) {
             $source = $address !== [] ? $address : $company;
@@ -858,6 +861,12 @@ final class OfficeOrders
                 throw UserError::make('office_order.customer_unknown');
             }
 
+            // Il modo del gestionale vale per il cliente scelto adesso: un
+            // documento di prima resta com'è (cambiare modo nasconde, non cancella).
+            if (!CustomerMode::companies() && (int) ($order['company_id'] ?? 0) !== $companyId) {
+                throw UserError::make('office_order.customer_people_only');
+            }
+
             $brand = DocumentBrands::resolve(
                 $companyId,
                 array_key_exists('company_brand_id', $data) ? max(0, (int) $data['company_brand_id']) : null,
@@ -869,10 +878,14 @@ final class OfficeOrders
             $personId = array_key_exists('customer_id', $data) ? $customerId : DocumentReferents::defaultFor($companyId, $brandId);
             $values = $brand + DocumentReferents::resolve($companyId, $personId) + $values;
             $customerId = (int) $values['customer_id'];
-            $defaults = self::customerDefaults($customerId, $companyId);
+            $defaults = self::customerDefaults($customerId, $companyId, $brandId);
         } elseif ($customerId > 0) {
             if (self::alive(Contact::class, $customerId) === [] || !self::reachable(Contact::$table, $customerId)) {
                 throw UserError::make('office_order.customer_unknown');
+            }
+
+            if (!CustomerMode::people() && ((int) ($order['customer_id'] ?? 0) !== $customerId || (int) ($order['company_id'] ?? 0) > 0)) {
+                throw UserError::make('office_order.customer_companies_only');
             }
 
             $defaults = self::customerDefaults($customerId);
@@ -1025,13 +1038,57 @@ final class OfficeOrders
         return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
     }
 
-    /** @return array<string, mixed> */
-    private static function defaultAddress(int $ownerId, bool $company = false): array
+    /**
+     * Le sedi di consegna di un'azienda per il brand di un documento, nell'ordine
+     * in cui si propongono: la prima è quella proposta.
+     *
+     * @return list<array<string, mixed>> con `brand_ids` (vuota = per tutti i brand)
+     */
+    public static function companyAddresses(int $companyId, int $brandId = 0): array
     {
         try {
-            $rows = $company
-                ? CompanyAddress::find(['company_id' => $ownerId, 'deleted' => 'false'], null, 'position', 'ASC')
-                : ContactAddress::find(['contact_id' => $ownerId, 'deleted' => 'false'], null, 'position', 'ASC');
+            $rows = CompanyAddresses::addressesFor($companyId, max(0, $brandId));
+        } catch (Throwable) {
+            return [];
+        }
+
+        return self::forBrand($rows, $brandId);
+    }
+
+    /**
+     * Le sedi in ordine per un brand: prima quelle di quel brand, poi quelle
+     * per tutti; in ogni gruppo la predefinita, poi la posizione. Quelle di
+     * altri brand e quelle cancellate restano fuori. Pura.
+     *
+     * @param list<array<string, mixed>> $rows con `brand_ids`
+     * @return list<array<string, mixed>>
+     */
+    public static function forBrand(array $rows, int $brandId): array
+    {
+        $rows = array_values(array_filter($rows, static function ($row) use ($brandId): bool {
+            if (!is_array($row) || ($row['deleted'] ?? 'false') === 'true') {
+                return false;
+            }
+
+            $brands = array_map('intval', (array) ($row['brand_ids'] ?? []));
+
+            return $brandId <= 0 || $brands === [] || in_array($brandId, $brands, true);
+        }));
+        $key = static fn (array $row): array => [
+            $brandId > 0 && in_array($brandId, array_map('intval', (array) ($row['brand_ids'] ?? [])), true) ? 0 : 1,
+            (string) ($row['is_default'] ?? '') === 'true' ? 0 : 1,
+            (int) ($row['position'] ?? 0),
+        ];
+        usort($rows, static fn (array $a, array $b): int => $key($a) <=> $key($b));
+
+        return $rows;
+    }
+
+    /** @return array<string, mixed> */
+    private static function defaultAddress(int $ownerId): array
+    {
+        try {
+            $rows = ContactAddress::find(['contact_id' => $ownerId, 'deleted' => 'false'], null, 'position', 'ASC');
         } catch (Throwable) {
             return [];
         }

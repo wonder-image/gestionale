@@ -8,6 +8,27 @@ require __DIR__ . '/harness.php';
 use Wonder\Plugin\CustomerAccount\Support\ContactRelations;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentReferents;
 
+// Le etichette delle aree chiedono `__t()`, che esiste solo a sito avviato:
+// qui una finta che legge i file di lingua come il core.
+if (!function_exists('__t')) {
+    function __t(string $key, array $replacements = []): string
+    {
+        static $file = [];
+        [$nome, $resto] = explode('.', $key, 2) + [1 => ''];
+        $percorso = $nome === 'contacts'
+            ? __DIR__.'/../vendor/wonder-image/customer-account/lang/it/contacts.json'
+            : __DIR__.'/../lang/it/'.$nome.'.json';
+        $file[$nome] ??= (array) json_decode((string) @file_get_contents($percorso), true);
+        $nodo = $file[$nome];
+
+        foreach (explode('.', $resto) as $passo) {
+            $nodo = is_array($nodo) ? ($nodo[$passo] ?? null) : null;
+        }
+
+        return is_string($nodo) ? $nodo : $key;
+    }
+}
+
 function riga(int $id, array $legame = [], array $persona = []): array
 {
     return $legame + [
@@ -63,7 +84,7 @@ check('l\'opzione porta nome, email ripulita, ruolo e principale', function () {
     return $prima['name'] === 'Cognome1 Nome1'
         && $prima['email'] === 'p1@example.com'
         && $prima['job_title'] === 'Acquisti'
-        && $prima['role'] === 'Acquisti' && $prima['department'] === ''
+        && $prima['role'] === 'Acquisti' && $prima['departments'] === []
         && $prima['is_primary'] === true;
 });
 
@@ -157,6 +178,84 @@ check('un errore di lettura lascia l\'elenco vuoto', function () {
     return $out;
 });
 
+// Le aree (#«Si occupa di»): `peopleFor()` di customer-account, qui imitato
+// dal lettore finto: chi si occupa dell'area o di tutto, e segue il brand o tutti.
+$aree = [
+    riga(1, ['is_primary' => 'true', 'departments' => []]),
+    riga(2, ['departments' => ['purchasing']]),
+    riga(3, ['departments' => ['administration']]),
+    riga(4, ['departments' => ['purchasing'], 'receives_documents' => 'false']),
+    riga(5, ['departments' => ['purchasing'], 'brand_ids' => [9]]),
+];
+$perArea = static function (int $id, int $brand = 0, string $area = '') use ($aree): array {
+    return array_values(array_filter($aree, static fn (array $r): bool =>
+        ($area === '' || ($r['departments'] ?? []) === [] || in_array($area, $r['departments'], true))
+        && ($brand === 0 || !isset($r['brand_ids']) || in_array($brand, $r['brand_ids'], true))));
+};
+
+check('ogni documento ha la sua area, in un punto solo; un documento sconosciuto nessuna', function () {
+    $prima = DocumentReferents::area('delivery_note_sent');
+    DocumentReferents::useArea('delivery_note_sent', 'technical');
+    $dopo = DocumentReferents::area('delivery_note_sent');
+    DocumentReferents::useArea('delivery_note_sent', DocumentReferents::AREAS['delivery_note_sent']);
+
+    return DocumentReferents::area('quote_sent') === 'purchasing'
+        && DocumentReferents::area('office_confirmed') === 'purchasing'
+        && DocumentReferents::area('subscription.proforma') === 'administration'
+        && DocumentReferents::area('subscription.payment_failed') === 'administration'
+        && DocumentReferents::area('order.whatever') === ''
+        && $prima === 'purchasing' && $dopo === 'technical';
+});
+
+check('il preventivo va a chi si occupa degli acquisti o di tutto e riceve i documenti, il principale per primo', function () use ($perArea) {
+    DocumentReferents::useReader($perArea);
+    $ids = array_column(DocumentReferents::recipients(10, 'quote_sent'), 'id');
+    $proforma = array_column(DocumentReferents::recipients(10, 'subscription.proforma'), 'id');
+    $brand = array_column(DocumentReferents::recipients(10, 'quote_sent', 7), 'id');
+
+    return $ids === [1, 2, 5] && $proforma === [1, 3] && $brand === [1, 2];
+});
+
+check('se nessuno corrisponde all\'area vale la regola di prima: tutti quelli che ricevono i documenti', function () {
+    // Nessuno si occupa della direzione né di tutto: l'area non trova nessuno.
+    $soloAree = [riga(2, ['departments' => ['purchasing']]), riga(3, ['departments' => ['administration']]), riga(6, ['receives_documents' => 'false', 'is_primary' => 'true'])];
+    DocumentReferents::useReader(static fn (int $id, int $brand = 0, string $area = ''): array => array_values(array_filter(
+        $soloAree,
+        static fn (array $r): bool => $area === '' || in_array($area, $r['departments'] ?? [], true)
+    )));
+    DocumentReferents::useArea('quote_sent', 'management');
+    $ripiego = array_column(DocumentReferents::recipients(10, 'quote_sent'), 'id');
+    DocumentReferents::useArea('quote_sent', 'purchasing');
+    $nessunaArea = array_column(DocumentReferents::recipients(10, 'order.whatever'), 'id');
+
+    return $ripiego === [2, 3] && $nessunaArea === [2, 3];
+});
+
+check('un\'azienda che non compila le aree non cambia: tutti quelli che ricevono i documenti', function () use ($righe) {
+    DocumentReferents::useReader(fn (int $id): array => $id === 10 ? $righe : []);
+
+    return array_column(DocumentReferents::recipients(10, 'quote_sent'), 'id') === [1, 2]
+        && array_column(DocumentReferents::recipients(10, 'subscription.reminder'), 'id') === [1, 2];
+});
+
+check('in copia l\'area del documento e il brand dell\'ordine, solo le email principali', function () use ($perArea) {
+    DocumentReferents::useReader($perArea);
+    $preventivo = DocumentReferents::copyEmails(['company_id' => 10, 'email' => 'info@rossi.it', 'company_brand_id' => 7], ['id' => 10, 'email' => 'info@rossi.it'], 'quote_sent');
+    $proforma = DocumentReferents::copyEmails(['company_id' => 10, 'email' => 'info@rossi.it'], ['id' => 10, 'email' => 'info@rossi.it'], 'subscription.proforma');
+
+    return $preventivo === ['p1@example.com', 'p2@example.com'] && $proforma === ['p1@example.com', 'p3@example.com'];
+});
+
+check('senza mansione il ruolo sono le aree di cui si occupa', function () use ($perArea) {
+    DocumentReferents::useReader($perArea);
+    $terzo = DocumentReferents::people(10)[2];
+
+    return $terzo['departments'] === ['administration'] && $terzo['role'] === 'Amministrazione'
+        && DocumentReferents::areasLabel(['purchasing', 'administration', 'sconosciuta']) === 'Acquisti, Amministrazione'
+        && DocumentReferents::areasLabel([]) === '';
+});
+
+DocumentReferents::useReader(null);
 ContactRelations::useEnabled(null);
 
 summary();

@@ -18,6 +18,8 @@ use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Contacts\ContactAddress;
+use Wonder\Plugin\Gestionale\Support\Contacts\ContactVisibility;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
 
 /**
@@ -176,10 +178,17 @@ final class ContactAddressResource extends NavigationOnlyResource
      */
     public static function run(string $action, int $contactId, int $addressId, array $values = [], string $owner = self::OWNER_CONTACT): array
     {
+        // Le sedi delle aziende ci sono solo dove ci sono le aziende (`CustomerMode`).
+        if ($owner === self::OWNER_COMPANY && !CustomerMode::companies()) {
+            return ['ok' => false, 'message' => 'Scheda non trovata.'];
+        }
+
         $ownerModel = static::owner($owner)['owner'];
         $contact = $contactId > 0 ? $ownerModel::findById($contactId) : null;
 
-        if (!is_array($contact) || $contact === [] || (string) ($contact['deleted'] ?? 'false') === 'true') {
+        // Una scheda che chi scrive non vede (il commerciale: solo le sue) è come se non ci fosse.
+        if (!is_array($contact) || $contact === [] || (string) ($contact['deleted'] ?? 'false') === 'true'
+            || ContactVisibility::visibleIds($ownerModel::$table, [$contactId]) === []) {
             return ['ok' => false, 'message' => 'Scheda non trovata.'];
         }
 

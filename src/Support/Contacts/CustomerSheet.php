@@ -58,12 +58,13 @@ final class CustomerSheet
     /**
      * I dati della scheda, un `DataItem` ciascuno: tipo, nome, ruolo, stato,
      * contatti, accesso al sito, note. Quelli di fatturazione sono in
-     * `billing()`. Dove non c'è un valore compare un trattino.
+     * `billing()`. Dove non c'è un valore compare un trattino. `$role`
+     * prende il posto del ruolo salvato (il referente non ne ha uno).
      *
      * @param array<string, mixed> $contact
      * @return list<DataItem>
      */
-    public static function data(array $contact, string $access): array
+    public static function data(array $contact, string $access, string $role = ''): array
     {
         $get = static fn (string $key): string => trim((string) ($contact[$key] ?? ''));
         $dato = static fn (string $etichetta, string $valore, bool $html = false, int $colonne = 4): DataItem => DataItem::make($etichetta, $valore)
@@ -74,7 +75,7 @@ final class CustomerSheet
             ? [$dato('Tipo', 'Azienda'), $dato('Ragione sociale', $get('business_name'))]
             : [$dato('Tipo', 'Persona'), $dato('Nome', trim($get('name').' '.$get('surname')))];
 
-        $items[] = $dato('Ruolo', Contacts::roles($contact));
+        $items[] = $dato('Ruolo', $role !== '' ? $role : Contacts::roles($contact));
         $items[] = $dato('Stato', ($contact['active'] ?? 'true') === 'false'
             ? Badge::make('Non attiva')->variant('secondary')->inline()->render('bootstrap')
             : Badge::make('Attiva')->variant('success')->inline()->render('bootstrap'), true);
@@ -84,6 +85,41 @@ final class CustomerSheet
         $items[] = $dato('Note', $get('note') !== '' ? nl2br(OrderSheet::esc($get('note'))) : '', true, 12);
 
         return $items;
+    }
+
+    /**
+     * Gli altri contatti della scheda (email e telefoni in più di
+     * customer-account), un recapito per riga con la sua etichetta. Vuota
+     * senza recapiti: la scheda non mostra una voce vuota. Tutto escapato.
+     *
+     * @param list<array{kind?: string, value?: string, phone_prefix?: string, label?: string}> $points
+     * @param array<string, string> $labels etichetta => testo (`ContactPoints::labels()`)
+     * @return list<DataItem>
+     */
+    public static function points(array $points, array $labels = []): array
+    {
+        $lines = [];
+
+        foreach ($points as $point) {
+            $value = trim((string) ($point['value'] ?? ''));
+
+            if ($value === '') {
+                continue;
+            }
+
+            if (($point['kind'] ?? '') === 'phone') {
+                $value = trim((string) ($point['phone_prefix'] ?? '').' '.$value);
+            }
+
+            $label = $labels[(string) ($point['label'] ?? '')] ?? '';
+            $lines[] = OrderSheet::esc($value).($label !== '' ? ' <span class="text-muted">· '.OrderSheet::esc($label).'</span>' : '');
+        }
+
+        if ($lines === []) {
+            return [];
+        }
+
+        return [DataItem::make('Altri contatti', implode('<br>', $lines))->html(true)->columnSpan(['default' => 12, 'sm' => 8])];
     }
 
     /**

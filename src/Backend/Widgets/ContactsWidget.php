@@ -13,6 +13,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\SupplierResource;
+use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 
 /**
  * "Anagrafiche": quanti clienti (persone), quante aziende e quanti fornitori.
@@ -22,7 +23,8 @@ use Wonder\Plugin\Gestionale\Resources\Contacts\SupplierResource;
  * che nei primi giorni è l'operazione più frequente.
  *
  * I fornitori compaiono solo con la funzionalità *Acquisti* sbloccata: senza,
- * quella parola non esiste in tutto il pannello (D20).
+ * quella parola non esiste in tutto il pannello (D20). Clienti privati e
+ * aziende seguono il modo del gestionale (`CustomerMode`).
  */
 final class ContactsWidget implements HomeWidget
 {
@@ -45,17 +47,23 @@ final class ContactsWidget implements HomeWidget
     public function render(): string
     {
         return self::markup(
-            self::count(Contact::class, 'is_customer'),
+            CustomerMode::people() ? self::count(Contact::class, 'is_customer') : null,
             Gestionale::feature('purchasing') ? self::count(Company::class, 'is_supplier') : null,
-            self::count(Company::class, 'deleted', 'false')
+            CustomerMode::companies() ? self::count(Company::class, 'deleted', 'false') : null
         );
     }
 
-    /** `null` fra i fornitori vuol dire "gli acquisti sono bloccati"; fra le aziende, "non contate". */
-    public static function markup(int $customers, ?int $suppliers, ?int $companies = null): string
+    /**
+     * `null` fra i fornitori vuol dire "gli acquisti sono bloccati"; fra i
+     * clienti e le aziende, "non contati" (il gestionale non lavora con loro).
+     */
+    public static function markup(?int $customers, ?int $suppliers, ?int $companies = null): string
     {
-        $card = LinkListCard::make('Anagrafiche')->icon('bi-people')->count(false)
-            ->link('Clienti', '/backend/'.CustomerResource::path(), '', '', self::text($customers, 'cliente', 'clienti'));
+        $card = LinkListCard::make('Anagrafiche')->icon('bi-people')->count(false);
+
+        if ($customers !== null) {
+            $card->link('Clienti', '/backend/'.CustomerResource::path(), '', '', self::text($customers, 'cliente', 'clienti'));
+        }
 
         if ($companies !== null) {
             $card->link('Aziende', '/backend/'.CompanyResource::path(), '', '', self::text($companies, 'azienda', 'aziende', 'Nessuna ancora'));

@@ -47,11 +47,13 @@ check('le persone stanno nei contatti, aziende e fornitori nelle aziende', fn ()
     && SupplierResource::$model === Company::class
 );
 
+// Con persone e aziende (lo stato di serie) l'elenco delle persone è «Persone»:
+// gli altri modi li prova CustomerModeTest.
 check('ognuno ha il suo indirizzo e il suo titolo', fn () =>
     CustomerResource::path() === 'app/gestionale/clienti'
     && CompanyResource::path() === 'app/gestionale/aziende'
     && SupplierResource::path() === 'app/gestionale/fornitori'
-    && CustomerResource::titleLabel() === 'Clienti'
+    && CustomerResource::titleLabel() === 'Persone'
     && CompanyResource::titleLabel() === 'Aziende'
     && SupplierResource::titleLabel() === 'Fornitori'
 );
@@ -205,15 +207,21 @@ check('con gli acquisti bloccati un ruolo arrivato da fuori non conta', function
 
 $forza([]);
 
-check('clienti, aziende e fornitori hanno ciascuno la sua scheda in lettura', function () {
+check('clienti, aziende e fornitori hanno ciascuno la sua scheda in lettura', function () use ($forza) {
     $clienti = json_encode(CustomerResource::pageSchema()->toArray());
     $aziende = json_encode(CompanyResource::pageSchema()->toArray());
+    $forza(['purchasing' => true]);
     $fornitori = json_encode(SupplierResource::pageSchema()->toArray());
+    $forza(['purchasing' => false]);
+    // Con gli acquisti spenti nemmeno la scheda in lettura dei fornitori.
+    $spenti = json_encode(SupplierResource::pageSchema()->toArray());
+    $forza([]);
 
     return CustomerResource::hasSheet() && CompanyResource::hasSheet() && SupplierResource::hasSheet()
         && str_contains($clienti, 'customer-show.php')
         && str_contains($aziende, 'company-show.php')
-        && str_contains($fornitori, 'supplier-show.php') && !str_contains($fornitori, 'company-show.php');
+        && str_contains($fornitori, 'supplier-show.php') && !str_contains($fornitori, 'company-show.php')
+        && !str_contains($spenti, 'supplier-show.php');
 });
 
 check('la scheda del fornitore: carichi e articoli forniti, o la frase se non ce ne sono', fn () =>

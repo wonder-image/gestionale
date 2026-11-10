@@ -24,6 +24,8 @@ use Wonder\Plugin\Gestionale\Support\Subscriptions\Subscriptions;
  * singoli nel catalogo: spenta, sparirebbero dal menu ma resterebbero in
  * vendita. Vale anche quando si spegnerebbe a catena,
  * per una dipendenza tolta.
+ * «Clienti privati» e «Aziende» non si spengono insieme: il gestionale
+ * lavora almeno con una delle due.
  * «Acquisti» e «Lotti e scadenze» si spengono sempre: i dati restano,
  * nascosti, e tornano alla riaccensione.
  */
@@ -68,6 +70,13 @@ final class FeatureGuards
             if ($models > 0) {
                 throw UserError::make('feature.variants_in_use', ['count' => self::variantsLabel($models)]);
             }
+        }
+
+        // Il gestionale lavora con le persone, con le aziende o con tutte e
+        // due (`CustomerMode`): senza nessuna delle due non avrebbe clienti.
+        if ((self::turnsOff('private_customers', $current, $next) || self::turnsOff('companies', $current, $next))
+            && ($next['private_customers'] ?? false) === false && ($next['companies'] ?? false) === false) {
+            throw UserError::make('feature.customers_none');
         }
     }
 

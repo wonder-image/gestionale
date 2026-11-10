@@ -8,7 +8,8 @@ use Wonder\Plugin\Gestionale\Support\Sales\OfficeSearch;
 // aziende con la chiave composta (`contact:12`, `company:7`), senza solo
 // persone con l'id numerico (abbonamenti). `key` (o `id`, una persona) dà i
 // dati che la scheda propone e i riquadri della colonna del cliente; per
-// un'azienda `referent` è la persona scelta come referente.
+// un'azienda `referent` è la persona scelta come referente e `oo_brand` il
+// brand del documento, per le sedi (assente: il brand proposto all'azienda).
 $key = ApiRequest::string('key');
 [$contactId, $companyId] = $key !== '' ? OfficeSearch::parseCustomerKey($key) : [ApiRequest::int('id'), 0];
 
@@ -18,7 +19,8 @@ if ($companyId > 0 && ApiRequest::int('referent') > 0) {
 }
 
 if ($contactId > 0 || $companyId > 0) {
-    ApiRequest::ok(OfficeCustomerPanel::payload($contactId, $companyId) ?: ['customer' => (object) []]);
+    $brand = ApiRequest::string('oo_brand');
+    ApiRequest::ok(OfficeCustomerPanel::payload($contactId, $companyId, $brand === '' ? null : max(0, (int) $brand)) ?: ['customer' => (object) []]);
 }
 
 // `items` è la forma che legge la ricerca remota del core.
